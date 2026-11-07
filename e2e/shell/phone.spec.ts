@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
 import { givenOf, motionSettled, pullHeld, sheetFloat, sheetFoot } from "../signals";
+import { apiGet } from "../workspace";
 
 /**
  * The phone shell, on a real workspace at a phone's width.
@@ -317,15 +318,21 @@ test.describe("Phone shell on a real workspace", () => {
   /**
    * Live's call panel head wraps before it squeezes. Its titles were `flex: 1` beside controls that would
    * not shrink, so on a phone the name had ~90px and the meta line's number and start time fell into
-   * columns one word wide. The head is there only with a call open (one on the line, or one a link names), so a
-   * workspace with nobody on the line skips it. Read-only: nothing here is pressed.
+   * columns one word wide. The head is there only with a call open (one on the line, or one a link names), and a phone
+   * draws it beside the calls only for one a link names: one on the line is a screen of its own, with a head of its own.
+   * So it opens the call the workspace last had, by its link. Read-only: nothing here is pressed.
    */
   test("Live: the call panel's head gives the name the width, and each fact stays on one line", async ({ page }) => {
-    await page.goto("/#/live");
+    const { calls } = (await (await apiGet(page, "/api/v1/calls")).json()).data as {
+      calls: Array<{ id: string; status: string }>;
+    };
+    const call = calls.find((c) => c.status === "ended");
+    test.skip(!call, "no call has ended here: no panel head to measure");
+    await page.goto(`/#/live/${call?.id}`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("live-real")).toBeVisible();
     const head = page.locator(".lm-head").first();
-    test.skip((await head.count()) === 0, "nobody is on the line: no panel head to measure");
+    await expect(head).toBeVisible();
     const width = page.viewportSize()?.width ?? 390;
     const titles = await page.locator(".lm-head-titles").first().boundingBox();
     expect(titles && titles.width >= Math.min(260, width - 40), `the name and its facts had ${titles?.width}px`).toBe(
@@ -1383,7 +1390,8 @@ test.describe("Phone shell on a real workspace", () => {
     test.skip(ids.length === 0, "nobody on this workspace");
     let tabs = 0;
     for (const id of ids) {
-      await page.goto(`/#/clients/${id}`);
+      // On History's own tab: a person with any record opens on their Overview, and draws the strip nowhere else.
+      await page.goto(`/#/clients/${id}/history`);
       await expect(page.getByTestId("person-now")).toBeVisible();
       await page.waitForLoadState("networkidle");
       tabs = await page.locator(".cl-tl-filters .subtab").count();

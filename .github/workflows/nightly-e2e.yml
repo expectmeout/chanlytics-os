@@ -218,9 +218,13 @@ jobs:
           cat next-start.log
           exit 1
       # The run's own workspace, before any spec signs in: a test owner with exactly one membership, fake people, one
-      # conversation, one call and a WhatsApp channel with no credentials.
+      # conversation, one call and a WhatsApp channel with no credentials. And, on a copy alone, what production's sweeps
+      # would act on there: the eval's paused Win-back, a run waiting for an OK and emails handed to their owner. Nothing
+      # sweeps here, and the check of production below passes neither.
       - name: The run's own workspace, in its known state
-        run: node --import tsx tooling/scripts/ops/e2e-workspace.mjs --apply
+        run: node --import tsx tooling/scripts/ops/e2e-workspace.mjs --apply --seed-win-back
+      - name: What only a copy may hold
+        run: node --import tsx tooling/scripts/e2e-harness/copy-states.mjs
       - run: pnpm e2e:install
       # One retry: a copy on this machine has no network to forgive, and a retry that passes hides a flake.
       - name: Every spec
