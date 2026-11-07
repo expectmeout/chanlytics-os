@@ -21,6 +21,12 @@
   flex: none;
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.files-head-act[data-away] {
+  visibility: hidden;
+  opacity: 0;
 }
 
 /* More shelves than a phone's width holds: the row keeps its line and slides under a thumb. */
@@ -36,11 +42,115 @@
   white-space: nowrap;
 }
 
-.files-grid {
+/* The card goes to each new height (useHeightGlide): what it holds doesn't stand past its edge on the way. */
+.files-page[data-glides] {
+  overflow: clip;
+}
+
+/* A file brought over the page: the ring says it will take it, and nothing moves. */
+.files-ring {
+  position: absolute;
+  inset: 4px;
+  border-radius: calc(var(--surface-pane-radius) - 4px);
+  box-shadow: var(--focus-field-edged);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.files-page[data-dropping] .files-ring {
+  opacity: 1;
+}
+
+/* The empty tiles stand behind the grid, in its own columns, so a first photo lands on one and nothing jumps. */
+.files-wall {
+  position: relative;
   display: grid;
+  margin-top: 14px;
+}
+
+.files-wall > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.files-grid,
+.files-blanks {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
-  margin-top: 14px;
+}
+
+.files-grid {
+  display: grid;
+}
+
+/* One row of them, however many the width fits, gone with a fade once the library holds something. */
+.files-blanks {
+  display: none;
+  grid-template-rows: auto;
+  grid-auto-rows: 0;
+  row-gap: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    display var(--duration-base) allow-discrete;
+}
+
+.files-blanks[data-on] {
+  display: grid;
+  opacity: 1;
+}
+
+.files-blank {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset-fill);
+}
+
+/* A photo waiting its turn is one of them, until it has a picture of its own. */
+.files-going:not([data-state="arrived"]) span.files-pic {
+  background: var(--surface-inset-fill);
+}
+
+.files-none {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.files-none-says {
+  max-width: 46ch;
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--ink-dim);
+}
+
+.files-none-acts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* A hand with a mouse can drag; a thumb has nothing to drop. */
+.files-or-drop {
+  display: none;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.files-page[data-dropping] .files-or-drop {
+  opacity: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .files-or-drop {
+    display: inline;
+  }
 }
 
 .files-photo {
@@ -280,7 +390,10 @@ span.files-big {
   .files-pic,
   .files-big,
   .files-frame,
-  .files-sent {
+  .files-sent,
+  .files-ring,
+  .files-blanks,
+  .files-head-act {
     transition: none;
   }
 
@@ -292,13 +405,19 @@ span.files-big {
 
 /* A phone scans photos in threes, edge to edge, as its own camera roll taught it. What failed still says its name. */
 @media (max-width: 720px) {
-  .files-grid {
+  .files-grid,
+  .files-blanks {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 3px;
   }
 
+  .files-blanks {
+    row-gap: 0;
+  }
+
   .files-pic,
-  .files-open {
+  .files-open,
+  .files-blank {
     border-radius: var(--radius-sm);
   }
 

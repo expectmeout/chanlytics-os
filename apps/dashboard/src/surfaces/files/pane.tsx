@@ -9,6 +9,10 @@
  * that newly imports the kit's pays for it on every tab. A member who may not change a file reads it, with nothing dead to
  * press. The presses are verbs.ts's, which the doors check again; what is on its way is sending.ts's. The words are contracts'
  * (FILE_WORDS), the parts the kit's. This module is the page; photo.tsx its tiles, file-sheet.tsx one file opened.
+ *
+ * With nothing here the page is the grid with nothing in it: empty tiles at the size a photo draws, what to do under them, and the first
+ * photos land in those same squares, so nothing jumps. A desk can bring photos to the whole page, by dragging or pasting them, as well as
+ * pick them (kit/drop).
  */
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
@@ -21,10 +25,13 @@ import {
   type FilesTally,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
+import { usePageTakesFiles } from "../kit/drop/drop";
 import { EmptyState } from "../kit/empty/empty";
 import { LineFiles } from "../kit/line/line";
 import { Notice } from "../kit/notice/notice";
+import { Press } from "../kit/press";
 import { Segmented } from "../kit/segmented/segmented";
+import { useHeightGlide } from "../kit/motion/use-height-glide";
 import { useSwapMotion } from "../kit/motion/use-swap-motion";
 import { doAsked } from "../kit/sheet/back";
 import { canDo, gate, refreshSurface, type FrameFlash } from "../frame-verbs";
@@ -93,6 +100,9 @@ function MoreFiles({ more, busy, shown }: { more: () => void; busy: boolean; sho
 /** How near the end of a shelf the next page is asked for: a thumb's flick away, so it is there as they arrive. */
 const MORE_NEAR: IntersectionObserverInit = { rootMargin: "800px 0px" };
 
+/** The empty tiles an empty page draws, which its stylesheet holds to the one row the grid's width fits. */
+const BLANK_TILES = [0, 1, 2, 3, 4, 5];
+
 export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
   const held = useSurface("files");
   const sending = useSending();
@@ -107,6 +117,14 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
   const open = useFileOpen(openId, held?.dto.files ?? [], held?.fetchedAt ?? 0);
   // A shelf answers its press with a short fade of the grid where it stands, as every list that changes under one view does.
   const grid = useSwapMotion(held?.dto.shelf ?? "");
+  // Once a first photo or a batch has changed what the card holds, it goes to each new height rather than jumping there. A long library,
+  // which only a shelf's press resizes, is left to stand.
+  const glide = useHeightGlide();
+  const [glides, setGlides] = useState(false);
+  if (!glides && (held?.dto.tally.total === 0 || sending.photos.length > 0)) setGlides(true);
+  const may = canDo("settings");
+  const addFrom = useRef<(list: File[]) => void>(() => {});
+  const dropping = usePageTakesFiles((list) => addFrom.current(list), may);
   const more = useCallback(() => {
     if (gettingMore) return;
     setGettingMore(true);
@@ -131,7 +149,6 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
     );
 
   const { files, shelf, next, tally } = held.dto;
-  const may = canDo("settings");
   const here = pressed ?? shelf;
   const choose = (s: FileShelf) => {
     setPressed(s);
@@ -153,18 +170,21 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
       ? filesSayOf(tally)
       : standing.size > 0
         ? filesSayOf({ kept: standing.size, waiting: 0, looking: 0 })
-        : W.title;
+        : W.emptyTitle;
   // Nothing here yet: the one thing to do stands where the eye is, and not again in the corner.
   const emptyPage = tally.total === 0 && going.length === 0;
   const add = () => picker.current?.click();
 
-  const chosen = (e: ChangeEvent<HTMLInputElement>) => {
-    const list = [...(e.currentTarget.files ?? [])];
-    e.currentTarget.value = "";
+  addFrom.current = (list) => {
     if (!list.length) return;
     // A photo added is a kept one: they land on the shelf that shows them, never one they would leave as the list is read.
     if (here !== "all") choose("all");
     addPhotos(list, flash);
+  };
+  const chosen = (e: ChangeEvent<HTMLInputElement>) => {
+    const list = [...(e.currentTarget.files ?? [])];
+    e.currentTarget.value = "";
+    addFrom.current(list);
   };
   // The sheet hands focus back to what opened it; if a change took that photo off the grid, focus has nowhere to go.
   const closeSheet = () => {
@@ -174,16 +194,22 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
     });
   };
   return (
-    <section className="rec-card set-card files-page" data-testid="rec-card-files">
+    <section
+      ref={glides ? glide : undefined}
+      className="rec-card set-card files-page"
+      data-testid="rec-card-files"
+      data-glides={glides || undefined}
+      data-dropping={dropping || undefined}
+    >
+      <span className="files-ring" aria-hidden="true" />
       <div className="rec-card-head files-head" data-adding={left > 0 || undefined}>
         <h2 className="rec-card-title files-heading">{heading}</h2>
-        {!emptyPage && (
-          <span className="files-head-act">
-            <Button ref={addRef} size="sm" onClick={add} {...gate("settings", "add a photo")} data-testid="fl-add">
-              {left > 0 ? W.adding(sending.finished + 1, sending.finished + left) : W.add}
-            </Button>
-          </span>
-        )}
+        {/* Unseen on an empty page, whose one press stands under its tiles, but holding its place: the tiles don't move as it comes. */}
+        <span className="files-head-act" data-away={emptyPage || undefined}>
+          <Button ref={addRef} size="sm" onClick={add} {...gate("settings", "add a photo")} data-testid="fl-add">
+            {dropping ? W.dropToAdd : left > 0 ? W.adding(sending.finished + 1, sending.finished + left) : W.add}
+          </Button>
+        </span>
       </div>
       <LineFiles ref={picker} accept={FILE_PICKS} multiple onChange={chosen} data-testid="fl-picker" />
       {sending.said && (
@@ -195,42 +221,51 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
           testid="fl-said"
         />
       )}
-      {emptyPage ? (
-        <EmptyState
-          kind="line"
-          glyph="image"
-          title={W.emptyTitle}
-          body={W.emptyBody}
-          action={may ? { label: W.add, onClick: add, testid: "fl-empty-add" } : null}
-          testid="fl-empty"
-        />
-      ) : (
-        <>
-          {tally.total > 0 && (
-            <div className="files-shelves">
-              <Segmented
-                className="files-shelves-row"
-                label={W.title}
-                value={here}
-                onValueChange={choose}
-                options={shelvesOf(tally)}
-              />
-            </div>
+      {tally.total > 0 && (
+        <div className="files-shelves">
+          <Segmented
+            className="files-shelves-row"
+            label={W.title}
+            value={here}
+            onValueChange={choose}
+            options={shelvesOf(tally)}
+          />
+        </div>
+      )}
+      {shelf === "inbox" && may && <InboxPress inbox={files} flash={flash} />}
+      {tally.total > 0 && shown.length === 0 && going.length === 0 && (
+        <p className="files-says files-issues" data-testid="fl-none-filed">
+          {W.noneFiled}
+        </p>
+      )}
+      <div className="files-wall">
+        <div className="files-blanks" data-on={tally.total === 0 || undefined} aria-hidden="true">
+          {BLANK_TILES.map((tile) => (
+            <span key={tile} className="files-blank" />
+          ))}
+        </div>
+        {/* A hand reaches for the empty squares. The press below is the same one, for a key and a screen reader. */}
+        {emptyPage && may && <Press className="files-open" tabIndex={-1} aria-hidden="true" onClick={add} />}
+        <div ref={grid} className="files-grid" data-testid="fl-grid" aria-busy={pressed !== null || undefined}>
+          <PhotosOnTheirWay photos={going} flash={flash} onOpen={setOpenId} />
+          {shown.map((f) => (
+            <Photo key={f.id} file={f} onOpen={() => setOpenId(f.id)} />
+          ))}
+        </div>
+      </div>
+      {next && <MoreFiles more={more} busy={gettingMore} shown={files.length} />}
+      {emptyPage && (
+        <div className="files-none" data-testid="fl-empty">
+          <p className="files-none-says">{W.emptyBody}</p>
+          {may && (
+            <span className="files-none-acts">
+              <Button size="sm" variant="primary" onClick={add} data-testid="fl-empty-add">
+                {dropping ? W.dropToAdd : W.add}
+              </Button>
+              <span className="files-or-drop">{W.orDrop}</span>
+            </span>
           )}
-          {shelf === "inbox" && may && <InboxPress inbox={files} flash={flash} />}
-          {shown.length === 0 && going.length === 0 && (
-            <p className="files-says files-issues" data-testid="fl-none-filed">
-              {W.noneFiled}
-            </p>
-          )}
-          <div ref={grid} className="files-grid" data-testid="fl-grid" aria-busy={pressed !== null || undefined}>
-            <PhotosOnTheirWay photos={going} flash={flash} onOpen={setOpenId} />
-            {shown.map((f) => (
-              <Photo key={f.id} file={f} onOpen={() => setOpenId(f.id)} />
-            ))}
-          </div>
-          {next && <MoreFiles more={more} busy={gettingMore} shown={files.length} />}
-        </>
+        </div>
       )}
       {open && <FileSheet key={open.id} file={open} onClose={closeSheet} open={setOpenId} flash={flash} />}
     </section>
