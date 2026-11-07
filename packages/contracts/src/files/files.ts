@@ -344,6 +344,8 @@ export const FILE_WORDS = {
   madeFromGone: "Made with Ask, from a photo since deleted",
   title: "Files",
   add: "Add photos",
+  dropToAdd: "Drop to add",
+  orDrop: "or drop them here",
   adding: (done: number, of: number) => `Adding ${done} of ${of}`,
   emptyTitle: "No photos yet",
   emptyBody: "Add the ones that show your place and your work. Ask looks at each one and names it for what it shows.",
