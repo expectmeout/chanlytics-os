@@ -297,7 +297,7 @@ async function adsAggregate(rc: ReaderContext, view: string | null | undefined):
     "Campaigns › Ads, a preview: no ad account is connected, no ad of theirs exists, nothing runs and nothing is spent",
     view === ASK_ADS_VIEW.example
       ? "on screen now is an example they chose from the page's menu: its ads, numbers and people are made up"
-      : "on screen now is their own",
+      : "on screen now is theirs and no example",
     await firstCameWords(rc),
   ]);
 }
