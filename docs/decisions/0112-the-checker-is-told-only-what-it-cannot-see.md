@@ -61,5 +61,5 @@ A rule is a line in `eslint.config.mjs`; the measure is one entry of `RATCHETS`;
 
 ## Consequences
 
-`no-unsafe-argument`, `no-unsafe-call`, `no-unsafe-member-access` and `restrict-template-expressions` are errors. Contracts' assertions fell from 501 to
-281 and core's from 46 to 33. A test that takes a name the code lost fails in seconds, in every pull request, by the test and the line.
+`no-unsafe-argument`, `no-unsafe-call`, `no-unsafe-member-access` and `restrict-template-expressions` are errors. Assertions fell from 2,160 to 1,917,
+contracts' from 501 to 273 and core's from 46 to 32. A test that takes a name the code lost fails in seconds, in every pull request, by the test and the line.
