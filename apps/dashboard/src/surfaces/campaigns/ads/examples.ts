@@ -279,12 +279,13 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_MOMENT = /^\d{4}-\d{2}-\d{2}T/;
 
 /**
- * A fixture as it reads at `now`. Each day moves by the whole days to the business's today, and each moment by the time since the
- * fixture was read, so it was read just now and nothing it says has happened is still to come (9:19 AM, seen at 8:29). They are found
- * by their shape and not by name. An ad's name is the one place a fixture says a day in words: a new ad's says the day it starts.
+ * A fixture as it reads at `now`, on the business's `today`. Each day moves by the whole days to that today, and each moment by the
+ * time since the fixture was read, so it was read just now and nothing it says has happened is still to come (9:19 AM, seen at 8:29).
+ * They are found by their shape and not by name. An ad's name is the one place a fixture says a day in words: a new ad's says the day
+ * it starts.
  */
-function movedTo(read: AdsRead, now: number): AdsRead {
-  const days = daysBetween(read.today, zoneDayKey(now, read.timezone));
+function movedTo(read: AdsRead, today: string, now: number): AdsRead {
+  const days = daysBetween(read.today, today);
   const since = now - Date.parse(read.readAt);
   const moved = everyWord(read, (word) => {
     if (ISO_DAY.test(word)) return addDays(word, days);
@@ -297,8 +298,24 @@ function movedTo(read: AdsRead, now: number): AdsRead {
   return { ...moved, ads: moved.ads.map(named) };
 }
 
+/** An example, as the business's where it has one (own.ts), else the studio's whole. */
+function whoseExample(example: AdsExample, own: AdsOwn | null): AdsRead {
+  const read = EXAMPLE_READS[example]();
+  return own ? ownedBy(read, own) : read;
+}
+
 /** An example as of `now`, and the business's where it has one (own.ts): the one read every page draws, so an ad says the same on each. */
 export function exampleAt(example: AdsExample, now: number, own: AdsOwn | null): AdsRead {
-  const read = EXAMPLE_READS[example]();
-  return movedTo(own ? ownedBy(read, own) : read, now);
+  const read = whoseExample(example, own);
+  return movedTo(read, zoneDayKey(now, read.timezone), now);
+}
+
+/**
+ * The same example on a `today` the caller already holds: Reports', the business's (ads-demo.ts). Where the read is the business's,
+ * it is the day `exampleAt` moves to. Where the studio's sample stands whole (a preview whose business has said no name) the sample
+ * is in New York, and on its own today Reports' days would cut it at New York's midnight, a day apart from the business's for the hours
+ * between the two: its latest day left out and an older one counted.
+ */
+export function exampleOn(example: AdsExample, today: string, now: number, own: AdsOwn | null): AdsRead {
+  return movedTo(whoseExample(example, own), today, now);
 }

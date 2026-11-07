@@ -248,11 +248,14 @@ test("one pass of the words: a real name holding the studio's, or the word itsel
   assert.match(read.ads[0].copy.text, /at Harbor Street Appointment Room\./);
 });
 
-test("the store a page draws is the workspace's own, and so is Reports' fold, in the workspace's zone and word", () => {
+test("the store a page draws is the workspace's own, and so is Reports' fold, in the workspace's zone and word", (t) => {
+  // The hour New York has turned the day and Chicago has not: the one moment a day counted in New York reads a day off. At
+  // any other hour the two zones say the same day, and a fold or a store that took the wrong one would pass.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2031-01-15T05:10:00Z") });
   fresh();
   const { read } = holding(settingsOf(), () => useAdsStore());
   assert.equal(read.business.name, "Birch Lane Co");
-  assert.equal(read.today, ads.zoneDayKey(Date.now(), "America/Chicago"));
+  assert.equal(read.today, "2031-01-14", "Chicago's day, while New York's is the 15th");
   const at = Date.now();
   const raw = adsDemoFold("30d", ads.ADS_SCOPE_ALL, read.today, at);
   const own = holding(settingsOf(), () => adsDemoFold("30d", ads.ADS_SCOPE_ALL, read.today, at));
@@ -263,6 +266,16 @@ test("the store a page draws is the workspace's own, and so is Reports' fold, in
     "the same example numbers",
   );
   assert.ok(JSON.stringify(own).includes("a visit"), "said in the workspace's word");
+  // A preview whose business has said no name keeps the sample whole, in New York, and Reports reads it on the workspace's days all
+  // the same, as it reads the named business's.
+  const nameless = holding(settingsOf({ business_name: NO_FACT }), () =>
+    adsDemoFold("30d", ads.ADS_SCOPE_ALL, read.today, at),
+  );
+  assert.deepEqual(
+    nameless.figures.map((f) => f.value),
+    own.figures.map((f) => f.value),
+    "the same example numbers where the business has said no name",
+  );
 });
 
 test("a Service with no price says its name alone, with no comma left hanging", () => {
