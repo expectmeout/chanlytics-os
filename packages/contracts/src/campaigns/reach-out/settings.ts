@@ -150,6 +150,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
     whoFor: "Who it's for",
     fixes: "What you fix for them",
     empty: "Not set",
+    fromAbout: "Read from what your business does, until you write it here.",
+    fromGoal: "Read from your goal on Details, until you write it here.",
   },
   proof: {
     title: "Proof you stand behind",
@@ -163,9 +165,11 @@ export const REACH_OUT_SETTINGS_WORDS = {
     sub: "Your voice in cold emails",
     tone: "Tone",
     toneHint: "Cold emails only. How it answers keeps its own.",
+    toneFrom: "The receptionist's, until you set one for cold emails.",
     voice: "How you write",
     voiceNone: "Nothing learned yet",
-    voiceMeta: "Learned from how you write · Also in Memory",
+    voiceFrom: "Learned from how you write",
+    memory: "Also in Memory",
     paste: "Paste an email",
   },
   signOff: {
@@ -173,6 +177,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
     sub: "Under every email",
     signedBy: "Signs as",
     signedByHint: "Or the name on the mailbox. A sequence can sign its own.",
+    signedByFrom: "From your newest sequence, until you set it here.",
+    signatureNone: "Not added",
     signature: "Signature",
     phone: "Phone in the signature",
     phoneNone: "Not added",
@@ -269,4 +275,6 @@ export interface ReachOutSettingsDto {
   sequence: ReachOutSettingsSequence | null;
   /** Autonomy's reply mode, which a reach-out's draft follows (drafts/writer.ts gateOf). */
   reply_mode: string;
+  /** What the business does, in its own words (business_records.about): what a cold email offers until the owner says. */
+  about: string | null;
 }

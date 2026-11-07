@@ -122,6 +122,7 @@ export interface Config {
   /** The booking tool the owner named (00345, contracts BOOKING_TOOL_IDS), in a section of its own. */
   bookings?: { [key: string]: unknown; tool?: string; by_hand?: boolean };
   ask?: { [key: string]: unknown; goal?: string }; // Ask's own: the owner's goal (who.tsx BtGoalCard)
+  reach_out?: { [key: string]: unknown; proof?: string[] }; // How it reaches out's (decision 0113, fold-shapes.ts)
 }
 
 /** A row's change: a function of the brain and its profile that returns the brain. */

@@ -23,7 +23,7 @@ import {
   type ReachOutSettingsSequence,
 } from "@chanlytics/contracts";
 import { findRehearsalById } from "@chanlytics/db/facts";
-import { countSentByStep, readMonthSent, reviewLinkOf } from "@chanlytics/db/campaigns";
+import { countSentByStep, findWorkspaceAbout, readMonthSent, reviewLinkOf } from "@chanlytics/db/campaigns";
 import { askMemoryLines } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
 import type { RouteContext } from "../shared/with-route";
@@ -323,7 +323,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const t = rc.tenantId;
-    const [row, facts, mailboxes, sent, memory, chains, policies] = await Promise.all([
+    const [row, facts, mailboxes, sent, memory, chains, policies, about] = await Promise.all([
       partOf(load(rc, readers.config, undefined), "config", t, null),
       partOf(load(rc, readers.facts, undefined), "facts", t, null),
       partOf(listMailboxConnectionsWithDays(db, t, rc.now), "mailboxes", t, []),
@@ -331,6 +331,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
       partOf(askMemoryLines(db, t, ASK_MEMORY_LIMITS.liveMax), "memory", t, []),
       partOf(listChains(rc.ctx, t), "chains", t, []),
       partOf(listPolicies(db, t), "policies", t, []),
+      partOf(findWorkspaceAbout(db, t), "about", t, null),
     ]);
     const claims = parseTenantConfig(row?.data?.config)?.reach_out?.proof ?? [];
     const counted = await partOf(countSentByStep(db, t, stepsCarrying(claims, chains)), "counts", t, new Map());
@@ -343,6 +344,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),
         sequence: newestLeadSequence(chains),
         reply_mode: policies.find((p) => p.class === "reply")?.mode ?? "ask",
+        about,
       },
       rows: [],
       stamp: readerStamp(),

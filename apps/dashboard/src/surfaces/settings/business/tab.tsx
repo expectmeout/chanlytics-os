@@ -58,6 +58,7 @@ import { BtRehearse } from "./rehearse/rehearse";
 import { policiesNow, settingsNow } from "./shell";
 import { BtBookingLinkRow, BtGoalCard, BtTransferNumberRow, BtWhoCard } from "./who";
 import { LearnedFromYou } from "../autonomy/learned";
+import { OutreachCards } from "../outreach/cards";
 
 /** The toast the shell raises (the page's `flash`). */
 type Flash = (flash: FrameFlash) => void;
@@ -67,7 +68,7 @@ type Flash = (flash: FrameFlash) => void;
  * (`hours`) or How it answers (`receptionist`). One record, three pages, one question each (Ruben, 17 Oct 2026, the
  * "Settings, split" canvas): it was one page of 34 rows for three readers.
  */
-export type BusinessPart = "workspace" | "hours" | "receptionist";
+export type BusinessPart = "workspace" | "hours" | "receptionist" | "outreach";
 
 /**
  * A door that opens a row of the business by its id, from a page that draws the business's pages `here`: in place where
@@ -498,6 +499,10 @@ export const BusinessTab = ({
               0069). Holds its own state. */}
           <BtRehearse canEdit={canEdit} bookingLink={brain.booking_link ?? null} />
         </>
+      ) : null}
+      {/* How it reaches out (decision 0113): what a cold email is written from, its own folder's cards. */}
+      {parts.includes("outreach") ? (
+        <OutreachCards brain={brain} config={config} canEdit={canEdit} flash={flash} saver={saver} />
       ) : null}
       {/* The sheets, LAST, after every card, through one slot (BtSheetSlot says why). Whatever card comes next goes above
           this line, and whatever sheet comes next goes through the slot; a page test holds it last. */}

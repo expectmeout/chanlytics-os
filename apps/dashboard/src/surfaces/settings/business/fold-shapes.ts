@@ -6,11 +6,37 @@
 import { BUSINESS_TAB } from "@/bridge/business-tab";
 import type { BookingRuleKey, ProfileLimitKey } from "@chanlytics/contracts";
 import type { ProfileRefusalKey } from "./model/fold-limits";
-import { BOOKS_BY_HAND, booksWithOf, isBookingTool } from "@chanlytics/contracts";
+import {
+  BOOKS_BY_HAND,
+  REACH_OUT_LIMITS,
+  REACH_OUT_REFUSAL_WORDS,
+  booksWithOf,
+  isBookingTool,
+  reachOutSignatureProblem,
+} from "@chanlytics/contracts";
 import { trimmed, type Config, type StoredNote } from "./save";
+
+/**
+ * How it reaches out's folds (decision 0113), each one key of the config's `reach_out` section, by the fold's id: the
+ * page's rows are folds of the one record, saved through the tab's one saver as every row of the business is.
+ */
+const REACH_OUT_FOLD_KEYS = {
+  offer: "offer",
+  who_for: "who_for",
+  fixes: "fixes",
+  proof: "proof",
+  cold_tone: "tone",
+  signed_by: "signed_by",
+  signature: "signature",
+  sign_phone: "phone",
+  reply_offer: "reply_offer",
+} as const;
+export type ReachOutFoldName = keyof typeof REACH_OUT_FOLD_KEYS;
+export const isReachOutFold = (fold: string): fold is ReachOutFoldName => Object.hasOwn(REACH_OUT_FOLD_KEYS, fold);
 
 /** The folds, each named by its id. */
 export type FoldName =
+  | ReachOutFoldName
   | "tone"
   | "phone_greeting"
   | "hours"
@@ -79,6 +105,17 @@ export interface ReceptionistDraft {
 
 /** What each fold opens with, by its id. */
 export interface DraftOf {
+  offer: string;
+  who_for: string;
+  fixes: string;
+  /** The claims, one a row; a row left empty is dropped on save. */
+  proof: string[];
+  cold_tone: string;
+  signed_by: string;
+  signature: string;
+  sign_phone: string;
+  /** A ReplyOffer, "" for the booking link, as before the page. */
+  reply_offer: string;
   tone: string;
   phone_greeting: string;
   hours: Record<string, DayDraft>;
@@ -196,6 +233,15 @@ export const BT_DAY_NAMES: Record<string, string> = {
  * under the rules, the messages and the features.
  */
 export const BT_PATHS_OF: Record<FoldName, string[]> = {
+  offer: ["reach_out.offer"],
+  who_for: ["reach_out.who_for"],
+  fixes: ["reach_out.fixes"],
+  proof: ["reach_out.proof"],
+  cold_tone: ["reach_out.tone"],
+  signed_by: ["reach_out.signed_by"],
+  signature: ["reach_out.signature"],
+  sign_phone: ["reach_out.phone"],
+  reply_offer: ["reach_out.reply_offer"],
   tone: ["brain.profile.tone"],
   phone_greeting: ["brain.profile.phone_greeting"],
   hours: ["brain.profile.hours"],
@@ -325,3 +371,92 @@ export const btCalendarPart = (next: Config) => {
   const masked = !!next.calendar && String(next.calendar.ical_url || "").includes("…");
   return masked ? { bookings: next.bookings } : { calendar: next.calendar, bookings: next.bookings };
 };
+
+/* ---------------------------------------- How it reaches out's folds (decision 0113) ---------------------------------------- */
+
+const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
+const listOf = (value: unknown): string[] => (Array.isArray(value) ? value.map(textOf) : []);
+const reachOutKey = (config: Config, fold: ReachOutFoldName): unknown => config.reach_out?.[REACH_OUT_FOLD_KEYS[fold]];
+const textFold = (fold: ReachOutFoldName) => (_profile: unknown, _brain: unknown, config: Config) =>
+  textOf(reachOutKey(config, fold));
+
+/**
+ * What each opens with: what the section holds, never a fallback. A row at rest says what a writer reads where nothing
+ * is set (contracts reachOutOfferOf and its kin); a fold that opened on the fallback would save it as the owner's own words.
+ */
+export const REACH_OUT_DRAFT_OF: {
+  [F in ReachOutFoldName]: (profile: unknown, brain: unknown, config: Config) => DraftOf[F];
+} = {
+  offer: textFold("offer"),
+  who_for: textFold("who_for"),
+  fixes: textFold("fixes"),
+  proof: (_profile, _brain, config) => listOf(reachOutKey(config, "proof")),
+  cold_tone: textFold("cold_tone"),
+  signed_by: textFold("signed_by"),
+  signature: textFold("signature"),
+  sign_phone: textFold("sign_phone"),
+  reply_offer: textFold("reply_offer"),
+};
+
+/** A key of the section, written with a value and removed without one; the section goes once nothing is in it. */
+const btPutReachOut = (next: Config, fold: ReachOutFoldName, value: unknown) => {
+  const section: Record<string, unknown> = { ...(next.reach_out || {}) };
+  btPut(section, REACH_OUT_FOLD_KEYS[fold], value);
+  if (Object.keys(section).length) next.reach_out = section;
+  else delete next.reach_out;
+};
+const writeText = (fold: ReachOutFoldName) => (next: Config, draft: unknown) =>
+  btPutReachOut(next, fold, trimmed(draft) || undefined);
+
+/** How each writes its draft into the section: trimmed, and an emptied box removes its key. */
+export const REACH_OUT_WRITE: { [F in ReachOutFoldName]: (next: Config, draft: unknown) => void } = {
+  offer: writeText("offer"),
+  who_for: writeText("who_for"),
+  fixes: writeText("fixes"),
+  // A claim left empty is no claim: dropped, as a note nobody filled in is.
+  proof: (next, draft) => {
+    const claims = listOf(draft)
+      .map((c) => trimmed(c))
+      .filter(Boolean);
+    btPutReachOut(next, "proof", claims.length ? claims : undefined);
+  },
+  cold_tone: writeText("cold_tone"),
+  signed_by: writeText("signed_by"),
+  signature: writeText("signature"),
+  sign_phone: writeText("sign_phone"),
+  // The booking link is what an answer offered before the page: it is stored as nothing.
+  reply_offer: (next, draft) => {
+    const offer = trimmed(draft);
+    btPutReachOut(next, "reply_offer", offer && offer !== "booking_link" ? offer : undefined);
+  },
+};
+
+const L = REACH_OUT_LIMITS;
+const longer = (field: string, draft: unknown, max: number): Problems =>
+  trimmed(draft).length > max ? { [field]: REACH_OUT_REFUSAL_WORDS.tooLong(max) } : {};
+
+/** What stops each one's save, by the field it is under (a claim's row is `claim-<n>`). */
+export const REACH_OUT_PROBLEMS_OF: { [F in ReachOutFoldName]?: (draft: unknown) => Problems } = {
+  offer: (draft) => longer("offer", draft, L.offer),
+  who_for: (draft) => longer("who_for", draft, L.whoFor),
+  fixes: (draft) => longer("fixes", draft, L.fixes),
+  cold_tone: (draft) => longer("cold_tone", draft, L.tone),
+  signed_by: (draft) => longer("signed_by", draft, L.signedBy),
+  sign_phone: (draft) => longer("sign_phone", draft, L.phone),
+  signature: (draft) => {
+    const problem = reachOutSignatureProblem(trimmed(draft));
+    if (problem === "too_long") return longer("signature", draft, L.signature);
+    return problem ? { signature: REACH_OUT_REFUSAL_WORDS.signature } : {};
+  },
+  proof: (draft) => {
+    const rows = listOf(draft);
+    const found: Problems =
+      rows.filter((c) => trimmed(c)).length > L.claims ? { proof: REACH_OUT_REFUSAL_WORDS.claims } : {};
+    rows.forEach((c, i) => Object.assign(found, longer(`claim-${i}`, c, L.claim)));
+    return found;
+  },
+};
+
+/** The field a refusal of the section is said under: a claim's by its row, else the fold's own. */
+export const reachOutFieldOf = (fold: ReachOutFoldName, path: (string | number)[]): string =>
+  fold === "proof" && typeof path[2] === "number" ? `claim-${path[2]}` : fold;
