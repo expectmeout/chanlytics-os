@@ -197,9 +197,17 @@ export {
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   PROFILE_LIMITS,
+  REACH_OUT_LIMITS,
+  REPLY_OFFERS,
 } from "./workspace-config/config-rules";
 export { BOOKING_RULE_BOUNDS } from "./workspace-config/config-rules";
-export type { BookingRuleKey, GuardrailKey, GuardrailsInForce, ProfileLimitKey } from "./workspace-config/config-rules";
+export type {
+  BookingRuleKey,
+  GuardrailKey,
+  GuardrailsInForce,
+  ProfileLimitKey,
+  ReplyOffer,
+} from "./workspace-config/config-rules";
 export {
   CalendarConfigSchema,
   configReceptionistOf,
@@ -207,6 +215,7 @@ export {
   NotificationsConfigSchema,
   parseTenantConfig,
   parseTenantConfigResult,
+  ReachOutConfigSchema,
   TenantConfigSchema,
   TenantConfigWriteSchema,
   withFirstAlertAddress,
@@ -218,6 +227,7 @@ export type {
   CalendarGrantConfig,
   FeaturesConfig,
   NotificationsConfig,
+  ReachOutConfig,
   ReceptionistState,
   TenantConfig,
   TenantConfigParse,

@@ -330,3 +330,23 @@ export type {
 } from "./words/opening";
 export { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SLOTS, REACH_OUT_SUBJECT_MAX } from "./words/slots";
 export type { ReachOutSlot } from "./words/slots";
+export {
+  REACH_OUT_REFUSAL_WORDS,
+  REACH_OUT_SETTINGS_WORDS,
+  reachOutBackingOf,
+  reachOutOfferOf,
+  reachOutRuleLines,
+  reachOutSignatureProblem,
+  reachOutSignedByOf,
+  reachOutToneOf,
+  REPLY_OFFER_WORDS,
+  replyModeHint,
+  writesBackRows,
+} from "./settings";
+export type {
+  ReachOutSettingsDto,
+  ReachOutSettingsMailbox,
+  ReachOutSettingsSequence,
+  SignatureProblem,
+  WritesBackRow,
+} from "./settings";
