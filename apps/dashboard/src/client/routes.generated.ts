@@ -132,6 +132,7 @@ export const ROUTES = {
   "GET sequences/[id]/replies": { method: "GET", path: "/api/v1/sequences/[id]/replies" },
   "GET settings": { method: "GET", path: "/api/v1/settings" },
   "GET settings/reach-out": { method: "GET", path: "/api/v1/settings/reach-out" },
+  "GET settings/reach-out/told": { method: "GET", path: "/api/v1/settings/reach-out/told" },
   "GET setup": { method: "GET", path: "/api/v1/setup" },
   "GET team": { method: "GET", path: "/api/v1/team" },
   "GET team/partner": { method: "GET", path: "/api/v1/team/partner" },
@@ -508,6 +509,7 @@ export type Routes = {
   "GET sequences/[id]/replies": typeof import("../../app/api/v1/sequences/[id]/replies/route").GET;
   "GET settings": typeof import("../../app/api/v1/settings/route").GET;
   "GET settings/reach-out": typeof import("../../app/api/v1/settings/reach-out/route").GET;
+  "GET settings/reach-out/told": typeof import("../../app/api/v1/settings/reach-out/told/route").GET;
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
   "GET team": typeof import("../../app/api/v1/team/route").GET;
   "GET team/partner": typeof import("../../app/api/v1/team/partner/route").GET;

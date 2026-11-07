@@ -333,6 +333,16 @@ export { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SLOTS, REACH_OUT_SUBJ
 export type { ReachOutSlot } from "./words/slots";
 export { unbackedNumbers } from "./words/numbers";
 export {
+  openingToldParts,
+  reachOutExampleRecord,
+  ReachOutToldQuerySchema,
+  replyToldParts,
+  TOLD_KINDS,
+  toldPart,
+  toldShares,
+} from "./told";
+export type { ReachOutToldDto, ToldKind, ToldPart, ToldPartId } from "./told";
+export {
   REACH_OUT_REFUSAL_WORDS,
   REACH_OUT_SETTINGS_WORDS,
   reachOutBackingOf,

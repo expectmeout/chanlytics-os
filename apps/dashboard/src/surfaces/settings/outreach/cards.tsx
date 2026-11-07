@@ -11,6 +11,7 @@ import type { Brain, Config } from "../business/save";
 import { useReachOutRead } from "./card";
 import { OfferCard, ProofCard } from "./offer";
 import { RulesCard, SendsFromCard, WritesBackCard } from "./sends";
+import { ToldCard } from "./told";
 import { SignOffCard, WritesCard } from "./writes";
 
 export function OutreachCards({
@@ -37,6 +38,7 @@ export function OutreachCards({
       <SendsFromCard {...shared} />
       <WritesBackCard {...shared} />
       <RulesCard />
+      <ToldCard canEdit={canEdit} />
     </>
   );
 }

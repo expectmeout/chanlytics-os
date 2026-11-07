@@ -135,6 +135,7 @@ export const ROUTE_KEYS = [
   "GET sequences/[id]/replies",
   "GET settings",
   "GET settings/reach-out",
+  "GET settings/reach-out/told",
   "GET setup",
   "GET team",
   "GET team/partner",
