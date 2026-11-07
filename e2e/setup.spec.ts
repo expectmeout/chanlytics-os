@@ -91,10 +91,10 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     if (process.env.EDGE_URL)
       await page.route("**/api/v1/setup?*", async (route) => {
         const response = await route.fetch();
-        const body = (await response.json()) as { data: { google: { listing: object | null } } };
-        const { google } = body.data;
-        const listing = { ...google.listing, check_error: "Google did not answer" };
-        body.data.google = { ...google, ready: true, places: true, listing } as typeof google;
+        const body = (await response.json()) as { data: { setup: { google: { listing: object | null } } } };
+        const { setup } = body.data;
+        const listing = { ...setup.google.listing, check_error: "Google did not answer" };
+        setup.google = { ...setup.google, ready: true, places: true, listing } as typeof setup.google;
         await route.fulfill({ response, json: body });
       });
     await page.goto("/#/start");

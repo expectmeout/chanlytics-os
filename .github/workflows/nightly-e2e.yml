@@ -139,10 +139,10 @@ jobs:
       # GitHub sets that for the pull-request job too, which is meant to
       # run credential-free.
       REQUIRE_SERVICE_CREDENTIALS: "1"
-      # What the seed gives nothing to, and so skips, exactly (7 Nov 2026; e2e/skip-ceiling.ts prints each reason). The
-      # workspace is this run's own, so the number does not wander with a customer's month: a twelfth is a red night, and
-      # each one the seed comes to cover brings this down.
-      E2E_MAX_SKIPS: "11"
+      # Nothing here skips for want of data (7 Nov 2026; e2e/skip-ceiling.ts prints each reason): the workspace is this
+      # run's own, so the number does not wander with a customer's month, and the first skip is a red night. A skip behind
+      # a switch the run did not set, a paid model's, is not counted.
+      E2E_MAX_SKIPS: "0"
       E2E_USER_EMAIL: e2e-owner@example.com
       E2E_MEMBER_EMAIL: e2e-member@example.com
       # localhost by name: Next says a request's host as localhost whatever it was asked by (NextURL), so asked as

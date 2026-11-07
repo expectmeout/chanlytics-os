@@ -1506,8 +1506,8 @@ test("verify() names an open escalation, a queued message, a missed call that co
   assert.deepEqual(await verify(w.db, T, ownerId), [], "the next run puts it back");
 });
 
-test("the eval's Win-back (the moment spec, A8): written only under --seed-win-back, which the nightly does not pass; then one campaign on silence, paused so no sweep runs it, on a message of its own, written once however often the workspace converges", async () => {
-  // The script's arguments: the nightly's own (.github/workflows/nightly-e2e.yml) are --apply alone.
+test("the eval's Win-back (the moment spec, A8): written only under --seed-win-back, which the check of production does not pass; then one campaign on silence, paused so no sweep runs it, on a message of its own, written once however often the workspace converges", async () => {
+  // The script's arguments: the check of production's (.github/workflows/nightly-e2e.yml) are --apply alone.
   assert.deepEqual(runOptions(["node", "e2e-workspace.mjs", "--apply"]), { apply: true, seedWinBack: false });
   assert.deepEqual(runOptions(["node", "e2e-workspace.mjs", "--apply", "--seed-win-back"]), {
     apply: true,
@@ -1520,7 +1520,7 @@ test("the eval's Win-back (the moment spec, A8): written only under --seed-win-b
   );
 
   const w = world();
-  // The nightly's converge (--apply alone): no Win-back, no message for it.
+  // Production's converge (--apply alone): no Win-back, no message for it.
   const { tenantId: T } = await run(w);
   const ownerId = w.t.memberships.find((m) => m.role === "owner").user_id;
   assert.deepEqual(of(w.t, "playbooks", T), [], "merging seeds nothing");
