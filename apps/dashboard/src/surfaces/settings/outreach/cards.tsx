@@ -5,7 +5,10 @@
  * own read. The cards, in the order a person needs them: what you offer, what you can prove, how it writes, how it signs
  * off, where it sends from, what a reply sets off, the rules it keeps, what it is told, and one email before any goes.
  */
+import { REACH_OUT_SETTINGS_WORDS, reachOutOfferOf } from "@chanlytics/contracts";
 import type { FrameFlash } from "../../frame-verbs";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { recFolds } from "../../kit/record/registry";
 import type { BtSaver } from "../business/gestures/common";
 import type { Brain, Config } from "../business/save";
 import { useReachOutRead } from "./card";
@@ -30,8 +33,24 @@ export function OutreachCards({
 }) {
   const { read, again } = useReachOutRead();
   const shared = { brain, config, canEdit, flash, saver, read };
+  // Its own one line, on this page alone, where a cold email would have nothing to say of what the business offers:
+  // no offer here, nothing it does, no goal (contracts reachOutOfferOf). Never in the receptionist's gap line or the
+  // rail, where a business that writes no cold email would be asked for it on every page.
+  const offerless = read !== null && reachOutOfferOf(config, read.about) === null;
   return (
     <>
+      {offerless ? (
+        <p className="bt-gap" data-testid="rec-offer-gap">
+          <span className="bt-gap-dot" aria-hidden="true" />
+          {canEdit ? (
+            <LinkButton onClick={() => recFolds.request("offer")} data-testid="rec-offer-gap-door">
+              {REACH_OUT_SETTINGS_WORDS.gap}
+            </LinkButton>
+          ) : (
+            <span className="bt-gap-words">{REACH_OUT_SETTINGS_WORDS.gap}</span>
+          )}
+        </p>
+      ) : null}
       <OfferCard {...shared} />
       <ProofCard {...shared} />
       <WritesCard {...shared} again={again} />

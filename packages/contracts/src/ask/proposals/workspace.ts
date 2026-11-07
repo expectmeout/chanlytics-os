@@ -2,6 +2,7 @@
  * The workspace's cards: what the receptionist may do alone, the settings it follows, and who is on the team.
  */
 import { ASK_ANSWERS_PANE, ASK_ANSWERS_ROWS, applySettingsChange, type AskSettingsChange } from "../settings-change";
+import { ASK_REACH_OUT_ROWS, isReachOutChange } from "../../config/workspace-config/reach-out-change";
 import { asText, rec, refuseWith, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
 
 const policyBody = (cls: unknown, mode: unknown, confidence: unknown): Record<string, unknown> => {
@@ -72,6 +73,8 @@ export const settingsSpec: ProposalSpecAboveOperator = {
   // A change to How it answers opens there, on its row (the Settings wiring review, item 14); the rest on Details.
   open: (p) => {
     const op = (p.payload.change as AskSettingsChange | undefined)?.op;
+    // How it reaches out's opens there, on its row (decision 0113).
+    if (op && isReachOutChange({ op })) return `admin/outreach/${ASK_REACH_OUT_ROWS[op]}`;
     if (!op || !(op in ASK_ANSWERS_ROWS)) return "admin/workspace";
     const key = op as keyof typeof ASK_ANSWERS_ROWS;
     const row = ASK_ANSWERS_ROWS[key];

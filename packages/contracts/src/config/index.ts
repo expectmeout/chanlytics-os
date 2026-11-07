@@ -209,6 +209,13 @@ export type {
   ReplyOffer,
 } from "./workspace-config/config-rules";
 export {
+  applyReachOutChange,
+  ASK_REACH_OUT_ROWS,
+  describeReachOutChange,
+  isReachOutChange,
+} from "./workspace-config/reach-out-change";
+export type { AskReachOutChange } from "./workspace-config/reach-out-change";
+export {
   CalendarConfigSchema,
   configReceptionistOf,
   FeaturesConfigSchema,

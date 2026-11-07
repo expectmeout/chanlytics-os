@@ -2,6 +2,9 @@ import "server-only";
 import { z } from "zod";
 import {
   ASK_ANSWERS_ROWS,
+  isReachOutChange,
+  REACH_OUT_LIMITS,
+  REPLY_OFFERS,
   ASK_GOAL_MAX,
   ASK_STYLE_MAX,
   AskSettingsChangeSchema,
@@ -51,6 +54,15 @@ const SETTINGS_TITLE: Record<Exclude<z.infer<typeof AskSettingsChangeSchema>["op
   set_assistant_name: "Its name",
   set_phone_pace: "How fast it speaks",
   set_walk_ins: "Walk-ins",
+  set_offer: "What you offer",
+  set_who_for: "Who it's for",
+  set_fixes: "What you fix for them",
+  add_claim: "A claim you stand behind",
+  remove_claim: "A claim taken away",
+  set_cold_tone: "How cold emails sound",
+  set_signed_by: "Who cold emails sign as",
+  set_signature: "Your signature",
+  set_reply_offer: "What an answer to a lead offers",
 };
 
 /** What the model sent for what the receptionist knows, its fields copied as each op takes them. */
@@ -129,7 +141,14 @@ async function proposeSettings(
   const raw = input.change && typeof input.change === "object" ? (input.change as Record<string, unknown>) : null;
   if (!raw) return refuse("change is required");
   const answers = typeof raw.op === "string" && raw.op in ASK_ANSWERS_ROWS;
-  const parsed = AskSettingsChangeSchema.safeParse(answers ? answersChangeOf(raw) : knowsChangeOf(raw));
+  // How it reaches out's rows (decision 0113): its fields as each op takes them, judged by the same schema.
+  const parsed = AskSettingsChangeSchema.safeParse(
+    typeof raw.op === "string" && isReachOutChange({ op: raw.op })
+      ? raw
+      : answers
+        ? answersChangeOf(raw)
+        : knowsChangeOf(raw),
+  );
   if (!parsed.success)
     return refuse(`change rejected: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
   const change = parsed.data;
@@ -235,6 +254,43 @@ const answersAction = actAction({
   build: (t, input) => proposeSettings(t, { change: input.row }),
 });
 
+/**
+ * A row of How it reaches out as a card (decision 0113): what a cold email offers, who it is for, what it fixes, a claim
+ * added or taken away, the tone of a cold email, who it signs as, the signature, and what an answer to a lead offers.
+ */
+const reachOutAction = actAction({
+  kind: "settings",
+  input: z.object({
+    row: z.object({
+      op: z.enum([
+        "set_offer",
+        "set_who_for",
+        "set_fixes",
+        "add_claim",
+        "remove_claim",
+        "set_cold_tone",
+        "set_signed_by",
+        "set_signature",
+        "set_reply_offer",
+      ]),
+      offer: z.string().optional(),
+      who_for: z.string().optional(),
+      fixes: z.string().optional(),
+      claim: z.string().optional(),
+      tone: z.string().optional(),
+      name: z.string().optional(),
+      signature: z.string().optional(),
+    }),
+  }),
+  examples: [
+    { row: { op: "set_offer", offer: "After-hours cleaning for dental offices" } },
+    { row: { op: "add_claim", claim: "We clean 40 clinics across Austin today." } },
+  ],
+  label: "Preparing a change to how it reaches out",
+  words: `Action reach_out takes one row object, a row of How it reaches out (what its cold emails to businesses a search found are written from) and what it becomes: set_offer (offer, what the business offers them, at most ${REACH_OUT_LIMITS.offer} characters), set_who_for (who_for), set_fixes (fixes, the problem it solves for them), add_claim or remove_claim (claim, one true sentence the owner stands behind, word for word, at most ${REACH_OUT_LIMITS.claim} characters: the only place a number about the business may come from), set_cold_tone (tone, how a cold email sounds; empty for the receptionist's), set_signed_by (name, the name it signs with), set_signature (signature, at most ${REACH_OUT_LIMITS.signatureLines} lines, no link), set_reply_offer (offer, one of ${REPLY_OFFERS.join(", ")}: what a drafted answer to a lead who wrote back offers). Empty takes a row away. Call it when they say what they sell to other businesses, what they can prove, or how cold emails should sound, sign or answer. ${approvalWords("settings")}.`,
+  build: (t, input) => proposeSettings(t, { change: input.row }),
+});
+
 /** The owner's goal for Ask (the operator, 15 Oct 2026, D13): one line Ask weighs every plan against, or cleared. */
 const goalAction = actAction({
   kind: "settings",
@@ -289,13 +345,14 @@ const answerStyleAction = actAction({
 export const propose_settings = defineActions({
   name: "propose_settings",
   description:
-    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, name, languages, what callers hear, how fast it speaks and who they reach, walk-ins, your own words, the messages when it can't answer, photos), what it may do alone for a class of message (autonomy), or the business's goal for you.",
+    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, name, languages, what callers hear, how fast it speaks and who they reach, walk-ins, your own words, the messages when it can't answer, photos), how it reaches out (what cold emails offer, the claims they may make, their tone and sign-off, what an answer to a lead offers), what it may do alone for a class of message (autonomy), or the business's goal for you.",
   actions: {
     change: actAction({
       ...settingsAct,
       words: `Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. ${approvalWords("settings")}.`,
     }),
     answers: answersAction,
+    reach_out: reachOutAction,
     autonomy: autonomyAction,
     goal: goalAction,
     answer_style: answerStyleAction,

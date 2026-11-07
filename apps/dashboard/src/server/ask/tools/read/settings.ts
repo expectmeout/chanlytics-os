@@ -52,6 +52,25 @@ function howItAnswersOf(cfg: ReturnType<typeof parseTenantConfig>) {
   };
 }
 
+/**
+ * How it reaches out as it stands (decision 0113): what a card of propose_settings' reach_out changes, read first so a
+ * claim added never repeats one there and one taken away is named as it is written. Null where a row is not set: each
+ * writer then reads what it read before (the goal or what the business does, the receptionist's tone).
+ */
+function howItReachesOutOf(cfg: ReturnType<typeof parseTenantConfig>) {
+  const r = cfg?.reach_out;
+  return {
+    offer: r?.offer ?? null,
+    who_for: r?.who_for ?? null,
+    fixes: r?.fixes ?? null,
+    claims: r?.proof ?? [],
+    tone: r?.tone ?? null,
+    signed_by: r?.signed_by ?? null,
+    signature: r?.signature ?? null,
+    reply_offer: r?.reply_offer ?? "booking_link",
+  };
+}
+
 async function getSettings(toolContext: ToolContext): Promise<unknown> {
   // The facts the receptionist runs on, composed from the turn's reads -- never the settings page's own read
   // (readers/settings.ts), whose prompt preview fetches the calendar feed and reads the Autonomy rows again, which a
@@ -88,6 +107,7 @@ async function getSettings(toolContext: ToolContext): Promise<unknown> {
     calendar_connected: facts.hasCalendar,
     vision: facts.visionOn,
     answers: howItAnswersOf(cfg),
+    reach_out: howItReachesOutOf(cfg),
     notifications: cfg?.notifications
       ? {
           escalation_emails:
@@ -274,7 +294,7 @@ export const workspaceTool = defineActions({
       examples: [{}],
       label: "Reading Settings",
       words:
-        "Action settings takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications (where alerts are emailed), the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels; propose_settings is what changes a setting.",
+        "Action settings takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications (where alerts are emailed), the autonomy rows with their modes and limits (the reply policy's dials among them), which channels are connected with their numbers, and How it reaches out's rows (what cold emails offer, the claims, their tone and sign-off, what an answer to a lead offers). Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels; propose_settings is what changes a setting.",
       run: getSettings,
     }),
     connections: readAction({

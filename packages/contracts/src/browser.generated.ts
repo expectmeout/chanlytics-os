@@ -208,6 +208,7 @@ export { offersAfterStart, offersFacts } from "./config/workspace-config/offers-
 export { bookingHeld, HELD_DRAFTS_DAYS, heldDraftsByClass, heldDraftsLine, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_CLASSES, POLICY_COVERS, POLICY_MODE_WORDS, POLICY_MODES, policyAskClass, policyClassLabel, policyClassOfIntent, policyClassQuestion, policyModeOffered, policyModeRefusal, policyRules } from "./config/workspace-config/policy-classes";
 export { allowedPrices, priceAllowance } from "./config/workspace-config/price-allowance";
 export { hoursRuns } from "./config/workspace-config/prompt-hours";
+export { applyReachOutChange, ASK_REACH_OUT_ROWS, describeReachOutChange, isReachOutChange } from "./config/workspace-config/reach-out-change";
 export { hasProfile, instructionsDraft, NO_FIELDS_COMPOSED_WORDS, ownWordsOf, resolveSystemPrompt, whoseWords } from "./config/workspace-config/resolve";
 export { ROLE_PERMS, ROLE_SAYS, ROLES, roleSays, roleTable, TEAM_ROLES } from "./config/workspace-config/role-perms";
 export { consentGuardWords, consentRuleWords, yesAsked } from "./consent/asks";
