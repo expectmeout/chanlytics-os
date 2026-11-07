@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DAY_MS, isReachOutRun, runDraftedEmails, runWaitsOnYou, waitRowsOf } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
-import { converge, LEADS, verify } from "../../tooling/scripts/ops/e2e-workspace.mjs";
+import { converge, LEADS, verify, WAITING_LEADS } from "../../tooling/scripts/ops/e2e-workspace.mjs";
 import { HANDED_OVER, WAITING_RUN, isACopy, writeCopyStates } from "../../tooling/scripts/e2e-harness/copy-states.mjs";
 
 const NOW = Date.parse("2026-09-14T09:00:00Z");
@@ -119,17 +119,26 @@ test("a run waiting for an OK never runs out of day: a spec may read it at any h
   assert.equal(run.recipient_count, people.length);
 });
 
-test("an email handed over is whole as 00429 holds one, to the seed's own fictional lead, and nothing has left", async () => {
+test("an email handed over is whole as 00429 holds one, to a place the waiting search left out, and nothing has left", async () => {
   const w = seeded();
   const { tenantId: T } = await night(w);
   await writeCopyStates(w.db, { now: NOW });
   const drafted = w.t.sequence_sends.filter((s) => s.state === "drafted");
   assert.equal(drafted.length, HANDED_OVER.leads.length);
-  const addresses = LEADS.filter((l) => HANDED_OVER.leads.includes(l.place_id)).map((l) => l.email);
+  const addresses = WAITING_LEADS.filter((l) => HANDED_OVER.leads.includes(l.place_id)).map(
+    (l) => `hello@${l.website_host}`,
+  );
+  assert.equal(
+    LEADS.some((l) => HANDED_OVER.leads.includes(l.place_id)),
+    false,
+    "none of the six whose order and acts e2e/leads.spec.ts reads: an email handed over makes a lead Yours to send",
+  );
   for (const s of drafted) {
     assert.ok(s.drafted_at, "sequence_sends_drafted_is_whole: dated");
     assert.deepEqual(Object.keys(s.draft).sort(), ["body", "subject", "text", "to"], "as the sender writes one");
-    assert.ok(addresses.includes(s.draft.to), `${s.draft.to} is a seeded lead's`);
+    assert.ok(addresses.includes(s.draft.to), `${s.draft.to} is one of those places' own`);
+    const lead = w.t.leads.find((l) => l.id === s.lead_id);
+    assert.deepEqual([lead.email, lead.email_state], [s.draft.to, "ok"], "and the address its lead holds, checked");
     assert.match(s.draft.to, /\.example$/, "an address that reaches nobody");
     assert.equal(s.message_id ?? null, null, "and no message was written for it");
   }

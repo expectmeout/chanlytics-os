@@ -11,8 +11,10 @@
  *
  *   - One run of the seed's own message to the three people, waiting for an OK. A one-off, whose day cannot pass (contracts
  *     runApprovalRefusal), so it still waits at whatever hour a spec reads it.
- *   - A reach-out its owner sends (00429), a first email and its nudge to two of the seed's leads, whose two runs are going
- *     with an email each handed over: To send folds two or more such runs into its one row (contracts toSendRunsOf).
+ *   - A reach-out its owner sends (00429), a first email and its nudge, whose two runs are going with an email each handed
+ *     over: To send folds two or more such runs into its one row (contracts toSendRunsOf). To two of the places the waiting
+ *     search left out, each given an address here, since an email is handed over only to one: e2e/leads.spec.ts reads the
+ *     order and the acts of the Austin six, and a lead with an email handed over is "Yours to send", wherever it stood.
  *
  * Nothing here is approved, sent or spent. The eval's paused Win-back, which the specs read as a sequence on a moment that
  * sends a message, is the seed's own (--seed-win-back), and the whole suite's seed passes it.
@@ -20,11 +22,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { DAY_MS, EVERYONE_LABEL, HOUR_MS } from "@chanlytics/contracts";
 import { pathToFileURL } from "node:url";
-import { CAMPAIGN_MESSAGE, LEAD_SEARCH, SLUG, TIMEZONE } from "../ops/e2e-workspace.mjs";
+import { CAMPAIGN_MESSAGE, SLUG, TIMEZONE, WAITING_SEARCH } from "../ops/e2e-workspace.mjs";
 
 /** The run waiting for an OK, by the name a spec or a person sees and a second run of this finds it by. */
 export const WAITING_RUN = "e2e copy: waiting for an OK";
-/** The reach-out, its nudge, and the two leads it handed an email for: the seed's, each with a checked address. */
+/** The reach-out, its nudge, and the two of the waiting search's places it handed an email for. */
 export const HANDED_OVER = {
   name: "e2e copy: handed to you",
   nudge: "e2e copy: handed to you · nudge",
@@ -32,7 +34,7 @@ export const HANDED_OVER = {
   language: "en",
   subject: "A made-up note",
   body: "This is a made-up note for the nightly's checks, and nobody is asked to answer it.",
-  leads: ["ChIJfixture0002", "ChIJfixture0006"],
+  leads: ["ChIJfixture0101", "ChIJfixture0102"],
 };
 /** How long the nudge waits after the first email (`sequence_steps_shape` asks for two days or more). */
 const NUDGE_AFTER_DAYS = 3;
@@ -169,13 +171,23 @@ async function writeHandedOver(db, { T, ownerId, stamp, now }) {
   );
   const search = wrote(
     "reading the seed's search",
-    await db.from("lead_searches").select("id").eq("tenant_id", T).eq("name", LEAD_SEARCH.name).single(),
+    await db.from("lead_searches").select("id").eq("tenant_id", T).eq("name", WAITING_SEARCH.name).single(),
   );
   const leads = wrote(
     "reading the seed's leads",
-    await db.from("leads").select("id, email, place_id").eq("tenant_id", T).in("place_id", HANDED_OVER.leads),
+    await db.from("leads").select("id, website_host").eq("tenant_id", T).in("place_id", HANDED_OVER.leads),
   );
   if (leads.length !== HANDED_OVER.leads.length) throw new Error("the seed's leads are not all there: run it first");
+  for (const lead of leads) {
+    lead.email = `hello@${lead.website_host}`;
+    wrote(
+      "a lead's address",
+      await db
+        .from("leads")
+        .update({ email: lead.email, email_state: "ok", email_checked_at: stamp })
+        .eq("id", lead.id),
+    );
+  }
   const on = { T, ownerId, template };
   const root = await writeStep(db, on, {
     name: HANDED_OVER.name,
