@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { write } from "@/server/shared/route";
 import { contactScope } from "@/server/shared/verbs";
-import { noteAnswer, noteOn } from "@/server/people/person-notes";
+import { noteAnswer, noteOn, removeNote } from "@/server/people/person-notes";
 
 const Body = z.object({ note_id: z.string().uuid() }).strict();
 
@@ -17,7 +17,7 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, row: contact, input }) => {
     await noteOn(ctx, contact.id, input.note_id);
-    const { data, error } = await ctx.supabase.rpc("person_note_remove", { p_note_id: input.note_id });
+    const { data, error } = await removeNote(ctx, { p_note_id: input.note_id });
     const { removed } = noteAnswer("person_note_remove", data, error);
     return { removed: removed ?? input.note_id };
   },

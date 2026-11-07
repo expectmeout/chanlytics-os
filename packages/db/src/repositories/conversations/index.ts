@@ -21,6 +21,7 @@ export {
   withdrawQueued,
 } from "./control";
 export type { CalledBack, ControlHolder, ControlOutcome, HandedBack, TakenOver, WithdrawReason } from "./control";
+export { findEscalationState } from "./escalations";
 export { claimIdempotencyKey, keepIdempotencyReceipt, releaseIdempotencyKey, takeIdempotencyKey } from "./idempotency";
 export type { IdempotencyClaim, IdempotencyHold } from "./idempotency";
 export { assembleHistory, HISTORY_COLUMNS, readDealForPhone, readLeadContext, readThreadState } from "./thread/history";

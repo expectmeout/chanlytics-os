@@ -16,6 +16,7 @@ export {
   setListRule,
 } from "./lists";
 export type { ListRow, SavedListRow, WriteError } from "./lists";
+export { decidePersonNote, editPersonNote, markPersonNoteDone, removePersonNote } from "./notes";
 export {
   addPersonNote,
   adoptPersonName,

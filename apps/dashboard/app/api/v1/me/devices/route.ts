@@ -2,6 +2,7 @@ import { z } from "zod";
 import { write, account } from "@/server/shared/route";
 import { AppError, parseDevice } from "@chanlytics/contracts";
 import { dbRefusal } from "@/server/shared/with-route";
+import { forgetDevice, registerDevice } from "@/server/notices/bell";
 
 /**
  * PUT /api/v1/me/devices — {token, platform, app_version?}: the phone the native app runs on, registered to be
@@ -17,7 +18,7 @@ export const PUT = write({
     const parsed = parseDevice(await req.json().catch(() => ({})));
     if (!parsed.ok) throw new AppError("validation", parsed.reason, 400);
     const { device } = parsed;
-    const { data, error } = await ctx.supabase.rpc("push_device_register", {
+    const { data, error } = await registerDevice(ctx, {
       p_token: device.token,
       p_platform: device.platform,
       ...(device.app_version ? { p_app_version: device.app_version } : {}),
@@ -37,7 +38,7 @@ export const DELETE = write({
   handle: async ({ ctx, input }) => {
     const token = (input.token ?? "").trim();
     if (!token) throw new AppError("validation", "A device needs its push token.", 400);
-    const { data, error } = await ctx.supabase.rpc("push_device_forget", { p_token: token });
+    const { data, error } = await forgetDevice(ctx, { p_token: token });
     if (error) throw dbRefusal(error);
     return data as { forgotten: number };
   },

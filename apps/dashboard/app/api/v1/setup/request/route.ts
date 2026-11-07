@@ -3,6 +3,7 @@ import { write, workspace } from "@/server/shared/route";
 import { SETUP_REQUEST_KINDS } from "@chanlytics/contracts";
 import { tellPlatformOfSetupRequest } from "@/server/workspace/tell";
 import { dbRefusal } from "@/server/shared/with-route";
+import { requestWorkspaceSetup } from "@/server/setup/setup";
 
 const ASK = "Say what you are asking for.";
 const Body = z.object({
@@ -29,7 +30,7 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, member, input }) => {
     const subject = input.what;
-    const { data, error } = await ctx.supabase.rpc("setup_request", { p_tenant_id: member.tenantId, p_what: subject });
+    const { data, error } = await requestWorkspaceSetup(ctx, { p_tenant_id: member.tenantId, p_what: subject });
     if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
     const already = !!(
       data &&

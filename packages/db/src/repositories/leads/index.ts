@@ -26,3 +26,12 @@ export {
   upsertLeadCompany,
 } from "./leads";
 export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPricesSeen } from "./leads";
+export {
+  answerSearchRound,
+  askSearchForMore,
+  excludeSearchMember,
+  keepSearchMember,
+  putBackSearchMember,
+  stopSearchRound,
+  undoLeadOperation,
+} from "./search-acts";

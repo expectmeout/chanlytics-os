@@ -276,11 +276,20 @@ type DoorAnswer = { data: unknown; error: { code?: string; message: string } | n
  * dashboard's noteAnswer). The plan a conversation begins with is kept this way (core begin.ts), for the receptionist
  * to read, never for the team alone.
  */
-export async function addPersonNote(db: Db, contactId: string, body: string, teamOnly: boolean): Promise<DoorAnswer> {
+export async function addPersonNote(
+  db: Db,
+  contactId: string,
+  body: string,
+  teamOnly: boolean,
+  more: { forUserId?: string | null; dueOn?: string | null; dealId?: string | null } = {},
+): Promise<DoorAnswer> {
   const { data, error } = await db.rpc("person_note_add", {
     p_contact_id: contactId,
     p_body: body,
     p_team_only: teamOnly,
+    ...(more.forUserId ? { p_for_user_id: more.forUserId } : {}),
+    ...(more.dueOn ? { p_due_on: more.dueOn } : {}),
+    ...(more.dealId ? { p_deal_id: more.dealId } : {}),
   });
   return { data, error };
 }

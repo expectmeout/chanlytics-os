@@ -9,9 +9,35 @@ import {
   type PersonNoteDto,
   type PersonNoteTeamDto,
 } from "@chanlytics/contracts";
-import { logPersonCall, seePersonNote } from "@chanlytics/db/people";
+import {
+  addPersonNote,
+  decidePersonNote,
+  editPersonNote,
+  logPersonCall,
+  markPersonNoteDone,
+  removePersonNote,
+  seePersonNote,
+} from "@chanlytics/db/people";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
+
+type Ctx = Pick<RouteContext, "supabase">;
+
+/**
+ * The notes doors, on the route's session (packages/db people/pages.ts and notes.ts), each answered as it came for
+ * noteAnswer to read. A route names no table or function (decision 0111).
+ */
+export const addNote = (
+  ctx: Ctx,
+  ...args: Parameters<typeof addPersonNote> extends [unknown, ...infer R] ? R : never
+) => addPersonNote(ctx.supabase, ...args);
+export const editNote = (ctx: Ctx, args: Parameters<typeof editPersonNote>[1]) => editPersonNote(ctx.supabase, args);
+export const decideNote = (ctx: Ctx, args: Parameters<typeof decidePersonNote>[1]) =>
+  decidePersonNote(ctx.supabase, args);
+export const markNoteDone = (ctx: Ctx, args: Parameters<typeof markPersonNoteDone>[1]) =>
+  markPersonNoteDone(ctx.supabase, args);
+export const removeNote = (ctx: Ctx, args: Parameters<typeof removePersonNote>[1]) =>
+  removePersonNote(ctx.supabase, args);
 
 type NoteRow = {
   id: string;
