@@ -29,7 +29,7 @@ import {
 } from "@chanlytics/contracts";
 import type { AddressParts } from "@chanlytics/contracts";
 import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
-import { PHONE_TABS } from "../surfaces/frame/places";
+import { PHONE_WARM_ROUTES } from "../surfaces/frame/places";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
 import { inPlace } from "../surfaces/see/see-over";
 
@@ -409,8 +409,8 @@ export function warmSoon(routes: readonly string[], win: AddressWindow = window)
 const NEXT_KEEPS_A_WARM_MS = 5 * MIN_MS;
 
 /**
- * The routes kept warm: the phone's tab bar's places, which a thumb goes to from anywhere (surfaces/frame/phone-tabs.tsx PhoneTabs). The
- * router lets a warmed page go after five minutes, and nothing warmed it again until the page on screen changed: a phone
+ * The routes kept warm: what a thumb goes to from anywhere, the phone's tab bar's places and the pages a swipe walks to from them
+ * (surfaces/frame/phone-tabs.tsx PhoneTabs, places.ts PHONE_WARM_ROUTES). The router lets a warmed page go after five minutes, and nothing warmed it again until the page on screen changed: a phone
  * put away and taken out came back to places that each waited on the server first (12% of the bar's moves on
  * production, 5 to 12 Oct 2026). They are warmed again as the tab comes back to the screen, and, on a tab left on
  * screen, by the first touch, click or key once Next has let them go: a press is likely the next thing, and a tab
@@ -448,18 +448,19 @@ export function keepWarm(routes: readonly string[], win: AddressWindow = window)
 }
 
 /**
- * A phone's tab pages, asked for the moment the router can be (FrameHost, as it hands the router over), with no wait for an
- * idle page. A press can come as soon as the bar stands, and one made on the rows a phone last showed is made again as the
+ * A phone's tab pages and the pages a swipe walks to from them (places.ts PHONE_WARM_ROUTES), asked for the moment the router can
+ * be (FrameHost, as it hands the router over), with no wait for an idle page. A press can come as soon as the bar stands, and one made on the rows a phone last showed is made again as the
  * frame draws (frame/first-rows.ts), but the pages were first asked for once the frame had drawn and the page gone idle:
  * after READY, about 2.6 s into an open at a phone's pace, and a flat 1.2 s more where there is no idle callback (Safari). Of
  * 29 phone presses that waited on their page, 22 came early, and they waited a second on average (production, 14 days to
- * 6 Nov 2026). A warm is the build's own files, about 3 KB a page. A desk's pointer warms what it reaches, and the native
+ * 6 Nov 2026). A warm is a page's route tree, its segment and its own JS: Conversations and Live bring 24 KB between them
+ * (7 Nov 2026). A desk's pointer warms what it reaches, and the native
  * app's tab bar stands in this one's place.
  */
 export function warmPhonePlaces(win: AddressWindow & { __IN_APP?: boolean } = window): void {
   if (win.__IN_APP || !warmsOnItsOwn()) return;
   if (typeof matchMedia !== "function" || !matchMedia(PAGE_PHONE_QUERY).matches) return;
-  for (const { route } of PHONE_TABS) warmRoute(route, win);
+  for (const route of PHONE_WARM_ROUTES) warmRoute(route, win);
 }
 
 /**

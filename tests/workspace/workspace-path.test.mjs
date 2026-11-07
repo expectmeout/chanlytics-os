@@ -509,18 +509,18 @@ test("REGRESSION: what waits for the boot waits for the runner's, once the shell
   }
 });
 
-test("a phone's tab pages are asked for at once, with no idle wait; never on a desk, in the native app, or where a person has asked to save data", () => {
+test("a phone's tab pages, and the pages a swipe walks to from them, are asked for at once, with no idle wait; never on a desk, in the native app, or where a person has asked to save data", () => {
   const was = {
     idle: globalThis.requestIdleCallback,
     media: globalThis.matchMedia,
     nav: Object.getOwnPropertyDescriptor(globalThis, "navigator"),
   };
   const asked = [];
-  const askedOn = ({ phone = true, inApp = false, connection = null } = {}) => {
+  const askedOn = ({ phone = true, inApp = false, connection = null, at = "today" } = {}) => {
     asked.length = 0;
     globalThis.matchMedia = (q) => ({ matches: phone && q.includes("900px") });
     Object.defineProperty(globalThis, "navigator", { value: { connection }, configurable: true });
-    const w = windowAt({ pathname: "/w/acme/today" });
+    const w = windowAt({ pathname: `/w/acme/${at}` });
     if (inApp) w.win.__IN_APP = true;
     warmPhonePlaces(w.win);
     return [...asked];
@@ -531,8 +531,13 @@ test("a phone's tab pages are asked for at once, with no idle wait; never on a d
     globalThis.requestIdleCallback = () => assert.fail("no wait for an idle page");
     assert.deepEqual(
       askedOn(),
-      ["/w/acme/inbox", "/w/acme/calendar", "/w/acme/people"],
-      "every place on the bar but the one on screen",
+      ["/w/acme/inbox", "/w/acme/calendar", "/w/acme/people", "/w/acme/conversations", "/w/acme/live"],
+      "every place on the bar but the one on screen, and the pages a swipe walks to",
+    );
+    assert.deepEqual(
+      askedOn({ at: "conversations" }),
+      ["/w/acme/today", "/w/acme/inbox", "/w/acme/calendar", "/w/acme/people", "/w/acme/live"],
+      "and never the one on screen, whichever it is",
     );
     assert.deepEqual(askedOn({ phone: false }), [], "a desk's pointer warms what it reaches");
     assert.deepEqual(askedOn({ inApp: true }), [], "the native app's tab bar stands in this one's place");
