@@ -123,7 +123,7 @@ test(
       holdFacts: async () => null,
       holdTold: async () => false,
       optOutPerson: (tenantId, contactId) => repo.findPersonFacts(db, tenantId, contactId),
-      wasOptOutTold: (tenantId, p) => repo.wasOptOutTold(db, { tenantId, ...p }),
+      optOutTold: (tenantId, p) => repo.wasOptOutTold(db, { tenantId, ...p }),
       tell: async (news) => {
         told.push(news);
         ok(

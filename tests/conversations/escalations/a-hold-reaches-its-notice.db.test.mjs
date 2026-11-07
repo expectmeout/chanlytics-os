@@ -130,7 +130,7 @@ test("a hold opened through its door is owed to owner_notice, and told once from
     holdFacts: (tenantId, ref) => holdFactsOf(db, tenantId, ref, Date.now()),
     holdTold: (tenantId, p) => holdTold(db, { tenantId, ...p }),
     optOutPerson: (tenantId, contactId) => findPersonFacts(db, tenantId, contactId),
-    wasOptOutTold: (tenantId, p) => wasOptOutTold(db, { tenantId, ...p }),
+    optOutTold: (tenantId, p) => wasOptOutTold(db, { tenantId, ...p }),
     tell: async (news) => {
       told.push(news);
       ok(
