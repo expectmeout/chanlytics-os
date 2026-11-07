@@ -11,6 +11,7 @@ import { askOnScreenKey, navigate, setAskOnScreen } from "../../frame-verbs";
 import type { FocusOn } from "../../kit/record/focus";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { TABLE_BODIES } from "../../kit/table/data-table";
+import { usePeekFocus } from "../../kit/table/peek-focus";
 import { usePlControls } from "../hooks/use-controls";
 import { usePeople } from "../hooks/use-people";
 import { usePlPlace } from "../hooks/use-place";
@@ -307,9 +308,8 @@ export function usePipelinePeekReads(ui: PipelineUi, place: PipelinePlace, doors
   useEffect(() => {
     if (peekId && cursor && cursor !== peekId) doors.showPeek(cursor);
   }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps -- kept as the JSX drew it: the cursor moving is the only reason
-  useEffect(() => {
-    pipePeekFocus(peekId, cursor);
-  }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps -- kept as the JSX drew it: focus moves as the peek opens or closes
+  // Focus moves as the peek opens or closes, and never as the Pipeline is shown again after a swipe (kit/table/peek-focus.ts).
+  usePeekFocus(peekId, (to) => pipePeekFocus(to, cursor));
   // The person for the peek, read behind the tab's copy; read again when People lands or changes (`surface:clients`: a deal
   // recorded on them or a step set, changed or done is read with People behind the write, and the live feed tells of a
   // teammate's), and on Retry after a read that failed.

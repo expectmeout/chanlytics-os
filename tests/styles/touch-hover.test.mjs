@@ -203,17 +203,18 @@ const paints = (r) => {
   const ds = [...(r.value.declarations.declarations ?? []), ...(r.value.declarations.importantDeclarations ?? [])];
   return ds.length > 0 && ds.every((d) => PAINTS.has(propertyOf(d))) && ds.some(draws);
 };
-/** Each style rule of a sheet, with whether it stands under a pointer's media query. */
+/** Each style rule of a sheet, with whether it stands under a pointer's media query, and the media queries it stands in. */
 const eachRule = (sheet, visit) => {
-  const walk = (rules, guarded) => {
+  const walk = (rules, guarded, queries) => {
     for (const r of rules) {
-      if (r.type === "media") walk(r.value.rules, guarded || asksForPointer(r.value.query));
+      if (r.type === "media")
+        walk(r.value.rules, guarded || asksForPointer(r.value.query), [...queries, r.value.query]);
       else if (r.type === "supports" || r.type === "container" || r.type === "layer-block")
-        walk(r.value.rules, guarded);
-      else if (r.type === "style") visit(r, guarded);
+        walk(r.value.rules, guarded, queries);
+      else if (r.type === "style") visit(r, guarded, queries);
     }
   };
-  walk(parse(sheet).rules, false);
+  walk(parse(sheet).rules, false, []);
 };
 
 test("no sheet paints on :hover outside a pointer's media query, so a finger's last tap keeps nothing lit", () => {
@@ -365,4 +366,51 @@ test("each button variant presses in its own colour under a finger, never the pl
   });
   for (const v of ["btn-primary", "btn-ghost", "btn-danger", "btn-glass", "btn.danger"])
     assert.ok(pressed.has(v), `.${v} has no press of its own: a finger's press shows the plain button's grey`);
+});
+
+/*
+ * A swipe is no tap. Once the strip's reader takes a touch across, the phone's scroll is refused, so to the phone the touch
+ * stayed on the row it began on, and that row wore its hover fill as the page went (Ruben's recording, 7 Nov 2026). The
+ * reader marks its page while it carries it (`data-carried`, kit/motion/swipe.ts), and the rows' fill gives way under the
+ * mark until the next touch: the opened row's mark and a picked row keep theirs, and a tap lights its row as before.
+ */
+test("a row a thumb only carried across with its page is not lit by that touch; the opened row and a picked row keep their fill", () => {
+  const found = [];
+  eachRule("apps/dashboard/src/styles/clients.css", (r) => {
+    for (const x of r.value.selectors) {
+      const s = JSON.stringify(x);
+      if (/"name":"data-carried"/.test(s) && /"kind":"hover"/.test(s)) found.push({ s, r });
+    }
+  });
+  assert.equal(found.length, 1, "one rule gives the rows' fill way under the reader's mark");
+  const [{ s, r }] = found;
+  assert.ok(/"name":"pl-table"/.test(s), "on the table People, Leads and the Pipeline draw");
+  assert.ok(
+    /"name":"data-hover"/.test(s) && /"name":"selected"/.test(s),
+    "never the opened row's mark, nor a picked row",
+  );
+  const ds = r.value.declarations.declarations ?? [];
+  assert.deepEqual(ds.map(propertyOf), ["background"]);
+  assert.ok(!draws(ds[0]), "and it paints nothing");
+});
+
+/*
+ * The table's cursor row takes focus so a keyboard's Tab carries on from it, and its ring is the keyboard's. A phone that
+ * only has a finger drew it wherever the page moved focus for itself (Ruben, 7 Nov 2026: "this random stroke selection").
+ */
+test("a card on a screen with no pointer that hovers draws no keyboard ring", () => {
+  const touchOnly = [];
+  eachRule("apps/dashboard/src/surfaces/kit/kit.css", (r, _guarded, queries) => {
+    const card = r.value.selectors.some((x) => {
+      const s = JSON.stringify(x);
+      return /"name":"data-card"/.test(s) && /"kind":"focus-visible"/.test(s);
+    });
+    const noHover = queries.some((q) => /"name":"hover"/.test(JSON.stringify(q)) && /"none"/.test(JSON.stringify(q)));
+    if (card && noHover) touchOnly.push(r);
+  });
+  assert.equal(touchOnly.length, 1, "one rule, under @media (hover: none)");
+  const ds = touchOnly[0].value.declarations.declarations ?? [];
+  assert.equal(ds.length, 1, "the ring alone");
+  assert.match(propertyOf(ds[0]), /^outline/);
+  assert.match(JSON.stringify(ds[0].value), /none/);
 });

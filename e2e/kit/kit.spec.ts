@@ -267,6 +267,14 @@ const RINGLESS: { why: string; runs: RegExp; failure: RegExp }[] = [
     runs: /./,
     failure: /^line-field: textarea\.line-field draws no ring/,
   },
+  {
+    why:
+      "kit.css, `@media (max-width: 900px) and (hover: none) { .dtable tbody tr[data-card]:focus-visible }`: a card on a " +
+      "screen with no pointer that hovers takes focus only as the page moves it there after a finger's touch, so it wears " +
+      'no keyboard\'s ring (Ruben, 7 Nov 2026: "this random stroke selection" after a swipe back)',
+    runs: /^phone /,
+    failure: /^dtable-cards: .*> tbody > tr[.\w-]* draws no ring/,
+  },
 ];
 const twinsQ = async (width: Width): Promise<KitAsk> => {
   const { EDGE_TOLERANCE, LAID_OUT } = await recorder();
