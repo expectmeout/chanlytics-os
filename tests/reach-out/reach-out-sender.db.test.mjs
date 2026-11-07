@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { importBundle } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -156,7 +157,7 @@ before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   ({ claimAndWrite } = await import(at("apps/edge/lib/campaigns/reach-out/sender/sender.ts")));
-  ({ checkedWordsOf } = await import("@chanlytics/channels"));
+  ({ checkedWordsOf } = await importBundle("channels"));
   ({ sendMessageId } = await import(at("packages/core/src/campaigns/reach-out-ids.ts")));
   ({ logger: log } = await import(at("apps/edge/lib/shared/log.ts")));
   A = await workspace(`sender-a-${stamp}`, "Harbor Moving Co");

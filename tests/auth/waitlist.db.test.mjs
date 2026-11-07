@@ -36,8 +36,8 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= URL_;
 const { joinWaitlist } = skip
   ? { joinWaitlist: null }
   : await import("../../apps/dashboard/src/server/workspace/signup.ts");
-const { platformWaitlist } = skip
-  ? { platformWaitlist: null }
+const { getPlatformWaitlist } = skip
+  ? { getPlatformWaitlist: null }
   : await import("../../apps/dashboard/src/server/console/platform.ts");
 
 let db;
@@ -141,7 +141,7 @@ test("the queue is read oldest first, and only the ones still waiting", { skip }
 test("what the back office reads is what a browser gets, and it carries nobody's invited_by", { skip }, async () => {
   // The projection is PostgREST's, so it is proved where PostgREST is: the
   // in-memory double hands back whole rows whatever the select asked for.
-  const q = await platformWaitlist({ db });
+  const q = await getPlatformWaitlist({ db });
   const mine = q.waiting.filter((r) => r.email.endsWith(`-${stamp}@example.com`));
   assert.ok(mine.length >= 3, "the ones this file put there are in the queue the back office reads");
   assert.deepEqual(

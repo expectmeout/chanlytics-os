@@ -32,7 +32,7 @@
  *   2. runReachOutStep (what Start asks through the run-now door) plans the first run, which waits for its owner;
  *   3. the check's tick (checkSends), over a scripted model, writes and reads an opening for each: one is planned with
  *      its opening, the other held `chain`;
- *   4. the dashboard's reachOutRunOf, on the owner's session, answers one for today, one held with its words, and the
+ *   4. the dashboard's findReachOutRun, on the owner's session, answers one for today, one held with its words, and the
  *      first email as it reads, its opening in;
  *   5. reach_out_send_decide(include) puts the held one back, checked, its opening kept;
  *   6. approved, ticked and its jobs run: both emails leave from the workspace's mailbox, each body opening with its
@@ -146,7 +146,7 @@ async function runJobs(tenantId = A) {
       .eq("state", "scheduled")
       .select("*"),
   );
-  const wire = { email: await lib.emailWireFor(db, tenantId) };
+  const wire = { email: await lib.findEmailWire(db, tenantId) };
   for (const j of jobs) {
     await lib.dispatchJob(
       { db, wire, alert: async () => {}, schedule: async () => {}, deadline: Date.now() + 60_000 },
@@ -163,7 +163,7 @@ const noModel = async () => {
 const tick = async (now = new Date()) => {
   const checked = await lib.checkSends({ db, now, started: Date.now(), log: L, tenantId: A, ask: noModel });
   assert.deepEqual([checked.calls, checked.errors], [0, 0], JSON.stringify(checked));
-  await lib.reachOutClock(db, now, L, Date.now(), A);
+  await lib.runReachOutClock(db, now, L, Date.now(), A);
   return lib.claimAndWrite({ db, now, started: Date.now(), lane: LANE, log: L, tenantId: A });
 };
 
@@ -177,7 +177,7 @@ before(async () => {
     ...(await import(at("apps/edge/lib/campaigns/reach-out/clock.ts"))),
     ...(await import(at("apps/edge/lib/campaigns/reach-out/check.ts"))),
     ...(await import(at("apps/edge/lib/campaigns/reach-out/sender/sender.ts"))),
-    ...(await import("@chanlytics/channels")),
+    ...(await importBundle("channels")),
     ...(await import(at("apps/edge/lib/email/email.ts"))),
     ...(await import(at("apps/edge/lib/email/receipts.ts"))),
     ...(await import(at("apps/edge/lib/email/mailbox/sync.ts"))),
@@ -331,7 +331,7 @@ const runOf = async (stepId) =>
   );
 const stepRun = async (stepId) => {
   const now = new Date();
-  const ctx = await lib.reachOutRunContext(db, await playbook(stepId), now);
+  const ctx = await lib.getReachOutRunContext(db, await playbook(stepId), now);
   assert.ok(!("error" in ctx), JSON.stringify(ctx));
   const runFor = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(now);
   return lib.runReachOut(ctx.ports, ctx.step, { runFor });
@@ -879,7 +879,7 @@ test(
 
     // 4. The approval sheet's read, on the owner's session: one today, one held with its words, the first email as it
     // reads.
-    const r4 = await dash.reachOutRunOf(ctx, B, run);
+    const r4 = await dash.findReachOutRun(ctx, B, run);
     assert.deepEqual([r4.root_id, r4.step_n, r4.today, r4.later, r4.checking], [root, 0, 1, 0, 0], JSON.stringify(r4));
     assert.deepEqual(
       r4.held.map((h) => [h.business_name, h.reason, holdWords(h.reason, h.detail), h.opening]),
@@ -914,7 +914,7 @@ test(
     );
     assert.ok(included.checked_at, "an Include is no new check");
     await due(run.id);
-    const r5 = await dash.reachOutRunOf(ctx, B, run);
+    const r5 = await dash.findReachOutRun(ctx, B, run);
     assert.deepEqual([r5.today, r5.held.length, r5.checking], [2, 0, 0]);
 
     // 6. Approved on the owner's session, then the ticks: nothing left to check, both claimed and written, their jobs
@@ -931,7 +931,7 @@ test(
       ask: model.ask,
     });
     assert.deepEqual([again.read, again.calls, model.calls.length], [0, 0, 4], "nothing is checked twice");
-    await lib.reachOutClock(db, new Date(), L, Date.now(), B);
+    await lib.runReachOutClock(db, new Date(), L, Date.now(), B);
     const c6 = await lib.claimAndWrite({ db, now: new Date(), started: Date.now(), lane: LANE, log: L, tenantId: B });
     assert.deepEqual([c6.claimed, c6.written, c6.errors], [2, 2, 0], JSON.stringify(c6));
     const before6 = gmail.sent.length;

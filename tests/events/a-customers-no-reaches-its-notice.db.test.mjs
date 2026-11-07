@@ -36,7 +36,7 @@ before(async () => {
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   ({ SUBSCRIBERS } = await import(pathToFileURL(path.join(ROOT, "packages/core/src/events/subscribers.ts")).href));
   repo = await import(
-    pathToFileURL(path.join(ROOT, "packages/db/src/repositories/notices/notifications/feed.ts")).href
+    pathToFileURL(path.join(ROOT, "packages/db/src/repositories/notices/notifications/kept.ts")).href
   );
   T = ok(
     await db
@@ -122,8 +122,8 @@ test(
       bookedFromAppointment: async () => 0,
       holdFacts: async () => null,
       holdTold: async () => false,
-      optOutPerson: (tenantId, contactId) => repo.personFactsOf(db, tenantId, contactId),
-      optOutTold: (tenantId, p) => repo.optOutTold(db, { tenantId, ...p }),
+      optOutPerson: (tenantId, contactId) => repo.findPersonFacts(db, tenantId, contactId),
+      wasOptOutTold: (tenantId, p) => repo.wasOptOutTold(db, { tenantId, ...p }),
       tell: async (news) => {
         told.push(news);
         ok(
@@ -151,15 +151,15 @@ test(
 
     // Bell told, mail owed: found by its event and not yet told in full; once the mail has gone, told.
     const asked = { tenantId: T, eventId: event.id, contactId: taken.contact_id, at: event.created_at };
-    const kept = await repo.noticeFor(db, { tenantId: T, kind: "opted_out", sourceEvent: event.id });
+    const kept = await repo.findNotice(db, { tenantId: T, kind: "opted_out", sourceEvent: event.id });
     assert.ok(kept && kept.mailOwed, "the row says its mail is owed");
-    assert.equal(await repo.optOutTold(db, asked), false);
-    await repo.mailSent(db, { tenantId: T, id: kept.id });
+    assert.equal(await repo.wasOptOutTold(db, asked), false);
+    await repo.recordMailSent(db, { tenantId: T, id: kept.id });
     assert.equal(
-      (await repo.noticeFor(db, { tenantId: T, kind: "opted_out", sourceEvent: event.id }))?.mailOwed,
+      (await repo.findNotice(db, { tenantId: T, kind: "opted_out", sourceEvent: event.id }))?.mailOwed,
       false,
     );
-    assert.equal(await repo.optOutTold(db, asked), true);
+    assert.equal(await repo.wasOptOutTold(db, asked), true);
 
     await SUBSCRIBERS.consent_notice(event, ports);
     assert.equal(told.length, 1, "a second run tells nobody");

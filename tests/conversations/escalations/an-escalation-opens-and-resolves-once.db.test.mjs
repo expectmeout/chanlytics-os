@@ -50,10 +50,10 @@ const realError = console.error;
 const SWALLOWS = /escalation_\w+_failed|resolve_escalation_\w+|pause_conversation_\w+|pg_\w+_failed|_failed"/;
 
 let phones = 400;
-/** A customer's WhatsApp message, taken in by the edge (persist.ts pgIngest). */
+/** A customer's WhatsApp message, taken in by the edge (persist.ts runPgIngest). */
 async function customerWrites(words, digits) {
   phones += 1;
-  const ing = await persist.pgIngest(db, T, {
+  const ing = await persist.runPgIngest(db, T, {
     channel: "whatsapp",
     externalId: `wamid.in.${stamp}.${phones}`,
     identity: { externalId: digits, phoneE164: `+${digits}`, email: null },

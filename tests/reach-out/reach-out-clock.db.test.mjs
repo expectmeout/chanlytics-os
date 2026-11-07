@@ -158,7 +158,7 @@ const states = async (ids) => {
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  ({ reachOutClock: clock } = await import(at("apps/edge/lib/campaigns/reach-out/clock.ts")));
+  ({ runReachOutClock: clock } = await import(at("apps/edge/lib/campaigns/reach-out/clock.ts")));
   ({ sendMessageId } = await import(at("packages/core/src/campaigns/reach-out-ids.ts")));
   ({ logger: log } = await import(at("apps/edge/lib/shared/log.ts")));
   A = await one(db.from("tenants").insert({ slug: `clock-a-${stamp}`, name: "Clock A", timezone: "America/Chicago" }));

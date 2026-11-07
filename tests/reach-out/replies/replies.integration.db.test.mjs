@@ -205,7 +205,7 @@ const followers = async () =>
 async function jobContext(extra) {
   return {
     db,
-    wire: { email: await lib.emailWireFor(db, A) },
+    wire: { email: await lib.findEmailWire(db, A) },
     mailboxIntake: lib.mailboxIntake(db),
     alert: async (news) => {
       alerts.push(news);
@@ -248,12 +248,12 @@ const noModel = async () => {
 const tick = async (now = new Date()) => {
   const checked = await lib.checkSends({ db, now, started: Date.now(), log: L, tenantId: A, ask: noModel });
   assert.deepEqual([checked.calls, checked.errors], [0, 0], JSON.stringify(checked));
-  await lib.reachOutClock(db, now, L, Date.now(), A);
+  await lib.runReachOutClock(db, now, L, Date.now(), A);
   return lib.claimAndWrite({ db, now, started: Date.now(), lane: LANE, log: L, tenantId: A });
 };
 const stepRun = async (stepId) => {
   const now = new Date();
-  const ctx = await lib.reachOutRunContext(db, await playbook(stepId), now);
+  const ctx = await lib.getReachOutRunContext(db, await playbook(stepId), now);
   assert.ok(!("error" in ctx), JSON.stringify(ctx));
   return lib.runReachOut(ctx.ports, ctx.step, { runFor: dayIn(now) });
 };
@@ -605,7 +605,7 @@ test(
       replyOf[key] = m;
     }
     assert.equal(
-      await lib.mailboxPeopleSince(db, A, mailbox, new Date(0)),
+      await lib.getMailboxPeopleSince(db, A, mailbox, new Date(0)),
       Object.keys(BUSINESSES).length + 1,
       "its row counts each who wrote through it once: the four businesses and the supplier",
     );
