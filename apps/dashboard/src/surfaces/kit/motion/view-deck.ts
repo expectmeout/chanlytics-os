@@ -30,20 +30,23 @@
  * by a copy of itself, drawn as it stood, and the view itself is left as React keeps it; a hidden view is never the one a
  * gesture or a press moves.
  */
+import { VIEW_CHANGE_MS } from "@chanlytics/contracts";
 import { clearOfFoot, documentScroller, isDocumentScroller, scrollerOf, shownHeight } from "./page-scroll";
 
 /** How long a change of view takes: the spring is within a pixel of its place by then. */
-export const TIMELINE_MS = 460;
+export const TIMELINE_MS = VIEW_CHANGE_MS;
 /** The step the timeline is sampled at; the compositor draws straight lines between the samples. */
 const SAMPLE_MS = 20;
 /** A page that joins a timeline already under way fades in over this, where it joins. */
 export const JOIN_FADE_MS = 90;
 /** A change of view under reduced motion: a cross-fade, and no travel. */
 export const CROSS_FADE_MS = 160;
+/** How long after the press a page that left waits for its successor: a slow page takes as long to come however short the slide. */
+const SUCCESSOR_BY_MS = 1660;
 /** How long past its timeline a page that left waits for its successor before it comes back. */
-export const SUCCESSOR_WAIT_MS = 1200;
-/** The spring's pull, each millisecond. */
-const PULL = 0.02;
+export const SUCCESSOR_WAIT_MS = SUCCESSOR_BY_MS - TIMELINE_MS;
+/** The spring's pull, each millisecond: the one shape, fitted to the timeline, so it ends within a pixel of a phone's width. */
+const PULL = 9.2 / TIMELINE_MS;
 /** A desk's travel in pixels, where no token says one. */
 const SHORT_TRAVEL = 56;
 /** A page that travels this share of its width or more is one that leaves the screen. */

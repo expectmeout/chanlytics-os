@@ -157,6 +157,13 @@ test("the spring ends on its target, never passes it, never turns back, and is t
   assert.equal(springAt(0, -375, 0, 0), 0, "and it starts where it is");
 });
 
+test("most of a slide is over early: 89% there at 100 ms, 98% at 150 ms", () => {
+  const at100 = springAt(0, -375, 0, 100);
+  const at150 = springAt(0, -375, 0, 150);
+  assert.ok(at100 <= -330 && at100 >= -340, `at 100 ms: ${at100}`);
+  assert.ok(at150 <= -363 && at150 >= -371, `at 150 ms: ${at150}`);
+});
+
 test("a page let go at the finger's speed starts at that speed: no pause where the finger lifted", () => {
   const from = -210;
   const step = springAt(from, -375, -1.4, 10) - from;
@@ -393,6 +400,14 @@ test("a page asked to leave that nothing replaces comes back", async () => {
     a.anims.every((x) => x.cancelled),
     "and nothing is left on it",
   );
+});
+
+test("a shorter slide is no shorter wait: a page that left waits 1,660 ms from the press for the next, however long the slide", () => {
+  const w = world();
+  const a = view();
+  w.deck.view("frame")(a);
+  w.deck.leave(1);
+  assert.equal(w.waits[0].ms, 1660, "a slow page takes as long to come as it did when the slide took 460 ms");
 });
 
 test("a page told to stay after all comes back at once, and one at rest is left alone", () => {

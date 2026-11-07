@@ -25,6 +25,12 @@ export const HOUR_MS = 3_600_000;
 export const DAY_MS = 86_400_000;
 export const WEEK_MS = 7 * DAY_MS;
 
+/**
+ * How long a change of view takes: the deck's timeline in the frame, and how long a held read waits so it does not land
+ * under the slide. It was 460 ms, and most of that was the spring's tail: 91% there by 200 ms (6 Nov 2026).
+ */
+export const VIEW_CHANGE_MS = 240;
+
 /** How much longer a retry's wait may be drawn, as a share of the wait: up to a fifth. */
 const JITTER_SPREAD = 0.2;
 

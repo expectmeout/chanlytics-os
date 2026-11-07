@@ -902,7 +902,7 @@ test("a list's own rows arrive as a table's do, and the ref that brings them in 
   );
 });
 
-test("a list can say its rows stand on a phone; a table's keep their fade there, and both fade in at a desk", () => {
+test("on a phone every list's rows stand, a table's too; at a desk both fade in", () => {
   const arrives = (args, phone) => {
     fresh();
     let ref = null;
@@ -921,11 +921,15 @@ test("a list can say its rows stand on a phone; a table's keep their fade there,
     }
     return row.runs.length;
   };
-  const standing = [":scope > .ix-thread", { onPhone: false }];
-  assert.equal(arrives(standing, true), 0, "a list that says so stands on a phone");
-  assert.equal(arrives(standing, false), 1, "and fades in at a desk");
-  assert.equal(arrives([], true), 1, "a table fades in on a phone: its rows land clean");
-  assert.equal(arrives([], false), 1, "and at a desk");
+  const list = [":scope > .ix-thread"];
+  assert.equal(arrives(list, true), 0, "a list stands on a phone");
+  assert.equal(arrives(list, false), 1, "and fades in at a desk");
+  assert.equal(
+    arrives([], true),
+    0,
+    "a table stands on a phone: every press remounts it, so its fade ran on every press",
+  );
+  assert.equal(arrives([], false), 1, "and fades in at a desk");
 });
 
 test("a list drawn in groups answers group by group as its view changes, and the table with its heads holds still", () => {

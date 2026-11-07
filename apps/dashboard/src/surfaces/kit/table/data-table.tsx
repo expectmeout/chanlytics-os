@@ -216,7 +216,7 @@ function useTableElements(
     },
     [state.dom],
   );
-  // The first rows rise in as the table arrives, as the Inbox's do; one element for that and the page's swap.
+  // At a desk the first rows fade in as the table arrives, as the Inbox's do; one element for that and the page's swap.
   const arrive = useRowsArrive<HTMLTableElement>();
   const tableRef = useCallback(
     (node: HTMLTableElement | null) => {
@@ -504,6 +504,7 @@ export function DataTable<R extends TableRow, X>(p: DataTableProps<R, X>) {
   const picked = rows.filter((r) => s.sel.has(r.id)).length;
   const selecting = !!p.selectMode || picked > 0;
   const shown = useShownRows({
+    name: s.words.list,
     count: s.sections ? 0 : s.items.length,
     estimate: rowHeightOf(s.desk, state.density === "compact"),
     keyOf: (i) => {

@@ -14,7 +14,7 @@
  * box that scrolls it, else the window (a phone, where the window scrolls the page). The virtualizer is @tanstack/react-virtual's (its core, which it re-exports), the job's standard,
  * here and nowhere else.
  */
-import { useLayoutEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useReducer, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import {
   Virtualizer,
@@ -53,6 +53,44 @@ const FIRST_SCREEN_PX = 900;
 
 type Scroller = Element | Window;
 type Deck = Virtualizer<Window, Element> | Virtualizer<Element, Element>;
+/** Where a list stands in what scrolls it: that, where the list starts in it, and the gap it leaves between two rows. */
+interface ListPlace {
+  scroller: Scroller;
+  margin: number;
+  gap: number;
+}
+
+/**
+ * What a list the window scrolls knows of itself from the last time it was drawn, by its name: where it starts in the page,
+ * the gap between its rows, and what each row measured. Every press of a tab draws its list anew, and a list that had
+ * forgotten drew its first forty rows, asked the page where it scrolls, drew the twenty-odd of its window, asked each row
+ * its height, and drew again: 7 commits a press at 2,000 people against 5 with few, and READY about twice as long (6 Nov
+ * 2026). None of this changes as a person moves between tabs, and what does change (a band above the list, the window's
+ * width) is heard once the page is laid out, and put right. A box that scrolls a list is drawn anew with it, so only the
+ * window is kept.
+ */
+interface WindowList {
+  margin: number;
+  gap: number;
+  sizes: Deck["itemSizeCache"];
+}
+const WINDOW_LISTS = new Map<string, WindowList>();
+
+const placeOnWindow = (name: string): ListPlace | null => {
+  const known = WINDOW_LISTS.get(name);
+  return known ? { scroller: window, margin: known.margin, gap: known.gap } : null;
+};
+
+function keepWindowList(name: string, margin: number, gap: number): void {
+  const known = WINDOW_LISTS.get(name);
+  if (known) {
+    known.margin = margin;
+    known.gap = gap;
+    return;
+  }
+  const sizes: WindowList["sizes"] = new Map();
+  WINDOW_LISTS.set(name, { margin, gap, sizes });
+}
 /** What the virtualizer is told whatever scrolls the list. */
 interface Told {
   count: number;
@@ -82,6 +120,26 @@ function marginOf(el: Element, scroller: Scroller): number {
   const top = el.getBoundingClientRect().top;
   if (scroller instanceof Window) return top + window.scrollY;
   return top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+}
+
+/**
+ * A row's room: its box and what roomAround adds. A row only being put in the page, whose size nothing has heard yet, keeps
+ * the room it was measured at: asked its height, it laid the page out for what the list already knows, and that answer,
+ * being the room already, had its margins and its gap added again. A row with no layout (a list a page hides, under a
+ * thread) keeps it too, or the guess: it measures nothing, so the window held every row, and that was kept for the next time
+ * the list was drawn (1,393 fibers on the next press to the Inbox, against 481: 7 Nov 2026).
+ */
+function rowRoomOf<S extends Element | Window>(
+  el: Element,
+  entry: ResizeObserverEntry | undefined,
+  instance: Virtualizer<S, Element>,
+  gap: number,
+): number {
+  const index = instance.indexFromElement(el);
+  const known = instance.itemSizeCache.get(instance.options.getItemKey(index));
+  if (known !== undefined && !entry) return known;
+  if (el.getClientRects().length === 0) return known ?? instance.options.estimateSize(index);
+  return boxOf(el, entry, instance) + roomAround(el, gap);
 }
 
 /**
@@ -132,7 +190,7 @@ function windowOptions(
 ): VirtualizerOptions<Window, Element> {
   return {
     ...told,
-    measureElement: (el, entry, instance) => boxOf(el, entry, instance) + roomAround(el, list.gap),
+    measureElement: (el, entry, instance) => rowRoomOf(el, entry, instance, list.gap),
     getScrollElement: () => w,
     ...unlessHeld<Window>(
       { observeElementRect: observeWindowRect, observeElementOffset: observeWindowOffset },
@@ -150,7 +208,7 @@ function boxOptions(
 ): VirtualizerOptions<Element, Element> {
   return {
     ...told,
-    measureElement: (el, entry, instance) => boxOf(el, entry, instance) + roomAround(el, list.gap),
+    measureElement: (el, entry, instance) => rowRoomOf(el, entry, instance, list.gap),
     getScrollElement: () => box,
     ...unlessHeld<Element>({ observeElementRect, observeElementOffset }, list.held),
     scrollToFn: elementScroll,
@@ -199,16 +257,57 @@ function firstParts(count: number, keep: readonly number[], estimate: number): S
 /** What a list drawn whole measures: nothing, one function for the page's life so a row's memo holds. */
 const NO_MEASURE = (): void => undefined;
 
+/** How `watchList` says what it found. */
+type PlaceFound = (found: (was: ListPlace | null) => ListPlace | null) => void;
+
 /**
- * The parts of a list of `count` rows to draw, and the ref for the element they are drawn in. `estimate` a row's height before it is measured; `keyOf` a row's key, so a row keeps its measure as rows move; `keep`
- * the indexes always drawn. A short list, a list in a browser that cannot watch it, and a test's draw it whole.
+ * Where a list scrolls and where it starts in it, found once it is in the page and again as the page around it moves (a band
+ * above the list that comes or goes, the window's width). Answers how to stop.
+ *
+ * Found already (a list shown again after it was kept hidden, people-route.tsx; one the window scrolls, drawn anew): the
+ * watcher looks again once the page is laid out, rather than asking every box above it for its style in the middle of the
+ * draw that shows it.
+ */
+function watchList(el: Element, name: string, atNow: RefObject<ListPlace | null>, setAt: PlaceFound): () => void {
+  const find = () => {
+    // Held, it stands where it was left and out of the page's flow: where it starts in its scroller is as it was. And one a
+    // page hides has no layout to read: its top reads 0, so it starts as far down as the window is scrolled, and that is kept.
+    if (inHeldList(el) || el.getClientRects().length === 0) return;
+    const box = listScrollerOf(el);
+    const margin = marginOf(el, box);
+    const gap = Number.parseFloat(getComputedStyle(el).rowGap) || 0;
+    if (box instanceof Window) keepWindowList(name, margin, gap);
+    setAt((was) =>
+      was && was.scroller === box && Math.abs(was.margin - margin) < 1 && was.gap === gap
+        ? was
+        : { scroller: box, margin, gap },
+    );
+  };
+  const was = atNow.current;
+  if (!was || !(was.scroller instanceof Window || was.scroller.contains(el))) find();
+  const watch = new ResizeObserver(find);
+  if (el.parentElement) watch.observe(el.parentElement);
+  window.addEventListener("resize", find);
+  return () => {
+    watch.disconnect();
+    window.removeEventListener("resize", find);
+  };
+}
+
+/**
+ * The parts of a list of `count` rows to draw, and the ref for the element they are drawn in. `name` which list this is, so
+ * it is drawn anew knowing what it knew (`WindowList`); `estimate` a row's height before it is measured; `keyOf` a row's
+ * key, so a row keeps its measure as rows move; `keep` the indexes always drawn. A short list, a list in a browser that
+ * cannot watch it, and a test's draw it whole.
  */
 export function useShownRows({
+  name,
   count,
   estimate,
   keyOf,
   keep = [],
 }: {
+  name: string;
   count: number;
   estimate: number;
   keyOf?: (index: number) => string;
@@ -216,13 +315,30 @@ export function useShownRows({
 }): ShownRows {
   const whole = count < WHOLE_UNDER || typeof window === "undefined" || typeof ResizeObserver !== "function";
   const [, drawAgain] = useReducer((n: number) => n + 1, 0);
-  const [at, setAt] = useState<{ scroller: Scroller; margin: number; gap: number } | null>(null);
+  const [at, setAt] = useState<ListPlace | null>(() => placeOnWindow(name));
   const atNow = useRef(at);
   atNow.current = at;
-  // The element the rows are drawn in, as React puts it in the page: a list drawn only once it has rows is found then.
-  const [list, setList] = useState<Element | null>(null);
-  const listNow = useRef(list);
-  listNow.current = list;
+  // The element the rows are drawn in, as React puts it in the page: a list drawn only once it has rows is found then. Heard
+  // from its ref, never held in state: a state set there drew the list a second time on every mount, for nothing it draws.
+  const listNow = useRef<Element | null>(null);
+  const wholeNow = useRef(whole);
+  wholeNow.current = whole;
+  const watching = useRef<{ el: Element; stop: () => void } | null>(null);
+  const followList = useCallback(() => {
+    const el = wholeNow.current ? null : listNow.current;
+    if ((watching.current?.el ?? null) === el) return;
+    watching.current?.stop();
+    watching.current = el ? { el, stop: watchList(el, name, atNow, setAt) } : null;
+  }, [name]);
+  const listRef = useCallback(
+    (el: Element | null) => {
+      listNow.current = el;
+      followList();
+    },
+    [followList],
+  );
+  // And as a list grows past being drawn whole, or shrinks back under it, in a draw that gives it no new element.
+  useLayoutEffect(followList);
   const held = () => inHeldList(listNow.current);
   const kept = useRef(keep);
   kept.current = keep;
@@ -249,13 +365,13 @@ export function useShownRows({
   const gap = at?.gap ?? 0;
   const says: ListSays = { held, gap };
   if (scroller && deck.current?.scroller !== scroller) {
-    deck.current = {
-      scroller,
-      v:
-        scroller instanceof Window
-          ? new Virtualizer(windowOptions(scroller, told, changed, says))
-          : new Virtualizer(boxOptions(scroller, told, changed, says)),
-    };
+    const virtualizer =
+      scroller instanceof Window
+        ? new Virtualizer(windowOptions(scroller, told, changed, says))
+        : new Virtualizer(boxOptions(scroller, told, changed, says));
+    const known = scroller instanceof Window ? WINDOW_LISTS.get(name) : undefined;
+    if (known) virtualizer.itemSizeCache = known.sizes;
+    deck.current = { scroller, v: virtualizer };
   }
   const v = scroller ? (deck.current?.v ?? null) : null;
   if (v instanceof Virtualizer && scroller) {
@@ -263,40 +379,10 @@ export function useShownRows({
       (v as Virtualizer<Window, Element>).setOptions(windowOptions(scroller, told, changed, says));
     else (v as Virtualizer<Element, Element>).setOptions(boxOptions(scroller, told, changed, says));
   }
-  // Where the list scrolls and where it starts in it, found once it is in the page and again as the page around it moves
-  // (a band above the list that comes or goes, the window's width).
-  useLayoutEffect(() => {
-    const el = list;
-    if (whole || !el) return undefined;
-    const find = () => {
-      // Held, it stands where it was left and out of the page's flow: where it starts in its scroller is as it was.
-      if (inHeldList(el)) return;
-      const box = listScrollerOf(el);
-      const margin = marginOf(el, box);
-      const gap = Number.parseFloat(getComputedStyle(el).rowGap) || 0;
-      setAt((was) =>
-        was && was.scroller === box && Math.abs(was.margin - margin) < 1 && was.gap === gap
-          ? was
-          : { scroller: box, margin, gap },
-      );
-    };
-    // Found already (a list shown again after it was kept hidden, people-route.tsx): the watcher below looks again once the
-    // page is laid out, rather than asking every box above it for its style in the middle of the draw that shows it.
-    const was = atNow.current;
-    if (!was || !(was.scroller instanceof Window || was.scroller.contains(el))) find();
-    const watch = new ResizeObserver(find);
-    if (el.parentElement) watch.observe(el.parentElement);
-    window.addEventListener("resize", find);
-    return () => {
-      watch.disconnect();
-      window.removeEventListener("resize", find);
-    };
-  }, [whole, list]);
   useLayoutEffect(() => (v ? v._didMount() : undefined), [v]);
   useLayoutEffect(() => {
     if (v) v._willUpdate();
   });
-  if (!v)
-    return { parts: whole ? allRows(count) : firstParts(count, keep, estimate), listRef: setList, measure: NO_MEASURE };
-  return { parts: partsDrawn(v, gap), listRef: setList, measure: v.measureElement };
+  if (!v) return { parts: whole ? allRows(count) : firstParts(count, keep, estimate), listRef, measure: NO_MEASURE };
+  return { parts: partsDrawn(v, gap), listRef, measure: v.measureElement };
 }

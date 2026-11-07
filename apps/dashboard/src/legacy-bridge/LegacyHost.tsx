@@ -9,7 +9,7 @@ import { routeHasPage } from "@/surfaces/routes";
 import { speedHost } from "@/client/page-speed";
 import { api } from "./api";
 import { acceptedInTime } from "./invitations/accept";
-import { homeHref, lastWorkspace, notifyAddress, setAppRouter } from "./workspace";
+import { homeHref, lastWorkspace, notifyAddress, setAppRouter, warmPhonePlaces } from "./workspace";
 // The shell (LegacyApp) in a browser's build, nothing in the server's: package.json "imports" (src/frame-shell.ts).
 import FrameShell from "#frame-shell";
 
@@ -139,8 +139,10 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
       replace: (href) => router.replace(href, { scroll: false }),
       prefetch: (href) => router.prefetch(href),
     });
+    // The first moment anything can be asked of the router, and the frame has not drawn yet (it is placed after this effect).
+    if (!home) warmPhonePlaces();
     return () => setAppRouter(null);
-  }, [router]);
+  }, [router, home]);
   useEffect(() => {
     let unhook: (() => void) | null = null;
     let gone = false;

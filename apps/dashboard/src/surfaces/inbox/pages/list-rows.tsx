@@ -298,6 +298,7 @@ export function useShownThreads(visible: readonly Thread[], openId: string | nul
   useDraftsMoved();
   const open = visible.findIndex((t) => t.id === openId);
   return useShownRows({
+    name: "inbox",
     count: visible.length,
     estimate: density === "compact" ? 56 : 76,
     keyOf: (i) => visible[i]?.id ?? String(i),

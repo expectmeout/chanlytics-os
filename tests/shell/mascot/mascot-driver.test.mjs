@@ -69,8 +69,9 @@ function fakeCanvas({ w = 358, h = 232, button = null, gl = null } = {}) {
     shadows: () => since().filter((c) => c[0] === "set" && c[1] === "shadowColor").length,
   };
 }
-function fakeEnv() {
+function fakeEnv({ late = 0 } = {}) {
   const frames = new Map();
+  const timers = new Map();
   let nextId = 1,
     t = 0,
     hidden = false;
@@ -84,6 +85,11 @@ function fakeEnv() {
       },
       caf: (id) => {
         frames.delete(id);
+      },
+      wait: (ms, fn) => {
+        const id = nextId++;
+        timers.set(id, { at: t + ms + late, fn });
+        return () => timers.delete(id);
       },
       now: () => t,
       dpr: () => 2,
@@ -110,9 +116,14 @@ function fakeEnv() {
       },
       liquid: () => null,
     },
-    /** run the oldest queued frame at time t */
+    /** the clock at time t: every wait due by then, then the oldest queued frame */
     frame(ms) {
       t = ms;
+      for (const [id, timer] of [...timers]) {
+        if (timer.at > t) continue;
+        timers.delete(id);
+        timer.fn();
+      }
       const next = frames.entries().next().value;
       if (!next) return;
       frames.delete(next[0]);
@@ -128,10 +139,13 @@ function fakeEnv() {
     },
     point: (e) => listeners.pointer.forEach((fn) => fn(e)),
     pending: () => frames.size,
+    waiting: () => timers.size,
     listeners,
   };
 }
 const spread = (tiles) => Math.hypot(tiles[2][0] - tiles[0][0], tiles[2][1] - tiles[0][1]);
+/** When a quiet icon fidgets from 30 to 90 s on this clock and its seed, in seconds, read off the driver before it could rest (6 Nov 2026). */
+const QUIET_FIDGETS_AT = [36.1, 52.1, 69, 84.9];
 
 test("the published mount tells who listens once per face that mounts, a face that cannot mount tells nobody, and a listener stopped hears no more", async () => {
   const { MASCOT } = await import("../../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
@@ -284,6 +298,94 @@ test("an icon left alone goes quiet and draws nothing it has already drawn; the 
   assert.ok(C.draws() - awake > 150, `awake, it breathes again: ${C.draws() - awake} drawings in three seconds`);
   m.destroy();
   assert.equal(button.on.size, 0, "the button's listeners let go");
+});
+
+/** An icon alone until its loop has rested: no frame asked for, one look ahead booked. */
+function restedIcon(env = {}) {
+  const button = fakeButton();
+  const C = fakeCanvas({ w: 30, h: 24, button });
+  const F = fakeEnv(env);
+  const m = mountCharacter(C.canvas, { env: F.env });
+  F.run(25);
+  for (let i = 0; i < 300 && F.pending() > 0; i++) F.run(1 / 60);
+  return { button, C, F, m };
+}
+
+test("a quiet face with nothing new to draw asks for no frames: a frame asked for keeps the main thread awake, drawn on or not", () => {
+  const { F, m } = restedIcon();
+  assert.equal(F.pending(), 0, "no frame queued");
+  assert.equal(F.waiting(), 1, "one look ahead booked");
+  m.destroy();
+});
+
+test("a resting face still fidgets as often, however late a look comes: its clock keeps real time", () => {
+  // A timer comes late, more so on a busy phone. Counting each look as the wait it asked for, the clock ran 14% slow.
+  for (const late of [0, 40, 150]) {
+    const { C, F, m } = restedIcon({ late });
+    F.run(30 - F.env.now() / 1000);
+    const starts = [];
+    let drawn = C.draws();
+    let drewAt = 0;
+    for (let at = 30; at < 90; at += 0.1) {
+      F.run(0.1);
+      const now = C.draws();
+      if (now === drawn) continue;
+      if (at - drewAt > 0.6) starts.push(at);
+      drawn = now;
+      drewAt = at;
+    }
+    assert.equal(starts.length, QUIET_FIDGETS_AT.length, `${late} ms late: fidgets at ${starts.join(", ")}`);
+    starts.forEach((at, i) =>
+      assert.ok(
+        Math.abs(at - QUIET_FIDGETS_AT[i]) < 0.6,
+        `${late} ms late: a fidget at ${at}, not ${QUIET_FIDGETS_AT[i]}`,
+      ),
+    );
+    m.destroy();
+  }
+});
+
+test("a pointer near a resting face wakes it within a frame, a press too, and a pointer across the page does not", () => {
+  const near = restedIcon();
+  near.F.point({ clientX: 150, clientY: 60 }); // 30px under the button
+  assert.equal(near.F.pending(), 1, "a pointer near it: a frame asked for at once");
+  assert.equal(near.F.waiting(), 0, "and its rest over");
+  near.m.destroy();
+  const pressed = restedIcon();
+  pressed.button.fire("pointerdown");
+  assert.equal(pressed.F.pending(), 1, "a press: a frame asked for at once");
+  assert.equal(pressed.F.waiting(), 0, "and its rest over");
+  pressed.m.destroy();
+  const far = restedIcon();
+  far.F.point({ clientX: 1500, clientY: 900 });
+  assert.equal(far.F.pending(), 0, "a pointer across the page: still at rest");
+  assert.equal(far.F.waiting(), 1);
+  far.m.destroy();
+});
+
+test("a word from the page wakes a resting face within a frame: a state, a reaction, a pulse, a glow", () => {
+  // The ✦ lights as a page lands (legacy-bridge/arrival.ts), on the press this rest must not slow.
+  for (const say of [(m) => m.set("listening"), (m) => m.react("hop"), (m) => m.pulse(0.7), (m) => m.glow(true)]) {
+    const { F, m } = restedIcon();
+    say(m);
+    assert.equal(F.pending(), 1, `${say}: a frame asked for at once`);
+    assert.equal(F.waiting(), 0, `${say}: and its rest over`);
+    m.destroy();
+  }
+});
+
+test("a resting face hidden or destroyed leaves no wait behind, and comes back to its frames with the tab", () => {
+  const { F, m } = restedIcon();
+  F.hide(true);
+  assert.equal(F.waiting(), 0, "hidden: no wait");
+  assert.equal(F.pending(), 0, "and no frame");
+  F.hide(false);
+  assert.equal(F.pending(), 1, "shown again: a frame asked for");
+  m.destroy();
+  const gone = restedIcon();
+  gone.m.destroy();
+  assert.equal(gone.F.waiting(), 0, "destroyed: no wait");
+  assert.equal(gone.F.pending(), 0, "and no frame");
 });
 
 test("a face looks at a pointer near it, never at one across the page", () => {
