@@ -7,12 +7,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { normalizeInbound, inboundFromWhatsapp } from "@chanlytics/channels";
-import { REFERRAL_ID_MAX } from "@chanlytics/contracts";
+import { normalizeInbound, inboundFromWhatsapp } from "@chanlytics/channels/whatsapp";
+import { REFERRAL_ID_MAX } from "../../packages/channels/src/whatsapp/first-touch.ts";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { pgIngest, IngestFailed } = await import(
+const { runPgIngest, IngestFailed } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href
 );
 
@@ -183,14 +183,14 @@ function world() {
 
 test("pgIngest writes the line and the ad into the row's meta, beside the ingest's own key, and nothing for what a message does not have", async () => {
   const w = world();
-  await pgIngest(
+  await runPgIngest(
     w.db,
     T,
     inboundFromWhatsapp(message({ referral: { source_id: "120200000000001", source_type: "ad" } }), value),
     LINE,
   );
-  await pgIngest(w.db, T, inboundFromWhatsapp(message({ id: "wamid.ad.2" }), value), LINE);
-  await pgIngest(w.db, T, inboundFromWhatsapp(message({ id: "wamid.ad.3" }), value));
+  await runPgIngest(w.db, T, inboundFromWhatsapp(message({ id: "wamid.ad.2" }), value), LINE);
+  await runPgIngest(w.db, T, inboundFromWhatsapp(message({ id: "wamid.ad.3" }), value));
   assert.deepEqual(w.metas, [
     { raw_type: "text", line: LINE, referral: { source_id: "120200000000001", source_type: "ad" } },
     { raw_type: "text", line: LINE },
@@ -246,7 +246,7 @@ test("the same hostile referral that the database would refuse never reaches it:
   const raw = refusingWorld();
   const rawN = { ...inboundFromWhatsapp(message(), value), referral: { sourceId: "ad\u0000x", sourceType: "ad" } };
   await assert.rejects(
-    () => pgIngest(raw.db, T, rawN, LINE),
+    () => runPgIngest(raw.db, T, rawN, LINE),
     IngestFailed,
     "an edge that kept the referral whole is the one that fails",
   );
@@ -256,7 +256,7 @@ test("the same hostile referral that the database would refuse never reaches it:
   const w = refusingWorld();
   for (const [i, referral] of hostile.entries()) {
     const n = inboundFromWhatsapp(message({ id: `wamid.ad.h${i}`, referral }), value);
-    const out = await pgIngest(w.db, T, n, LINE);
+    const out = await runPgIngest(w.db, T, n, LINE);
     assert.equal(out?.message_id, "m1", `hostile referral ${i}: the message landed`);
   }
   assert.deepEqual(

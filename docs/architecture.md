@@ -70,7 +70,7 @@ flowchart LR
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | `apps/edge`      | The webhooks, the sweeps, the job runner, the key-guarded admin doors, diagnostics. Vanilla Vercel Node functions, no framework. Holds every provider key and the service role. | Vercel project `chanlytics-messaging`                |
 | `apps/dashboard` | Next.js: auth, the public pages, the operator UI, and the `/api/v1` app plane. Holds no provider key.                                                                           | Vercel project `chanlytics-os`, `app.chanlytics.com` |
-| `packages/*`     | `contracts`, `core`, `db`, `channels`, `jobs`. Bundled into both apps.                                                                                                          | with each app                                        |
+| `packages/*`     | `log`, `contracts`, `db`, `channels`, `core`, `jobs`, each leaning only on those before it. Bundled into both apps.                                                             | with each app                                        |
 | `supabase/`      | The schema, replayed from zero in CI. RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials.                                            | Supabase project                                     |
 
 The two apps deploy independently from `main`. A change both must agree on
@@ -112,7 +112,7 @@ apart, since a folder there is a path (`apps/edge/api`, `apps/dashboard/app`,
 
 Every request proves who is knocking before anything is read, but for the open doors and the handshakes named at the end of this section.
 
-1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature (or, until `RETELL_DOORS_SIGNED` is set, the shared `RETELL_FN_SECRET` on the inbound, tool and availability doors: `apps/edge/lib/voice/door-auth.ts`), Twilio's signature with the line's own token, Svix headers (Resend), ElevenLabs' signature over its post-call webhook, the token Google signs on a Gmail push, the client state a Graph subscription echoes, Stripe's signature. Apify signs nothing, so each run is started with a per-run token in its webhook URL, kept only as a hash and compared in constant time. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
+1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature (or, until `RETELL_DOORS_SIGNED` is set, the shared `RETELL_FN_SECRET` on the inbound, tool and availability doors: `apps/edge/lib/shared/door-auth.ts`), Twilio's signature with the line's own token, Svix headers (Resend), ElevenLabs' signature over its post-call webhook, the token Google signs on a Gmail push, the client state a Graph subscription echoes, Stripe's signature. Apify signs nothing, so each run is started with a per-run token in its webhook URL, kept only as a hash and compared in constant time. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
 2. **Browser to dashboard.** A Supabase session cookie, its token's signature verified (`getClaims()`) by the proxy for every page, move and prefetch, and again by `withRoute` for every read; same origin required for every write. The signed-in frame reads nothing of the request, so it is one prerender for everyone (decision 0053, step 5).
 3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key. The platform's shared key (`x-diag-key`) opens only the diagnostic (`/api/diag`) and the pager (`/api/admin/page`) on an edge that holds the secret, the doors nothing mints a token for (`PLATFORM_KEY` in `tests/edge/doors/door-policy.test.mjs`), and every key-only knock there is logged (`admin_door_key_only`).
 4. **Database to edge.** `x-cron-key` on `/api/cron/*` and `/api/jobs/tick`, read from Vault on both sides.
@@ -126,7 +126,7 @@ The doors with no key: `GET /api/health` answers 200 or 503 so a pinger outside 
 
 Three records answer it, and one name joins them.
 
-- **The log.** One logger for every runtime, `packages/channels/src/log/`, which the edge (`apps/edge/lib/shared/log.ts`) and the
+- **The log.** One logger for every runtime, `packages/log/src/`, which the edge (`apps/edge/lib/shared/log.ts`) and the
   dashboard's server (`apps/dashboard/src/server/shared/log.ts`) re-export with their own closed set of event names
   (`LOG_EVENTS`, `DASHBOARD_LOG_EVENTS`), and core, jobs, db and channels write through directly (db through a port an app
   hands it). One JSON object per line on stdout: `level`, `event`, `request_id`, `tenant_id`, then the line's own fields,
@@ -163,7 +163,7 @@ over a database in memory by a test.
 
 The receptionist itself: `apps/edge/lib/shared/tenant-runtime.ts` reads the
 workspace's config through one door; `packages/contracts/src/config/workspace-config/compose.ts`
-composes the system prompt from the business's facts; `apps/edge/lib/receptionist/brain.ts`
+composes the system prompt from the business's facts; `apps/edge/lib/ai/receptionist-brain.ts`
 asks the model and reads a structured answer (`packages/contracts/src/config/brain.ts`);
 `packages/core/src/inbound/reply-posture.ts` is the truth table of whether it may speak at
 all; the Autonomy matrix and the confidence dial decide whether the answer goes
@@ -216,7 +216,7 @@ on the platform's mail account, for everything a person or the receptionist
 answers; the campaigns lane, for the offers a customer asked for; and the own
 lane, a mailbox the business connected (decision 0056), for outreach, and for a
 person's reply to a reach-out that can go from it. The own lane's route is not
-a key: it is a closure over the mailbox's row (`ownRoutesFor`,
+a key: it is a closure over the mailbox's row (`getOwnRoutes`,
 `apps/edge/lib/email/mailbox/wire.ts`) that takes its token from Vault,
 writes the frozen request as MIME (`packages/channels/src/email/mailbox/`) and sends
 it through Gmail's or Graph's own send. What the send learns about the mailbox
@@ -299,7 +299,7 @@ run-now door, which runs the chain's root through `lib/campaigns/reach-out/run-s
 the playbooks sweep's own loop body, so the first run waits for its owner at
 once. What the owner then answers (Approve, a held email's four doors) goes
 through the session's own doors, and Broadcasts reads the run from its sends
-(`server/campaigns/reach-outs.ts`, `reachOutRunOf`).
+(`server/campaigns/reach-outs/reach-outs.ts`, `reachOutRunOf`).
 
 A send that happens later is a job: `packages/jobs` is the ledger (`claim_due_jobs`, a lease, a heartbeat, `settle`), `apps/edge/api/jobs/tick.ts` runs it, and `packages/jobs/src/handlers/handlers.ts` maps each kind to a core verb. A kind is one row in `job_kinds` (its lane and once-only rule, written onto every insert by the database) and one entry in `KIND_POLICY` (`packages/jobs/src/runner/kinds.ts`: whether it speaks, its retries, who hears of its failure, what it leaves to settle); every ending of a job, a thrown last try, a death or an unknown kind, reaches its kind's settler; a retry waits `scheduled`; and a canary job each minute proves the whole loop to `/api/health` (decision 0089). Every clock is a timestamp on a row that a sweep acts on, and every sweep is registered in `sweep_status` and judged by `/api/cron/health`.
 
@@ -308,7 +308,7 @@ A send that happens later is a job: `packages/jobs` is the ledger (`claim_due_jo
 Every model the platform pays for is asked one way, and the decisions about it are written once (scorecard move 10; the AI
 lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
 
-- **A registry by purpose** (`packages/contracts/src/ai/models.ts`): the receptionist's answer, a draft of it, Ask's round,
+- **A registry by purpose** (`packages/contracts/src/ai/models/routes.ts`): the receptionist's answer, a draft of it, Ask's round,
   the small JSON drafts, a review's reply, the lead judge, the note sweep, the reach-out check and the reply reader each
   have one route: the model, its fallback, the bound of a try, its retries and its cap. Nothing else names a model. A
   purpose whose answer is a closed set may name a shadow port beside it.
@@ -346,27 +346,26 @@ lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
 - **The switches** are listed once, with an owner and a day (`contracts/ai/flags.ts`), and the receptionist's regression
   cases run nightly against a sandbox key when the repository holds one (`.github/workflows/nightly-evals.yml`).
 
-## The packages, and the direction of dependency
+## Which way the code leans
 
-```
-contracts            pure: types, schemas, view models, the composer
-   ^     ^
-   |     |
-  db   channels      repositories; provider adapters
-   ^     ^
-   \     /
-    core             verbs over ports, and the one send door
-     ^
-     |
-   jobs              the ledger and the handlers that call core
-```
+The packages have one order, and each leans only on those its row names. `repo/boundaries/boundaries.test.mjs` holds this table against each manifest (decision 0110).
 
-Arrows point at what a package depends on, read upward: `jobs` depends on
-`core`, `db`, `channels` and `contracts`; `core` on `db`, `channels` and
-`contracts`; `db` and `channels` on `contracts` alone; `contracts` on nothing.
+| Package     | Leans on                                     |
+| ----------- | -------------------------------------------- |
+| `log`       | nothing                                      |
+| `contracts` | nothing                                      |
+| `db`        | `contracts`                                  |
+| `channels`  | `contracts`, `log`                           |
+| `core`      | `channels`, `contracts`, `db`, `log`         |
+| `jobs`      | `channels`, `contracts`, `core`, `db`, `log` |
+
+Inside a tree the rule is the same. A backend tree's domains lean one way, so `apps/dashboard/src/server` and `apps/edge/lib` read from `shared/` upward: `shared/` imports no domain, a domain imports those under it, and what only sits on top of the others (`ask`, `drafts` and `settings` in the server, `ops` and `intake` on the edge) is imported by doors alone. No value import runs in a circle in the backend. The browser's trees and contracts' folders still lean both ways, and are counted so they can only fall.
+
+`db` and `channels` are reached by their domains (`@chanlytics/db/people`), each with a barrel naming its public face; `contracts` is reached by its root until the API's layer, and holds what two trees agree on. A module one tree alone reaches lives in that tree.
 
 | Package     | Holds                                                                                                                                                                                                                                                                                                                                            | Rule                                                                                                                                                                                         |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `log`       | The one logger and the request's name                                                                                                                                                                                                                                                                                                            |
 | `contracts` | Types, zod schemas, the closed sets generated from the database (`schema-sets.generated.ts`), the view models every page reads, the prompt composer, the words the UI says                                                                                                                                                                       | Pure. No client, no framework, no environment. It is larger than its name: view models and prompt composition live here today                                                                |
 | `core`      | The use cases as verbs over ports: `conversations` (reply, take over, hand back, snooze, wake, resolve, archive), `campaigns` (assemble a run, create a broadcast, run a playbook, approve, cancel), `messages` (send, broadcast batch, email intake, line provisioning), `leads` (the finder's runner, judge, cleaning, endings), and `deliver` | A verb takes a `ports` object and a command and returns an outcome. No database client, framework, provider or environment inside a verb. The adapters live at the doors                     |
 | `db`        | Supabase repositories, the generated database types, realtime                                                                                                                                                                                                                                                                                    | The one place a table name is typed. The names still typed outside it, and the SQL functions called there by name, are counted by the `tables` measure, which may only fall (`docs/debt.md`) |
@@ -402,10 +401,10 @@ success, so every permission-sensitive update selects and counts.
 
 How a business comes in, and the one place each part of it is decided (decisions 0073, 0090, 0091):
 
-- **The way in.** `POST /api/v1/signup` makes an unconfirmed auth user on the public key (`apps/dashboard/src/server/console/signup.ts`);
+- **The way in.** `POST /api/v1/signup` makes an unconfirmed auth user on the public key (`apps/dashboard/src/server/workspace/signup.ts`);
   the person who enters the code makes the workspace through `create_workspace` (a definer function, the one audited
   place the privilege exists). A lead's preview (`preview_claim`), a partner's set-up (`create_workspace_for_business`)
-  and its hand-over (`handover_accept`) are the other doors. What follows any of them is `workspaceBegun`
+  and its hand-over (`handover_accept`) are the other doors. What follows any of them is `recordWorkspaceBegun`
   (`apps/dashboard/src/server/workspace/create.ts`).
 - **The steps.** Contracts' `setupSteps` folds Setup's facts (`setupDtoFor`) with the workspace's choices
   (`setup_choices`, `withWorkspaceChoices`) and the member's own put-offs; `firstRunOf` reads which of the five steps
@@ -674,7 +673,7 @@ Glass, the canvases' finish, is the one look since Classic retired (2 October
 those, `[data-look="<name>"]` and its dark side second. They set the roles,
 and the theme's own colours where the look's differ, since many kit rules
 read a colour such as `--ink` directly. The
-look travels as the theme does (`packages/contracts/src/shell/chrome.ts`). It
+look travels as the theme does (`packages/contracts/src/shell/chrome/frame.ts`). It
 is kept on the device in the same stored object, and only once chosen, so a
 device that never chose follows the default. The head's script stamps it as
 `data-look` on `<html>` before first paint, and `.app-root`, `.shared-root`
@@ -715,22 +714,22 @@ Every path is from the repository's root, and
 
 | To change                              | Look in                                                                                                                                                                                                                                                                                                                                                                                        |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What the receptionist says             | `packages/contracts/src/config/workspace-config/compose.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings                                                                                                                                                                                                                                                |
-| Whether it speaks at all               | `packages/core/src/inbound/reply-posture.ts`, `policies` and `packages/contracts/src/config/policy.ts`                                                                                                                                                                                                                                                                                         |
+| What the receptionist says             | `packages/contracts/src/config/workspace-config/compose.ts` (the composer), `apps/edge/lib/ai/receptionist-brain.ts`, the Business tab in Settings                                                                                                                                                                                                                                             |
+| Whether it speaks at all               | `packages/core/src/inbound/reply-posture.ts`, `policies` and `packages/contracts/src/config/policy/reply-limits.ts`                                                                                                                                                                                                                                                                            |
 | Who may be messaged                    | `packages/contracts/src/consent/consent.ts` (`mayMessageFor`), `packages/core/src/deliver/deliver.ts`                                                                                                                                                                                                                                                                                          |
 | A new channel                          | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `packages/core/src/deliver/deliver.ts`                                                                                                                                                                                                                                                    |
 | A new operator verb                    | A core verb in `packages/core/src/conversations`, a route under `apps/dashboard/app/api/v1/conversations/[id]/`, a row in `tests/route-policy.json`, the shell's `apps/dashboard/src/bridge/inbox-verbs.ts`                                                                                                                                                                                    |
 | A new job kind                         | `JOB_KINDS` in contracts, its row in `job_kinds` (a migration: lane, once-only rule), its `KIND_POLICY` and handler in `packages/jobs`, its owner's words (`JOB_WORK`) and its caller, in one change; decision 0089                                                                                                                                                                            |
 | A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                                                                                                                                                                                                                                                               |
-| A log line, a request's name           | `packages/channels/src/log/` (the logger, its redaction and the request store), `apps/edge/lib/shared/log.ts` (`door`, `LOG_EVENTS`), `apps/dashboard/src/server/shared/log.ts` (`DASHBOARD_LOG_EVENTS`)                                                                                                                                                                                       |
+| A log line, a request's name           | `packages/log/src/` (the logger, its redaction and the request store), `apps/edge/lib/shared/log.ts` (`door`, `LOG_EVENTS`), `apps/dashboard/src/server/shared/log.ts` (`DASHBOARD_LOG_EVENTS`)                                                                                                                                                                                                |
 | A webhook replayed after a fix         | `apps/edge/lib/intake/` (what each door keeps before its verdict, and the replay), `apps/edge/api/admin/intake/replay.ts`, `supabase/migrations/00336_every_verified_delivery_is_kept_seven_days_under_the_provider_s_own_id.sql`                                                                                                                                                              |
 | A write sent twice                     | `apps/dashboard/src/server/shared/route.ts` (`onceForKey`: the key, its hash, the kept answer), `apps/dashboard/src/client/api.ts` (`once`, one key per intent), `supabase/migrations/00340_a_write_s_answer_is_kept_a_day.sql`; decision 0035                                                                                                                                                 |
 | What an erasure reaches                | `packages/db/src/repositories/erasure/registry.ts` (each personal column's strategy and the legs), `packages/jobs/src/handlers/erasure.ts` (the legs in order, and the job that finishes a stopped one) over `packages/db/src/repositories/erasure/legs.ts` (what each leg reads and writes), `supabase/migrations/00341_a_note_keeps_nothing_of_a_person_erased_elsewhere.sql`; decision 0036 |
 | Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                                                                                                                                                                                                                                                                    |
 | The lead finder                        | `docs/lead-finder.md` (as built), `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/`, `supabase/migrations/00140_the_lead_finder_engine.sql`                                                                                                                                                                                                                |
-| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask,answer}.ts`                                                                                                                                                                                                                                                                                                                |
+| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask.ts,answer/}`                                                                                                                                                                                                                                                                                                               |
 | The calendar                           | `apps/dashboard/src/server/calendar/`, `packages/contracts/src/calendar/{feed,availability}.ts`, `apps/edge/api/cron/calendar.ts`                                                                                                                                                                                                                                                              |
-| A time, a day or a time zone           | `packages/contracts/src/calendar/zone-math.ts` (the one reading of a zone: `zoneParts`, `dayInZone`, `dayPlusInZone`, `usableZone`; the `zone-readers` measure holds it), `packages/contracts/src/shared/clock.ts` (the words a page says a time in), `packages/contracts/src/calendar/day-keys.ts` (a day key stepped, a day in words)                                                        |
+| A time, a day or a time zone           | `packages/contracts/src/shared/zone/math.ts` (the one reading of a zone: `zoneParts`, `dayInZone`, `dayPlusInZone`, `usableZone`; the `zone-readers` measure holds it), `packages/contracts/src/shared/clock.ts` (the words a page says a time in), `packages/contracts/src/shared/zone/day-keys.ts` (a day key stepped, a day in words)                                                       |
 | Phone numbers and carrier registration | `packages/channels/src/lines/` (the A2P wire under `packages/channels/src/lines/a2p/`), `apps/edge/lib/lines/`                                                                                                                                                                                                                                                                                 |
 | Email                                  | `packages/channels/src/email/`, `apps/edge/lib/email/ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                                                                                                                                                                                                                                                                 |
 | Voice                                  | `packages/channels/src/voice/`, the four doors `apps/edge/api/retell-*.ts`                                                                                                                                                                                                                                                                                                                     |

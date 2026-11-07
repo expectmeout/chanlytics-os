@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { subscribeWorkspaceChanges } from "@chanlytics/db";
+import { subscribeWorkspaceChanges } from "@chanlytics/db/realtime";
 
 function fakeClient({ session = { access_token: "jwt" } } = {}) {
   const said = [];

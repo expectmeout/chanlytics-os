@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { until } from "../../shared/_until.mjs";
 
 const {
   CROSS_FADE_MS,
@@ -532,6 +533,94 @@ test("a ref React calls twice for one element (development's check) is one view,
   seat(b);
   assert.equal(b.anims.length, had);
   assert.equal(b.parentNode.put.length, 1);
+});
+
+// An iPhone draws a moving view on a layer of its own and draws it on the page again as the move ends, and what was on
+// a fraction of a pixel lands a pixel off (docs/superpowers/specs/2026-11-03-a-still-calendar-on-a-phone-design.md): Leads
+// and the Pipeline stepped a pixel up the frame after their slide stopped, and down as a drag took them (Ruben's
+// recording, 7 Nov 2026). A view that says it rests on its layer keeps its arrival's last frame until the page is next
+// touched, when what follows moves the page anyway; nothing of the page can open over it before then.
+const layered = (touched) => {
+  const w = world();
+  w.deck = createDeck({
+    now: () => w.clock,
+    reduced: () => w.reduced,
+    travel: () => w.token,
+    placeOf: (el) => el.place,
+    later: (ms, fn) => w.waits.push({ ms, fn }),
+    rest: () => "layer",
+    untilTouched: (fn) => touched.push(fn),
+  });
+  return w;
+};
+
+test("a view inside another that rests on its layer keeps its arrival's last frame until the page is touched", async () => {
+  const touched = [];
+  const w = layered(touched);
+  const main = view();
+  const a = view({ attrs: {} });
+  main.inside = [a];
+  w.deck.view("frame")(main);
+  const seat = w.deck.view("scope");
+  seat(a);
+  const b = view({ attrs: {}, dataset: { slide: "next" }, parentNode: a.parentNode });
+  main.inside.push(b);
+  replace(seat, a, b);
+  const [travel] = moving(b);
+  assert.equal(travel.options.fill, "forwards", "its last frame held");
+  travel.finish();
+  for (const f of fading(b)) f.finish();
+  await until(() => touched.length === 1, "the slide over, a wait for the page's touch");
+  assert.equal(moving(b).length, 1, "still on its layer once the slide is over");
+  touched[0]();
+  assert.equal(moving(b).length, 0, "touched, it is drawn on the page again");
+});
+
+test("a held view taken by a finger or asked to leave lets go of its hold first, and a late touch takes nothing of what followed", async () => {
+  const touched = [];
+  const w = layered(touched);
+  const main = view();
+  const a = view({ attrs: {} });
+  main.inside = [a];
+  w.deck.view("frame")(main);
+  const seat = w.deck.view("scope");
+  seat(a);
+  const b = view({ attrs: {}, dataset: { slide: "next" }, parentNode: a.parentNode });
+  main.inside.push(b);
+  replace(seat, a, b);
+  for (const anim of b.anims) anim.finish();
+  await until(() => touched.length === 1, "the slide over, a wait for the page's touch");
+  const [held] = moving(b);
+  w.deck.drag(-40);
+  assert.equal(held.cancelled, true, "the finger's transform is not under a held frame");
+  assert.equal(b.style.transform, "translate3d(-40px, 0, 0)");
+  w.deck.leave(1);
+  const leaving = moving(b);
+  assert.equal(leaving.length, 1);
+  touched[0]();
+  assert.equal(leaving[0].cancelled, false, "the page's leave is not the hold's to stop");
+});
+
+test("the frame's own page never holds its layer, nor a view that does not say so", async () => {
+  for (const [name, w] of [
+    ["the frame's page", layered([])],
+    ["a view that says nothing", world()],
+  ]) {
+    const main = view();
+    const a = view({ attrs: {} });
+    main.inside = [a];
+    const outer = name === "the frame's page";
+    const seat = w.deck.view(outer ? "frame" : "scope");
+    if (!outer) w.deck.view("frame")(main);
+    seat(outer ? main : a);
+    const next = view({ attrs: {}, dataset: { slide: "next" }, parentNode: (outer ? main : a).parentNode });
+    if (!outer) main.inside.push(next);
+    replace(seat, outer ? main : a, next);
+    const [travel] = moving(next);
+    assert.equal(travel.options.fill, "none", name);
+    for (const anim of next.anims) anim.finish();
+    await until(() => moving(next).length === 0, `${name}: drawn on the page again as its slide ends`);
+  }
 });
 
 test("what was scrolled in the page leaving is where it was in its copy", () => {

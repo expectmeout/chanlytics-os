@@ -111,17 +111,21 @@ export async function readBookingNotice(
     return "set_aside";
   }
   if (read.hold) return hold(read.hold);
-  const r = read.reading;
+  const reading = read.reading;
 
-  const key = appointmentKey(tool, r.client, r.start);
-  const title = appointmentTitle({ title: null, service: r.service, client_name: r.client.name });
-  const contactId = await ports.personFor(tenantId, r.client, { title, uid: `notice:${email.id}`, startMs: r.start });
+  const key = appointmentKey(tool, reading.client, reading.start);
+  const title = appointmentTitle({ title: null, service: reading.service, client_name: reading.client.name });
+  const contactId = await ports.personFor(tenantId, reading.client, {
+    title,
+    uid: `notice:${email.id}`,
+    startMs: reading.start,
+  });
   const stated = {
-    service: r.service,
-    staff: r.staff,
-    price: r.price,
-    note: r.note,
-    client: r.client,
+    service: reading.service,
+    staff: reading.staff,
+    price: reading.price,
+    note: reading.note,
+    client: reading.client,
     contactId,
   };
   const fresh = (status: NewAppointment["status"]): NewAppointment => ({
@@ -129,8 +133,8 @@ export async function readBookingNotice(
     tool,
     externalId: key,
     status,
-    startsAt: new Date(r.start).toISOString(),
-    endsAt: new Date(r.end).toISOString(),
+    startsAt: new Date(reading.start).toISOString(),
+    endsAt: new Date(reading.end).toISOString(),
     timezone: tz,
     ...stated,
   });
@@ -139,9 +143,9 @@ export async function readBookingNotice(
     return outcome;
   };
 
-  const visit: Visit = { tenantId, key, r, fresh, stated, ahead: r.start > nowMs };
-  if (r.kind === "booked") return keep(...(await booked(ports, visit)));
-  if (r.kind === "changed") return keep(...(await changed(ports, visit)));
+  const visit: Visit = { tenantId, key, r: reading, fresh, stated, ahead: reading.start > nowMs };
+  if (reading.kind === "booked") return keep(...(await booked(ports, visit)));
+  if (reading.kind === "changed") return keep(...(await changed(ports, visit)));
   return keep(...(await cancelled(ports, visit)));
 }
 
@@ -175,8 +179,8 @@ type Visit = {
  */
 function ledgerOutcomeOf(outcome: Written[0]): { outcome: NoticeOutcome; holdReason: NoticeHold | null } {
   if (outcome === "cancel_refused") return { outcome: "dismissed", holdReason: "not_a_booking" };
-  const said = outcome.startsWith("booked") ? "booked" : outcome.startsWith("changed") ? "changed" : "cancelled";
-  return { outcome: said, holdReason: null };
+  const sentence = outcome.startsWith("booked") ? "booked" : outcome.startsWith("changed") ? "changed" : "cancelled";
+  return { outcome: sentence, holdReason: null };
 }
 
 /**
@@ -207,8 +211,8 @@ async function booked(ports: BookingNoticePorts, visit: Visit): Promise<Written>
     });
     return ["booked_again", have.id];
   }
-  const made = await ports.insert(fresh("booked"));
-  return ["booked", made.id];
+  const created = await ports.insert(fresh("booked"));
+  return ["booked", created.id];
 }
 
 /** A change: the live row the old time named moves to the new one; with none to move, the new time is a booking. */
@@ -246,8 +250,8 @@ async function changed(ports: BookingNoticePorts, visit: Visit): Promise<Written
     });
     return ["changed_unknown", have.id];
   }
-  const made = await ports.insert(fresh("booked"));
-  return ["changed_unknown", made.id];
+  const created = await ports.insert(fresh("booked"));
+  return ["changed_unknown", created.id];
 }
 
 /** A cancellation: the row the time names ends; with none, the fact is kept as a cancelled row, so it is not lost. */
@@ -259,6 +263,6 @@ async function cancelled(ports: BookingNoticePorts, { tenantId, key, r, fresh }:
     const done = await ports.update(tenantId, have.id, { status: "cancelled" });
     return done === "refused" ? ["cancel_refused", have.id] : ["cancelled", have.id];
   }
-  const made = await ports.insert(fresh("cancelled"));
-  return ["cancelled_unknown", made.id];
+  const created = await ports.insert(fresh("cancelled"));
+  return ["cancelled_unknown", created.id];
 }

@@ -1,72 +1,4 @@
 /** Sequences (decision 0060): everything the workspace sends on its own, its steps, batches, sends and replies. */
-export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpReach, followUpStop, messageAboutOfClass } from "./follow-up";
-export type { FollowUpCondition, FollowUpStep, FollowUpStop } from "./follow-up";
-export {
-  asDraftedFrom,
-  asDraftedOf,
-  handStepsHold,
-  leadChainStepOf,
-  NEW_AUDIENCES,
-  NEW_DRAFT_JSON_SCHEMA,
-  NEW_KINDS,
-  NEW_ONCE_AHEAD_DAYS,
-  NEW_STEP_DOES,
-  NEW_STEPS_MAX,
-  NEW_VALUES,
-  NEW_WAIT_DAYS,
-  NEW_WORDS_MAX,
-  newConditionsOf,
-  newListOf,
-  newWaitOf,
-  numberedValues,
-  sentAsDrafted,
-  whoSuits,
-} from "./new-draft";
-export {
-  VOICE_LINE_LEAD,
-  VOICE_LINES_MAX,
-  VOICE_PASTE_MAX,
-  VOICE_PASTE_MIN,
-  VOICE_WORDS,
-  voiceLineOf,
-  voiceSaid,
-} from "./new-draft";
-export type {
-  AsDrafted,
-  DraftWho,
-  NewAudience,
-  NewCheck,
-  NewDraftAsk,
-  NewDraftDto,
-  NewEmail,
-  NewKeptStep,
-  NewKind,
-  NewMailbox,
-  NewMessage,
-  NewNobody,
-  NewOnceKept,
-  NewReach,
-  NewStep,
-  NewStepDoes,
-  NewWrittenMessage,
-} from "./new-draft";
-export type { SequenceVoiceDto } from "./new-draft";
-export { NewDraftAnswerSchema } from "./new-draft-schema";
-export type { NewDraftAnswer, NewDraftAnswerStep } from "./new-draft-schema";
-export { handTitleOf, NEW_WORDS } from "./new-words";
-export {
-  batchModeOf,
-  isSequenceMode,
-  newSequenceMode,
-  SEQUENCE_MODE_LABEL,
-  SEQUENCE_MODE_WORDS,
-  SEQUENCE_MODES,
-  SEQUENCE_NEW_WORDS_ASK,
-  SEQUENCE_STARTS,
-  SEQUENCE_STATES,
-  sequenceModesFor,
-} from "./sequence";
-export type { SequenceMode, SequenceStart, SequenceState } from "./sequence";
 export {
   SEQUENCE_ACT_REASONS,
   SEQUENCE_ACT_WHY,
@@ -74,7 +6,7 @@ export {
   SEQUENCE_ACTS,
   sequenceActsOf,
   sequenceResumeAsk,
-} from "./sequence-acts";
+} from "./acts";
 export type {
   SequenceAct,
   SequenceActReason,
@@ -82,7 +14,7 @@ export type {
   SequenceActsInput,
   SequenceOffer,
   SequenceResumeAsk,
-} from "./sequence-acts";
+} from "./acts";
 export {
   isSequencesParam,
   isToSendParam,
@@ -101,10 +33,10 @@ export {
   SEQUENCES_ROUTE,
   TO_SEND_PARAM,
   TO_SEND_ROUTE,
-} from "./sequence-address";
-export type { NewWho, SequencesPlace, SequenceTab } from "./sequence-address";
-export { isListToken, newSequenceLine, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS } from "./sequence-draft";
-export { SEQUENCE_PEOPLE_GROUPS } from "./sequence-dto";
+} from "./address";
+export type { NewWho, SequencesPlace, SequenceTab } from "./address";
+export { isListToken, newSequenceLine, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS } from "./draft";
+export { SEQUENCE_PEOPLE_GROUPS } from "./dto";
 export type {
   SequenceBatchCountsDto,
   SequenceBatchDto,
@@ -126,9 +58,11 @@ export type {
   SequencesPageDto,
   SequenceStepDto,
   SequenceWaitingBatchDto,
-} from "./sequence-dto";
-export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequence-evidence";
-export type { SequenceEvidence, SequenceEvidenceDto } from "./sequence-evidence";
+} from "./dto";
+export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./evidence";
+export type { SequenceEvidence, SequenceEvidenceDto } from "./evidence";
+export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpReach, followUpStop, messageAboutOfClass } from "./follow-up";
+export type { FollowUpCondition, FollowUpStep, FollowUpStop } from "./follow-up";
 export {
   HELD_DECIDE_CARD,
   HELD_TAKE_OUT,
@@ -144,38 +78,34 @@ export {
   sequencePersonWhyOf,
   theirsOf,
   waitingAnswersOf,
-} from "./sequence-held";
-export type { HeldAnswer, HeldChoice, MarkedOpening, RewriteStep, RewroteOpening } from "./sequence-held";
+} from "./held";
+export type { HeldAnswer, HeldChoice, MarkedOpening, RewriteStep, RewroteOpening } from "./held";
 export {
-  LEAD_BUILD_WORDS,
-  LEAD_REWRITE_CHANGE_MAX,
-  leadBuildStepsOf,
   leadDraftChainOf,
-  leadDraftDockOf,
   leadEndingOf,
-  leadFirstUnwritten,
-  leadInsertRowsOf,
   leadMailboxesTicked,
   leadMailboxRowsOf,
   leadPaceChoicesOf,
   leadPreviewEmailOf,
-  leadPreviewOfferOf,
   leadSendingFactsOf,
+  withOpeningSaid,
+} from "./lead-build/mailboxes";
+export type { LeadMailboxRowVM, LeadPaceChoice } from "./lead-build/mailboxes";
+export {
+  LEAD_BUILD_WORDS,
+  LEAD_REWRITE_CHANGE_MAX,
+  leadBuildStepsOf,
+  leadDraftDockOf,
+  leadFirstUnwritten,
+  leadInsertRowsOf,
+  leadPreviewOfferOf,
   leadStartOf,
   reachOutInsertStep,
   reachOutMayInsertStep,
   reachOutPutBackStep,
   reachOutRemoveStep,
-  withOpeningSaid,
-} from "./sequence-lead-build";
-export type {
-  LeadBuildPart,
-  LeadBuildStepVM,
-  LeadInsertRowVM,
-  LeadMailboxRowVM,
-  LeadPaceChoice,
-  LeadRewriteDto,
-} from "./sequence-lead-build";
+} from "./lead-build/steps";
+export type { LeadBuildPart, LeadBuildStepVM, LeadInsertRowVM, LeadRewriteDto } from "./lead-build/steps";
 export {
   batchOkSendsNothing,
   heldByCheckWords,
@@ -186,8 +116,65 @@ export {
   SEQUENCE_TYPES,
   sequenceTypeOf,
   sortedSequences,
-} from "./sequence-list";
-export type { SequenceSort, SequenceType } from "./sequence-list";
+} from "./list";
+export type { SequenceSort, SequenceType } from "./list";
+export { NewDraftAnswerSchema } from "./new-draft-schema";
+export type { NewDraftAnswer, NewDraftAnswerStep } from "./new-draft-schema";
+export {
+  asDraftedFrom,
+  asDraftedOf,
+  handStepsHold,
+  NEW_DRAFT_JSON_SCHEMA,
+  NEW_VALUES,
+  numberedValues,
+  sentAsDrafted,
+} from "./new-draft/checks";
+export {
+  VOICE_LINE_LEAD,
+  VOICE_LINES_MAX,
+  VOICE_PASTE_MAX,
+  VOICE_PASTE_MIN,
+  VOICE_WORDS,
+  voiceLineOf,
+  voiceSaid,
+} from "./new-draft/checks";
+export type {
+  AsDrafted,
+  NewCheck,
+  NewDraftAsk,
+  NewDraftDto,
+  NewMailbox,
+  NewNobody,
+  NewReach,
+} from "./new-draft/checks";
+export type { SequenceVoiceDto } from "./new-draft/checks";
+export {
+  leadChainStepOf,
+  NEW_AUDIENCES,
+  NEW_KINDS,
+  NEW_ONCE_AHEAD_DAYS,
+  NEW_STEP_DOES,
+  NEW_STEPS_MAX,
+  NEW_WAIT_DAYS,
+  NEW_WORDS_MAX,
+  newConditionsOf,
+  newListOf,
+  newWaitOf,
+  whoSuits,
+} from "./new-draft/steps";
+export type {
+  DraftWho,
+  NewAudience,
+  NewEmail,
+  NewKeptStep,
+  NewKind,
+  NewMessage,
+  NewOnceKept,
+  NewStep,
+  NewStepDoes,
+  NewWrittenMessage,
+} from "./new-draft/steps";
+export { handTitleOf, NEW_WORDS } from "./new-words";
 export {
   PLACE_RAIL_WORDS,
   PLACE_WORDS,
@@ -197,7 +184,8 @@ export {
   placeStands,
   placeToneOf,
   placeWordOf,
-} from "./sequence-place";
+} from "./place";
+export { PLACE_NOT_PLANNED_WORD, placeLeftWord, placeNotPlannedOf } from "./place";
 export type {
   PlaceRailLens,
   PlaceRailStepVM,
@@ -207,7 +195,7 @@ export type {
   SequencePlaceOfDto,
   SequencePlaceRowDto,
   SequencePlaceSendDto,
-} from "./sequence-place";
+} from "./place";
 export {
   SCHEDULE_WORDS,
   scheduleChannels,
@@ -221,8 +209,21 @@ export {
   scheduleStepState,
   scheduleStepSub,
   scheduleWait,
-} from "./sequence-schedule";
-export type { ScheduleCtx, ScheduleState } from "./sequence-schedule";
+} from "./schedule";
+export type { ScheduleCtx, ScheduleState } from "./schedule";
+export {
+  batchModeOf,
+  isSequenceMode,
+  newSequenceMode,
+  SEQUENCE_MODE_LABEL,
+  SEQUENCE_MODE_WORDS,
+  SEQUENCE_MODES,
+  SEQUENCE_NEW_WORDS_ASK,
+  SEQUENCE_STARTS,
+  SEQUENCE_STATES,
+  sequenceModesFor,
+} from "./sequence";
+export type { SequenceMode, SequenceStart, SequenceState } from "./sequence";
 export {
   batchWent,
   historyCovers,
@@ -242,7 +243,7 @@ export {
   SEQUENCE_PEOPLE_WORDS,
   SEQUENCE_REPLIES_WORDS,
   waitingEmailsOf,
-} from "./sequence-tab-words";
+} from "./tab-words";
 export type {
   SequenceHeldVM,
   SequenceHistoryFigure,
@@ -250,43 +251,46 @@ export type {
   SequenceNeedsVM,
   SequenceWaitingEmailVM,
   SequenceWroteBackVM,
-} from "./sequence-tab-words";
-export { leadStepTestMail, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./sequence-test";
-export type { StepTestMail, StepTestMessage } from "./sequence-test";
+} from "./tab-words";
+export { leadStepTestMail, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./test";
+export type { StepTestMail, StepTestMessage } from "./test";
+export {
+  leadStepStand,
+  SEQUENCE_FLOW_WORDS,
+  SEQUENCE_GROUPS,
+  SEQUENCE_WORDS,
+  sequenceGroupOf,
+  sequenceHeadLine,
+  sequenceRowLine,
+  sequenceRowState,
+  sequenceStartWords,
+  sequenceStateTone,
+  sequenceStateWords,
+  sequenceSubLine,
+  sequenceTwinOf,
+  sequenceWaitsNow,
+  stepApprovalOf,
+  takesFollowUps,
+  visitTwinWords,
+} from "./words/flow";
+export type { SequenceGroup, SequenceTwin } from "./words/flow";
 export {
   batchWaitsUntilTonight,
   leadsPlannedWords,
-  leadStepStand,
   listStartsSentence,
   momentStartsSentence,
   PEOPLE_GROUP_WORDS,
   peopleTabWord,
-  SEQUENCE_FLOW_WORDS,
-  SEQUENCE_GROUPS,
-  SEQUENCE_WORDS,
   sequenceChannelsWords,
-  sequenceGroupOf,
-  sequenceHeadLine,
   sequenceLeftWords,
   sequenceNextOf,
   sequenceNextWords,
   sequenceNotice,
   sequencePausedDock,
-  sequenceRowLine,
-  sequenceRowState,
   sequenceStartsSentence,
-  sequenceStartWords,
-  sequenceStateTone,
-  sequenceStateWords,
   sequenceStopsSentence,
-  sequenceSubLine,
-  sequenceTwinOf,
-  sequenceWaitsNow,
   sequenceWaitWords,
   sequenceWhoApprovesHint,
-  stepApprovalOf,
   stepsStopSentence,
-  takesFollowUps,
-  visitTwinWords,
-} from "./sequence-words";
-export type { SequenceGroup, SequenceNext, SequenceNotice, SequenceTwin } from "./sequence-words";
+} from "./words/next";
+export type { SequenceNext, SequenceNotice } from "./words/next";

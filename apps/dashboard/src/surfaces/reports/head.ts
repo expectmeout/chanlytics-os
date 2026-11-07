@@ -9,7 +9,8 @@
  * Campaigns' tabs have none. The act is the page's own (the period, on a desk: reports-page.tsx), at the strip's right.
  */
 import type { ReactNode } from "react";
-import { lensAnswerOf, type LensId, type ReviewsReportVM } from "@chanlytics/contracts";
+import type { LensId, ReviewsReportVM } from "@chanlytics/contracts";
+import { lensAnswerOf } from "./model/lens-answer";
 import type { CampaignLensVM, PeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { useStanding } from "../kit/head/standing";
 import type { ReportsSurface } from "./surface";

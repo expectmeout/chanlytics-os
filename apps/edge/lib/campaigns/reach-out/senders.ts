@@ -8,14 +8,16 @@
  * send is planned again by the reading it was planned by.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mailboxCapacityOf, mailboxConnectionsOf, type Database } from "@chanlytics/db";
+import { getMailboxCapacity } from "@chanlytics/db/campaigns";
+import { listMailboxConnectionsOf } from "@chanlytics/db/email";
+import type { Database } from "@chanlytics/db/types";
 import { mailboxDailyCap, reachOutWritesFrom, type TimetableSender } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 export async function stepSenders(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     /** The step's own mailboxes (playbooks.mailbox_ids): none named is every connected one. */
     named: readonly string[];
@@ -26,14 +28,14 @@ export async function stepSenders(
     own?: ReadonlyMap<string, readonly number[]>;
   },
 ): Promise<{ senders: TimetableSender[]; gone: Set<string> }> {
-  const also = new Set(p.also ?? []);
-  const rows = await mailboxConnectionsOf(db, p.tenantId);
+  const also = new Set(params.also ?? []);
+  const rows = await listMailboxConnectionsOf(db, params.tenantId);
   const senders: TimetableSender[] = [];
   for (const r of rows) {
-    if (!reachOutWritesFrom(r, p.named) && !also.has(r.id)) continue;
-    const c = await mailboxCapacityOf(db, r.id, p.at);
+    if (!reachOutWritesFrom(r, params.named) && !also.has(r.id)) continue;
+    const c = await getMailboxCapacity(db, r.id, params.at);
     const recent = [...c.recent];
-    for (const t of p.own?.get(r.id) ?? []) {
+    for (const t of params.own?.get(r.id) ?? []) {
       const i = recent.indexOf(t);
       if (i >= 0) recent.splice(i, 1);
     }

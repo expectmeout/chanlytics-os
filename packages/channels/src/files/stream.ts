@@ -9,7 +9,7 @@
  */
 import { isObjectRecord } from "@chanlytics/contracts";
 import { createHmac, createPrivateKey, sign as signWith, timingSafeEqual } from "node:crypto";
-import { answerObject, providerFetch, type ProviderReply } from "../shared/provider-fetch";
+import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 import type { ModelDeps } from "../ai/anthropic";
 
 const STREAM_ACCOUNTS_API = "https://api.cloudflare.com/client/v4/accounts";
@@ -109,7 +109,7 @@ export async function reserveStreamUpload(
   upload: { bytes: number; maxDurationSeconds: number; expiresAt: Date; name: string },
   deps: ModelDeps = {},
 ): Promise<StreamReserved> {
-  const reply = await providerFetch(
+  const reply = await fetchFromProvider(
     "cloudflare",
     `${STREAM_ACCOUNTS_API}/${encodeURIComponent(account.accountId)}/stream?direct_user=true`,
     {
@@ -152,7 +152,7 @@ export type StreamRead = { ok: true; video: StreamVideo } | { ok: false; gone: b
 
 /** A video as Stream has it now: what the sweep asks when its webhook did not come. */
 export async function readStreamVideo(account: StreamAccount, uid: string, deps: ModelDeps = {}): Promise<StreamRead> {
-  const reply = await providerFetch(
+  const reply = await fetchFromProvider(
     "cloudflare",
     videoUrl(account, uid),
     { method: "GET", headers: apiHeaders(account), timeoutMs: API_TRY_MS, idempotent: true, tries: 2 },
@@ -166,7 +166,7 @@ export async function readStreamVideo(account: StreamAccount, uid: string, deps:
 
 /** Whether the video is gone from Stream: deleted now, or already (a 404). Its minutes are freed at once. */
 export async function deleteStreamVideo(account: StreamAccount, uid: string, deps: ModelDeps = {}): Promise<boolean> {
-  const r = await providerFetch(
+  const r = await fetchFromProvider(
     "cloudflare",
     videoUrl(account, uid),
     { method: "DELETE", headers: apiHeaders(account), timeoutMs: API_TRY_MS, idempotent: true, tries: 2 },
@@ -190,7 +190,7 @@ function audioOf(r: ProviderReply): StreamAudio {
 
 /** Asks Stream for the video's sound as M4A, or answers where it stands; asked again it changes nothing. */
 export async function askStreamAudio(account: StreamAccount, uid: string, deps: ModelDeps = {}): Promise<StreamAudio> {
-  const r = await providerFetch(
+  const r = await fetchFromProvider(
     "cloudflare",
     videoUrl(account, uid, "/downloads/audio"),
     { method: "POST", headers: apiHeaders(account), timeoutMs: API_TRY_MS, idempotent: true, tries: 2 },
@@ -201,7 +201,7 @@ export async function askStreamAudio(account: StreamAccount, uid: string, deps: 
 
 /** Where the audio download stands now, without asking for it. */
 export async function readStreamAudio(account: StreamAccount, uid: string, deps: ModelDeps = {}): Promise<StreamAudio> {
-  const r = await providerFetch(
+  const r = await fetchFromProvider(
     "cloudflare",
     videoUrl(account, uid, "/downloads"),
     { method: "GET", headers: apiHeaders(account), timeoutMs: API_TRY_MS, idempotent: true, tries: 2 },
@@ -220,7 +220,7 @@ export async function putStreamCaptions(
 ): Promise<boolean> {
   const form = new FormData();
   form.append("file", new Blob([vtt], { type: "text/vtt" }), `${language}.vtt`);
-  const reply = await providerFetch(
+  const reply = await fetchFromProvider(
     "cloudflare",
     videoUrl(account, uid, `/captions/${encodeURIComponent(language)}`),
     { method: "PUT", headers: apiHeaders(account), body: form, timeoutMs: CAPTION_TRY_MS, idempotent: true, tries: 2 },
@@ -237,7 +237,7 @@ export interface StreamUsage {
 }
 
 export async function readStreamUsage(account: StreamAccount, deps: ModelDeps = {}): Promise<StreamUsage | null> {
-  const reply = await providerFetch(
+  const reply = await fetchFromProvider(
     "cloudflare",
     `${STREAM_ACCOUNTS_API}/${encodeURIComponent(account.accountId)}/stream/storage-usage`,
     { method: "GET", headers: apiHeaders(account), timeoutMs: API_TRY_MS, idempotent: true, tries: 2 },
@@ -319,7 +319,7 @@ export function streamPlayerUrl(
 export type StreamFetched = { ok: true; bytes: Uint8Array; mime: string } | { ok: false; gone: boolean; error: string };
 
 async function fetchBytes(url: string, timeoutMs: number, deps: ModelDeps): Promise<StreamFetched> {
-  const reply = await providerFetch(
+  const reply = await fetchFromProvider(
     "cloudflare",
     url,
     { method: "GET", timeoutMs, idempotent: true, tries: 2, stream: true },

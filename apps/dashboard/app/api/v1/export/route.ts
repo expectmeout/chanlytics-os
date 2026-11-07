@@ -1,21 +1,14 @@
 import { z } from "zod";
-import { AppError, type MessageDto } from "@chanlytics/contracts";
+import { AppError } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/shared/route";
-import { everyoneOnce, onePerson } from "@/server/people/people";
-import { tenantFacts } from "@/server/shared/tenant";
-import { CALL_COLUMNS, MESSAGE_COLUMNS, mediaPublic, toCallDto } from "@/server/conversations/dto";
-import { attachmentStream, dateTag, personLabel, safeName } from "@/server/export/export";
-import {
-  BUNDLE_PAGE,
-  consentChangeOf,
-  personBundle,
-  workspaceBundle,
-  type BundleReaders,
-} from "@/server/export/bundle";
+import { listEveryoneOnce, findOnePerson } from "@/server/people/people";
+import { getTenantFacts } from "@/server/shared/tenant";
+import { attachmentStream, dateTag, personLabel, safeName } from "@/server/shared/export-file";
+import { BUNDLE_PAGE, personBundle, workspaceBundle, type BundleReaders } from "@/server/export/bundle";
 import { personSections, workspaceSections } from "@/server/export/workspace-sections";
 import { recordDecision } from "@/server/shared/verbs";
 import { log } from "@/server/shared/log";
-import type { RouteContext } from "@/server/shared/with-route";
+import { customerRecord } from "@/server/export/customer-record";
 
 const Query = z.object({
   /**
@@ -53,12 +46,12 @@ export const GET = read({
     const { supabase, userId } = ctx;
     const tenantId = member.tenantId;
     const person = input?.person;
-    const { name, timezone } = await tenantFacts(supabase, tenantId);
+    const { name, timezone } = await getTenantFacts(supabase, tenantId);
     const now = new Date();
     const opts = { workspaceId: tenantId, business: name, tz: timezone, exportedAt: now, page: BUNDLE_PAGE };
     if (person) {
       // Their row first: a person who is not in this workspace, or was erased or merged away, has no copy to take.
-      const them = await onePerson(ctx, tenantId, person);
+      const them = await findOnePerson(ctx, tenantId, person);
       if (!them) throw new AppError("not_found", "Person not found.");
       log.info("export.person", { user: userId, tenant_id: tenantId, person });
       // On the ledger before the first byte, on them: their page says who took a copy of their records, and when.
@@ -82,8 +75,8 @@ export const GET = read({
       // Paged: one people_list call is capped at 1000 in the database, and this
       // bundle is streamed precisely so a workspace of any size downloads whole.
       // Not by offset, as the other sections are: People's order moves as
-      // someone writes, so each person is read exactly once (everyoneOnce).
-      people: () => everyoneOnce(ctx, tenantId),
+      // someone writes, so each person is read exactly once (listEveryoneOnce).
+      people: () => listEveryoneOnce(ctx, tenantId),
       ...workspaceSections(supabase, tenantId),
     };
     log.info("export.workspace", { user: userId, tenant_id: tenantId });
@@ -96,100 +89,3 @@ export const GET = read({
     );
   },
 });
-
-/**
- * The customer record, a page at a time, read on the owner's own session: everyone's threads, their messages, the calls
- * and every consent change, or one person's alone (`person`, a uuid the query checked).
- */
-function customerRecord(
-  ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
-  person?: string,
-): Pick<BundleReaders, "conversations" | "messages" | "calls" | "consentHistory"> {
-  const { supabase } = ctx;
-  const rows = async <T>(q: PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> => {
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    return data ?? [];
-  };
-  return {
-    conversations: (offset, limit) => {
-      const all = supabase
-        .from("conversations")
-        .select("id, contact_id, state, created_at, last_message_at, last_inbound_at")
-        .eq("tenant_id", tenantId);
-      return rows(
-        (person ? all.eq("contact_id", person) : all)
-          .order("created_at", { ascending: true })
-          .order("id", { ascending: true })
-          .range(offset, offset + limit - 1),
-      );
-    },
-    // A batch of conversations' messages in one query (R14 X7), each with its conversation and, for a file the store
-    // holds, its path: the bundle lists the file with a link and never writes the path.
-    messages: async (conversationIds, offset, limit) =>
-      (
-        await rows(
-          supabase
-            .from("messages")
-            .select(MESSAGE_COLUMNS)
-            .in("conversation_id", [...conversationIds])
-            .order("conversation_id", { ascending: true })
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(offset, offset + limit - 1),
-        )
-      ).map((m) => ({
-        conversation_id: m.conversation_id,
-        stored_path: storedPathOf(m.media),
-        id: m.id,
-        direction: m.direction as MessageDto["direction"],
-        sender: m.sender as MessageDto["sender"],
-        type: m.type,
-        body: m.body,
-        media: mediaPublic(m.media),
-        // A message's meta as stored, not through memberMetaOf: this is the owner's own copy of their data, and the
-        // `pricing` a receipt keeps there (K8) holds the provider's category words and no amount.
-        meta: m.meta as MessageDto["meta"],
-        status: m.status,
-        created_at: m.created_at,
-        channel_ts: m.channel_ts,
-        // The wire it travelled: a person's one thread holds every channel they wrote on (R14 X4).
-        ...(m.channel ? { channel: m.channel } : {}),
-      })),
-    calls: async (offset, limit) => {
-      const all = supabase.from("calls").select(CALL_COLUMNS).eq("tenant_id", tenantId);
-      return (
-        await rows(
-          (person ? all.eq("contact_id", person) : all)
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(offset, offset + limit - 1),
-        )
-      ).map(toCallDto);
-    },
-    // Every change to either answer: a person's are the ones about them (the event's subject is the person).
-    consentHistory: async (offset, limit) => {
-      const all = supabase
-        .from("events")
-        .select("id, subject_id, created_at, data")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "contact.consent_changed");
-      return (
-        await rows(
-          (person ? all.eq("subject_id", person) : all)
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(offset, offset + limit - 1),
-        )
-      ).map(consentChangeOf);
-    },
-  };
-}
-
-/** Where a message's file is kept, once the store holds it; none for one still fetching or never fetched. */
-function storedPathOf(media: unknown): string | null {
-  if (!media || typeof media !== "object") return null;
-  const m = media as { storage_path?: unknown; fetch_state?: unknown };
-  return m.fetch_state === "stored" && typeof m.storage_path === "string" ? m.storage_path : null;
-}

@@ -12,20 +12,13 @@
 import { useState } from "react";
 import type { AdArea, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
 import { patchRestarts } from "@chanlytics/contracts";
-import {
-  CHANGED,
-  DRAWER,
-  PLATFORM_OWNER,
-  REVIEW_WITHIN,
-  adModel,
-  areaOfValue,
-  areaWord,
-  dayWord,
-  editFootOf,
-  moneyOf,
-  perDayOf,
-} from "@chanlytics/contracts/ads-page";
-import type { ChipId } from "@chanlytics/contracts/ads-page";
+import { CHANGED, DRAWER } from "../model/drawer/words";
+import { PLATFORM_OWNER, REVIEW_WITHIN, dayWord } from "../model/words";
+import { adModel } from "../model/drawer/view";
+import { areaOfValue, editFootOf } from "../model/drawer/edit-lists";
+import { areaWord } from "../model/vm-base";
+import { moneyOf, perDayOf } from "../model/money";
+import type { ChipId } from "../model/vm-base";
 import type { useFrameToast } from "../../../frame-verbs";
 import { afterMove, askAbout, navigate } from "../../../frame-verbs";
 import { tellOf } from "../store";

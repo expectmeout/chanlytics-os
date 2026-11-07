@@ -24,11 +24,11 @@ import { createClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { publicFetcher } from "@chanlytics/channels";
+import { publicFetcher } from "@chanlytics/channels/shared";
 import { LEAD_MARKS_BUCKET } from "@chanlytics/contracts";
-import { keepLeadMark } from "@chanlytics/db";
+import { keepLeadMark } from "@chanlytics/db/leads";
 import { MARK_ALLOWANCE_MS, SITES_AT_ONCE, markPlaces, siteReadsOf } from "../../../packages/core/src/leads/index.ts";
-import { imageBytes, leadMarkPath, leadSitePage, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
+import { fetchImageBytes, leadMarkPath, findLeadSitePage, storeLeadMark } from "../../../apps/edge/lib/leads/marks.ts";
 
 const COLUMNS = "id, tenant_id, website_host, logo_url, mark_path, blanked_at, erased_at";
 
@@ -137,8 +137,8 @@ async function main() {
   if (!plan.length) return;
 
   const wires = {
-    readSite: leadSitePage,
-    fetchBytes: (u, ms, max) => imageBytes(publicFetcher(), u, ms, max),
+    readSite: findLeadSitePage,
+    fetchBytes: (u, ms, max) => fetchImageBytes(publicFetcher(), u, ms, max),
   };
 
   if (!apply) {

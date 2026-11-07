@@ -7,18 +7,20 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   businessGap,
-  bookingRulesWords,
-  BOOKING_RULE_HINTS,
   roleGate,
   needsConsultation,
   foldName,
   serviceUndoName,
-  bookingRuleRefusal,
   servicesFoundWords,
   APPOINTMENT_WORDS,
   appointmentWordSaved,
   appointmentWordVM,
 } from "@chanlytics/contracts";
+import {
+  bookingRulesWords,
+  BOOKING_RULE_HINTS,
+  bookingRuleRefusal,
+} from "../../../apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts";
 import { unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
   BUSINESS_TAB,

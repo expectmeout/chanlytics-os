@@ -17,10 +17,10 @@ import {
   feedWithRecord,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/shared/with-route";
-import { calendarOf } from "./settings";
-import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
-import { poolRecordOf } from "./people-visits";
-import { earlierVisitRows } from "@chanlytics/db";
+import { findCalendar } from "./settings";
+import { getParsedFeed, type ParsedRead } from "./parsed-feed";
+import { findPoolRecord } from "./people-visits";
+import { getEarlierVisitRows } from "@chanlytics/db/calendar";
 import { log } from "@/server/shared/log";
 
 /* ---- One person's appointments, for their profile ---- */
@@ -36,29 +36,29 @@ import { log } from "@/server/shared/log";
  * are, so it is asked for as soon as the calendar's address is known, and the two meet here. Null for nobody. The feed
  * may be the last good read while a new one is fetched (`stale`): a profile's next visit, never an opening offered.
  */
-export async function personVisits(
+export async function findPersonVisits(
   ctx: RouteContext,
   tenantId: string,
-  who: PersonLike | PromiseLike<PersonLike | null>,
+  otherPerson: PersonLike | PromiseLike<PersonLike | null>,
   now = new Date(),
 ): Promise<PersonVisitsDto | null> {
-  const calendar = calendarOf(ctx, tenantId);
+  const calendar = findCalendar(ctx, tenantId);
   const feedRead = calendar.then(async ({ url, timezone }): Promise<ParsedRead | null> => {
     if (!url) return null;
     try {
-      return await parsedFeedFor(tenantId, url, timezone, now, { stale: true });
+      return await getParsedFeed(tenantId, url, timezone, now, { stale: true });
     } catch (e) {
       log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
       return { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
     }
   });
   // The record beside the feed (0002's readers): a booking's visits join theirs, a cancelled one leaves, a word rides.
-  const recordRead = calendar.then(({ url }) => (url ? poolRecordOf(ctx, tenantId, now) : null));
-  const earlierRead = earlierRowsOf(ctx, tenantId, calendar, who, now);
+  const recordRead = calendar.then(({ url }) => (url ? findPoolRecord(ctx, tenantId, now) : null));
+  const earlierRead = earlierRowsOf(ctx, tenantId, calendar, otherPerson, now);
   const [{ url, lostCalendar, timezone, source, own, profile }, feed, person, record, earlierRows] = await Promise.all([
     calendar,
     feedRead,
-    who,
+    otherPerson,
     recordRead,
     earlierRead,
   ]);
@@ -69,7 +69,7 @@ export async function personVisits(
   // not be told from one that stands.
   if (!feed?.parsed || !record) return { timezone, source, state: "unavailable", next: null, last: null };
   const index = indexFeed(feedWithRecord(feed.parsed.items, record, own), own);
-  const v = visitsIn(index, person, now.getTime());
+  const visits = visitsIn(index, person, now.getTime());
   // The timeline wants them all; a season either side is what the parse holds.
   const all = allVisitsIn(index, person)
     .map((x) => toVisitDto(x) as VisitDto)
@@ -87,30 +87,30 @@ export async function personVisits(
     timezone,
     source,
     state: "ok",
-    next: mark(toVisitDto(v.next)),
-    last: mark(toVisitDto(v.last)),
-    missed: mark(toVisitDto(v.missed ?? null)),
+    next: mark(toVisitDto(visits.next)),
+    last: mark(toVisitDto(visits.last)),
+    missed: mark(toVisitDto(visits.missed ?? null)),
     all,
     ...(earlier ? { earlier } : {}),
   };
 }
 
 /**
- * The record's rows of one person from before the season the feed's read covers (packages/db earlierVisitRows), started
+ * The record's rows of one person from before the season the feed's read covers (packages/db getEarlierVisitRows), started
  * in the same round as the rest. Never fatal: a failed or capped read leaves the count to the season's alone, said as
  * "Last 90 days", never the calendar unavailable.
  */
 function earlierRowsOf(
   ctx: RouteContext,
   tenantId: string,
-  calendar: ReturnType<typeof calendarOf>,
-  who: PersonLike | PromiseLike<PersonLike | null>,
+  calendar: ReturnType<typeof findCalendar>,
+  otherPerson: PersonLike | PromiseLike<PersonLike | null>,
   now: Date,
 ) {
-  return Promise.all([calendar, who]).then(async ([{ url }, person]) => {
+  return Promise.all([calendar, otherPerson]).then(async ([{ url }, person]) => {
     if (!url || !person) return null;
     try {
-      const read = await earlierVisitRows(
+      const read = await getEarlierVisitRows(
         ctx.supabase,
         tenantId,
         { id: person.id, phone: person.phone, email: person.email },

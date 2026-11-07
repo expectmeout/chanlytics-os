@@ -167,14 +167,18 @@ export interface ReachOutDayNumbers {
  * The bell's line at 6 PM (H12): "Today's reach-outs" over what they wrote, who wrote back and what waits, each clause
  * only when it is not zero.
  */
-export function reachOutDayWords(n: ReachOutDayNumbers): { title: string; body: string } {
+export function reachOutDayWords(reachOutDayNumbers: ReachOutDayNumbers): { title: string; body: string } {
   const clauses: string[] = [];
-  if (n.written) clauses.push(`${n.written} written`);
-  if (n.wrote_back) clauses.push(`${n.wrote_back} wrote back${n.interested ? `, ${n.interested} interested` : ""}`);
-  if (n.booked) clauses.push(`${n.booked} booked`);
-  if (n.said_no) clauses.push(`${n.said_no} said no`);
-  if (n.bounced) clauses.push(`${n.bounced} bounced`);
-  if (n.held) clauses.push(`${n.held} wait${n.held === 1 ? "s" : ""} for your say`);
+  if (reachOutDayNumbers.written) clauses.push(`${reachOutDayNumbers.written} written`);
+  if (reachOutDayNumbers.wrote_back)
+    clauses.push(
+      `${reachOutDayNumbers.wrote_back} wrote back${reachOutDayNumbers.interested ? `, ${reachOutDayNumbers.interested} interested` : ""}`,
+    );
+  if (reachOutDayNumbers.booked) clauses.push(`${reachOutDayNumbers.booked} booked`);
+  if (reachOutDayNumbers.said_no) clauses.push(`${reachOutDayNumbers.said_no} said no`);
+  if (reachOutDayNumbers.bounced) clauses.push(`${reachOutDayNumbers.bounced} bounced`);
+  if (reachOutDayNumbers.held)
+    clauses.push(`${reachOutDayNumbers.held} wait${reachOutDayNumbers.held === 1 ? "s" : ""} for your say`);
   return {
     title: "Today's emails to leads",
     body: clauses.length ? `${clauses.join(" · ")}.` : "Nothing happened today.",

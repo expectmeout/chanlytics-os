@@ -106,7 +106,7 @@ test(
       null,
       `beside a failed line the database admits a row; the door is what refuses it: ${next.error?.message}`,
     );
-    // The retry's compare-and-swap (line-resume.ts): failed -> provisioning, beside the live one.
+    // The retry's compare-and-swap (lines/resume.ts): failed -> provisioning, beside the live one.
     const retry = await db
       .from("lines")
       .update({ voice_state: "provisioning", state_since: new Date().toISOString() })

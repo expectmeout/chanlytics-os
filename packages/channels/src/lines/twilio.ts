@@ -8,7 +8,7 @@
  * given, form-encoded bodies, JSON answers — so a test can pin every URL
  * and parameter without a network, and the edge supplies fetch.
  */
-import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
+import { answerObject, fetchFromProvider, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import { deleteCampaignRequest } from "./a2p/brand-campaign";
 import type { AvailableNumber, LineProvider, ProviderAccount, ReceivedText } from "./lines";
 
@@ -71,14 +71,14 @@ export interface LineTypeAnswer {
  * Twilio could not say (no answer, a refusal, or a number it has no record of); never throws.
  */
 export async function lookupLineType(acct: ProviderAccount, e164: string): Promise<LineTypeAnswer | null> {
-  const a = await twilioRequest(acct, "GET", twilioUrls.lookup(e164));
-  if (a.outcome !== "ok") return null;
-  const lti = answerObject(a)?.line_type_intelligence;
+  const result = await requestTwilio(acct, "GET", twilioUrls.lookup(e164));
+  if (result.outcome !== "ok") return null;
+  const lti = answerObject(result)?.line_type_intelligence;
   if (!lti || typeof lti !== "object" || Array.isArray(lti)) return null;
-  const o = lti as Record<string, unknown>;
+  const value = lti as Record<string, unknown>;
   return {
-    type: typeof o.type === "string" ? o.type : null,
-    carrier: typeof o.carrier_name === "string" ? o.carrier_name : null,
+    type: typeof value.type === "string" ? value.type : null,
+    carrier: typeof value.carrier_name === "string" ? value.carrier_name : null,
   };
 }
 
@@ -86,10 +86,10 @@ export async function lookupLineType(acct: ProviderAccount, e164: string): Promi
 export class TwilioError extends Error {
   readonly status: number;
   readonly code: number | null;
-  constructor(status: number, body: Record<string, unknown> | null, what: string) {
+  constructor(status: number, body: Record<string, unknown> | null, text: string) {
     const code = typeof body?.code === "number" ? body.code : null;
     const msg = typeof body?.message === "string" ? body.message : `HTTP ${status}`;
-    super(`${what}: ${msg}${code ? ` (Twilio ${code})` : ""}`);
+    super(`${text}: ${msg}${code ? ` (Twilio ${code})` : ""}`);
     this.name = "TwilioError";
     this.status = status;
     this.code = code;
@@ -100,48 +100,48 @@ export class TwilioError extends Error {
  * One call to Twilio as `acct`, through providerFetch: basic auth, a form body already encoded (the port's, or A2P's
  * own encoder), 15 s unless said. A read is asked twice when the first got no answer quickly.
  */
-export function twilioRequest(
+export function requestTwilio(
   acct: ProviderAccount,
   method: "GET" | "POST" | "DELETE",
   url: string,
-  o: { form?: string; timeoutMs?: number; breaker?: "hold" | "count" } = {},
+  options: { form?: string; timeoutMs?: number; breaker?: "hold" | "count" } = {},
 ): Promise<ProviderReply> {
-  return providerFetch("twilio", url, {
+  return fetchFromProvider("twilio", url, {
     method,
     headers: {
       Authorization: `Basic ${Buffer.from(`${acct.sid}:${acct.token}`).toString("base64")}`,
-      ...(o.form !== undefined ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+      ...(options.form !== undefined ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
     },
-    body: o.form,
-    timeoutMs: o.timeoutMs ?? TWILIO_TIMEOUT_MS,
-    breaker: o.breaker ?? "hold",
+    body: options.form,
+    timeoutMs: options.timeoutMs ?? TWILIO_TIMEOUT_MS,
+    breaker: options.breaker ?? "hold",
     ...(method === "GET" ? { idempotent: true, tries: 2 } : {}),
   });
 }
 
 /**
- * The fetch-backed port: basic auth as `acct`, 15 s per call, through twilioRequest. It never throws: a call that got
+ * The fetch-backed port: basic auth as `acct`, 15 s per call, through requestTwilio. It never throws: a call that got
  * no answer is status 0 with the network's words as `error` (a text's send said "never throws" while this threw),
  * which a saga step's `need` refuses as any other failure.
  */
 export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
   // A text to a person is always sent: another call's timeouts never fail it (provider-fetch's breaker).
   const text = method === "POST" && url.endsWith("/Messages.json");
-  const a = await twilioRequest(acct, method, url, {
+  const first = await requestTwilio(acct, method, url, {
     ...(form ? { form: new URLSearchParams(form).toString() } : {}),
     ...(text ? { breaker: "count" as const } : {}),
   });
   const body =
-    a.status === 0
-      ? { error: a.error ?? "no answer" }
-      : (answerObject(a) ?? (a.json === null && a.text ? { text: a.text.slice(0, 300) } : null));
-  return { status: a.status, body, outcome: a.outcome };
+    first.status === 0
+      ? { error: first.error ?? "no answer" }
+      : (answerObject(first) ?? (first.json === null && first.text ? { text: first.text.slice(0, 300) } : null));
+  return { status: first.status, body, outcome: first.outcome };
 };
 
 const str = (o: Record<string, unknown> | null, k: string): string | null => (typeof o?.[k] === "string" ? o[k] : null);
 
-function need(a: TwilioAnswer, what: string): Record<string, unknown> {
-  if (a.status < 200 || a.status >= 300 || !a.body) throw new TwilioError(a.status, a.body, what);
+function need(a: TwilioAnswer, text: string): Record<string, unknown> {
+  if (a.status < 200 || a.status >= 300 || !a.body) throw new TwilioError(a.status, a.body, text);
   return a.body;
 }
 
@@ -206,11 +206,11 @@ async function findTrunk(http: TwilioHttp, acct: ProviderAccount, domainName: st
 }
 
 async function findCredentialList(http: TwilioHttp, acct: ProviderAccount, friendlyName: string) {
-  const b = need(
+  const reply = need(
     await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
     "list credential lists",
   );
-  for (const l of rowsOf(b, "credential_lists")) {
+  for (const l of rowsOf(reply, "credential_lists")) {
     const sid = str(l, "sid");
     if (sid && str(l, "friendly_name") === friendlyName.slice(0, 64)) return { sid };
   }
@@ -218,11 +218,11 @@ async function findCredentialList(http: TwilioHttp, acct: ProviderAccount, frien
 }
 
 async function findCredential(http: TwilioHttp, acct: ProviderAccount, listSid: string, username: string) {
-  const b = need(
+  const reply = need(
     await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
     "list credentials",
   );
-  for (const c of rowsOf(b, "credentials")) {
+  for (const c of rowsOf(reply, "credentials")) {
     const sid = str(c, "sid");
     if (sid && str(c, "username") === username) return { sid };
   }
@@ -235,36 +235,38 @@ async function deleteCredential(http: TwilioHttp, acct: ProviderAccount, listSid
 }
 
 async function findOrigination(http: TwilioHttp, acct: ProviderAccount, trunkSid: string, sipUrl: string) {
-  const b = need(
+  const reply = need(
     await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
     "list origination urls",
   );
-  for (const o of rowsOf(b, "origination_urls")) {
+  for (const o of rowsOf(reply, "origination_urls")) {
     const sid = str(o, "sid");
     if (sid && str(o, "sip_url") === sipUrl) return { sid };
   }
   return null;
 }
 
-async function searchLocal(http: TwilioHttp, acct: ProviderAccount, q: { areaCode: number; limit: number }) {
+async function searchLocal(http: TwilioHttp, acct: ProviderAccount, input: { areaCode: number; limit: number }) {
   const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
-    AreaCode: String(q.areaCode),
+    AreaCode: String(input.areaCode),
     VoiceEnabled: "true",
     SmsEnabled: "true",
-    PageSize: String(Math.min(Math.max(q.limit, 1), 30)),
+    PageSize: String(Math.min(Math.max(input.limit, 1), 30)),
   }).toString()}`;
-  const b = need(await http(acct, "GET", url), "search numbers");
-  const rows = Array.isArray(b.available_phone_numbers) ? (b.available_phone_numbers as Record<string, unknown>[]) : [];
+  const reply = need(await http(acct, "GET", url), "search numbers");
+  const rows = Array.isArray(reply.available_phone_numbers)
+    ? (reply.available_phone_numbers as Record<string, unknown>[])
+    : [];
   return rows
-    .map((n): AvailableNumber | null => {
-      const e164 = str(n, "phone_number");
+    .map((row): AvailableNumber | null => {
+      const e164 = str(row, "phone_number");
       if (!e164) return null;
-      const caps = (n.capabilities ?? {}) as Record<string, unknown>;
+      const caps = (row.capabilities ?? {}) as Record<string, unknown>;
       return {
         e164,
-        friendly: str(n, "friendly_name") ?? e164,
-        locality: str(n, "locality"),
-        region: str(n, "region"),
+        friendly: str(row, "friendly_name") ?? e164,
+        locality: str(row, "locality"),
+        region: str(row, "region"),
         capabilities: { voice: caps.voice === true, sms: caps.sms === true, mms: caps.mms === true },
       };
     })
@@ -272,16 +274,16 @@ async function searchLocal(http: TwilioHttp, acct: ProviderAccount, q: { areaCod
 }
 
 async function buyNumber(http: TwilioHttp, acct: ProviderAccount, e164: string, friendlyName: string) {
-  const b = need(
+  const reply = need(
     await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
       PhoneNumber: e164,
       FriendlyName: friendlyName.slice(0, 64),
     }),
     "buy number",
   );
-  const sid = str(b, "sid");
-  if (!sid) throw new TwilioError(200, b, "buy number answered without a sid");
-  return { sid, e164: str(b, "phone_number") ?? e164 };
+  const sid = str(reply, "sid");
+  if (!sid) throw new TwilioError(200, reply, "buy number answered without a sid");
+  return { sid, e164: str(reply, "phone_number") ?? e164 };
 }
 
 // A number this subaccount already holds. Twilio filters IncomingPhoneNumbers by
@@ -291,15 +293,15 @@ async function buyNumber(http: TwilioHttp, acct: ProviderAccount, e164: string, 
 // the saga on to buy a second number. So a non-200 throws, and the step retries
 // rather than spending.
 async function ownedNumber(http: TwilioHttp, acct: ProviderAccount, e164: string) {
-  const a = await http(
+  const result = await http(
     acct,
     "GET",
     `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`,
   );
-  if (a.status === 404) return null;
-  const b = need(a, "list owned numbers");
-  const list = Array.isArray((b as { incoming_phone_numbers?: unknown }).incoming_phone_numbers)
-    ? (b as { incoming_phone_numbers: unknown[] }).incoming_phone_numbers
+  if (result.status === 404) return null;
+  const reply = need(result, "list owned numbers");
+  const list = Array.isArray((reply as { incoming_phone_numbers?: unknown }).incoming_phone_numbers)
+    ? (reply as { incoming_phone_numbers: unknown[] }).incoming_phone_numbers
     : [];
   for (const row of list) {
     if (!row || typeof row !== "object") continue;
@@ -314,17 +316,21 @@ async function releaseNumber(http: TwilioHttp, acct: ProviderAccount, numberSid:
   if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
 }
 
-async function createTrunk(http: TwilioHttp, acct: ProviderAccount, o: { friendlyName: string; domainName: string }) {
-  const b = need(
+async function createTrunk(
+  http: TwilioHttp,
+  acct: ProviderAccount,
+  options: { friendlyName: string; domainName: string },
+) {
+  const reply = need(
     await http(acct, "POST", twilioUrls.trunks, {
-      FriendlyName: o.friendlyName.slice(0, 64),
-      DomainName: o.domainName,
+      FriendlyName: options.friendlyName.slice(0, 64),
+      DomainName: options.domainName,
     }),
     "create trunk",
   );
-  const sid = str(b, "sid");
-  if (!sid) throw new TwilioError(200, b, "create trunk answered without a sid");
-  return { sid, domainName: str(b, "domain_name") ?? o.domainName };
+  const sid = str(reply, "sid");
+  if (!sid) throw new TwilioError(200, reply, "create trunk answered without a sid");
+  return { sid, domainName: str(reply, "domain_name") ?? options.domainName };
 }
 
 async function deleteTrunk(http: TwilioHttp, acct: ProviderAccount, trunkSid: string) {
@@ -374,20 +380,20 @@ async function addOrigination(
   http: TwilioHttp,
   acct: ProviderAccount,
   trunkSid: string,
-  o: { sipUrl: string; friendlyName: string },
+  options: { sipUrl: string; friendlyName: string },
 ) {
-  const b = need(
+  const reply = need(
     await http(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
-      SipUrl: o.sipUrl,
-      FriendlyName: o.friendlyName.slice(0, 64),
+      SipUrl: options.sipUrl,
+      FriendlyName: options.friendlyName.slice(0, 64),
       Weight: "10",
       Priority: "10",
       Enabled: "true",
     }),
     "add origination",
   );
-  const sid = str(b, "sid");
-  if (!sid) throw new TwilioError(200, b, "add origination answered without a sid");
+  const sid = str(reply, "sid");
+  if (!sid) throw new TwilioError(200, reply, "add origination answered without a sid");
   return { sid };
 }
 
@@ -403,12 +409,12 @@ async function attachNumber(http: TwilioHttp, acct: ProviderAccount, trunkSid: s
 async function createMessagingService(
   http: TwilioHttp,
   acct: ProviderAccount,
-  o: { friendlyName: string; inboundUrl: string },
+  options: { friendlyName: string; inboundUrl: string },
 ) {
-  const b = need(
+  const reply = need(
     await http(acct, "POST", twilioUrls.messagingServices, {
-      FriendlyName: o.friendlyName.slice(0, 64),
-      InboundRequestUrl: o.inboundUrl,
+      FriendlyName: options.friendlyName.slice(0, 64),
+      InboundRequestUrl: options.inboundUrl,
       InboundMethod: "POST",
       UseInboundWebhookOnNumber: "false",
       StickySender: "true",
@@ -416,8 +422,8 @@ async function createMessagingService(
     }),
     "create messaging service",
   );
-  const sid = str(b, "sid");
-  if (!sid) throw new TwilioError(200, b, "create messaging service answered without a sid");
+  const sid = str(reply, "sid");
+  if (!sid) throw new TwilioError(200, reply, "create messaging service answered without a sid");
   return { sid };
 }
 
@@ -434,21 +440,23 @@ async function addNumberToService(http: TwilioHttp, acct: ProviderAccount, servi
 async function sendSms(
   http: TwilioHttp,
   acct: ProviderAccount,
-  o: { serviceSid: string; to: string; body: string; statusCallback?: string },
+  options: { serviceSid: string; to: string; body: string; statusCallback?: string },
 ) {
-  const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
-    MessagingServiceSid: o.serviceSid,
-    To: o.to,
-    Body: o.body,
-    ...(o.statusCallback ? { StatusCallback: o.statusCallback } : {}),
+  const first = await http(acct, "POST", twilioUrls.messages(acct.sid), {
+    MessagingServiceSid: options.serviceSid,
+    To: options.to,
+    Body: options.body,
+    ...(options.statusCallback ? { StatusCallback: options.statusCallback } : {}),
   });
-  const ok = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
+  const ok = first.status >= 200 && first.status < 300 && !!str(first.body, "sid");
   return {
     ok,
-    sid: str(a.body, "sid"),
-    status: a.status,
-    code: typeof a.body?.code === "number" ? a.body.code : null,
-    ...(a.outcome ? { outcome: ok ? ("ok" as const) : a.outcome === "ok" ? ("unknown" as const) : a.outcome } : {}),
+    sid: str(first.body, "sid"),
+    status: first.status,
+    code: typeof first.body?.code === "number" ? first.body.code : null,
+    ...(first.outcome
+      ? { outcome: ok ? ("ok" as const) : first.outcome === "ok" ? ("unknown" as const) : first.outcome }
+      : {}),
   };
 }
 
@@ -462,8 +470,8 @@ const RECENT_TEXTS_PAGE = "20";
  */
 async function recentTexts(http: TwilioHttp, acct: ProviderAccount, to: string, sinceMs: number) {
   const url = `${twilioUrls.messages(acct.sid)}?${new URLSearchParams({ To: to, PageSize: RECENT_TEXTS_PAGE })}`;
-  const b = need(await http(acct, "GET", url), "list received texts");
-  return rowsOf(b, "messages").flatMap((m): ReceivedText[] => {
+  const reply = need(await http(acct, "GET", url), "list received texts");
+  return rowsOf(reply, "messages").flatMap((m): ReceivedText[] => {
     const sid = str(m, "sid");
     const from = str(m, "from");
     const body = str(m, "body");

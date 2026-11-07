@@ -13,18 +13,19 @@ import {
   templateComponents,
   validateTemplateDraft,
 } from "@chanlytics/contracts";
-import { templateIdOf } from "@chanlytics/db";
-import { jsonBody } from "@/server/shared/request-guards";
+import { findTemplateId } from "@chanlytics/db/campaigns";
+import { readJsonBody } from "@/server/shared/request-guards";
 import { createTemplate } from "@/server/campaigns/meta-templates";
 import type { EdgeReason } from "@/server/shared/edge";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import { WHATSAPP_ACCOUNT_MISSING, WHATSAPP_NO_TOKEN } from "@/server/campaigns/whatsapp-refusals";
 
 const SUBMIT_SAID: Record<string, string> = {
   preview: "Submitting only works on the production dashboard.",
   no_channel: LIBRARY_WORDS.writeNeedsNumber,
-  no_waba: "This number's WhatsApp Business Account is not on file. Reconnect the number and try again.",
-  no_token: "Chanlytics has no access token for this number yet.",
+  no_waba: WHATSAPP_ACCOUNT_MISSING,
+  no_token: WHATSAPP_NO_TOKEN,
   write_failed: "The template was submitted but could not be saved here. Sync from Meta to see it.",
 };
 
@@ -47,13 +48,13 @@ function submitRefusal(r: { reason: EdgeReason; detail?: string }): AppError {
       "validation",
       `WhatsApp did not accept it: ${r.detail ?? "no reason given"}. Change the message and try again.`,
     );
-  const said = SUBMIT_SAID[r.reason] ?? `The template could not be submitted (${r.reason}).`;
+  const sentence = SUBMIT_SAID[r.reason] ?? `The template could not be submitted (${r.reason}).`;
   const theirs = r.reason === "no_channel" || r.reason === "no_waba";
-  return new AppError(theirs ? "conflict" : "upstream_meta", said, theirs ? 409 : 502);
+  return new AppError(theirs ? "conflict" : "upstream_meta", sentence, theirs ? 409 : 502);
 }
 
 export async function submitTemplate(ctx: RouteContext, req: Request, member: Member) {
-  return submitDraft(ctx, member, (await jsonBody(req)) as TemplateAsked | null);
+  return submitDraft(ctx, member, (await readJsonBody(req)) as TemplateAsked | null);
 }
 
 /**
@@ -80,9 +81,9 @@ export async function submitDraft(ctx: RouteContext, member: Member, body: Templ
         : null,
   });
   if (!check.ok) throw new AppError("validation", check.error);
-  const v = check.value;
+  const value = check.value;
 
-  const dup = await templateIdOf(ctx.supabase, member.tenantId, v.name, v.language);
+  const dup = await findTemplateId(ctx.supabase, member.tenantId, value.name, value.language);
   // A name and language this workspace already holds, refused as a message written whole and Ask's card refuse it.
   if (dup) throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);
 
@@ -93,22 +94,22 @@ export async function submitDraft(ctx: RouteContext, member: Member, body: Templ
           .slice(0, 40),
       )
     : [];
-  const r = await createTemplate(member.tenantId, ctx.userId, {
-    name: v.name,
-    language: v.language,
-    category: v.category,
-    components: templateComponents(v),
-    body: v.body,
-    examples: v.examples,
-    labels: labels.length === v.examples.length ? labels : [],
+  const item = await createTemplate(member.tenantId, ctx.userId, {
+    name: value.name,
+    language: value.language,
+    category: value.category,
+    components: templateComponents(value),
+    body: value.body,
+    examples: value.examples,
+    labels: labels.length === value.examples.length ? labels : [],
   });
-  if (!r.ok) throw submitRefusal(r);
+  if (!item.ok) throw submitRefusal(item);
   return {
-    id: r.id,
-    name: v.name,
-    language: v.language,
-    category: v.category,
-    meta_status: r.metaStatus,
+    id: item.id,
+    name: value.name,
+    language: value.language,
+    category: value.category,
+    meta_status: item.metaStatus,
     warnings: check.warnings,
   };
 }

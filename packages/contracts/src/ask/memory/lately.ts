@@ -6,7 +6,7 @@
  *
  * Pure: the server reads the mornings, and the tests read the same fold.
  */
-import type { AskProposal, AskProposalOutcome } from "../ask";
+import type { AskProposal, AskProposalOutcome } from "../thread-words";
 import type { BroadcastCounts } from "../../campaigns/broadcasts/broadcasts";
 
 /** How long an idea set aside rests: a week, as every "not now" Today offers (setup/put-off.ts). */
@@ -72,9 +72,9 @@ export function ideasSeenOf(mornings: readonly AskMorningRead[]): AskIdeaSeen[] 
 }
 
 /** A day `n` days after another, both YYYY-MM-DD. */
-export function dayAfterDays(day: string, n: number): string {
+export function dayAfterDays(day: string, count: number): string {
   const [y = 1970, m = 1, d = 1] = day.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+  return new Date(Date.UTC(y, m - 1, d + count)).toISOString().slice(0, 10);
 }
 
 /** A batch as what came of an idea reads it. */
@@ -88,8 +88,8 @@ interface ResultRun {
 export function ideasWithResults(seen: readonly AskIdeaSeen[], runs: readonly ResultRun[]): AskIdeaSeen[] {
   const sent = runs.filter((r) => r.counts.sent > 0).sort((a, b) => b.created_at.localeCompare(a.created_at));
   return seen.map((s) => {
-    const made = s.state === "done" ? s.made : null;
-    const last = made ? sent.find((r) => r.sequence_id === made.id) : undefined;
+    const created = s.state === "done" ? s.made : null;
+    const last = created ? sent.find((r) => r.sequence_id === created.id) : undefined;
     return last ? { ...s, result: `Last batch: ${last.counts.sent} sent, ${last.counts.replied} replied` } : s;
   });
 }
@@ -117,9 +117,9 @@ export function latelySaid(seen: readonly AskIdeaSeen[]): string {
   return seen
     .slice(0, LATELY_TOLD)
     .map((s) => {
-      const who = s.mine ? "" : ", a teammate's";
-      const came = s.result ? `: ${s.result}` : "";
-      return `${s.title.slice(0, TITLE_TOLD)} (${s.day}${who}, ${LATELY_WORDS[s.state]}${came})`;
+      const person = s.mine ? "" : ", a teammate's";
+      const arrived = s.result ? `: ${s.result}` : "";
+      return `${s.title.slice(0, TITLE_TOLD)} (${s.day}${person}, ${LATELY_WORDS[s.state]}${arrived})`;
     })
     .join("; ");
 }

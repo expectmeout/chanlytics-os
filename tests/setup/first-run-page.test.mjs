@@ -10,13 +10,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   TONE_PRESETS,
-  FIRST_RUN_HELPERS,
   FIRST_RUN_LANDED_KEY,
-  FIRST_RUN_STEPS,
   GOOGLE_CONNECT_LATER,
   RECEPTIONIST_MET,
   REHEARSE_SKIPPED,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/first-run-helpers.ts";
+import { FIRST_RUN_STEPS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/view.ts";
 import {
   answering,
   asks,

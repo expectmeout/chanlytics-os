@@ -84,13 +84,13 @@ export type LogoLookupAnswer =
  */
 export function logoLookupAnswerOf(body: unknown): LogoLookupAnswer | null {
   if (!body || typeof body !== "object") return null;
-  const b = body as { outcome?: unknown; host?: unknown; image?: { base64?: unknown; content_type?: unknown } };
-  const outcome = LOGO_LOOKUP_OUTCOMES.find((o) => o === b.outcome);
-  const host = typeof b.host === "string" && b.host ? b.host : null;
+  const second = body as { outcome?: unknown; host?: unknown; image?: { base64?: unknown; content_type?: unknown } };
+  const outcome = LOGO_LOOKUP_OUTCOMES.find((o) => o === second.outcome);
+  const host = typeof second.host === "string" && second.host ? second.host : null;
   if (!outcome) return null;
   if (outcome !== "found") return { outcome, host };
-  const base64 = b.image?.base64;
-  const contentType = b.image?.content_type;
+  const base64 = second.image?.base64;
+  const contentType = second.image?.content_type;
   if (!host || typeof base64 !== "string" || !base64 || typeof contentType !== "string" || !contentType) return null;
   return { outcome, host, image: { base64, content_type: contentType } };
 }

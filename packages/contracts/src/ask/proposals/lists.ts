@@ -1,7 +1,7 @@
 /**
  * People's lists: a list Ask proposes, kept current by its rule (the Phase 4 plan, D10).
  */
-import { listToken } from "../../people/lists/list-token";
+import { listToken } from "../../people/lists/token";
 import {
   PEOPLE_CHANGED,
   PROPOSAL_WORDS,
@@ -26,16 +26,16 @@ const namesIn = (d: Record<string, unknown>, k: string): string[] =>
  * list that reads it), as the door's answer says. One sentence for the undo of a made list and for a delete alike.
  */
 function listTakenDown(data: unknown): string {
-  const d = rec(data);
-  if (d.archived !== true) return "Deleted. The people stay.";
-  const paused = namesIn(d, "paused");
-  const readBy = namesIn(d, "read_by");
-  const why = paused.length
+  const result = rec(data);
+  if (result.archived !== true) return "Deleted. The people stay.";
+  const paused = namesIn(result, "paused");
+  const readBy = namesIn(result, "read_by");
+  const reason = paused.length
     ? `${paused.join(", ")} paused`
     : readBy.length
       ? `${readBy.join(", ")} reads it`
       : "a campaign runs on it";
-  return `Archived, not deleted: ${why}. It comes back from Archived under your lists.`;
+  return `Archived, not deleted: ${reason}. It comes back from Archived under your lists.`;
 }
 
 /** The ids a payload names, as text. */
@@ -113,7 +113,7 @@ export const listSpec: ProposalSpec = {
 
 /**
  * People on or off a list kept by hand: the person page's list picker ticks one, a selection puts many on (the sheets
- * as verbs, 14 Oct 2026). One part of the route's at a time (lists/list-page.ts sends a big selection in turns). Its undo
+ * as verbs, 14 Oct 2026). One part of the route's at a time (lists/actions.ts sends a big selection in turns). Its undo
  * puts back what it changed and nothing else: the people already on the list were never in `add`.
  */
 export const listMemberSpec: ProposalSpec = {
@@ -135,10 +135,10 @@ export const listMemberSpec: ProposalSpec = {
   receipt: ({ payload: pl }) => {
     const add = idsIn(pl.add);
     const name = asText(pl.name);
-    const who = asText(pl.who);
-    if (add.length) return add.length === 1 && who ? `${who} added to ${name}` : `${add.length} added to ${name}`;
+    const text = asText(pl.who);
+    if (add.length) return add.length === 1 && text ? `${text} added to ${name}` : `${add.length} added to ${name}`;
     const n = idsIn(pl.remove).length;
-    return n === 1 && who ? `${who} taken off ${name}` : `${n} taken off ${name}`;
+    return n === 1 && text ? `${text} taken off ${name}` : `${n} taken off ${name}`;
   },
   undo: {
     label: () => "Undo",

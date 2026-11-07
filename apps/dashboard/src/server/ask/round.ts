@@ -1,8 +1,8 @@
 import "server-only";
 import { fenced, type ModelSpeed } from "@chanlytics/contracts";
-import { streamModel, type GatewayCall } from "./gateway";
-import type { GatewayBlockStart } from "./sse";
-import { openedPicture, pictureBlocks, type ToolPicture } from "./tools/context";
+import { streamModel, type GatewayCall } from "../shared/model/gateway";
+import type { GatewayBlockStart } from "../shared/model/stream";
+import { openedPicture, pictureBlocks, type ToolPicture } from "./tools/context/tool-defs";
 import { log } from "@/server/shared/log";
 
 /**
@@ -73,17 +73,17 @@ export interface RoundResult {
  * A block as its start opens it: a call's id and name where it is one (ours, or the tool search's own), and what its
  * kind carries back unmodified (a thinking block's signature, a redacted one's data, a search's result).
  */
-function opened(b: GatewayBlockStart["block"]): RoundBlock {
-  const called = b.type === "tool_use" || b.type === "server_tool_use";
+function opened(block: GatewayBlockStart["block"]): RoundBlock {
+  const called = block.type === "tool_use" || block.type === "server_tool_use";
   return {
-    type: b.type,
-    id: called ? b.id : "",
-    name: called ? b.name : "",
+    type: block.type,
+    id: called ? block.id : "",
+    name: called ? block.name : "",
     text: "",
     json: "",
-    ...(b.type === "thinking" ? { thinking: "", signature: "" } : {}),
-    ...(b.type === "redacted_thinking" ? { data: b.data } : {}),
-    ...(b.type === "tool_search_tool_result" ? { toolUseId: b.toolUseId, content: b.content } : {}),
+    ...(block.type === "thinking" ? { thinking: "", signature: "" } : {}),
+    ...(block.type === "redacted_thinking" ? { data: block.data } : {}),
+    ...(block.type === "tool_search_tool_result" ? { toolUseId: block.toolUseId, content: block.content } : {}),
   };
 }
 
@@ -199,18 +199,18 @@ export function parseInput(json: string): Record<string, unknown> {
  * (cutOff, below), so the retry is a shorter call rather than a guess at a
  * field that was never wrong.
  */
-export function argsOf(b: RoundBlock): Record<string, unknown> | null {
-  if (!b.json) return {};
+export function argsOf(roundBlock: RoundBlock): Record<string, unknown> | null {
+  if (!roundBlock.json) return {};
   try {
-    return JSON.parse(b.json) as Record<string, unknown>;
+    return JSON.parse(roundBlock.json) as Record<string, unknown>;
   } catch {
     return null;
   }
 }
 
 /** A call whose arguments did not arrive whole (argsOf): the round hit its cap mid-argument, and is told so. */
-export function cutOff(b: RoundBlock, tenantId: string): { result: string; isError: true } {
-  log.error("ask_tool_input_cut_off", { tool: b.name, bytes: b.json.length, tenant_id: tenantId });
+export function cutOff(roundBlock: RoundBlock, tenantId: string): { result: string; isError: true } {
+  log.error("ask_tool_input_cut_off", { tool: roundBlock.name, bytes: roundBlock.json.length, tenant_id: tenantId });
   return {
     result: JSON.stringify({
       error:
@@ -229,21 +229,21 @@ export function cutOff(b: RoundBlock, tenantId: string): { result: string; isErr
  * its parsed input.
  */
 export function replayBlocks(blocks: RoundBlock[]): unknown[] {
-  return blocks.map((b) => {
-    switch (b.type) {
+  return blocks.map((block) => {
+    switch (block.type) {
       case "thinking":
-        return { type: "thinking", thinking: b.thinking ?? "", signature: b.signature ?? "" };
+        return { type: "thinking", thinking: block.thinking ?? "", signature: block.signature ?? "" };
       case "redacted_thinking":
-        return { type: "redacted_thinking", data: b.data ?? "" };
+        return { type: "redacted_thinking", data: block.data ?? "" };
       case "text":
-        return { type: "text", text: b.text || " " };
+        return { type: "text", text: block.text || " " };
       // Tool search's own blocks, as the API wrote them: never a result of ours under them (D11).
       case "server_tool_use":
-        return { type: "server_tool_use", id: b.id, name: b.name, input: parseInput(b.json) };
+        return { type: "server_tool_use", id: block.id, name: block.name, input: parseInput(block.json) };
       case "tool_search_tool_result":
-        return { type: "tool_search_tool_result", tool_use_id: b.toolUseId ?? "", content: b.content ?? null };
+        return { type: "tool_search_tool_result", tool_use_id: block.toolUseId ?? "", content: block.content ?? null };
       default:
-        return { type: "tool_use", id: b.id, name: b.name, input: parseInput(b.json) };
+        return { type: "tool_use", id: block.id, name: block.name, input: parseInput(block.json) };
     }
   });
 }

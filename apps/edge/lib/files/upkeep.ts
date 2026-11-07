@@ -18,20 +18,21 @@ import {
   WEEK_MS,
   fileFolderOf,
 } from "@chanlytics/contracts";
-import { deleteClaudeFile, deleteStreamVideo, readStreamVideo } from "@chanlytics/channels";
+import { deleteClaudeFile } from "@chanlytics/channels/ai";
+import { deleteStreamVideo, readStreamVideo } from "@chanlytics/channels/files";
 import {
-  fileForWork,
-  markFileMediaFailed,
-  markFileMediaReady,
-  filePurged,
   filesBucket,
-  filesToLookAgain,
-  filesToPurgeAgain,
-  removeLapsedUpload,
+  findFileForWork,
+  listFilesToLookAgain,
+  listFilesToPurgeAgain,
   listVideosToDigestAgain,
   listVideosWaiting,
-  type Database,
-} from "@chanlytics/db";
+  markFileMediaFailed,
+  markFileMediaReady,
+  recordFilePurged,
+  removeLapsedUpload,
+} from "@chanlytics/db/files";
+import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
@@ -59,7 +60,7 @@ const VIDEO_ASK_AFTER_MS = 2 * MIN_MS;
  */
 async function purgeFile(db: Db, job: ClaimedJob): Promise<void> {
   const fileId = String(job.payload.file_id);
-  let row = await fileForWork(db, job.tenant_id, fileId);
+  let row = await findFileForWork(db, job.tenant_id, fileId);
   if (
     row &&
     !row.removed_at &&
@@ -69,7 +70,7 @@ async function purgeFile(db: Db, job: ClaimedJob): Promise<void> {
   ) {
     if (await removeLapsedUpload(db, job.tenant_id, fileId)) {
       logger({ tenant_id: job.tenant_id }).info("video_upload_lapsed", { file: fileId });
-      row = await fileForWork(db, job.tenant_id, fileId);
+      row = await findFileForWork(db, job.tenant_id, fileId);
     }
   }
   if (row && !row.removed_at) return;
@@ -98,7 +99,7 @@ async function purgeFile(db: Db, job: ClaimedJob): Promise<void> {
     if (!key) throw new Error("file_purge: no key to let Anthropic's copy go");
     if (!(await deleteClaudeFile(key, copy))) throw new Error("file_purge: Anthropic's copy stayed");
   }
-  await filePurged(db, job.tenant_id, fileId);
+  await recordFilePurged(db, job.tenant_id, fileId);
 }
 
 /**
@@ -148,10 +149,10 @@ export async function keepFilesMoving(
   db: Db,
   nowMs = Date.now(),
 ): Promise<{ looks: number; purges: number; videos: number }> {
-  const L = logger({});
+  const log = logger({});
   try {
     const looksOf = (kind: "image" | "video") =>
-      filesToLookAgain(db, {
+      listFilesToLookAgain(db, {
         kind,
         edition: kind === "image" ? FILE_LOOK_EDITION : VIDEO_LOOK_EDITION,
         triedBefore: new Date(nowMs - DAY_MS).toISOString(),
@@ -169,7 +170,7 @@ export async function keepFilesMoving(
         payload: { file_id: f.id, edition: String(f.kind === "image" ? FILE_LOOK_EDITION : VIDEO_LOOK_EDITION) },
       });
     }
-    const purges = await filesToPurgeAgain(db, {
+    const purges = await listFilesToPurgeAgain(db, {
       removedBefore: new Date(nowMs - PURGE_AGAIN_AFTER_MS).toISOString(),
       removedAfter: new Date(nowMs - PURGE_AGAIN_UNTIL_MS).toISOString(),
       limit: SWEEP_TAKES,
@@ -183,12 +184,12 @@ export async function keepFilesMoving(
       });
     }
     const videos = await keepVideosMoving(db, nowMs).catch((e: unknown) => {
-      L.error("videos_sweep_failed", { error: errField(e) });
+      log.error("videos_sweep_failed", { error: errField(e) });
       return { asked: 0, digests: 0 };
     });
     return { looks: looks.length, purges: purges.length, videos: videos.asked + videos.digests };
   } catch (e) {
-    L.error("files_sweep_failed", { error: errField(e) });
+    log.error("files_sweep_failed", { error: errField(e) });
     return { looks: 0, purges: 0, videos: 0 };
   }
 }

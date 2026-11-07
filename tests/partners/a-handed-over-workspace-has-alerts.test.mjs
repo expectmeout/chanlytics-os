@@ -12,7 +12,7 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { verifyEdgeToken } from "@chanlytics/channels";
+import { verifyEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -87,7 +87,7 @@ test("REGRESSION: a workspace a partner sets up is told to the platform, naming 
   assert.deepEqual(
     [tables.tenant_config[0].config, tables.tenant_config[0].version],
     [{ notifications: { escalation_emails: ["owner@example.com"] } }, 2],
-    "the owner it waits for is its alert address from the start (workspaceBegun), never the partner: a customer who " +
+    "the owner it waits for is its alert address from the start (recordWorkspaceBegun), never the partner: a customer who " +
       "needs someone before the hand-over reaches the business, and the accept finds the owner there already",
   );
 

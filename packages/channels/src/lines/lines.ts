@@ -221,9 +221,9 @@ export function sipPassword(random?: () => number): string {
 }
 
 /** Twilio's rule, checked before a password is sent. */
-export function isValidSipPassword(p: string): boolean {
-  return p.length >= 12 && /\d/.test(p) && /[a-z]/.test(p) && /[A-Z]/.test(p);
+export function isValidSipPassword(phone: string): boolean {
+  return phone.length >= 12 && /\d/.test(phone) && /[a-z]/.test(phone) && /[A-Z]/.test(phone);
 }
 
-export const isAreaCode = (n: unknown): n is number =>
-  typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;
+export const isAreaCode = (count: unknown): count is number =>
+  typeof count === "number" && Number.isInteger(count) && count >= 200 && count <= 999;

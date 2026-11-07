@@ -8,12 +8,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { visitOrigins } from "@chanlytics/db";
+import { listVisitOrigins } from "@chanlytics/db/calendar";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/week.ts"));
+const { getCalendarWeek } = await import(at("apps/dashboard/src/server/calendar/week/week.ts"));
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -53,7 +53,7 @@ test("each standing lead by its business's name, with the sequence that took it 
     ],
     sequences: [sequence("sq-old", "First pass"), sequence("sq-new", "Design studios · Queens")],
   });
-  const got = await visitOrigins(db, T, ["ld-1", "ld-2", "ld-gone", "ld-blank", "ld-elsewhere", "ld-1"]);
+  const got = await listVisitOrigins(db, T, ["ld-1", "ld-2", "ld-gone", "ld-blank", "ld-elsewhere", "ld-1"]);
   assert.deepEqual(
     got.sort((a, b) => a.lead_id.localeCompare(b.lead_id)),
     [
@@ -61,7 +61,7 @@ test("each standing lead by its business's name, with the sequence that took it 
       { lead_id: "ld-2", lead_name: "Harbor Gym", sequence_id: null, sequence_name: null },
     ],
   );
-  assert.deepEqual(await visitOrigins(db, T, []), [], "no lead named, nothing read");
+  assert.deepEqual(await listVisitOrigins(db, T, []), [], "no lead named, nothing read");
 });
 
 /** A workspace with no calendar link, whose visits are the record's: the bookings that arrived by email. */
@@ -113,7 +113,7 @@ const booking = (id, starts_at, lead_id) => ({
 
 test("the board lays each visit's origin on the item of the row that named it, and reads none where no row names a lead", async () => {
   const ctx = (t) => ({ supabase: fakeDb(t, {}, { people_list: () => [] }), userId: "u1", params: {} });
-  const week = await calendarWeek(
+  const week = await getCalendarWeek(
     ctx(world([booking("ap-1", "2026-10-13T14:00:00Z", "ld-1"), booking("ap-2", "2026-10-14T14:00:00Z", null)])),
     T,
     { from: "2026-10-12", days: 7 },
@@ -131,7 +131,7 @@ test("the board lays each visit's origin on the item of the row that named it, a
   delete quiet.leads;
   delete quiet.sequence_enrollments;
   delete quiet.sequences;
-  const plain = await calendarWeek(ctx(quiet), T, { from: "2026-10-12", days: 7 }, NOW);
+  const plain = await getCalendarWeek(ctx(quiet), T, { from: "2026-10-12", days: 7 }, NOW);
   assert.equal(
     plain.days.flatMap((d) => d.items).some((it) => "origin" in it),
     false,

@@ -26,9 +26,9 @@
  * this instance has already corrected the receptionist on this call, and
  * whether it holds the provider's key.
  */
-import type { IngestCallResult } from "@chanlytics/db";
-import type { NormalizedCall, RetellCall } from "@chanlytics/channels";
-import { callSummaryLine } from "@chanlytics/channels";
+import type { IngestCallResult } from "@chanlytics/db/voice";
+import type { NormalizedCall, RetellCall } from "@chanlytics/channels/voice";
+import { callSummaryLine } from "@chanlytics/channels/voice";
 import {
   addressOf,
   callAttemptWords,
@@ -42,7 +42,7 @@ import {
   neverConnected,
   unansweredCallTodo,
 } from "@chanlytics/contracts";
-import type { NotifyMessage } from "../ops/notify.js";
+import type { NotifyMessage } from "../shared/alerts/notify.js";
 import type { ForwardingCall } from "./forwarding.js";
 import type { CallForActivity } from "./call-activity.js";
 
@@ -138,8 +138,8 @@ const said = (v: unknown): string => (typeof v === "string" && v.trim() ? v.trim
  * carried and the one it normalised to, how many turns it brought, whether
  * the ingest declined it. No content -- counts and flags only.
  */
-function deliveryRow(e: CallEvent, res: IngestCallResult): Record<string, unknown> {
-  const { event, call, n } = e;
+function deliveryRow(callEvent: CallEvent, res: IngestCallResult): Record<string, unknown> {
+  const { event, call, n } = callEvent;
   return {
     event: event ?? null,
     call_status: call.call_status ?? null,
@@ -149,8 +149,8 @@ function deliveryRow(e: CallEvent, res: IngestCallResult): Record<string, unknow
     tool_turns: call.transcript_with_tool_calls?.length ?? null,
     transcript_chars: n.transcript?.length ?? null,
     skipped: !!res.skipped,
-    body_keys: e.bodyKeys,
-    call_keys: e.callKeys,
+    body_keys: callEvent.bodyKeys,
+    call_keys: callEvent.callKeys,
   };
 }
 
@@ -168,12 +168,12 @@ function callbackTodo(analysis: Record<string, unknown>): string {
  * way, which is the half that does not depend on the provider's per-turn
  * delivery being switched on.
  */
-function guardSteps(n: NormalizedCall, res: IngestCallResult, f: CallEventFacts): CallStep[] {
+function guardSteps(normalizedCall: NormalizedCall, res: IngestCallResult, callEventFacts: CallEventFacts): CallStep[] {
   const guard = guardSpokenTurns({
-    turns: n.transcriptObject,
-    live: n.status === "ongoing",
-    alreadyCorrected: f.alreadyCorrected,
-    allowed: f.allowed,
+    turns: normalizedCall.transcriptObject,
+    live: normalizedCall.status === "ongoing",
+    alreadyCorrected: callEventFacts.alreadyCorrected,
+    allowed: callEventFacts.allowed,
   });
   const out: CallStep[] = [];
   if (guard.escalate && guard.breach && res.conversation_id) {
@@ -186,8 +186,13 @@ function guardSteps(n: NormalizedCall, res: IngestCallResult, f: CallEventFacts)
       callId: res.call_id,
     });
   }
-  if (guard.correct && guard.breach && f.canCorrect) {
-    out.push({ kind: "correct_live_call", retellCallId: n.retellCallId, callId: res.call_id, rule: guard.breach.rule });
+  if (guard.correct && guard.breach && callEventFacts.canCorrect) {
+    out.push({
+      kind: "correct_live_call",
+      retellCallId: normalizedCall.retellCallId,
+      callId: res.call_id,
+      rule: guard.breach.rule,
+    });
   }
   return out;
 }
@@ -202,18 +207,18 @@ function guardSteps(n: NormalizedCall, res: IngestCallResult, f: CallEventFacts)
  * stored, given up on, or removed on schedule: a purged call's audio was
  * taken out after its retention and must stay out.
  */
-function recordingCopy(n: NormalizedCall, res: IngestCallResult, analyzed: boolean): CallStep | null {
+function recordingCopy(normalizedCall: NormalizedCall, res: IngestCallResult, analyzed: boolean): CallStep | null {
   if (
-    n.recordingUrl &&
+    normalizedCall.recordingUrl &&
     res.recording_state !== "stored" &&
     res.recording_state !== "failed" &&
     res.recording_state !== "purged" &&
-    (analyzed || n.status === "ended")
+    (analyzed || normalizedCall.status === "ended")
   ) {
     return {
       kind: "copy_recording",
       callId: res.call_id,
-      providerUrl: n.recordingUrl,
+      providerUrl: normalizedCall.recordingUrl,
       attempts: res.recording_attempts ?? 0,
     };
   }
@@ -228,18 +233,18 @@ function recordingCopy(n: NormalizedCall, res: IngestCallResult, analyzed: boole
  */
 function owedACallBack(
   event: CallEvent["event"],
-  n: NormalizedCall,
+  normalizedCall: NormalizedCall,
   res: IngestCallResult,
 ): Extract<CallStep, { kind: "callback" }> | null {
   if (event !== "call_ended" || res.skipped || !res.conversation_id || !res.call_id) return null;
   const todo = unansweredCallTodo({
-    direction: n.direction,
-    status: n.status,
-    duration_ms: n.durationMs,
-    disconnection_reason: n.disconnectionReason,
-    in_voicemail: n.inVoicemail,
+    direction: normalizedCall.direction,
+    status: normalizedCall.status,
+    duration_ms: normalizedCall.durationMs,
+    disconnection_reason: normalizedCall.disconnectionReason,
+    in_voicemail: normalizedCall.inVoicemail,
     outcome: null,
-    transcript_object: n.transcriptObject,
+    transcript_object: normalizedCall.transcriptObject,
   });
   return todo
     ? {
@@ -247,15 +252,15 @@ function owedACallBack(
         conversationId: res.conversation_id,
         details: todo,
         callId: res.call_id,
-        endedAtIso: n.endedAtIso,
+        endedAtIso: normalizedCall.endedAtIso,
         pause: false,
       }
     : null;
 }
 
-export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
-  const { event, n } = e;
-  const res = f.ingest;
+export function planCallEvent(callEvent: CallEvent, callEventFacts: CallEventFacts): CallEventPlan {
+  const { event, n } = callEvent;
+  const res = callEventFacts.ingest;
   const analyzed = event === "call_analyzed";
   const steps: CallStep[] = [];
 
@@ -304,7 +309,7 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
   // actually send", and the deliveries it was written for -- call_started
   // and the per-turn transcript updates -- are exactly the ones with no
   // awaited work after them, so they were the ones it never recorded.
-  steps.push({ kind: "delivery", callId: res.call_id ?? null, data: deliveryRow(e, res) });
+  steps.push({ kind: "delivery", callId: res.call_id ?? null, data: deliveryRow(callEvent, res) });
 
   const note = noteStep(event, n, res);
   if (note) steps.push(note);
@@ -335,7 +340,7 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
     about = { type: "conversation", id: owed.conversationId };
   }
 
-  steps.push(...guardSteps(n, res, f));
+  steps.push(...guardSteps(n, res, callEventFacts));
 
   const page = platformPage(event, n, res);
   if (page) steps.push(page);
@@ -358,17 +363,18 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
  * line from the reconcile sweep instead. A missed call has nothing to summarise and is told as it ends
  * (MISSED_CALL_LINE), so the text receptionist and the next call know they rang (decision 0092).
  */
-function noteStep(event: CallEvent["event"], n: NormalizedCall, res: IngestCallResult): CallStep | null {
+function noteStep(event: CallEvent["event"], normalizedCall: NormalizedCall, res: IngestCallResult): CallStep | null {
   if (!res.conversation_id) return null;
-  const missedNow = event === "call_ended" && !res.skipped && isMissedCall(n);
-  if (event !== "call_analyzed" && n.summary === null && n.inVoicemail !== true && !missedNow) return null;
+  const missedNow = event === "call_ended" && !res.skipped && isMissedCall(normalizedCall);
+  if (event !== "call_analyzed" && normalizedCall.summary === null && normalizedCall.inVoicemail !== true && !missedNow)
+    return null;
   return {
     kind: "note",
     conversationId: res.conversation_id,
     contactId: res.contact_id,
-    body: callSummaryLine(n),
-    externalId: `call:${n.retellCallId}`,
-    channelTsIso: n.startedAtIso,
+    body: callSummaryLine(normalizedCall),
+    externalId: `call:${normalizedCall.retellCallId}`,
+    channelTsIso: normalizedCall.startedAtIso,
     callId: res.call_id,
   };
 }
@@ -393,13 +399,17 @@ function holdStep(n: NormalizedCall, res: IngestCallResult, analyzed: boolean): 
  * at once, our own inbound webhook, a provider's error. Every other call to every workspace may end the same way until
  * it is (callEndingOf; the page is once per reason per window, pageOperator).
  */
-function platformPage(event: CallEvent["event"], n: NormalizedCall, res: IngestCallResult): CallStep | null {
-  if (event !== "call_ended" || res.skipped || !n.disconnectionReason) return null;
-  const ending = callEndingOf(n.disconnectionReason);
+function platformPage(
+  event: CallEvent["event"],
+  normalizedCall: NormalizedCall,
+  res: IngestCallResult,
+): CallStep | null {
+  if (event !== "call_ended" || res.skipped || !normalizedCall.disconnectionReason) return null;
+  const ending = callEndingOf(normalizedCall.disconnectionReason);
   if (!ending?.pages) return null;
   return {
     kind: "page_platform",
-    reason: n.disconnectionReason,
+    reason: normalizedCall.disconnectionReason,
     words: ending.platform,
     mend: ending.mend ?? "Look the call up in the voice provider's log by its time.",
   };
@@ -409,9 +419,12 @@ function platformPage(event: CallEvent["event"], n: NormalizedCall, res: IngestC
  * A customer's call that never connected (contracts missedCall over neverConnected): the one the receptionist placed and
  * nobody answered is no one's missed call, and one the carrier flagged as spam is not news to the owner.
  */
-export function isMissedCall(n: Pick<NormalizedCall, "status" | "direction" | "disconnectionReason">): boolean {
+export function isMissedCall(
+  normalizedCall: Pick<NormalizedCall, "status" | "direction" | "disconnectionReason">,
+): boolean {
   return (
-    missedCall({ missed: neverConnected(n), direction: n.direction }) && n.disconnectionReason !== "marked_as_spam"
+    missedCall({ missed: neverConnected(normalizedCall), direction: normalizedCall.direction }) &&
+    normalizedCall.disconnectionReason !== "marked_as_spam"
   );
 }
 
@@ -422,15 +435,20 @@ export function isMissedCall(n: Pick<NormalizedCall, "status" | "direction" | "d
  * call's notice, so the owner's choice for calls decides the mail and the phones are told; once per call, by the same
  * claim as an analysed call's; opening the call. The bell shows it in place of the row it derived (dedupeFeed).
  */
-export function missedCallNotice(n: NormalizedCall, saved: string | null, callId: string | null): NotifyMessage {
-  const who = saved || callerName({ from_e164: n.fromE164, from_raw: n.fromRaw, contact: null });
+export function missedCallNotice(
+  normalizedCall: NormalizedCall,
+  saved: string | null,
+  callId: string | null,
+): NotifyMessage {
+  const personName =
+    saved || callerName({ from_e164: normalizedCall.fromE164, from_raw: normalizedCall.fromRaw, contact: null });
   return {
     kind: "call",
     route: callId ? addressOf({ kind: "call", id: callId }) : "conversations/phone",
     about: callId ? { type: "call", id: callId } : null,
-    subject: `${callAttemptWords("inbound")} · ${who}`,
+    subject: `${callAttemptWords("inbound")} · ${personName}`,
     body:
-      `${n.fromE164 ? `${n.fromE164} rang` : "A caller rang"} and the call never connected, so nobody spoke with them. ` +
+      `${normalizedCall.fromE164 ? `${normalizedCall.fromE164} rang` : "A caller rang"} and the call never connected, so nobody spoke with them. ` +
       "Call them back, or write to them from their thread.",
     redactedBody: "A customer's call to a workspace never connected.",
   };
@@ -450,37 +468,39 @@ export function missedCallNotice(n: NormalizedCall, saved: string | null, callId
  * that cannot be addressed: no summary, no words.
  */
 export function callNotice(
-  n: NormalizedCall,
+  normalizedCall: NormalizedCall,
   call: RetellCall,
   about: CallAbout | null,
   saved: string | null,
   callId: string | null,
 ): NotifyMessage {
-  const summary = n.summary || "(no summary)";
-  const wanted = said(n.analysis?.caller_wanted)?.replace(/[.\s]+$/u, "");
-  const outcomeWords = callOutcomeWords(n.analysis?.outcome);
-  const followUp = said(n.analysis?.follow_up);
-  const callback = n.analysis?.outcome === "callback_needed";
-  const durationS = n.durationMs ? Math.round(n.durationMs / 1000) : 0;
+  const summary = normalizedCall.summary || "(no summary)";
+  const wanted = said(normalizedCall.analysis?.caller_wanted)?.replace(/[.\s]+$/u, "");
+  const outcomeWords = callOutcomeWords(normalizedCall.analysis?.outcome);
+  const followUp = said(normalizedCall.analysis?.follow_up);
+  const callback = normalizedCall.analysis?.outcome === "callback_needed";
+  const durationS = normalizedCall.durationMs ? Math.round(normalizedCall.durationMs / 1000) : 0;
   // Then the line, as every page says it (contracts callerName): the number, or that it was withheld.
-  const who =
-    saved || said(n.analysis?.caller_name) || callerName({ from_e164: n.fromE164, from_raw: n.fromRaw, contact: null });
+  const personName =
+    saved ||
+    said(normalizedCall.analysis?.caller_name) ||
+    callerName({ from_e164: normalizedCall.fromE164, from_raw: normalizedCall.fromRaw, contact: null });
   const length = durationS >= 60 ? `${Math.round(durationS / 60)} min` : `${durationS} s`;
   // How it ended in the call page's words (contracts DISCONNECTION_LABELS), never the provider's code.
-  const reason = n.disconnectionReason;
+  const reason = normalizedCall.disconnectionReason;
   const ended = reason ? (DISCONNECTION_LABELS[reason] ?? reason.replace(/_/g, " ")) : null;
   return {
     kind: "call",
     route: callId ? addressOf({ kind: "call", id: callId }) : "conversations/phone",
     about,
-    subject: `${who} phoned · ${length}${callback ? " · needs a call back" : ""}`,
+    subject: `${personName} phoned · ${length}${callback ? " · needs a call back" : ""}`,
     body:
       (wanted ? `They wanted: ${wanted}.\n` : `${summary}\n`) +
       (outcomeWords ? `Outcome: ${outcomeWords}.\n` : "") +
       (followUp ? `To do: ${followUp}\n` : "") +
       `\nFrom ${formatPhoneDisplay(call.from_number) ?? (call.from_number || "unknown")} · ${length}${ended ? ` · ${ended}` : ""}\n` +
       `\nSummary:\n${summary}\n\n` +
-      `Transcript:\n${String(n.transcript || "(none)").slice(0, 3000)}`,
+      `Transcript:\n${String(normalizedCall.transcript || "(none)").slice(0, 3000)}`,
     redactedBody: `A voice call was handled for a workspace (${durationS}s). The summary and transcript were withheld.`,
   };
 }

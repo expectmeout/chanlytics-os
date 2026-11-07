@@ -1,0 +1,497 @@
+/**
+ * Giving a number back: once by hand (the platform's `release` op, api/admin/lines.ts), and on its own for a workspace
+ * whose subscription ended (the lines sweep, api/cron/lines.ts).
+ *
+ * WHY THE SWEEP. Nothing gave a number back. A workspace that cancelled kept its line, we paid the carrier for it
+ * every month, and its receptionist went on answering "take a message" for a business that had left. The rule of
+ * when is contracts' (lineReleaseStep): a grace after the subscription stopped paying, a warning a week before, and
+ * never a release sooner than a week after the warning.
+ *
+ * WHY IT ONLY REPORTS BY DEFAULT. A release cannot be undone: the number goes back to the carrier's pool and to
+ * somebody else. Until LINE_RELEASE_AFTER_DAYS is set, the sweep logs what it would do (line_release_report) and
+ * touches nothing -- no warning either, since a warning names a day that would not come.
+ *
+ * ONLY NUMBERS WE BOUGHT. `kind = 'chanlytics'` alone. A ported or hosted number is the business's own; giving it
+ * back would take a business's number away from it. A forwarded row is the owner's own phone, and is read only to
+ * tell them to switch its forwarding off.
+ */
+import { BILLING_STATUSES, DAY_MS, DEFAULT_TIMEZONE, receptionistOn, type EdgeErrorCode } from "@chanlytics/contracts";
+import {
+  LINE_RELEASE_REPORT_DAYS,
+  lineReleaseDay,
+  lineReleaseStep,
+  lineReleaseWarning,
+  lineReleasedWords,
+  type LineReleaseBilling,
+  type LineReleaseWarned,
+} from "./release-rules";
+import { deletePhoneNumber, type RetellConfig } from "@chanlytics/channels/voice";
+import { TwilioError, type ProviderAccount } from "@chanlytics/channels/lines";
+import { dropLineCredentials } from "@chanlytics/db/lines";
+import { emitEvent } from "@chanlytics/db/events";
+import { tenantDb } from "@chanlytics/db/shared";
+import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
+import { factsOf } from "./resume.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@chanlytics/db/types";
+import type { Logger } from "../shared/log.js";
+
+type Db = SupabaseClient<Database>;
+type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
+
+/** A release that stopped: its code, what stopped it in `detail`, and what it had done before it did. */
+export type LineReleaseResult =
+  | { ok: true; released: Record<string, unknown> }
+  | { ok: false; status: 502 | 503; error: EdgeErrorCode; detail: string; released: Record<string, unknown> };
+
+/**
+ * The account a release acts as at the carrier: the line's subaccount, by the token on file. With none on file (the saga
+ * keeps the token before the SID, so only a secret lost from Vault gets here) its parent reads the token: forgetting the
+ * row now would leave the number billed with nothing pointing at it, and the parent cannot act in its place, since a
+ * trunk answers only to the subaccount's own credentials. Null when the parent says the subaccount is closed or gone,
+ * which leaves nothing to give back, and closing it is a person's way out of a line still stuck. A read that fails
+ * throws, and the row stays.
+ */
+async function accountToReleaseFrom(
+  choice: LineProviderChoice,
+  sid: string,
+  token: string | undefined,
+  released: Record<string, unknown>,
+): Promise<ProviderAccount | null> {
+  if (token) return { sid, token };
+  const read = await choice.provider.readSubaccount(choice.master, sid);
+  if (read) released.token_read_as_parent = true;
+  else released.subaccount_gone = true;
+  return read;
+}
+
+/**
+ * The number, the trunk and the campaign given back as `acct`. The campaign's monthly fee runs until it is deleted, and
+ * the row is all that knows it, so one the carrier will not delete (a suspended one) stops the release and keeps the row.
+ */
+async function giveBackAtCarrier(
+  choice: LineProviderChoice,
+  row: LineDbRow,
+  acct: ProviderAccount,
+  released: Record<string, unknown>,
+): Promise<void> {
+  // A NUMBER WE MAY OWN WITHOUT KNOWING. The row's `number_sid` is written
+  // after the purchase answers, so a saga killed in that window leaves the
+  // number bought and the row silent -- and this used to skip straight past
+  // it and delete the row, so we paid for it every month with nothing left
+  // pointing at it. `number_drift()` compares `lines` to `tenant_channels`
+  // and never asks the provider, so nothing would ever have noticed.
+  const sid = row.number_sid ?? (row.e164 ? ((await choice.provider.ownedNumber(acct, row.e164))?.sid ?? null) : null);
+  if (sid) {
+    await choice.provider.releaseNumber(acct, sid);
+    released.number = sid;
+    if (!row.number_sid) released.number_found_by_lookup = true;
+  }
+  if (row.trunk_sid) {
+    await choice.provider.deleteTrunk(acct, row.trunk_sid);
+    released.trunk = row.trunk_sid;
+  }
+  if (row.messaging_service_sid && row.campaign_sid) {
+    await choice.provider.deleteCampaign(acct, row.messaging_service_sid, row.campaign_sid);
+    released.campaign = row.campaign_sid;
+  }
+}
+
+/**
+ * What a line holds off the carrier, as its subaccount; a line with none has nothing there. A token on file the carrier
+ * refuses (rotated in Twilio's console, or its subaccount closed) gets one read as the parent, as if none were on file:
+ * refusing it for ever would hold the number and mail the platform every quarter hour. Any other refusal says nothing of
+ * the token, and stops the release. Last the parent closes the subaccount: each is one line's, and it cannot bill once closed.
+ */
+async function releaseAtCarrier(
+  choice: LineProviderChoice,
+  row: LineDbRow,
+  token: string | undefined,
+  released: Record<string, unknown>,
+): Promise<void> {
+  const sid = row.subaccount_sid;
+  if (!sid) return;
+  const acct = await accountToReleaseFrom(choice, sid, token, released);
+  if (!acct) return;
+  try {
+    await giveBackAtCarrier(choice, row, acct, released);
+  } catch (e) {
+    const tokenRefused = e instanceof TwilioError && (e.status === 401 || e.status === 403);
+    if (!token || !tokenRefused) throw e;
+    const read = await accountToReleaseFrom(choice, sid, undefined, released);
+    if (!read) return;
+    await giveBackAtCarrier(choice, row, read, released);
+  }
+  await choice.provider.closeSubaccount(choice.master, sid);
+}
+
+/**
+ * Give one line's number back: Retell's copy of it, the number, the trunk, the campaign and the subaccount at the carrier,
+ * the routing rows switched off (never deleted: calls keep their history), the token out of Vault, the row forgotten, the
+ * ledger written. A step that fails stops it and the row stays, so the next try finds what is left.
+ */
+export async function releaseLine(
+  db: Db,
+  choice: LineProviderChoice,
+  retell: RetellConfig | null,
+  tenantId: string,
+  row: LineDbRow,
+  event: Record<string, unknown> = {},
+): Promise<LineReleaseResult> {
+  const line = rowToLine(row);
+  const released: Record<string, unknown> = {};
+  try {
+    // Retell first: it answers calls to this number, and in a month the number may be somebody else's.
+    if (line.facts.retell_imported === true && line.e164) {
+      if (!retell) throw new Error("the receptionist's key is not set, so its copy of the number cannot be taken off");
+      const r = await deletePhoneNumber(retell, line.e164);
+      if (!r.ok) throw new Error(`Retell delete-phone-number: HTTP ${r.status}`);
+      released.retell_number = line.e164;
+    }
+    const creds = await db.rpc("get_line_credentials", { p_line_id: line.id });
+    // A read that failed is not a line with no token: going on would skip the carrier and forget a number still billed.
+    if (creds.error) {
+      const detail = `reading the line's credentials: ${creds.error.message}`;
+      return { ok: false, status: 503, error: "read_failed", detail, released };
+    }
+    const token =
+      creds.data && typeof creds.data === "object" && !Array.isArray(creds.data)
+        ? (creds.data as { auth_token?: string }).auth_token
+        : undefined;
+    await releaseAtCarrier(choice, row, token, released);
+  } catch (e) {
+    return {
+      ok: false,
+      status: 502,
+      error: "provider_refused",
+      detail: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`,
+      released,
+    };
+  }
+  const rows = await releaseRoutingRows(db, tenantId, line);
+  Object.assign(released, rows.released);
+  if (!rows.ok) return { ok: false, status: 503, error: "write_failed", detail: rows.error, released };
+  try {
+    // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
+    await dropLineCredentials(db, line.id);
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    return { ok: false, status: 503, error: "write_failed", detail, released };
+  }
+  const del = await tenantDb(db, tenantId).from("lines").delete().eq("id", line.id);
+  if (del.error) return { ok: false, status: 503, error: "write_failed", detail: del.error.message, released };
+  await emitEvent(db, tenantId, "line.released", "line", line.id, {
+    e164: line.e164,
+    provider: choice.name,
+    ...released,
+    ...event,
+  }).catch(() => {});
+  return { ok: true, released };
+}
+
+/* ---------------------------------------------------------------- the sweep */
+
+/** Stripe's words for a subscription that no longer pays: the receptionist is paused on each. */
+const ENDED_STATUSES = BILLING_STATUSES.filter((s) => !receptionistOn(s));
+
+/**
+ * At most this many releases a tick: each is a Retell call and up to seven carrier calls inside the sweep's 60 seconds, and
+ * the stuck-lines half runs first. A backlog drains over the quarter hours.
+ */
+const MAX_RELEASES_PER_TICK = 2;
+/** At most this many warnings asked for a tick, told or not: a mailer that is down is asked again next tick, not more now. */
+const MAX_WARNINGS_PER_TICK = 10;
+
+interface EndedLinesPorts {
+  release(tenantId: string, row: LineDbRow, endedAt: string): Promise<LineReleaseResult>;
+  /**
+   * The bell and the workspace's alert addresses. With `once`, told once under that name (notifyOnce): a retry finds the
+   * row and sends only the mail it owes. `told` is the owner told in full; `reached` whether the workspace has anyone the
+   * mail can address at all.
+   */
+  tell(
+    tenantId: string,
+    msg: { subject: string; body: string; once?: string },
+  ): Promise<{ told: boolean; reached: boolean }>;
+  /** The platform's mailbox, for a warning nobody can be mailed: whether it went. */
+  alert(subject: string, body: string): Promise<boolean>;
+  /** The platform's pager (pageOperator), for a release that failed: once per key per window, remembered across ticks. */
+  page(key: string, subject: string, body: string): Promise<unknown>;
+  /** Where the workspace resumes: its Billing page. */
+  billingUrl(slug: string): string;
+  now(): number;
+  log: Logger;
+}
+
+export interface EndedLinesResult {
+  /** Lines of workspaces whose subscription no longer pays. */
+  ended: number;
+  /** Of those, past the grace (or past it against LINE_RELEASE_REPORT_DAYS, while only reporting). */
+  due: number;
+  warned: number;
+  /** Warnings asked for and not told in full (a mail that failed, an alert that did not go): asked again next tick. */
+  undelivered: number;
+  released: number;
+  failed: number;
+  report_only: boolean;
+}
+
+const BILLING_COLUMNS =
+  "tenant_id, mode, status, trial_end, current_period_end, cancel_at, last_payment_failed_at, updated_at";
+
+/** When a release of this line last stopped (lines.facts.release_failed_at), or 0 for one not yet tried. */
+function failedAtOf(row: LineDbRow): number {
+  const at = factsOf(row).release_failed_at;
+  return (typeof at === "string" && Date.parse(at)) || 0;
+}
+
+function warnedOf(row: LineDbRow): LineReleaseWarned | null {
+  const w = factsOf(row).release_warning;
+  if (!w || typeof w !== "object" || Array.isArray(w)) return null;
+  const { at, ended_at } = w as Record<string, unknown>;
+  return typeof at === "string" && typeof ended_at === "string" ? { at, ended_at } : null;
+}
+
+/**
+ * A warning asked for that was not told in full: counted, logged, and asked again next tick. The first failure for this end
+ * is kept on the line (release_warning_tried), and once the warning has failed for a day the platform is paged that the
+ * number is held only because its warning reaches nobody (pageOperator: once per key per pager window, remembered across
+ * ticks): one failed mail pages nobody, and a mailer that is down costs a tick its ten tries and no more.
+ */
+async function notYetWarned(
+  db: Db,
+  ports: EndedLinesPorts,
+  row: LineDbRow,
+  endedAt: string,
+  now: number,
+  out: EndedLinesResult,
+  reason: string,
+): Promise<void> {
+  out.undelivered += 1;
+  ports.log.warn("line_release_warning_undelivered", { tenant_id: row.tenant_id, line: row.id });
+  const tried = triedOf(row, endedAt);
+  if (tried === null) {
+    await keepFacts(
+      db,
+      row,
+      { ...factsOf(row), release_warning_tried: { at: new Date(now).toISOString(), ended_at: endedAt } },
+      "the warning's first try",
+    );
+    return;
+  }
+  if (now - tried < DAY_MS) return;
+  await ports.page(
+    `line_release_warning_undelivered:${row.id}:${endedAt}`,
+    `A number is held: its warning has not reached the owner for a day (workspace ${row.tenant_id})`,
+    `Line ${row.id}'s subscription ended, and the warning before its number goes back to the phone company has not been told in full since ${new Date(tried).toISOString().slice(0, 10)}: ${reason}. The number is kept, and paid for, until the warning reaches the owner. The edge's logs say why (notify_rejected, line_release_warning_undelivered).`,
+  );
+}
+
+/** The line's facts written whole, the warning's beside the rest (lines.facts). A write that fails throws. */
+async function keepFacts(
+  db: Db,
+  row: LineDbRow,
+  facts: Database["public"]["Tables"]["lines"]["Update"]["facts"],
+  text: string,
+): Promise<void> {
+  const up = await db.from("lines").update({ facts }).eq("id", row.id).eq("tenant_id", row.tenant_id);
+  if (up.error) throw new Error(`keeping ${text}: ${up.error.message}`);
+}
+
+/** When the warning for this end was first asked for and did not go (lines.facts.release_warning_tried), or null. */
+function triedOf(row: LineDbRow, endedAt: string): number | null {
+  const t = factsOf(row).release_warning_tried;
+  if (!t || typeof t !== "object" || Array.isArray(t)) return null;
+  const { at, ended_at } = t as Record<string, unknown>;
+  if (ended_at !== endedAt || typeof at !== "string") return null;
+  const ms = Date.parse(at);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * The warning before a number goes back: told once under its own name, and kept only once the owner was told in full. A
+ * mail that failed is owed on the bell's row, and the next tick finds the row, sends the mail alone and keeps the warning
+ * then, so the week before the release runs from a warning that reached them; a tick that dies between the telling and the
+ * keeping finds the warning told on the next, and keeps it, so nobody is warned twice. Counted in `out`: warned when kept,
+ * undelivered when not.
+ */
+async function warnOfRelease(
+  db: Db,
+  ports: EndedLinesPorts,
+  row: LineDbRow,
+  step: { endedAt: number; releaseAt: number },
+  words: { number: string; tz: string; forwardedFrom: string | null; billingUrl: string | null },
+  now: number,
+  out: EndedLinesResult,
+): Promise<void> {
+  const on = lineReleaseDay(step.releaseAt, now);
+  const endedAt = new Date(step.endedAt).toISOString();
+  const sentence = await ports.tell(row.tenant_id, {
+    ...lineReleaseWarning({ ...words, on }),
+    once: `line.release_warned:${row.id}:${endedAt}`,
+  });
+  if (!sentence.told) {
+    await notYetWarned(db, ports, row, endedAt, now, out, "its mail to the owner fails");
+    return;
+  }
+  // Nobody the mail can address: the bell's row was the warning, and a lapsed owner seldom opens the bell. The
+  // platform hears of a number about to go for good from a workspace nobody can write to, so a person can; said
+  // before the warning is kept, so an alert that did not go is said again next tick (the bell's row is told already).
+  if (
+    !sentence.reached &&
+    !(await ports.alert(
+      `A number goes back with nobody told (workspace ${row.tenant_id})`,
+      `Line ${row.id} goes back to the phone company on ${new Date(on).toISOString().slice(0, 10)}. Its workspace's subscription ended and it has no address the warning could be mailed to: only its bell says so. Write to the owner if they can be found.`,
+    ))
+  ) {
+    await notYetWarned(
+      db,
+      ports,
+      row,
+      endedAt,
+      now,
+      out,
+      "nobody in the workspace can be mailed, and the platform's own alert of it fails",
+    );
+    return;
+  }
+  await keepFacts(
+    db,
+    row,
+    {
+      ...factsOf(row),
+      release_warning: { at: new Date(now).toISOString(), ended_at: endedAt, on: new Date(on).toISOString() },
+    },
+    "the warning",
+  );
+  out.warned += 1;
+  ports.log.info("line_release_warned", { tenant_id: row.tenant_id, line: row.id, on: new Date(on).toISOString() });
+}
+
+/**
+ * One pass: each number of a workspace whose subscription ended is waited on, warned about, or given back, as
+ * contracts' rule says. `afterDays` null only reports. Bounded per tick.
+ */
+export async function sweepEndedLines(
+  db: Db,
+  ports: EndedLinesPorts,
+  afterDays: number | null,
+): Promise<EndedLinesResult> {
+  const out: EndedLinesResult = {
+    ended: 0,
+    due: 0,
+    warned: 0,
+    undelivered: 0,
+    released: 0,
+    failed: 0,
+    report_only: afterDays === null,
+  };
+  let warningsAsked = 0;
+  const bills = await db
+    .from("billing_accounts")
+    .select(BILLING_COLUMNS)
+    .eq("mode", "stripe")
+    .in("status", [...ENDED_STATUSES]);
+  if (bills.error) throw new Error(`reading billing: ${bills.error.message}`);
+  const byTenant = new Map((bills.data ?? []).map((b) => [b.tenant_id, b as unknown as LineReleaseBilling]));
+  if (!byTenant.size) return out;
+  const ids = [...byTenant.keys()];
+  const [tenants, lines] = await Promise.all([
+    db.from("tenants").select("id, slug, status, timezone").in("id", ids),
+    db.from("lines").select("*").in("tenant_id", ids).in("kind", ["chanlytics", "forwarded"]).order("created_at"),
+  ]);
+  if (tenants.error) throw new Error(`reading workspaces: ${tenants.error.message}`);
+  if (lines.error) throw new Error(`reading lines: ${lines.error.message}`);
+  const tenantOf = new Map((tenants.data ?? []).map((t) => [t.id, t]));
+  const rows = (lines.data ?? []) as LineDbRow[];
+  /** The owner's own number that forwards to this one, when one does. */
+  const forwardedTo = (tenantId: string, e164: string | null) =>
+    rows.find(
+      (r) =>
+        r.tenant_id === tenantId &&
+        r.kind === "forwarded" &&
+        r.forwarding_state !== "none" &&
+        factsOf(r).destination_e164 === e164,
+    )?.e164 ?? null;
+
+  // Oldest first, a release that stopped behind every line not yet tried: two that stay stuck would otherwise take both of
+  // a tick's places every quarter hour, and no number behind them would ever go back.
+  for (const row of [...rows].sort((a, b) => failedAtOf(a) - failedAtOf(b))) {
+    if (row.kind !== "chanlytics") continue;
+    const tenant = tenantOf.get(row.tenant_id);
+    // A workspace put back on by hand (tenants.status) is somebody's decision to keep it answering: not ours to end.
+    if (!tenant || tenant.status !== "paused") continue;
+    out.ended += 1;
+    const now = ports.now();
+    const bill = byTenant.get(row.tenant_id);
+
+    if (afterDays === null) {
+      const step = lineReleaseStep(bill, LINE_RELEASE_REPORT_DAYS, null, now);
+      if (step.step === "keep") continue;
+      // Only a line that would go is named, each tick until the grace is set; the counts are in lines_sweep_done.
+      if (now < step.releaseAt) continue;
+      out.due += 1;
+      ports.log.info("line_release_report", {
+        tenant_id: row.tenant_id,
+        line: row.id,
+        ended_at: new Date(step.endedAt).toISOString(),
+      });
+      continue;
+    }
+
+    const step = lineReleaseStep(bill, afterDays, warnedOf(row), now);
+    if (step.step === "keep" || step.step === "wait") continue;
+    const words = {
+      number: row.e164 ?? "",
+      // The day it goes is said by the workspace's calendar, as Billing says its days.
+      tz: tenant.timezone || DEFAULT_TIMEZONE,
+      forwardedFrom: forwardedTo(row.tenant_id, row.e164),
+      billingUrl: ports.billingUrl(tenant.slug),
+    };
+
+    if (step.step === "warn") {
+      if (warningsAsked >= MAX_WARNINGS_PER_TICK) continue;
+      warningsAsked += 1;
+      await warnOfRelease(db, ports, row, step, words, now, out);
+      continue;
+    }
+
+    out.due += 1;
+    if (out.released + out.failed >= MAX_RELEASES_PER_TICK) continue;
+    // Read again, just before: a workspace that resumed a moment ago keeps its number.
+    const fresh = await db
+      .from("billing_accounts")
+      .select(BILLING_COLUMNS)
+      .eq("tenant_id", row.tenant_id)
+      .maybeSingle();
+    if (fresh.error) throw new Error(`reading billing: ${fresh.error.message}`);
+    const again = lineReleaseStep(fresh.data as unknown as LineReleaseBilling | null, afterDays, warnedOf(row), now);
+    if (again.step !== "release") continue;
+    const release = await ports.release(row.tenant_id, row, new Date(again.endedAt).toISOString());
+    if (!release.ok) {
+      out.failed += 1;
+      ports.log.error("line_release_failed", {
+        tenant_id: row.tenant_id,
+        line: row.id,
+        error: release.error,
+        detail: release.detail,
+      });
+      await ports.page(
+        `line_release_failed:${row.id}`,
+        `A number could not be given back (workspace ${row.tenant_id})`,
+        `The lines sweep tried to release line ${row.id} after its subscription ended, and it stopped: ${release.detail}\n\nWhat it had done before it stopped: ${JSON.stringify(release.released)}. The row stays, and the next quarter hour tries again.`,
+      );
+      await keepFacts(
+        db,
+        row,
+        { ...factsOf(row), release_failed_at: new Date(now).toISOString() },
+        "the failed release",
+      );
+      continue;
+    }
+    out.released += 1;
+    await ports.tell(row.tenant_id, lineReleasedWords(words));
+    ports.log.info("line_released_by_sweep", { tenant_id: row.tenant_id, line: row.id, ...release.released });
+  }
+  return out;
+}

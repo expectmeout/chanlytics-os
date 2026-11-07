@@ -24,7 +24,7 @@ import {
   planVoiceConvergence,
   voiceShellDrift,
   voiceLlmCreateBody,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import { readCode, readRaw } from "../_source.mjs";
 
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */

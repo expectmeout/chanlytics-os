@@ -8,19 +8,19 @@ import { threadMoveOf, type ThreadMove } from "../waits/thread-move";
 import type { CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import { waitsOnAPerson, YOURS_STILL_WAIT, type EscalationDto } from "../conversations/escalations";
-import { threadWaitsOf } from "../conversations/inbox-thread";
+import { threadWaitsOf } from "../conversations/inbox-thread/waits";
 import { lastExchanged, messageWords, clipAtWord } from "../conversations/message-words";
 import { emailTopicOf } from "../conversations/message-email";
 import { contactName } from "../conversations/thread-contact";
 import { isOptedOut, type ConversationDto } from "../conversations/thread-dto";
-import { waWindow } from "../config/policy";
+import { waWindow } from "../config/policy/prices";
 import { channelKindWords } from "../lines/channels";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { LeadSearchDto } from "../leads/leads";
-import type { PreviewTriedDto } from "../previews/preview-tried";
+import type { PreviewTriedDto } from "../previews/tried";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock, tzSince } from "./clock";
-import type { ReplySpeed } from "../reports/report-speed";
+import type { ReplySpeed } from "../reports/speed";
 import { todayReplySpeed, type MetricsSummaryDto } from "./metrics";
 
 /**
@@ -221,19 +221,19 @@ function escalationRecords(
   tz: string,
   now: Date,
 ): EscalationRecord[] {
-  return openEsc.map((e) => {
-    const conv = byConv.get(e.conversation_id);
-    const call = e.reason === "callback" ? (callByConv.get(e.conversation_id) ?? null) : null;
+  return openEsc.map((row) => {
+    const conv = byConv.get(row.conversation_id);
+    const call = row.reason === "callback" ? (callByConv.get(row.conversation_id) ?? null) : null;
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
-    const waitedMs = now.getTime() - new Date(e.created_at).getTime();
+    const waitedMs = now.getTime() - new Date(row.created_at).getTime();
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
     return {
-      e,
+      e: row,
       conv,
       call,
       waitedMs,
       warn: waitedMs > 30 * MIN_MS,
-      since: tzSince(e.created_at, tz, now) ?? "",
+      since: tzSince(row.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
       quote: lastCustomer ? clipAtWord(messageWords(lastCustomer), QUOTE_MAX) : "",
       subject: lastCustomer ? emailTopicOf(lastCustomer) : null,
@@ -241,7 +241,7 @@ function escalationRecords(
         ? contactName(conv)
         : call
           ? toCallVM(call, tz, now).who
-          : e.reason === "callback"
+          : row.reason === "callback"
             ? "Unknown caller"
             : "Unknown",
       closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null,

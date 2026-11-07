@@ -17,19 +17,24 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS } from "@chanlytics/contracts";
-import { instagramCall, instagramErrorOf, instagramRefreshRequest, parseInstagramToken } from "@chanlytics/channels";
 import {
-  activeInstagramAccounts,
+  callInstagram,
+  instagramErrorOf,
+  instagramRefreshRequest,
+  parseInstagramToken,
+} from "@chanlytics/channels/instagram";
+import {
+  listActiveInstagramAccounts,
   noteInstagramToken,
   putChannelSecret,
   readChannelSecret,
-  type Database,
   type InstagramAccountRow,
-} from "@chanlytics/db";
+} from "@chanlytics/db/channels";
+import type { Database } from "@chanlytics/db/types";
 import { json, refuse } from "../shared/http.js";
 import { errField, type Logger } from "../shared/log.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
-import { notifyOnce } from "../ops/notify.js";
+import { notifyOnce } from "../shared/alerts/notify.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 import type { InstagramSecret } from "./credentials.js";
 
@@ -83,19 +88,19 @@ async function sweepOne(db: Db, row: InstagramAccountRow, now: number, log: Logg
   if (!secret?.access_token || !secret.account_id) return "no_token";
   const given = Date.parse(secret.refreshed_at ?? "");
   if (Number.isFinite(given) && now - given < REFRESH_AFTER_MS) return "fresh";
-  const a = await instagramCall(instagramRefreshRequest(secret.access_token));
-  if (a.outcome !== "ok") {
-    const err = instagramErrorOf(a.json);
-    if (tokenRefused(a.status, err?.code ?? null)) {
-      log.warn("ig_token_lapsed", { channel_id: row.id, status: a.status, code: err?.code ?? null });
+  const result = await callInstagram(instagramRefreshRequest(secret.access_token));
+  if (result.outcome !== "ok") {
+    const err = instagramErrorOf(result.json);
+    if (tokenRefused(result.status, err?.code ?? null)) {
+      log.warn("ig_token_lapsed", { channel_id: row.id, status: result.status, code: err?.code ?? null });
       await noteInstagramToken(db, row.id, row.config, { token_lapsed_at: new Date(now).toISOString() });
       await tellLapsed(db, row, log);
       return "lapsed";
     }
-    log.warn("ig_token_unrefreshed", { channel_id: row.id, status: a.status, error: a.error });
+    log.warn("ig_token_unrefreshed", { channel_id: row.id, status: result.status, error: result.error });
     return "unanswered";
   }
-  const fresh = parseInstagramToken(a.json);
+  const fresh = parseInstagramToken(result.json);
   const at = new Date(now).toISOString();
   const expiresAt = fresh.expiresInS > 0 ? new Date(now + fresh.expiresInS * 1000).toISOString() : null;
   await putChannelSecret(db, row.id, {
@@ -118,7 +123,7 @@ export async function sweepInstagramTokens(
 ): Promise<Response> {
   let rows: InstagramAccountRow[];
   try {
-    rows = await activeInstagramAccounts(db);
+    rows = await listActiveInstagramAccounts(db);
   } catch (e) {
     L.error("ig_tokens_unreadable", { error: errField(e) });
     return refuse(503, "no_database");

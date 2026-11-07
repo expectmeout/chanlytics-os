@@ -8,9 +8,10 @@ import { readBody } from "../../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { mailSupportReport } from "../../../lib/support/support.js";
+import { SUPPORT_REPORT_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/support/report");
   if (!auth.ok) return auth.response;
-  return mailSupportReport(auth, await readBody(request));
+  return mailSupportReport(auth, await readBody(request, SUPPORT_REPORT_DOOR));
 });

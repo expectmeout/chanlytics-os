@@ -10,7 +10,7 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { MODEL_ROUTES, BRAIN_OUTPUT_JSON_SCHEMA } from "@chanlytics/contracts";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
 import { scripted, said, json, status } from "./_model-world.mjs";
@@ -22,7 +22,7 @@ const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { callModel, askJson, setModelFetch, promptHashOf, ModelUnavailable } = await import(
   at("apps/edge/lib/ai/model.ts")
 );
-const { generateReply } = await import(at("apps/edge/lib/receptionist/brain.ts"));
+const { generateReply } = await import(at("apps/edge/lib/ai/receptionist-brain.ts"));
 const { replyReader } = await import(at("apps/edge/lib/campaigns/reach-out/reply-read.ts"));
 const { askNoteModel } = await import(at("apps/edge/lib/notes/notes.ts"));
 const { askReachOutModel } = await import(at("apps/edge/lib/campaigns/reach-out/check.ts"));

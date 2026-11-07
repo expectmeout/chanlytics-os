@@ -102,7 +102,7 @@ test("a package's built JavaScript reaches a sibling only by its built file's re
       .map((n) => n.slice("@chanlytics/".length));
     for (const out of builtFiles(p, ".js"))
       for (const { specifier } of importsOf(parse(out))) {
-        const sibling = /^\.\.\/\.\.\/([a-z]+)\/dist\/index\.js$/.exec(specifier)?.[1];
+        const sibling = /^\.\.\/\.\.\/([a-z]+)\/dist\/[a-z-]+\.js$/.exec(specifier)?.[1];
         // A file of the package's own dist, by its relative path: contracts' browser build, a file per module.
         const own = path.posix.join(path.posix.dirname(out), specifier);
         const ownFile = !sibling && own.startsWith(`packages/${p}/dist/`) && fs.existsSync(path.join(ROOT, own));
@@ -129,7 +129,9 @@ test("no package's dist carries a sibling's code: one module per package per pro
   );
   assert.deepEqual(carried, []);
   for (const p of PACKAGES.filter((x) => x !== "channels")) {
-    const dist = fs.readFileSync(path.join(ROOT, `packages/${p}/dist/index.js`), "utf8");
+    const dist = builtFiles(p, ".js")
+      .map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"))
+      .join("\n");
     assert.ok(!/async function providerFetch\(/.test(dist), `${p}: the breaker's module is channels' alone`);
   }
 });
@@ -167,7 +169,10 @@ function inlinedModules(file) {
 }
 
 test("no package's dist inlines a third-party module", () => {
-  const inlined = PACKAGES.flatMap((p) => inlinedModules(`packages/${p}/dist/index.js`).map((m) => `${p}: ${m}`));
+  // Every file a bundle writes: db and channels have an entry per domain and no index (decision 0110).
+  const inlined = PACKAGES.flatMap((p) =>
+    builtFiles(p, ".js").flatMap((f) => inlinedModules(f).map((m) => `${f}: ${m}`)),
+  );
   assert.deepEqual(
     inlined,
     [],
@@ -180,7 +185,16 @@ test("each package's bundle keeps third-party code external and hands its siblin
     const options = buildOptions(p);
     const plugins = options.plugins.map((pl) => pl.name);
     assert.deepEqual(plugins, ["siblings-by-path", "third-party-external"], p);
-    assert.equal(options.bundle && !options.splitting, true, `${p}: each entry whole, sharing no chunk`);
+    // Each entry whole, but where a package is reached by its domains (decision 0110): those share their modules as
+    // chunks in dist, beside the entries whose sibling paths they share, so one breaker and one logger context stand.
+    const byDomain = p === "db" || p === "channels";
+    assert.equal(options.bundle, true, p);
+    assert.equal(
+      options.splitting,
+      byDomain,
+      `${p}: ${byDomain ? "its domains share chunks" : "each entry whole, sharing no chunk"}`,
+    );
+    if (byDomain) assert.ok(options.chunkNames.startsWith("dist/"), `${p}: a chunk sits in dist, beside its entries`);
   }
   const external = buildOptions("core").plugins.find((pl) => pl.name === "third-party-external");
   const asked = [];
@@ -207,7 +221,7 @@ test("each package ships its sources: every export names a module under src/, an
       if (typeof target === "object" && target.bundled && Object.keys(target).indexOf("bundled") !== 1)
         wrong.push(`${p} ${subpath}: the bundled condition comes right after types, before any a bundler matches`);
     }
-    assert.ok(Object.keys(entriesOf(p)).includes("dist/index.js"), `${p}: the suite's bundle of its index`);
+    assert.ok(Object.keys(entriesOf(p)).length > 0, `${p}: the suite's bundle of its entries`);
   }
   assert.deepEqual(wrong, []);
   // The edge runtime matches `browser` too, and the browser's entry lacks the server's names: `edge-light` is read first.

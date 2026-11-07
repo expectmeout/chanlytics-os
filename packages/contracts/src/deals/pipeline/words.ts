@@ -1,9 +1,9 @@
 /**
  * Every word the Pipeline says that is not a row's own: its groups' names, the table's headings, and the words
- * of the peek, the board, the rail, a selection's pass and New proposal. The deal's own are deal-words.ts's.
+ * of the peek, the board, the rail, a selection's pass and New proposal. The deal's own are deals/words.ts's.
  */
-import { DEAL_STAGE_WORDS } from "../deal-words";
-import type { DealPaceVM } from "../deal-waits";
+import { DEAL_STAGE_WORDS } from "../words";
+import type { DealPaceVM } from "../waits";
 import type { PipelineGroupKey } from "./vm";
 
 /**
@@ -69,7 +69,7 @@ export const PIPELINE_WORDS = {
     yes: "Yes, a client",
     no: "They passed",
     passAsk: (first: string) => `Why did ${first} pass?`,
-    more: (what: string) => `More for ${what}`,
+    more: (text: string) => `More for ${text}`,
     /** The caret's door to the proposal where it lives, in a new tab; its link is copied on their page. */
     openProposal: "Open the proposal",
     message: "Message",

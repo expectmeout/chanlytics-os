@@ -26,7 +26,7 @@ export const LEAD_ENDING_WORDS: Record<LeadRoundEnding, string> = {
  * was asked for; otherwise the round ended at its limit with few new matches,
  * and the next step is another round in the same area.
  */
-export function endingOfRound(x: {
+export function endingOfRound(input: {
   counted: number;
   target: number;
   termsShort: boolean[];
@@ -37,13 +37,13 @@ export function endingOfRound(x: {
   unanswered: boolean;
   paused: boolean;
 }): LeadRoundEnding {
-  if (x.counted >= x.target) return "target_reached";
-  if (x.paused) return "paused";
-  if (x.stopped) return "stopped";
-  if (x.sourceFailed) return "source_failed";
-  if (x.unanswered) return "question_unanswered";
-  if (x.allowanceLeft <= 0) return "month_leads_used";
-  if (x.budgetLeftUsd <= 0) return "budget_used";
-  if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
+  if (input.counted >= input.target) return "target_reached";
+  if (input.paused) return "paused";
+  if (input.stopped) return "stopped";
+  if (input.sourceFailed) return "source_failed";
+  if (input.unanswered) return "question_unanswered";
+  if (input.allowanceLeft <= 0) return "month_leads_used";
+  if (input.budgetLeftUsd <= 0) return "budget_used";
+  if (input.termsShort.length > 0 && input.termsShort.every(Boolean)) return "searched_everything";
   return "few_new_matches";
 }

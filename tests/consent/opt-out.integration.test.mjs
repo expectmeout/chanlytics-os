@@ -12,7 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { resolveOutboundTarget } from "@chanlytics/db";
+import { resolveOutboundTarget } from "@chanlytics/db/channels";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -199,7 +199,7 @@ test("resolveOutboundTarget reports an opt-out rather than hiding it", { skip },
 
 test("'opt_out' is an accepted escalation reason", { skip }, async () => {
   // The edge raises this one; a CHECK violation would make the escalation fail
-  // silently inside pgSafe and the owner would never be told.
+  // silently inside runPgSafe and the owner would never be told.
   const { error } = await db.from("escalations").insert({
     tenant_id: tenantId,
     conversation_id: conversationId,

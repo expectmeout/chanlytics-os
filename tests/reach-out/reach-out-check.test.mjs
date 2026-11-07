@@ -14,14 +14,14 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { setSitePageReader } from "@chanlytics/channels";
+import { setSitePageReader } from "@chanlytics/channels/website";
 import { fakeDb, fakeLog } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
 
 const { checkOne, checkSends, checkBudget, backoffMs, CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_GIVE_UP_MS } =
   await import(at("apps/edge/lib/campaigns/reach-out/check.ts"));
 const { hoursLine, checkInputOf } = await import(at("apps/edge/lib/campaigns/reach-out/check-one.ts"));
-const { checkedWordsOf } = await import("@chanlytics/channels");
+const { checkedWordsOf } = await import("@chanlytics/channels/email");
 const { REACH_OUT_CHECKS_AHEAD_PER_DAY, REACH_OUT_CHECKS_PER_DAY } = await import("@chanlytics/contracts");
 
 const MIN = 60_000;

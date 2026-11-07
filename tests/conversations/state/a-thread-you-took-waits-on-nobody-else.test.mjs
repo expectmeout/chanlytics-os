@@ -1,6 +1,6 @@
 /**
- * Which threads and which people wait on a person, read by the one standing rule (packages/db threadIdsWaitingOnYou,
- * personIdsWaitingOnYou over contracts standingOfThread). A campaign run's replies and a business's people said "Needs you"
+ * Which threads and which people wait on a person, read by the one standing rule (packages/db getThreadIdsWaitingOnYou,
+ * getPersonIdsWaitingOnYou over contracts standingOfThread). A campaign run's replies and a business's people said "Needs you"
  * from the raw needs_human column, so a reply a member had already taken still said it on the run's sheet, and a colleague
  * whose thread the reader held wore a Needs you dot on the business sheet (the wiring's second audit, R11 S9-1). Run over a
  * database in memory.
@@ -12,8 +12,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { threadIdsWaitingOnYou, personIdsWaitingOnYou } = await import(
-  pathToFileURL(path.join(ROOT, "packages/db/src/repositories/conversations/waiting-on-you.ts")).href
+const { getThreadIdsWaitingOnYou, getPersonIdsWaitingOnYou } = await import(
+  pathToFileURL(path.join(ROOT, "packages/db/src/repositories/people/waiting-on-you.ts")).href
 );
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -60,7 +60,7 @@ function world() {
 }
 
 test("of a run's replies, only a thread flagged that nobody has taken waits on you, flagged by its column or by a hold that waits on someone: a taken one, one the receptionist answers and one with a STOP's hold do not", async () => {
-  const waiting = await threadIdsWaitingOnYou(
+  const waiting = await getThreadIdsWaitingOnYou(
     world(),
     T,
     ["c-waiting", "c-taken", "c-open", "c-stopped", "c-held"],
@@ -71,10 +71,10 @@ test("of a run's replies, only a thread flagged that nobody has taken waits on y
     ["c-held", "c-waiting"],
     "and one an open hold flags, whatever its column says",
   );
-  assert.deepEqual([...(await threadIdsWaitingOnYou(world(), T, [], NOW))], [], "nothing asked, nothing read");
+  assert.deepEqual([...(await getThreadIdsWaitingOnYou(world(), T, [], NOW))], [], "nothing asked, nothing read");
 });
 
 test("of a business's people, one waits on you by their latest thread alone: never a colleague whose thread a member holds, or one whose old flagged thread a newer one answers", async () => {
-  const waiting = await personIdsWaitingOnYou(world(), T, ["p-1", "p-2", "p-3", "p-4", "p-5", "p-6"], NOW);
+  const waiting = await getPersonIdsWaitingOnYou(world(), T, ["p-1", "p-2", "p-3", "p-4", "p-5", "p-6"], NOW);
   assert.deepEqual([...waiting].sort(), ["p-1", "p-6"]);
 });

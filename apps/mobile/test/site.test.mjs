@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inAppFrom } from "../../../packages/contracts/src/shell/chrome.ts";
+import { inAppFrom } from "../../../packages/contracts/src/shell/chrome/in-app.ts";
 
 process.env.EXPO_PUBLIC_SITE_ORIGIN = "https://app.example.com/";
 const {

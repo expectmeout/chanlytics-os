@@ -15,8 +15,14 @@
  */
 import { useEffect, useRef } from "react";
 import type { AdPlatform, AdsAddress, AdsConfig, AdsRead } from "@chanlytics/contracts";
-import { BUDGET_RULES, CHIPS, DOOR, NEW_AD, moneyOf, newAdModel } from "@chanlytics/contracts/ads-page";
-import type { AdDraft, ChipId, DoorVM, NewAdVM } from "@chanlytics/contracts/ads-page";
+import { BUDGET_RULES } from "../model/rules";
+import { CHIPS } from "../model/drawer/words";
+import { DOOR } from "../model/words";
+import { NEW_AD } from "../model/words-new";
+import { moneyOf } from "../model/money";
+import { newAdModel } from "../model/new-ad";
+import type { AdDraft, NewAdVM } from "../model/new-ad";
+import type { ChipId, DoorVM } from "../model/vm-base";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";

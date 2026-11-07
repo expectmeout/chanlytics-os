@@ -10,9 +10,8 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { pathToFileURL, fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { importBundle } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,16 +22,15 @@ const skip =
       ? "refusing a database that is not on this machine: this suite writes customers"
       : false;
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const {
   ingestInboundEmail,
-  lastInboundEmail,
-  mailboxOfTenant,
+  findLastInboundEmail,
+  findMailboxOfTenant,
   recordEmailStatus,
-  sentEmailWithMessageId,
+  getSentEmailWithMessageId,
   stampEmailSent,
   suppressEmailOf,
-} = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+} = await importBundle("db");
 
 let db;
 let tenantId;
@@ -123,17 +121,17 @@ test(
         },
       },
     });
-    const parent = await lastInboundEmail(db, tenantId, person.conversation_id);
+    const parent = await findLastInboundEmail(db, tenantId, person.conversation_id);
     assert.deepEqual(
       [parent.rfcMessageId, parent.subject, parent.from, parent.references],
       ["<q2@customer.example>", "Re: Quote", "Ana@Example.com", ["<q0@customer.example>", "<q1@customer.example>"]],
     );
     assert.equal(
-      await lastInboundEmail(db, otherId, person.conversation_id),
+      await findLastInboundEmail(db, otherId, person.conversation_id),
       null,
       "another workspace asking about this thread is handed nothing",
     );
-    assert.equal(await mailboxOfTenant(db, tenantId), null, "a workspace with no mailbox has no email line");
+    assert.equal(await findMailboxOfTenant(db, tenantId), null, "a workspace with no mailbox has no email line");
   },
 );
 
@@ -171,7 +169,7 @@ test(
     );
     assert.ok(m.meta.status_at?.sent, "messages_guard's own stamp in the same column survives");
     assert.equal(
-      await sentEmailWithMessageId(db, tenantId, "<abc@mail.chanlytics.com>"),
+      await getSentEmailWithMessageId(db, tenantId, "<abc@mail.chanlytics.com>"),
       true,
       "which is how this email, coming back round a forward, is known for ours",
     );

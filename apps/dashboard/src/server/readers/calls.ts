@@ -1,7 +1,7 @@
 import "server-only";
 import { addressOf, callerName, type CallDto } from "@chanlytics/contracts";
 import { CALL_COLUMNS, listedCall, toCallDto } from "../conversations/dto";
-import { stamp, type Reader, type RowRef } from "./index";
+import { readerStamp, type Reader, type RowRef } from "../shared/reader";
 import { isGoing } from "../people/going";
 
 /** A search's words as an ILIKE pattern that matches them anywhere, its own wildcards taken as the characters they are. */
@@ -25,17 +25,17 @@ export const calls: Reader<
   name: "calls",
   async read(rc, { conversationId, status, ids, q: words, listed }) {
     const tenantId = rc.tenantId;
-    let q = rc.ctx.supabase
+    let query = rc.ctx.supabase
       .from("calls")
       .select(CALL_COLUMNS)
       .eq("tenant_id", tenantId)
       .order("started_at", { ascending: false, nullsFirst: false })
       .limit(100);
-    if (conversationId) q = q.eq("conversation_id", conversationId);
-    if (status) q = q.eq("status", status);
-    if (ids) q = q.in("id", ids);
-    if (words) q = q.ilike("transcript", anywhere(words));
-    const { data, error } = await q;
+    if (conversationId) query = query.eq("conversation_id", conversationId);
+    if (status) query = query.eq("status", status);
+    if (ids) query = query.in("id", ids);
+    if (words) query = query.ilike("transcript", anywhere(words));
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
     // A list leaves out whoever is being erased (people/going.ts); a thread's own calls, and a call by its id, still read.
     const now = rc.now.getTime();
@@ -52,7 +52,7 @@ export const calls: Reader<
         route: addressOf({ kind: "call", id: c.id }),
         label: callerName(c),
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

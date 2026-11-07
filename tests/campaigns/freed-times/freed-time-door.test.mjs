@@ -1,7 +1,7 @@
 /**
  * Offer it's door, run: POST /api/admin/calendar/freed-time over a database in memory (Today in three zones, 2 Nov 2026;
  * decision 0082). A member pressed Offer it on an hour a cancellation freed in Today's day; the dashboard knocks here with
- * the visit, and the edge makes the offer the cancellation's arrival makes (lib/calendar/freed-time-offer.ts, whose run
+ * the visit, and the edge makes the offer the cancellation's arrival makes (lib/campaigns/freed-time-offer.ts, whose run
  * offer-freed-time.test.mjs executes): over the time the receptionist would book now, read from the visit itself, once
  * per appointment.
  *
@@ -14,7 +14,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";

@@ -4,11 +4,83 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "bundled": "./dist/index.js",
-      "import": "./src/index.ts",
-      "default": "./src/index.ts"
+    "./ai": {
+      "types": "./src/ai/index.ts",
+      "bundled": "./dist/ai.js",
+      "import": "./src/ai/index.ts",
+      "default": "./src/ai/index.ts"
+    },
+    "./email": {
+      "types": "./src/email/index.ts",
+      "bundled": "./dist/email.js",
+      "import": "./src/email/index.ts",
+      "default": "./src/email/index.ts"
+    },
+    "./files": {
+      "types": "./src/files/index.ts",
+      "bundled": "./dist/files.js",
+      "import": "./src/files/index.ts",
+      "default": "./src/files/index.ts"
+    },
+    "./google": {
+      "types": "./src/google/index.ts",
+      "bundled": "./dist/google.js",
+      "import": "./src/google/index.ts",
+      "default": "./src/google/index.ts"
+    },
+    "./inbound": {
+      "types": "./src/inbound/index.ts",
+      "bundled": "./dist/inbound.js",
+      "import": "./src/inbound/index.ts",
+      "default": "./src/inbound/index.ts"
+    },
+    "./instagram": {
+      "types": "./src/instagram/index.ts",
+      "bundled": "./dist/instagram.js",
+      "import": "./src/instagram/index.ts",
+      "default": "./src/instagram/index.ts"
+    },
+    "./leads": {
+      "types": "./src/leads/index.ts",
+      "bundled": "./dist/leads.js",
+      "import": "./src/leads/index.ts",
+      "default": "./src/leads/index.ts"
+    },
+    "./lines": {
+      "types": "./src/lines/index.ts",
+      "bundled": "./dist/lines.js",
+      "import": "./src/lines/index.ts",
+      "default": "./src/lines/index.ts"
+    },
+    "./shared": {
+      "types": "./src/shared/index.ts",
+      "bundled": "./dist/shared.js",
+      "import": "./src/shared/index.ts",
+      "default": "./src/shared/index.ts"
+    },
+    "./tokens": {
+      "types": "./src/tokens/index.ts",
+      "bundled": "./dist/tokens.js",
+      "import": "./src/tokens/index.ts",
+      "default": "./src/tokens/index.ts"
+    },
+    "./voice": {
+      "types": "./src/voice/index.ts",
+      "bundled": "./dist/voice.js",
+      "import": "./src/voice/index.ts",
+      "default": "./src/voice/index.ts"
+    },
+    "./website": {
+      "types": "./src/website/index.ts",
+      "bundled": "./dist/website.js",
+      "import": "./src/website/index.ts",
+      "default": "./src/website/index.ts"
+    },
+    "./whatsapp": {
+      "types": "./src/whatsapp/index.ts",
+      "bundled": "./dist/whatsapp.js",
+      "import": "./src/whatsapp/index.ts",
+      "default": "./src/whatsapp/index.ts"
     }
   },
   "scripts": {
@@ -17,6 +89,7 @@
   },
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",
+    "@chanlytics/log": "workspace:*",
     "html-to-text": "^9.0.5",
     "zod": "^4.6.7"
   },

@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/shared/route";
-import { backTodayOf } from "@/server/leads/lead-workbench";
+import { getBackToday } from "@/server/leads/workbench";
 
 /**
  * GET /api/v1/leads/back — Leads' Back today (00426 leads_back_today): the leads who asked to hear back on a day that
@@ -8,5 +8,5 @@ import { backTodayOf } from "@/server/leads/lead-workbench";
  */
 export const GET = read({
   scope: workspace,
-  handle: ({ ctx, member }) => backTodayOf(ctx, member.tenantId),
+  handle: ({ ctx, member }) => getBackToday(ctx, member.tenantId),
 });

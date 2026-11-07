@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { HANDLED_OUTCOMES } from "@chanlytics/contracts";
-import { inboundFromWhatsapp } from "@chanlytics/channels";
+import { inboundFromWhatsapp } from "@chanlytics/channels/whatsapp";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");

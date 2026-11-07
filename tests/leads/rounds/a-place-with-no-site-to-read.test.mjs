@@ -8,14 +8,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { startRound } from "../../../packages/core/src/leads/runner/start.ts";
-import { collect } from "../../../packages/core/src/leads/runner/collect.ts";
+import { collect } from "../../../packages/core/src/leads/runner/collect/collect.ts";
 import { rejudgeProbe } from "../../../packages/core/src/leads/runner/rejudge.ts";
 import { cleanPlace } from "../../../packages/core/src/leads/clean.ts";
 import { CARDS } from "../../../packages/core/src/leads/cards.ts";
 import { planNeedsASite, planReadsSites } from "../../../packages/contracts/src/leads/search/plan.ts";
 import { LEAD_NO_SITE_KEY } from "../../../packages/contracts/src/leads/search/class.ts";
-import { leadExclusionWord } from "../../../packages/contracts/src/leads/lead-facts.ts";
-import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
+import { leadExclusionWord } from "../../../packages/contracts/src/leads/facts.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
 import { LABELS, PLAN, mapsItem } from "../../_lead-fixtures.mjs";
 

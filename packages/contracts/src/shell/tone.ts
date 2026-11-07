@@ -21,15 +21,15 @@
  *
  * The toast's tones (chrome.ts) are the four of these that a flash can be.
  */
-import { BROADCAST_STATE_LABELS } from "../campaigns/broadcasts/broadcasts";
+import { BROADCAST_STATE_LABELS } from "../campaigns/broadcasts/states";
 import { STOP_WORDS } from "../consent/consent";
-import { CALL_OUTCOME_WORDS } from "../conversations/call-dto";
+import { CALL_RESULT_WORDS } from "../conversations/call-dto";
 import { HELD_WORDS, NEEDS_YOU_WORD, THREAD_MOVE_WORDS } from "../conversations/standing";
 import { PERSON_MODE_WORDS } from "../people/person-receptionist";
 import { PERSON_STATE_LABELS } from "../people/person-state";
 import { ROLE_WORDS } from "./identity";
-import { SETUP_STATE_WORDS } from "../setup/setup";
-import { CALENDAR_FEED_WORDS } from "../calendar/words";
+import { SETUP_STATE_WORDS } from "../setup/lines";
+import { CALENDAR_FEED_WORDS } from "../calendar/words/labels";
 import { SOURCE_WORDS, type FactSource } from "../config/facts";
 import {
   LEAD_CALL_OUTCOME_TONES,
@@ -41,9 +41,9 @@ import {
   LEAD_REVIEW_WORD,
   LEAD_STAGE_WORDS,
 } from "../leads/leads";
-import { DEAL_STAGE_WORDS } from "../deals/deal-words";
+import { DEAL_STAGE_WORDS } from "../deals/words";
 import { TEMPLATE_STATUS_WORDS } from "../campaigns/templates/templates";
-import { REPLY_CHIP_WORDS } from "../campaigns/reach-out/replies";
+import { REPLY_CHIP_WORDS } from "../campaigns/reach-out/replies/intents";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -256,7 +256,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   },
   // How a call ended is the ladder's (callOutcomeFor), said once (CALL_OUTCOME_WORDS) for Live, Conversations, the thread's
   // call card and a person's History; a call the provider has gone quiet about is no ending, and is said beside them.
-  call: { ...CALL_OUTCOME_WORDS, stale: "No word from the provider" },
+  call: { ...CALL_RESULT_WORDS, stale: "No word from the provider" },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: STOP_WORDS.pill, unknown: "Consent unknown" },
   mode: PERSON_MODE_WORDS,
@@ -339,7 +339,7 @@ export function leadPinTone(lead: LeadPinnable): Tone {
   return stateTone("lead_row_state", lead.state);
 }
 
-/** A lead's row state, as the row wears it (lead-row.ts LeadRowVM["state"]). */
+/** A lead's row state, as the row wears it (leads/row.ts LeadRowVM["state"]). */
 type LeadMapState = "ready" | "contacted" | "talking" | "review" | "out";
 
 /** The legend's order: what is furthest along first, then what waits on the owner, then the rest. */

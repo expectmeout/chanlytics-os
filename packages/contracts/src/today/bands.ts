@@ -14,13 +14,13 @@ import { addressOf } from "../activity/record-address";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import { lineOffGets } from "../lines/caller-gets";
 import { CHANNEL_ANSWERED, channelNoun } from "../lines/channels";
-import type { ReplySpeed } from "../reports/report-speed";
+import type { ReplySpeed } from "../reports/speed";
 import { NEED_YOU_WORDS } from "../need-you/words";
 import { durationWords } from "../shared/clock";
 import { capitalize, withStop } from "../shared/words";
-import { runOffClause } from "../campaigns/sequences/sequence-run-off";
+import { runOffClause } from "../campaigns/sequences/run-off";
 import { runsWaitingSentence } from "../shell/campaign-rooms";
-import { PAUSED_WORDS } from "../workspace/billing";
+import { PAUSED_WORDS } from "../workspace/billing/plans";
 import type { TodayFacts } from "./facts";
 import type { TodayCalmVM, TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, TodayVM } from "./vm";
 
@@ -30,8 +30,8 @@ export const andList = (xs: readonly string[]): string =>
   xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 
 /** "41s" / "1m 12s": a measured median, said the one way a length of time is said (durationWords). */
-export function secondsPhrase(s: number): string {
-  return durationWords(s);
+export function secondsPhrase(seconds: number): string {
+  return durationWords(seconds);
 }
 
 /**
@@ -42,7 +42,8 @@ const speedIn = (s: ReplySpeed, about = false): string =>
   s.held ? s.words : `in ${about ? "about " : ""}${secondsPhrase(s.seconds)}`;
 
 /** The clause the answered figure ends on ("typically in 34s", or against the hold); "" with no reply to speak of. */
-export const speedClause = (s: ReplySpeed | null): string => (s === null ? "" : `typically ${speedIn(s)}`);
+export const speedClause = (replySpeed: ReplySpeed | null): string =>
+  replySpeed === null ? "" : `typically ${speedIn(replySpeed)}`;
 
 /**
  * What each dark wire does with what reaches it, two sentences a wire: "Phone line is disconnected. Calls are picked up
@@ -67,8 +68,10 @@ const darkWires = (down: TodayFacts["wires"]): string =>
  * The alert is the one place Today raises its voice, and it SUPPRESSES every
  * reassuring line — "nothing needs you" is a lie while the number is dark.
  */
-export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" | "lines" | "alert" | "paused"> {
-  const { metrics, wires } = f;
+export function todayStanding(
+  todayFacts: TodayFacts,
+): Pick<TodayVM["standing"], "chips" | "lines" | "alert" | "paused"> {
+  const { metrics, wires } = todayFacts;
   const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
   const down = wires.filter((w) => !w.on);
   const on = wires.filter((w) => w.on);
@@ -102,8 +105,8 @@ export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" 
  * its own, which it does not do for email. The heading's own words ride
  * with it, so the two are decided once. First match wins.
  */
-export function todayQueueEmpty(f: TodayFacts): TodayQueueEmptyVM {
-  const { metrics, wires } = f;
+export function todayQueueEmpty(todayFacts: TodayFacts): TodayQueueEmptyVM {
+  const { metrics, wires } = todayFacts;
   const down = wires.filter((w) => !w.on);
   const on = wires.filter((w) => w.on);
   const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
@@ -164,8 +167,8 @@ export function todayQueueEmpty(f: TodayFacts): TodayQueueEmptyVM {
  * Ask's four facts. A zero is a real measurement, and "—" is a real "not enough data yet"; never a delta, a
  * percentage or a sparkline: a jump from 1 message to 3 is not "+200%".
  */
-export function todayAskFacts(f: TodayFacts): TodayFactVM[] {
-  const { period, callMinutes, speed } = f;
+export function todayAskFacts(todayFacts: TodayFacts): TodayFactVM[] {
+  const { period, callMinutes, speed } = todayFacts;
   return [
     { label: "Messages in", value: String(period.messages_in) },
     { label: "Answered by the receptionist", value: `${period.answered_by_ai} of ${period.messages_in}` },
@@ -177,8 +180,8 @@ export function todayAskFacts(f: TodayFacts): TodayFactVM[] {
 }
 
 /** The day's traffic as one sentence, for Ask; the page draws the figures instead. */
-export function todayTrafficLine(f: TodayFacts): string {
-  const { period, callMinutes, speed } = f;
+export function todayTrafficLine(todayFacts: TodayFacts): string {
+  const { period, callMinutes, speed } = todayFacts;
   const trafficParts: string[] = [];
   if (period.messages_in > 0) {
     trafficParts.push(
@@ -220,11 +223,11 @@ function quietHead(wires: TodayFacts["wires"], last: string): { headline: string
 /** The quiet day: prove we are listening, don't show a row of zeroes. `proof` is todayProof's sentence. */
 /** The quiet day's card, less its figures, which the brief adds (today/figures.ts quietFigures). */
 export function todayQuietDay(
-  f: TodayFacts,
+  todayFacts: TodayFacts,
   /** When the last message came and how fast it was answered (today/figures.ts todayLastLine), or "" with none yet. */
   last: string,
 ): NonNullable<TodayVM["quiet"]> {
-  const { wires, conversations } = f;
+  const { wires, conversations } = todayFacts;
   return {
     ...quietHead(wires, last),
     proof: [
@@ -257,8 +260,8 @@ type TodayHead = Pick<TodayVM["standing"], "headline" | "detail" | "tone" | "cal
  * listen, a search waiting on an answer. One spelling, said by the head (calmHeadline) and by the brief
  * (today/brief-words.ts); the brief names a closing window's person itself, so it passes no windows.
  */
-export function todayAlsoWaiting(w: { windows?: number; calls: number; searches: number }): string[] {
-  const { windows = 0, calls, searches } = w;
+export function todayAlsoWaiting(input: { windows?: number; calls: number; searches: number }): string[] {
+  const { windows = 0, calls, searches } = input;
   return [
     windows ? (windows === 1 ? "One reply window is closing." : `${windows} reply windows are closing.`) : "",
     calls ? (calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.`) : "",
@@ -276,12 +279,12 @@ export function todayAlsoWaiting(w: { windows?: number; calls: number; searches:
  * page that holds the runs says the head again with them (standingWithRuns).
  */
 export function todayHeadline(
-  f: TodayFacts,
+  todayFacts: TodayFacts,
   alert: string | null,
   needsRows: TodayNeedsRowVM[],
   also: readonly string[],
 ): TodayHead {
-  const { needsYouCount, oldest } = f;
+  const { needsYouCount, oldest } = todayFacts;
   if (alert)
     return { headline: "Check your connection before anything else.", detail: null, tone: "alert", calm: null };
   if (needsYouCount > 1) {
@@ -293,15 +296,15 @@ export function todayHeadline(
     };
   }
   if (needsYouCount === 1) {
-    const who = needsRows[0]?.who;
+    const person = needsRows[0]?.who;
     return {
       headline: "One conversation needs you",
-      detail: who && oldest ? `${who} has been waiting since ${oldest}.` : null,
+      detail: person && oldest ? `${person} has been waiting since ${oldest}.` : null,
       tone: "needs",
       calm: null,
     };
   }
-  const calm = calmOf(f, also);
+  const calm = calmOf(todayFacts, also);
   return { ...calmStanding(calm, 0), calm };
 }
 
@@ -338,19 +341,19 @@ function calmOf({ period, speed }: TodayFacts, also: readonly string[]): TodayCa
  * badge that counted the run (the wiring's second audit, S7-1). What still waits is said first, the runs before the
  * queue's own sentences, then the traffic.
  */
-function calmStanding(c: TodayCalmVM, runs: number): TodayHeadline {
-  const also = [...(runs > 0 ? [runsWaitingSentence(runs)] : []), ...c.also];
+function calmStanding(todayCalm: TodayCalmVM, runs: number): TodayHeadline {
+  const also = [...(runs > 0 ? [runsWaitingSentence(runs)] : []), ...todayCalm.also];
   const headline = also.length
-    ? [...also, ...(c.traffic ? [`${c.traffic} today.`] : [])].join(" ")
-    : c.traffic
-      ? c.handled_all
-        ? `The receptionist handled everything — ${c.traffic} today. Nothing needs you.`
-        : `${c.traffic} today. Nothing needs you right now.`
+    ? [...also, ...(todayCalm.traffic ? [`${todayCalm.traffic} today.`] : [])].join(" ")
+    : todayCalm.traffic
+      ? todayCalm.handled_all
+        ? `The receptionist handled everything — ${todayCalm.traffic} today. Nothing needs you.`
+        : `${todayCalm.traffic} today. Nothing needs you right now.`
       : "Nothing needs you.";
   // "It" only after a headline that named the receptionist ("The receptionist handled everything"); after any other
   // (what still waits, or the traffic alone) the sentence names it itself.
-  const named = !also.length && !!c.traffic && c.handled_all;
-  const detail = c.answered ? `${named ? "It" : "The receptionist"} ${c.answered}` : null;
+  const named = !also.length && !!todayCalm.traffic && todayCalm.handled_all;
+  const detail = todayCalm.answered ? `${named ? "It" : "The receptionist"} ${todayCalm.answered}` : null;
   return { headline, detail, tone: "calm" };
 }
 
@@ -420,15 +423,15 @@ export const TODAY_PHONE_WORDS = {
  * the press asks as the cancellation's arrival does) and the run's (core runPlaybook's `skipped`, `off` with its reason).
  * Null for a reason the page words itself (the preview, no step, paused, nobody).
  */
-export function offerRefusedWords(why: string, detail: string | null = null): string | null {
-  const clause = why === "off" && detail ? runOffClause(detail) : null;
+export function offerRefusedWords(reason: string, detail: string | null = null): string | null {
+  const clause = reason === "off" && detail ? runOffClause(detail) : null;
   if (clause) return `Nothing was offered: ${clause}.`;
-  if (why === "off" && detail === "freed_time_passed") return "That hour has begun: nobody can take it now.";
-  if (why === "gone") return "That cancellation is no longer on the calendar.";
-  if (why === "too_soon") return "It starts too soon for the notice the receptionist gives.";
-  if (why === "past_window") return "It is further ahead than the receptionist books.";
-  if (why === "closed" || why === "not_free" || why === "too_short") return "That time is no longer open.";
-  if (why === "no_person" || why === "all_day" || why === "no_was_at" || why === "no_hours")
+  if (reason === "off" && detail === "freed_time_passed") return "That hour has begun: nobody can take it now.";
+  if (reason === "gone") return "That cancellation is no longer on the calendar.";
+  if (reason === "too_soon") return "It starts too soon for the notice the receptionist gives.";
+  if (reason === "past_window") return "It is further ahead than the receptionist books.";
+  if (reason === "closed" || reason === "not_free" || reason === "too_short") return "That time is no longer open.";
+  if (reason === "no_person" || reason === "all_day" || reason === "no_was_at" || reason === "no_hours")
     return "This one can't be offered.";
   return null;
 }
@@ -455,13 +458,13 @@ export function todayHeadLine(
   /** A day nothing came in: its head (todayQuietDay), "Nothing needs you." and that the receptionist is on. */
   quiet: { headline: string; sub: string } | null = null,
   /** After closing, the day turned to tomorrow (the canvas of 2 Nov 2026): how today went (todayWentLine). */
-  went: string | null = null,
+  sent: string | null = null,
 ): TodayHeadLineVM {
   if (standing.tone === "alert")
     return { lead: standing.headline, rest: waiting > 0 ? NEED_YOU_WORDS.countAsWell(waiting) : null };
-  if (waiting > 0) return { lead: NEED_YOU_WORDS.count(waiting), rest: went ?? (say ? withStop(say) : null) };
+  if (waiting > 0) return { lead: NEED_YOU_WORDS.count(waiting), rest: sent ?? (say ? withStop(say) : null) };
   if (quiet) return { lead: quiet.headline, rest: quiet.sub || null };
-  return { lead: "Nothing needs you.", rest: went ?? NEED_YOU_WORDS.end };
+  return { lead: "Nothing needs you.", rest: sent ?? NEED_YOU_WORDS.end };
 }
 
 /**
@@ -484,8 +487,8 @@ export function todayWentLine(
 }
 
 /** "1 draft on its way" beside the queue's parts: the replies counting down to send, which have no row; null for none. */
-export function todayDraftsSub(n: number): string | null {
-  return n ? (n === 1 ? "1 draft on its way" : `${n} drafts on their way`) : null;
+export function todayDraftsSub(count: number): string | null {
+  return count ? (count === 1 ? "1 draft on its way" : `${count} drafts on their way`) : null;
 }
 
 /**
@@ -494,11 +497,11 @@ export function todayDraftsSub(n: number): string | null {
  * brief reading its own first line back. When something DOES need you, the headline is spent on that.
  */
 export function todaySentences(
-  f: TodayFacts,
+  todayFacts: TodayFacts,
   tone: TodayVM["standing"]["tone"],
   alert: string | null,
 ): TodaySentenceVM[] {
-  const { period, callMinutes } = f;
+  const { period, callMinutes } = todayFacts;
   const sentences: TodaySentenceVM[] = [];
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (period.answered_by_ai && !headlineCoversTraffic) {
@@ -528,7 +531,7 @@ export function todaySentences(
       text: `You sent ${period.messages_out_you} repl${period.messages_out_you === 1 ? "y" : "ies"} yourself.`,
     });
   }
-  const failed = todaySendFailure(f);
+  const failed = todaySendFailure(todayFacts);
   if (failed) sentences.push(failed);
   return sentences;
 }
@@ -538,8 +541,8 @@ export function todaySentences(
  * card saying "handled everything" while a message died in transit would be a lie of omission; so it is said on a
  * quiet day too (todayVM's quiet branch), where it was dropped with the day's other sentences (6 Oct 2026).
  */
-export function todaySendFailure(f: TodayFacts): TodaySentenceVM | null {
-  const { period, conversations, sinceMs } = f;
+export function todaySendFailure(todayFacts: TodayFacts): TodaySentenceVM | null {
+  const { period, conversations, sinceMs } = todayFacts;
   if (!period.send_failures) return null;
   // The thread of the newest reply that failed, when the conversations read holds it: "See the thread"
   // opened the Inbox list, where the owner had to go looking.

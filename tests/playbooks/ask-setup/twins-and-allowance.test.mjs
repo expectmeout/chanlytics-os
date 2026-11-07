@@ -20,8 +20,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { CAMPAIGN_MONTH_ALLOWANCE, SENDING_HOURS_WORDS, sendsWaitWords } = await import("@chanlytics/contracts");
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -182,7 +182,7 @@ const real = globalThis.fetch;
 /** The edge answers `answer` from now on, and the dashboard's kept answer is the one it gives. */
 const edgeSays = async (answer) => {
   edge = answer;
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
 };
 beforeEach(async () => {
   readerCache.clear();

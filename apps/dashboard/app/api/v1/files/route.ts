@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FILES_MAX, FILE_SHELVES } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/shared/route";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { files } from "@/server/readers/files";
 
 const Query = z.object({

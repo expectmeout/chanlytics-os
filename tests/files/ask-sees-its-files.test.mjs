@@ -41,13 +41,13 @@ after(() => {
   globalThis.fetch = realFetch;
 });
 
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { resultBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
-const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
-const { fileIndexLineOf, fileWhoSaid, filesLineOf } = await import(at("packages/contracts/src/files/line.ts"));
+const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
+const { fileIndexLineOf, fileWhoSaid, filesLineOf } = await import(at("apps/dashboard/src/server/files/line.ts"));
 const { boxShown, zoomSizeOf } = await import(at("packages/contracts/src/files/zoom.ts"));
 
 beforeEach(() => {

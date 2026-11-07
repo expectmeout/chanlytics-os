@@ -25,22 +25,22 @@ import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { logger, errField } from "../shared/log.js";
 import { planApifyIngress, tokenMatches, RUN_ROW_ID, WEBHOOK_TOKEN, type IngressRunRow } from "./apify-ingress.js";
-import { leadDb } from "./lead-db.js";
-import { leadWires } from "./lead-wires.js";
+import { leadDb } from "./db.js";
+import { leadWires } from "./wires.js";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 
 /** The delivery is a pointer: ids and a status. Anything larger is not one. */
 const MAX_BODY = 64_000;
 
 export async function receiveApifyDelivery(request: Request): Promise<Response> {
-  const L = logger({ door: "apify_webhook" });
+  const log = logger({ door: "apify_webhook" });
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  const u = new URL(request.url);
-  const runRowId = u.searchParams.get("run") ?? "";
-  const token = u.searchParams.get("token") ?? "";
+  const url = new URL(request.url);
+  const runRowId = url.searchParams.get("run") ?? "";
+  const token = url.searchParams.get("token") ?? "";
   if (!RUN_ROW_ID.test(runRowId) || !WEBHOOK_TOKEN.test(token)) {
-    L.warn("apify_webhook_no_token", {});
+    log.warn("apify_webhook_no_token", {});
     return json(401, { ok: false });
   }
   const raw = await request.text();
@@ -62,7 +62,7 @@ export async function receiveApifyDelivery(request: Request): Promise<Response> 
     if (error) throw new Error(error.message);
     runRow = data ?? null;
   } catch (e) {
-    L.error("apify_webhook_read_failed", { error: errField(e) });
+    log.error("apify_webhook_read_failed", { error: errField(e) });
     return json(503, { ok: false });
   }
   const verdict = planApifyIngress({
@@ -73,10 +73,10 @@ export async function receiveApifyDelivery(request: Request): Promise<Response> 
 
   switch (verdict.action) {
     case "refuse":
-      L.warn(verdict.log, { run: runRowId });
+      log.warn(verdict.log, { run: runRowId });
       return json(verdict.status, { ok: false });
     case "ignore":
-      L.info(verdict.log, { run: runRowId });
+      log.info(verdict.log, { run: runRowId });
       return json(200, { ok: true, ignored: true });
     case "abort_foreign": {
       // A run started with our token by something that is not our runner: aborted, and the delivery answered so it stops coming.
@@ -84,8 +84,8 @@ export async function receiveApifyDelivery(request: Request): Promise<Response> 
       if (wires)
         await wires.apify
           .abortRun(verdict.apifyRunId)
-          .catch((e: unknown) => L.error("apify_webhook_abort_failed", { error: errField(e) }));
-      L.warn(verdict.log, { run: runRowId, aborted: verdict.apifyRunId, source: wires ? "on" : "off" });
+          .catch((e: unknown) => log.error("apify_webhook_abort_failed", { error: errField(e) }));
+      log.warn(verdict.log, { run: runRowId, aborted: verdict.apifyRunId, source: wires ? "on" : "off" });
       return json(200, { ok: true, aborted: !!wires });
     }
     case "schedule_final": {
@@ -100,7 +100,7 @@ export async function receiveApifyDelivery(request: Request): Promise<Response> 
             verdict.fill.datasetId,
             "running",
           );
-          L.info("apify_webhook_filled", { run: verdict.runRowId, filled });
+          log.info("apify_webhook_filled", { run: verdict.runRowId, filled });
         }
         const outcome = await scheduleJobOnce(db, {
           tenantId: verdict.tenantId,
@@ -108,10 +108,10 @@ export async function receiveApifyDelivery(request: Request): Promise<Response> 
           dueAt: new Date(),
           payload: { run_id: verdict.runRowId, seq: "final" },
         });
-        L.info("apify_webhook_scheduled", { run: verdict.runRowId, outcome });
+        log.info("apify_webhook_scheduled", { run: verdict.runRowId, outcome });
         return json(200, { ok: true });
       } catch (e) {
-        L.error("apify_webhook_write_failed", { error: errField(e) });
+        log.error("apify_webhook_write_failed", { error: errField(e) });
         return json(503, { ok: false });
       }
     }

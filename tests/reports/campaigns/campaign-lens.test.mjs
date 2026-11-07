@@ -1,6 +1,6 @@
 /**
- * The Campaigns lens's own fold, EXECUTED (contracts reports/campaigns/campaign-lens.ts, with the words of
- * campaign-words.ts): the page-only fold that says every sentence the lens draws from its three reads -- the sends' report
+ * The Campaigns lens's own fold, EXECUTED (contracts reports/campaigns/lens.ts, with the words of
+ * campaigns/words/tables.ts): the page-only fold that says every sentence the lens draws from its three reads -- the sends' report
  * (campaign_series), the ledger the route answers (campaign_ledger and campaign_stuck, judged) and the reach-outs -- the
  * head, the five figures against the period before, the funnel, what was held back, what stopped and why sends failed, each
  * message's rate, how long a reply and an approval took, and what is stuck now. The world is the one of Task 9

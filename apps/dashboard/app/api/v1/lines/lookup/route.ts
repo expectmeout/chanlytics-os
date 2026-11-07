@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
-import { edgeLines } from "@/server/connections/lines";
+import { callEdgeLines } from "@/server/connections/lines";
 
 /** How long the carrier's records have to answer: one lookup. */
 const LOOKUP_TIMEOUT_MS = 10_000;
@@ -17,7 +17,7 @@ export const POST = write({
   rate: "lines_search",
   input: z.object({ number: z.string().trim().min(7).max(32) }).strict(),
   handle: async ({ input }) => {
-    const a = await edgeLines({ op: "lookup", number: input.number }, LOOKUP_TIMEOUT_MS);
+    const a = await callEdgeLines({ op: "lookup", number: input.number }, LOOKUP_TIMEOUT_MS);
     const b = a.body ?? {};
     return { lookup: a.status === 200 && b.ok === true && b.lookup ? b.lookup : null };
   },

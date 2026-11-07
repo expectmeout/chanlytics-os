@@ -5,10 +5,10 @@
  *   leadEmailFromOf   the mailbox it leaves from, or why it goes from the mail app
  *   leadEmailLineOf   how one reads in History
  */
-import { mailboxSendsNow } from "../../email/mailbox-connections";
+import { mailboxSendsNow } from "../../email/mailbox-connections/states";
 import { mailboxDailyCap } from "../../email/mailbox-standing";
 import { PURPOSE_REFUSALS } from "../../consent/consent";
-import { sequenceLeftWords } from "../../campaigns/sequences/sequence-words";
+import { sequenceLeftWords } from "../../campaigns/sequences/words/next";
 
 export const LEAD_OWN_EMAIL_WORDS = {
   send: "Send",
@@ -36,7 +36,7 @@ export const LEAD_OWN_EMAIL_WORDS = {
   row: {
     from: (address: string) => `You wrote to them from ${address}`,
     yourself: "You wrote to them yourself",
-    notSent: (why: string) => (why ? `Your email did not go: ${why}` : "Your email did not go"),
+    notSent: (reason: string) => (reason ? `Your email did not go: ${reason}` : "Your email did not go"),
   },
 } as const;
 
@@ -66,25 +66,25 @@ export interface LeadEmailMailbox {
  * Otherwise the member's own first, then the workspace's oldest, the first that sends now with room in its day. Google
  * alone (Microsoft is halted, 27 Oct 2026). Why not, where none will do.
  */
-export function leadEmailFromOf<M extends LeadEmailMailbox>(p: {
+export function leadEmailFromOf<M extends LeadEmailMailbox>(params: {
   sequenceMailbox: string | null;
   userId: string;
   mailboxes: readonly M[];
   nowMs: number;
 }): { from: M; why: null } | { from: null; why: LeadEmailWhy } {
-  const google = p.mailboxes.filter((m) => m.provider === "google");
-  const held = google.find((m) => m.id === p.sequenceMailbox);
-  const mine = (m: M) => m.connected_by === p.userId;
-  const asked = held ? [held] : [...google.filter(mine), ...google.filter((m) => !mine(m))];
-  if (asked.length === 0) return { from: null, why: "no_mailbox" };
-  const sending = asked.filter((m) => mailboxSendsNow(m, p.nowMs));
+  const google = params.mailboxes.filter((m) => m.provider === "google");
+  const held = google.find((m) => m.id === params.sequenceMailbox);
+  const mine = (m: M) => m.connected_by === params.userId;
+  const request = held ? [held] : [...google.filter(mine), ...google.filter((m) => !mine(m))];
+  if (request.length === 0) return { from: null, why: "no_mailbox" };
+  const sending = request.filter((m) => mailboxSendsNow(m, params.nowMs));
   if (sending.length === 0) return { from: null, why: "not_sending" };
   const from = sending.find((m) => m.used < mailboxDailyCap(m));
   return from ? { from, why: null } : { from: null, why: "day_full" };
 }
 
 /**
- * Why a press was refused, in the send door's own words where it has them (contracts draftRefusalOf, db reachOutPerson).
+ * Why a press was refused, in the send door's own words where it has them (contracts draftRefusalOf, db addReachOutPerson).
  * A lead gone, closed or someone's in People is one no longer written to.
  */
 export function leadEmailRefusalOf(reason: string): string {
@@ -108,9 +108,9 @@ export interface LeadEmailDto {
 const TAKEN_BACK = "canceled";
 
 /** How one reads in History; null for one taken back with Undo. */
-export function leadEmailLineOf(e: LeadEmailDto): string | null {
-  if (e.reason === TAKEN_BACK) return null;
-  if (e.state === "sent") return e.from ? OWN.row.from(e.from) : OWN.row.yourself;
-  if (e.state === "queued") return OWN.sending(e.from ?? "");
-  return OWN.row.notSent(e.state === "failed" ? "" : sequenceLeftWords(e.reason));
+export function leadEmailLineOf(leadEmail: LeadEmailDto): string | null {
+  if (leadEmail.reason === TAKEN_BACK) return null;
+  if (leadEmail.state === "sent") return leadEmail.from ? OWN.row.from(leadEmail.from) : OWN.row.yourself;
+  if (leadEmail.state === "queued") return OWN.sending(leadEmail.from ?? "");
+  return OWN.row.notSent(leadEmail.state === "failed" ? "" : sequenceLeftWords(leadEmail.reason));
 }

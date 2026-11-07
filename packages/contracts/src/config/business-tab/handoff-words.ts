@@ -2,7 +2,7 @@
  * The hand-off's words: what happens when a WhatsApp customer is handed over, what a call does with a caller who
  * needs a person, and the hand-off row at rest. The abilities card says the same sentences (abilities.ts).
  */
-import { hardLimitsWords } from "../policy";
+import { hardLimitsWords } from "../policy/reply-limits";
 import { pluralGrouped } from "./counts";
 
 /**
@@ -24,11 +24,11 @@ const HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
  * The ability card's hand-off row and the hand-off row's fold both say it, so it is written once, here. `pauseHours` is
  * that row's stored pause_hours as it is stored, read the way the Autonomy pane reads it (hardLimitsWords).
  */
-export function handoffChatWords(i: { hasEscalateWhen: boolean; pauseHours: unknown }): string {
-  const when = i.hasEscalateWhen
+export function handoffChatWords(input: { hasEscalateWhen: boolean; pauseHours: unknown }): string {
+  const when = input.hasEscalateWhen
     ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it`
     : `When ${HANDED_OVER_ANYWAY}, it`;
-  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
+  const pause = heldFor(hardLimitsWords({ pause_hours: input.pauseHours }).hours);
   return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
 }
 
@@ -113,11 +113,11 @@ export function handoffWords(
   const list = (Array.isArray(reasons) ? reasons : [])
     .filter((r): r is string => typeof r === "string" && r.trim() !== "")
     .map((r) => r.trim());
-  const n = list.length;
+  const length = list.length;
   const number = typeof transfer === "string" ? transfer.trim() : "";
   const phone = number ? `transfers to ${number}` : "takes a message";
   return {
-    line: `${n ? `For ${pluralGrouped(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} · on a call, ${phone}`,
+    line: `${length ? `For ${pluralGrouped(length, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} · on a call, ${phone}`,
     phone,
   };
 }

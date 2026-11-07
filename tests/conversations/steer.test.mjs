@@ -42,7 +42,7 @@ test("the frame quotes the owner, asks for a rewrite that keeps what was right, 
 });
 
 test("the brain takes the instruction as one more system block and stops showing the model its last message twice", () => {
-  const b = readCode("apps/edge/lib/receptionist/brain.ts");
+  const b = readCode("apps/edge/lib/ai/receptionist-brain.ts");
   assert.ok(b.includes("steer?: string,"));
   assert.ok(b.includes('...(steer ? [{ type: "text", text: steer }] : []),'));
   assert.ok(
@@ -54,7 +54,7 @@ test("the brain takes the instruction as one more system block and stops showing
 });
 
 test("one writer for a held draft, used by the handler and the steer", () => {
-  const q = readCode("apps/edge/lib/receptionist/draft-queue.ts");
+  const q = readCode("apps/edge/lib/ai/draft-queue.ts");
   assert.ok(q.includes('export type DraftSource = "veto_window" | "low_confidence" | "steered";'));
   assert.ok(
     q.includes("queueSend("),
@@ -74,9 +74,9 @@ test("the dashboard route keeps its doors and records the decision only after th
   assert.ok(r.includes('rate: "whisper",'));
   assert.ok(r.includes('role: "operator",'));
   assert.ok(r.includes('if (m.sender !== "ai" || m.status !== "queued") {'));
-  const steered = r.indexOf("const r = await steerDraft(id, text, {");
+  const steered = r.indexOf("const result = await steerDraft(id, text, {");
   const recorded = r.search(
-    /recordDecision\(ctx, m\.tenant_id, "message", m\.id, "edit", \{\s*steer: text,\s*new_message_id: r\.messageId,?\s*\}\)/,
+    /recordDecision\(ctx, m\.tenant_id, "message", m\.id, "edit", \{\s*steer: text,\s*new_message_id: result\.messageId,?\s*\}\)/,
   );
   assert.ok(steered > 0 && recorded > steered);
   assert.ok(

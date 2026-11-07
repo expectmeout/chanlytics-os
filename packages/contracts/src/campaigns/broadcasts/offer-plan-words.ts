@@ -1,6 +1,6 @@
 /**
  * An offer's plan, said to the person in the question's language (PlanWorld.says), as a setup's is (journey/plan.ts):
- * contracts planOf (ask/plan.ts) makes the steps, and these are the sentences of its answer's detail, which answerForCards
+ * contracts planOf (ask/plan/plan.ts) makes the steps, and these are the sentences of its answer's detail, which answerForCards
  * cuts at 700 characters, so what no card carries comes first there. Each language says the same sentences: the channel
  * the offer goes without and why, the message reused or written, the receptionist's note, the month's offer paused, the
  * room and the pace, WhatsApp's review, the day to ask for a reminder, and the send's day and hour. A channel's reason is
@@ -9,13 +9,13 @@
  * the model reads them and says them in the question's language. And what the owner's own words may not carry into a
  * message read on a later day: a day said from today, or the ask itself (planOf's offerValue).
  */
-import type { PlanWorld } from "../../ask/plan";
-import { mondayOf, shiftKey } from "../../calendar/day-keys";
-import { campaignDayWords, localDate } from "../playbooks/playbook-schedule";
+import type { PlanWorld } from "../../ask/plan/intents";
+import { mondayOf, shiftKey } from "../../shared/zone/day-keys";
+import { campaignDayWords, localDate } from "../playbooks/schedule";
 import { clockHour } from "../../shared/clock";
 import { dateFormat } from "../../shared/time";
 import { joinWords, joinWordsEs, plural } from "../../shared/words";
-import { versionWord } from "../templates/message-versions";
+import { versionWord } from "../templates/message-versions/channels";
 import { OFFERS_BY_EMAIL_WORDS } from "./email-offers";
 import { CHANNEL_WORDS } from "./reach-for";
 import { US_PAUSED } from "./whatsapp-offers";
@@ -33,7 +33,7 @@ interface OfferWords {
   reason: (why: string | null) => string;
   /** Texts asked for beside another channel: dropped, since texts carry no offers. */
   noText: string;
-  /** A channel the offer goes without, and why, as a card says a channel that waits (playbook-channels.ts). */
+  /** A channel the offer goes without, and why, as a card says a channel that waits (playbooks/channels.ts). */
   without: (channel: OfferChannel, why: string | null) => string;
   /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
   reviewing: (name: string) => string;
@@ -59,7 +59,7 @@ interface OfferWords {
   reminderAsk: (day: string, list: string) => string;
 }
 
-const reasonEn = (why: string | null): string => why ?? CHANNEL_WORDS.unchecked;
+const reasonEn = (reason: string | null): string => reason ?? CHANNEL_WORDS.unchecked;
 
 /** "The calendar has 15 open slots in the next 14 days for 40 people". */
 const roomEn = (room: Room, audience: number): string =>
@@ -70,7 +70,7 @@ const EN: OfferWords = {
   hour: clockHour,
   reason: reasonEn,
   noText: CHANNEL_WORDS.noOffersByText,
-  without: (channel, why) => `It goes without ${versionWord(channel)}: ${reasonEn(why)}`,
+  without: (channel, reason) => `It goes without ${versionWord(channel)}: ${reasonEn(reason)}`,
   reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of “${name}”.`,
   reuseMessage: (name) => `Sends “${name}”, already in your messages, with the offer in its words.`,
   writeMessage: (name, on) =>
@@ -110,9 +110,9 @@ const REASONS_ES: ReadonlyMap<string, string> = new Map([
   ],
 ]);
 
-const reasonEs = (why: string | null): string => {
-  const said = reasonEn(why);
-  return REASONS_ES.get(said) ?? said;
+const reasonEs = (reason: string | null): string => {
+  const sentence = reasonEn(reason);
+  return REASONS_ES.get(sentence) ?? sentence;
 };
 
 /** A channel as a Spanish sentence names it. */
@@ -136,7 +136,7 @@ const ES: OfferWords = {
   hour: (hour) => `${((Math.floor(hour) % 24) + 24) % 24}:00`,
   reason: reasonEs,
   noText: "Los mensajes de texto no llevan ofertas.",
-  without: (channel, why) => `Va sin ${channelEs(channel)}: ${reasonEs(why)}`,
+  without: (channel, reason) => `Va sin ${channelEs(channel)}: ${reasonEs(reason)}`,
   reviewing: (name) => `WhatsApp aún revisa la versión de WhatsApp de «${name}».`,
   reuseMessage: (name) => `Envía «${name}», que ya está en la Biblioteca, con la oferta en su texto.`,
   writeMessage: (name, on) =>
@@ -216,8 +216,8 @@ export function dayReadWrong(text: string, from: string, until: string): string 
   const away = AWAY.exec(text)?.[0];
   if (away) return away;
   for (const [span, words] of THIS) {
-    const said = words.exec(text)?.[0];
-    if (said && !WITHIN[span](from, until)) return said;
+    const sentence = words.exec(text)?.[0];
+    if (sentence && !WITHIN[span](from, until)) return sentence;
   }
   return null;
 }

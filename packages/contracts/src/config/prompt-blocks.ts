@@ -217,8 +217,8 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
     );
   }
   const lines = text.split("\n");
-  const whose = whoseWords(from);
-  const own = ownWordsSpan(lines, whose.text);
+  const owner = whoseWords(from);
+  const own = ownWordsSpan(lines, owner.text);
   const insideOwn = (n: number) => !!own && n >= own.from && n < own.to;
   const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
 
@@ -250,7 +250,7 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
   let head: BlockMark;
   if (found.some((s) => s.mark.row === "platform")) {
     // Found words are never "none": a span needs words to find.
-    starts = own && whose.kind !== "none" ? [...found, { at: own.from, mark: MARK_OF[whose.kind] }] : found;
+    starts = own && owner.kind !== "none" ? [...found, { at: own.from, mark: MARK_OF[owner.kind] }] : found;
     // Everything before the first heading is who you are: the opening sentence,
     // the tone, the languages, the address, the phone and the link.
     head = IDENTITY;
@@ -259,7 +259,7 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
     starts = rules ? [{ at: rules.at, mark: AUTONOMY }] : [];
     // A caller that says there is nothing to look for still gets the one thing this
     // branch knows: whatever stands above the rules is a prompt handed back as stored.
-    head = whose.kind === "none" ? PROMPT : MARK_OF[whose.kind];
+    head = owner.kind === "none" ? PROMPT : MARK_OF[owner.kind];
   }
   starts.sort((a, b) => a.at - b.at);
 
@@ -272,11 +272,11 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
 
   const out: (Omit<PromptBlockVM, "id" | "text" | "share"> & { from: number; to: number })[] = [];
   let carry = 0;
-  ranges.forEach((seg, n) => {
+  ranges.forEach((seg, range) => {
     const body = lines.slice(seg.from, seg.to).join("\n");
     // The newline joining this range to the next is this range's, so the shares
     // sum to the prompt exactly and no bar quietly drops a character.
-    const chars = body.length + (n < ranges.length - 1 ? 1 : 0);
+    const chars = body.length + (range < ranges.length - 1 ? 1 : 0);
     const prev = out[out.length - 1];
     if (!body.trim()) {
       // Blank lines give their characters to a neighbour rather than drawing an empty block.

@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { requestLeavesAs, sendsAsConnected } from "@chanlytics/channels";
+import { requestLeavesAs, sendsAsConnected } from "@chanlytics/channels/email";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
 

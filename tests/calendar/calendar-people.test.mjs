@@ -840,14 +840,14 @@ test("the profile: a Next appointment fact and About rows when the calendar is c
 });
 
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", async () => {
-  // The board (calendar/week.ts) and the profile (person-visits.ts), and the lookup that names the calendar for the
+  // The board (calendar/week/week.ts) and the profile (person-visits.ts), and the lookup that names the calendar for the
   // profile (calendar/settings.ts).
-  const svc = ["settings", "week", "person-visits"]
+  const svc = ["settings", "week/week", "person-visits"]
     .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
     .join("\n");
   assert.ok(
-    svc.includes("export async function personVisits(") &&
-      svc.includes("const v = visitsIn(index, person, now.getTime());"),
+    svc.includes("export async function findPersonVisits(") &&
+      svc.includes("const visits = visitsIn(index, person, now.getTime());"),
     "the profile's visits, from the same feed and match",
   );
   assert.ok(svc.includes("source: feedSourceLabel(url)"), "the calendar's name, never its address");
@@ -864,11 +864,11 @@ test("the wiring: the board and the profile read one match; both receptionists a
   );
   const edge = readCode("apps/edge/lib/calendar/availability.ts");
   assert.ok(
-    /export async function visitsFor\(\s*rt: TenantRuntime,\s*who: \{ phone: string \| null; name: string \| null \}/.test(
+    /export async function findVisits\(\s*rt: TenantRuntime,\s*caller: \{ phone: string \| null; name: string \| null \}/.test(
       edge,
     ) &&
       // The feed's events and the record's rows for the caller (00345), read by the one index.
-      /return describeVisits\(\s*visitsOf\(items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
+      /return describeVisits\(\s*visitsOf\(\s*items,\s*\{ id: "caller", name: caller\.name \?\? "", phone: caller\.phone, email: null \},\s*now\.getTime\(\),\s*own,?\s*\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
         edge,
       ),
   );
@@ -1164,7 +1164,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
     ],
     "each row that went through the door is on the ledger; the erased one was refused before it",
   );
-  // The board's read (calendar/week.ts calendarWeek, and the calendar route) is not a writer any more: it reaches no door
+  // The board's read (calendar/week/week.ts getCalendarWeek, and the calendar route) is not a writer any more: it reaches no door
   // (a read never writes, decision 0047 lane 6; the executed proof is calendar-feed.test.mjs and reads-never-write/).
   assert.equal(
     fs.existsSync(path.join(ROOT, "apps/dashboard/src/server/calendar/people-seen.ts")),
@@ -1172,8 +1172,11 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
     "the board's own writer is gone",
   );
   assert.ok(
-    !readCode("apps/dashboard/src/server/calendar/week.ts").includes('rpc("create_person"'),
-    "and calendarWeek reaches no door",
+    !["apps/dashboard/src/server/calendar/week/items.ts", "apps/dashboard/src/server/calendar/week/week.ts"]
+      .map((p) => readCode(p))
+      .join("\n")
+      .includes('rpc("create_person"'),
+    "and getCalendarWeek reaches no door",
   );
   assert.ok(
     sweep.includes("insert into events (tenant_id, kind, category, subject_type, subject_id, data)") &&
@@ -1240,7 +1243,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
   );
   const edgeAv = readCode("apps/edge/lib/calendar/availability.ts");
   assert.ok(
-    /export async function feedItemsFor\(\s*tenantId: string,\s*url: string,\s*tz: string,\s*now = new Date\(\),\s*daysAhead = 14,?\s*\)/.test(
+    /export async function listFeedItems\(\s*tenantId: string,\s*url: string,\s*tz: string,\s*now = new Date\(\),\s*daysAhead = 14,?\s*\)/.test(
       edgeAv,
     ),
     "the sweep reads the feed through the same cache",
@@ -1441,7 +1444,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
       // The calendar's read and everyone's visits off it, apart since 9 Oct 2026 so the pools ask for both at once.
-      svc.includes("export async function calendarRead(") &&
+      svc.includes("export async function getCalendar(") &&
       svc.includes("export function visitsIn(") &&
       // The record joins the feed there (0002's readers): the cal's `record`.
       /peopleVisitsOf\(\s*feed\.parsed\.items,\s*rows,\s*\{ timezone, source, own, services, rules, record \},\s*now\.getTime\(\),?\s*\)/.test(
@@ -1449,7 +1452,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
       ),
     "one parse, indexed once, for everyone",
   );
-  assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
+  assert.ok(svc.includes("export async function readBookingReport(") && svc.includes("bookedAfterAsk("));
   // The list carries visits and the calendar's state, a page at a time: GET contacts runs through its reader in
   // readers.test.mjs, its two stages read from the query log and its payload compared key for key.
   // The report carries the line, and is never fatal for it: GET reports, run. The series, the booking line and the
@@ -1971,11 +1974,11 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
     })(),
     "a calendar list is an audience only with a calendar",
   );
-  const ports = readCode("apps/dashboard/src/server/ports/campaign-ports.ts");
+  const ports = readCode("apps/dashboard/src/server/campaigns/ports.ts");
   assert.ok(
     // The pool (audience.ts) is everyone with their appointments; ask-turn.test.mjs counts past a thousand through it.
     ports.includes("people: async (now) => (await poolAt(now)).rows,") &&
-      ports.includes("(pool ??= audiencePool(ctx, tenantId, await zone(), now, "),
+      ports.includes("(pool ??= getAudiencePool(ctx, tenantId, await zone(), now, "),
     "the enrol path counts what the page counted, every page of it",
   );
 });
@@ -2018,7 +2021,7 @@ test("asked means they reached out: the call they placed counts, a call the owne
   );
   assert.ok(
     readCode("apps/dashboard/src/server/calendar/people-visits.ts").includes(
-      "const cands = [r.last_inbound_at, r.last_inbound_call_at ?? null]",
+      "const cands = [row.last_inbound_at, row.last_inbound_call_at ?? null]",
     ),
     "the report counts the same way",
   );
@@ -2455,7 +2458,7 @@ test("the table: identity that says who, Offers where First contact was, Visits 
     css.includes('grid-template-areas: "sel name state" "sel last visits" "sel offers offers";'),
     "cards under 900px",
   );
-  // The link as the settings hold it (calendar/settings.ts calendarOf), on the list's envelope (people-visits.ts).
+  // The link as the settings hold it (calendar/settings.ts findCalendar), on the list's envelope (people-visits.ts).
   const svc = ["settings", "people-visits"]
     .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
     .join("\n");
@@ -2656,7 +2659,7 @@ test("a visit's title drops the person's own name, and nothing else: on Tom's pa
 });
 
 test("a caller's appointment, told to a receptionist with no booking link, is changed through the team; with a link, or with no config to know by, by the link", async () => {
-  const { visitsFor, forgetFeeds } = await import("../../apps/edge/lib/calendar/availability.ts");
+  const { findVisits, forgetFeeds } = await import("../../apps/edge/lib/calendar/availability.ts");
   const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
   const realFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
@@ -2680,22 +2683,22 @@ test("a caller's appointment, told to a receptionist with no booking link, is ch
   const maria = { phone: PEOPLE[0].phone, name: null };
   try {
     // Asked from a chat (calendar/availability.ts linkOfferedOn): any link is one it can send in the thread.
-    const noLink = await visitsFor(rt(quotes), maria, "chat", new Date(NOW));
+    const noLink = await findVisits(rt(quotes), maria, "chat", new Date(NOW));
     assert.ok(
       noLink.includes("to change or cancel it, say the team will follow up — nothing is changed from here."),
       noLink,
     );
-    const linked = await visitsFor(
+    const linked = await findVisits(
       rt({ ...quotes, booking_link: "https://book.example/luna" }),
       maria,
       "chat",
       new Date(NOW),
     );
     assert.ok(linked.includes("to change or cancel it, send the booking link"), linked);
-    const unknown = await visitsFor(rt(null), maria, "chat", new Date(NOW));
+    const unknown = await findVisits(rt(null), maria, "chat", new Date(NOW));
     assert.ok(unknown.includes("send the booking link"), "nothing known: the link, as the call itself is told");
     // On a call the link goes by WhatsApp alone: with no WhatsApp line it is the team, as with no link (offersLinkOn).
-    const call = await visitsFor(
+    const call = await findVisits(
       rt({ ...quotes, booking_link: "https://book.example/luna" }),
       maria,
       "call",

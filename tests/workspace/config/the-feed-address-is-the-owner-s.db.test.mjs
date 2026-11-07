@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { getTenantConfigAsMember, putTenantConfig } from "@chanlytics/db";
+import { getTenantConfigAsMember, putTenantConfig } from "@chanlytics/db/workspace";
 import { showSecondFactor } from "../../_second-factor.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";

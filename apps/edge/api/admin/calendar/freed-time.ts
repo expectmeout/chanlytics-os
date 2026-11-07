@@ -4,15 +4,16 @@
  * asked by hand.
  *
  * The door is the knock (authorizeAdmin: a signed admin token for this door) and the body (readBody); offerFreedTimeNow
- * in lib/calendar/freed-time-now.ts is everything after.
+ * in lib/campaigns/freed-time-now.ts is everything after.
  */
 import { readBody } from "../../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { adminDoor } from "../../../lib/shared/log.js";
-import { offerFreedTimeNow } from "../../../lib/calendar/freed-time-now.js";
+import { offerFreedTimeNow } from "../../../lib/campaigns/freed-time-now.js";
+import { FREED_TIME_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/calendar/freed-time");
   if (!auth.ok) return auth.response;
-  return offerFreedTimeNow(auth, await readBody(request));
+  return offerFreedTimeNow(auth, await readBody(request, FREED_TIME_DOOR));
 });

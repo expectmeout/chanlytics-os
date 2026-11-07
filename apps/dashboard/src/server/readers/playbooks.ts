@@ -7,14 +7,14 @@ import {
   type MonthSent,
   type ReachOutChainDto,
 } from "@chanlytics/contracts";
-import { channelsReadyOrNull } from "../campaigns/channels-ready";
-import { monthSentOrNull } from "../campaigns/month-sent";
-import { recentTouches } from "@chanlytics/db";
+import { findChannelsReadyOrNull } from "../campaigns/channels-ready";
+import { readMonthSentOrNull } from "../campaigns/month-sent";
+import { getRecentTouches } from "@chanlytics/db/campaigns";
 import { listPlaybooks, type PlaybookListRow } from "../campaigns/playbooks";
-import { chainsOf } from "../campaigns/reach-outs";
+import { listChains } from "../campaigns/reach-outs/reach-outs";
 import { poolReads, triggerPools } from "../campaigns/playbook-pools";
-import { dealPaceRead } from "../people/deals";
-import { load, stamp, type Reader } from "./index";
+import { findDealPace } from "../people/deals";
+import { load, readerStamp, type Reader } from "../shared/reader";
 import * as readers from "./facts";
 import { everyone } from "./everyone";
 
@@ -43,7 +43,7 @@ interface PlaybooksPage {
 /**
  * GET playbooks, as the route answers it: the workspace's playbooks with what their runs earned, the business's clock
  * (the hours are its), each trigger's pool over everyone counted the way a run counts it -- no one looking, the week's
- * breath applied (db recentTouches, read here and counted into each pool's `held`, never answered whole) -- and the lists a playbook
+ * breath applied (db getRecentTouches, read here and counted into each pool's `held`, never answered whole) -- and the lists a playbook
  * may run on, each with its own pool, and whether a deal was ever recorded here (0008, amended 18 Oct 2026: every
  * workspace has the proposal follow-up, 0006). The route's body, moved here whole, so the Playbooks page and
  * sequences.moments say the same numbers. The workspace's name and zone, its word, a deal on file and its settings come
@@ -80,15 +80,15 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
     const [playbooks, facts, touched, shape, paceRead, ready, month_sent] = await Promise.all([
       listed,
       load(rc, readers.facts, undefined).then((r) => r.data),
-      recentTouches(ctx.supabase, tenantId, now),
+      getRecentTouches(ctx.supabase, tenantId, now),
       shaped,
-      // The pace the edge's sweep reads (packages/db yesesSince): the follow-up's pool is the run's own. Read where a
+      // The pace the edge's sweep reads (packages/db listYesesSince): the follow-up's pool is the run's own. Read where a
       // deal is on file: with none there is no yes to measure.
-      dealtRead.then((any) => (any ? dealPaceRead(ctx, tenantId, now) : null)),
+      dealtRead.then((any) => (any ? findDealPace(ctx, tenantId, now) : null)),
       // Whether each channel can send now: the pools are counted against it, and the composer draws its ticks from it.
-      channelsReadyOrNull(ctx, tenantId, { withPause: true }),
+      findChannelsReadyOrNull(ctx, tenantId, { withPause: true }),
       // The month's emails and texts already sent, which the composer says before a send and the head from half used.
-      monthSentOrNull(tenantId, now),
+      readMonthSentOrNull(tenantId, now),
     ]);
     const dealt = shape.hasDeals;
     const { pools, calendar, lists, people } = await triggerPools(
@@ -123,21 +123,21 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
         route: addressOf({ kind: "campaign", id: p.id }),
         label: p.name,
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
 
 /**
  * GET reach-outs, as the route answers it: every chain with its steps and what decides its next run, without its report
- * (R23: the report is read when a row opens; campaigns/reach-outs.ts chainsOf), so the page's rows and Ask's context of
+ * (R23: the report is read when a row opens; campaigns/reach-outs/reach-outs.ts chainsOf), so the page's rows and Ask's context of
  * the page (ask/context/pages.ts) read the same ones (spec 2026-10-09 §4.5); no tool of Ask's reads them yet. Each chain
  * is a row a citation names, opened where its row opens.
  */
 export const reachOutChains: Reader<undefined, { chains: ReachOutChainDto[] }> = {
   name: "reachOutChains",
   async read(rc) {
-    const chains = await chainsOf(rc.ctx, rc.tenantId);
+    const chains = await listChains(rc.ctx, rc.tenantId);
     return {
       data: { chains },
       rows: chains.map((c) => ({
@@ -146,7 +146,7 @@ export const reachOutChains: Reader<undefined, { chains: ReachOutChainDto[] }> =
         route: addressOf({ kind: "reach_out", id: c.root_id }),
         label: c.name,
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

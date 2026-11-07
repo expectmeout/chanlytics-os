@@ -47,15 +47,18 @@ export function previewRoute<T>(
       await takeRate(`ip:${hashKey(ipOf(req))}`, door.bucket, undefined, door.spends);
       const { token } = await ctx.params;
       return NextResponse.json(ok(await run(token, await fieldsOf(req))), { headers: PRIVATE });
-    } catch (e) {
+    } catch (error) {
       // A limit says when it lifts, as every route's does (with-route.ts): in the envelope and in Retry-After, so the
       // page waits out a pace of seconds rather than refusing a person who wrote twice in quick succession.
-      if (e instanceof AppError)
-        return NextResponse.json(err(e.code, e.message, e.code === "rate_limited" ? e.details : undefined), {
-          status: e.status,
-          headers: { ...PRIVATE, ...refusalHeaders(e) },
-        });
-      log.error("preview_route_failed", { error: e });
+      if (error instanceof AppError)
+        return NextResponse.json(
+          err(error.code, error.message, error.code === "rate_limited" ? error.details : undefined),
+          {
+            status: error.status,
+            headers: { ...PRIVATE, ...refusalHeaders(error) },
+          },
+        );
+      log.error("preview_route_failed", { error: error });
       return NextResponse.json(err("internal", "Something went wrong. Try again in a moment."), {
         status: 500,
         headers: PRIVATE,

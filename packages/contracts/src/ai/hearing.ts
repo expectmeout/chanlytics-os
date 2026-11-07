@@ -7,7 +7,7 @@
  * Which model hears is a setting each (VIDEO_WORDS_MODEL, VIDEO_EAR_MODEL), so the trial's winner is a variable and never a
  * change of code.
  */
-import { MODEL_PORTS, MODEL_PURPOSES } from "./models";
+import { MODEL_PORTS, MODEL_PURPOSES } from "./models/routes";
 import type { AiUsageBody, ModelCallOutcome } from "./usage";
 
 /** Why a hearing model's key is spent: what a clip says, and how it sounds (at its digest, or on a question of Ask's). */

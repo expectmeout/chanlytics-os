@@ -24,7 +24,7 @@ import {
 } from "@chanlytics/contracts";
 // The one rule for a service that needs a consultation first, for the phone, the assistant and the board (C5b).
 const { offerFor, offerLead, needsConsultation } = await import("@chanlytics/contracts");
-import { desiredVoiceShell, availabilityUrl, voiceLlmCreateBody } from "@chanlytics/channels";
+import { desiredVoiceShell, availabilityUrl, voiceLlmCreateBody } from "@chanlytics/channels/voice";
 
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
 const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
@@ -694,9 +694,9 @@ test("under a hold, a fortnight with nothing open is said without the link", asy
 });
 
 test("the openings handed to chat and to a call's start end in a person confirming under a hold, and in the link only where it can go", async () => {
-  // 11 Oct 2026: openingsFor read neither the hold nor whether a call could send the link, so a held workspace's
+  // 11 Oct 2026: findOpenings read neither the hold nor whether a call could send the link, so a held workspace's
   // receptionist was handed "then send the booking link" beside a rule that said never to.
-  const { openingsFor } = await import(
+  const { findOpenings } = await import(
     pathToFileURL(path.join(here, "../../apps/edge/lib/calendar/availability.ts")).href
   );
   const url = "https://cal.example/openings-handed.ics";
@@ -728,14 +728,14 @@ test("the openings handed to chat and to a call's start end in a person confirmi
     const NOW = new Date("2026-10-12T13:00:00Z");
     const held = { booking: { mode: "ask" } };
     for (const on of ["chat", "call"]) {
-      const said = await openingsFor(rt(held, [WA]), on, NOW);
+      const said = await findOpenings(rt(held, [WA]), on, NOW);
       assert.match(said, A_TIME, on);
       assert.match(said, /a member of the team will call or text them to confirm/, `${on}: ${said}`);
       assert.ok(holdsTheLink(said), `${on}: under a hold no link follows the times: ${said}`);
     }
-    assert.match(await openingsFor(rt({}, [WA]), "call", NOW), /then send the booking link/, "a call with WhatsApp");
-    assert.match(await openingsFor(rt({}, []), "chat", NOW), /then send the booking link/, "chat: in the thread");
-    const noWa = await openingsFor(rt({}, []), "call", NOW);
+    assert.match(await findOpenings(rt({}, [WA]), "call", NOW), /then send the booking link/, "a call with WhatsApp");
+    assert.match(await findOpenings(rt({}, []), "chat", NOW), /then send the booking link/, "chat: in the thread");
+    const noWa = await findOpenings(rt({}, []), "call", NOW);
     assert.ok(!/booking link/i.test(noWa), `a call with no WhatsApp line is offered no link: ${noWa}`);
   } finally {
     globalThis.fetch = realFetch;
@@ -967,7 +967,7 @@ test("a booking that arrived by email is taken time for the receptionist: its ho
   const hours = Object.fromEntries(
     ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => [d, { open: "09:00", close: "18:00" }]),
   );
-  const { forgetFeeds, openingsData } = await import(
+  const { forgetFeeds, findOpeningsData } = await import(
     pathToFileURL(path.join(here, "../../apps/edge/lib/calendar/availability.ts")).href
   );
   const rt = {
@@ -993,7 +993,7 @@ test("a booking that arrived by email is taken time for the receptionist: its ho
   });
   const record = () => fakeDb({ appointments: [emailed("a1", 14, "booked"), emailed("a2", 16, "cancelled")] });
   const wednesday = async () => {
-    const data = await openingsData(rt, NOW);
+    const data = await findOpeningsData(rt, NOW);
     return data.openings.find((o) => o.key === "2026-09-09").windows.map((w) => [w.start, w.end]);
   };
   const feedOnly = [

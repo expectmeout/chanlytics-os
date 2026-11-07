@@ -19,7 +19,7 @@ export interface BusinessReadRow {
 }
 
 /** The workspace's reads, every source it holds. */
-export async function businessReadsOf(db: Db, tenantId: string): Promise<BusinessReadRow[]> {
+export async function listBusinessReads(db: Db, tenantId: string): Promise<BusinessReadRow[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("business_reads")
     .select("source, facts, read_from, read_at, error");
@@ -30,7 +30,7 @@ export async function businessReadsOf(db: Db, tenantId: string): Promise<Busines
 /** A source's read kept whole (the service role's): what it found, from where, or why it could not be read. */
 export async function keepBusinessRead(
   db: Db,
-  r: {
+  row: {
     tenantId: string;
     source: "google_profile" | "website";
     facts: Json;
@@ -40,12 +40,12 @@ export async function keepBusinessRead(
 ): Promise<void> {
   const { error } = await db.from("business_reads").upsert(
     {
-      tenant_id: r.tenantId,
-      source: r.source,
-      facts: r.facts,
-      read_from: r.readFrom,
+      tenant_id: row.tenantId,
+      source: row.source,
+      facts: row.facts,
+      read_from: row.readFrom,
       read_at: new Date().toISOString(),
-      error: r.error ? r.error.slice(0, 300) : null,
+      error: row.error ? row.error.slice(0, 300) : null,
     },
     { onConflict: "tenant_id,source" },
   );
@@ -56,7 +56,7 @@ export async function keepBusinessRead(
  * The linked listing's stored facts (google_listings.facts), for the Business Profile's details to go where the public
  * listing's do (decision 0073, R17); null with no listing linked. Service role.
  */
-export async function listingFactsStored(db: Db, tenantId: string): Promise<Json | null> {
+export async function findListingFactsStored(db: Db, tenantId: string): Promise<Json | null> {
   const { data, error } = await tenantDb(db, tenantId).from("google_listings").select("facts").maybeSingle();
   if (error) throw new Error(`google_listings: ${error.message}`);
   return data ? (data.facts ?? null) : null;
@@ -77,7 +77,7 @@ export async function patchListing(
 }
 
 /** The place the workspace's listing is linked to (google_listings.place_id), when one is: what the owner said was theirs. */
-export async function linkedPlaceOf(db: Db, tenantId: string): Promise<string | null> {
+export async function findLinkedPlace(db: Db, tenantId: string): Promise<string | null> {
   const { data, error } = await tenantDb(db, tenantId).from("google_listings").select("place_id").maybeSingle();
   if (error) throw new Error(`google_listings: ${error.message}`);
   return data?.place_id ?? null;

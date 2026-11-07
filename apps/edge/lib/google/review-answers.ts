@@ -6,8 +6,9 @@
  * reply stopped (`holdReviewReply`), and a person's answer posted
  * (`replyOnProfile`). The model's draft itself is review-reply.ts.
  */
-import { emitEvent, listPolicies, subjectsWith, workspaceAnswersOnItsOwn } from "@chanlytics/db";
-import { replyToReview, reviewParent, type PlacesHttp } from "@chanlytics/channels";
+import { emitEvent, getSubjectsWith } from "@chanlytics/db/events";
+import { listPolicies, doesWorkspaceAnswerOnItsOwn } from "@chanlytics/db/workspace";
+import { replyToReview, reviewParent, type PlacesHttp } from "@chanlytics/channels/google";
 import {
   autoReplyCandidates,
   autoReplyHold,
@@ -21,9 +22,9 @@ import {
 } from "@chanlytics/contracts";
 import { draftReviewReply } from "./review-reply.js";
 import { logger } from "../shared/log.js";
-import { http } from "./places.js";
-import { connectionOf, type ConnectionRow, type Db } from "./rows.js";
-import { tokenFor } from "./profile-credentials.js";
+import { http } from "../shared/google/places.js";
+import { connectionOf, type ConnectionRow, type Db } from "../shared/google/rows.js";
+import { tokenFor } from "../shared/google/credentials.js";
 
 /**
  * The drafts one sync may write under the auto mode: twice the replies it posts, so a review the model could not
@@ -46,14 +47,14 @@ async function reviewFacts(db: Db, tenantId: string): Promise<ReviewReplyFacts> 
   if (t.error) throw new Error(t.error.message);
   if (c.error) throw new Error(c.error.message);
   const brain = parseTenantConfig(c.data?.config)?.brain ?? null;
-  const p = brain?.profile;
+  const profile = brain?.profile;
   return {
     name: brain?.business_name || t.data?.name || "the business",
-    tone: p?.tone?.trim() || null,
-    languages: p?.languages ?? [],
+    tone: profile?.tone?.trim() || null,
+    languages: profile?.languages ?? [],
     phone: brain?.phone_display || null,
-    website: p?.website ?? null,
-    services: (p?.services ?? []).map((s) => s.name),
+    website: profile?.website ?? null,
+    services: (profile?.services ?? []).map((s) => s.name),
   };
 }
 
@@ -72,7 +73,7 @@ export async function draftFor(
   if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
   if (!review.data) return { ok: false, error: "no_review" };
   const facts = await reviewFacts(db, tenantId);
-  const d = await draftReviewReply(
+  const result = await draftReviewReply(
     facts,
     {
       rating: review.data.rating,
@@ -82,7 +83,7 @@ export async function draftFor(
     },
     { tenantId, reviewId: review.data.id },
   );
-  return d.ok ? { ok: true, text: d.text } : { ok: false, error: d.error, detail: d.detail };
+  return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error, detail: result.detail };
 }
 
 /** A review the sync may answer or hold a reply for, as it reads it. */
@@ -147,14 +148,14 @@ async function writeHeldReply(
 async function postReply(
   db: Db,
   conn: ConnectionRow,
-  r: Pick<Unreplied, "id" | "review_id">,
+  unreplied: Pick<Unreplied, "id" | "review_id">,
   text: string,
   at: { parent: string; token: string; net: PlacesHttp; usage?: DraftUsage },
 ): Promise<void> {
-  const reply = await replyToReview(at.net, at.token, `${at.parent}/reviews/${r.review_id}`, text);
-  await markReplied(db, conn.tenant_id, r.id, reply);
-  await emitEvent(db, conn.tenant_id, "google.replied", "review", r.id, {
-    review_id: r.review_id,
+  const reply = await replyToReview(at.net, at.token, `${at.parent}/reviews/${unreplied.review_id}`, text);
+  await markReplied(db, conn.tenant_id, unreplied.id, reply);
+  await emitEvent(db, conn.tenant_id, "google.replied", "review", unreplied.id, {
+    review_id: unreplied.review_id,
     chars: text.length,
     by: "receptionist",
     ...(at.usage === undefined ? {} : { usage: at.usage }),
@@ -178,12 +179,12 @@ async function answerNewReviews(
   now: Date,
   net: PlacesHttp = http,
 ): Promise<ReviewAnswers> {
-  const L = logger({ tenant_id: conn.tenant_id, location: conn.location_name ?? "" });
+  const log = logger({ tenant_id: conn.tenant_id, location: conn.location_name ?? "" });
   const mode = await reviewReplyMode(db, conn.tenant_id);
   if (mode === "never") return nothingAnswered();
   // Not while the workspace is paused or ended or its plan has stopped the receptionist: a public reply, with nobody
-  // left to read it (workspaceAnswersOnItsOwn says which).
-  if (!(await workspaceAnswersOnItsOwn(db, conn.tenant_id))) return nothingAnswered();
+  // left to read it (doesWorkspaceAnswerOnItsOwn says which).
+  if (!(await doesWorkspaceAnswerOnItsOwn(db, conn.tenant_id))) return nothingAnswered();
   const unreplied = await db
     .from("google_reviews")
     .select("id, review_id, origin, rating, author, body, published_at, reply_text, draft_text, posts_at")
@@ -201,7 +202,7 @@ async function answerNewReviews(
   // A reply once held for naming a price or money is the owner's now: not drafted again every hour, and set aside
   // before the few a sync answers are taken, so a held review never keeps the ones older than it waiting. A review whose
   // reply is held on its row already is not drafted again either.
-  const held = await subjectsWith(
+  const held = await getSubjectsWith(
     db,
     conn.tenant_id,
     "google.reply_held",
@@ -212,61 +213,61 @@ async function answerNewReviews(
   // refused gives its place to the next, and the sync stops once it has posted its few.
   const picks = autoReplyCandidates(waiting, conn.connected_at, now.getTime(), REVIEW_DRAFTS_PER_SYNC);
   if (!picks.length && !due.length) return nothingAnswered();
-  const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
-  if (!t.ok) return nothingAnswered();
+  const token = await tokenFor(db, conn.tenant_id, now.getTime(), net);
+  if (!token.ok) return nothingAnswered();
   const out = nothingAnswered();
-  for (const r of due) {
+  for (const item of due) {
     if (out.answered.length >= REVIEW_AUTO_REPLIES_PER_SYNC) break;
-    const text = r.draft_text ?? "";
+    const text = item.draft_text ?? "";
     try {
-      await postReply(db, conn, r, text, { parent, token: t.token, net });
+      await postReply(db, conn, item, text, { parent, token: token.token, net });
     } catch (e) {
-      L.warn("google_auto_reply_refused", { id: r.id, error: e instanceof Error ? e.message : String(e) });
+      log.warn("google_auto_reply_refused", { id: item.id, error: e instanceof Error ? e.message : String(e) });
       continue;
     }
-    out.answered.push({ id: r.id, author: r.author, text });
+    out.answered.push({ id: item.id, author: item.author, text });
   }
   const facts = picks.length ? await reviewFacts(db, conn.tenant_id) : null;
-  for (const r of picks) {
+  for (const pick of picks) {
     if (!facts || out.answered.length + out.drafted.length >= REVIEW_AUTO_REPLIES_PER_SYNC) break;
-    const d = await draftReviewReply(
+    const result = await draftReviewReply(
       facts,
-      { rating: r.rating, author: r.author, text: r.body, written_at: r.published_at },
-      { tenantId: conn.tenant_id, reviewId: r.id },
+      { rating: pick.rating, author: pick.author, text: pick.body, written_at: pick.published_at },
+      { tenantId: conn.tenant_id, reviewId: pick.id },
     );
-    if (!d.ok) {
-      L.warn("google_auto_reply_undrafted", { id: r.id, error: d.error });
+    if (!result.ok) {
+      log.warn("google_auto_reply_undrafted", { id: pick.id, error: result.error });
       continue;
     }
     // Layer two for a reply posted in public (the charter): a price or money in it is never the receptionist's to say,
     // whatever the prompt asked. It is never posted alone: under auto the review waits for its owner, who can ask for a
     // draft in Reports; under Holds it and Ask me it is held for their OK, with no time to go.
-    const hold = autoReplyHold(d.text);
+    const hold = autoReplyHold(result.text);
     if (mode !== "auto") {
       const postsAt = mode === "veto" && !hold ? new Date(now.getTime() + REVIEW_HOLD_MS).toISOString() : null;
-      await writeHeldReply(db, conn.tenant_id, r.id, {
-        draft_text: d.text,
+      await writeHeldReply(db, conn.tenant_id, pick.id, {
+        draft_text: result.text,
         drafted_at: now.toISOString(),
         posts_at: postsAt,
       });
-      out.drafted.push({ id: r.id, author: r.author, text: d.text, posts_at: postsAt });
+      out.drafted.push({ id: pick.id, author: pick.author, text: result.text, posts_at: postsAt });
       continue;
     }
     if (hold) {
-      L.warn("google_auto_reply_held", { id: r.id, why: hold });
-      await emitEvent(db, conn.tenant_id, "google.reply_held", "review", r.id, {
-        review_id: r.review_id,
+      log.warn("google_auto_reply_held", { id: pick.id, why: hold });
+      await emitEvent(db, conn.tenant_id, "google.reply_held", "review", pick.id, {
+        review_id: pick.review_id,
         why: hold,
       }).catch(() => {});
       continue;
     }
     try {
-      await postReply(db, conn, r, d.text, { parent, token: t.token, net, usage: d.usage });
+      await postReply(db, conn, pick, result.text, { parent, token: token.token, net, usage: result.usage });
     } catch (e) {
-      L.warn("google_auto_reply_refused", { id: r.id, error: e instanceof Error ? e.message : String(e) });
+      log.warn("google_auto_reply_refused", { id: pick.id, error: e instanceof Error ? e.message : String(e) });
       continue;
     }
-    out.answered.push({ id: r.id, author: r.author, text: d.text });
+    out.answered.push({ id: pick.id, author: pick.author, text: result.text });
   }
   return out;
 }
@@ -306,13 +307,13 @@ export async function replyOnProfile(
   if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
   if (!review.data) return { ok: false, error: "no_review" };
   if (review.data.origin !== "profile") return { ok: false, error: "not_from_profile" };
-  const t = await tokenFor(db, tenantId, now.getTime());
-  if (!t.ok) return { ok: false, error: "no_token", detail: t.detail ?? t.error };
+  const token = await tokenFor(db, tenantId, now.getTime());
+  if (!token.ok) return { ok: false, error: "no_token", detail: token.detail ?? token.error };
   let reply;
   try {
     reply = await replyToReview(
       http,
-      t.token,
+      token.token,
       `${reviewParent(conn.account_name, conn.location_name)}/reviews/${review.data.review_id}`,
       comment,
     );

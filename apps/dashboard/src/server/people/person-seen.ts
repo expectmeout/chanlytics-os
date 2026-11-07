@@ -4,11 +4,11 @@
  *
  * A person is new to a member when the customer's last message or call came after the member last opened them, or
  * when the member put them back as unread (contracts conversations/standing.ts, isUnseen). The member's reading is
- * their own: the doors (contact_seen, contact_mark; packages/db contactSeen, markContact) read and write only the
+ * their own: the doors (contact_seen, contact_mark; packages/db markContactSeen, markContact) read and write only the
  * caller's rows.
  */
 import { seenBy, type SeenOf } from "@chanlytics/contracts";
-import { contactSeen, markContact } from "@chanlytics/db";
+import { markContactSeen, markContact } from "@chanlytics/db/people";
 import { log } from "@/server/shared/log";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
@@ -20,14 +20,14 @@ const NO_READING = new Set(["PGRST202", "42883", "28000"]);
  * door not there yet, or no member behind the client) every person's is unknown, and a row is then never called new: a
  * list does not claim an unread it has no mark for. Any other failure THROWS, as a read that failed does.
  */
-export async function seenOfPeople(
+export async function getSeenOfPeople(
   ctx: RouteContext,
   tenantId: string,
   contactIds: readonly string[],
 ): Promise<(contactId: string) => SeenOf> {
   if (!contactIds.length) return seenBy(null);
   try {
-    return seenBy(await contactSeen(ctx.supabase, tenantId, contactIds));
+    return seenBy(await markContactSeen(ctx.supabase, tenantId, contactIds));
   } catch (e) {
     const code = (e as { code?: string | null }).code;
     if (!code || !NO_READING.has(code)) throw e;

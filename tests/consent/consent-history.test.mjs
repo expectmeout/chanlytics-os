@@ -573,7 +573,7 @@ test("the batch is judged before it is walked: a source that is not one of the f
 });
 
 test("until 00110 is applied, a YES OFFERS by text is still recorded: the door is asked again without its evidence, and once, with it, afterwards", async () => {
-  const { ingestInbound } = await import(at("packages/db/src/repositories/conversations/ingest.ts"));
+  const { ingestInbound } = await import(at("packages/db/src/repositories/channels/ingest.ts"));
   const inbound = {
     tenantId: A,
     channel: "whatsapp",
@@ -657,7 +657,7 @@ test("until 00110 is applied, a YES OFFERS by text is still recorded: the door i
         },
       },
     );
-  const { AnswerNotKept } = await import(at("packages/db/src/repositories/conversations/ingest.ts"));
+  const { AnswerNotKept } = await import(at("packages/db/src/repositories/channels/ingest.ts"));
   await assert.rejects(ingestInbound(refusing(), inbound), (e) => e instanceof AnswerNotKept);
   assert.equal(other.length, 1);
   assert.equal(
@@ -669,7 +669,7 @@ test("until 00110 is applied, a YES OFFERS by text is still recorded: the door i
 });
 
 test("a START is noted on the channel it came on, after the ingest and with its words; a failure is logged, and raised unless a job follows", async () => {
-  const { ingestInbound } = await import(at("packages/db/src/repositories/conversations/ingest.ts"));
+  const { ingestInbound } = await import(at("packages/db/src/repositories/channels/ingest.ts"));
   const inbound = {
     tenantId: A,
     channel: "sms",

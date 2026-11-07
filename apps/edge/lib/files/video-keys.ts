@@ -4,7 +4,7 @@
  * without the ear's, a video is seen and not heard, and says so.
  */
 import { videoEarModelOf, videoWordsShapeOf, type VideoWordsShape } from "@chanlytics/contracts";
-import type { StreamAccount, StreamSigning } from "@chanlytics/channels";
+import type { StreamAccount, StreamSigning } from "@chanlytics/channels/files";
 import { env } from "../shared/env.js";
 
 /** Stream's account and token, or null where either is unset. */

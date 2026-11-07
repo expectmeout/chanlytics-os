@@ -13,7 +13,7 @@ import { messageText } from "../conversations/message-words";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
 import { contactName, contactMeta } from "../conversations/thread-contact";
-import { waWindow } from "../config/policy";
+import { waWindow } from "../config/policy/prices";
 import { ANALYSIS_GRACE_MS } from "../voice/live";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock, tzTime } from "./clock";
@@ -21,34 +21,34 @@ import type { TodayFacts } from "./facts";
 import type { TodayCallRowVM, TodayNeedsRowVM, TodayNoReplyVM, TodayVM } from "./vm";
 
 /** A string with words in it, trimmed; anything else is "". */
-export const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+export const say = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : "");
 
 /** Ask's rows: the same escalations the queue draws, read once. */
-function todayNeedsRows(f: TodayFacts): TodayNeedsRowVM[] {
-  const holds = f.escRecords.map((r) => ({
-    id: `th-${r.e.conversation_id}`,
-    conversationId: r.e.conversation_id,
-    escalationId: r.e.id,
-    who: r.who,
-    reason: reasonLabelOf(r.e.reason),
-    waited: formatWaited(r.waitedMs),
-    warn: r.warn,
+function todayNeedsRows(todayFacts: TodayFacts): TodayNeedsRowVM[] {
+  const holds = todayFacts.escRecords.map((escRecord) => ({
+    id: `th-${escRecord.e.conversation_id}`,
+    conversationId: escRecord.e.conversation_id,
+    escalationId: escRecord.e.id,
+    who: escRecord.who,
+    reason: reasonLabelOf(escRecord.e.reason),
+    waited: formatWaited(escRecord.waitedMs),
+    warn: escRecord.warn,
     // The customer's words; for a call-back with none, the to-do the phone receptionist left.
-    quote: r.quote || (r.e.reason === "callback" ? say(r.e.details) : ""),
+    quote: escRecord.quote || (escRecord.e.reason === "callback" ? say(escRecord.e.details) : ""),
     // A call-back is the phone's, whatever wire the thread's words travelled; the queue's row says "Phone" too.
     meta:
-      r.e.reason === "callback"
-        ? r.conv
-          ? contactMeta(r.conv, "Phone")
+      escRecord.e.reason === "callback"
+        ? escRecord.conv
+          ? contactMeta(escRecord.conv, "Phone")
           : "Phone"
-        : r.conv
-          ? contactMeta(r.conv, threadChannelWords(r.conv.messages))
+        : escRecord.conv
+          ? contactMeta(escRecord.conv, threadChannelWords(escRecord.conv.messages))
           : "WhatsApp",
-    windowNote: r.closes ? `Reply window closes ${r.closes}` : null,
-    to: addressOf({ kind: "hold", conversationId: r.e.conversation_id }),
+    windowNote: escRecord.closes ? `Reply window closes ${escRecord.closes}` : null,
+    to: addressOf({ kind: "hold", conversationId: escRecord.e.conversation_id }),
   }));
   // Who the rule says waits with no hold open: Ask named a count of three over a list of one.
-  const owed = f.owed.map(({ conv, who, waitedMs, word, quote }) => ({
+  const owed = todayFacts.owed.map(({ conv, who, waitedMs, word, quote }) => ({
     id: `th-${conv.id}`,
     conversationId: conv.id,
     escalationId: null,
@@ -65,17 +65,17 @@ function todayNeedsRows(f: TodayFacts): TodayNeedsRowVM[] {
 }
 
 /** Everything Ask reads about who needs you: the count, the rows, and what an empty list means. */
-export function todayNeedsYou(f: TodayFacts): NonNullable<TodayVM["needsYou"]> {
-  const rows = todayNeedsRows(f);
-  const { period } = f;
+export function todayNeedsYou(todayFacts: TodayFacts): NonNullable<TodayVM["needsYou"]> {
+  const rows = todayNeedsRows(todayFacts);
+  const { period } = todayFacts;
   return {
-    count: f.needsYouCount,
-    holds: f.waits.holds,
-    sends: f.waits.sends,
+    count: todayFacts.needsYouCount,
+    holds: todayFacts.waits.holds,
+    sends: todayFacts.waits.sends,
     hint: "The receptionist stopped and asked for a human.",
     rows,
     // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.
-    empty: f.needsYouCount
+    empty: todayFacts.needsYouCount
       ? null
       : period.unanswered_in_window === 0 && period.messages_out_you === 0
         ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person."
@@ -84,17 +84,17 @@ export function todayNeedsYou(f: TodayFacts): NonNullable<TodayVM["needsYou"]> {
 }
 
 /** The closing windows as a band: one line each, and nothing at all when none is closing. */
-export function todayWindowClosing(f: TodayFacts): TodayVM["windowClosing"] {
-  const { closingConvs, tz, now } = f;
-  const rows = closingConvs.map((c) => {
-    const w = waWindow(c.last_wa_inbound_at, now);
-    const mins = w.closesAtIso
-      ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / MIN_MS))
+export function todayWindowClosing(todayFacts: TodayFacts): TodayVM["windowClosing"] {
+  const { closingConvs, tz, now } = todayFacts;
+  const rows = closingConvs.map((closingConv) => {
+    const result = waWindow(closingConv.last_wa_inbound_at, now);
+    const mins = result.closesAtIso
+      ? Math.max(1, Math.round((new Date(result.closesAtIso).getTime() - now.getTime()) / MIN_MS))
       : 0;
     return {
-      id: `wc-${c.id}`,
-      text: `${contactName(c)} — window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * MIN_MS)})`,
-      to: addressOf({ kind: "conversation", id: c.id }),
+      id: `wc-${closingConv.id}`,
+      text: `${contactName(closingConv)} — window closes ${tzClock(result.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * MIN_MS)})`,
+      to: addressOf({ kind: "conversation", id: closingConv.id }),
     };
   });
   return rows.length
@@ -114,8 +114,8 @@ export const NO_REPLY_AFTER_MS = HOUR_MS;
  * more, and neither a hold's row nor a closing window's is about them. The identity was in the conversations read all
  * along and only the count survived into the view model.
  */
-export function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
-  return f.owed.flatMap(({ conv, move, who, waitedMs }) =>
+export function todayNoReply(todayFacts: TodayFacts): TodayNoReplyVM[] {
+  return todayFacts.owed.flatMap(({ conv, move, who, waitedMs }) =>
     move.move === "unanswered" && move.sinceMs !== undefined && waitedMs >= NO_REPLY_AFTER_MS
       ? [{ conversationId: conv.id, who, sinceMs: move.sinceMs, to: addressOf({ kind: "conversation", id: conv.id }) }]
       : [],
@@ -136,11 +136,11 @@ const SENT = ["sent", "delivered", "read"];
  * rendered weeks-old replies as "sent at 1:59 AM today". A receipt whose
  * timestamp is wrong is worse than no receipt.
  */
-export function todayReceipts(f: TodayFacts): NonNullable<TodayVM["recap"]>["receipts"] {
-  const { conversations, sinceMs, tz } = f;
+export function todayReceipts(todayFacts: TodayFacts): NonNullable<TodayVM["recap"]>["receipts"] {
+  const { conversations, sinceMs, tz } = todayFacts;
   return conversations
-    .flatMap((c) =>
-      c.messages
+    .flatMap((conversation) =>
+      conversation.messages
         .filter(
           (x) =>
             x.direction === "outbound" &&
@@ -149,7 +149,7 @@ export function todayReceipts(f: TodayFacts): NonNullable<TodayVM["recap"]>["rec
             x.meta?.backfill !== true &&
             new Date(x.created_at).getTime() >= sinceMs,
         )
-        .map((x) => ({ conv: c, msg: x })),
+        .map((x) => ({ conv: conversation, msg: x })),
     )
     .sort((a, b) => b.msg.created_at.localeCompare(a.msg.created_at))
     .slice(0, 3)
@@ -167,22 +167,22 @@ export function todayReceipts(f: TodayFacts): NonNullable<TodayVM["recap"]>["rec
 const NEEDS_EAR: readonly string[] = CALL_ENDINGS_NEEDING_AN_EAR;
 
 /** What a call worth an ear says under its name: the first of these that is true. */
-function callNote(c: CallDto, live: boolean | undefined, analysisDue: boolean): string {
+function callNote(call: CallDto, live: boolean | undefined, analysisDue: boolean): string {
   if (live) return "In progress right now";
-  if (reachedVoicemail(c)) return "Reached voicemail";
+  if (reachedVoicemail(call)) return "Reached voicemail";
   // BEFORE the summary branches, deliberately. A caller gone in six
   // seconds has no summary and never will have much of one, so the
   // chain below would have said "summary on its way" and buried the
   // only fact worth acting on.
-  if (abandonedCall(c)) return `Hung up after ${spokenDuration(c.duration_ms)} — they left with nothing`;
-  if (c.sentiment === "Negative") return "Caller sentiment: Negative — the voice provider's own read";
+  if (abandonedCall(call)) return `Hung up after ${spokenDuration(call.duration_ms)} — they left with nothing`;
+  if (call.sentiment === "Negative") return "Caller sentiment: Negative — the voice provider's own read";
   if (analysisDue) return "Summary on its way from the voice provider";
-  if (!c.summary) return "No summary from the voice provider";
-  return endedHowOf(c) ?? "Ended early";
+  if (!call.summary) return "No summary from the voice provider";
+  return endedHowOf(call) ?? "Ended early";
 }
 
-export function todayCallRows(f: TodayFacts): TodayCallRowVM[] {
-  const { callsInWindow, tz, now } = f;
+export function todayCallRows(todayFacts: TodayFacts): TodayCallRowVM[] {
+  const { callsInWindow, tz, now } = todayFacts;
   return (
     callsInWindow
       // A dial that never connected is not a call, so it is not a call worth an ear.
@@ -219,8 +219,8 @@ export function todayCallRows(f: TodayFacts): TodayCallRowVM[] {
 }
 
 /** The calls band: the day's count and minutes as one line over the rows worth an ear; null on a day with no call. */
-export function todayCalls(f: TodayFacts, rows: TodayCallRowVM[]): TodayVM["calls"] {
-  const { period, callMinutes } = f;
+export function todayCalls(todayFacts: TodayFacts, rows: TodayCallRowVM[]): TodayVM["calls"] {
+  const { period, callMinutes } = todayFacts;
   return period.calls
     ? {
         line: `${period.calls} call${period.calls === 1 ? "" : "s"} today${

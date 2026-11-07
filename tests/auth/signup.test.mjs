@@ -156,7 +156,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
     "the route holds no key",
   );
   // The rules are the dashboard's, the call on the public key is packages/db's: read together, as one path.
-  const server = readCode("apps/dashboard/src/server/console/signup.ts", "packages/db/src/repositories/auth/auth.ts");
+  const server = readCode("apps/dashboard/src/server/workspace/signup.ts", "packages/db/src/repositories/auth/auth.ts");
   assert.ok(server.includes('import "server-only";'));
   // THE SERVICE ROLE HAS LEFT THIS PATH. It used to create the user with the
   // admin API and mark the address confirmed with no proof at all, because
@@ -208,17 +208,17 @@ test("the wiring: two public paths, the guards on the route, a service role that
   assert.ok(!route.includes("notifyPlatformSignup"), "the public route has no workspace to tell anyone about");
   // An owner's workspace starts in one place, the first one included, and that
   // place tells the mailbox and hands the create screen what sign-up kept (a
-  // partner's is told through the same workspaceBegun from partner-account.ts, which
+  // partner's is told through the same recordWorkspaceBegun from partner-account.ts, which
   // partners/a-handed-over-workspace-has-alerts.test.mjs runs).
   const create = readCode(
     "apps/dashboard/app/api/v1/workspaces/create/route.ts",
     "apps/dashboard/src/server/workspace/create.ts",
   );
-  // What follows every workspace made is one function (workspaceBegun, decision 0091): the create route asks it, and
+  // What follows every workspace made is one function (recordWorkspaceBegun, decision 0091): the create route asks it, and
   // it tells the mailbox.
   assert.ok(
     create.includes(
-      'await workspaceBegun(ctx, data.id, { by: "created", notify: ctx.email ?? "", alertTo: ctx.email ?? null });',
+      'await recordWorkspaceBegun(ctx, data.id, { by: "created", notify: ctx.email ?? "", alertTo: ctx.email ?? null });',
     ) && create.includes("if (how.notify !== null) await notifyPlatformSignup(tenantId, how.notify, ctx.userId);"),
     "the mailbox hears about a workspace where workspaces are made",
   );

@@ -6,15 +6,8 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import {
-  stateOf,
-  businessGap,
-  roleGate,
-  newReceptionistDefaults,
-  PROFILE_CROSSING_WORDS,
-  hasProfile,
-  setupSteps,
-} from "@chanlytics/contracts";
+import { stateOf, businessGap, roleGate, newReceptionistDefaults, hasProfile, setupSteps } from "@chanlytics/contracts";
+import { PROFILE_CROSSING_WORDS } from "../../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
 import { importSrc } from "../../_source.mjs";
 import {
   again,

@@ -29,15 +29,15 @@ import {
   uploadNameOf,
   type FileMime,
 } from "@chanlytics/contracts";
-import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels";
+import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels/files";
 import { imageHeaderOf } from "@chanlytics/core";
-import { fileFound, markFileMediaProcessing, fileStart } from "@chanlytics/db";
+import { markFileMediaProcessing, recordFileFound, startFile } from "@chanlytics/db/files";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
-import { bucket, doorRefusal } from "./file";
+import { bucket, fileDoorRefusal } from "./file";
 
 /** How long the address of an upload's first bytes is good for, and how long reading them may take. */
 const HEAD_LINK_S = 60;
@@ -69,8 +69,8 @@ export async function startUpload(ctx: RouteContext, member: Member, input: Star
   if (isVideoMime(input.mime)) return startVideo(ctx, member, input);
   if (input.bytes > FILE_BYTES_MAX) throw new AppError("validation", W.tooBig);
   const id = randomUUID();
-  const started = await fileStart(ctx.supabase, member.tenantId, id);
-  if (started.error) throw doorRefusal(started.error);
+  const started = await startFile(ctx.supabase, member.tenantId, id);
+  if (started.error) throw fileDoorRefusal(started.error);
   const signed = await bucket().createSignedUploadUrl(filePathOf(member.tenantId, id, input.mime));
   if (signed.error || !signed.data) {
     log.error("file_upload_sign_failed", { tenant_id: member.tenantId, error: signed.error?.message ?? "no address" });
@@ -93,8 +93,8 @@ async function startVideo(ctx: RouteContext, member: Member, input: StartAsked):
   // Whether the workspace takes videos is the edge's to say (its door reads the switch): a member may not read the config.
   if (!edgeConfigured()) throw new AppError("validation", W.video.off);
   const id = randomUUID();
-  const started = await fileStart(ctx.supabase, member.tenantId, id);
-  if (started.error) throw doorRefusal(started.error);
+  const started = await startFile(ctx.supabase, member.tenantId, id);
+  if (started.error) throw fileDoorRefusal(started.error);
   const answer = await callEdge(
     "/api/admin/files/video-start",
     {
@@ -217,7 +217,7 @@ export async function finishUpload(
   if (!read) throw new AppError("validation", W.notSaved);
   const proven = await provenImage(read, path, member.tenantId, input.mime);
   if ("refused" in proven) throw new AppError("validation", proven.refused);
-  const answered = await fileFound(serviceDb(), {
+  const answered = await recordFileFound(serviceDb(), {
     tenantId: member.tenantId,
     id,
     status: "filed",

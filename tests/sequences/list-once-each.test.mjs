@@ -1,7 +1,7 @@
 /**
  * A sequence on a list goes once to each person (the Sequences loop review's item 6, 17 Oct 2026): its first step's run
  * reaches the list's people it never reached, never again anyone it reached or holds now, whatever its gap (core
- * runPlaybook over the `reached` port, db sequenceReached). A moment's run reads no such thing. A read of who it reached
+ * runPlaybook over the `reached` port, db wasSequenceReached). A moment's run reads no such thing. A read of who it reached
  * that fails is the run failing: nothing is recorded, and the next sweep asks again.
  */
 import { test } from "node:test";

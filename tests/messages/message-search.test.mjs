@@ -25,7 +25,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { messageSearch } = await import(at("apps/dashboard/src/server/readers/messages.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
@@ -327,9 +327,9 @@ test("a read that fails fails: a search the database refused, or names, senders 
     calls: [call(K1, ROSA, "parking", ago(1))],
   };
   for (const [table, said] of [
-    ["contacts", /namesOfPeople: canceling statement/],
-    ["messages", /messageSenders: canceling statement/],
-    ["calls", /callersOf: canceling statement/],
+    ["contacts", /listNamesOfPeople: canceling statement/],
+    ["messages", /listMessageSenders: canceling statement/],
+    ["calls", /listCallers: canceling statement/],
   ]) {
     const w = world(held, {}, { [`${table}.select`]: { message: "canceling statement due to statement timeout" } });
     await assert.rejects(load(w.rc, messageSearch, search("parking")), said, table);

@@ -6,11 +6,11 @@
  */
 import { AppError } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/shared/request-guards";
-import { signedMediaUrl } from "@/server/conversations/media";
+import { findSignedMediaUrl } from "@/server/conversations/media";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member, Params } from "@/server/shared/route";
 
-export async function messageMedia(ctx: RouteContext & { params: Params }, member: Member) {
+export async function findMessageMedia(ctx: RouteContext & { params: Params }, member: Member) {
   const id = requireUuid(ctx.params.id, "message");
   const { data, error } = await ctx.supabase
     .from("messages")
@@ -24,7 +24,7 @@ export async function messageMedia(ctx: RouteContext & { params: Params }, membe
   if (!media?.storage_path || media.fetch_state !== "stored") {
     throw new AppError("not_found", "This message has no stored attachment.");
   }
-  const url = await signedMediaUrl(member.tenantId, media.storage_path, 300);
+  const url = await findSignedMediaUrl(member.tenantId, media.storage_path, 300);
   if (!url) throw new Error("could not sign the attachment");
   return new Response(null, { status: 302, headers: { location: url } });
 }

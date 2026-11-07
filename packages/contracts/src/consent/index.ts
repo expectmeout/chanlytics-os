@@ -36,8 +36,6 @@ export type {
   PurposeRefusal,
   SendPurpose,
 } from "./consent";
-export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./offers-unsubscribe";
-export type { OfferPageButton, OfferPageWords, OfferUnsubscribeView } from "./offers-unsubscribe";
 export { optOutNotice, optOutOf } from "./opt-out-notice";
 export type { OptOutHow, OptOutPerson, OptOutSaid } from "./opt-out-notice";
 export {

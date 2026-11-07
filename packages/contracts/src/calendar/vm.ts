@@ -5,10 +5,10 @@
  */
 import type { VisitMark, VisitOriginDto } from "./dto";
 import type { CalendarPersonFactsDto } from "./visit/calendar-person-facts";
-import type { MatchVia } from "./people";
+import type { MatchVia } from "./people/matching";
 import type { BookingLinkAction } from "../people/person-reach";
 import type { CalendarSourceVM } from "../setup/calendar-source";
-import type { CalendarFeedHealth, CalendarFeedNoteVM } from "./words";
+import type { CalendarFeedHealth, CalendarFeedNoteVM } from "./words/labels";
 
 /* ------------------------------------------------------------ the view */
 

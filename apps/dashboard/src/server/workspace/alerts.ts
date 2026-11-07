@@ -1,6 +1,6 @@
 import "server-only";
 import { AppError, parseMemberAlerts, type PushKind } from "@chanlytics/contracts";
-import { setMemberPushOff } from "@chanlytics/db";
+import { setMemberPushOff } from "@chanlytics/db/notices";
 import { deployment } from "../shared/env";
 import { callEdge, edgeConfigured } from "../shared/edge";
 import { log } from "../shared/log";
@@ -42,15 +42,15 @@ interface AlertTestAnswer {
  */
 export async function sendAlertTest(tenantId: string, userId: string): Promise<AlertTestAnswer> {
   if (!deployment.providersLive || !edgeConfigured()) return { sent: false, to: 0, why: "not_live" };
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/email/alert-test",
     { tenant_id: tenantId },
     { workspace: tenantId, user: userId, timeoutMs: TEST_TIMEOUT_MS },
   );
-  const body = (r.body ?? {}) as { sent?: unknown; to?: unknown; why?: unknown };
+  const body = (answer.body ?? {}) as { sent?: unknown; to?: unknown; why?: unknown };
   const to = typeof body.to === "number" ? body.to : 0;
-  if (r.status === 200 && body.sent === true) return { sent: true, to, why: null };
-  if (r.status === 200 && body.why === "no_address") return { sent: false, to: 0, why: "no_address" };
-  log.error("alert_test_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
+  if (answer.status === 200 && body.sent === true) return { sent: true, to, why: null };
+  if (answer.status === 200 && body.why === "no_address") return { sent: false, to: 0, why: "no_address" };
+  log.error("alert_test_failed", { tenant_id: tenantId, status: answer.status, error: answer.body?.error });
   return { sent: false, to, why: "not_sent" };
 }

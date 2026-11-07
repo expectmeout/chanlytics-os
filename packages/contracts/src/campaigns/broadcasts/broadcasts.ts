@@ -1,43 +1,23 @@
-/**
- * Broadcasts: one message, on the channels it holds, to the people who said yes.
- *
- * The first honest campaign. Everything a broadcast may do is decided here,
- * once, and executed by execution-tested code on both sides: the route that
- * enrols the recipients and the job that sends to them use the same
- * predicate for "may this person receive an offer", the same renderer for
- * the words, and the same pacing constants.
- *
- * What a broadcast is NOT: a message to people who have not said yes.
- *
- * WHICH yes, though, is a question this file used to answer wrongly. It said:
- * "the category of the template changes Meta's price and its rules, never ours
- * — a proactive message needs the customer's recorded yes whatever the template
- * is called." That is a defensible-sounding rule and the carriers refused a live
- * campaign over it (error 30913). Consent is per PURPOSE, not per direction:
- * express written consent is required specifically for promotional messages
- * (CTIA §5.1), and a single yes that covers both is what "marketing consent was
- * combined with other consents" means.
- *
- * So the template's category is now load-bearing, through
- * `purposeOfTemplate` — which fails CLOSED, because the column is null for
- * exactly the rows most likely to matter.
- */
+/** Broadcasts: broadcasts. */
+
 import { MIN_MS } from "../../shared/time";
-import { RUN_WAITING_WORDS } from "../../shell/campaign-rooms";
 import { isCount, recordOrNull } from "../../shared/unknown";
 import type { ReachOutRunDto } from "../reach-out/dtos";
-import { templateTitle } from "../templates/template-titles";
+import { templateTitle } from "../templates/titles";
 import { clockDate, clockNearWhen, clockWhen } from "../../shared/clock";
-import { noNumberWords } from "../../people/lists/list-page";
-import type { PersonRowVM } from "../../people/person-row";
-import type { ParamSpec } from "../templates/templates";
+import { noNumberWords } from "../../people/lists/actions";
+import type { PersonRowVM } from "../../people/person-row/row-facts";
+import type { ParamSpec } from "../templates/params";
 import type { AskedPurpose, MessageAbout } from "../../consent/consent";
 import { consentGuardWords } from "../../consent/asks";
 import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/channels";
-import type { Audience } from "./broadcast-audience";
-import { broadcastFailureWords } from "./broadcast-failures";
+import type { Audience } from "./audience";
+import { broadcastFailureWords } from "./failures";
 import { answeredYes } from "./reach-any";
 import { channelRefuses, type ChannelsReady } from "./reach-for";
+import { BROADCAST_STATE_LABELS, type BroadcastState, type RecipientState } from "./states";
+import { NUMBERED_SLOT } from "../../shared/words";
+
 export {
   AUDIENCE_KINDS,
   EVERYONE_LABEL,
@@ -51,8 +31,10 @@ export {
   audienceMembers,
   audiencePreview,
   audienceTrigger,
-} from "./broadcast-audience";
-export type { AudienceKind, Audience, PreviewPerson, AudiencePreview, CampaignHow } from "./broadcast-audience";
+} from "./audience";
+
+export type { AudienceKind, Audience, PreviewPerson, AudiencePreview, CampaignHow } from "./audience";
+
 export {
   DEFAULT_CAMPAIGN_CHANNELS,
   NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
@@ -77,7 +59,9 @@ export {
   allowanceLine,
   allowanceLines,
 } from "./reach-for";
+
 export type { ChannelReady, ChannelsReady, HeldOn, MonthSent, MonthSentRead, ReachRow, ReachSplit } from "./reach-for";
+
 export {
   BROADCAST_FAILURES,
   BROADCAST_FAILURE_WORDS,
@@ -88,70 +72,25 @@ export {
   playbookRunNext,
   stoppedRunFix,
   wireFailure,
-} from "./broadcast-failures";
-export type { BroadcastFailure, EmailRunStop, PlaybookRunNextBy, RunStop, WireFailure } from "./broadcast-failures";
-export { LIMIT_TIERS, dailyLimit, numberHealth, overLimitRefusal } from "./broadcast-number";
-export type { NumberHealthInput, NumberHealth } from "./broadcast-number";
+} from "./failures";
+
+export type { BroadcastFailure, EmailRunStop, PlaybookRunNextBy, RunStop, WireFailure } from "./failures";
+
+export { LIMIT_TIERS, dailyLimit, numberHealth, overLimitRefusal } from "./number";
+
+export type { NumberHealthInput, NumberHealth } from "./number";
+
 export { RUN_REPORT_STEPS, RUN_FILTERS, consentAnswerWords, receiptWords, toRunReportVM } from "./run-report";
+
 export type { RunFigureId, RunFigure, RunFilterId, RunTone, RunPersonVM, RunReplyVM, RunReportVM } from "./run-report";
 
-export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
-export type BroadcastState = (typeof BROADCAST_STATES)[number];
-
-/**
- * A run that is going: scheduled, or sending. A reach-out's held emails wait for their owner's say only in a run that is
- * going (the held notice, reach-out-sheet heldNoticeDue); a run waiting for approval is counted as the run.
- */
-export const RUN_GOING_STATES = ["scheduled", "sending"] as const satisfies readonly BroadcastState[];
-
-export const RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"] as const;
-export type RecipientState = (typeof RECIPIENT_STATES)[number];
-
-/**
- * A reach-out's send (00183 reach_out_sends): planned (a time and a domain), claimed under the domain's capacity,
- * queued as an email row with its job, then what that row became. A wait refusal plans it again (Reach out, Part 3).
- * The check before it goes may hold it (00197): held waits for its owner, who puts it back or skips it (Part 4).
- * A hand step's lead is handed to the team, and never moves (00228, Part 5). A reach-out its owner sends hands each
- * email to them, drafted, and the owner says whether it went: sent, or skipped (00429).
- */
-export const REACH_OUT_SEND_STATES = [
-  "planned",
-  "held",
-  "claimed",
-  "queued",
-  "drafted",
-  "sent",
-  "skipped",
-  "failed",
-  "handed",
-] as const;
-export type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];
-
-/**
- * A run waiting on its owner says "Waiting for your approval", as its tab on Sent, its line on Campaigns' home, the drawer,
- * Coming up, Today's row and brief and Ask say it (lifecycle/words.ts, today/runs.ts, reach-out/approval.ts all read this
- * one). It said "Needs you" on its row's pill alone until 8 Oct 2026, which is the Inbox's word for a thread a person must
- * answer, and then "Waiting on you", which People used for a thread you have and Reports for a thread nobody has: three
- * things under one name, and a run waiting wore nine phrasings (D1-run-words). A thread is NEEDS_YOU_WORD or HELD_WORDS'
- * (conversations/standing.ts); a run is this.
- */
-export const BROADCAST_STATE_LABELS: Record<BroadcastState, string> = {
-  pending_approval: RUN_WAITING_WORDS,
-  scheduled: "Scheduled",
-  sending: "Sending",
-  sent: "Sent",
-  canceled: "Canceled",
-  failed: "Failed",
-};
-
-/** How many go in one job, and the breath between two sends. */
-export const BROADCAST_CHUNK = 25;
 export const BROADCAST_GAP_MS = 300;
+
 /**
  * How long a run waits each time WhatsApp says "not now" (channels graphThrottled), in order. The person the send was
  * for goes back in the queue and the run tries again after the next wait; a batch that sends without one starts the
  * count again. Past the last wait, or when the next try would fall outside the day's sending hours, the run stops and
- * says why (core messages/broadcast.ts). About an hour in all.
+ * says why (core messages/broadcast/batch.ts). About an hour in all.
  */
 export const BROADCAST_THROTTLE_WAITS_MS: readonly number[] = [
   MIN_MS,
@@ -161,19 +100,25 @@ export const BROADCAST_THROTTLE_WAITS_MS: readonly number[] = [
   15 * MIN_MS,
   30 * MIN_MS,
 ];
+
 /**
  * How long a run waits before it tries again a person it gave back because somebody holds their thread right now (a call in
  * progress, a teammate speaking: the door's `human_has_it` on a day-before reminder, which passes the 24-hour pause but not
  * a live hold, decision D4). Drawn a little longer at random. Only inside the day's sending hours: past them the person is
- * skipped, as before (core messages/broadcast.ts).
+ * skipped, as before (core messages/broadcast/batch.ts).
  */
 export const BROADCAST_HOLD_WAIT_MS = 10 * MIN_MS;
+
 /** More than this is not a salon's list; it is a mistake. */
 export const BROADCAST_MAX_RECIPIENTS = 2000;
+
 /** Meta's ceiling for one body parameter. */
 export const BROADCAST_PARAM_MAX = 1024;
+
 export const BROADCAST_SCHEDULE_MAX_DAYS = 30;
+
 export const BROADCAST_NAME_MAX = 80;
+
 // The reply window and the held reasons live in run-words.ts, where a person's page reads them too.
 export {
   REPLY_WINDOW_HOURS,
@@ -203,11 +148,12 @@ export {
   finishedRunHeldWhy,
   isReplyTo,
 } from "./run-words";
+
 export type { HeardTouch } from "./run-words";
 
 /** The words a person will read: the body with its numbered slots filled. */
 export function renderTemplate(body: string | null | undefined, params: readonly string[]): string {
-  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n: string) => {
+  return String(body ?? "").replace(NUMBERED_SLOT, (m, n: string) => {
     const v = params[Number(n) - 1];
     return typeof v === "string" && v !== "" ? v : m;
   });
@@ -265,19 +211,19 @@ export function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | 
   if (!byRun) return null;
   const out: Record<string, BroadcastCounts> = {};
   for (const [id, raw] of Object.entries(byRun)) {
-    const c = recordOrNull(raw);
-    const by = recordOrNull(c?.sent_by);
-    if (!c || !by) return null;
+    const record = recordOrNull(raw);
+    const by = recordOrNull(record?.sent_by);
+    if (!record || !by) return null;
     const counts: BroadcastCounts = { queued: 0, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
     for (const k of RUN_COUNTED) {
-      const n = c[k];
+      const n = record[k];
       if (!isCount(n)) return null;
       counts[k] = n;
     }
     const { whatsapp, sms, email } = by;
     if (!isCount(whatsapp) || !isCount(sms) || !isCount(email)) return null;
     // Who took the freed time (00498): a count, said only for a run that offered one.
-    const took = c.took;
+    const took = record.took;
     if (took !== undefined && took !== null && !isCount(took)) return null;
     out[id] = { ...counts, sent_by: { whatsapp, sms, email }, ...(took === undefined ? {} : { took }) };
   }
@@ -374,19 +320,19 @@ export function sentByWords(by: BroadcastCounts["sent_by"]): string | null {
   return countsByChannelWords(by);
 }
 
-export function toBroadcastVM(d: BroadcastDto, tz: string, now = new Date()): BroadcastVM {
-  const c = d.counts;
-  const attempted = c.sent + c.skipped + c.failed;
+export function toBroadcastVM(broadcast: BroadcastDto, tz: string, now = new Date()): BroadcastVM {
+  const counts = broadcast.counts;
+  const attempted = counts.sent + counts.skipped + counts.failed;
   return {
-    ...d,
-    stateLabel: BROADCAST_STATE_LABELS[d.state] ?? d.state,
-    when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, tz, now),
-    deliveredPct: c.sent > 0 ? Math.round((c.delivered / c.sent) * 100) : null,
-    readPct: readShare(c),
-    open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
-    progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
-    failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null,
-    offered: d.offered_start ? clockNearWhen(Date.parse(d.offered_start), tz, now.getTime()) : null,
+    ...broadcast,
+    stateLabel: BROADCAST_STATE_LABELS[broadcast.state] ?? broadcast.state,
+    when: whenLabel(broadcast.finished_at ?? broadcast.started_at ?? broadcast.scheduled_for, tz, now),
+    deliveredPct: counts.sent > 0 ? Math.round((counts.delivered / counts.sent) * 100) : null,
+    readPct: readShare(counts),
+    open: broadcast.state === "scheduled" || broadcast.state === "sending" || broadcast.state === "pending_approval",
+    progress: broadcast.recipient_count > 0 ? Math.min(1, attempted / broadcast.recipient_count) : 0,
+    failureLabel: broadcast.state === "failed" ? broadcastFailureWords(broadcast.failure) : null,
+    offered: broadcast.offered_start ? clockNearWhen(Date.parse(broadcast.offered_start), tz, now.getTime()) : null,
   };
 }
 
@@ -448,7 +394,7 @@ export function emptyAudienceRefusal(
   if (ready) {
     const refused = ticked.map((c) => channelRefuses(c, purpose, how.about, ready));
     const first = refused[0];
-    if (first && refused.every((why) => why !== null)) return `Nobody on “${label}” can be sent this: ${first}`;
+    if (first && refused.every((reason) => reason !== null)) return `Nobody on “${label}” can be sent this: ${first}`;
   }
   if (ticked.includes("email"))
     return `Nobody on “${label}” can be sent this yet. ${consentGuardWords(ticked, purpose, how.about).join(" ")}`;

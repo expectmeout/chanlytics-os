@@ -11,7 +11,8 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { appLink, noticeMailHtml, openItLine } from "@chanlytics/contracts";
+import { appLink, openItLine } from "@chanlytics/contracts";
+import { noticeMailHtml } from "../../apps/edge/lib/shared/alerts/notices-mail.ts";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -23,7 +24,7 @@ process.env.LEAD_FROM = "Pager <pager@platform.test>";
 process.env.DASHBOARD_ORIGIN = "https://app.example.test";
 for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VERCEL_ENV"]) delete process.env[k];
 
-const { notify, mail } = await import(at("apps/edge/lib/ops/notify.ts"));
+const { notify, sendOpsMail } = await import(at("apps/edge/lib/shared/alerts/notify.ts"));
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 after(() => setPg(null));
 
@@ -141,7 +142,7 @@ test("the copy the platform gets for a workspace nobody can be told in keeps the
   const sent = [];
   const sendMail = async (m) => (sent.push(m), true);
   const target = { tenantId: T, notifications: null, isEnvDefault: false };
-  await mail(
+  await sendOpsMail(
     target,
     { subject: "Rosa wrote", body: "Rosa: my address is 1 Main St", redactedBody: "A customer wrote to a workspace." },
     { sendMail },

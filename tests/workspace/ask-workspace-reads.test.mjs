@@ -32,7 +32,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { connections } = await import(at("apps/dashboard/src/server/readers/connections.ts"));
 const { notifications } = await import(at("apps/dashboard/src/server/readers/notifications.ts"));
 const { activity } = await import(at("apps/dashboard/src/server/readers/activity.ts"));

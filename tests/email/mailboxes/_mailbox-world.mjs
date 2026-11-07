@@ -166,7 +166,7 @@ export function gmailFake({ address = "sam@getharbor.example", other = async () 
       sent.push(mail);
       return Response.json({ id, threadId: mail.threadId, labelIds: ["SENT"] });
     }
-    // The delivery reports received (gmailReports): what came from a mailer-daemon or a postmaster.
+    // The delivery reports received (listGmailReports): what came from a mailer-daemon or a postmaster.
     if (q.pathname.endsWith("/messages") && q.searchParams.get("q")?.startsWith("from:")) {
       const reports = received.filter((m) => /mailer-daemon|postmaster/i.test(header(m, "from") ?? ""));
       return Response.json({ messages: reports.map((m) => ({ id: m.id, threadId: m.threadId })) });

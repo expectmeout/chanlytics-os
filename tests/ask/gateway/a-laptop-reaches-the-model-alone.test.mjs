@@ -11,7 +11,7 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { verifyEdgeToken } from "@chanlytics/channels";
+import { verifyEdgeToken } from "@chanlytics/channels/tokens";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../../_log-lines.mjs";
@@ -29,25 +29,25 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const { deployment } = await importSrc("apps/dashboard/src/server/shared/env.ts");
-const { streamModel } = await importSrc("apps/dashboard/src/server/ask/gateway.ts");
-const { runAskTurn } = await importSrc("apps/dashboard/src/server/ask/loop.ts");
+const { streamModel } = await importSrc("apps/dashboard/src/server/shared/model/gateway.ts");
+const { runAskTurn } = await importSrc("apps/dashboard/src/server/ask/loop/loop.ts");
 const { runRound } = await importSrc("apps/dashboard/src/server/ask/round.ts");
 const { warmAskModel } = await importSrc("apps/dashboard/src/server/ask/warm.ts");
-const { workspaceFacts } = await importSrc("apps/dashboard/src/server/ask/prompt.ts");
+const { workspaceFacts } = await importSrc("apps/dashboard/src/server/ask/prompt/stable-system.ts");
 const { runTool, buildProposal } = await importSrc("apps/dashboard/src/server/ask/tools/index.ts");
-const { readerCache } = await importSrc("apps/dashboard/src/server/readers/index.ts");
-const { edgeBilling } = await importSrc("apps/dashboard/src/server/workspace/billing.ts");
-const { edgeGoogle } = await importSrc("apps/dashboard/src/server/connections/google.ts");
-const { edgeLines, lineCodesFor } = await importSrc("apps/dashboard/src/server/connections/lines.ts");
-const { edgeMailboxes } = await importSrc("apps/dashboard/src/server/connections/mailbox-connections.ts");
-const { whatsappSignupConfig, connectWhatsApp, checkWhatsAppStanding } = await importSrc(
+const { readerCache } = await importSrc("apps/dashboard/src/server/shared/reader.ts");
+const { callEdgeBilling } = await importSrc("apps/dashboard/src/server/workspace/billing.ts");
+const { callEdgeGoogle } = await importSrc("apps/dashboard/src/server/connections/google.ts");
+const { callEdgeLines, getLineCodes } = await importSrc("apps/dashboard/src/server/connections/lines.ts");
+const { callEdgeMailboxes } = await importSrc("apps/dashboard/src/server/connections/mailbox-connections.ts");
+const { getWhatsappSignupConfig, connectWhatsApp, checkWhatsAppStanding } = await importSrc(
   "apps/dashboard/src/server/connections/whatsapp.ts",
 );
 const { syncTemplates, createTemplate, deleteTemplate } = await importSrc(
   "apps/dashboard/src/server/campaigns/meta-templates.ts",
 );
 const { runPlaybookNow } = await importSrc("apps/dashboard/src/server/campaigns/playbook-run.ts");
-const { previewReachOut } = await importSrc("apps/dashboard/src/server/campaigns/reach-outs.ts");
+const { previewReachOut } = await importSrc("apps/dashboard/src/server/campaigns/reach-outs/reach-outs.ts");
 const { whisperLiveCall, stopLiveCall, handOverLiveCall } = await importSrc(
   "apps/dashboard/src/server/conversations/live-call.ts",
 );
@@ -55,7 +55,7 @@ const { steerDraft } = await importSrc("apps/dashboard/src/server/conversations/
 const { tellPlatformOfSetupRequest, tellOwnerLive } = await importSrc("apps/dashboard/src/server/workspace/tell.ts");
 const { sendHandoverInvite } = await importSrc("apps/dashboard/src/server/workspace/handover.ts");
 const { sendPartnerInvite } = await importSrc("apps/dashboard/src/server/workspace/partner-invite.ts");
-const { notifyPlatformSignup } = await importSrc("apps/dashboard/src/server/console/signup.ts");
+const { notifyPlatformSignup } = await importSrc("apps/dashboard/src/server/workspace/signup.ts");
 const { sendAlertTest } = await importSrc("apps/dashboard/src/server/workspace/alerts.ts");
 
 beforeEach(() => readerCache.clear());
@@ -265,16 +265,16 @@ test("every door `live` opens answers not here under `model`, and none of them r
     assert.deepEqual(await deleteTemplate(W, "template-1", P), preview, "a template deleted at Meta");
     assert.deepEqual(await connectWhatsApp(W, P, { code: "c" }), preview, "a WhatsApp number connected");
     assert.deepEqual(await checkWhatsAppStanding(W, P), preview, "a number's standing asked of Meta");
-    assert.equal((await whatsappSignupConfig(asker)).reason, "preview", "WhatsApp's sign-up");
+    assert.equal((await getWhatsappSignupConfig(asker)).reason, "preview", "WhatsApp's sign-up");
     assert.deepEqual(await whisperLiveCall("call-1", { text: "hi", trigger: false }, asker), preview, "a whisper");
     assert.deepEqual(await stopLiveCall("call-1", asker), preview, "a live call ended");
     assert.deepEqual(await handOverLiveCall("call-1", "+15555550123", asker), preview, "a live call handed over");
     assert.deepEqual(await steerDraft("message-1", "shorter", asker), preview, "a draft rewritten");
-    assert.deepEqual(await edgeBilling({ op: "sync", tenant_id: W, user_id: P }), notHere, "Checkout");
-    assert.deepEqual(await edgeGoogle({ op: "refresh", tenant_id: W, user_id: P }), notHere, "Google");
-    assert.deepEqual(await edgeLines({ op: "buy", tenant_id: W, user_id: P }), notHere, "a number bought");
-    assert.deepEqual(await lineCodesFor(W, P), { ok: true, codes: [] }, "a line's texted codes");
-    assert.deepEqual(await edgeMailboxes({ op: "connect", tenant_id: W, user_id: P }), notHere, "a mailbox");
+    assert.deepEqual(await callEdgeBilling({ op: "sync", tenant_id: W, user_id: P }), notHere, "Checkout");
+    assert.deepEqual(await callEdgeGoogle({ op: "refresh", tenant_id: W, user_id: P }), notHere, "Google");
+    assert.deepEqual(await callEdgeLines({ op: "buy", tenant_id: W, user_id: P }), notHere, "a number bought");
+    assert.deepEqual(await getLineCodes(W, P), { ok: true, codes: [] }, "a line's texted codes");
+    assert.deepEqual(await callEdgeMailboxes({ op: "connect", tenant_id: W, user_id: P }), notHere, "a mailbox");
     // The platform's notices: each says it did not go.
     assert.equal(await tellPlatformOfSetupRequest(W, "a phone line", "ada@example.com", P), false);
     assert.equal(await tellOwnerLive(W, P), false);

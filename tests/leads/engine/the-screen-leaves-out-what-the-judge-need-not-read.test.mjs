@@ -8,7 +8,7 @@
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import {
   isSystemOneModel,
   judgeScreenCalls,
@@ -19,8 +19,8 @@ import {
   systemOneDollars,
 } from "@chanlytics/contracts";
 import { startRound } from "../../../packages/core/src/leads/runner/start.ts";
-import { collect } from "../../../packages/core/src/leads/runner/collect.ts";
-import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
+import { collect } from "../../../packages/core/src/leads/runner/collect/collect.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
 import { LABELS, PLAN } from "../../_lead-fixtures.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
@@ -209,7 +209,7 @@ test("a screen that is off, leaves nothing out or throws changes nothing: the ju
 
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { setModelFetch } = await import(at("apps/edge/lib/ai/model.ts"));
-const { screened } = await import(at("apps/edge/lib/leads/lead-screen.ts"));
+const { screened } = await import(at("apps/edge/lib/leads/screen.ts"));
 after(() => {
   setPg(null);
   setModelFetch(null);

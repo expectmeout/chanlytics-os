@@ -37,14 +37,14 @@ export function normalizeEmail(raw: string | null | undefined): string | null {
  */
 export function whyNotAnEmail(raw: string | null | undefined): string | null {
   if (normalizeEmail(raw)) return null;
-  const s = String(raw ?? "").trim();
-  if (!s) return "An email address is needed.";
-  if (/[<>]/.test(s) || /\s/.test(s))
+  const text = String(raw ?? "").trim();
+  if (!text) return "An email address is needed.";
+  if (/[<>]/.test(text) || /\s/.test(text))
     return "Only the address itself, like name@example.com, with no name or spaces around it.";
-  const at = s.split("@").length - 1;
+  const at = text.split("@").length - 1;
   if (at === 0) return "That is missing the @.";
   if (at > 1) return "An address has one @.";
-  if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
+  if (!/@[^@]*\./.test(text)) return "That needs a full domain after the @, like name@example.com.";
   return "That is not an email address anyone can be reached at.";
 }
 
@@ -58,9 +58,9 @@ const OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|su
  * receptionist asks again rather than keeps a guess. The address comes back in its stored spelling.
  */
 export function addressInMessage(body: string | null | undefined): string | null {
-  const s = String(body ?? "").trim();
-  if (!s || s.length > 160) return null;
-  const tokens = s.split(/\s+/);
+  const text = String(body ?? "").trim();
+  if (!text || text.length > 160) return null;
+  const tokens = text.split(/\s+/);
   const found = new Set<string>();
   for (const raw of tokens) {
     const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
@@ -71,6 +71,6 @@ export function addressInMessage(body: string | null | undefined): string | null
   }
   if (found.size !== 1) return null;
   const alone = tokens.length === 1;
-  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(text);
   return alone || theirs ? [...found][0] : null;
 }

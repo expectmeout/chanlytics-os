@@ -307,7 +307,8 @@ function trace(repo) {
     const pk = spec.match(/^@chanlytics\/(db|core|jobs|channels)(\/.*)?$/);
     if (pk) {
       if (!pk[2]) return P(PKG_ENTRY[pk[1]]);
-      base = P(`packages/${pk[1]}/src${pk[2]}`);
+      const inRepositories = pk[1] === "db" && !/^\/(shared|realtime)$/.test(pk[2]);
+      base = P(`packages/${pk[1]}/src${inRepositories ? "/repositories" : ""}${pk[2]}`);
     } else if (spec.startsWith("@/")) base = P("apps/dashboard/src", spec.slice(2));
     else if (spec.startsWith(".")) base = path.resolve(path.dirname(from), spec);
     if (!base) return null;

@@ -7,7 +7,8 @@
 import { formatPhoneDisplay } from "../shared/phone";
 import { possessive } from "../shared/words";
 import { greetingOf } from "../voice/greeting-owner";
-import { forwardedLineOf, type SetupDto } from "./setup";
+import { forwardedLineOf } from "./setup";
+import type { SetupDto } from "./lines";
 
 export interface FirstRunLiveVM {
   heading: string;
@@ -88,7 +89,7 @@ export interface FirstRunLiveInput {
 }
 
 export function firstRunLiveOf({ dto, emails, business, owner, assistant }: FirstRunLiveInput): FirstRunLiveVM {
-  const W = FIRST_RUN_LIVE_WORDS;
+  const words = FIRST_RUN_LIVE_WORDS;
   const own = dto.channels.voice.active ? formatPhoneDisplay(dto.channels.voice.number) : null;
   // The kept number is said to reach it only once a call proved the forwarding (as Try it says it), and as the mode
   // saved says: the calls nobody picks up, or every call.
@@ -96,45 +97,45 @@ export function firstRunLiveOf({ dto, emails, business, owner, assistant }: Firs
   const kept = fw && fw.forwarding_state === "verified" ? formatPhoneDisplay(fw.e164) : null;
   const always = fw?.forwarding?.mode === "always";
   const handoff = formatPhoneDisplay(dto.business.handoff);
-  const b = dto.business;
+  const result = dto.business;
   const knows = [
-    b.hours ? "your hours" : null,
-    b.address ? "your address" : null,
-    b.services ? `${b.services} ${b.services === 1 ? "service" : "services"}` : null,
-    b.bookingLink ? "your booking link" : null,
+    result.hours ? "your hours" : null,
+    result.address ? "your address" : null,
+    result.services ? `${result.services} ${result.services === 1 ? "service" : "services"}` : null,
+    result.bookingLink ? "your booking link" : null,
   ].filter((x): x is string => !!x);
   const knowsWords = listWords(knows);
   return {
-    heading: W.heading(business),
-    lead: W.lead,
+    heading: words.heading(business),
+    lead: words.lead,
     summary: [
       {
         key: "answers",
-        label: W.answers,
-        value: kept ? (always ? W.answersKeptAll(kept) : W.answersKept(kept)) : (own ?? "—"),
+        label: words.answers,
+        value: kept ? (always ? words.answersKeptAll(kept) : words.answersKept(kept)) : (own ?? "—"),
         change: null,
       },
       {
         key: "through",
-        label: W.through,
-        value: handoff ?? (emails.length ? W.throughNobody : W.throughNobodyUnaddressed),
+        label: words.through,
+        value: handoff ?? (emails.length ? words.throughNobody : words.throughNobodyUnaddressed),
         // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
-        change: { label: W.change, to: "admin/workspace/handoff_number" },
+        change: { label: words.change, to: "admin/workspace/handoff_number" },
       },
       {
         key: "emails",
-        label: W.emails,
-        value: emails.length ? W.emailsTo(emails.join(", ")) : W.emailsNobody,
-        change: { label: W.change, to: "admin/notifications" },
+        label: words.emails,
+        value: emails.length ? words.emailsTo(emails.join(", ")) : words.emailsNobody,
+        change: { label: words.change, to: "admin/notifications" },
       },
       {
         key: "knows",
-        label: W.knows,
-        value: knowsWords ? knowsWords.charAt(0).toUpperCase() + knowsWords.slice(1) : W.knowsNothing,
-        change: { label: W.change, to: "admin/workspace" },
+        label: words.knows,
+        value: knowsWords ? knowsWords.charAt(0).toUpperCase() + knowsWords.slice(1) : words.knowsNothing,
+        change: { label: words.change, to: "admin/workspace" },
       },
     ],
-    greeting: W.greeting(
+    greeting: words.greeting(
       greetingOf({ name: business, stored: dto.business.phone_greeting, paused: false, assistant: assistant ?? null })
         .text,
     ),
@@ -143,7 +144,7 @@ export function firstRunLiveOf({ dto, emails, business, owner, assistant }: Firs
     finish: {
       note:
         owner && own && emails.length > 0 && !(dto.activations ?? []).some((a) => a.capability === "voice")
-          ? W.finishNote
+          ? words.finishNote
           : null,
     },
   };
@@ -167,19 +168,21 @@ export interface YouAreLiveInput {
 }
 
 /** The "you're live" email (canvas C2): what the test call proved, what happens from now on, and where alerts go. */
-export function youAreLiveEmail(i: YouAreLiveInput): { subject: string; body: string } {
-  const W = FIRST_RUN_LIVE_WORDS;
-  const own = formatPhoneDisplay(i.own);
-  const kept = formatPhoneDisplay(i.kept);
-  const wa = formatPhoneDisplay(i.whatsapp ?? null);
+export function youAreLiveEmail(youAreLiveInput: YouAreLiveInput): { subject: string; body: string } {
+  const words = FIRST_RUN_LIVE_WORDS;
+  const own = formatPhoneDisplay(youAreLiveInput.own);
+  const kept = formatPhoneDisplay(youAreLiveInput.kept);
+  const wa = formatPhoneDisplay(youAreLiveInput.whatsapp ?? null);
   const calls = !!(own || kept);
   const lines = [
-    i.test ? W.emailTest(i.test.length, formatPhoneDisplay(i.test.from), kept) : null,
-    calls || !wa ? W.emailFrom(kept, own, i.always) : null,
-    wa ? W.emailWhatsapp(wa) : null,
-    calls || !wa ? W.emailThrough(formatPhoneDisplay(i.handoff)) : null,
-    W.emailAlerts,
-    i.todayUrl ? W.emailOpen(i.todayUrl) : null,
+    youAreLiveInput.test
+      ? words.emailTest(youAreLiveInput.test.length, formatPhoneDisplay(youAreLiveInput.test.from), kept)
+      : null,
+    calls || !wa ? words.emailFrom(kept, own, youAreLiveInput.always) : null,
+    wa ? words.emailWhatsapp(wa) : null,
+    calls || !wa ? words.emailThrough(formatPhoneDisplay(youAreLiveInput.handoff)) : null,
+    words.emailAlerts,
+    youAreLiveInput.todayUrl ? words.emailOpen(youAreLiveInput.todayUrl) : null,
   ].filter((x): x is string => !!x);
-  return { subject: W.emailSubject(i.business, calls || !wa), body: `${lines.join("\n\n")}\n` };
+  return { subject: words.emailSubject(youAreLiveInput.business, calls || !wa), body: `${lines.join("\n\n")}\n` };
 }

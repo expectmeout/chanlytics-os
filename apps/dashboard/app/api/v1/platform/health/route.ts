@@ -1,6 +1,6 @@
 import { read, platform } from "@/server/shared/route";
 import { HealthQuerySchema } from "@chanlytics/contracts";
-import { consoleHealth } from "@/server/console/health";
+import { getConsoleHealth } from "@/server/console/health";
 
 /**
  * GET /api/v1/platform/health?days=7|30 — the Console's Health (decision 0068): every clock beside its runs, the jobs
@@ -11,5 +11,5 @@ import { consoleHealth } from "@/server/console/health";
 export const GET = read({
   scope: platform,
   query: HealthQuerySchema,
-  handle: async ({ office, input }) => consoleHealth(office, input.days === 7 ? 7 : 30),
+  handle: async ({ office, input }) => getConsoleHealth(office, input.days === 7 ? 7 : 30),
 });

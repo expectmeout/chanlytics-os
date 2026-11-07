@@ -28,33 +28,32 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   instagramDmChunks,
   instagramEventsOf,
-  metaSignatureValid,
   readInstagramName,
-  META_SIGNATURE_HEADER,
   type InstagramEvent,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/instagram";
+import { metaSignatureValid, META_SIGNATURE_HEADER } from "@chanlytics/channels/whatsapp";
+import { emitEvent } from "@chanlytics/db/events";
 import {
-  emitEvent,
-  lastDmsSentTo,
-  messageByExternalId,
-  messageUnsent,
-  personOfInstagramId,
+  listLastDmsSentTo,
+  findMessageByExternalId,
+  markMessageUnsent,
+  findPersonOfInstagramId,
   removeStoredMedia,
   recordEchoAndPause,
   resolveChannelDetailed,
-  type Database,
   type RoutedChannel,
-} from "@chanlytics/db";
+} from "@chanlytics/db/channels";
+import type { Database } from "@chanlytics/db/types";
 import { HOUR_MS, MIN_MS, pauseMsOf, WAITING_REASONS } from "@chanlytics/contracts";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
-import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
+import { digestId, keepDelivery, signatureHeaders } from "../shared/keep-event.js";
 import { loadTenantRuntime } from "../shared/tenant-runtime.js";
 import { IngestFailed } from "../whatsapp/persist.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
-import { instagramCredentials } from "./credentials.js";
+import { getInstagramCredentials } from "./credentials.js";
 import { recordThenAnswerDm } from "./dm-answer.js";
 
 type Db = SupabaseClient<Database>;
@@ -117,7 +116,7 @@ async function profileNameOf(db: Db, routed: RoutedChannel, igsid: string): Prom
   const key = `${routed.externalId}:${igsid}`;
   const kept = namesRead.get(key);
   if (kept && kept.until > Date.now()) return kept.name;
-  const read = await instagramCredentials(db, { id: routed.channelId, credentials_ref: routed.credentialsRef });
+  const read = await getInstagramCredentials(db, { id: routed.channelId, credentials_ref: routed.credentialsRef });
   const name = read.outcome === "present" ? await readInstagramName(read.credentials.accessToken, igsid) : null;
   namesRead.set(key, { name, until: Date.now() + (name ? NAME_TTL_MS : NAMELESS_TTL_MS) });
   return name;
@@ -127,15 +126,15 @@ async function profileNameOf(db: Db, routed: RoutedChannel, igsid: string): Prom
 async function takeMessage(
   db: Db,
   routed: RoutedChannel,
-  e: Extract<InstagramEvent, { kind: "message" }>,
+  instagramEvent: Extract<InstagramEvent, { kind: "message" }>,
 ): Promise<number> {
   const log = logger({ tenant_id: routed.tenantId });
-  log.info("ig_inbound", { id: e.mid });
+  log.info("ig_inbound", { id: instagramEvent.mid });
   try {
-    await recordThenAnswerDm(db, routed, e.item, await profileNameOf(db, routed, e.from));
+    await recordThenAnswerDm(db, routed, instagramEvent.item, await profileNameOf(db, routed, instagramEvent.from));
     return 0;
   } catch (err) {
-    log.error("ig_inbound_failed", { id: e.mid, error: errField(err) });
+    log.error("ig_inbound_failed", { id: instagramEvent.mid, error: errField(err) });
     return err instanceof IngestFailed && !err.kept ? 1 : 0;
   }
 }
@@ -145,10 +144,10 @@ async function takeMessage(
  * (channels instagramDmChunks, the same split), and its row keeps the first part's id alone.
  */
 async function isPartOfOurs(db: Db, tenantId: string, person: string, text: string | null): Promise<boolean> {
-  const said = text?.trim();
-  if (!said) return false;
-  const sent = await lastDmsSentTo(db, tenantId, person);
-  return sent.some((body) => instagramDmChunks(body).some((part) => part.trim() === said));
+  const sentence = text?.trim();
+  if (!sentence) return false;
+  const sent = await listLastDmsSentTo(db, tenantId, person);
+  return sent.some((body) => instagramDmChunks(body).some((part) => part.trim() === sentence));
 }
 
 /**
@@ -164,7 +163,7 @@ async function isOurs(
 ): Promise<boolean> {
   const { mid, text, person } = echo;
   const ours = async () =>
-    (await messageByExternalId(db, tenantId, mid)) !== null ||
+    (await findMessageByExternalId(db, tenantId, mid)) !== null ||
     (person !== null && (await isPartOfOurs(db, tenantId, person, text)));
   if (await ours()) return true;
   await new Promise((resolve) => setTimeout(resolve, settleMs));
@@ -178,15 +177,16 @@ async function isOurs(
 async function takeEcho(
   db: Db,
   routed: RoutedChannel,
-  e: Extract<InstagramEvent, { kind: "echo" }>,
+  instagramEvent: Extract<InstagramEvent, { kind: "echo" }>,
   settleMs: number,
 ): Promise<number> {
   const log = logger({ tenant_id: routed.tenantId });
   try {
-    const person = e.to ? await personOfInstagramId(db, routed.tenantId, e.to) : null;
-    if (await isOurs(db, routed.tenantId, { mid: e.mid, text: e.text, person }, settleMs)) return 0;
+    const person = instagramEvent.to ? await findPersonOfInstagramId(db, routed.tenantId, instagramEvent.to) : null;
+    if (await isOurs(db, routed.tenantId, { mid: instagramEvent.mid, text: instagramEvent.text, person }, settleMs))
+      return 0;
     if (!person) {
-      log.info("ig_echo_unheld", { id: e.mid });
+      log.info("ig_echo_unheld", { id: instagramEvent.mid });
       return 0;
     }
     const rt = await loadTenantRuntime(db, routed);
@@ -195,16 +195,16 @@ async function takeEcho(
       tenantId: routed.tenantId,
       customerId: person,
       channel: "instagram",
-      body: e.text,
-      externalId: e.mid,
+      body: instagramEvent.text,
+      externalId: instagramEvent.mid,
       pausedUntilIso: new Date(Date.now() + pauseMs).toISOString(),
       // A reply typed in the Instagram app settles the holds it answers, as a dashboard reply does (00438).
       settles: WAITING_REASONS,
     });
-    if (kept) log.info("ig_paused_by_echo", { id: e.mid });
+    if (kept) log.info("ig_paused_by_echo", { id: instagramEvent.mid });
     return kept ? 0 : 1;
   } catch (err) {
-    log.error("ig_echo_failed", { id: e.mid, error: errField(err) });
+    log.error("ig_echo_failed", { id: instagramEvent.mid, error: errField(err) });
     return 1;
   }
 }
@@ -213,17 +213,17 @@ async function takeEcho(
 async function takeUnsend(
   db: Db,
   routed: RoutedChannel,
-  e: Extract<InstagramEvent, { kind: "unsent" }>,
+  instagramEvent: Extract<InstagramEvent, { kind: "unsent" }>,
 ): Promise<number> {
   const log = logger({ tenant_id: routed.tenantId });
   try {
-    const out = await messageUnsent(db, routed.tenantId, e.mid);
+    const out = await markMessageUnsent(db, routed.tenantId, instagramEvent.mid);
     if (out.outcome === "forgot" && out.storagePath && !(await removeStoredMedia(db, out.storagePath)))
-      log.error("ig_unsent_media_kept", { id: e.mid });
-    log.info("ig_unsent", { id: e.mid, outcome: out.outcome });
+      log.error("ig_unsent_media_kept", { id: instagramEvent.mid });
+    log.info("ig_unsent", { id: instagramEvent.mid, outcome: out.outcome });
     return 0;
   } catch (err) {
-    log.error("ig_unsent_failed", { id: e.mid, error: errField(err) });
+    log.error("ig_unsent_failed", { id: instagramEvent.mid, error: errField(err) });
     return 1;
   }
 }
@@ -283,24 +283,24 @@ async function receiveWith(request: Request, settleMs: number): Promise<Response
   // DMs, echoes and unsends the database did not take, or whose account could not be routed: the one thing not acknowledged.
   let unrecorded = 0;
   const unroutableCounts = new Map<string, number>();
-  for (const e of events) {
-    if (e.kind === "ignored") {
-      doorLog.info("ig_event", { what: e.what });
+  for (const event of events) {
+    if (event.kind === "ignored") {
+      doorLog.info("ig_event", { what: event.what });
       continue;
     }
-    const verdict = routeVerdict(await routeOf(e.account), e.account);
+    const verdict = routeVerdict(await routeOf(event.account), event.account);
     if (verdict === "owed") {
       unrecorded += 1;
-      if (e.kind === "message") await alertUnroutable("instagram_unreadable", e.account, 1);
+      if (event.kind === "message") await alertUnroutable("instagram_unreadable", event.account, 1);
       continue;
     }
     if (verdict === "skip") {
-      if (e.kind === "message") unroutableCounts.set(e.account, (unroutableCounts.get(e.account) ?? 0) + 1);
+      if (event.kind === "message") unroutableCounts.set(event.account, (unroutableCounts.get(event.account) ?? 0) + 1);
       continue;
     }
-    if (e.kind === "message") unrecorded += await takeMessage(db, verdict, e);
-    else if (e.kind === "echo") unrecorded += await takeEcho(db, verdict, e, settleMs);
-    else unrecorded += await takeUnsend(db, verdict, e);
+    if (event.kind === "message") unrecorded += await takeMessage(db, verdict, event);
+    else if (event.kind === "echo") unrecorded += await takeEcho(db, verdict, event, settleMs);
+    else unrecorded += await takeUnsend(db, verdict, event);
   }
   for (const [account, n] of unroutableCounts) await unroutable(db, account, n);
   if (unrecorded > 0) return json(503, { ok: false, unrecorded });

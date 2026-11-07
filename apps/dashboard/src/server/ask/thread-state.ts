@@ -8,14 +8,14 @@ import type { InboxThreadVM } from "@chanlytics/contracts";
  * receptionist replying on its own (defect 16).
  */
 export function threadState(
-  v: Pick<InboxThreadVM, "move" | "takenOver" | "claimedByOther" | "state" | "optedOut">,
+  inboxThread: Pick<InboxThreadVM, "move" | "takenOver" | "claimedByOther" | "state" | "optedOut">,
 ): string {
-  const { move, list } = v.move;
+  const { move, list } = inboxThread.move;
   if (list === "escalated" && move !== "sending") return "needs you";
-  if (v.takenOver) return "you have it";
-  if (v.claimedByOther) return "a teammate is answering";
-  if (v.state === "snoozed") return "snoozed";
-  if (v.optedOut) return "opted out";
+  if (inboxThread.takenOver) return "you have it";
+  if (inboxThread.claimedByOther) return "a teammate is answering";
+  if (inboxThread.state === "snoozed") return "snoozed";
+  if (inboxThread.optedOut) return "opted out";
   if (list === "waiting" && move !== "replying") return "waiting on them";
   return "answering";
 }

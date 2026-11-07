@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { requestIdOf, withRequestId } from "@chanlytics/channels";
+import { requestIdOf } from "@chanlytics/channels/tokens";
+import { withRequestId } from "@chanlytics/log";
 import {
   AppError,
   ASK_MAX_CHARS,
@@ -11,17 +12,18 @@ import {
   listSpoken,
   type AskLanguage,
 } from "@chanlytics/contracts";
-import type { Database, VoiceSessionRow } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
+import type { VoiceSessionRow } from "@chanlytics/db/ask";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
-import { isRetryableAuthError } from "../auth/errors";
-import { verifyBearer } from "../auth/bearer";
+import { isRetryableAuthError } from "../shared/auth/errors";
+import { verifyBearer } from "../shared/auth/bearer";
 import { takeRate } from "../shared/rate-limit";
 import type { Member } from "../shared/route";
 import { serviceDb } from "../shared/service-db";
-import { memberContext, type RouteContext } from "../shared/with-route";
-import { titleFromQuestion } from "./prompt";
+import { getMemberContext, type RouteContext } from "../shared/with-route";
+import { titleFromQuestion } from "./prompt/prompt";
 import { readThread, touchThread } from "./store";
 import { askTurn, type AskTurnLine } from "./turn";
 import {
@@ -189,8 +191,8 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
   }
   const language: AskLanguage = row.language === "es" ? "es" : "en";
   // A row that cannot open the member any more is ended, and the person hears to start again.
-  const over = async (why: string): Promise<Knock> => {
-    log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why });
+  const over = async (reason: string): Promise<Knock> => {
+    log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: reason });
     if (!row.ended_at) await endVoiceSession(service, row.id, { endedAt: new Date(now()).toISOString() });
     return knockAnswered(spoken(lineOf("reconnect", language)));
   };
@@ -202,30 +204,30 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
   if (!secret || Date.parse(row.token_expires_at) <= now()) return over("expired");
   const token = openToken(row.token_cipher, secret);
   if (!token) return over("cipher");
-  const v = await (deps.verify ?? verifyBearer)(token);
-  if (!v.claims) {
+  const verify = await (deps.verify ?? verifyBearer)(token);
+  if (!verify.claims) {
     // The Auth server could not be asked (no answer, a 429, a 5xx): the row is kept and the person hears to wait,
     // never "start again" for a token that may be good (with-route.ts draws the same line for a typed request).
-    if (isRetryableAuthError(v.error)) {
+    if (isRetryableAuthError(verify.error)) {
       log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: "auth_unavailable" });
       return knockAnswered(spoken(lineOf("busy", language)));
     }
     return over("token");
   }
-  const userId = typeof v.claims.sub === "string" ? v.claims.sub : "";
+  const userId = typeof verify.claims.sub === "string" ? verify.claims.sub : "";
   if (!userId || userId !== row.user_id) {
     log.warn("ask_voice_door_refused", { tenant_id: row.tenant_id, why: "member" });
     return knockAnswered(new Response("forbidden", { status: 403 }));
   }
   const ctx: RouteContext = {
-    supabase: v.supabase,
+    supabase: verify.supabase,
     userId,
-    email: typeof v.claims.email === "string" ? v.claims.email : undefined,
+    email: typeof verify.claims.email === "string" ? verify.claims.email : undefined,
     metadata: {},
-    ...(typeof v.claims.aal === "string" ? { aal: v.claims.aal } : {}),
+    ...(typeof verify.claims.aal === "string" ? { aal: verify.claims.aal } : {}),
   };
   try {
-    const m = await memberContext(ctx, row.tenant_id);
+    const m = await getMemberContext(ctx, row.tenant_id);
     return { kind: "admitted", row, ctx, member: { tenantId: m.tenantId, role: m.role } as Member, language, service };
   } catch (e) {
     if (e instanceof AppError) return over(`member_${e.code}`);
@@ -246,51 +248,51 @@ interface Said {
   detail: string;
   retracted: string;
 }
-function grow(said: Said, headline: string, detail: string, speak: (s: string) => void): void {
+function grow(sentence: Said, headline: string, detail: string, speak: (s: string) => void): void {
   if (!headline && !detail) {
-    if (said.headline) said.retracted = said.headline;
-    said.headline = "";
-    said.detail = "";
+    if (sentence.headline) sentence.retracted = sentence.headline;
+    sentence.headline = "";
+    sentence.detail = "";
     return;
   }
-  if (said.retracted) {
-    if (headline.startsWith(said.retracted)) said.headline = said.retracted;
+  if (sentence.retracted) {
+    if (headline.startsWith(sentence.retracted)) sentence.headline = sentence.retracted;
     else if (headline) speak(" ");
-    said.retracted = "";
+    sentence.retracted = "";
   }
-  if (headline.startsWith(said.headline) && headline.length > said.headline.length) {
-    speak(headline.slice(said.headline.length));
-    said.headline = headline;
+  if (headline.startsWith(sentence.headline) && headline.length > sentence.headline.length) {
+    speak(headline.slice(sentence.headline.length));
+    sentence.headline = headline;
   }
-  if (said.headline && detail.startsWith(said.detail) && detail.length > said.detail.length) {
-    speak((said.detail ? "" : " ") + detail.slice(said.detail.length));
-    said.detail = detail;
+  if (sentence.headline && detail.startsWith(sentence.detail) && detail.length > sentence.detail.length) {
+    speak((sentence.detail ? "" : " ") + detail.slice(sentence.detail.length));
+    sentence.detail = detail;
   }
 }
 
 /** The turn, run as the member and spoken as it is written: each read's label, then the Say, then what the final holds that the previews did not, and its list. */
-async function runOwn(a: Admitted, text: string, speak: (s: string) => void): Promise<void> {
-  const said: Said = { headline: "", detail: "", retracted: "" };
+async function runOwn(admitted: Admitted, text: string, speak: (s: string) => void): Promise<void> {
+  const sentence: Said = { headline: "", detail: "", retracted: "" };
   const emit = (ev: AskTurnLine) => {
     if (ev.t === "trace" && ev.text) speak(`${ev.text}… `);
-    else if (ev.t === "say") grow(said, ev.headline ?? "", ev.detail ?? "", speak);
+    else if (ev.t === "say") grow(sentence, ev.headline ?? "", ev.detail ?? "", speak);
     else if (ev.t === "final" && ev.message) {
       const answer = ev.message.answer;
-      if (answer) grow(said, answer.say.headline, answer.say.detail, speak);
-      if (!said.headline) speak(ev.message.text || lineOf("failed", a.language));
+      if (answer) grow(sentence, answer.say.headline, answer.say.detail, speak);
+      if (!sentence.headline) speak(ev.message.text || lineOf("failed", admitted.language));
       // The list is never previewed: it is read once the answer lands, after the Say, entry by entry.
       else if (answer?.show.list.entries.length) speak(` ${listSpoken(answer.show.list)}`);
     }
   };
   const done = await askTurn(
-    a.ctx,
-    a.member,
+    admitted.ctx,
+    admitted.member,
     {
       text,
-      threadId: a.row.thread_id,
-      scope: scopeOf(a.row) ?? undefined,
-      surface: a.row.surface,
-      context: contextOf(a.row),
+      threadId: admitted.row.thread_id,
+      scope: scopeOf(admitted.row) ?? undefined,
+      surface: admitted.row.surface,
+      context: contextOf(admitted.row),
       openedMs: null,
       answering: null,
       spoken: true,
@@ -299,7 +301,7 @@ async function runOwn(a: Admitted, text: string, speak: (s: string) => void): Pr
   );
   // A voice thread is made before its first question (the voice route); the first question titles it, as a typed one's does.
   if (done.thread.title === VOICE_THREAD_TITLE)
-    await touchThread(a.ctx, done.thread.id, undefined, titleFromQuestion(text));
+    await touchThread(admitted.ctx, done.thread.id, undefined, titleFromQuestion(text));
 }
 
 const pollPause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -312,20 +314,20 @@ const sameWords = (s: string): string => s.replace(/\s+/g, " ").trim();
  * words, stored since the owner claimed the turn. An earlier turn's answer, however recent, is never this one's (the
  * review's case: the second question asked twice at once spoke the first question's answer).
  */
-function answerTo(messages: ThreadMessages, asked: string, since: number): ThreadMessages[number] | null {
+function answerTo(messages: ThreadMessages, text: string, since: number): ThreadMessages[number] | null {
   for (let i = messages.length - 1; i > 0; i--) {
     const m = messages[i];
     const q = messages[i - 1];
     if (m.role !== "assistant" || q.role !== "user") continue;
     if (q.atMs < since) return null;
-    if (sameWords(q.text) === asked) return m;
+    if (sameWords(q.text) === text) return m;
   }
   return null;
 }
 
 /** The same turn asked again (the vendor's duplicate): the owner's answer, read off the thread when it lands. */
 async function follow(
-  a: Admitted,
+  admitted: Admitted,
   text: string,
   claimedAt: number,
   speak: (s: string) => void,
@@ -333,24 +335,24 @@ async function follow(
 ): Promise<void> {
   const now = deps.now ?? Date.now;
   // The owner's clock is on the row as the owner left it, not on the row the door read before the claim.
-  const owner = await readVoiceSession(a.service, a.row.id);
+  const owner = await readVoiceSession(admitted.service, admitted.row.id);
   const since = (Date.parse(owner?.turn_started_at ?? "") || claimedAt) - CLAIM_SKEW_MS;
   const until = claimedAt + ASK_SPOKEN_TURN_BUDGET_MS;
-  const asked = sameWords(text);
+  const otherSameWords = sameWords(text);
   while (now() < until) {
-    const thread = await readThread(a.ctx, a.row.thread_id);
-    const answer = answerTo(thread?.messages ?? [], asked, since);
+    const thread = await readThread(admitted.ctx, admitted.row.thread_id);
+    const answer = answerTo(thread?.messages ?? [], otherSameWords, since);
     if (answer) {
       speak(answer.answer ? answerSpoken(answer.answer) : answer.text);
       return;
     }
     await pollPause(deps.pollMs ?? POLL_MS);
   }
-  speak(lineOf("failed", a.language));
+  speak(lineOf("failed", admitted.language));
 }
 
 /** The turn's stream: the claim, the run or the follow, the buffer words whenever the model is quiet, the end. */
-function speakTurn(a: Admitted, text: string, position: number, deps: VoiceDoorDeps, t0: number): Response {
+function speakTurn(admitted: Admitted, text: string, position: number, deps: VoiceDoorDeps, t0: number): Response {
   const now = deps.now ?? Date.now;
   const pulseMs = deps.pulseMs ?? ASK_VOICE_PULSE_MS;
   const encoder = new TextEncoder();
@@ -377,7 +379,7 @@ function speakTurn(a: Admitted, text: string, position: number, deps: VoiceDoorD
       const tick = Math.max(5, Math.min(1_000, Math.floor(Math.min(pulseMs, firstWordsMs) / 4)));
       const pulse = setInterval(() => {
         // The model slow to its first words: the door says "One moment… " itself, once, as a read's label is said.
-        if (!chars && now() - startedAt >= firstWordsMs) speak(`${lineOf("moment", a.language)}… `);
+        if (!chars && now() - startedAt >= firstWordsMs) speak(`${lineOf("moment", admitted.language)}… `);
         if (now() - lastSpeakableAt >= pulseMs) {
           send(chunk(BUFFER_WORDS));
           lastSpeakableAt = now();
@@ -388,24 +390,29 @@ function speakTurn(a: Admitted, text: string, position: number, deps: VoiceDoorD
       let failed = false;
       try {
         const claimedAt = now();
-        const owner = await claimTurn(a.service, a.row.id, turnKeyOf(position, text), new Date(claimedAt));
-        if (owner) await runOwn(a, text, speak);
+        const owner = await claimTurn(
+          admitted.service,
+          admitted.row.id,
+          turnKeyOf(position, text),
+          new Date(claimedAt),
+        );
+        if (owner) await runOwn(admitted, text, speak);
         else {
           followed = true;
-          await follow(a, text, claimedAt, speak, deps);
+          await follow(admitted, text, claimedAt, speak, deps);
         }
       } catch (e) {
         failed = true;
-        log.error("ask_voice_door_failed", { tenant_id: a.row.tenant_id, error: e });
-        speak(lineOf("failed", a.language));
+        log.error("ask_voice_door_failed", { tenant_id: admitted.row.tenant_id, error: e });
+        speak(lineOf("failed", admitted.language));
       } finally {
         clearInterval(pulse);
       }
       send(chunk("", true));
       send(DONE);
       log.info("ask_voice_turn", {
-        tenant_id: a.row.tenant_id,
-        thread: a.row.thread_id,
+        tenant_id: admitted.row.tenant_id,
+        thread: admitted.row.thread_id,
         ms: now() - t0,
         chars,
         pulses,
@@ -470,6 +477,6 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
 }
 
 /** The door, under the request's name (the vendor sends none the log would trust; one is minted). */
-export function voiceDoor(req: Request, deps: VoiceDoorDeps = {}): Promise<Response> {
+export function runVoiceDoor(req: Request, deps: VoiceDoorDeps = {}): Promise<Response> {
   return withRequestId(requestIdOf(req.headers, { trustCaller: false }), () => answerAgent(req, deps));
 }

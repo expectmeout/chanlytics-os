@@ -10,14 +10,14 @@ import "server-only";
  * nothing is the not-found page with a 404.
  *
  * The rules are the pages' own: the opt-in page, its paper form and its desk sign need the workspace's consent facts
- * (`consentPageFor`); the business's page and its texting terms need a record that says who the business is
+ * (`findConsentPage`); the business's page and its texting terms need a record that says who the business is
  * (`businessPageVM`, `textingTermsVM`); a lead's own receptionist's page needs a preview its token names (decision 0079,
  * preview-page.ts), whatever state it is in, since an ended one still says so. The pages keep their own `notFound()`
  * for their metadata and as the floor.
  */
 import { businessPageVM, textingTermsVM, type BusinessPageFacts } from "@chanlytics/contracts";
-import { businessPageFor } from "./business-page";
-import { consentPageFor } from "./consent-page";
+import { findBusinessPage } from "./business-page";
+import { findConsentPage } from "./consent-page";
 import { previewNamed } from "./preview-page";
 
 /** The reads the rules ask: the pages' own, or a test's. */
@@ -27,7 +27,7 @@ interface PublicPageReads {
   preview: (token: string) => Promise<boolean>;
 }
 
-const PAGES_READ: PublicPageReads = { consent: consentPageFor, business: businessPageFor, preview: previewNamed };
+const PAGES_READ: PublicPageReads = { consent: findConsentPage, business: findBusinessPage, preview: previewNamed };
 
 /** Each public page under a slug, and whether a slug has it. */
 const PAGES: { at: RegExp; has: (slug: string, read: PublicPageReads) => Promise<boolean> }[] = [
@@ -54,13 +54,13 @@ const PAGES: { at: RegExp; has: (slug: string, read: PublicPageReads) => Promise
  * True when `path` is a public page's address and no page answers to its slug. False for any other address, and for a
  * read that failed: the page then answers as it would, and a page that cannot read a fact fails as a page.
  */
-export async function publicPageNamesNothing(path: string, read: PublicPageReads = PAGES_READ): Promise<boolean> {
+export async function getPublicPageNamesNothing(path: string, read: PublicPageReads = PAGES_READ): Promise<boolean> {
   for (const page of PAGES) {
-    const m = page.at.exec(path);
-    if (!m) continue;
+    const match = page.at.exec(path);
+    if (!match) continue;
     let slug: string;
     try {
-      slug = decodeURIComponent(m[1] ?? "");
+      slug = decodeURIComponent(match[1] ?? "");
     } catch {
       return true;
     }

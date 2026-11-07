@@ -171,7 +171,7 @@ test("Live's row and its panel trail the caller's name with their business, from
 
 /**
  * The Calendar's block for an appointment titled `title`, matched by the board's own path (personLikeOf, matchPerson), with
- * the facts the read attaches from the same People row (calendar/week.ts: calendarPersonFactsOf).
+ * the facts the read attaches from the same People row (calendar/week/week.ts: calendarPersonFactsOf).
  */
 const blockFor = (title, dto) => {
   const matched = matchPerson(

@@ -27,7 +27,6 @@ import {
   mayMessageFor,
   offerGate,
   offerPauseOf,
-  offerUnsubscribeWords,
   offersPausedLine,
   personReachOf,
   previewOn,
@@ -42,6 +41,7 @@ import {
   EMAIL_UNSUBSCRIBE_PATTERN,
   OPT_OUT_PATTERN,
 } from "@chanlytics/contracts";
+import { offerUnsubscribeWords } from "../../apps/dashboard/src/server/public/offers-unsubscribe.ts";
 import { personRow, ROW_NOW, daysAgo } from "./_person-row.mjs";
 
 /** A person's consent as their row says it: People's builder over a people_list row (consentOf), nobody looking. */

@@ -165,33 +165,17 @@ test("a page entry names its module's source, which the rest of the page shares"
 
 test("a page-only module's names are in no page's entry, and in its own", () => {
   assert.deepEqual(PAGE_ONLY, [
-    "reports/report-metrics.ts",
-    "reports/report-window.ts",
-    "reports/report-mix.ts",
+    "reports/metrics.ts",
+    "reports/window.ts",
+    "reports/mix.ts",
     "reports/receptionist/report.ts",
     "reports/receptionist/words.ts",
     "reports/people/report.ts",
-    "reports/people/words.ts",
+    "reports/people/words/lines.ts",
+    "reports/people/words/heads.ts",
     "reports/campaigns/reach-out-lens.ts",
-    "reports/campaigns/campaign-words.ts",
-    "reports/campaigns/campaign-lens.ts",
-    "ads/rules.ts",
-    "ads/money.ts",
-    "ads/words.ts",
-    "ads/words-page.ts",
-    "ads/words-drawer.ts",
-    "ads/words-new.ts",
-    "ads/results/words-results.ts",
-    "ads/results/results.ts",
-    "ads/words-connect.ts",
-    "ads/vm-base.ts",
-    "ads/page.ts",
-    "ads/page-parts.ts",
-    "ads/drawer.ts",
-    "ads/drawer-parts.ts",
-    "ads/drawer-edit.ts",
-    "ads/new-ad.ts",
-    "ads/new-ad-parts.ts",
+    "reports/campaigns/words/tables.ts",
+    "reports/campaigns/lens.ts",
     "ask/proposals/proposals.ts",
   ]);
   for (const name of [
@@ -206,8 +190,9 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "toCampaignLensVM",
   ])
     assert.ok(!current.names.includes(name), `${name} is the Reports page's, by its own entry`);
-  // Campaigns › Ads: its models, rules, money and words are its page's, by its own entry; the data, the addresses and the
-  // day arithmetic are the root's, since Reports, People and Campaigns' routes read them too.
+  // Campaigns › Ads: its models, rules, money and words are its page's alone, in the dashboard's tree since they left
+  // contracts (apps/dashboard/src/surfaces/campaigns/ads); the data, the addresses and the day arithmetic are the root's,
+  // since Reports, People and Campaigns' routes read them too.
   for (const name of ["adsModel", "adModel", "newAdModel", "moneyOf", "BUDGET_RULES", "DOOR_NEEDS", "DRAWER", "NEW_AD"])
     assert.ok(!current.names.includes(name), `${name} is the Ads page's, by its own entry`);
   for (const name of ["addDays", "daysBetween", "parseAds", "adRoute", "ADS_WORDS"])
@@ -234,10 +219,8 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     /leadsBulkSpec|reviewReplySpec|followUpSpec/,
     "Ask's own cards are in no page's entry",
   );
-  const ads = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/ads-page.js"), "utf8");
-  assert.match(ads, /adsModel/);
-  assert.match(ads, /newAdModel/);
-  assert.match(ads, /moneyOf/);
+  // Ads' models and words are the page's own (surfaces/campaigns/ads): no entry of the package names them.
+  for (const name of ["adsModel", "newAdModel", "moneyOf"]) assert.ok(!current.names.includes(name), name);
   const lens = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/report-lens.js"), "utf8");
   assert.match(lens, /metricWordsOf/);
   assert.match(lens, /toReceptionistReportVM/);
@@ -258,8 +241,7 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     assert.ok(current.names.includes(name), `${name} stays in the root barrel for the server`);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
   const own = (from, out) => ({ types: from, bundled: `./dist/${out}.js`, import: from, default: from });
-  assert.deepEqual(pkg.exports["./report-lens"], own("./src/reports/report-lens.ts", "report-lens"));
-  assert.deepEqual(pkg.exports["./ads-page"], own("./src/ads/page-entry.ts", "ads-page"));
+  assert.deepEqual(pkg.exports["./report-lens"], own("./src/reports/lens.ts", "report-lens"));
   assert.deepEqual(pkg.exports["./ask-only"], own("./src/ask/proposals/ask-only.ts", "ask-only"));
   // The pages' verb specs: the root entry's own module in the browser, the index itself elsewhere, so the table Ask's
   // kinds join is one table however it was reached.
@@ -302,8 +284,6 @@ test("every page-only path names a file, since one that names none would filter 
     "toReachOutLensVM",
     "toCampaignLensVM",
     "reportWindowOf",
-    "adsModel",
-    "newAdModel",
   ])
     assert.ok(all.names.includes(name), `${name} is in the entry when nothing is page-only`);
 });
@@ -331,7 +311,7 @@ test("a page reads the verbs it presses at once, and the kinds only Ask's cards 
 });
 
 test("the page-only entry reaches no classic zod", () => {
-  for (const entry of ["report-lens", "ads-page", "ask-only"]) {
+  for (const entry of ["report-lens", "ask-only"]) {
     const built = fs.readFileSync(path.join(ROOT, `packages/contracts/dist/${entry}.js`), "utf8");
     const specs = [...built.matchAll(/^import\b[^"']*["']([^"']+)["']/gm)].map((m) => m[1]);
     assert.deepEqual(

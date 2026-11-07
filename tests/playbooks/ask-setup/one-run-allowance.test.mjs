@@ -61,10 +61,10 @@ const { installClock } = await import(at(`${SRC}/bridge/zone.ts`));
 installClock();
 
 const { buildProposal, newToolContext } = await import(at(`${SRC}/server/ask/tools/index.ts`));
-const { load, readerCache, readerContext } = await import(at(`${SRC}/server/readers/index.ts`));
+const { load, readerCache, readerContext } = await import(at(`${SRC}/server/shared/reader.ts`));
 const { playbooks: playbooksReader } = await import(at(`${SRC}/server/readers/playbooks.ts`));
 const { templates: templatesReader } = await import(at(`${SRC}/server/readers/templates.ts`));
-const { emailWire } = await import(at(`${SRC}/server/connections/email-readiness.ts`));
+const { getEmailWire } = await import(at(`${SRC}/server/connections/email-readiness.ts`));
 const { setServiceClient } = await import(at(`${SRC}/server/shared/service-db.ts`));
 const { playbooksOverride } = await import(at(`${SRC}/surfaces/campaigns/playbooks/surface.ts`));
 const { setSurfaceValue, surfaceValue } = await import(at(`${SRC}/surfaces/surface-values.ts`));
@@ -147,7 +147,7 @@ const template = (id, name, over = {}) => ({
   ...over,
 });
 
-/** Two runs of other campaigns this week, as touchesSince reads them: whom the week's breath holds. */
+/** Two runs of other campaigns this week, as listTouchesSince reads them: whom the week's breath holds. */
 const touched = (people) => ({
   broadcasts: people.map((p, i) => ({
     id: `eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee${i}`,
@@ -230,7 +230,7 @@ beforeEach(async () => {
     const body = p.startsWith("/api/v1/") ? { ok: true, data: routes[p] ?? {} } : EDGE;
     return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
   };
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
 });
 after(() => (globalThis.fetch = real));
 afterEach(() => setServiceClient(null));
@@ -367,7 +367,7 @@ test("the week's breath: a person a campaign reached this week is held on the ca
 });
 
 test("the week's touches could not be read: the card declines in its words, and never counts without the week's breath", async () => {
-  // The read the week's breath is made of (touchesSince, over every send of the week) fails; every other read answers.
+  // The read the week's breath is made of (listTouchesSince, over every send of the week) fails; every other read answers.
   const rows = tables();
   setServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
   const supabase = fakeDb(

@@ -22,7 +22,7 @@ import {
   listFactWords,
   asListRule,
 } from "@chanlytics/contracts";
-import { appointmentStates, recordOver } from "@chanlytics/db";
+import { getAppointmentStates, recordOver } from "@chanlytics/db/calendar";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const H = 3_600_000;
@@ -483,7 +483,7 @@ test("a reminder drawn for a booking from a notice asks that booking again at th
       },
     ],
   });
-  const states = await appointmentStates(db, "t1", [recordKeyOf(ID), "ev-1"]);
+  const states = await getAppointmentStates(db, "t1", [recordKeyOf(ID), "ev-1"]);
   assert.deepEqual(
     [...states.keys()].sort(),
     [recordKeyOf(ID), "ev-1"].sort(),
@@ -527,7 +527,7 @@ test("the record over a season is read whole: past the thousand rows one select 
 });
 
 test("the receptionist says a caller's visits as People does: one a member cancelled is not confirmed, one they missed is no last visit", async () => {
-  const { visitsFor, forgetFeeds } = await import("../../../apps/edge/lib/calendar/availability.ts");
+  const { findVisits, forgetFeeds } = await import("../../../apps/edge/lib/calendar/availability.ts");
   const { setPg } = await import("../../../apps/edge/lib/shared/pg.ts");
   const stamp = (ms) =>
     new Date(ms)
@@ -577,7 +577,7 @@ test("the receptionist says a caller's visits as People does: one a member cance
     forgetFeeds();
     // On a call, at the test's clock: the clock was handed where the channel goes, so the real one was read, and the
     // "next" visit two days on became a past one once the real day reached it (13 Oct 2026).
-    return visitsFor(rt, { phone: CAL, name: null }, "call", new Date(NOW));
+    return findVisits(rt, { phone: CAL, name: null }, "call", new Date(NOW));
   };
   try {
     const before = await said([]);

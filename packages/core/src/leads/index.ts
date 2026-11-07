@@ -25,7 +25,7 @@ export {
 export type { LatLng } from "./geo";
 export { foldDuplicates, identityOf, isFreeMail, shareKeysOf, sharesWithin } from "./identity";
 export type { Identity } from "./identity";
-export { runIdFor, sha256Hex } from "./ids";
+export { hashSha256Hex, runIdFor } from "./ids";
 export {
   fact,
   FACT_MAX,
@@ -61,8 +61,8 @@ export { afterProbe } from "./question";
 export type { AfterProbe, ProbeYieldMember } from "./question";
 export { check, checkable, isAgainRun } from "./runner/check";
 export type { CheckAgain, CheckOutcome } from "./runner/check";
-export { collect } from "./runner/collect";
-export type { CollectOutcome } from "./runner/collect";
+export type { CollectOutcome } from "./runner/collect/batches";
+export { collect } from "./runner/collect/collect";
 export { MARK_TRIES, markPlaces } from "./runner/mark-places";
 export type { MarkPlace } from "./runner/mark-places";
 export { MAX_CARRY_ONS, nextStepOf, REDRIVE_AFTER_MS } from "./runner/next-step";

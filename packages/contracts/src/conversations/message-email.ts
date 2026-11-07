@@ -5,8 +5,8 @@
 import type { MessageDto } from "./thread-dto";
 
 /** An email's subject, as the intake kept it (core email-ingest.ts). */
-export function emailSubjectOf(m: MessageDto): string | null {
-  const email = (m.meta as { email?: { subject?: unknown } } | null)?.email;
+export function emailSubjectOf(message: MessageDto): string | null {
+  const email = (message.meta as { email?: { subject?: unknown } } | null)?.email;
   return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
 }
 
@@ -36,14 +36,14 @@ export function emailLeftOutOf(meta: unknown): string | null {
     .map((f) => (f as { filename?: unknown } | null)?.filename)
     .filter((n): n is string => typeof n === "string" && n.trim().length > 0 && !storageNamed(n));
   const total = files.length + unnamed;
-  const said: string[] = [];
+  const sentence: string[] = [];
   if (total) {
     const rest = total - names.length;
     const listed = names.length ? `: ${names.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
-    said.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
+    sentence.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
   }
-  if (email.truncated === true) said.push("This email was longer than Chanlytics keeps; the rest was left out.");
-  return said.length ? said.join(" ") : null;
+  if (email.truncated === true) sentence.push("This email was longer than Chanlytics keeps; the rest was left out.");
+  return sentence.length ? sentence.join(" ") : null;
 }
 
 /** How many files an email came with whose names alone were kept (the intake keeps no file): 0 where none, or no email. */
@@ -165,8 +165,8 @@ function namesSender(line: string, fromName: string | null): boolean {
     .toLowerCase()
     .split(/[^\p{L}'’-]+/u)
     .filter((w) => w.length > 1);
-  const said = line.toLowerCase();
-  return words.some((w) => said.includes(w));
+  const sentence = line.toLowerCase();
+  return words.some((w) => sentence.includes(w));
 }
 
 /**
@@ -238,21 +238,21 @@ function paragraphsFromTheFoot(lines: readonly string[]): Array<[number, number]
 function footerStart(lines: readonly string[]): number | null {
   const worded = ([a, b]: [number, number]): string[] => lines.slice(a, b + 1).filter((l) => HAS_WORDS.test(l));
   const paras = paragraphsFromTheFoot(lines);
-  let k = 0;
-  while (k < paras.length && worded(paras.at(k) ?? [0, -1]).length === 0) k++;
-  const foot = paras.at(k);
+  let index = 0;
+  while (index < paras.length && worded(paras.at(index) ?? [0, -1]).length === 0) index++;
+  const foot = paras.at(index);
   if (!foot) return null;
-  const said = worded(foot);
-  if (said.length > FOOT_PARA_MAX || !said.some((l) => UNSUBSCRIBE.test(l))) return null;
+  const sentence = worded(foot);
+  if (sentence.length > FOOT_PARA_MAX || !sentence.some((l) => UNSUBSCRIBE.test(l))) return null;
   let start = foot[0];
   let addressed = false;
-  for (const p of paras.slice(k + 1)) {
+  for (const p of paras.slice(index + 1)) {
     const above = worded(p);
     if (!above.length || above.length > FOOT_PARA_MAX || !above.every(postalLine)) break;
     start = p[0];
     addressed = true;
   }
-  if (!addressed && !said.some((l) => FOOT_LINK.test(l))) return null;
+  if (!addressed && !sentence.some((l) => FOOT_LINK.test(l))) return null;
   return lines.slice(0, start).some((l) => HAS_WORDS.test(l)) ? start : null;
 }
 
@@ -307,11 +307,11 @@ export function emailPartsOf(body: string, fromName: string | null): EmailParts 
   const text = footAt === null ? whole : all.slice(0, footAt).join("\n").trimEnd();
   const lines = text.split("\n");
   const at = fromName === null ? null : signatureStart(lines, fromName);
-  const said = tidyEmailWords(at === null ? text : lines.slice(0, at).join("\n"));
+  const sentence = tidyEmailWords(at === null ? text : lines.slice(0, at).join("\n"));
   const chain = quoted && tidyEmailWords(quoted);
-  if (at === null || !said) return { said: tidyEmailWords(text), signature: null, footer, quoted: chain };
+  if (at === null || !sentence) return { said: tidyEmailWords(text), signature: null, footer, quoted: chain };
   const signed = lines.slice(SIG_DASHES.test(lines.at(at) ?? "") ? at + 1 : at).join("\n");
-  return { said, signature: tidyEmailWords(signed) || null, footer, quoted: chain };
+  return { said: sentence, signature: tidyEmailWords(signed) || null, footer, quoted: chain };
 }
 
 /** A link written the way a mail list writes it in plain text: "[Conditions of Use](https://…)". */
@@ -358,9 +358,9 @@ export function emailSignedLine(signature: string): string {
 }
 
 /** The words an email of ours was signed with, as the reply that sent it kept them (00487 meta.email.signature); else null. */
-export function emailSignedWithOf(m: MessageDto): string | null {
-  if (m.sender === "customer") return null;
-  const signed = (m.meta as { email?: { signature?: unknown } } | null)?.email?.signature;
+export function emailSignedWithOf(message: MessageDto): string | null {
+  if (message.sender === "customer") return null;
+  const signed = (message.meta as { email?: { signature?: unknown } } | null)?.email?.signature;
   return typeof signed === "string" && signed.trim() ? signed.trim() : null;
 }
 
@@ -391,14 +391,14 @@ export function emailSubjectsOf(messages: readonly MessageDto[]): {
 }
 
 /** An email's subject without "Re:" or "Fwd:", as a line that leads with it says it; null on another wire or with none. */
-export function emailTopicOf(m: MessageDto): string | null {
-  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+export function emailTopicOf(message: MessageDto): string | null {
+  const subject = message.channel === "email" ? emailSubjectOf(message) : null;
   return subject ? subject.replace(REPLY_PREFIX, "").trim() || subject : null;
 }
 
 /** The name the sender's client gave an email of theirs, as the intake kept it; null on one of ours or with none. */
-export function emailFromNameOf(m: MessageDto): string | null {
-  if (m.sender !== "customer") return null;
-  const name = (m.meta as { email?: { from_name?: unknown } } | null)?.email?.from_name;
+export function emailFromNameOf(message: MessageDto): string | null {
+  if (message.sender !== "customer") return null;
+  const name = (message.meta as { email?: { from_name?: unknown } } | null)?.email?.from_name;
   return typeof name === "string" && name.trim() ? name.trim() : "";
 }

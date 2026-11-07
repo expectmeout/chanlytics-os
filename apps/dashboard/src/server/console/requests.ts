@@ -8,7 +8,7 @@ import "server-only";
  *
  * Cross-workspace: requests about any workspace, and about one already deleted; only backOffice(ctx) reaches them.
  */
-import { fileRequest, listRequests, requestById, setRequestSteps, tenantBySlug } from "@chanlytics/db";
+import { requestFile, listRequests, requestById, setRequestSteps, findTenantBySlug } from "@chanlytics/db/console";
 import {
   AppError,
   CONSOLE_WORDS,
@@ -24,7 +24,8 @@ import {
   type RequestStep,
 } from "@chanlytics/contracts";
 import { takeAct } from "./acts";
-import type { BackOffice } from "./platform";
+import type { BackOffice } from "../shared/back-office";
+import { NOT_RECORDED } from "@/server/console/words";
 
 type RequestRow = {
   id: string;
@@ -53,38 +54,40 @@ function requestStepsOf(raw: unknown): Partial<Record<RequestStep, string>> {
   return out;
 }
 
-function requestDto(r: RequestRow): PrivacyRequestDto {
+function requestDto(request: RequestRow): PrivacyRequestDto {
   return {
-    id: r.id,
-    number: r.number,
-    kind: (REQUEST_KINDS as readonly string[]).includes(r.kind) ? (r.kind as RequestKind) : "delete_workspace",
-    tenant_id: r.tenant_id,
-    slug: r.slug,
-    name: r.name,
-    asked_by: r.asked_by,
-    asked_at: r.asked_at,
-    ticket: r.ticket,
-    note: r.note,
-    due_at: r.due_at,
-    steps: requestStepsOf(r.steps),
-    closed_at: r.closed_at,
-    created_at: r.created_at,
+    id: request.id,
+    number: request.number,
+    kind: (REQUEST_KINDS as readonly string[]).includes(request.kind)
+      ? (request.kind as RequestKind)
+      : "delete_workspace",
+    tenant_id: request.tenant_id,
+    slug: request.slug,
+    name: request.name,
+    asked_by: request.asked_by,
+    asked_at: request.asked_at,
+    ticket: request.ticket,
+    note: request.note,
+    due_at: request.due_at,
+    steps: requestStepsOf(request.steps),
+    closed_at: request.closed_at,
+    created_at: request.created_at,
   };
 }
 
 /** The open requests, and those closed in the last thirty days. */
-export async function consoleRequests(office: BackOffice): Promise<PrivacyRequestDto[]> {
+export async function listConsoleRequests(office: BackOffice): Promise<PrivacyRequestDto[]> {
   const { data, error } = await listRequests(office.db, new Date(Date.now() - 30 * DAY_MS).toISOString(), 200);
   if (error) throw new AppError("internal", "The requests could not be read just now. Try again in a moment.", 503);
   return (data ?? []).map(requestDto);
 }
 
 /** A request filed as it came in: its workspace by address, its clock from when they asked. */
-export async function consoleFileRequest(
+export async function fileConsoleRequest(
   office: BackOffice,
   input: { kind: RequestKind; workspace: string; asked_by: string; asked_at: string; why: ConsoleWhy },
 ): Promise<PrivacyRequestDto> {
-  const found = await tenantBySlug(office.db, input.workspace);
+  const found = await findTenantBySlug(office.db, input.workspace);
   if (found.error) throw new AppError("internal", "That could not be checked just now. Try again in a moment.", 503);
   const tenant = found.data;
   if (!tenant)
@@ -100,7 +103,7 @@ export async function consoleFileRequest(
     office,
     { act: "request_file", why: input.why, tenantId: tenant.id, target: "request", targetId: id },
     async () => {
-      const { data, error } = await fileRequest(office.db, {
+      const { data, error } = await requestFile(office.db, {
         id,
         kind: input.kind,
         tenant_id: tenant.id,
@@ -113,15 +116,14 @@ export async function consoleFileRequest(
         due_at: requestDueAt(input.asked_at),
         created_by: office.userId,
       });
-      if (error || !data)
-        throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+      if (error || !data) throw new AppError("internal", NOT_RECORDED, 503);
       return requestDto(data);
     },
   );
 }
 
 /** One step marked done or not done, or the request closed, as its own act. */
-export async function consoleRequestStep(
+export async function stepConsoleRequest(
   office: BackOffice,
   input: { id: string; step: RequestStep | "close"; done: boolean; why: ConsoleWhy },
 ): Promise<PrivacyRequestDto> {
@@ -142,8 +144,7 @@ export async function consoleRequestStep(
     const change = requestStepChange(current, input.step, input.done, new Date().toISOString());
     if ("refused" in change) throw new AppError("conflict", change.refused, 409);
     const { data, error } = await setRequestSteps(office.db, current.id, was, change.steps, change.closedAt);
-    if (error)
-      throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+    if (error) throw new AppError("internal", NOT_RECORDED, 503);
     const row = data?.[0];
     if (!row)
       throw new AppError("conflict", "Someone else changed or closed this request just now. Read it again first.", 409);

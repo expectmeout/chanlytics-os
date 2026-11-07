@@ -5,7 +5,7 @@
  */
 import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
-import { breakerOf, breakerStates, providerFetch, resetBreakers } from "@chanlytics/channels";
+import { breakerOf, breakerStates, fetchFromProvider, resetBreakers } from "@chanlytics/channels/shared";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 beforeEach(() => resetBreakers());
@@ -43,7 +43,7 @@ const clock = (start = 1_000_000) => {
 
 test("an answer is read once and said as one of four outcomes; every call carries a bound", async () => {
   const p = provider(new Response(JSON.stringify({ id: "x1" }), { status: 201, headers: { "retry-after": "3" } }));
-  const a = await providerFetch("meta", "https://graph.example.com/x", { method: "POST", timeoutMs: 5_000 }, p);
+  const a = await fetchFromProvider("meta", "https://graph.example.com/x", { method: "POST", timeoutMs: 5_000 }, p);
   assert.deepEqual(
     [a.outcome, a.status, a.json, a.text, a.error, a.tries, a.retryAfterMs],
     ["ok", 201, { id: "x1" }, '{"id":"x1"}', null, 1, 3_000],
@@ -54,7 +54,7 @@ test("an answer is read once and said as one of four outcomes; every call carrie
   const outcomes = {};
   for (const status of [400, 401, 404, 408, 409, 422, 429, 500, 502, 503, 504]) {
     resetBreakers();
-    outcomes[status] = (await providerFetch("meta", "u", { timeoutMs: 1 }, provider(status))).outcome;
+    outcomes[status] = (await fetchFromProvider("meta", "u", { timeoutMs: 1 }, provider(status))).outcome;
   }
   assert.deepEqual(outcomes, {
     400: "refused",
@@ -70,7 +70,7 @@ test("an answer is read once and said as one of four outcomes; every call carrie
     503: "unknown",
     504: "unknown",
   });
-  const text = await providerFetch(
+  const text = await fetchFromProvider(
     "meta",
     "u",
     { timeoutMs: 1 },
@@ -80,12 +80,12 @@ test("an answer is read once and said as one of four outcomes; every call carrie
 });
 
 test("no answer is never thrown: a timeout may have been taken, a connection that never opened was not", async () => {
-  const t = await providerFetch("twilio", "u", { timeoutMs: 1 }, provider(timeout()));
+  const t = await fetchFromProvider("twilio", "u", { timeoutMs: 1 }, provider(timeout()));
   assert.deepEqual([t.outcome, t.status, t.error], ["unknown", 0, "timeout"]);
-  const never = await providerFetch("twilio", "u", { timeoutMs: 1 }, provider(refusedConnection()));
+  const never = await fetchFromProvider("twilio", "u", { timeoutMs: 1 }, provider(refusedConnection()));
   assert.deepEqual([never.outcome, never.status], ["retryable", 0]);
   assert.match(never.error, /ECONNREFUSED/);
-  const reset = await providerFetch("twilio", "u", { timeoutMs: 1 }, provider(new Error("socket hang up")));
+  const reset = await fetchFromProvider("twilio", "u", { timeoutMs: 1 }, provider(new Error("socket hang up")));
   assert.deepEqual([reset.outcome, reset.error], ["unknown", "socket hang up"], "a dropped connection may have left");
 });
 
@@ -93,26 +93,26 @@ test("retry by outcome: a call is asked again only when asking again cannot do t
   // Not taken: asked again, after the provider's own wait when it names one.
   const c1 = clock();
   const busy = provider(new Response("", { status: 429, headers: { "retry-after": "1" } }), 200);
-  const a = await providerFetch("resend", "u", { timeoutMs: 1_000, tries: 3 }, { ...busy, ...c1 });
+  const a = await fetchFromProvider("resend", "u", { timeoutMs: 1_000, tries: 3 }, { ...busy, ...c1 });
   assert.deepEqual([a.outcome, a.tries, busy.calls.length, c1.waits], ["ok", 2, 2, [1_000]]);
 
   // Maybe taken: a send is never asked again blind; a read is.
   const send = provider(new Error("socket hang up"), 200);
-  const s = await providerFetch("meta", "u", { method: "POST", timeoutMs: 1, tries: 3 }, { ...send, ...clock() });
+  const s = await fetchFromProvider("meta", "u", { method: "POST", timeoutMs: 1, tries: 3 }, { ...send, ...clock() });
   assert.deepEqual([s.outcome, send.calls.length], ["unknown", 1]);
   const read = provider(new Error("socket hang up"), 200);
-  const r = await providerFetch("meta", "u", { timeoutMs: 1, tries: 3, idempotent: true }, { ...read, ...clock() });
+  const r = await fetchFromProvider("meta", "u", { timeoutMs: 1, tries: 3, idempotent: true }, { ...read, ...clock() });
   assert.deepEqual([r.outcome, read.calls.length], ["ok", 2]);
 
   // A try that used its whole bound is not tried again, not even a read: the time left is the caller's.
   const hung = provider(timeout(), 200);
-  const h = await providerFetch("meta", "u", { timeoutMs: 1, tries: 3, idempotent: true }, { ...hung, ...clock() });
+  const h = await fetchFromProvider("meta", "u", { timeoutMs: 1, tries: 3, idempotent: true }, { ...hung, ...clock() });
   assert.deepEqual([h.outcome, h.error, hung.calls.length], ["unknown", "timeout", 1]);
 
   // A refusal is the provider's answer: never asked again.
   const no = provider(422, 200);
   assert.equal(
-    (await providerFetch("meta", "u", { timeoutMs: 1, tries: 3 }, { ...no, ...clock() })).outcome,
+    (await fetchFromProvider("meta", "u", { timeoutMs: 1, tries: 3 }, { ...no, ...clock() })).outcome,
     "refused",
   );
   assert.equal(no.calls.length, 1);
@@ -120,12 +120,12 @@ test("retry by outcome: a call is asked again only when asking again cannot do t
   // Waits double when the provider names none.
   const c2 = clock();
   const down = provider(429, 429, 200);
-  await providerFetch("google", "u", { timeoutMs: 1, tries: 3 }, { ...down, ...c2 });
+  await fetchFromProvider("google", "u", { timeoutMs: 1, tries: 3 }, { ...down, ...c2 });
   assert.deepEqual(c2.waits, [250, 500]);
 
   // Drawn up to a fifth longer at random, so the callers one outage failed do not all ask again at the same instant.
   const c3 = clock();
-  await providerFetch(
+  await fetchFromProvider(
     "google",
     "u",
     { timeoutMs: 1, tries: 3 },
@@ -136,22 +136,22 @@ test("retry by outcome: a call is asked again only when asking again cannot do t
 
 test("a wait longer than a call may take, or past its deadline, hands the answer back for the caller to ask later", async () => {
   const long = provider(new Response("", { status: 429, headers: { "retry-after": "30" } }), 200);
-  const a = await providerFetch("resend", "u", { timeoutMs: 1, tries: 3 }, { ...long, ...clock() });
+  const a = await fetchFromProvider("resend", "u", { timeoutMs: 1, tries: 3 }, { ...long, ...clock() });
   assert.deepEqual([a.outcome, a.retryAfterMs, long.calls.length], ["retryable", 30_000, 1]);
 
   const c = clock();
   const slow = provider(429, 200);
-  const b = await providerFetch("apify", "u", { timeoutMs: 5_000, tries: 3, deadlineMs: 4_000 }, { ...slow, ...c });
+  const b = await fetchFromProvider("apify", "u", { timeoutMs: 5_000, tries: 3, deadlineMs: 4_000 }, { ...slow, ...c });
   assert.deepEqual([b.outcome, slow.calls.length, c.waits], ["retryable", 1, []], "no room for another try");
 });
 
 test("the breaker: five faults in a row hold a provider's calls, answered retryable without asking; the first after the pause is let through; each provider its own", async () => {
   const c = clock();
   const dead = provider(503);
-  for (let i = 0; i < 5; i++) await providerFetch("retell", "u", { timeoutMs: 1 }, { ...dead, ...c });
+  for (let i = 0; i < 5; i++) await fetchFromProvider("retell", "u", { timeoutMs: 1 }, { ...dead, ...c });
   assert.equal(dead.calls.length, 5);
   assert.deepEqual(breakerOf("retell", c.now()), { open: true, failures: 5 });
-  const held = await providerFetch("retell", "u", { timeoutMs: 1, tries: 3 }, { ...dead, ...c });
+  const held = await fetchFromProvider("retell", "u", { timeoutMs: 1, tries: 3 }, { ...dead, ...c });
   assert.deepEqual([held.outcome, held.status, held.error, held.tries], ["retryable", 0, "breaker_open", 0]);
   assert.ok(held.retryAfterMs > 0 && held.retryAfterMs <= 30_000);
   assert.equal(dead.calls.length, 5, "the provider was not asked");
@@ -160,35 +160,40 @@ test("the breaker: five faults in a row hold a provider's calls, answered retrya
   // After the pause one call goes; its answer closes the breaker.
   c.pass(30_000);
   const back = provider(200);
-  assert.equal((await providerFetch("retell", "u", { timeoutMs: 1 }, { ...back, ...c })).outcome, "ok");
+  assert.equal((await fetchFromProvider("retell", "u", { timeoutMs: 1 }, { ...back, ...c })).outcome, "ok");
   assert.deepEqual(breakerOf("retell", c.now()), { open: false, failures: 0 });
 
   // A refusal, a 408 or a 429 is the provider answering: it never opens the breaker.
   const answering = provider(422);
-  for (let i = 0; i < 6; i++) await providerFetch("expo", "u", { timeoutMs: 1 }, { ...answering, ...c });
+  for (let i = 0; i < 6; i++) await fetchFromProvider("expo", "u", { timeoutMs: 1 }, { ...answering, ...c });
   const limited = provider(429);
-  for (let i = 0; i < 6; i++) await providerFetch("expo", "u", { timeoutMs: 1 }, { ...limited, ...c });
+  for (let i = 0; i < 6; i++) await fetchFromProvider("expo", "u", { timeoutMs: 1 }, { ...limited, ...c });
   assert.equal(breakerOf("expo", c.now()).open, false);
 });
 
 test("a call that puts words in front of a person is never held by the breaker: it is always made, and only counted", async () => {
   const c = clock();
   const dead = provider(500);
-  for (let i = 0; i < 5; i++) await providerFetch("meta", "u", { timeoutMs: 1 }, { ...dead, ...c });
+  for (let i = 0; i < 5; i++) await fetchFromProvider("meta", "u", { timeoutMs: 1 }, { ...dead, ...c });
   assert.equal(breakerOf("meta", c.now()).open, true);
 
   // A read is held; a reply is sent all the same, and its answer is the provider's own.
-  const read = await providerFetch("meta", "u", { timeoutMs: 1 }, { ...dead, ...c });
+  const read = await fetchFromProvider("meta", "u", { timeoutMs: 1 }, { ...dead, ...c });
   assert.equal(read.error, "breaker_open");
   const back = provider(200);
-  const reply = await providerFetch("meta", "u", { method: "POST", timeoutMs: 1, breaker: "count" }, { ...back, ...c });
+  const reply = await fetchFromProvider(
+    "meta",
+    "u",
+    { method: "POST", timeoutMs: 1, breaker: "count" },
+    { ...back, ...c },
+  );
   assert.deepEqual([reply.outcome, back.calls.length], ["ok", 1], "the reply went");
   assert.deepEqual(breakerOf("meta", c.now()), { open: false, failures: 0 }, "and its answer closed the breaker");
 
   // Its faults count as any call's do: five failed sends open the breaker for the reads.
   const failing = provider(502);
   for (let i = 0; i < 5; i++)
-    await providerFetch("meta", "u", { method: "POST", timeoutMs: 1, breaker: "count" }, { ...failing, ...c });
+    await fetchFromProvider("meta", "u", { method: "POST", timeoutMs: 1, breaker: "count" }, { ...failing, ...c });
   assert.equal(failing.calls.length, 5, "every send was made");
   assert.equal(breakerOf("meta", c.now()).open, true);
 });
@@ -201,9 +206,9 @@ test("a breaker opens and closes in the log, once each, naming the provider; the
   console.log = (...a) => lines.push(logLineOf(a));
   console.warn = (...a) => lines.push(logLineOf(a));
   try {
-    for (let i = 0; i < 5; i++) await providerFetch("retell", "u", { timeoutMs: 1 }, { ...dead, ...c });
+    for (let i = 0; i < 5; i++) await fetchFromProvider("retell", "u", { timeoutMs: 1 }, { ...dead, ...c });
     // A sixth fault while it is open is not a second opening, and a held call is not a fault.
-    await providerFetch("retell", "u", { timeoutMs: 1 }, { ...dead, ...c });
+    await fetchFromProvider("retell", "u", { timeoutMs: 1 }, { ...dead, ...c });
     assert.deepEqual(
       lines.map((l) => [l.level, l.event, fieldsOf(l)]),
       [["warn", "breaker_open", { provider: "retell", failures: 5, status: 503, error: null, open_ms: 30_000 }]],
@@ -216,8 +221,8 @@ test("a breaker opens and closes in the log, once each, naming the provider; the
     // The pause ends, one call goes and is answered: closed, said once.
     c.pass(30_000);
     lines.length = 0;
-    await providerFetch("retell", "u", { timeoutMs: 1 }, { ...provider(200), ...c });
-    await providerFetch("retell", "u", { timeoutMs: 1 }, { ...provider(200), ...c });
+    await fetchFromProvider("retell", "u", { timeoutMs: 1 }, { ...provider(200), ...c });
+    await fetchFromProvider("retell", "u", { timeoutMs: 1 }, { ...provider(200), ...c });
     assert.deepEqual(
       lines.map((l) => [l.level, l.event, fieldsOf(l)]),
       [["info", "breaker_closed", { provider: "retell", failures: 5 }]],

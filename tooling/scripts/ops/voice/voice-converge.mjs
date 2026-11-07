@@ -28,7 +28,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 
 const DOOR = "/api/admin/voice-converge";
 const BASE = (process.env.BASE_URL || "https://chanlytics-messaging.vercel.app").replace(/\/+$/, "");

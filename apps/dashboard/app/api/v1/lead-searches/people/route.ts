@@ -1,6 +1,6 @@
 import { LeadPeopleSearchSchema, SPEND_LEADS } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
-import { createPeopleSearch } from "@/server/leads/lead-people-search";
+import { createPeopleSearch } from "@/server/leads/people-search";
 
 /**
  * POST /api/v1/lead-searches/people: a people plan becomes a search and its one round (the people card, 00430).
@@ -9,7 +9,7 @@ import { createPeopleSearch } from "@/server/leads/lead-people-search";
  * else), counted against `lead_search`. The body is the validated plan (titles, seniority, industries, sizes, states, a
  * count), where it was made, and the Ask thread it was planned in; the route works out what it may cost from the card's
  * brief prices, and the door reserves the month's leads and the budget with the round, or refuses in a word said as a
- * sentence. The handle is createPeopleSearch in src/server/leads/lead-people-search.ts.
+ * sentence. The handle is createPeopleSearch in src/server/leads/people-search.ts.
  */
 export const POST = write({
   scope: workspace,

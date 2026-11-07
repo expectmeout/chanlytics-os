@@ -21,13 +21,13 @@ const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/se
 const {
   LIFECYCLE_WORDS,
   PLAYBOOK_CARD_REFUSALS,
-  PROPOSAL_SPECS,
   PLAYBOOK_PATCH_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   SEQUENCE_MODE_WORDS,
   lifecyclePlaybooksOf,
 } = await import("@chanlytics/contracts");
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const playbookRoute = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));
 beforeEach(() => readerCache.clear());

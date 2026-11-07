@@ -6,7 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lensAnswerOf, toReportVM } from "@chanlytics/contracts";
+import { toReportVM } from "@chanlytics/contracts";
+import { lensAnswerOf } from "../../apps/dashboard/src/surfaces/reports/model/lens-answer.ts";
 
 const day = (d, over = {}) => ({
   day: d,

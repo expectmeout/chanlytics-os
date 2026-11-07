@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/shared/route";
 import { WaitlistInvitedSchema } from "@chanlytics/contracts";
-import { platformWaitlistInvited } from "@/server/console/platform";
+import { getPlatformWaitlistInvited } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/waitlist/invited — somebody on the waiting list was invited.
@@ -26,5 +26,5 @@ export const POST = write({
   rate: "platform_waitlist_invited",
   act: "waitlist_invited",
   input: WaitlistInvitedSchema,
-  handle: async ({ office, input }) => ({ outcome: await platformWaitlistInvited(office, input.id, input.why) }),
+  handle: async ({ office, input }) => ({ outcome: await getPlatformWaitlistInvited(office, input.id, input.why) }),
 });

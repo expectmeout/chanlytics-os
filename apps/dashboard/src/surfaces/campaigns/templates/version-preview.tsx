@@ -10,16 +10,8 @@
  * keystroke.
  */
 import { Fragment } from "react";
-import {
-  campaignEmailRules,
-  fillSlots,
-  slotKnown,
-  slotLabel,
-  partWritten,
-  slotValueOf,
-  smsStopLine,
-  toSlotParts,
-} from "@chanlytics/contracts";
+import { campaignEmailRules, fillSlots, slotValueOf, smsStopLine } from "@chanlytics/contracts";
+import { slotKnown, slotLabel, partWritten, toSlotParts } from "./message-version-slots";
 import type { EmailRules, OwnVersionChannel, SlotSet, SlotValue, VersionWords } from "@chanlytics/contracts";
 import { Panel } from "../../kit/panel/panel";
 import { textCount } from "./versions";

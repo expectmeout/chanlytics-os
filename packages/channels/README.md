@@ -5,6 +5,8 @@ a provider's wire format and knows nothing about threads. No persistence and no 
 
 ## What is where
 
+Each folder's `index.ts` is its entry: `@chanlytics/channels/lines` (decision 0110). There is no root.
+
 One folder a provider or domain: `whatsapp/`, `instagram/`, `lines/`, `voice/`, `email/` (with `email/mailbox/`),
 `google/`, `leads/`, `models/`, `site/`, `files/`, `inbound/`.
 

@@ -10,8 +10,10 @@
  */
 import { useState } from "react";
 import { ADS_WORDS, adsResultsRoute } from "@chanlytics/contracts";
-import { GATE, PHONE } from "@chanlytics/contracts/ads-page";
-import type { AdRowVM, AdWaitingRowVM, AdsVM, AskVM } from "@chanlytics/contracts/ads-page";
+import { GATE } from "../model/words";
+import { PHONE } from "../model/words-page";
+import type { AdRowVM, AdsVM, AskVM } from "../model/page";
+import type { AdWaitingRowVM } from "../model/page-parts";
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";

@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { importBundle } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -30,7 +31,7 @@ const skip =
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { settleJob } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
-const { stampMailboxReceived } = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+const { stampMailboxReceived } = await importBundle("db");
 
 /** A reply token nobody else has: they are unique across the platform, and the database suites run side by side. */
 const token = () =>

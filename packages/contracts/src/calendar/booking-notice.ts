@@ -9,11 +9,11 @@
  * The intake's rule, the model's shape and the row's identity are one module so the four doors that use them (channels'
  * claim, core's read, the board's row, Settings' words) cannot drift.
  */
-import { dayInZone, localToUtcMs } from "./zone-math";
+import { dayInZone, localToUtcMs } from "../shared/zone/math";
 import type { FeedItem } from "./feed";
-import { extractContacts, sameVisitStart, type OwnAddresses } from "./people";
+import { extractContacts, sameVisitStart, type OwnAddresses } from "./people/matching";
 import { normalizeEmail } from "../shared/email-address";
-import { normalizePhone } from "../shared/phone";
+import { normalizePhone, E164 } from "../shared/phone";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
 
 /* ------------------------------------------------------------------ the tools whose mail is recognised */
@@ -65,7 +65,7 @@ const BOOKING_TOOLS = [
   calendar: BookingToolCalendar | null;
 }>;
 /** Whether a stored or typed value names a tool of the list: the card's picker and the steps read it through this. */
-export const isBookingTool = (v: unknown): v is BookingTool => BOOKING_TOOLS.some((t) => t.tool === v);
+export const isBookingTool = (value: unknown): value is BookingTool => BOOKING_TOOLS.some((t) => t.tool === value);
 
 /** The tool's name as the product says it ("Booksy"); the word itself for one the list does not know. */
 export function bookingToolName(tool: string | null | undefined): string | null {
@@ -100,19 +100,19 @@ const FORWARD_SUBJECT = /^\s*(fwd?|fw|tr|wg|rv)\s*:/i;
  * A mention of a tool's site in a person's own words ("I found you on booksy.com") is neither: only a quoted From
  * line counts, so a customer's email is never taken for a tool's.
  */
-export function bookingNoticeOf(e: {
+export function bookingNoticeOf(input: {
   from: { address: string } | null;
   subject: string | null;
   text: string | null;
 }): { tool: BookingTool; forwarded: boolean } | null {
-  const direct = bookingToolOfAddress(e.from?.address);
+  const direct = bookingToolOfAddress(input.from?.address);
   if (direct) return { tool: direct, forwarded: false };
   // A forward is a person's: no sender, no forward.
-  if (!e.from || !FORWARD_SUBJECT.test(e.subject ?? "") || !e.text) return null;
+  if (!input.from || !FORWARD_SUBJECT.test(input.subject ?? "") || !input.text) return null;
   // The quoted head of a forward: "From: Name <address>" or "From: address", on its own line, in the first part.
-  const head = e.text.slice(0, 4000);
-  const m = /^\s*(?:>\s*)?(?:from|de|von)\s*:\s*(?:"?[^<\n]*"?\s*<)?([^\s<>]+@[^\s<>]+)>?/im.exec(head);
-  const quoted = m ? bookingToolOfAddress(m[1]) : null;
+  const head = input.text.slice(0, 4000);
+  const match = /^\s*(?:>\s*)?(?:from|de|von)\s*:\s*(?:"?[^<\n]*"?\s*<)?([^\s<>]+@[^\s<>]+)>?/im.exec(head);
+  const quoted = match ? bookingToolOfAddress(match[1]) : null;
   return quoted ? { tool: quoted, forwarded: true } : null;
 }
 
@@ -186,7 +186,7 @@ export const NOTICE_READ_MAX_TOKENS = 600;
  * the ledger); the user words carry the notice, the day it arrived in the business's zone (so "tomorrow" and a date
  * with no year resolve) and the zone's name.
  */
-export function noticePrompt(p: {
+export function noticePrompt(params: {
   tool: BookingTool;
   subject: string | null;
   text: string;
@@ -203,11 +203,11 @@ export function noticePrompt(p: {
     "Take only what the email states. Invent nothing; a field the email does not state is null.",
   ].join("\n");
   const user = [
-    `Booking tool: ${bookingToolName(p.tool)}.`,
-    `Received on ${dayInZone(p.tz, p.receivedAtMs).key}; the business's zone is ${p.tz}.`,
-    `Subject: ${p.subject ?? "(none)"}`,
+    `Booking tool: ${bookingToolName(params.tool)}.`,
+    `Received on ${dayInZone(params.tz, params.receivedAtMs).key}; the business's zone is ${params.tz}.`,
+    `Subject: ${params.subject ?? "(none)"}`,
     "",
-    p.text.slice(0, NOTICE_TEXT_MAX),
+    params.text.slice(0, NOTICE_TEXT_MAX),
   ].join("\n");
   return { system, user };
 }
@@ -226,7 +226,8 @@ const NOTICE_HOLDS = [
   "gone",
 ] as const;
 export type NoticeHold = (typeof NOTICE_HOLDS)[number];
-export const isNoticeHold = (v: unknown): v is NoticeHold => (NOTICE_HOLDS as readonly unknown[]).includes(v);
+export const isNoticeHold = (value: unknown): value is NoticeHold =>
+  (NOTICE_HOLDS as readonly unknown[]).includes(value);
 
 /** The booking a notice states, read strictly. Instants are epoch ms in the business's zone. */
 export interface NoticeReading {
@@ -249,30 +250,28 @@ export const NOTICE_DEFAULT_LENGTH_MS = HOUR_MS;
  * reader): written as it stands, one row would be taken time for every day it spans, and no open time would be named.
  */
 const NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
-/** A number as the appointments table keeps one (00345's check): a plus, no leading zero, seven to fifteen digits. */
-const E164 = /^\+[1-9][0-9]{6,14}$/;
 /** A time further from now than this is a misread, not a booking. */
 const NOTICE_TIME_REACH_MS = 400 * DAY_MS;
 /** The most of a free-text field the row keeps. */
 const NOTICE_FIELD_MAX = 200;
 const NOTICE_NOTE_MAX = 1000;
 
-function localMs(tz: string, v: unknown): number | null {
-  if (typeof v !== "string") return null;
-  const m = LOCAL_TIME.exec(v.trim());
-  if (!m) return null;
+function localMs(tz: string, value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const match = LOCAL_TIME.exec(value.trim());
+  if (!match) return null;
   // The pattern's five groups, each read as a number: one the match lacked is NaN, which no bound below admits.
-  const part = (i: number) => Number(m[i]);
-  const y = part(1);
+  const part = (i: number) => Number(match[i]);
+  const result = part(1);
   const mo = part(2);
-  const d = part(3);
+  const otherPart = part(3);
   const hh = part(4);
   const mm = part(5);
-  if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
+  if (!(mo >= 1 && mo <= 12 && otherPart >= 1 && otherPart <= 31 && hh <= 23 && mm <= 59)) return null;
   // A day its month does not have (31 February) is no date: read on, it would roll into the month after.
-  const day = new Date(Date.UTC(y, mo - 1, d));
-  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
-  const ms = localToUtcMs(tz, y, mo, d, hh, mm);
+  const day = new Date(Date.UTC(result, mo - 1, otherPart));
+  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== otherPart) return null;
+  const ms = localToUtcMs(tz, result, mo, otherPart, hh, mm);
   return Number.isFinite(ms) ? ms : null;
 }
 
@@ -292,13 +291,13 @@ export function noticeAnswerOf(
   nowMs: number,
 ): { reading: NoticeReading; hold: null } | { reading: null; hold: NoticeHold } {
   if (!answer || typeof answer !== "object" || Array.isArray(answer)) return { reading: null, hold: "unreadable" };
-  const a = answer as Record<string, unknown>;
-  const kind = a.kind;
+  const first = answer as Record<string, unknown>;
+  const kind = first.kind;
   if (kind === "other") return { reading: null, hold: "not_a_booking" };
   if (kind !== "booked" && kind !== "changed" && kind !== "cancelled") return { reading: null, hold: "unreadable" };
-  const start = localMs(tz, a.starts_at);
+  const start = localMs(tz, first.starts_at);
   if (start === null || Math.abs(start - nowMs) > NOTICE_TIME_REACH_MS) return { reading: null, hold: "no_time" };
-  const endRead = localMs(tz, a.ends_at);
+  const endRead = localMs(tz, first.ends_at);
   // An end before its start is the tool's midnight or a misread, and so is one half a day off: the default length.
   const end =
     endRead !== null && endRead > start && endRead - start <= NOTICE_LENGTH_MAX_MS
@@ -306,25 +305,25 @@ export function noticeAnswerOf(
       : start + NOTICE_DEFAULT_LENGTH_MS;
   // A number the table would refuse (a national one written with its leading zero) is no number: the visit is kept
   // by the name and the address, where the row's check would have thrown the whole notice away.
-  const phone = normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null);
+  const phone = normalizePhone(typeof first.client_phone === "string" ? first.client_phone : null);
   const client = {
-    name: trimmedText(a.client_name, NOTICE_FIELD_MAX),
+    name: trimmedText(first.client_name, NOTICE_FIELD_MAX),
     phone: phone && E164.test(phone) ? phone : null,
-    email: normalizeEmail(typeof a.client_email === "string" ? a.client_email : null),
+    email: normalizeEmail(typeof first.client_email === "string" ? first.client_email : null),
   };
   if (!client.name && !client.phone && !client.email) return { reading: null, hold: "no_client" };
-  const previous = kind === "changed" ? localMs(tz, a.previous_starts_at) : null;
+  const previous = kind === "changed" ? localMs(tz, first.previous_starts_at) : null;
   return {
     reading: {
       kind,
       client,
-      service: trimmedText(a.service, NOTICE_FIELD_MAX),
-      staff: trimmedText(a.staff, NOTICE_FIELD_MAX),
+      service: trimmedText(first.service, NOTICE_FIELD_MAX),
+      staff: trimmedText(first.staff, NOTICE_FIELD_MAX),
       start,
       end,
       previousStart: previous !== null && Math.abs(previous - nowMs) <= NOTICE_TIME_REACH_MS ? previous : null,
-      price: trimmedText(a.price, NOTICE_FIELD_MAX),
-      note: trimmedText(a.note, NOTICE_NOTE_MAX),
+      price: trimmedText(first.price, NOTICE_FIELD_MAX),
+      note: trimmedText(first.note, NOTICE_NOTE_MAX),
     },
     hold: null,
   };
@@ -395,9 +394,11 @@ const near = (starts: readonly number[] | undefined, at: number): boolean =>
  * Whether two visits on the record are one: linked to the same person, and starting within SAME_VISIT_MS of each other.
  * A visit linked to nobody is no other visit's: the record cannot say whose it is.
  */
-export function sameVisitOnRecord(a: VisitOnRecord, b: VisitOnRecord): boolean {
+export function sameVisitOnRecord(visitOn: VisitOnRecord, otherVisitOn: VisitOnRecord): boolean {
   return (
-    !!a.contact_id && a.contact_id === b.contact_id && sameVisitStart(Date.parse(a.starts_at), Date.parse(b.starts_at))
+    !!visitOn.contact_id &&
+    visitOn.contact_id === otherVisitOn.contact_id &&
+    sameVisitStart(Date.parse(visitOn.starts_at), Date.parse(otherVisitOn.starts_at))
   );
 }
 
@@ -569,15 +570,15 @@ const GMAIL_FORWARDING_SENDER = /^forwarding-noreply@google\.com$/i;
  * Mail from someone@gmail.com", a link to press and the code to paste. Null for any other email. The link is the first
  * address Google's mail settings answer on; the code is the subject's, else the "Confirmation code:" line's.
  */
-export function forwardingConfirmationOf(e: {
+export function forwardingConfirmationOf(input: {
   from: { address: string } | null;
   subject: string | null;
   text: string | null;
 }): { account: string; code: string; link: string | null } | null {
-  if (!e.from || !GMAIL_FORWARDING_SENDER.test(e.from.address.trim())) return null;
-  const subject = e.subject ?? "";
+  if (!input.from || !GMAIL_FORWARDING_SENDER.test(input.from.address.trim())) return null;
+  const subject = input.subject ?? "";
   if (!/forwarding confirmation/i.test(subject)) return null;
-  const text = e.text ?? "";
+  const text = input.text ?? "";
   const code = /\(#(\d{5,12})\)/.exec(subject)?.[1] ?? /confirmation code:\s*(\d{5,12})/i.exec(text)?.[1] ?? null;
   const account =
     /receive mail from\s+([^\s<>]+@[^\s<>]+)/i.exec(subject)?.[1] ??

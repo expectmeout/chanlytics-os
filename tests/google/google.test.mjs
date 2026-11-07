@@ -25,7 +25,7 @@ import {
   planListingCheck,
   REVIEW_BELL_MAX,
   FRESH_SLACK_MS,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/google";
 import {
   hoursFromGoogle,
   TenantConfigWriteSchema,
@@ -933,8 +933,8 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // old place's reviews forgotten), unlink, refresh, and the two events --
   // runs in google-door.test.mjs. The library is modules: the key's, the check's and the profile's sync. The
   // bell each of them rings, and the lens it opens, run there and in cron-doors-b.test.mjs.
-  const lib = ["config", "listing-check", "profile-sync"]
-    .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
+  const lib = ["shared/google/config", "google/listing-check", "google/profile-sync"]
+    .map((m) => readCode(`apps/edge/lib/${m}.ts`))
     .join("\n");
   assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));
   assert.ok(lib.includes("planListingCheck("), "the plan decides, the edge writes and rings");
@@ -959,7 +959,7 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
   // listed kind is stored as itself is run in notify-transport.test.mjs.
   assert.ok(
-    readCode("apps/edge/lib/ops/notify.ts").includes("new Set(SERVER_NOTIFICATION_KINDS)") &&
+    readCode("apps/edge/lib/shared/alerts/notify.ts").includes("new Set(SERVER_NOTIFICATION_KINDS)") &&
       ["calendar_people", "review"].every((k) => SERVER_NOTIFICATION_KINDS.includes(k)),
     "the kind is kept, not folded into alert",
   );
@@ -969,7 +969,7 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
 test("the dashboard: owners and the partner link and search, operators read, members look; the pages read one surface", async () => {
   const search = readCode(
     "apps/dashboard/app/api/v1/google/search/route.ts",
-    "apps/dashboard/src/server/connections/google-actions.ts",
+    "apps/dashboard/src/server/settings/google-actions.ts",
   );
   assert.ok(search.includes('role: "partner",') && search.includes('rate: "google_search",'));
   assert.ok(
@@ -990,7 +990,9 @@ test("the dashboard: owners and the partner link and search, operators read, mem
     server.includes('callEdge("/api/admin/google"') && server.includes("now - googleReadyCache.at < READY_TTL_MS"),
   );
   assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
-  const setup = readCode("apps/dashboard/src/server/workspace/setup.ts");
+  const setup = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   // What Setup reads of the listing, and of Google's facts, setup.test.mjs runs (setupDtoFor over a database in memory).
   assert.ok(setup.includes("ready: google.places || google.profile,"));
   const bridge = readCode("apps/dashboard/src/bridge/google.ts");

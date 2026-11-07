@@ -1,4 +1,4 @@
-import type { NotificationsDto, ServerNotificationKind } from "./notifications";
+import type { NotificationsDto, ServerNotificationKind } from "./notifications/feed-input";
 import { MIN_MS } from "../shared/time";
 
 /** Where a phone can be one of ours. Held to push_devices.platform (schema-sets.ts). */
@@ -22,19 +22,22 @@ const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]+\]$/;
 
 /** What PUT /api/v1/me/devices accepts, or why not, in one sentence. */
 export function parseDevice(body: unknown): { ok: true; device: PushDevice } | { ok: false; reason: string } {
-  const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const token = typeof b.token === "string" ? b.token.trim() : "";
+  const second = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const token = typeof second.token === "string" ? second.token.trim() : "";
   if (!token) return { ok: false, reason: "A device needs its push token." };
   if (token.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
-  const platform = (PUSH_PLATFORMS as readonly string[]).includes(String(b.platform))
-    ? (b.platform as PushPlatform)
+  const platform = (PUSH_PLATFORMS as readonly string[]).includes(String(second.platform))
+    ? (second.platform as PushPlatform)
     : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
   if (!EXPO_PUSH_TOKEN.test(token)) return { ok: false, reason: "That is not a push token the service hands out." };
   const version =
-    typeof b.app_version === "string" && b.app_version.trim() ? b.app_version.trim().slice(0, VERSION_MAX) : null;
+    typeof second.app_version === "string" && second.app_version.trim()
+      ? second.app_version.trim().slice(0, VERSION_MAX)
+      : null;
   // The Live Activity's push-to-start token (00191), when the phone has one: iOS 17.2 and later, never Android.
-  const activity = typeof b.activity_token === "string" && b.activity_token.trim() ? b.activity_token.trim() : null;
+  const activity =
+    typeof second.activity_token === "string" && second.activity_token.trim() ? second.activity_token.trim() : null;
   if (activity && activity.length > TOKEN_MAX)
     return { ok: false, reason: "That activity token is longer than any we know." };
   return { ok: true, device: { token, platform, app_version: version, activity_token: activity } };
@@ -232,18 +235,18 @@ export function firstLine(body: string, max = 160): string {
 
 /** The bell's own words, once per device. */
 export function pushFor(
-  n: { id: string; tenant_id: string; title: string; body: string; route: string | null },
+  input: { id: string; tenant_id: string; title: string; body: string; route: string | null },
   targets: readonly PushTarget[],
 ): PushMessage[] {
-  const body = firstLine(n.body);
+  const body = firstLine(input.body);
   return targets.map((t) => ({
     to: t.token,
     // "Harbor · Dana needs a person": a person in several businesses was told who, never which business (R11 S8-7).
-    title: t.business ? `${t.business} · ${n.title}` : n.title,
+    title: t.business ? `${t.business} · ${input.title}` : input.title,
     body,
     sound: "default",
     ...(t.badge === null ? {} : { badge: t.badge }),
-    data: { route: n.route, notification_id: n.id, tenant_id: n.tenant_id },
+    data: { route: input.route, notification_id: input.id, tenant_id: input.tenant_id },
   }));
 }
 

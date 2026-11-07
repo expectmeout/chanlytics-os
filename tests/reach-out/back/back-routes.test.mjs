@@ -183,7 +183,7 @@ test("GET reports/reach-outs reads the report and every chain's totals over one 
 });
 
 test("GET reports/reach-outs answers its reader's payload; where the chains' totals cannot be read the report's own chains stand in, as not every chain: a database without the function quietly, a read that fails said in the log; only the report's own failure is the route's", async () => {
-  const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+  const { load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
   const { reachOutReport } = await import(at("apps/dashboard/src/server/readers/campaign-report.ts"));
   const d = doors({
     reach_out_report: () => ONE_CHAIN,

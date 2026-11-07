@@ -10,7 +10,7 @@
  *     usage ledger for the reply's workspace (defect 53: the reader kept no usage). While the second model is on
  *     (decision 0023), the reply's intent is also put to it in shadow: its answer is compared with the read's and kept,
  *     and never read here.
- *   - mayRead: the model's key, the workspace's one reading of whether it may spend (workspaceMaySpend, as the check
+ *   - mayRead: the model's key, the workspace's one reading of whether it may spend (mayWorkspaceSpend, as the check
  *     asks it), and one read taken from its UTC day (REACH_OUT_READS_PER_DAY, beside the check's attempts). No second
  *     budget rule: a read is spent the way a check's attempt is.
  *   - tell: the notification door, once (notifyOnce: the bell's row, the push, the mail), true only when the owner was
@@ -27,13 +27,15 @@ import {
   replyReadPrimary,
   replyReadShadowCall,
   type SecondKey,
+  ANSWER_JSON_ONLY,
 } from "@chanlytics/contracts";
-import { takeReplyRead, workspaceMaySpend, type Database } from "@chanlytics/db";
+import { takeReplyRead, mayWorkspaceSpend } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
 import type { JobContext } from "@chanlytics/jobs";
 import { askJson, promptHashOf, type JsonAnswer } from "../../ai/model.js";
 import { startShadow } from "../../ai/shadow.js";
 import { env } from "../../shared/env.js";
-import { notifyOnce } from "../../ops/notify.js";
+import { notifyOnce } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { CHECK_CALL_MS } from "./check.js";
 import { replyDrafter } from "./reply-draft.js";
@@ -65,7 +67,7 @@ export function replyReader(
           user,
           schema: REPLY_SCHEMA,
           maxTokens: REPLY_READ_MAX_TOKENS,
-          plainJsonHint: "Answer with only a JSON object in the shape asked.",
+          plainJsonHint: ANSWER_JSON_ONLY,
           timeoutMs: ms,
           signal: AbortSignal.timeout(ms),
           // The reading is stamped by its ledger row: the message it read (subject) and the hash of what it was told.
@@ -79,7 +81,7 @@ export function replyReader(
     },
     mayRead: async (tenantId, at) => {
       if (!env.ANTHROPIC_API_KEY) return "no_model";
-      if (!(await workspaceMaySpend(db, tenantId))) return "may_not_spend";
+      if (!(await mayWorkspaceSpend(db, tenantId))) return "may_not_spend";
       return (await takeReplyRead(db, { tenantId, cap: REACH_OUT_READS_PER_DAY, at })) ? null : "day_spent";
     },
     tell:

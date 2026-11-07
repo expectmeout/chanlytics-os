@@ -120,7 +120,7 @@ test("with the switch off, the amounts the owner wrote, from price boxes and not
 });
 
 test("a note's price is said through its last day on the business's own day, and never after it, as the note stops being told", () => {
-  // The plan's offer note (contracts ask/plan.ts offerNote): its title and text carry the offer, its until the last day.
+  // The plan's offer note (contracts ask/plan/plan.ts offerNote): its title and text carry the offer, its until the last day.
   const offer = {
     title: "Offer: Colour for $60 all November",
     text: "The offer: Colour for $60 all November. It runs from November 1 to November 30.",

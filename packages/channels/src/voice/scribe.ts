@@ -7,7 +7,7 @@
  * The answer comes in the same request; a long clip that outruns its bound is the digest step's to ask again. The account's
  * key is the one Ask's voice already uses. Nothing here knows a row or a workspace.
  */
-import { answerObject, providerFetch } from "../shared/provider-fetch";
+import { answerObject, fetchFromProvider } from "../shared/provider-fetch";
 import type { ModelDeps } from "../ai/anthropic";
 
 const SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text";
@@ -27,7 +27,7 @@ export async function transcribeWithScribe(
   form.append("diarize", "true");
   form.append("tag_audio_events", "true");
   form.append("timestamps_granularity", "word");
-  const reply = await providerFetch(
+  const reply = await fetchFromProvider(
     "elevenlabs",
     SCRIBE_URL,
     { method: "POST", headers: { "xi-api-key": key }, body: form, timeoutMs: request.timeoutMs },

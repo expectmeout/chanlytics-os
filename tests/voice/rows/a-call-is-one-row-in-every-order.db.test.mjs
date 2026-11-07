@@ -11,8 +11,8 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { ingestCall } from "@chanlytics/db";
-import { normalizeCall } from "@chanlytics/channels";
+import { ingestCall } from "@chanlytics/db/voice";
+import { normalizeCall } from "@chanlytics/channels/voice";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

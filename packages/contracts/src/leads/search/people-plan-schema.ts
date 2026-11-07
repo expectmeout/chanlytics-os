@@ -9,17 +9,19 @@ import {
   PEOPLE_CARD,
   PEOPLE_COMPANY_SIZES,
   PEOPLE_COUNT_MAX,
-  PEOPLE_ASKED_CHARS,
-  PEOPLE_FIND_WORDS,
   PEOPLE_INDUSTRIES_MAX,
   PEOPLE_KEYWORDS_MAX,
-  PEOPLE_KEYWORD_CHARS,
   PEOPLE_SENIORITIES,
   PEOPLE_STATES_MAX,
   PEOPLE_TITLES_MAX,
+} from "./people-plan/card";
+import {
+  PEOPLE_ASKED_CHARS,
+  PEOPLE_FIND_WORDS,
+  PEOPLE_KEYWORD_CHARS,
   PEOPLE_TITLE_CHARS,
   type LeadPeoplePlan,
-} from "./people-plan";
+} from "./people-plan/plan";
 import { peopleIndustriesNear, peopleIndustryOf } from "./people-industries";
 
 /**

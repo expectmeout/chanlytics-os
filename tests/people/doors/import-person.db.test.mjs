@@ -8,7 +8,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { legacyErasedPhoneHash } from "@chanlytics/contracts";
+import { hashLegacyErasedPhone } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -129,7 +129,7 @@ test("a person who asked to be forgotten is not brought back by a spreadsheet", 
       tenant_id: tenantId,
       phone_e164: null,
       erased_at: new Date().toISOString(),
-      erased_phone_hash: await legacyErasedPhoneHash(tenantId, phone),
+      erased_phone_hash: await hashLegacyErasedPhone(tenantId, phone),
     })
     .select("id")
     .single();
@@ -137,7 +137,7 @@ test("a person who asked to be forgotten is not brought back by a spreadsheet", 
   const r = await door({
     p_name: "Gone",
     p_phone_e164: phone,
-    p_phone_digest: await legacyErasedPhoneHash(tenantId, phone),
+    p_phone_digest: await hashLegacyErasedPhone(tenantId, phone),
   });
   // A code of its own: 42501 is Postgres's "permission denied" too, and a lost grant must not read as a forgotten line.
   assert.equal(r.error?.code, "PE001");

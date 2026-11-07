@@ -41,7 +41,7 @@ export async function readCampaignMessage(
  * value the job fills per person; a booking-link slot needs a link on file, and a review-link slot the link the Google
  * listing keeps. Every refusal is a sentence for the person composing.
  */
-export async function templateValues(
+export async function getTemplateValues(
   ports: TemplateValuesPorts,
   /**
    * `visits`: a visit playbook, whose run knows each visit; `proposal`: the follow-up, whose run knows each link;
@@ -62,8 +62,8 @@ export async function templateValues(
   }
   // Each slot: typed text once, or a value the job fills per person.
   const specs: ParamSpec[] = [];
-  for (const p of rawParams) {
-    const spec = parseParamSpec(p);
+  for (const rawParam of rawParams) {
+    const spec = parseParamSpec(rawParam);
     if (!spec)
       throw new AppError(
         "validation",
@@ -104,7 +104,7 @@ export async function templateValues(
 
 /**
  * A booking-link slot needs a link on file: refused in words where none is, and the link read only where a slot asks
- * for it. The one rule a message's values (templateValues) and a starter card (the dashboard's checkStarterPlaybook,
+ * for it. The one rule a message's values (getTemplateValues) and a starter card (the dashboard's checkStarterPlaybook,
  * before anything is filed) are held to.
  */
 export async function refuseWithoutBookingLink(

@@ -8,7 +8,8 @@
  * Hookless: its state is People's (usePeoplePeek). A yes is recorded on their page (the rail's fold), so Up next's rung
  * for it says the fact here and offers no press; the note is read, written on their page.
  */
-import { NOTE_WORDS, PERSON_PEEK_WORDS as W, personHeadStateOf, personTabRoute } from "@chanlytics/contracts";
+import { NOTE_WORDS, PERSON_PEEK_WORDS as W, personTabRoute } from "@chanlytics/contracts";
+import { personHeadStateOf } from "../person/model/head-state";
 import type { PersonRowVM, PersonVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";

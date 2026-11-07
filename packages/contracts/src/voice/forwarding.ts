@@ -146,10 +146,10 @@ export interface ForwardingFacts {
   verified_at?: string | null;
 }
 
-export const isCarrier = (v: unknown): v is Carrier =>
-  typeof v === "string" && (CARRIERS as readonly string[]).includes(v);
-export const isForwardingMode = (v: unknown): v is ForwardingMode =>
-  typeof v === "string" && (FORWARDING_MODES as readonly string[]).includes(v);
+export const isCarrier = (value: unknown): value is Carrier =>
+  typeof value === "string" && (CARRIERS as readonly string[]).includes(value);
+export const isForwardingMode = (value: unknown): value is ForwardingMode =>
+  typeof value === "string" && (FORWARDING_MODES as readonly string[]).includes(value);
 
 /**
  * The verification rule: an inbound call that started inside the test

@@ -10,7 +10,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { showSecondFactor } from "../../_second-factor.mjs";
-import { reachOutChainTotals } from "@chanlytics/db";
+import { getReachOutChainTotals } from "@chanlytics/db/reports";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -290,7 +290,11 @@ test(
         now,
         `named ${end}: the days to today, as no day named reads them`,
       );
-    assert.deepEqual(await reachOutChainTotals(viewer, A, { days: 90, end: dayBefore(2) }), ended, "through the door");
+    assert.deepEqual(
+      await getReachOutChainTotals(viewer, A, { days: 90, end: dayBefore(2) }),
+      ended,
+      "through the door",
+    );
   },
 );
 
@@ -299,11 +303,11 @@ test(
   { skip },
   async () => {
     assert.deepEqual(
-      await reachOutChainTotals(viewer, A, { days: 30, end: null }),
+      await getReachOutChainTotals(viewer, A, { days: 30, end: null }),
       ok(await viewer.rpc("reach_out_chain_totals", { p_tenant_id: A, p_days: 30 })),
     );
     await assert.rejects(
-      reachOutChainTotals(stranger, A, { days: 30, end: null }),
+      getReachOutChainTotals(stranger, A, { days: 30, end: null }),
       /reach_out_chain_totals: Workspace not found/,
     );
   },

@@ -1,9 +1,9 @@
 import "server-only";
-import { logger, noteTenant, noteTiming, noteTouch, requestId, withRequestId, type Logger } from "@chanlytics/channels";
-import { observeDb } from "@chanlytics/db";
+import { logger, noteTenant, noteTiming, noteTouch, requestId, withRequestId, type Logger } from "@chanlytics/log";
+import { observeDb } from "@chanlytics/db/shared";
 
 /**
- * The dashboard's server logs through the platform's one logger (packages/channels log/), the edge's too: one JSON
+ * The dashboard's server logs through the platform's one logger (packages/log), the edge's too: one JSON
  * object per line, every line carrying the request it belongs to, its fields redacted by key.
  *
  * It had none, then a copy (#1332). A hundred and twenty-five console calls wrote three shapes (a JSON string,

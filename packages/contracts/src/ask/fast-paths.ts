@@ -1,15 +1,16 @@
 /**
  * The fast paths: the three questions an owner asks most, answered without a model. Which one a question is
  * (askIntent), the day it names (dayFromQuestion), today's missed calls and those on the line (callsToday), and a
- * quick answer as the route keeps it, a turn of its thread (quickAnswerOf); ask/answer.ts words each answer.
+ * quick answer as the route keeps it, a turn of its thread (quickAnswerOf); ask/answer/normalize.ts words each answer.
  */
-import { dayWordIn } from "../calendar/day-keys";
-import { dayInZone, dayPlusInZone, usableZone } from "../calendar/zone-math";
+import { dayWordIn } from "../shared/zone/day-keys";
+import { dayInZone, dayPlusInZone, usableZone } from "../shared/zone/math";
 import { missedCall } from "../conversations/call-dto";
-import { CALL_HEARTBEAT_MS } from "../config/policy";
+import { CALL_HEARTBEAT_MS } from "../config/policy/reply-limits";
 import { liveStillUp, type LiveCallVM } from "../voice/live";
-import { ASK_ANSWER_CAPS, clip, type AskAnswer, type AskItem, type AskOpen } from "./answer";
+import { ASK_ANSWER_CAPS, clip, type AskAnswer, type AskItem, type AskOpen } from "./answer/shape";
 import { ASK_CITATION_KINDS, type AskCitationKind } from "./citations";
+import { recordOrEmpty } from "../shared/unknown";
 
 /* -------------------------------------------------------------- fast paths */
 
@@ -117,8 +118,8 @@ function quickWords(question: string): string {
 }
 
 /** The day a question names (contracts dayWordIn): a weekday key, "today"/"tomorrow" as a date, or nothing. */
-export function dayFromQuestion(q: string, now: number, tz?: string | null): string | null {
-  const named = dayWordIn(q);
+export function dayFromQuestion(query: string, now: number, tz?: string | null): string | null {
+  const named = dayWordIn(query);
   // The day in the business's zone; with no zone, or one Intl cannot use, the day in UTC -- never the machine's.
   const zone = usableZone(tz);
   // Tomorrow is the next DAY, which is not "now plus 24 hours" on the two
@@ -128,7 +129,7 @@ export function dayFromQuestion(q: string, now: number, tz?: string | null): str
   return named;
 }
 
-/** What a quick question asks for, answered without a model; ask/answer.ts words the answer. */
+/** What a quick question asks for, answered without a model; ask/answer/normalize.ts words the answer. */
 export type AskIntent =
   { kind: "needs" } | { kind: "calls" } | { kind: "openings"; day: string | null; service: string } | null;
 
@@ -136,7 +137,7 @@ export type AskIntent =
  * The three questions an owner asks most, answered without a model: who
  * needs me, did anyone call, what is open. This only says which one a
  * question is; the bridge reads Today's queue, the calls or the openings
- * route, and ask/answer.ts says the answer. Only the short forms are quick
+ * route, and ask/answer/normalize.ts says the answer. Only the short forms are quick
  * (NEEDS_RE, CALLS_RE, OPEN_RE, whole): everything else is the model's.
  */
 export function askIntent(question: string, now: number, tz?: string | null): AskIntent {
@@ -154,8 +155,6 @@ export function askIntent(question: string, now: number, tz?: string | null): As
 
 const C = ASK_ANSWER_CAPS;
 const CITATION_KINDS = new Set<string>(ASK_CITATION_KINDS);
-const fields = (v: unknown): Record<string, unknown> =>
-  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const capTo = (v: unknown, n: number) => clip(typeof v === "string" ? v : "", n);
 /** Where a quick answer's door may go: a page of the app, never a scheme, a host or a path from the root. */
 const appRoute = (v: unknown): string | null =>
@@ -170,34 +169,48 @@ const appRoute = (v: unknown): string | null =>
  * shape the Line never draws: no headline, a row with no kind, id or door, or a door that leaves the app.
  */
 export function quickAnswerOf(raw: unknown): AskAnswer | null {
-  const a = fields(raw);
-  const say = fields(a.say);
+  const result = recordOrEmpty(raw);
+  const say = recordOrEmpty(result.say);
   const headline = capTo(say.headline, C.headline);
-  if (a.v !== 2 || a.form !== "structured" || !headline) return null;
-  const rows = fields(a.show).items;
+  if (result.v !== 2 || result.form !== "structured" || !headline) return null;
+  const rows = recordOrEmpty(result.show).items;
   const items: AskItem[] = [];
-  for (const it of (Array.isArray(rows) ? rows : []).slice(0, C.items).map(fields)) {
-    const s = fields(it.source);
+  for (const it of (Array.isArray(rows) ? rows : []).slice(0, C.items).map(recordOrEmpty)) {
+    const fieldsItem = recordOrEmpty(it.source);
     const title = capTo(it.title, C.title);
-    const to = appRoute(s.to);
-    if (!title || !to || typeof s.kind !== "string" || !CITATION_KINDS.has(s.kind) || typeof s.id !== "string")
+    const to = appRoute(fieldsItem.to);
+    if (
+      !title ||
+      !to ||
+      typeof fieldsItem.kind !== "string" ||
+      !CITATION_KINDS.has(fieldsItem.kind) ||
+      typeof fieldsItem.id !== "string"
+    )
       return null;
-    if (!s.id || s.id.length > 300) return null;
-    const label = capTo(s.label, C.label) || title;
-    const source = { kind: s.kind as AskCitationKind, id: s.id, label, to, door: s.door !== false };
+    if (!fieldsItem.id || fieldsItem.id.length > 300) return null;
+    const label = capTo(fieldsItem.label, C.label) || title;
+    const source = {
+      kind: fieldsItem.kind as AskCitationKind,
+      id: fieldsItem.id,
+      label,
+      to,
+      door: fieldsItem.door !== false,
+    };
     items.push({ title, meta: capTo(it.meta, C.meta), line: capTo(it.line, C.line), source });
   }
-  const o = fields(a.do).open;
-  const openTo = o ? appRoute(fields(o).to) : null;
-  if (o && !openTo) return null;
-  const open: AskOpen | null = openTo ? { to: openTo, label: capTo(fields(o).label, C.label), now: false } : null;
+  const otherFields = recordOrEmpty(result.do).open;
+  const openTo = otherFields ? appRoute(recordOrEmpty(otherFields).to) : null;
+  if (otherFields && !openTo) return null;
+  const open: AskOpen | null = openTo
+    ? { to: openTo, label: capTo(recordOrEmpty(otherFields).label, C.label), now: false }
+    : null;
   return {
     v: 2,
     form: "structured",
     say: { headline, detail: capTo(say.detail, C.detail) },
     show: { figures: [], items, breakdown: null, list: { style: "bullets", entries: [] } },
     do: { open, next: [] },
-    language: a.language === "es" || a.language === "en" ? a.language : "other",
+    language: result.language === "es" || result.language === "en" ? result.language : "other",
   };
 }
 

@@ -6,7 +6,8 @@
  */
 import { Fragment } from "react";
 import type { AdDoor } from "@chanlytics/contracts";
-import { BOOK_ONLINE, DOOR, DOOR_ORDER, NEW_AD } from "@chanlytics/contracts/ads-page";
+import { BOOK_ONLINE, NEW_AD } from "../model/words-new";
+import { DOOR, DOOR_ORDER } from "../model/words";
 import { DotRows, PickRow, DoorRing, Cap } from "./new-bits";
 import type { DotRow, StepProps } from "./new-bits";
 

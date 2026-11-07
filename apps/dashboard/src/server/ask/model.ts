@@ -27,9 +27,9 @@ export function askModel(): AskModelProfile {
     (speed !== null && !(MODEL_SPEEDS as readonly string[]).includes(speed)) ||
     (draft !== null && draft !== "off" && !(MODEL_EFFORTS as readonly string[]).includes(draft)) ||
     (answer !== null && answer !== "on" && answer !== "off");
-  const said = `${name}|${effort}|${speed}|${draft}|${answer}`;
-  if (unread && warnedFor !== said) {
-    warnedFor = said;
+  const sentence = `${name}|${effort}|${speed}|${draft}|${answer}`;
+  if (unread && warnedFor !== sentence) {
+    warnedFor = sentence;
     log.warn("ask_model_unknown", {
       name,
       effort,

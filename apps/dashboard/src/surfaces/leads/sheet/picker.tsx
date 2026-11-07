@@ -10,7 +10,7 @@
  */
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { LEAD_SHEET_WORDS as W, newStartFirst, type LeadPickerRowVM } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS as W, newStartFirst, type LeadPickerRowVM } from "./model/view";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";

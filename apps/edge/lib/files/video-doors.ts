@@ -21,9 +21,13 @@ import {
   isVideoMime,
   secondsOf,
   videoPreviewOf,
+  FILE_LISTEN_DOOR,
+  FILE_PLAY_DOOR,
+  FILE_VIDEO_START_DOOR,
 } from "@chanlytics/contracts";
-import { deleteStreamVideo, reserveStreamUpload, streamPlayerUrl, streamTokenOf } from "@chanlytics/channels";
-import { beginFileVideo, fileForWork, filesBucket, workspaceNameAndConfig } from "@chanlytics/db";
+import { deleteStreamVideo, reserveStreamUpload, streamPlayerUrl, streamTokenOf } from "@chanlytics/channels/files";
+import { beginFileVideo, findFileForWork, filesBucket } from "@chanlytics/db/files";
+import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
 import { readBody, workspaceOf } from "../shared/admin-door.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
@@ -44,15 +48,7 @@ const isFingerprint = (v: unknown): v is string => typeof v === "string" && /^[0
 
 /** POST /api/admin/files/video-start: a reservation, and the row. */
 export async function startVideoUpload(auth: Admitted, request: Request): Promise<Response> {
-  const body = await readBody<{
-    tenant_id: string;
-    id: string;
-    name: string;
-    mime: string;
-    bytes: number;
-    seconds: number | null;
-    fingerprint: string;
-  }>(request);
+  const body = await readBody(request, FILE_VIDEO_START_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const at = workspaceOf(ws.tenantId);
@@ -73,7 +69,7 @@ export async function startVideoUpload(auth: Admitted, request: Request): Promis
     return refuse(400, "bad_request", "id, name, a video's mime, its bytes and its fingerprint are required");
   if (seconds !== null && seconds > FILE_VIDEO_SECONDS_MAX) return json(200, { ok: true, fate: "too_long" });
   // The switch (D11), read here: the workspace's config is the service role's to read, not a member's.
-  const takesVideos = await workspaceNameAndConfig(db, tenantId)
+  const takesVideos = await findWorkspaceNameAndConfig(db, tenantId)
     .then(({ config }) => videoPreviewOf(config))
     .catch(() => null);
   if (takesVideos === null) return refuse(503, "no_database");
@@ -128,15 +124,15 @@ export async function startVideoUpload(auth: Admitted, request: Request): Promis
 }
 
 /** A video the member's workspace keeps, playable, or the refusal that says why not. */
-async function playableOf(db: Parameters<typeof fileForWork>[0], tenantId: string, id: unknown) {
+async function playableOf(db: Parameters<typeof findFileForWork>[0], tenantId: string, id: unknown) {
   if (typeof id !== "string" || !UUID.test(id)) return null;
-  const row = await fileForWork(db, tenantId, id);
+  const row = await findFileForWork(db, tenantId, id);
   return row && !row.removed_at && row.kind === "video" && row.media_status === "ready" && row.media_ref ? row : null;
 }
 
 /** POST /api/admin/files/play: the player's address for one video, under an hour's token, its poster and captions ours. */
 export async function signVideoPlay(auth: Admitted, request: Request): Promise<Response> {
-  const body = await readBody<{ tenant_id: string; id: string }>(request);
+  const body = await readBody(request, FILE_PLAY_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const at = workspaceOf(ws.tenantId);
@@ -166,7 +162,7 @@ export async function signVideoPlay(auth: Admitted, request: Request): Promise<R
 /** POST /api/admin/files/listen: Ask's question about a stretch, put to the ear; the answer is data, the dashboard fences it. */
 export async function listenToVideo(auth: Admitted, request: Request): Promise<Response> {
   const started = Date.now();
-  const body = await readBody<{ tenant_id: string; id: string; question: string; from: unknown; to: unknown }>(request);
+  const body = await readBody(request, FILE_LISTEN_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const at = workspaceOf(ws.tenantId);

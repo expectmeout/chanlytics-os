@@ -8,21 +8,9 @@ import {
   chainFirstSender,
   chainPaceOf,
   coldEndingOf,
-  LEAD_SHEET_WORDS as W,
   leadCardStepsOf,
-  leadDockOf,
-  leadHistoryOf,
-  leadLinesOf,
-  leadNowOf,
   leadOpeningOf,
   leadOwnWordsOf,
-  leadSheetChecksLineOf,
-  leadSheetClosedOf,
-  leadSheetEmailLineOf,
-  leadSheetStateOf,
-  leadSheetSubOf,
-  leadSheetWhyOf,
-  leadVerdictOf,
   leadWordsInBox,
   leadWordsPieces,
   markedOpeningOf,
@@ -37,19 +25,8 @@ import {
   type LeadEmailText,
   type LeadOwnWords,
   type LeadStepWordsDto,
-  type LeadHistoryRowVM,
-  type LeadLineVM,
-  type LeadNowVM,
   type LeadPeekVM,
   type LeadRowVM,
-  type LeadSheetChecksLineVM,
-  type LeadSheetClosedVM,
-  type LeadSheetDockVM,
-  type LeadSheetEmailLineVM,
-  type LeadSheetLead,
-  type LeadSheetState,
-  type LeadSheetWhyVM,
-  type LeadVerdictVM,
   type MarkedOpening,
   type PlaceRailVM,
   type ReachOutChainDto,
@@ -58,6 +35,28 @@ import {
   type SequenceState,
   type SlotWorkspace,
 } from "@chanlytics/contracts";
+import {
+  LEAD_SHEET_WORDS as W,
+  leadSheetClosedOf,
+  leadSheetStateOf,
+  leadVerdictOf,
+  type LeadSheetClosedVM,
+  type LeadSheetLead,
+  type LeadSheetState,
+  type LeadVerdictVM,
+} from "./model/view";
+import { leadDockOf, type LeadSheetDockVM } from "./model/dock";
+import { leadHistoryOf, leadLinesOf, type LeadHistoryRowVM, type LeadLineVM } from "./model/lines";
+import { leadNowOf, type LeadNowVM } from "./model/now";
+import {
+  leadSheetChecksLineOf,
+  leadSheetEmailLineOf,
+  leadSheetSubOf,
+  leadSheetWhyOf,
+  type LeadSheetChecksLineVM,
+  type LeadSheetEmailLineVM,
+  type LeadSheetWhyVM,
+} from "./model/card";
 import { subjectWords } from "../../campaigns/sequences/place/email-as";
 import { businessAddressOf } from "../../campaigns/sequences/leads/reads";
 import { leadCardFor, leadCardLeadOf, leadCardWorkspace, type LeadCardFacts } from "../pile/card";

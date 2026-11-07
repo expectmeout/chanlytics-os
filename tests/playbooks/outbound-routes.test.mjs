@@ -32,7 +32,7 @@ const sync = await import(at("apps/dashboard/app/api/v1/templates/sync/route.ts"
 const playbooks = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 const playbook = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));
 const run = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/run/route.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 // The ledger is written as the service role (a session may not insert into events): a test that reads it stands one in.
@@ -1387,7 +1387,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       if (answer instanceof Error) throw answer;
       return new Response(JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } });
     };
-    await emailWire({ fresh: true });
+    await getEmailWire({ fresh: true });
   };
   const tablesFor = (over = {}) => ({
     memberships: both("viewer", "operator"),
@@ -1527,7 +1527,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
     if (beforeSecret === undefined) delete process.env.EDGE_CALL_SECRET;
     else process.env.EDGE_CALL_SECRET = beforeSecret;
     // What the next test reads is the answer of a deployment that cannot ask the edge, as it was before this one.
-    await emailWire({ fresh: true });
+    await getEmailWire({ fresh: true });
   }
 });
 

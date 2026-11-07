@@ -14,7 +14,7 @@ import "server-only";
  * The workspace is the one the tab named, taken only when the member belongs to it, so a report cannot be filed under
  * someone else's. Written on the service role: the table is the platform's, and no member reads it.
  */
-import { fileReport, markReportMailed } from "@chanlytics/db";
+import { reportFile, markReportMailed } from "@chanlytics/db/console";
 import {
   AppError,
   reportCode,
@@ -23,9 +23,9 @@ import {
   supportTopicOf,
   type ReportProblemInputDto,
 } from "@chanlytics/contracts";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { memberContext, type RouteContext } from "../shared/with-route";
+import { getMemberContext, type RouteContext } from "../shared/with-route";
 import { callEdge, edgeAnswered, edgeConfigured, edgeRefusalWords } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { serviceDb } from "../shared/service-db";
@@ -44,7 +44,7 @@ interface ReportFiled {
 /** The workspace the tab named, when the member belongs to it; null otherwise, and never a refusal. */
 async function reportedFrom(ctx: RouteContext, workspace: string | null): Promise<string | null> {
   if (!workspace) return null;
-  return memberContext(ctx, workspace).then(
+  return getMemberContext(ctx, workspace).then(
     (m) => m.tenantId,
     () => null,
   );
@@ -58,7 +58,7 @@ export async function fileProblemReport(
   const tenantId = await reportedFrom(ctx, input.workspace);
   const kind = reportKindOf(input.kind, input.error);
   const meanwhile = kind === "wrong" ? null : supportMeanwhile(supportTopicOf(input.words, input.page, kind));
-  const { data, error } = await fileReport(db, {
+  const { data, error } = await reportFile(db, {
     tenant_id: tenantId,
     kind,
     user_id: ctx.userId,
@@ -78,17 +78,20 @@ export async function fileProblemReport(
     await markReportMailed(db, data.id, { error: "This deployment sends no mail." });
     return { code, mailed: false, meanwhile };
   }
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/support/report",
     { report_id: data.id },
     { workspace: tenantId, user: ctx.userId, timeoutMs: REPORT_MAIL_TIMEOUT_MS },
   );
-  const mailed = edgeAnswered(r);
-  if (!mailed) log.error("support_report_mail_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
+  const mailed = edgeAnswered(answer);
+  if (!mailed)
+    log.error("support_report_mail_failed", { tenant_id: tenantId, status: answer.status, error: answer.body?.error });
   const kept = await markReportMailed(
     db,
     data.id,
-    mailed ? { at: new Date().toISOString() } : { error: edgeRefusalWords(r.body) ?? `The edge answered ${r.status}.` },
+    mailed
+      ? { at: new Date().toISOString() }
+      : { error: edgeRefusalWords(answer.body) ?? `The edge answered ${answer.status}.` },
   );
   if (kept.error) log.error("support_report_mail_failed", { tenant_id: tenantId, error: kept.error.message });
   return { code, mailed, meanwhile };

@@ -16,19 +16,13 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/files/route.ts"));
-const {
-  FILE_SHELVES,
-  FILE_SHOWS,
-  FILE_SOURCES,
-  FILE_STATUSES,
-  FILES_PAGE,
-  fileCursorOf,
-  fileShelfOpening,
-  filesSayOf,
-  filesTallyOf,
-  shelfFilterOf,
-  shelfOf,
-} = await import(at("packages/contracts/src/files/files.ts"));
+const { fileCursorOf, filesSayOf } = await import(at("packages/contracts/src/files/files.ts"));
+const { FILE_SHELVES, fileShelfOpening, filesTallyOf, shelfFilterOf, shelfOf } = await import(
+  at("packages/contracts/src/files/views.ts")
+);
+const { FILE_SHOWS, FILE_SOURCES, FILE_STATUSES, FILES_PAGE } = await import(
+  at("packages/contracts/src/files/limits.ts")
+);
 
 beforeEach(() => setRateStore(memoryStore()));
 

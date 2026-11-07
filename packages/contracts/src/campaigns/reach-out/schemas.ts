@@ -1,27 +1,27 @@
 /**
  * Reach out's schemas: a chain and its steps, a preview and a decision, the replies' query, as the routes read them,
- * apart from the words of reach-out/words.ts, reach-out/dtos.ts and reach-out/reply-words.ts, which the pages read.
+ * apart from the words of reach-out/words/opening.ts, reach-out/dtos.ts and reach-out/reply-words.ts, which the pages read.
  * zod is not built into the browser's contracts (decision 0024, the browser's entry): a page that says these words
  * loads none of it.
  */
 import { z } from "zod";
+import { REACH_OUT_SUBJECT_MAX, REACH_OUT_BODY_MAX } from "./words/slots";
 import {
-  REACH_OUT_SUBJECT_MAX,
-  REACH_OUT_BODY_MAX,
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_NAME_MAX,
   REACH_OUT_GAP_MINUTES,
   REACH_OUT_MAILBOXES_MAX,
   SIGNED_BY_MAX,
   REACH_OUT_STEPS_MAX,
-} from "./words";
+} from "./words/limits";
 import { HAND_KINDS, HAND_WORDS_MAX } from "./hand";
 import { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "./dtos";
-import { OWNER_SAID_INTENTS } from "./replies";
-import { LEAD_LIST_MAX } from "../../leads/lead-import";
-import { LEAD_REWRITE_CHANGE_MAX } from "../sequences/sequence-lead-build";
-import { REWRITE_NOW_MAX } from "../sequences/sequence-held";
+import { OWNER_SAID_INTENTS } from "./replies/intents";
+import { LEAD_LIST_MAX } from "../../leads/import";
+import { LEAD_REWRITE_CHANGE_MAX } from "../sequences/lead-build/steps";
+import { REWRITE_NOW_MAX } from "../sequences/held";
 import { REACH_OUT_SIGNS_WITH } from "./rules";
+import { DAY_KEY } from "../../shared/zone/day-keys";
 
 /** GET reach-out-replies: since when (at most the reading's window back), and one thread's alone. */
 export const ReachOutRepliesQuerySchema = z.object({
@@ -131,11 +131,7 @@ export const ReachOutSaidSchema = z.object({ outcome: z.enum(REACH_OUT_SAID_OUTC
  */
 export const ReachOutReplySaidSchema = z.object({
   intent: z.enum(OWNER_SAID_INTENTS),
-  day: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullable()
-    .optional(),
+  day: z.string().regex(DAY_KEY).nullable().optional(),
   refer_to: z.string().trim().max(120).nullable().optional(),
 });
 export type ReachOutReplySaidInput = z.infer<typeof ReachOutReplySaidSchema>;

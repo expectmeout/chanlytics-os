@@ -187,11 +187,11 @@ function checkCalendarDay(day: string, path: (string | number)[], ctx: z.Refinem
   }
 }
 
-function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
-  const at = (...rest: (string | number)[]) => ["brain", "profile", "closures", n, ...rest];
-  checkCalendarDay(c.date, at("date"), ctx);
-  if (c.until) checkCalendarDay(c.until, at("until"), ctx);
-  if (c.until && c.until < c.date) {
+function checkClosure(closure: Closure, count: number, ctx: z.RefinementCtx): void {
+  const at = (...rest: (string | number)[]) => ["brain", "profile", "closures", count, ...rest];
+  checkCalendarDay(closure.date, at("date"), ctx);
+  if (closure.until) checkCalendarDay(closure.until, at("until"), ctx);
+  if (closure.until && closure.until < closure.date) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: at("until"),
@@ -218,19 +218,19 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
       message: "Not a booking tool this product knows.",
     });
   }
-  const p = cfg.brain?.profile;
-  if (!p) return;
-  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
-  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
+  const profile = cfg.brain?.profile;
+  if (!profile) return;
+  for (const [day, h] of Object.entries(profile.hours ?? {})) if (h) checkDay(h, day, ctx);
+  if ((profile.closures?.length ?? 0) > MAX_CLOSURES) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["brain", "profile", "closures"],
       message: `At most ${MAX_CLOSURES} closures.`,
     });
   }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+  (profile.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
   // A note's last day, judged as a closure's is.
-  (p.notes ?? []).forEach((note, n) => {
+  (profile.notes ?? []).forEach((note, n) => {
     if (note.until) checkCalendarDay(note.until, ["brain", "profile", "notes", n, "until"], ctx);
   });
 });
@@ -290,7 +290,7 @@ export type ReceptionistState = "none" | "set" | "broken";
  * receptionist's route alike: a config the parser refuses is its own state, since only Chanlytics repairs one, and a
  * parsed config holds a receptionist when it holds a brain. No config at all reads as none.
  */
-export function receptionistOf(parsed: TenantConfigParse | null): ReceptionistState {
+export function configReceptionistOf(parsed: TenantConfigParse | null): ReceptionistState {
   if (parsed && !parsed.ok) return "broken";
   return parsed?.config.brain ? "set" : "none";
 }
@@ -303,7 +303,7 @@ export function parseTenantConfig(raw: unknown): TenantConfig | null {
 
 /**
  * A new workspace's first alert address: its creator's. Without one, the edge's
- * chooseAddressing (lib/ops/notify.ts) sends every "a customer needs you" to the
+ * chooseAddressing (lib/shared/alerts/notify.ts) sends every "a customer needs you" to the
  * platform, redacted, and the owner is never told.
  *
  * Returns the config to save, or null when there is nothing to do: a config that

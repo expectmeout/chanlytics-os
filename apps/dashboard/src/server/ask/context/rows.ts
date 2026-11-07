@@ -1,7 +1,7 @@
 import "server-only";
-import { PROFILE_NAME_MAX } from "@chanlytics/contracts";
+import { PROFILE_NAME_MAX, UUID } from "@chanlytics/contracts";
 import type { AskContextRowKind, AskSurface, PageContext, PageContextRow } from "@chanlytics/contracts";
-import type { ReaderContext, RowKind, RowRef } from "../../readers";
+import type { ReaderContext, RowKind, RowRef } from "../../shared/reader";
 
 /**
  * What every context provider shares (server/ask/context.ts builds the blocks from what they return): the row a
@@ -47,10 +47,11 @@ export const CONTEXT_CAPS = {
 } as const;
 
 /** Cut to `n` characters, the cut said with an ellipsis. */
-export const clip = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, Math.max(0, n - 1))}…`);
+export const clip = (text: string, count: number): string =>
+  text.length <= count ? text : `${text.slice(0, Math.max(0, count - 1))}…`;
 
 /** One line: runs of white space, new lines among them, are one space. */
-export const oneLine = (s: string): string => s.replace(/\s+/g, " ").trim();
+export const oneLine = (text: string): string => text.replace(/\s+/g, " ").trim();
 
 type Part = string | null | undefined | false;
 const parts = (xs: Part[]): string[] =>
@@ -70,7 +71,7 @@ export const aggregateOf = (xs: Part[]): string => parts(xs).join(" · ");
 
 /** The ids of these kinds the page sent, in its order, each once. */
 /** A row's id as the database keeps it. An id read by id in SQL must be one, or the read fails for the whole page. */
-export const ROW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const ROW_ID = UUID;
 
 export function idsOf(ctx: PageContext, ...kinds: AskContextRowKind[]): PageContextRow[] {
   const seen = new Set<string>();

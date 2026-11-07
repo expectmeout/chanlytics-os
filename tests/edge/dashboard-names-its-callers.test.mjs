@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { verifyEdgeToken, edgeBodyMatches } from "@chanlytics/channels";
+import { verifyEdgeToken, edgeBodyMatches } from "@chanlytics/channels/tokens";
 import { importSrc } from "../_source.mjs";
 
 const SECRET = "edge-secret-for-this-file";
@@ -16,15 +16,15 @@ process.env.EDGE_PROVIDERS = "live";
 for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 
 const { callEdge } = await importSrc("apps/dashboard/src/server/shared/edge.ts");
-const { edgeBilling } = await importSrc("apps/dashboard/src/server/workspace/billing.ts");
-const { edgeGoogle } = await importSrc("apps/dashboard/src/server/connections/google.ts");
-const { edgeLines } = await importSrc("apps/dashboard/src/server/connections/lines.ts");
+const { callEdgeBilling } = await importSrc("apps/dashboard/src/server/workspace/billing.ts");
+const { callEdgeGoogle } = await importSrc("apps/dashboard/src/server/connections/google.ts");
+const { callEdgeLines } = await importSrc("apps/dashboard/src/server/connections/lines.ts");
 const { syncTemplates, deleteTemplate } = await importSrc("apps/dashboard/src/server/campaigns/meta-templates.ts");
-const { streamModel, GatewayRefused } = await importSrc("apps/dashboard/src/server/ask/gateway.ts");
+const { streamModel, GatewayRefused } = await importSrc("apps/dashboard/src/server/shared/model/gateway.ts");
 const { tellPlatformOfSetupRequest, tellOwnerLive } = await importSrc("apps/dashboard/src/server/workspace/tell.ts");
 const { sendHandoverInvite } = await importSrc("apps/dashboard/src/server/workspace/handover.ts");
 const { sendPartnerInvite } = await importSrc("apps/dashboard/src/server/workspace/partner-invite.ts");
-const { notifyPlatformSignup } = await importSrc("apps/dashboard/src/server/console/signup.ts");
+const { notifyPlatformSignup } = await importSrc("apps/dashboard/src/server/workspace/signup.ts");
 const { sendAlertTest } = await importSrc("apps/dashboard/src/server/workspace/alerts.ts");
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -69,9 +69,9 @@ test("a call to the edge says whose workspace and which person, and binds the bo
 test("billing, Google and lines name the person their route passes in the body; templates name the one who pressed", async () => {
   const c = capture();
   try {
-    await edgeBilling({ op: "sync", tenant_id: W, user_id: P });
-    await edgeGoogle({ op: "refresh", tenant_id: W, user_id: P });
-    await edgeLines({ op: "retry", tenant_id: W, user_id: P, line_id: "line-1" });
+    await callEdgeBilling({ op: "sync", tenant_id: W, user_id: P });
+    await callEdgeGoogle({ op: "refresh", tenant_id: W, user_id: P });
+    await callEdgeLines({ op: "retry", tenant_id: W, user_id: P, line_id: "line-1" });
     await syncTemplates(W, P);
     await deleteTemplate(W, "template-1", P);
     assert.equal(c.seen.length, 5);

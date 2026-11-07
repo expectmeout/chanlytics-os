@@ -1,7 +1,8 @@
+import { z } from "zod";
 import { write, account } from "@/server/shared/route";
 import { AppError, cleanDisplayName } from "@chanlytics/contracts";
 import { endEmptiedWorkspaces } from "@/server/workspace/billing";
-import { saidLeft, seatsOf } from "@/server/workspace/team";
+import { recordLeft, listSeats } from "@/server/workspace/team";
 import { log } from "@/server/shared/log";
 import { dbRefusal } from "@/server/shared/with-route";
 
@@ -15,9 +16,10 @@ export const PUT = write({
   scope: account,
   role: null,
   rate: "profile_set",
-  handle: async ({ ctx, req }) => {
-    const body = (await req.json().catch(() => ({}))) as { display_name?: unknown };
-    const cleaned = cleanDisplayName(body.display_name ?? "");
+  // What a name may be is the contracts' rule (cleanDisplayName), in its words: the schema hands the value on whole.
+  input: z.object({ display_name: z.unknown().optional() }),
+  handle: async ({ ctx, input }) => {
+    const cleaned = cleanDisplayName(input.display_name ?? "");
     if (!cleaned.ok) throw new AppError("validation", cleaned.reason, 400);
     const { data, error } = await ctx.supabase.rpc("profile_set", { p_display_name: cleaned.name });
     if (error) throw dbRefusal(error);
@@ -49,7 +51,7 @@ export const DELETE = write({
   role: null,
   rate: "profile_set",
   handle: async ({ ctx }) => {
-    const seats = await seatsOf(ctx.supabase, ctx.userId);
+    const seats = await listSeats(ctx.supabase, ctx.userId);
     const { data, error } = await ctx.supabase.rpc("delete_my_account");
     if (error) {
       const named = Object.keys(REFUSALS).find((k) => error.message.includes(k));
@@ -60,7 +62,7 @@ export const DELETE = write({
         "Your account could not be deleted. Nothing was changed. Try again, or write to us.",
       );
     }
-    await saidLeft(seats, ctx.userId);
+    await recordLeft(seats, ctx.userId);
     await ctx.supabase.auth.signOut().catch(() => undefined);
     const answer = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
     const left = Number(answer.workspaces_left_empty ?? 0);

@@ -1,7 +1,7 @@
 /**
  * The Inbox's cards and the call's: a reply, a rewrite of a held reply, a verb on a thread, a whisper on a live call.
  */
-import { ASK_THREAD_VERBS, type AskProposal, type AskThreadVerb } from "../ask";
+import { ASK_THREAD_VERBS, type AskProposal, type AskThreadVerb } from "../thread-words";
 import type { ApiRouteKey } from "../../route-keys.generated";
 import { BOOKING_REQUEST_WORDS } from "../../calendar/visit/booking-request";
 import {
@@ -116,13 +116,13 @@ export const threadVerbSpec: ProposalSpec = {
   undo: {
     label: ({ payload }) => ownEntry(UNDO_LABEL, asText(payload.verb)) ?? null,
     window: "ten_minutes",
-    record: (p, data) => {
-      const inverse = ownEntry(INVERSE, asText(p.payload.verb));
+    record: (item, data) => {
+      const inverse = ownEntry(INVERSE, asText(item.payload.verb));
       return inverse
         ? {
             verb: inverse,
-            conversation_id: p.payload.conversation_id,
-            until: p.payload.until ?? null,
+            conversation_id: item.payload.conversation_id,
+            until: item.payload.until ?? null,
             decision_id: decisionOf(data),
           }
         : null;

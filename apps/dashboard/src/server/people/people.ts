@@ -2,14 +2,14 @@ import { isUuid, type PersonRowDto } from "@chanlytics/contracts";
 import {
   PEOPLE_PAGE,
   addPersonByHand,
-  everyoneIn,
-  everyoneOnceIn,
+  listEveryoneIn,
+  listEveryoneOnceIn,
   peopleCursorOf,
-  peoplePage,
-  personRow,
-  readAllRows,
+  listPeoplePage,
+  findPersonRow,
   type PeopleCursor,
-} from "@chanlytics/db";
+} from "@chanlytics/db/people";
+import { readAllRows } from "@chanlytics/db/shared";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 import { log } from "@/server/shared/log";
 import { stillListed } from "./going";
@@ -48,14 +48,14 @@ export function nextPeopleParam(row: PersonRowDto | undefined): string | null {
 
 /** A place in the order read back from `?after=`; null when it is not one this route gave (the route refuses it). */
 export function peopleCursorParam(param: string): PeopleCursor | null {
-  let v: unknown;
+  let value: unknown;
   try {
-    v = JSON.parse(Buffer.from(param, "base64url").toString("utf8"));
+    value = JSON.parse(Buffer.from(param, "base64url").toString("utf8"));
   } catch {
     return null;
   }
-  if (!Array.isArray(v) || v.length !== 3) return null;
-  const [at, added, id] = v as unknown[];
+  if (!Array.isArray(value) || value.length !== 3) return null;
+  const [at, added, id] = value as unknown[];
   const moment = (x: unknown): x is string =>
     typeof x === "string" && (x === "-infinity" || Number.isFinite(Date.parse(x)));
   return moment(at) && moment(added) && added !== "-infinity" && isUuid(id) ? { at, added, id: id as string } : null;
@@ -82,7 +82,7 @@ export async function listPeople(
 ): Promise<PersonRowDto[]> {
   // The policies with the rows, not after them: they are the workspace's, and a page waited a round trip for them.
   const [rows, pols] = await Promise.all([
-    peoplePage(ctx.supabase, tenantId, { ...page, q: searchNeedle(page.q) || null }),
+    listPeoplePage(ctx.supabase, tenantId, { ...page, q: searchNeedle(page.q) || null }),
     replyPolicies(ctx, tenantId),
   ]);
   return withReplyModes(rows, pols);
@@ -133,24 +133,24 @@ function withReplyModes(rows: PersonRowDto[], pols: Awaited<ReturnType<typeof re
  * one page however it is asked — and a caller that wants the whole workspace
  * and does not loop gets 1000 rows with no error, no flag and no way to tell
  * them from "that is everyone". Every read that means all of them goes through
- * here, or, for a copy that has no next pass, through everyoneOnce.
+ * here, or, for a copy that has no next pass, through listEveryoneOnce.
  */
-export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
-  const [rows, pols] = await Promise.all([everyoneIn(ctx.supabase, tenantId), replyPolicies(ctx, tenantId)]);
+export async function listEveryone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
+  const [rows, pols] = await Promise.all([listEveryoneIn(ctx.supabase, tenantId), replyPolicies(ctx, tenantId)]);
   return withReplyModes(rows, pols);
 }
 
 /**
  * EVERYONE EXACTLY ONCE, a page at a time, with their reply modes: for a copy (the people CSV, the workspace export),
- * which has no next pass to read someone who wrote while its pages were read (packages/db everyoneOnceIn).
+ * which has no next pass to read someone who wrote while its pages were read (packages/db listEveryoneOnceIn).
  */
-export async function* everyoneOnce(
+export async function* listEveryoneOnce(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
 ): AsyncGenerator<PersonRowDto[]> {
   // Read beside the first page, as everyone() reads them; a read that fails is none, so it never rejects.
   const pols = replyPolicies(ctx, tenantId);
-  for await (const page of everyoneOnceIn(ctx.supabase, tenantId)) yield withReplyModes(page, await pols);
+  for await (const page of listEveryoneOnceIn(ctx.supabase, tenantId)) yield withReplyModes(page, await pols);
 }
 
 /**
@@ -158,12 +158,15 @@ export async function* everyoneOnce(
  * person a thread is with (`{ thread }`, GET contacts?thread: the Inbox's head before People's book is in). None for
  * someone this workspace does not hold, or holds no longer (erased, or merged into another).
  */
-export async function onePerson(
+export async function findOnePerson(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  who: string | { thread: string },
+  personName: string | { thread: string },
 ): Promise<PersonRowDto | null> {
-  const [row, pols] = await Promise.all([personRow(ctx.supabase, tenantId, who), replyPolicies(ctx, tenantId)]);
+  const [row, pols] = await Promise.all([
+    findPersonRow(ctx.supabase, tenantId, personName),
+    replyPolicies(ctx, tenantId),
+  ]);
   return row ? (withReplyModes([row], pols).at(0) ?? null) : null;
 }
 
@@ -179,7 +182,7 @@ export async function onePerson(
 export async function countPeople(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  q: string | null,
+  otherQuery: string | null,
 ): Promise<number> {
   let query = ctx.supabase
     .from("contacts")
@@ -189,7 +192,7 @@ export async function countPeople(
     .is("merged_into_contact_id", null)
     // Who people_page lists (00547).
     .or(stillListed(Date.now()));
-  const needle = searchNeedle(q);
+  const needle = searchNeedle(otherQuery);
   if (needle) {
     const digits = needle.replace(/\D/g, "");
     const clauses = [
@@ -212,9 +215,9 @@ export async function countPeople(
 export async function addPerson(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  p: { phone: string | null; email: string | null; name: string; source: string },
+  params: { phone: string | null; email: string | null; name: string; source: string },
 ): Promise<{ contact_id: string; existed: boolean }> {
-  const { data, error } = await addPersonByHand(ctx.supabase, { tenantId, ...p });
+  const { data, error } = await addPersonByHand(ctx.supabase, { tenantId, ...params });
   if (error || !data) throw dbRefusal(error ?? { message: "add_person answered without a person" });
   return data;
 }

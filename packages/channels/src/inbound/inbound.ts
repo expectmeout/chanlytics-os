@@ -28,7 +28,7 @@ export interface LinkedMediaRef {
 export type MediaRef = WaMediaRef | LinkedMediaRef;
 
 /** Whether an attachment is reached by its link rather than asked for by the provider's id. */
-export const isLinkedMedia = (m: MediaRef): m is LinkedMediaRef => "url" in m;
+export const isLinkedMedia = (mediaRef: MediaRef): mediaRef is LinkedMediaRef => "url" in mediaRef;
 
 export interface InboundMessage {
   /** The wire it came on: every channel a person writes on, which is every channel kind but a call. */

@@ -60,30 +60,30 @@ export const EMPTY_A2P_STATE: A2PState = {
  * flag -- and the shared steps (address, primary, submit, brand, campaign) are
  * genuinely shared, which is why one function still answers for both.
  */
-export function nextA2PStep(s: A2PState, brandType: BrandType = "STANDARD"): A2PStep | null {
+export function nextA2PStep(a2PState: A2PState, brandType: BrandType = "STANDARD"): A2PStep | null {
   if (brandType === "SOLE_PROPRIETOR") {
-    if (!s.profileSid) return "profile";
+    if (!a2PState.profileSid) return "profile";
     // The person, not a business and not a representative: the starter policy
     // asks for one end user carrying four fields.
-    if (!s.businessSid) return "business";
-    if (!s.addressSid) return "address";
-    if (!s.documentSid) return "document";
-    if (!s.primaryAssigned) return "primary";
-    if (!s.profileSubmitted) return "submit";
-    if (!s.a2pProfileSid) return "a2p_profile";
-    if (!s.brandSid) return "brand";
-    if (!s.campaignSid) return "campaign";
+    if (!a2PState.businessSid) return "business";
+    if (!a2PState.addressSid) return "address";
+    if (!a2PState.documentSid) return "document";
+    if (!a2PState.primaryAssigned) return "primary";
+    if (!a2PState.profileSubmitted) return "submit";
+    if (!a2PState.a2pProfileSid) return "a2p_profile";
+    if (!a2PState.brandSid) return "brand";
+    if (!a2PState.campaignSid) return "campaign";
     return null;
   }
-  if (!s.profileSid) return "profile";
-  if (!s.businessSid) return "business";
-  if (!s.representativeSid) return "representative";
-  if (!s.addressSid) return "address";
-  if (!s.documentSid) return "document";
-  if (!s.primaryAssigned) return "primary";
-  if (!s.profileSubmitted) return "submit";
-  if (!s.a2pProfileSid) return "a2p_profile";
-  if (!s.brandSid) return "brand";
-  if (!s.campaignSid) return "campaign";
+  if (!a2PState.profileSid) return "profile";
+  if (!a2PState.businessSid) return "business";
+  if (!a2PState.representativeSid) return "representative";
+  if (!a2PState.addressSid) return "address";
+  if (!a2PState.documentSid) return "document";
+  if (!a2PState.primaryAssigned) return "primary";
+  if (!a2PState.profileSubmitted) return "submit";
+  if (!a2PState.a2pProfileSid) return "a2p_profile";
+  if (!a2PState.brandSid) return "brand";
+  if (!a2PState.campaignSid) return "campaign";
   return null;
 }

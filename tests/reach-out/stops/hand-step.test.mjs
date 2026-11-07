@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { handStepWords, handOf, HAND_WORDS_MAX } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
-const { runHandStep, reachOutRunIdFor, sendIdFor, handStepIdFor } = await importSrc(
+const { runHandStep, getReachOutRunId, sendIdFor, handStepIdFor } = await importSrc(
   "packages/core/src/campaigns/index.ts",
 );
 
@@ -62,7 +62,7 @@ test("each follower becomes one item, worded and with ids derived from what it i
   assert.deepEqual(r, { outcome: "sent", planned: 2 });
   assert.equal(asked.followers[0].after_playbook_id, "p2", "the step's reach is an email step's");
   const [run] = asked.runs;
-  const runId = await reachOutRunIdFor("p3", "2026-10-05");
+  const runId = await getReachOutRunId("p3", "2026-10-05");
   assert.deepEqual([run.stepId, run.runId, run.day], ["p3", runId, "2026-10-05"]);
   assert.deepEqual(run.items[0], {
     send_id: await sendIdFor(runId, "a"),

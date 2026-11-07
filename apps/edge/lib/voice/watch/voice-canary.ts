@@ -23,14 +23,14 @@
  * unset, the door places nothing (voice_canary_unset).
  */
 import crypto from "node:crypto";
-import { createPhoneCall } from "@chanlytics/channels";
-import { canaryCallFacts, canaryLineOf, type CanaryCallFacts } from "@chanlytics/db";
+import { createPhoneCall } from "@chanlytics/channels/voice";
+import { getCanaryCallFacts, findCanaryLine, type CanaryCallFacts } from "@chanlytics/db/voice";
 import { MIN_MS, UUID, isE164 } from "@chanlytics/contracts";
 import { json, refuse } from "../../shared/http.js";
 import { pg } from "../../shared/pg.js";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";
-import { pageOperator } from "../../ops/page-operator.js";
+import { pageOperator } from "../../shared/alerts/page-operator.js";
 
 /** One canary call a half hour at most: the key can place no more, whoever holds it. */
 const CANARY_EVERY_MS = 30 * MIN_MS;
@@ -79,19 +79,19 @@ interface CanaryVerdict {
  *   - signed: the inbound door and the webhook each took Retell's signature since the call was placed.
  * The availability door is said but not judged: whether the agent reaches for the tool is the model's, on a script.
  */
-export function judgeCanary(f: CanaryCallFacts): CanaryVerdict {
-  const c = f.call;
-  const signed = (door: string) => (f.doors[door]?.signed ?? 0) > 0;
+export function judgeCanary(canaryCallFacts: CanaryCallFacts): CanaryVerdict {
+  const call = canaryCallFacts.call;
+  const signed = (door: string) => (canaryCallFacts.doors[door]?.signed ?? 0) > 0;
   const checks: Record<string, boolean> = {
-    call_placed: c !== null,
-    call_ended: c?.status === "ended",
-    composed: c?.composed === true,
-    analysed: c?.analysed === true,
-    thread_line: c?.thread_line === true,
-    notice_claimed: c?.notice_claimed === true,
-    notice_told: c?.notice_told === true,
-    recording_stored: c?.recording === "stored",
-    hold_released: c?.hold_released === true,
+    call_placed: call !== null,
+    call_ended: call?.status === "ended",
+    composed: call?.composed === true,
+    analysed: call?.analysed === true,
+    thread_line: call?.thread_line === true,
+    notice_claimed: call?.notice_claimed === true,
+    notice_told: call?.notice_told === true,
+    recording_stored: call?.recording === "stored",
+    hold_released: call?.hold_released === true,
     inbound_signed: signed("inbound"),
     webhook_signed: signed("webhook"),
   };
@@ -103,20 +103,20 @@ export function judgeCanary(f: CanaryCallFacts): CanaryVerdict {
 
 /** `place`: ring the canary workspace's line from the platform's number, at most once a half hour. */
 async function placeCanary(cfg: CanaryConfig): Promise<Response> {
-  const L = logger({ tenant_id: cfg.tenantId });
+  const log = logger({ tenant_id: cfg.tenantId });
   const db = pg();
   if (!db) return refuse(503, "no_database");
   let line: { ours: boolean; e164: string | null };
   let recent: CanaryCallFacts;
   try {
-    line = await canaryLineOf(db, cfg.tenantId);
-    recent = await canaryCallFacts(db, {
+    line = await findCanaryLine(db, cfg.tenantId);
+    recent = await getCanaryCallFacts(db, {
       tenantId: cfg.tenantId,
       fromE164: cfg.from,
       sinceIso: new Date(Date.now() - CANARY_EVERY_MS).toISOString(),
     });
   } catch (e) {
-    L.error("voice_canary_place_failed", { step: "read", error: errField(e) });
+    log.error("voice_canary_place_failed", { step: "read", error: errField(e) });
     return refuse(503, "read_failed");
   }
   // Only a workspace of ours is ever rung: its owner's notices are the platform's, never a customer's.
@@ -129,28 +129,28 @@ async function placeCanary(cfg: CanaryConfig): Promise<Response> {
     { from_number: cfg.from, to_number: line.e164, override_agent_id: cfg.callerAgent, metadata: { canary: true } },
   );
   if (!placed.ok) {
-    L.error("voice_canary_place_failed", { step: "provider", status: placed.status });
+    log.error("voice_canary_place_failed", { step: "provider", status: placed.status });
     return refuse(502, "provider_refused", `the provider would not place the canary call (HTTP ${placed.status})`);
   }
   const callId = typeof placed.body?.call_id === "string" ? placed.body.call_id : null;
-  L.info("voice_canary_placed", { call_id: callId });
+  log.info("voice_canary_placed", { call_id: callId });
   return json(200, { ok: true, placed_at: new Date().toISOString(), call_id: callId });
 }
 
 /** `verdict`: what the canary's call since `since` left behind, judged; a failure pages the platform and answers 503. */
 async function judgeCanaryCall(cfg: CanaryConfig, since: string): Promise<Response> {
-  const L = logger({ tenant_id: cfg.tenantId });
+  const log = logger({ tenant_id: cfg.tenantId });
   const db = pg();
   if (!db) return refuse(503, "no_database");
   let facts: CanaryCallFacts;
   try {
-    facts = await canaryCallFacts(db, { tenantId: cfg.tenantId, fromE164: cfg.from, sinceIso: since });
+    facts = await getCanaryCallFacts(db, { tenantId: cfg.tenantId, fromE164: cfg.from, sinceIso: since });
   } catch (e) {
-    L.error("voice_canary_verdict", { held: false, step: "read", error: errField(e) });
+    log.error("voice_canary_verdict", { held: false, step: "read", error: errField(e) });
     return refuse(503, "read_failed");
   }
   const verdict = judgeCanary(facts);
-  L.info("voice_canary_verdict", { ok: verdict.ok, failed: verdict.failed.join(",") });
+  log.info("voice_canary_verdict", { ok: verdict.ok, failed: verdict.failed.join(",") });
   if (verdict.ok) return json(200, { ok: true, verdict, doors: facts.doors });
   await pageOperator(
     { db },
@@ -163,7 +163,7 @@ async function judgeCanaryCall(cfg: CanaryConfig, since: string): Promise<Respon
 }
 
 /** The door's verb: `place` or `verdict` (with `since`, the time `place` answered). */
-export async function voiceCanary(body: { op?: unknown; since?: unknown }): Promise<Response> {
+export async function runVoiceCanary(body: { op?: unknown; since?: unknown }): Promise<Response> {
   const cfg = canaryConfig();
   if (!cfg)
     return refuse(

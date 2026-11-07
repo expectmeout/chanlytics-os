@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { LOGO_TRIES, askableMark, markFits, siteLogoFrom } = await importSrc("packages/core/src/look/found-logo.ts");
+const { LOGO_TRIES, askableMark, markFits, findSiteLogo } = await importSrc("packages/core/src/look/found-logo.ts");
 
 /** A PNG's first bytes, saying its size: all the header read looks at. */
 function pngHead(w, h) {
@@ -53,7 +53,7 @@ test("the first mark the page declares that fits is taken, in the page's own ord
     <link rel="icon" sizes="32x32" href="/icon-32.png">
   </head></html>`;
   const net = images({ [`${SITE}/apple-touch-icon.png`]: pngHead(180, 180), [`${SITE}/icon-32.png`]: pngHead(32, 32) });
-  const found = await siteLogoFrom(net.image, html, SITE);
+  const found = await findSiteLogo(net.image, html, SITE);
   assert.equal(found?.url, `${SITE}/apple-touch-icon.png`);
   assert.deepEqual([found.head.width, found.head.height, found.head.kind], [180, 180, "png"]);
   assert.deepEqual(net.asked, [`${SITE}/apple-touch-icon.png`], "the first that fits, and nothing after it");
@@ -63,23 +63,23 @@ test("the mark the page's reader saw goes first, held to the same rules; a build
   const html = `<link rel="apple-touch-icon" href="/touch.png">`;
   const seen = "https://cdn.example/seen.png";
   const both = images({ [seen]: pngHead(256, 256), [`${SITE}/touch.png`]: pngHead(180, 180) });
-  assert.equal((await siteLogoFrom(both.image, html, SITE, seen)).url, seen);
+  assert.equal((await findSiteLogo(both.image, html, SITE, seen)).url, seen);
   assert.deepEqual(both.asked, [seen]);
 
   const small = images({ [seen]: pngHead(8, 8), [`${SITE}/touch.png`]: pngHead(180, 180) });
   assert.equal(
-    (await siteLogoFrom(small.image, html, SITE, seen)).url,
+    (await findSiteLogo(small.image, html, SITE, seen)).url,
     `${SITE}/touch.png`,
     "too small: the page's own",
   );
 
   const stock = "https://static.parastorage.com/client/pfavico.ico";
   const builder = images({ [`${SITE}/touch.png`]: pngHead(180, 180) });
-  assert.equal((await siteLogoFrom(builder.image, html, SITE, stock)).url, `${SITE}/touch.png`);
+  assert.equal((await findSiteLogo(builder.image, html, SITE, stock)).url, `${SITE}/touch.png`);
   assert.deepEqual(builder.asked, [`${SITE}/touch.png`], "never asked for");
 
   const same = images({ [`${SITE}/touch.png`]: pngHead(8, 8) });
-  assert.equal(await siteLogoFrom(same.image, html, SITE, `${SITE}/touch.png`), null);
+  assert.equal(await findSiteLogo(same.image, html, SITE, `${SITE}/touch.png`), null);
   assert.equal(same.asked.length, 1, "one address is one try, whoever names it");
 });
 
@@ -92,7 +92,7 @@ test("a page whose marks are too small, too big or unreachable gives none, and n
     <link rel="icon" sizes="16x16" href="/d.png">
   </head>`;
   const net = images({ [`${SITE}/poster.png`]: pngHead(2400, 800), [`${SITE}/b.png`]: pngHead(64, 64) });
-  assert.equal(await siteLogoFrom(net.image, html, SITE), null);
+  assert.equal(await findSiteLogo(net.image, html, SITE), null);
   assert.equal(net.asked.length, LOGO_TRIES);
-  assert.equal(await siteLogoFrom(net.image, "", SITE), null, "no page, no mark");
+  assert.equal(await findSiteLogo(net.image, "", SITE), null, "no page, no mark");
 });

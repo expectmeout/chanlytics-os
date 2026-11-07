@@ -7,6 +7,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
+import { campaignsHomeOf, lifecycleKicker } from "../../../apps/dashboard/src/server/campaigns/lifecycle/stages.ts";
+import {
+  LEDGER_STATUSES,
+  ledgerRowIn,
+  isLedgerCampaign,
+} from "../../../apps/dashboard/src/server/campaigns/lifecycle/ledger/ledger.ts";
 
 const ZONE = "America/New_York";
 /** Friday 2 Oct 2026, 9:44 PM in New York: "tomorrow 10:00 AM" is Saturday the 3rd, 14:00 UTC. */
@@ -113,7 +119,7 @@ const input = (over = {}) => ({
   chains: undefined,
   ...over,
 });
-const ledger = (over = {}) => C.campaignsHomeOf(input(over)).ledger;
+const ledger = (over = {}) => campaignsHomeOf(input(over)).ledger;
 const group = (l, id) => l.groups.find((g) => g.id === id);
 const row = (l, id) => l.groups.flatMap((g) => g.rows).find((r) => r.id === id);
 
@@ -148,7 +154,11 @@ test("one campaign per moment: the journey's groups in order, then Lists & offer
   assert.equal(v.results, "none", "counted, and nothing went in the period");
   assert.ok(v.search.includes("reminder") && v.search.includes("appointment tomorrow"), v.search);
   assert.deepEqual([l.period, l.results, l.tools, l.sentOnce], ["Last 30 days", "read", false, null]);
-  assert.equal(l.words, C.LIFECYCLE_WORDS.ledger);
+  // The home is the dashboard's (layer 3), whose contracts are its own copy under the suite's loader: the same words,
+  // a word that is a function by how many values it takes (the bundle the suite reads is minified).
+  const asWritten = (words) =>
+    JSON.parse(JSON.stringify(words, (_, v) => (typeof v === "function" ? `a function of ${v.length}` : v)));
+  assert.deepEqual(asWritten(l.words), asWritten(C.LIFECYCLE_WORDS.ledger));
 });
 
 test("First contact holds the receptionist and the call's text as rows of their own kind: never counted, no Turn on, each a door", () => {
@@ -223,7 +233,7 @@ test("the month's offer not offered here is no row, and the chains a read could 
     [offered.kind, offered.stateWords, offered.act],
     ["offer", "Off", { kind: "turn_on", label: "Turn on", moment: "everyone_monthly" }],
   );
-  const failed = C.campaignsHomeOf(input({ reachOuts: null }));
+  const failed = campaignsHomeOf(input({ reachOuts: null }));
   assert.deepEqual(group(failed.ledger, "reach_out").rows, [], "a read that failed draws no chain");
   assert.deepEqual(group(failed.ledger, "reach_out").add, {
     kind: "route",
@@ -284,7 +294,7 @@ test("three campaigns on one moment: all in its group, the stage's lead first, t
   );
   assert.deepEqual(waiting.next, { words: "Waiting for your approval", atMs: NOW });
   assert.deepEqual(l.counts, { all: 3, running: 2, needs: 1, paused: 1 });
-  const stage = C.campaignsHomeOf(input(over)).rail.stages.find((s) => s.id === "quiet");
+  const stage = campaignsHomeOf(input(over)).rail.stages.find((s) => s.id === "quiet");
   assert.deepEqual(stage.bar, { on: 1, waiting: 1, paused: 1, of: 3 });
 });
 
@@ -324,7 +334,7 @@ test("a workspace paused is one reading: a row and Coming up's line refuse the s
     ["the broadcasts' readiness alone", false, true],
     ["the playbooks' readiness alone", true, false],
   ]) {
-    const home = C.campaignsHomeOf(
+    const home = campaignsHomeOf(
       input({
         playbooks: playbooks(rows, { ready: ready(pbPaused) }),
         broadcasts: { ...broadcasts([run({ playbook_id: "pb-w" })]), ready: ready(bcPaused) },
@@ -338,7 +348,7 @@ test("a workspace paused is one reading: a row and Coming up's line refuse the s
       `${what}: REGRESSION: the row offered Approve while Coming up refused the same run`,
     );
   }
-  const neither = C.campaignsHomeOf(
+  const neither = campaignsHomeOf(
     input({
       playbooks: playbooks(rows, { ready: ready(false) }),
       broadcasts: { ...broadcasts([run({ playbook_id: "pb-w" })]), ready: ready(false) },
@@ -515,7 +525,7 @@ test("without a calendar the appointment groups say they need one, with its door
   );
   // No figure, as its moment's card has none (D44): never the pool it was last counted at, nor a zero.
   assert.deepEqual(r.people, { n: null, unit: "people" }, "REGRESSION: the row kept the 5 its card no longer says");
-  const card = C.campaignsHomeOf(
+  const card = campaignsHomeOf(
     input({
       shape: { calendar: "none", hasDeals: true, word: "appointment" },
       playbooks: playbooks([playbook(), playbook({ id: "pb-r", name: "Reminder", trigger: "visit_tomorrow" })]),
@@ -539,7 +549,7 @@ test("before the playbooks are read the ledger holds nothing; the period's numbe
 });
 
 test("the drawer's kicker is the campaign's group: its moment's caption, Lists & offers, Reach-outs", () => {
-  const home = C.campaignsHomeOf(
+  const home = campaignsHomeOf(
     input({
       playbooks: playbooks([
         playbook(),
@@ -548,10 +558,10 @@ test("the drawer's kicker is the campaign's group: its moment's caption, Lists &
       reachOuts: [chain("ro-1")],
     }),
   );
-  assert.equal(C.lifecycleKicker(home, "pb-1"), "Quiet or lapsed");
-  assert.equal(C.lifecycleKicker(home, "pb-l"), "Lists & offers");
-  assert.equal(C.lifecycleKicker(home, "ro-1"), "To leads");
-  assert.equal(C.lifecycleKicker(home, "nobody"), "Campaign");
+  assert.equal(lifecycleKicker(home, "pb-1"), "Quiet or lapsed");
+  assert.equal(lifecycleKicker(home, "pb-l"), "Lists & offers");
+  assert.equal(lifecycleKicker(home, "ro-1"), "To leads");
+  assert.equal(lifecycleKicker(home, "nobody"), "Campaign");
 });
 
 test("a status tab counts what it shows: the counts and the page's filter read one predicate", () => {
@@ -568,24 +578,24 @@ test("a status tab counts what it shows: the counts and the page's filter read o
     { kind: "sent_once", status: "waiting", tone: "warn" },
     { kind: "sent_once", status: "paused", tone: "plain" },
   ];
-  assert.deepEqual([...C.LEDGER_STATUSES], ["all", "needs", "paused"]);
+  assert.deepEqual([...LEDGER_STATUSES], ["all", "needs", "paused"]);
   assert.deepEqual(
-    rows.map((r) => C.ledgerRowIn(r, "needs")),
+    rows.map((r) => ledgerRowIn(r, "needs")),
     [true, true, false, false, false, false, false, false, false],
     "a run waiting, an archived list",
   );
   assert.deepEqual(
-    rows.map((r) => C.ledgerRowIn(r, "paused")),
+    rows.map((r) => ledgerRowIn(r, "paused")),
     [false, false, true, false, false, false, false, false, false],
   );
   assert.ok(
-    rows.every((r) => C.ledgerRowIn(r, "all")),
+    rows.every((r) => ledgerRowIn(r, "all")),
     "All holds the one-off sends too: the rows add up to what came back",
   );
   // And the ledger's own counts are that predicate's, over a real home.
   const l = ledger({ playbooks: playbooks([playbook(), playbook({ id: "pb-p", state: "paused", next: "paused" })]) });
   const all = l.groups.flatMap((g) => g.rows);
-  for (const s of ["needs", "paused"]) assert.equal(l.counts[s], all.filter((r) => C.ledgerRowIn(r, s)).length, s);
+  for (const s of ["needs", "paused"]) assert.equal(l.counts[s], all.filter((r) => ledgerRowIn(r, s)).length, s);
 });
 
 test("the ledger's names to a screen reader are contracts' too", () => {
@@ -599,10 +609,10 @@ test("the ledger's names to a screen reader are contracts' too", () => {
 test("how many campaigns is one count: the receptionist, the call's text and an offer not made yet are no campaign", () => {
   const l = ledger({ playbooks: playbooks([playbook(), playbook({ id: "pb-p", state: "paused", next: "paused" })]) });
   const all = l.groups.flatMap((g) => g.rows);
-  assert.equal(all.filter(C.isLedgerCampaign).length, l.counts.all, "the All tab's figure is the rows it counts");
+  assert.equal(all.filter(isLedgerCampaign).length, l.counts.all, "the All tab's figure is the rows it counts");
   assert.deepEqual(
     all
-      .filter((r) => !C.isLedgerCampaign(r))
+      .filter((r) => !isLedgerCampaign(r))
       .map((r) => r.kind)
       .sort(),
     ["call_text", "offer", "receptionist"],
@@ -614,7 +624,7 @@ test("D1-campaign-state: a paused campaign with a run waiting is shown waiting, 
     playbook({ id: "pb-pw", state: "paused", next: "paused", totals: { waiting: { id: "r-1", recipient_count: 7 } } }),
     playbook({ id: "pb-p", state: "paused", next: "paused", trigger: "visited" }),
   ];
-  const home = C.campaignsHomeOf(
+  const home = campaignsHomeOf(
     input({ playbooks: playbooks(rows), broadcasts: broadcasts([run({ playbook_id: "pb-pw" })]) }),
   );
   const l = home.ledger;

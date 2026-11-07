@@ -37,9 +37,9 @@ import {
   getPartnerHandovers,
   getPartnerWorkspaces,
   resendHandover,
-} from "@chanlytics/db";
+} from "@chanlytics/db/partners";
 import { requireUuid } from "@/server/shared/request-guards";
-import { workspaceBegun } from "@/server/workspace/create";
+import { recordWorkspaceBegun } from "@/server/workspace/create";
 import { handoverRefusal, sendHandoverInvite } from "@/server/workspace/handover";
 import type { Params } from "@/server/shared/route";
 import type { z } from "zod";
@@ -77,13 +77,13 @@ export async function becomeAPartner(
   requireSecondFactor(ctx);
   const cleaned = cleanPartnerCode(input.code);
   if (!cleaned.ok) throw new AppError("validation", cleaned.reason);
-  const r = await becomePartner(ctx.supabase, cleaned.code);
-  if (!r.ok) {
-    const mapped = RAISED[r.code];
-    if (mapped) throw new AppError(mapped.code, r.message, mapped.status);
-    throw new Error(r.message);
+  const result = await becomePartner(ctx.supabase, cleaned.code);
+  if (!result.ok) {
+    const mapped = RAISED[result.code];
+    if (mapped) throw new AppError(mapped.code, result.message, mapped.status);
+    throw new Error(result.message);
   }
-  return { partner: r.row as PartnerDto };
+  return { partner: result.row as PartnerDto };
 }
 
 export async function setPartnerLettersOf(
@@ -146,21 +146,25 @@ export async function setUpWorkspaceForBusiness(
 ): Promise<{ workspace: { id: string; slug: string; name: string }; sent: boolean }> {
   // The workspace seats the partner as partner: the seat's rule, before it exists (0013, M3; the function asks too).
   requireSecondFactor(ctx);
-  const r = await createWorkspaceForBusiness(ctx.supabase, {
+  const workspaceForBusiness = await createWorkspaceForBusiness(ctx.supabase, {
     name: input.name,
     timezone: input.timezone ?? null,
     ownerEmail: input.email,
   });
-  if (!r.ok) throw handoverRefusal(r);
-  // What follows every workspace made (workspaceBegun): the platform told, its owner the address it waits for, never
+  if (!workspaceForBusiness.ok) throw handoverRefusal(workspaceForBusiness);
+  // What follows every workspace made (recordWorkspaceBegun): the platform told, its owner the address it waits for, never
   // the partner, who never owns it (0016); and that address on its alert list from the start, beside any the partner
   // sets, so a customer who needs someone before the hand-over is never told to nobody. Best effort, and sent beside the
   // invitation: each is bounded by its own timeout and neither throws, so the partner waits only for the longer.
   const [, sent] = await Promise.all([
-    workspaceBegun(ctx, r.value.id, { by: "partner", notify: input.email, alertTo: input.email }),
-    sendHandoverInvite(r.value.id, input.email, ctx.userId),
+    recordWorkspaceBegun(ctx, workspaceForBusiness.value.id, {
+      by: "partner",
+      notify: input.email,
+      alertTo: input.email,
+    }),
+    sendHandoverInvite(workspaceForBusiness.value.id, input.email, ctx.userId),
   ]);
-  return { workspace: r.value, sent };
+  return { workspace: workspaceForBusiness.value, sent };
 }
 
 export async function resendWorkspaceHandover(

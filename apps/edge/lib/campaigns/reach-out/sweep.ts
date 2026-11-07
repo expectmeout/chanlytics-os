@@ -2,7 +2,7 @@
  * The reach-out clock (Reach out, Part 3): every minute pg_cron asks it (00186 trigger_reach_out_sweep), and only when
  * there is work. It reads what became of the emails it wrote, frees a send a writer left mid-way, skips a closed
  * run's sends, plans again the ones left stale, and finishes the runs with nothing left open (lib/campaigns/reach-out/clock.ts).
- * Then it claims the sends that are due and writes their emails (lib/campaigns/reach-out/sender.ts): each leaves through the
+ * Then it claims the sends that are due and writes their emails (lib/campaigns/reach-out/sender/sender.ts): each leaves through the
  * jobs tick and the one send door.
  *
  * The route is api/cron/reach-out.ts: sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and
@@ -16,21 +16,22 @@
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
  */
 import { json } from "../../shared/http.js";
-import { dueMailboxes } from "@chanlytics/db";
-import { reachOutClock } from "./clock.js";
-import { claimAndWrite, mailboxLane } from "./sender.js";
+import { listDueMailboxes } from "@chanlytics/db/campaigns";
+import { runReachOutClock } from "./clock.js";
+import { claimAndWrite } from "./sender/sender.js";
+import { mailboxLane } from "./sender/lanes.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
 
 export async function sweepReachOut({ db, L, started }: SweepTick): Promise<Response> {
   try {
     const now = new Date();
-    const out = await reachOutClock(db, now, L, started);
+    const out = await runReachOutClock(db, now, L, started);
     const lane = mailboxLane();
     if (!lane.ok) {
       // No mailbox's send is claimed; drafts are (their owner sends them). A mailbox's send due that cannot leave is
       // said every tick, until the secret is set.
       const claim = out.yielded ? null : await claimAndWrite({ db, now, started, lane: null, log: L });
-      const due = (await dueMailboxes(db, now, 1)).length > 0;
+      const due = (await listDueMailboxes(db, now, 1)).length > 0;
       L.info("reach_out_swept", { ...out, claim, lane_missing: lane.missing, due, took_ms: Date.now() - started });
       return due
         ? json(503, { ok: false, error: "lane_unset", missing: lane.missing, ...out, claim })

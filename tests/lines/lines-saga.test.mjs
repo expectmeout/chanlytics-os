@@ -25,7 +25,7 @@ import {
   sipUsername,
   RETELL_ORIGINATION,
   LINE_COSTS,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/lines";
 import { EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
@@ -553,12 +553,12 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   assert.ok(lib.includes("ensure: () => ensureVoiceAgent(db, cfg, secrets, tenant)"));
   assert.ok(/provider: "twilio-sip",\s*line_id: lineId/.test(lib), "the routing row names its line");
   // That no provider SID reaches the page is run in forwarding.test.mjs, on a row holding every one.
-  const agent = readCode("apps/edge/lib/voice/agent.ts");
+  const agent = readCode("apps/edge/lib/lines/voice-agent.ts");
   for (const pin of [
     "createRetellLlm(cfg, voiceLlmCreateBody(secrets, fnUrl))",
-    "voiceAgentCreateBody({ llmId, llmVersion, agentName: o.agentName }, secrets, fnUrl)",
+    "voiceAgentCreateBody({ llmId, llmVersion, agentName: options.agentName }, secrets, fnUrl)",
     'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")',
-    "await getAgentRaw(cfg, o.agentId)",
+    "await getAgentRaw(cfg, options.agentId)",
     "await getRetellLlm(cfg, llmId)",
   ])
     assert.ok(agent.includes(pin), pin);
@@ -568,7 +568,9 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
     "ensure reads the active voice row before creating",
   );
   // voice-provision making the receptionist through the same lib is run in voice-doors.test.mjs.
-  const adapter = readCode("packages/channels/src/voice/retell.ts");
+  const adapter = ["packages/channels/src/voice/retell/calls.ts", "packages/channels/src/voice/retell/agents.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(adapter.includes('"/import-phone-number"'));
   const env = readRaw("apps/edge/.env.example");
   for (const k of ["TWILIO_ACCOUNT_SID=", "TWILIO_AUTH_TOKEN=", "LINES_DRY_RUN="]) assert.ok(env.includes(k), k);
@@ -587,7 +589,8 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
     assert.ok(mig.includes(pin), pin);
   assert.deepEqual(toldFor("lines"), EVERY_EVENT, "a callback repaints Setup");
   // The package hands the edge every value the saga's four modules export: its barrel names each one.
-  const channels = await import("@chanlytics/channels");
+
+  const channels = await import("@chanlytics/channels/lines");
   for (const m of ["lines", "twilio", "dry", "saga"]) {
     const mod = await import(new URL(`../../packages/channels/src/lines/${m}.ts`, import.meta.url).href);
     for (const name of Object.keys(mod)) assert.ok(name in channels, `${m}.ts: ${name}`);
@@ -984,7 +987,7 @@ test("with three lines on one agent row, the line the number moves to is not whi
   // What gets picked becomes the number this workspace publishes on its
   // business page, its consent page and in the receptionist's own facts, so
   // an unordered limit(1) makes that a coin toss. The oldest, which is the
-  // line ensureVoiceAgent, line_forwarding_set and businessPageFor all settle
+  // line ensureVoiceAgent, line_forwarding_set and findBusinessPage all settle
   // on when a workspace has more than one.
   const lines = [
     {

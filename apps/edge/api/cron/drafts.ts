@@ -3,9 +3,9 @@
  * and it answers what the sweep says.
  *
  * sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks the key; the sweep is sweepDrafts in
- * lib/drafts/draft-sweep.ts: a draft a dropped event, a run that died or a change of the rules left behind is asked for.
+ * lib/drafts/sweep.ts: a draft a dropped event, a run that died or a change of the rules left behind is asked for.
  */
-import { sweepDrafts } from "../../lib/drafts/draft-sweep.js";
+import { sweepDrafts } from "../../lib/drafts/sweep.js";
 import { sweepDoor } from "../../lib/ops/sweep-door.js";
 
 export const POST = sweepDoor({ sweep: "drafts", noDbEvent: "drafts_sweep_no_db" }, sweepDrafts);

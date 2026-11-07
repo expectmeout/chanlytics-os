@@ -15,12 +15,19 @@ import {
   fileMadePathOf,
   fileNameOf,
   filePathOf,
-  postPathOf,
   recordOrNull,
   type FileMime,
   type FileShows,
 } from "@chanlytics/contracts";
-import { fileChange, fileKeepMany, fileOf, fileRemove, filesBucket, type FileMemberRow } from "@chanlytics/db";
+import { postPathOf } from "./post-check";
+import {
+  updateFileRow,
+  keepManyFiles,
+  findFile,
+  deleteFileRow,
+  filesBucket,
+  type FileMemberRow,
+} from "@chanlytics/db/files";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import { requireUuid } from "@/server/shared/request-guards";
@@ -43,7 +50,7 @@ const VIEW_WIDTHS = [480, 1280] as const;
 const VIEW_WIDEST = 2000;
 
 /** The door's refusal, in its own words; anything else is ours to say. */
-export function doorRefusal(error: { code?: string; message: string }): AppError {
+export function fileDoorRefusal(error: { code?: string; message: string }): AppError {
   if (error.code === "42501") return new AppError("forbidden", error.message, 403);
   if (error.code === "22023") return new AppError("validation", error.message);
   if (error.code === "P0002") return new AppError("not_found", error.message, 404);
@@ -55,7 +62,7 @@ export const bucket = () => filesBucket(serviceDb());
 
 /** A file the caller may see (RLS), or a 404. */
 export const fileScope = row(async (ctx: RouteContext, params): Promise<FileMemberRow> => {
-  const found = await fileOf(ctx.supabase, requireUuid(params.id, "file"));
+  const found = await findFile(ctx.supabase, requireUuid(params.id, "file"));
   if (!found) throw new AppError("not_found", W.gone, 404);
   return found;
 });
@@ -74,7 +81,7 @@ export async function changeFile(
 ): Promise<{ ok: true }> {
   const name = input.name === undefined ? undefined : fileNameOf(input.name);
   if (name === "") throw new AppError("validation", W.nameEmpty);
-  const { error } = await fileChange(ctx.supabase, {
+  const { error } = await updateFileRow(ctx.supabase, {
     tenantId: member.tenantId,
     id: file.id,
     name,
@@ -82,7 +89,7 @@ export async function changeFile(
     whoInIt: input.who_in_it,
     status: input.status,
   });
-  if (error) throw doorRefusal(error);
+  if (error) throw fileDoorRefusal(error);
   return { ok: true };
 }
 
@@ -92,15 +99,15 @@ export async function keepFiles(
   member: Member,
   input: { ids: string[] },
 ): Promise<{ kept: number }> {
-  const { data, error } = await fileKeepMany(ctx.supabase, member.tenantId, input.ids);
-  if (error) throw doorRefusal(error);
+  const { data, error } = await keepManyFiles(ctx.supabase, member.tenantId, input.ids);
+  if (error) throw fileDoorRefusal(error);
   return { kept: typeof data === "number" ? data : 0 };
 }
 
 /** DELETE files/[id]: hidden now, its bytes gone by the job. */
 export async function removeFile(ctx: RouteContext, member: Member, file: FileMemberRow): Promise<{ ok: true }> {
-  const { error } = await fileRemove(ctx.supabase, member.tenantId, file.id);
-  if (error) throw doorRefusal(error);
+  const { error } = await deleteFileRow(ctx.supabase, member.tenantId, file.id);
+  if (error) throw fileDoorRefusal(error);
   return { ok: true };
 }
 

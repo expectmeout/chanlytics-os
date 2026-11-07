@@ -31,15 +31,15 @@ export type MailboxSenderVerdict = SchemaSet<"mailbox_senders.verdict">;
  * alone is never one. Null when it said nothing.
  */
 export function senderVerdictOf(
-  said: ReadonlyMap<string, MailboxSenderVerdict>,
+  sentence: ReadonlyMap<string, MailboxSenderVerdict>,
   address: string,
 ): MailboxSenderVerdict | null {
-  const a = address.trim().toLowerCase();
-  const exact = said.get(a);
+  const text = address.trim().toLowerCase();
+  const exact = sentence.get(text);
   if (exact) return exact;
-  const labels = a.slice(a.lastIndexOf("@") + 1).split(".");
+  const labels = text.slice(text.lastIndexOf("@") + 1).split(".");
   for (let i = 0; i < labels.length - 1; i++) {
-    const v = said.get(labels.slice(i).join("."));
+    const v = sentence.get(labels.slice(i).join("."));
     if (v) return v;
   }
   return null;
@@ -88,9 +88,9 @@ export const MAILBOX_LEFT_WHY_WORDS: Readonly<Record<MailboxLeftWhy, string>> = 
 };
 
 /** What a left sender's row says under its name: why, how many, and what Chanlytics read them to want, where it read that. */
-export function mailboxLeftLine(l: Pick<MailboxLeftDto, "why" | "count" | "about">): string {
-  const said = [MAILBOX_LEFT_WHY_WORDS[l.why], MAILBOX_SENDERS_WORDS.emails(l.count)];
-  return (l.about ? [...said, `“${l.about}”`] : said).join(" · ");
+export function mailboxLeftLine(mailboxLeft: Pick<MailboxLeftDto, "why" | "count" | "about">): string {
+  const sentence = [MAILBOX_LEFT_WHY_WORDS[mailboxLeft.why], MAILBOX_SENDERS_WORDS.emails(mailboxLeft.count)];
+  return (mailboxLeft.about ? [...sentence, `“${mailboxLeft.about}”`] : sentence).join(" · ");
 }
 
 /** The list's words, and "Not a person" on a person's page. */
@@ -102,7 +102,8 @@ export const MAILBOX_SENDERS_WORDS = {
   empty: "Nothing has been left yet.",
   emails: (n: number) => `${n} email${n === 1 ? "" : "s"}`,
   bringIn: "It's a person",
-  broughtIn: (who: string) => `${who} is a person: their mail comes in from now on, and their last six months with it.`,
+  broughtIn: (personName: string) =>
+    `${personName} is a person: their mail comes in from now on, and their last six months with it.`,
   saidTitle: "Said not to be people",
   undo: "Undo",
   undone: (sender: string) => `${sender}: its mail is sorted as it comes again.`,
@@ -116,7 +117,7 @@ export const MAILBOX_SENDERS_WORDS = {
   /** Delete person's sheet, for someone with an email address: they are a sender of automated mail. */
   notAPerson: "Not a person: their mail stays in your mailbox from now on",
   wholeDomain: (domain: string) => `Everything from ${domain}, too`,
-  done: (who: string) => `${who}: not a person. Deleted, and their mail stays in your mailbox.`,
+  done: (personName: string) => `${personName}: not a person. Deleted, and their mail stays in your mailbox.`,
   show: "Show who",
   failed: "Could not change this.",
 } as const;

@@ -1,5 +1,5 @@
 /**
- * A day in words is read in one table (contracts calendar/day-keys.ts: weekdayNamed, dayWordIn, onOrAfter, dayKeyNamed).
+ * A day in words is read in one table (contracts shared/zone/day-keys.ts: weekdayNamed, dayWordIn, onOrAfter, dayKeyNamed).
  * Five tables read it before 29 October 2026, and they disagreed: Ask's calendar read "sábado" and "this friday" as
  * today, the openings asked for on "miércoles" were every day's, and Ask's reads before its first round took "el lunes
  * por la mañana" (Monday morning) for tomorrow. Each reader is run here on the same words.

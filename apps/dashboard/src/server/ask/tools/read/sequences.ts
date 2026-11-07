@@ -26,15 +26,16 @@ import {
   type AppointmentWord,
   SEQUENCES_ROUTE,
 } from "@chanlytics/contracts";
-import { sequenceMakes, type SequenceMake } from "@chanlytics/db";
-import { load, type ReaderContext, type RowRef } from "../../../readers";
+import { listSequenceMakes, type SequenceMake } from "@chanlytics/db/campaigns";
+import { load, type ReaderContext, type RowRef } from "../../../shared/reader";
 import { reachOutChains } from "../../../readers/playbooks";
 import { sequence, sequenceHistory, sequencePeople, sequences } from "../../../readers/sequences";
-import { notePerson, str, unlessNotFound, type ToolContext } from "../context";
+import { notePerson, str, readUnlessNotFound } from "../context/tool-reads";
+import type { ToolContext } from "../context/tool-defs";
 
 /**
  * Ask's reads of the sequences (decision 0060), over the Sequences page's own readers (readers/sequences.ts), so the
- * number Ask says is the number the page shows, in the page's own words (contracts sequence-words.ts).
+ * number Ask says is the number the page shows, in the page's own words (contracts sequences/words/next.ts).
  */
 
 /** How many batches of a sequence's History one read says. */
@@ -60,11 +61,11 @@ function sequenceLine(row: SequenceRowDto, word: AppointmentWord, tz: string, no
 }
 
 /** Every sequence of the workspace, newest first, with what needs you in each (GET sequences' own read). */
-export async function readSequences(t: ToolContext): Promise<unknown> {
-  const read = await load(t.rc, sequences, undefined);
-  noteRows(t.read, read.rows);
-  const nowMs = t.now.getTime();
-  const rows = read.data.sequences.map((r) => sequenceLine(r, read.data.word, t.timezone, nowMs));
+export async function readSequences(toolContext: ToolContext): Promise<unknown> {
+  const read = await load(toolContext.rc, sequences, undefined);
+  noteRows(toolContext.read, read.rows);
+  const nowMs = toolContext.now.getTime();
+  const rows = read.data.sequences.map((r) => sequenceLine(r, read.data.word, toolContext.timezone, nowMs));
   return {
     route: SEQUENCES_ROUTE,
     needs_you: rows.reduce((n, r) => n + (r.needs_count ?? 0), 0),
@@ -77,28 +78,28 @@ export async function readSequences(t: ToolContext): Promise<unknown> {
  * stops it, its steps in their places with each one's wait, channels and message, the one notice it shows, who is in it
  * by where they stand, and its last batches.
  */
-export async function readSequence(t: ToolContext, input: { sequence_id: string }): Promise<unknown> {
+export async function readSequence(toolContext: ToolContext, input: { sequence_id: string }): Promise<unknown> {
   const id = str(input.sequence_id, 40);
   if (!UUID.test(id)) return { error: "sequence_id must be an id sequences with action list returned" };
-  const record = await unlessNotFound(load(t.rc, sequence, { id }));
+  const record = await readUnlessNotFound(load(toolContext.rc, sequence, { id }));
   if (!record) return { error: "no such sequence in this workspace" };
   const [people, history] = await Promise.all([
-    load(t.rc, sequencePeople, { id }).then((r) => r.data),
-    load(t.rc, sequenceHistory, { id, before: null }).then((r) => r.data),
+    load(toolContext.rc, sequencePeople, { id }).then((r) => r.data),
+    load(toolContext.rc, sequenceHistory, { id, before: null }).then((r) => r.data),
   ]);
-  noteRows(t.read, record.rows);
+  noteRows(toolContext.read, record.rows);
   // Who is in it, by the contact_id the answer hands on: each one's profile opens.
   const inIt = people.rows
     .filter((r) => r.enrollment_id && r.group !== "left" && r.group !== "done")
     .slice(0, PEOPLE_CAP);
-  for (const r of inIt) notePerson(t, r.contact_id, r.name ?? "");
+  for (const r of inIt) notePerson(toolContext, r.contact_id, r.name ?? "");
   const { sequence: row, steps, word } = record.data;
-  const nowMs = t.now.getTime();
+  const nowMs = toolContext.now.getTime();
   const notice = sequenceNotice(row, steps);
   return {
-    ...sequenceLine(row, word, t.timezone, nowMs),
-    head: sequenceHeadLine(row, word, t.timezone, nowMs),
-    starts_when: sequenceStartsSentence(row, word, t.timezone, nowMs),
+    ...sequenceLine(row, word, toolContext.timezone, nowMs),
+    head: sequenceHeadLine(row, word, toolContext.timezone, nowMs),
+    starts_when: sequenceStartsSentence(row, word, toolContext.timezone, nowMs),
     stops_when: sequenceStopsSentence(row, steps),
     // Its own mode (decision 0064): how its batches are decided; null for a one-off. And what its batches did, as How it
     // runs says it under Before each batch (step 5): the evidence a mode is set on, never a suggestion of one.
@@ -150,7 +151,7 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
       ...(r.lead_id ? { lead_id: r.lead_id } : {}),
     })),
     history: history.batches.slice(0, HISTORY_CAP).map((b) => ({
-      at: clockStamp(Date.parse(b.at), t.timezone, nowMs),
+      at: clockStamp(Date.parse(b.at), toolContext.timezone, nowMs),
       state: b.state,
       people: b.people,
       sent: b.counts.sent ?? 0,
@@ -166,9 +167,9 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
  * reach-outs' own read): each with its id, name, the search or list of leads it writes to, whether it runs, its emails and
  * their waits, its pace and who it is in it. Every one is a row an answer may cite, opened on its drawer.
  */
-export async function readColdEmails(t: ToolContext): Promise<unknown> {
-  const read = await load(t.rc, reachOutChains, undefined);
-  noteRows(t.read, read.rows);
+export async function readColdEmails(toolContext: ToolContext): Promise<unknown> {
+  const read = await load(toolContext.rc, reachOutChains, undefined);
+  noteRows(toolContext.read, read.rows);
   return {
     route: SEQUENCES_ROUTE,
     cold_emails: read.data.chains.map((c) => ({
@@ -228,12 +229,17 @@ export function editedOf(makes: readonly SequenceMake[], chains: readonly ReachO
  * who made none costs one small read. The sequences tool's `edited` reads it, and the morning asks about edits only
  * where it finds one (companion/morning.ts).
  */
-export async function editedSince(
+export async function getEditedSince(
   rc: ReaderContext,
   userId: string,
   since: string,
 ): Promise<{ edited: EditedEmail[]; rows: RowRef[] }> {
-  const makes = await sequenceMakes(rc.ctx.supabase, { tenantId: rc.tenantId, by: userId, since, limit: EDITED_MAKES });
+  const makes = await listSequenceMakes(rc.ctx.supabase, {
+    tenantId: rc.tenantId,
+    by: userId,
+    since,
+    limit: EDITED_MAKES,
+  });
   if (makes.length === 0) return { edited: [], rows: [] };
   const chains = await load(rc, reachOutChains, undefined);
   const edited = editedOf(makes, chains.data.chains).slice(0, EDITED_CAP);
@@ -246,12 +252,15 @@ export async function editedSince(
  * words are not theirs to quote. What they sent is marked as theirs on the turn, the one place a line about how they
  * write may quote from besides their question (act/remember.ts); nothing else a read returns is ever marked.
  */
-export async function readEdited(t: ToolContext, input: { days?: number }): Promise<unknown> {
+export async function readEdited(toolContext: ToolContext, input: { days?: number }): Promise<unknown> {
   const days = Math.min(Math.max(input.days ?? EDITED_DAYS.default, 1), EDITED_DAYS.max);
-  const since = new Date(t.now.getTime() - days * DAY_MS).toISOString();
-  const { edited, rows } = await editedSince(t.rc, t.ctx.userId, since);
-  noteRows(t.read, rows);
-  t.theirs = [...(t.theirs ?? []), ...edited.flatMap((e) => [e.sent.subject ?? "", e.sent.body].filter(Boolean))];
+  const since = new Date(toolContext.now.getTime() - days * DAY_MS).toISOString();
+  const { edited, rows } = await getEditedSince(toolContext.rc, toolContext.ctx.userId, since);
+  noteRows(toolContext.read, rows);
+  toolContext.theirs = [
+    ...(toolContext.theirs ?? []),
+    ...edited.flatMap((e) => [e.sent.subject ?? "", e.sent.body].filter(Boolean)),
+  ];
   return {
     route: SEQUENCES_ROUTE,
     days,

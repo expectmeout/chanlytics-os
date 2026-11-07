@@ -73,7 +73,15 @@ function resolveModule(from, spec, exists) {
   if (spec.startsWith("@/")) base = `apps/dashboard/src/${spec.slice(2)}`;
   else if (spec.startsWith(".")) base = path.posix.normalize(path.posix.join(path.posix.dirname(from), spec));
   else if (FOLLOWED_PACKAGES.has(spec)) base = FOLLOWED_PACKAGES.get(spec);
-  else return null;
+  else if (spec.startsWith("@chanlytics/db/")) {
+    const entry = spec.slice("@chanlytics/db/".length);
+    base =
+      entry === "shared"
+        ? "packages/db/src/shared/index"
+        : entry === "realtime"
+          ? "packages/db/src/realtime"
+          : `packages/db/src/repositories/${entry}/index`;
+  } else return null;
   // A source written for ESM names its sibling by the file it builds to.
   if (base.endsWith(".js")) base = base.slice(0, -3);
   const hit = [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`, base].find((c) => exists(c));

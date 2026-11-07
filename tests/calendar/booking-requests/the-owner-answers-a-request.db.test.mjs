@@ -10,7 +10,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { appointmentsBetween } from "@chanlytics/db";
+import { listAppointmentsBetween } from "@chanlytics/db/calendar";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -319,7 +319,7 @@ test("an expired request takes no slot and leaves the board; one standing does",
   const from = new Date(Date.now() + 20 * HOUR).toISOString();
   const to = new Date(Date.now() + 40 * HOUR).toISOString();
   const { appointment } = await open(jo, 30);
-  const read = async () => (await appointmentsBetween(w.admin, w.tenant, from, to)).map((r) => r.id);
+  const read = async () => (await listAppointmentsBetween(w.admin, w.tenant, from, to)).map((r) => r.id);
   assert.ok((await read()).includes(appointment.id), "standing, it takes its slot");
   ok(
     await w.admin

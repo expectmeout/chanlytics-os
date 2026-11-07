@@ -1,7 +1,7 @@
 import { replyAnyway } from "@chanlytics/core";
 import { write } from "@/server/shared/route";
 import { conversationScope } from "@/server/shared/verbs";
-import { threadPorts } from "@/server/ports/core-ports";
+import { threadPorts } from "@/server/conversations/ports";
 
 /**
  * Reply anyway, on a thread set aside (decision 0093): a customer's after all. Open again, its sender a person, its hold back

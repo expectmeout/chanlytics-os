@@ -15,10 +15,10 @@ import { messageIdHeader } from "../header-values";
 import type { EmailRequest } from "../request";
 import type { SendResult } from "../../whatsapp/whatsapp";
 import { buildMime, mailboxMessageId } from "./mime";
-import { gmailDayUsed, gmailRestUntil, gmailSend, gmailSentIds, gmailSignedOut, gmailThreadOf } from "./gmail";
-import { graphDayUsed, graphSend, graphSignedOut } from "./graph";
+import { gmailDayUsed, gmailRestUntil, sendGmail, listGmailSentIds, gmailSignedOut, findGmailThread } from "./gmail";
+import { graphDayUsed, sendGraph, graphSignedOut } from "./graph";
 
-type Deps = Parameters<typeof gmailSend>[4];
+type Deps = Parameters<typeof sendGmail>[4];
 
 export interface MailboxSendInput {
   provider: MailboxProvider;
@@ -37,16 +37,22 @@ export interface MailboxSendInput {
  */
 export type MailboxSendResult = SendResult & { cause?: "day_used" | "signed_out"; restUntil?: number };
 
-export async function sendFromMailbox(i: MailboxSendInput, deps?: Deps): Promise<MailboxSendResult> {
-  const now = i.now ?? Date.now;
-  const minted = mailboxMessageId(i.request.idempotency_key, i.mailbox.host);
-  const mime = buildMime(i.request, { messageId: minted, at: new Date(now()) });
-  const parent = messageIdHeader(i.request.headers["In-Reply-To"] ?? null);
-  if (i.provider === "google") {
+export async function sendFromMailbox(mailboxSendInput: MailboxSendInput, deps?: Deps): Promise<MailboxSendResult> {
+  const now = mailboxSendInput.now ?? Date.now;
+  const minted = mailboxMessageId(mailboxSendInput.request.idempotency_key, mailboxSendInput.mailbox.host);
+  const mime = buildMime(mailboxSendInput.request, { messageId: minted, at: new Date(now()) });
+  const parent = messageIdHeader(mailboxSendInput.request.headers["In-Reply-To"] ?? null);
+  if (mailboxSendInput.provider === "google") {
     // The thread of the email this answers, when it answers one: a thread Gmail cannot name now is a new one, and the
     // headers still thread it for the person who reads it.
-    const thread = parent ? await gmailThreadOf(i.token, parent, deps).catch(() => null) : null;
-    const sent = await gmailSend(i.token, mime, thread?.threadId ?? null, { deadlineMs: i.deadlineMs }, deps);
+    const thread = parent ? await findGmailThread(mailboxSendInput.token, parent, deps).catch(() => null) : null;
+    const sent = await sendGmail(
+      mailboxSendInput.token,
+      mime,
+      thread?.threadId ?? null,
+      { deadlineMs: mailboxSendInput.deadlineMs },
+      deps,
+    );
     if (!sent.ok)
       return {
         ok: false,
@@ -61,7 +67,7 @@ export async function sendFromMailbox(i: MailboxSendInput, deps?: Deps): Promise
       };
     // What Gmail kept as its Message-ID; the one minted when it could not be read back, which is the one it was sent
     // under unless Gmail replaced it.
-    const kept = sent.id ? await gmailSentIds(i.token, sent.id, deps).catch(() => null) : null;
+    const kept = sent.id ? await listGmailSentIds(mailboxSendInput.token, sent.id, deps).catch(() => null) : null;
     return {
       ok: true,
       wamid: sent.id,
@@ -70,11 +76,11 @@ export async function sendFromMailbox(i: MailboxSendInput, deps?: Deps): Promise
       email: {
         messageId: messageIdHeader(kept?.messageId ?? null) ?? minted,
         threadId: sent.threadId,
-        mailboxId: i.mailbox.id,
+        mailboxId: mailboxSendInput.mailbox.id,
       },
     };
   }
-  const sent = await graphSend(i.token, mime, { deadlineMs: i.deadlineMs }, deps);
+  const sent = await sendGraph(mailboxSendInput.token, mime, { deadlineMs: mailboxSendInput.deadlineMs }, deps);
   if (!sent.ok)
     return {
       ok: false,
@@ -90,6 +96,10 @@ export async function sendFromMailbox(i: MailboxSendInput, deps?: Deps): Promise
     wamid: sent.id,
     status: sent.status,
     outcome: "ok",
-    email: { messageId: messageIdHeader(sent.messageId) ?? minted, threadId: sent.threadId, mailboxId: i.mailbox.id },
+    email: {
+      messageId: messageIdHeader(sent.messageId) ?? minted,
+      threadId: sent.threadId,
+      mailboxId: mailboxSendInput.mailbox.id,
+    },
   };
 }

@@ -19,7 +19,8 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { instagramDmChunks, resetBreakers } from "@chanlytics/channels";
+import { instagramDmChunks } from "@chanlytics/channels/instagram";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 
 const IG_SECRET = "instagram-app-secret-for-this-file";
@@ -43,7 +44,7 @@ const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
 const door = await import(at("apps/edge/api/instagram.ts"));
 const { instagramReceiver } = await import(at("apps/edge/lib/instagram/webhook.ts"));
-const { answerInboundJob } = await import(at("apps/edge/lib/whatsapp/answer-later.ts"));
+const { answerInboundJob } = await import(at("apps/edge/lib/intake/answer-later.ts"));
 const { dispatchJob } = await import(at("packages/jobs/dist/index.js"));
 
 /* -------------------------------------------------------------- the wire */

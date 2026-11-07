@@ -2,11 +2,11 @@
  * Saved lists: a list's name, its rule and the people on it (segments and segment_members, 00044), read and written
  * here and nowhere else. The segments routes, the playbooks, the audience of a send, the lists reader that Ask shares
  * with the page and the list verbs all come through this file (apps/dashboard/src/server: campaigns/playbooks.ts,
- * people/audience.ts, readers/lists.ts, verbs.ts).
+ * campaigns/audience.ts, readers/lists.ts, verbs.ts).
  *
- * Reads: savedListsFor gives every list of one workspace with every id on it, savedListFor one list, listMemberIds one
+ * Reads: listSavedLists gives every list of one workspace with every id on it, findSavedList one list, listMemberIds one
  * list's ids, and listRow the list a verb acts on, whose tenant_id is the workspace its role is judged in.
- * savedListsFor and savedListFor are scoped by workspace; listRow leaves the scope to row security alone, so a list the
+ * listSavedLists and findSavedList are scoped by workspace; listRow leaves the scope to row security alone, so a list the
  * caller cannot see is no list. Every member read is paged (readAllRows), because PostgREST answers one select with at
  * most 1000 rows and a list would silently lose people past a thousand memberships. A smart list keeps a rule (00155)
  * and who is on it is judged on every read (contracts savedListIds), so its ids are empty here; a list archived (00169)
@@ -19,12 +19,13 @@
  * and deleteList counts what it removed.
  *
  * A read that names a column a database has not reached yet (rule, archived_at) answers "does not exist" and is read
- * again without it, so every list is one kept by hand, or live, and either deploy order works; playbooksOnList does
+ * again without it, so every list is one kept by hand, or live, and either deploy order works; listPlaybooksOnList does
  * the same for playbooks' list_id (00155).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
 import { readAllRows, type Page } from "../../shared/paged";
+import { saysMissing } from "../../shared/missing-door";
 
 type Db = SupabaseClient<Database>;
 
@@ -63,7 +64,7 @@ export interface WriteError {
  * order works.
  */
 const missingColumn = (message: string, column: string): boolean =>
-  new RegExp(`\\b${column}\\b`).test(message) && /does not exist|could not find/i.test(message);
+  new RegExp(`\\b${column}\\b`).test(message) && saysMissing(message);
 
 /** The columns a list is read with, the newest first; each read that misses one tries the next. */
 const LIST_COLUMNS = ["rule, archived_at", "rule", ""] as const;
@@ -108,7 +109,7 @@ async function listRows(
 }
 
 /** Every saved list of one workspace with every id on it, by name. Scoped by tenant, not by row security alone. */
-export async function savedListsFor(db: Db, tenantId: string): Promise<SavedListRow[]> {
+export async function listSavedLists(db: Db, tenantId: string): Promise<SavedListRow[]> {
   const [lists, members] = await Promise.all([
     listRows(db, tenantId),
     readAllRows<{ segment_id: string; contact_id: string }>("segment_members", (from, to) =>
@@ -145,7 +146,7 @@ export async function listMemberIds(db: Db, listId: string): Promise<string[]> {
 }
 
 /** One saved list of this workspace with every id on it, or null when it has no such list: what a send to it enrols. */
-export async function savedListFor(db: Db, tenantId: string, id: string): Promise<SavedListRow | null> {
+export async function findSavedList(db: Db, tenantId: string, id: string): Promise<SavedListRow | null> {
   const data = await readWithFallback(async (columns) => {
     const { data, error } = (await db
       .from("segments")
@@ -275,7 +276,7 @@ export async function archiveList(
 }
 
 /** The playbooks that name a list: what archiving it pauses. */
-export async function playbooksOnList(
+export async function listPlaybooksOnList(
   db: Db,
   tenantId: string,
   listId: string,

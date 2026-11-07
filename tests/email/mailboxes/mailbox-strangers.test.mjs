@@ -14,10 +14,10 @@ import { MAILBOX_ENV, withEnv } from "./_mailbox-world.mjs";
 
 const restore = withEnv({ ...MAILBOX_ENV, ANTHROPIC_API_KEY: null });
 after(restore);
-const { leftWhy, mailSortingFor, sortByRules } = await importSrc("apps/edge/lib/email/mailbox/sorting.ts");
+const { findLeftWhy, mailSortingFor, sortByRules } = await importSrc("apps/edge/lib/email/mailbox/sorting.ts");
 const { senderReaderFor } = await importSrc("apps/edge/lib/email/mailbox/reader.ts");
 const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
-const { mailboxSendersOf } = await importSrc("packages/db/src/repositories/email/senders.ts");
+const { listMailboxSendersOf } = await importSrc("packages/db/src/repositories/email/senders.ts");
 const { logger } = await importSrc("apps/edge/lib/shared/log.ts");
 after(() => setPg(null));
 
@@ -121,9 +121,9 @@ test("a hosting platform's notice through Amazon SES, from an ordinary name and 
     messageId: "<0101019a835dab19-f4b1-000000@us-west-2.amazonses.com>",
     labels: ["INBOX", "CATEGORY_PERSONAL"],
   });
-  assert.equal(await leftWhy(ses, s), "service");
+  assert.equal(await findLeftWhy(ses, s), "service");
   const fbl = email({ from: "Shop <hello@shop.example>", headers: { "feedback-id": "1:campaign:shop" } });
-  assert.equal(await leftWhy(fbl, s), "service", "a bulk sender's feedback id says the same");
+  assert.equal(await findLeftWhy(fbl, s), "service", "a bulk sender's feedback id says the same");
   assert.deepEqual(r.seen, [], "the model is never asked of either");
 });
 
@@ -139,7 +139,7 @@ test("a website's form sent through a mailing service, its replies going to the 
     headers: { "reply-to": "dana@example.com", "x-sg-eid": "eid" },
   });
   assert.equal(await sortByRules(form, s), "stranger", "the Reply-To is someone: not a program's notice");
-  assert.equal(await leftWhy(form, s), "relayed");
+  assert.equal(await findLeftWhy(form, s), "relayed");
   assert.deepEqual(r.seen, ["forms@sitebuilder.example"]);
 });
 
@@ -179,8 +179,8 @@ test("what Chanlytics read a sender to be is kept and comes first: a pitch is le
   });
   const r = reader();
   const s = await sortingOf(w, r);
-  assert.equal(await leftWhy(email({ from: "growth@agency.example" }), s), "pitch");
-  assert.equal(await leftWhy(email({ from: "lee@example.com" }), s), null);
+  assert.equal(await findLeftWhy(email({ from: "growth@agency.example" }), s), "pitch");
+  assert.equal(await findLeftWhy(email({ from: "lee@example.com" }), s), null);
   assert.deepEqual(r.seen, []);
 });
 
@@ -188,8 +188,8 @@ test("three other workspaces' owners saying a domain is automated leaves its mai
   const w = world({ othersSaid: ["alerts.example"] });
   const r = reader();
   const s = await sortingOf(w, r);
-  assert.equal(await leftWhy(email({ from: "Alerts <team@alerts.example>" }), s), "others_said");
-  assert.equal(await leftWhy(email({ from: "pat@gmail.com" }), s), null, "a stranger, read: nothing answered, in");
+  assert.equal(await findLeftWhy(email({ from: "Alerts <team@alerts.example>" }), s), "others_said");
+  assert.equal(await findLeftWhy(email({ from: "pat@gmail.com" }), s), null, "a stranger, read: nothing answered, in");
   assert.deepEqual(w.asked, ["alerts.example"], "gmail.com is millions of people: never asked");
 });
 
@@ -202,10 +202,10 @@ test("a stranger's first email is read: someone asking comes in, a pitch and a n
     null,
   ]);
   const s = await sortingOf(w, r);
-  assert.equal(await leftWhy(email({ from: "rosa@example.com" }), s), null);
-  assert.equal(await leftWhy(email({ from: "sales@webshop.example" }), s), "pitch");
-  assert.equal(await leftWhy(email({ from: "billing@saas.example" }), s), "notice");
-  assert.equal(await leftWhy(email({ from: "quiet@example.com" }), s), null);
+  assert.equal(await findLeftWhy(email({ from: "rosa@example.com" }), s), null);
+  assert.equal(await findLeftWhy(email({ from: "sales@webshop.example" }), s), "pitch");
+  assert.equal(await findLeftWhy(email({ from: "billing@saas.example" }), s), "notice");
+  assert.equal(await findLeftWhy(email({ from: "quiet@example.com" }), s), null);
   assert.deepEqual(r.seen, ["rosa@example.com", "sales@webshop.example", "billing@saas.example", "quiet@example.com"]);
 });
 
@@ -214,13 +214,13 @@ test("a sender is read once a sorting, their second email waiting for the first'
   const r = reader([{ kind: "pitch", about: "offers leads" }]);
   const s = await sortingOf(w, r);
   const twice = await Promise.all([
-    leftWhy(email({ from: "ads@leads.example" }), s),
-    leftWhy(email({ from: "ads@leads.example", subject: "Following up" }), s),
+    findLeftWhy(email({ from: "ads@leads.example" }), s),
+    findLeftWhy(email({ from: "ads@leads.example", subject: "Following up" }), s),
   ]);
   assert.deepEqual(twice, ["pitch", "pitch"]);
   assert.deepEqual(r.seen, ["ads@leads.example"], "one reading for both");
   for (const from of ["a@one.example", "b@two.example", "c@three.example", "d@four.example"])
-    await leftWhy(email({ from }), s);
+    await findLeftWhy(email({ from }), s);
   assert.deepEqual(
     r.seen.slice(1),
     ["a@one.example", "b@two.example", "c@three.example"],
@@ -268,7 +268,7 @@ test("the list of what was left says what a reading found a pitch or a relayed m
     };
     return q;
   };
-  const list = await mailboxSendersOf(w.db, T);
+  const list = await listMailboxSendersOf(w.db, T);
   assert.deepEqual(
     list.left.map((l) => [l.address, l.why, l.about]),
     [

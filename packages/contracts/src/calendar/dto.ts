@@ -4,7 +4,7 @@
  * keeps. The page's view model is made from it in calendar.ts.
  */
 import type { BookingRules, Closure, Hours } from "../config/workspace-config/business-profile";
-import type { MatchVia } from "./people";
+import type { MatchVia } from "./people/matching";
 import type { FeedFailure } from "./feed-url";
 import type { NoticeHold } from "./booking-notice";
 import type { AppointmentStatus } from "./feed-appointments";

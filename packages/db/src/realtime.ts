@@ -286,12 +286,12 @@ export function subscribeWorkspaceChanges(
   let byTopic = hearings.get(client);
   if (!byTopic) hearings.set(client, (byTopic = new Map<string, Hearing>()));
   const heard = byTopic;
-  let h = heard.get(topic);
-  if (!h) {
-    h = { listeners: new Set(), channel: null, status: null, joining: null, leaving: Promise.resolve() };
-    heard.set(topic, h);
+  let result = heard.get(topic);
+  if (!result) {
+    result = { listeners: new Set(), channel: null, status: null, joining: null, leaving: Promise.resolve() };
+    heard.set(topic, result);
   }
-  const hearing = h;
+  const hearing = result;
   const listener: Listener = { onChange, onStatus: opts.onStatus };
   hearing.listeners.add(listener);
   const status = hearing.channel ? hearing.status : null;
@@ -413,7 +413,7 @@ export const CATCH_UP_MOST = 200;
  * The notices told on a workspace's topic since `since` (ISO 8601), read as the member (00508; decision 0019 step 4): what
  * a tab missed while it loaded or while its feed was down. `whole` is false where there were more than CATCH_UP_MOST.
  */
-export async function noticesSince(
+export async function getNoticesSince(
   client: SupabaseClient<Database>,
   tenantId: string,
   since: string,

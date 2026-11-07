@@ -9,18 +9,14 @@
  * still draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
  */
 import { Fragment, Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
+import { channelFor, MAILBOX_LEFT_ROW, type ChannelVM, type LineCodeDto, type SetupDto } from "@chanlytics/contracts";
 import {
   CONNECTION_GROUP_WORDS,
-  channelFor,
   connectionRows,
-  MAILBOX_LEFT_ROW,
-  tryItLink,
   type ConnectionGroup,
-  type ChannelVM,
   type ConnectionLine as Row,
-  type LineCodeDto,
-  type SetupDto,
-} from "@chanlytics/contracts";
+} from "./model/setup";
+import { tryItLink } from "./model/whatsapp-try-it";
 import type { GoogleSurface } from "@/bridge/google";
 import { googleVerbs } from "@/bridge/google";
 import { pageClock } from "@/bridge/zone";

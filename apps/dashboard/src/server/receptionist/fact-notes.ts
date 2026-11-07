@@ -20,8 +20,9 @@ import {
   TenantConfigWriteSchema,
   withStoredKeysKept,
 } from "@chanlytics/contracts";
-import { answerFactSuggestion, factSuggestionById, putTenantConfig } from "@chanlytics/db";
-import { configRowOf } from "@/server/workspace/config-row";
+import { answerFactSuggestion, findFactSuggestionById } from "@chanlytics/db/facts";
+import { putTenantConfig } from "@chanlytics/db/workspace";
+import { findConfigRow } from "@/server/workspace/config-row";
 import { recordSettingsChanged } from "@/server/workspace/settings-write";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
@@ -44,14 +45,14 @@ function notesSaid(config: unknown): { count: number; said: string[] } {
 async function keepNote(
   ctx: RouteContext,
   member: Member,
-  s: { title: string; body: string },
+  state: { title: string; body: string },
 ): Promise<{ version: number; already: boolean }> {
-  const before = await configRowOf(ctx.supabase, member.tenantId);
+  const before = await findConfigRow(ctx.supabase, member.tenantId);
   if (!before) throw new AppError("conflict", FACT_SUGGEST_WORDS.moved, 409);
   const notes = notesSaid(before.config);
-  if (factAlreadyNoted(s, notes.said)) return { version: before.version, already: true };
+  if (factAlreadyNoted(state, notes.said)) return { version: before.version, already: true };
   if (notes.count >= FACT_SUGGEST_LIMITS.notesMax) throw new AppError("validation", FACT_SUGGEST_WORDS.notesFull);
-  const added = applySettingsChange((before.config ?? {}) as Record<string, unknown>, factNoteChange(s));
+  const added = applySettingsChange((before.config ?? {}) as Record<string, unknown>, factNoteChange(state));
   const parsed = TenantConfigWriteSchema.safeParse(added);
   if (!parsed.success) {
     log.error("fact_answer_failed", { tenant_id: member.tenantId, step: "schema", issues: parsed.error.issues.length });
@@ -71,30 +72,30 @@ export async function answerFactOf(
   id: string,
   keep: boolean,
 ): Promise<FactAnswered> {
-  const s = await factSuggestionById(ctx.supabase, id);
+  const result = await findFactSuggestionById(ctx.supabase, id);
   // One of another workspace, or none, is not found: RLS read it as nothing either way.
-  if (!s || s.tenant_id !== member.tenantId) throw new AppError("not_found", "Suggestion not found.");
-  if (s.state !== "suggested") throw new AppError("conflict", FACT_SUGGEST_WORDS.answered, 409);
-  const kept = keep ? await keepNote(ctx, member, s) : null;
+  if (!result || result.tenant_id !== member.tenantId) throw new AppError("not_found", "Suggestion not found.");
+  if (result.state !== "suggested") throw new AppError("conflict", FACT_SUGGEST_WORDS.answered, 409);
+  const kept = keep ? await keepNote(ctx, member, result) : null;
   const { data, error } = await answerFactSuggestion(ctx.supabase, {
     id,
     keep,
     configVersion: kept ? kept.version : null,
   });
   if (error) throw dbRefusal(error);
-  const r = (data ?? {}) as { error?: string; suggestion?: { id: string; state: "kept" | "dismissed" } };
-  if (r.error === "answered") throw new AppError("conflict", FACT_SUGGEST_WORDS.answered, 409);
-  if (r.error || !r.suggestion) {
-    log.error("fact_answer_failed", { tenant_id: member.tenantId, step: "door", error: r.error ?? null });
+  const item = (data ?? {}) as { error?: string; suggestion?: { id: string; state: "kept" | "dismissed" } };
+  if (item.error === "answered") throw new AppError("conflict", FACT_SUGGEST_WORDS.answered, 409);
+  if (item.error || !item.suggestion) {
+    log.error("fact_answer_failed", { tenant_id: member.tenantId, step: "door", error: item.error ?? null });
     throw new AppError("validation", "Could not answer this.");
   }
   return {
-    suggestion: r.suggestion,
+    suggestion: item.suggestion,
     version: kept ? kept.version : null,
     receipt: !kept
       ? FACT_SUGGEST_WORDS.dismissed
       : kept.already
-        ? FACT_SUGGEST_WORDS.alreadyKept(s.title)
-        : FACT_SUGGEST_WORDS.kept(s.title),
+        ? FACT_SUGGEST_WORDS.alreadyKept(result.title)
+        : FACT_SUGGEST_WORDS.kept(result.title),
   };
 }

@@ -1,4 +1,4 @@
-import { voiceDoor } from "@/server/ask/voice-door";
+import { runVoiceDoor } from "@/server/ask/voice-door";
 
 /**
  * POST /api/ask/voice/llm[/chat/completions | /v1/chat/completions] — the custom LLM endpoint the ElevenLabs agent
@@ -11,4 +11,4 @@ import { voiceDoor } from "@/server/ask/voice-door";
  */
 export const maxDuration = 60;
 
-export const POST = (req: Request): Promise<Response> => voiceDoor(req);
+export const POST = (req: Request): Promise<Response> => runVoiceDoor(req);

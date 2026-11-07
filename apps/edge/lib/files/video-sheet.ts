@@ -22,7 +22,7 @@ import {
   type ZoomSize,
   type ZoomWont,
 } from "@chanlytics/contracts";
-import { fetchStreamFrame, streamFrameUrl, streamTokenOf, type StreamSigning } from "@chanlytics/channels";
+import { fetchStreamFrame, streamFrameUrl, streamTokenOf, type StreamSigning } from "@chanlytics/channels/files";
 import { imageHeaderOf } from "@chanlytics/core";
 
 /** The edge's own tokens for a video's frames: minutes, never an hour. */

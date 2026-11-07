@@ -36,14 +36,14 @@ import { fakeDb } from "../_fake-db.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { setModelStream } = await import("../../apps/dashboard/src/server/shared/model-json.ts");
-const { draftFrom, examplesOf } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft.ts");
+const { draftSequenceFrom, examplesOf } = await import("../../apps/dashboard/src/server/drafts/sequence.ts");
 const { draftKept } = await import("../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
 const M = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
-const { onceChannelsOf, leadFirstOf } = await import("../../apps/dashboard/src/server/campaigns/sequences/new-make.ts");
+const { onceChannelsOf, leadFirstOf } = await import("../../apps/dashboard/src/server/drafts/sequence-new.ts");
 const { NEW_MAKE_BODY, LEAD_FIRST_BODY, REWRITE_BODY, VOICE_BODY } =
   await import("../../apps/dashboard/src/server/campaigns/sequences/bodies.ts");
 const { learnVoice } = await import("../../apps/dashboard/src/server/campaigns/sequences/voice.ts");
-const { rewriteFrom } = await import("../../apps/dashboard/src/server/campaigns/sequences/rewrite.ts");
+const { rewriteFrom } = await import("../../apps/dashboard/src/server/drafts/sequence-rewrite.ts");
 const {
   LEAD_BUILD_WORDS,
   LEAD_REWRITE_CHANGE_MAX,
@@ -548,7 +548,7 @@ test("to leads: emails in Ask's words where they hold, a search its who, the mai
 
 test("asked once, as its own purpose, with only what the workspace offers and holds, a message's words fenced", async () => {
   answerWith(answer({ steps: [step({ message: "k1" })] }));
-  const out = await draftFrom(
+  const out = await draftSequenceFrom(
     KNOWN,
     { ...LINE, previous: { name: "Win-back", steps: 2 } },
     { tenantId: "t1", userId: "u1" },
@@ -566,7 +566,7 @@ test("asked once, as its own purpose, with only what the workspace offers and ho
   assert.equal(out.steps[0].message.template_id, ID(1));
   // The owner's choices are told, and kept whatever Ask says.
   answerWith(answer({ kind: "sequence", steps: [step({ message: "k2", texts: ["Hi"] })] }));
-  const kept = await draftFrom(
+  const kept = await draftSequenceFrom(
     KNOWN,
     { words: "Send the spring offer to everyone", kind: "once" },
     { tenantId: "t1", userId: "u1" },
@@ -941,7 +941,7 @@ test("an email to leads is the same words for every business: the draft is told 
   answerWith(
     answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
   );
-  await draftFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
+  await draftSequenceFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
   const system = String(calls[calls.length - 1].request.system);
   // REGRESSION: a draft wrote "I imagine the phone keeps ringing while you're mid-repair" into every email of a sequence.
   assert.match(system, /the same words for every business/);
@@ -952,7 +952,7 @@ test("the drafter is told what the business says about itself and how its owner 
   answerWith(
     answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
   );
-  const out = await draftFrom(
+  const out = await draftSequenceFrom(
     {
       ...KNOWN,
       about: "We answer the phone for local shops when nobody can get to it.",
@@ -989,7 +989,7 @@ test("the drafter is told what the business says about itself and how its owner 
 
   // A workspace that says nothing of itself is told nothing of it, and its draft wrote with no learned line.
   answerWith(answer({ steps: [step({ message: "k1" })] }));
-  const bare = await draftFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
+  const bare = await draftSequenceFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
   const toldBare = JSON.stringify(calls[1].request.messages);
   assert.doesNotMatch(toldBare, /in its own words|Ask remembers|started before/);
   assert.deepEqual(bare.voice, []);
@@ -999,7 +999,7 @@ test("the drafter is told each started first email's pair, what it was for and h
   answerWith(
     answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
   );
-  await draftFrom(
+  await draftSequenceFrom(
     {
       ...KNOWN,
       examples: [
@@ -1175,12 +1175,12 @@ test("their preview (decision 0079): a workspace that makes previews is told it 
   answerWith(
     answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
   );
-  await draftFrom({ ...KNOWN, previews: true }, LINE, { tenantId: "t1", userId: "u1" });
+  await draftSequenceFrom({ ...KNOWN, previews: true }, LINE, { tenantId: "t1", userId: "u1" });
   const ours = String(calls[calls.length - 1].request.system);
   assert.match(ours, /\{\{their preview\}\}/);
   assert.match(ours, /after the first/);
   assert.match(ours, /only link/);
-  await draftFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
+  await draftSequenceFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
   assert.doesNotMatch(String(calls[calls.length - 1].request.system), /their preview/);
 });
 

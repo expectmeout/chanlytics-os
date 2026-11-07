@@ -3,7 +3,7 @@
  * the brief for a call back, kept on the thread (conversation_drafts, through its doors) until they write again, so every
  * page opens with the words already there and every tab and teammate reads the same draft for one model call.
  *
- * A draft is the receptionist's brain in its draft voice (edge drafts/draft-writer.ts): everything the receptionist knows,
+ * A draft is the receptionist's brain in its draft voice (edge drafts/writer.ts): everything the receptionist knows,
  * written for the person who will send it. It is text: nothing is sent by drafting it, and it goes only through the
  * reply's own door on a press. This module is what the pages read; what the server decides by is reply-draft-owed.ts.
  */
@@ -17,7 +17,7 @@ export type ReplyDraftKind = (typeof REPLY_DRAFT_KINDS)[number];
 
 /**
  * The edition of what a draft is written by (the draft audience's rules in compose.ts, and the code's checks: edge
- * drafts/draft-writer.ts). Kept on every draft: a draft from an earlier edition is no draft, and the sweep writes it again
+ * drafts/writer.ts). Kept on every draft: a draft from an earlier edition is no draft, and the sweep writes it again
  * within minutes. Moved with any change to them: #2081 changed the pitch's rule and left the edition alone, so the
  * sentences written before it stood. 5: the receptionist's brain writes every reply (decision 0093).
  */
@@ -49,9 +49,9 @@ const DRAFT_FAILED_WORDS: Readonly<Record<ReplyDraftWhy, { words: string; again:
 };
 
 /** What a draft that was not written says, and whether it can be asked again: a why this build does not know is the last. */
-export function draftFailedWords(why: string | null | undefined): { words: string; again: boolean } {
+export function draftFailedWords(reason: string | null | undefined): { words: string; again: boolean } {
   return (
-    (DRAFT_FAILED_WORDS as Record<string, { words: string; again: boolean }>)[why ?? ""] ??
+    (DRAFT_FAILED_WORDS as Record<string, { words: string; again: boolean }>)[reason ?? ""] ??
     DRAFT_FAILED_WORDS.not_drafted
   );
 }
@@ -154,15 +154,16 @@ function keptStateOf(d: ReplyDraftDto): ReplyDraftState {
  */
 export function draftViewOf(
   kept: ReplyDraftDto | null | undefined,
-  f: { forMessageId: string | null; expected: boolean; askedAtMs: number | null; nowMs: number },
+  fields: { forMessageId: string | null; expected: boolean; askedAtMs: number | null; nowMs: number },
 ): ReplyDraftView {
-  if (!kept || !draftIsCurrent(kept, f.forMessageId)) {
-    const onItsWay = f.expected && f.askedAtMs !== null && f.nowMs - f.askedAtMs <= DRAFT_WRITING_STALE_MS;
+  if (!kept || !draftIsCurrent(kept, fields.forMessageId)) {
+    const onItsWay =
+      fields.expected && fields.askedAtMs !== null && fields.nowMs - fields.askedAtMs <= DRAFT_WRITING_STALE_MS;
     return onItsWay ? DRAFT_WRITING : DRAFT_NONE;
   }
   switch (keptStateOf(kept)) {
     case "writing": {
-      if (f.nowMs - Date.parse(kept.made_at) <= DRAFT_WRITING_STALE_MS) return DRAFT_WRITING;
+      if (fields.nowMs - Date.parse(kept.made_at) <= DRAFT_WRITING_STALE_MS) return DRAFT_WRITING;
       const stale = draftFailedWords("not_drafted");
       return { state: "failed", why: stale.words, again: stale.again };
     }
@@ -180,11 +181,14 @@ export function draftViewOf(
 }
 
 /** Whether a kept draft still answers the thread: it was written for the customer's newest message. */
-export function draftIsCurrent(d: Pick<ReplyDraftDto, "for_message_id">, forMessageId: string | null): boolean {
-  return d.for_message_id === forMessageId;
+export function draftIsCurrent(
+  replyDraft: Pick<ReplyDraftDto, "for_message_id">,
+  forMessageId: string | null,
+): boolean {
+  return replyDraft.for_message_id === forMessageId;
 }
 
 /** Whether a kept draft holds words to send (or a brief to read), not only a question Ask could not answer itself. */
-export function draftHasWords(d: Pick<ReplyDraftDto, "kind" | "words">): boolean {
-  return d.kind === "brief" ? d.words.brief !== null : d.words.text.trim().length > 0;
+export function draftHasWords(replyDraft: Pick<ReplyDraftDto, "kind" | "words">): boolean {
+  return replyDraft.kind === "brief" ? replyDraft.words.brief !== null : replyDraft.words.text.trim().length > 0;
 }

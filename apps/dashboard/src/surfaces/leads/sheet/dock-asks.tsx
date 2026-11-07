@@ -4,14 +4,9 @@
  * their place as a read reply does, in the dock's place, Rewrite the opening's what should change, what Approve asks
  * before a batch goes, and what Take out asks. Every word is contracts'.
  */
-import {
-  leadApproveAskOf,
-  leadLeaveAskOf,
-  toSendRowOf,
-  type LeadPeekVM,
-  type SequencePlaceDto,
-  type ToSendRowVM,
-} from "@chanlytics/contracts";
+import { toSendRowOf, type LeadPeekVM, type SequencePlaceDto, type ToSendRowVM } from "@chanlytics/contracts";
+import { leadApproveAskOf } from "./model/now";
+import { leadLeaveAskOf } from "./model/dock";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { RoSaidAsk } from "../../campaigns/reach-out/said-ask";
 import { RoToSendRows } from "../../campaigns/reach-out/to-send";

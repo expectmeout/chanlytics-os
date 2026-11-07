@@ -6,6 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { leadsRoute, parseLeadsRoute } from "@chanlytics/contracts";
 import {
   LEAD_NAMED_MAX,
   LEAD_NAMED_WORDS,
@@ -15,9 +16,7 @@ import {
   leadNamedChanged,
   leadNamedRouteFor,
   leadNamedViewsOf,
-  leadsRoute,
-  parseLeadsRoute,
-} from "@chanlytics/contracts";
+} from "../../../apps/dashboard/src/surfaces/leads/scope/named-views.ts";
 import { installStubReact, fresh, again, all, byTestId, find, textOf } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 

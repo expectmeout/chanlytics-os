@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { SPEND_REVIEW, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
-import { reviewRehearsal } from "@/server/receptionist/rehearsal";
+import { reviewRehearsal } from "@/server/settings/rehearsal";
 
 /**
  * POST /api/v1/receptionist/review — how it did (decision 0069): one conversation judged against what the receptionist

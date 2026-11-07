@@ -35,10 +35,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const auth = await import(at("apps/dashboard/src/auth/second-factor.ts"));
-const { platformPartnerSecondFactorReset } = await import(at("apps/dashboard/src/server/console/platform.ts"));
+const { resetPlatformPartnerSecondFactor } = await import(at("apps/dashboard/src/server/console/platform.ts"));
 const reset = await import(at("apps/dashboard/app/api/v1/platform/partners/second-factor/route.ts"));
 const { RATE } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { memberContext, requireSecondFactor } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
+const { getMemberContext, requireSecondFactor } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
 const { read, write, workspace } = await import(at("apps/dashboard/src/server/shared/route.ts"));
 const partnerDoor = await import(at("apps/dashboard/app/api/v1/partner/route.ts"));
 const handoverDoor = await import(at("apps/dashboard/app/api/v1/partner/workspaces/route.ts"));
@@ -238,7 +238,7 @@ test("the reset: written down with why, recorded by the function first, then eve
     acts,
   );
   const a = admin({ factors: [{ id: "f1" }, { id: "f2" }] });
-  assert.deepEqual(await platformPartnerSecondFactorReset(office, PARTNER, WHY("Called them back."), a.svc), {
+  assert.deepEqual(await resetPlatformPartnerSecondFactor(office, PARTNER, WHY("Called them back."), a.svc), {
     removed: 2,
   });
   assert.deepEqual(recorded, [{ p_partner: PARTNER, p_why: "Called them back." }]);
@@ -250,18 +250,18 @@ test("the reset: written down with why, recorded by the function first, then eve
     ["f1", USER],
     ["f2", USER],
   ]);
-  assert.deepEqual(await platformPartnerSecondFactorReset(office, PARTNER, WHY("x"), admin({ factors: [] }).svc), {
+  assert.deepEqual(await resetPlatformPartnerSecondFactor(office, PARTNER, WHY("x"), admin({ factors: [] }).svc), {
     removed: 0,
   });
   assert.equal(acts[1].outcome_note, "They had no authenticator to remove.", "the log says what came of it");
   await assert.rejects(
-    platformPartnerSecondFactorReset(office, "44444444-4444-4444-8444-444444444444", WHY("x"), admin().svc),
+    resetPlatformPartnerSecondFactor(office, "44444444-4444-4444-8444-444444444444", WHY("x"), admin().svc),
     (e) => e.code === "not_found",
   );
   assert.equal(acts[2].outcome, "refused");
   const untouched = admin();
   await assert.rejects(
-    platformPartnerSecondFactorReset(
+    resetPlatformPartnerSecondFactor(
       officeOf(
         fakeDb(
           {},
@@ -280,14 +280,14 @@ test("the reset: written down with why, recorded by the function first, then eve
   );
   assert.deepEqual(untouched.removed, [], "nothing removed without the record");
   await assert.rejects(
-    platformPartnerSecondFactorReset(office, PARTNER, WHY("x"), admin({ listError: new Error("503") }).svc),
+    resetPlatformPartnerSecondFactor(office, PARTNER, WHY("x"), admin({ listError: new Error("503") }).svc),
     (e) => e.code === "upstream_auth",
   );
   assert.equal(acts.at(-1).outcome, "failed", "a failure that is ours is said as failed, not refused");
   // Billing does not reset a partner's second factor: refused before anything is written or removed.
   const billing = admin({ factors: [{ id: "f9" }] });
   await assert.rejects(
-    platformPartnerSecondFactorReset({ ...office, role: "billing" }, PARTNER, WHY("x"), billing.svc),
+    resetPlatformPartnerSecondFactor({ ...office, role: "billing" }, PARTNER, WHY("x"), billing.svc),
     (e) => e.code === "forbidden" && e.status === 403,
   );
   assert.deepEqual(billing.removed, []);
@@ -358,7 +358,7 @@ test("the door: a partner's seat on a session without the code is refused, read 
   const looked = read({ scope: workspace, handle: async ({ member }) => member.role });
   const changed = write({ scope: workspace, role: "partner", rate: null, handle: async ({ member }) => member.role });
   for (const aal of ["aal1", undefined]) {
-    await assert.rejects(memberContext(session(aal), B), mfa, `memberContext, ${aal}`);
+    await assert.rejects(getMemberContext(session(aal), B), mfa, `getMemberContext, ${aal}`);
     await assert.rejects(looked.run(at_(B), session(aal)), mfa, "a read");
     await assert.rejects(changed.run(at_(B, "POST", {}), session(aal)), mfa, "a write");
     assert.equal(await looked.run(at_(A), session(aal)), "owner", "their own workspace, unchanged");

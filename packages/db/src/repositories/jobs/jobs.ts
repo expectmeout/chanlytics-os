@@ -56,18 +56,18 @@ export async function hasRequeuedCopy(db: Db, tenantId: string, jobId: string): 
 }
 
 /** The jobs of one kind that failed for good since a moment, oldest first: what the Console runs again together. */
-export async function failedJobsOfKind(
+export async function listFailedJobsOfKind(
   db: Db,
-  q: { kind: string; sinceIso: string; limit: number },
+  input: { kind: string; sinceIso: string; limit: number },
 ): Promise<{ id: string; tenant_id: string }[]> {
   const { data, error } = await db
     .from("jobs")
     .select("id, tenant_id")
-    .eq("kind", q.kind)
+    .eq("kind", input.kind)
     .eq("state", "failed")
-    .gte("updated_at", q.sinceIso)
+    .gte("updated_at", input.sinceIso)
     .order("updated_at", { ascending: true })
-    .limit(q.limit);
+    .limit(input.limit);
   if (error) throw new Error(`read_failed_jobs: ${error.message}`);
   return data ?? [];
 }
@@ -201,13 +201,13 @@ interface FailedQueuedSend {
  */
 export async function failQueuedSend(
   db: Db,
-  p: { tenantId: string; messageId: string; error: Json },
+  params: { tenantId: string; messageId: string; error: Json },
 ): Promise<{ row: FailedQueuedSend | null; error: string | null }> {
   const { data, error } = await db
     .from("messages")
-    .update({ status: "failed", error: p.error })
-    .eq("id", p.messageId)
-    .eq("tenant_id", p.tenantId)
+    .update({ status: "failed", error: params.error })
+    .eq("id", params.messageId)
+    .eq("tenant_id", params.tenantId)
     .eq("status", "queued")
     .select("conversation_id, sender, channel, meta");
   if (error) return { row: null, error: error.message };
@@ -235,7 +235,7 @@ export async function failQueuedSend(
  */
 export async function queueSend(
   db: Db,
-  q: {
+  input: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -250,24 +250,24 @@ export async function queueSend(
 ): Promise<string> {
   const { data, error } = await db.rpc("queue_send", {
     p_message: {
-      tenant_id: q.tenantId,
-      conversation_id: q.conversationId,
-      contact_id: q.contactId,
-      channel: q.channel,
-      sender: q.sender,
+      tenant_id: input.tenantId,
+      conversation_id: input.conversationId,
+      contact_id: input.contactId,
+      channel: input.channel,
+      sender: input.sender,
       type: "text",
-      body: q.body,
-      meta: q.meta,
+      body: input.body,
+      meta: input.meta,
     },
-    p_due_at: q.dueAt.toISOString(),
-    p_payload: q.payload,
+    p_due_at: input.dueAt.toISOString(),
+    p_payload: input.payload,
   });
   if (error || typeof data !== "string") throw new Error(`queue_send: ${error?.message ?? "no message"}`);
   return data;
 }
 
 /** The kinds an operator paused (job_kinds.paused_at, 00526), with since when and why: the health sweep pages each. */
-export async function pausedJobKinds(
+export async function listPausedJobKinds(
   db: Db,
 ): Promise<{ kind: string; paused_at: string; paused_why: string | null }[]> {
   const { data, error } = await db.from("job_kinds").select("kind, paused_at, paused_why").not("paused_at", "is", null);

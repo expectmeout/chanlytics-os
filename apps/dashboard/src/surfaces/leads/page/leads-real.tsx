@@ -6,15 +6,8 @@
  * acts are plain functions over the draw's state; and what it hands LeadsScope comes from the five builders (props.tsx).
  */
 import { useEffect } from "react";
-import {
-  BAR_LINE_WORDS,
-  leadBand,
-  leadRail,
-  leadRowActOf,
-  leadsRoute,
-  leadsStanding,
-  type LeadRowVM,
-} from "@chanlytics/contracts";
+import { BAR_LINE_WORDS, leadBand, leadRail, leadsRoute, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
+import { leadRowActOf } from "../row-status";
 import { navigate } from "../../frame-verbs";
 import { useRecordsAhead } from "../../campaigns/sequences/use-record";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";

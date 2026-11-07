@@ -7,19 +7,15 @@
  * holds, in one pass over those rows. review-report.ts puts the counts in words. A count over the profile's reviews is exact
  * only where the record reaches the period's first day; where it does not, there is no count here, never a zero. Pure.
  */
-import { mondayOf, shiftKey } from "../calendar/day-keys";
+import { mondayOf, shiftKey } from "../shared/zone/day-keys";
 import { zoneDayKey } from "../shared/clock";
 import { pct, sumOf } from "../shared/numbers";
 import { isoMs } from "../shared/time";
 import { plural } from "../shared/words";
-import {
-  reviewsFromProfile,
-  type GoogleConnectionDto,
-  type GoogleReadDto,
-  type GoogleReviewDto,
-} from "../google/google";
-import { periodSince } from "./report-periods";
-import { dayPointOf, fmtDay, quantile } from "./reports";
+import { reviewsFromProfile } from "../google/google";
+import type { GoogleConnectionDto, GoogleReadDto, GoogleReviewDto } from "../google/listing";
+import { periodSince } from "./periods";
+import { dayPointOf, fmtDay, quantile } from "./dtos";
 
 /** A middle time needs this many replies to be said: two are an anecdote. */
 export const REVIEW_REPLY_TIME_MIN = 3;
@@ -134,8 +130,12 @@ export function reviewsHistoryOf(
 const historyReaches = (h: ReviewsHistory, day: string): boolean => h.complete || (h.from !== null && h.from <= day);
 
 /** Where the record starts, run into other words ("history on record starts Aug 20"); null for a complete one. */
-export const historyWords = (h: ReviewsHistory): string | null =>
-  h.complete ? null : h.from ? `history on record starts ${fmtDay(h.from)}` : "no review history on record yet";
+export const historyWords = (reviewsHistory: ReviewsHistory): string | null =>
+  reviewsHistory.complete
+    ? null
+    : reviewsHistory.from
+      ? `history on record starts ${fmtDay(reviewsHistory.from)}`
+      : "no review history on record yet";
 
 /** One star count of the period: a row of the mix. */
 interface ReviewsStarVM {
@@ -249,10 +249,10 @@ function reviewsWeeksOf(
   perDay: ReadonlyMap<string, number>,
   since: string,
   today: string,
-  h: ReviewsHistory,
+  reviewsHistory: ReviewsHistory,
 ): ReviewsWeekVM[] {
   return calendarWeeks(since, today).flatMap(({ first, last }) => {
-    if (!historyReaches(h, first)) return [];
+    if (!historyReaches(reviewsHistory, first)) return [];
     let written = 0;
     for (let day = first; day <= last; day = shiftKey(day, 1)) written += perDay.get(day) ?? 0;
     return [{ ...dayPointOf(first), written }];

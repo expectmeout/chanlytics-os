@@ -97,7 +97,7 @@ export interface ReachOutFollower extends ReachOutLead {
 }
 
 export interface NewReachOutRun {
-  /** Its step and its day (reachOutRunIdFor): a replay meets its own run. */
+  /** Its step and its day (getReachOutRunId): a replay meets its own run. */
   id: string;
   tenant_id: string;
   playbook_id: string;
@@ -155,7 +155,7 @@ export interface ReachOutRunPorts {
    */
   mailboxes(step: ReachOutStep, also: readonly string[]): Promise<{ senders: TimetableSender[]; gone: Set<string> }>;
   /**
-   * What a reach-out its owner sends holds (db chainDraftLoad, 00429): the emails its runs for this day already hold,
+   * What a reach-out its owner sends holds (db loadChainDraft, 00429): the emails its runs for this day already hold,
    * skipped aside (its day's share is counted against them, contracts REACH_OUT_DRAFTS_PER_DAY), and those waiting for
    * its owner across every run, not yet said (their pile, REACH_OUT_DRAFTS_OPEN_MAX).
    */
@@ -184,13 +184,13 @@ export type ReachOutRunOutcome =
  * a bounced address too (a call is no worse for one); null for a lead it may reach. One reading for both kinds of later
  * step: what it refuses for good is passed over (00455), someone away only waits.
  */
-export function followerRefusalOf(f: ReachOutFollower, o: { bounced: boolean }): string | null {
-  if (o.bounced && f.bounced) return "outreach_bounced";
+export function followerRefusalOf(reachOutFollower: ReachOutFollower, options: { bounced: boolean }): string | null {
+  if (options.bounced && reachOutFollower.bounced) return "outreach_bounced";
   return outreachRefusalOf({
-    leadStage: f.facts.lead_stage,
-    suppressed: f.facts.suppressed,
-    wroteBack: f.facts.wrote_back,
-    away: f.facts.away === true,
-    stopped: f.facts.stopped === true,
+    leadStage: reachOutFollower.facts.lead_stage,
+    suppressed: reachOutFollower.facts.suppressed,
+    wroteBack: reachOutFollower.facts.wrote_back,
+    away: reachOutFollower.facts.away === true,
+    stopped: reachOutFollower.facts.stopped === true,
   });
 }

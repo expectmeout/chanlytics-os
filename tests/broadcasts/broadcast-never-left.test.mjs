@@ -15,7 +15,7 @@ import { importSrc } from "../_source.mjs";
 
 const { deliver } = await importSrc("packages/core/src/deliver/deliver.ts");
 const { whatsappSender } = await importSrc("packages/core/src/deliver/wire-senders.ts");
-const { sendBroadcastBatch } = await importSrc("packages/core/src/messages/broadcast.ts");
+const { sendBroadcastBatch } = await importSrc("packages/core/src/messages/broadcast/batch.ts");
 const { resetBreakers } = await importSrc("packages/channels/src/shared/provider-fetch.ts");
 const { BROADCAST_THROTTLE_WAITS_MS, OUTCOME_UNKNOWN } = await import("@chanlytics/contracts");
 

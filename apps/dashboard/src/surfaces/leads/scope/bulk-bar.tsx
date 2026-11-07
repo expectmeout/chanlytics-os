@@ -7,7 +7,6 @@
  * become 1,240 ids in a request (Not a fit alone takes that; an add is of the leads shown).
  */
 import {
-  LEAD_SHEET_WORDS,
   LEAD_WORDS,
   leadCheckAgainCents,
   type LeadNotAFitWhy,
@@ -15,6 +14,7 @@ import {
   type LeadRowVM,
   type LeadsBulkInput,
 } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS } from "../sheet/model/view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";

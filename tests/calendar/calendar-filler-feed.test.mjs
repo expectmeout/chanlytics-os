@@ -20,7 +20,7 @@ const { fillerCalendar, fillerFeedFor, FILLER_FEED_PATH } = await import(
   at("apps/dashboard/src/server/calendar/filler-calendar.ts")
 );
 const { GET } = await import(at("apps/dashboard/app/api/v1/calendar/filler.ics/route.ts"));
-const { loadFeed, forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+const { loadFeed, forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 
 const TZ = "America/New_York";
 // 4 PM in New York on Friday 18 September 2026.

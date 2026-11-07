@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 
-const { erasureKeys, visitNeedles } = await import("@chanlytics/db");
+const { erasureKeys, visitNeedles } = await import("@chanlytics/db/erasure");
 
 const NATIONAL = ["5550100123", "(555) 010-0123", "555-010-0123", "555.010.0123", "555 010 0123"];
 

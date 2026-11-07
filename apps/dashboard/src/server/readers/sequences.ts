@@ -19,21 +19,21 @@ import {
   type SequencesPageDto,
 } from "@chanlytics/contracts";
 import {
-  leadRepliesOfBatches,
-  leadsFedBy,
-  oneOffMessageOf,
-  sequenceHistoryOf,
-  sequenceOfPart,
-  sequenceOverview,
-  sequencePeopleOf,
-  sequenceStepsOf,
-  sequenceRecordFacts,
-  sequenceEvidence,
-} from "@chanlytics/db";
+  listLeadRepliesOfBatches,
+  getLeadsFedBy,
+  findOneOffMessage,
+  getSequenceHistory,
+  findSequenceOfPart,
+  listSequenceOverview,
+  getSequencePeople,
+  listSequenceSteps,
+  findSequenceRecordFacts,
+  listSequenceEvidence,
+} from "@chanlytics/db/campaigns";
 import { playbookCountKey, readingFor } from "@/lib/campaign-channels";
-import { repliedConversationsOf } from "../campaigns/broadcasts";
-import { chainsOf } from "../campaigns/reach-outs";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
+import { listRepliedConversations } from "../campaigns/broadcasts/replied";
+import { listChains } from "../campaigns/reach-outs/reach-outs";
+import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as readers from "./facts";
 import { playbooks as playbooksReader } from "./playbooks";
 
@@ -57,7 +57,7 @@ export const sequences: Reader<undefined, SequencesPageDto> = {
   name: "sequences",
   async read(rc) {
     const [rows, facts, word] = await Promise.all([
-      sequenceOverview(rc.ctx.supabase, rc.tenantId),
+      listSequenceOverview(rc.ctx.supabase, rc.tenantId),
       load(rc, readers.facts, undefined).then((r) => r.data),
       // The word its steps are said in, the workspace's own (readers/facts.ts): nothing else of its shape is said here.
       load(rc, readers.appointmentWord, undefined).then((r) => r.data),
@@ -67,7 +67,7 @@ export const sequences: Reader<undefined, SequencesPageDto> = {
     return {
       data: { sequences: rows.map((r) => sequenceWaitsNow(r, days)), timezone: facts.timezone, word },
       rows: rows.map(cited),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -87,8 +87,8 @@ async function startsWith(
   // pace and who signs. Unreadable costs the words alone, never the record.
   if (search) {
     const [fedBy, chain] = await Promise.all([
-      leadsFedBy(db, rc.tenantId, search).catch(() => "search" as const),
-      chainsOf(rc.ctx, rc.tenantId).then(
+      getLeadsFedBy(db, rc.tenantId, search).catch(() => "search" as const),
+      listChains(rc.ctx, rc.tenantId).then(
         (all) => all.find((c) => c.root_id === row.id) ?? null,
         () => null,
       ),
@@ -96,26 +96,26 @@ async function startsWith(
     return { fed_by: fedBy, chain };
   }
   if (row.starts === "date" && row.date)
-    return { one_off: await oneOffMessageOf(db, rc.tenantId, row.date.batch_id).catch(() => null) };
+    return { one_off: await findOneOffMessage(db, rc.tenantId, row.date.batch_id).catch(() => null) };
   return {};
 }
 
 /**
  * A sequence's own reads, by its id: its row, its steps, and its first step's (the sequence's own id) run facts: the day it
  * last ran (when its next run goes), its cap, gap and cadence (Start's Change opens with them), and why its last run did
- * nothing, where it did (the record's notice, sequence-run-off.ts); and whether it ever ran or wrote, which its head's acts
+ * nothing, where it did (the record's notice, sequences/run-off.ts); and whether it ever ran or wrote, which its head's acts
  * turn on (0072). Facts unreadable cost those lines alone, unsaid, and the acts that turn on them are not offered. And what
  * it starts with (startsWith), asked as soon as its row says how it starts, beside the steps and the facts: asked after
  * all of them, it was a second wave of reads every record waited for (the Campaigns load review, 28 Oct 2026).
  */
 function sequenceReads(rc: ReaderContext, id: string) {
-  const rows = sequenceOverview(rc.ctx.supabase, rc.tenantId, id);
+  const rows = listSequenceOverview(rc.ctx.supabase, rc.tenantId, id);
   const starts = rows.then(([row]) => (row ? startsWith(rc, row) : {}));
   starts.catch(() => {});
   return Promise.all([
     rows,
-    sequenceStepsOf(rc.ctx.supabase, rc.tenantId, id),
-    sequenceRecordFacts(rc.ctx.supabase, rc.tenantId, id),
+    listSequenceSteps(rc.ctx.supabase, rc.tenantId, id),
+    findSequenceRecordFacts(rc.ctx.supabase, rc.tenantId, id),
     starts,
   ]);
 }
@@ -146,7 +146,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
     const workspace = Promise.all([
       load(rc, readers.facts, undefined).then((r) => r.data),
       load(rc, readers.appointmentWord, undefined).then((r) => r.data),
-      sequenceEvidence(rc.ctx.supabase, rc.tenantId).catch(() => undefined),
+      listSequenceEvidence(rc.ctx.supabase, rc.tenantId).catch(() => undefined),
     ]);
     workspace.catch(() => {});
     // The id asked for is a sequence's own as a row's door or a record's address names it, so its row, steps and run facts
@@ -155,7 +155,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
     // it belongs to is read in a second wave, as before.
     let [rows, steps, own, starts] = await sequenceReads(rc, asked);
     if (rows.length === 0) {
-      const id = await sequenceOfPart(rc.ctx.supabase, rc.tenantId, asked);
+      const id = await findSequenceOfPart(rc.ctx.supabase, rc.tenantId, asked);
       if (id && id !== asked) [rows, steps, own, starts] = await sequenceReads(rc, id);
     }
     const { first, lastRunOff, history } = own;
@@ -189,7 +189,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
         ...starts,
       },
       rows: [cited(row)],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -198,7 +198,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
  * GET sequences/:id/reach: what Turn on asks with beside the record (contracts sequenceResumeAsk), for a sequence on a
  * moment or a list, whose first step is a campaign's card on GET playbooks: who its next run reaches, read off that read's
  * pools as the card reads it (its own count, its list's or its moment's, for the channels it goes by: lib
- * campaign-channels.ts), the most one run sends, and whether the workspace is paused for billing. Read as the question
+ * campaigns/channels.ts), the most one run sends, and whether the workspace is paused for billing. Read as the question
  * opens, never with the record: the count is over everyone, as a run's is. A sequence with no such step is not found.
  */
 export const sequenceReach: Reader<{ id: string }, SequenceReachDto> = {
@@ -216,7 +216,7 @@ export const sequenceReach: Reader<{ id: string }, SequenceReachDto> = {
         paused: pb.ready?.paused === true,
       },
       rows: [cited(step)],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -225,8 +225,8 @@ export const sequenceReach: Reader<{ id: string }, SequenceReachDto> = {
 export const sequencePeople: Reader<{ id: string; limit?: number }, SequencePeopleDto> = {
   name: "sequencePeople",
   async read(rc, { id, limit }) {
-    const data = await sequencePeopleOf(rc.ctx.supabase, { tenantId: rc.tenantId, sequenceId: id, limit });
-    return { data, rows: [], stamp: stamp() };
+    const data = await getSequencePeople(rc.ctx.supabase, { tenantId: rc.tenantId, sequenceId: id, limit });
+    return { data, rows: [], stamp: readerStamp() };
   },
 };
 
@@ -234,8 +234,8 @@ export const sequencePeople: Reader<{ id: string; limit?: number }, SequencePeop
 export const sequenceHistory: Reader<{ id: string; before?: string | null }, SequenceHistoryDto> = {
   name: "sequenceHistory",
   async read(rc, { id, before }) {
-    const data = await sequenceHistoryOf(rc.ctx.supabase, { tenantId: rc.tenantId, sequenceId: id, before });
-    return { data, rows: [], stamp: stamp() };
+    const data = await getSequenceHistory(rc.ctx.supabase, { tenantId: rc.tenantId, sequenceId: id, before });
+    return { data, rows: [], stamp: readerStamp() };
   },
 };
 
@@ -245,15 +245,15 @@ const REPLIES_PAGES_MAX = 20;
 /**
  * GET sequences/:id/replies: the conversations that answered a sequence over one of History's periods, for the Inbox to
  * list (contracts sequenceRepliesRoute). The batches are History's own, read back as far as the period asks (historyCovers,
- * as History reads them), and their replies are its days' own: a customer's by a run sheet's rule (repliedConversationsOf),
- * a lead's as History counts one (leadRepliesOfBatches).
+ * as History reads them), and their replies are its days' own: a customer's by a run sheet's rule (listRepliedConversations),
+ * a lead's as History counts one (listLeadRepliesOfBatches).
  */
 export const sequenceReplies: Reader<{ id: string; period: "30" | "90" | "all" }, SequenceRepliesDto> = {
   name: "sequenceReplies",
   async read(rc, { id, period }) {
     const db = rc.ctx.supabase;
     const [rows, facts] = await Promise.all([
-      sequenceOverview(db, rc.tenantId, id),
+      listSequenceOverview(db, rc.tenantId, id),
       load(rc, readers.facts, undefined).then((r) => r.data),
     ]);
     const [row] = rows;
@@ -261,23 +261,23 @@ export const sequenceReplies: Reader<{ id: string; period: "30" | "90" | "all" }
     const tz = facts.timezone;
     const since = historySince(period, tz, rc.now.getTime());
     const batches: SequenceBatchDto[] = [];
-    let page = await sequenceHistoryOf(db, { tenantId: rc.tenantId, sequenceId: id });
+    let page = await getSequenceHistory(db, { tenantId: rc.tenantId, sequenceId: id });
     batches.push(...page.batches);
     for (let n = 1; n < REPLIES_PAGES_MAX && !historyCovers({ batches, more: page.more }, since, tz); n += 1) {
       const last = batches[batches.length - 1];
       if (!last) break;
-      page = await sequenceHistoryOf(db, { tenantId: rc.tenantId, sequenceId: id, before: last.at });
+      page = await getSequenceHistory(db, { tenantId: rc.tenantId, sequenceId: id, before: last.at });
       batches.push(...page.batches);
     }
     const ids = historyIn(batches, since, tz).map((b) => b.id);
     const [customers, leads] = await Promise.all([
-      repliedConversationsOf(rc.ctx, rc.tenantId, ids),
-      leadRepliesOfBatches(db, rc.tenantId, ids),
+      listRepliedConversations(rc.ctx, rc.tenantId, ids),
+      listLeadRepliesOfBatches(db, rc.tenantId, ids),
     ]);
     return {
       data: { sequence_id: row.id, name: row.name, period, conversation_ids: [...new Set([...customers, ...leads])] },
       rows: [cited(row)],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

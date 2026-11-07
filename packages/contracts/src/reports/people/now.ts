@@ -17,7 +17,7 @@ import type { StepDue } from "../../notes/steps";
 import { poolListContext, poolRowsOf } from "../../people/audience-pool";
 import { membersOf, resolveList } from "../../people/lists/lists";
 import type { PersonRowDto } from "../../people/person-dto";
-import type { PersonRowVM } from "../../people/person-row";
+import type { PersonRowVM } from "../../people/person-row/row-facts";
 import { QUIET_AFTER_DAYS } from "../../people/person-state";
 import type { PersonChannel } from "../../people/person-words";
 
@@ -123,9 +123,9 @@ function wireCountsOf(vms: readonly PersonRowVM[]): PeopleNowDto["wires"] {
  */
 export function peopleNowOf(
   rows: readonly PersonRowDto[],
-  o: { tz: string; nowMs: number; ready: ChannelsReady | null },
+  options: { tz: string; nowMs: number; ready: ChannelsReady | null },
 ): PeopleNowDto {
-  const vms = poolRowsOf(rows, { tz: o.tz, now: new Date(o.nowMs), viewer: null, ready: o.ready });
+  const vms = poolRowsOf(rows, { tz: options.tz, now: new Date(options.nowMs), viewer: null, ready: options.ready });
   return {
     people: vms.length,
     fresh: freshCountsOf(vms),

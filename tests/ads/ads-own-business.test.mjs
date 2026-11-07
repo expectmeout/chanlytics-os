@@ -7,6 +7,16 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, all, byTestId, find, redrawWanted, textOf, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { ADS_EXAMPLES } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
+import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
+import { adModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/drawer/view.ts";
+import {
+  newAdDefaults,
+  newAdModel,
+  draftAd,
+  newAdFrom,
+} from "../../apps/dashboard/src/surfaces/campaigns/ads/model/new-ad.ts";
+import { NEW_AD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-new.ts";
 
 installStubReact({
   __DEMO_MODE: false,
@@ -24,7 +34,6 @@ installStubReact({
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const ads = await import("@chanlytics/contracts");
-const page = await import("@chanlytics/contracts/ads-page");
 const { exampleAt } = await import(`${S}/surfaces/campaigns/ads/examples.ts`);
 const { adsOwnHere } = await import(`${S}/surfaces/campaigns/ads/own.ts`);
 const { CONFIG, SPRING } = await import(`${S}/surfaces/campaigns/ads/sample.ts`);
@@ -122,7 +131,7 @@ test("a preview's sample is the business the workspace says it is, in every exam
       services: undefined,
     },
   );
-  for (const example of page.ADS_EXAMPLES) {
+  for (const example of ADS_EXAMPLES) {
     const read = exampleAt(example, NOW, own);
     assert.doesNotMatch(JSON.stringify(read), /harbor/i, `${example}: no word of the studio`);
     assert.equal(read.business.name, "Birch Lane Co", example);
@@ -151,8 +160,8 @@ test("a preview's sample is the business the workspace says it is, in every exam
 test("the ads, their numbers and the people stay the example's: only whose they are changes", () => {
   const own = theirs();
   for (const example of ["running", "needs-you", "finished", "setting-up"]) {
-    const mine = page.adsModel(exampleAt(example, NOW, own), CONFIG);
-    const sample = page.adsModel(exampleAt(example, NOW, null), CONFIG);
+    const mine = adsModel(exampleAt(example, NOW, own), CONFIG);
+    const sample = adsModel(exampleAt(example, NOW, null), CONFIG);
     assert.deepEqual(
       mine.figures.map((f) => f.value),
       sample.figures.map((f) => f.value),
@@ -188,7 +197,7 @@ test("the accounts stay plainly examples beside a real name, since none is conne
 test("an ad reads as the business's: the frame's name, the sentence's street, the words it opens with and its word for an appointment", () => {
   const read = exampleAt("running", NOW, theirs());
   const spring = read.ads.find((a) => a.id === SPRING);
-  const vm = page.adModel(spring, read, CONFIG);
+  const vm = adModel(spring, read, CONFIG);
   assert.equal(vm.preview.business, "Birch Lane Co");
   assert.match(vm.preview.text, /Book your first visit at Birch Lane Co/);
   assert.match(vm.preview.thread.greeting, /Birch Lane Co/);
@@ -196,11 +205,11 @@ test("an ad reads as the business's: the frame's name, the sentence's street, th
   assert.equal(near.name, "Visits near me", "a name the sample wrote the word into says the workspace's");
   assert.match(near.copy.lines.join(" "), /Open Mon–Fri 9 AM – 5 PM\. 44 Birch Ln, Trenton, NJ 08608\./);
   assert.ok(
-    JSON.stringify(page.adModel(near, read, CONFIG).sentence).includes("44 Birch Ln"),
+    JSON.stringify(adModel(near, read, CONFIG).sentence).includes("44 Birch Ln"),
     "where its area is said around",
   );
   assert.equal(near.opensUrl, "app.example.org/b/birch-lane");
-  assert.equal(page.newAdDefaults(read, CONFIG).serviceId, read.services[0].id, "a new ad starts from its top Service");
+  assert.equal(newAdDefaults(read, CONFIG).serviceId, read.services[0].id, "a new ad starts from its top Service");
 });
 
 test("what it has not said reads as missing, never as the studio's; with no name the sample stands whole, and a demo always keeps it", () => {
@@ -280,8 +289,8 @@ test("the store a page draws is the workspace's own, and so is Reports' fold, in
 
 test("a Service with no price says its name alone, with no comma left hanging", () => {
   const read = exampleAt("running", NOW, theirs());
-  const draft = { ...page.newAdDefaults(read, CONFIG), serviceId: read.services[1].id, postId: null };
-  assert.equal(page.newAdModel(draft, read, CONFIG).ad.copy.headline, "Follow-up");
+  const draft = { ...newAdDefaults(read, CONFIG), serviceId: read.services[1].id, postId: null };
+  assert.equal(newAdModel(draft, read, CONFIG).ad.copy.headline, "Follow-up");
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -337,7 +346,7 @@ function section(answer, draftOver = {}) {
   route.asked.length = 0;
   route.answer = answer;
   const read = readOwn();
-  const held = { draft: { ...page.newAdDefaults(read, CONFIG), ...draftOver } };
+  const held = { draft: { ...newAdDefaults(read, CONFIG), ...draftOver } };
   const props = () => ({
     state: { draft: held.draft },
     read,
@@ -418,7 +427,7 @@ test("more comes a few at a time, from where the read stopped; with nothing kept
 
   const none = section(() => pageOf([]));
   await landed("an empty shelf");
-  assert.equal(textOf(byTestId(none.draw(), "ads-new-files-none")), page.NEW_AD.step2.files.none);
+  assert.equal(textOf(byTestId(none.draw(), "ads-new-files-none")), NEW_AD.step2.files.none);
   assert.ok(byTestId(none.draw(), "ads-new-files-door"));
 
   const waiting = section(() =>
@@ -441,7 +450,7 @@ test("more comes a few at a time, from where the read stopped; with nothing kept
 test("the section stands alone on a preview's Meta photo; a video has no Files to pick from, and a demo keeps what it drew and reads nothing", async () => {
   const read = readOwn();
   const draft = {
-    ...page.newAdDefaults(read, CONFIG),
+    ...newAdDefaults(read, CONFIG),
     door: "whatsapp",
     platform: "meta",
     format: "photo",
@@ -468,7 +477,7 @@ test("the section stands alone on a preview's Meta photo; a video has no Files t
     fresh();
     const raw = exampleAt("running", NOW, null);
     const demo = PostsSec({
-      state: { draft: { ...page.newAdDefaults(raw, CONFIG), door: "whatsapp", platform: "meta", format: "photo" } },
+      state: { draft: { ...newAdDefaults(raw, CONFIG), door: "whatsapp", platform: "meta", format: "photo" } },
       read: raw,
       config: CONFIG,
       patch() {},
@@ -484,16 +493,16 @@ test("the section stands alone on a preview's Meta photo; a video has no Files t
 test("the picture picked is what the preview draws and what the ad keeps: a photo sized for the frame, a post in the frame's own shape", () => {
   const read = readOwn();
   const base = {
-    ...page.newAdDefaults(read, CONFIG),
+    ...newAdDefaults(read, CONFIG),
     door: "whatsapp",
     platform: "meta",
     format: "photo",
     postId: null,
   };
   const pick = { fileId: "a", name: "storefront-dusk", made: false };
-  const vm = page.newAdModel({ ...base, file: pick }, read, CONFIG);
+  const vm = newAdModel({ ...base, file: pick }, read, CONFIG);
   assert.deepEqual(vm.drawer.preview.picture, pick);
-  assert.deepEqual(page.draftAd({ ...base, file: pick }, read, CONFIG, "new").media, { kind: "file", ...pick });
+  assert.deepEqual(draftAd({ ...base, file: pick }, read, CONFIG, "new").media, { kind: "file", ...pick });
 
   const framed = (preview, frame) => {
     fresh();
@@ -514,10 +523,10 @@ test("the picture picked is what the preview draws and what the ad keeps: a phot
   assert.ok(find(again(draw), (n) => n.props?.className === "ads-photo"));
 
   // No picture on what shows none: a video, or Google.
-  assert.equal(page.newAdModel({ ...base, file: pick, format: "video" }, read, CONFIG).drawer.preview.picture, null);
+  assert.equal(newAdModel({ ...base, file: pick, format: "video" }, read, CONFIG).drawer.preview.picture, null);
   const google = { ...base, door: "call", platform: "google", file: pick };
-  assert.equal(page.newAdModel(google, read, CONFIG).drawer.preview.picture, null);
-  assert.equal(page.draftAd(google, read, CONFIG, "new").media.kind, "none");
+  assert.equal(newAdModel(google, read, CONFIG).drawer.preview.picture, null);
+  assert.equal(draftAd(google, read, CONFIG, "new").media.kind, "none");
 });
 
 test("an ad shows a post or a picture, not both, and a copy of one with a picture keeps it", () => {
@@ -535,6 +544,6 @@ test("an ad shows a post or a picture, not both, and a copy of one with a pictur
   assert.equal(held.state.draft.file, null);
 
   const ad = { ...read.ads[0], media: { kind: "file", ...pick } };
-  assert.deepEqual(page.newAdFrom(ad, "copy", read).file, pick);
-  assert.equal(page.newAdFrom(ad, "google", read).file, null, "Google shows no picture");
+  assert.deepEqual(newAdFrom(ad, "copy", read).file, pick);
+  assert.equal(newAdFrom(ad, "google", read).file, null, "Google shows no picture");
 });

@@ -5,7 +5,7 @@
  * preview reads as its page will. A demo session has no business of its own and keeps the studio. Read as a page draws, and loaded
  * only with the page and the lens: nothing here is written anywhere.
  */
-import { appointmentWordOf, guardrailsInForce, hoursLines, publicPagePath } from "@chanlytics/contracts";
+import { appointmentWordOf, guardrailsInForce, calendarHoursLines, publicPagePath } from "@chanlytics/contracts";
 import type { AdsRead, AppointmentWord } from "@chanlytics/contracts";
 import { workspaceOverride } from "@/bridge/surface-data";
 import type { SettingsSurface } from "@/bridge/surfaces/settings";
@@ -35,8 +35,8 @@ interface Where {
 }
 
 /** The days it is open, as words: `Mon–Fri 9am–6pm`. A run of closed days is left out, since the words say when it is open. */
-function hoursWords(hours: Parameters<typeof hoursLines>[0]): string | null {
-  const open = hoursLines(hours).filter((line) => !line.endsWith(" closed"));
+function hoursWords(hours: Parameters<typeof calendarHoursLines>[0]): string | null {
+  const open = calendarHoursLines(hours).filter((line) => !line.endsWith(" closed"));
   return open.length > 0 ? open.join(", ") : null;
 }
 

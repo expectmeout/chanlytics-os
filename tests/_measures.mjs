@@ -58,9 +58,13 @@ import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
 import { CLOCKS } from "./clocks/_clocks.mjs";
 import { OUT as SCHEMA_SQL, functionChangesIn, statementsOf } from "../tooling/scripts/gen/schema-snapshot.mjs";
 import { SCHEMA_SETS } from "@chanlytics/contracts";
-import { ERASURE_STRATEGIES } from "@chanlytics/db";
+import { ERASURE_STRATEGIES } from "@chanlytics/db/erasure";
 import { SUITES } from "../tooling/scripts/checks/test.mjs";
 import { NAME_RATCHETS } from "./repo/names/_names.mjs";
+import { BOUNDARY_RATCHETS } from "./repo/boundaries/_boundaries.mjs";
+import { SIZE_RATCHETS } from "./repo/size/_size.mjs";
+import { RULE_RATCHETS } from "./repo/rules/_rules.mjs";
+import { API_RATCHETS } from "./repo/api/_api.mjs";
 
 /** A function's limits: eslint.config.mjs's FUNCTION_LIMITS, as errors where this holds nothing. */
 export const LIMIT = { lines: 150, branches: 30, depth: 5 };
@@ -87,7 +91,7 @@ export const ROUTES = SRC.filter((f) => /^apps\/edge\/api\/|^apps\/dashboard\/ap
  * or a table query the layer behind it should. The edge's `lib/pg` handle is not named: nearly every door takes it to
  * pass on, and the tables ratchet already counts the ones that query it.
  */
-export const DOOR_FORBIDS = [/^@chanlytics\/(db|channels)$/, /^@supabase\/supabase-js$/];
+export const DOOR_FORBIDS = [/^@chanlytics\/(db|channels)(\/|$)/, /^@supabase\/supabase-js$/];
 /**
  * Where a length of time is measured: the shipped sources, less what cannot import the units' home — the shell's
  * classic scripts (mockup/) and the static files the browser loads as they are (public/) — and less the home itself.
@@ -463,7 +467,7 @@ export const MEASURES = [
         needsHumanReads,
       ),
     advice:
-      "Ask who has a thread through the standing rule (contracts standingOf, personStanding, packages/db threadIdsWaitingOnYou), never the raw state: needs_human is a thread flagged, and a reply a member took stays flagged until handed back (the wiring's second audit, S9-1).",
+      "Ask who has a thread through the standing rule (contracts standingOf, personStanding, packages/db getThreadIdsWaitingOnYou), never the raw state: needs_human is a thread flagged, and a reply a member took stays flagged until handed back (the wiring's second audit, S9-1).",
   },
   {
     name: "resumes sent without the question",
@@ -598,14 +602,14 @@ export const MEASURES = [
     measure: () => {
       const out = {};
       for (const f of ZONED) {
-        if (f === "packages/contracts/src/calendar/zone-math.ts") continue;
+        if (f === "packages/contracts/src/shared/zone/math.ts") continue;
         const n = zoneReadersIn(parse(f)).length;
         if (n > 0) out[f] = n;
       }
       return out;
     },
     advice:
-      "Read the zone through contracts' calendar/zone-math.ts, its one reading: zoneParts(tz, at) for the parts, dayInZone(tz, ms).key for the day, clockInZone for the wall clock, dayPlusInZone to step a day by the calendar, and usableZone(tz) first where a zone Intl cannot use must read as UTC rather than throw.",
+      "Read the zone through contracts' shared/zone/math.ts, its one reading: zoneParts(tz, at) for the parts, dayInZone(tz, ms).key for the day, clockInZone for the wall clock, dayPlusInZone to step a day by the calendar, and usableZone(tz) first where a zone Intl cannot use must read as UTC rather than throw.",
   },
   {
     name: "breakpoints outside the set",
@@ -1181,6 +1185,7 @@ export function emittedKinds() {
     "packages/db/src",
     "packages/core/src",
     "packages/jobs/src",
+    "packages/log/src",
     "packages/channels/src",
     "packages/contracts/src",
   ]) {
@@ -1207,7 +1212,8 @@ export function emittedKinds() {
       }
       for (const m of src.matchAll(/\.from\("events"\)\s*\.insert\(\{[\s\S]{0,400}?kind:\s*"([a-z_]+\.[a-z_]+)"/g))
         add(m[1], f);
-      for (const m of src.matchAll(/\bevent\(\s*(?:ports\.)?db,\s*d,\s*"([a-z_]+\.[a-z_]+)"/g)) add(m[1], f);
+      // The send door's own event(db, delivery, kind, ...): the delivery by whatever name the door gives it.
+      for (const m of src.matchAll(/\bevent\(\s*(?:ports\.)?db,\s*[\w$]+,\s*"([a-z_]+\.[a-z_]+)"/g)) add(m[1], f);
       // A verdict that names its own event kind (channels/a2p: the line's texting state).
       for (const m of src.matchAll(/\bevent:\s*"(line\.[a-z_]+)"/g)) add(m[1], f);
     }
@@ -1271,4 +1277,8 @@ export const RATCHETS = [
   APPOINTMENT_WORDS,
   SOURCE_SCAN,
   ...NAME_RATCHETS,
+  ...BOUNDARY_RATCHETS,
+  ...SIZE_RATCHETS,
+  ...RULE_RATCHETS,
+  ...API_RATCHETS,
 ].map((m) => ({ mode: "count", ...m, key: m.key ?? m.file.replace(/\.json$/, "") }));

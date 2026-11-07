@@ -5,21 +5,27 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS, IMPORT_STOPPED_WORDS } from "@chanlytics/contracts";
-import { dueCalendars, noteImport, type Database } from "@chanlytics/db";
+import { getDueCalendars } from "@chanlytics/db/jobs";
+import { noteImport } from "@chanlytics/db/imports";
+import type { Database } from "@chanlytics/db/types";
 import { readOneCalendar, type Kept } from "../calendar/sweep.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
 type Db = SupabaseClient<Database>;
 
 /** One read now. A workspace whose settings name no calendar (no grant set, or taken away) stops, said on its row. */
-export async function calendarPart(db: Db, part: Part): Promise<PartOutcome> {
+export async function getCalendarPart(db: Db, part: Part): Promise<PartOutcome> {
   const now = new Date();
   // Due whatever its last read: the page is asked for this workspace alone, as though the hour had come.
-  const page = await dueCalendars(db, { before: new Date(now.getTime() + DAY_MS), limit: 1, tenantId: part.tenantId });
+  const page = await getDueCalendars(db, {
+    before: new Date(now.getTime() + DAY_MS),
+    limit: 1,
+    tenantId: part.tenantId,
+  });
   const row = page.rows[0];
   const kept: Kept = { added: 0, moved: 0, back: 0, vanished: 0, seen: 0, stale: 0 };
-  const r = row ? await readOneCalendar(db, row, now, part.log, kept) : null;
-  if (!r || r.outcome === "none") {
+  const item = row ? await readOneCalendar(db, row, now, part.log, kept) : null;
+  if (!item || item.outcome === "none") {
     await noteImport(db, {
       tenantId: part.tenantId,
       source: "calendar",
@@ -29,7 +35,7 @@ export async function calendarPart(db: Db, part: Part): Promise<PartOutcome> {
     });
     return { more: false };
   }
-  if (r.outcome === "failed") {
+  if (item.outcome === "failed") {
     await noteImport(db, {
       tenantId: part.tenantId,
       source: "calendar",

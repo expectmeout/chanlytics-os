@@ -15,7 +15,6 @@ import {
   CAMPAIGNS_PAUSED_WORDS,
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
-  WAIT_ROW_WORDS,
   batchFactsOf,
   batchHeldEmails,
   isReachOutRun,
@@ -26,10 +25,9 @@ import {
   runTitleOf,
   sequenceRoute,
   todayRunWords,
-  waitRowsOf,
   type BroadcastVM,
-  type WaitRowOf,
 } from "@chanlytics/contracts";
+import { WAIT_ROW_WORDS, waitRowsOf, type WaitRowOf } from "./rows";
 import { bcLateWords, bcOpensOnItsSheet } from "../campaigns/broadcasts/when-words";
 import { AttnRow } from "../kit/attention/attn-row";
 import { gatedProps } from "../frame-verbs";

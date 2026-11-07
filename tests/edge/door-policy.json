@@ -482,7 +482,7 @@
       "sweep_options": {
         "noDbEvent": "drafts_sweep_no_db"
       },
-      "verb": "sweepDrafts in apps/edge/lib/drafts/draft-sweep.ts",
+      "verb": "sweepDrafts in apps/edge/lib/drafts/sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
@@ -653,9 +653,9 @@
     },
     "POST /api/retell-availability": {
       "wrapper": "door",
-      "verb": "availabilityTool in apps/edge/lib/voice/availability-tool.ts",
+      "verb": "runAvailabilityTool in apps/edge/lib/voice/availability-tool.ts",
       "knock": "voiceDoorAuth",
-      "knock_in": "availabilityTool in apps/edge/lib/voice/availability-tool.ts",
+      "knock_in": "runAvailabilityTool in apps/edge/lib/voice/availability-tool.ts",
       "knock_args": {
         "door": "availability"
       }
@@ -698,9 +698,9 @@
     },
     "POST /api/stripe-webhook": {
       "wrapper": "door",
-      "verb": "receiveStripeEvent in apps/edge/lib/billing/stripe-event.ts",
+      "verb": "receiveStripeEvent in apps/edge/lib/intake/stripe-event.ts",
       "knock": "constructEvent",
-      "knock_in": "receiveStripeEvent in apps/edge/lib/billing/stripe-event.ts"
+      "knock_in": "receiveStripeEvent in apps/edge/lib/intake/stripe-event.ts"
     },
     "GET /api/version": {
       "wrapper": "door",
@@ -723,9 +723,9 @@
     },
     "POST /api/whatsapp": {
       "wrapper": "door",
-      "verb": "receiveWhatsappEvent in apps/edge/lib/whatsapp/webhook.ts",
+      "verb": "receiveWhatsappEvent in apps/edge/lib/intake/whatsapp.ts",
       "knock": "signedByMeta",
-      "knock_in": "receiveWhatsappEvent in apps/edge/lib/whatsapp/webhook.ts"
+      "knock_in": "receiveWhatsappEvent in apps/edge/lib/intake/whatsapp.ts"
     }
   }
 }

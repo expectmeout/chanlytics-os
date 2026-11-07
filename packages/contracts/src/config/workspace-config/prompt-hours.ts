@@ -84,17 +84,17 @@ export function hoursRuns(hours: Record<string, Hours> | undefined): HoursRun[] 
   // A seven-line block is harder to read aloud AND longer in a prompt, for no
   // extra information.
   const out: HoursRun[] = [];
-  let i = 0;
-  while (i < spans.length) {
-    let j = i;
-    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
-    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
-    i = j + 1;
+  let index = 0;
+  while (index < spans.length) {
+    let j = index;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[index].text) j++;
+    out.push({ from: spans[index].day, to: spans[j].day, text: spans[index].text });
+    index = j + 1;
   }
   return out;
 }
 
-export function hoursLines(hours: Record<string, Hours> | undefined): string[] {
+export function promptHoursLines(hours: Record<string, Hours> | undefined): string[] {
   return hoursRuns(hours).map((r) => {
     const label = r.from === r.to ? DAY_LABEL[r.from] : `${DAY_LABEL[r.from]}–${DAY_LABEL[r.to]}`;
     return `${label}: ${r.text}`;

@@ -136,7 +136,8 @@ test("what may be said of a visit, and when, by mark_visit's own rules (00397): 
 
 /* ------------------------------ the sheet's view model (contracts visitSheetOf) ------------------------------ */
 
-const { appointmentWords, toCalendarVM, visitSheetOf, shiftKey } = await import("@chanlytics/contracts");
+const { appointmentWords, toCalendarVM, shiftKey } = await import("@chanlytics/contracts");
+const { visitSheetOf } = await import("../../apps/dashboard/src/surfaces/calendar/visit/sheet-view.ts");
 const TZ = "America/New_York";
 // Tuesday noon in New York.
 const NOW = Date.parse("2026-09-08T16:00:00.000Z");

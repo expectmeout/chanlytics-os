@@ -22,7 +22,7 @@ for (const k of [
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { canaryKeyMatches, judgeCanary, voiceCanary } = await import(at("apps/edge/lib/voice/watch/voice-canary.ts"));
+const { canaryKeyMatches, judgeCanary, runVoiceCanary } = await import(at("apps/edge/lib/voice/watch/voice-canary.ts"));
 
 /** A canary call that left everything behind. */
 const whole = () => ({
@@ -99,7 +99,7 @@ test("only the canary's own key opens its door, and an unset key opens it for no
 });
 
 test("with a setting missing nothing is placed; an op it does not know, or a verdict with no time, is refused", async () => {
-  const unset = await voiceCanary({ op: "place" });
+  const unset = await runVoiceCanary({ op: "place" });
   assert.equal(unset.status, 503);
   assert.equal((await unset.json()).error, "voice_canary_unset");
   Object.assign(process.env, {
@@ -109,9 +109,9 @@ test("with a setting missing nothing is placed; an op it does not know, or a ver
     RETELL_API_KEY: "api-key-for-this-file",
   });
   try {
-    const odd = await voiceCanary({ op: "dance" });
+    const odd = await runVoiceCanary({ op: "dance" });
     assert.deepEqual([odd.status, (await odd.json()).error], [400, "unknown_op"]);
-    const noTime = await voiceCanary({ op: "verdict" });
+    const noTime = await runVoiceCanary({ op: "verdict" });
     assert.deepEqual([noTime.status, (await noTime.json()).error], [400, "bad_request"]);
   } finally {
     for (const k of ["VOICE_CANARY_TENANT", "VOICE_CANARY_FROM", "VOICE_CANARY_CALLER_AGENT", "RETELL_API_KEY"])

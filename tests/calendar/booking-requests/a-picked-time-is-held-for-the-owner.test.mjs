@@ -28,7 +28,7 @@ import {
   requestedBookingOf,
   takesBookingRequests,
 } from "@chanlytics/contracts";
-import { inboundFromWhatsapp } from "@chanlytics/channels";
+import { inboundFromWhatsapp } from "@chanlytics/channels/whatsapp";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");

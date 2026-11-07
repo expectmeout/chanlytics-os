@@ -7,12 +7,13 @@
  * back in its own sentence at the status its code says (dbRefusal). Merge is 0028's door (merge-people.ts), not this.
  */
 import { AppError, DOUBT_WORDS } from "@chanlytics/contracts";
-import { dismissPersonDoubt, doubtOn, emitEvent } from "@chanlytics/db";
+import { dismissPersonDoubt, findDoubtOn } from "@chanlytics/db/people";
+import { emitEvent } from "@chanlytics/db/events";
 import { serviceDb } from "@/server/shared/service-db";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
 export async function settleDoubtApart(ctx: RouteContext, tenantId: string, contactId: string, doubtId: string) {
-  const doubt = await doubtOn(ctx.supabase, tenantId, contactId, doubtId);
+  const doubt = await findDoubtOn(ctx.supabase, tenantId, contactId, doubtId);
   if (!doubt) throw new AppError("not_found", DOUBT_WORDS.notFound, 404);
   try {
     const settled = await dismissPersonDoubt(ctx.supabase, doubtId);

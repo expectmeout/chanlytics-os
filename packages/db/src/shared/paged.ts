@@ -47,7 +47,7 @@ export interface Page<T> {
  * silent one and an outage.
  */
 export async function readAllRows<T>(
-  what: string,
+  text: string,
   page: (from: number, to: number) => PromiseLike<Page<T>>,
   cap = DEFAULT_ROW_CAP,
   onCapped: (what: string, cap: number) => void = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c }),
@@ -56,12 +56,12 @@ export async function readAllRows<T>(
   while (out.length < cap) {
     const size = Math.min(MAX_ROWS, cap - out.length);
     const { data, error } = await page(out.length, out.length + size - 1);
-    if (error) throw new Error(`${what}: ${error.message}`);
+    if (error) throw new Error(`${text}: ${error.message}`);
     const rows = data ?? [];
     out.push(...rows);
     if (rows.length < size) return out;
   }
-  onCapped(what, cap);
+  onCapped(text, cap);
   return out;
 }
 
@@ -78,7 +78,7 @@ export async function readAllRows<T>(
  * behave as in `readAllRows`.
  */
 export async function readAllRowsByKey<T>(
-  what: string,
+  text: string,
   key: (row: T) => string,
   page: (after: string | null, size: number) => PromiseLike<Page<T>>,
   cap = DEFAULT_ROW_CAP,
@@ -89,13 +89,13 @@ export async function readAllRowsByKey<T>(
   while (out.length < cap) {
     const size = Math.min(MAX_ROWS, cap - out.length);
     const { data, error } = await page(after, size);
-    if (error) throw new Error(`${what}: ${error.message}`);
+    if (error) throw new Error(`${text}: ${error.message}`);
     const rows = data ?? [];
     out.push(...rows);
     const last = rows.at(-1);
     if (rows.length < size || last === undefined) return out;
     after = key(last);
   }
-  onCapped(what, cap);
+  onCapped(text, cap);
   return out;
 }

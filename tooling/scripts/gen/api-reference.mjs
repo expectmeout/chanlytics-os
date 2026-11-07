@@ -134,6 +134,43 @@ function routeFiles(root) {
     .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 }
 
+/**
+ * The edge's doors, as contracts declares them (decision 0109): each one's path and the fields its body takes, which the
+ * dashboard's `callEdge` sends and the door reads its body through. Who may knock on each is tests/edge/door-policy.json's.
+ */
+async function edgeDoorLines(root) {
+  const contracts = await import(pathToFileURL(path.join(root, "packages/contracts/src/index.ts")).href);
+  const doors = Object.entries(contracts)
+    .filter(
+      ([name, v]) =>
+        name.endsWith("_DOOR") && v && typeof v.aud === "string" && typeof v.body?.safeParse === "function",
+    )
+    .map(([, v]) => v)
+    .sort((a, b) => (a.aud < b.aud ? -1 : a.aud > b.aud ? 1 : 0));
+  const lines = [
+    "## The edge's doors",
+    "",
+    "Every door on the edge whose body contracts declares (`packages/contracts/src/<domain>/edge-doors.ts`, decision 0109):",
+    "the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same",
+    "schema. Who may knock on each is `tests/edge/door-policy.json`'s.",
+    "",
+    `${doors.length} doors.`,
+    "",
+  ];
+  for (const door of doors) {
+    const read = door.body.safeParse(null).success;
+    lines.push(`### \`${read ? "GET" : "POST"} ${door.aud}\``, "");
+    if (read) {
+      lines.push("Read with GET; takes no body.", "");
+      continue;
+    }
+    const rows = fieldRows(door.body);
+    if (saysItsOwnTables(rows)) lines.push(...rows, "");
+    else lines.push(...BODY_HEAD, ...rows, "");
+  }
+  return lines;
+}
+
 /** The page, from the routes as they are: imported, asked what each handler declared. */
 export async function generate(root) {
   // Modules that build a service client on first use read these; nothing here dials it.
@@ -193,6 +230,7 @@ export async function generate(root) {
     "",
   ];
   for (const [domain, entries] of byDomain) out.push(`## ${domain}`, "", ...entries);
+  out.push(...(await edgeDoorLines(root)));
   return `${out.join("\n").trimEnd()}\n`;
 }
 

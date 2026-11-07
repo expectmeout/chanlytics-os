@@ -7,7 +7,7 @@
  * secret, the workspace and its runtime (a paused one, one with nothing to answer from, and a lead's preview while
  * previews are switched off are refused), the rehearsal's row reserved (one start a workspace at a time, so two presses
  * at once are one call), the free minutes (contracts rehearsalAllowance, read over the window's spoken rehearsals after
- * the reservation), the workspace's agent (made when there is none, and kept before any number: voice/agent.ts
+ * the reservation), the workspace's agent (made when there is none, and kept before any number: lines/voice-agent.ts
  * ensureVoiceAgent), the plan a real call gets (call-start.ts planRehearsalStart: no memory, no line to put a caller
  * through to), the web call at the provider with the call's own voice, its length and its metadata, and the row named
  * for the call before the token is answered, so its webhooks and its tools find it; a way out that made no call gives
@@ -24,23 +24,21 @@ import { pg } from "../shared/pg.js";
 import { workspaceFor, personFor, type Admitted } from "../shared/admin-auth.js";
 import { loadTenantRuntime } from "../shared/tenant-runtime.js";
 import { env } from "../shared/env.js";
-import { secretToProvision } from "./door-auth.js";
+import { secretToProvision } from "../shared/door-auth.js";
 import { logger, errField } from "../shared/log.js";
-import { createWebCall, webCallBody, webCallMadeOf, type RetellCall } from "@chanlytics/channels";
+import { createWebCall, webCallBody, webCallMadeOf, type RetellCall } from "@chanlytics/channels/voice";
 import {
   endRehearsal,
   keepRehearsalCall,
-  leadPreviewOfWorkspace,
-  previewCalled,
-  rehearsalByCall,
-  rehearsalSpokenMs,
+  findRehearsalByCall,
+  getRehearsalSpokenMs,
   releaseRehearsalCall,
   reserveRehearsalCall,
-  workspaceMaySpend,
   writeRehearsalTranscript,
   type RehearsalRow,
-  type RoutedChannel,
-} from "@chanlytics/db";
+} from "@chanlytics/db/facts";
+import { findLeadPreviewOfWorkspace, recordPreviewCalled, mayWorkspaceSpend } from "@chanlytics/db/campaigns";
+import type { RoutedChannel } from "@chanlytics/db/channels";
 import {
   rehearsalAllowance,
   rehearsalCallMs,
@@ -49,7 +47,7 @@ import {
   SECOND_MS,
   UUID,
 } from "@chanlytics/contracts";
-import { ensureVoiceAgent } from "./agent.js";
+import { ensureVoiceAgent } from "../lines/voice-agent.js";
 import { planRehearsalStart } from "./call-start.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
@@ -82,7 +80,7 @@ export async function makeRehearsalAgent(
   auth: Admitted,
   body: Partial<{ tenant_id: string; user_id: string }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = secretToProvision();
   if (!apiKey || fnSecret === undefined) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
@@ -99,7 +97,7 @@ export async function makeRehearsalAgent(
     await ensureVoiceAgent(db, { apiKey }, { fnSecret }, { id: tenantId, name: rt.brain.business_name || "" });
     return json(200, { ok: true });
   } catch (e) {
-    L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "agent", error: errField(e) });
+    log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "agent", error: errField(e) });
     return refuse(502, "provider_refused", "the receptionist could not be made at the provider");
   }
 }
@@ -109,11 +107,11 @@ export async function makeRehearsalAgent(
  * receptionist that nobody has made theirs (decision 0079) has its preview's six minutes in all, plan or none.
  */
 async function allowanceOf(db: Db, tenantId: string, now: Date, except: string | null) {
-  const preview = await leadPreviewOfWorkspace(db, tenantId);
+  const preview = await findLeadPreviewOfWorkspace(db, tenantId);
   const isPreview = !!preview && preview.state !== "claimed";
-  const hasPlan = isPreview ? false : await workspaceMaySpend(db, tenantId);
+  const hasPlan = isPreview ? false : await mayWorkspaceSpend(db, tenantId);
   const since = hasPlan ? new Date(now.getTime() - REHEARSAL_LIMITS.withPlanWindowMs).toISOString() : null;
-  const spoken = await rehearsalSpokenMs(db, tenantId, {
+  const spoken = await getRehearsalSpokenMs(db, tenantId, {
     since,
     now,
     runningMs: REHEARSAL_LIMITS.runningMs,
@@ -140,7 +138,7 @@ async function reserveStart(
   userId: string | null,
   now: Date,
 ): Promise<{ ok: true; id: string; allowance: Allowance } | { ok: false; response: Response }> {
-  const L = logger();
+  const log = logger();
   const id = crypto.randomUUID();
   try {
     if (!(await reserveRehearsalCall(db, { id, tenantId, createdBy: userId, now }))) {
@@ -152,7 +150,7 @@ async function reserveStart(
     await releaseRehearsalCall(db, tenantId, id);
     return { ok: false, response: minutesUsed(allowance) };
   } catch (e) {
-    L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "minutes", error: errField(e) });
+    log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "minutes", error: errField(e) });
     await releaseRehearsalCall(db, tenantId, id).catch(() => undefined);
     return { ok: false, response: refuse(503, "read_failed") };
   }
@@ -162,7 +160,7 @@ export async function startRehearsalCall(
   auth: Admitted,
   body: Partial<{ tenant_id: string; user_id: string }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = secretToProvision();
   if (!apiKey || fnSecret === undefined) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
@@ -189,7 +187,7 @@ export async function startRehearsalCall(
   // Every way out below that makes no call gives the reservation back, so the next start is not held for it.
   const giveBack = () =>
     releaseRehearsalCall(db, tenantId, id).catch((e: unknown) =>
-      L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "release", error: errField(e) }),
+      log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "release", error: errField(e) }),
     );
 
   const plan = await planRehearsalStart(rt, now);
@@ -202,13 +200,13 @@ export async function startRehearsalCall(
   try {
     agent = await ensureVoiceAgent(db, { apiKey }, { fnSecret }, { id: tenantId, name: rt.brain.business_name || "" });
   } catch (e) {
-    L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "agent", error: errField(e) });
+    log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "agent", error: errField(e) });
     await giveBack();
     return refuse(502, "provider_refused", "the receptionist could not be made at the provider");
   }
 
   const maxMs = rehearsalCallMs(allowance);
-  const made = await createWebCall(
+  const created = await createWebCall(
     { apiKey },
     {
       ...webCallBody({
@@ -227,9 +225,9 @@ export async function startRehearsalCall(
       ...(agent.pinned ? { agent_version: "latest_published" } : {}),
     },
   ).catch((e: unknown) => ({ ok: false as const, status: 0, body: { error: errField(e) } }));
-  const call = made.ok ? webCallMadeOf(made.body) : null;
+  const call = created.ok ? webCallMadeOf(created.body) : null;
   if (!call) {
-    L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "call", status: made.status });
+    log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "call", status: created.status });
     await giveBack();
     return refuse(502, "provider_refused", "the provider did not make the call");
   }
@@ -245,12 +243,12 @@ export async function startRehearsalCall(
     });
   } catch (e) {
     // The call was made and nobody will join it: its token lapses unused, and it is never counted.
-    L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "row", error: errField(e) });
+    log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "row", error: errField(e) });
     await giveBack();
     return refuse(503, "write_failed");
   }
 
-  L.info("rehearsal_call_started", {
+  log.info("rehearsal_call_started", {
     tenant_id: tenantId,
     rehearsal_id: id,
     call_id: call.call_id,
@@ -278,16 +276,16 @@ export async function settleRehearsalEvent(
   event: string | null,
   call: RetellCall,
 ): Promise<"written" | "ended" | "unknown" | "unreadable"> {
-  const L = logger({ call_id: call.call_id });
-  let r: RehearsalRow | null;
+  const log = logger({ call_id: call.call_id });
+  let rehearsal: RehearsalRow | null;
   try {
-    r = await rehearsalByCall(db, call.call_id);
+    rehearsal = await findRehearsalByCall(db, call.call_id);
   } catch (e) {
-    L.error("rehearsal_event_failed", { retell_event: event, error: errField(e) });
+    log.error("rehearsal_event_failed", { retell_event: event, error: errField(e) });
     return "unreadable";
   }
-  if (!r) {
-    L.info("rehearsal_event_unknown", { retell_event: event });
+  if (!rehearsal) {
+    log.info("rehearsal_event_unknown", { retell_event: event });
     return "unknown";
   }
   // The words with the tools between them where the provider sent them (each turn's delivery), else the words alone.
@@ -297,7 +295,7 @@ export async function settleRehearsalEvent(
     event === "call_ended" || event === "call_analyzed" || call.call_status === "ended" || call.call_status === "error";
   try {
     if (!over) {
-      await writeRehearsalTranscript(db, r.tenant_id, call.call_id, turns, startedAt);
+      await writeRehearsalTranscript(db, rehearsal.tenant_id, call.call_id, turns, startedAt);
       return "written";
     }
     const ms =
@@ -306,7 +304,7 @@ export async function settleRehearsalEvent(
         : typeof call.end_timestamp === "number" && typeof call.start_timestamp === "number"
           ? call.end_timestamp - call.start_timestamp
           : 0;
-    await endRehearsal(db, r.tenant_id, call.call_id, {
+    await endRehearsal(db, rehearsal.tenant_id, call.call_id, {
       turns,
       startedAt,
       endedAt:
@@ -314,21 +312,25 @@ export async function settleRehearsalEvent(
       seconds: Math.max(0, ms) / 1000,
       reason: call.disconnection_reason ?? null,
     });
-    L.info("rehearsal_call_ended", {
-      tenant_id: r.tenant_id,
-      rehearsal_id: r.id,
+    log.info("rehearsal_call_ended", {
+      tenant_id: rehearsal.tenant_id,
+      rehearsal_id: rehearsal.id,
       ms,
       reason: call.disconnection_reason ?? null,
     });
     // A lead's own receptionist counts its calls on its row (decision 0079), once a call: on its first end, since the
     // provider tells an end twice (call_ended, then call_analyzed). Any other workspace is none, and nothing moves.
-    if (r.ended_at === null)
-      await previewCalled(db, r.tenant_id, Math.max(0, ms) / SECOND_MS).catch((e: unknown) =>
-        L.warn("preview_called_failed", { tenant_id: r.tenant_id, rehearsal_id: r.id, error: errField(e) }),
+    if (rehearsal.ended_at === null)
+      await recordPreviewCalled(db, rehearsal.tenant_id, Math.max(0, ms) / SECOND_MS).catch((e: unknown) =>
+        log.warn("preview_called_failed", {
+          tenant_id: rehearsal.tenant_id,
+          rehearsal_id: rehearsal.id,
+          error: errField(e),
+        }),
       );
     return "ended";
   } catch (e) {
-    L.error("rehearsal_event_failed", { tenant_id: r.tenant_id, retell_event: event, error: errField(e) });
+    log.error("rehearsal_event_failed", { tenant_id: rehearsal.tenant_id, retell_event: event, error: errField(e) });
     return "unreadable";
   }
 }
@@ -337,10 +339,10 @@ export async function settleRehearsalEvent(
  * The rehearsal a tool call belongs to, when the call is a rehearsal: its workspace, found by the provider's call id
  * the edge wrote before the call could connect. Null for a call on the line, and for a web call no rehearsal is.
  */
-export async function rehearsalOfToolCall(
+export async function findRehearsalOfToolCall(
   db: Db,
   call: { call_id?: string; call_type?: string } | null | undefined,
 ): Promise<RehearsalRow | null> {
   if (!call?.call_id || !isRehearsalCall(call)) return null;
-  return rehearsalByCall(db, call.call_id).catch(() => null);
+  return findRehearsalByCall(db, call.call_id).catch(() => null);
 }

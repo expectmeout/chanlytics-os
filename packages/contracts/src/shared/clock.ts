@@ -29,15 +29,15 @@
  * callLength, the one rule for a call with no length.
  *
  * The words' formatters are built once per zone. An instant's calendar day and wall
- * clock are zone-math's (calendar/zone-math.ts zoneParts), the one reading of a zone,
+ * clock are zone-math's (shared/zone/math.ts zoneParts), the one reading of a zone,
  * which remembers them for a while: view models format every message on every
  * refresh, and every one of them asks for "now" again. A zone that is not a zone is
  * read as UTC (usableZone), so a bad row never throws on a page; the write path
  * already refuses one (workspace.ts isTimezone). A day is stepped as day-keys.ts
  * steps a date: on the date alone, never on a clock.
  */
-import { keyParts, mondayOf, shiftKey } from "../calendar/day-keys";
-import { dayNumber, localToUtcMs, usableZone, zoneParts } from "../calendar/zone-math";
+import { keyParts, mondayOf, shiftKey } from "./zone/day-keys";
+import { dayNumber, localToUtcMs, usableZone, zoneParts } from "./zone/math";
 
 interface ZoneFormats {
   zone: string;
@@ -53,15 +53,15 @@ function formatsFor(tz: string): ZoneFormats {
   const hit = FORMATS.get(tz);
   if (hit) return hit;
   const zone = usableZone(tz);
-  const made: ZoneFormats = {
+  const created: ZoneFormats = {
     zone,
     time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
     date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
     dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
     weekday: new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }),
   };
-  FORMATS.set(tz, made);
-  return made;
+  FORMATS.set(tz, created);
+  return created;
 }
 
 /** The business's calendar day and wall clock at an instant, by zone-math, in a zone a page can use. */
@@ -104,8 +104,8 @@ export function clockHistoryDay(atMs: number, tz: string, nowMs: number): string
   const today = zoneDayKey(nowMs, tz);
   if (day === today) return "Today";
   if (day === shiftKey(today, -1)) return "Yesterday";
-  const f = formatsFor(tz);
-  const weekday = f.weekday.format(new Date(atMs));
+  const formats = formatsFor(tz);
+  const weekday = formats.weekday.format(new Date(atMs));
   const gap = daysBetween(day, today);
   if (gap > 0 && gap < 7) return weekday;
   return `${weekday} ${clockDate(atMs, tz, nowMs)}`;
@@ -168,7 +168,7 @@ function daysFromToday(atMs: number, tz: string, nowMs: number): number {
 /**
  * Whole days from one moment to another by the business's calendar: the dates each falls on, never a count of 24-hour
  * blocks. Eleven at night yesterday is 1 day ago at one in the morning. What a list's day fact counts in
- * (list-rules.ts): one clock, the workspace's zone (decision 0009).
+ * (lists/rules.ts): one clock, the workspace's zone (decision 0009).
  */
 export function localDaysBetween(fromMs: number, toMs: number, tz: string): number {
   return daysBetween(zoneDayKey(fromMs, tz), zoneDayKey(toMs, tz));
@@ -274,16 +274,16 @@ export function callLength(ms: number | null | undefined): string | undefined {
  * times both read it; they said "1m 5s" and "1m 05s" before (the Reports lenses spec, A5).
  */
 export function durationWords(seconds: number): string {
-  const v = Math.max(0, Math.round(seconds));
-  if (v < 60) return `${v}s`;
-  if (v < 600) {
-    const m = Math.floor(v / 60);
-    const r = v % 60;
+  const highest = Math.max(0, Math.round(seconds));
+  if (highest < 60) return `${highest}s`;
+  if (highest < 600) {
+    const m = Math.floor(highest / 60);
+    const r = highest % 60;
     return r ? `${m}m ${r}s` : `${m}m`;
   }
-  const minutes = Math.round(v / 60);
+  const minutes = Math.round(highest / 60);
   if (minutes < 60) return `${minutes}m`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
+  const floored = Math.floor(minutes / 60);
+  const match = minutes % 60;
+  return match ? `${floored}h ${match}m` : `${floored}h`;
 }

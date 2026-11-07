@@ -4,12 +4,12 @@
  *
  * The door is the knock: header only (the WhatsApp verify token used to open it from the query string, a value Meta
  * carries in its own verification URL and one that lands in access logs), and nothing mints a token for it, so the key
- * stays its credential on an edge that holds the secret too. diagnosticReport in lib/ops/diagnostic.ts is the report,
+ * stays its credential on an edge that holds the secret too. readDiagnosticReport in lib/ops/diagnostic.ts is the report,
  * part by part.
  */
 import { authorizeAdmin } from "../lib/shared/admin-auth.js";
 import { door } from "../lib/shared/log.js";
-import { diagnosticReport } from "../lib/ops/diagnostic.js";
+import { readDiagnosticReport } from "../lib/ops/diagnostic.js";
 
 export const GET = door(async function GET(request: Request): Promise<Response> {
   // Header only. The WhatsApp verify token used to open this door from the
@@ -19,5 +19,5 @@ export const GET = door(async function GET(request: Request): Promise<Response> 
   // the key stays its credential on an edge that holds the secret too.
   const auth = await authorizeAdmin(request, "/api/diag", { platformKey: true });
   if (!auth.ok) return auth.response;
-  return diagnosticReport();
+  return readDiagnosticReport();
 });

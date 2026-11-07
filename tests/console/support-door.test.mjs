@@ -9,7 +9,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";

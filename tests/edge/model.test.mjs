@@ -8,7 +8,7 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { MODEL_ROUTES } from "@chanlytics/contracts";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { at, withEnv } from "../_cron-doors-world.mjs";
 import { scripted, said, status, hang } from "../ai/_model-world.mjs";
 

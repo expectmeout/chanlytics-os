@@ -11,15 +11,9 @@
  * clip cannot be made the button says why, and nothing else speaks.
  */
 import { useRef, useSyncExternalStore } from "react";
-import {
-  TO_SEND_ALL_WORDS,
-  WAIT_ROW_WORDS,
-  mmss,
-  runTitleOf,
-  waitRowsOf,
-  type TodayBriefRun,
-  type TodayBriefWords,
-} from "@chanlytics/contracts";
+import { TO_SEND_ALL_WORDS, mmss, runTitleOf } from "@chanlytics/contracts";
+import { WAIT_ROW_WORDS, waitRowsOf } from "@/surfaces/waits/rows";
+import type { TodayBriefRun, TodayBriefWords } from "../brief-words";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";

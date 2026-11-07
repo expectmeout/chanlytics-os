@@ -10,8 +10,6 @@ import {
   answerFromV1,
   answerText,
   askIntent,
-  askJump,
-  askPages,
   bellCalls,
   buildAskSuggestions,
   callJumpSub,
@@ -41,11 +39,11 @@ import {
   type AskSurface,
   type AskWaiting,
   type FeedLive,
-  type JumpEntry,
   type TodayQueueRowVM,
   type Waits,
   runRoute,
 } from "@chanlytics/contracts";
+import { askJump, askPages, type JumpEntry } from "./jump";
 import { surfaceValue } from "@/surfaces/surface-values";
 import { askOnScreenOf } from "./on-screen";
 import { needsYouParts } from "@/surfaces/needs-you";
@@ -421,7 +419,7 @@ type Openings = (
 
 /**
  * A quick question's answer, without a model: who needs me from Today's queue, today's calls, or the openings route's
- * days; null for every other question, which is the model's. The sentences are contracts' (ask/answer.ts).
+ * days; null for every other question, which is the model's. The sentences are contracts' (ask/answer/normalize.ts).
  */
 export function quickAnswer(p: ReturnType<typeof askPalette>, openings: Openings) {
   return (question: string): Promise<AskAnswer> | null => {

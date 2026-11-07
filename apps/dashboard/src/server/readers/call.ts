@@ -2,7 +2,7 @@ import "server-only";
 import { AppError, addressOf, callerName, personName, type CallDto } from "@chanlytics/contracts";
 import { CALL_COLUMNS, toCallDto } from "../conversations/dto";
 import { requireUuid } from "../shared/request-guards";
-import { stamp, type Reader, type RowRef } from "./index";
+import { readerStamp, type Reader, type RowRef } from "../shared/reader";
 
 /**
  * One phone call by id, as the Calls page maps a call (CALL_COLUMNS,
@@ -40,6 +40,6 @@ export const call: Reader<{ id: string }, { call: CallDto }> = {
         label: personName(dto.contact),
       });
     }
-    return { data: { call: dto }, rows, stamp: stamp() };
+    return { data: { call: dto }, rows, stamp: readerStamp() };
   },
 };

@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { forgetEveryPhone, type Database } from "@chanlytics/db";
+import { forgetEveryPhone } from "@chanlytics/db/notices";
+import type { Database } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
 
 /**

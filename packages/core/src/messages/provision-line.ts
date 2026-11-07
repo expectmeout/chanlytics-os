@@ -22,10 +22,12 @@ export async function provisionLine(
   const by = cmd.payload.by === "sweep" || cmd.payload.by === "support" ? cmd.payload.by : "owner";
   if (!lineId) throw new Error("line_provision: payload.line_id is required");
   if (!ports.provision) throw new Error("line_provision: this runtime holds no line provider");
-  const r = await ports.provision(lineId, by, ports.deadline);
-  if (!r.ok) throw new Error(`line_provision: stopped at ${r.step ?? "?"}: ${r.error ?? "unknown"}`);
-  if (r.more) {
-    if (!ports.next) throw new Error(`line_provision: stopped for time at ${r.step ?? "?"}, and nothing continues it`);
+  const provision = await ports.provision(lineId, by, ports.deadline);
+  if (!provision.ok)
+    throw new Error(`line_provision: stopped at ${provision.step ?? "?"}: ${provision.error ?? "unknown"}`);
+  if (provision.more) {
+    if (!ports.next)
+      throw new Error(`line_provision: stopped for time at ${provision.step ?? "?"}, and nothing continues it`);
     await ports.next({ line_id: lineId, by });
   }
 }

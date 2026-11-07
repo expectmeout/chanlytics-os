@@ -16,18 +16,6 @@ export type { FactCheck, FactCorrection, FactLookFacts } from "./fact-suggest";
 export { FACT_SUGGEST_WORDS, factNoteChange } from "./fact-words";
 export type { CorrectionSource, FactSuggestionDto } from "./fact-words";
 export {
-  checkNoteSuggestion,
-  customerWords,
-  NOTE_SUGGEST_KINDS,
-  NOTE_SUGGEST_LIMITS,
-  NOTE_SUGGEST_MODEL,
-  NOTE_SUGGEST_SCHEMA,
-  noteSuggestSystemPrompt,
-  noteSuggestUserContent,
-  whyNotLook,
-} from "./note-suggest";
-export type { NoteCheck, NoteLookFacts, NoteSuggestKind, NoteTurn } from "./note-suggest";
-export {
   NO_DAY,
   noteManyLine,
   STEP_SHEET_WORDS,
@@ -52,3 +40,15 @@ export {
   todayStepsDue,
 } from "./steps";
 export type { PersonNextStepVM, StepColumns, StepDayChoice, StepDayVM, StepDue } from "./steps";
+export {
+  checkNoteSuggestion,
+  customerWords,
+  NOTE_SUGGEST_KINDS,
+  NOTE_SUGGEST_LIMITS,
+  NOTE_SUGGEST_MODEL,
+  NOTE_SUGGEST_SCHEMA,
+  noteSuggestSystemPrompt,
+  noteSuggestUserContent,
+  whyNotLook,
+} from "./suggest";
+export type { NoteCheck, NoteLookFacts, NoteSuggestKind, NoteTurn } from "./suggest";

@@ -4,7 +4,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEAD_COLUMN_GROUPS, LEAD_EXPORT_WORDS, leadColumnsOf, leadOutcomeWord } from "@chanlytics/contracts";
+import { LEAD_COLUMN_GROUPS, leadColumnsOf, leadOutcomeWord } from "@chanlytics/contracts";
+import { LEAD_EXPORT_WORDS } from "../../../apps/dashboard/src/surfaces/leads/page/export-words.ts";
 
 const NOW = new Date("2026-11-05T15:00:00Z");
 const TZ = "America/New_York";

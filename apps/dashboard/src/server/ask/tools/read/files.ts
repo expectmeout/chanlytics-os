@@ -5,11 +5,8 @@ import {
   clockOf,
   cuesSaidOf,
   fenced,
-  fileIndexLineOf,
   fileNameOf,
-  fileShelfSaid,
   fileSoundOf,
-  fileWhoSaid,
   noteSaidOf,
   secondsOf,
   shelfOf,
@@ -19,19 +16,19 @@ import {
   videoSheetAfterOf,
   videoSheetWhatOf,
   videoSpanWhatOf,
-  type FileForAsk,
   type FileSound,
   type ZoomBox,
   type ZoomSize,
 } from "@chanlytics/contracts";
-import { fileOf, readFileSound } from "@chanlytics/db";
-import { fileCopiesOf, pictureCopyOf, drawVideoMoment, type FileCopy } from "../../../files/copies";
+import { fileIndexLineOf, fileShelfSaid, fileWhoSaid, type FileForAsk } from "@/server/files/line";
+import { findFile, readFileSound } from "@chanlytics/db/files";
+import { drawVideoMoment, findPictureCopy, listFileCopiesOf, type FileCopy } from "../../../files/copies";
 import { askEar } from "../../../files/listen";
-import { newestPostLookOf } from "../../../files/post/record";
-import { zoomInto } from "../../../files/zoom";
-import { load } from "../../../readers";
+import { findNewestPostLook } from "../../../posts/record";
+import { getZoomInto } from "../../../files/zoom";
+import { load } from "../../../shared/reader";
 import { filesForAsk } from "../../../readers/files";
-import { PICTURES, defineActions, readAction, type ToolContext, type ToolPicture } from "../context";
+import { PICTURES, defineActions, readAction, type ToolContext, type ToolPicture } from "../context/tool-defs";
 
 /**
  * The business's photos and videos, the way a person who knows them would use them (decision 0099, step 2 and stage B). Three
@@ -118,14 +115,14 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
   const unready = found.filter((f) => isVideo(f) && f.media_status !== "ready");
   const openable = found.filter((f) => !unready.includes(f));
   // What the model refused is not sent again, and is not the owner's to wait for: it is said.
-  const copies = await fileCopiesOf(
+  const copies = await listFileCopiesOf(
     { tenantId: turn.tenantId, userId: turn.ctx.userId },
     openable.map((f) => f.id),
     leftOf(turn),
   );
   const shown = openable.filter((f) => copies.has(f.id));
   // How their newest post looks, so the next keeps what they settled on: read only where a post may come of it.
-  const lastPost = shown.some((f) => !isVideo(f)) ? await newestPostLookOf(turn.tenantId) : null;
+  const lastPost = shown.some((f) => !isVideo(f)) ? await findNewestPostLook(turn.tenantId) : null;
   const pictures: ToolPicture[] = await Promise.all(
     shown.map(async (f) => {
       const copy = copies.get(f.id) as FileCopy;
@@ -162,14 +159,14 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
 async function pictureZoomed(turn: ToolContext, file: FileForAsk, box: ZoomBox) {
   const member = { tenantId: turn.tenantId, userId: turn.ctx.userId };
   const [copy, row] = await Promise.all([
-    fileCopiesOf(member, [file.id], leftOf(turn)).then((m) => m.get(file.id) ?? null),
-    fileOf(turn.ctx.supabase, file.id),
+    listFileCopiesOf(member, [file.id], leftOf(turn)).then((m) => m.get(file.id) ?? null),
+    findFile(turn.ctx.supabase, file.id),
   ]);
   const of = copy ? sizeOf(copy) : null;
   if (!copy || !of || !row) return { error: `${file.name} could not be opened just now; say so` };
-  const cut = await zoomInto(row, box, of);
+  const cut = await getZoomInto(row, box, of);
   if ("wont" in cut) return { error: `${file.name}: ${cut.wont}` };
-  const heldCopy = await pictureCopyOf(
+  const heldCopy = await findPictureCopy(
     member,
     { bytes: cut.bytes, mime: "image/jpeg", name: `${file.name}-zoom.jpg` },
     leftOf(turn),

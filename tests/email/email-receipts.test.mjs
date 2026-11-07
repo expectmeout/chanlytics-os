@@ -20,7 +20,7 @@ import {
   requestLeavesAs,
   resendWebhookSignature,
   sendsAs,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;

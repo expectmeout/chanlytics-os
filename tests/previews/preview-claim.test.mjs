@@ -16,13 +16,13 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import {
-  FIRST_RUN_HELPERS,
   PENDING_WORKSPACE_KEY,
   SIGNUP_WAITLIST,
   SIGNUP_WORDS,
   previewFirstRunMarks,
   setupLaterOf,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/first-run-helpers.ts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
@@ -54,7 +54,7 @@ after(() => {
 const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
 const { setServiceClient } = await importSrc("apps/dashboard/src/server/shared/service-db.ts");
 const signupRoute = await importSrc("apps/dashboard/app/api/v1/signup/route.ts");
-const { previewForSignup } = await importSrc("apps/dashboard/src/server/previews/claim.ts");
+const { findPreviewForSignup } = await importSrc("apps/dashboard/src/server/previews/claim.ts");
 const claimRoute = await importSrc("apps/dashboard/app/api/v1/preview-claims/route.ts");
 after(() => setServiceClient(null));
 
@@ -156,15 +156,19 @@ const signUpWith = (body) => (
 
 test("what Make it mine's page draws: whose receptionist and the address it was sent to, while it can be made theirs", async () => {
   world();
-  assert.deepEqual(await previewForSignup(TOKEN), { business: "Fixture Barbers", email: "owner@fixture.example" });
+  assert.deepEqual(await findPreviewForSignup(TOKEN), { business: "Fixture Barbers", email: "owner@fixture.example" });
   world({ asked_count: 20 });
-  assert.equal((await previewForSignup(TOKEN))?.business, "Fixture Barbers", "its twenty said, it can still be theirs");
+  assert.equal(
+    (await findPreviewForSignup(TOKEN))?.business,
+    "Fixture Barbers",
+    "its twenty said, it can still be theirs",
+  );
 });
 
 test("every other link is nothing, alike: someone's own, ended, failed, being set up, past its end, or none", async () => {
   world();
   for (const token of ["UnknownUnknownUnknown0", "short", "../../etc"])
-    assert.equal(await previewForSignup(token), null, token);
+    assert.equal(await findPreviewForSignup(token), null, token);
   for (const over of [
     { state: "claimed" },
     { state: "ended" },
@@ -173,7 +177,7 @@ test("every other link is nothing, alike: someone's own, ended, failed, being se
     { ends_at: PAST },
   ]) {
     world(over);
-    assert.equal(await previewForSignup(TOKEN), null, JSON.stringify(over));
+    assert.equal(await findPreviewForSignup(TOKEN), null, JSON.stringify(over));
   }
 });
 

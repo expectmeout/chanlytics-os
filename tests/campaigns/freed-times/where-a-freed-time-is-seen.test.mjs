@@ -13,17 +13,17 @@ import {
   activityWords,
   freedTimesUnoffered,
   historyDayWords,
-  journeyGuide,
   momentStartsSentence,
   scheduleSettingsOf,
   scheduleStart,
   sequenceActsOf,
   sequenceNextOf,
 } from "@chanlytics/contracts";
+import { journeyGuide } from "../../../apps/dashboard/src/server/ask/journey/guide.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
 
 const sequenceOn = (trigger) => ({
   first: { id: "s1", run_hour: 10, until: null, policy_class: "follow_up", trigger },

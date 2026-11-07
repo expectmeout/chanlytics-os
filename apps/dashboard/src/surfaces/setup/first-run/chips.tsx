@@ -2,7 +2,9 @@
  * Check's chips (moved from legacy/pages/first-run.jsx, decision 0015): what the business offers and the languages its
  * receptionist speaks, a toggle each, saved as the Business tab saves that list.
  */
-import { sameListed, type CheckChipSetVM, type CheckChipVM, type FIRST_RUN_WORDS } from "@chanlytics/contracts";
+import { sameListed } from "@chanlytics/contracts";
+import type { CheckChipSetVM, CheckChipVM } from "./model/check-chips";
+import type { FIRST_RUN_WORDS } from "./model/view";
 import { Icon } from "../../kit/icon/icon";
 import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 import { businessTabSave } from "../shell";

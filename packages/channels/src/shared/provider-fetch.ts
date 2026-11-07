@@ -38,7 +38,7 @@
  * however many copies of this module the builds inlined (core's, jobs', the edge's own), so what the diagnostic reads
  * is what a send was held by.
  */
-import { logger } from "../log/logger";
+import { logger } from "@chanlytics/log";
 
 import { jittered } from "@chanlytics/contracts";
 
@@ -154,14 +154,14 @@ export function breakerStates(
   now = Date.now(),
 ): { provider: Provider; open: boolean; failures: number; opened: number; open_until: string | null }[] {
   return PROVIDER_NAMES.map((provider) => {
-    const b = breakerMap.get(provider);
-    const open = !!b && b.openUntil > now;
+    const result = breakerMap.get(provider);
+    const open = !!result && result.openUntil > now;
     return {
       provider,
       open,
-      failures: b?.failures ?? 0,
+      failures: result?.failures ?? 0,
       opened: breakers.opened.get(provider) ?? 0,
-      open_until: open ? new Date(b.openUntil).toISOString() : null,
+      open_until: open ? new Date(result.openUntil).toISOString() : null,
     };
   });
 }
@@ -214,16 +214,16 @@ function retryAfterOf(header: string | null, now = Date.now()): number | null {
 const isFault = (a: { status: number; error: string | null }): boolean =>
   (a.status === 0 && a.error !== "breaker_open") || a.status >= 500;
 
-function note(provider: Provider, a: ProviderReply, now: number): void {
-  if (a.error === "breaker_open") return;
-  const b = breakerMap.get(provider);
-  if (!isFault(a)) {
+function note(provider: Provider, providerReply: ProviderReply, now: number): void {
+  if (providerReply.error === "breaker_open") return;
+  const result = breakerMap.get(provider);
+  if (!isFault(providerReply)) {
     // An answer closes the breaker. One that had opened says so: the outage it held calls through is over.
-    if (b && b.openUntil > 0) breakerLog.info("breaker_closed", { provider, failures: b.failures });
+    if (result && result.openUntil > 0) breakerLog.info("breaker_closed", { provider, failures: result.failures });
     breakerMap.delete(provider);
     return;
   }
-  const next = b ?? { failures: 0, openUntil: 0 };
+  const next = result ?? { failures: 0, openUntil: 0 };
   const wasOpen = next.openUntil > now;
   next.failures += 1;
   if (next.failures >= BREAKER_FAILURES) {
@@ -234,8 +234,8 @@ function note(provider: Provider, a: ProviderReply, now: number): void {
       breakerLog.warn("breaker_open", {
         provider,
         failures: next.failures,
-        status: a.status,
-        error: a.error,
+        status: providerReply.status,
+        error: providerReply.error,
         open_ms: BREAKER_OPEN_MS,
       });
     }
@@ -245,8 +245,8 @@ function note(provider: Provider, a: ProviderReply, now: number): void {
 
 async function once(provider: Provider, url: string, call: ProviderCall, deps: Required<ProviderDeps>, tries: number) {
   const now = deps.now();
-  const b = breakerMap.get(provider);
-  if (b && b.openUntil > now && call.breaker !== "count") {
+  const result = breakerMap.get(provider);
+  if (result && result.openUntil > now && call.breaker !== "count") {
     const held: ProviderReply = {
       outcome: "retryable",
       status: 0,
@@ -254,7 +254,7 @@ async function once(provider: Provider, url: string, call: ProviderCall, deps: R
       json: null,
       body: null,
       headers: null,
-      retryAfterMs: b.openUntil - now,
+      retryAfterMs: result.openUntil - now,
       error: "breaker_open",
       tries: tries - 1,
     };
@@ -267,85 +267,98 @@ async function once(provider: Provider, url: string, call: ProviderCall, deps: R
     cache: call.cache,
     redirect: call.redirect,
   };
-  let a: ProviderReply;
+  let providerReply: ProviderReply;
   const bound = AbortSignal.timeout(call.timeoutMs);
   try {
-    const r = await deps.fetch(url, { ...init, signal: call.signal ? AbortSignal.any([bound, call.signal]) : bound });
-    if (call.stream && r.ok && r.body) {
-      a = {
+    const response = await deps.fetch(url, {
+      ...init,
+      signal: call.signal ? AbortSignal.any([bound, call.signal]) : bound,
+    });
+    if (call.stream && response.ok && response.body) {
+      providerReply = {
         outcome: "ok",
-        status: r.status,
+        status: response.status,
         text: "",
         json: null,
-        body: r.body,
-        headers: r.headers,
+        body: response.body,
+        headers: response.headers,
         retryAfterMs: null,
         error: null,
         tries,
       };
-      note(provider, a, deps.now());
-      return a;
+      note(provider, providerReply, deps.now());
+      return providerReply;
     }
     // Read inside the bound: a body that stalls past it is no answer at all, as a request that did.
-    const text = await r.text();
+    const text = await response.text();
     let json: unknown = null;
     try {
       json = text ? JSON.parse(text) : null;
     } catch {
       json = null;
     }
-    a = {
-      outcome: outcomeOfStatus(r.status),
-      status: r.status,
+    providerReply = {
+      outcome: outcomeOfStatus(response.status),
+      status: response.status,
       text,
       json,
       body: null,
-      headers: r.headers,
-      retryAfterMs: retryAfterOf(r.headers.get("retry-after"), deps.now()),
+      headers: response.headers,
+      retryAfterMs: retryAfterOf(response.headers.get("retry-after"), deps.now()),
       error: null,
       tries,
     };
-  } catch (e) {
-    const { outcome, error } = outcomeOfThrow(e);
-    a = { outcome, status: 0, text: "", json: null, body: null, headers: null, retryAfterMs: null, error, tries };
+  } catch (otherError) {
+    const { outcome, error } = outcomeOfThrow(otherError);
+    providerReply = {
+      outcome,
+      status: 0,
+      text: "",
+      json: null,
+      body: null,
+      headers: null,
+      retryAfterMs: null,
+      error,
+      tries,
+    };
   }
-  note(provider, a, deps.now());
-  return a;
+  note(provider, providerReply, deps.now());
+  return providerReply;
 }
 
 /** One call to a provider, bounded, never thrown, retried only when asking again cannot do the work twice. */
-export async function providerFetch(
+export async function fetchFromProvider(
   provider: Provider,
   url: string,
   call: ProviderCall,
   deps: ProviderDeps = {},
 ): Promise<ProviderReply> {
-  const d: Required<ProviderDeps> = {
+  const required: Required<ProviderDeps> = {
     fetch: deps.fetch ?? globalThis.fetch,
     now: deps.now ?? Date.now,
     sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
     random: deps.random ?? Math.random,
   };
-  const started = d.now();
+  const started = required.now();
   const max = Math.max(1, Math.floor(call.tries ?? 1));
-  for (let n = 1; ; n++) {
-    const a = await once(provider, url, call, d, n);
-    const again = a.outcome === "retryable" || (a.outcome === "unknown" && call.idempotent === true);
-    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
+  for (let count = 1; ; count++) {
+    const result = await once(provider, url, call, required, count);
+    const again = result.outcome === "retryable" || (result.outcome === "unknown" && call.idempotent === true);
+    if (!again || count >= max || result.error === "breaker_open" || result.error === "timeout") return result;
     // A provider that asks for longer than a call may wait is asked again by its caller, later, not now.
-    if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
+    if (result.retryAfterMs !== null && result.retryAfterMs > RETRY_WAIT_CAP_MS) return result;
     // The provider's own word when it gave one; else the doubling, drawn a little longer at random so the callers one
     // outage failed together do not all ask again at the same instant.
-    const wait = a.retryAfterMs ?? jittered(RETRY_BASE_MS * 2 ** (n - 1), d.random);
-    const left = call.deadlineMs === undefined ? Infinity : call.deadlineMs - (d.now() - started);
-    if (wait + call.timeoutMs > left) return a;
-    await d.sleep(wait);
+    const wait = result.retryAfterMs ?? jittered(RETRY_BASE_MS * 2 ** (count - 1), required.random);
+    const left = call.deadlineMs === undefined ? Infinity : call.deadlineMs - (required.now() - started);
+    if (wait + call.timeoutMs > left) return result;
+    await required.sleep(wait);
   }
 }
 
 /** An answer's JSON as an object, or null: what most adapters read. */
-export function answerObject(a: ProviderReply): Record<string, unknown> | null {
-  return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json)
-    ? (a.json as Record<string, unknown>)
+export function answerObject(providerReply: ProviderReply): Record<string, unknown> | null {
+  return providerReply.json !== null && typeof providerReply.json === "object" && !Array.isArray(providerReply.json)
+    ? (providerReply.json as Record<string, unknown>)
     : null;
 }

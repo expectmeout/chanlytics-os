@@ -1,10 +1,11 @@
 /**
  * New's words (decision 0065), said once: the line and its starts, the draft, its choices and their sheets, what Ask
- * checked, and the cases that stop or bend a draft. The engine (the server's campaigns/sequences/new-draft.ts) says its checks and
+ * checked, and the cases that stop or bend a draft. The engine (the server's campaigns/sequences/new-draft/checks.ts) says its checks and
  * what it could not do in these words, and the page says everything else in them.
  */
 import { CAMPAIGN_ROOMS } from "../../shell/campaign-rooms";
-import type { NewAudience, NewKind, NewNobody, NewStepDoes } from "./new-draft";
+import type { NewAudience, NewKind, NewStepDoes } from "./new-draft/steps";
+import type { NewNobody } from "./new-draft/checks";
 import type { SequenceMode } from "./sequence";
 
 export const NEW_WORDS = {
@@ -112,7 +113,7 @@ export const NEW_WORDS = {
     thenItCanStart: "Then it can start",
     thenItCanGo: "Then it can go",
     /** A value the message leaves to be typed, still blank (the send screen's "Fill in"), by its name where it has one. */
-    fill: (what: string | null) => (what ? `Fill in “${what}”` : "Fill in the message’s blank"),
+    fill: (text: string | null) => (text ? `Fill in “${text}”` : "Fill in the message’s blank"),
     /** A one-off set for a time that has gone by while the draft waited. */
     passed: "That time has passed",
     passedSub: "Pick a later one, or send it now",
@@ -377,7 +378,7 @@ export const NEW_WORDS = {
     last: "A call or a note is always the last step.",
   },
   checks: {
-    noTwin: (what: string) => `Nothing else ${what}`,
+    noTwin: (text: string) => `Nothing else ${text}`,
     twin: (name: string) => `${name} does this already`,
     twinDetail: "Two would send twice.",
     newMessage: (n: number) => `Step ${n} is a new message`,
@@ -402,7 +403,7 @@ export const NEW_WORDS = {
     noMessage: "Ask couldn’t write a message that holds here. Pick one of yours, or write it.",
     stepDropped: "A step couldn’t be kept as Ask wrote it, so it is left out.",
     handNotLast: "A call or a note ends a sequence, so it is the last step.",
-    leftOut: (what: string) => `Left out: “${what}”`,
+    leftOut: (text: string) => `Left out: “${text}”`,
   },
   /** Nothing here can start on what the line asks (D3): the closest ways, then the line again. */
   noFit: {

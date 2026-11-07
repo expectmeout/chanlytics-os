@@ -1,5 +1,5 @@
 /**
- * What a log line holds (packages/channels log/): the one logger the edge, the dashboard's server, core, jobs and db
+ * What a log line holds (packages/log): the one logger the edge, the dashboard's server, core, jobs and db
  * write through, run as it is, with every person's number, address and words and every credential planted in it.
  *
  * A line is one JSON object: `level`, `event`, the request it belongs to (`request_id`), the workspace once the request
@@ -10,7 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { logger, noteTenant, requestId, withRequestId } from "@chanlytics/channels";
+import { logger, noteTenant, requestId, withRequestId } from "@chanlytics/log";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 /** Every line `fn` writes, as the raw text a log drain would receive and as parsed. */

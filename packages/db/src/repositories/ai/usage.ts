@@ -6,9 +6,9 @@
  *                         (contracts shadowBodies: one per question, written together). A write that fails throws; the
  *                         model port (apps/edge/lib/model.ts) and the shadow (apps/edge/lib/shadow.ts) log it and keep
  *                         the answer.
- *   workspaceMayUseModels whether a workspace may spend the model key on what a person asks for (contracts
+ *   mayWorkspaceUseModels whether a workspace may spend the model key on what a person asks for (contracts
  *                         mayUseModels): not paused, not ended, not unbilled. A read that fails throws.
- *   aiFailuresHour        the workspaces whose model calls or receptionist turns failed at least `min` times in the
+ *   listAiFailuresHour        the workspaces whose model calls or receptionist turns failed at least `min` times in the
  *                         last hour (ai_failures_hour): what the health sweep pages on.
  *   purgeAiUsage          the rows past their keep (ai_usage_purge).
  *
@@ -39,7 +39,7 @@ export async function recordModelUsage(db: Db, rows: AiUsageBody | AiUsageBody[]
   if (error) throw new Error(`ai_usage: ${error.message}`);
 }
 
-export async function workspaceMayUseModels(db: Db, tenantId: string): Promise<boolean> {
+export async function mayWorkspaceUseModels(db: Db, tenantId: string): Promise<boolean> {
   const [tenant, billing] = await Promise.all([
     db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
@@ -60,7 +60,7 @@ export interface AiFailures {
   brain_errors: number;
 }
 
-export async function aiFailuresHour(db: Db, min: number): Promise<AiFailures[]> {
+export async function listAiFailuresHour(db: Db, min: number): Promise<AiFailures[]> {
   const { data, error } = await db.rpc("ai_failures_hour", { p_min: min });
   if (error) throw new Error(`ai_failures_hour: ${error.message}`);
   return (data ?? []).map((r) => ({

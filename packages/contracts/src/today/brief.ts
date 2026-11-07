@@ -20,8 +20,8 @@ import type { EscalationDto } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { LeadSearchDto } from "../leads/leads";
-import type { PreviewTriedDto } from "../previews/preview-tried";
-import { runDaysAt } from "../campaigns/playbooks/playbook-approval";
+import type { PreviewTriedDto } from "../previews/tried";
+import { runDaysAt } from "../campaigns/playbooks/approval";
 import { runsThatWait, type WaitingRun } from "../waits/waits";
 import {
   standingWithRuns,
@@ -35,7 +35,7 @@ import {
   todayStanding,
   todayTrafficLine,
 } from "./bands";
-import { todayBackOf } from "./day";
+import { todayBackOf } from "./day/zone";
 import { todayFacts } from "./facts";
 import { figuresOf, quietFigures, todayLastLine, todayProof } from "./figures";
 import type { MetricsSummaryDto } from "./metrics";
@@ -72,7 +72,7 @@ interface TodayBeside {
  * ladder, the recap, the figures, the calls and the queue.
  */
 export function toTodayVM(
-  m: MetricsSummaryDto,
+  metricsSummary: MetricsSummaryDto,
   conversations: ConversationDto[],
   escalations: Array<EscalationDto & { conversation_id: string }>,
   calls: CallDto[] | null,
@@ -81,8 +81,8 @@ export function toTodayVM(
   searches: LeadSearchDto[] | null = null,
   beside: TodayBeside = {},
 ): TodayVM {
-  const f = todayFacts({
-    metrics: m,
+  const result = todayFacts({
+    metrics: metricsSummary,
     conversations,
     escalations,
     calls,
@@ -92,22 +92,22 @@ export function toTodayVM(
     previewsTried: [...(beside.previewsTried ?? [])],
   });
   // The runs waiting for a word that can still send them, by the business's days (the verb's own rule): null unread.
-  const runsWaiting = beside.runs ? runsThatWait(beside.runs, runDaysAt(f.tz, now)).length : null;
-  const { chips, lines, alert, paused } = todayStanding(f);
-  const proof = todayProof(f.live, f.tz, now);
-  const noReply = todayNoReply(f);
-  const facts = todayAskFacts(f);
-  const empty = todayQueueEmpty(f);
+  const runsWaiting = beside.runs ? runsThatWait(beside.runs, runDaysAt(result.tz, now)).length : null;
+  const { chips, lines, alert, paused } = todayStanding(result);
+  const proof = todayProof(result.live, result.tz, now);
+  const noReply = todayNoReply(result);
+  const facts = todayAskFacts(result);
+  const empty = todayQueueEmpty(result);
 
   // The queue, before the head: the head's last rung says what it holds (todayAlsoWaiting), and a day is quiet only
   // with nothing in it. A search waiting on an answer on a day with no messages was a quiet day, with an empty queue.
-  const callRows = todayCallRows(f);
-  const queue = todayQueue(f, callRows, empty);
+  const callRows = todayCallRows(result);
+  const queue = todayQueue(result, callRows, empty);
 
   /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
-  if (f.traffic === 0 && f.needsYouCount === 0 && !alert && queue.rows.length === 0) {
+  if (result.traffic === 0 && result.needsYouCount === 0 && !alert && queue.rows.length === 0) {
     // A reply that failed is no traffic, but its line is never quiet (today/bands.ts todaySendFailure).
-    const failed = todaySendFailure(f);
+    const failed = todaySendFailure(result);
     return {
       // The quiet gate is about traffic, and decides the card; a run waiting still leads the head.
       standing: standingWithRuns(
@@ -133,51 +133,51 @@ export function toTodayVM(
         facts,
         receipts: [],
       },
-      figures: quietFigures(f.live, f.tz, now, m.bookings),
+      figures: quietFigures(result.live, result.tz, now, metricsSummary.bookings),
       proof,
       noReply,
       calls: null,
-      callsRead: f.callsRead,
+      callsRead: result.callsRead,
       done_today: beside.doneToday ?? null,
       back: todayBackOf(conversations, now),
       since: beside.since ?? null,
       word: beside.word ?? null,
       queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, windows: 0, parts: [], empty },
-      quiet: todayQuietDay(f, todayLastLine(f.live, f.tz, now)),
+      quiet: todayQuietDay(result, todayLastLine(result.live, result.tz, now)),
     };
   }
 
-  const needsYou = todayNeedsYou(f);
+  const needsYou = todayNeedsYou(result);
   const head = todayHeadline(
-    f,
+    result,
     alert,
     needsYou.rows,
-    todayAlsoWaiting({ windows: f.closingConvs.length, calls: queue.calls, searches: queue.searches }),
+    todayAlsoWaiting({ windows: result.closingConvs.length, calls: queue.calls, searches: queue.searches }),
   );
   const standing = standingWithRuns({ chips, lines, alert, paused, ...head }, runsWaiting ?? 0);
-  const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
+  const figures = figuresOf(metricsSummary, conversations, result.callsInWindow, escalations, result.tz, now);
   return {
     standing,
     runs_waiting: runsWaiting,
     needsYou,
-    windowClosing: todayWindowClosing(f),
+    windowClosing: todayWindowClosing(result),
     recap: {
       label: "Today so far",
-      line: todayTrafficLine(f),
-      sentences: todaySentences(f, standing.tone, alert),
+      line: todayTrafficLine(result),
+      sentences: todaySentences(result, standing.tone, alert),
       facts,
-      receipts: todayReceipts(f),
+      receipts: todayReceipts(result),
     },
     // Always the four: zeros where nothing was counted while someone waits (the reference workspace's own state).
     figures,
     proof,
     noReply,
-    callsRead: f.callsRead,
+    callsRead: result.callsRead,
     done_today: beside.doneToday ?? null,
     back: todayBackOf(conversations, now),
     since: beside.since ?? null,
     word: beside.word ?? null,
-    calls: todayCalls(f, callRows),
+    calls: todayCalls(result, callRows),
     queue,
     quiet: null,
   };

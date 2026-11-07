@@ -99,8 +99,8 @@ test("the wiring: one profile row per account, written by its owner only, read b
   assert.ok(
     route.includes('rate: "profile_set",') && route.includes('rpc("profile_set", { p_display_name: cleaned.name })'),
   );
-  assert.ok(route.includes("cleanDisplayName(body.display_name"), "the contracts' rule, before the database's");
-  assert.ok(!route.includes("memberContext("), "your name needs no workspace");
+  assert.ok(route.includes("cleanDisplayName(input.display_name"), "the contracts' rule, before the database's");
+  assert.ok(!route.includes("getMemberContext("), "your name needs no workspace");
   assert.ok(readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes("profile_set: {"));
 
   const ws = readCode("apps/dashboard/app/api/v1/workspaces/route.ts", "apps/dashboard/src/server/workspace/list.ts");

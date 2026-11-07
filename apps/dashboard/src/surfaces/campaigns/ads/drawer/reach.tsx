@@ -4,8 +4,8 @@
  * with the first reason otherwise -- and "Running · Meta approved it Mon 14 Sep · WhatsApp linked". The line is the press
  * that opens the same dot rows as the platform's standing, with the time they were read.
  */
-import type { ReachVM } from "@chanlytics/contracts/ads-page";
-import { SHOWN } from "@chanlytics/contracts/ads-page";
+import type { ReachVM } from "../model/drawer/view";
+import { SHOWN } from "../model/drawer/words";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Popover } from "../../../kit/popover/popover";

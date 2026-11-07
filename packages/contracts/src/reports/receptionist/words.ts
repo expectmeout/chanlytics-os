@@ -11,7 +11,7 @@ import { BOOKED_NEEDS_A_LINK } from "../../setup/calendar-source";
 import { durationWords } from "../../shared/clock";
 import { capitalize, plural } from "../../shared/words";
 import { BOOKED_NEEDS_TODAY } from "../booking-report";
-import { ownWord, rankedEntries, type MixEntry } from "../report-mix";
+import { ownWord, rankedEntries, type MixEntry } from "../mix";
 import { MISSED_CALL_TOUCH_WORDS, type ReceptionistDto, type ReceptionistSeriesDto } from "./record";
 
 type Counts = Readonly<Record<string, number>>;
@@ -39,7 +39,7 @@ export const holdEntries = (now: HoldNow): MixEntry[] =>
   HOLD_OUTCOMES.map(([key, label]): MixEntry => [key, label, now[key]]).filter(([, , n]) => n > 0);
 
 /** How many went out as the hold ended, and, where some were held for the owner's look, how many. */
-export function holdLine(now: HoldNow): string {
+export function receptionistHoldLine(now: HoldNow): string {
   const out = `${now.sent} of ${now.total} went out as the hold ended.`;
   const n = now.low_confidence;
   return n > 0 ? `${out} ${n} ${n === 1 ? "was" : "were"} held back as not sure enough to send alone.` : out;
@@ -106,12 +106,12 @@ export function linkLine(sent: number, booked: number | null, calendar: LinksCal
 const HANDOVER_NONE = "nothing was handed over in this period";
 
 /** Under the first-reply figure: of the handovers that wanted a message (not an opt-out or a call-back), how many had one from a person. */
-export const handoverReplyMeta = (replied: number, n: number): string =>
-  n === 0 ? HANDOVER_NONE : `${replied} of ${plural(n, "handover")} that wanted a message had a reply from you`;
+export const handoverReplyMeta = (replied: number, count: number): string =>
+  count === 0 ? HANDOVER_NONE : `${replied} of ${plural(count, "handover")} that wanted a message had a reply from you`;
 
 /** Under the time-to-settle figure: of the handovers, how many were settled. */
-export const handoverSettledMeta = (settled: number, n: number): string =>
-  n === 0 ? HANDOVER_NONE : `${settled} of ${n} settled`;
+export const handoverSettledMeta = (settled: number, count: number): string =>
+  count === 0 ? HANDOVER_NONE : `${settled} of ${count} settled`;
 
 /* ------------------------------------------------------------- the calls nobody took */
 
@@ -122,15 +122,15 @@ export const MISSED_LABEL = `Missed calls answered within ${MISSED_CALL_TOUCH_WO
  * whether or not they were already answered (the rate is over people whose hour has passed); a call with no caller on record
  * has no person to count.
  */
-export function missedMeta(m: MissedNow): string {
+export function missedMeta(missedNow: MissedNow): string {
   const left = [
-    m.pending > 0 ? `${m.pending} under ${MISSED_CALL_TOUCH_WORDS} old, not counted yet` : null,
-    m.unknown > 0 ? `${m.unknown} with no caller on record not counted` : null,
+    missedNow.pending > 0 ? `${missedNow.pending} under ${MISSED_CALL_TOUCH_WORDS} old, not counted yet` : null,
+    missedNow.unknown > 0 ? `${missedNow.unknown} with no caller on record not counted` : null,
   ].filter((part): part is string => part !== null);
   if (left.length > 0) return left.join(" · ");
-  return m.n === 0
+  return missedNow.n === 0
     ? "no call went unanswered at the phone"
-    : `${plural(m.n, "person", "people")} rang and found nobody`;
+    : `${plural(missedNow.n, "person", "people")} rang and found nobody`;
 }
 
 /* ----------------------------------------------------------- while you were closed */
@@ -139,8 +139,8 @@ export const CLOSED_UNSET = "set your opening hours to see this";
 /** Only messages are counted while closed, never calls, so "nothing came" would say more than the figure counts. */
 export const CLOSED_NONE = "no message came while you were closed";
 
-export const closedMeta = (came: number, answered: number): string =>
-  `${plural(came, "message")} came while you were closed; the receptionist answered ${answered}.`;
+export const closedMeta = (arrived: number, answered: number): string =>
+  `${plural(arrived, "message")} came while you were closed; the receptionist answered ${answered}.`;
 
 /* ------------------------------------------------------------------------ stuck */
 

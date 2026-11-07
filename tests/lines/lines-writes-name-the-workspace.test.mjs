@@ -15,9 +15,9 @@ import { fakeDb } from "../_fake-db.mjs";
 import { importSrc } from "../_source.mjs";
 
 const { unfileMockRegistration } = await importSrc("apps/edge/lib/lines/a2p-refile.ts");
-const { claimLineForResume, countAutomaticResume } = await importSrc("apps/edge/lib/lines/line-resume.ts");
-const { provisionLineJob } = await importSrc("apps/edge/lib/lines/line-provision-job.ts");
-const { tokensLast24h } = await importSrc("apps/edge/lib/receptionist/budget.ts");
+const { claimLineForResume, countAutomaticResume } = await importSrc("apps/edge/lib/lines/resume.ts");
+const { provisionLineJob } = await importSrc("apps/edge/lib/lines/provision-job.ts");
+const { getTokensLast24h } = await importSrc("apps/edge/lib/ai/budget.ts");
 
 const A = "11111111-1111-4111-8111-111111111111";
 const B = "22222222-2222-4222-8222-222222222222";
@@ -117,7 +117,7 @@ test("a workspace's token day is its own: with no workspace nothing is summed, n
     data: { input_tokens: 100, output_tokens: 50 },
   });
   const db = fakeDb({ events: [usage(A, 1), usage(A, 2), usage(B, 1)] });
-  assert.equal(await tokensLast24h(db, A), 300, "A's two replies");
-  assert.equal(await tokensLast24h(db, B), 150, "B's one");
-  assert.equal(await tokensLast24h(db, ""), 0, "no workspace, no day to count: not the sum of everyone's");
+  assert.equal(await getTokensLast24h(db, A), 300, "A's two replies");
+  assert.equal(await getTokensLast24h(db, B), 150, "B's one");
+  assert.equal(await getTokensLast24h(db, ""), 0, "no workspace, no day to count: not the sum of everyone's");
 });

@@ -12,7 +12,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ASK_PAGES, ASK_PAGE_ROUTES, invitationWords, joinedWords } from "@chanlytics/contracts";
+import { ASK_PAGE_ROUTES, invitationWords, joinedWords } from "@chanlytics/contracts";
+import { ASK_PAGES } from "../../apps/dashboard/src/bridge/ask/jump.ts";
 import { logLineOf } from "../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";

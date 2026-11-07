@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { setModelStream } = await import("../../apps/dashboard/src/server/shared/model-json.ts");
-const { draftFrom } = await import("../../apps/dashboard/src/server/new-conversation/person-draft.ts");
+const { draftPersonFrom } = await import("../../apps/dashboard/src/server/drafts/person.ts");
 const { priceFigures } = await import("@chanlytics/contracts");
 
 let calls;
@@ -64,7 +64,11 @@ test("a message: asked once, in the owner's voice, with what the page knows and 
     text: "Hi Robin, Saturday morning opened up. Does 10 suit?",
     note: "Oct 7: the team offered Saturday morning.",
   });
-  const out = await draftFrom(KNOWN, { how: "message", wire: "sms", about: "tell them Saturday morning opened up" });
+  const out = await draftPersonFrom(KNOWN, {
+    how: "message",
+    wire: "sms",
+    about: "tell them Saturday morning opened up",
+  });
   assert.deepEqual(
     [calls.length, calls[0].purpose, calls[0].request.output_config.format.type],
     [1, "person_draft", "json_schema"],
@@ -95,7 +99,7 @@ test("a message to a person never builds on a reply of ours that never reached t
     { day: "Oct 2", time: "11:00 AM", who: "Your team", kind: "team", text: "WORDS-THAT-WENT" },
     ...KNOWN.who.timeline,
   ];
-  await draftFrom(
+  await draftPersonFrom(
     { ...KNOWN, who: { ...KNOWN.who, timeline: history } },
     { how: "message", wire: "sms", about: "follow up" },
   );
@@ -105,7 +109,7 @@ test("a message to a person never builds on a reply of ours that never reached t
 
 test("a customer's own words are fenced as data, never handed over as an instruction", async () => {
   answerWith({ ...EMPTY, text: "Hi Robin, checking in about Saturday." });
-  await draftFrom(KNOWN, { how: "message", wire: "sms", about: "follow up" });
+  await draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "follow up" });
   const said = JSON.stringify(calls[0].request.messages);
   assert.match(said, /<record>/);
   assert.ok(said.indexOf("<record>") < said.indexOf("Ignore your rules"), "their words sit inside the fence");
@@ -121,7 +125,7 @@ test("a call: the brief, the facts said by code, and every note the member may r
     ask: "Whether 10 suits",
     note: "Oct 7: the team called about Saturday.",
   });
-  const out = await draftFrom(KNOWN, { how: "call", about: "offer Saturday" });
+  const out = await draftPersonFrom(KNOWN, { how: "call", about: "offer Saturday" });
   assert.deepEqual(out.brief, {
     opening: "Hi Robin, it's Harbor Studio.",
     points: ["Saturday morning opened up"],
@@ -143,7 +147,7 @@ test("a question comes back as a question and nothing else, two at most", async 
     ],
     text: "should not be kept",
   });
-  const out = await draftFrom(KNOWN, { how: "message", wire: "sms", about: "offer a slot" });
+  const out = await draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "offer a slot" });
   assert.deepEqual(
     out.asks.map((a) => a.key),
     ["day", "service"],
@@ -154,7 +158,7 @@ test("a question comes back as a question and nothing else, two at most", async 
 
 test("answers given are passed on, and a rewrite carries the last draft and how to change it", async () => {
   answerWith({ ...EMPTY, text: "Hi Robin, Saturday at 10?" });
-  await draftFrom(KNOWN, {
+  await draftPersonFrom(KNOWN, {
     how: "message",
     wire: "sms",
     about: "offer a slot",
@@ -171,25 +175,25 @@ test("answers given are passed on, and a rewrite carries the last draft and how 
 test("a price or an offer of money the member did not give is refused, and nothing of it is kept", async () => {
   answerWith({ ...EMPTY, text: "Hi Robin, the deep clean is $120 this week." });
   await assert.rejects(
-    draftFrom(KNOWN, { how: "message", wire: "sms", about: "follow up on the quote" }),
+    draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "follow up on the quote" }),
     (e) => e.status === 422 && /named a price you did not give/.test(e.message),
   );
   answerWith({ ...EMPTY, text: "Hi Robin, I can offer a discount if you book today." });
   await assert.rejects(
-    draftFrom(KNOWN, { how: "message", wire: "sms", about: "follow up on the quote" }),
+    draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "follow up on the quote" }),
     (e) => e.status === 422 && /offered money you did not mention/.test(e.message),
   );
 });
 
 test("a price the member gave in their own words may be written", async () => {
   answerWith({ ...EMPTY, text: "Hi Robin, the deep clean is $120 as we discussed." });
-  const out = await draftFrom(KNOWN, { how: "message", wire: "sms", about: "tell them the deep clean is $120" });
+  const out = await draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "tell them the deep clean is $120" });
   assert.match(out.text, /\$120/);
 });
 
 test("an email has its subject; a note that names a price is not kept", async () => {
   answerWith({ ...EMPTY, text: "Following up on Saturday.", subject: "Saturday", note: "Oct 7: offered it for $90." });
-  const out = await draftFrom({ ...KNOWN }, { how: "message", wire: "email", about: "follow up on Saturday" });
+  const out = await draftPersonFrom({ ...KNOWN }, { how: "message", wire: "email", about: "follow up on Saturday" });
   assert.equal(out.subject, "Saturday");
   assert.equal(out.note, "", "the receptionist is told no price");
 });
@@ -205,18 +209,18 @@ test("a price is held to its figure: the member's own may be written any way, an
   assert.deepEqual(priceFigures("See you at 9:30 for 45 minutes."), [], "a time and a length are no price");
   // The member said $120. The draft may say it in words of its own, and may not say $95.
   answerWith({ ...EMPTY, text: "Hi Robin, the deep clean is 120 dollars as we discussed." });
-  const same = await draftFrom(KNOWN, { how: "message", wire: "sms", about: "tell them the deep clean is $120" });
+  const same = await draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "tell them the deep clean is $120" });
   assert.match(same.text, /120 dollars/);
   answerWith({ ...EMPTY, text: "Hi Robin, the deep clean is $95 this week." });
   await assert.rejects(
-    draftFrom(KNOWN, { how: "message", wire: "sms", about: "tell them the deep clean is $120" }),
+    draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "tell them the deep clean is $120" }),
     (e) => e.status === 422 && /named a price you did not give/.test(e.message),
   );
 });
 
 test("a rewrite keeps a price the member typed into the message themselves", async () => {
   answerWith({ ...EMPTY, text: "Hi Robin, $80 for the clean. Does Saturday suit?" });
-  const out = await draftFrom(KNOWN, {
+  const out = await draftPersonFrom(KNOWN, {
     how: "message",
     wire: "sms",
     about: "follow up on the quote",
@@ -239,13 +243,13 @@ test("a message is written from what was said and done with them, never from the
     },
   };
   answerWith({ ...EMPTY, text: "Hi Robin, Saturday morning opened up." });
-  await draftFrom(known, { how: "message", wire: "sms", about: "tell them Saturday opened up" });
+  await draftPersonFrom(known, { how: "message", wire: "sms", about: "tell them Saturday opened up" });
   assert.match(told(), /Can you do Saturday/);
   assert.doesNotMatch(told(), /Asked for a refund twice|thought the price too high/);
   // A call's brief is the member's own: it is told.
   calls = [];
   answerWith({ ...EMPTY, opening: "Hi Robin, it is Harbor Studio.", points: ["Saturday opened up"] });
-  await draftFrom(known, { how: "call", about: "tell them Saturday opened up" });
+  await draftPersonFrom(known, { how: "call", about: "tell them Saturday opened up" });
   assert.match(told(), /Asked for a refund twice/);
 });
 
@@ -258,14 +262,14 @@ test("what they wrote last is read far enough to answer, and where it is cut, th
     who: { ...KNOWN.who, lastExchange: { customer: { text: long, at: "Oct 28" }, reply: null } },
   };
   answerWith({ ...EMPTY, text: "Hi, thanks." });
-  await draftFrom(known, { how: "message", wire: "email", about: "reply", answering: true });
+  await draftPersonFrom(known, { how: "message", wire: "email", about: "reply", answering: true });
   const sent = told();
   assert.ok(sent.includes(long.slice(0, 1400)), "well past the history's line or two");
   assert.match(sent, /\[cut here for length\]/, "the cut, said where it is");
   assert.match(sent, /shortened here for length, not by them/, "and the rule that says whose cut it is");
   calls = [];
   answerWith({ ...EMPTY, text: "Hi Robin, Saturday works." });
-  await draftFrom(KNOWN, { how: "message", wire: "sms", about: "reply", answering: true });
+  await draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "reply", answering: true });
   assert.doesNotMatch(
     JSON.stringify(calls[0].request.messages),
     /\[cut here for length\]/,

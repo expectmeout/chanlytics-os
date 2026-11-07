@@ -40,17 +40,17 @@ import {
   RECORD_REVIEW_CONFIRM,
   BUSINESS_PAGE_NOTE,
   SOLE_PROP_CEILING_SENTENCE,
-  smsStateRow,
   textingWords,
   businessRecordLine,
 } from "@chanlytics/contracts";
+import { smsStateRow } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import {
   brandTypeFor,
   starterEndUserRequest,
   soleProprietorEndUserRequest,
   businessEndUserRequest,
   addressRequest,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/lines";
 import { registerLine } from "../../apps/edge/lib/lines/a2p-register.ts";
 import { installStubReact, fresh, again, all, walk, byTestId, textOf, settle } from "../_stub-react.mjs";
 
@@ -270,7 +270,10 @@ test("brandTypeFor and the fork cannot disagree about the same tax id", () => {
     assert.equal(brandTypeFor({ ein }), want, `ein=${JSON.stringify(ein)}`);
   }
   const src = readCode("packages/channels/src/lines/a2p/business-record.ts");
-  assert.ok(src.includes('registrationPathOf(r) === "sole_proprietor"'), "it delegates rather than deciding again");
+  assert.ok(
+    src.includes('registrationPathOf(business) === "sole_proprietor"'),
+    "it delegates rather than deciding again",
+  );
   assert.ok(
     !/return r\.ein && r\.ein\.trim\(\) \? "STANDARD"/.test(src),
     "REGRESSION: a second place that reads the tax id its own way",
@@ -589,7 +592,7 @@ test("one validator, three writers", () => {
   assert.ok(route.includes('from("lines").select("e164")'), "read where the owner can read it, under RLS");
   assert.ok(route.includes('registrationPathOf(record) || "standard"'), "derived only when the caller did not say");
   assert.ok(
-    route.includes("record, path }, 20_000)"),
+    /record, path \},\s*20_000[,)]/.test(route),
     "and the path travels with the record to the door that writes it",
   );
 
@@ -597,9 +600,9 @@ test("one validator, three writers", () => {
   // row it is about to write in the owner's words, stores a sole proprietor
   // with no tax id, and holds a caller that says "standard" to it.
   const filing = readCode("apps/edge/lib/lines/a2p-register.ts");
-  assert.ok(filing.includes("businessRecordProblems(o.record, path, { ourNumbers })"));
+  assert.ok(filing.includes("businessRecordProblems(options.record, path, { ourNumbers })"));
   assert.ok(
-    filing.indexOf("businessRecordProblems(o.record") < filing.indexOf("const send = async"),
+    filing.indexOf("businessRecordProblems(options.record") < filing.indexOf("const send = async"),
     "checked before a single call is made",
   );
   assert.ok(

@@ -6,7 +6,8 @@
 import { useId } from "react";
 import type { ReactNode } from "react";
 import type { AdsConfig, AdsRead } from "@chanlytics/contracts";
-import type { AdDraft, DoorVM, NewAdVM } from "@chanlytics/contracts/ads-page";
+import type { AdDraft, NewAdVM } from "../model/new-ad";
+import type { DoorVM } from "../model/vm-base";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Switch } from "../../../kit/switch/switch";

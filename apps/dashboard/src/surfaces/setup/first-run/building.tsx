@@ -5,7 +5,7 @@
  * nothing is promised that no read stands behind. While Google is asked the confirming is said as a line to come, so the
  * list keeps its length when the answer lands. Every word is contracts' (FIRST_RUN_WORDS.building).
  */
-import { FIRST_RUN_HELPERS } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "./model/first-run-helpers";
 import { Icon } from "../../kit/icon/icon";
 
 const B = FIRST_RUN_HELPERS.words.building;

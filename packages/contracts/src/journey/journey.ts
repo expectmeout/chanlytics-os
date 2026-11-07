@@ -65,15 +65,15 @@ export function journeyStageOf(trigger: string): JourneyStageId | null {
  * one was ever recorded, or a campaign stands on it), `word` what it calls an appointment, `held` the stages a campaign
  * stands on. Pure and total.
  */
-export function journeyOf(s: {
+export function journeyOf(state: {
   calendarOn: boolean;
   hasDeals: boolean;
   word: AppointmentWord;
   held: ReadonlySet<JourneyStageId>;
 }): JourneyStage[] {
-  const W = appointmentWords(s.word);
-  const unmet = s.calendarOn ? null : ("calendar" as const);
-  const winBack = s.calendarOn ? "lapsed" : "quiet_30";
+  const words = appointmentWords(state.word);
+  const unmet = state.calendarOn ? null : ("calendar" as const);
+  const winBack = state.calendarOn ? "lapsed" : "quiet_30";
   const every = { day: "Every", at: "day" };
   const stages: JourneyStage[] = [
     {
@@ -93,8 +93,8 @@ export function journeyOf(s: {
     {
       id: "before",
       kind: "moment",
-      caps: W.before.caps,
-      name: W.before.name,
+      caps: words.before.caps,
+      name: words.before.name,
       glyph: "bell",
       unit: "people",
       trigger: "visit_tomorrow",
@@ -102,12 +102,12 @@ export function journeyOf(s: {
       poolKey: "visit_tomorrow",
       unmet,
       one: false,
-      off: { hint: "tomorrow", when: every, why: W.offTomorrow },
+      off: { hint: "tomorrow", when: every, why: words.offTomorrow },
     },
     {
       id: "after",
       kind: "moment",
-      caps: W.after.caps,
+      caps: words.after.caps,
       name: "How did it go",
       glyph: "check",
       unit: "yesterday",
@@ -116,7 +116,7 @@ export function journeyOf(s: {
       poolKey: "visited",
       unmet,
       one: false,
-      off: { hint: "yesterday", when: { day: "The day", at: "after" }, why: W.offYesterday },
+      off: { hint: "yesterday", when: { day: "The day", at: "after" }, why: words.offYesterday },
     },
     {
       id: "proposal",
@@ -155,5 +155,5 @@ export function journeyOf(s: {
       },
     },
   ];
-  return stages.filter((x) => x.id !== "proposal" || s.hasDeals || s.held.has("proposal"));
+  return stages.filter((x) => x.id !== "proposal" || state.hasDeals || state.held.has("proposal"));
 }

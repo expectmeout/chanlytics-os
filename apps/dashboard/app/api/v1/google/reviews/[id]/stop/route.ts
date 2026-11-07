@@ -1,5 +1,5 @@
 import { write, workspace } from "@/server/shared/route";
-import { stopGoogleReviewReply } from "@/server/connections/google-actions";
+import { stopGoogleReviewReply } from "@/server/settings/google-actions";
 
 /**
  * POST /api/v1/google/reviews/:id/stop — a reply the receptionist holds under Holds it, stopped before the hourly sync
@@ -7,7 +7,7 @@ import { stopGoogleReviewReply } from "@/server/connections/google-actions";
  * has its words. The edge holds the row and clears its time; this route proves who is asking and keeps the ledger
  * (subject 'review', verb 'cancel_send'). One with no time to clear is no change.
  *
- * The handle is stopGoogleReviewReply in src/server/connections/google-actions.ts.
+ * The handle is stopGoogleReviewReply in src/server/settings/google-actions.ts.
  */
 export const POST = write({
   scope: workspace,

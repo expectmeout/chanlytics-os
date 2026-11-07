@@ -46,7 +46,7 @@ import {
   planProfileSync,
   planListingCheck,
   reviewBells,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/google";
 import {
   toGoogleVM,
   connectionWords,
@@ -799,8 +799,14 @@ test("the migration: the connection row, the three Vault doors for the service r
 
 test("the edge: the secret alone on the edge, a read before a row, the grant given back on every refusal, the profile's reviews replacing the public five", () => {
   // The library's modules that hold the client, the vault doors, the connection, the sync and the listing's check.
-  const lib = ["config", "profile-credentials", "profile-connection", "profile-sync", "listing-check"]
-    .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
+  const lib = [
+    "shared/google/config",
+    "shared/google/credentials",
+    "google/profile-connection",
+    "google/profile-sync",
+    "google/listing-check",
+  ]
+    .map((m) => readCode(`apps/edge/lib/${m}.ts`))
     .join("\n");
   for (const v of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"])
     assert.ok(lib.includes(`env.${v}`), v);
@@ -843,7 +849,7 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
 test("the dashboard: the way there is signed, the way back is proven before anything is trusted, and a reply is a ledger entry", () => {
   const connect = readCode(
     "apps/dashboard/app/api/v1/google/connect/route.ts",
-    "apps/dashboard/src/server/connections/google-actions.ts",
+    "apps/dashboard/src/server/settings/google-actions.ts",
   );
   assert.ok(
     connect.includes('role: "partner",') &&
@@ -854,7 +860,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(connect.includes("new Response(null, { status: 302, headers: { location: url } })"));
   const cb = readCode(
     "apps/dashboard/app/api/v1/google/callback/route.ts",
-    "apps/dashboard/src/server/connections/google-actions.ts",
+    "apps/dashboard/src/server/settings/google-actions.ts",
   );
   assert.ok(
     cb.indexOf('verifyState(secret, url.searchParams.get("state"), Date.now())') < cb.indexOf('op: "connect"'),
@@ -875,7 +881,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   );
   const reply = readCode(
     "apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts",
-    "apps/dashboard/src/server/connections/google-actions.ts",
+    "apps/dashboard/src/server/settings/google-actions.ts",
   );
   assert.ok(reply.includes('role: "operator",') && reply.includes('rate: "google_reply",'));
   assert.ok(
@@ -1503,7 +1509,7 @@ async function syncTheLink({
       scope: "https://www.googleapis.com/auth/business.manage",
     }),
   });
-  // The bells reach the edge's own handle (ops/notify.ts keepAndPush): this database, for the run.
+  // The bells reach the edge's own handle (shared/alerts/notify.ts keepAndPush): this database, for the run.
   setPg(db);
   try {
     const { result, lines } = await withOAuthEnv(() =>
@@ -1756,7 +1762,7 @@ function vaultDoors(secret, { before00364 = false } = {}) {
 
 test("a token refreshed while the owner reconnected never writes the old grant back over the new one", () =>
   withOAuthEnv(async () => {
-    const { tokenFor } = await import("../../apps/edge/lib/google/profile-credentials.ts");
+    const { tokenFor } = await import("../../apps/edge/lib/shared/google/credentials.ts");
     const now = Date.parse("2026-09-12T00:00:00Z");
     const stale = { refresh_token: "rt-old", access_token: "stale", expires_at: now - 60_000, scope: "s" };
     const reconnected = { refresh_token: "rt-new", access_token: "at-new", expires_at: now + 3_600_000, scope: "s" };

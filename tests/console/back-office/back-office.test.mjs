@@ -111,8 +111,11 @@ test("a backlog that could not be READ is never mistaken for a backlog of zero",
 });
 import { importSrc, readCode, readRaw } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
-import { setupDtoFor } from "../../../apps/dashboard/src/server/workspace/setup.ts";
-import { platformWaitlist, platformWaitlistInvited } from "../../../apps/dashboard/src/server/console/platform.ts";
+import { setupDtoFor } from "../../../apps/dashboard/src/server/setup/setup.ts";
+import {
+  getPlatformWaitlist,
+  getPlatformWaitlistInvited,
+} from "../../../apps/dashboard/src/server/console/platform.ts";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 
 const NOW = Date.parse("2026-09-09T18:00:00Z");
@@ -468,7 +471,7 @@ test("every route under /api/v1/platform asks the database who is calling", () =
     assert.ok(src.includes("scope: platform,"), `${path.basename(path.dirname(file))}: no admin check`);
     const guard = src.indexOf("scope: platform,");
     // DERIVED, not listed. This was a hardcoded array of four READS, so
-    // `platformLineAct(` -- the only WRITE on this surface, and the one that
+    // `runPlatformLineAct(` -- the only WRITE on this surface, and the one that
     // touches another business's carrier registration and phone number -- was not
     // in it. A write added tomorrow with its guard below the call would have
     // passed, which is the opposite of what this test's own header promises.
@@ -492,18 +495,21 @@ test("every route under /api/v1/platform asks the database who is calling", () =
       if (i !== -1) assert.ok(guard < i, `${path.basename(path.dirname(file))}: ${fn}() runs before the check`);
     }
     // No workspace scoping: this surface is about workspaces the caller is not
-    // in, so memberContext would be a category error rather than a safeguard.
+    // in, so getMemberContext would be a category error rather than a safeguard.
     assert.ok(
-      !src.includes("memberContext("),
+      !src.includes("getMemberContext("),
       `${path.basename(path.dirname(file))}: platform routes are not workspace-scoped`,
     );
   }
 });
 
+/** The platform's reads, and the guard they go through: the shared back office (server/shared/back-office.ts). */
+const GUARDED = ["apps/dashboard/src/server/console/platform.ts", "apps/dashboard/src/server/shared/back-office.ts"];
+
 test("the guard asks the database, and answers 404 rather than 403", () => {
-  const src = readCode("apps/dashboard/src/server/console/platform.ts");
+  const src = readCode(...GUARDED);
   // platform_staff_state() (00467): the role, a second factor owed, or none, about the caller alone.
-  assert.match(src, /await staffStateOf\(ctx\.supabase\)/, "the answer comes from Postgres, not from an env var");
+  assert.match(src, /await getStaffState\(ctx\.supabase\)/, "the answer comes from Postgres, not from an env var");
   assert.match(src, /if \(state === "none"\) throw new AppError\("not_found", "No such page\.", 404\);/);
   assert.match(
     src,
@@ -529,7 +535,9 @@ test("support sees the customer's own Setup, from the customer's own function", 
   // The claim this surface makes is that support and the customer are looking
   // at the same rows. That is only true while it is literally one function, so
   // the assembly was lifted out of the route rather than copied.
-  const assembly = readCode("apps/dashboard/src/server/workspace/setup.ts");
+  const assembly = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.match(assembly, /export async function setupDtoFor\(/);
   assert.match(
     assembly,
@@ -563,7 +571,7 @@ test("support sees the customer's own Setup, from the customer's own function", 
   // The viewer is a TYPE, not a role string. "owner" was a lie the type system
   // could not catch, and it 500'd every detail read on team_roster.
   assert.ok(!/setupDtoFor\([^)]*"owner"/.test(office), "REGRESSION: the back office claiming to be an owner");
-  assert.match(office, /platformEvents\(office, id\)/, "with the trail emitEvent has been writing all along");
+  assert.match(office, /listPlatformEvents\(office, id\)/, "with the trail emitEvent has been writing all along");
   assert.ok(!office.includes('supabase.from("tenant_config")'), "no second assembly");
 });
 
@@ -671,9 +679,9 @@ const workspaceTables = () => ({
 
 test("the back office's Setup read touches no function that asks who is signed in", async () => {
   // THE DEFECT. setupDtoFor took a `role: string` and the back office passed
-  // "owner", which routed it through teamRoster -> the `team_roster` RPC, whose
+  // "owner", which routed it through getTeamRoster -> the `team_roster` RPC, whose
   // FIRST statement checks auth.uid() against memberships. On the service client
-  // that is null, so Postgres raised 42501, teamRoster rethrew, and every single
+  // that is null, so Postgres raised 42501, getTeamRoster rethrew, and every single
   // /api/v1/platform/tenants/:id request 500'd. Verified against production: the
   // RPC answers `{"code":"42501","message":"Not a member of this workspace."}`
   // to the service role.
@@ -819,27 +827,27 @@ test("the service-role client cannot be obtained without passing the check", () 
   // The first version exported `platformDb()` — no arguments, no relationship to
   // the guard — and relied on a test walking ONE directory to prove nothing else
   // imported it. A grep cannot see the route that has not been written yet.
-  const src = readCode("apps/dashboard/src/server/console/platform.ts");
+  const src = readCode(...GUARDED);
   assert.ok(
     !/export function platformDb|export async function platformDb/.test(src),
     "REGRESSION: a service-role client handed to any importer",
   );
   assert.match(
     src,
-    /import \{ serviceDb \} from "\.\.\/shared\/service-db";/,
+    /import \{ serviceDb \} from "\.\/service-db";/,
     "the dashboard's one service client, kept to this module",
   );
   assert.ok(!/export .*serviceDb/.test(src));
   // The only way to a client is a handle only the check can make, and the brand
   // stops an object literal standing in for one.
   assert.match(src, /declare const backOfficeBrand: unique symbol;/);
-  assert.match(src, /export async function backOffice\(ctx: RouteContext\): Promise<BackOffice>/);
+  assert.match(src, /export async function getBackOffice\(ctx: RouteContext\): Promise<BackOffice>/);
   assert.match(src, /const state = await staffState\(ctx\);/);
   // Every cross-tenant read takes the handle rather than reaching for a client.
   for (const [fn, tail] of [
-    ["platformOverview", "\\)"],
-    ["platformTenant", ","],
-    ["platformEvents", ","],
+    ["listPlatformOverview", "\\)"],
+    ["findPlatformTenant", ","],
+    ["listPlatformEvents", ","],
   ]) {
     assert.match(src, new RegExp(`export async function ${fn}\\(\\s*office: BackOffice\\s*${tail}`), fn);
   }
@@ -982,16 +990,16 @@ test("three named operations, and no way to send a fourth", () => {
     const src = fs.readFileSync(path.join(dir, action, "route.ts"), "utf8");
     // Its own operation, named in its own file, not taken from the request, and the Console's act it is.
     assert.ok(
-      src.includes(`platformLineAct(office, "${action}", input.tenant_id, input.line_id, input.why)`),
+      src.includes(`runPlatformLineAct(office, "${action}", input.tenant_id, input.line_id, input.why)`),
       `${action}: the action is a literal`,
     );
     assert.ok(src.includes(`act: LINE_ACTS.${action},`), `${action}: the act its role is asked for`);
     assert.ok(!/body\.(op|action)/.test(src), `${action}: the caller must not choose the operation`);
     assert.ok(src.includes("scope: platform,"), `${action}: no admin check`);
-    assert.ok(src.indexOf("scope: platform,") < src.indexOf("platformLineAct("), `${action}: the check runs first`);
+    assert.ok(src.indexOf("scope: platform,") < src.indexOf("runPlatformLineAct("), `${action}: the check runs first`);
     assert.ok(src.includes('rate: "platform_line_'), `${action}: rate-limited`);
     assert.ok(src.includes("input: LineActSchema,"), `${action}: both ids, and why, are judged by the schema`);
-    assert.ok(!src.includes("memberContext("), `${action}: this surface is about workspaces the caller is not in`);
+    assert.ok(!src.includes("getMemberContext("), `${action}: this surface is about workspaces the caller is not in`);
   }
 
   // And the edge operation each one maps to is a written-out list rather than a
@@ -999,7 +1007,7 @@ test("three named operations, and no way to send a fourth", () => {
   const server = readCode("apps/dashboard/src/server/console/platform.ts");
   assert.match(
     server,
-    /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => Record<string, unknown>>/,
+    /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => EdgeBody<"\/api\/admin\/lines">>/,
   );
   assert.match(server, /refile: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true \}\)/);
   assert.match(
@@ -1014,14 +1022,14 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   // cannot be written. An action taken on somebody else's business that nobody
   // can be held to is worse than an action that did not happen.
   const server = readCode("apps/dashboard/src/server/console/platform.ts");
-  const fn = server.slice(server.indexOf("export async function platformLineAct"));
+  const fn = server.slice(server.indexOf("export async function runPlatformLineAct"));
   // The Admin log's row with why comes first (act(), decision 0066), then the workspace's own event, then the edge.
   assert.match(
     fn,
-    /return takeAct\(\s*office,\s*\{ act: LINE_ACTS\[action\], why, tenantId, target: "line", targetId: lineId \}/,
+    /return takeAct\(\s*office,\s*\{ act: LINE_ACTS\[action\], why: reason, tenantId, target: "line", targetId: lineId \}/,
   );
   const audit = fn.search(/recordEvent\(\s*office\.db,\s*tenantId,\s*"platform\.acted"/);
-  const act = fn.indexOf("await edgeLines(");
+  const act = fn.indexOf("await callEdgeLines(");
   assert.ok(audit !== -1 && act !== -1 && audit < act, "recorded first, then done");
   assert.match(
     fn,
@@ -1789,7 +1797,7 @@ test("the queue is read through the one door, still-waiting only, oldest first",
     { id: "w3", email: "cass@example.com", business: null, source: null, created_at: ago(9), invited_at: ago(8) },
     { id: "w1", email: "ana@example.com", business: "Salon", source: null, created_at: ago(3), invited_at: null },
   ];
-  const q = await platformWaitlist({ db: fakeDb({ waitlist: rows }) });
+  const q = await getPlatformWaitlist({ db: fakeDb({ waitlist: rows }) });
   assert.deepEqual(
     q.waiting.map((r) => r.email),
     ["ana@example.com", "bea@example.com"],
@@ -1799,7 +1807,7 @@ test("the queue is read through the one door, still-waiting only, oldest first",
 });
 
 test("a queue that could not be read answers null, not empty, and does not throw", async () => {
-  const q = await platformWaitlist({
+  const q = await getPlatformWaitlist({
     db: fakeDb({ waitlist: [] }, { "waitlist.select": { message: "permission denied" } }),
   });
   assert.deepEqual(q, { waiting: null, total: null });
@@ -1821,13 +1829,13 @@ test("marking somebody invited is conditional on them still waiting, records who
   const db = fakeDb(tables);
   const office = { db, session: db, role: "support", userId: "u-admin", email: "ruben@rjcapital.io" };
 
-  assert.equal(await platformWaitlistInvited(office, "w1", FOUND), "marked");
+  assert.equal(await getPlatformWaitlistInvited(office, "w1", FOUND), "marked");
   assert.ok(rows[0].invited_at, "the stamp that takes them out of the queue");
   assert.equal(rows[0].invited_by, "u-admin", "the column the table was given for exactly this");
   // Two admins working down the same list is how this is used. The second one is owed the truth, not a failure and
   // not a second stamp; and the log says that too.
   const firstStamp = rows[0].invited_at;
-  assert.equal(await platformWaitlistInvited(office, "w1", FOUND), "already");
+  assert.equal(await getPlatformWaitlistInvited(office, "w1", FOUND), "already");
   assert.equal(rows[0].invited_at, firstStamp, "the row is somebody else's now and is left exactly as they left it");
   assert.deepEqual(
     tables.platform_acts.map((a) => [a.act, a.target_kind, a.target_id, a.outcome, a.outcome_note]),
@@ -1838,7 +1846,7 @@ test("marking somebody invited is conditional on them still waiting, records who
   );
   // Billing does not invite people: refused before anything is written.
   await assert.rejects(
-    platformWaitlistInvited({ ...office, role: "billing" }, "w1", FOUND),
+    getPlatformWaitlistInvited({ ...office, role: "billing" }, "w1", FOUND),
     (e) => e.code === "forbidden" && e.status === 403,
   );
   assert.equal(tables.platform_acts.length, 2);
@@ -1856,7 +1864,13 @@ test("the queue's card draws who is waiting, and says the product sends nothing"
     },
     NOW,
   );
-  const page = mount(PlatformQueueCard, { waiting: vm, P: backOffice.verbs, role: "owner", onDone() {}, flash() {} });
+  const page = mount(PlatformQueueCard, {
+    waiting: vm,
+    P: backOffice.verbs,
+    role: "owner",
+    onDone() {},
+    flash() {},
+  });
   assert.match(textOf(byId(page.tree, "platform-queue-words")), /2 waiting, the first since 3d ago/);
   assert.match(textOf(byId(page.tree, "platform-queue-note")), /sends no invitations/i);
   const rows = [];

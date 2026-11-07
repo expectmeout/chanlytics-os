@@ -95,7 +95,7 @@ const b64urlOf = (bytes: ArrayBuffer): string =>
  * derived from the signed state's nonce with the dashboard's own key, so it never travels in a URL and nothing is kept
  * between the consent and the callback. 43 characters, as the RFC's shortest.
  */
-export async function mailboxPkceVerifier(secret: string, nonce: string): Promise<string> {
+export async function makeMailboxPkceVerifier(secret: string, nonce: string): Promise<string> {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
     "sign",
@@ -104,7 +104,7 @@ export async function mailboxPkceVerifier(secret: string, nonce: string): Promis
 }
 
 /** The challenge the consent screen is asked with: the verifier's SHA-256, base64url. */
-export async function mailboxPkceChallenge(verifier: string): Promise<string> {
+export async function makeMailboxPkceChallenge(verifier: string): Promise<string> {
   return b64urlOf(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
 }
 
@@ -120,7 +120,7 @@ export function mailboxAuthorizeUrl(
   state: string,
   opts: { loginHint?: string | null; challenge?: string | null } = {},
 ): string {
-  const q = new URLSearchParams({
+  const query = new URLSearchParams({
     client_id: cfg.clientId,
     redirect_uri: cfg.redirectUri,
     response_type: "code",
@@ -128,20 +128,20 @@ export function mailboxAuthorizeUrl(
     state,
   });
   if (provider === "google") {
-    q.set("access_type", "offline");
-    q.set("prompt", "consent");
+    query.set("access_type", "offline");
+    query.set("prompt", "consent");
     // What an earlier consent to this app gave stays given (decision 0073, R18): one app, every scope filed once.
-    q.set("include_granted_scopes", "true");
+    query.set("include_granted_scopes", "true");
     if (opts.challenge) {
-      q.set("code_challenge", opts.challenge);
-      q.set("code_challenge_method", "S256");
+      query.set("code_challenge", opts.challenge);
+      query.set("code_challenge_method", "S256");
     }
   } else {
-    q.set("response_mode", "query");
-    q.set("prompt", "select_account");
+    query.set("response_mode", "query");
+    query.set("prompt", "select_account");
   }
-  if (opts.loginHint) q.set("login_hint", opts.loginHint);
-  return `${MAILBOX_AUTH_URL[provider]}?${q.toString()}`;
+  if (opts.loginHint) query.set("login_hint", opts.loginHint);
+  return `${MAILBOX_AUTH_URL[provider]}?${query.toString()}`;
 }
 
 /**
@@ -157,13 +157,13 @@ export function mailboxAdminConsentUrl(
   const scope = MAILBOX_SCOPES.microsoft.map((s) =>
     /^(openid|email|profile|offline_access)$/.test(s) ? s : `https://graph.microsoft.com/${s}`,
   );
-  const q = new URLSearchParams({
+  const query = new URLSearchParams({
     client_id: cfg.clientId,
     redirect_uri: cfg.redirectUri,
     scope: scope.join(" "),
     state,
   });
-  return `https://login.microsoftonline.com/organizations/v2.0/adminconsent?${q.toString()}`;
+  return `https://login.microsoftonline.com/organizations/v2.0/adminconsent?${query.toString()}`;
 }
 
 /** The code's exchange, with PKCE's verifier where the consent was asked with its challenge. */

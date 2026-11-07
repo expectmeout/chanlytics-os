@@ -124,7 +124,7 @@
     },
     {
       "kind": "account",
-      "why": "The workspace's own row: its status (every door that must not act on a paused workspace reads it: workspacePaused, workspaceMaySpend, metrics_summary), its zone (a day is counted in it: the series functions) and its word for a booking (appointmentWordRead). The feed tells its status, name, zone, word and logo (00431, 00458), and none of these surfaces hears the row: a zone or a way of buying saved re-reads each of them in the writer's tab where it is drawn, and forgets or leaves it for its page elsewhere (PATCH workspaces, rereadAfter; the Reviews lens is forgotten), and a teammate's change reaches another tab on its next read.",
+      "why": "The workspace's own row: its status (every door that must not act on a paused workspace reads it: workspacePaused, mayWorkspaceSpend, metrics_summary), its zone (a day is counted in it: the series functions) and its word for a booking (getAppointmentWord). The feed tells its status, name, zone, word and logo (00431, 00458), and none of these surfaces hears the row: a zone or a way of buying saved re-reads each of them in the writer's tab where it is drawn, and forgets or leaves it for its page elsewhere (PATCH workspaces, rereadAfter; the Reviews lens is forgotten), and a teammate's change reaches another tab on its next read.",
       "reads": {
         "broadcasts": [
           "tenants"
@@ -431,7 +431,7 @@
     },
     {
       "kind": "unfed",
-      "why": "The senders a connected mailbox left in its mailbox today, on Connections' Left in your mailbox (mailboxLeftSince over mailbox_left, less a sender mailbox_senders says is a person, 00483). The feed tells neither table: the sync that notes a sender left ends by stamping its mailbox's row (synced_at), which Setup hears, so the count is read again with each sync, every five minutes.",
+      "why": "The senders a connected mailbox left in its mailbox today, on Connections' Left in your mailbox (getMailboxLeftSince over mailbox_left, less a sender mailbox_senders says is a person, 00483). The feed tells neither table: the sync that notes a sender left ends by stamping its mailbox's row (synced_at), which Setup hears, so the count is read again with each sync, every five minutes.",
       "reads": {
         "setup": [
           "mailbox_left",
@@ -486,7 +486,7 @@
     },
     {
       "kind": "unfed",
-      "why": "What Anthropic has said of this workspace (decision 0097, workspaceModelStanding over anthropic_profiles), read with the billing row for the shell's line. The health sweep writes it at most twice an hour and the feed does not tell it: it is the service role's table, and no member's press moves it. The line says so at the next read of Billing.",
+      "why": "What Anthropic has said of this workspace (decision 0097, findWorkspaceModelStanding over anthropic_profiles), read with the billing row for the shell's line. The health sweep writes it at most twice an hour and the feed does not tell it: it is the service role's table, and no member's press moves it. The line says so at the next read of Billing.",
       "reads": {
         "billing": [
           "anthropic_profiles"
@@ -500,7 +500,7 @@
     },
     {
       "kind": "unfed",
-      "why": "The previews a lead tried (previewsTriedSince over lead_previews, decision 0079), Today's tried row, in a workspace of ours alone. The feed does not tell lead_previews: what moves it is the business texting or calling its preview, in the preview's own workspace, which this workspace's topic cannot carry. Today reads it with its other reads each time it hears its own records (heardWith), and a lead who tried theirs stays named three days, so the row is a read behind at most.",
+      "why": "The previews a lead tried (listPreviewsTriedSince over lead_previews, decision 0079), Today's tried row, in a workspace of ours alone. The feed does not tell lead_previews: what moves it is the business texting or calling its preview, in the preview's own workspace, which this workspace's topic cannot carry. Today reads it with its other reads each time it hears its own records (heardWith), and a lead who tried theirs stays named three days, so the row is a read behind at most.",
       "reads": {
         "today": [
           "lead_previews"
@@ -537,7 +537,7 @@
           "POST sequences/[id]/steps/[step]/lead-words"
         ]
       },
-      "why": "Whether a chain's waiting and held rows go with a lead's own words (ownWordsAtSteps, decision 0096): the feed does not tell the table. The door that writes them re-reads the chains (the refresh map); a teammate's save shows on the pane's next read, and the send itself reads the words as it goes.",
+      "why": "Whether a chain's waiting and held rows go with a lead's own words (getOwnWordsAtSteps, decision 0096): the feed does not tell the table. The door that writes them re-reads the chains (the refresh map); a teammate's save shows on the pane's next read, and the send itself reads the words as it goes.",
       "reads": {
         "reach_outs": [
           "sequence_lead_words"
@@ -547,7 +547,7 @@
     {
       "kind": "unfed",
       "finding": "S1-1",
-      "why": "The email a reply answered, from the sends' rows (answeredReachOutEmail over reach_out_sends), which the feed never tells. The strip reads again when the reply itself moves (heardWith).",
+      "why": "The email a reply answered, from the sends' rows (findAnsweredReachOutEmail over reach_out_sends), which the feed never tells. The strip reads again when the reply itself moves (heardWith).",
       "reads": {
         "reach_out_replies": [
           "sequence_sends"
@@ -579,7 +579,7 @@
     {
       "kind": "unfed",
       "finding": "S3-6",
-      "why": "Setup's team step names the seats and the invitations from the roster (setup.ts teamRoster). Profiles belong to a sign-in, not to one workspace, so the feed does not tell of them, and nothing reads Setup again for a rename: owed with Setup's team step (S3-6).",
+      "why": "Setup's team step names the seats and the invitations from the roster (setup.ts getTeamRoster). Profiles belong to a sign-in, not to one workspace, so the feed does not tell of them, and nothing reads Setup again for a rename: owed with Setup's team step (S3-6).",
       "reads": {
         "setup": [
           "profiles"
@@ -598,7 +598,7 @@
     },
     {
       "kind": "account",
-      "why": "The month's allowance of leads the page counts against is the plan's (00512 lead_allowance: a free trial's 50 until it pays, then the month's), read inside the leads' month (leadAllowanceOf). The plan moves a few times in a workspace's life, at the end of its trial or a change of plan; the page reads it again when it is reached for, and a search's own reserve reads it at the door (lead_reserve).",
+      "why": "The month's allowance of leads the page counts against is the plan's (00512 lead_allowance: a free trial's 50 until it pays, then the month's), read inside the leads' month (getLeadAllowance). The plan moves a few times in a workspace's life, at the end of its trial or a change of plan; the page reads it again when it is reached for, and a search's own reserve reads it at the door (lead_reserve).",
       "reads": {
         "leads": [
           "billing_accounts"
@@ -657,7 +657,7 @@
       "kind": "over-read",
       "finding": "S3-7",
       "field": null,
-      "why": "The reach-outs pane reads whether the workspace may spend (workspaceMaySpend: its plan and standing) with the chains, for a sentence no page says any more (the wiring's second audit S3-7). Nothing drawn depends on it; the read is owed its removal (lane R11).",
+      "why": "The reach-outs pane reads whether the workspace may spend (mayWorkspaceSpend: its plan and standing) with the chains, for a sentence no page says any more (the wiring's second audit S3-7). Nothing drawn depends on it; the read is owed its removal (lane R11).",
       "reads": {
         "reach_outs": [
           "billing_accounts"
@@ -666,7 +666,7 @@
     },
     {
       "kind": "over-read",
-      "why": "A person's visits, deals and steps (person-notes, earlierVisitRows), and the signer a reach-out reply of theirs offers, are People's kinds heard on every page: People's read of a visit, a deal, a step or a reply reloads the open person's page (person-real.tsx hears surface:clients), so the person surface does not read them a second time.",
+      "why": "A person's visits, deals and steps (person-notes, getEarlierVisitRows), and the signer a reach-out reply of theirs offers, are People's kinds heard on every page: People's read of a visit, a deal, a step or a reply reloads the open person's page (person-real.tsx hears surface:clients), so the person surface does not read them a second time.",
       "reads": {
         "person": [
           "appointments",
@@ -966,7 +966,7 @@
     {
       "kind": "owed",
       "finding": "R5",
-      "why": "GET contacts counts each message's versions to say whom it reaches, and by which channel (templates.ts messageVersionRowsOf). The templates a composer offers are the settings read's (surfaces/offered-templates.ts), which Settings hears on the feed (00408); Sent's pool counts follow on its next read.",
+      "why": "GET contacts counts each message's versions to say whom it reaches, and by which channel (templates.ts listMessageVersionRows). The templates a composer offers are the settings read's (surfaces/offered-templates.ts), which Settings hears on the feed (00408); Sent's pool counts follow on its next read.",
       "reads": {
         "audiences": [
           "templates"
@@ -1043,7 +1043,7 @@
     },
     {
       "kind": "unfed",
-      "why": "Which sequence took in the lead a visit's person was found as (visitOrigins over sequence_enrollments, 00426), for the visit sheet's origin row. The feed tells no enrollment. The row rides with its visit: read again with the visits both surfaces hear (appointments) and with the board's five-minute read. Setup reads the calendar feed-only, which reads no visit and so none of this.",
+      "why": "Which sequence took in the lead a visit's person was found as (listVisitOrigins over sequence_enrollments, 00426), for the visit sheet's origin row. The feed tells no enrollment. The row rides with its visit: read again with the visits both surfaces hear (appointments) and with the board's five-minute read. Setup reads the calendar feed-only, which reads no visit and so none of this.",
       "reads": {
         "calendar": [
           "sequence_enrollments"
@@ -1063,7 +1063,7 @@
     },
     {
       "kind": "over-read",
-      "why": "The name of that sequence, on the visit sheet's origin row (visitOrigins over sequences): drawn only as it rides with its visit, which both surfaces hear (appointments); a sequence renamed shows on the board's next read. Setup reads the calendar feed-only, which reads no visit and so never this.",
+      "why": "The name of that sequence, on the visit sheet's origin row (listVisitOrigins over sequences): drawn only as it rides with its visit, which both surfaces hear (appointments); a sequence renamed shows on the board's next read. Setup reads the calendar feed-only, which reads no visit and so never this.",
       "reads": {
         "calendar": [
           "sequences"
@@ -1077,7 +1077,7 @@
     },
     {
       "kind": "over-read",
-      "why": "The names on Autonomy's line of the people set differently (the Settings wiring review, item 10, 18 Oct 2026: readers/autonomy.ts ownModes, namesOfPeople over the newest of peopleOnTheirOwnMode). A name rides with its person's own mode row, which Settings hears (policies): the line is read again whenever anyone's mode changes, and a person renamed in between shows the new name on Settings' next read.",
+      "why": "The names on Autonomy's line of the people set differently (the Settings wiring review, item 10, 18 Oct 2026: readers/autonomy.ts ownModes, listNamesOfPeople over the newest of listPeopleOnTheirOwnMode). A name rides with its person's own mode row, which Settings hears (policies): the line is read again whenever anyone's mode changes, and a person renamed in between shows the new name on Settings' next read.",
       "reads": {
         "settings": [
           "contacts"

@@ -2,7 +2,7 @@
  * Lists that keep themselves current, and playbooks that run on a list (00155).
  *
  * A list kept by hand is a name and the people put on it. A smart list is a name and a rule in a vocabulary the
- * person's row can answer (contracts list-rules.ts): drafted by the assistant from the owner's own words, shown back
+ * person's row can answer (contracts lists/rules.ts): drafted by the assistant from the owner's own words, shown back
  * as chips with who it holds for, and judged on every read by one function (savedListIds) -- the People rail, a
  * broadcast's send, a playbook's run on the edge and the Playbooks page's count. A playbook may run on one of the
  * workspace's lists, and on People's Lapsed list, the win-back by visits that had no playbook of its own.
@@ -515,7 +515,7 @@ const { checkPlaybook } = await import(at("packages/core/src/campaigns/check-pla
 
 function runPorts() {
   const log = [];
-  // The message's rows (db messageVersionRowsOf): the approved WhatsApp row of the playbook's message, pbRow's.
+  // The message's rows (db listMessageVersionRows): the approved WhatsApp row of the playbook's message, pbRow's.
   const row = {
     id: "tpl-1",
     channel: "whatsapp",
@@ -532,7 +532,7 @@ function runPorts() {
     rejected_reason: null,
   };
   // The run, its people, its job and its decision, whole (00381): the run's id with the decision's.
-  // Who the sequence has reached already (db sequenceReached, #1691): nobody here, so the list goes to everyone on it.
+  // Who the sequence has reached already (db wasSequenceReached, #1691): nobody here, so the list goes to everyone on it.
   const answer = { message: [row], alreadyRan: false, assemble: { id: "b1", decisionId: "d1" }, reached: new Set() };
   const ports = new Proxy(
     {},
@@ -644,7 +644,7 @@ test("a run on a list: its people, and a list deleted under it runs nobody and s
 });
 
 test("a playbook on a list names it, the workspace's own, and takes its name when none was given", async () => {
-  // The message's rows (db messageVersionRowsOf): the approved WhatsApp row the body's template_id names.
+  // The message's rows (db listMessageVersionRows): the approved WhatsApp row the body's template_id names.
   const template = {
     id: "11111111-1111-4111-8111-111111111111",
     channel: "whatsapp",
@@ -819,7 +819,7 @@ test("a smart list drafted from the owner's words: a name, a rule, and what it c
 });
 
 test("a send to a smart list enrols who its rule holds for, over the same pool it counts from", async () => {
-  const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"));
+  const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/campaigns/ports.ts"));
   const person = (id, channels) => ({
     id,
     display_name: id,
@@ -914,7 +914,7 @@ test("the sweep reads every list once per workspace, with who is on each now", a
 });
 
 test("either deploy order: on a database 00155 has not reached, every list reads as one kept by hand, never as an error", async () => {
-  const { savedListsFor, savedListFor, listRow } = await import(at("packages/db/src/repositories/people/lists.ts"));
+  const { listSavedLists, findSavedList, listRow } = await import(at("packages/db/src/repositories/people/lists.ts"));
   const base = fakeDb({
     segments: [{ id: "s1", tenant_id: "t1", name: "Regulars" }],
     segment_members: [{ segment_id: "s1", contact_id: "c1", tenant_id: "t1" }],
@@ -941,8 +941,8 @@ test("either deploy order: on a database 00155 has not reached, every list reads
   };
   // And before 00169: never archived.
   const kept = { id: "s1", name: "Regulars", ids: ["c1"], rule: null, archived_at: null };
-  assert.deepEqual(await savedListsFor(db, "t1"), [kept]);
-  assert.deepEqual(await savedListFor(db, "t1", "s1"), kept);
+  assert.deepEqual(await listSavedLists(db, "t1"), [kept]);
+  assert.deepEqual(await findSavedList(db, "t1", "s1"), kept);
   assert.deepEqual(await listRow(db, "s1"), {
     id: "s1",
     tenant_id: "t1",

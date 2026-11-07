@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { personReplyMode, setPersonReplyMode } from "@chanlytics/db";
+import { findPersonReplyMode, setPersonReplyMode } from "@chanlytics/db/workspace";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -249,10 +249,10 @@ test("a person's receptionist mode is a policy row scoped to them: set, read, cl
         .select("id")
         .single(),
     );
-    assert.equal(await personReplyMode(db, tenantId, contact.id), null, "nothing set = follow the workspace");
+    assert.equal(await findPersonReplyMode(db, tenantId, contact.id), null, "nothing set = follow the workspace");
 
     await setPersonReplyMode(db, tenantId, contact.id, "never");
-    assert.equal(await personReplyMode(db, tenantId, contact.id), "never");
+    assert.equal(await findPersonReplyMode(db, tenantId, contact.id), "never");
     const rows = ok(
       await db
         .from("policies")
@@ -264,7 +264,7 @@ test("a person's receptionist mode is a policy row scoped to them: set, read, cl
 
     // Changing it is an upsert on the same row, not a second row.
     await setPersonReplyMode(db, tenantId, contact.id, "ask");
-    assert.equal(await personReplyMode(db, tenantId, contact.id), "ask");
+    assert.equal(await findPersonReplyMode(db, tenantId, contact.id), "ask");
     const again = ok(await db.from("policies").select("id").eq("tenant_id", tenantId).eq("subject_id", contact.id));
     assert.equal(again.length, 1);
 
@@ -281,7 +281,7 @@ test("a person's receptionist mode is a policy row scoped to them: set, read, cl
     assert.ok(ws, "the workspace reply row still exists");
 
     await setPersonReplyMode(db, tenantId, contact.id, null);
-    assert.equal(await personReplyMode(db, tenantId, contact.id), null);
+    assert.equal(await findPersonReplyMode(db, tenantId, contact.id), null);
   } finally {
     await db.from("policies").delete().eq("tenant_id", tenantId).eq("subject_type", "contact");
     await cleanup(tenantId);

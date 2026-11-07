@@ -24,6 +24,7 @@ import {
   slugTemplateName,
   templateNameOk,
   validateOwnVersion,
+  NUMBERED_SLOT,
 } from "@chanlytics/contracts";
 import type { SlotSet, StarterTemplate, VersionChannel, VersionWords } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
@@ -236,7 +237,7 @@ const tcBookingLink = (): string | null => {
 
 const tcSlots = (body: string): number[] => {
   const s = new Set<number>();
-  for (const m of String(body || "").matchAll(/\{\{(\d+)\}\}/g)) s.add(Number(m[1]));
+  for (const m of String(body || "").matchAll(NUMBERED_SLOT)) s.add(Number(m[1]));
   return [...s].sort((a, b) => a - b);
 };
 

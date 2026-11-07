@@ -27,7 +27,7 @@ process.env.LEAD_FROM = "Pager <pager@platform.test>";
 process.env.DASHBOARD_ORIGIN = "https://app.example.test";
 for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VERCEL_ENV"]) delete process.env[k];
 
-const { notify, notifyOnce, notifyEvent, mail } = await import(at("apps/edge/lib/ops/notify.ts"));
+const { notify, notifyOnce, notifyEvent, sendOpsMail } = await import(at("apps/edge/lib/shared/alerts/notify.ts"));
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 after(() => setPg(null));
 
@@ -241,7 +241,7 @@ test("a deployment that cannot say where the dashboard is loses the link, never 
 test("a mail sent on its own (a lead's question, you are live, an alert test) carries the link its own builder wrote, and no second", async () => {
   const t = transport();
   const own = "Dana asked.\n\nhttps://app.example.test/w/harbor/people/leads";
-  await mail(harbor(), { subject: "A question", body: own, kind: "leads_question" }, { send: t.send });
+  await sendOpsMail(harbor(), { subject: "A question", body: own, kind: "leads_question" }, { send: t.send });
   assert.equal(t.sent[0].text, own);
 });
 

@@ -1,9 +1,9 @@
 /**
  * A person's wires, where they came from and since when, in the owner's words: the leaf both the person's view model
- * (people.ts) and the list rule language (list-rules.ts) read, so neither loads the other to name a channel (decision
+ * (people.ts) and the list rule language (lists/rules.ts) read, so neither loads the other to name a channel (decision
  * 0009), and a thread's sheet loads none of the person page's cards to say a date.
  */
-import type { PersonRowVM } from "./person-row";
+import type { PersonRowVM } from "./person-row/row-facts";
 
 export type PersonChannel = "whatsapp" | "sms" | "voice" | "email" | "instagram";
 

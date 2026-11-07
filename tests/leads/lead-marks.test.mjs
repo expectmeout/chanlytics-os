@@ -7,14 +7,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { setSitePageReader } from "@chanlytics/channels";
+import { setSitePageReader } from "@chanlytics/channels/website";
 import {
-  imageBytes,
+  fetchImageBytes,
   leadMarkPath,
   markLeadsAgain,
-  leadSitePage,
+  findLeadSitePage,
   storeLeadMark,
-} from "../../apps/edge/lib/leads/lead-marks.ts";
+} from "../../apps/edge/lib/leads/marks.ts";
 import { MARK_ALLOWANCE_MS, markPlaces, siteReadsOf } from "../../packages/core/src/leads/index.ts";
 import { DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS, markUntil } from "../../packages/core/src/leads/runner/rules.ts";
 import { LEAD_SITE_READ_USD } from "../../packages/contracts/src/leads/search/caps.ts";
@@ -41,7 +41,7 @@ function trickle(chunks) {
 test("an image is read whole when it is a logo's size, asked for as an image we keep, and nothing else", async () => {
   const bytes = png(180, 180, 3000);
   let asked = null;
-  const got = await imageBytes(
+  const got = await fetchImageBytes(
     async (url, init) => {
       asked = { url, init };
       return new Response(bytes, { headers: { "content-type": "application/octet-stream" } });
@@ -61,7 +61,7 @@ test("an image is read whole when it is a logo's size, asked for as an image we 
 test("an image past the cap is refused: said up front, before a byte is read; run long, cut off where it passed", async () => {
   const told = trickle([png(180, 180, 100)]);
   assert.equal(
-    await imageBytes(
+    await fetchImageBytes(
       async () => new Response(told.body, { headers: { "content-length": "9000" } }),
       "https://a.example/x.png",
       4000,
@@ -74,7 +74,7 @@ test("an image past the cap is refused: said up front, before a byte is read; ru
 
   const long = trickle([new Uint8Array(3000), new Uint8Array(3000), new Uint8Array(3000), new Uint8Array(3000)]);
   assert.equal(
-    await imageBytes(async () => new Response(long.body), "https://a.example/x.png", 4000, 5000),
+    await fetchImageBytes(async () => new Response(long.body), "https://a.example/x.png", 4000, 5000),
     null,
     "a body that says nothing and runs past the cap",
   );
@@ -83,11 +83,11 @@ test("an image past the cap is refused: said up front, before a byte is read; ru
 
 test("an image that is not there, or a site that fails, is no bytes", async () => {
   assert.equal(
-    await imageBytes(async () => new Response("gone", { status: 404 }), "https://a.example/x.png", 4000, 5000),
+    await fetchImageBytes(async () => new Response("gone", { status: 404 }), "https://a.example/x.png", 4000, 5000),
     null,
   );
   assert.equal(
-    await imageBytes(
+    await fetchImageBytes(
       async () => {
         throw new TypeError("fetch failed");
       },
@@ -109,7 +109,7 @@ test("a home page is read by the platform's page reader as a browser drew it, it
     return drawn === null ? null : { url, html: drawn, markdown: "", title: null, description: null, brand: null };
   });
   try {
-    const page = await leadSitePage("a.example", 4000);
+    const page = await findLeadSitePage("a.example", 4000);
     assert.ok(page.html.startsWith(head), "the head, where a mark is declared");
     assert.equal(
       page.html.length,
@@ -120,7 +120,7 @@ test("a home page is read by the platform's page reader as a browser drew it, it
     drawn = null;
     asked.length = 0;
     assert.equal(
-      await leadSitePage("a.example", 4000),
+      await findLeadSitePage("a.example", 4000),
       null,
       "a site the reader could not draw, either way it is spelled",
     );
@@ -130,7 +130,7 @@ test("a home page is read by the platform's page reader as a browser drew it, it
       "a site often answers on one spelling alone",
     );
     asked.length = 0;
-    assert.equal(await leadSitePage("10.0.0.5", 4000), null, "a private address is never asked for");
+    assert.equal(await findLeadSitePage("10.0.0.5", 4000), null, "a private address is never asked for");
     assert.deepEqual(asked, []);
   } finally {
     setSitePageReader(before);

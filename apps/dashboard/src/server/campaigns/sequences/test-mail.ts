@@ -11,8 +11,15 @@ import {
   reachOutExampleLead,
   stepTestMail,
 } from "@chanlytics/contracts";
-import { leadSlotsOf, leadStepOpeningOf, leadWordsOf, messageVersionRowsOf, sequenceOverview } from "@chanlytics/db";
-import { businessOf, chainsOf } from "../reach-outs";
+import {
+  findLeadSlots,
+  findLeadStepOpening,
+  listLeadWords,
+  listMessageVersionRows,
+  listSequenceOverview,
+} from "@chanlytics/db/campaigns";
+import { findBusiness } from "../reach-outs/chain-acts";
+import { listChains } from "../reach-outs/reach-outs";
 import { deployment } from "../../shared/env";
 import { callEdge, edgeConfigured } from "../../shared/edge";
 import { log } from "../../shared/log";
@@ -36,11 +43,13 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
   const id = requireUuid(stepId, "step");
   const lid = leadId ? requireUuid(leadId, "lead") : null;
   const [chains, business, lead, opened, typed] = await Promise.all([
-    chainsOf(ctx, seq.tenant_id),
-    businessOf(ctx, seq.tenant_id),
-    lid ? leadSlotsOf(ctx.supabase, seq.tenant_id, lid) : Promise.resolve(null),
-    lid ? leadStepOpeningOf(ctx.supabase, { tenantId: seq.tenant_id, stepId: id, leadId: lid }) : Promise.resolve(null),
-    lid ? leadWordsOf(ctx.supabase, seq.tenant_id, lid) : Promise.resolve([]),
+    listChains(ctx, seq.tenant_id),
+    findBusiness(ctx, seq.tenant_id),
+    lid ? findLeadSlots(ctx.supabase, seq.tenant_id, lid) : Promise.resolve(null),
+    lid
+      ? findLeadStepOpening(ctx.supabase, { tenantId: seq.tenant_id, stepId: id, leadId: lid })
+      : Promise.resolve(null),
+    lid ? listLeadWords(ctx.supabase, seq.tenant_id, lid) : Promise.resolve([]),
   ]);
   const chain = chains.find((c) => c.root_id === seq.id);
   const step = chain?.steps.find((s) => s.id === id);
@@ -80,9 +89,9 @@ async function mailOf(ctx: RouteContext, seq: Sequence, stepId: string) {
   const step = await stepOfSequence(ctx, seq, stepId);
   if (!step.template_id) throw new AppError("validation", W.noMessage, 422);
   const [rows, overview, business] = await Promise.all([
-    messageVersionRowsOf(ctx.supabase, seq.tenant_id, { id: step.template_id }),
-    sequenceOverview(ctx.supabase, seq.tenant_id, seq.id),
-    businessOf(ctx, seq.tenant_id),
+    listMessageVersionRows(ctx.supabase, seq.tenant_id, { id: step.template_id }),
+    listSequenceOverview(ctx.supabase, seq.tenant_id, seq.id),
+    findBusiness(ctx, seq.tenant_id),
   ]);
   const own = rows.find((r) => r.id === step.template_id) ?? rows[0];
   if (!own) throw new AppError("validation", W.noMessage, 422);
@@ -121,14 +130,14 @@ export async function sendStepTest(
 ): Promise<{ to: string }> {
   const mail = seq.starts === "leads" ? await leadMailOf(ctx, seq, stepId, leadId) : await mailOf(ctx, seq, stepId);
   if (!deployment.providersLive || !edgeConfigured()) throw new AppError("conflict", W.notLive, 409);
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/email/test-to-self",
     { tenant_id: seq.tenant_id, user_id: ctx.userId, subject: mail.subject, text: mail.text },
     { workspace: seq.tenant_id, user: ctx.userId, timeoutMs: TEST_TIMEOUT_MS },
   );
-  const body = (r.body ?? {}) as { sent?: unknown; to?: unknown; why?: unknown };
-  if (r.status === 200 && body.sent === true && typeof body.to === "string") return { to: body.to };
-  if (r.status === 200 && body.why === "no_address") throw new AppError("conflict", W.noAddress, 409);
-  log.error("step_test_failed", { tenant_id: seq.tenant_id, status: r.status, error: r.body?.error });
+  const body = (answer.body ?? {}) as { sent?: unknown; to?: unknown; why?: unknown };
+  if (answer.status === 200 && body.sent === true && typeof body.to === "string") return { to: body.to };
+  if (answer.status === 200 && body.why === "no_address") throw new AppError("conflict", W.noAddress, 409);
+  log.error("step_test_failed", { tenant_id: seq.tenant_id, status: answer.status, error: answer.body?.error });
   throw new AppError("upstream_email", W.notSent, 502);
 }

@@ -4,7 +4,7 @@
  * from the chrome's words (chrome.ts): the phone app reads those through its own entry (mobile/phone-app.ts), and
  * what a page opens on reaches into the pages' own rules (Reports' periods), which the phone app has no part in.
  */
-import { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE } from "../reports/report-periods";
+import { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE } from "../reports/periods";
 import { ROUTE_WORDS } from "./address";
 
 /** The settings read (bridge/surfaces/settings.ts): the business, the team, the policies, every template. */

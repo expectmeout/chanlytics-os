@@ -6,23 +6,24 @@
  */
 import {
   pipelineOf,
-  pipelineMove,
-  pipelinePeekOf,
   pipelineRail,
   pipelineRoute,
   parsePipelineRoute,
   pipelineViewLabel,
-  pipelineSorted,
-  pipelinePassMany,
-  pipelinePassDone,
-  pipelineSheetOf,
-  pipelineBoardMore,
   pipelinePersonOf,
   pipelineRowId,
   pipelineRowNow,
-  PIPELINE_BOARD_CAP,
   PIPELINE_WORDS,
 } from "@chanlytics/contracts";
+import {
+  pipelineMove,
+  pipelineSorted,
+  pipelinePassMany,
+  pipelinePassDone,
+  pipelineBoardMore,
+  PIPELINE_BOARD_CAP,
+} from "./pipeline/board-view";
+import { pipelinePeekOf, pipelineSheetOf } from "./pipeline/peek-view";
 
 export const pipelineHelpers = () => ({
   of: pipelineOf,

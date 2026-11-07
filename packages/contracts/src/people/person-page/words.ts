@@ -11,8 +11,10 @@ export const NAME_SOURCES = ["typed", "import", "calendar", "signature", "wire",
 export type NameSource = (typeof NAME_SOURCES)[number];
 
 /** A name source as the wire carries it, or null for a person whose name nobody set, or set before it was kept. */
-export function asNameSource(v: unknown): NameSource | null {
-  return typeof v === "string" && (NAME_SOURCES as readonly string[]).includes(v) ? (v as NameSource) : null;
+export function asNameSource(value: unknown): NameSource | null {
+  return typeof value === "string" && (NAME_SOURCES as readonly string[]).includes(value)
+    ? (value as NameSource)
+    : null;
 }
 
 /** The words of a signer's name, its offer and its press. */
@@ -139,7 +141,7 @@ export const BUSINESS_DOOR_LABEL = (name: string) => `${name}: open the business
  * where they came from, the business they work at, what they may be sent and the receptionist with it, and their lists.
  */
 export const PERSON_ABOUT_WORDS = {
-  label: (who: string) => `About ${who}`,
+  label: (personName: string) => `About ${personName}`,
   reach: "Reach them",
   cameFrom: "Where they came from",
   /** Where they came from as a lead: the door to it, beside the day. */
@@ -167,7 +169,7 @@ export const PERSON_ABOUT_WORDS = {
   /** Offers by email's ask (00489), when the edge could not be asked at all: the reasons it gives are its own words. */
   couldNotAsk: "Their confirmation could not be asked for. Try again in a minute.",
   /** The top bar's Ask on their page (canvas A): about them by their first name, or a stand-in's business whole. */
-  askAbout: (who: string) => `Ask about ${who}`,
+  askAbout: (personName: string) => `Ask about ${personName}`,
   /** What the receptionist knows of them, under the rows while the group is open. */
   knowsTitle: "What the receptionist knows",
   knowsFoot: "It uses kept notes as facts and never reads them aloud.",
@@ -290,7 +292,7 @@ export const PERSON_LISTS_SHEET_WORDS = {
  * What the receptionist knows of them, in one line (canvas A, P9.4): their name, where they work, their address, their
  * answer on offers, and when they were last in touch, each only where it is known.
  */
-export function receptionistKnowsOf(f: {
+export function receptionistKnowsOf(fields: {
   name: string | null;
   worksAt: string | null;
   email: string | null;
@@ -298,11 +300,11 @@ export function receptionistKnowsOf(f: {
   lastInTouch: string | null;
 }): string {
   return [
-    f.name ? `Name ${f.name}` : null,
-    f.worksAt ? `Works at ${f.worksAt}` : null,
-    f.email ? `Email ${f.email}` : null,
-    f.offers ? `Offers & news ${f.offers.charAt(0).toLowerCase()}${f.offers.slice(1)}` : null,
-    f.lastInTouch ? `Last in touch ${f.lastInTouch}` : null,
+    fields.name ? `Name ${fields.name}` : null,
+    fields.worksAt ? `Works at ${fields.worksAt}` : null,
+    fields.email ? `Email ${fields.email}` : null,
+    fields.offers ? `Offers & news ${fields.offers.charAt(0).toLowerCase()}${fields.offers.slice(1)}` : null,
+    fields.lastInTouch ? `Last in touch ${fields.lastInTouch}` : null,
   ]
     .filter((x): x is string => x !== null)
     .join(" · ");

@@ -21,21 +21,21 @@ export interface SequenceMake {
  * The newest make of each sequence to leads asked for: by id (`ids`), or the ones a member made (`by`) since a moment
  * (`since`), newest first, `limit` rows of the ledger at most. A make of a sequence to people is not one.
  */
-export async function sequenceMakes(
+export async function listSequenceMakes(
   db: Db,
-  p: { tenantId: string; ids?: readonly string[]; by?: string; since?: string; limit: number },
+  params: { tenantId: string; ids?: readonly string[]; by?: string; since?: string; limit: number },
 ): Promise<SequenceMake[]> {
-  if (p.ids && p.ids.length === 0) return [];
-  let q = db
+  if (params.ids && params.ids.length === 0) return [];
+  let query = db
     .from("decisions")
     .select("subject_id, actor_user_id, created_at, payload")
-    .eq("tenant_id", p.tenantId)
+    .eq("tenant_id", params.tenantId)
     .eq("subject_type", "sequence")
     .eq("verb", "make_sequence");
-  if (p.ids) q = q.in("subject_id", [...p.ids]);
-  if (p.by) q = q.eq("actor_user_id", p.by);
-  if (p.since) q = q.gte("created_at", p.since);
-  const { data, error } = await q.order("created_at", { ascending: false }).limit(p.limit);
+  if (params.ids) query = query.in("subject_id", [...params.ids]);
+  if (params.by) query = query.eq("actor_user_id", params.by);
+  if (params.since) query = query.gte("created_at", params.since);
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(params.limit);
   if (error) throw new Error(`decisions: ${error.message}`);
   const seen = new Set<string>();
   const out: SequenceMake[] = [];

@@ -121,7 +121,7 @@ const reachOutTiles = () => {
   };
   return toReachOutLensVM(dto, NOW).strip;
 };
-/** The Campaigns lens's own figures (contracts reports/campaigns/campaign-lens.ts): the strip of five and what is stuck now. */
+/** The Campaigns lens's own figures (contracts reports/campaigns/lens.ts): the strip of five and what is stuck now. */
 const campaignTiles = () => {
   const vm = toCampaignLensVM({ campaigns: CAMPAIGNS, ledger: ledgerWith(), reachOuts: undefined }, CAMPAIGN_NOW);
   return [...vm.strip, ...vm.stuck];

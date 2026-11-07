@@ -12,30 +12,32 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   REACH_OUT_SLOT_SET,
-  clampWords,
-  eraseSlot,
   fillSlots,
-  fromSlotParts,
-  insertSlot,
-  namedProblem,
   numberedSlots,
   playbookName,
-  partWritten,
   placeholdersOf,
   reachOutRules,
-  slotKnown,
   slotChoices,
-  slotLabel,
   slotWritten,
   smsVersionSegments,
   starterByKey,
   starterText,
   templateSlots,
-  toSlotParts,
   validateEmailVersion,
   validateOwnVersion,
   validateSmsVersion,
 } from "@chanlytics/contracts";
+import {
+  clampWords,
+  eraseSlot,
+  fromSlotParts,
+  insertSlot,
+  namedProblem,
+  partWritten,
+  slotKnown,
+  slotLabel,
+  toSlotParts,
+} from "../../apps/dashboard/src/surfaces/campaigns/templates/message-version-slots.ts";
 
 const text = (t) => ({ kind: "text", text: t });
 // A slot is its key (a number's digits here); the numbered set is what words are read over unless one is named.
@@ -198,27 +200,39 @@ test("a slot put in where there is no place, or past the words, goes at the end;
 /* ---------------------------------- a slot taken out ---------------------------------- */
 
 test("Backspace against a slot takes it whole and leaves the caret where it stood; Delete does the same from before it", () => {
-  assert.deepEqual(eraseSlot("Hi {{1}}, hi", 8, 8, "back"), { text: "Hi , hi", caret: 3 });
-  assert.deepEqual(eraseSlot("Hi {{1}}, hi", 3, 3, "forward"), { text: "Hi , hi", caret: 3 });
-  assert.deepEqual(eraseSlot("{{10}}x", 6, 6, "back"), { text: "x", caret: 0 }, "{{10}} is one slot");
-  assert.deepEqual(eraseSlot("{{1}}{{2}}", 10, 10, "back"), { text: "{{1}}", caret: 5 }, "the one beside the caret");
-  assert.deepEqual(eraseSlot("{{1}}{{2}}", 5, 5, "back"), { text: "{{2}}", caret: 0 });
-  assert.deepEqual(eraseSlot("{{1}}{{2}}", 5, 5, "forward"), { text: "{{1}}", caret: 5 });
+  assert.deepEqual(eraseSlot("Hi {{1}}, hi", { start: 8, end: 8 }, "back"), { text: "Hi , hi", caret: 3 });
+  assert.deepEqual(eraseSlot("Hi {{1}}, hi", { start: 3, end: 3 }, "forward"), { text: "Hi , hi", caret: 3 });
+  assert.deepEqual(eraseSlot("{{10}}x", { start: 6, end: 6 }, "back"), { text: "x", caret: 0 }, "{{10}} is one slot");
+  assert.deepEqual(
+    eraseSlot("{{1}}{{2}}", { start: 10, end: 10 }, "back"),
+    { text: "{{1}}", caret: 5 },
+    "the one beside the caret",
+  );
+  assert.deepEqual(eraseSlot("{{1}}{{2}}", { start: 5, end: 5 }, "back"), { text: "{{2}}", caret: 0 });
+  assert.deepEqual(eraseSlot("{{1}}{{2}}", { start: 5, end: 5 }, "forward"), { text: "{{1}}", caret: 5 });
 });
 
 test("words beside the caret, a selection, a caret in the wrong place and braces that name nothing are not a slot's to take", () => {
-  assert.equal(eraseSlot("Hi {{1}}", 2, 2, "back"), null, "words before the caret go a letter at a time");
-  assert.equal(eraseSlot("Hi {{1}}", 3, 3, "back"), null, "a slot after the caret is Delete's");
-  assert.equal(eraseSlot("Hi {{1}}", 8, 8, "forward"), null, "and a slot before it is Backspace's");
-  assert.equal(eraseSlot("Hi {{1}} there", 3, 8, "back"), null, "a selection is the browser's to delete");
-  assert.equal(eraseSlot("", 0, 0, "back"), null);
-  assert.equal(eraseSlot("{{ 1 }}", 7, 7, "back"), null, "{{ 1 }} names no number: words");
+  assert.equal(
+    eraseSlot("Hi {{1}}", { start: 2, end: 2 }, "back"),
+    null,
+    "words before the caret go a letter at a time",
+  );
+  assert.equal(eraseSlot("Hi {{1}}", { start: 3, end: 3 }, "back"), null, "a slot after the caret is Delete's");
+  assert.equal(eraseSlot("Hi {{1}}", { start: 8, end: 8 }, "forward"), null, "and a slot before it is Backspace's");
+  assert.equal(
+    eraseSlot("Hi {{1}} there", { start: 3, end: 8 }, "back"),
+    null,
+    "a selection is the browser's to delete",
+  );
+  assert.equal(eraseSlot("", { start: 0, end: 0 }, "back"), null);
+  assert.equal(eraseSlot("{{ 1 }}", { start: 7, end: 7 }, "back"), null, "{{ 1 }} names no number: words");
   assert.deepEqual(
-    eraseSlot("{{01}}", 6, 6, "back"),
+    eraseSlot("{{01}}", { start: 6, end: 6 }, "back"),
     { text: "", caret: 0 },
     "{{01}} is a slot, whole, as it was written",
   );
-  assert.deepEqual(eraseSlot("a{{007}}b", 1, 1, "forward"), { text: "ab", caret: 1 });
+  assert.deepEqual(eraseSlot("a{{007}}b", { start: 1, end: 1 }, "forward"), { text: "ab", caret: 1 });
 });
 
 /* ---------------------------------- names ---------------------------------- */
@@ -384,19 +398,19 @@ test("the stored words never change on the way through the parts, for named slot
 test("a named slot put in goes where the caret is, whole; Backspace and Delete take it as one thing", () => {
   assert.deepEqual(insertSlot("Hi , sign", "your name", 3, 3), { text: "Hi {{your name}}, sign", caret: 16 });
   assert.deepEqual(insertSlot("", "opening", 0, 0), { text: "{{opening}}", caret: 11 });
-  assert.deepEqual(eraseSlot("Hi {{your name}}!", 16, 16, "back", SIX), { text: "Hi !", caret: 3 });
-  assert.deepEqual(eraseSlot("Hi {{your name}}!", 3, 3, "forward", SIX), { text: "Hi !", caret: 3 });
+  assert.deepEqual(eraseSlot("Hi {{your name}}!", { start: 16, end: 16 }, "back", SIX), { text: "Hi !", caret: 3 });
+  assert.deepEqual(eraseSlot("Hi {{your name}}!", { start: 3, end: 3 }, "forward", SIX), { text: "Hi !", caret: 3 });
   assert.equal(
-    eraseSlot("Hi {{your name}}!", 4, 4, "back", SIX),
+    eraseSlot("Hi {{your name}}!", { start: 4, end: 4 }, "back", SIX),
     null,
     "inside the braces is never a place the caret stands",
   );
   assert.deepEqual(
-    eraseSlot("{{ Your Name }}", 15, 15, "back", SIX),
+    eraseSlot("{{ Your Name }}", { start: 15, end: 15 }, "back", SIX),
     { text: "", caret: 0 },
     "a spelling of a slot goes whole as it was written",
   );
-  assert.equal(eraseSlot("{{ }}", 5, 5, "back", SIX), null, "braces that name nothing are words");
+  assert.equal(eraseSlot("{{ }}", { start: 5, end: 5 }, "back", SIX), null, "braces that name nothing are words");
 });
 
 test("a named slot is called what the set calls it, and a name it does not list is called as it was written", () => {

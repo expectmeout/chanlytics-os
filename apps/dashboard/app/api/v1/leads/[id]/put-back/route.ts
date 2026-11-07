@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
-import { answerOf, refusalOf, saidLeadPutBack } from "@/server/leads/leads";
+import { answerOf, refusalOf, recordLeadPutBack } from "@/server/leads/leads";
 
 const Body = z.object({ search_id: z.string().uuid() });
 
@@ -22,10 +22,10 @@ export const POST = write({
       p_lead_id: leadId,
     });
     if (error) throw new Error(`lead_member_put_back: ${error.message}`);
-    const a = answerOf(data);
-    const refused = refusalOf(a);
+    const answer = answerOf(data);
+    const refused = refusalOf(answer);
     if (refused) throw refused;
-    await saidLeadPutBack({ tenantId: member.tenantId, leadId, searchId: input.search_id, by: ctx.userId });
-    return { lead_id: leadId, op_id: a.op_id, version: a.version };
+    await recordLeadPutBack({ tenantId: member.tenantId, leadId, searchId: input.search_id, by: ctx.userId });
+    return { lead_id: leadId, op_id: answer.op_id, version: answer.version };
   },
 });

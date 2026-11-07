@@ -5,7 +5,7 @@
  * waiting row and the accept screen say. The fourteen days and the ten waiting are the database's (00214); they are
  * restated here only to be said, never enforced.
  */
-import { dayWords } from "./partner";
+import { partnerDayWords } from "./partner/earnings";
 
 /** How long a handover is open, and how many workspaces a partner may have waiting for an owner (00214). */
 export const HANDOVER_DAYS = 14;
@@ -69,7 +69,7 @@ export function maskedEmail(email: string): string {
 }
 
 /** Until when the accept screen says the invitation is open. */
-export const handoverUntilWords = (expiresAt: string): string => `Open until ${dayWords(expiresAt)}.`;
+export const handoverUntilWords = (expiresAt: string): string => `Open until ${partnerDayWords(expiresAt)}.`;
 
 export type HandoverState = "waiting" | "expired" | "declined" | "accepted";
 
@@ -85,22 +85,32 @@ export interface PartnerHandoverVM {
   canResend: boolean;
 }
 
-export function partnerHandoverVM(h: PartnerHandoverDto, nowMs: number = Date.now()): PartnerHandoverVM {
-  const to = maskedEmail(h.email);
+export function partnerHandoverVM(partnerHandover: PartnerHandoverDto, nowMs: number = Date.now()): PartnerHandoverVM {
+  const to = maskedEmail(partnerHandover.email);
   const of = (state: HandoverState, sentence: string): PartnerHandoverVM => ({
-    tenantId: h.tenantId,
-    name: h.name && h.name.trim() ? h.name.trim() : HANDOVER_WORDS.unnamed,
-    email: h.email,
+    tenantId: partnerHandover.tenantId,
+    name: partnerHandover.name && partnerHandover.name.trim() ? partnerHandover.name.trim() : HANDOVER_WORDS.unnamed,
+    email: partnerHandover.email,
     state,
     sentence,
     canResend: state !== "accepted",
   });
-  if (h.acceptedAt) return of("accepted", `Its owner accepted it on ${dayWords(h.acceptedAt)}.`);
-  if (h.declinedAt)
-    return of("declined", `Declined by ${to} on ${dayWords(h.declinedAt)}. Send it again, or to someone else.`);
-  if (Date.parse(h.expiresAt) <= nowMs)
-    return of("expired", `The invitation to ${to} expired on ${dayWords(h.expiresAt)}. Send it again.`);
-  return of("waiting", `Waiting for its owner: sent to ${to}, open until ${dayWords(h.expiresAt)}.`);
+  if (partnerHandover.acceptedAt)
+    return of("accepted", `Its owner accepted it on ${partnerDayWords(partnerHandover.acceptedAt)}.`);
+  if (partnerHandover.declinedAt)
+    return of(
+      "declined",
+      `Declined by ${to} on ${partnerDayWords(partnerHandover.declinedAt)}. Send it again, or to someone else.`,
+    );
+  if (Date.parse(partnerHandover.expiresAt) <= nowMs)
+    return of(
+      "expired",
+      `The invitation to ${to} expired on ${partnerDayWords(partnerHandover.expiresAt)}. Send it again.`,
+    );
+  return of(
+    "waiting",
+    `Waiting for its owner: sent to ${to}, open until ${partnerDayWords(partnerHandover.expiresAt)}.`,
+  );
 }
 
 /** How many of the partner's workspaces wait for an owner, and whether another may be set up. */
@@ -124,21 +134,21 @@ export function handoverRoom(rows: readonly PartnerHandoverDto[]): {
  * The invitation an existing account is sent (a new address gets the platform's own invitation, as a teammate's does):
  * who set up what, what accepting means, and where to sign in. Plain text; every fact is the handover's own.
  */
-export function handoverInviteEmail(h: {
+export function handoverInviteEmail(input: {
   partnerCode: string;
   workspace: string;
   expiresAt: string;
   signInUrl: string;
 }): { subject: string; body: string } {
-  const workspace = h.workspace.trim() || "A workspace";
+  const workspace = input.workspace.trim() || "A workspace";
   return {
-    subject: `${h.partnerCode} set up ${workspace} on Chanlytics for you`,
+    subject: `${input.partnerCode} set up ${workspace} on Chanlytics for you`,
     body: [
-      HANDOVER_WORDS.body(h.partnerCode, workspace),
+      HANDOVER_WORDS.body(input.partnerCode, workspace),
       "",
-      `Sign in to accept it or decline it: ${h.signInUrl}`,
+      `Sign in to accept it or decline it: ${input.signInUrl}`,
       "",
-      `${handoverUntilWords(h.expiresAt)} If you weren't expecting this, you can ignore it: nothing is yours, and nothing is charged, unless you accept.`,
+      `${handoverUntilWords(input.expiresAt)} If you weren't expecting this, you can ignore it: nothing is yours, and nothing is charged, unless you accept.`,
     ].join("\n"),
   };
 }

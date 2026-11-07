@@ -6,8 +6,9 @@
  * to judge" is Chanlytics' own reading, and its word opens what each platform says about it.
  */
 import type { ReactNode } from "react";
-import { LEDGER } from "@chanlytics/contracts/ads-page";
-import type { AdDrawerVM, JudgeVM, TheirsVM, TypedVM } from "@chanlytics/contracts/ads-page";
+import { LEDGER } from "../model/words-page";
+import type { AdDrawerVM } from "../model/drawer/view";
+import type { JudgeVM, TheirsVM, TypedVM } from "../model/drawer/parts";
 import { Figure } from "../../../kit/figure/figure";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";

@@ -1,7 +1,7 @@
 /**
  * The lead finder's money lock, the whole way, as the writers write it (00140 and later): the owner's door reserves a
  * search's leads and its estimate (lead_search_create -> lead_reserve, on the owner's own session), the runner spends
- * them (core startRound, collect and check over the edge's real adapter, apps/edge/lib/leads/lead-db.ts: the commits
+ * them (core startRound, collect and check over the edge's real adapter, apps/edge/lib/leads/db.ts: the commits
  * count the leads and settle the provider's usage, lead_collect_commit -> lead_settle_usage), and the round's end gives
  * back what it reserved and did not use (lead_round_end -> lead_release). The workspace's three counters (the month's
  * allowance and budget, the day) are read after every writer's move, never written here.
@@ -191,10 +191,10 @@ before(async () => {
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   runner = {
     ...(await import(at("packages/core/src/leads/runner/start.ts"))),
-    ...(await import(at("packages/core/src/leads/runner/collect.ts"))),
+    ...(await import(at("packages/core/src/leads/runner/collect/collect.ts"))),
     ...(await import(at("packages/core/src/leads/runner/check.ts"))),
   };
-  ({ leadDb } = await import(at("apps/edge/lib/leads/lead-db.ts")));
+  ({ leadDb } = await import(at("apps/edge/lib/leads/db.ts")));
   ({ scheduleJobOnce } = await import(at("packages/jobs/src/runner/schedule.ts")));
   A = ok(
     await db

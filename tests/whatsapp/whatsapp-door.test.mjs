@@ -1933,7 +1933,7 @@ test("the delivery is kept as it came under the body's digest, with no workspace
 
 /* ------------------------------- answered after the acknowledgement (0031, Phase 3) */
 
-const later = await import(at("apps/edge/lib/whatsapp/answer-later.ts"));
+const later = await import(at("apps/edge/lib/intake/answer-later.ts"));
 const { realPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
 
 test("a workspace the edge names has its WhatsApp message recorded, its answer scheduled as a job and acknowledged: nothing is answered in the door, and the job answers it on the workspace's own wire", async () => {
@@ -2081,7 +2081,7 @@ test("an answer job says it is about to speak before Meta is called, on its own 
 
 /* ------------------------------------------------- what a kept WhatsApp Business app shares (decision 0073, R21) */
 
-/** The key the intake ledger keeps a delivery under: the body's digest (intake/keep.ts digestId). */
+/** The key the intake ledger keeps a delivery under: the body's digest (shared/keep-event.ts digestId). */
 const digestOf = (raw) => "sha256:" + crypto.createHash("sha256").update(raw).digest("hex");
 
 test("a kept app's chats and contacts: kept as they came and handed to the history job by the delivery's key, the same bytes again scheduling nothing twice; a number no workspace holds has nothing to bring", async () => {

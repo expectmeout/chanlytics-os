@@ -39,6 +39,7 @@ globalThis.React = {
 };
 (await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { touchSwipe, leaving, leaveOverlay } = globalThis.window;
+const { holdMoves } = await import("../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -815,6 +816,30 @@ test("a touch mostly down is the browser's own: nothing is refused, a pull follo
   assert.deepEqual(el.listeners, []);
 });
 
+// An iPhone keeps `:hover` on the row a finger lands on, and a touch the reader takes across is no scroll to the phone
+// since its scroll is refused: the row a swipe began on lit as the page went (Ruben's recording, 7 Nov 2026). The reader
+// says the page is carried (`data-carried` on its element), the rows' fill gives way under it (clients.css), and the next
+// touch takes the mark off, so a tap lights its row as before.
+test("a page carried across is marked so until the next touch; a touch mostly down marks nothing", () => {
+  const marked = (el) => "data-carried" in el.attrs;
+  const el = listened({ attrs: {} });
+  el.setAttribute = (name, value) => void (el.attrs[name] = value);
+  el.removeAttribute = (name) => void delete el.attrs[name];
+  const h = touchSwipe({ onDown() {}, pages: () => pager() });
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  browserMove(el, 196, 302);
+  assert.equal(marked(el), false, "not before the reader takes it");
+  browserMove(el, 170, 304);
+  assert.equal(marked(el), true, "taken across: the page is carried");
+  h.onTouchEnd({ changedTouches: [{ clientX: 170, clientY: 304 }], currentTarget: el });
+  assert.equal(marked(el), true, "and stays so once the finger lifts, while the touched row still wears its hover");
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  assert.equal(marked(el), false, "the next touch takes it off");
+  browserMove(el, 204, 330);
+  assert.equal(marked(el), false, "a touch mostly down carries nothing");
+  h.onTouchCancel({ currentTarget: el });
+});
+
 test("a thread swiped back and a drawer slid away hold the browser's scroll the same way", () => {
   for (const [opts, from, to] of [
     [{ onBack() {} }, 60, 140],
@@ -826,6 +851,34 @@ test("a thread swiped back and a drawer slid away hold the browser's scroll the 
     assert.equal(browserMove(el, to, 306), true, `${Object.keys(opts)[0]} refuses the scroll under it`);
     h.onTouchCancel({ currentTarget: el });
   }
+});
+
+// An iPhone decides as a finger lands whether it must wait on the page before it scrolls, from the listeners already
+// there: the one a touch adds at its start came too late, and the window scrolled up and down under a page the thumb
+// carried across (Ruben's recording, 7 Nov 2026: Leads went in circles).
+test("a page held from its mount has its listener before the touch, keeps it between touches, and refuses only what it carries", () => {
+  const seen = [];
+  const el = listened();
+  holdMoves(el);
+  holdMoves(el);
+  assert.deepEqual(
+    el.listeners.map((l) => [l.type, l.opts]),
+    [["touchmove", { passive: false }]],
+    "one, non-passive, before any touch",
+  );
+  assert.equal(browserMove(el, 200, 300), false, "with no touch taken, a move is the browser's");
+  const h = touchSwipe({ onDown() {}, pages: () => pager({ drag: (dx) => seen.push(dx) }) });
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  assert.equal(el.listeners.length, 1, "the touch adds no second");
+  assert.equal(browserMove(el, 170, 304), true, "carried across: refused");
+  assert.equal(browserMove(el, 120, 380), true, "however far down it drifts");
+  assert.deepEqual(seen, [-30, -80]);
+  h.onTouchEnd({ changedTouches: [{ clientX: 120, clientY: 380 }], currentTarget: el });
+  assert.equal(el.listeners.length, 1, "let go, it stays for the next touch");
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  assert.equal(browserMove(el, 204, 330), false, "a touch mostly down is the browser's own");
+  h.onTouchCancel({ currentTarget: el });
+  assert.equal(el.listeners.length, 1);
 });
 
 test("past the last tab a page is told a quarter of the drag, 48px at most, and that no page is there; then it settles", () => {
@@ -1112,4 +1165,30 @@ test("a strip is walked only where the shell is narrow, and there only where the
   } finally {
     globalThis.window.matchMedia = keep;
   }
+});
+
+test("the frame's page is drawn with one ref: the deck's, and on a strip its moves held from its mount", async () => {
+  const { stripViewRef } = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+  const told = [];
+  const deckRef = (el) => told.push(el);
+  assert.equal(
+    stripViewRef(deckRef),
+    stripViewRef(deckRef),
+    "the same each draw, or React lets the deck go and takes it back",
+  );
+  const strip = listened({ dataset: { strip: "people" } });
+  const plain = listened({ dataset: {} });
+  stripViewRef(deckRef)(strip);
+  stripViewRef(deckRef)(plain);
+  stripViewRef(deckRef)(null);
+  assert.deepEqual(told, [strip, plain, null], "the deck is told each mount and each let-go");
+  assert.deepEqual(
+    strip.listeners.map((l) => [l.type, l.opts]),
+    [["touchmove", { passive: false }]],
+    "a strip's page: held",
+  );
+  assert.deepEqual(plain.listeners, [], "a page under no strip carries nothing across: the browser never waits on it");
+  const alone = listened({ dataset: { strip: "inbox" } });
+  stripViewRef(null)(alone);
+  assert.equal(alone.listeners.length, 1, "with no deck, held all the same");
 });

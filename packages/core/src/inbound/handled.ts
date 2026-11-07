@@ -67,13 +67,13 @@ export function escalationOf(answer: EscalateAnswer): Escalation {
  * escalation that threw is a refused one, and the message is marked all the same. `asked` is null where nobody was
  * asked.
  */
-export async function processedAfter(
+export async function getProcessedAfter(
   sink: Pick<InboundSink, "processed">,
-  asked: Asked | null,
+  request: Asked | null,
   reply: Reply,
   intent: BrainIntent | null = null,
 ): Promise<unknown> {
-  const escalation: Escalation = asked ? escalationOf(await asked.catch(() => undefined)) : "none";
+  const escalation: Escalation = request ? escalationOf(await request.catch(() => undefined)) : "none";
   return sink.processed(handledOf({ escalation, reply }), intent);
 }
 
@@ -85,10 +85,10 @@ export async function processedAfter(
  */
 export async function noteHandledAfter(
   sink: Pick<InboundSink, "noteHandled">,
-  asked: Asked,
+  request: Asked,
   reply: Reply,
   intent: BrainIntent | null = null,
 ): Promise<unknown> {
-  const escalation = escalationOf(await asked.catch(() => undefined));
+  const escalation = escalationOf(await request.catch(() => undefined));
   return escalation === "landed" ? sink.noteHandled(handledOf({ escalation, reply }), intent) : undefined;
 }

@@ -31,13 +31,13 @@ export function bookingPageLinkedFrom(html: string, pageUrl: string): string | n
   const start = /<a[\s>]/gi;
   for (let at = 0; ;) {
     start.lastIndex = at;
-    const m = start.exec(html);
-    if (!m) return null;
-    const close = html.indexOf(">", m.index);
+    const match = start.exec(html);
+    if (!match) return null;
+    const close = html.indexOf(">", match.index);
     if (close === -1) return null;
     at = close + 1;
-    if (close - m.index > TAG_MAX) continue;
-    const attrs = attrsOf(html.slice(m.index + 2, close));
+    if (close - match.index > TAG_MAX) continue;
+    const attrs = attrsOf(html.slice(match.index + 2, close));
     if (!attrs.href) continue;
     const tail = html.slice(at, at + WORDS_MAX);
     const end = tail.search(/<\/a\s*>/i);

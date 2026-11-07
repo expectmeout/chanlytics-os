@@ -8,10 +8,10 @@
  * Nothing here is shown to an owner, so the vendor's name is fine in what it says.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { readStreamUsage, type StreamAccount, type StreamUsage } from "@chanlytics/channels";
-import type { Database } from "@chanlytics/db";
+import { readStreamUsage, type StreamAccount, type StreamUsage } from "@chanlytics/channels/files";
+import type { Database } from "@chanlytics/db/types";
 import { logger } from "../shared/log.js";
-import { pageOperator, type PagePorts } from "../ops/page-operator.js";
+import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
 import { streamAccount } from "./video-keys.js";
 
 type Db = SupabaseClient<Database>;

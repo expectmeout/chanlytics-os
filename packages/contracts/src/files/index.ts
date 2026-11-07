@@ -1,77 +1,42 @@
+export { FILE_COPIES_DOOR, FILE_LISTEN_DOOR, FILE_PLAY_DOOR, FILE_VIDEO_START_DOOR } from "./edge-doors";
+export { FILE_WORDS, fileCursorOf, filesSayOf, keptSaidOf } from "./files";
 export {
-  FILE_BYTES_MAX,
-  FILE_CACHE_S,
-  FILE_GOOGLE_WORDS_MAX,
+  FILE_IMAGE_MIMES,
   FILE_KINDS,
-  FILE_LOOK_STATUSES,
   FILE_MADE_OF_VIDEO,
   FILE_MADE_OF_VIDEO_MIMES,
   FILE_MEDIA_STATUSES,
+  FILE_VIDEO_BYTES_MAX,
+  FILE_VIDEO_MIMES,
+  FILE_VIDEO_MINUTES_MAX,
+  FILE_VIDEO_SECONDS_MAX,
+  fileKindOf,
+  fileMadePathOf,
+  isVideoMime,
+} from "./kinds";
+export type { FileImageMime, FileKind, FileMadeOfVideo, FileMediaStatus, FileVideoMime } from "./kinds";
+export {
+  FILE_BYTES_MAX,
+  FILE_CACHE_S,
+  FILE_LOOK_STATUSES,
   FILE_MIMES,
   FILE_NAME_MAX,
   FILE_NAME_WORDS,
   FILE_PIXELS_MAX,
-  FILE_SHELVES,
   FILE_SHOWS,
   FILE_SIDE_MIN,
   FILE_SOURCES,
   FILE_STATUSES,
   FILE_TYPES,
   FILE_UPLOADS_AT_ONCE,
-  FILE_VIDEO_BYTES_MAX,
-  FILE_VIDEO_MIMES,
-  FILE_VIDEO_SECONDS_MAX,
   FILE_WHO_IN_IT,
-  FILE_WORDS,
-  fileCursorOf,
-  fileFolderOf,
-  fileKindOf,
-  fileMadePathOf,
-  fileNameOf,
   filePathOf,
   FILES_BUCKET,
   FILES_MAX,
   FILES_PAGE,
-  fileSaidOf,
-  fileShelfOpening,
-  filesSayOf,
-  filesTallyOf,
-  fileViewOf,
-  inboxCleanOf,
   isFileMime,
-  isVideoMime,
-  keptSaidOf,
-  postNameOf,
-  shelfFilterOf,
-  shelfOf,
-  uploadNameOf,
-  whoStandsOf,
-} from "./files";
-export type {
-  FileDto,
-  FileImageMime,
-  FileKind,
-  FileLookStatus,
-  FileMade,
-  FileMadeOfVideo,
-  FileMediaStatus,
-  FileMime,
-  FilePeople,
-  FilePosted,
-  FileRecordDto,
-  FileShelf,
-  FileShelfFilter,
-  FileShows,
-  FileSource,
-  FilesPageDto,
-  FilesTally,
-  FileStatus,
-  FileVideoMime,
-  FileWhoInIt,
-  FileWhoStands,
-} from "./files";
-export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid, withFilesAttached, withFilesOpened } from "./line";
-export type { FileForAsk } from "./line";
+} from "./limits";
+export type { FileLookStatus, FileMime, FileShows, FileSource, FileStatus, FileWhoInIt } from "./limits";
 export {
   FILE_COPY_KEEP_S,
   FILE_COPY_SIDE,
@@ -88,6 +53,7 @@ export {
   VIDEO_LOOK_EDITION,
 } from "./look";
 export type { FileLook, FileLookRead } from "./look";
+export type { FileQuality } from "./look";
 export {
   POST_LAYOUTS,
   POST_LIMITS,
@@ -112,14 +78,6 @@ export type {
   PostVoice,
   PostWords,
 } from "./post";
-export {
-  postBandOf,
-  postPathOf,
-  postPhotoProblem,
-  postPlanProblem,
-  postUndrawable,
-  postWordsProblem,
-} from "./post-check";
 export {
   cuesSaidOf,
   earWordsOf,
@@ -163,5 +121,33 @@ export {
   videoSpanWhatOf,
 } from "./video";
 export type { VideoDigestStep, VideoSheetPlan } from "./video";
+export {
+  FILE_GOOGLE_WORDS_MAX,
+  FILE_SHELVES,
+  fileFolderOf,
+  fileNameOf,
+  fileSaidOf,
+  fileShelfOpening,
+  filesTallyOf,
+  fileViewOf,
+  inboxCleanOf,
+  postNameOf,
+  shelfFilterOf,
+  shelfOf,
+  uploadNameOf,
+  whoStandsOf,
+} from "./views";
+export type {
+  FileDto,
+  FileMade,
+  FilePeople,
+  FilePosted,
+  FileRecordDto,
+  FileShelf,
+  FileShelfFilter,
+  FilesPageDto,
+  FilesTally,
+  FileWhoStands,
+} from "./views";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./zoom";
 export type { ZoomBox, ZoomSize, ZoomWont } from "./zoom";

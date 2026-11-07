@@ -18,7 +18,8 @@ import {
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
-import { listPolicies, recordEvent, setPolicyMode } from "@chanlytics/db";
+import { listPolicies, setPolicyMode } from "@chanlytics/db/workspace";
+import { recordEvent } from "@chanlytics/db/events";
 import { log } from "@/server/shared/log";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";

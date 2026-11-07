@@ -20,8 +20,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import {
-  signEdgeToken,
   desiredVoiceShell,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
@@ -29,7 +29,7 @@ import {
   CALL_FEEL,
   CALL_HANDBOOK,
   CALL_LIMITS,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import { fakeDb } from "../_fake-db.mjs";
 import { logLineOf } from "../_log-lines.mjs";
 
@@ -63,10 +63,10 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 /** Where this edge tells the provider its voice tools post (no EDGE_ORIGIN here: the default off production). */
 const { edgeFnUrl } = await import(at("apps/edge/lib/shared/dashboard-origin.ts"));
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const { PAGE_WINDOW_MS, pageStates } = await import(at("apps/edge/lib/ops/page-operator.ts"));
+const { PAGE_WINDOW_MS, pageStates } = await import(at("apps/edge/lib/shared/alerts/page-operator.ts"));
 const { DEFAULT_META_APP_ID } = await import(at("apps/edge/lib/whatsapp/meta-graph.ts"));
 const { GET } = await import(at("apps/edge/api/diag.ts"));
-const { resetBreakers } = await import("@chanlytics/channels");
+const { resetBreakers } = await import("@chanlytics/channels/shared");
 // Core's own build, which carries its own inlined copy of channels.
 const { whatsappSender } = await import(at("packages/core/dist/index.js"));
 after(() => setPg(null));
@@ -474,7 +474,7 @@ test("the app a deployment that names none introspects its token as: the one liv
   // The id is read ONCE, at import, by the module that holds the report (lib/ops/diagnostic.ts). This is a second copy
   // of it, imported with the variable unset: the only way to run the fallback a deployment that never set
   // META_APP_ID actually runs on. The knock is the door's, and every other case here goes through it.
-  const { diagnosticReport: defaulted } = await withEnv(
+  const { readDiagnosticReport: defaulted } = await withEnv(
     { META_APP_ID: undefined },
     () => import(`${at("apps/edge/lib/ops/diagnostic.ts")}?no-meta-app-id`),
   );

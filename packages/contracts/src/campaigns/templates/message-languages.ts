@@ -1,19 +1,13 @@
 /**
  * A message's languages as people read them: a code's words, the labels of a set of rows, the choices its one
- * picker offers, and whether Chanlytics can write it in another. WhatsApp's own list is template-languages.ts.
+ * picker offers, and whether Chanlytics can write it in another. WhatsApp's own list is templates/languages.ts.
  */
-import {
-  WHATSAPP_LANGUAGES,
-  languageLabel,
-  languageName,
-  templateLanguage,
-  type TemplateLanguage,
-} from "./template-languages";
+import { WHATSAPP_LANGUAGES, languageLabel, languageName, templateLanguage, type TemplateLanguage } from "./languages";
 
 /**
  * A language code as people read it: "en_US" is "English", "es" is "Spanish";
  * the code itself where nothing can say. WhatsApp's own list first
- * (template-languages.ts), so the word a send names is the word the picker
+ * (templates/languages.ts), so the word a send names is the word the picker
  * offered.
  */
 export function languageWords(code: string): string {
@@ -124,19 +118,20 @@ export function messageLanguageChoices(input: {
  * other button, would lose it in the new language -- a different message
  * under the same name, which is the one thing a translation must not be.
  */
-export function templateUntranslatable(t: {
+export function templateUntranslatable(target: {
   header?: string | null;
   buttons?: readonly { kind: string }[] | null;
   blocked?: string | null;
   category?: string | null;
 }): string | null {
-  if (t.blocked) return `it has ${t.blocked}`;
-  if (t.category && !/^(marketing|utility)$/i.test(t.category))
-    return `WhatsApp files it as ${String(t.category).toLowerCase()}`;
-  if (t.header) return "it has a heading";
-  const buttons = t.buttons ?? [];
+  if (target.blocked) return `it has ${target.blocked}`;
+  if (target.category && !/^(marketing|utility)$/i.test(target.category))
+    return `WhatsApp files it as ${String(target.category).toLowerCase()}`;
+  if (target.header) return "it has a heading";
+  const buttons = target.buttons ?? [];
   if (buttons.length > 1) return "it has more than one button";
-  const b = buttons[0];
-  if (b && b.kind !== "url") return b.kind === "reply" ? "it has a reply button" : "it has a button that calls";
+  const second = buttons[0];
+  if (second && second.kind !== "url")
+    return second.kind === "reply" ? "it has a reply button" : "it has a button that calls";
   return null;
 }

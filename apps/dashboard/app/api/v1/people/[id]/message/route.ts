@@ -47,9 +47,9 @@ export const POST = write({
     });
     // The message is on its way either way, and the sheet says which of these did not follow it. Said here too: a
     // note the receptionist never got, or a thread it was never handed, is what someone reading the logs would ask.
-    const said = { tenant_id: person.tenant_id, conversation_id: receipt.conversation_id };
-    if (receipt.note_kept === false) log.warn("new_conversation_note_unkept", said);
-    if (then === "receptionist" && !receipt.handed_back) log.warn("new_conversation_not_handed_back", said);
+    const sentence = { tenant_id: person.tenant_id, conversation_id: receipt.conversation_id };
+    if (receipt.note_kept === false) log.warn("new_conversation_note_unkept", sentence);
+    if (then === "receptionist" && !receipt.handed_back) log.warn("new_conversation_not_handed_back", sentence);
     return { ...receipt, thread: `th-${receipt.conversation_id}` };
   },
 });

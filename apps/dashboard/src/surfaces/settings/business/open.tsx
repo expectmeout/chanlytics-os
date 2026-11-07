@@ -22,7 +22,7 @@
 //
 // The rows that come and go inside a fold (the closed days) are drawn hookless, as plain boxes wearing the kit's class.
 import type { ComponentProps, ReactNode } from "react";
-import { DEFAULT_TIMEZONE, hoursLines } from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, calendarHoursLines } from "@chanlytics/contracts";
 import { BUSINESS_TAB } from "@/bridge/business-tab";
 import type { TzApi } from "@/bridge/identity";
 import type { WorkspaceSettings } from "@/bridge/surfaces/settings";
@@ -49,7 +49,7 @@ type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
 /** The closed days and the hours a record holds, as the sentences read them. */
 type ClosuresIn = Parameters<typeof BUSINESS_TAB.closuresAheadWords>[0];
 /** The hours a record holds, as `hoursLines` reads them. */
-type HoursIn = Parameters<typeof hoursLines>[0];
+type HoursIn = Parameters<typeof calendarHoursLines>[0];
 
 /* ------------------------------------ the week's row ------------------------------------ */
 
@@ -62,7 +62,7 @@ type HoursIn = Parameters<typeof hoursLines>[0];
  */
 const btoHoursLine = (hours: HoursIn): string | null => {
   if (!hours) return null;
-  return hoursLines(hours).join(" · ") || null;
+  return calendarHoursLines(hours).join(" · ") || null;
 };
 
 /**

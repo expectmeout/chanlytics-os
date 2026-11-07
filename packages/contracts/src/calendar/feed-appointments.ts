@@ -10,10 +10,10 @@
  */
 import type { FeedItem } from "./feed";
 import { serviceNamedIn, type ConsultRules } from "./service-offer";
-import { matchPerson, type OwnAddresses, type PersonLike } from "./people";
+import { matchPerson, type OwnAddresses, type PersonLike } from "./people/matching";
 import { bookingCopyTest, type BookingSighting } from "./booking-notice";
 import { appointmentKeyOf, recordIdOf } from "./appointment-key";
-import { isConsultationTitle } from "../deals/deal-consultations";
+import { isConsultationTitle } from "../deals/consultations";
 
 /**
  * Who wrote the row: the hourly read of the feed, a booking tool's notice or its webhook, a person, or the receptionist,
@@ -90,7 +90,7 @@ const APPOINTMENT_KEY_MAX = 512;
  */
 export function feedAppointmentRows(
   items: readonly FeedItem[],
-  o: {
+  options: {
     people: PersonLike[];
     own: OwnAddresses;
     services: readonly { name: string }[] | undefined;
@@ -100,20 +100,20 @@ export function feedAppointmentRows(
   },
 ): FeedAppointmentRow[] {
   const out = new Map<string, FeedAppointmentRow>();
-  const copy = bookingCopyTest(o.bookings ?? [], o.own);
+  const copy = bookingCopyTest(options.bookings ?? [], options.own);
   for (const it of items) {
-    if (it.start < o.window.from || it.start > o.window.to) continue;
+    if (it.start < options.window.from || it.start > options.window.to) continue;
     const key = appointmentKeyOf(it);
     if (key.length > APPOINTMENT_KEY_MAX || out.has(key)) continue;
     const title = it.title.trim() || null;
-    const contactId = matchPerson(it, o.people, o.own)?.id ?? null;
+    const contactId = matchPerson(it, options.people, options.own)?.id ?? null;
     out.set(key, {
       external_id: key,
       starts_at: new Date(it.start).toISOString(),
       ends_at: new Date(it.end).toISOString(),
       all_day: it.allDay,
-      service: serviceNamedIn(title, o.services),
-      consultation: isConsultationTitle(title, o.services, o.rules),
+      service: serviceNamedIn(title, options.services),
+      consultation: isConsultationTitle(title, options.services, options.rules),
       contact_id: contactId,
       series: it.occurrence !== undefined,
       twin: copy ? copy(it, contactId) : false,

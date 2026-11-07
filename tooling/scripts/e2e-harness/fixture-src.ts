@@ -158,7 +158,7 @@ const profile = (S.config.brain.profile ?? {}) as Record<string, any>;
 const whatsappTemplates: any[] = templatesRead(S.templates ?? [], { all: true }).templates.filter(
   (t: any) => t.channel === "whatsapp",
 );
-// Meta's verdicts, counted rather than claimed and as the real read counts them (server/workspace/setup.ts
+// Meta's verdicts, counted rather than claimed and as the real read counts them (server/setup/setup.ts
 // templatesSection): a WhatsApp row Meta approved or is still reading, not hidden. An email or a text version is approved
 // the moment it is written, nobody's verdict but its author's, so a record's messages with no WhatsApp row add nothing here.
 const verdicts = (status: string) => whatsappTemplates.filter((t) => t.meta_status === status && !t.hidden_at);

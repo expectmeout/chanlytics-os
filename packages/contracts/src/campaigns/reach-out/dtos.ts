@@ -3,11 +3,11 @@
  * report is read when a row is opened); a chain's report; a search's reach; one business's preview; what Start did;
  * a run's sends for its approval. Storage says tenant; these say workspace.
  */
-import type { ReachOutHold } from "./words";
+import type { ReachOutHold } from "./words/claims";
 import type { StepHand } from "./hand";
-import type { ReachOutFedBy } from "./leads";
+import type { ReachOutFedBy } from "./leads/lines";
 import type { ReachOutSignsWith } from "./rules";
-import type { RewriteStep } from "../sequences/sequence-held";
+import type { RewriteStep } from "../sequences/held";
 
 /** A step's words and place, as the sheet edits them. */
 export interface ReachOutStepDto {

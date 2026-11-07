@@ -35,7 +35,7 @@ const saysNone = (page, value) =>
 
 test("Reports says none: the booking line and its metric's tip", async () => {
   const { toBookingReportVM } = await importSrc(`${K}/reports/booking-report.ts`);
-  const { metricWordsOf } = await importSrc(`${K}/reports/report-metrics.ts`);
+  const { metricWordsOf } = await importSrc(`${K}/reports/metrics.ts`);
   const line = (asked, booked) => toBookingReportVM({ calendar: "ok", days: 30, asked, booked });
   saysNone("Reports' booking line", [line(9, 4), line(5, 5), line(0, 0)]);
   saysNone("Reports' booked tip", metricWordsOf("booked"));
@@ -43,7 +43,7 @@ test("Reports says none: the booking line and its metric's tip", async () => {
 });
 
 test("the Calendar and its setup say none: the booking rules, connecting a calendar, a booking email", async () => {
-  const { ruleParts } = await importSrc(`${K}/calendar/words.ts`);
+  const { ruleParts } = await importSrc(`${K}/calendar/words/labels.ts`);
   const { FEED_GUIDES } = await importSrc(`${K}/calendar/feed-url.ts`);
   const { BOOKING_TOOL_IDS, BOOKING_TOOL_STEPS, NOTICE_HOLD_WORDS } = await importSrc(
     `${K}/calendar/booking-notice.ts`,
@@ -62,7 +62,7 @@ test("the Calendar and its setup say none: the booking rules, connecting a calen
 
 test("People's lists say none: each list's tip and its next step", async () => {
   const { PEOPLE_LISTS } = await importSrc(`${K}/people/lists/builtin-lists.ts`);
-  const { peopleListAction } = await importSrc(`${K}/people/lists/list-page.ts`);
+  const { peopleListAction } = await importSrc(`${K}/people/lists/actions.ts`);
   saysNone(
     "a list's label and tip",
     PEOPLE_LISTS.map((l) => [l.label, l.tip]),
@@ -75,8 +75,10 @@ test("People's lists say none: each list's tip and its next step", async () => {
 
 test("Settings › Business says none: what it cannot do, the booking rules, each rule's strength", async () => {
   const { cannotRows } = await importSrc(`${K}/config/business-tab/abilities.ts`);
-  const { bookingRulesWords } = await importSrc(`${K}/config/business-tab/booking-rules-words.ts`);
-  const { ruleStrength } = await importSrc(`${K}/config/business-tab/rule-strengths.ts`);
+  const { bookingRulesWords } = await importSrc(
+    "apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts",
+  );
+  const { ruleStrength } = await importSrc("apps/dashboard/src/surfaces/settings/business/model/rule-strengths.ts");
   const { GUARDRAIL_KEYS } = await importSrc(`${K}/config/workspace-config/config-rules.ts`);
   saysNone(
     "what it cannot do",
@@ -90,8 +92,8 @@ test("Settings › Business says none: what it cannot do, the booking rules, eac
 });
 
 test("Ask says none: a source's kind on an old answer, and a plan's moment", async () => {
-  const { answerFromV1 } = await importSrc(`${K}/ask/answer.ts`);
-  const { PLAN_WORDS } = await importSrc(`${K}/ask/plan.ts`);
+  const { answerFromV1 } = await importSrc(`${K}/ask/answer/shape.ts`);
+  const { PLAN_WORDS } = await importSrc(`${K}/ask/plan/intents.ts`);
   const old = answerFromV1({
     text: "Two ahead.",
     citations: [{ kind: "visit", id: "v1", label: "Ana · Tue 2pm", to: "calendar/visit:v1" }],
@@ -110,7 +112,7 @@ test("Ask says none: a source's kind on an old answer, and a plan's moment", asy
 });
 
 test("Today says none: the activity of the calendar, and why a run held someone", async () => {
-  const { activityKindWords } = await importSrc(`${K}/workspace/activity.ts`);
+  const { activityKindWords } = await importSrc(`${K}/workspace/activity/kinds.ts`);
   const { HELD_REASONS } = await importSrc(`${K}/campaigns/broadcasts/run-words.ts`);
   saysNone("an appointment's change on the activity", activityKindWords("appointment.changed"));
   saysNone("why a run held someone", HELD_REASONS.appointment_changed);

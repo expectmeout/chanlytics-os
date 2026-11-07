@@ -1,5 +1,5 @@
 /**
- * Who needs you right now, as Ask says it (moved out of ask/answer.ts, which stood at its 800 lines): the people Today's
+ * Who needs you right now, as Ask says it (moved out of ask/answer/normalize.ts, which stood at its 800 lines): the people Today's
  * queue draws as holds, how many more wait past them (the one count's holds and replies counting down), the campaign runs
  * waiting for a word that can still send them, the searches waiting for an answer, and the reply windows closing, which
  * are said as windows and never as someone who needs you (the wiring's second audit, S7-8 and W-thread-wait-step-4).
@@ -84,33 +84,43 @@ function windowsClause(w: AskWaiting, es: boolean): string {
  * Right now, in a sentence: the people waiting, then the runs waiting for a yes, then the searches waiting for an
  * answer, then the reply windows closing -- four populations, four clauses. "Nobody needs you" only over none of them.
  */
-export function rightNowLine(w: AskWaiting | null, language: AskLanguage): string {
+export function rightNowLine(askWaiting: AskWaiting | null, language: AskLanguage): string {
   const es = language === "es";
-  if (!w) return unreadQueueWords(es);
-  const who = w.people.map((p) => p.who);
-  const total = who.length + w.more;
+  if (!askWaiting) return unreadQueueWords(es);
+  const mapped = askWaiting.people.map((p) => p.who);
+  const total = mapped.length + askWaiting.more;
   const people = total
     ? es
-      ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}`
-      : `${names(who, total, false)} ${total === 1 ? "needs" : "need"} you`
+      ? `${names(mapped, total, true)} ${total === 1 ? "te espera" : "te esperan"}`
+      : `${names(mapped, total, false)} ${total === 1 ? "needs" : "need"} you`
     : "";
-  const clauses = [people, runsClause(w.runs.length, es), searchesClause(w, es), windowsClause(w, es)].filter(Boolean);
+  const clauses = [
+    people,
+    runsClause(askWaiting.runs.length, es),
+    searchesClause(askWaiting, es),
+    windowsClause(askWaiting, es),
+  ].filter(Boolean);
   if (!clauses.length) return es ? "Nadie te espera ahora mismo." : "Nobody needs you right now.";
-  const s = clauses.join("; ");
-  return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
+  const text = clauses.join("; ");
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 }
 
 /**
  * The counts rightNowLine's sentence is built from, so pills beside it never disagree: people waiting (drawn and past
  * the rows), runs waiting, searches waiting and reply windows closing.
  */
-export function rightNowCounts(w: AskWaiting | null): {
+export function rightNowCounts(askWaiting: AskWaiting | null): {
   people: number;
   runs: number;
   searches: number;
   windows: number;
 } {
-  return w
-    ? { people: w.people.length + w.more, runs: w.runs.length, searches: w.searches.length, windows: w.windows.length }
+  return askWaiting
+    ? {
+        people: askWaiting.people.length + askWaiting.more,
+        runs: askWaiting.runs.length,
+        searches: askWaiting.searches.length,
+        windows: askWaiting.windows.length,
+      }
     : { people: 0, runs: 0, searches: 0, windows: 0 };
 }

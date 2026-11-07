@@ -1,5 +1,5 @@
 import { finiteOrNull, trimmedOrNull, recordOrNull } from "@chanlytics/contracts";
-import { providerFetch } from "../shared/provider-fetch";
+import { fetchFromProvider } from "../shared/provider-fetch";
 /**
  * The lead finder's provider, over its HTTP API (https://docs.apify.com/api/v2).
  *
@@ -97,17 +97,17 @@ export interface ApifyClient {
 const actorPath = (actor: string): string => encodeURIComponent(actor.replace("/", "~"));
 
 function runOf(data: unknown): ApifyRun {
-  const d = recordOrNull(data);
-  const id = trimmedOrNull(d?.id);
-  const status = trimmedOrNull(d?.status);
-  if (!d || !id || !status) throw new ApifyRefused(200, "the provider answered without a run");
+  const record = recordOrNull(data);
+  const id = trimmedOrNull(record?.id);
+  const status = trimmedOrNull(record?.status);
+  if (!record || !id || !status) throw new ApifyRefused(200, "the provider answered without a run");
   return {
     id,
     status,
-    datasetId: trimmedOrNull(d.defaultDatasetId),
-    usageTotalUsd: finiteOrNull(d.usageTotalUsd),
-    startedAt: trimmedOrNull(d.startedAt),
-    finishedAt: trimmedOrNull(d.finishedAt),
+    datasetId: trimmedOrNull(record.defaultDatasetId),
+    usageTotalUsd: finiteOrNull(record.usageTotalUsd),
+    startedAt: trimmedOrNull(record.startedAt),
+    finishedAt: trimmedOrNull(record.finishedAt),
   };
 }
 
@@ -139,7 +139,7 @@ async function apifyCall(
   init: RequestInit,
   allow: (status: number) => boolean = () => false,
 ): Promise<{ body: unknown; headers: Headers }> {
-  const res = await providerFetch(
+  const res = await fetchFromProvider(
     "apify",
     url,
     { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
@@ -171,14 +171,14 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
   return {
     async startRun(actor, input, opts) {
       const webhooks = Buffer.from(JSON.stringify(opts.webhooks), "utf8").toString("base64");
-      const q = new URLSearchParams({
+      const query = new URLSearchParams({
         build: opts.build,
         timeout: String(opts.timeoutSecs),
         maxTotalChargeUsd: String(opts.maxTotalChargeUsd),
         webhooks,
       });
-      if (opts.memoryMb) q.set("memory", String(opts.memoryMb));
-      const { body } = await call(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
+      if (opts.memoryMb) query.set("memory", String(opts.memoryMb));
+      const { body } = await call(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${query}`, {
         method: "POST",
         headers: headers(true),
         body: JSON.stringify(input),
@@ -195,8 +195,8 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
       return runOf(recordOrNull(body)?.data);
     },
     async listActorRuns(actor, sinceIso) {
-      const q = new URLSearchParams({ desc: "1", limit: "100" });
-      const { body } = await call(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
+      const query = new URLSearchParams({ desc: "1", limit: "100" });
+      const { body } = await call(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${query}`, {
         method: "GET",
         headers: headers(false),
       });
@@ -228,16 +228,19 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
     },
     async listItems(datasetId, offset, limit, fields) {
       // Never clean or skipEmpty: both drop items, and an offset must always mean the same item.
-      const q = new URLSearchParams({
+      const query = new URLSearchParams({
         offset: String(offset),
         limit: String(limit),
         fields: fields.join(","),
         format: "json",
       });
-      const { body, headers: h } = await call(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?${q}`, {
-        method: "GET",
-        headers: headers(false),
-      });
+      const { body, headers: h } = await call(
+        `${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?${query}`,
+        {
+          method: "GET",
+          headers: headers(false),
+        },
+      );
       if (!Array.isArray(body)) throw new ApifyRefused(200, "the provider answered items that are not a list");
       const total = Number(h.get("x-apify-pagination-total"));
       return {
@@ -258,8 +261,8 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
         method: "GET",
         headers: headers(false),
       });
-      const d = recordOrNull(recordOrNull(body)?.data);
-      const infos = Array.isArray(d?.pricingInfos) ? (d.pricingInfos as unknown[]) : [];
+      const record = recordOrNull(recordOrNull(body)?.data);
+      const infos = Array.isArray(record?.pricingInfos) ? (record.pricingInfos as unknown[]) : [];
       const events =
         recordOrNull(recordOrNull(recordOrNull(infos[infos.length - 1])?.pricingPerEvent)?.actorChargeEvents) ?? {};
       const out: Record<string, number> = {};

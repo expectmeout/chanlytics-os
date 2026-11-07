@@ -193,7 +193,7 @@ const changesOf = async (id) =>
       .eq("subject_id", id)
       .order("created_at"),
   );
-/** The event as the delivery hands it to a subscriber (db eventOfDelivery). */
+/** The event as the delivery hands it to a subscriber (db findEventOfDelivery). */
 const eventOf = async (id) =>
   ok(
     await db
@@ -213,10 +213,10 @@ let ports;
 before(async () => {
   if (skip) return;
   ({ SUBSCRIBERS } = await import(pathToFileURL(path.join(ROOT, "packages/core/src/events/subscribers.ts")).href));
-  const { reachOutBookedFrom } = await import(
-    pathToFileURL(path.join(ROOT, "packages/db/src/repositories/calendar/appointments.ts")).href
+  const { recordReachOutBookedFrom } = await import(
+    pathToFileURL(path.join(ROOT, "packages/db/src/repositories/calendar/appointments/visits.ts")).href
   );
-  ports = { bookedFromAppointment: (t, id) => reachOutBookedFrom(db, t, id) };
+  ports = { bookedFromAppointment: (t, id) => recordReachOutBookedFrom(db, t, id) };
 });
 
 test(

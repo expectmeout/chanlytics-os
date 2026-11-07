@@ -1268,7 +1268,7 @@ const isNumberFormat = (e) => {
 };
 
 /**
- * The places one file reads a time zone itself (`{ line, text }`, one per site), where contracts' calendar/zone-math.ts
+ * The places one file reads a time zone itself (`{ line, text }`, one per site), where contracts' shared/zone/math.ts
  * is the one reading of a zone (zoneParts, dayInZone, clockInZone, dayPlusInZone, usableZone):
  *
  *   - `.formatToParts(…)` of anything but a number formatter (`numberFormat(…)`, `Intl.NumberFormat`), since the
@@ -1643,7 +1643,7 @@ export function seedReadsOutsideADemo(sf) {
 export const STANDING_RULE = [
   "packages/contracts/src/conversations/standing.ts",
   "packages/contracts/src/people/person-state.ts",
-  "packages/contracts/src/conversations/conversation-moves.ts",
+  "packages/contracts/src/conversations/moves.ts",
 ];
 const EQUALITY = new Set([
   ts.SyntaxKind.EqualsEqualsEqualsToken,

@@ -19,6 +19,8 @@
 
 /* ------------------------------------------------------------ the plan -- */
 
+import { CONTROL_CHARS } from "../../shared/words";
+
 export type LeadContactStandard = "phone" | "email";
 /** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
 export type LeadCriterionStandard = "likely" | "seen";
@@ -142,7 +144,7 @@ export const planNeedsASite = (plan: Pick<LeadSearchPlan, "criteria">): boolean 
 export const KEY = /^[a-z][a-z0-9_]{0,39}$/;
 // Control/format characters (bidi overrides, tag characters) and newlines are stripped from every
 // plan-authored text field before it can reach the judge's rubric (26; security review, item 9).
-export const stripUnsafe = (s: string) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+export const stripUnsafe = (text: string) => text.replace(CONTROL_CHARS, " ").replace(/\s+/g, " ");
 
 /** JSON.stringify with every object's keys sorted first, so the same value written in another key order compares equal. Array element order still matters. */
 function stableStringify(v: unknown): string {

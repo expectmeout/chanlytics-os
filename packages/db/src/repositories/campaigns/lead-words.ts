@@ -35,20 +35,22 @@ export interface LeadWordsAnswer {
  */
 export async function setLeadWords(
   db: Db,
-  p: { stepId: string; leadId: string; words: LeadEmailText | null; checkedWords: string; needsLine: boolean },
+  params: { stepId: string; leadId: string; words: LeadEmailText | null; checkedWords: string; needsLine: boolean },
 ): Promise<DoorResult<LeadWordsAnswer>> {
   const { data, error } = await db.rpc("sequence_lead_words_set", {
-    p_step_id: p.stepId,
-    p_lead_id: p.leadId,
-    ...(p.words ? { p_body: p.words.body, ...(p.words.subject === null ? {} : { p_subject: p.words.subject }) } : {}),
-    p_checked_words: p.checkedWords,
-    p_needs_line: p.needsLine,
+    p_step_id: params.stepId,
+    p_lead_id: params.leadId,
+    ...(params.words
+      ? { p_body: params.words.body, ...(params.words.subject === null ? {} : { p_subject: params.words.subject }) }
+      : {}),
+    p_checked_words: params.checkedWords,
+    p_needs_line: params.needsLine,
   });
   return answer(data, error);
 }
 
 /** One lead's own words at every step they have some. Read on the member's session. */
-export async function leadWordsOf(db: Db, tenantId: string, leadId: string): Promise<LeadStepWordsDto[]> {
+export async function listLeadWords(db: Db, tenantId: string, leadId: string): Promise<LeadStepWordsDto[]> {
   const { data, error } = await db
     .from("sequence_lead_words")
     .select("step_id, subject, body, written_at")
@@ -59,39 +61,39 @@ export async function leadWordsOf(db: Db, tenantId: string, leadId: string): Pro
 }
 
 /** One lead's own words at one step, or none: the step's stand. */
-export async function leadStepWordsOf(
+export async function findLeadStepWords(
   db: Db,
-  p: { tenantId: string; stepId: string; leadId: string },
+  params: { tenantId: string; stepId: string; leadId: string },
 ): Promise<LeadEmailText | null> {
   const { data, error } = await db
     .from("sequence_lead_words")
     .select("subject, body")
-    .eq("tenant_id", p.tenantId)
-    .eq("step_id", p.stepId)
-    .eq("lead_id", p.leadId)
+    .eq("tenant_id", params.tenantId)
+    .eq("step_id", params.stepId)
+    .eq("lead_id", params.leadId)
     .maybeSingle();
   if (error) throw new Error(`cannot read the lead's own words: ${error.message}`);
   return data ? { subject: data.subject, body: data.body } : null;
 }
 
 /** What one send of a lead's said as it went: its email, subject and words; null where it wrote none. */
-export async function leadSentEmailOf(
+export async function findLeadSentEmail(
   db: Db,
-  p: { tenantId: string; leadId: string; sendId: string },
+  params: { tenantId: string; leadId: string; sendId: string },
 ): Promise<LeadEmailText | null> {
   const send = await db
     .from("sequence_sends")
     .select("message_id")
-    .eq("tenant_id", p.tenantId)
-    .eq("lead_id", p.leadId)
-    .eq("id", p.sendId)
+    .eq("tenant_id", params.tenantId)
+    .eq("lead_id", params.leadId)
+    .eq("id", params.sendId)
     .maybeSingle();
   if (send.error) throw new Error(`cannot read the send: ${send.error.message}`);
   if (!send.data?.message_id) return null;
   const message = await db
     .from("messages")
     .select("body, meta")
-    .eq("tenant_id", p.tenantId)
+    .eq("tenant_id", params.tenantId)
     .eq("id", send.data.message_id)
     .maybeSingle();
   if (message.error) throw new Error(`cannot read the email: ${message.error.message}`);
@@ -104,7 +106,7 @@ export async function leadSentEmailOf(
 export const leadStepKey = (stepId: string, leadId: string): string => `${stepId}:${leadId}`;
 
 /** The own words of these leads, by step and lead (leadStepKey), however many they are: a run's, or a tick's sends. */
-export async function leadWordsOfLeads(db: Db, leadIds: readonly string[]): Promise<Map<string, LeadEmailText>> {
+export async function getLeadWordsOfLeads(db: Db, leadIds: readonly string[]): Promise<Map<string, LeadEmailText>> {
   const out = new Map<string, LeadEmailText>();
   for (const ids of chunksOf(leadIds)) {
     const rows = await readAllRows("the leads' own words", (from, to) =>
@@ -122,7 +124,7 @@ export async function leadWordsOfLeads(db: Db, leadIds: readonly string[]): Prom
 }
 
 /** How many leads keep their own words at each of these steps: what "for everyone" leaves out. */
-export async function ownWordsAtSteps(
+export async function getOwnWordsAtSteps(
   db: Db,
   tenantId: string,
   stepIds: readonly string[],

@@ -12,7 +12,7 @@ import { z } from "zod";
 import { NOTE_MAX } from "../../notes/person-notes";
 import { normalizePhone } from "../../shared/phone";
 import { dateFormat, HOUR_MS } from "../../shared/time";
-import type { JobNews } from "../../today/notifications";
+import type { JobNews } from "../../today/notifications/feed-input";
 
 /** What a form on the site is: a sign-up for the business's offers, or a request the business answers. */
 const WEBSITE_FORMS = ["signup", "request"] as const;
@@ -41,15 +41,15 @@ export const WebsiteFormBody = z.object({
 export type WebsiteFormInput = z.infer<typeof WebsiteFormBody>;
 
 /** Who the form is about, as the person door takes them: a name, and at least one way to reach them; null when none. */
-export function websiteFormPerson(f: Pick<WebsiteFormInput, "name" | "email" | "phone">): {
+export function websiteFormPerson(websiteFormInput: Pick<WebsiteFormInput, "name" | "email" | "phone">): {
   name: string | null;
   email: string | null;
   phone: string | null;
 } | null {
-  const email = f.email ? f.email.trim().toLowerCase() : null;
-  const phone = normalizePhone(f.phone);
+  const email = websiteFormInput.email ? websiteFormInput.email.trim().toLowerCase() : null;
+  const phone = normalizePhone(websiteFormInput.phone);
   if (!email && !phone) return null;
-  return { name: f.name?.trim() || null, email, phone };
+  return { name: websiteFormInput.name?.trim() || null, email, phone };
 }
 
 /**
@@ -79,8 +79,8 @@ const LATE_MS = HOUR_MS;
  * Whether a form reached the workspace late: sent over an hour before it arrived (a form re-sent from where it was kept
  * before the door). Its note says the day, and the owner is told on the bell alone: old news is not an alarm.
  */
-export function websiteFormLate(f: Pick<WebsiteFormInput, "at">, nowMs: number): boolean {
-  return !!f.at && nowMs - Date.parse(f.at) > LATE_MS;
+export function websiteFormLate(websiteFormInput: Pick<WebsiteFormInput, "at">, nowMs: number): boolean {
+  return !!websiteFormInput.at && nowMs - Date.parse(websiteFormInput.at) > LATE_MS;
 }
 
 /**
@@ -88,17 +88,22 @@ export function websiteFormLate(f: Pick<WebsiteFormInput, "at">, nowMs: number):
  * any, and the day they sent it, in the workspace's zone, when it arrived late. At most a note's length: their words are
  * cut, never the line.
  */
-export function websiteFormNote(f: WebsiteFormInput, when: WebsiteFormWhen): string {
+export function websiteFormNote(websiteFormInput: WebsiteFormInput, when: WebsiteFormWhen): string {
   const first =
-    f.about?.trim() ||
-    (f.form === "signup" ? "Signed up for your offers on your website" : "Sent a request on your website");
+    websiteFormInput.about?.trim() ||
+    (websiteFormInput.form === "signup"
+      ? "Signed up for your offers on your website"
+      : "Sent a request on your website");
   const head = `${first.replace(/[.\s]+$/, "")}.`;
-  const late = f.at && websiteFormLate(f, when.nowMs) ? ` Sent ${sentOn(f.at, when.tz)}.` : "";
-  const words = f.note?.trim();
+  const late =
+    websiteFormInput.at && websiteFormLate(websiteFormInput, when.nowMs)
+      ? ` Sent ${sentOn(websiteFormInput.at, when.tz)}.`
+      : "";
+  const words = websiteFormInput.note?.trim();
   if (!words) return `${head}${late}`.slice(0, NOTE_MAX);
   const room = NOTE_MAX - head.length - late.length - ' They wrote: ""'.length;
-  const said = words.length > room ? `${words.slice(0, Math.max(0, room - 1)).trimEnd()}…` : words;
-  return `${head} They wrote: "${said}"${late}`.slice(0, NOTE_MAX);
+  const sentence = words.length > room ? `${words.slice(0, Math.max(0, room - 1)).trimEnd()}…` : words;
+  return `${head} They wrote: "${sentence}"${late}`.slice(0, NOTE_MAX);
 }
 
 /**
@@ -107,23 +112,23 @@ export function websiteFormNote(f: WebsiteFormInput, when: WebsiteFormWhen): str
  * the notice's alone: the note is what they asked, which the receptionist reads once it is kept.
  */
 export function websiteFormNotice(
-  f: WebsiteFormInput,
-  who: { contactId: string; name: string | null; email: string | null; phone: string | null },
+  websiteFormInput: WebsiteFormInput,
+  personName: { contactId: string; name: string | null; email: string | null; phone: string | null },
   when: WebsiteFormWhen,
   ask: string | null,
 ): Omit<JobNews, "sourceEvent" | "kind"> & { kind: "website_form" } {
-  const named = who.name || who.email || who.phone || "Someone";
-  const reach = [who.email, who.phone].filter(Boolean).join(" · ");
+  const named = personName.name || personName.email || personName.phone || "Someone";
+  const reach = [personName.email, personName.phone].filter(Boolean).join(" · ");
   return {
     kind: "website_form",
-    route: `clients/${who.contactId}`,
-    about: { type: "contact", id: who.contactId },
-    subject: (f.form === "signup"
+    route: `clients/${personName.contactId}`,
+    about: { type: "contact", id: personName.contactId },
+    subject: (websiteFormInput.form === "signup"
       ? `${named} signed up on your website`
       : `${named} sent a request on your website`
     ).slice(0, 200),
     body: [
-      websiteFormNote(f, when),
+      websiteFormNote(websiteFormInput, when),
       ask,
       reach ? `To reach them: ${reach}` : null,
       "They are in People now, and what they asked waits on their page as a note to keep.",

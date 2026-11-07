@@ -41,7 +41,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
-const { CALL_OUTCOME_WORDS } = await importSrc("packages/contracts/src/conversations/call-dto.ts");
+const { CALL_RESULT_WORDS } = await importSrc("packages/contracts/src/conversations/call-dto.ts");
 const { invitationExpired } = await importSrc("packages/contracts/src/shell/identity.ts");
 const { columnOptionsOf, columnsIn, shownColumnsOf, visibilityOf } = await importSrc(
   "apps/dashboard/src/surfaces/kit/table/columns.ts",
@@ -257,7 +257,7 @@ test("D1-member-name: a decision says You for the member looking, a teammate by 
 
 test("D1-call-ended-words: a finished call has one outcome word, the registry's, on Live, Conversations, the call card and History", () => {
   // One map: the registry's call words are the ladder's, and only the provider's silence is added beside them.
-  for (const [outcome, word] of Object.entries(CALL_OUTCOME_WORDS))
+  for (const [outcome, word] of Object.entries(CALL_RESULT_WORDS))
     assert.equal(stateLabel("call", outcome), word, outcome);
   assert.equal(
     stateLabel("call", "handled"),
@@ -272,13 +272,13 @@ test("D1-call-ended-words: a finished call has one outcome word, the registry's,
   assert.equal(stateLabel("call", "stale"), "No word from the provider");
   // History: the outcome's word, then where the call is kept.
   const handled = personFor({ calls: [call()] }).timeline.find((i) => i.kind === "call");
-  assert.equal(handled.sub, `${CALL_OUTCOME_WORDS.handled} · Recording and transcript in Conversations`);
+  assert.equal(handled.sub, `${CALL_RESULT_WORDS.handled} · Recording and transcript in Conversations`);
   const back = personFor({ calls: [call({ outcome: "callback_needed" })] }).timeline.find((i) => i.kind === "call");
-  assert.equal(back.sub, `${CALL_OUTCOME_WORDS.callback} · Recording and transcript in Conversations`);
+  assert.equal(back.sub, `${CALL_RESULT_WORDS.callback} · Recording and transcript in Conversations`);
   const never = personFor({
     calls: [call({ status: "not_connected", duration_ms: 0, disconnection_reason: "dial_no_answer" })],
   }).timeline.find((i) => i.kind === "call");
-  assert.equal(never.sub, CALL_OUTCOME_WORDS.missed, "a dial that never connected keeps its one word");
+  assert.equal(never.sub, CALL_RESULT_WORDS.missed, "a dial that never connected keeps its one word");
 });
 
 /* ------------------------------------------------------------------ members -- */

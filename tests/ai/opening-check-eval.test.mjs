@@ -12,7 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { MODELS, MODEL_ROUTES, OPENING_SCHEMA, routeThinkingFor } from "@chanlytics/contracts";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { ROOT } from "../_source.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
 import { answering, json, said, scripted, status } from "./_model-world.mjs";

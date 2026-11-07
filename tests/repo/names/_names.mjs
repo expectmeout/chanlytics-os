@@ -62,10 +62,7 @@ const VALUE_WORDS = new Set([
   "what",
   "asked",
   "told",
-  "kept",
-  "named",
   "made",
-  "held",
   "got",
   "went",
   "came",
@@ -91,7 +88,8 @@ export const VERBS = new Set(
   dismiss refuse discard archive patch append decide recheck submit freeze whisper steer choose sweep assign bulk deploy install
   enable disable revoke grant consume rotate charge confirm activate deactivate retrieve persist reconcile rollback remember
   attach detach purge paginate broadcast exchange renew authenticate authorize login logout redirect respond ping poll batch
-  hear listen transcribe digest reserve play`.split(/\s+/),
+  deliver snooze wake mint alert speak bring bind flag mend tend probe earn ring store replan replay reverse resubmit unfile unpost evaluate converge raise rejudge assemble adopt reserve relay become suppress request requeue defer wear see learn craft compose translate aim pass return touch route warm view unsubscribe edit may look let mail shape preview file page act was does redrive step tick holds
+  hear listen transcribe digest play`.split(/\s+/),
 );
 
 /** A name's words, in either casing. */
@@ -283,12 +281,25 @@ export function booleanClashesIn(sf) {
     .sort();
 }
 
-/** A file whose name starts with its folder's. A folder's main module may share the name, as Go's `ring/ring.go` does. */
+/** A folder's word for one of what it holds: `leads` is `lead`, `replies` is `reply`, `mailbox` has none. */
+const singularOf = (word) =>
+  /ies$/.test(word)
+    ? `${word.slice(0, -3)}y`
+    : /(ch|sh|x|ss)es$/.test(word)
+      ? word.slice(0, -2)
+      : /s$/.test(word)
+        ? word.slice(0, -1)
+        : null;
+
+/**
+ * A file whose name starts with its folder's, or with the singular of it (`mailbox/mailbox-gmail.ts`, `leads/dtos.ts`). A folder's
+ * main module may share the name, as Go's `ring/ring.go` does.
+ */
 export function repeatsItsFolder(file) {
   const parts = file.split("/");
   const folder = parts.at(-2) ?? "";
   const stem = (parts.at(-1) ?? "").replace(/\.[^/]+$/, "");
-  return stem.startsWith(`${folder}-`);
+  return stem.startsWith(`${folder}-`) || Boolean(singularOf(folder) && stem.startsWith(`${singularOf(folder)}-`));
 }
 
 export const isGenericStem = (stem) => GENERIC_STEMS.has(stem);
@@ -415,7 +426,7 @@ export const NAME_RATCHETS = [
     file: "exported-twice.json",
     measure: () => {
       const modules = {};
-      for (const f of SHIPPED)
+      for (const f of SHIPPED.filter((x) => !/\.(ios|android|native|web)\.tsx?$/.test(x)))
         for (const name of new Set(exportedNamesIn(parse(f)))) (modules[`${treeOf(f)}::${name}`] ??= new Set()).add(f);
       return Object.fromEntries(
         Object.entries(modules)

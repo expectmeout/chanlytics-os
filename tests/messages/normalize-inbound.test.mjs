@@ -3,7 +3,7 @@
  *  Run: node --test tooling/tests */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeInbound } from "@chanlytics/channels";
+import { normalizeInbound } from "@chanlytics/channels/whatsapp";
 
 const msg = (over = {}) => ({
   from: "15550001111",

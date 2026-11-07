@@ -138,7 +138,7 @@ test("the message path's event names are unchanged by the conversion", () => {
   // atomic is_new claim — `wa_skip_pg_dupe`, still here — is the dedupe. With
   // the store gone there is no second gate left for it to name.
   // The message path and the webhook: the names span both files now.
-  const src = pathSrc() + fs.readFileSync(path.join(EDGE, "lib/whatsapp/webhook.ts"), "utf8");
+  const src = pathSrc() + fs.readFileSync(path.join(EDGE, "lib/intake/whatsapp.ts"), "utf8");
   const required = [
     "wa_replied",
     "wa_skip_pg_dupe",
@@ -167,7 +167,7 @@ test("the converted message-path lines carry the tenant", () => {
   const src = pathSrc();
   assert.match(
     src,
-    /const L = ports\.log\(\{ tenant_id: tenantId, wamid: n\.externalId, from_tail: phoneTail\(from\), type: n\.rawType \}\)/,
+    /const log = ports\.log\(\{ tenant_id: tenantId, wamid: n\.externalId, from_tail: phoneTail\(from\), type: n\.rawType \}\)/,
     "answerInbound must bind the tenant into its logger",
   );
   for (const call of ['L.info("wa_replied"', 'L.info("wa_skip_opt_out"', 'L.error("wa_state_unavailable"']) {

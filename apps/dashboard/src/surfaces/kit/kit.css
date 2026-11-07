@@ -7367,6 +7367,14 @@ textarea.rec-input,
     cursor: pointer;
   }
 }
+/* The cursor's row takes focus for a keyboard's Tab, and its ring is the keyboard's: a screen with no pointer that hovers
+   draws none on a card, where the page moved focus for itself after a finger's touch and an iPhone drew the ring round a
+   row nobody chose (Ruben, 7 Nov 2026). A desk, and a tablet with a pointer, keep it. */
+@media (max-width: 900px) and (hover: none) {
+  .dtable tbody tr[data-card]:focus-visible {
+    outline: none;
+  }
+}
 
 /* ---------- The window's gap rows, the groups ---------- */
 /* The room of the rows the window has not drawn (kit/rows/shown-rows.ts): a row with nothing in it, there to be watched. */

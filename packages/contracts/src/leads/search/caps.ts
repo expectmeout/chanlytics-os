@@ -4,7 +4,7 @@
  * factors a round is sized and priced with; when the question after the probe is asked and how long it waits;
  * and the month a lead counts in.
  */
-import { dayInZone } from "../../calendar/zone-math";
+import { dayInZone } from "../../shared/zone/math";
 
 /* -------------------------------------------------- the caps (§13.3, §16) -- */
 
@@ -63,3 +63,6 @@ export function leadMonth(zone: string, at: Date): string {
   const d = dayInZone(zone, at.getTime());
   return `${d.y}-${String(d.m).padStart(2, "0")}`;
 }
+
+/** What a US ZIP looks like, as a search around one is asked for. */
+export const US_ZIP = /^\d{5}$/;

@@ -21,7 +21,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../_fake-db.mjs";
 
 // Each test file is its own process: this is the whole environment. The three
@@ -48,7 +48,7 @@ for (const k of [
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setStripeClient } = await import(at("apps/edge/lib/billing/billing.ts"));
+const { setStripeClient } = await import(at("apps/edge/lib/billing/subscription.ts"));
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const door = await import(at("apps/edge/api/admin/billing.ts"));
 after(() => {

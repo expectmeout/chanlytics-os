@@ -38,7 +38,8 @@ const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
 const { setStatus } = await import(`${S}/bridge/surface-status.ts`);
 const { standingSaid, forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
-const { lensAnswerOf, lensEmpty } = await import("@chanlytics/contracts");
+const { lensEmpty } = await import("@chanlytics/contracts");
+const { lensAnswerOf } = await import("../../../apps/dashboard/src/surfaces/reports/model/lens-answer.ts");
 const { toCampaignLensVM, toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
 after(() => forgetStanding());
 

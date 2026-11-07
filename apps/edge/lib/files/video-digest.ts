@@ -45,12 +45,13 @@ import {
   readStreamVideo,
   streamAudioUrl,
   streamTokenOf,
-} from "@chanlytics/channels";
-import { fileForWork, filesBucket, keepFileSound, type Database, type FileRow } from "@chanlytics/db";
+} from "@chanlytics/channels/files";
+import { findFileForWork, filesBucket, keepFileSound, type FileRow } from "@chanlytics/db/files";
+import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../shared/log.js";
 import { hearNote, transcribe, type HeardFor } from "./hearing.js";
-import { claudeCopyOf } from "./look.js";
+import { findClaudeCopy } from "./look.js";
 import { drawPoster, drawVideoSheet, type VideoAt } from "./video-sheet.js";
 import { hearingSetup, streamKeys } from "./video-keys.js";
 
@@ -151,9 +152,9 @@ async function sheetStep(digest: Digest): Promise<void> {
     if (poster) await keepMade(digest, "poster", poster.bytes);
   }
   // The copy is the sheet's (look.ts claudeCopyOf, a video's branch): made now, or kept from a run before.
-  const fresh = await fileForWork(digest.db, digest.row.tenant_id, digest.row.id);
+  const fresh = await findFileForWork(digest.db, digest.row.tenant_id, digest.row.id);
   if (!fresh || fresh.removed_at) return;
-  if (!(await claudeCopyOf(digest.db, fresh))) throw new Error("video_digest: no copy of the sheet for the model");
+  if (!(await findClaudeCopy(digest.db, fresh))) throw new Error("video_digest: no copy of the sheet for the model");
 }
 
 /** The sound kept in the folder; `none` where Stream makes no sound for the clip. Answers the step after it. */
@@ -288,7 +289,7 @@ export async function digestVideo(db: Db, job: ClaimedJob, deadline: number): Pr
     logger({ tenant_id: job.tenant_id }).warn("video_digest_unknown_step", { file: fileId });
     return;
   }
-  const row = await fileForWork(db, job.tenant_id, fileId);
+  const row = await findFileForWork(db, job.tenant_id, fileId);
   // A removed or never-ready video has nothing to make ready: the job is done.
   if (!row || row.removed_at || row.kind !== "video" || row.media_status !== "ready" || !row.media_ref) return;
   if (!(Number(row.seconds) > 0)) {

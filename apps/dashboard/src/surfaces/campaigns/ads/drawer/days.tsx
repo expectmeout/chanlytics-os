@@ -8,8 +8,9 @@
  */
 import type { CSSProperties } from "react";
 import type { AdDoor } from "@chanlytics/contracts";
-import { DOOR, DRAWER } from "@chanlytics/contracts/ads-page";
-import type { DayVM } from "@chanlytics/contracts/ads-page";
+import { DOOR } from "../model/words";
+import { DRAWER } from "../model/drawer/words";
+import type { DayVM } from "../model/drawer/parts";
 
 interface AdDaysProps {
   days: readonly DayVM[];

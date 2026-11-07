@@ -7,7 +7,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../_fake-db.mjs";
 import { answering } from "../ai/_model-world.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";

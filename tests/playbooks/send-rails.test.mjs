@@ -22,7 +22,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const B = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
+const B = await import(at("apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts"));
+const { statusAt } = await import(at("apps/dashboard/src/server/campaigns/broadcasts/replied.ts"));
 const P = await import(at("apps/dashboard/src/server/campaigns/playbooks.ts"));
 
 const NY = "America/New_York";
@@ -176,9 +177,9 @@ test("a recipient's line carries the times the receipts gave, and the first repl
     replied: 1,
     sent_by: { whatsapp: 2, sms: 0, email: 0 },
   });
-  assert.equal(B.statusAt({ status_at: { delivered: "x" } }, "read"), null);
-  assert.equal(B.statusAt(null, "read"), null);
-  assert.equal(B.statusAt("junk", "read"), null);
+  assert.equal(statusAt({ status_at: { delivered: "x" } }, "read"), null);
+  assert.equal(statusAt(null, "read"), null);
+  assert.equal(statusAt("junk", "read"), null);
 });
 
 test("a playbook's totals and history come from every run it made, not the recent fifty broadcasts of any kind", async () => {
@@ -350,19 +351,19 @@ test("the week's touches: who any broadcast reached, or is about to, within the 
     ],
     tenants: [{ id: T, timezone: NY }],
   };
-  // packages/db recentTouches: the week's breath read where the touches are, which every page and the send read.
-  const { recentTouches } = await import("@chanlytics/db");
-  assert.deepEqual(await recentTouches(ctx(tables).supabase, T, now), {
+  // packages/db getRecentTouches: the week's breath read where the touches are, which every page and the send read.
+  const { getRecentTouches } = await import("@chanlytics/db/campaigns");
+  assert.deepEqual(await getRecentTouches(ctx(tables).supabase, T, now), {
     a: ["2026-09-10T14:00:05Z", "2026-09-11T14:00:05Z"], // both, earliest first: the playbook's, then the one by hand
     c: ["2026-09-13T14:00:00Z"], // on its way counts from when it is due
     f: ["2026-09-11T14:00:07Z"], // sent before its run was stopped
     h: ["2026-09-12T11:00:00Z"], // waiting for a person today: it may still go
   });
-  assert.deepEqual(await recentTouches(ctx({ broadcasts: [], broadcast_recipients: [] }).supabase, T, now), {});
+  assert.deepEqual(await getRecentTouches(ctx({ broadcasts: [], broadcast_recipients: [] }).supabase, T, now), {});
 });
 
 test("a proposal's follow-up is a touch of its own (0006): from any playbook's run, one since deleted too, and never a run that only carried other words", async () => {
-  const { touchesSince, touchIndex, followUpTouchesSince } = await import(
+  const { listTouchesSince, touchIndex, followUpTouchesSince } = await import(
     at("packages/db/src/repositories/campaigns/touches.ts")
   );
   const now = new Date("2026-09-12T16:00:00Z");
@@ -389,7 +390,7 @@ test("a proposal's follow-up is a touch of its own (0006): from any playbook's r
       { tenant_id: T, broadcast_id: "winback", contact_id: "b", state: "sent", sent_at: "2026-09-06T14:00:03Z" },
     ],
   };
-  const touches = await touchesSince(fakeDb(tables), T, new Date("2026-09-01T00:00:00Z"), now);
+  const touches = await listTouchesSince(fakeDb(tables), T, new Date("2026-09-01T00:00:00Z"), now);
   const idx = touchIndex(touches, now);
   assert.deepEqual([...idx.followUps.keys()], ["a"], "the follow-up, whoever sent it; the win-back is none");
   assert.equal(idx.followUps.get("a"), Date.parse("2026-09-05T14:00:03Z"));
@@ -420,7 +421,7 @@ test("a proposal's follow-up is a touch of its own (0006): from any playbook's r
     ],
     broadcast_recipients: [{ tenant_id: T, broadcast_id: "held", contact_id: "c", state: "queued", sent_at: null }],
   };
-  const blind = await touchesSince(
+  const blind = await listTouchesSince(
     fakeDb(waiting, { "tenants.select": { message: "statement timeout" } }),
     T,
     new Date("2026-09-01T00:00:00Z"),
@@ -431,12 +432,12 @@ test("a proposal's follow-up is a touch of its own (0006): from any playbook's r
     [["c", false, true]],
     "waiting for a person: not sent, and held for them",
   );
-  const seen = await touchesSince(fakeDb(waiting), T, new Date("2026-09-01T00:00:00Z"), now);
+  const seen = await listTouchesSince(fakeDb(waiting), T, new Date("2026-09-01T00:00:00Z"), now);
   assert.deepEqual(seen, [], "read, the 10th's run can never be approved on the 12th: it holds nobody");
 });
 
 test("a follow-up's touch keeps the proposal it was about (0029): the deal and the link its words carried, read alone of them, the latest by what each was about; one that kept neither is read as before", async () => {
-  const { touchesSince, touchIndex } = await import(at("packages/db/src/repositories/campaigns/touches.ts"));
+  const { listTouchesSince, touchIndex } = await import(at("packages/db/src/repositories/campaigns/touches.ts"));
   const now = new Date("2026-09-12T16:00:00Z");
   const link = [{ kind: "first_name" }, { kind: "proposal_link" }];
   const SEO = "https://example.com/p/seo";
@@ -487,7 +488,7 @@ test("a follow-up's touch keeps the proposal it was about (0029): the deal and t
     ],
   };
   const db = fakeDb(tables);
-  const touches = await touchesSince(db, T, new Date("2026-09-01T00:00:00Z"), now);
+  const touches = await listTouchesSince(db, T, new Date("2026-09-01T00:00:00Z"), now);
   assert.deepEqual(touches.map((t) => [t.contact_id, t.deal, t.link]).sort(), [
     ["a", null, SEO],
     ["a", "d-ads", ADS],

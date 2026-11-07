@@ -77,16 +77,16 @@ export type PostPhotoWont = "made" | "unkept" | "design" | "video";
  * kept yet, or it has a design of its own that more words would clash with. Here, with nothing behind it, so a page can ask
  * before it offers the press.
  */
-export function postPhotoWont(f: {
+export function postPhotoWont(fields: {
   status: string;
   source: string;
   shows: string | null;
   kind?: string | undefined;
 }): PostPhotoWont | null {
-  if (f.kind === "video") return "video";
-  if (f.source === "made") return "made";
-  if (f.status !== "filed") return "unkept";
-  if (f.shows === "graphic" || f.shows === "logo") return "design";
+  if (fields.kind === "video") return "video";
+  if (fields.source === "made") return "made";
+  if (fields.status !== "filed") return "unkept";
+  if (fields.shows === "graphic" || fields.shows === "logo") return "design";
   return null;
 }
 

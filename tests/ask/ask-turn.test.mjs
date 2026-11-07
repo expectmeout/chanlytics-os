@@ -37,8 +37,6 @@ import {
   dtoWith as salonLedger,
 } from "../reports/campaigns/_campaign-world.mjs";
 import {
-  ASK_ANSWER_FORMAT,
-  ASK_ANSWER_TEXT_FORMAT,
   ASK_CAPS,
   ASK_STYLE_MAX,
   ASK_STYLE_PAGE,
@@ -78,6 +76,7 @@ import {
   numberHealth,
   sendableTemplates,
 } from "@chanlytics/contracts";
+import { ASK_ANSWER_FORMAT, ASK_ANSWER_TEXT_FORMAT } from "../../apps/dashboard/src/server/ask/answer-format.ts";
 // The turns here are the text path's, the answer written as its format (ASK_ANSWER_TOOL off): the tool is on by
 // default since its eval pair (17 Oct 2026), and its own tests below switch it on (withAnswerTool).
 process.env.ASK_ANSWER_TOOL = "off";
@@ -88,8 +87,9 @@ delete process.env.ASK_MODEL;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { runAskTurn, askPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
-const { foldHistory, storedRaw, threadForTurn } = await import(at("apps/dashboard/src/server/ask/memory.ts"));
+const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
+const { askPorts } = await import(at("apps/dashboard/src/server/ask/loop/turn-head.ts"));
+const { foldHistory, storedRaw, findThreadForTurn } = await import(at("apps/dashboard/src/server/ask/memory.ts"));
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ_DEFS, ACT_DEFS } = await import(
@@ -102,14 +102,15 @@ const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.n
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
 // The tools every question loads, the rest found by the tool search (the operator, D11).
 const { CORE_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools/registry.ts"));
-const { workspaceFacts, stableSystem, turnWords, answerLine, askTurnText, ASK_RULES, ASK_EXAMPLES } = await import(
-  at("apps/dashboard/src/server/ask/prompt.ts")
+const { turnWords, answerLine, askTurnText } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
+  at("apps/dashboard/src/server/ask/prompt/stable-system.ts")
 );
 /** The listening line, as prompt.ts writes it (the voice door, spec 2026-10-03 §3.4): pinned here, word for word. */
 const SPOKEN_LINE =
   "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol, a bracketed tag or formatting: no headings, bold or tables, plain sentences only. Every figure and row goes in show, where the screen draws it; a list goes in show.list, whose entries are read after the say, one by one, so keep each short.";
-const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
-const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
+const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const workspaceReads = await import(at("apps/dashboard/src/server/readers/facts.ts"));
 const { report: reportReader } = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
@@ -282,7 +283,7 @@ const RPCS = {
     waiting_total: 0,
     waiting: [],
   }),
-  // The rail's counts (server/leads/lead-searches.ts listCounts), so Today's searches read as none inside a turn rather
+  // The rail's counts (server/leads/searches.ts listAudienceCounts), so Today's searches read as none inside a turn rather
   // than as a read that failed: the fake's refusal of an unmodelled door must never be caught into a quiet null.
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
 };
@@ -1470,7 +1471,7 @@ test("report says the Campaigns lens as an error where the sends could not be re
 });
 
 test("report says the window part by part: a count the database did not send leaves its part null -- never an empty mix, never a zero -- and the parts it did send stand", async () => {
-  // A database answers the container, and not every leaf is promised (contracts campaign-lens.ts knownCount): the holds' and the
+  // A database answers the container, and not every leaf is promised (contracts campaigns/lens.ts knownCount): the holds' and the
   // failed sends' totals, the stops' counts, each message's counts and the first replies' n are left out; the approvals' stand.
   const partial = salonRpcs({
     campaign_ledger: (a) => ({
@@ -1873,7 +1874,7 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
 });
 
 test("report says the Receptionist lens as the page does (Reports C2, the Receptionist lens): the hold, the topics and languages, how calls ended, the booking link and who booked, the two handover times, the calls nobody took, what came while closed and what is stuck, each sentence from the one fold; available false on a database without the function, an error where its read failed, words for an empty period", async () => {
-  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
   const DAY = 86_400_000;
   const HOUR = 3_600_000;
   const today = iso(NOW.getTime()).slice(0, 10);
@@ -4257,7 +4258,7 @@ test("REGRESSION: a quiet rule says who it leaves out for want of a date -- aske
 });
 
 test("a gated list's refusal names the condition that failed: with a calendar and a deal on file but no consult-first service, Consultation booked is refused for the service alone", async () => {
-  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
   const ICS = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -4323,7 +4324,7 @@ test("a gated list's refusal names the condition that failed: with a calendar an
 });
 
 test("calendar.week reads the people it names: a person on the calendar enters the read set, so the answer may name them and open their profile (F5); and a visit the record keeps comes with its id, a row an answer may cite and open on its day (15 Oct 2026)", async () => {
-  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
   const ICS = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -4400,7 +4401,7 @@ test("calendar.week reads the people it names: a person on the calendar enters t
 });
 
 test("calendar.week reads the board as its page reads it (ledger #11): with no day asked, the page's own week from its Monday, not today alone, or as many days from that Monday as were asked for; a day asked is that day, as before; the zone and the settings the turn already read are not read again; and nothing is written, even for an owner whose calendar names someone People does not hold", async () => {
-  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
   const ICS = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -4462,10 +4463,10 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
       // Since 00345 the board's read holds the record too: the bookings that arrived by email over the span, the
       // notices' health line (two reads) and the workspace's mailbox, before everyone; and, once the feed has read,
       // the record's taken time over the days on offer, which a week alone does not cover. The record's reads are
-      // asked together (9 Oct 2026, calendar/week.ts recordOverSpan), so they reach the database in no one order:
-      // each, as often. The span's record is two reads since a member's word on a visit (00397, visitsOver): the
+      // asked together (9 Oct 2026, calendar/week/week.ts recordOverSpan), so they reach the database in no one order:
+      // each, as often. The span's record is two reads since a member's word on a visit (00397, findVisitsOver): the
       // bookings whole, and the feed's rows by key; the season's record beside everyone is two more since 3 Nov 2026,
-      // for when each person was last in (people-visits.ts boardVisits).
+      // for when each person was last in (people-visits.ts getBoardVisits).
       [...weekAsked].sort(),
       [
         "appointments.select",
@@ -4516,7 +4517,7 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
 });
 
 test("calendar.week leaves a cancelled visit out of what is taken, as Today and People do: a member's word on the record is what the board strikes (wiring/records-not-pages, 1.6)", async () => {
-  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
   const event = (uid, start, end, summary) => [
     "BEGIN:VEVENT",
     `UID:${uid}`,
@@ -4619,7 +4620,7 @@ test("calendar.openings is the palette's own read (ledger #13): the service aske
 });
 
 test("report reads what the Reports page reads (ledger #1): the series, then the booking line and the deals beside it, once a turn, with the calendar's zone and settings taken from the turn; the booking line and the Deals section in the page's own words beside the numbers it gave before", async () => {
-  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
   const DAY = 86_400_000;
   const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
   // The booking line and the deals count by the server's clock, as the page's own route does.
@@ -5203,7 +5204,7 @@ test("the day is read once a turn, each tool as its page reads it: today, inbox.
   assert.deepEqual(
     ["conversations", "calls", "escalations", "tenants"].map(selects),
     [2, 1, 4, 0],
-    "the newest hundred once, shared; the escalated one past it once, shared by Today and the Inbox; the calls once and the escalations once (in their two halves: readers/escalations.ts), and each conversations read's newest closed holds beside it (db lastClosedHolds, #1660: a thread handed back unanswered still waits); and no tenant: the zone is the turn's",
+    "the newest hundred once, shared; the escalated one past it once, shared by Today and the Inbox; the calls once and the escalations once (in their two halves: readers/escalations.ts), and each conversations read's newest closed holds beside it (db listLastClosedHolds, #1660: a thread handed back unanswered still waits); and no tenant: the zone is the turn's",
   );
   const out = Object.fromEntries(
     s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, fromRecord(c.content)]),
@@ -5645,7 +5646,7 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
 });
 
 test("the rules Ask says the receptionist follows are the ones the composer gave it: the price rule on until switched off, two always, the health rule only once switched on", async () => {
-  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
   const { composeSystemPrompt, guardrailsInForce } = await import("@chanlytics/contracts");
   const brain = {
     business_name: "Harbor Moving",
@@ -5725,7 +5726,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
 });
 
 test("the notes Ask says the receptionist follows are the ones the composer tells it today: an ended note is not listed, a lasting one says its end in the prompt's words, and one with no end reads as before", async () => {
-  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
   const { composeSystemPrompt } = await import("@chanlytics/contracts");
   const brain = {
     business_name: "Harbor Moving",
@@ -6355,7 +6356,7 @@ test("everyone in People is read once a turn, through the readers: a turn that l
 });
 
 test("the assistant counts with the calendar too: a visit tomorrow on the owner's calendar is counted by campaigns.playbooks' reminder from the feed, over the same people the page counts, and the Bookings class's mode is said beside the others", async () => {
-  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
   const ICS = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -6404,7 +6405,7 @@ test("the assistant counts with the calendar too: a visit tomorrow on the owner'
 });
 
 test("the assistant offers the moments a new playbook may start from (2 Oct 2026): the win-back is the one the workspace can read, welcome and save our number are not offered though a playbook made on one is still listed, and a proposal for the win-back it cannot read is refused in words", async () => {
-  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
   const { winBackWords } = await import("@chanlytics/contracts");
   // This world picked no word: its word is the default (contracts appointmentWordOf).
   const WIN_BACK_WORDS = winBackWords("appointment");
@@ -6590,7 +6591,7 @@ test("people.search reads what the People page reads (ledger #7): one SQL page f
 });
 
 test("people.search answers who booked and who never did, a list counted over the audience pool as the People rail counts one: everyone with their visits from the owner's calendar, and the Booked and Asked, never booked lists judged with the pool's calendar", async () => {
-  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
   const ICS = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -6612,7 +6613,7 @@ test("people.search answers who booked and who never did, a list counted over th
   const base = tables();
   // Rosa's visit as the record holds it (15 Oct 2026): a booking that arrived by email, for her number, at the feed's time.
   // Its id comes with her next visit, a row an answer may cite. (A feed event nobody said a word of is not in the pools'
-  // read of the record, feedWordsOver: its words alone, and the Calendar's week names its id.)
+  // read of the record, listFeedWordsOver: its words alone, and the Calendar's week names its id.)
   const VISIT = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
   const t = tables({
     contacts: contactsOf(rows),
@@ -8307,12 +8308,12 @@ async function keep(ctx, text, r, { over = {}, raw = {}, created_at } = {}) {
   return data.id;
 }
 /**
- * The thread's next turn as the route asks it: what threadForTurn read from the rows -- its history, its chain and the
+ * The thread's next turn as the route asks it: what findThreadForTurn read from the rows -- its history, its chain and the
  * rest the route spreads into the turn -- then run.
  */
 async function nextTurn(ctx, rounds, over = {}, portsOver = {}) {
   const text = over.text ?? "And tomorrow?";
-  const found = await threadForTurn(ctx, { tenantId: A, threadId: T9, text, scope: undefined, answering: null });
+  const found = await findThreadForTurn(ctx, { tenantId: A, threadId: T9, text, scope: undefined, answering: null });
   const { thread: _thread, scope: _scope, ...earlier } = found;
   const s = sentAs(rounds);
   const input = turn(ctx, { text, ...earlier, ...over }).input;
@@ -8550,7 +8551,7 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
     if (line?.event === "ask_replay_unread") said.push(line);
   };
   try {
-    const found = await threadForTurn(refusing, {
+    const found = await findThreadForTurn(refusing, {
       tenantId: A,
       threadId: T9,
       text: "And?",
@@ -8632,7 +8633,7 @@ test("the chain (the Phase 5 plan, D1, D3): each live turn names the answer it r
   const first = await keep(two, "Who needs me?", a1);
   const [x, y] = await Promise.all(
     ["From tab X?", "From tab Y?"].map((text) =>
-      threadForTurn(two, { tenantId: A, threadId: T9, text, scope: undefined, answering: null }),
+      findThreadForTurn(two, { tenantId: A, threadId: T9, text, scope: undefined, answering: null }),
     ),
   );
   for (const [found, text] of [
@@ -8785,7 +8786,7 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   await keep(ctx, "And now?", t4.r);
 
   // Undone while a turn ran: the turn had read its chain first, so it did not tell it, and the next does.
-  const running = await threadForTurn(ctx, {
+  const running = await findThreadForTurn(ctx, {
     tenantId: A,
     threadId: T9,
     text: "And?",
@@ -8978,7 +8979,7 @@ test("a replay the API refuses goes cold once (the Phase 5 plan, D12): round one
   };
   /** Turn 2 on a warm thread, its rounds answered by `rounds` (a string is a refusal): what it sent and logged. */
   const second = async (ctx, rounds, over = {}) => {
-    const found = await threadForTurn(ctx, {
+    const found = await findThreadForTurn(ctx, {
       tenantId: A,
       threadId: T9,
       text: "And?",
@@ -9269,7 +9270,7 @@ async function seeded(turns) {
   return { world, ctx };
 }
 const threadNow = (ctx, text = "And now?") =>
-  threadForTurn(ctx, { tenantId: A, threadId: T9, text, scope: undefined, answering: null });
+  findThreadForTurn(ctx, { tenantId: A, threadId: T9, text, scope: undefined, answering: null });
 /** An answer as the ask route stores one: the answer, the v1 fields it gives, its cards. */
 const storedAnswer = (a, proposals = []) => ({ v: 2, answer: a, ...v1FromAnswer(a), proposals, failed: false });
 

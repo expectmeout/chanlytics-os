@@ -7,7 +7,7 @@
  */
 import "server-only";
 import { AppError, VISIT_REFUSALS, type VisitMark, type VisitWord } from "@chanlytics/contracts";
-import { markVisit } from "@chanlytics/db";
+import { markVisit } from "@chanlytics/db/calendar";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
 
@@ -31,26 +31,26 @@ export async function markVisitOf(
     undoOf: ctx.undoOf ?? null,
   });
   if (error) throw dbRefusal(error);
-  const r = (data ?? {}) as {
+  const item = (data ?? {}) as {
     error?: string;
     appointment?: VisitMark;
     from?: string;
     decision_id?: string;
     unchanged?: boolean;
   };
-  if (r.error || !r.appointment) {
+  if (item.error || !item.appointment) {
     // A refusal the sentences lack, or no row and no error: logged raw before the generic sentence, so a new refusal is
     // found in the log rather than by its blandness.
-    if (!(r.error && VISIT_REFUSALS[r.error]))
-      log.error("visit_door_unknown_answer", { appointment: appointmentId, error: r.error ?? null });
-    throw new AppError("validation", VISIT_REFUSALS[r.error ?? ""] ?? "Could not say this.");
+    if (!(item.error && VISIT_REFUSALS[item.error]))
+      log.error("visit_door_unknown_answer", { appointment: appointmentId, error: item.error ?? null });
+    throw new AppError("validation", VISIT_REFUSALS[item.error ?? ""] ?? "Could not say this.");
   }
-  if (!r.unchanged && typeof r.decision_id !== "string")
+  if (!item.unchanged && typeof item.decision_id !== "string")
     throw new Error("mark_visit: the door answered without its decision");
   return {
-    visit: r.appointment,
-    from: r.from ?? r.appointment.status,
-    decision_id: r.decision_id ?? null,
-    unchanged: !!r.unchanged,
+    visit: item.appointment,
+    from: item.from ?? item.appointment.status,
+    decision_id: item.decision_id ?? null,
+    unchanged: !!item.unchanged,
   };
 }

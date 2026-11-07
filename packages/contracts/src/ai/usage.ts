@@ -8,7 +8,8 @@
  * all four and the dollars they came to.
  */
 import type { AiUsagePort, AiUsagePurpose } from "./hearing";
-import { MODELS, type ModelId, type ModelPurpose, type ModelSpeed } from "./models";
+import { MODELS, type ModelId, type ModelSpeed } from "./models/ids";
+import type { ModelPurpose } from "./models/routes";
 
 /**
  * One call's tokens, as the API counts them, and the speed it ran at when that was fast mode (the API's own
@@ -86,29 +87,33 @@ export function priceOf(model: string, speed: ModelSpeed = "standard"): ModelPri
  * The dollars one call came to at list price, at the speed it ran, to a hundredth of a cent's hundredth; null when
  * the model has no price.
  */
-export function usageDollars(model: string, u: ModelUsage): number | null {
-  const p = priceOf(model, u.speed ?? "standard");
-  if (!p) return null;
-  const d =
-    (u.input * p.input + u.output * p.output + u.cacheWrite * p.cacheWrite + u.cacheRead * p.cacheRead) / PER_TOKEN;
-  return Math.round(d * 1_000_000) / 1_000_000;
+export function usageDollars(model: string, modelUsage: ModelUsage): number | null {
+  const price = priceOf(model, modelUsage.speed ?? "standard");
+  if (!price) return null;
+  const item =
+    (modelUsage.input * price.input +
+      modelUsage.output * price.output +
+      modelUsage.cacheWrite * price.cacheWrite +
+      modelUsage.cacheRead * price.cacheRead) /
+    PER_TOKEN;
+  return Math.round(item * 1_000_000) / 1_000_000;
 }
 
 /** Every token of a call, whatever its kind: what a day's cap counts. */
-export function usageTokens(u: ModelUsage): number {
-  return u.input + u.output + u.cacheRead + u.cacheWrite;
+export function usageTokens(modelUsage: ModelUsage): number {
+  return modelUsage.input + modelUsage.output + modelUsage.cacheRead + modelUsage.cacheWrite;
 }
 
 /** The API's own usage object read into the four kinds, and its speed when it says fast; a missing count is zero. */
 export function usageOf(raw: unknown): ModelUsage {
-  const u = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const url = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : 0);
   return {
-    input: n(u.input_tokens),
-    output: n(u.output_tokens),
-    cacheRead: n(u.cache_read_input_tokens),
-    cacheWrite: n(u.cache_creation_input_tokens),
-    ...(u.speed === "fast" ? { speed: "fast" as const } : {}),
+    input: n(url.input_tokens),
+    output: n(url.output_tokens),
+    cacheRead: n(url.cache_read_input_tokens),
+    cacheWrite: n(url.cache_creation_input_tokens),
+    ...(url.speed === "fast" ? { speed: "fast" as const } : {}),
   };
 }
 

@@ -1,5 +1,5 @@
 /**
- * A reach-out step's words (packages/contracts reach-out/words.ts), run: the six slots, what a step may say to be
+ * A reach-out step's words (packages/contracts reach-out/words/opening.ts), run: the six slots, what a step may say to be
  * saved, and the chain the sheet saves. The first-email subject rule is the wire's own (posesAsReply).
  */
 import { test } from "node:test";

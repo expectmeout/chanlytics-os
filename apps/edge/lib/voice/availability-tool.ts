@@ -1,7 +1,7 @@
 /**
  * Retell custom function: check_availability
  *
- * The door is api/retell-availability.ts: `door(availabilityTool)`, which names the request the platform's way
+ * The door is api/retell-availability.ts: `door(runAvailabilityTool)`, which names the request the platform's way
  * (log.ts). Everything a delivery does is here, in the order the door had it: the knock is checked (voiceDoorAuth), the
  * call routed to its workspace and the openings read through the calendar feed's cache; every refusal still answers
  * HTTP 200 with a `result` sentence, because the agent speaks that string.
@@ -18,10 +18,11 @@
  */
 import { json } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
-import { readDealForPhone, resolveChannelDetailed } from "@chanlytics/db";
-import { rehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
+import { readDealForPhone } from "@chanlytics/db/conversations";
+import { resolveChannelDetailed } from "@chanlytics/db/channels";
+import { findRehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
 import { loadTenantRuntime } from "../shared/tenant-runtime.js";
-import { feedKeyOf, linkOfferedOn, openingsData } from "../calendar/availability.js";
+import { feedKeyOf, linkOfferedOn, findOpeningsData } from "../calendar/availability.js";
 import {
   bookingHeld,
   describeOpenings,
@@ -34,7 +35,7 @@ import {
   type ServiceLike,
   type ServiceOffer,
 } from "@chanlytics/contracts";
-import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./door-auth.js";
+import { refusedOutLoud, keepKnock, voiceDoorAuth } from "../shared/door-auth.js";
 import { logger } from "../shared/log.js";
 
 /**
@@ -89,7 +90,7 @@ export function spoken(text: string, offer: ServiceOffer | null): string {
   return `${offerLead(offer)}${flat}`;
 }
 
-type Openings = NonNullable<Awaited<ReturnType<typeof openingsData>>>;
+type Openings = NonNullable<Awaited<ReturnType<typeof findOpeningsData>>>;
 
 /**
  * What the tool says for a day and a service, from the openings it read: the caller's service offered as itself, or as
@@ -115,9 +116,9 @@ export function availabilityAnswer(
   return { result: spoken(text, offer), offer, day, days: picked.length };
 }
 
-export async function availabilityTool(request: Request): Promise<Response> {
+export async function runAvailabilityTool(request: Request): Promise<Response> {
   const raw = await request.text();
-  // The third Retell door, guarded like the other two (voice/door-auth.ts): the signature, or the x-fn-secret header
+  // The third Retell door, guarded like the other two (shared/door-auth.ts): the signature, or the x-fn-secret header
   // while this door still reads one.
   const knock = voiceDoorAuth("availability", request, raw);
   await keepKnock("availability", knock);
@@ -133,26 +134,26 @@ export async function availabilityTool(request: Request): Promise<Response> {
   }
   const call = body.call ?? {};
   const args = body.args ?? {};
-  const L = logger({ call_id: call.call_id, agent_id: call.agent_id });
+  const log = logger({ call_id: call.call_id, agent_id: call.agent_id });
 
   const db = pg();
   // A rehearsal's call reads its workspace's calendar as a call on the line does (decision 0069), found by its own row:
   // its agent may have no line yet.
-  const rehearsal = db ? await rehearsalOfToolCall(db, call) : null;
+  const rehearsal = db ? await findRehearsalOfToolCall(db, call) : null;
   // "The database said no" and "the database did not answer" are told apart in the log, as the webhooks tell them
   // (resolveChannelDetailed): the caller hears the same either way, and the platform reads which it was.
   const lookup = rehearsal || !db || !call.agent_id ? null : await resolveChannelDetailed(db, "voice", call.agent_id);
   const routed = rehearsal ? rehearsalRouting(rehearsal.tenant_id) : (lookup?.channel ?? null);
   if (!db || !routed) {
     // Whose business this is is unknown, so nothing it could send is offered: only a call back.
-    L.info("retell_availability_unrouted", { lookup_failed: lookup?.lookupFailed ?? false });
+    log.info("retell_availability_unrouted", { lookup_failed: lookup?.lookupFailed ?? false });
     return json(200, { result: CANNOT_SEE_NO_LINK });
   }
   const rt = await loadTenantRuntime(db, routed);
   if (rt.loadFailed) {
     // The workspace could not be read: the diary is unseen, not absent, so it is never told as "no calendar", and
     // nothing the settings might hold is offered (11 Oct 2026: a blip was told to callers as no calendar).
-    L.info("retell_availability_unavailable", { tenant_id: routed.tenantId, held: false });
+    log.info("retell_availability_unavailable", { tenant_id: routed.tenantId, held: false });
     return json(200, { result: CANNOT_SEE_NO_LINK });
   }
   // Autonomy -> Booking, by the rule call-booking-link.ts sends the link by. A hold changes what follows the times, never
@@ -162,7 +163,7 @@ export async function availabilityTool(request: Request): Promise<Response> {
   const hasBookingLink = linkOfferedOn("call", rt);
   const lane = !hasBookingLink ? "no_link" : held ? "held" : "link";
   if (!feedKeyOf(rt)) {
-    L.info("retell_availability_no_calendar", { tenant_id: routed.tenantId, held });
+    log.info("retell_availability_no_calendar", { tenant_id: routed.tenantId, held });
     return json(200, { result: WITHOUT_TIMES.no_calendar[lane] });
   }
   // The caller, by the number the booking-link door reads from the same body shape (retell-fn): a client is offered the
@@ -171,10 +172,10 @@ export async function availabilityTool(request: Request): Promise<Response> {
   const caller = normalizePhone(call.from_number);
   const [deal, data] = await Promise.all([
     caller ? readDealForPhone(db, routed.tenantId, caller).catch(() => null) : Promise.resolve(null),
-    openingsData(rt),
+    findOpeningsData(rt),
   ]);
   if (!data) {
-    L.info("retell_availability_unavailable", { tenant_id: routed.tenantId, held });
+    log.info("retell_availability_unavailable", { tenant_id: routed.tenantId, held });
     return json(200, { result: WITHOUT_TIMES.cannot_see[lane] });
   }
   const answer = availabilityAnswer(data, rt.brain?.profile, args, {
@@ -182,7 +183,7 @@ export async function availabilityTool(request: Request): Promise<Response> {
     hasBookingLink,
     bookingHeld: held,
   });
-  L.info("retell_availability", {
+  log.info("retell_availability", {
     tenant_id: routed.tenantId,
     day: answer.day,
     service: answer.offer?.service.name ?? null,

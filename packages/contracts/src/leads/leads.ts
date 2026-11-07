@@ -27,22 +27,26 @@ import {
 } from "./search/sets";
 import {
   LEAD_ERASE_WORDS,
+  LEAD_LEFT_OUT_WORD,
+  LEAD_NOT_A_FIT_TITLE,
+  LEAD_NOT_A_FIT_WORDS,
+  LEAD_SENT_QUESTION,
+} from "./words/refusals";
+import {
   LEAD_CALL_OUTCOME_TONES,
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_CALL_OUTCOMES,
-  LEAD_CALL_QUESTION,
   LEAD_CLOSED_WORDS,
-  LEAD_LEFT_OUT_WORD,
-  LEAD_NOT_A_FIT_TITLE,
   LEAD_NOT_A_FIT_WHYS,
-  LEAD_NOT_A_FIT_WORDS,
+} from "./words/lists";
+import {
+  LEAD_CALL_QUESTION,
   LEAD_NOTE_MAX,
   LEAD_NOTE_PLACEHOLDER,
-  LEAD_SENT_QUESTION,
   LEAD_TALKING_NOTE,
   LEAD_UNCLAIMED_NOTE,
   leadNoteLeft,
-} from "./lead-words";
+} from "./words/notes";
 export {
   LEAD_CLASSES,
   LEAD_LISTS,
@@ -59,6 +63,8 @@ export {
   LEAD_CALL_OUTCOME_TONES,
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_LIST_WORDS,
+} from "./words/lists";
+export {
   LEAD_SOURCE_WORD,
   LEAD_LOCKED_LINE,
   LEAD_ASKED_NOT_WRITTEN,
@@ -81,6 +87,8 @@ export {
   LEAD_CONTACT_STANDARD_WORDS,
   LEAD_NO_EMAIL_LINE,
   LEAD_SENT_QUESTION,
+} from "./words/refusals";
+export {
   LEAD_CALL_QUESTION,
   LEAD_NOTE_PLACEHOLDER,
   LEAD_NOTE_MAX,
@@ -100,17 +108,9 @@ export {
   leadEndingLine,
   leadAllowanceFact,
   outcomeMove,
-} from "./lead-words";
-export type {
-  LeadClass,
-  LeadStage,
-  LeadList,
-  LeadSort,
-  LeadCallOutcome,
-  LeadNotAFitWhy,
-  LeadEndingFacts,
-  LeadEndingLine,
-} from "./lead-words";
+} from "./words/notes";
+export type { LeadClass, LeadStage, LeadList, LeadSort, LeadCallOutcome, LeadNotAFitWhy } from "./words/lists";
+export type { LeadEndingFacts, LeadEndingLine } from "./words/notes";
 export {
   stageArgs,
   leadFiltersOf,
@@ -129,8 +129,8 @@ export {
   leadPlanFactLine,
   leadMonthPlanFacts,
   leadPlanAsk,
-} from "./lead-plan";
-export type { LeadPlanView, LeadPlanRefusalKind, LeadPlanned, PeoplePlanned, LeadChips } from "./lead-plan";
+} from "./plan";
+export type { LeadPlanView, LeadPlanRefusalKind, LeadPlanned, PeoplePlanned, LeadChips } from "./plan";
 export {
   leadTodayLine,
   leadHoursShort,
@@ -148,17 +148,10 @@ export {
   leadReachWord,
   LEAD_TILE_PX,
   leadTileSrc,
-} from "./lead-facts";
-export {
-  leadPeekMenu,
-  leadWeekSummary,
-  leadWeekBars,
-  toLeadPeekVM,
-  LEAD_REMOVE_KEEPS,
-  leadSearchWords,
-} from "./lead-peek";
-export type { LeadPeekReach, LeadPeekVM, LeadWeekRow } from "./lead-peek";
-export { LEAD_CHECK_KEYS } from "./lead-dtos";
+} from "./facts";
+export { leadPeekMenu, leadWeekSummary, leadWeekBars, toLeadPeekVM, LEAD_REMOVE_KEEPS, leadSearchWords } from "./peek";
+export type { LeadPeekReach, LeadPeekVM, LeadWeekRow } from "./peek";
+export { LEAD_CHECK_KEYS } from "./dtos";
 export type {
   LeadCheck,
   LeadCheckKey,
@@ -172,7 +165,7 @@ export type {
   LeadIdeaDto,
   LeadIdeaRole,
   LeadPlanFacts,
-} from "./lead-dtos";
+} from "./dtos";
 export {
   leadLowerFirst,
   LEAD_REVIEW_GROUP_WORDS,
@@ -188,8 +181,8 @@ export {
   leadMapAcross,
   leadAreaFrom,
   leadMapNote,
-} from "./lead-review";
-export type { LeadReviewGroupId, LeadReviewAct, LeadReviewGroup, LeadMapPin, LeadMapPlot } from "./lead-review";
+} from "./review";
+export type { LeadReviewGroupId, LeadReviewAct, LeadReviewGroup, LeadMapPin, LeadMapPlot } from "./review";
 export {
   leadBand,
   leadCriterionWords,
@@ -202,8 +195,8 @@ export {
   leadRail,
   leadSearchEmptyWords,
   leadsStanding,
-} from "./lead-row";
-export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRailRow, LeadRowVM } from "./lead-row";
+} from "./row";
+export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRailRow, LeadRowVM } from "./row";
 
 /**
  * One home per set. Release A declares all six in `search/sets.ts` and `schema-sets.ts:122` holds
@@ -259,7 +252,7 @@ const LEAD_FIRST_DAY = {
   lineDone: "Done",
   importIt: "Import a list",
 } as const;
-/** When the suggestions cannot be written at all: a note on the page, never a page that fails (suggestionsWritten). */
+/** When the suggestions cannot be written at all: a note on the page, never a page that fails (getSuggestionsWritten). */
 export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 
 /**
@@ -374,7 +367,7 @@ export const LEAD_WORDS = {
 } as const;
 
 /**
- * How long a workspace's ideas stand before Claude is asked again (suggestionsWritten), when nothing else asks sooner: a
+ * How long a workspace's ideas stand before Claude is asked again (getSuggestionsWritten), when nothing else asks sooner: a
  * round that ends, or a business line saved (00398). A week while they were the line's alone.
  */
 export const LEAD_SUGGEST_DAYS = 30;

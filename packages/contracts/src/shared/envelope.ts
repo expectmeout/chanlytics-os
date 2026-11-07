@@ -1,4 +1,4 @@
-import type { ErrorCode } from "./errors";
+import type { ErrorCode, ErrorDetails } from "./errors";
 
 /** API envelope (Blueprint §4): success {ok:true,data} / error {ok:false,error:{code,...}}. */
 export interface Ok<T> {
@@ -8,7 +8,7 @@ export interface Ok<T> {
 
 export interface Err {
   ok: false;
-  error: { code: ErrorCode; message: string; details?: unknown };
+  error: { code: ErrorCode; message: string; details?: ErrorDetails };
 }
 
 export type Envelope<T> = Ok<T> | Err;
@@ -21,7 +21,7 @@ export const ok = <T>(data: T): Ok<T> => ({ ok: true, data });
  * the database's clock) are judged by one clock (the wiring's second audit, S2-1). An answer without it measures nothing.
  */
 export const SERVED_AT_HEADER = "x-served-at";
-export const err = (code: ErrorCode, message: string, details?: unknown): Err => ({
+export const err = (code: ErrorCode, message: string, details?: ErrorDetails): Err => ({
   ok: false,
   error: details === undefined ? { code, message } : { code, message, details },
 });

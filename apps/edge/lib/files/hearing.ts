@@ -25,8 +25,10 @@ import {
   type SoundNote,
   type SoundWords,
 } from "@chanlytics/contracts";
-import { askGemini, transcribeWithScribe, type GeminiAnswer } from "@chanlytics/channels";
-import { recordModelUsage, workspaceMayUseModels, type Database } from "@chanlytics/db";
+import { askGemini, type GeminiAnswer } from "@chanlytics/channels/ai";
+import { transcribeWithScribe } from "@chanlytics/channels/voice";
+import { recordModelUsage, mayWorkspaceUseModels } from "@chanlytics/db/ai";
+import type { Database } from "@chanlytics/db/types";
 import { errField, logger } from "../shared/log.js";
 import { hearingSetup } from "./video-keys.js";
 
@@ -55,7 +57,7 @@ type NotHeard = { ok: false; why: string; retryable: boolean; held?: boolean };
 /** Whether the workspace may spend on hearing: a paused, ended or unbilled one's videos are kept, and not heard. */
 async function mayHear(db: Db, tenantId: string): Promise<boolean> {
   try {
-    return await workspaceMayUseModels(db, tenantId);
+    return await mayWorkspaceUseModels(db, tenantId);
   } catch (e) {
     logger({ tenant_id: tenantId }).error("ai_spend_read_failed", { purpose: "file_hear", error: errField(e) });
     return false;

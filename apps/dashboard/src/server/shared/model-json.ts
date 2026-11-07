@@ -1,6 +1,6 @@
 /**
  * One structured answer from the model, for the small drafts a person asks for (a lead's message, a search's
- * suggestions, a list's rows) and for a skill's craft call (ask/skills), asked of the edge's gateway (ask/gateway.ts
+ * suggestions, a list's rows) and for a skill's craft call (ask/skills), asked of the edge's gateway (shared/model/gateway.ts
  * streamModel) and read by zod here.
  *
  *   - The model is the registry's for these (contracts MODEL_ROUTES.lead_json: JSON_MODEL), never Ask's profile, and the
@@ -28,7 +28,7 @@ import {
   type ModelEffort,
   type SkillCraftPurpose,
 } from "@chanlytics/contracts";
-import { GatewayRefused, streamModel, type GatewayCall } from "../ask/gateway";
+import { GatewayRefused, streamModel, type GatewayCall } from "./model/gateway";
 
 /**
  * The lead purposes' own model, the registry's (contracts MODEL_ROUTES.lead_json), so the edge's default (contracts
@@ -63,8 +63,8 @@ const MODEL_JSON_TIMEOUT_MS = MIN_MS;
 
 let stream: typeof streamModel = streamModel;
 /** Tests hand in a stream of their own. */
-export function setModelStream(s: typeof streamModel | null): void {
-  stream = s ?? streamModel;
+export function setModelStream(text: typeof streamModel | null): void {
+  stream = text ?? streamModel;
 }
 
 type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
@@ -78,7 +78,7 @@ type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
 async function answerFrom(
   call: ModelJsonCall,
   model: string,
-  what: string,
+  otherText: string,
 ): Promise<{ text: string; stop: string | null }> {
   const { schema: json, ...request } = call.request;
   let text = "";
@@ -95,39 +95,46 @@ async function answerFrom(
     if (ev.type === "text") text += ev.text;
     else if (ev.type === "stop") stop = ev.stopReason;
     else if (ev.type === "error")
-      throw new AppError("upstream_anthropic", `The ${what} could not be written just now. Try again in a moment.`);
+      throw new AppError(
+        "upstream_anthropic",
+        `The ${otherText} could not be written just now. Try again in a moment.`,
+      );
   }
   return { text, stop };
 }
 
-export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, what: string): Promise<T> {
+export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, otherText: string): Promise<T> {
   const model = modelOf(call.purpose);
   let answer: { text: string; stop: string | null };
   try {
-    answer = await answerFrom(call, model, what).catch((e: unknown) => {
-      if (unknownModel(e, model)) return answerFrom(call, JSON_MODEL, what);
+    answer = await answerFrom(call, model, otherText).catch((e: unknown) => {
+      if (unknownModel(e, model)) return answerFrom(call, JSON_MODEL, otherText);
       throw e;
     });
-  } catch (e) {
-    if (e instanceof GatewayRefused) {
-      if (e.refusal.kind === "budget")
-        throw new AppError("rate_limited", `Today's assistant budget is spent, so the ${what} waits until tomorrow.`);
-      if (e.refusal.kind === "paused")
-        throw new AppError("payment_required", `The ${what} waits while this workspace is paused.`);
-      if (e.refusal.kind === "model_paused") throw new AppError("payment_required", MODEL_PAUSED_WORDS.draft(what));
-      throw new AppError("upstream_anthropic", `The ${what} is not available here right now.`, 503);
+  } catch (error) {
+    if (error instanceof GatewayRefused) {
+      if (error.refusal.kind === "budget")
+        throw new AppError(
+          "rate_limited",
+          `Today's assistant budget is spent, so the ${otherText} waits until tomorrow.`,
+        );
+      if (error.refusal.kind === "paused")
+        throw new AppError("payment_required", `The ${otherText} waits while this workspace is paused.`);
+      if (error.refusal.kind === "model_paused")
+        throw new AppError("payment_required", MODEL_PAUSED_WORDS.draft(otherText));
+      throw new AppError("upstream_anthropic", `The ${otherText} is not available here right now.`, 503);
     }
-    throw e;
+    throw error;
   }
   const { text, stop } = answer;
-  if (stop === "refusal") throw new AppError("validation", `Claude would not write this ${what}.`, 422);
+  if (stop === "refusal") throw new AppError("validation", `Claude would not write this ${otherText}.`, 422);
   let value: unknown;
   try {
     value = JSON.parse(text);
   } catch {
-    throw new AppError("upstream_anthropic", `The ${what} came back unreadable. Try again.`);
+    throw new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`);
   }
   const parsed = schema.safeParse(value);
-  if (!parsed.success) throw new AppError("upstream_anthropic", `The ${what} came back unreadable. Try again.`);
+  if (!parsed.success) throw new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`);
   return parsed.data;
 }

@@ -39,23 +39,23 @@ export const YIELD_AT_MS = 30_000;
 export const POST = door(async function POST(request: Request): Promise<Response> {
   // The budget's clock, from the first line: the door's own reads and a cold start are inside the limit too.
   const started = Date.now();
-  const L = logger({ sweep: "channel_quality" });
+  const log = logger({ sweep: "channel_quality" });
   const db = pg();
   if (!db) {
-    L.error("channel_quality_no_db");
+    log.error("channel_quality_no_db");
     return refuse(503, "no_database");
   }
-  const denied = await authorizeCron(request, db, L);
+  const denied = await authorizeCron(request, db, log);
   if (denied) return denied;
   try {
-    const out = await readNumberQualities({ db, log: L, now: Date.now, started, yieldAtMs: YIELD_AT_MS });
+    const out = await readNumberQualities({ db, log: log, now: Date.now, started, yieldAtMs: YIELD_AT_MS });
     // The count the answer calls no_token is logged as `tokenless`: the logger redacts a key that ends in `token`.
     const { no_token: tokenless, ...counts } = out;
-    L.info("channel_quality_swept", { ...counts, tokenless });
+    log.info("channel_quality_swept", { ...counts, tokenless });
     return json(200, { ok: true, ...out });
   } catch (e) {
     // The channels could not be read: nothing was asked of Meta, and sweep_health turns the 503 red.
-    L.error("channel_quality_unreadable", { error: errField(e) });
+    log.error("channel_quality_unreadable", { error: errField(e) });
     return refuse(503, "no_database");
   }
 });

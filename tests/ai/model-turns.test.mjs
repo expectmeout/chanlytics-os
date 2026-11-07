@@ -12,7 +12,7 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { MODEL_ROUTES, MODEL_TURN_WRITE_MS } from "@chanlytics/contracts";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
 import { scripted, said, json, status } from "./_model-world.mjs";
@@ -22,7 +22,7 @@ for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.en
 
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { setModelFetch, promptHashOf } = await import(at("apps/edge/lib/ai/model.ts"));
-const { generateReply } = await import(at("apps/edge/lib/receptionist/brain.ts"));
+const { generateReply } = await import(at("apps/edge/lib/ai/receptionist-brain.ts"));
 after(() => {
   setPg(null);
   setModelFetch(null);

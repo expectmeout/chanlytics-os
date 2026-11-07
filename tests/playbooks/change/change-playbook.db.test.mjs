@@ -12,7 +12,8 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { playbookForChange, runningTwins, writePlaybookChange } from "@chanlytics/db";
+import { findPlaybookForChange, listRunningTwins } from "@chanlytics/db/campaigns";
+import { writePlaybookChange } from "@chanlytics/db/workspace";
 import { showSecondFactor } from "../../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -314,12 +315,12 @@ test(
 );
 
 test(
-  "playbookForChange reads the row a change is judged against and the run that waits, with how many it is for; none of another workspace's",
+  "findPlaybookForChange reads the row a change is judged against and the run that waits, with how many it is for; none of another workspace's",
   { skip },
   async () => {
     const id = await winBack({ name: "Judged" });
     const operator = await signedIn("operator", tenantId);
-    const read = await playbookForChange(operator.client, tenantId, id);
+    const read = await findPlaybookForChange(operator.client, tenantId, id);
     assert.deepEqual(read, {
       id,
       name: "Judged",
@@ -361,18 +362,18 @@ test(
         .select("id")
         .single(),
     ).id;
-    assert.deepEqual((await playbookForChange(operator.client, tenantId, id)).waiting, {
+    assert.deepEqual((await findPlaybookForChange(operator.client, tenantId, id)).waiting, {
       id: run,
       recipient_count: 12,
     });
     const stranger = await signedIn("owner", elsewhere);
-    assert.equal(await playbookForChange(stranger.client, tenantId, id), null);
-    assert.equal(await playbookForChange(operator.client, elsewhere, id), null);
+    assert.equal(await findPlaybookForChange(stranger.client, tenantId, id), null);
+    assert.equal(await findPlaybookForChange(operator.client, elsewhere, id), null);
   },
 );
 
 test(
-  "runningTwins names the running playbooks on one moment, list and message, each by its id and name; a paused one, another list or another message is no twin",
+  "listRunningTwins names the running playbooks on one moment, list and message, each by its id and name; a paused one, another list or another message is no twin",
   { skip },
   async () => {
     const twinTemplate = ok(
@@ -395,7 +396,7 @@ test(
     const listed = await winBack({ ...on, name: "On a list", trigger: "saved_list", list_key: "all_people" });
     const operator = await signedIn("operator", tenantId);
     assert.deepEqual(
-      await runningTwins(operator.client, tenantId, {
+      await listRunningTwins(operator.client, tenantId, {
         trigger: "quiet_30",
         listId: null,
         listKey: null,
@@ -404,7 +405,7 @@ test(
       [{ id: twin, name: "Twin" }],
     );
     assert.deepEqual(
-      await runningTwins(operator.client, tenantId, {
+      await listRunningTwins(operator.client, tenantId, {
         trigger: "saved_list",
         listId: null,
         listKey: "all_people",
@@ -413,7 +414,7 @@ test(
       [{ id: listed, name: "On a list" }],
     );
     assert.deepEqual(
-      await runningTwins(operator.client, tenantId, {
+      await listRunningTwins(operator.client, tenantId, {
         trigger: "saved_list",
         listId: null,
         listKey: "regulars",

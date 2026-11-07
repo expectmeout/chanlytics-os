@@ -13,6 +13,7 @@
  * video's own copy, which `ids` asks for, is its sheet.
  */
 import {
+  FILE_COPIES_DOOR,
   FILE_PICTURE_KEEP_S,
   UUID,
   isFileMime,
@@ -21,9 +22,10 @@ import {
   type ZoomBox,
   type ZoomSize,
 } from "@chanlytics/contracts";
-import { uploadClaudeFile } from "@chanlytics/channels";
+import { uploadClaudeFile } from "@chanlytics/channels/ai";
 import { imageHeaderOf } from "@chanlytics/core";
-import { fileForWork, type Database } from "@chanlytics/db";
+import { findFileForWork } from "@chanlytics/db/files";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readBody } from "../shared/admin-door.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
@@ -31,7 +33,7 @@ import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
-import { claudeCopyOf } from "./look.js";
+import { findClaudeCopy } from "./look.js";
 import { drawMoment, drawMomentBox, drawVideoSheet, type Drawn } from "./video-sheet.js";
 import { streamKeys } from "./video-keys.js";
 
@@ -126,7 +128,7 @@ async function momentKept(db: SupabaseClient<Database>, tenantId: string, moment
   const none = (wont: string): MomentKept => ({ key: moment.key, file_id: null, wont });
   const keys = streamKeys();
   if (!keys) return none("videos are not set up here");
-  const row = await fileForWork(db, tenantId, moment.id);
+  const row = await findFileForWork(db, tenantId, moment.id);
   if (!row || row.removed_at || row.kind !== "video" || !row.media_ref) return none("no such video");
   if (row.media_status !== "ready") return none("it is still being made ready");
   const seconds = Number(row.seconds) || 0;
@@ -179,32 +181,32 @@ function picturesSent(raw: unknown): PictureSent[] | null {
 /** One picture kept for a day, or why not: an id for the request, and the size the model will see. */
 async function pictureKept(
   tenantId: string,
-  picture: PictureSent,
+  pictureSent: PictureSent,
 ): Promise<{ key: string; file_id: string | null; width: number | null; height: number | null }> {
-  const none = { key: picture.key, file_id: null, width: null, height: null };
+  const none = { key: pictureSent.key, file_id: null, width: null, height: null };
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return none;
-  const bytes = new Uint8Array(Buffer.from(picture.bytes, "base64"));
+  const bytes = new Uint8Array(Buffer.from(pictureSent.bytes, "base64"));
   const head = imageHeaderOf(bytes);
-  if (!head || head.contentType !== picture.mime || bytes.byteLength > PICTURE_BYTES_MOST) {
-    logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: picture.key, why: "picture" });
+  if (!head || head.contentType !== pictureSent.mime || bytes.byteLength > PICTURE_BYTES_MOST) {
+    logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: pictureSent.key, why: "picture" });
     return none;
   }
   const up = await uploadClaudeFile(key, {
     bytes,
     mime: head.contentType,
-    name: picture.name,
+    name: pictureSent.name,
     expiresInSeconds: FILE_PICTURE_KEEP_S,
   });
   if (!up.ok) {
-    logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: picture.key, why: "upload", error: up.error });
+    logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: pictureSent.key, why: "upload", error: up.error });
     return none;
   }
-  return { key: picture.key, file_id: up.id, width: head.width, height: head.height };
+  return { key: pictureSent.key, file_id: up.id, width: head.width, height: head.height };
 }
 
-export async function fileCopies(auth: Admitted, request: Request): Promise<Response> {
-  const body = await readBody<{ tenant_id: string; ids: unknown; pictures: unknown; moments: unknown }>(request);
+export async function listFileCopies(auth: Admitted, request: Request): Promise<Response> {
+  const body = await readBody(request, FILE_COPIES_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -237,9 +239,9 @@ export async function fileCopies(auth: Admitted, request: Request): Promise<Resp
     Promise.all(
       ids.map(async (id) => {
         try {
-          const row = await fileForWork(db, tenantId, id);
+          const row = await findFileForWork(db, tenantId, id);
           if (!row || row.removed_at || row.look_status === "refused") return { id, file_id: null };
-          const copy = await claudeCopyOf(db, row);
+          const copy = await findClaudeCopy(db, row);
           return copy ? { id, file_id: copy.id, width: copy.width, height: copy.height } : { id, file_id: null };
         } catch (e) {
           logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: id, why: "door", error: errField(e) });

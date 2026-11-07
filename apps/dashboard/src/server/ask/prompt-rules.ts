@@ -1,5 +1,6 @@
 import "server-only";
-import { ASK_GUIDE_PAGES, ASK_ROW_WORDS, DATA_NOT_INSTRUCTIONS } from "@chanlytics/contracts";
+import { ASK_ROW_WORDS, DATA_NOT_INSTRUCTIONS } from "@chanlytics/contracts";
+import { ASK_GUIDE_PAGES } from "./proposals/guide";
 import { ASK_ADS_VIEW } from "@chanlytics/contracts";
 
 /**

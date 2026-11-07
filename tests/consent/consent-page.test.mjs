@@ -320,9 +320,9 @@ test("the sign's markup carries every word of its view model, the code as given,
 
 test("the wiring: public by one prefix, read by slug, writes nothing, and the owner is given the link", async () => {
   const page = readCode("apps/dashboard/app/yes/[slug]/page.tsx");
-  assert.ok(page.includes("const facts = await consentPageFor(slug);") && page.includes("if (!facts) notFound();"));
+  assert.ok(page.includes("const facts = await findConsentPage(slug);") && page.includes("if (!facts) notFound();"));
   assert.ok(
-    page.includes("return consentPageMetadata(await consentPageFor(slug));"),
+    page.includes("return consentPageMetadata(await findConsentPage(slug));"),
     "for the people given the link, not for a search result: contracts' rule, run in public-page-titles.test.mjs",
   );
   // What the reader reads (one load, every read thrown, only selects) and what the page draws (no field, no form) are run

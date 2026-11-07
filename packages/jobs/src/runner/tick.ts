@@ -146,7 +146,7 @@ export function lateFields(lateMs: Record<string, number>): Record<string, numbe
 export async function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts> {
   const started = opts.startedAt ?? ports.now();
   const deadlineFor = (kind: string) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
-  const c: TickCounts = {
+  const tickCounts: TickCounts = {
     claimed: 0,
     done: 0,
     failed: 0,
@@ -181,12 +181,12 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
       }
       if (!job) return;
       try {
-        c.claimed += 1;
-        noteLate(c, job, now);
+        tickCounts.claimed += 1;
+        noteLate(tickCounts, job, now);
         // The job starts before anything else is asked of the ledger (runOne's first step is synchronous up to the
         // handler's own call). Work was due, so more may be: another slot opens beside this one, and it too claims only
         // what it is about to run.
-        const run = runOne(ports, job, deadlineFor(job.kind), c);
+        const run = runOne(ports, job, deadlineFor(job.kind), tickCounts);
         if (running.length < slots) running.push(slot());
         await run;
       } catch (e) {
@@ -200,42 +200,42 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
   running.push(slot());
   for (let i = 0; i < running.length; i += 1) await running[i];
   if (halt.stopped) throw halt.error;
-  return c;
+  return tickCounts;
 }
 
 /** One claimed job, run and recorded; everything per job is caught here, so one job's throw is never another's. */
-async function runOne(ports: TickPorts, job: LedgerRow, deadline: number, c: TickCounts): Promise<void> {
+async function runOne(ports: TickPorts, job: LedgerRow, deadline: number, tickCounts: TickCounts): Promise<void> {
   if (verdictFor(job) === "give_up") {
     await conclude(ports, job, RUN_INTERRUPTED, false, "unfinished");
-    c.gaveUp += 1;
-    noteFailed(c, job);
+    tickCounts.gaveUp += 1;
+    noteFailed(tickCounts, job);
     return;
   }
 
   let outcome: DispatchOutcome;
   try {
     outcome = await ports.dispatch(job, deadline);
-  } catch (e) {
-    const msg = errText(e);
+  } catch (error) {
+    const msg = errText(error);
     // A kind written to be run again is kept and tried again later, rather
     // than failed for good on its first throw (ledger RETRY_WAITS_MS). The
     // last try falls through to the failure below, and is told as one. A throw
     // that says its work provably never happened is never tried again: nothing
     // another try could change (a payload its kind cannot run on).
-    const wait = isCertainFailure(e) ? null : retryWait(job, ports.random);
+    const wait = isCertainFailure(error) ? null : retryWait(job, ports.random);
     if (wait !== null) {
       const until = await keepForLater(ports, job, wait, (untilIso) => ports.defer(job, untilIso, msg));
       if (until) ports.log.warn("job_deferred", keptFields(job, until, msg));
-      c.deferred += 1;
+      tickCounts.deferred += 1;
       return;
     }
     // A throw that says its work provably never happened (core CertainFailure: a reply whose wire could not be bound,
     // or that the provider did not take, for every fresh job it was given) is settled as certain, in its own words, as
     // a kind nobody knows is. Any other throw ran, and may have sent: its outcome is unknown.
-    const sure = isCertainFailure(e) ? { why: e.why } : null;
+    const sure = isCertainFailure(error) ? { why: error.why } : null;
     await conclude(ports, job, msg, sure !== null, "failed", sure?.why);
-    c.failed += 1;
-    noteFailed(c, job);
+    tickCounts.failed += 1;
+    noteFailed(tickCounts, job);
     return;
   }
 
@@ -247,12 +247,12 @@ async function runOne(ports: TickPorts, job: LedgerRow, deadline: number, c: Tic
       const wait = jittered(UNKNOWN_KIND_WAIT_MS, ports.random);
       const until = await keepForLater(ports, job, wait, (untilIso) => ports.deferUnknown(job, untilIso, reason));
       if (until) ports.log.warn("job_kind_unknown_deferred", keptFields(job, until, reason));
-      c.deferred += 1;
+      tickCounts.deferred += 1;
       return;
     }
     await conclude(ports, job, reason, true, "unknown_kind");
-    c.failed += 1;
-    noteFailed(c, job);
+    tickCounts.failed += 1;
+    noteFailed(tickCounts, job);
     return;
   }
 
@@ -267,8 +267,8 @@ async function runOne(ports: TickPorts, job: LedgerRow, deadline: number, c: Tic
   // than a false "failed".
   try {
     if (await ports.complete(job)) {
-      if (skipped !== null) c.skipped += 1;
-      else c.done += 1;
+      if (skipped !== null) tickCounts.skipped += 1;
+      else tickCounts.done += 1;
     } else ports.log.warn("job_complete_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
   } catch (e) {
     ports.log.error("job_complete_write_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
@@ -297,13 +297,13 @@ async function keepForLater(
 }
 
 /** What the line for a kept job says. */
-const keptFields = (job: LedgerRow, until: string, why: string): TickFields => ({
+const keptFields = (job: LedgerRow, until: string, reason: string): TickFields => ({
   job_id: job.id,
   tenant_id: job.tenant_id,
   kind: job.kind,
   attempts: job.attempts,
   until,
-  error: why,
+  error: reason,
 });
 
 /**
@@ -326,7 +326,7 @@ async function conclude(
   reason: string,
   certain: boolean,
   end: JobEnd,
-  why?: string,
+  otherReason?: string,
 ): Promise<void> {
   let failed: boolean;
   try {
@@ -347,7 +347,7 @@ async function conclude(
   // says neither (contracts jobNewsWords).
   let resumed: boolean | null;
   try {
-    const settled = await ports.settle(job, certain, why);
+    const settled = await ports.settle(job, certain, otherReason);
     resumed = settled.some((s) => s.resumed === true && !s.error);
     for (const s of settled) {
       if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });

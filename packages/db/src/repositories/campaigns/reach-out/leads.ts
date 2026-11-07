@@ -31,46 +31,50 @@ export const answer = <T>(data: unknown, error: { code?: string; message: string
 export type ReachOutAddAnswer = ReachOutAddDto | { error: "list_gone" | "fed_by_search"; search_id?: string };
 
 /** Leads added to a list-fed reach-out, or, dry, what each would do (contracts ReachOutAddDto). */
-export async function reachOutAdd(
+export async function addReachOut(
   db: Db,
-  p: { rootId: string; leadIds: string[]; dry: boolean },
+  params: { rootId: string; leadIds: string[]; dry: boolean },
 ): Promise<DoorResult<ReachOutAddAnswer>> {
-  const { data, error } = await db.rpc("reach_out_add", { p_root_id: p.rootId, p_lead_ids: p.leadIds, p_dry: p.dry });
+  const { data, error } = await db.rpc("reach_out_add", {
+    p_root_id: params.rootId,
+    p_lead_ids: params.leadIds,
+    p_dry: params.dry,
+  });
   return answer<ReachOutAddAnswer>(data, error);
 }
 
 /** Later: one lead of a search put off in this pass, with its undo's id and version, or the door's refusal word. */
-export async function leadMemberLater(
+export async function recordLeadMemberLater(
   db: Db,
-  p: { searchId: string; leadId: string },
+  params: { searchId: string; leadId: string },
 ): Promise<DoorResult<{ op_id?: string; version?: number; error?: string }>> {
-  const { data, error } = await db.rpc("lead_member_later", { p_search_id: p.searchId, p_lead_id: p.leadId });
+  const { data, error } = await db.rpc("lead_member_later", { p_search_id: params.searchId, p_lead_id: params.leadId });
   return answer<{ op_id?: string; version?: number; error?: string }>(data, error);
 }
 
 /** The pile's progress line: {total, added, closed, later, left} of a search's shown members, against a list. */
-export async function leadPileCounts(
+export async function getLeadPileCounts(
   db: Db,
-  p: { tenantId: string; searchId: string; listId: string | null; cls?: string },
+  params: { tenantId: string; searchId: string; listId: string | null; cls?: string },
 ): Promise<DoorResult<LeadPileCountsDto>> {
   const { data, error } = await db.rpc("lead_pile_counts", {
-    p_tenant_id: p.tenantId,
-    p_search_id: p.searchId,
-    ...(p.listId ? { p_list_id: p.listId } : {}),
-    ...(p.cls ? { p_class: p.cls } : {}),
+    p_tenant_id: params.tenantId,
+    p_search_id: params.searchId,
+    ...(params.listId ? { p_list_id: params.listId } : {}),
+    ...(params.cls ? { p_class: params.cls } : {}),
   });
   return answer<LeadPileCountsDto>(data, error);
 }
 
 /** Who is in a reach-out (contracts ReachOutChainPeopleDto), or null for one the workspace does not hold. */
-export async function reachOutChainPeople(
+export async function findReachOutChainPeople(
   db: Db,
-  p: { tenantId: string; rootId: string; limit?: number },
+  params: { tenantId: string; rootId: string; limit?: number },
 ): Promise<DoorResult<ReachOutChainPeopleDto | null>> {
   const { data, error } = await db.rpc("reach_out_chain_people", {
-    p_tenant_id: p.tenantId,
-    p_root_id: p.rootId,
-    ...(p.limit ? { p_limit: p.limit } : {}),
+    p_tenant_id: params.tenantId,
+    p_root_id: params.rootId,
+    ...(params.limit ? { p_limit: params.limit } : {}),
   });
   return answer<ReachOutChainPeopleDto | null>(data, error);
 }
@@ -80,7 +84,7 @@ export async function reachOutChainPeople(
  * search. The run reads it, so every first-email run of a list-fed chain waits for its owner. A read that fails throws:
  * not being able to tell is not "a search".
  */
-export async function reachOutFedByOf(db: Db, tenantId: string, searchId: string | null): Promise<ReachOutFedBy> {
+export async function getReachOutFedBy(db: Db, tenantId: string, searchId: string | null): Promise<ReachOutFedBy> {
   if (!searchId) return "search";
   const { data, error } = await db
     .from("lead_searches")
@@ -93,19 +97,22 @@ export async function reachOutFedByOf(db: Db, tenantId: string, searchId: string
 }
 
 /** Leads' Back today (00426 leads_back_today): the leads who asked to hear back on a day that has come. */
-export async function leadsBackToday(db: Db, tenantId: string): Promise<DoorResult<LeadBackDto[]>> {
+export async function listLeadsBackToday(db: Db, tenantId: string): Promise<DoorResult<LeadBackDto[]>> {
   const { data, error } = await db.rpc("leads_back_today", { p_tenant_id: tenantId });
   return answer<LeadBackDto[]>(data, error);
 }
 
 /** Leave out: one lead off a list-fed reach-out's list before anything left for it (00426 reach_out_leave_out). */
-export async function reachOutLeaveOut(db: Db, p: { rootId: string; leadId: string }): Promise<DoorResult<unknown>> {
-  const { data, error } = await db.rpc("reach_out_leave_out", { p_root_id: p.rootId, p_lead_id: p.leadId });
+export async function leaveOutOfReachOut(
+  db: Db,
+  params: { rootId: string; leadId: string },
+): Promise<DoorResult<unknown>> {
+  const { data, error } = await db.rpc("reach_out_leave_out", { p_root_id: params.rootId, p_lead_id: params.leadId });
   return answer<unknown>(data, error);
 }
 
 /** What a reach-out could start from (00426 reach_out_sources): the searches and lists with none yet, newest first. */
-export async function reachOutSources(db: Db, tenantId: string): Promise<DoorResult<ReachOutSourceDto[]>> {
+export async function readReachOutSources(db: Db, tenantId: string): Promise<DoorResult<ReachOutSourceDto[]>> {
   const { data, error } = await db.rpc("reach_out_sources", { p_tenant_id: tenantId });
   return answer<ReachOutSourceDto[]>(data, error);
 }
@@ -114,7 +121,7 @@ export async function reachOutSources(db: Db, tenantId: string): Promise<DoorRes
  * Who is in each reach-out now, by root (00426 reach_out_people_counts: the drawer's one rule), for Campaigns' ledger.
  * Null where they could not be counted: the ledger says a dash, never a zero nobody counted.
  */
-export async function reachOutPeopleCounts(
+export async function findReachOutPeopleCounts(
   db: Db,
   tenantId: string,
 ): Promise<Record<string, ReachOutPeopleCountsDto> | null> {

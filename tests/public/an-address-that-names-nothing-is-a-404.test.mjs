@@ -22,7 +22,7 @@ const require = createRequire(import.meta.url);
 const { NextRequest } = require("next/server");
 const { proxy } = await importSrc("apps/dashboard/proxy.ts");
 const { setServiceClient } = await importSrc("apps/dashboard/src/server/shared/service-db.ts");
-const { publicPageNamesNothing } = await importSrc("apps/dashboard/src/server/public/page-gate.ts");
+const { getPublicPageNamesNothing } = await importSrc("apps/dashboard/src/server/public/page-gate.ts");
 
 const APP = "https://app.example.com";
 const T = "aaaaaaaa-0000-4000-8000-000000000611";
@@ -139,7 +139,7 @@ test("a read that fails is the page's to answer, and an address that is no publi
     business: async () => (reads++, null),
   };
   for (const path of ["/login", "/w/acme/people", "/yes/harbor/extra/deep", "/b/harbor/terms/more", "/u/token"]) {
-    assert.equal(await publicPageNamesNothing(path, counted), false, path);
+    assert.equal(await getPublicPageNamesNothing(path, counted), false, path);
   }
   assert.equal(reads, 0, "only a public page's own address is looked up");
 });

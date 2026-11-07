@@ -12,6 +12,7 @@ import {
   KEEP_ROW,
   type FIRST_RUN_PHONE_WORDS,
   type FirstRunPhoneVM,
+  US_AREA_CODE,
 } from "@chanlytics/contracts";
 import { canDo, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { setupVerbs, type LineChoice } from "../surface";
@@ -85,7 +86,7 @@ export async function buy(k: PhoneActs): Promise<void> {
 export async function findNumbers(k: PhoneActs): Promise<void> {
   const { W, area } = k;
   if (k.busy || !canDo("disconnect")) return;
-  if (!/^\d{3}$/.test(area)) {
+  if (!US_AREA_CODE.test(area)) {
     k.setAreaProblem(W.threeDigits);
     return;
   }

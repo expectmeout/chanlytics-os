@@ -7,7 +7,7 @@ import { renderTemplate } from "../campaigns/broadcasts/broadcasts";
 import { clipAtWord } from "../conversations/message-words";
 import { THREAD_CHANNEL_WORDS, type WrittenChannel } from "../conversations/thread-channel";
 import { inboxSlots } from "../campaigns/templates/inbox-templates";
-import { resolveParams } from "../campaigns/templates/templates";
+import { resolveParams } from "../campaigns/templates/params";
 import { PLAN_NOTE_MAX, type PersonReachDto } from "./person-draft";
 import { WRITE_WAY_REFUSED, type WriteWay } from "./write-ways";
 
@@ -57,7 +57,7 @@ export const NEW_CONVERSATION_WORDS = {
   words: "Message",
   approved: {
     label: "Approved message",
-    none: (who: string) => `No approved message can go to ${who} yet.`,
+    none: (personName: string) => `No approved message can go to ${personName} yet.`,
     /** Which messages are not offered, and why, is one press away, never a paragraph under the choice. */
     why: "Why not the others?",
   },
@@ -91,8 +91,8 @@ export const NEW_CONVERSATION_WORDS = {
   change: "Change",
   sending: "Sending…",
   /** Said with the time it can still be stopped in, as a reply's is; with none left, it is on its way. */
-  sent: (who: string, secs: number | null) =>
-    secs ? `Message to ${who} queued · sends in ${secs} s unless you undo` : `On its way to ${who}.`,
+  sent: (personName: string, secs: number | null) =>
+    secs ? `Message to ${personName} queued · sends in ${secs} s unless you undo` : `On its way to ${personName}.`,
   undone: "Send canceled. Nothing was delivered.",
   /** After an undo: the way back to what was written, which the tab kept. */
   again: "Open it again",
@@ -103,7 +103,7 @@ export const NEW_CONVERSATION_WORDS = {
   noteLost: "It was sent. The note for the receptionist was not kept: add it on their page.",
   stillYours:
     "It was sent. The thread is still yours: hand it back from the thread when you want the receptionist to answer.",
-  noWay: (who: string) => `No message can go to ${who} yet.`,
+  noWay: (personName: string) => `No message can go to ${personName} yet.`,
   call: {
     from: "Call from your phone",
     copy: "Copy the number",
@@ -133,12 +133,12 @@ export const NEW_CONVERSATION_WORDS = {
 } as const;
 
 /** A wire as the sheet names it: its word, and what it carries or why it cannot. "WhatsApp · an approved message only, until they write". */
-export function writeWayWords(w: Pick<WriteWay, "wire" | "ok" | "why" | "carries" | "hours_left">): string {
-  const name = THREAD_CHANNEL_WORDS[w.wire];
-  if (!w.ok) return `${name} · ${w.why ?? NEW_CONVERSATION_WORDS.refusals.notThatWay}`;
-  if (w.carries === "approved") return `${name} · an approved message only, until they write`;
-  if (w.wire === "whatsapp" && w.hours_left !== null) {
-    const h = w.hours_left;
+export function writeWayWords(writeWay: Pick<WriteWay, "wire" | "ok" | "why" | "carries" | "hours_left">): string {
+  const name = THREAD_CHANNEL_WORDS[writeWay.wire];
+  if (!writeWay.ok) return `${name} · ${writeWay.why ?? NEW_CONVERSATION_WORDS.refusals.notThatWay}`;
+  if (writeWay.carries === "approved") return `${name} · an approved message only, until they write`;
+  if (writeWay.wire === "whatsapp" && writeWay.hours_left !== null) {
+    const h = writeWay.hours_left;
     return `${name} · your own words, for ${h >= 1 ? `${h} more ${h === 1 ? "hour" : "hours"}` : "less than an hour"}`;
   }
   return `${name} · your own words`;
@@ -150,16 +150,16 @@ export function writeWayWords(w: Pick<WriteWay, "wire" | "ok" | "why" | "carries
  * nothing to fill them from, the message as it is filed.
  */
 export function approvedWordsFor(
-  t: { name: string; body_preview: string | null; variables?: unknown },
+  target: { name: string; body_preview: string | null; variables?: unknown },
   fills: PersonReachDto["fills"],
 ): string {
-  if (!fills) return t.body_preview ?? "";
-  const params = resolveParams(inboxSlots(t), {
+  if (!fills) return target.body_preview ?? "";
+  const params = resolveParams(inboxSlots(target), {
     firstName: fills.first_name,
     businessName: fills.business_name,
     bookingLink: fills.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
   });
-  return renderTemplate(t.body_preview, params) || (t.body_preview ?? "");
+  return renderTemplate(target.body_preview, params) || (target.body_preview ?? "");
 }
 
 /** A wire's short name, for a control that has no room for more. */

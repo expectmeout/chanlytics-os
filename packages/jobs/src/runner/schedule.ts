@@ -11,9 +11,10 @@
  * payload that names one already keeps it, so a job a job schedules (a
  * broadcast's next batch) carries the request that started the chain.
  */
-import { hasRequeuedCopy, readJobToRequeue, type Json } from "@chanlytics/db";
+import { hasRequeuedCopy, readJobToRequeue } from "@chanlytics/db/jobs";
+import type { Json } from "@chanlytics/db/types";
 import { JOB_KINDS, type JobKind } from "@chanlytics/contracts";
-import { logger, requestId } from "@chanlytics/channels";
+import { logger, requestId } from "@chanlytics/log";
 import { kindPolicyOf } from "./kinds";
 import { SPEAKS_TO_A_PERSON, type Db } from "./ledger";
 
@@ -80,21 +81,21 @@ function askedKeyOf(kind: JobKind, payload: Json): string | null {
  * requeue are held alike, and the rule is spelled once. The two lead kinds whose key a writer asks for are the one
  * exception (askedKeyOf).
  */
-function rowToInsert(p: ScheduleParams) {
-  const refused = payloadRefusal(p.kind, p.payload);
-  if (refused) throw new Error(`schedule_job: ${p.kind}: ${refused}`);
-  const asked = askedKeyOf(p.kind, p.payload);
+function rowToInsert(scheduleParams: ScheduleParams) {
+  const refused = payloadRefusal(scheduleParams.kind, scheduleParams.payload);
+  if (refused) throw new Error(`schedule_job: ${scheduleParams.kind}: ${refused}`);
+  const askedKey = askedKeyOf(scheduleParams.kind, scheduleParams.payload);
   return {
-    tenant_id: p.tenantId,
-    kind: p.kind,
-    due_at: p.dueAt.toISOString(),
-    payload: named(idsOnly(p.kind, p.payload)),
-    ...(asked ? { dedupe_key: asked } : {}),
+    tenant_id: scheduleParams.tenantId,
+    kind: scheduleParams.kind,
+    due_at: scheduleParams.dueAt.toISOString(),
+    payload: named(idsOnly(scheduleParams.kind, scheduleParams.payload)),
+    ...(askedKey ? { dedupe_key: askedKey } : {}),
   };
 }
 
-export async function scheduleJob(db: Db, p: ScheduleParams): Promise<{ jobId: string }> {
-  const { data, error } = await db.from("jobs").insert(rowToInsert(p)).select("id").single();
+export async function scheduleJob(db: Db, scheduleParams: ScheduleParams): Promise<{ jobId: string }> {
+  const { data, error } = await db.from("jobs").insert(rowToInsert(scheduleParams)).select("id").single();
   if (error || !data) throw new Error(`schedule_job: ${error?.message ?? "no row"}`);
   return { jobId: data.id };
 }
@@ -104,8 +105,11 @@ export async function scheduleJob(db: Db, p: ScheduleParams): Promise<{ jobId: s
  * second insert for the same subject is the provider delivering its webhook again, and is answered as the fact it is
  * rather than thrown: the work is already on the ledger.
  */
-export async function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"scheduled" | "already_scheduled"> {
-  const { error } = await db.from("jobs").insert(rowToInsert(p));
+export async function scheduleJobOnce(
+  db: Db,
+  scheduleParams: ScheduleParams,
+): Promise<"scheduled" | "already_scheduled"> {
+  const { error } = await db.from("jobs").insert(rowToInsert(scheduleParams));
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
   // The database's code travels with it: a caller tells a refusal (a kind the database does not know) from a write that

@@ -10,9 +10,10 @@ import { readBody } from "../../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { checkNumberStanding } from "../../../lib/whatsapp/number-standing.js";
+import { WHATSAPP_STANDING_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/whatsapp/standing");
   if (!auth.ok) return auth.response;
-  return checkNumberStanding(auth, await readBody(request));
+  return checkNumberStanding(auth, await readBody(request, WHATSAPP_STANDING_DOOR));
 });

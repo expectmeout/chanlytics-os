@@ -19,7 +19,7 @@ import {
   type ZoomSize,
   type ZoomWont,
 } from "@chanlytics/contracts";
-import type { FileMemberRow } from "@chanlytics/db";
+import type { FileMemberRow } from "@chanlytics/db/files";
 import { bucket } from "./file";
 
 /** An original past this is read as Storage's largest copy instead, as a HEIC always is: the code reads neither whole. */
@@ -51,8 +51,8 @@ async function sourceOf(file: FileMemberRow): Promise<{ bytes: Buffer; original:
 }
 
 /** Cut the box the model named from the photo, upright, and enlarge it to read. */
-export async function zoomInto(file: FileMemberRow, asked: ZoomBox, of: ZoomSize): Promise<Zoomed | ZoomWont> {
-  const box = boxShown(asked, of);
+export async function getZoomInto(file: FileMemberRow, wanted: ZoomBox, of: ZoomSize): Promise<Zoomed | ZoomWont> {
+  const box = boxShown(wanted, of);
   if ("wont" in box) return box;
   const source = await sourceOf(file);
   if (!source) return { wont: "the photo could not be read just now" };

@@ -27,7 +27,7 @@
  * thread's pause and the workspace's billing pause are two), and those names do not change. The pure verdicts, limits
  * and copy are steps.ts's; the token count comes through the budget port.
  */
-import { errField } from "@chanlytics/channels";
+import { errField } from "@chanlytics/log";
 import {
   confirmationNameOf,
   offersAfterStart,
@@ -46,7 +46,7 @@ import { GO, type Answering } from "./context";
 const sentAtSecondsOf = (iso: string | null): number | undefined =>
   iso === null ? undefined : Date.parse(iso) / SECOND_MS;
 import { unattendedHold } from "./reply-posture";
-import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
+import { escalationOf, handledOf, getProcessedAfter, SET_ASIDE, type Asked } from "./handled";
 import { toldFromItsEvent } from "../events/subscribers";
 import { heldByThread } from "../deliver/hold";
 
@@ -105,7 +105,7 @@ async function offersTakenBack(at: Answering): Promise<boolean> {
  * look" and paused the thread, an automated reply out of nowhere, which is what the horizon exists to prevent. Its
  * attachment is still kept, for the person it is handed to.
  */
-export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
+export async function isTooLate(at: Answering): Promise<typeof GO | undefined> {
   const { sink, tell, n, L } = at;
   // Late, but somebody is still waiting.
   //
@@ -123,18 +123,18 @@ export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
   // arrive out of nowhere, so a person picks it up — but a person is told.
   const { ageMs, verdict: age } = ageVerdict(sentAtSecondsOf(n.channelTsIso));
   if (age === "stale") {
-    const asked = sink.escalate(
+    const escalate = sink.escalate(
       "stale",
       `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`,
     );
     await Promise.all([
-      asked,
-      tell(asked, {
+      escalate,
+      tell(escalate, {
         said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent — arrived too late to answer automatically)",
         why: "late message",
       }),
-      processedAfter(sink, asked, "none"),
+      getProcessedAfter(sink, escalate, "none"),
       ...(n.media ? [sink.media(n)] : []),
     ]);
     L.info("wa_stale_escalated", { age_ms: ageMs });
@@ -145,7 +145,7 @@ export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
 }
 
 /** A yes to confirm in the campaign's own words. */
-export async function confirmedYes(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
+export async function hasConfirmedYes(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
   const { sink, tell, n, L, channel, brainCfg, rt, send } = at;
 
   // A YES IS CONFIRMED, and in these words. Every recurring program owes the
@@ -169,7 +169,7 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
     // said yes and was never confirmed, when the customer's last word was no.
     if (n.consent.optInMarketing && (await offersTakenBack(at))) {
       L.info("wa_opt_in_confirmed", { purpose, channel, sent: false, why: "offers_taken_back" });
-      await processedAfter(sink, null, "none");
+      await getProcessedAfter(sink, null, "none");
       return;
     }
     // In whose name (contracts confirmationNameOf): a START by text in the name its campaign was filed under.
@@ -192,7 +192,7 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
     // A system message, so a thread a person holds does not hold it back: the
     // yes is owed its confirmation whoever holds the thread.
     const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose, "system");
-    let asked: Asked | null = null;
+    let request: Asked | null = null;
     if (confirmed.outcome !== "sent") {
       // A yes nobody confirmed is the carriers' complaint, whether the wire
       // failed or the door refused. A refusal is NOT quietly logged here the
@@ -202,26 +202,29 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
       // earlier and the door fails closed without it, so a consent write that
       // did not land would otherwise leave a customer subscribed to nothing,
       // told nothing, with a log line as the only trace.
-      const why = confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
+      const reason =
+        confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
       // A yes taken while the workspace is paused: the door refuses every message but a reply (deliver.ts `paused`), so the
       // hold is the pause's, in its words, not a reply that failed to deliver (the wiring's second audit, X4-1).
       const paused = confirmed.outcome === "refused" && confirmed.reason === "paused";
-      asked = sink.escalate(
+      request = sink.escalate(
         paused ? "paused" : "send_failed",
         paused
           ? YES_WHILE_PAUSED.details
-          : `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`,
+          : `The customer said yes and their confirmation did not go out (${reason}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`,
       );
       await Promise.all([
-        asked,
-        tell(asked, {
+        request,
+        tell(request, {
           said: bodyText,
-          answered: paused ? YES_WHILE_PAUSED.answered : `(the confirmation of their yes was not delivered — ${why})`,
+          answered: paused
+            ? YES_WHILE_PAUSED.answered
+            : `(the confirmation of their yes was not delivered — ${reason})`,
           why: paused ? "paused" : "opt-in not confirmed",
         }),
       ]);
     }
-    await processedAfter(sink, asked, confirmed.outcome === "sent" ? "sent" : "none");
+    await getProcessedAfter(sink, request, confirmed.outcome === "sent" ? "sent" : "none");
     L.info("wa_opt_in_confirmed", {
       purpose,
       channel,
@@ -242,18 +245,18 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
  */
 async function heldWhileTheirs(at: Answering, bodyText: string): Promise<void> {
   const { sink, tell } = at;
-  const asked = sink.escalate(
+  const escalate = sink.escalate(
     "wrote_while_held",
     "They wrote again while your team had this thread, so the receptionist stayed out. Answer them, or hand the thread back.",
   );
   await Promise.all([
-    asked,
-    tell(asked, {
+    escalate,
+    tell(escalate, {
       said: bodyText,
       answered: "(no reply sent — a person on your team has this thread)",
       why: "wrote while held",
     }),
-    processedAfter(sink, asked, "none"),
+    getProcessedAfter(sink, escalate, "none"),
   ]);
 }
 
@@ -277,7 +280,7 @@ async function heldByTheLiveHold(at: Answering): Promise<typeof GO | undefined> 
 }
 
 /** The one order every unattended sender asks (unattendedHold), then the live hold, the token budget and the persona. */
-export async function heldForThePerson(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
+export async function holdForThePerson(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
   const {
     thread,
     maxRepliesDay,
@@ -315,18 +318,18 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     // CHECK-allowed, LABELLED escalation reason this whole time with no
     // emitter anywhere in the repo. At the shipped default of 20/day this
     // fires on a busy thread, not only when someone lowers the limit.
-    const asked = sink.escalate(
+    const ask = sink.escalate(
       "rate_cap",
       `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`,
     );
     await Promise.all([
-      asked,
-      tell(asked, {
+      ask,
+      tell(ask, {
         said: bodyText,
         answered: "(no reply sent — daily automatic-reply limit reached)",
         why: "rate cap",
       }),
-      processedAfter(sink, asked, "none"),
+      getProcessedAfter(sink, ask, "none"),
     ]);
     return;
   }
@@ -340,18 +343,18 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     // pause above logs, so nothing reading the stream could tell a human
     // taking one conversation over from a workspace-wide billing stop.
     L.info("wa_skip_workspace_paused");
-    const asked = sink.escalate(
+    const ask = sink.escalate(
       "paused",
       "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
     );
     await Promise.all([
-      asked,
-      tell(asked, {
+      ask,
+      tell(ask, {
         said: bodyText,
         answered: "(no reply sent — the workspace is paused until billing resumes)",
         why: "paused",
       }),
-      processedAfter(sink, asked, "none"),
+      getProcessedAfter(sink, ask, "none"),
     ]);
     return;
   }
@@ -371,14 +374,14 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (tokenBudgetSpent(replyLimits, used)) {
       L.info("wa_skip_budget", { cap: tokenCap, used });
-      const asked = sink.escalate(
+      const ask = sink.escalate(
         "budget",
         `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
       );
       await Promise.all([
-        asked,
-        tell(asked, { said: bodyText, answered: "(no reply sent — the day's model budget is used up)", why: "budget" }),
-        processedAfter(sink, asked, "none"),
+        ask,
+        tell(ask, { said: bodyText, answered: "(no reply sent — the day's model budget is used up)", why: "budget" }),
+        getProcessedAfter(sink, ask, "none"),
       ]);
       return;
     }

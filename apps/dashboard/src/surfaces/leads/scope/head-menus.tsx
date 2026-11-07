@@ -8,14 +8,13 @@ import {
   LEAD_HEADING_WORDS,
   LEAD_STATUS_GROUPS,
   LEAD_STATUS_GROUP_WORDS,
-  leadFootOf,
-  leadGroupOf,
   leadReachWord,
   type LeadReachFilter,
   type LeadRowVM,
   type LeadStatusGroup,
   type LeadViewCountsDto,
 } from "@chanlytics/contracts";
+import { leadFootOf, leadGroupOf } from "../row-status";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import type { MenuGroup } from "../../kit/menu/menu";

@@ -6,13 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  checkedWordsOf,
-  reachOutDraft,
-  reachOutRequest,
-  reachOutWords,
-  verifyUnsubscribeToken,
-} from "@chanlytics/channels";
+import { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "@chanlytics/channels/email";
+import { verifyUnsubscribeToken } from "@chanlytics/channels/tokens";
 
 const SECRET = "a-secret-only-this-file-holds";
 const T = "22222222-2222-4222-8222-222222222222";

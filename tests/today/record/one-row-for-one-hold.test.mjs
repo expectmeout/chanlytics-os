@@ -12,7 +12,8 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { EMPTY_READ_STATE, bellFeed, buildNotificationFeed, holdMarksOf, unreadCount } from "@chanlytics/contracts";
+import { EMPTY_READ_STATE, buildNotificationFeed, unreadCount } from "@chanlytics/contracts";
+import { bellFeed, holdMarksOf } from "../../../apps/dashboard/src/bridge/surfaces/hold-rows.ts";
 import { importSrc } from "../../_source.mjs";
 
 const NOW = Date.parse("2026-09-18T20:00:00Z");

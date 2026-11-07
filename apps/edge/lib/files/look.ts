@@ -32,19 +32,13 @@ import {
   type FileLookRead,
   type FileMime,
 } from "@chanlytics/contracts";
-import { deleteClaudeFile, uploadClaudeFile } from "@chanlytics/channels";
+import { deleteClaudeFile, uploadClaudeFile } from "@chanlytics/channels/ai";
 import { imageHeaderOf } from "@chanlytics/core";
-import {
-  fileForWork,
-  fileLookKeep,
-  filesBucket,
-  keepClaudeCopy,
-  workspaceNameAndConfig,
-  type Database,
-  type FileRow,
-} from "@chanlytics/db";
+import { findFileForWork, keepFileLook, filesBucket, keepClaudeCopy, type FileRow } from "@chanlytics/db/files";
+import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob } from "@chanlytics/jobs";
-import { askJson, firstJson, modelMayGo, promptHashOf, type ModelCallFor } from "../ai/model.js";
+import { askJson, firstJson, mayModelGo, promptHashOf, type ModelCallFor } from "../ai/model.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { drawPoster } from "./video-sheet.js";
@@ -84,7 +78,7 @@ function heldCopyOf(row: FileRow, nowMs: number): ClaudeCopy | null {
  * The copy the model reads, made now where there is none: null where Storage or Anthropic would not, for the caller. A video's
  * is its sheet (video-digest.ts), read from its folder as it was drawn, already at the size the model reads: never Stream again.
  */
-export async function claudeCopyOf(db: Db, row: FileRow): Promise<ClaudeCopy | null> {
+export async function findClaudeCopy(db: Db, row: FileRow): Promise<ClaudeCopy | null> {
   const heldCopy = heldCopyOf(row, Date.now());
   if (heldCopy) return heldCopy;
   const key = env.ANTHROPIC_API_KEY;
@@ -130,10 +124,10 @@ export async function claudeCopyOf(db: Db, row: FileRow): Promise<ClaudeCopy | n
 
 /** What the look is told of the business: its name, and its services in its own words. */
 async function lookBusinessOf(db: Db, tenantId: string): Promise<{ business: string; services: string[] }> {
-  const w = await workspaceNameAndConfig(db, tenantId);
-  const services = parseTenantConfig(w.config)?.brain?.profile?.services ?? [];
+  const result = await findWorkspaceNameAndConfig(db, tenantId);
+  const services = parseTenantConfig(result.config)?.brain?.profile?.services ?? [];
   return {
-    business: w.name?.trim() || "a local business",
+    business: result.name?.trim() || "a local business",
     services: services
       .map((s) => s.name)
       .filter(Boolean)
@@ -149,11 +143,11 @@ async function lookBusinessOf(db: Db, tenantId: string): Promise<{ business: str
  */
 export async function lookAtFile(db: Db, job: ClaimedJob, deadline: number): Promise<void> {
   const fileId = String(job.payload.file_id);
-  const row = await fileForWork(db, job.tenant_id, fileId);
+  const row = await findFileForWork(db, job.tenant_id, fileId);
   if (!row || row.removed_at) return;
   if (row.kind === "video") return row.media_status === "ready" ? lookAtVideo(db, job, row, deadline) : undefined;
   const notRead = () =>
-    fileLookKeep(db, {
+    keepFileLook(db, {
       tenantId: job.tenant_id,
       id: fileId,
       status: "failed",
@@ -168,8 +162,8 @@ export async function lookAtFile(db: Db, job: ClaimedJob, deadline: number): Pro
     subjectId: fileId,
     promptHash: promptHashOf(FILE_LOOK_SYSTEM),
   };
-  if (!(await modelMayGo("file_look", asking))) return notRead();
-  const copy = await claudeCopyOf(db, row);
+  if (!(await mayModelGo("file_look", asking))) return notRead();
+  const copy = await findClaudeCopy(db, row);
   if (!copy) throw new Error("file_look: no copy to read");
   const about = await lookBusinessOf(db, job.tenant_id);
   const ms = Math.min(LOOK_WHOLE_MS, deadline - Date.now());
@@ -196,7 +190,7 @@ export async function lookAtFile(db: Db, job: ClaimedJob, deadline: number): Pro
   });
   if (!answered) return notRead();
   const read = fileLookOf(answered.answer, { width: copy.width, height: copy.height });
-  await fileLookKeep(db, {
+  await keepFileLook(db, {
     tenantId: job.tenant_id,
     id: fileId,
     status: read ? "done" : answered.refused ? "refused" : "failed",
@@ -215,7 +209,7 @@ export async function lookAtFile(db: Db, job: ClaimedJob, deadline: number): Pro
  */
 async function lookAtVideo(db: Db, job: ClaimedJob, row: FileRow, deadline: number): Promise<void> {
   const keep = (status: "done" | "refused" | "failed", read: FileLookRead | null) =>
-    fileLookKeep(db, {
+    keepFileLook(db, {
       tenantId: job.tenant_id,
       id: row.id,
       status,
@@ -230,8 +224,8 @@ async function lookAtVideo(db: Db, job: ClaimedJob, row: FileRow, deadline: numb
     subjectId: row.id,
     promptHash: promptHashOf(FILE_LOOK_SYSTEM),
   };
-  if (!(await modelMayGo("file_look", asking))) return keep("failed", null);
-  const copy = await claudeCopyOf(db, row);
+  if (!(await mayModelGo("file_look", asking))) return keep("failed", null);
+  const copy = await findClaudeCopy(db, row);
   if (!copy) throw new Error("file_look: no copy of the sheet to read");
   const plan = videoSheetPlanOf({ seconds: Number(row.seconds), width: row.width, height: row.height });
   const sound = fileSoundOf(row.sound);

@@ -19,7 +19,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { takeLock } from "../_file-lock.mjs";
-import { legacyLeadSuppressionHash, noticeTone } from "@chanlytics/contracts";
+import { hashLegacyLeadSuppression, noticeTone } from "@chanlytics/contracts";
 import { stageArgs, LEAD_CONSENT_REFUSAL } from "../../packages/contracts/src/leads/leads.ts";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -283,7 +283,7 @@ test(
   { skip },
   async () => {
     const a = ok(await setStage(operator, ids.lead5, { kind: "not_a_fit", why: "customer" }));
-    const hash = await legacyLeadSuppressionHash(A, "ChIJfixtureB5");
+    const hash = await hashLegacyLeadSuppression(A, "ChIJfixtureB5");
     const hidden = ok(
       await db.from("lead_suppressions").select("what").eq("tenant_id", A).eq("kind", "place").eq("hash", hash),
     );

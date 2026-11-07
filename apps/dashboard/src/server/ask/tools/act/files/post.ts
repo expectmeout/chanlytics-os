@@ -9,21 +9,21 @@ import {
   POST_VOICES,
   fileSaidOf,
   isAskMorningQuestion,
-  postPhotoProblem,
-  postPlanProblem,
   postWordsIn,
   whoStandsOf,
   type PostPlan,
 } from "@chanlytics/contracts";
-import { load } from "../../../../readers";
+import { postPhotoProblem, postPlanProblem } from "@/server/files/post-check";
+import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
 import { filesForAsk } from "../../../../readers/files";
-import { pictureCopyOf } from "../../../../files/copies";
-import { POST_SIZES } from "../../../../files/post/layout";
-import { photoFor, postDrawn } from "../../../../files/post/make";
-import { postMaterialFrom } from "../../../../files/post/material";
-import { postPhoneOf } from "../../../../files/post/phone";
-import { defineAct, propose, refuse, type ProposalOutcome, type ToolContext, type ToolPicture } from "../../context";
+import { findPictureCopy } from "../../../../files/copies";
+import { POST_SIZES } from "../../../../posts/layout";
+import { getPhoto, postDrawn } from "../../../../posts/make";
+import { postMaterialFrom } from "../../../../posts/material";
+import { postPhoneOf } from "../../../../posts/phone";
+import { defineAct, type ProposalOutcome, type ToolContext, type ToolPicture } from "../../context/tool-defs";
+import { propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
 
 /**
@@ -43,8 +43,8 @@ import { filesNamed } from "../../read/files";
 
 /** What the owner has said, as a post's words are held to it: this thread's questions and their Settings. A morning's turn asks itself. */
 function ownersWords(t: ToolContext, config: unknown): string {
-  const asked = isAskMorningQuestion(t.question) ? [] : [t.question ?? ""];
-  return [...asked, ...(t.askedEarlier ?? []), config ? JSON.stringify(config) : ""].join("\n");
+  const request = isAskMorningQuestion(t.question) ? [] : [t.question ?? ""];
+  return [...request, ...(t.askedEarlier ?? []), config ? JSON.stringify(config) : ""].join("\n");
 }
 
 /** What a drawn post is known by once the model has looked at it: the plan, whole, in one short key. */
@@ -105,7 +105,7 @@ const leftOf = (t: ToolContext): number | undefined => (t.endsAt === undefined ?
 
 /** The post drawn as its card would draw it, shown to the model to look at: no card yet, and the key a second call carries. */
 async function postShownFirst(
-  t: ToolContext,
+  toolContext: ToolContext,
   plan: PostPlan,
   name: string,
   key: string,
@@ -113,17 +113,17 @@ async function postShownFirst(
 ): Promise<ProposalOutcome> {
   let bytes: Buffer;
   try {
-    const row = await photoFor(t.ctx, plan);
-    const material = await postMaterialFrom(t.ctx, t.tenantId, row, async () => config);
+    const row = await getPhoto(toolContext.ctx, plan);
+    const material = await postMaterialFrom(toolContext.ctx, toolContext.tenantId, row, async () => config);
     bytes = await postDrawn(plan, material, "portrait", true);
   } catch (e) {
     if (e instanceof AppError) return refuse(`${name}: ${e.message}`);
     throw e;
   }
-  const held = await pictureCopyOf(
-    { tenantId: t.tenantId, userId: t.ctx.userId },
+  const held = await findPictureCopy(
+    { tenantId: toolContext.tenantId, userId: toolContext.ctx.userId },
     { bytes, mime: "image/jpeg", name: `${name}-post.jpg` },
-    leftOf(t),
+    leftOf(toolContext),
   );
   const drawn = { drawn: true, file: name, look_key: key };
   if (!held) {
@@ -146,10 +146,10 @@ async function postShownFirst(
   return { proposal: null, isError: false, result: JSON.stringify({ ...drawn, note: LOOK_NOTE }), pictures: [picture] };
 }
 
-async function postOutcome(t: ToolContext, input: z.infer<typeof postInput>): Promise<ProposalOutcome> {
+async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postInput>): Promise<ProposalOutcome> {
   const [{ files }, config] = await Promise.all([
-    load(t.rc, filesForAsk, undefined).then((r) => r.data),
-    load(t.rc, readers.config, undefined).then((r) => r.data?.config ?? null),
+    load(toolContext.rc, filesForAsk, undefined).then((r) => r.data),
+    load(toolContext.rc, readers.config, undefined).then((r) => r.data?.config ?? null),
   ]);
   const { found } = filesNamed(files, [input.file]);
   const file = found.at(0);
@@ -161,10 +161,10 @@ async function postOutcome(t: ToolContext, input: z.infer<typeof postInput>): Pr
       `${input.file} shows someone recognizable, and no one has said they agreed to be shown. Ask the owner in a sentence; if they say yes, call again with people_agreed true.`,
     );
   const words = { line: input.line.trim(), over: input.over?.trim() || null, under: input.under?.trim() || null };
-  const wordsProblem = postPlanProblem(words, ownersWords(t, config));
+  const wordsProblem = postPlanProblem(words, ownersWords(toolContext, config));
   if (wordsProblem) return refuse(wordsProblem);
-  if (input.book && !(await postPhoneOf(t.ctx, t.tenantId, config))) return refuse(POST_NO_PHONE);
-  const language = t.language === "es" ? "es" : "en";
+  if (input.book && !(await postPhoneOf(toolContext.ctx, toolContext.tenantId, config))) return refuse(POST_NO_PHONE);
+  const language = toolContext.language === "es" ? "es" : "en";
   // In one order always, so the key names the plan whole, whoever built it.
   const plan: PostPlan = {
     file_id: file.id,
@@ -184,7 +184,7 @@ async function postOutcome(t: ToolContext, input: z.infer<typeof postInput>): Pr
       return refuse(
         `looked ${input.looked} is not this plan's key: the plan changed since you looked. Call again without looked, and look at the post as it is drawn now.`,
       );
-    return postShownFirst(t, plan, file.name, key, config);
+    return postShownFirst(toolContext, plan, file.name, key, config);
   }
   const says = postWordsIn(language);
   return propose({

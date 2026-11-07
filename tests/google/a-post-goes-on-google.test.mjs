@@ -4,13 +4,13 @@
  * owner, and the ledger keeps Google's name for it, which is how it comes down; it never goes by itself, and a name that isn't this
  * connection's takes nothing down.
  *
- * ORDER OF SETUP MATTERS, as in google-door.test.mjs: lib/google/places.ts binds fetch at module scope, so the wire goes in first.
+ * ORDER OF SETUP MATTERS, as in google-door.test.mjs: lib/shared/google/places.ts binds fetch at module scope, so the wire goes in first.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";

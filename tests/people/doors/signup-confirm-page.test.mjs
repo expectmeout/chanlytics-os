@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
-import { signConfirmToken, signUnsubscribeToken } from "@chanlytics/channels";
+import { signConfirmToken, signUnsubscribeToken } from "@chanlytics/channels/tokens";
 
 const SECRET = "the-confirm-secret-for-this-file";
 process.env.UNSUBSCRIBE_SECRET = SECRET;

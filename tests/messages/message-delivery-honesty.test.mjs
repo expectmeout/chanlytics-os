@@ -15,7 +15,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { messageStatusLabel, reachedCustomer, toConversationVM, toInboxThreadVM } from "@chanlytics/contracts";
+import { messageStatusLabel, reachedCustomer, toInboxThreadVM } from "@chanlytics/contracts";
+import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { readCode } from "../_source.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).

@@ -25,19 +25,12 @@ import {
   visitTwinWords,
   type PlaybookPatch,
 } from "@chanlytics/contracts";
-import { checkPlaybookPatch, playbookNameAsked, untilOf } from "@chanlytics/core";
-import {
-  emitEvent,
-  playbookForChange,
-  removePlaybook,
-  runningStepsOn,
-  runningTwins,
-  startPlaybook,
-  updatePlaybook,
-  writePlaybookChange,
-} from "@chanlytics/db";
+import { checkPlaybookPatch, playbookNameAsked, findUntil } from "@chanlytics/core";
+import { emitEvent } from "@chanlytics/db/events";
+import { findPlaybookForChange, listRunningStepsOn, listRunningTwins } from "@chanlytics/db/campaigns";
+import { removePlaybook, startPlaybook, updatePlaybook, writePlaybookChange } from "@chanlytics/db/workspace";
 import { serviceDb } from "@/server/shared/service-db";
-import { jsonBody } from "@/server/shared/request-guards";
+import { readJsonBody } from "@/server/shared/request-guards";
 import { recordDecision, type playbookScope } from "@/server/shared/verbs";
 import {
   checkPlaybookChannelsInput,
@@ -46,9 +39,9 @@ import {
   playbookWriteError,
   type PlaybookInput,
 } from "@/server/campaigns/playbooks";
-import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
+import { channelsChanged, listKeptChannels } from "@/server/campaigns/playbook-channels";
 import { withStarterMessage } from "@/server/campaigns/starter-templates";
-import { unwrittenPlaceOf } from "@/server/campaigns/sequences/lead-chain";
+import { findUnwrittenPlace } from "@/server/campaigns/sequences/lead-chain";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 
@@ -118,17 +111,17 @@ type PlaybookPutBody = z.infer<typeof PLAYBOOK_PUT_BODY>;
  * A second running playbook on the same moment, list and message (the moment spec, D9): a second "set up my campaigns"
  * proposed a twin win-back, which the week's breath then left reaching nobody. Refused in `words`, unless it is named
  * apart from every one that runs: a name of its own is a second they asked for, compared as it is kept (core
- * playbookNameAsked). Null where there is no twin. Ask's card is made by it, in the model's words (act/playbook.ts), and a
+ * playbookNameAsked). Null where there is no twin. Ask's card is made by it, in the model's words (act/playbook/playbook.ts), and a
  * card's start meets it again, in the owner's (startNewPlaybook).
  */
-export async function twinRefusal(
+export async function findTwinRefusal(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   checked: Pick<PlaybookInput, "trigger" | "list_id" | "list_key" | "template_id">,
   named: unknown,
   words: (name: string) => string,
 ): Promise<string | null> {
-  const twins = await runningTwins(ctx.supabase, tenantId, {
+  const twins = await listRunningTwins(ctx.supabase, tenantId, {
     trigger: checked.trigger,
     listId: checked.list_id,
     listKey: checked.list_key,
@@ -146,17 +139,17 @@ export async function twinRefusal(
 /**
  * A second sequence on a visit moment, refused where it would start or turn on (the phone review's B1, 16 Oct 2026): a
  * reminder the day before or a thank-you the day after is owed once per visit and skips the week's breath, so two running
- * on one moment would each send every person theirs, whatever their names or messages (twinRefusal's rule is for the
+ * on one moment would each send every person theirs, whatever their names or messages (findTwinRefusal's rule is for the
  * other moments, whose breath keeps a twin from reaching anyone twice). In the owner's words, by the one that runs; null
  * for any other moment, and where nothing else runs on it. `id` is the step turning on, never its own twin.
  */
-export async function visitTwinRefusal(
+export async function findVisitTwinRefusal(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   on: { id?: string | null; trigger: string },
 ): Promise<string | null> {
   if (!VISIT_TRIGGERS.includes(on.trigger)) return null;
-  const running = await runningStepsOn(ctx.supabase, tenantId, [on.trigger]);
+  const running = await listRunningStepsOn(ctx.supabase, tenantId, [on.trigger]);
   const twin = running.find((s) => s.id !== (on.id ?? null));
   return twin ? visitTwinWords(twin.name) : null;
 }
@@ -173,7 +166,7 @@ export async function visitTwinRefusal(
  * this route's clock. Its mode is its class's Autonomy row, which the database gives it as it makes its sequence (00462
  * sequence_mode_for, decision 0064), and its first batch waits for an OK whatever that is.
  *
- * A card's start (x-via ask) meets twinRefusal again, 409 in the owner's words (contracts twinRunsWords). It refuses a
+ * A card's start (x-via ask) meets findTwinRefusal again, 409 in the owner's words (contracts twinRunsWords). It refuses a
  * twin running since the card was made: under the name the card carries, or under any name where it carries none (a
  * starter's card, or a plan step's, that named nothing). So it also refuses a press after its key's day: one within it
  * is answered its first answer before this runs (route.ts onceForKey), but a plan's card can be approved for a week, its
@@ -185,43 +178,44 @@ export async function visitTwinRefusal(
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;
-  const asked = (await jsonBody(req)) as Record<string, unknown> | null;
+  const otherJsonBody = (await readJsonBody(req)) as Record<string, unknown> | null;
   const now = new Date();
-  const until = (await untilOf(playbookPatchPorts(ctx, tenantId), asked?.until, { now, undo: false })) ?? null;
+  const until =
+    (await findUntil(playbookPatchPorts(ctx, tenantId), otherJsonBody?.until, { now, undo: false })) ?? null;
   // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
-  const { body, starter } = await withStarterMessage(ctx, member, asked);
-  const v = await checkPlaybookInput(ctx, tenantId, body, null);
+  const { body, starter } = await withStarterMessage(ctx, member, otherJsonBody);
+  const result = await checkPlaybookInput(ctx, tenantId, body, null);
   const twin =
-    (await visitTwinRefusal(ctx, tenantId, { trigger: v.trigger })) ??
-    (ctx.via === "ask" ? await twinRefusal(ctx, tenantId, v, asked?.name, twinRunsWords) : null);
+    (await findVisitTwinRefusal(ctx, tenantId, { trigger: result.trigger })) ??
+    (ctx.via === "ask" ? await findTwinRefusal(ctx, tenantId, result, otherJsonBody?.name, twinRunsWords) : null);
   if (twin) throw new AppError("conflict", twin, 409);
   const { data: made, error } = await startPlaybook(ctx.supabase, {
     tenantId,
     playbook: {
-      name: v.name,
-      trigger: v.trigger,
-      list_id: v.list_id,
-      list_key: v.list_key,
-      template_id: v.template_id,
-      template_name: v.template_name,
-      template_language: v.template_language,
-      params: v.params,
-      policy_class: v.policy_class,
-      run_hour: v.run_hour,
-      cap_per_run: v.cap_per_run,
-      gap_days: v.gap_days,
-      cadence_days: v.cadence_days,
-      channels: v.channels,
+      name: result.name,
+      trigger: result.trigger,
+      list_id: result.list_id,
+      list_key: result.list_key,
+      template_id: result.template_id,
+      template_name: result.template_name,
+      template_language: result.template_language,
+      params: result.params,
+      policy_class: result.policy_class,
+      run_hour: result.run_hour,
+      cap_per_run: result.cap_per_run,
+      gap_days: result.gap_days,
+      cadence_days: result.cadence_days,
+      channels: result.channels,
       until,
     },
     decision: {
-      name: v.name,
-      trigger: v.trigger,
-      template: `${v.template_name}/${v.template_language}`,
-      policy_class: v.policy_class,
-      run_hour: v.run_hour,
-      cap_per_run: v.cap_per_run,
-      channels: v.channels,
+      name: result.name,
+      trigger: result.trigger,
+      template: `${result.template_name}/${result.template_language}`,
+      policy_class: result.policy_class,
+      run_hour: result.run_hour,
+      cap_per_run: result.cap_per_run,
+      channels: result.channels,
       ...(until ? { until } : {}),
     },
     via: ctx.via ?? null,
@@ -229,14 +223,20 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
   });
   if (error) throw playbookWriteError(error);
   if (!made) throw new Error("playbook not created");
-  return { id: made.id, name: v.name, state: "running", decision_id: made.decisionId, ...(starter ? { starter } : {}) };
+  return {
+    id: made.id,
+    name: result.name,
+    state: "running",
+    decision_id: made.decisionId,
+    ...(starter ? { starter } : {}),
+  };
 }
 
 /** PUT playbooks/:id's three bodies, each to its own verb: the whole playbook, its channels alone, or a change in place. */
-export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p: PlaybookRow) {
-  if ("trigger" in body) return rewritePlaybook(ctx, body, p);
-  if ("channels" in body) return changeChannels(ctx, body.channels, p);
-  return patchPlaybook(ctx, body, p);
+export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, playbook: PlaybookRow) {
+  if ("trigger" in body) return rewritePlaybook(ctx, body, playbook);
+  if ("channels" in body) return changeChannels(ctx, body.channels, playbook);
+  return patchPlaybook(ctx, body, playbook);
 }
 
 /**
@@ -251,40 +251,49 @@ export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p
  * a day still to come. Nothing that differs writes nothing and answers what it is, so a second press of Pause is no second
  * line. On a database before the door, written the way it was before (changeTheOldWay), for one release.
  */
-async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, p: PlaybookRow) {
-  const read = await playbookForChange(ctx.supabase, p.tenant_id, p.id);
+async function patchPlaybook(ctx: RouteContext, record: Record<string, unknown>, playbook: PlaybookRow) {
+  const read = await findPlaybookForChange(ctx.supabase, playbook.tenant_id, playbook.id);
   // A member reads it: the word lane 3 gave the campaign's own refusals.
   if (!read) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   // The table's check holds a state to the two; one it does not know is no row a change is judged against.
-  if (!isPlaybookState(read.state)) throw new Error(`playbook ${p.id} holds a state the check does not: ${read.state}`);
+  if (!isPlaybookState(read.state))
+    throw new Error(`playbook ${playbook.id} holds a state the check does not: ${read.state}`);
   const row = { ...read, state: read.state };
-  const { set, was } = await checkPlaybookPatch(playbookPatchPorts(ctx, p.tenant_id), row, asked, {
+  const { set, was } = await checkPlaybookPatch(playbookPatchPorts(ctx, playbook.tenant_id), row, record, {
     now: new Date(),
     undo: ctx.undoOf !== undefined,
   });
   // Nothing differs: nothing written and no line, answered as the door answers its own no-op (was empty, decision_id null).
-  if (Object.keys(set).length === 0) return { id: p.id, name: row.name, state: row.state, was: {}, decision_id: null };
+  if (Object.keys(set).length === 0)
+    return { id: playbook.id, name: row.name, state: row.state, was: {}, decision_id: null };
   // Turned on (a draft started, a pause ended, a pause undone) where another runs on its visit moment: refused, in words.
   if (set.state === "running") {
-    const twin = await visitTwinRefusal(ctx, p.tenant_id, { id: p.id, trigger: p.trigger });
+    const twin = await findVisitTwinRefusal(ctx, playbook.tenant_id, { id: playbook.id, trigger: playbook.trigger });
     if (twin) throw new AppError("conflict", twin, 409);
     // A sequence to leads with an email still to write (a draft's, 00459): Start asks for it first.
-    const unwritten = p.trigger === "lead_first" ? await unwrittenPlaceOf(ctx, p.tenant_id, p.id) : null;
+    const unwritten =
+      playbook.trigger === "lead_first" ? await findUnwrittenPlace(ctx, playbook.tenant_id, playbook.id) : null;
     if (unwritten) throw new AppError("conflict", LEAD_BUILD_WORDS.writeFirst(unwritten), 409);
   }
   const name = set.name ?? row.name;
   const wrote = await writePlaybookChange(ctx.supabase, {
-    tenantId: p.tenant_id,
-    playbookId: p.id,
+    tenantId: playbook.tenant_id,
+    playbookId: playbook.id,
     set,
     decision: { name, ...set },
     via: ctx.via ?? null,
     undoOf: ctx.undoOf ?? null,
   });
-  const done = wrote === "missing" ? await changeTheOldWay(ctx, p, { set, was, name }) : wrote;
+  const done = wrote === "missing" ? await changeTheOldWay(ctx, playbook, { set, was, name }) : wrote;
   if (done.error) throw playbookChangeError(done.error);
   if (!done.data) throw new Error("playbook not changed");
-  return { id: p.id, name, state: set.state ?? row.state, was: done.data.was, decision_id: done.data.decisionId };
+  return {
+    id: playbook.id,
+    name,
+    state: set.state ?? row.state,
+    was: done.data.was,
+    decision_id: done.data.decisionId,
+  };
 }
 
 /**
@@ -296,16 +305,16 @@ async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, 
  */
 async function changeTheOldWay(
   ctx: RouteContext,
-  p: PlaybookRow,
+  playbook: PlaybookRow,
   change: { set: PlaybookPatch; was: PlaybookPatch; name: string },
 ): Promise<{ data: { was: Record<string, unknown>; decisionId: string | null }; error: null }> {
-  const { error } = await updatePlaybook(ctx.supabase, p.id, change.set);
+  const { error } = await updatePlaybook(ctx.supabase, playbook.id, change.set);
   if (error) throw playbookWriteError(error);
   const others = Object.keys(change.set).filter((k) => k !== "state");
-  if (others.length) await playbookEdited(ctx, p, change.name, others);
+  if (others.length) await playbookEdited(ctx, playbook, change.name, others);
   const verb = change.set.state === "running" ? "start_playbook" : "pause_playbook";
   const decisionId = change.set.state
-    ? await recordDecision(ctx, p.tenant_id, "playbook", p.id, verb, { name: change.name })
+    ? await recordDecision(ctx, playbook.tenant_id, "playbook", playbook.id, verb, { name: change.name })
     : null;
   return { data: { was: { ...change.was }, decisionId }, error: null };
 }
@@ -319,55 +328,57 @@ function playbookChangeError(error: { code?: string; message: string }): Error {
  * { channels } alone (the drawer's Goes by row, Ask's card): the channels it goes by change and nothing else is read
  * from the caller or written, so a copy of the playbook taken before somebody edited it can put nothing back.
  */
-async function changeChannels(ctx: RouteContext, asked: string[], p: PlaybookRow) {
+async function changeChannels(ctx: RouteContext, texts: string[], playbook: PlaybookRow) {
   // A reach-out step is edited on its own sheet (Part 4); its state alone is a change in place.
-  if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
+  if (triggerOf(playbook.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
   // The channels it ticks now (a database 00298 has not reached has none to read or write).
-  const kept = await keptChannels(ctx, p.id);
-  const channels = await checkPlaybookChannelsInput(ctx, p.tenant_id, { ...p, channels: kept }, asked);
+  const kept = await listKeptChannels(ctx, playbook.id);
+  const channels = await checkPlaybookChannelsInput(ctx, playbook.tenant_id, { ...playbook, channels: kept }, texts);
   if (channelsChanged(channels, kept)) {
-    const { error } = await updatePlaybook(ctx.supabase, p.id, { channels });
+    const { error } = await updatePlaybook(ctx.supabase, playbook.id, { channels });
     if (error) throw playbookWriteError(error);
-    await playbookEdited(ctx, p, p.name, ["channels"]);
+    await playbookEdited(ctx, playbook, playbook.name, ["channels"]);
   }
   // What it went by before this write, for an undo: the channels as this request found them, never a card's copy.
-  return { id: p.id, name: p.name, state: p.state, was: { channels: kept } };
+  return { id: playbook.id, name: playbook.name, state: playbook.state, was: { channels: kept } };
 }
 
 /** The whole playbook (the composer's Save changes): re-checked the way a new one is, and rewritten. */
-async function rewritePlaybook(ctx: RouteContext, body: Record<string, unknown>, p: PlaybookRow) {
-  const id = p.id;
+async function rewritePlaybook(ctx: RouteContext, body: Record<string, unknown>, playbook: PlaybookRow) {
+  const id = playbook.id;
   // A reach-out step is edited on its own sheet (Part 4); its state alone is a change in place.
-  if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
+  if (triggerOf(playbook.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
   // The channels it ticks now: an edit that names none keeps them, and the column is written only when they change (a
   // database 00298 has not reached has none to read or write).
-  const kept = await keptChannels(ctx, id);
-  const v = await checkPlaybookInput(ctx, p.tenant_id, body, { ...p, channels: kept });
+  const kept = await listKeptChannels(ctx, id);
+  const result = await checkPlaybookInput(ctx, playbook.tenant_id, body, { ...playbook, channels: kept });
   const { error } = await updatePlaybook(ctx.supabase, id, {
-    name: v.name,
-    trigger: v.trigger,
+    name: result.name,
+    trigger: result.trigger,
     // A playbook moved off a list leaves it (both null); one never on a list names no column 00155 or 00168 adds. A
     // playbook on a list names exactly one of the two (playbooks_one_list).
-    ...(v.list_id || v.list_key || p.trigger === "saved_list" ? { list_id: v.list_id, list_key: v.list_key } : {}),
-    template_id: v.template_id,
-    template_name: v.template_name,
-    template_language: v.template_language,
-    params: v.params,
-    policy_class: v.policy_class,
-    run_hour: v.run_hour,
-    cap_per_run: v.cap_per_run,
-    gap_days: v.gap_days,
-    cadence_days: v.cadence_days,
-    ...(channelsChanged(v.channels, kept) ? { channels: v.channels } : {}),
+    ...(result.list_id || result.list_key || playbook.trigger === "saved_list"
+      ? { list_id: result.list_id, list_key: result.list_key }
+      : {}),
+    template_id: result.template_id,
+    template_name: result.template_name,
+    template_language: result.template_language,
+    params: result.params,
+    policy_class: result.policy_class,
+    run_hour: result.run_hour,
+    cap_per_run: result.cap_per_run,
+    gap_days: result.gap_days,
+    cadence_days: result.cadence_days,
+    ...(channelsChanged(result.channels, kept) ? { channels: result.channels } : {}),
   });
   if (error) throw playbookWriteError(error);
-  await playbookEdited(ctx, p, v.name, [
-    ...(v.name !== p.name ? ["name"] : []),
-    ...(v.trigger !== p.trigger ? ["moment"] : []),
-    ...(v.template_id !== p.template_id ? ["message"] : []),
-    ...(channelsChanged(v.channels, kept) ? ["channels"] : []),
+  await playbookEdited(ctx, playbook, result.name, [
+    ...(result.name !== playbook.name ? ["name"] : []),
+    ...(result.trigger !== playbook.trigger ? ["moment"] : []),
+    ...(result.template_id !== playbook.template_id ? ["message"] : []),
+    ...(channelsChanged(result.channels, kept) ? ["channels"] : []),
   ]);
-  return { id, name: v.name, state: p.state };
+  return { id, name: result.name, state: playbook.state };
 }
 
 /**
@@ -379,14 +390,15 @@ async function playbookEdited(ctx: RouteContext, p: PlaybookRow, name: string, f
   await emitEvent(serviceDb(), p.tenant_id, "playbook.changed", "playbook", p.id, { name, by: ctx.userId, fields });
 }
 
-export async function deletePlaybook(ctx: RouteContext, p: PlaybookRow) {
-  const id = p.id;
-  if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_REFUSALS.notHere, 409);
+export async function deletePlaybook(ctx: RouteContext, playbook: PlaybookRow) {
+  const id = playbook.id;
+  if (triggerOf(playbook.trigger)?.kind === "reach_out")
+    throw new AppError("conflict", REACH_OUT_REFUSALS.notHere, 409);
   const { error, count } = await removePlaybook(ctx.supabase, id);
   if (error) throw new Error(error.message);
   if (!count) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
-  const decisionId = await recordDecision(ctx, p.tenant_id, "playbook", id, "pause_playbook", {
-    name: p.name,
+  const decisionId = await recordDecision(ctx, playbook.tenant_id, "playbook", id, "pause_playbook", {
+    name: playbook.name,
     deleted: true,
   });
   return { deleted: true, id, decision_id: decisionId };

@@ -70,16 +70,16 @@ import {
   type NormalizedCall,
   type RetellCall,
   type RetellCallRead,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import {
-  callsOwedAnAnalysis,
-  callsOwedANotice,
+  listCallsOwedAnAnalysis,
+  listCallsOwedANotice,
   ingestCall,
   recordCallNote,
   linkCallMessage,
-  resolveChannelDetailed,
   setCallRecording,
-} from "@chanlytics/db";
+} from "@chanlytics/db/voice";
+import { resolveChannelDetailed } from "@chanlytics/db/channels";
 import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import { settleCall } from "./call-webhook.js";
 import {
@@ -217,8 +217,8 @@ async function reconcileStale(leg: ProviderLeg, stale: StaleCall[]) {
         L.warn("calls_sweep_unknown_to_provider", { call: row.retell_call_id, status: read.status });
         continue;
       }
-      const n = normalizeCall(read.call);
-      if (n.status === "ongoing") {
+      const call = normalizeCall(read.call);
+      if (call.status === "ongoing") {
         // A genuinely long call. Re-ingesting still refreshes updated_at, which
         // is what keeps isLiveCall() honest for calls that outlive the heartbeat
         // window without producing turn events.
@@ -228,9 +228,13 @@ async function reconcileStale(leg: ProviderLeg, stale: StaleCall[]) {
       }
       // Both deliveries lost: a call that has ended with its analysis is settled as the webhook would have settled it,
       // the hold and the owner's notice with it (R11 S11-3); anything else is re-ingested, as ever.
-      if (n.status !== "ongoing" && read.call.call_analysis && (await settleAnalysed(db, read.call, L)) === "settled")
+      if (
+        call.status !== "ongoing" &&
+        read.call.call_analysis &&
+        (await settleAnalysed(db, read.call, L)) === "settled"
+      )
         continue;
-      await ingestCall(db, row.tenant_id, n, read.call);
+      await ingestCall(db, row.tenant_id, call, read.call);
     } catch (e) {
       // One bad row must not abandon the rest of the batch.
       L.error("calls_sweep_row_failed", { call: row.retell_call_id, error: errField(e) });
@@ -244,10 +248,10 @@ async function reconcileStale(leg: ProviderLeg, stale: StaleCall[]) {
  * agent the call names. One that routes nowhere, or whose routing could not be read, is left for the next tick; a settle
  * the database refused throws, so the row stays owed.
  */
-async function settleAnalysed(db: ProviderLeg["db"], call: RetellCall, L: Logger): Promise<"settled" | "unroutable"> {
+async function settleAnalysed(db: ProviderLeg["db"], call: RetellCall, log: Logger): Promise<"settled" | "unroutable"> {
   const routing = call.agent_id ? await resolveChannelDetailed(db, "voice", call.agent_id) : null;
   if (!routing?.channel) {
-    L.warn("calls_sweep_settle_unroutable", {
+    log.warn("calls_sweep_settle_unroutable", {
       call: call.call_id,
       lookup_failed: routing?.lookupFailed ?? false,
     });
@@ -274,7 +278,7 @@ async function settleUnanalysed(leg: ProviderLeg) {
   const counts = { candidates: 0, settled: 0, notYet: 0, unroutable: 0, deferred: 0 };
   let owed;
   try {
-    owed = await callsOwedAnAnalysis(db, {
+    owed = await listCallsOwedAnAnalysis(db, {
       nowMs: Date.now(),
       fromMs: ANALYSIS_GRACE_MS,
       toMs: SETTLE_FOR_MS,
@@ -322,7 +326,7 @@ async function finishOwedNotices(leg: ProviderLeg) {
   const counts = { candidates: 0, told: 0, owed: 0, notYet: 0, unroutable: 0, deferred: 0 };
   let owed;
   try {
-    owed = await callsOwedANotice(db, {
+    owed = await listCallsOwedANotice(db, {
       nowMs: Date.now(),
       fromMs: NOTICE_GRACE_MS,
       toMs: NOTICE_FOR_MS,
@@ -373,7 +377,7 @@ async function finishOwedNotices(leg: ProviderLeg) {
  * Leg 5: the calls that ended without an analysis, and the missed calls whose line the webhook did not write, each
  * given its line in the customer's thread once NOTE_GRACE_MS has passed (the webhook writes it with the summary).
  */
-async function writeMissingNotes(db: ProviderLeg["db"], L: Logger) {
+async function writeMissingNotes(db: ProviderLeg["db"], log: Logger) {
   const notes = { candidates: 0, written: 0 };
   const grace = new Date(Date.now() - NOTE_GRACE_MS).toISOString();
   const { data: unnoted, error: noteErr } = await db
@@ -388,7 +392,7 @@ async function writeMissingNotes(db: ProviderLeg["db"], L: Logger) {
     .or(`ended_at.lt.${grace},and(ended_at.is.null,created_at.lt.${grace})`)
     .order("ended_at", { ascending: true, nullsFirst: true })
     .limit(MAX_NOTES_PER_TICK);
-  if (noteErr) L.error("calls_sweep_notes_query_failed", { error: noteErr.message });
+  if (noteErr) log.error("calls_sweep_notes_query_failed", { error: noteErr.message });
   for (const row of unnoted ?? []) {
     if (!row.conversation_id) continue;
     notes.candidates++;

@@ -1,5 +1,5 @@
 /**
- * A time zone is read in one place: contracts' calendar/zone-math.ts (zoneParts, dayInZone, clockInZone,
+ * A time zone is read in one place: contracts' shared/zone/math.ts (zoneParts, dayInZone, clockInZone,
  * dayPlusInZone, usableZone). Until 29 October 2026 it was read in three engines and a dozen modules of their own,
  * each with its own answer to a zone Intl cannot use and three of them counting a day as 24 hours. Here the engine is
  * run, every reader is held to say the same day at the edges of a day and of a clock change, each keeps its own answer
@@ -20,7 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 
-const { stamp } = await importSrc("apps/dashboard/src/server/export/export.ts");
+const { exportStamp } = await importSrc("apps/dashboard/src/server/shared/export-file.ts");
 
 test("an instant's parts in a zone, remembered and shared, so no caller can change another's", () => {
   // 14:57 UTC on 13 October 2026 is 10:57 in New York, and 3:57 the next morning, a Wednesday, in Auckland.
@@ -47,7 +47,11 @@ test("a zone Intl cannot use throws in the engine, and reads as UTC where a page
   assert.equal(localDate("Mars/Olympus", new Date(late)), "2026-10-13", "a playbook's day: UTC's");
   assert.equal(localHour("Mars/Olympus", new Date(late)), 23);
   assert.equal(dayFromQuestion("what's open today?", late, "Mars/Olympus"), "2026-10-13", "Ask's fast path: UTC's");
-  assert.equal(stamp("2026-10-13T23:30:00.000Z", "Mars/Olympus"), "2026-10-13 23:30", "an export: UTC's, never a 500");
+  assert.equal(
+    exportStamp("2026-10-13T23:30:00.000Z", "Mars/Olympus"),
+    "2026-10-13 23:30",
+    "an export: UTC's, never a 500",
+  );
   assert.equal(tzClock("2026-10-13T23:30:00.000Z", "Mars/Olympus", new Date(late)), null, "Today's words: none");
 });
 
@@ -73,7 +77,7 @@ test("every reader says the same day at the edges of a day and of a clock change
       clock: zoneDayKey(ms, tz),
       playbook: localDate(tz, new Date(ms)),
       ask: dayFromQuestion("what's open today?", ms, tz),
-      export: stamp(iso, tz).slice(0, 10),
+      export: exportStamp(iso, tz).slice(0, 10),
     };
     assert.deepEqual(said, { clock: day, playbook: day, ask: day, export: day }, `${tz} ${iso}`);
     assert.equal(localHour(tz, new Date(ms)), zoneParts(tz, ms).hh, `${tz} ${iso}: the hour`);

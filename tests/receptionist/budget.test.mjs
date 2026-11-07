@@ -26,8 +26,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { tokensLast24h, brainSummary } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/receptionist/budget.ts")).href
+const { getTokensLast24h, getBrainSummary } = await import(
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/ai/budget.ts")).href
 );
 
 const T = "t-1";
@@ -46,14 +46,14 @@ const reads = (db) => db.seen.filter((q) => q.table === "events" && q.op === "se
 
 test("a day that fits in one page is one round trip", async () => {
   const db = fakeDb({ events: usage(900) });
-  assert.equal(await tokensLast24h(db, T), 1800);
+  assert.equal(await getTokensLast24h(db, T), 1800);
   assert.equal(reads(db), 1, "the check runs before every reply: an ordinary workspace must not pay for paging");
 });
 
 test("a day past the server's cap is counted whole, not truncated at a thousand", async () => {
   const db = fakeDb({ events: usage(2500) });
   assert.equal(
-    await tokensLast24h(db, T),
+    await getTokensLast24h(db, T),
     5000,
     "2500 replies at 2 tokens each — not 2000, which is what a truncated read returns",
   );
@@ -63,12 +63,12 @@ test("a day past the server's cap is counted whole, not truncated at a thousand"
 test("only this workspace's spend counts toward this workspace's cap", async () => {
   const mine = usage(10);
   const theirs = usage(10, 100, 1000).map((e) => ({ ...e, tenant_id: "t-2" }));
-  assert.equal(await tokensLast24h(fakeDb({ events: [...mine, ...theirs] }), T), 20);
+  assert.equal(await getTokensLast24h(fakeDb({ events: [...mine, ...theirs] }), T), 20);
 });
 
 test("the caller's cap stops the read, because the only question is whether it is reached", async () => {
   const db = fakeDb({ events: usage(2500) });
-  const used = await tokensLast24h(db, T, 1000);
+  const used = await getTokensLast24h(db, T, 1000);
   assert.ok(used >= 1000, `${used} is enough to answer the question`);
   assert.equal(
     reads(db),
@@ -121,7 +121,7 @@ test("rows written WHILE the day is being read are counted once — in the NEXT 
     return q;
   };
   assert.equal(
-    await tokensLast24h(db, T),
+    await getTokensLast24h(db, T),
     2000,
     "the thousand on record, each once; the arrivals belong to the next read",
   );
@@ -148,7 +148,7 @@ test("the summary describes the day without reading it twenty times over", async
       },
     ],
   });
-  const s = await brainSummary(db, T);
+  const s = await getBrainSummary(db, T);
   assert.equal(s.replies, 11);
   assert.equal(s.tokens_in, 15);
   assert.equal(s.tokens_out, 17);
@@ -159,7 +159,7 @@ test("the summary describes the day without reading it twenty times over", async
 
 test("a read that fails counts as zero rather than silencing a receptionist", async () => {
   const db = fakeDb({ events: usage(10) }, { "events.select": { message: "statement timeout" } });
-  assert.equal(await tokensLast24h(db, T), 0, "a budget must never stop a reply by accident");
+  assert.equal(await getTokensLast24h(db, T), 0, "a budget must never stop a reply by accident");
 });
 
 test("a summary that hits its bound describes the NEWEST of the window, not the oldest", async () => {
@@ -173,7 +173,7 @@ test("a summary that hits its bound describes the NEWEST of the window, not the 
   const rows = usage(5001);
   rows[0].data = { ...rows[0].data, held: "veto_window" }; // the oldest
   rows[5000].data = { ...rows[5000].data, held: "low_confidence" }; // the newest
-  const s = await brainSummary(fakeDb({ events: rows }), T);
+  const s = await getBrainSummary(fakeDb({ events: rows }), T);
   assert.equal(s.replies, 5000, "bounded, as it is meant to be");
   assert.equal(s.held_low_confidence, 1, "the newest event is in the picture");
   assert.equal(s.held_veto, 0, "and the one that fell off the end is the oldest");

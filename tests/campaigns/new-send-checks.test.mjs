@@ -3,7 +3,7 @@
  * counts as GET playbooks answers them (PoolRead, each moment's, list's and everyone's): who it reaches on the channels it
  * goes by (lib/new-checks.ts newReachOf), and where nobody can, why, by the cure each asks for -- everyone heard from you
  * this week, no channel it goes by can carry it, those who said yes can't be reached, nobody said yes. A closed channel
- * takes back no one's yes (campaign-channels.ts readingFor's fallback keeps it), and a one-off of a message that is no
+ * takes back no one's yes (campaigns/channels.ts readingFor's fallback keeps it), and a one-off of a message that is no
  * offer to a list, or to everyone, is counted by no yes rather than the wrong one.
  *
  * Then the draft as the page holds it (sequences/new/new-model.ts): the card over a one-off nobody can hear says the

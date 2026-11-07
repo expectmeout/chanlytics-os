@@ -56,7 +56,7 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
   `types.ts` (its types), and since decision 0105 `words.ts` (its sentences), `vm.ts` (its view model), `dto.ts` (its wire shapes), `schemas.ts` (what it parses), `sweep.ts` (its clock) and `ops.ts` (its operator's doors). A framework's own names are its own: Next's `route.ts`, `page.tsx`, `[id]` and `(os)`, Expo
   Router's `_layout.tsx`, `(tabs)` and `+native-intent.tsx`. CSS tokens and classes are kebab-case.
   `tests/docs/file-names.test.mjs` holds the files.
-- **A file does not repeat its folder.** The path says it already: `mailbox/gmail.ts`, not `mailbox/mailbox-gmail.ts`. A
+- **A file does not repeat its folder.** The path says it already: `mailbox/gmail.ts`, not `mailbox/mailbox-gmail.ts`; `leads/dtos.ts`, not `leads/dtos.ts`. A
   folder's main module may share its name (`leads/leads.ts`), as Go's `ring/ring.go` does. The `file-repeats-folder`
   measure holds it.
 

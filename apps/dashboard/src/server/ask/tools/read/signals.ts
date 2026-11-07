@@ -1,8 +1,8 @@
 import "server-only";
 import { z } from "zod";
 import { DAY_MS, followUpsOf, freedTimesUnoffered, parseTenantConfigResult, plural } from "@chanlytics/contracts";
-import { cancellationsSince } from "@chanlytics/db";
-import { load } from "../../../readers";
+import { getCancellationsSince } from "@chanlytics/db/campaigns";
+import { load } from "../../../shared/reader";
 import { audiencePool } from "../../../readers/audience-pool";
 import { config as configReader, facts as factsReader } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
@@ -10,7 +10,8 @@ import { followUpsNow, memberViews } from "../../../readers/notifications";
 import { playbooks, reachOutChains } from "../../../readers/playbooks";
 import { searches as searchesReader } from "../../../readers/searches";
 import { sequences as sequencesReader } from "../../../readers/sequences";
-import { defineRead, unread, type ToolContext } from "../context";
+import { defineRead, type ToolContext } from "../context/tool-defs";
+import { unread } from "../context/tool-reads";
 
 /**
  * What Ask notices (the operator, 15 Oct 2026, D6): the workspace read across its pages, each thing that stands out said
@@ -34,23 +35,28 @@ interface Signal {
 }
 
 /** The workspace as the signals read it: each part as its page reads it, null where its read failed. */
-async function seeAll(t: ToolContext) {
-  const failed = (read: string) => unread(t, "signals", read);
-  const since = new Date(t.now.getTime() - NEW_DAYS * DAY_MS).toISOString();
+async function seeAll(toolContext: ToolContext) {
+  const failed = (read: string) => unread(toolContext, "signals", read);
+  const since = new Date(toolContext.now.getTime() - NEW_DAYS * DAY_MS).toISOString();
   const [pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations] = await Promise.all([
-    load(t.rc, audiencePool, undefined).then((r) => r.data, failed("people")),
-    load(t.rc, listsReader, undefined).then((r) => r.data.lists, failed("lists")),
-    load(t.rc, sequencesReader, undefined).then((r) => r.data, failed("sequences")),
-    load(t.rc, playbooks, undefined).then((r) => r.data, failed("moments")),
-    load(t.rc, reachOutChains, undefined).then((r) => r.data.chains, failed("cold emails")),
-    load(t.rc, searchesReader, undefined).then((r) => r.data, failed("searches")),
-    load(t.rc, configReader, undefined).then((r) => r.data, failed("settings")),
-    load(t.rc, factsReader, undefined).then((r) => r.data.timezone, failed("facts")),
-    t.ctx.userId ? load(t.rc, memberViews, undefined).then((r) => r.data, failed("follow-ups")) : Promise.resolve(null),
+    load(toolContext.rc, audiencePool, undefined).then((r) => r.data, failed("people")),
+    load(toolContext.rc, listsReader, undefined).then((r) => r.data.lists, failed("lists")),
+    load(toolContext.rc, sequencesReader, undefined).then((r) => r.data, failed("sequences")),
+    load(toolContext.rc, playbooks, undefined).then((r) => r.data, failed("moments")),
+    load(toolContext.rc, reachOutChains, undefined).then((r) => r.data.chains, failed("cold emails")),
+    load(toolContext.rc, searchesReader, undefined).then((r) => r.data, failed("searches")),
+    load(toolContext.rc, configReader, undefined).then((r) => r.data, failed("settings")),
+    load(toolContext.rc, factsReader, undefined).then((r) => r.data.timezone, failed("facts")),
+    toolContext.ctx.userId
+      ? load(toolContext.rc, memberViews, undefined).then((r) => r.data, failed("follow-ups"))
+      : Promise.resolve(null),
     // The cancellations whose time a freed time's step would have offered (decision 0082), in the same window.
-    cancellationsSince(t.rc.ctx.supabase, t.rc.tenantId, since).then((n) => n, failed("cancellations")),
+    getCancellationsSince(toolContext.rc.ctx.supabase, toolContext.rc.tenantId, since).then(
+      (n) => n,
+      failed("cancellations"),
+    ),
   ]);
-  return { pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations, nowMs: t.now.getTime() };
+  return { pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations, nowMs: toolContext.now.getTime() };
 }
 type Seen = Awaited<ReturnType<typeof seeAll>>;
 /** One thing that may stand out, read off what was seen; null where it does not, or its parts could not be read. */
@@ -162,11 +168,11 @@ const offersNeverAsked: Spot = ({ pool }) => {
 /** Deals out with no next step: none where no proposal is out. */
 const dealsWithoutAStep: Spot = ({ pool }) => {
   if (!pool) return null;
-  const n = pool.people.filter((r) => r.deal_stage === "proposed" && !r.step_id).length;
-  if (!n) return null;
+  const count = pool.people.filter((r) => r.deal_stage === "proposed" && !r.step_id).length;
+  if (!count) return null;
   return {
     key: "deals_without_a_step",
-    says: `${plural(n, "proposal is", "proposals are")} out with no next step.`,
+    says: `${plural(count, "proposal is", "proposals are")} out with no next step.`,
     next: "people with action pipeline, then propose_deal with a next step for each",
     weight: 2,
   };
@@ -175,7 +181,7 @@ const dealsWithoutAStep: Spot = ({ pool }) => {
 /** Appointments cancelled in the window whose time nothing offered (contracts freedTimesUnoffered, decision 0082). */
 const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
   if (!pb) return null;
-  const said = freedTimesUnoffered({
+  const sentence = freedTimesUnoffered({
     cancellations,
     calendar: pb.calendar,
     steps: pb.playbooks,
@@ -183,7 +189,7 @@ const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
     nowMs,
     days: NEW_DAYS,
   });
-  return said ? { key: "freed_times_unoffered", ...said, weight: 2 } : null;
+  return sentence ? { key: "freed_times_unoffered", ...sentence, weight: 2 } : null;
 };
 
 /** Every spot, in no order of its own: each signal's weight orders them. */
@@ -213,14 +219,14 @@ function goalOf(cfg: Seen["cfg"]): string | null {
   return parsed && parsed.ok ? (parsed.config.ask?.goal ?? null) : null;
 }
 
-async function readSignals(t: ToolContext): Promise<unknown> {
-  const seen = await seeAll(t);
+async function readSignals(toolContext: ToolContext): Promise<unknown> {
+  const seen = await seeAll(toolContext);
   // The member's follow-ups that are due, by what the searches and the sequences say now: decided as Ask's home decides it.
   const { due, waiting } = followUpsNow(seen.views ? followUpsOf(seen.views) : [], {
     searches: seen.finder?.searches ?? null,
     sequences: seen.seqs?.sequences ?? null,
     nowMs: seen.nowMs,
-    zone: seen.zone ?? t.timezone,
+    zone: seen.zone ?? toolContext.timezone,
   });
   const signals = SPOTS.map((spot) => spot(seen))
     .filter((s): s is Signal => s !== null)

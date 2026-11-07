@@ -39,7 +39,7 @@ export type {
 export { resolveEscalation } from "./resolve";
 export type { ResolveResult } from "./resolve";
 export { releaseHeldReply } from "./send-now";
-export { notACustomer, replyAnyway } from "./set-aside";
+export { markNotACustomer, replyAnyway } from "./set-aside";
 export { MAX_SNOOZE_MS, NEEDS_UNTIL, snooze } from "./snooze";
 export type { SnoozePorts, SnoozeResult } from "./snooze";
 export { PERSON_CONTROL_MAX_S, takeOver } from "./take-over";

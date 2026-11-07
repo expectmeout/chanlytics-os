@@ -7,7 +7,7 @@
  * Each used to be four writes on two clients (the claim, the hold, the drafts, the ledger; the release, the hold, the
  * ledger, the escalation), and the ones after the first could stand while a later one failed: a hold taken whose
  * release then failed kept the receptionist off a thread the Inbox showed open for up to a day. What is proved here:
- *   - one call writes all of it: the claim as contracts' take_over move says (conversation-moves.ts), the hold on who
+ *   - one call writes all of it: the claim as contracts' take_over move says (conversations/moves.ts), the hold on who
  *     is speaking (00132), the receptionist's queued draft withdrawn with its send job, and the take_over decision
  *     with the moment the pause ends as the dashboard spelled it; a colleague's queued reply, its job and the open
  *     escalation are left alone;
@@ -92,7 +92,7 @@ before(async () => {
   releaseLedger = await takeLock("jobs-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   core = await import(at("packages/core/src/index.ts"));
-  ports = await import(at("apps/dashboard/src/server/ports/core-ports.ts"));
+  ports = await import(at("apps/dashboard/src/server/conversations/ports.ts"));
   // The dashboard's service-role calls (a reply's hold, a job) go to this database; neither door uses them.
   (await import(at("apps/dashboard/src/server/shared/service-db.ts"))).setServiceClient(db);
 });

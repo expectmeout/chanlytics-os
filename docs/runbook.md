@@ -470,7 +470,7 @@ the canvases' finish, is the one look since Classic, the app as it was drawn bef
 plan's step 5.7): its values are the roles block of `apps/dashboard/src/styles/tokens.css` itself and the
 `[data-theme="dark"]` block after it, and every sheet's rules are its. `data-look` stays stamped on the document as the
 setting for the next look (contracts `DEFAULT_LOOK_PREF`, `LOOK_OPTIONS`). A second look adds its name to `LookPref`,
-`LOOK_OPTIONS` and `isLookPref` in `packages/contracts/src/shell/chrome.ts` (the head's script reads the list), turns
+`LOOK_OPTIONS` and `isLookPref` in `packages/contracts/src/shell/chrome/frame.ts` (the head's script reads the list), turns
 `LOOK_OFFERED` on so the account menu offers the two, adds the name to the list's pins in
 `tests/shell/chrome.test.mjs`, to the gallery's `?look=` (`tooling/scripts/e2e-harness/kit-gallery.mjs`)
 and to the looks `e2e/kit/kit.spec.ts` runs.
@@ -682,7 +682,7 @@ for `sig: true` on each of the three voice doors. The verifier tries one key,
 fn and availability doors while the webhook shows `true` can mean the wrong
 key, not an unsigned delivery.
 
-Each switch that keeps a weaker mode open has a row in contracts' registry (`packages/contracts/src/ai/flags.ts`) with
+Each switch that keeps a weaker mode open has a row in contracts' registry (`apps/edge/lib/shared/ai-flags.ts`) with
 its day, the log line that proves it can close, and what closes it. `GET /api/diag` answers `securitySwitches`, one
 entry per switch the edge holds: whether its weaker mode is open on the deployment you asked, its day, and the days left.
 Start the 3 October read there. `RETELL_DOORS_SIGNED` closes the voice secret on any value but an explicit off (`0`,
@@ -1079,7 +1079,7 @@ Nothing sends until a build carries push credentials, and nothing is signed unti
 
 A call the receptionist is on appears on the workspace's iPhones as a Live Activity (PR 7 of the phone app): the edge
 starts it with a push straight to Apple's service, since Expo's push service does not carry `liveactivity` pushes
-(`apps/edge/lib/ops/apns.ts`; the rule is `apps/edge/lib/voice/call-activity.ts`). Nothing is sent until the four
+(`apps/edge/lib/voice/apns.ts`; the rule is `apps/edge/lib/voice/call-activity.ts`). Nothing is sent until the four
 keys are set; a phone hands out its push-to-start token on iOS 17.2 and later, and the site keeps it on the device's
 row (00191).
 
@@ -1355,7 +1355,7 @@ inserted_at > now() - interval '10 minutes' order by inserted_at desc;`. None fo
 
 ### What a log line holds
 
-Every line the platform writes is one JSON object on stdout, from one logger (`packages/channels/src/log/`; the edge's
+Every line the platform writes is one JSON object on stdout, from one logger (`packages/log/src/`; the edge's
 `apps/edge/lib/shared/log.ts` and the dashboard's `apps/dashboard/src/server/shared/log.ts` re-export it, and core, jobs, db and
 channels write through it). A line holds, in this order:
 
@@ -1445,7 +1445,7 @@ played a call's recording is a decision (`open_recording`, one per member per ca
 A WhatsApp message is answered inside Meta's request, under the function's sixty seconds. A workspace named in the
 edge's `WHATSAPP_ANSWERS_AS_JOBS` (workspace ids, comma-separated, or `all`) takes the road a text takes instead:
 the webhook records the message, schedules its answer as an `inbound_answer` job and answers 200, and the job answers
-it (`apps/edge/lib/whatsapp/answer-later.ts`). Unset is the default, and changes nothing.
+it (`apps/edge/lib/intake/answer-later.ts`). Unset is the default, and changes nothing.
 
 To try it: name one workspace on the edge's production environment and redeploy the edge (an environment variable is
 read by a new deployment). Write to that workspace's number. In the logs, `wa_inbound` then `wa_answer_taken_up`

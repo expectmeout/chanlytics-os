@@ -1,5 +1,5 @@
 import { read, write, workspace } from "@/server/shared/route";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { sequences } from "@/server/readers/sequences";
 import { NEW_SEQUENCE_BODY } from "@/server/campaigns/sequences/bodies";
 import { makeSequenceNow } from "@/server/campaigns/sequences/doors";

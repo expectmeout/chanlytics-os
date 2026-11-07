@@ -16,6 +16,7 @@ import {
   type ErrorCode,
   type Role,
   type SpendWords,
+  UUID,
 } from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
@@ -24,12 +25,14 @@ import {
 // rather than by grepping its source.
 import { createClient } from "../../lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sessionHoldsPartnerSeat, type Database } from "@chanlytics/db";
+import { doesSessionHoldPartnerSeat } from "@chanlytics/db/partners";
+import type { Database } from "@chanlytics/db/types";
 import { isSameOrigin } from "./request-guards";
-import { bearerOf, verifyBearer } from "../auth/bearer";
-import { isRetryableAuthError } from "../auth/errors";
+import { bearerOf, verifyBearer } from "./auth/bearer";
+import { isRetryableAuthError } from "./auth/errors";
 import { serverTimingHeader, touchedLine, TOUCHES_ALL_HEADER } from "./server-timing";
-import { REQUEST_ID_HEADER, requestId, requestIdOf, requestTimings, requestTouches } from "@chanlytics/channels";
+import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels/tokens";
+import { requestId, requestTimings, requestTouches } from "@chanlytics/log";
 import { log, noteTenant, withRequestId } from "./log";
 import { tenantFactsOf } from "./tenant";
 
@@ -57,7 +60,7 @@ export interface RouteContext {
   metadata: Record<string, unknown>;
   /**
    * How the session was signed in: its token's `aal` claim, `aal2` once a second factor was shown (0013). A partner's
-   * seat asks for it (memberContext); absent reads as not shown.
+   * seat asks for it (getMemberContext); absent reads as not shown.
    */
   aal?: string;
   /**
@@ -203,16 +206,13 @@ function answerOf<T>(
       userId = String(user.sub);
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
       const undoOfHeader = req.headers.get("x-undo-of");
-      const undoOf =
-        undoOfHeader && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(undoOfHeader)
-          ? undoOfHeader
-          : undefined;
+      const undoOf = undoOfHeader && UUID.test(undoOfHeader) ? undoOfHeader : undefined;
       const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
       const live = async (): Promise<SessionLiveness> => {
         // The cookie's client reads its own session; a bearer's is asked over the token the header carried.
-        const asked = await (bearer ? supabase.auth.getUser(bearer) : supabase.auth.getUser());
-        if (asked.error) return isRetryableAuthError(asked.error) ? "unknown" : "gone";
-        return asked.data.user?.id === String(user.sub) ? "live" : "gone";
+        const request = await (bearer ? supabase.auth.getUser(bearer) : supabase.auth.getUser());
+        if (request.error) return isRetryableAuthError(request.error) ? "unknown" : "gone";
+        return request.data.user?.id === String(user.sub) ? "live" : "gone";
       };
       const data = await handler(req, {
         supabase,
@@ -234,8 +234,8 @@ function answerOf<T>(
       // it set here was replaced on the way out. Only `private` is honoured, so
       // no exit can be widened to a shared cache by accident.
       if (data instanceof Response) {
-        const asked = data.headers.get("cache-control");
-        if (!asked || !/^private\b/i.test(asked)) data.headers.set("cache-control", PRIVATE["cache-control"]);
+        const value = data.headers.get("cache-control");
+        if (!value || !/^private\b/i.test(value)) data.headers.set("cache-control", PRIVATE["cache-control"]);
         data.headers.set("server-timing", timed(authMs, started)["server-timing"]);
         data.headers.set(SERVED_AT_HEADER, String(started));
         return data;
@@ -254,15 +254,23 @@ function answerOf<T>(
  * GET open's reads share (workspace/page-open.ts).
  */
 export function answerOfThrow(
-  e: unknown,
+  error: unknown,
   at: { route: string; started: number; userId?: string | undefined },
 ): { status: number; body: ReturnType<typeof err>; headers: Record<string, string> } {
-  if (e instanceof AppError) {
-    log.warn("route_refused", { route: at.route, code: e.code, ms: Date.now() - at.started });
-    return { status: e.status, body: err(e.code, e.message, e.details), headers: refusalHeaders(e) };
+  if (error instanceof AppError) {
+    log.warn("route_refused", { route: at.route, code: error.code, ms: Date.now() - at.started });
+    return {
+      status: error.status,
+      body: err(error.code, error.message, error.details),
+      headers: refusalHeaders(error),
+    };
   }
-  // The error itself, so the line carries its stack; the workspace rides from the request (memberContext).
-  log.error("route_failed", { route: at.route, user: at.userId, error: e instanceof Error ? e : String(e) });
+  // The error itself, so the line carries its stack; the workspace rides from the request (getMemberContext).
+  log.error("route_failed", {
+    route: at.route,
+    user: at.userId,
+    error: error instanceof Error ? error : String(error),
+  });
   return { status: 500, body: err("internal", "Something went wrong."), headers: {} };
 }
 
@@ -273,7 +281,7 @@ export interface MemberContext {
   role: Role;
   /**
    * The workspace's name and clock, read with the membership, from the same row a turn's facts reader reads
-   * (tenant.ts tenantFacts): the turn takes them from here and asks no one again (readers/index.ts readerContext).
+   * (tenant.ts getTenantFacts): the turn takes them from here and asks no one again (shared/reader.ts readerContext).
    * Absent where the membership's row did not carry them.
    */
   facts?: { name: string; timezone: string };
@@ -301,7 +309,7 @@ export interface MemberContext {
  */
 export const AMBIGUOUS = "This account belongs to more than one workspace — say which one first.";
 
-export async function memberContext(
+export async function getMemberContext(
   ctx: RouteContext,
   wanted?: string | null,
   /** Only GET /workspaces may fall back to the oldest membership: answering "which workspace should this tab open" is its job. */
@@ -352,24 +360,25 @@ async function resolveMember(
   // person's home workspace does not move because a tenant was renamed, which
   // name-sorting allowed.
   if (!wanted && rows.length > 1 && !opts.defaultAllowed) throw new AppError("choose_workspace", AMBIGUOUS);
-  const m = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
+  const membership = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
   // A partner's seat is hidden from a session that has not shown its second factor (00218), so a workspace they hold
   // reads as not found here. The database can say, of this session alone, that it holds a partner's seat it cannot
   // see: then what is missing is the code, and the tab is sent to the second step, not told the workspace is gone.
-  if (!m && !secondFactorShown(ctx.aal) && (await sessionHoldsPartnerSeat(ctx.supabase))) requireSecondFactor(ctx);
-  if (!m) throw new AppError("not_found", "No workspace found for this account.", 404);
+  if (!membership && !secondFactorShown(ctx.aal) && (await doesSessionHoldPartnerSeat(ctx.supabase)))
+    requireSecondFactor(ctx);
+  if (!membership) throw new AppError("not_found", "No workspace found for this account.", 404);
   // A partner's seat asks for the second factor (0013, M3), on a read as on a write: the one door every workspace
   // request passes. The database refuses the same session on its own (00218).
-  if (seatNeedsSecondFactor(m.role)) requireSecondFactor(ctx);
+  if (seatNeedsSecondFactor(membership.role)) requireSecondFactor(ctx);
   // The workspace this request acts on: every line logged after this carries it as tenant_id.
-  noteTenant(m.tenant_id);
+  noteTenant(membership.tenant_id);
 
   // The workspace's name and clock rode with the membership: a read that would have asked for them first (the
   // Calendar's, the Leads page's) does not wait a round trip for them (2 Oct 2026).
-  const row = m.tenants;
+  const row = membership.tenants;
   return {
-    tenantId: m.tenant_id,
-    role: m.role as MemberContext["role"],
+    tenantId: membership.tenant_id,
+    role: membership.role as MemberContext["role"],
     ...(typeof row?.timezone === "string" ? { facts: tenantFactsOf(row) } : {}),
     ...(typeof row?.slug === "string" && row.slug ? { slug: row.slug } : {}),
   };
@@ -458,12 +467,12 @@ const DOOR_REFUSALS: Readonly<Record<string, { code: ErrorCode; status: number }
  * try-again (contracts' refusalOf). The raw text used to reach the browser as a 400 "validation" at fifteen sites.
  */
 export function dbRefusal(
-  e: { code?: string | null; message: string },
+  input: { code?: string | null; message: string },
   raised: { code: ErrorCode; status: number } = { code: "validation", status: 400 },
 ): AppError {
-  const door = e.code === "P0001" ? raised : e.code ? DOOR_REFUSALS[e.code] : undefined;
-  if (door) return new AppError(door.code, e.message, door.status);
-  log.error("db_failed", { code: e.code ?? null, error: e.message });
+  const door = input.code === "P0001" ? raised : input.code ? DOOR_REFUSALS[input.code] : undefined;
+  if (door) return new AppError(door.code, input.message, door.status);
+  log.error("db_failed", { code: input.code ?? null, error: input.message });
   return new AppError("internal", "Something went wrong.", 503);
 }
 
@@ -472,10 +481,12 @@ export function dbRefusal(
  * Retry-After, the header an HTTP client already reads, beside the
  * retry_after_s its envelope carries; the typed client read neither.
  */
-export function refusalHeaders(e: AppError): Record<string, string> {
-  if (e.code !== "rate_limited") return {};
+export function refusalHeaders(error: AppError): Record<string, string> {
+  if (error.code !== "rate_limited") return {};
   const s =
-    e.details && typeof e.details === "object" ? (e.details as { retry_after_s?: unknown }).retry_after_s : undefined;
+    error.details && typeof error.details === "object"
+      ? (error.details as { retry_after_s?: unknown }).retry_after_s
+      : undefined;
   return typeof s === "number" && Number.isFinite(s) && s >= 0
     ? { "retry-after": String(Math.max(1, Math.ceil(s))) }
     : {};
@@ -516,8 +527,8 @@ export async function requireSpend(
   if (error) throw new AppError("internal", "Billing could not be read just now. Try again in a moment.", 503);
   if (!data)
     throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
-  const why = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus, doing);
-  if (why) throw new AppError("payment_required", why, 402);
+  const reason = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus, doing);
+  if (reason) throw new AppError("payment_required", reason, 402);
 }
 
 /** The cookie's session, verified: what every request without a bearer is. */

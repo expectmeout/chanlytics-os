@@ -4,7 +4,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { logoLayout, logoDrawRect, LOGO_PAD, LOGO_PLATE_DARK, LOGO_PLATE_LIGHT } from "@chanlytics/contracts";
+import {
+  logoLayout,
+  logoDrawRect,
+  LOGO_PAD,
+  LOGO_PLATE_DARK,
+  LOGO_PLATE_LIGHT,
+} from "../../apps/dashboard/src/surfaces/settings/business/logo/layout.ts";
 
 /** A picture of `w` by `h`, every pixel `ground` ([r, g, b, a]), then each box painted in its colour. */
 function picture(w, h, ground, boxes = []) {

@@ -4,8 +4,9 @@
  * "Next: review", then "Turn on · up to $300", the only press that spends and the owner's alone. For a member who is not the
  * owner, the last step's primary asks the owner instead. With something changed, Cancel asks once (UnsavedAsk).
  */
-import { GATE, NEW_AD } from "@chanlytics/contracts/ads-page";
-import type { DoorVM } from "@chanlytics/contracts/ads-page";
+import { GATE } from "../model/words";
+import { NEW_AD } from "../model/words-new";
+import type { DoorVM } from "../model/vm-base";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";

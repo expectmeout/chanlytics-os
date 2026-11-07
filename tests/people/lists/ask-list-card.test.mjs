@@ -16,12 +16,12 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   LIST_CONDITIONS_JSON_SCHEMA,
-  PROPOSAL_SPECS,
   asListRule,
   cardOpenRoute,
   listDraftFieldLines,
   listRuleParts,
   listUnknownWords,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
@@ -30,7 +30,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { buildProposal, newToolContext, toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { LIST_NAME_TAKEN, LIST_RULE_LINES } = await import(at("apps/dashboard/src/server/people/lists.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
@@ -157,7 +157,7 @@ const chips = (all) => listRuleParts(asListRule(rule(all))).join(" · ");
  */
 const UNREAD =
   "all is not a rule the list vocabulary reads: one to twelve conditions, each either one fact with only the keys its field takes (field, op and that op's value) or { any: [two to six facts] }, never both; what the fields cannot say, such as a service, a tag or what was said, goes in cannot and never in a fact";
-/** What the lists read reads: the lists, and every one's people (packages/db savedListsFor). */
+/** What the lists read reads: the lists, and every one's people (packages/db listSavedLists). */
 const LISTS_READ = ["segments.select", "segment_members.select"];
 
 /**

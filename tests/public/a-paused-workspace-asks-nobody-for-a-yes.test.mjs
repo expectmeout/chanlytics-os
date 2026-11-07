@@ -8,7 +8,7 @@
  * paused or ended: a paused workspace's pages stay readable, for the carriers' re-vet of the filing that names them, and
  * ask nobody for a yes; an ended one's are Not found (X4-2).
  *
- * And one load reads a workspace's public facts (packages/db publicWorkspaceBySlug): every read that fails throws, where a
+ * And one load reads a workspace's public facts (packages/db findPublicWorkspaceBySlug): every read that fails throws, where a
  * failed read of the business on record used to point the sign-up page's policy links at Chanlytics' own pages, and a
  * failed read of the configuration or the channels published /b with no services or no phone.
  *
@@ -29,8 +29,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 globalThis.React ??= (await import("react")).default;
 const C = await import("@chanlytics/contracts");
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { consentPageFor } = await import(at("apps/dashboard/src/server/public/consent-page.ts"));
-const { businessPageFor } = await import(at("apps/dashboard/src/server/public/business-page.ts"));
+const { findConsentPage } = await import(at("apps/dashboard/src/server/public/consent-page.ts"));
+const { findBusinessPage } = await import(at("apps/dashboard/src/server/public/business-page.ts"));
 const { SignUpPage } = await import(at("apps/dashboard/src/yes/SignUpPage.tsx"));
 const { PaperForm } = await import(at("apps/dashboard/src/yes/PaperForm.tsx"));
 const { DeskSign } = await import(at("apps/dashboard/src/yes/DeskSign.tsx"));
@@ -140,8 +140,8 @@ function world({
 
 /** Every page of a world, drawn as each route draws it. */
 async function pagesOf(slug) {
-  const facts = await consentPageFor(slug);
-  const record = await businessPageFor(slug);
+  const facts = await findConsentPage(slug);
+  const record = await findBusinessPage(slug);
   if (!facts) return null;
   const vm = C.consentPageVM(facts);
   const who = record ? C.businessPageVM(record) : null;
@@ -266,13 +266,13 @@ test("an ended workspace and a fixture have no pages (Not found, unindexed); a w
   t.after(() => setServiceClient(null));
   for (const over of [{ left_empty_at: "2026-10-01T00:00:00Z", status: "paused" }, { status: "test" }]) {
     const { slug } = world(over);
-    assert.equal(await consentPageFor(slug), null, JSON.stringify(over));
-    assert.equal(await businessPageFor(slug), null, JSON.stringify(over));
+    assert.equal(await findConsentPage(slug), null, JSON.stringify(over));
+    assert.equal(await findBusinessPage(slug), null, JSON.stringify(over));
     assert.deepEqual(C.consentPageMetadata(null).robots, { index: false, follow: false });
   }
   const { slug } = world({ record: false });
-  assert.equal(await businessPageFor(slug), null);
-  const facts = await consentPageFor(slug);
+  assert.equal(await findBusinessPage(slug), null);
+  const facts = await findConsentPage(slug);
   assert.equal(facts.businessPage, false);
   assert.deepEqual(C.consentPageVM(facts).links, { privacy: "/privacy", terms: "/terms" });
 });
@@ -287,8 +287,8 @@ test("REGRESSION (X4-7): a read that fails fails the page -- the sign-up page no
     ["tenants", /reading the workspace/],
   ]) {
     const faulted = worldFaulted(table);
-    await assert.rejects(consentPageFor(faulted), words, `the sign-up page: ${table}`);
-    await assert.rejects(businessPageFor(faulted), words, `/b: ${table}`);
+    await assert.rejects(findConsentPage(faulted), words, `the sign-up page: ${table}`);
+    await assert.rejects(findBusinessPage(faulted), words, `/b: ${table}`);
   }
 });
 
@@ -341,7 +341,7 @@ test("the business's own page and its terms show the published columns of the re
 test("one load: each reader's call reads each table once, only selects, and the business on record's public columns, never the EIN or the contact's own phone; its links stay on this site", async (t) => {
   t.after(() => setServiceClient(null));
   const { slug, db } = world();
-  const facts = await businessPageFor(slug);
+  const facts = await findBusinessPage(slug);
   // And whether the business has a tax id, asked as a yes or no (00439 sole_proprietor_of): never the tax id itself.
   const asked = db.seen.map((q) => (q.rpc ? `rpc.${q.rpc}` : `${q.table}.${q.op}`));
   assert.deepEqual([...asked].sort(), [

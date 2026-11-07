@@ -1,6 +1,6 @@
 import "server-only";
 import { addressOf, heldThreadIds, type ConversationDto, type EscalationDto } from "@chanlytics/contracts";
-import { load, stamp, type Reader, type ReaderContext, type RowRef } from "./index";
+import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
 import { conversations, whoOf } from "./conversations";
 import { escalations } from "./escalations";
 import { log } from "@/server/shared/log";
@@ -18,7 +18,7 @@ interface InboxRead {
  * (the reader cache shares the read by its ids) and the two judge every hold by its own thread. `threads` is null where
  * the read failed (each hold then counts as waiting: unknown is not handled); `missing` the ids it asked for.
  */
-export async function heldThreadsBeyond(
+export async function findHeldThreadsBeyond(
   rc: ReaderContext,
   newest: readonly ConversationDto[],
   open: ReadonlyArray<EscalationDto & { conversation_id: string }>,
@@ -47,8 +47,8 @@ export const inbox: Reader<undefined, InboxRead> = {
       load(rc, conversations, { ids: null }),
       load(rc, escalations, { state: "open" }),
     ]);
-    // One read for all of them, by id (heldThreadsBeyond, Today's read too).
-    const held = await heldThreadsBeyond(rc, newest.data.conversations, open.data.escalations);
+    // One read for all of them, by id (findHeldThreadsBeyond, Today's read too).
+    const held = await findHeldThreadsBeyond(rc, newest.data.conversations, open.data.escalations);
     const extra = held.threads ?? [];
     const unread = held.missing.length - extra.length;
     if (unread) log.error("inbox_escalated_fetch_failed", { unread });
@@ -61,7 +61,7 @@ export const inbox: Reader<undefined, InboxRead> = {
         route: addressOf({ kind: "conversation", id: c.id }),
         label: whoOf(c),
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

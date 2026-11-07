@@ -11,6 +11,7 @@ import { useEffect, useLayoutEffect, useReducer } from "react";
 import type { ComponentType } from "react";
 import { adsPreviewOf } from "@chanlytics/contracts";
 import { stripShown, useHeadUnder, type StripAt } from "../kit/head/standing";
+import { holdMoves } from "../kit/motion/swipe";
 import { ViewTabs as KitViewTabs, type ViewTabsProps } from "../kit/view-tabs/view-tabs";
 import type { SurfaceViews } from "../routes";
 import { frameChrome, isDemoFrame } from "./frame-window";
@@ -260,3 +261,25 @@ export const stripSlide = (from: StripPlace | null, to: StripPlace | null): "nex
 const stripPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
 export const stripSwipe = () =>
   window.touchSwipe && window.viewPager ? window.touchSwipe({ pages: window.viewPager, when: stripPhone }) : {};
+
+// A strip's page holds its moves from its mount (kit/motion/swipe.ts holdMoves): an iPhone heeds only a listener already
+// there as the finger lands, so one added by the touch let the window scroll under a page carried across. The page says
+// its strip as it is drawn (data-strip), before its ref is told; a page under no strip makes the browser wait on nothing.
+type ViewRef = (el: HTMLElement | null) => void;
+const holdStrip: ViewRef = (el) => {
+  if (el && el.dataset && el.dataset.strip) holdMoves(el);
+};
+const stripRefs = new WeakMap<ViewRef, ViewRef>();
+/** The ref the frame's page is drawn with: the deck's, the same each draw, or React would let the deck go and take it back. */
+export const stripViewRef = (deckRef: ViewRef | null): ViewRef => {
+  if (!deckRef) return holdStrip;
+  let ref = stripRefs.get(deckRef);
+  if (!ref) {
+    ref = (el) => {
+      deckRef(el);
+      holdStrip(el);
+    };
+    stripRefs.set(deckRef, ref);
+  }
+  return ref;
+};

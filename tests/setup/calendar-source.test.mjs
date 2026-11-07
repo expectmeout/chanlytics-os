@@ -28,7 +28,7 @@ const {
 } = await importSrc("packages/contracts/src/setup/calendar-source.ts");
 const { BOOKING_TOOL_IDS, bookingToolCalendar } = await importSrc("packages/contracts/src/calendar/booking-notice.ts");
 const { BOOKING_PLATFORM_TOOLS, bookingToolOfLink } = await importSrc("packages/contracts/src/google/booking-page.ts");
-const { connectionRows } = await importSrc("packages/contracts/src/setup/connections.ts");
+const { connectionRows } = await importSrc("apps/dashboard/src/surfaces/settings/connections/model/setup.ts");
 const { TenantConfigSchema, TenantConfigWriteSchema } = await importSrc(
   "packages/contracts/src/config/workspace-config/config-schema.ts",
 );

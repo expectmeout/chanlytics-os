@@ -2,53 +2,46 @@ import "server-only";
 import { z } from "zod";
 import {
   ASK_THREAD_VERBS,
-  PROPOSAL_SPECS,
   clockWhen,
   dayInZone,
   personName,
   shiftKey,
   zoneMidnight,
-} from "@chanlytics/contracts";
-import {
   UUID,
-  WHOSE,
-  defineAct,
-  noteRow,
-  propose,
-  refuse,
-  str,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../context";
+  PROPOSAL_SPECS,
+} from "@chanlytics/contracts";
+import { WHOSE, noteRow, str } from "../context/tool-reads";
+import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
 
 /** The one list, from contracts: the committer in the browser reads the same one. */
 export const THREAD_VERBS = ASK_THREAD_VERBS;
 
 async function proposeThreadVerb(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { conversation_id: string; verb: string; until?: string },
 ): Promise<ProposalOutcome> {
   const id = str(input.conversation_id, 40);
   const verb = str(input.verb, 20) as (typeof THREAD_VERBS)[number];
   if (!UUID.test(id)) return refuse("conversation_id must be an id a read returned");
   if (!THREAD_VERBS.includes(verb)) return refuse(`verb must be one of ${THREAD_VERBS.join(", ")}`);
-  const { data: conv, error } = await t.ctx.supabase
+  const { data: conv, error } = await toolContext.ctx.supabase
     .from("conversations")
     .select("id, state, assignee_user_id, snooze_until, contacts (display_name, wa_profile_name, phone_e164, email)")
     .eq("id", id)
-    .eq("tenant_id", t.tenantId)
+    .eq("tenant_id", toolContext.tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!conv) return refuse("no such conversation in this workspace");
   // As the Inbox names them (personName): a saved name, else their WhatsApp name, else their number as it is printed.
-  const who = personName(conv.contacts);
+  const otherPersonName = personName(conv.contacts);
   let escalationId: string | null = null;
   if (verb === "resolve") {
-    const { data: esc, error: escErr } = await t.ctx.supabase
+    const { data: esc, error: escErr } = await toolContext.ctx.supabase
       .from("escalations")
       .select("id")
       .eq("conversation_id", id)
-      .eq("tenant_id", t.tenantId)
+      .eq("tenant_id", toolContext.tenantId)
       .eq("state", "open")
       .order("created_at", { ascending: false })
       .limit(1)
@@ -60,38 +53,45 @@ async function proposeThreadVerb(
   if (verb === "wake" && conv.state !== "snoozed") return refuse("that thread is not snoozed");
   if (verb === "hand_back" && !conv.assignee_user_id) return refuse("nobody has taken that thread over");
   // What the thread already is, said, never a card that changes nothing (the operator stress run, 15 Oct 2026).
-  if (verb === "take_over" && conv.assignee_user_id === t.ctx.userId)
-    return refuse(`${who}'s thread is already taken over by the person asking: say so, and change nothing`);
+  if (verb === "take_over" && conv.assignee_user_id === toolContext.ctx.userId)
+    return refuse(`${otherPersonName}'s thread is already taken over by the person asking: say so, and change nothing`);
   if (verb === "archive" && conv.state === "archived")
-    return refuse(`${who}'s thread is already archived: say so, and change nothing`);
+    return refuse(`${otherPersonName}'s thread is already archived: say so, and change nothing`);
   let until: string | null = null;
   if (verb === "snooze") {
     const raw = str(input.until, 40);
     // "Tomorrow at ten" is ten in the business's zone. This used setHours on
     // the server's clock, which on Vercel is UTC: six in the morning in New
     // York, and a test that passed on a laptop in that zone and failed in CI.
-    const d = raw
+    const date = raw
       ? new Date(raw)
-      : new Date(zoneMidnight(t.timezone, shiftKey(dayInZone(t.timezone, t.now.getTime()).key, 1)) + 10 * 3600_000);
-    if (Number.isNaN(d.getTime()) || d.getTime() <= t.now.getTime()) return refuse("until must be a future ISO time");
-    until = d.toISOString();
+      : new Date(
+          zoneMidnight(
+            toolContext.timezone,
+            shiftKey(dayInZone(toolContext.timezone, toolContext.now.getTime()).key, 1),
+          ) +
+            10 * 3600_000,
+        );
+    if (Number.isNaN(date.getTime()) || date.getTime() <= toolContext.now.getTime())
+      return refuse("until must be a future ISO time");
+    until = date.toISOString();
   }
   const TITLES: Record<string, string> = {
-    take_over: `Take over ${who}'s thread`,
-    hand_back: `Hand ${who}'s thread back to the receptionist`,
-    snooze: `Snooze ${who}'s thread`,
-    wake: `Wake ${who}'s thread`,
-    archive: `Archive ${who}'s thread`,
-    resolve: `Resolve ${who}'s escalation`,
+    take_over: `Take over ${otherPersonName}'s thread`,
+    hand_back: `Hand ${otherPersonName}'s thread back to the receptionist`,
+    snooze: `Snooze ${otherPersonName}'s thread`,
+    wake: `Wake ${otherPersonName}'s thread`,
+    archive: `Archive ${otherPersonName}'s thread`,
+    resolve: `Resolve ${otherPersonName}'s escalation`,
   };
   // The undo's words are the spec's (contracts ask-proposals/): a wake's card offers none (D8).
-  noteRow(t, "thread", id, who, `inbox/th-${id}`);
+  noteRow(toolContext, "thread", id, otherPersonName, `inbox/th-${id}`);
   return propose({
     kind: "thread_verb",
     title: TITLES[verb],
     summary:
       verb === "snooze" && until
-        ? `Until ${clockWhen(Date.parse(until), t.timezone, t.now.getTime())}`
+        ? `Until ${clockWhen(Date.parse(until), toolContext.timezone, toolContext.now.getTime())}`
         : verb === "resolve"
           ? "Closes the open escalation; the thread stays"
           : verb === "take_over"
@@ -101,7 +101,7 @@ async function proposeThreadVerb(
               : verb === "archive"
                 ? "Out of the Inbox; it comes back if they write"
                 : "Back in the Inbox now",
-    payload: { conversation_id: id, verb, until, escalation_id: escalationId, who },
+    payload: { conversation_id: id, verb, until, escalation_id: escalationId, who: otherPersonName },
   });
 }
 

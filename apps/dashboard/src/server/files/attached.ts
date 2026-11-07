@@ -19,9 +19,9 @@ import {
   type FileDto,
   type FileSound,
 } from "@chanlytics/contracts";
-import { filesNamedBy } from "@chanlytics/db";
+import { listFilesNamedBy } from "@chanlytics/db/files";
 import type { RouteContext } from "../shared/with-route";
-import type { AskedPicture } from "../ask/tools/context";
+import type { AskedPicture } from "../ask/tools/context/tool-defs";
 import type { FileCopy } from "./copies";
 
 /** A file as a question says it, as it is now: a video's length, where it stands, its frame's shape and what was heard besides. */
@@ -40,12 +40,12 @@ export const fileIdsOf = (raw: unknown): string[] =>
   Array.isArray(raw) ? raw.filter((id): id is string => typeof id === "string") : [];
 
 /** The files of these ids that are still there for the caller. */
-export async function attachedNow(
+export async function getAttached(
   ctx: RouteContext,
   tenantId: string,
   ids: readonly string[],
 ): Promise<ReadonlyMap<string, AttachedFile>> {
-  const rows = await filesNamedBy(ctx.supabase, tenantId, ids);
+  const rows = await listFilesNamedBy(ctx.supabase, tenantId, ids);
   return new Map(
     rows.map((row) => {
       const line = recordOrNull(row.look)?.line;

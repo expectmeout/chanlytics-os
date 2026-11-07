@@ -8,12 +8,8 @@
  * The open visit is the address's (use-calendar.ts useVisitAddress): closing goes back, so a phone's Back closes the sheet.
  */
 import { useSyncExternalStore } from "react";
-import {
-  CALENDAR_VISIT_SHEET_WORDS as W,
-  visitSheetOf,
-  type CalendarBlockVM,
-  type CalendarMomentDto,
-} from "@chanlytics/contracts";
+import type { CalendarBlockVM, CalendarMomentDto } from "@chanlytics/contracts";
+import { CALENDAR_VISIT_SHEET_WORDS as W, visitSheetOf } from "./sheet-view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";

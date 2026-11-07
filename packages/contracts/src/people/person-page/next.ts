@@ -11,7 +11,7 @@
  *   4. Their next step: Done.
  *   5. Before a visit whose message was held for want of a yes: Record a yes.
  */
-import { VISIT_WORDS, type VisitLineVM } from "../../calendar/words";
+import { VISIT_WORDS, type VisitLineVM } from "../../calendar/words/visit";
 import type { DealAct } from "../../deals/sheet/deal-acts";
 import type { DealCardVM, DealQuietVM } from "../../deals/sheet/deal-card";
 import type { PersonNextStepVM } from "../../notes/steps";
@@ -61,16 +61,16 @@ const RUNGS = 4;
 export const UP_NEXT_WORDS = {
   title: "Up next",
   gotIt: "Got it",
-  leftYouANote: (who: string, when: string) =>
-    `${who === "You" ? "You left yourself" : `${who} left you`} a note · ${when}`,
+  leftYouANote: (personName: string, when: string) =>
+    `${personName === "You" ? "You left yourself" : `${personName} left you`} a note · ${when}`,
   /**
    * "Did Emily come on Sat Oct 10?": the day as a question says it, with no comma after the weekday (canvas A); a visit
    * of today or yesterday is asked without the "on" ("Did Emily come yesterday?").
    */
-  didTheyCome: (who: string, day: string) =>
+  didTheyCome: (personName: string, day: string) =>
     day === "Today" || day === "Yesterday"
-      ? `Did ${who} come ${day.toLowerCase()}?`
-      : `Did ${who} come on ${day.replace(/,/g, "")}?`,
+      ? `Did ${personName} come ${day.toLowerCase()}?`
+      : `Did ${personName} come on ${day.replace(/,/g, "")}?`,
   done: "Done",
   recordYes: "Record a yes",
   /** Their yes to messages, not asked with a visit ahead: the folded Messages summary's words for it. */
@@ -92,9 +92,9 @@ function dealRungSub(c: DealCardVM): string | null {
 }
 
 /** The ladder: every true rung in its order, four shown, the rest folded. */
-export function personNextOf(f: UpNextFacts): UpNextVM {
+export function personNextOf(upNextFacts: UpNextFacts): UpNextVM {
   const rows: UpNextRowVM[] = [];
-  for (const n of f.notes) {
+  for (const n of upNextFacts.notes) {
     if (!n.forMe || n.step || n.suggested || n.forSeen) continue;
     rows.push({
       id: `note:${n.id}`,
@@ -104,17 +104,17 @@ export function personNextOf(f: UpNextFacts): UpNextVM {
     });
   }
   // Did they come: the last visit that began and nobody marked, else one under way.
-  const asking = [f.lastVisit, ...f.ahead.map((a) => a.visit ?? null)].find(
+  const asking = [upNextFacts.lastVisit, ...upNextFacts.ahead.map((a) => a.visit ?? null)].find(
     (v): v is VisitLineVM => !!v && v.asks.length > 0,
   );
   if (asking)
     rows.push({
       id: `visit:${asking.id}`,
-      title: UP_NEXT_WORDS.didTheyCome(f.who, asking.day),
+      title: UP_NEXT_WORDS.didTheyCome(upNextFacts.who, asking.day),
       sub: [asking.title, asking.time].filter(Boolean).join(" · "),
       act: { kind: "visit", line: asking, label: asking.asks.map((a) => VISIT_WORDS[a]).join(" · ") },
     });
-  for (const c of f.deals.cards) {
+  for (const c of upNextFacts.deals.cards) {
     if (!c.next) continue;
     rows.push({
       id: `deal:${c.id ?? c.title}`,
@@ -123,23 +123,23 @@ export function personNextOf(f: UpNextFacts): UpNextVM {
       act: { kind: "deal", dealId: c.id, act: c.next, label: c.next.label },
     });
   }
-  const q = f.deals.quiet;
-  if (q && (q.primary || (f.talking && !q.dealId)))
+  const quiet = upNextFacts.deals.quiet;
+  if (quiet && (quiet.primary || (upNextFacts.talking && !quiet.dealId)))
     rows.push({
       id: "deal:quiet",
-      title: q.words,
-      sub: q.sub,
-      act: { kind: "deal", dealId: q.dealId, act: q.act, label: q.act.label },
+      title: quiet.words,
+      sub: quiet.sub,
+      act: { kind: "deal", dealId: quiet.dealId, act: quiet.act, label: quiet.act.label },
     });
-  if (f.step)
+  if (upNextFacts.step)
     rows.push({
-      id: `step:${f.step.id}`,
-      title: f.step.words,
-      sub: [f.step.day.words, f.step.forWho].filter(Boolean).join(" · "),
-      act: { kind: "step-done", stepId: f.step.id, label: UP_NEXT_WORDS.done },
+      id: `step:${upNextFacts.step.id}`,
+      title: upNextFacts.step.words,
+      sub: [upNextFacts.step.day.words, upNextFacts.step.forWho].filter(Boolean).join(" · "),
+      act: { kind: "step-done", stepId: upNextFacts.step.id, label: UP_NEXT_WORDS.done },
     });
-  const nextVisit = f.ahead[0];
-  if (f.visitYesHeld && nextVisit)
+  const nextVisit = upNextFacts.ahead[0];
+  if (upNextFacts.visitYesHeld && nextVisit)
     rows.push({
       id: "consent:visit",
       title: UP_NEXT_WORDS.visitNotAsked,

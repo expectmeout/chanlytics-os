@@ -30,20 +30,17 @@ import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js"
 import { respond, workspaceOf, workspaceRow, type Refused } from "../shared/admin-door.js";
 import {
   billingReadiness,
-  checkoutFor,
+  getCheckout,
   endFor,
-  invoicesFor,
-  portalFor,
-  priceForClient,
-  resumeFor,
-  startPlanNowFor,
+  getPortal,
+  findPriceForClient,
   stripeLivemode,
-  syncFor,
   trialDays,
-} from "./billing.js";
+} from "./subscription.js";
+import { getInvoices, resumeFor, startPlanNowFor, syncFor } from "./billing.js";
 import { logger, type Logger } from "../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import {
   UNKNOWN_BILLING_OP,
   billingStatusOf,
@@ -73,7 +70,7 @@ interface BillingCall {
 const OPS: Record<BillingOp, (c: BillingCall) => Promise<BillingOutcome | Response>> = {
   checkout,
   portal,
-  invoices: (c) => invoicesFor(c.db, c.tenantId),
+  invoices: (c) => getInvoices(c.db, c.tenantId),
   sync: (c) => syncFor(c.db, c.tenantId),
   resume: (c) => resumeFor(c.db, c.tenantId, new Date(), c.person),
   start_now: (c) => startPlanNowFor(c.db, c.tenantId, new Date(), c.person),
@@ -91,7 +88,7 @@ async function status(): Promise<Response> {
     ready: ready.ready,
     livemode: stripeLivemode(),
     doors: ready,
-    price: ready.ready ? await priceForClient() : null,
+    price: ready.ready ? await findPriceForClient() : null,
     trial_days: trialDays(),
   });
 }
@@ -118,15 +115,15 @@ async function checkout(c: BillingCall): Promise<BillingOutcome | Response> {
   const tenant = workspaceRow(read);
   if (!tenant.ok) return tenant.response;
   const { email, back } = checkoutRequest(c.body.email, c.body.return);
-  return checkoutFor(c.db, c.tenantId, tenant.row.name, email, tenant.row.slug ?? null, back, c.body.embedded === true);
+  return getCheckout(c.db, c.tenantId, tenant.row.name, email, tenant.row.slug ?? null, back, c.body.embedded === true);
 }
 
 async function portal(c: BillingCall): Promise<BillingOutcome> {
   const slug = slugOf(await c.db.from("tenants").select("slug").eq("id", c.tenantId).maybeSingle());
-  return portalFor(c.db, c.tenantId, slug);
+  return getPortal(c.db, c.tenantId, slug);
 }
 
-export async function billingOp(auth: Admitted, body: Partial<BillingBody>): Promise<Response> {
+export async function runBillingOp(auth: Admitted, body: Partial<BillingBody>): Promise<Response> {
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -137,6 +134,6 @@ export async function billingOp(auth: Admitted, body: Partial<BillingBody>): Pro
   const call = workspaceCall(body, personFor(auth, body.user_id));
   if (!call.ok) return call.response;
   if (!Object.hasOwn(OPS, op)) return respond(UNKNOWN_BILLING_OP);
-  const r = await OPS[op as BillingOp](call.value);
-  return r instanceof Response ? r : answered(call.value, op as BillingOp, r);
+  const item = await OPS[op as BillingOp](call.value);
+  return item instanceof Response ? item : answered(call.value, op as BillingOp, item);
 }

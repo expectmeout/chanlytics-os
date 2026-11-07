@@ -18,8 +18,8 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { keepMessageCost } from "@chanlytics/db";
-import { waPricingOf } from "@chanlytics/channels";
+import { keepMessageCost } from "@chanlytics/db/channels";
+import { waPricingOf } from "@chanlytics/channels/whatsapp";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

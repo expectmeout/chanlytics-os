@@ -32,26 +32,26 @@ export const POST = write({
     if (m.sender !== "ai" || m.status !== "queued") {
       throw new AppError("conflict", "This reply is not waiting — there is nothing to rewrite.", 409);
     }
-    const r = await steerDraft(id, text, { workspace: m.tenant_id, user: ctx.userId });
-    if (!r.ok) {
+    const result = await steerDraft(id, text, { workspace: m.tenant_id, user: ctx.userId });
+    if (!result.ok) {
       throw new AppError(
         "upstream_anthropic",
-        r.reason === "preview"
+        result.reason === "preview"
           ? "Rewrites only work on the production dashboard."
-          : r.reason === "policy_block_price"
+          : result.reason === "policy_block_price"
             ? "The rewrite would have quoted a price or named money (a refund, a discount, a deposit), so the original draft stays."
-            : r.reason === "already_sent"
+            : result.reason === "already_sent"
               ? "That reply went out while it was being rewritten, so nothing was changed."
-              : r.reason === "no_channel"
+              : result.reason === "no_channel"
                 ? "This workspace has no connected channel to send a rewrite on."
-                : `The receptionist could not rewrite it (${r.reason}).`,
+                : `The receptionist could not rewrite it (${result.reason}).`,
         502,
       );
     }
     const decisionId = await recordDecision(ctx, m.tenant_id, "message", m.id, "edit", {
       steer: text,
-      new_message_id: r.messageId,
+      new_message_id: result.messageId,
     });
-    return { ok: true, message_id: r.messageId, text: r.text, decision_id: decisionId };
+    return { ok: true, message_id: result.messageId, text: result.text, decision_id: decisionId };
   },
 });

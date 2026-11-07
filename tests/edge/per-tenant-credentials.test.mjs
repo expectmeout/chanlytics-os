@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { waCfgFor, waCredentialsForTenant, loadTenantNotifications, loadTenantRuntime, whatsappWireForTenant } =
+const { waCfgFor, getWaCredentialsForTenant, loadTenantNotifications, loadTenantRuntime, findWhatsappWireForTenant } =
   await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/tenant-runtime.ts")).href);
 
 const ENV = { WHATSAPP_PHONE_ID: "111000", WHATSAPP_ACCESS_TOKEN: "env-token" };
@@ -100,7 +100,7 @@ test("a vault reference is read through the vault door", () =>
         },
       },
     );
-    assert.deepEqual(await waCredentialsForTenant(db, "t2"), {
+    assert.deepEqual(await getWaCredentialsForTenant(db, "t2"), {
       outcome: "present",
       credentials: { phoneId: "222000", accessToken: "vault-token" },
     });
@@ -121,7 +121,7 @@ test("a vault that does not answer is UNAVAILABLE: never the environment's pair,
         },
       },
     );
-    assert.deepEqual(await waCredentialsForTenant(db, "t2"), { outcome: "unavailable", error: "vault unavailable" });
+    assert.deepEqual(await getWaCredentialsForTenant(db, "t2"), { outcome: "unavailable", error: "vault unavailable" });
   }));
 
 test("a vault that answers with a pair missing a half is a channel that carries none", () =>
@@ -131,19 +131,19 @@ test("a vault that answers with a pair missing a half is a channel that carries 
       {},
       { get_channel_credentials: () => ({ access_token: "vault-token" }) },
     );
-    assert.deepEqual(await waCredentialsForTenant(db, "t2"), { outcome: "absent" });
+    assert.deepEqual(await getWaCredentialsForTenant(db, "t2"), { outcome: "absent" });
   }));
 
 test("a channel with no reference gets the environment pair only when it IS the environment's number", () =>
   withEnv(ENV, async () => {
     const pilot = fakeDb({ tenant_channels: [channel({ credentials_ref: null, external_id: "111000" })] });
-    assert.deepEqual(await waCredentialsForTenant(pilot, "t2"), {
+    assert.deepEqual(await getWaCredentialsForTenant(pilot, "t2"), {
       outcome: "present",
       credentials: { phoneId: "111000", accessToken: "env-token" },
     });
     const other = fakeDb({ tenant_channels: [channel({ credentials_ref: null, external_id: "333000" })] });
     assert.deepEqual(
-      await waCredentialsForTenant(other, "t2"),
+      await getWaCredentialsForTenant(other, "t2"),
       { outcome: "absent" },
       "another business's number is not ours to send from",
     );
@@ -151,18 +151,18 @@ test("a channel with no reference gets the environment pair only when it IS the 
 
 test("no active WhatsApp channel is ABSENT; a channel that cannot be read is UNAVAILABLE; neither is the pilot's token", () =>
   withEnv(ENV, async () => {
-    assert.deepEqual(await waCredentialsForTenant(fakeDb({ tenant_channels: [] }), "t2"), { outcome: "absent" });
+    assert.deepEqual(await getWaCredentialsForTenant(fakeDb({ tenant_channels: [] }), "t2"), { outcome: "absent" });
     assert.deepEqual(
-      await waCredentialsForTenant(fakeDb({ tenant_channels: [channel({ status: "disabled" })] }), "t2"),
+      await getWaCredentialsForTenant(fakeDb({ tenant_channels: [channel({ status: "disabled" })] }), "t2"),
       { outcome: "absent" },
     );
     const broken = fakeDb(
       { tenant_channels: [channel()] },
       { "tenant_channels.select": { message: "connection reset" } },
     );
-    // The numbers are read in packages/db (activeWhatsappNumbers), whose error says what it could not read.
+    // The numbers are read in packages/db (listActiveWhatsappNumbers), whose error says what it could not read.
     assert.deepEqual(
-      await waCredentialsForTenant(broken, "t2"),
+      await getWaCredentialsForTenant(broken, "t2"),
       { outcome: "unavailable", error: "cannot read the workspace's WhatsApp numbers: connection reset" },
       '"we could not check" is not "send on the pilot\'s token", and not "nothing on file" either',
     );
@@ -242,7 +242,7 @@ test("a caller that knows no number the customer wrote to is given the workspace
     const viaCall = await loadTenantRuntime(db, routed("voice-1", "agent_1", "voice"));
     assert.deepEqual(viaCall.waCreds, { accessToken: "token-old", phoneId: "111000" }, "not whichever row came first");
     // The job runner and the template doors.
-    assert.deepEqual(await waCredentialsForTenant(db, T), {
+    assert.deepEqual(await getWaCredentialsForTenant(db, T), {
       outcome: "present",
       credentials: { phoneId: "111000", accessToken: "token-old" },
     });
@@ -296,7 +296,7 @@ async function jobWire({ numbers = [NEW, OLD], messages = [], vault = {}, faults
       return Array.isArray(v) ? { access_token: v[0], phone_id: v[1] } : (v ?? null);
     },
   });
-  const wire = await whatsappWireForTenant(db, JT);
+  const wire = await findWhatsappWireForTenant(db, JT);
   const posted = [];
   const send = async (conversationId) => {
     const real = globalThis.fetch;

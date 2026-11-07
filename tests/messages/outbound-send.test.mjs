@@ -479,7 +479,7 @@ test("the carrier's own no on a text (Twilio 21610) is the person's STOP: the ro
 });
 
 test("a wire that could not be bound leaves the reply queued for a fresh job a while on: no failed row, no flag, no owner alert, nothing to Meta", async () => {
-  // The credentials read FAILED (the edge's waCredentialsForTenant: Vault or
+  // The credentials read FAILED (the edge's getWaCredentialsForTenant: Vault or
   // the database did not answer). Not "no credentials": the number may well be
   // connected. The job is done; a fresh outbound_send carries the same payload,
   // counting how many fresh jobs it is the result of, and the row keeps saying

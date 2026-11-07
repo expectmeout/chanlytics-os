@@ -166,7 +166,7 @@ test("only the hold on her last words makes a thread Unanswered: not after an an
 /* ------------------------------------ the read ------------------------------------ */
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 
 const convo = (id, contactId) => ({

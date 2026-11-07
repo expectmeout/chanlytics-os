@@ -1,5 +1,5 @@
 /**
- * A freed time's batch asks the record before its first send (decision 0082, core broadcast-stops.ts takenBeforeItWent):
+ * A freed time's batch asks the record before its first send (decision 0082, core broadcast-stops.ts isTakenBeforeItWent):
  * a time booked since it was offered is taken, and the batch is cancelled as the system through the cancel verb (reason
  * `taken`), told once, with nobody claimed and nothing sent; a time still free sends as every batch does; the calendar's
  * copy of the cancelled visit takes nothing; a batch already sending goes on. Over fakes that log their calls.
@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
-const { sendBroadcastBatch } = await importSrc("packages/core/src/messages/broadcast.ts");
+const { sendBroadcastBatch } = await importSrc("packages/core/src/messages/broadcast/batch.ts");
 
 /** Noon UTC on Sunday 6 September 2026: inside the sending hours in UTC. */
 const NOW = Date.parse("2026-09-06T12:00:00Z");

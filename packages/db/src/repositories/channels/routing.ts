@@ -93,7 +93,7 @@ function routedOf(row: {
  * A workspace's channel of a kind as a door that no channel routed reads it (a steer, an eval): its oldest active row,
  * the one contracts channelFor picks, since a workspace may hold two of a kind. Null with none. A read that fails throws.
  */
-export async function oldestActiveChannel(
+export async function findOldestActiveChannel(
   db: SupabaseClient<Database>,
   tenantId: string,
   kind: string,
@@ -132,11 +132,11 @@ export interface WhatsappNumberRow {
  * may be two; the first is the one contracts channelFor picks, and the one a send goes from when nothing says which
  * number its person wrote to. A read that fails throws.
  */
-export async function activeWhatsappNumbers(
+export async function listActiveWhatsappNumbers(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<WhatsappNumberRow[]> {
-  return activeChannelRows(db, tenantId, "whatsapp");
+  return listActiveChannelRows(db, tenantId, "whatsapp");
 }
 
 /** What a failed read says it could not read, in the words a person searching the logs knows. */
@@ -146,7 +146,7 @@ const CHANNEL_ROWS_WORDS = { whatsapp: "WhatsApp numbers", instagram: "Instagram
  * A workspace's active channels of a kind that sends (its WhatsApp numbers, its Instagram accounts), oldest first, as a
  * send from one needs the row. A read that fails throws.
  */
-export async function activeChannelRows(
+export async function listActiveChannelRows(
   db: SupabaseClient<Database>,
   tenantId: string,
   kind: "whatsapp" | "instagram",
@@ -167,12 +167,12 @@ export async function activeChannelRows(
  * id of the channel that routed it, which core inbound/ingest.ts writes). Null when nothing says: they never wrote on
  * WhatsApp, or their newest message was kept before its line was. A read that fails throws.
  */
-export async function whatsappLineOf(
+export async function findWhatsappLine(
   db: SupabaseClient<Database>,
   tenantId: string,
   conversationId: string,
 ): Promise<string | null> {
-  return lineWrittenTo(db, tenantId, conversationId, "whatsapp");
+  return findLineWrittenTo(db, tenantId, conversationId, "whatsapp");
 }
 
 /**
@@ -180,7 +180,7 @@ export async function whatsappLineOf(
  * whose ids for a person are its own): the line their newest message on that wire came in on (meta.line). Null when
  * nothing says. A read that fails throws.
  */
-export async function lineWrittenTo(
+export async function findLineWrittenTo(
   db: SupabaseClient<Database>,
   tenantId: string,
   conversationId: string,

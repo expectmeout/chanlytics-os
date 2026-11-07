@@ -73,7 +73,7 @@ test("garbage in the config falls back rather than producing NaN", () => {
 const edge = ["reply-gates", "dispatch"].map((m) => read(`packages/core/src/inbound/${m}.ts`)).join("\n");
 const sink = read("apps/edge/lib/whatsapp/persist.ts");
 const reply = read("packages/core/src/conversations/reply.ts");
-const takeOver = read("apps/dashboard/src/server/ports/core-ports.ts");
+const takeOver = read("apps/dashboard/src/server/conversations/ports.ts");
 
 test("'veto' reaches the brain instead of being held as a policy block", () => {
   // Before this, veto fell into the "hold everything for a human" branch — safe,
@@ -114,7 +114,7 @@ test("a veto draft and its job are written in one statement, so neither is ever 
   // words immediately, and a run killed between the two left a reply nothing would send, found only by the deadman ten
   // minutes later. queue_send (00527) writes both or neither (jobs/a-send-is-queued-with-its-job.db.test.mjs runs it);
   // the writer is lib/draft-queue.ts, one for the handler and the steer.
-  const queue = readCode("apps/edge/lib/receptionist/draft-queue.ts");
+  const queue = readCode("apps/edge/lib/ai/draft-queue.ts");
   const fn = queue.slice(queue.indexOf("export async function queueDraft"));
   const body = fn.slice(0, fn.indexOf("\n}\n", 1) + 3);
   assert.ok(body.includes("queueSend("), "the draft and its job through the one statement");

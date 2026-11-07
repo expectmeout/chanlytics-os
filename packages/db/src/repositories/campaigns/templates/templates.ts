@@ -10,7 +10,7 @@
  * (00343), the service role's, which the route calls after its own role check and which asks the member it acts for. The
  * one write Meta's webhook makes between two syncs is here
  * too: a WhatsApp template's quality, as Meta just said it (setTemplateQuality). A message's rows, on whatever channel,
- * are read once (messageVersionRowsOf) for contracts' campaignMessageOf to pick its versions out of.
+ * are read once (listMessageVersionRows) for contracts' campaignMessageOf to pick its versions out of.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -76,7 +76,7 @@ type _MessageVersionRowIsACampaignMessageRow = Holds<Within<MessageVersionRow, C
  * telling them it when we simply could not look is how a working feature reads
  * as a missing one.
  */
-export async function templatesFor(
+export async function listTemplates(
   db: Db,
   tenantId: string,
   channel: string | null = "whatsapp",
@@ -86,23 +86,23 @@ export async function templatesFor(
     .select("id, channel, name, language, category, meta_status, body_preview, title, variables")
     .eq("tenant_id", tenantId);
   const { data, error } = await (channel === null ? ofTenant : ofTenant.eq("channel", channel));
-  if (error) throw new Error(`templatesFor: ${error.message}`);
+  if (error) throw new Error(`listTemplates: ${error.message}`);
   return data ?? [];
 }
 
 /**
  * Every template this workspace holds on a channel, with the components Meta holds for each: for the caller that
  * chooses one to send (the receptionist's booking link), which must not choose a message WhatsApp will refuse
- * (contracts bookingTemplate, templateBlocked). `templatesFor` stays the lighter read, for those that only need the
+ * (contracts bookingTemplate, templateBlocked). `listTemplates` stays the lighter read, for those that only need the
  * row's own columns. A read that fails THROWS, as it does.
  */
-export async function templatesToSend(db: Db, tenantId: string, channel = "whatsapp"): Promise<TemplateToSend[]> {
+export async function listTemplatesToSend(db: Db, tenantId: string, channel = "whatsapp"): Promise<TemplateToSend[]> {
   const { data, error } = await db
     .from("templates")
     .select("name, language, category, meta_status, body_preview, title, variables, components")
     .eq("tenant_id", tenantId)
     .eq("channel", channel);
-  if (error) throw new Error(`templatesToSend: ${error.message}`);
+  if (error) throw new Error(`listTemplatesToSend: ${error.message}`);
   return data ?? [];
 }
 
@@ -111,16 +111,21 @@ export async function templatesToSend(db: Db, tenantId: string, channel = "whats
  * (save_template_version) would take them from, WhatsApp's first, then the one in this language. Null when the
  * workspace has no row of that name, which is a message that does not exist. A read that fails THROWS.
  */
-export async function messageSlots(db: Db, tenantId: string, name: string, language: string): Promise<number | null> {
-  return (await heldMessageOf(db, tenantId, name, language))?.slots ?? null;
+export async function findMessageSlots(
+  db: Db,
+  tenantId: string,
+  name: string,
+  language: string,
+): Promise<number | null> {
+  return (await findHeldMessage(db, tenantId, name, language))?.slots ?? null;
 }
 
 /**
  * What a message the workspace holds is, for a version being written in `language`: the category and the number of
- * slots of the row its versions take them from (messageSlots's row: WhatsApp's first, then the one in this language).
+ * slots of the row its versions take them from (findMessageSlots's row: WhatsApp's first, then the one in this language).
  * Null when the workspace has no row of that name. A read that fails THROWS.
  */
-export async function heldMessageOf(
+export async function findHeldMessage(
   db: Db,
   tenantId: string,
   name: string,
@@ -131,7 +136,7 @@ export async function heldMessageOf(
     .select("channel, language, category, variables")
     .eq("tenant_id", tenantId)
     .eq("name", name);
-  if (error) throw new Error(`heldMessageOf: ${error.message}`);
+  if (error) throw new Error(`findHeldMessage: ${error.message}`);
   const rows = (data ?? []).slice().sort((a, b) => {
     const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
     return wa || Number(b.language === language) - Number(a.language === language);
@@ -152,7 +157,7 @@ async function messageOfVersion(
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  if (error) throw new Error(`listMessageVersionRows: ${error.message}`);
   return data;
 }
 
@@ -165,9 +170,9 @@ const MESSAGE_COLUMNS =
  * picks the versions out of them). The message is named by one of its versions' ids, which answers its siblings and the
  * version itself, or by its name and language. An id the workspace does not hold is no message: `[]`. So is a reach-out's
  * email (contracts isReachOutRow), which is filed under a name of its own and belongs to no message. A read that fails
- * THROWS, as `templatesFor` does.
+ * THROWS, as `listTemplates` does.
  */
-export async function messageVersionRowsOf(
+export async function listMessageVersionRows(
   db: Db,
   tenantId: string,
   by: { id: string } | { name: string; language: string },
@@ -180,12 +185,12 @@ export async function messageVersionRowsOf(
     .eq("tenant_id", tenantId)
     .eq("name", message.name)
     .eq("language", message.language);
-  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  if (error) throw new Error(`listMessageVersionRows: ${error.message}`);
   return data ?? [];
 }
 
 /** The email and text versions of these messages the workspace holds: each one's channel, name and language. */
-export async function ownVersionsFiled(
+export async function listOwnVersionsFiled(
   db: Db,
   tenantId: string,
   names: string[],
@@ -197,7 +202,7 @@ export async function ownVersionsFiled(
     .eq("tenant_id", tenantId)
     .in("channel", ["email", "sms"])
     .in("name", names);
-  if (error) throw new Error(`ownVersionsFiled: ${error.message}`);
+  if (error) throw new Error(`listOwnVersionsFiled: ${error.message}`);
   return data ?? [];
 }
 
@@ -230,7 +235,7 @@ function versionRefOf(data: unknown): VersionRef | null {
  */
 export async function saveTemplateVersion(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     name: string;
     language: string;
@@ -240,12 +245,12 @@ export async function saveTemplateVersion(
   },
 ): Promise<VersionDoor> {
   const { data, error } = await db.rpc("save_template_version", {
-    p_tenant_id: p.tenantId,
-    p_name: p.name,
-    p_language: p.language,
-    p_channel: p.channel,
-    p_subject: p.subject ?? "",
-    p_body: p.body,
+    p_tenant_id: params.tenantId,
+    p_name: params.name,
+    p_language: params.language,
+    p_channel: params.channel,
+    p_subject: params.subject ?? "",
+    p_body: params.body,
   });
   if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
   const version = versionRefOf(data);
@@ -272,7 +277,7 @@ export type MessageVariable = { position: number; label: string; example: string
  */
 export async function createMessageVersion(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     userId: string;
     name: string;
@@ -286,30 +291,21 @@ export async function createMessageVersion(
   },
 ): Promise<VersionDoor> {
   const { data, error } = await db.rpc("create_message_version", {
-    p_tenant_id: p.tenantId,
-    p_user: p.userId,
-    p_name: p.name,
-    p_language: p.language,
-    p_channel: p.channel,
-    p_subject: p.subject ?? "",
-    p_body: p.body,
-    p_category: p.category,
-    p_variables: p.variables,
-    p_title: p.title ?? "",
+    p_tenant_id: params.tenantId,
+    p_user: params.userId,
+    p_name: params.name,
+    p_language: params.language,
+    p_channel: params.channel,
+    p_subject: params.subject ?? "",
+    p_body: params.body,
+    p_category: params.category,
+    p_variables: params.variables,
+    p_title: params.title ?? "",
   });
   if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
   const version = versionRefOf(data);
   if (!version) throw new Error("createMessageVersion: the door answered without the version it wrote");
   return { ok: true, version };
-}
-
-/**
- * Whether a door's refusal says the function is not on this database at all (a migration not applied yet): PostgREST's
- * `PGRST202`, which is what a schema cache without the function answers, or Postgres's own `42883`, undefined_function,
- * which a cache that still lists a function the database has dropped answers.
- */
-export function isMissingDoor(error: { code: string | null }): boolean {
-  return error.code === "PGRST202" || error.code === "42883";
 }
 
 /** Remove an email or text version a member wrote (remove_template_version, 00296); never a WhatsApp template. */
@@ -322,7 +318,7 @@ export async function removeTemplateVersion(db: Db, templateId: string): Promise
 }
 
 /** The id of the WhatsApp template this workspace already holds under a name and a language, or null when none. */
-export async function templateIdOf(db: Db, tenantId: string, name: string, language: string): Promise<string | null> {
+export async function findTemplateId(db: Db, tenantId: string, name: string, language: string): Promise<string | null> {
   const { data, error } = await db
     .from("templates")
     .select("id")
@@ -336,7 +332,7 @@ export async function templateIdOf(db: Db, tenantId: string, name: string, langu
 }
 
 /** The WhatsApp templates this workspace holds under any of these names, with where each stands at Meta. */
-export async function templatesNamed(
+export async function listTemplatesNamed(
   db: Db,
   tenantId: string,
   names: string[],
@@ -352,7 +348,7 @@ export async function templatesNamed(
 }
 
 /** Where one WhatsApp template stands at Meta, by name and language; null when the workspace holds none. */
-export async function templateStatusOf(
+export async function findTemplateStatus(
   db: Db,
   tenantId: string,
   name: string,
@@ -377,14 +373,14 @@ export async function templateStatusOf(
  */
 export async function setTemplateQuality(
   db: Db,
-  p: { tenantId: string; name: string; language: string; quality: string },
+  params: { tenantId: string; name: string; language: string; quality: string },
 ): Promise<void> {
   const { error } = await db
     .from("templates")
-    .update({ quality: p.quality })
-    .eq("tenant_id", p.tenantId)
+    .update({ quality: params.quality })
+    .eq("tenant_id", params.tenantId)
     .eq("channel", "whatsapp")
-    .eq("name", p.name)
-    .eq("language", p.language);
+    .eq("name", params.name)
+    .eq("language", params.language);
   if (error) throw new Error(`setTemplateQuality: ${error.message}`);
 }

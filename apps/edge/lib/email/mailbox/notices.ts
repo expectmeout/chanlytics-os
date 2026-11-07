@@ -5,12 +5,12 @@
  * is logged.
  */
 import { MAILBOX_PROVIDER_WORDS, mailboxHoldFixWords, mailboxHoldWords } from "@chanlytics/contracts";
-import type { MailboxConnectionRow } from "@chanlytics/db";
-import { notifyOnce } from "../../ops/notify.js";
+import type { MailboxConnectionRow } from "@chanlytics/db/email";
+import { notifyOnce } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 
 type Db = SupabaseClient<Database>;
 type Row = Pick<MailboxConnectionRow, "id" | "tenant_id" | "address" | "provider">;
@@ -41,9 +41,9 @@ export async function tellSignedOut(db: Db, row: Row, log: Logger, at = new Date
 }
 
 /** Held for its own mail: what happened, and what to do before resuming it. Told once per hold. */
-export async function tellHeld(db: Db, row: Row, why: string, heldAt: string, log: Logger): Promise<void> {
-  const because = mailboxHoldWords(why);
-  const fix = mailboxHoldFixWords(why);
+export async function tellHeld(db: Db, row: Row, reason: string, heldAt: string, log: Logger): Promise<void> {
+  const because = mailboxHoldWords(reason);
+  const fix = mailboxHoldFixWords(reason);
   try {
     const addressing = await loadTenantNotifications(db, row.tenant_id);
     await notifyOnce(

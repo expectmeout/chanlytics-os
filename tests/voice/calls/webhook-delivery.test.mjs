@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeCall } from "@chanlytics/channels";
+import { normalizeCall } from "@chanlytics/channels/voice";
 
 test("a payload without call_status normalises to ended — the default the webhook pins a transcript update away from", () => {
   // The pin itself (ongoing before normalising), the routing through the

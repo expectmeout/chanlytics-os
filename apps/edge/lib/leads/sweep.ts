@@ -14,19 +14,19 @@
  */
 import { json, refuse } from "../shared/http.js";
 import { errField } from "../shared/log.js";
-import { leadWires, type LeadWires } from "./lead-wires.js";
-import { markLeadsAgain } from "./lead-marks.js";
+import { leadWires, type LeadWires } from "./wires.js";
+import { markLeadsAgain } from "./marks.js";
 import {
   planLeadSweep,
   type CarryAction,
   type SweepRoundJobs,
   type SweepRoundRow,
   type SweepRunRow,
-} from "./lead-sweep.js";
+} from "./sweep-plan.js";
 import { giveUpRun, reconcileUnknownRuns, runIdFor, type LeadPorts, type LeadRunRow } from "@chanlytics/core";
 import { scheduleJobOnce } from "@chanlytics/jobs";
-import { leadDb } from "./lead-db.js";
-import type { Json } from "@chanlytics/db";
+import { leadDb } from "./db.js";
+import type { Json } from "@chanlytics/db/types";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
@@ -175,17 +175,17 @@ async function assemble(
  * never told its round (its collect decides what that end should have), or its checks. Marked as the sweep's own
  * (`carry_on`, a collect's `r` sequence), so the next tick counts what it has tried since the round last moved.
  */
-async function carryOn(db: SweepTick["db"], a: CarryAction): Promise<void> {
+async function carryOn(db: SweepTick["db"], carryAction: CarryAction): Promise<void> {
   const job =
-    a.kind === "carry_start"
+    carryAction.kind === "carry_start"
       ? {
           kind: "lead_round_start" as const,
-          payload: { round_id: a.roundId, ...(a.resume ? { resume: true } : {}), carry_on: true },
+          payload: { round_id: carryAction.roundId, ...(carryAction.resume ? { resume: true } : {}), carry_on: true },
         }
-      : a.kind === "carry_collect"
-        ? { kind: "lead_collect" as const, payload: { run_id: a.runId, seq: a.seq } }
-        : { kind: "lead_check" as const, payload: { round_id: a.roundId, batch: 0, carry_on: true } };
-  await scheduleJobOnce(db, { tenantId: a.tenantId, dueAt: new Date(), ...job });
+      : carryAction.kind === "carry_collect"
+        ? { kind: "lead_collect" as const, payload: { run_id: carryAction.runId, seq: carryAction.seq } }
+        : { kind: "lead_check" as const, payload: { round_id: carryAction.roundId, batch: 0, carry_on: true } };
+  await scheduleJobOnce(db, { tenantId: carryAction.tenantId, dueAt: new Date(), ...job });
 }
 
 /** The lead runner's ports for a reconciliation inside this tick: a job it asks for goes to the run's own workspace. */
@@ -265,50 +265,57 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
   const ports = wires ? sweepPorts(db, wires, ledger, runs, now + SWEEP_DEADLINE_MS) : null;
   const unknown: LeadRunRow[] = [];
 
-  for (const a of actions) {
+  for (const action of actions) {
     try {
-      switch (a.kind) {
+      switch (action.kind) {
         case "collect":
           await scheduleJobOnce(db, {
-            tenantId: a.tenantId,
+            tenantId: action.tenantId,
             kind: "lead_collect",
             dueAt: new Date(),
-            payload: { run_id: a.runId, seq: a.seq },
+            payload: { run_id: action.runId, seq: action.seq },
           });
           counts.collected += 1;
           break;
         case "abort":
-          if (wires) await wires.apify.abortRun(a.apifyRunId);
+          if (wires) await wires.apify.abortRun(action.apifyRunId);
           await scheduleJobOnce(db, {
-            tenantId: a.tenantId,
+            tenantId: action.tenantId,
             kind: "lead_collect",
             dueAt: new Date(),
-            payload: { run_id: a.runId, seq: a.seq },
+            payload: { run_id: action.runId, seq: action.seq },
           });
           counts.aborted += 1;
           break;
         case "give_up": {
           // Stopped at the provider first, since nothing reads it again once it is failed in our books; a provider
           // that cannot be reached does not keep it alive, as each run ends there by its own timeout.
-          if (wires) await wires.apify.abortRun(a.apifyRunId).catch(() => undefined);
-          const out = await giveUpRun({ db: ledger }, a.runId, a.owner);
+          if (wires) await wires.apify.abortRun(action.apifyRunId).catch(() => undefined);
+          const out = await giveUpRun({ db: ledger }, action.runId, action.owner);
           if (out.kind === "given_up") counts.given_up += 1;
           break;
         }
         case "mark_unknown": {
-          const { error } = await db.rpc("lead_run_mark_unknown", { p_run_id: a.runId, p_owner: a.owner });
+          const { error } = await db.rpc("lead_run_mark_unknown", { p_run_id: action.runId, p_owner: action.owner });
           if (error) throw new Error(error.message);
           counts.marked_unknown += 1;
           break;
         }
         case "release_lease": {
-          const { error } = await db.rpc("lead_run_release", { p_run_id: a.runId, p_owner: a.owner, p_gen: a.gen });
+          const { error } = await db.rpc("lead_run_release", {
+            p_run_id: action.runId,
+            p_owner: action.owner,
+            p_gen: action.gen,
+          });
           if (error) throw new Error(error.message);
           counts.released += 1;
           break;
         }
         case "end_question": {
-          const { error } = await db.rpc("lead_round_end", { p_round_id: a.roundId, p_ending: "question_unanswered" });
+          const { error } = await db.rpc("lead_round_end", {
+            p_round_id: action.roundId,
+            p_ending: "question_unanswered",
+          });
           if (error) throw new Error(error.message);
           counts.questions_ended += 1;
           break;
@@ -316,16 +323,16 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
         case "carry_start":
         case "carry_collect":
         case "carry_check":
-          await carryOn(db, a);
+          await carryOn(db, action);
           counts.carried_on += 1;
           break;
         case "end_stuck": {
           // Nothing can carry it on: the door looks again under its own lock and ends it with the ending it had pending,
           // giving back its allowance and its share of the day's cap (00140's lead_round_end).
           const { error } = await db.rpc("lead_round_end_stuck", {
-            p_round_id: a.roundId,
-            p_since: a.since,
-            p_ending: a.ending,
+            p_round_id: action.roundId,
+            p_since: action.since,
+            p_ending: action.ending,
           });
           if (error) throw new Error(error.message);
           counts.rounds_ended += 1;
@@ -333,23 +340,23 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
         }
         case "orphan": {
           // A row nobody claimed in an hour: the sweep claims it and marks it unknown, and the next tick reconciles it.
-          const claimed = await db.rpc("lead_run_claim", { p_run_id: a.runId, p_owner: a.owner });
+          const claimed = await db.rpc("lead_run_claim", { p_run_id: action.runId, p_owner: action.owner });
           if (claimed.error) throw new Error(claimed.error.message);
-          const marked = await db.rpc("lead_run_mark_unknown", { p_run_id: a.runId, p_owner: a.owner });
+          const marked = await db.rpc("lead_run_mark_unknown", { p_run_id: action.runId, p_owner: action.owner });
           if (marked.error) throw new Error(marked.error.message);
           counts.marked_unknown += 1;
           break;
         }
         case "reconcile": {
           if (unknown.length >= RECONCILE_PER_TICK) break;
-          const row = await ledger.run(a.runId);
+          const row = await ledger.run(action.runId);
           if (row) unknown.push(row);
           break;
         }
       }
     } catch (e) {
       counts.failed += 1;
-      L.error("leads_sweep_action_failed", { kind: a.kind, error: errField(e) });
+      L.error("leads_sweep_action_failed", { kind: action.kind, error: errField(e) });
     }
   }
   if (unknown.length && ports) {

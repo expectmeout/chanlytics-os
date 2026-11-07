@@ -15,15 +15,15 @@ import {
   type SequencePlaceDto,
 } from "@chanlytics/contracts";
 import {
-  leadEmailsOf,
-  leadSentEmailOf,
-  leadWordsOf,
-  peopleAtLead,
-  previewsTriedSince,
-  sequencePlaceOf,
-} from "@chanlytics/db";
-import { leadOne, leadsPage } from "../leads/lead-page";
-import { stamp, type Reader } from "./index";
+  listLeadEmails,
+  findLeadSentEmail,
+  listLeadWords,
+  listPreviewsTriedSince,
+  findSequencePlace,
+} from "@chanlytics/db/campaigns";
+import { listPeopleAtLead } from "@chanlytics/db/people";
+import { getLeadOne, getLeadsPage } from "../leads/page-read";
+import { readerStamp, type Reader } from "../shared/reader";
 
 /**
  * GET leads, as the route answers it: a page of the Leads scope's rows as the database ordered them (leads_page), the
@@ -33,13 +33,18 @@ import { stamp, type Reader } from "./index";
  * for a role that may find (ROLE_PERMS.find, as lead_month_used asks has_permission): an operator's or a viewer's page
  * is the rows without it, never a 500.
  */
-export const leads: Reader<LeadsQuery, Awaited<ReturnType<typeof leadsPage>>> = {
+export const leads: Reader<LeadsQuery, Awaited<ReturnType<typeof getLeadsPage>>> = {
   name: "leads",
-  async read(rc, q) {
-    const data = await leadsPage(rc.ctx, rc.tenantId, q, { month: ROLE_PERMS[rc.role]?.find === true });
+  async read(rc, query) {
+    const data = await getLeadsPage(rc.ctx, rc.tenantId, query, { month: ROLE_PERMS[rc.role]?.find === true });
     // Each row is cited open over the view it was read in, its chips with it (decision 0083, Phase B).
-    const chips = { excluded_by: q.excluded_by, fit: q.fit, reach: q.reach, status_group: q.status_group };
-    const view = { searchId: q.search ?? null, list: q.list, cls: q.class ?? null, chips };
+    const chips = {
+      excluded_by: query.excluded_by,
+      fit: query.fit,
+      reach: query.reach,
+      status_group: query.status_group,
+    };
+    const view = { searchId: query.search ?? null, list: query.list, cls: query.class ?? null, chips };
     return {
       data,
       rows: data.rows.map((r) => ({
@@ -48,21 +53,21 @@ export const leads: Reader<LeadsQuery, Awaited<ReturnType<typeof leadsPage>>> = 
         route: leadsRoute({ ...view, peek: r.id }),
         label: r.business_name,
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
 
 /**
- * GET leads/:id, as the route answers it: one lead as a row of the page (server/leads/lead-page.ts leadOne), built by
+ * GET leads/:id, as the route answers it: one lead as a row of the page (server/leads/page-read.ts getLeadOne), built by
  * the list's own builder, in the search the view is of when `search` names one, else its newest; a lead this workspace
  * does not hold is the route's 404. What the peek reads for a lead the pages it holds do not have, and what Ask reads
  * for one lead by its id. The lead is the row a citation names, opened at its peek on that search's view.
  */
-export const lead: Reader<{ id: string; search?: string }, Awaited<ReturnType<typeof leadOne>>> = {
+export const lead: Reader<{ id: string; search?: string }, Awaited<ReturnType<typeof getLeadOne>>> = {
   name: "lead",
   async read(rc, { id, search }) {
-    const data = await leadOne(rc.ctx, rc.tenantId, id, search);
+    const data = await getLeadOne(rc.ctx, rc.tenantId, id, search);
     return {
       data,
       rows: [
@@ -73,7 +78,7 @@ export const lead: Reader<{ id: string; search?: string }, Awaited<ReturnType<ty
           label: data.row.business_name,
         },
       ],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -87,7 +92,7 @@ export const previewsTried: Reader<undefined, { previews: PreviewTriedDto[] }> =
   name: "previews_tried",
   async read(rc) {
     const since = new Date(rc.now.getTime() - PREVIEW_TRIED_DAYS * DAY_MS).toISOString();
-    const previews: PreviewTriedDto[] = await previewsTriedSince(rc.ctx.supabase, rc.tenantId, since);
+    const previews: PreviewTriedDto[] = await listPreviewsTriedSince(rc.ctx.supabase, rc.tenantId, since);
     return {
       data: { previews },
       rows: previews.map((p) => ({
@@ -96,7 +101,7 @@ export const previewsTried: Reader<undefined, { previews: PreviewTriedDto[] }> =
         route: addressOf({ kind: "lead", id: p.lead_id }),
         label: p.business ?? "A lead",
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -111,7 +116,7 @@ export const previewsTried: Reader<undefined, { previews: PreviewTriedDto[] }> =
 export const leadEmails: Reader<{ id: string }, LeadEmailDto[]> = {
   name: "lead_emails",
   async read(rc, { id }) {
-    return { data: await leadEmailsOf(rc.ctx.supabase, rc.tenantId, id), rows: [], stamp: stamp() };
+    return { data: await listLeadEmails(rc.ctx.supabase, rc.tenantId, id), rows: [], stamp: readerStamp() };
   },
 };
 
@@ -119,7 +124,7 @@ export const leadEmails: Reader<{ id: string }, LeadEmailDto[]> = {
 export const leadWords: Reader<{ id: string }, LeadStepWordsDto[]> = {
   name: "lead_words",
   async read(rc, { id }) {
-    return { data: await leadWordsOf(rc.ctx.supabase, rc.tenantId, id), rows: [], stamp: stamp() };
+    return { data: await listLeadWords(rc.ctx.supabase, rc.tenantId, id), rows: [], stamp: readerStamp() };
   },
 };
 
@@ -127,15 +132,15 @@ export const leadWords: Reader<{ id: string }, LeadStepWordsDto[]> = {
 export const leadSent: Reader<{ id: string; send: string }, LeadEmailText | null> = {
   name: "lead_sent",
   async read(rc, { id, send }) {
-    const data = await leadSentEmailOf(rc.ctx.supabase, { tenantId: rc.tenantId, leadId: id, sendId: send });
-    return { data, rows: [], stamp: stamp() };
+    const data = await findLeadSentEmail(rc.ctx.supabase, { tenantId: rc.tenantId, leadId: id, sendId: send });
+    return { data, rows: [], stamp: readerStamp() };
   },
 };
 
 export const leadPlace: Reader<{ id: string }, SequencePlaceDto | null> = {
   name: "lead_place",
   async read(rc, { id }) {
-    const data = await sequencePlaceOf(rc.ctx.supabase, rc.tenantId, id);
+    const data = await findSequencePlace(rc.ctx.supabase, rc.tenantId, id);
     return {
       data,
       rows: data
@@ -148,20 +153,20 @@ export const leadPlace: Reader<{ id: string }, SequencePlaceDto | null> = {
             },
           ]
         : [],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
 
 /**
- * The people who work at one lead (0052: contacts.lead_id, packages/db peopleAtLead), the most recently in touch first, as
+ * The people who work at one lead (0052: contacts.lead_id, packages/db listPeopleAtLead), the most recently in touch first, as
  * a person's business sheet lists them: what Ask's leads.lead says beside the lead. Each is a row a citation names,
  * opened at their page.
  */
 export const leadPeople: Reader<{ id: string }, PersonAtLeadDto[]> = {
   name: "lead_people",
   async read(rc, { id }) {
-    const data = await peopleAtLead(rc.ctx.supabase, rc.tenantId, id);
+    const data = await listPeopleAtLead(rc.ctx.supabase, rc.tenantId, id);
     return {
       data,
       rows: data.map((p) => ({
@@ -170,7 +175,7 @@ export const leadPeople: Reader<{ id: string }, PersonAtLeadDto[]> = {
         route: addressOf({ kind: "person", id: p.id }),
         label: personName(p),
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

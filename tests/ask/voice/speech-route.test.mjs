@@ -11,7 +11,7 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { verifyEdgeToken } from "@chanlytics/channels";
+import { verifyEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";

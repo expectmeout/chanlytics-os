@@ -42,30 +42,31 @@ export interface BeforeKept {
   newPerson: boolean;
 }
 
-export async function keepBefore(db: Db, m: BeforeMessage): Promise<BeforeKept> {
+export async function keepBefore(db: Db, beforeMessage: BeforeMessage): Promise<BeforeKept> {
   const { data, error } = await db.rpc("ingest_before", {
-    p_tenant_id: m.tenantId,
-    p_channel: m.channel,
-    p_external: m.external,
-    p_phone: m.phone ?? "",
-    p_email: m.email ?? "",
-    p_name: m.name ?? "",
-    p_message_external_id: m.messageId,
-    p_direction: m.direction,
-    p_type: m.type ?? "text",
-    p_body: m.body ?? "",
-    p_channel_ts: m.at,
-    p_meta: m.meta ?? {},
+    p_tenant_id: beforeMessage.tenantId,
+    p_channel: beforeMessage.channel,
+    p_external: beforeMessage.external,
+    p_phone: beforeMessage.phone ?? "",
+    p_email: beforeMessage.email ?? "",
+    p_name: beforeMessage.name ?? "",
+    p_message_external_id: beforeMessage.messageId,
+    p_direction: beforeMessage.direction,
+    p_type: beforeMessage.type ?? "text",
+    p_body: beforeMessage.body ?? "",
+    p_channel_ts: beforeMessage.at,
+    p_meta: beforeMessage.meta ?? {},
   });
   if (error) throw Object.assign(new Error(`ingest_before: ${error.message}`), { code: error.code });
-  const o = (data ?? {}) as Record<string, unknown>;
-  if (o.erased === true) return { kept: false, erased: true, conversationId: null, contactId: null, newPerson: false };
+  const row = (data ?? {}) as Record<string, unknown>;
+  if (row.erased === true)
+    return { kept: false, erased: true, conversationId: null, contactId: null, newPerson: false };
   return {
-    kept: o.is_new === true,
+    kept: row.is_new === true,
     erased: false,
-    conversationId: typeof o.conversation_id === "string" ? o.conversation_id : null,
-    contactId: typeof o.contact_id === "string" ? o.contact_id : null,
-    newPerson: o.person === "new",
+    conversationId: typeof row.conversation_id === "string" ? row.conversation_id : null,
+    contactId: typeof row.contact_id === "string" ? row.contact_id : null,
+    newPerson: row.person === "new",
   };
 }
 
@@ -84,13 +85,13 @@ interface ImportedPerson {
 export async function importPerson(
   db: Db,
   tenantId: string,
-  p: { name: string; phone: string | null; email: string | null },
+  params: { name: string; phone: string | null; email: string | null },
 ): Promise<{ ok: true; made: ImportedPerson } | { ok: false; code: string | undefined; message: string }> {
   const { data, error } = await db.rpc("import_person", {
     p_tenant_id: tenantId,
-    p_name: p.name,
-    p_phone_e164: p.phone ?? "",
-    p_email: p.email ?? "",
+    p_name: params.name,
+    p_phone_e164: params.phone ?? "",
+    p_email: params.email ?? "",
   });
   if (error) return { ok: false, code: error.code, message: error.message };
   return { ok: true, made: importedOf(data) };
@@ -107,7 +108,7 @@ function importedOf(data: Json): ImportedPerson {
  * How many people the workspace holds (neither erased nor merged into another): the first run's "Your dashboard, filling
  * in" and Live's "0 of 604 said yes" (decision 0073). Counted by the database, never by reading every row.
  */
-export async function peopleCount(db: Db, tenantId: string): Promise<number> {
+export async function getPeopleCount(db: Db, tenantId: string): Promise<number> {
   const { count, error } = await tenantDb(db, tenantId)
     .from("contacts")
     .select("id", { count: "exact", head: true })
@@ -122,7 +123,7 @@ export async function peopleCount(db: Db, tenantId: string): Promise<number> {
  * last visit, visits, birthday and tool in contacts.before, each where not already there (person_before_note). Under the
  * member's session: the door asks that they act for the workspace.
  */
-export async function personBeforeNote(
+export async function recordPersonBeforeNote(
   db: Db,
   tenantId: string,
   contactId: string,

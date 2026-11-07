@@ -6,14 +6,14 @@
  * the dashboard's own, the key that signs the OAuth state (google.ts stateSecret).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getMailboxCapacity } from "@chanlytics/db/campaigns";
 import {
-  mailboxCapacityOf,
-  mailboxConnectionsOf,
-  mailboxCountsOf,
-  mailboxLeftSince,
-  mailboxPeopleSince,
-  type Database,
-} from "@chanlytics/db";
+  listMailboxConnectionsOf,
+  getMailboxCounts,
+  getMailboxLeftSince,
+  getMailboxPeopleSince,
+} from "@chanlytics/db/email";
+import type { Database } from "@chanlytics/db/types";
 import {
   AppError,
   DAY_MS,
@@ -32,27 +32,24 @@ import {
   mailboxAdminConsentUrl,
   mailboxAuthorizeUrl,
   mailboxDtoOf,
-  mailboxPkceChallenge,
-  mailboxPkceVerifier,
-  newNonce,
-  signState,
-  verifyState,
-  STATE_TTL_MS,
-} from "@chanlytics/channels";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../shared/edge";
+  makeMailboxPkceChallenge,
+  makeMailboxPkceVerifier,
+} from "@chanlytics/channels/email";
+import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels/google";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
 import { serviceDbIfConfigured } from "../shared/service-db";
-import { memberContext, type RouteContext } from "../shared/with-route";
+import { getMemberContext, type RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
 
 /** The workspace's mailboxes, removed ones aside, oldest first, as the pages are told of them. */
-export async function mailboxConnectionsFor(
+export async function listMailboxConnections(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<MailboxConnectionDto[]> {
-  return (await mailboxConnectionsOf(db, tenantId)).map((r) => mailboxDtoOf(r));
+  return (await listMailboxConnectionsOf(db, tenantId)).map((r) => mailboxDtoOf(r));
 }
 
 /**
@@ -62,21 +59,21 @@ export async function mailboxConnectionsFor(
  * count that cannot be read is left out, never Setup's failure, and a deployment without the service role's keys reads
  * only who wrote.
  */
-export async function mailboxConnectionsWithDaysFor(
+export async function listMailboxConnectionsWithDays(
   db: SupabaseClient<Database>,
   tenantId: string,
   now = new Date(),
 ): Promise<MailboxConnectionDto[]> {
-  const rows = await mailboxConnectionsOf(db, tenantId);
+  const rows = await listMailboxConnectionsOf(db, tenantId);
   const svc = serviceDbIfConfigured();
   const since = new Date(now.getTime() - DAY_MS);
   return Promise.all(
     rows.map(async (r) => {
       if (r.state === "removed" || r.state === "reconnect") return mailboxDtoOf(r);
       const [cameIn, day, counts] = await Promise.all([
-        mailboxPeopleSince(db, tenantId, r.id, since).catch(() => null),
-        svc ? mailboxCapacityOf(svc, r.id, now).catch(() => null) : null,
-        svc ? mailboxCountsOf(svc, r.id, r.counted_since).catch(() => null) : null,
+        getMailboxPeopleSince(db, tenantId, r.id, since).catch(() => null),
+        svc ? getMailboxCapacity(svc, r.id, now).catch(() => null) : null,
+        svc ? getMailboxCounts(svc, r.id, r.counted_since).catch(() => null) : null,
       ]);
       return mailboxDtoOf(r, { sent_today: day?.sent_today ?? null, counts, came_in: cameIn });
     }),
@@ -84,16 +81,19 @@ export async function mailboxConnectionsWithDaysFor(
 }
 
 /** The senders whose mail the workspace's mailboxes left there in the last day (00483), on this member's read; null unread. */
-export async function mailboxesLeftTodayFor(
+export async function findMailboxesLeftToday(
   db: SupabaseClient<Database>,
   tenantId: string,
   now = new Date(),
 ): Promise<number | null> {
-  return mailboxLeftSince(db, tenantId, new Date(now.getTime() - DAY_MS)).catch(() => null);
+  return getMailboxLeftSince(db, tenantId, new Date(now.getTime() - DAY_MS)).catch(() => null);
 }
 
 /** One call to the edge's mailboxes door. Never throws: a failure is a status the caller reads. */
-export async function edgeMailboxes(body: Record<string, unknown>, timeoutMs = 25_000): Promise<EdgeAnswer> {
+export async function callEdgeMailboxes(
+  body: EdgeBody<"/api/admin/mailboxes">,
+  timeoutMs = 25_000,
+): Promise<EdgeAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every provider door keeps: a preview never signs a business's mailbox in, or writes from it.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
@@ -127,26 +127,29 @@ const isProvider = (v: unknown): v is MailboxProvider =>
  * The providers a business may connect here, as the edge says (cached per lambda, as lines' and Google's readiness
  * are). An unreachable edge offers none, so nothing draws a Connect that cannot work.
  */
-export async function mailboxesReadiness(now = Date.now()): Promise<MailboxReadiness> {
+export async function getMailboxesReadiness(now = Date.now()): Promise<MailboxReadiness> {
   if (readyCache && now - readyCache.at < (readyCache.ready.providers.length ? READY_TTL_MS : NOT_READY_TTL_MS))
     return readyCache.ready;
-  const a = await edgeMailboxes({ op: "readiness" }, 4_000);
+  const answer = await callEdgeMailboxes({ op: "readiness" }, 4_000);
   let ready = NONE_OFFERED;
-  if (a.status === 200 && a.body?.ok === true) {
-    const providers = (Array.isArray(a.body.providers) ? a.body.providers : []).filter(isProvider);
-    const raw = (a.body.oauth ?? {}) as Record<string, { client_id?: unknown; redirect_uri?: unknown } | undefined>;
+  if (answer.status === 200 && answer.body?.ok === true) {
+    const providers = (Array.isArray(answer.body.providers) ? answer.body.providers : []).filter(isProvider);
+    const raw = (answer.body.oauth ?? {}) as Record<
+      string,
+      { client_id?: unknown; redirect_uri?: unknown } | undefined
+    >;
     const oauth: MailboxReadiness["oauth"] = {};
     for (const p of providers) {
       const o = raw[p];
       if (typeof o?.client_id === "string" && typeof o.redirect_uri === "string")
         oauth[p] = { client_id: o.client_id, redirect_uri: o.redirect_uri };
     }
-    const audience = a.body.audience;
+    const audience = answer.body.audience;
     ready = {
       providers: providers.filter((p) => oauth[p]),
       oauth,
       audience: audience === "testing" || audience === "unverified" || audience === "verified" ? audience : null,
-      pkce: a.body.pkce === true,
+      pkce: answer.body.pkce === true,
     };
   }
   readyCache = { at: now, ready };
@@ -168,12 +171,12 @@ const SETTING_WORDS: Record<string, string> = {
 /**
  * The edge's refusals, in the owner's words; the door's own sentence when it gave one. Each case the edge answers is
  * one of its codes (contracts' EdgeErrorCode), so a code it renames or drops stops this compiling; `preview` is this
- * module's own (edgeMailboxes).
+ * module's own (callEdgeMailboxes).
  */
-function edgeRefusal(a: EdgeAnswer, doing: string): AppError {
-  const b = a.body ?? {};
-  const error = typeof b.error === "string" ? b.error : "failed";
-  const detail = typeof b.detail === "string" && b.detail.trim() ? b.detail.trim() : null;
+function edgeRefusal(edgeAnswer: EdgeAnswer, doing: string): AppError {
+  const body = edgeAnswer.body ?? {};
+  const error = typeof body.error === "string" ? body.error : "failed";
+  const detail = typeof body.detail === "string" && body.detail.trim() ? body.detail.trim() : null;
   switch (error) {
     case "preview":
       return new AppError("upstream_email", "Mailboxes can't be connected or changed from a preview.", 503);
@@ -212,7 +215,7 @@ function mailboxAnswered(a: EdgeAnswer, doing: string): MailboxConnectionDto {
 
 /** Pause or unpause: its owner's say, whatever its health. */
 export async function pauseMailbox(tenantId: string, userId: string, id: string, pause: boolean) {
-  const a = await edgeMailboxes({
+  const a = await callEdgeMailboxes({
     op: pause ? "pause" : "unpause",
     tenant_id: tenantId,
     user_id: userId,
@@ -224,7 +227,7 @@ export async function pauseMailbox(tenantId: string, userId: string, id: string,
 /** Resume one its own mail held: sending again, its count started again, its ramp where it was. */
 export async function resumeMailbox(tenantId: string, userId: string, id: string) {
   return mailboxAnswered(
-    await edgeMailboxes({ op: "resume", tenant_id: tenantId, user_id: userId, mailbox_id: id }),
+    await callEdgeMailboxes({ op: "resume", tenant_id: tenantId, user_id: userId, mailbox_id: id }),
     "resumed",
   );
 }
@@ -233,9 +236,14 @@ export async function resumeMailbox(tenantId: string, userId: string, id: string
  * What it brings in (decision 0086): Stop where it stands, Resume (or Try again) from where it stopped, or bring in the
  * last six months of one connected from now on.
  */
-export async function mailboxHistory(tenantId: string, userId: string, id: string, act: "stop" | "resume" | "bring") {
+export async function getMailboxHistory(
+  tenantId: string,
+  userId: string,
+  id: string,
+  act: "stop" | "resume" | "bring",
+) {
   return mailboxAnswered(
-    await edgeMailboxes({ op: `history_${act}`, tenant_id: tenantId, user_id: userId, mailbox_id: id }),
+    await callEdgeMailboxes({ op: `history_${act}`, tenant_id: tenantId, user_id: userId, mailbox_id: id }),
     act === "stop" ? "stopped" : "started",
   );
 }
@@ -243,7 +251,7 @@ export async function mailboxHistory(tenantId: string, userId: string, id: strin
 /** Its domain's records read again, now. */
 export async function checkMailbox(tenantId: string, userId: string, id: string) {
   return mailboxAnswered(
-    await edgeMailboxes({ op: "check", tenant_id: tenantId, user_id: userId, mailbox_id: id }),
+    await callEdgeMailboxes({ op: "check", tenant_id: tenantId, user_id: userId, mailbox_id: id }),
     "checked",
   );
 }
@@ -253,23 +261,23 @@ export async function setMailbox(
   tenantId: string,
   userId: string,
   id: string,
-  s: { from_name?: string; signature?: string | null; signature_off?: boolean; daily_cap?: number },
+  state: { from_name?: string; signature?: string | null; signature_off?: boolean; daily_cap?: number },
 ) {
   return mailboxAnswered(
-    await edgeMailboxes({ op: "settings", tenant_id: tenantId, user_id: userId, mailbox_id: id, ...s }),
+    await callEdgeMailboxes({ op: "settings", tenant_id: tenantId, user_id: userId, mailbox_id: id, ...state }),
     "saved",
   );
 }
 
 /** An email from it to itself, through its own provider. */
 export async function testMailbox(tenantId: string, userId: string, id: string): Promise<void> {
-  const a = await edgeMailboxes({ op: "test", tenant_id: tenantId, user_id: userId, mailbox_id: id }, 40_000);
+  const a = await callEdgeMailboxes({ op: "test", tenant_id: tenantId, user_id: userId, mailbox_id: id }, 40_000);
   if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "tested");
 }
 
 /** Removed: its watch ended, its grant given back, its token gone. What it sent stays in its threads. */
 export async function removeMailbox(tenantId: string, userId: string, id: string): Promise<void> {
-  const a = await edgeMailboxes({ op: "remove", tenant_id: tenantId, user_id: userId, mailbox_id: id });
+  const a = await callEdgeMailboxes({ op: "remove", tenant_id: tenantId, user_id: userId, mailbox_id: id });
   if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "removed");
 }
 
@@ -277,12 +285,12 @@ export async function removeMailbox(tenantId: string, userId: string, id: string
 function afterMailbox(
   origin: string,
   outcome: string,
-  why?: string | null,
+  reason?: string | null,
   to: { slug?: string | null; backTo?: string | null } = {},
 ): string {
   // The first run's Where it answers asked (decision 0073): back to its tile, the outcome said there.
   const page = to.backTo === "start" ? "start/channels" : "admin/integrations";
-  return `${origin}${appLink(to.slug, page, { mailbox: outcome, why: why || null })}`;
+  return `${origin}${appLink(to.slug, page, { mailbox: outcome, why: reason || null })}`;
 }
 
 /**
@@ -301,13 +309,13 @@ export async function startMailboxConnect(
   if (!isProvider(provider)) throw new AppError("validation", "Connect a Google or a Microsoft mailbox.", 400);
   if (opts.admin && provider !== "microsoft")
     throw new AppError("validation", "Only Microsoft 365 asks for an admin's approval.", 400);
-  const ready = await mailboxesReadiness();
+  const ready = await getMailboxesReadiness();
   const oauth = ready.oauth[provider];
   const secret = stateSecret();
   if (!oauth || !secret) throw new AppError("conflict", "Connecting a mailbox isn't switched on here yet.", 409);
   let loginHint: string | null = null;
   if (opts.mailboxId) {
-    const was = (await mailboxConnectionsFor(ctx.supabase, member.tenantId)).find((m) => m.id === opts.mailboxId);
+    const was = (await listMailboxConnections(ctx.supabase, member.tenantId)).find((m) => m.id === opts.mailboxId);
     if (!was || was.provider !== provider) throw new AppError("not_found", "That mailbox isn't this workspace's.", 404);
     loginHint = was.address;
   }
@@ -330,7 +338,7 @@ export async function startMailboxConnect(
   });
   const cfg = { clientId: oauth.client_id, redirectUri: oauth.redirect_uri };
   if (opts.admin) return { url: mailboxAdminConsentUrl(cfg, state) };
-  const challenge = pkce ? await mailboxPkceChallenge(await mailboxPkceVerifier(secret, nonce)) : null;
+  const challenge = pkce ? await makeMailboxPkceChallenge(await makeMailboxPkceVerifier(secret, nonce)) : null;
   return { url: mailboxAuthorizeUrl(provider, cfg, state, { loginHint, challenge }) };
 }
 
@@ -345,13 +353,13 @@ const NEEDS_ADMIN = /AADSTS(65001|90093|90094|90095|900941|900981)\b/;
  * dashboard's key, unexpired, naming the person signed in now and a mailbox provider); then the code goes to the edge,
  * which holds the client secret and does the exchange. Every outcome is a redirect to Connections with one word.
  */
-export async function mailboxCallback(ctx: RouteContext, req: Request) {
+export async function handleMailboxCallback(ctx: RouteContext, req: Request) {
   const url = new URL(req.url);
   const origin = url.origin;
   let slug: string | null = null;
   let backTo: string | null = null;
-  const back = (outcome: string, why?: string | null) =>
-    new Response(null, { status: 302, headers: { location: afterMailbox(origin, outcome, why, { slug, backTo }) } });
+  const back = (outcome: string, reason?: string | null) =>
+    new Response(null, { status: 302, headers: { location: afterMailbox(origin, outcome, reason, { slug, backTo }) } });
 
   const refused = url.searchParams.get("error");
   // A Microsoft 365 admin back from approving Chanlytics for their organisation (Entra's v2 admin consent): its answer
@@ -372,7 +380,7 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
 
   let tenantId: string;
   try {
-    const member = await memberContext(ctx, proof.state.t);
+    const member = await getMemberContext(ctx, proof.state.t);
     slug = member.slug ?? null;
     // Whoever GET mailbox-connections/connect admitted (its policy: the partner rung and up), by the one table.
     if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");
@@ -386,24 +394,29 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
   const code = url.searchParams.get("code") ?? "";
   if (!code) return back("error", "failed");
 
-  const a = await edgeMailboxes(
+  const first = await callEdgeMailboxes(
     {
       op: "connect",
       tenant_id: tenantId,
       user_id: ctx.userId,
       provider,
       code,
-      ...(proof.state.k === 1 ? { code_verifier: await mailboxPkceVerifier(secret, proof.state.n) } : {}),
+      ...(proof.state.k === 1 ? { code_verifier: await makeMailboxPkceVerifier(secret, proof.state.n) } : {}),
       ...(proof.state.m ? { mailbox_id: proof.state.m } : {}),
       ...(proof.state.h === "from_now" ? { history: "from_now" } : {}),
     },
     55_000,
   );
-  const b = a.body ?? {};
-  if (a.status !== 200 || b.ok !== true) {
-    const reason = typeof b.reason === "string" ? b.reason : typeof b.error === "string" ? b.error : `edge_${a.status}`;
+  const body = first.body ?? {};
+  if (first.status !== 200 || body.ok !== true) {
+    const reason =
+      typeof body.reason === "string"
+        ? body.reason
+        : typeof body.error === "string"
+          ? body.error
+          : `edge_${first.status}`;
     log.warn("mailbox_connect_failed", { tenant_id: tenantId, provider, reason });
     return back("error", reason === "no_oauth_client" ? "not_available" : reason);
   }
-  return back(b.made === false ? "reconnected" : "connected");
+  return back(body.made === false ? "reconnected" : "connected");
 }

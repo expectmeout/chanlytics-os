@@ -32,16 +32,17 @@
 // Values first: the header above then rides on an import the declaration build drops, and stays out of index.d.ts.
 import { GO, openInbound } from "./context";
 import { ingestMessage, recordMessage } from "./ingest";
-import { modeInForce, firstGates } from "./gates";
-import { seeingOf, unreadableGate, wordsOf, photoOf } from "./unreadable";
-import { tooLate, confirmedYes, heldForThePerson } from "./reply-gates";
-import { modelTurn } from "./model-turn";
-import { planTheHold, heldOrKept, sendNow } from "./dispatch";
-import { claimTheTurn, stillOurs } from "./turn";
+import { readModeInForce, runFirstGates } from "./gates";
+import { seeingOf, runUnreadableGate, wordsOf, findPhoto } from "./unreadable";
+import { isTooLate, hasConfirmedYes, holdForThePerson } from "./reply-gates";
+import { takeModelTurn } from "./model-turn";
+import { planTheHold, holdOrKeep, sendNow } from "./dispatch";
+import { claimTheTurn, isStillOurs } from "./turn";
 // TYPES ONLY: the one inbound shape is the channels package's, and this verb speaks it. A VALUE from channels would be a
 // provider inside a verb — that is a port, not a widening (hygiene.test.mjs).
-import type { InboundMessage, SendResult } from "@chanlytics/channels";
-import type { IngestResult, RoutedChannel } from "@chanlytics/db";
+import type { InboundMessage } from "@chanlytics/channels/inbound";
+import type { SendResult } from "@chanlytics/channels/whatsapp";
+import type { IngestResult, RoutedChannel } from "@chanlytics/db/channels";
 import type { InboundChannel, InboundPorts } from "./ports";
 
 /**
@@ -101,20 +102,20 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
   const cx = await openInbound(input, ports);
   const kept = await ingestMessage(cx, input.resume === true);
   if (!kept) return;
-  const at = { ...cx, ...kept, ...(await modeInForce(cx, kept.ing)) };
-  if ((await firstGates(at)) !== GO) return;
-  if ((await tooLate(at)) !== GO) return;
+  const at = { ...cx, ...kept, ...(await readModeInForce(cx, kept.ing)) };
+  if ((await runFirstGates(at)) !== GO) return;
+  if ((await isTooLate(at)) !== GO) return;
   const seen = seeingOf(at);
-  if ((await unreadableGate(at, seen)) !== GO) return;
+  if ((await runUnreadableGate(at, seen)) !== GO) return;
   const bodyText = wordsOf(at, seen);
-  if ((await confirmedYes(at, bodyText)) !== GO) return;
-  if ((await heldForThePerson(at, bodyText)) !== GO) return;
-  const shown = await photoOf(at, seen);
+  if ((await hasConfirmedYes(at, bodyText)) !== GO) return;
+  if ((await holdForThePerson(at, bodyText)) !== GO) return;
+  const shown = await findPhoto(at, seen);
   if (!shown) return;
   if ((await claimTheTurn(at, shown.photo)) !== GO) return;
-  const turn = await modelTurn(at, bodyText, shown.photo);
-  if ((await stillOurs(at, turn, shown.photo)) !== GO) return;
+  const turn = await takeModelTurn(at, bodyText, shown.photo);
+  if ((await isStillOurs(at, turn, shown.photo)) !== GO) return;
   const hold = await planTheHold(at, turn);
-  if ((await heldOrKept(at, turn, hold, bodyText)) !== GO) return;
+  if ((await holdOrKeep(at, turn, hold, bodyText)) !== GO) return;
   await sendNow(at, turn, hold, bodyText);
 }

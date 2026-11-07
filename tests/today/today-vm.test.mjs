@@ -3,7 +3,8 @@
  *  Run: corepack pnpm test, or node --test tests/today/today-vm.test.mjs */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ESCALATION_REASONS, toTodayVM, withoutWrongPerson } from "@chanlytics/contracts";
+import { ESCALATION_REASONS, toTodayVM } from "@chanlytics/contracts";
+import { withoutWrongPerson } from "../../apps/dashboard/src/surfaces/campaigns/reach-out/reply-today.ts";
 
 const NOW = new Date("2026-08-27T15:00:00Z"); // 11:00 America/New_York
 

@@ -21,18 +21,18 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
-const { bookingReport, linksBooked } = await import(at("apps/dashboard/src/server/calendar/people-visits.ts"));
+const { forgetFeeds, getOpenings } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
+const { readBookingReport, listLinksBooked } = await import(at("apps/dashboard/src/server/calendar/people-visits.ts"));
 const { triggerPools } = await import(at("apps/dashboard/src/server/campaigns/playbook-pools.ts"));
 const { playbookPoolKey, channelsReady } = await import("@chanlytics/contracts");
 // everyone() lives beside listPeople now: every read that means the whole
 // workspace goes through it, not just the pool a playbook run picks from.
-const { everyone, PEOPLE_PAGE } = await import(at("apps/dashboard/src/server/people/people.ts"));
+const { listEveryone, PEOPLE_PAGE } = await import(at("apps/dashboard/src/server/people/people.ts"));
 const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
-const { allPeople } = await import(at("apps/edge/lib/campaigns/playbooks/playbooks.ts"));
+const { findAllPeople } = await import(at("apps/edge/lib/campaigns/playbooks/playbooks.ts"));
 const { addPeopleFromCalendar } = await import(at("apps/edge/lib/calendar/people.ts"));
-const { feedItemsFor, forgetFeeds: forgetEdgeFeeds } = await import(at("apps/edge/lib/calendar/availability.ts"));
+const { listFeedItems, forgetFeeds: forgetEdgeFeeds } = await import(at("apps/edge/lib/calendar/availability.ts"));
 
 const TZ = "America/New_York";
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -133,7 +133,7 @@ const ctxFor = (t, rpcs = {}) => ({
   params: {},
 });
 /**
- * The workspace's zone and settings as a turn reads them from `t` (readers/openings.ts hands openingsFor these), and the
+ * The workspace's zone and settings as a turn reads them from `t` (readers/openings.ts hands findOpenings these), and the
  * record's taken time over the days on offer (calendar/record-busy.ts): none, unless a test says a booking arrived.
  */
 const knownOf = (t, taken = []) => ({
@@ -151,7 +151,7 @@ test("everyone: the people come page after page, never one page of them", async 
       return pagedList(all)(a);
     },
   });
-  const rows = await everyone(ctx, T);
+  const rows = await listEveryone(ctx, T);
   assert.equal(rows.length, PEOPLE_PAGE + 3);
   assert.equal(calls.length, 2, "two pages: the full one, then the short one that ends it");
   assert.deepEqual(
@@ -166,7 +166,7 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
   const all = Array.from({ length: PEOPLE_PAGE + 3 }, (_, i) => person(i + 1));
   all[0].marketing_consent = "unknown"; // one who never said yes
   all[1].dnc = true; // one who asked to stop
-  // As the reader answers them (db recentTouches): each person's touches, a list, since the breath reads both sides.
+  // As the reader answers them (db getRecentTouches): each person's touches, a list, since the breath reads both sides.
   const touched = { p3: [iso(NOW.getTime() - 2 * DAY)], p4: [iso(NOW.getTime() - 3 * DAY)] };
   const ctx = ctxFor(tables(null), { people_list: pagedList(all) });
   const { pools, calendar } = await triggerPools(ctx, T, touched, TZ, NOW, NO_DEALS);
@@ -547,7 +547,7 @@ test("the runner's own read of People pages the same way, and a refused page is 
       },
     },
   );
-  const got = await allPeople(db, T);
+  const got = await findAllPeople(db, T);
   assert.equal(got.error, null);
   assert.equal(got.data.length, 1002);
   assert.deepEqual(
@@ -568,7 +568,7 @@ test("the runner's own read of People pages the same way, and a refused page is 
       },
     },
   );
-  const short = await allPeople(refusing, T);
+  const short = await findAllPeople(refusing, T);
   assert.equal(
     short.data,
     null,
@@ -628,8 +628,8 @@ test("the sweep's library: a person the feed names is made once, a name fills on
 });
 
 test("the sweep's library: a person who asked to be erased is not brought back by their own appointment", async () => {
-  const { legacyErasedPhoneHash } = await import("@chanlytics/contracts");
-  const h = await legacyErasedPhoneHash(T, "+19175550003");
+  const { hashLegacyErasedPhone } = await import("@chanlytics/contracts");
+  const h = await hashLegacyErasedPhone(T, "+19175550003");
   const tables = {
     contacts: [
       {
@@ -701,7 +701,7 @@ test("the sweep fills an empty address from the appointment, never overwrites on
 });
 
 test("the edge reads the feed by the same address rule: a private address is never fetched, a good one is parsed once", async () => {
-  assert.equal(await feedItemsFor(T, "http://10.0.0.9/cal.ics", TZ, NOW), null);
+  assert.equal(await listFeedItems(T, "http://10.0.0.9/cal.ics", TZ, NOW), null);
   assert.equal(fetched.length, 0, "never fetched");
   forgetEdgeFeeds(); // the refusal was remembered for the tenant, as a failure is
   const url = "https://cal.example/edge.ics";
@@ -717,18 +717,18 @@ test("the edge reads the feed by the same address rule: a private address is nev
       "END:VCALENDAR",
     ].join("\r\n"),
   });
-  const items = await feedItemsFor(T, url, TZ, NOW);
+  const items = await listFeedItems(T, url, TZ, NOW);
   assert.equal(items.length, 1);
-  await feedItemsFor(T, url, TZ, NOW);
+  await listFeedItems(T, url, TZ, NOW);
   assert.equal(fetched.length, 1, "one fetch within the cache");
 });
 
 test("the openings the palette answers with, and its route: no calendar, a calendar that cannot be read, and the windows of a day", async () => {
-  const none = await openingsFor(T, { day: null, service: null }, NOW, knownOf(tables(null)));
+  const none = await getOpenings(T, { day: null, service: null }, NOW, knownOf(tables(null)));
   assert.equal(none.state, "no_calendar");
   const url = "https://cal.example/open.ics";
   answers.set(url, { body: "nope", status: 404 });
-  const down = await openingsFor(T, { day: null, service: null }, NOW, knownOf(tables(url)));
+  const down = await getOpenings(T, { day: null, service: null }, NOW, knownOf(tables(url)));
   assert.deepEqual([down.state, down.text], ["unavailable", "The calendar could not be read right now."]);
   forgetFeeds();
   answers.set(url, {
@@ -743,7 +743,7 @@ test("the openings the palette answers with, and its route: no calendar, a calen
       "END:VCALENDAR",
     ].join("\r\n"),
   });
-  const wed = await openingsFor(T, { day: "2026-09-09", service: "Balayage" }, NOW, knownOf(tables(url)));
+  const wed = await getOpenings(T, { day: "2026-09-09", service: "Balayage" }, NOW, knownOf(tables(url)));
   assert.equal(wed.state, "ok");
   assert.equal(wed.days.length, 1);
   assert.deepEqual(wed.days[0].windows, ["12:00 PM–6:00 PM"], "the morning is taken; the afternoon is open");
@@ -751,12 +751,12 @@ test("the openings the palette answers with, and its route: no calendar, a calen
   // A booking that arrived by email took its hour too (00345): subtracted beside the feed's, as the receptionist does,
   // so the assistant never names a time the board draws as taken. One to two in the afternoon, New York.
   const emailed = [{ start: Date.parse("2026-09-09T17:00:00.000Z"), end: Date.parse("2026-09-09T18:00:00.000Z") }];
-  const split = await openingsFor(T, { day: "2026-09-09", service: null }, NOW, knownOf(tables(url), emailed));
+  const split = await getOpenings(T, { day: "2026-09-09", service: null }, NOW, knownOf(tables(url), emailed));
   assert.deepEqual(split.days[0].windows, ["12:00 PM–1:00 PM", "2:00 PM–6:00 PM"], "the emailed hour is left out");
   // Asked for only once a feed has read: with no calendar nothing is offered, so nothing of the record is read.
   let asked = 0;
   const counting = { ...knownOf(tables(null)), taken: async () => ((asked += 1), []) };
-  assert.equal((await openingsFor(T, { day: null, service: null }, NOW, counting)).state, "no_calendar");
+  assert.equal((await getOpenings(T, { day: null, service: null }, NOW, counting)).state, "no_calendar");
   assert.equal(asked, 0, "no calendar, no read of the record");
   // The route reads with the real clock, so the day above is in its past; what it proves is the door and the shape.
   const viaRoute = await openingsRoute.GET.run(
@@ -797,7 +797,7 @@ test("REGRESSION (C5b): the assistant answers a consultation-first service with 
       },
     },
   };
-  const wed = await openingsFor(
+  const wed = await getOpenings(
     T,
     { day: "2026-09-09", service: "color correction" },
     NOW,
@@ -837,7 +837,7 @@ test("the booking report: asked, then booked, over the rows given and the feed's
     person(2, { last_inbound_at: iso(NOW.getTime() - 5 * DAY) }), // wrote, no booking
     person(3, { last_inbound_at: iso(NOW.getTime() - 60 * DAY) }), // wrote long before the period
   ];
-  const report = await bookingReport(ctxFor(tables(url)), T, rows, 30, NOW);
+  const report = await readBookingReport(ctxFor(tables(url)), T, rows, 30, NOW);
   assert.deepEqual(report, { calendar: "ok", days: 30, asked: 2, booked: 1 });
 });
 
@@ -871,26 +871,26 @@ test("the people sent the booking link, counted by asked-then-booked's own rule:
     { c: "p5", at: "2026-09-07T12:00:00.000Z" }, // sent the link, no visit at all
     { c: "gone", at: "2026-09-07T12:00:00.000Z" }, // erased or merged since: not in the list
   ];
-  assert.deepEqual(await linksBooked(ctxFor(tables(url)), T, rows, links, NOW), { calendar: "ok", booked: 2 });
-  assert.deepEqual(await linksBooked(ctxFor(tables(url)), T, rows, [], NOW), { calendar: "ok", booked: 0 });
+  assert.deepEqual(await listLinksBooked(ctxFor(tables(url)), T, rows, links, NOW), { calendar: "ok", booked: 2 });
+  assert.deepEqual(await listLinksBooked(ctxFor(tables(url)), T, rows, [], NOW), { calendar: "ok", booked: 0 });
   // It is the booking report's rule, not a second one: the same people, asked at the same moment, are booked or not alike.
   const asked = rows.map((r, i) => ({ ...r, last_inbound_at: links[i].at }));
-  assert.equal((await bookingReport(ctxFor(tables(url)), T, asked.slice(0, 5), 30, NOW)).booked, 2);
+  assert.equal((await readBookingReport(ctxFor(tables(url)), T, asked.slice(0, 5), 30, NOW)).booked, 2);
 
   // The zone and the settings a caller holds are not read again.
   const ctx = ctxFor(tables(url));
   const known = { timezone: TZ, config: config(url) };
-  assert.deepEqual(await linksBooked(ctx, T, rows, links, NOW, known), { calendar: "ok", booked: 2 });
+  assert.deepEqual(await listLinksBooked(ctx, T, rows, links, NOW, known), { calendar: "ok", booked: 2 });
   assert.deepEqual(
     ctx.supabase.seen.filter((q) => q.table === "tenants" || q.table === "tenant_config"),
     [],
   );
 
   // No calendar is none; a calendar that cannot be read is unavailable; neither is a count of zero people booked.
-  assert.deepEqual(await linksBooked(ctxFor(tables(null)), T, rows, links, NOW), { calendar: "none", booked: 0 });
+  assert.deepEqual(await listLinksBooked(ctxFor(tables(null)), T, rows, links, NOW), { calendar: "none", booked: 0 });
   const down = "https://cal.example/down.ics";
   answers.set(down, { body: "nope", status: 503 });
-  assert.deepEqual(await linksBooked(ctxFor(tables(down)), T, rows, links, NOW), {
+  assert.deepEqual(await listLinksBooked(ctxFor(tables(down)), T, rows, links, NOW), {
     calendar: "unavailable",
     booked: 0,
   });

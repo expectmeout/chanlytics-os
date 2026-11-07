@@ -5,11 +5,11 @@
  * waiting in a thread as the model is told it. Derived here once, for the Line that draws the card, the route that saves
  * the turn and the turn that is told it. Pure, and read in the browser.
  */
-import type { AskCardSheet, AskMessageVM, AskProposal, AskProposalOutcome } from "../../ask/ask";
+import type { AskCardSheet, AskMessageVM, AskProposal, AskProposalOutcome } from "../../ask/thread-words";
 import { rec } from "../../ask/proposals/spec";
-import type { LeadPlanFacts } from "../lead-dtos";
-import { leadPlanAsk, leadPlanFactLine } from "../lead-plan";
-import { peoplePlanAsk, peoplePlanFactLine, peoplePlanOf, peoplePlanRows, type PeopleMonth } from "./people-plan";
+import type { LeadPlanFacts } from "../dtos";
+import { leadPlanAsk, leadPlanFactLine } from "../plan";
+import { peoplePlanAsk, peoplePlanFactLine, peoplePlanOf, peoplePlanRows, type PeopleMonth } from "./people-plan/plan";
 import type { LeadSearchPlan } from "./plan";
 import { lowerFirst, planArea, planWho } from "./sentence";
 
@@ -25,8 +25,9 @@ const answersOne = (payload: unknown): boolean => {
  * A card that starts a new search: a places search that answers none, or a people search. A step of one of Ask's plans
  * (`plan`) is the plan's to press, never one of these.
  */
-export const startsSearch = (p: Pick<AskProposal, "kind" | "payload" | "plan">): boolean =>
-  !p.plan && ((p.kind === "lead_search" && !answersOne(p.payload)) || p.kind === "people_search");
+export const startsSearch = (askProposal: Pick<AskProposal, "kind" | "payload" | "plan">): boolean =>
+  !askProposal.plan &&
+  ((askProposal.kind === "lead_search" && !answersOne(askProposal.payload)) || askProposal.kind === "people_search");
 
 /**
  * A places plan as the rows its card draws: who it finds, the words Google Maps is searched with, where and how far
@@ -87,9 +88,9 @@ const monthOf = (v: unknown): PeopleMonth | null => {
  * (leadPlanAsk, peoplePlanAsk) and the rows' hold says why when that is fewer than the plan's count. The plan's version
  * is never touched: a new search starts at its first (lead_search_create).
  */
-export function searchCardView(p: AskProposal): SearchCardView | null {
-  const pl = rec(p.payload);
-  if (p.kind === "lead_search" && !answersOne(pl) && pl.plan && typeof pl.plan === "object") {
+export function searchCardView(askProposal: AskProposal): SearchCardView | null {
+  const pl = rec(askProposal.payload);
+  if (askProposal.kind === "lead_search" && !answersOne(pl) && pl.plan && typeof pl.plan === "object") {
     const plan = pl.plan as LeadSearchPlan;
     const facts = isPlanFacts(pl.facts) ? pl.facts : null;
     const ask = leadPlanAsk(plan, facts);
@@ -98,10 +99,10 @@ export function searchCardView(p: AskProposal): SearchCardView | null {
       foot: leadPlanFactLine(plan, facts),
       source: null,
       press: { label: ask.label, disabled: ask.count < 1 },
-      commit: { ...p, payload: { ...pl, plan: { ...plan, count: ask.count } } },
+      commit: { ...askProposal, payload: { ...pl, plan: { ...plan, count: ask.count } } },
     };
   }
-  if (p.kind === "people_search") {
+  if (askProposal.kind === "people_search") {
     const plan = peoplePlanOf(pl.plan);
     if (!plan) return null;
     const month = monthOf(pl.facts);
@@ -112,7 +113,7 @@ export function searchCardView(p: AskProposal): SearchCardView | null {
       foot: peoplePlanFactLine(plan, month),
       source: typeof rights === "string" && rights ? rights : null,
       press: { label: ask.label, disabled: ask.count < 1 },
-      commit: { ...p, payload: { ...pl, plan: { ...plan, count: ask.count } } },
+      commit: { ...askProposal, payload: { ...pl, plan: { ...plan, count: ask.count } } },
     };
   }
   return null;
@@ -136,9 +137,9 @@ export const replacedOutcome = (atMs: number): AskProposalOutcome => ({
  */
 export function searchCardsReplaced(
   earlier: ReadonlyArray<Pick<AskMessageVM, "id" | "proposals">>,
-  made: ReadonlyArray<Pick<AskProposal, "kind" | "payload" | "plan">>,
+  created: ReadonlyArray<Pick<AskProposal, "kind" | "payload" | "plan">>,
 ): Array<{ messageId: string; proposalId: string }> {
-  if (!made.some(startsSearch)) return [];
+  if (!created.some(startsSearch)) return [];
   return earlier.flatMap((m) =>
     (m.proposals ?? [])
       .filter((p) => !p.outcome && startsSearch(p))
@@ -152,13 +153,13 @@ export function searchCardsReplaced(
  */
 export function withIdeaCarried<P extends Pick<AskProposal, "kind" | "payload" | "plan">>(
   earlier: ReadonlyArray<Pick<AskMessageVM, "proposals">>,
-  made: readonly P[],
+  created: readonly P[],
 ): P[] {
   const fromIdea = earlier.some((m) =>
     (m.proposals ?? []).some((p) => !p.outcome && startsSearch(p) && rec(rec(p.payload).plan).from === "idea"),
   );
-  if (!fromIdea) return [...made];
-  return made.map((p) =>
+  if (!fromIdea) return [...created];
+  return created.map((p) =>
     startsSearch(p) && rec(p.payload).plan
       ? { ...p, payload: { ...p.payload, plan: { ...rec(rec(p.payload).plan), from: "idea" } } }
       : p,
@@ -187,11 +188,11 @@ export function withAnswerLanded<M extends Pick<AskMessageVM, "id" | "proposals"
  * card's own words, the area as a city and its state or a ZIP, each criterion and what it leaves out.
  */
 function placesAskOf(plan: LeadSearchPlan): Record<string, unknown> {
-  const a = plan.area;
+  const area = plan.area;
   const where =
-    a.kind === "zip" && a.zip
-      ? { zip: a.zip, region: a.state }
-      : { city: planArea(a).replace(new RegExp(`,\\s*${a.state}$`), ""), region: a.state };
+    area.kind === "zip" && area.zip
+      ? { zip: area.zip, region: area.state }
+      : { city: planArea(area).replace(new RegExp(`,\\s*${area.state}$`), ""), region: area.state };
   return {
     looking_for: "local_businesses",
     country: "US",
@@ -214,20 +215,20 @@ function placesAskOf(plan: LeadSearchPlan): Record<string, unknown> {
 
 /** A people plan as find takes it: its titles, its states (none is the US), and the directory's own filters. */
 function peopleAskOf(raw: unknown): Record<string, unknown> | null {
-  const p = peoplePlanOf(raw);
-  if (!p) return null;
+  const peoplePlan = peoplePlanOf(raw);
+  if (!peoplePlan) return null;
   return {
     looking_for: "people_at_companies",
     country: "US",
-    count: p.count,
-    who: p.name,
-    terms: p.titles,
-    region: p.states.length ? p.states.join(", ") : "US",
-    seniority: p.seniority,
-    industries: p.industries,
-    keywords: p.keywords ?? [],
-    company_sizes: p.sizes,
-    asked: p.asked,
+    count: peoplePlan.count,
+    who: peoplePlan.name,
+    terms: peoplePlan.titles,
+    region: peoplePlan.states.length ? peoplePlan.states.join(", ") : "US",
+    seniority: peoplePlan.seniority,
+    industries: peoplePlan.industries,
+    keywords: peoplePlan.keywords ?? [],
+    company_sizes: peoplePlan.sizes,
+    asked: peoplePlan.asked,
   };
 }
 

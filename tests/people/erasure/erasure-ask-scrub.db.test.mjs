@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { v1FromAnswer } from "@chanlytics/contracts";
 
-const { erasureKeys } = await import("@chanlytics/db");
+const { erasureKeys } = await import("@chanlytics/db/erasure");
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

@@ -11,8 +11,10 @@
  * call reports the API's own error message; nothing is retried blindly.
  */
 import { env } from "../shared/env.js";
-import { graphThrottled, providerFetch } from "@chanlytics/channels";
+import { graphThrottled } from "@chanlytics/channels/whatsapp";
+import { fetchFromProvider } from "@chanlytics/channels/shared";
 import type { NumberStanding } from "@chanlytics/contracts";
+import { recordOrNull } from "@chanlytics/contracts";
 
 export const GRAPH_VERSION = "v25.0";
 /** How long one Graph API request may take. */
@@ -41,7 +43,7 @@ async function graphCall<T>(
   init: { method: string; headers?: Record<string, string>; body?: string; token?: string },
 ): Promise<GraphResult<T>> {
   const { token, ...rest } = init;
-  const res = await providerFetch("meta", `${GRAPH}${path}`, {
+  const res = await fetchFromProvider("meta", `${GRAPH}${path}`, {
     ...rest,
     headers: { ...(rest.headers ?? {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
     timeoutMs: GRAPH_TIMEOUT_MS,
@@ -79,7 +81,7 @@ interface PhoneNumberInfo {
 }
 
 /** The number as Meta holds it: its display form, its verified name, its quality. */
-export function phoneNumber(token: string, phoneNumberId: string): Promise<GraphResult<PhoneNumberInfo>> {
+export function getPhoneNumber(token: string, phoneNumberId: string): Promise<GraphResult<PhoneNumberInfo>> {
   return graphCall(
     `/${encodeURIComponent(phoneNumberId)}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type`,
     { method: "GET", token },
@@ -87,7 +89,7 @@ export function phoneNumber(token: string, phoneNumberId: string): Promise<Graph
 }
 
 /** The WABA, to prove the token sees it. */
-export function wabaInfo(token: string, wabaId: string): Promise<GraphResult<{ id: string; name?: string }>> {
+export function getWabaInfo(token: string, wabaId: string): Promise<GraphResult<{ id: string; name?: string }>> {
   return graphCall(`/${encodeURIComponent(wabaId)}?fields=id,name`, { method: "GET", token });
 }
 
@@ -104,7 +106,7 @@ interface TokenGrants {
  * app's own token, `app_id|app_secret`; the secret rides in the header, never in the URL). What comes back names the
  * WhatsApp accounts the sign-up granted, the newest first.
  */
-export function tokenGrants(appId: string, appSecret: string, token: string): Promise<GraphResult<TokenGrants>> {
+export function getTokenGrants(appId: string, appSecret: string, token: string): Promise<GraphResult<TokenGrants>> {
   const qs = new URLSearchParams({ input_token: token });
   return graphCall(`/debug_token?${qs}`, { method: "GET", token: `${appId}|${appSecret}` });
 }
@@ -116,7 +118,7 @@ export function wabaIdsGranted(grants: TokenGrants): string[] {
 }
 
 /** The numbers a WABA holds, each as the number read is (phoneNumber). */
-export function wabaPhoneNumbers(token: string, wabaId: string): Promise<GraphResult<{ data?: PhoneNumberInfo[] }>> {
+export function getWabaPhoneNumbers(token: string, wabaId: string): Promise<GraphResult<{ data?: PhoneNumberInfo[] }>> {
   return graphCall(
     `/${encodeURIComponent(wabaId)}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type`,
     { method: "GET", token },
@@ -129,9 +131,6 @@ const STANDING_TEXT_MAX = 300;
 const STANDING_LIST_MAX = 10;
 /** What a read says when Meta answered and the answer holds no word for what the number may do (a Graph result's own sentence, never a refusal's code). */
 const NO_HEALTH_STATUS = "the answer holds no health_status";
-
-const graphRecord = (v: unknown): Record<string, unknown> | null =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 const graphList = (v: unknown): unknown[] => (Array.isArray(v) ? (v as unknown[]) : []);
 const graphText = (v: unknown): string | null =>
   typeof v === "string" && v.trim() ? v.trim().slice(0, STANDING_TEXT_MAX) : null;
@@ -155,24 +154,24 @@ interface AccountAnswers {
  * answer with no funding id is a payment method that is missing; a funding read that failed is one that is unknown, never missing.
  */
 function standingFromGraph(phone: unknown, account: AccountAnswers, wabaId: string | null): NumberStanding | null {
-  const p = graphRecord(phone);
-  const health = graphRecord(p?.health_status);
+  const result = recordOrNull(phone);
+  const health = recordOrNull(result?.health_status);
   const canSend = graphText(health?.can_send_message)?.toUpperCase();
-  if (!p || !health || !canSend) return null;
+  if (!result || !health || !canSend) return null;
   const problems: NumberStanding["problems"] = [];
   const notes: string[] = [];
   for (const raw of graphList(health.entities)) {
-    const entity = graphRecord(raw);
+    const entity = recordOrNull(raw);
     if (!entity) continue;
     const kind = graphText(entity.entity_type) ?? "UNKNOWN";
-    for (const e of graphList(entity.errors)) {
-      const error = graphRecord(e);
-      const said = graphText(error?.error_description);
-      if (!error || !said) continue;
+    for (const otherError of graphList(entity.errors)) {
+      const error = recordOrNull(otherError);
+      const sentence = graphText(error?.error_description);
+      if (!error || !sentence) continue;
       problems.push({
         entity: kind,
         code: typeof error.error_code === "number" ? error.error_code : null,
-        said,
+        said: sentence,
         fix: graphText(error.possible_solution),
       });
     }
@@ -181,17 +180,17 @@ function standingFromGraph(phone: unknown, account: AccountAnswers, wabaId: stri
       if (note && !notes.includes(note)) notes.push(note);
     }
   }
-  const w = graphRecord(account.verification);
-  const funding = graphRecord(account.funding);
-  const owner = graphRecord(graphRecord(account.owner)?.owner_business_info);
+  const otherGraphRecord = recordOrNull(account.verification);
+  const funding = recordOrNull(account.funding);
+  const owner = recordOrNull(recordOrNull(account.owner)?.owner_business_info);
   return {
     can_send: canSend,
     problems: problems.slice(0, STANDING_LIST_MAX),
     notes: notes.slice(0, STANDING_LIST_MAX),
-    name: graphText(p.verified_name),
-    name_status: graphText(p.name_status),
-    verification: graphText(w?.business_verification_status),
-    limit: graphText(w?.whatsapp_business_manager_messaging_limit),
+    name: graphText(result.verified_name),
+    name_status: graphText(result.name_status),
+    verification: graphText(otherGraphRecord?.business_verification_status),
+    limit: graphText(otherGraphRecord?.whatsapp_business_manager_messaging_limit),
     has_payment_method: funding ? graphPresent(funding.primary_funding_id) : null,
     owner_business_id: graphText(owner?.id),
     waba_id: wabaId,
@@ -206,7 +205,7 @@ function standingFromGraph(phone: unknown, account: AccountAnswers, wabaId: stri
  * number with no account on file asks only the phone; a phone that cannot be read, or answers nothing about what it may do,
  * is the failed read it is.
  */
-export async function numberStanding(
+export async function getNumberStanding(
   token: string,
   phoneNumberId: string,
   wabaId: string | null,
@@ -246,8 +245,8 @@ export function subscribeWaba(token: string, wabaId: string): Promise<GraphResul
  * Whether a refusal is Meta busy or unreachable rather than its answer: no reply at all, a 5xx, or a throttle. What is
  * asked again (the job ledger's retry); anything else is Meta's no.
  */
-export function graphRetryable(r: { ok: boolean; status: number; code: number | null }): boolean {
-  return !r.ok && (r.status === 0 || r.status >= 500 || graphThrottled(r));
+export function graphRetryable(row: { ok: boolean; status: number; code: number | null }): boolean {
+  return !row.ok && (row.status === 0 || row.status >= 500 || graphThrottled(row));
 }
 
 /**
@@ -255,7 +254,7 @@ export function graphRetryable(r: { ok: boolean; status: number; code: number | 
  * (`smb_app_state_sync`) or its chats of the last six months (`history`). Each is asked once, within 24 hours of the
  * number connecting; what was asked arrives on the webhook. Meta's answer is a request id, kept for support.
  */
-export function smbAppData(
+export function getSmbAppData(
   token: string,
   phoneNumberId: string,
   syncType: "smb_app_state_sync" | "history",
@@ -287,8 +286,8 @@ export function registerNumber(
 }
 
 /** Meta's own words for a registration that had already happened. */
-export function alreadyRegistered(r: GraphResult<unknown>): boolean {
-  return !r.ok && /already registered|already been registered/i.test(r.error);
+export function alreadyRegistered(graph: GraphResult<unknown>): boolean {
+  return !graph.ok && /already registered|already been registered/i.test(graph.error);
 }
 
 /**
@@ -296,8 +295,8 @@ export function alreadyRegistered(r: GraphResult<unknown>): boolean {
  * offered is not its PIN (code 133005). Registration cannot proceed
  * without that PIN, and this flow never asks for one.
  */
-export function pinMismatch(r: GraphResult<unknown>): boolean {
-  return !r.ok && (r.code === 133005 || /pin mismatch/i.test(r.error));
+export function pinMismatch(graph: GraphResult<unknown>): boolean {
+  return !graph.ok && (graph.code === 133005 || /pin mismatch/i.test(graph.error));
 }
 
 /** A six-digit PIN from the platform's randomness. */

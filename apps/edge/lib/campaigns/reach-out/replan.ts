@@ -15,7 +15,9 @@
  * keeps its number, so its next email is the one it never wrote.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { moveSend, workspaceZoneOf, type Database, type ReachOutSendRow } from "@chanlytics/db";
+import { moveSend, type ReachOutSendRow } from "@chanlytics/db/campaigns";
+import { findWorkspaceZone } from "@chanlytics/db/workspace";
+import type { Database } from "@chanlytics/db/types";
 import { DAY_MS, DEFAULT_TIMEZONE, timetable, weekHoursOf, zoneOfRegion } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
 import type { Logger } from "../../shared/log.js";
@@ -59,17 +61,17 @@ async function stepAndRootOf(db: Db, tenantId: string, stepId: string, rootId: s
 /** A reach-out its owner sends (00429): each is due again from now, with no mailbox, or given up as any send is. */
 async function replanOwnerSends(
   group: readonly ReachOutSendRow[],
-  p: { now: Date; wrote: ReadonlySet<string>; move: Move; out: ReplanCounts },
+  params: { now: Date; wrote: ReadonlySet<string>; move: Move; out: ReplanCounts },
 ): Promise<void> {
   for (const s of group) {
-    const attempts = (s.attempts ?? 0) + (p.wrote.has(s.id) ? 1 : 0);
-    if (attempts >= REPLAN_MAX_ATTEMPTS || p.now.getTime() - Date.parse(s.created_at) > REPLAN_GIVE_UP_MS) {
-      if (await p.move(s, { state: "skipped", reason: "kept_waiting", attempts: Math.min(attempts, 20) }))
-        p.out.gave_up += 1;
+    const attempts = (s.attempts ?? 0) + (params.wrote.has(s.id) ? 1 : 0);
+    if (attempts >= REPLAN_MAX_ATTEMPTS || params.now.getTime() - Date.parse(s.created_at) > REPLAN_GIVE_UP_MS) {
+      if (await params.move(s, { state: "skipped", reason: "kept_waiting", attempts: Math.min(attempts, 20) }))
+        params.out.gave_up += 1;
       continue;
     }
-    const patch = { state: "planned", send_at: p.now.toISOString(), mailbox_id: null, attempts, message_id: null };
-    if (await p.move(s, { ...patch, claimed_at: null })) p.out.replanned += 1;
+    const patch = { state: "planned", send_at: params.now.toISOString(), mailbox_id: null, attempts, message_id: null };
+    if (await params.move(s, { ...patch, claimed_at: null })) params.out.replanned += 1;
   }
 }
 
@@ -81,7 +83,7 @@ async function replanOwnerSends(
  */
 async function keepTheirs(
   group: readonly ReachOutSendRow[],
-  p: {
+  params: {
     ownerSends: boolean;
     step: { after_step_id: string | null } | null;
     now: Date;
@@ -90,8 +92,8 @@ async function keepTheirs(
     out: ReplanCounts;
   },
 ): Promise<ReachOutSendRow[]> {
-  const theirs = p.ownerSends ? group : p.step?.after_step_id ? group.filter((s) => !s.mailbox_id) : [];
-  if (theirs.length) await replanOwnerSends(theirs, p);
+  const theirs = params.ownerSends ? group : params.step?.after_step_id ? group.filter((s) => !s.mailbox_id) : [];
+  if (theirs.length) await replanOwnerSends(theirs, params);
   return group.filter((s) => !theirs.includes(s));
 }
 
@@ -133,7 +135,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         leads.push(...(data ?? []));
       }
       if (!zones.has(tenantId))
-        zones.set(tenantId, (await workspaceZoneOf(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE);
+        zones.set(tenantId, (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE);
       // A later step's send keeps the mailbox its lead's chain writes from; a first one may take any of the step's.
       const keeps = !!step?.after_step_id;
       // Each mailbox's times, less these sends' own: a send planned again never waits for the time it held.
@@ -164,21 +166,21 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         nowMs: now.getTime(),
       });
       const placed = new Map(plan.placed.map((p) => [p.id, p]));
-      for (const s of placing) {
-        const p = placed.get(s.id);
-        const attempts = (s.attempts ?? 0) + (wrote.has(s.id) ? 1 : 0);
-        const tooLong = now.getTime() - Date.parse(s.created_at) > REPLAN_GIVE_UP_MS;
+      for (const row of placing) {
+        const result = placed.get(row.id);
+        const attempts = (row.attempts ?? 0) + (wrote.has(row.id) ? 1 : 0);
+        const tooLong = now.getTime() - Date.parse(row.created_at) > REPLAN_GIVE_UP_MS;
         // Two weeks is the end whether or not a moment was found: a send that fails every time it is written (its
         // claim left, planned again, claimed again) would otherwise circle for good, holding its mailbox's day.
         if (attempts >= REPLAN_MAX_ATTEMPTS || tooLong) {
-          if (await move(s, { state: "skipped", reason: "kept_waiting", attempts: Math.min(attempts, 20) }))
+          if (await move(row, { state: "skipped", reason: "kept_waiting", attempts: Math.min(attempts, 20) }))
             out.gave_up += 1;
-        } else if (p) {
+        } else if (result) {
           if (
-            await move(s, {
+            await move(row, {
               state: "planned",
-              send_at: new Date(p.sendAtMs).toISOString(),
-              mailbox_id: p.senderId,
+              send_at: new Date(result.sendAtMs).toISOString(),
+              mailbox_id: result.senderId,
               attempts,
               message_id: null,
               claimed_at: null,
@@ -189,10 +191,10 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
           // No moment: only the timetable places it, in its lead's hours, when it is planned again tomorrow (a claim
           // would otherwise take it at this clock time, whatever the hour where the lead is). A later step keeps its
           // lead's mailbox; a first one is placed afresh.
-          await move(s, {
+          await move(row, {
             state: "planned",
             send_at: new Date(now.getTime() + DAY_MS).toISOString(),
-            mailbox_id: keeps ? s.mailbox_id : null,
+            mailbox_id: keeps ? row.mailbox_id : null,
             attempts,
             message_id: null,
             claimed_at: null,

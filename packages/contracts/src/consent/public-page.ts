@@ -42,8 +42,9 @@ import { OFFERS_OPT_IN_PHRASES } from "../shared/enums";
 import { optInLink } from "./wa-links";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { AskedPurpose } from "./consent";
-import { notFoundPageMetadata, type PublicPageMetadata } from "../shell/chrome";
-import { takesSignUps, WORKSPACE_PAUSED_FACT, type OpenToCustomers } from "../workspace/billing";
+import { notFoundPageMetadata, type PublicPageMetadata } from "../shell/chrome/frame";
+import { takesSignUps, type OpenToCustomers } from "../workspace/billing/dtos";
+import { WORKSPACE_PAUSED_FACT } from "../workspace/billing/plans";
 
 export interface ConsentPageFacts {
   businessName: string;
@@ -164,9 +165,9 @@ export interface PolicyLinks {
  * its own refusal (30927). The business's own pages when it has them, and
  * Chanlytics' own when it has not said who it is yet.
  */
-export function policyLinks(f: Pick<ConsentPageFacts, "slug" | "businessPage">): PolicyLinks {
-  const slug = (f.slug ?? "").trim();
-  if (slug && f.businessPage) return { privacy: `/b/${slug}`, terms: `/b/${slug}/terms` };
+export function policyLinks(consentPageFacts: Pick<ConsentPageFacts, "slug" | "businessPage">): PolicyLinks {
+  const slug = (consentPageFacts.slug ?? "").trim();
+  if (slug && consentPageFacts.businessPage) return { privacy: `/b/${slug}`, terms: `/b/${slug}/terms` };
   return { privacy: "/privacy", terms: "/terms" };
 }
 
@@ -189,7 +190,7 @@ export function policyLinks(f: Pick<ConsentPageFacts, "slug" | "businessPage">):
  * compare what a customer receives with what was filed. A yes to offers on WhatsApp is no carrier's filing, and keeps the
  * receptionist's name, as the conversation has it.
  */
-export function confirmationNameOf(o: {
+export function confirmationNameOf(options: {
   channel: string;
   filed: string | null;
   workspace: string | null;
@@ -197,9 +198,9 @@ export function confirmationNameOf(o: {
 }): string {
   const said = (s: string | null) => (s ?? "").trim() || null;
   const name =
-    o.channel === "sms"
-      ? (said(o.filed) ?? said(o.workspace) ?? said(o.receptionist))
-      : (said(o.receptionist) ?? said(o.workspace));
+    options.channel === "sms"
+      ? (said(options.filed) ?? said(options.workspace) ?? said(options.receptionist))
+      : (said(options.receptionist) ?? said(options.workspace));
   return name ?? "";
 }
 
@@ -253,9 +254,9 @@ export const CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
  */
 export const CONVERSATION_PHRASE = "START";
 
-function waysFor(f: ConsentPageFacts, phrase: string): ConsentWay[] {
+function waysFor(consentPageFacts: ConsentPageFacts, phrase: string): ConsentWay[] {
   const ways: ConsentWay[] = [];
-  const waLink = optInLink(f.whatsappE164, phrase);
+  const waLink = optInLink(consentPageFacts.whatsappE164, phrase);
   if (waLink) {
     ways.push({
       kind: "whatsapp",
@@ -263,17 +264,17 @@ function waysFor(f: ConsentPageFacts, phrase: string): ConsentWay[] {
       sentence: `Tap to open WhatsApp with ${phrase} ready to send. Sending it is your yes.`,
       phrase,
       href: waLink,
-      display: formatPhoneDisplay(f.whatsappE164),
+      display: formatPhoneDisplay(consentPageFacts.whatsappE164),
     });
   }
-  const smsDisplay = formatPhoneDisplay(f.smsE164);
+  const smsDisplay = formatPhoneDisplay(consentPageFacts.smsE164);
   if (smsDisplay) {
     ways.push({
       kind: "sms",
       title: "By text",
       sentence: `Text ${phrase} to ${smsDisplay}. Sending it is your yes.`,
       phrase,
-      href: `sms:${f.smsE164}?&body=${encodeURIComponent(phrase)}`,
+      href: `sms:${consentPageFacts.smsE164}?&body=${encodeURIComponent(phrase)}`,
       display: smsDisplay,
     });
   }
@@ -328,21 +329,21 @@ function bothTerms(name: string): string[] {
   ];
 }
 
-export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
-  const name = f.businessName.trim() || "This business";
-  const conversation = waysFor(f, CONVERSATION_PHRASE);
+export function consentPageVM(consentPageFacts: ConsentPageFacts): ConsentPageVM {
+  const name = consentPageFacts.businessName.trim() || "This business";
+  const conversation = waysFor(consentPageFacts, CONVERSATION_PHRASE);
   // OFFERS GO BY WHATSAPP, never by text. The texting line's carrier
   // registration is an informational campaign -- replies and appointment
   // messages -- filed that way after the fourth refusal (30896, 11 Sep 2026),
   // when a reviewer opening this page found a marketing keyword offered on the
   // number registered for an informational opt-in. So the offers ask has one
   // way, WhatsApp, and a workspace without WhatsApp does not ask it at all.
-  const offers = waysFor({ ...f, smsE164: null }, CONSENT_PHRASE);
+  const offers = waysFor({ ...consentPageFacts, smsE164: null }, CONSENT_PHRASE);
   const empty = conversation.length === 0 && offers.length === 0;
   const words = askWords(name);
   // Paused: each ask keeps its title, its lead and its terms, which is what a carrier's re-vet reads, and loses every way
   // to answer it.
-  const taking = takesSignUps(f.open);
+  const taking = takesSignUps(consentPageFacts.open);
   const answered = (ways: ConsentWay[]) => (taking ? ways : []);
 
   const asks: ConsentAsk[] = empty
@@ -364,9 +365,9 @@ export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
           ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`
           : `One thing you can say yes to, in your own message from your own phone: messages about your appointment. ${name} never sells or shares your number.`,
     asks,
-    qrLink: taking ? optInLink(f.whatsappE164, CONSENT_PHRASE) : null,
+    qrLink: taking ? optInLink(consentPageFacts.whatsappE164, CONSENT_PHRASE) : null,
     terms: bothTerms(name),
-    links: policyLinks(f),
+    links: policyLinks(consentPageFacts),
     empty,
     taking,
   };
@@ -421,10 +422,12 @@ export interface ConsentFormVM {
  * line is approved for texting.
  */
 export function consentFormVM(
-  f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage" | "open"> & { whatsappE164?: string | null },
+  consentPageFacts: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage" | "open"> & {
+    whatsappE164?: string | null;
+  },
 ): ConsentFormVM {
-  const name = f.businessName.trim() || "This business";
-  const taking = takesSignUps(f.open);
+  const name = consentPageFacts.businessName.trim() || "This business";
+  const taking = takesSignUps(consentPageFacts.open);
   const words = askWords(name);
   // The offers box is WhatsApp's, like the offers ask on the page: a business
   // without WhatsApp has one box, and its texting line carries no promotions.
@@ -435,7 +438,7 @@ export function consentFormVM(
       box: `Yes, text me about my appointments with ${name}.`,
       sign: "Signature for this box",
     },
-    ...(f.whatsappE164
+    ...(consentPageFacts.whatsappE164
       ? [
           {
             purpose: "marketing" as const,
@@ -458,7 +461,7 @@ export function consentFormVM(
     fields: ["Name", "Mobile number", "Email"],
     sections,
     terms: bothTerms(name),
-    links: policyLinks(f),
+    links: policyLinks(consentPageFacts),
     office: `For ${name}: record each signed box on the customer's profile, under its own answer, as “Sign-up form”, type the email on their page, and keep this sheet. Recorded on __________ by __________`,
     taking,
   };
@@ -468,18 +471,20 @@ export function consentFormVM(
  * What `/yes/<slug>`'s tab says: the page's own heading, or Not found when no workspace answers to the slug, which is
  * when the page shows Not found. Never indexed: the page is for the people given the link (the wiring audit's N21).
  */
-export function consentPageMetadata(f: ConsentPageFacts | null): PublicPageMetadata {
-  return f ? { title: consentPageVM(f).title, robots: { index: false, follow: false } } : notFoundPageMetadata();
+export function consentPageMetadata(consentPageFacts: ConsentPageFacts | null): PublicPageMetadata {
+  return consentPageFacts
+    ? { title: consentPageVM(consentPageFacts).title, robots: { index: false, follow: false } }
+    : notFoundPageMetadata();
 }
 
 /** The paper form's tab: the sheet it is, for the business it asks for, or Not found. Never indexed. */
 export function consentFormMetadata(
-  f:
+  item:
     | (Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage" | "open"> & { whatsappE164?: string | null })
     | null,
 ): PublicPageMetadata {
-  return f
-    ? { title: `Sign-up form: ${consentFormVM(f).title}`, robots: { index: false, follow: false } }
+  return item
+    ? { title: `Sign-up form: ${consentFormVM(item).title}`, robots: { index: false, follow: false } }
     : notFoundPageMetadata();
 }
 
@@ -519,12 +524,12 @@ export interface DeskSignVM {
   emptyLine: string;
 }
 
-export function deskSignVM(f: ConsentPageFacts): DeskSignVM {
-  const name = f.businessName.trim() || "This business";
+export function deskSignVM(consentPageFacts: ConsentPageFacts): DeskSignVM {
+  const name = consentPageFacts.businessName.trim() || "This business";
   // Paused: no code to print, and the page says why (notTakingSignUps).
-  const taking = takesSignUps(f.open);
-  const qrLink = taking ? optInLink(f.whatsappE164, CONSENT_PHRASE) : null;
-  const number = formatPhoneDisplay(f.whatsappE164);
+  const taking = takesSignUps(consentPageFacts.open);
+  const qrLink = taking ? optInLink(consentPageFacts.whatsappE164, CONSENT_PHRASE) : null;
+  const number = formatPhoneDisplay(consentPageFacts.whatsappE164);
   return {
     business: name,
     headline: "Get our offers and news on WhatsApp",
@@ -536,7 +541,7 @@ export function deskSignVM(f: ConsentPageFacts): DeskSignVM {
     terms: [...askWords(name).marketing.terms, ...bothTerms(name)],
     operator: `Messages are sent for ${name} by a receptionist operated by Chanlytics (RJ Capital LLC).`,
     qrLink,
-    links: policyLinks(f),
+    links: policyLinks(consentPageFacts),
     empty: !qrLink,
     emptyLine: taking
       ? `${name} has no WhatsApp number to say yes on yet, so there is no sign to print.`
@@ -545,8 +550,8 @@ export function deskSignVM(f: ConsentPageFacts): DeskSignVM {
 }
 
 /** The desk sign's tab: the sheet it is and whose it is, or Not found. Never indexed, like the page it prints from. */
-export function deskSignMetadata(f: ConsentPageFacts | null): PublicPageMetadata {
-  return f
-    ? { title: `Desk sign: ${deskSignVM(f).business}`, robots: { index: false, follow: false } }
+export function deskSignMetadata(consentPageFacts: ConsentPageFacts | null): PublicPageMetadata {
+  return consentPageFacts
+    ? { title: `Desk sign: ${deskSignVM(consentPageFacts).business}`, robots: { index: false, follow: false } }
     : notFoundPageMetadata();
 }

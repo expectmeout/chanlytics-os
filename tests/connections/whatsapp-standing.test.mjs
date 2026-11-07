@@ -14,7 +14,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  connectionRows,
   nameDecisionWords,
   numberHealth,
   numberHealthWithStanding,
@@ -23,10 +22,11 @@ import {
   standingFromConfig,
   standingNeedsRead,
   toChannelVM,
-  tryItLink,
   waMeDigits,
   waMeLink,
 } from "@chanlytics/contracts";
+import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
+import { tryItLink } from "../../apps/dashboard/src/surfaces/settings/connections/model/whatsapp-try-it.ts";
 
 const NOW = Date.parse("2026-10-06T15:00:00Z");
 const MIN = 60_000;

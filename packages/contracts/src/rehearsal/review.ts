@@ -199,42 +199,42 @@ export function checkReview(
   const list = (answer as { exchanges?: unknown } | null)?.exchanges;
   const given = Array.isArray(list) ? list : [];
   const byN = new Map(exchanges.map((e) => [e.n, e]));
-  const said = new Set<number>();
-  const told = comparable(instructions);
+  const sentence = new Set<number>();
+  const notice = comparable(instructions);
   const items: ReviewItem[] = [];
   let dropped = 0;
   for (const raw of given) {
-    const r = (raw ?? {}) as Record<string, unknown>;
-    const n = typeof r.n === "number" ? r.n : NaN;
-    const e = byN.get(n);
-    if (!e || said.has(n) || !isVerdict(r.verdict)) {
+    const item = (raw ?? {}) as Record<string, unknown>;
+    const count = typeof item.n === "number" ? item.n : NaN;
+    const found = byN.get(count);
+    if (!found || sentence.has(count) || !isVerdict(item.verdict)) {
       dropped++;
       continue;
     }
-    const quote = textUpTo(r.said, REVIEW_LIMITS.turnMaxChars);
-    const from = textUpTo(r.from, REVIEW_LIMITS.turnMaxChars);
-    const stands = r.verdict === "right" || r.verdict === "rule";
+    const quote = textUpTo(item.said, REVIEW_LIMITS.turnMaxChars);
+    const from = textUpTo(item.from, REVIEW_LIMITS.turnMaxChars);
+    const stands = item.verdict === "right" || item.verdict === "rule";
     const quoteOk =
-      quote.length >= REVIEW_LIMITS.quoteMinChars && comparable(e.receptionist).includes(comparable(quote));
-    const fromOk = !stands || (from.length >= REVIEW_LIMITS.quoteMinChars && told.includes(comparable(from)));
-    const why = textUpTo(r.why, REVIEW_LIMITS.whyMax);
-    if (!quoteOk || !fromOk || !why) {
+      quote.length >= REVIEW_LIMITS.quoteMinChars && comparable(found.receptionist).includes(comparable(quote));
+    const fromOk = !stands || (from.length >= REVIEW_LIMITS.quoteMinChars && notice.includes(comparable(from)));
+    const reason = textUpTo(item.why, REVIEW_LIMITS.whyMax);
+    if (!quoteOk || !fromOk || !reason) {
       dropped++;
       continue;
     }
-    said.add(n);
-    const hint = textUpTo(r.hint, REVIEW_LIMITS.hintMax);
+    sentence.add(count);
+    const hint = textUpTo(item.hint, REVIEW_LIMITS.hintMax);
     items.push({
-      n,
-      verdict: r.verdict,
-      customer: e.customer,
-      receptionist: e.receptionist,
+      n: count,
+      verdict: item.verdict,
+      customer: found.customer,
+      receptionist: found.receptionist,
       from: stands ? from : null,
       block: stands ? blockOf(from) : null,
       said: quote,
-      why,
-      fix: r.verdict === "right" ? "none" : isFix(r.fix) ? r.fix : "none",
-      hint: r.verdict === "right" || r.verdict === "rule" || !hint ? null : hint,
+      why: reason,
+      fix: item.verdict === "right" ? "none" : isFix(item.fix) ? item.fix : "none",
+      hint: item.verdict === "right" || item.verdict === "rule" || !hint ? null : hint,
     });
   }
   return { items: items.sort((a, b) => a.n - b.n), dropped };

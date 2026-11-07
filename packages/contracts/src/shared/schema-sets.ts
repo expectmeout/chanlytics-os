@@ -39,45 +39,44 @@ import type {
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
 import type { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS } from "../ai/anthropic-enforcement";
 import type { AI_USAGE_PORTS, AI_USAGE_PURPOSES } from "../ai/hearing";
+import type { FILE_KINDS, FILE_MEDIA_STATUSES } from "../files/kinds";
 import type {
-  FILE_KINDS,
   FILE_LOOK_STATUSES,
-  FILE_MEDIA_STATUSES,
   FILE_MIMES,
   FILE_SHOWS,
   FILE_SOURCES,
   FILE_STATUSES,
   FILE_WHO_IN_IT,
-} from "../files/files";
+} from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
-import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing";
+import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing/dtos";
 import type {
   PARTNER_EARNING_KINDS,
   PARTNER_EARNING_STATES,
   PARTNER_REVERSAL_KINDS,
   PARTNER_STANDINGS,
   PARTNER_STATUSES,
-} from "../workspace/partner";
-import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../campaigns/broadcasts/broadcasts";
-import type { REPLY_INTENTS, REPLY_UNREADS } from "../campaigns/reach-out/replies";
+} from "../workspace/partner/dtos";
+import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../campaigns/broadcasts/states";
+import type { REPLY_INTENTS, REPLY_UNREADS } from "../campaigns/reach-out/replies/intents";
 import type { SEQUENCE_MODES, SEQUENCE_STARTS, SEQUENCE_STATES } from "../campaigns/sequences/sequence";
 import type { CALL_OUTCOMES } from "../voice/call-words";
 import type { PREVIEW_STATES } from "../previews/lead-preview";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
-import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
+import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/words";
 import type { APPOINTMENT_WORDS } from "../journey/appointment-word";
 import type { DOUBT_SEEN, DOUBT_SETTLED_AS } from "../people/person-doubts";
 import type { NAME_SOURCES } from "../people/person-page/words";
 import type { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES } from "../calendar/feed-appointments";
-import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications";
+import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications/feed-input";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../campaigns/playbooks/playbooks";
 import type { TEMPLATE_CATEGORIES } from "../campaigns/templates/templates";
 import type { PUSH_PLATFORMS } from "../today/push";
 import type { PAGE_DEVICES, PAGE_METRICS } from "../shell/vitals-pages";
-import type { VOICE_END_REASONS } from "../ask/ask";
-import type { MAILBOX_CONNECTION_STATES, MAILBOX_PROVIDERS } from "../email/mailbox-connections";
+import type { VOICE_END_REASONS } from "../ask/limits";
+import type { MAILBOX_CONNECTION_STATES, MAILBOX_PROVIDERS } from "../email/mailbox-connections/states";
 import type { MAILBOX_HOLDS } from "../email/mailbox-standing";
 import type {
   LEAD_CLOSED_REASONS,
@@ -98,8 +97,9 @@ import type {
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
 } from "../leads/search/sets";
-import type { LEAD_KINDS, LEAD_SOURCES } from "../leads/lead-kind";
-import type { ACT_OUTCOMES, ACT_TARGETS, REASON_KINDS, STAFF_ROLES } from "../console/console";
+import type { LEAD_KINDS, LEAD_SOURCES } from "../leads/kind";
+import type { ACT_OUTCOMES, ACT_TARGETS } from "../console/acts";
+import type { REASON_KINDS, STAFF_ROLES } from "../console/staff";
 import type { REQUEST_KINDS } from "../console/requests";
 import type { REPORT_KINDS } from "../shell/report-problem";
 

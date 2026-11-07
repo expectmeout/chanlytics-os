@@ -114,20 +114,20 @@ function declarationsEnd(s: string, at: number): number {
 }
 
 /** One rule from `at` (after any gap): where it ends, or -1. */
-function ruleEnd(s: string, from: number): number {
-  const at = matchEnd(GAP, s, from);
-  const line = matchEnd(AT_LINE, s, at);
+function ruleEnd(text: string, from: number): number {
+  const at = matchEnd(GAP, text, from);
+  const line = matchEnd(AT_LINE, text, at);
   if (line > 0) return line;
-  const open = matchEnd(AT_OPEN, s, at);
+  const open = matchEnd(AT_OPEN, text, at);
   if (open > 0) {
-    const ownBody = declarationsEnd(s, open);
+    const ownBody = declarationsEnd(text, open);
     if (ownBody > 0) return ownBody;
-    const inner = runEnd(s, open);
-    return inner > open ? matchEnd(CLOSE, s, inner) : -1;
+    const inner = runEnd(text, open);
+    return inner > open ? matchEnd(CLOSE, text, inner) : -1;
   }
   SELECTOR_OPEN.lastIndex = at;
-  const sel = SELECTOR_OPEN.exec(s);
-  return sel && selector(sel[1] ?? "") ? declarationsEnd(s, SELECTOR_OPEN.lastIndex) : -1;
+  const sel = SELECTOR_OPEN.exec(text);
+  return sel && selector(sel[1] ?? "") ? declarationsEnd(text, SELECTOR_OPEN.lastIndex) : -1;
 }
 
 /** The rules one after another from `at`: where the last ends, or `at` when none starts there. */
@@ -166,10 +166,10 @@ function withoutEdgeStyleSheets(text: string): string {
   return (foot === undefined ? rest : rest.slice(0, foot)).trim();
 }
 
-export function emailPlainText(e: Pick<ReceivedEmail, "text" | "html">): string | null {
-  const text = (e.text ?? "").replace(/\r\n/g, "\n").trim();
+export function emailPlainText(receivedEmail: Pick<ReceivedEmail, "text" | "html">): string | null {
+  const text = (receivedEmail.text ?? "").replace(/\r\n/g, "\n").trim();
   if (text && !carriesStyleSheet(text)) return text;
-  const fromHtml = e.html ? htmlWords(e.html) : null;
+  const fromHtml = receivedEmail.html ? htmlWords(receivedEmail.html) : null;
   if (fromHtml || !text) return fromHtml;
   return withoutEdgeStyleSheets(text) || null;
 }

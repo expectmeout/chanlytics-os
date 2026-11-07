@@ -27,13 +27,14 @@
  */
 import { shortCode, addressInMessage } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
-import type { IngestResult, Json } from "@chanlytics/db";
+import type { IngestResult } from "@chanlytics/db/channels";
+import type { Json } from "@chanlytics/db/types";
 import type { Wire } from "../deliver/deliver";
 import { type EscalateOutcome, IngestFailed } from "./ports";
 import { toldFromItsEvent } from "../events/subscribers";
 import { handledOf, SET_ASIDE } from "./handled";
 import type { ThreadState } from "./thread";
-import { errField } from "@chanlytics/channels";
+import { errField } from "@chanlytics/log";
 import type { HoldWords, InboundContext, Ingested } from "./context";
 
 // Persist first, or say so. An ingest write that fails is the one loss the
@@ -54,10 +55,10 @@ async function ingestOrSay(cx: InboundContext, jobFollows = false): Promise<Inge
       cx.routed?.channelId ?? null,
       jobFollows ? { jobFollows } : undefined,
     );
-  } catch (e) {
+  } catch (error) {
     // A message that IS kept, whose yes did not land (kept), loses no words: no copy goes to the mailbox saying it was
     // not recorded. The throw still travels: the provider sends it again, or the job is tried again.
-    if (e instanceof IngestFailed && !e.kept) {
+    if (error instanceof IngestFailed && !error.kept) {
       // The copy is best effort: a mailbox that cannot be reached must not mask the loss.
       try {
         await ports.alertStaff(
@@ -71,7 +72,7 @@ async function ingestOrSay(cx: InboundContext, jobFollows = false): Promise<Inge
         L.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
       }
     }
-    throw e;
+    throw error;
   }
 }
 
@@ -256,12 +257,12 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
    * their leisure and is talked over by the bot's next reply.
    */
   const tell = async (
-    asked: Promise<EscalateOutcome> | null,
+    escalateOutcome: Promise<EscalateOutcome> | null,
     { said, answered, why, pausedHours = null }: HoldWords,
   ) => {
     // A hold written is told from its event (decision 0043): once, after the commit, out of this request. One whose
     // write failed, or a deployment with no database to write it in, is told here, as it was decided.
-    if (toldFromItsEvent(asked ? await asked.catch(() => undefined) : undefined)) return;
+    if (toldFromItsEvent(escalateOutcome ? await escalateOutcome.catch(() => undefined) : undefined)) return;
     await ports.alertStaff(from, said, answered, why, {
       target: notifyTarget,
       channel,

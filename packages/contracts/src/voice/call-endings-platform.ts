@@ -3,7 +3,7 @@
  * endings, beside the owner's half in call-endings.ts. Each ending says what the Health page reads, whose it is, whether
  * it pages the platform, and for an ending of ours what mends it. It is held to exactly the owner's half's reasons
  * (`satisfies Record<CallEndingReason, …>`), so the two halves cannot drift apart; it is read by the edge (a call that
- * ended our way pages, call-event.ts) and the Console (console/health-parts.ts), never by a workspace's pages.
+ * ended our way pages, call-event.ts) and the Console (console/health-parts/models-connections.ts), never by a workspace's pages.
  *
  * Whose an ending is: the caller's (they hung up, never answered, were spam), the business's (its receptionist or a
  * person ended or took the call, or a transfer to its line did not go through), or the platform's (the provider's
@@ -35,9 +35,9 @@ interface CallEndingForPlatform {
 export type CallEnding = CallEndingForOwner & CallEndingForPlatform;
 
 /** An ending of the caller's or the business's: said, never paged. */
-const said = (platform: string, whose: "caller" | "business"): CallEndingForPlatform => ({
+const said = (platform: string, owner: "caller" | "business"): CallEndingForPlatform => ({
   platform,
-  whose,
+  whose: owner,
   pages: false,
 });
 
@@ -153,11 +153,11 @@ export function callEndingOf(reason: string | null | undefined): CallEnding | nu
   return { owner: words.charAt(0).toUpperCase() + words.slice(1), needsEar: false, ...said(words, "caller") };
 }
 
-/** What the Health page says of each ending (console/health-parts.ts). */
+/** What the Health page says of each ending (console/health-parts/models-connections.ts). */
 export const CALL_ENDING_PLATFORM_WORDS: Record<string, string> = Object.fromEntries(
   Object.entries(CALL_ENDINGS_FOR_PLATFORM).map(([r, e]) => [r, e.platform]),
 );
-/** What mends each ending that is the platform's (console/health-parts.ts). */
+/** What mends each ending that is the platform's (console/health-parts/models-connections.ts). */
 export const CALL_ENDING_MENDS: Record<string, string> = Object.fromEntries(
   Object.entries(CALL_ENDINGS_FOR_PLATFORM).flatMap(([r, e]) => ("mend" in e && e.mend ? [[r, e.mend]] : [])),
 );

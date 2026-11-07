@@ -25,6 +25,7 @@ import {
   personRouteOf,
   reportsParamParts,
   type RecordKind,
+  UUID,
 } from "@chanlytics/contracts";
 
 import {
@@ -177,9 +178,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
 export function personRouteId(page: string, param?: string | null): string | null {
   // A person's tab is their address with its word (0052): `clients/<id>/history` is still their page (personRouteOf).
   const id = param ? personRouteOf(param).id : null;
-  return page === "clients" && id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    ? id
-    : null;
+  return page === "clients" && id && UUID.test(id) ? id : null;
 }
 
 // What each route draws beside its own surface, and what its first draw waits for: tables of their own

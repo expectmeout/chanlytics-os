@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { pgIngest, IngestFailed } = await import(
+const { runPgIngest, IngestFailed } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href
 );
 
@@ -41,8 +41,8 @@ const row = {
 };
 
 test("no database or no tenant is null, by design", async () => {
-  assert.equal(await pgIngest(null, "t1", n), null);
-  assert.equal(await pgIngest(fakeDb({}, {}, { ingest_inbound: () => row }), null, n), null);
+  assert.equal(await runPgIngest(null, "t1", n), null);
+  assert.equal(await runPgIngest(fakeDb({}, {}, { ingest_inbound: () => row }), null, n), null);
 });
 
 test("a write the database refused is IngestFailed, never a quiet null", async () => {
@@ -56,14 +56,14 @@ test("a write the database refused is IngestFailed, never a quiet null", async (
     },
   );
   await assert.rejects(
-    () => pgIngest(db, "t1", n),
+    () => runPgIngest(db, "t1", n),
     (e) => e instanceof IngestFailed && /connection reset/.test(e.message),
   );
 });
 
 test("a write that succeeded returns the row", async () => {
   const db = fakeDb({}, {}, { ingest_inbound: () => row });
-  const out = await pgIngest(db, "t1", n);
+  const out = await runPgIngest(db, "t1", n);
   assert.equal(out.conversation_id, "c1");
   assert.equal(out.is_new, true);
 });

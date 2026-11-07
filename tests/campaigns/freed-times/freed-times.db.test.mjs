@@ -16,7 +16,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { cancellationsSince } from "@chanlytics/db";
+import { getCancellationsSince } from "@chanlytics/db/campaigns";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -350,7 +350,7 @@ test(
   { skip },
   async () => {
     const since = new Date(Date.now() - 30 * D).toISOString();
-    const before = await cancellationsSince(db, tenantId, since);
+    const before = await getCancellationsSince(db, tenantId, since);
     const at = dayAt(6, 15);
     const theirs = await appointment(people.Jo, at);
     const vanished = await appointment(people.Ida, at, { source: "calendar_feed", external_id: `v-${RUN}` });
@@ -374,7 +374,7 @@ test(
       ]),
       "the change events",
     );
-    assert.equal(await cancellationsSince(db, tenantId, since), before + 2);
+    assert.equal(await getCancellationsSince(db, tenantId, since), before + 2);
   },
 );
 

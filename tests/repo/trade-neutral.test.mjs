@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { relative, sep } from "node:path";
 import { ROOT as REPO, readerFiles, readerLines } from "../_source.mjs";
+import { offerUnsubscribeWords } from "../../apps/dashboard/src/server/public/offers-unsubscribe.ts";
 
 /** Files that may keep a trade's words, and why. */
 const ALLOWED = new Map([]);
@@ -49,7 +50,7 @@ test("what a customer of any trade reads says appointment, never one trade's vis
   const paper = [form.title, form.lead, ...form.sections.flatMap((s) => [s.title, s.lead, s.box, ...s.terms])];
   const unsubscribe = ["en", "es"].flatMap((language) =>
     ["ask", "done", "stop_ask", "stopped"].flatMap((kind) => {
-      const w = c.offerUnsubscribeWords({ kind, business: "Harbor Studio" }, language);
+      const w = offerUnsubscribeWords({ kind, business: "Harbor Studio" }, language);
       return [w.title, w.lead, w.body, w.foot ?? ""];
     }),
   );

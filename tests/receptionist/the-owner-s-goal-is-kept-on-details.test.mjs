@@ -9,13 +9,15 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   ASK_GOAL_MAX,
-  ASK_GOAL_WORDS,
   applySettingsChange,
-  askGoalRefusal,
-  askGoalSaved,
   describeSettingsChange,
   parseTenantConfigResult,
 } from "@chanlytics/contracts";
+import {
+  ASK_GOAL_WORDS,
+  askGoalRefusal,
+  askGoalSaved,
+} from "../../apps/dashboard/src/surfaces/settings/business/model/goal.ts";
 import { unmount, byTestId, textOf } from "../_stub-react.mjs";
 import { W, drawTab, openFold, redrawTab, saveRow, saving, typeInto } from "../_business-tab-harness.mjs";
 

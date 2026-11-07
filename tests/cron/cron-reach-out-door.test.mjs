@@ -17,8 +17,8 @@ import { at, knock, answer, refusedAtTheDoor, vault, withEnv } from "../_cron-do
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/reach-out.ts"));
 const { sendMessageId } = await import(at("packages/core/src/campaigns/reach-out-ids.ts"));
-const { checkedWordsOf } = await import("@chanlytics/channels");
-const { emailWordsOf } = await import("@chanlytics/db");
+const { checkedWordsOf } = await import("@chanlytics/channels/email");
+const { findEmailWords } = await import("@chanlytics/db/campaigns");
 const { parseTenantConfig } = await import("@chanlytics/contracts");
 after(() => setPg(null));
 
@@ -454,7 +454,7 @@ function world({
       if (s.checked_words !== undefined) continue;
       const step = tables.playbooks.find((p) => p.id === s.playbook_id);
       const root = tables.playbooks.find((p) => p.id === s.root_id);
-      const words = step ? await emailWordsOf(db, s.tenant_id, step.template_id) : null;
+      const words = step ? await findEmailWords(db, s.tenant_id, step.template_id) : null;
       s.checked_words = words ? checkedWordsOf(words, root?.signed_by ?? null, link) : null;
     }
   };

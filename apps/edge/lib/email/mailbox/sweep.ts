@@ -24,11 +24,11 @@
  */
 import { json, refuse } from "../../shared/http.js";
 import { env } from "../../shared/env.js";
-import { mailboxConnectionById, mailboxesToTend, type MailboxConnectionRow } from "@chanlytics/db";
+import { findMailboxConnectionById, listMailboxesToTend, type MailboxConnectionRow } from "@chanlytics/db/email";
 import { probeUnsubscribe } from "../unsubscribe-probe.js";
 import { unsubscribeOrigin } from "../../shared/dashboard-origin.js";
-import { pageOperator } from "../../ops/page-operator.js";
-import { tokenFor } from "./credentials.js";
+import { pageOperator } from "../../shared/alerts/page-operator.js";
+import { getToken } from "./credentials.js";
 import { tendMailboxHealth } from "./health.js";
 import { reconcileMailbox } from "./reconcile.js";
 import { syncMailbox } from "./sync.js";
@@ -71,34 +71,34 @@ async function tend(tick: SweepTick, row: MailboxConnectionRow, counts: Counts):
     const until = tick.started + READS_UNTIL_MS;
     let current = row;
     if (watchDue(row, now) && now < until) {
-      const t = await tokenFor(db, row, now);
-      if (t.ok) {
+      const token = await getToken(db, row, now);
+      if (token.ok) {
         // The watch may have started its cursor: the sync reads from it, never from the row read before it.
-        if (await keepWatch(db, row, t.token, log, now, until))
-          current = (await mailboxConnectionById(db, row.id)) ?? row;
-      } else if (t.why === "signed_out") {
+        if (await keepWatch(db, row, token.token, log, now, until))
+          current = (await findMailboxConnectionById(db, row.id)) ?? row;
+      } else if (token.why === "signed_out") {
         await markSignedOut(db, row, log, now);
         return;
       }
     }
     // Its Gmail signature, once a day, so what it sends is signed as its owner signs in Gmail (00487).
     if (gmailSignatureDue(current, now) && Date.now() < until) {
-      const t = await tokenFor(db, current, now);
+      const t = await getToken(db, current, now);
       if (t.ok) current = await keepGmailSignature(db, current, t.token, log, now);
     }
-    const s = Date.now() < until ? await syncMailbox(db, current, log, now, until) : null;
-    if (!s) return;
-    if (s.outcome === "failed") counts.failed++;
-    else if (s.outcome !== "busy" && s.outcome !== "no_token" && s.outcome !== "later") counts.synced++;
-    counts.replies += s.replies;
-    counts.bounced += s.bounced;
+    const text = Date.now() < until ? await syncMailbox(db, current, log, now, until) : null;
+    if (!text) return;
+    if (text.outcome === "failed") counts.failed++;
+    else if (text.outcome !== "busy" && text.outcome !== "no_token" && text.outcome !== "later") counts.synced++;
+    counts.replies += text.replies;
+    counts.bounced += text.bounced;
     // Its emails of unknown outcome, looked for in what it sent (mailbox/reconcile.ts).
     if (Date.now() < until) {
       const r = await reconcileMailbox(db, current, log, now, until);
       counts.settled += r.sent + r.never;
     }
     // Its health is judged on the row as the sync left it.
-    const fresh = (await mailboxConnectionById(db, row.id)) ?? current;
+    const fresh = (await findMailboxConnectionById(db, row.id)) ?? current;
     const after = await tendMailboxHealth(db, fresh, log, now, until);
     if (after.state === "held" && row.state !== "held") counts.held++;
   } catch (e) {
@@ -111,7 +111,7 @@ export async function sweepMailboxes(tick: SweepTick): Promise<Response> {
   const { db, L, started } = tick;
   let rows: MailboxConnectionRow[];
   try {
-    rows = await mailboxesToTend(db, MAX_DUE);
+    rows = await listMailboxesToTend(db, MAX_DUE);
   } catch (e) {
     L.error("mailboxes_unreadable", { error: errField(e) });
     return refuse(503, "no_database");

@@ -43,6 +43,7 @@ import {
   NO_USAGE,
   usageOf,
   UUID,
+  LLM_DOOR,
 } from "@chanlytics/contracts";
 import {
   GATEWAY_MAX_BODY,
@@ -69,12 +70,12 @@ const budgetSeen = new Map<string, { at: number; used: number }>();
 const BUDGET_TTL_MS = MIN_MS;
 
 export async function askTurn(auth: Admitted, tIn: number, request: Request): Promise<Response> {
-  const L = logger();
+  const log = logger();
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
 
   const raw = await request.text();
   if (raw.length > GATEWAY_MAX_BODY) return refuse(413, "too_large");
-  const body = await readBody<{ tenant_id?: string; user_id?: string; purpose?: string; request?: unknown }>(raw);
+  const body = await readBody(raw, LLM_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -89,14 +90,14 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
     return refuse(400, "bad_request", "tenant_id, user_id and a purpose required");
   }
   const purpose = body.purpose as GatewayPurpose;
-  const v = validateGatewayRequest(body.request, purpose);
-  if (!v.ok) return refuse(400, v.error, v.detail);
+  const result = validateGatewayRequest(body.request, purpose);
+  if (!result.ok) return refuse(400, result.error, result.detail);
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const modelPurpose = modelPurposeOf(purpose);
   if (!(await mayUseModelFor(modelPurpose, tenantId))) {
-    L.warn("ask_gateway_may_not_spend", { tenant_id: tenantId, purpose });
+    log.warn("ask_gateway_may_not_spend", { tenant_id: tenantId, purpose });
     return refuse(402, "payment_required", "Ask is off while this workspace is paused or its plan has ended.");
   }
   const seen = budgetSeen.get(tenantId);
@@ -109,13 +110,13 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
     budgetSeen.set(tenantId, { at: Date.now(), used });
   }
   if (used >= ASK_TOKENS_DAY) {
-    L.warn("ask_budget_spent", { tenant_id: tenantId, used, cap: ASK_TOKENS_DAY });
+    log.warn("ask_budget_spent", { tenant_id: tenantId, used, cap: ASK_TOKENS_DAY });
     return json(429, { ok: false, error: "ask_budget", used, cap: ASK_TOKENS_DAY });
   }
 
   const t0 = Date.now();
   const gatewayMs = t0 - tIn;
-  const { model: asked, betas, ...rest } = v.request;
+  const { model: asked, betas, ...rest } = result.request;
   // The whole call, the fallback's try included, inside the function's sixty seconds (vercel.json).
   const up = await streamModelCall(
     {
@@ -146,10 +147,14 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
       forWhom,
     );
     if (up.outcome === "unreachable") {
-      L.error("ask_gateway_unreachable", { status: up.status, error: up.error.slice(0, 200), fell_back: up.fellBack });
+      log.error("ask_gateway_unreachable", {
+        status: up.status,
+        error: up.error.slice(0, 200),
+        fell_back: up.fellBack,
+      });
       return refuse(503, "model_unreachable", `model ${up.status || "timeout"}`);
     }
-    L.error("ask_gateway_refused", { status: up.status, detail: up.detail });
+    log.error("ask_gateway_refused", { status: up.status, detail: up.detail });
     // The API's refusal of the request, in its own shape: the dashboard reads its message.
     return new Response(
       JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: up.error } }),
@@ -159,15 +164,15 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
       },
     );
   }
-  if (up.fellBack) L.warn("ask_gateway_fell_back", { tenant_id: tenantId, asked: up.asked, model: up.model });
-  if (up.slowed) L.warn("ask_gateway_slowed", { tenant_id: tenantId, model: up.model, purpose });
+  if (up.fellBack) log.warn("ask_gateway_fell_back", { tenant_id: tenantId, asked: up.asked, model: up.model });
+  if (up.slowed) log.warn("ask_gateway_slowed", { tenant_id: tenantId, model: up.model, purpose });
   // The hop through this edge (the Phase 6 plan, D3): its own time before it asked the model, and the model's time to
   // its headers, said in server-timing so the dashboard can take both from its own wait without comparing clocks.
   const modelMs = Date.now() - t0;
-  const stream = teeUsage(up.body, async (said, stopReason) => {
+  const stream = teeUsage(up.body, async (sentence, stopReason) => {
     const latency = Date.now() - t0;
-    const usage = { ...said, speed: said.speed ?? up.speed };
-    L.info("ask_gateway_turn", {
+    const usage = { ...sentence, speed: sentence.speed ?? up.speed };
+    log.info("ask_gateway_turn", {
       tenant_id: tenantId,
       ...usage,
       model: up.model,

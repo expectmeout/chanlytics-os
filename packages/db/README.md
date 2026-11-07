@@ -5,7 +5,7 @@ member's session client, and the service role's writes go through `shared/tenant
 
 ## What is where
 
-- `repositories/<domain>/`: each repository under its domain, nothing loose.
+- `repositories/<domain>/`: each repository under its domain, nothing loose. Each domain's `index.ts` is its entry: `@chanlytics/db/people` (decision 0110). There is no root.
 - `shared/`: what every repository stands on: the service client, the workspace-scoped client, the pager, the seam to
   the process's logger.
 - `realtime.ts`: the live feed, a package entry of its own so a page can load it alone.

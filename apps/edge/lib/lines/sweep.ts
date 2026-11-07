@@ -28,7 +28,7 @@
  * was ever missing was something to call it.
  *
  * THE SECOND HALF: a number whose subscription ended is given back after a grace
- * (lib/lines/line-release.ts, contracts' lineReleaseStep). It only reports until
+ * (lib/lines/release.ts, contracts' lineReleaseStep). It only reports until
  * LINE_RELEASE_AFTER_DAYS is set, because a release cannot be undone.
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
@@ -36,21 +36,21 @@
  */
 import { json, refuse } from "../shared/http.js";
 import { lineProviderFromEnv } from "./lines.js";
-import { notify, notifyOnce, reachesTenant } from "../ops/notify.js";
-import { pageOperator } from "../ops/page-operator.js";
+import { notify, notifyOnce, reachesTenant } from "../shared/alerts/notify.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
-import { releaseLine, sweepEndedLines, type EndedLinesResult } from "./line-release.js";
-import { lineReleaseAfterDays } from "@chanlytics/contracts";
+import { releaseLine, sweepEndedLines, type EndedLinesResult } from "./release.js";
+import { lineReleaseAfterDays } from "./release-rules";
 import { reportLineFailed } from "./provision.js";
 import { scheduleJob } from "@chanlytics/jobs";
-import { sweepStuckLines } from "./line-resume.js";
+import { sweepStuckLines } from "./resume.js";
 import { sweepSpentTrials, type TrialsResult } from "../billing/trial-use.js";
 import { startPlanNowFor } from "../billing/billing.js";
-import { trialingWorkspaceIds, trialUseOf, workspacesWithANumberChosen } from "@chanlytics/db";
+import { listTrialingWorkspaceIds, getTrialUse, listWorkspacesWithANumberChosen } from "@chanlytics/db/workspace";
 import { startOwedLines, type OwedLinesResult } from "./chosen-line.js";
 import { env } from "../shared/env.js";
-import { secretToProvision } from "../voice/door-auth.js";
+import { secretToProvision } from "../shared/door-auth.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /**
@@ -120,8 +120,8 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
           if (once && read.unread) return { told: false, reached: true };
           const target = { tenantId, ...read };
           const msg = { kind: "billing", route: "admin/billing", about: null, ...words };
-          const told = once ? await notifyOnce(target, { ...msg, onceKey: once }) : await notify(target, msg);
-          return { told, reached: reachesTenant(target) };
+          const notice = once ? await notifyOnce(target, { ...msg, onceKey: once }) : await notify(target, msg);
+          return { told: notice, reached: reachesTenant(target) };
         },
         alert: (subject, body) =>
           notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
@@ -142,8 +142,8 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
   let trials: TrialsResult | { error: string };
   try {
     trials = await sweepSpentTrials({
-      ids: () => trialingWorkspaceIds(db),
-      useOf: (tenantId) => trialUseOf(db, tenantId),
+      ids: () => listTrialingWorkspaceIds(db),
+      useOf: (tenantId) => getTrialUse(db, tenantId),
       startPlan: async (tenantId) => {
         const r = await startPlanNowFor(db, tenantId);
         return r.ok ? { ok: true } : { ok: false, detail: r.detail ?? r.error };
@@ -167,7 +167,7 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
   // the platform told of a start that failed.
   let owed: OwedLinesResult | { error: string };
   try {
-    owed = await startOwedLines(db, await workspacesWithANumberChosen(db), {
+    owed = await startOwedLines(db, await listWorkspacesWithANumberChosen(db), {
       choice,
       now: () => new Date(),
       alert: (subject, body) =>

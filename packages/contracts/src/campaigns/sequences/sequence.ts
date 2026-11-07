@@ -1,4 +1,4 @@
-import { PLAYBOOK_VETO_DELAY_WORDS } from "../playbooks/playbook-triggers";
+import { PLAYBOOK_VETO_DELAY_WORDS } from "../playbooks/triggers/notices";
 
 /**
  * A sequence (decision 0060): anything the workspace sends on its own. It starts for someone, takes its steps in their
@@ -28,8 +28,8 @@ export type SequenceState = (typeof SEQUENCE_STATES)[number];
 export const SEQUENCE_MODES = ["auto", "veto", "ask"] as const;
 export type SequenceMode = (typeof SEQUENCE_MODES)[number];
 
-export const isSequenceMode = (m: unknown): m is SequenceMode =>
-  typeof m === "string" && (SEQUENCE_MODES as readonly string[]).includes(m);
+export const isSequenceMode = (message: unknown): message is SequenceMode =>
+  typeof message === "string" && (SEQUENCE_MODES as readonly string[]).includes(message);
 
 /**
  * Each mode in the owner's words: `line` is what the line under a sequence's name says ("· holds each batch for you to
@@ -67,10 +67,10 @@ export function newSequenceMode(classMode: string | null | undefined, starts: st
  * a step whose words are new to the owner (none of its batches let go since they last changed: `words_ok_at`) waits for
  * an OK, whatever the mode; any other goes by its sequence's mode, and a mode this build does not know asks (fail safe).
  */
-export function batchModeOf(s: {
+export function batchModeOf(state: {
   mode: string | null | undefined;
   words_ok_at: string | null | undefined;
 }): SequenceMode {
-  if (!s.words_ok_at) return "ask";
-  return isSequenceMode(s.mode) ? s.mode : "ask";
+  if (!state.words_ok_at) return "ask";
+  return isSequenceMode(state.mode) ? state.mode : "ask";
 }

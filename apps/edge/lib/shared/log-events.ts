@@ -10,7 +10,7 @@
  * a name here that nothing logs, a name that is not a literal.
  *
  * The edge's own call sites, and the packages' lines: core, jobs and channels
- * write through the one logger (packages/channels log/), db through the port
+ * write through the one logger (packages/log), db through the port
  * the apps hand it (packages/db observe.ts), and all four run on the edge. Their
  * loggers take a string (the packages cannot import the edge), so the test holds
  * those. The dashboard's own names are DASHBOARD_LOG_EVENTS, held the same way.
@@ -183,6 +183,7 @@ export const LOG_EVENTS = [
   "deliver_record_failed",
   "deliver_stamp_failed",
   "deliver_threw",
+  "door_body_unexpected",
   "drafts_sweep",
   "drafts_sweep_ask_failed",
   "drafts_sweep_no_db",

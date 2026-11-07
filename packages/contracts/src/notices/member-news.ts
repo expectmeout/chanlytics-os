@@ -9,7 +9,7 @@
  * a name is what a person gave, and the invitation holds none.
  */
 import { ROLE_WORDS } from "../shell/identity";
-import type { JobNews } from "../today/notifications";
+import type { JobNews } from "../today/notifications/feed-input";
 
 /** Where Settings > Team opens: the pane the invitation lived on, and where the new seat's role is changed. */
 const TEAM_ROUTE = "admin/team";
@@ -36,13 +36,13 @@ export interface MemberJoined {
 }
 
 /** The owner's notice of a teammate who joined: who, as what, and the pane where the seat is looked after. */
-export function memberJoinedNotice(m: MemberJoined): Omit<JobNews, "sourceEvent"> {
-  const role = ROLE_WORDS[m.role] ?? m.role;
+export function memberJoinedNotice(memberJoined: MemberJoined): Omit<JobNews, "sourceEvent"> {
+  const role = ROLE_WORDS[memberJoined.role] ?? memberJoined.role;
   return {
     kind: "member_joined",
     route: TEAM_ROUTE,
-    about: { type: "invitation", id: m.invitationId },
-    subject: `${m.email} joined your team`.slice(0, 200),
+    about: { type: "invitation", id: memberJoined.invitationId },
+    subject: `${memberJoined.email} joined your team`.slice(0, 200),
     body: [
       `They accepted your invitation and joined as ${role}.`,
       "Their role can be changed, or the seat removed, under Settings > Team.",
@@ -53,7 +53,7 @@ export function memberJoinedNotice(m: MemberJoined): Omit<JobNews, "sourceEvent"
 
 /**
  * Who a `member.left` event says left, and how: by their own hand (`left`, team_leave, 00437, with the role they held)
- * or with their account (`account_deleted`, the dashboard's saidLeft, which keeps no role). Null for every other event.
+ * or with their account (`account_deleted`, the dashboard's recordLeft, which keeps no role). Null for every other event.
  */
 export function memberLeftBy(
   event: EventLike & { data: unknown },
@@ -71,20 +71,23 @@ export function memberLeftBy(
  * where it is still known (a deleted account's is not), and the role they held, opening Settings > Team. News: a line on
  * the bell, no mail, no phone.
  */
-export function memberLeftNotice(m: {
+export function memberLeftNotice(message: {
   email: string | null;
   how: "left" | "account_deleted";
   hadRole: string | null;
 }): Omit<JobNews, "sourceEvent"> {
-  const who = m.email ?? "A teammate";
-  const role = m.hadRole ? (ROLE_WORDS[m.hadRole] ?? m.hadRole) : null;
+  const email = message.email ?? "A teammate";
+  const role = message.hadRole ? (ROLE_WORDS[message.hadRole] ?? message.hadRole) : null;
   return {
     kind: "member_left",
     route: TEAM_ROUTE,
     about: null,
-    subject: (m.how === "account_deleted" ? `${who} deleted their account` : `${who} left your team`).slice(0, 200),
+    subject: (message.how === "account_deleted" ? `${email} deleted their account` : `${email} left your team`).slice(
+      0,
+      200,
+    ),
     body: [
-      m.how === "account_deleted"
+      message.how === "account_deleted"
         ? "Their account is gone, and their seat with it."
         : `They left the workspace${role ? `, where they were ${role}` : ""}.`,
       "Settings > Team has who is left, and an invitation brings someone back.",

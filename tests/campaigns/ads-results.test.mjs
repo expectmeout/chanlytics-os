@@ -13,9 +13,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { adsResultsOf, adsFactOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/results/view.ts";
+import { counted, started } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/vm-base.ts";
+import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
+import { tilesOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-parts.ts";
+import { FIGURES } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
+import { moneyOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/money.ts";
+import { RESULTS } from "../../apps/dashboard/src/surfaces/campaigns/ads/results/words.ts";
+import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 
 const ads = await import("@chanlytics/contracts");
-const page = await import("@chanlytics/contracts/ads-page");
 const { EXAMPLE_READS } = await import("../../apps/dashboard/src/surfaces/campaigns/ads/examples.ts");
 const { CONFIG, SPRING, NEAR_ME, SATURDAY, WEEKEND, OLD_BOOST } =
   await import("../../apps/dashboard/src/surfaces/campaigns/ads/sample.ts");
@@ -26,7 +33,7 @@ const ALL = ads.ADS_SCOPE_ALL;
 const running = () => EXAMPLE_READS.running();
 /** The fold over the page's own 30 days, or over days asked for. */
 const fold = (read, scope = ALL, over = {}) =>
-  page.adsResultsOf(read, CONFIG, { from: read.window.from, to: read.window.to, scope, ...over });
+  adsResultsOf(read, CONFIG, { from: read.window.from, to: read.window.to, scope, ...over });
 const platform = (p) => ({ kind: "platform", platform: p });
 const one = (id) => ({ kind: "ad", id });
 const adOf = (read, id) => read.ads.find((a) => a.id === id);
@@ -35,13 +42,13 @@ const rowsIn = (ad, from, to) => ad.days.filter((d) => d.day >= from && d.day <=
 const sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
 const spentMinor = (list, from, to) => sumOf(list.flatMap((ad) => rowsIn(ad, from, to).map((d) => d.spendMinor)));
 const peopleIn = (list, from, to, key) =>
-  sumOf(list.filter(page.counted).flatMap((ad) => rowsIn(ad, from, to).map((d) => d[key])));
+  sumOf(list.filter(counted).flatMap((ad) => rowsIn(ad, from, to).map((d) => d[key])));
 
 test("the sheet's four figures, head and ad rows are the Ads page's own for the same 30 days, to the dollar, in every example that has ads", () => {
   for (const name of ["running", "needs-you", "finished", "no-calendar", "setting-up", "reading", "failed"]) {
     const read = EXAMPLE_READS[name]();
     const sheet = fold(read);
-    const model = page.adsModel(read, CONFIG);
+    const model = adsModel(read, CONFIG);
     assert.deepEqual(sheet.figures, model.figures, `${name}: the figures`);
     assert.equal(sheet.head.strong + sheet.head.rest, model.head.strong + model.head.rest, `${name}: the head`);
     assert.deepEqual(
@@ -72,7 +79,7 @@ test("what came of the appointments is the page's tile and adds up to Booked; wi
   const sheet = fold(read);
   assert.ok("tile" in sheet.cameBack);
   const tile = sheet.cameBack.tile;
-  assert.deepEqual(tile, page.tilesOf(read).cameBack, "the page's tile, not a second count");
+  assert.deepEqual(tile, tilesOf(read).cameBack, "the page's tile, not a second count");
   assert.equal(
     sumOf(tile.rows.map((r) => r.n)),
     Number(sheet.figures[2].value),
@@ -82,8 +89,8 @@ test("what came of the appointments is the page's tile and adds up to Booked; wi
   assert.match(tile.unmatched, /^4 appointments couldn't be matched to a person/);
   const none = fold(EXAMPLE_READS["no-calendar"]());
   assert.equal(none.figures[2].value, "—");
-  assert.equal(none.figures[2].meta, page.FIGURES.needsLink);
-  assert.deepEqual(none.cameBack, { title: "What came of the appointments", why: page.FIGURES.needsLink });
+  assert.equal(none.figures[2].meta, FIGURES.needsLink);
+  assert.deepEqual(none.cameBack, { title: "What came of the appointments", why: FIGURES.needsLink });
   assert.equal(none.head.rest, " new people got in touch through your ads.", "and the head says only who got in touch");
   assert.equal(none.funnel.find((s) => s.id === "booked").n, null);
   // The workspace's own word for an appointment, never "booking" (the glossary keeps it for the act and the link).
@@ -111,12 +118,12 @@ test("a scope narrows every number, and the platforms add back up to the whole",
     const vm = fold(read, scope);
     assert.equal(vm.empty, null, name);
     assert.deepEqual(vm.byAd.map((r) => r.id).sort(), list.map((a) => a.id).sort(), `${name}: only its ads have a row`);
-    assert.equal(vm.totals.spent, page.moneyOf(spentMinor(list, from, to), "USD"), `${name}: what it spent`);
+    assert.equal(vm.totals.spent, moneyOf(spentMinor(list, from, to), "USD"), `${name}: what it spent`);
     assert.equal(vm.totals.touch, peopleIn(list, from, to, "inTouch"), `${name}: who got in touch (people only)`);
     assert.equal(vm.totals.booked, peopleIn(list, from, to, "booked"), `${name}: who booked`);
     assert.equal(
       vm.totals.calls,
-      sumOf(list.filter((a) => !page.counted(a)).flatMap((a) => rowsIn(a, from, to).map((d) => d.inTouch))),
+      sumOf(list.filter((a) => !counted(a)).flatMap((a) => rowsIn(a, from, to).map((d) => d.inTouch))),
       `${name}: Google's calls, which are in no people number`,
     );
     // The lanes are the same people, day by day, and the figures are the page's own over just these ads.
@@ -124,7 +131,7 @@ test("a scope narrows every number, and the platforms add back up to the whole",
     assert.equal(sumOf(vm.days.rows.map((d) => d.booked)), vm.totals.booked, `${name}: and so does the booked part`);
     assert.deepEqual(
       vm.figures,
-      page.adsModel({ ...read, ads: list }, CONFIG).figures,
+      adsModel({ ...read, ads: list }, CONFIG).figures,
       `${name}: the figures are the page's over these ads`,
     );
     assert.equal(vm.scopeKey, name);
@@ -139,7 +146,7 @@ test("a scope narrows every number, and the platforms add back up to the whole",
   assert.match(fold(read, one(SPRING)).head.rest, /new people from Spring offer have booked\.$/);
   assert.match(fold(read, platform("tiktok")).head.rest, /new people from your TikTok ads have booked\.$/);
   // What came of the appointments is kept for every ad together, so it says so for a part.
-  assert.equal(fold(read, platform("meta")).cameBack.why, page.RESULTS.cameBack.forAll);
+  assert.equal(fold(read, platform("meta")).cameBack.why, RESULTS.cameBack.forAll);
 });
 
 test("Google's calls are Google's count: in Spent, in no people number, and a platform of calls alone says calls", () => {
@@ -158,7 +165,7 @@ test("Google's calls are Google's count: in Spent, in no people number, and a pl
   const row = google.byPlatform[0];
   assert.deepEqual(row.inTouch, { value: String(calls), unit: "calls · Google's count", why: null });
   assert.equal(row.booked.value, "—");
-  assert.equal(row.booked.why, page.FIGURES.callsNotMatched);
+  assert.equal(row.booked.why, FIGURES.callsNotMatched);
   const all = fold(read);
   assert.ok(
     all.totals.calls > 0 && !all.head.rest.includes("call"),
@@ -191,7 +198,7 @@ test("the platforms' own numbers are a card each, in their own columns, and neve
   assert.deepEqual(
     cards.flatMap((c) => c.rows.map((r) => r.id)).sort(),
     read.ads
-      .filter(page.started)
+      .filter(started)
       .map((a) => a.id)
       .sort(),
   );
@@ -202,7 +209,7 @@ test("the platforms' own numbers are a card each, in their own columns, and neve
   assert.equal(by.meta.read, "Read 9:19 AM.");
   // The platforms' counts are read for the page's 30 days: any other days say so, and draw no card.
   const other = fold(read, ALL, { from: ads.addDays(read.window.from, 3) });
-  assert.deepEqual(other.theirs, { cards: [], why: page.RESULTS.theirs.window });
+  assert.deepEqual(other.theirs, { cards: [], why: RESULTS.theirs.window });
 });
 
 test("money of two currencies is two sums side by side, never converted, and the spend lane is not drawn as one chart", () => {
@@ -211,7 +218,7 @@ test("money of two currencies is two sums side by side, never converted, and the
   const vm = fold(bent);
   assert.match(vm.figures[0].value, /^\$[\d,]+ \+ £[\d,]+$/);
   assert.equal(vm.totals.spent, vm.figures[0].value);
-  assert.deepEqual(vm.figures, page.adsModel(bent, CONFIG).figures);
+  assert.deepEqual(vm.figures, adsModel(bent, CONFIG).figures);
   assert.equal(vm.figures[3].value, "—", "no cost for each person across two currencies");
   assert.equal(vm.days.currency, null);
   assert.ok(vm.days.rows.every((d) => d.spent === null));
@@ -219,7 +226,7 @@ test("money of two currencies is two sums side by side, never converted, and the
     vm.days.rows.some((d) => / \+ £/.test(d.spentWords)),
     "each day still says its sums, in each currency",
   );
-  assert.ok(vm.days.notes.includes(page.RESULTS.days.severalCurrencies));
+  assert.ok(vm.days.notes.includes(RESULTS.days.severalCurrencies));
   // A scope within one currency is drawn again.
   const metaOnly = fold(bent, platform("meta"));
   assert.equal(metaOnly.days.currency, "USD");
@@ -241,7 +248,7 @@ test("days end yesterday, and what is only read for the page's 30 days is a dash
   const later = ads.addDays(from, 23);
   const week = fold(read, ALL, { from: later });
   assert.equal(week.window.days, 7);
-  assert.equal(week.totals.spent, page.moneyOf(spentMinor(read.ads, later, to), "USD"));
+  assert.equal(week.totals.spent, moneyOf(spentMinor(read.ads, later, to), "USD"));
   assert.equal(week.totals.touch, peopleIn(read.ads, later, to, "inTouch"));
   assert.equal(week.days.rows.length, 7);
   assert.equal(week.days.rows[0].day, later);
@@ -258,7 +265,7 @@ test("days end yesterday, and what is only read for the page's 30 days is a dash
     ],
     "the first reply is read for 30 days: a dash, not a share of them",
   );
-  assert.equal(week.funnel[1].why, page.RESULTS.funnel.replyWindow);
+  assert.equal(week.funnel[1].why, RESULTS.funnel.replyWindow);
   // The page's own days have the reply, and it is of the people who wrote, never more than got in touch.
   const full = fold(read).funnel;
   assert.deepEqual(
@@ -351,7 +358,7 @@ test("the scope list is every ad, each platform that has an ad, then each ad; a 
 test("the Overview's one fact says what the ads brought over the same days, with its door; the facts it joins are unchanged where there are no ads", () => {
   const read = running();
   const vm = fold(read);
-  assert.deepEqual(page.adsFactOf(vm), {
+  assert.deepEqual(adsFactOf(vm), {
     text: "Your ads brought 114 new people",
     sub: `26 have booked · ${vm.totals.spent} spent`,
   });
@@ -370,14 +377,14 @@ test("the Overview's one fact says what the ads brought over the same days, with
     ...read,
     ads: [{ ...adOf(read, SATURDAY), days: adOf(read, SATURDAY).days.map((d) => ({ ...d, inTouch: 0, booked: 0 })) }],
   };
-  assert.equal(page.adsFactOf(fold(quietStart)).text, "Your ads haven't brought anyone new yet");
+  assert.equal(adsFactOf(fold(quietStart)).text, "Your ads haven't brought anyone new yet");
   // It is the third of Worth knowing, after the two that most need an owner, and only when handed in.
   const R = reportsSample("30d", "2026-10-11");
-  const plain = ads.reportFacts(R.vm, null);
-  const withAds = ads.reportFacts(R.vm, null, fact);
+  const plain = reportFacts(R.vm, null);
+  const withAds = reportFacts(R.vm, null, fact);
   assert.deepEqual(withAds, [...plain.slice(0, 2), fact]);
   assert.ok(withAds.length <= 3);
-  assert.deepEqual(ads.reportFacts(R.vm, null, null), plain, "a workspace without ads reads the facts it always did");
+  assert.deepEqual(reportFacts(R.vm, null, null), plain, "a workspace without ads reads the facts it always did");
 });
 
 test("the seam moves the fixtures to now and reads Reports' days as ads end: yesterday", () => {

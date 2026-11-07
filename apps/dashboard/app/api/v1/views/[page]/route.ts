@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 import { AppError } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/shared/route";
 import { dbRefusal } from "@/server/shared/with-route";

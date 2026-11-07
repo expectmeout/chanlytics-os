@@ -3,7 +3,7 @@ import { REPLY_WINDOW_MS } from "./run-words";
 
 /**
  * The answer to a campaign run: a yes or a stop (the consent ledger's `contact.consent_changed`, 00013) that a run's
- * message earned. One rule, said here once: the run sheet reads it (server/campaigns/broadcasts.ts, consentAfter), and
+ * message earned. One rule, said here once: the run sheet reads it (server/campaigns/broadcasts/broadcasts.ts, consentAfter), and
  * `public.campaign_answers` (00403) restates it in SQL for Reports › Campaigns and the Campaigns home, which a database
  * test holds equal to this over one world. The People lens keeps every yes and stop; this is the part of them a run
  * is owed.
@@ -118,17 +118,17 @@ function keyOfEvent(data: Record<string, unknown>, consent: string, purpose: Ans
 }
 
 /** An event as the rule counts it, or null when it is no answer (what it says, whether it has a place in time). */
-function countedOf(e: AnswerEvent): CountedEvent | null {
-  const data = recordOrNull(e.data);
-  const atMs = Date.parse(e.at);
+function countedOf(answerEvent: AnswerEvent): CountedEvent | null {
+  const data = recordOrNull(answerEvent.data);
+  const atMs = Date.parse(answerEvent.at);
   if (!data || !Number.isFinite(atMs) || isIn(NOT_ANSWERS, data.source)) return null;
   const consent = data.consent;
   if (consent !== "opted_in" && consent !== "opted_out") return null;
   const purpose = purposeOf(data.purpose);
   return {
-    id: e.id,
-    contactId: e.contactId,
-    at: e.at,
+    id: answerEvent.id,
+    contactId: answerEvent.contactId,
+    at: answerEvent.at,
     atMs,
     consent,
     purpose,
@@ -173,14 +173,14 @@ export function answersToRuns(sends: readonly AnswerSend[], events: readonly Ans
   }
   const standing = new Map<string, Standing>();
   for (const raw of events) {
-    const e = countedOf(raw);
-    const theirs = e ? sendsOf.get(e.contactId) : undefined;
-    if (!e || !theirs) continue;
-    const exact = e.key !== null;
-    for (const s of e.key ? namedBy(e.key, theirs) : reachedBefore(e, theirs)) {
+    const counted = countedOf(raw);
+    const theirs = counted ? sendsOf.get(counted.contactId) : undefined;
+    if (!counted || !theirs) continue;
+    const exact = counted.key !== null;
+    for (const s of counted.key ? namedBy(counted.key, theirs) : reachedBefore(counted, theirs)) {
       const slot = JSON.stringify([s.runId, s.contactId]);
       const held = standing.get(slot);
-      if (!held || isLaterEvent(e, held.event)) standing.set(slot, { runId: s.runId, event: e, exact });
+      if (!held || isLaterEvent(counted, held.event)) standing.set(slot, { runId: s.runId, event: counted, exact });
     }
   }
   return [...standing.values()].map(({ runId, event: e, exact }) => ({

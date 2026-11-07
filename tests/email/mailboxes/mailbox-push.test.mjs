@@ -9,7 +9,12 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, createSign } from "node:crypto";
-import { gmailPushOf, graphNotificationsOf, clientStateMatches, verifyGooglePushToken } from "@chanlytics/channels";
+import {
+  gmailPushOf,
+  graphNotificationsOf,
+  clientStateMatches,
+  verifyGooglePushToken,
+} from "@chanlytics/channels/email";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";

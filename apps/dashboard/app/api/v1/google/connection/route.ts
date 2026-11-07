@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
-import { edgeGoogle } from "@/server/connections/google";
+import { callEdgeGoogle } from "@/server/connections/google";
 import { edgeRefusalWords } from "@/server/shared/edge";
 
 /**
@@ -13,7 +13,7 @@ export const DELETE = write({
   role: "partner",
   rate: "google_link",
   handle: async ({ ctx, member }) => {
-    const a = await edgeGoogle({ op: "disconnect", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
+    const a = await callEdgeGoogle({ op: "disconnect", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true)
       throw new AppError("internal", edgeRefusalWords(b) ?? "The connection could not be removed. Try again.", 502);

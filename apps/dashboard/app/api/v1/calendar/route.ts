@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/shared/route";
-import { weekFrom } from "@/server/calendar/week";
-import { load, readerContext } from "@/server/readers";
+import { weekFrom } from "@/server/calendar/week/week";
+import { load, readerContext } from "@/server/shared/reader";
 import { sources } from "@/server/readers/calendar";
 
 const Query = z.object({
@@ -38,7 +38,7 @@ export const GET = read({
     const rc = readerContext(ctx, member);
     // The calendar's one read (readers/calendar.ts), then the board assembled from it: one clock, the read's, for the
     // span, the people and the windows.
-    const s = (
+    const text = (
       await load(rc, sources, {
         from: input.from ?? null,
         days: Number(input.days ?? 7),
@@ -46,6 +46,6 @@ export const GET = read({
         around: input.around ?? null,
       })
     ).data;
-    return { calendar: weekFrom(s, s.people, rc.now) };
+    return { calendar: weekFrom(text, text.people, rc.now) };
   },
 });

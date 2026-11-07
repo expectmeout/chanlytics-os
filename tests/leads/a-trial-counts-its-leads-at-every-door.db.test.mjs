@@ -25,7 +25,7 @@ import {
   leadAllowanceFor,
   leadImportEstimateUsd,
 } from "@chanlytics/contracts";
-import { estimateForRound } from "../../apps/dashboard/src/server/leads/lead-answers.ts";
+import { estimateForRound } from "../../apps/dashboard/src/server/leads/answers.ts";
 import { takeLock } from "../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;

@@ -18,9 +18,10 @@ import {
   ELEVENLABS_SIGNATURE_HEADER,
   type ConversationMint,
   type SpeechStream,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import { ASK_VOICE_ID, ASK_VOICE_MODEL } from "@chanlytics/contracts";
-import { endVoiceSession, readVoiceSessionByConversation, type Database, type VoiceSessionRow } from "@chanlytics/db";
+import { endVoiceSession, readVoiceSessionByConversation, type VoiceSessionRow } from "@chanlytics/db/ask";
+import type { Database } from "@chanlytics/db/types";
 
 type Db = SupabaseClient<Database>;
 

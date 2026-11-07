@@ -10,17 +10,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
 import { fieldsOf, linesOf } from "../_log-lines.mjs";
+import { importBundle } from "../_source.mjs";
 
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY"]) delete process.env[k];
 const { handleWabaChange } = await import(at("apps/edge/lib/whatsapp/waba-events.ts"));
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const here = path.dirname(fileURLToPath(import.meta.url));
-const { whatsappChannelFacts } = await import(pathToFileURL(path.join(here, "../../packages/db/dist/index.js")).href);
+const { findWhatsappChannelFacts } = await importBundle("db");
 
 const T = "aaaaaaaa-0000-4000-8000-0000000000c1";
 const WABA = "207650000000977";
@@ -94,7 +92,7 @@ test("a notice that names no number, or one not on file, is the account's oldest
 
 test("a reader that knows no number is answered by the workspace's oldest active WhatsApp number", async () => {
   const w = world();
-  const facts = await whatsappChannelFacts(w.db, T);
+  const facts = await findWhatsappChannelFacts(w.db, T);
   assert.equal(facts.number, "+13055550971", "REGRESSION: an unordered read answered with the newer row");
   assert.deepEqual(facts.config, { standing_note: "ch-old" });
 });

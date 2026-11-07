@@ -34,8 +34,10 @@ import {
   websiteFormPerson,
   signupAskLine,
 } from "@chanlytics/contracts";
-import { PERSON_FORGOTTEN, resolvePerson, suggestPersonNote, workspaceZoneOf } from "@chanlytics/db";
-import { keepOnce, notifyOnce, onceKeyId } from "../ops/notify.js";
+import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
+import { suggestPersonNote } from "@chanlytics/db/facts";
+import { findWorkspaceZone } from "@chanlytics/db/workspace";
+import { keepOnce, notifyOnce, onceKeyId } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { websiteFormKeyMatches } from "./form-key.js";
 import { askIfSignup } from "./signup-confirm.js";
@@ -44,7 +46,7 @@ import { askIfSignup } from "./signup-confirm.js";
 const MAX_BODY = 16_000;
 
 export async function receiveWebsiteForm(request: Request): Promise<Response> {
-  const L = logger({ door: "website_form" });
+  const log = logger({ door: "website_form" });
   const raw = await request.text();
   if (raw.length > MAX_BODY) return refuse(413, "bad_request");
   let body: unknown;
@@ -55,18 +57,18 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   }
   const parsed = WebsiteFormBody.safeParse(body);
   if (!parsed.success) {
-    L.warn("website_form_refused", { why: "shape" });
+    log.warn("website_form_refused", { why: "shape" });
     return refuse(400, "bad_request");
   }
-  const f = parsed.data;
-  if (!websiteFormKeyMatches(f.workspace, f.key)) {
-    L.warn("website_form_refused", { why: "key" });
+  const data = parsed.data;
+  if (!websiteFormKeyMatches(data.workspace, data.key)) {
+    log.warn("website_form_refused", { why: "key" });
     return refuse(401, "bad_signature");
   }
-  const tenantId = f.workspace;
-  const who = websiteFormPerson(f);
-  if (!who) {
-    L.warn("website_form_refused", { tenant_id: tenantId, why: "no_way_to_reach" });
+  const tenantId = data.workspace;
+  const otherWebsiteFormPerson = websiteFormPerson(data);
+  if (!otherWebsiteFormPerson) {
+    log.warn("website_form_refused", { tenant_id: tenantId, why: "no_way_to_reach" });
     return refuse(422, "invalid", "An email address or a phone number is needed.");
   }
   const db = pg();
@@ -75,56 +77,78 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   let contactId: string;
   let outcome: string;
   try {
-    const made = await resolvePerson(db, {
+    const created = await resolvePerson(db, {
       tenantId,
-      phone: who.phone,
-      email: who.email,
-      name: who.name,
+      phone: otherWebsiteFormPerson.phone,
+      email: otherWebsiteFormPerson.email,
+      name: otherWebsiteFormPerson.name,
       assurance: "found",
       source: "website",
-      detail: { form: f.form, about: f.about ?? null, page: f.page ?? null, lang: f.lang ?? null, at: f.at ?? null },
+      detail: {
+        form: data.form,
+        about: data.about ?? null,
+        page: data.page ?? null,
+        lang: data.lang ?? null,
+        at: data.at ?? null,
+      },
     });
-    contactId = made.contact_id;
-    outcome = made.outcome;
+    contactId = created.contact_id;
+    outcome = created.outcome;
   } catch (e) {
     if ((e as { code?: string }).code === PERSON_FORGOTTEN) {
-      L.info("website_form_kept", { tenant_id: tenantId, form: f.form, outcome: "forgotten" });
+      log.info("website_form_kept", { tenant_id: tenantId, form: data.form, outcome: "forgotten" });
       return json(200, { ok: true, kept: false });
     }
-    L.error("website_form_failed", { tenant_id: tenantId, step: "person", error: errField(e) });
+    log.error("website_form_failed", { tenant_id: tenantId, step: "person", error: errField(e) });
     return refuse(503, "ingest_failed");
   }
 
   // The form's own words name it: the same form sent again is the same note and the same notice.
   const name = createHash("sha256")
-    .update(JSON.stringify([tenantId, f.form, who.email, who.phone, f.about ?? "", f.note ?? "", f.at ?? ""]))
+    .update(
+      JSON.stringify([
+        tenantId,
+        data.form,
+        otherWebsiteFormPerson.email,
+        otherWebsiteFormPerson.phone,
+        data.about ?? "",
+        data.note ?? "",
+        data.at ?? "",
+      ]),
+    )
     .digest("hex");
   // The day a late form says it was sent is the workspace's own; the default zone where it cannot be read.
-  const tz = (await workspaceZoneOf(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
+  const tz = (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
   const nowMs = Date.now();
   let note = "kept";
   try {
     const r = await suggestPersonNote(db, {
       tenantId,
       contactId,
-      body: websiteFormNote(f, { nowMs, tz }),
+      body: websiteFormNote(data, { nowMs, tz }),
       source: "website",
       sourceId: onceKeyId(`website_form_note:${name}`),
     });
     if ("refused" in r) note = r.refused;
   } catch (e) {
     note = "failed";
-    L.error("website_form_failed", { tenant_id: tenantId, step: "note", error: errField(e) });
+    log.error("website_form_failed", { tenant_id: tenantId, step: "note", error: errField(e) });
   }
 
-  const ask = await askIfSignup(db, L, { tenantId, contactId, form: f, email: who.email, nowMs });
-  const notice = websiteFormNotice(f, { contactId, ...who }, { nowMs, tz }, signupAskLine(ask));
+  const ask = await askIfSignup(db, log, {
+    tenantId,
+    contactId,
+    form: data,
+    email: otherWebsiteFormPerson.email,
+    nowMs,
+  });
+  const notice = websiteFormNotice(data, { contactId, ...otherWebsiteFormPerson }, { nowMs, tz }, signupAskLine(ask));
   const onceKey = `website_form:${name}`;
-  let told = false;
+  let otherNotice = false;
   try {
     const addressing = await loadTenantNotifications(db, tenantId);
-    told =
-      websiteFormLate(f, nowMs) || addressing.unread
+    otherNotice =
+      websiteFormLate(data, nowMs) || addressing.unread
         ? await keepOnce(
             tenantId,
             {
@@ -140,8 +164,8 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
           )
         : await notifyOnce({ tenantId, ...addressing }, { ...notice, onceKey }, { db });
   } catch (e) {
-    L.error("website_form_failed", { tenant_id: tenantId, step: "notice", error: errField(e) });
+    log.error("website_form_failed", { tenant_id: tenantId, step: "notice", error: errField(e) });
   }
-  L.info("website_form_kept", { tenant_id: tenantId, form: f.form, outcome, note, told, ask });
+  log.info("website_form_kept", { tenant_id: tenantId, form: data.form, outcome, note, told: otherNotice, ask });
   return json(200, { ok: true, kept: true, ...(ask === "asked" ? { confirm: "sent" } : {}) });
 }

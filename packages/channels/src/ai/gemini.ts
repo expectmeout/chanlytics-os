@@ -9,7 +9,7 @@
  * at Stream's audio rate that is past the clip cap. Nothing here knows a row or a workspace.
  */
 import { isObjectRecord } from "@chanlytics/contracts";
-import { answerObject, providerFetch } from "../shared/provider-fetch";
+import { answerObject, fetchFromProvider } from "../shared/provider-fetch";
 import type { ModelDeps } from "./anthropic";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -59,7 +59,7 @@ export async function askGemini(key: string, request: GeminiAsked, deps: ModelDe
       ...(request.schema ? { responseMimeType: "application/json", responseJsonSchema: request.schema } : {}),
     },
   };
-  const reply = await providerFetch(
+  const reply = await fetchFromProvider(
     "gemini",
     `${GEMINI_URL}/${encodeURIComponent(request.model)}:generateContent`,
     {

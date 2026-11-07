@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
+import { campaignsHomeOf } from "../../../apps/dashboard/src/server/campaigns/lifecycle/stages.ts";
 
 const ZONE = "America/New_York";
 /** Friday 2 Oct 2026, 9:44 PM in New York (the board's moment): so "tomorrow 10:00 AM" is Saturday the 3rd. */
@@ -142,7 +143,7 @@ const input = (over = {}) => ({
   report: report(),
   ...over,
 });
-const home = (over = {}) => C.campaignsHomeOf(input(over));
+const home = (over = {}) => campaignsHomeOf(input(over));
 const stage = (h, id) => h.rail.stages.find((s) => s.id === id);
 
 /* -------------------------------------------------- the rail -------------------------------------------------- */

@@ -60,8 +60,8 @@ function manySaid(data: unknown, verb: string): { done: number; failed: number; 
   const failedRows = Array.isArray(d.failed) ? (d.failed as unknown[]) : [];
   const skipped = Array.isArray(d.skipped) ? (d.skipped as unknown[]) : [];
   const failed = failedRows.length + skipped.length;
-  const why = asText(rec(failedRows[0]).message) || (skipped.length ? "no longer in this workspace" : "");
-  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` — ${why}` : ""}` : "" };
+  const reason = asText(rec(failedRows[0]).message) || (skipped.length ? "no longer in this workspace" : "");
+  return { done, failed, said: failed ? `${failed} could not be ${verb}${reason ? ` — ${reason}` : ""}` : "" };
 }
 
 /**
@@ -129,12 +129,12 @@ export const answerManySpec: ProposalSpec = {
   gather: gatherCounts,
   receipt: ({ payload: pl }, data) => {
     const m = manySaid(data, "recorded");
-    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
+    const subject = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
     const answer = consentIn(pl.consent);
     const head =
       answer === "unknown"
         ? `${m.done} back to "not asked"`
-        : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
+        : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${subject}`;
     return m.said ? `${head} · ${m.said}` : head;
   },
   open: () => "clients",
@@ -183,8 +183,8 @@ export const personAddSpec: ProposalSpec = {
     events: [PEOPLE_CHANGED],
   }),
   receipt: ({ payload: pl }, data) => {
-    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
-    return `${who} ${rec(data).existed === true ? "was already here — opened" : "added"}`;
+    const personName = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
+    return `${personName} ${rec(data).existed === true ? "was already here — opened" : "added"}`;
   },
   made: (_p, data) => idIn(rec(data), "contact_id"),
   open: () => "clients",
@@ -220,14 +220,14 @@ const threadMade = (data: unknown): string | null => idIn(rec(data), "conversati
 export const personMessageSpec: ProposalSpec = {
   needs: "operator",
   gate: "approve",
-  commit: (p) => {
-    const pl = p.payload;
+  commit: (item) => {
+    const pl = item.payload;
     if (!idIn(pl, "contact_id") || !asText(pl.wire)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     return {
       route: "POST people/[id]/message",
       params: { id: asText(pl.contact_id) },
       body: fieldsOf(pl, ["wire", "text", "subject", "template", "email_to", "then", "note"]),
-      idempotencyKey: p.id,
+      idempotencyKey: item.id,
       events: [PEOPLE_CHANGED],
     };
   },

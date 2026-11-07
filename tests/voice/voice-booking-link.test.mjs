@@ -21,7 +21,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { composeSystemPrompt } from "@chanlytics/contracts";
-import { FACTS_UNAVAILABLE, desiredVoiceShell } from "@chanlytics/channels";
+import { FACTS_UNAVAILABLE, desiredVoiceShell } from "@chanlytics/channels/voice";
 
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
 const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";

@@ -10,8 +10,8 @@
  * no such door: 404. The body says nothing of a customer, so it is not kept in the intake ledger: the sweep, which asks Stream
  * itself after two minutes, is this door's second road.
  */
-import { streamVideoOf, verifyStreamWebhook } from "@chanlytics/channels";
-import { markFileMediaFailed, markFileMediaReady, type MediaFate } from "@chanlytics/db";
+import { streamVideoOf, verifyStreamWebhook } from "@chanlytics/channels/files";
+import { markFileMediaFailed, markFileMediaReady, type MediaFate } from "@chanlytics/db/files";
 import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";

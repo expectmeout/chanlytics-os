@@ -59,6 +59,7 @@ const PACKAGES = [
   "@chanlytics/core",
   "@chanlytics/db",
   "@chanlytics/jobs",
+  "@chanlytics/log",
 ];
 
 const nextConfig: NextConfig = {

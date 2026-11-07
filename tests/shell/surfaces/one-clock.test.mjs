@@ -16,7 +16,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
 import {
-  attentionRow,
   broadcastName,
   clockDate,
   clockDayLabel,
@@ -27,7 +26,6 @@ import {
   fromZonedInput,
   toBroadcastVM,
   toCallVM,
-  toConversationVM,
   toInboxThreadVM,
   toLiveCallVM,
   toLiveVM,
@@ -42,6 +40,8 @@ import {
   runsWords,
   scheduleLine,
 } from "@chanlytics/contracts";
+import { attentionRow } from "../../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
+import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 
 const at = (iso) => Date.parse(iso);
 const iso = (ms) => new Date(ms).toISOString();

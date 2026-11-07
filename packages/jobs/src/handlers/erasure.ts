@@ -24,30 +24,30 @@
  * and the Ask scrub admit for a person whose block an owner's press wrote (00501).
  */
 import { AppError, MIN_MS } from "@chanlytics/contracts";
-import { logger } from "@chanlytics/channels";
+import { logger } from "@chanlytics/log";
+import { scrubAppointments } from "@chanlytics/db/calendar";
 import {
-  appointmentsScrub,
   beginErasure,
   dropPersonPolicy,
-  erasableContact,
+  findErasableContact,
   eraseContactRows,
   erasureKeys,
   FINISHED_JOB_STATES,
-  identityExternalIds,
-  mediaPathsOf,
-  recordingPathsOf,
-  recordSystemDecision,
+  listIdentityExternalIds,
+  listMediaPaths,
+  listRecordingPaths,
   removeMediaObjects,
-  retellCallIdsOf,
   scrubAskTurns,
   scrubErasedJobs,
-  scrubModelTurns,
-  scrubPersonNotes,
-  scrubProviderEvents,
   visitNeedles,
   type ErasedRows,
-  type Json,
-} from "@chanlytics/db";
+} from "@chanlytics/db/erasure";
+import { recordSystemDecision } from "@chanlytics/db/campaigns";
+import { listRetellCallIds } from "@chanlytics/db/voice";
+import { scrubModelTurns } from "@chanlytics/db/ai";
+import { scrubPersonNotes } from "@chanlytics/db/people";
+import { scrubProviderEvents } from "@chanlytics/db/events";
+import type { Json } from "@chanlytics/db/types";
 import { errText, type ClaimedJob, type JobContext } from "../runner/context";
 import type { Db } from "../runner/ledger";
 import { scheduleJobOnce } from "../runner/schedule";
@@ -148,20 +148,20 @@ async function redriveErasure(clients: ErasureClients, contact: ErasurePerson) {
 // identities read that came back empty because it errored would scrub the Ask turns without the WhatsApp wa_ids,
 // leaving the customer's number quoted in an assistant's memory while the owner is told the person was erased.
 async function readErasureKeys(db: Db, contact: ErasurePerson): Promise<ErasureKeys> {
-  const externalIds = await unread("WhatsApp identities", () => identityExternalIds(db, contact.id));
+  const externalIds = await unread("WhatsApp identities", () => listIdentityExternalIds(db, contact.id));
   // The number and the address, as a finished job carries them (`identifiers`) and as an Ask turn may spell them
   // (`needles`): read off the row and its identities while they exist.
   const { identifiers, needles } = erasureKeys(contact, externalIds);
-  const recordings = await unread("call recordings", () => recordingPathsOf(db, contact.id));
-  const media = await unread("stored media", () => mediaPathsOf(db, contact.id));
+  const recordings = await unread("call recordings", () => listRecordingPaths(db, contact.id));
+  const media = await unread("stored media", () => listMediaPaths(db, contact.id));
   return { identifiers, needles, paths: [...new Set([...recordings, ...media])] };
 }
 
-async function unread<T>(what: string, read: () => Promise<T>): Promise<T> {
+async function unread<T>(text: string, read: () => Promise<T>): Promise<T> {
   try {
     return await read();
   } catch {
-    throw new AppError("internal", `Could not read this person's ${what}, so nothing was deleted. Try again.`, 500);
+    throw new AppError("internal", `Could not read this person's ${text}, so nothing was deleted. Try again.`, 500);
   }
 }
 
@@ -228,11 +228,11 @@ async function scrubCopiesFirst(
 ): Promise<void> {
   try {
     await scrubAskTurns(clients.session, contact.tenant_id, contact.id, keys.needles);
-  } catch (e) {
+  } catch (error) {
     logger().error("erase_ask_prescrub_failed", {
       tenant_id: contact.tenant_id,
       contact: contact.id,
-      error: errText(e),
+      error: errText(error),
     });
     throw new AppError(
       "internal",
@@ -242,11 +242,11 @@ async function scrubCopiesFirst(
   }
   try {
     await scrubErasedJobs(clients.service, contact.tenant_id, contact.id, keys.identifiers, FINISHED_JOB_STATES);
-  } catch (e) {
+  } catch (error) {
     logger().error("erase_jobs_prescrub_failed", {
       tenant_id: contact.tenant_id,
       contact: contact.id,
-      error: errText(e),
+      error: errText(error),
     });
     throw new AppError(
       "internal",
@@ -258,11 +258,11 @@ async function scrubCopiesFirst(
   // by every spelling the Ask scrub uses, while they are in hand, and fail closed for the same reason as the jobs.
   try {
     await scrubProviderEvents(clients.service, contact.tenant_id, keys.needles);
-  } catch (e) {
+  } catch (error) {
     logger().error("erase_deliveries_prescrub_failed", {
       tenant_id: contact.tenant_id,
       contact: contact.id,
-      error: errText(e),
+      error: errText(error),
     });
     throw new AppError(
       "internal",
@@ -277,11 +277,11 @@ async function scrubCopiesFirst(
   // the note kept, by the same spellings and for the same reason. Their own notes go with them in step 4.
   try {
     await scrubPersonNotes(clients.service, contact.tenant_id, contact.id, keys.needles);
-  } catch (e) {
+  } catch (error) {
     logger().error("erase_notes_prescrub_failed", {
       tenant_id: contact.tenant_id,
       contact: contact.id,
-      error: errText(e),
+      error: errText(error),
     });
     throw new AppError(
       "internal",
@@ -293,11 +293,11 @@ async function scrubCopiesFirst(
   // by the same spellings, while they are in hand. Their own turns go with their conversations in step 4.
   try {
     await scrubModelTurns(clients.service, contact.tenant_id, keys.needles);
-  } catch (e) {
+  } catch (error) {
     logger().error("erase_turns_prescrub_failed", {
       tenant_id: contact.tenant_id,
       contact: contact.id,
-      error: errText(e),
+      error: errText(error),
     });
     throw new AppError(
       "internal",
@@ -319,9 +319,9 @@ function tryAgain(finishWaits: boolean): string {
  * repeats every leg and finishes now. It says what it had removed without claiming there was any: a person no leg
  * before it found has nothing removed yet.
  */
-function stoppedPartway(what: string, finishWaits: boolean): string {
+function stoppedPartway(text: string, finishWaits: boolean): string {
   return (
-    `${what}, so the erasure stopped partway. What it had already removed stays removed, and nothing more was ` +
+    `${text}, so the erasure stopped partway. What it had already removed stays removed, and nothing more was ` +
     `deleted. ${finishWaits ? "It will finish on its own within the hour, or delete them again to finish now." : "Delete them again to finish."}`
   );
 }
@@ -359,18 +359,18 @@ async function removeStoredObjects(
  * goes on, and what the provider kept goes with its retention (a week: channels CALL_LIMITS).
  */
 async function forgetAtProvider(clients: ErasureClients, contact: ErasurePerson): Promise<void> {
-  const L = logger();
+  const log = logger();
   if (!clients.providerCalls) {
-    L.warn("erase_provider_calls_skipped", { tenant_id: contact.tenant_id, contact: contact.id });
+    log.warn("erase_provider_calls_skipped", { tenant_id: contact.tenant_id, contact: contact.id });
     return;
   }
   try {
-    const ids = await retellCallIdsOf(clients.service, contact.tenant_id, contact.id);
+    const ids = await listRetellCallIds(clients.service, contact.tenant_id, contact.id);
     if (!ids.length) return;
     const erased = await clients.providerCalls(ids);
-    L.info("erase_provider_calls", { tenant_id: contact.tenant_id, contact: contact.id, ...erased });
+    log.info("erase_provider_calls", { tenant_id: contact.tenant_id, contact: contact.id, ...erased });
   } catch (e) {
-    L.error("erase_provider_calls_failed", { tenant_id: contact.tenant_id, contact: contact.id, error: errText(e) });
+    log.error("erase_provider_calls_failed", { tenant_id: contact.tenant_id, contact: contact.id, error: errText(e) });
   }
 }
 
@@ -535,7 +535,7 @@ async function scrubAppointmentsBestEffort(
   needles: readonly string[],
 ): Promise<boolean> {
   try {
-    await appointmentsScrub(db, {
+    await scrubAppointments(db, {
       tenantId: contact.tenant_id,
       contactId: contact.id,
       // A visit keeps the number as E.164, a spelling the needles do not carry (visitNeedles).
@@ -562,10 +562,10 @@ async function scrubAppointmentsBestEffort(
  * run repeats nothing it should not. A person already erased has the id-keyed legs run again; one never blocked is
  * nobody's press, and nothing is done.
  */
-export async function erasureFinish(ctx: JobContext, job: ClaimedJob): Promise<void> {
+export async function finishErasure(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const contactId = job.payload.contact_id;
   if (typeof contactId !== "string") throw new Error("erasure_finish: the payload names no contact");
-  const contact = await erasableContact(ctx.db, contactId);
+  const contact = await findErasableContact(ctx.db, contactId);
   if (!contact || contact.tenant_id !== job.tenant_id) {
     logger().warn("erasure_finish_nobody", { tenant_id: job.tenant_id, job: job.id, contact: contactId });
     return;

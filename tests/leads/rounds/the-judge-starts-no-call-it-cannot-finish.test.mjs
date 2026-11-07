@@ -9,12 +9,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { startRound } from "../../../packages/core/src/leads/runner/start.ts";
-import { collect } from "../../../packages/core/src/leads/runner/collect.ts";
+import { collect } from "../../../packages/core/src/leads/runner/collect/collect.ts";
 import { JUDGE_MARGIN_MS, SCREEN_MARGIN_MS } from "../../../packages/core/src/leads/runner/rules.ts";
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS } from "../../../packages/core/src/leads/judge.ts";
-import { judgeCallPlaces } from "../../../packages/contracts/src/leads/lead-judge.ts";
+import { judgeCallPlaces } from "../../../packages/contracts/src/leads/judge.ts";
 import { LEAD_SCREEN_BOUND_MS, SHADOW_WRITE_MS } from "../../../packages/contracts/src/ai/shadow.ts";
-import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
 import { PLAN } from "../../_lead-fixtures.mjs";
 

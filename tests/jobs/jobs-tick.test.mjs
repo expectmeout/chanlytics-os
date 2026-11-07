@@ -445,7 +445,7 @@ test("a change's delivery that fails for good is the platform's: the operator is
 test("a search's collect that fails for good rings no bell: its search tells the owner when it ends, and the platform is paged", async () => {
   // 29 Oct 2026: one stalled search left "16 jobs did not finish" on Today, fourteen of them "A search stopped partway ·
   // will not start again on its own", each pushed to the owner's phone, while the sweep started another collect every five
-  // minutes. The sweep ends a run whose collects keep failing (lead-sweep.ts GIVE_UP_FAILED_COLLECTS), and the round's own
+  // minutes. The sweep ends a run whose collects keep failing (leads/sweep-plan.ts GIVE_UP_FAILED_COLLECTS), and the round's own
   // notice says the search stopped (00491).
   const collect = (id, attempts) => ({ ...job(id, "lead_collect", attempts), payload: { run_id: "r-1", seq: "p9" } });
   const { ports, calls, logged } = fakes([collect("c", MAX_ATTEMPTS)], { throwOn: new Set(["c"]) });

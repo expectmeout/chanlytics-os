@@ -10,14 +10,8 @@
 //
 // It holds no hook of its own (the rows hold theirs).
 
-import {
-  ASK_GOAL_WORDS,
-  RENAME_WORDS,
-  applySettingsChange,
-  askGoalRefusal,
-  askGoalSaved,
-  samePhone,
-} from "@chanlytics/contracts";
+import { RENAME_WORDS, applySettingsChange, samePhone } from "@chanlytics/contracts";
+import { ASK_GOAL_WORDS, askGoalRefusal, askGoalSaved } from "./model/goal";
 import type { Fact, FactConflict, FactSource, ResolvedFacts } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
 import { BUSINESS_TAB } from "@/bridge/business-tab";

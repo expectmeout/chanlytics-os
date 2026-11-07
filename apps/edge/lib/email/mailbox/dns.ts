@@ -18,7 +18,7 @@ import {
   spfRecordsOf,
   spfTermsOf,
   type TxtAnswer,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import {
   SPF_LOOKUPS_MAX,
   SPF_RECORDS_JOIN,
@@ -91,20 +91,20 @@ async function followSpf(
       known = lookups > SPF_LOOKUPS_MAX;
       break;
     }
-    const a = await readTxt(name);
-    if (!a) {
+    const txt = await readTxt(name);
+    if (!txt) {
       known = false;
       continue;
     }
-    const nested = spfRecordsOf(a)[0];
+    const nested = spfRecordsOf(txt)[0];
     if (!nested) {
       known = false;
       continue;
     }
     if (spfNamesProvider(nested, provider)) names = true;
-    const t = spfTermsOf(nested);
-    lookups += t.lookups;
-    follow = [...follow, ...t.follow];
+    const spfTerms = spfTermsOf(nested);
+    lookups += spfTerms.lookups;
+    follow = [...follow, ...spfTerms.follow];
   }
   return { names, lookups: known ? lookups : null };
 }
@@ -153,13 +153,13 @@ export async function readMailboxDns(host: string, provider: MailboxProvider): P
   // DMARC: at the host, else each parent down to two labels.
   const labels = host.split(".");
   let dmarcUnread = false;
-  for (let i = 0; i <= labels.length - 2; i++) {
-    const a = await readTxt(`_dmarc.${labels.slice(i).join(".")}`);
-    if (!a) {
+  for (let index = 0; index <= labels.length - 2; index++) {
+    const txt = await readTxt(`_dmarc.${labels.slice(index).join(".")}`);
+    if (!txt) {
       dmarcUnread = true;
       break;
     }
-    if (dmarcOf(a) === "found") {
+    if (dmarcOf(txt) === "found") {
       out.dmarc = "found";
       break;
     }

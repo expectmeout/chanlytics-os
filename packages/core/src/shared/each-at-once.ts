@@ -1,5 +1,5 @@
 /** `work` over `items`, `atOnce` at a time, each taking the next as it finishes; none begun once `goOn` says no. */
-export async function eachAtOnce<T>(
+export async function runEachAtOnce<T>(
   items: readonly T[],
   atOnce: number,
   goOn: () => boolean,

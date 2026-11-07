@@ -18,6 +18,7 @@ import {
   type RequestKind,
   type RequestStep,
   zoneDayKey,
+  DAY_KEY,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Field, fieldProblem } from "../kit/field/field";
@@ -171,7 +172,7 @@ function FileSheet({
   const [askedOn, setAskedOn] = useState(() => zoneDayKey(Date.now(), viewerZone()));
   const [busy, setBusy] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
-  const whole = !!workspace.trim() && askedBy.trim().length >= 3 && /^\d{4}-\d{2}-\d{2}$/.test(askedOn);
+  const whole = !!workspace.trim() && askedBy.trim().length >= 3 && DAY_KEY.test(askedOn);
   const file = async (why: ConsoleWhy) => {
     setBusy(true);
     const r = await consoleVerbs.fileRequest({

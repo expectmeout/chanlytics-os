@@ -9,10 +9,10 @@
  */
 
 import { clockTime } from "../shared/clock";
-import { PLAYBOOK_VETO_DELAY_MS } from "../campaigns/playbooks/playbook-triggers";
+import { PLAYBOOK_VETO_DELAY_MS } from "../campaigns/playbooks/triggers/kinds";
 import { DAY_MS } from "../shared/time";
-import { waitEndsWords } from "../waits/wait-rules";
-import { violatesNoPrices, namesMoney } from "../config/policy";
+import { waitEndsWords } from "../waits/rules";
+import { violatesNoPrices, namesMoney } from "../config/policy/prices";
 import { DATA_NOT_INSTRUCTIONS, fenced, promptSafeName } from "../ai/fence";
 
 export type ReviewReplyMode = "auto" | "veto" | "ask" | "never";
@@ -45,11 +45,11 @@ export interface HeldReviewReply {
 
 /** A review's held reply as a card draws it, or null: none is held, or a reply is already posted. */
 export function heldReviewReplyOf(
-  r: { reply_text: string | null; draft_text?: string | null; posts_at?: string | null },
+  row: { reply_text: string | null; draft_text?: string | null; posts_at?: string | null },
   tz: string,
 ): HeldReviewReply | null {
-  if (r.reply_text || !r.draft_text) return null;
-  return { text: r.draft_text.trim(), words: reviewHeldReplyWords(r.posts_at, tz), posts: !!r.posts_at };
+  if (row.reply_text || !row.draft_text) return null;
+  return { text: row.draft_text.trim(), words: reviewHeldReplyWords(row.posts_at, tz), posts: !!row.posts_at };
 }
 
 /** A held reply's line under its review: when it goes (Holds it) or that it waits for your OK (Ask me), by the wait rule. */
@@ -71,10 +71,10 @@ export function reviewDraftsBell(
   const [d, ...rest] = drafted;
   if (!d) return null;
   if (rest.length === 0) {
-    const who = (d.author ?? "").trim();
+    const author = (d.author ?? "").trim();
     const goes = d.posts_at ? `posts after ${clockTime(Date.parse(d.posts_at), tz)}` : "waits for your OK";
     return {
-      title: `${REVIEW_REPLY_HELD_TITLE} ${who ? `${who}'s review` : "a review"} ${goes}`,
+      title: `${REVIEW_REPLY_HELD_TITLE} ${author ? `${author}'s review` : "a review"} ${goes}`,
       body: `${d.text} ${reviewHeldReplyWords(d.posts_at, tz)}`,
     };
   }
@@ -201,8 +201,8 @@ export function autoReplyHold(text: string): "price" | "money" | null {
 const REVIEW_HELD_WORDS: Readonly<Record<string, string>> = { price: "it named a price", money: "it named money" };
 
 /** The reason a held reply gives in words, from google.reply_held's `why`; null for one this set does not hold (never a guess). */
-export function reviewHeldWords(why: string | null | undefined): string | null {
-  return why != null && Object.hasOwn(REVIEW_HELD_WORDS, why) ? (REVIEW_HELD_WORDS[why] ?? null) : null;
+export function reviewHeldWords(reason: string | null | undefined): string | null {
+  return reason != null && Object.hasOwn(REVIEW_HELD_WORDS, reason) ? (REVIEW_HELD_WORDS[reason] ?? null) : null;
 }
 
 export interface ReviewOnRecord {
@@ -243,8 +243,11 @@ export function autoReplyBell(
 ): { title: string; body: string } | null {
   if (!answered.length) return null;
   if (answered.length === 1) {
-    const who = (answered[0].author ?? "").trim();
-    return { title: who ? `Replied to ${who}'s review` : "Replied to a review on Google", body: answered[0].text };
+    const person = (answered[0].author ?? "").trim();
+    return {
+      title: person ? `Replied to ${person}'s review` : "Replied to a review on Google",
+      body: answered[0].text,
+    };
   }
   const names = answered.map((a) => (a.author ?? "").trim()).filter(Boolean);
   return {

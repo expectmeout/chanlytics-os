@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "@chanlytics/channels";
+import { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "@chanlytics/channels/tokens";
 
 const S = "a-secret-kept-for-nothing-else";
 const T0 = 1_760_000_000_000;

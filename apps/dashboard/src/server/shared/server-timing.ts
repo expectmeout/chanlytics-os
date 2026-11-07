@@ -26,12 +26,12 @@ export function serverTimingHeader(
   parts: Record<string, number>,
   shares: ReadonlyMap<string, Share> = new Map(),
 ): string {
-  const said = Object.entries(parts).map(([name, ms]) => `${name};dur=${rounded(ms)}`);
+  const sentence = Object.entries(parts).map(([name, ms]) => `${name};dur=${rounded(ms)}`);
   const spent = [...shares]
     .sort((a, b) => b[1].ms - a[1].ms || a[0].localeCompare(b[0]))
     .slice(0, SHARES_SAID)
     .map(([name, s]) => `${token(name)};dur=${rounded(s.ms)};desc="${Math.max(0, Math.round(s.n))}"`);
-  return [...said, ...spent].join(", ");
+  return [...sentence, ...spent].join(", ");
 }
 
 /** One request in this many says what its database calls touched and the page it was asked from (touchedLine). */

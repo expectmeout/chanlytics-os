@@ -4,17 +4,18 @@
  * owner or a manager. The app's secret, the tokens and Instagram's wire live on the edge and nowhere else.
  *
  * The door reads the body once as text (the token's body hash is checked over these bytes) and asks authorizeAdmin;
- * instagramOp in lib/instagram/connect.ts is the op table and what each answer means.
+ * runInstagramOp in lib/instagram/connect.ts is the op table and what each answer means.
  */
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { readBody } from "../../../lib/shared/admin-door.js";
 import { adminDoor } from "../../../lib/shared/log.js";
-import { instagramOp, type InstagramBody } from "../../../lib/instagram/connect.js";
+import { runInstagramOp } from "../../../lib/instagram/connect.js";
+import { INSTAGRAM_ACCOUNT_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  const body = await readBody<InstagramBody>(raw);
+  const body = await readBody(raw, INSTAGRAM_ACCOUNT_DOOR);
   const auth = await authorizeAdmin(request, "/api/admin/instagram/account", { body: raw });
   if (!auth.ok) return auth.response;
-  return instagramOp(auth, body);
+  return runInstagramOp(auth, body);
 });
