@@ -22,6 +22,7 @@ import {
   inboxCleanOf,
   type FileDto,
   type FileShelf,
+  type FilesPageDto,
   type FilesTally,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
@@ -103,52 +104,66 @@ const MORE_NEAR: IntersectionObserverInit = { rootMargin: "800px 0px" };
 /** The empty tiles an empty page draws, which its stylesheet holds to the one row the grid's width fits. */
 const BLANK_TILES = [0, 1, 2, 3, 4, 5];
 
-export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
-  const held = useSurface("files");
+/** What the head says: how the library stands, or a first batch as it lands, since the tally has none of them until the list is read. */
+function headingOf(tally: FilesTally, arrived: number): string {
+  if (tally.total > 0) return filesSayOf(tally);
+  return arrived > 0 ? filesSayOf({ kept: arrived, waiting: 0, looking: 0 }) : W.emptyTitle;
+}
+
+/** The list as the grid draws it: what still stands under a tile of its own left out, and in the Inbox what the look found nothing against first. */
+function shownOf(files: readonly FileDto[], shelf: FileShelf, standing: ReadonlySet<string>): readonly FileDto[] {
+  const listed = inLandedOrder(files).filter((f) => !standing.has(f.id));
+  return shelf === "inbox" ? [...listed.filter(inboxCleanOf), ...listed.filter((f) => !inboxCleanOf(f))] : listed;
+}
+
+/** Nothing here yet: what to do, under the empty tiles. A person who can't add a photo is told what the page is for, with nothing dead to press. */
+function NothingYet({ may, dropping, add }: { may: boolean; dropping: boolean; add: () => void }) {
+  return (
+    <div className="files-none" data-testid="fl-empty">
+      <p className="files-none-says">{W.emptyBody}</p>
+      {may && (
+        <span className="files-none-acts">
+          <Button size="sm" variant="primary" onClick={add} data-testid="fl-empty-add">
+            {dropping ? W.dropToAdd : W.add}
+          </Button>
+          <span className="files-or-drop">{W.orDrop}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** The library as it stands, and what can be done to it. The shelf's read and what a press changes stand on what the page was last told. */
+function FilesLibrary({
+  dto,
+  readAt,
+  openId,
+  setOpenId,
+  flash,
+}: {
+  dto: FilesPageDto;
+  readAt: number;
+  openId: string | null;
+  setOpenId: (id: string | null) => void;
+  flash: (f: FrameFlash) => void;
+}) {
+  const { files, shelf, next, tally } = dto;
   const sending = useSending();
+  const going = sending.photos;
   // A shelf pressed, until its read is in: what it holds stands until then, and the press answers at once.
   const [pressed, setPressed] = useState<FileShelf | null>(null);
   const [gettingMore, setGettingMore] = useState(false);
-  // A photo the address names (`?do=file:<id>`: a reload, a link, Back into it) opens as the page does, once.
-  const [openId, setOpenId] = useState<string | null>(() => doAsked("file"));
   const picker = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => hearFileAsked(setOpenId), []);
-  const open = useFileOpen(openId, held?.dto.files ?? [], held?.fetchedAt ?? 0);
+  const open = useFileOpen(openId, files, readAt);
   // A shelf answers its press with a short fade of the grid where it stands, as every list that changes under one view does.
-  const grid = useSwapMotion(held?.dto.shelf ?? "");
+  const grid = useSwapMotion(shelf);
   // Once a first photo or a batch has changed what the card holds, it goes to each new height rather than jumping there. A long library,
   // which only a shelf's press resizes, is left to stand.
   const glide = useHeightGlide();
   const [glides, setGlides] = useState(false);
-  if (!glides && (held?.dto.tally.total === 0 || sending.photos.length > 0)) setGlides(true);
+  if (!glides && (tally.total === 0 || going.length > 0)) setGlides(true);
   const may = canDo("settings");
-  const addFrom = useRef<(list: File[]) => void>(() => {});
-  const dropping = usePageTakesFiles((list) => addFrom.current(list), may);
-  const more = useCallback(() => {
-    if (gettingMore) return;
-    setGettingMore(true);
-    void showMoreFiles()
-      .catch(() => flash({ tone: "danger", msg: <>{W.failedRead}</> }))
-      .finally(() => setGettingMore(false));
-  }, [flash, gettingMore]);
-
-  if (held === undefined)
-    return <EmptyState kind="card" glyph="image" title={W.title} body={W.reading} testid="fl-reading" />;
-  if (held === null)
-    return (
-      <EmptyState
-        kind="card"
-        glyph="alert"
-        tone="warn"
-        title={W.title}
-        body={W.failedRead}
-        action={{ label: W.retry, onClick: () => void refreshSurface("files"), testid: "fl-retry" }}
-        testid="fl-unread"
-      />
-    );
-
-  const { files, shelf, next, tally } = held.dto;
   const here = pressed ?? shelf;
   const choose = (s: FileShelf) => {
     setPressed(s);
@@ -156,35 +171,31 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
       .catch(() => flash({ tone: "danger", msg: <>{W.failedRead}</> }))
       .finally(() => setPressed((was) => (was === s ? null : was)));
   };
-  const going = sending.photos;
-  const left = going.filter(stillGoing).length;
-  // What has arrived stands where it is, under the tile it has, until the list has taken them all over.
-  const standing = new Set(going.flatMap((p) => (p.id ? [p.id] : [])));
-  const listed = inLandedOrder(files).filter((f) => !standing.has(f.id));
-  // In the Inbox what the look found nothing against comes first, and what is left for a person to open comes after it.
-  const shown =
-    shelf === "inbox" ? [...listed.filter(inboxCleanOf), ...listed.filter((f) => !inboxCleanOf(f))] : listed;
-  // A first batch says what it has come to as it lands: the tally has none of them until the list is read, at its end.
-  const heading =
-    tally.total > 0
-      ? filesSayOf(tally)
-      : standing.size > 0
-        ? filesSayOf({ kept: standing.size, waiting: 0, looking: 0 })
-        : W.emptyTitle;
-  // Nothing here yet: the one thing to do stands where the eye is, and not again in the corner.
-  const emptyPage = tally.total === 0 && going.length === 0;
-  const add = () => picker.current?.click();
-
-  addFrom.current = (list) => {
+  const addAll = (list: File[]) => {
     if (!list.length) return;
     // A photo added is a kept one: they land on the shelf that shows them, never one they would leave as the list is read.
     if (here !== "all") choose("all");
     addPhotos(list, flash);
   };
+  const dropping = usePageTakesFiles(addAll, may);
+  const more = useCallback(() => {
+    if (gettingMore) return;
+    setGettingMore(true);
+    void showMoreFiles()
+      .catch(() => flash({ tone: "danger", msg: <>{W.failedRead}</> }))
+      .finally(() => setGettingMore(false));
+  }, [flash, gettingMore]);
+  const left = going.filter(stillGoing).length;
+  // What has arrived stands where it is, under the tile it has, until the list has taken them all over.
+  const standing = new Set(going.flatMap((p) => (p.id ? [p.id] : [])));
+  const shown = shownOf(files, shelf, standing);
+  // Nothing here yet: the one thing to do stands where the eye is, and not again in the corner.
+  const emptyPage = tally.total === 0 && going.length === 0;
+  const add = () => picker.current?.click();
   const chosen = (e: ChangeEvent<HTMLInputElement>) => {
     const list = [...(e.currentTarget.files ?? [])];
     e.currentTarget.value = "";
-    addFrom.current(list);
+    addAll(list);
   };
   // The sheet hands focus back to what opened it; if a change took that photo off the grid, focus has nowhere to go.
   const closeSheet = () => {
@@ -201,9 +212,8 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
       data-glides={glides || undefined}
       data-dropping={dropping || undefined}
     >
-      <span className="files-ring" aria-hidden="true" />
       <div className="rec-card-head files-head" data-adding={left > 0 || undefined}>
-        <h2 className="rec-card-title files-heading">{heading}</h2>
+        <h2 className="rec-card-title files-heading">{headingOf(tally, standing.size)}</h2>
         {/* Unseen on an empty page, whose one press stands under its tiles, but holding its place: the tiles don't move as it comes. */}
         <span className="files-head-act" data-away={emptyPage || undefined}>
           <Button ref={addRef} size="sm" onClick={add} {...gate("settings", "add a photo")} data-testid="fl-add">
@@ -254,20 +264,30 @@ export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
         </div>
       </div>
       {next && <MoreFiles more={more} busy={gettingMore} shown={files.length} />}
-      {emptyPage && (
-        <div className="files-none" data-testid="fl-empty">
-          <p className="files-none-says">{W.emptyBody}</p>
-          {may && (
-            <span className="files-none-acts">
-              <Button size="sm" variant="primary" onClick={add} data-testid="fl-empty-add">
-                {dropping ? W.dropToAdd : W.add}
-              </Button>
-              <span className="files-or-drop">{W.orDrop}</span>
-            </span>
-          )}
-        </div>
-      )}
+      {emptyPage && <NothingYet may={may} dropping={dropping} add={add} />}
       {open && <FileSheet key={open.id} file={open} onClose={closeSheet} open={setOpenId} flash={flash} />}
     </section>
   );
+}
+
+export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
+  const held = useSurface("files");
+  // A photo the address names (`?do=file:<id>`: a reload, a link, Back into it) opens as the page does, once.
+  const [openId, setOpenId] = useState<string | null>(() => doAsked("file"));
+  useEffect(() => hearFileAsked(setOpenId), []);
+  if (held === undefined)
+    return <EmptyState kind="card" glyph="image" title={W.title} body={W.reading} testid="fl-reading" />;
+  if (held === null)
+    return (
+      <EmptyState
+        kind="card"
+        glyph="alert"
+        tone="warn"
+        title={W.title}
+        body={W.failedRead}
+        action={{ label: W.retry, onClick: () => void refreshSurface("files"), testid: "fl-retry" }}
+        testid="fl-unread"
+      />
+    );
+  return <FilesLibrary dto={held.dto} readAt={held.fetchedAt} openId={openId} setOpenId={setOpenId} flash={flash} />;
 }

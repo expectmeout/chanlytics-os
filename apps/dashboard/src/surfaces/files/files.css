@@ -1,7 +1,15 @@
 /* Settings › Files (decision 0099): the grid and the sheet's picture. Every value is a token. */
 
+/* A file brought over the page says so as Ask's panel does, and nothing moves. */
 .files-page {
   padding-bottom: var(--rec-gutter);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color var(--duration-fast) var(--ease-out);
+}
+
+.files-page[data-dropping] {
+  outline-color: var(--accent);
 }
 
 .files-head {
@@ -45,21 +53,6 @@
 /* The card goes to each new height (useHeightGlide): what it holds doesn't stand past its edge on the way. */
 .files-page[data-glides] {
   overflow: clip;
-}
-
-/* A file brought over the page: the ring says it will take it, and nothing moves. */
-.files-ring {
-  position: absolute;
-  inset: 4px;
-  border-radius: calc(var(--surface-pane-radius) - 4px);
-  box-shadow: var(--focus-field-edged);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--duration-fast) var(--ease-out);
-}
-
-.files-page[data-dropping] .files-ring {
-  opacity: 1;
 }
 
 /* The empty tiles stand behind the grid, in its own columns, so a first photo lands on one and nothing jumps. */
@@ -391,7 +384,7 @@ span.files-big {
   .files-big,
   .files-frame,
   .files-sent,
-  .files-ring,
+  .files-page,
   .files-blanks,
   .files-head-act {
     transition: none;
