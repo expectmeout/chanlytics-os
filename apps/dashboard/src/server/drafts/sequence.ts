@@ -25,6 +25,7 @@ import {
   fenced,
   fencedInline,
   parseTenantConfig,
+  reachOutToneOf,
   messageHolds,
   momentOffered,
   newListOf,
@@ -76,6 +77,7 @@ export const LEAD_RULES = [
   "A step to leads is an email in the business's own words, the same words for every business it goes to: `subject` on the first only; `body` at most 80 words on the first, starting with {{opening}} on a line of its own (one line about them, written for each business later from its record), and at most 50 on a later one, which answers in the same thread. The words themselves claim and suppose nothing about the business they go to, not how busy it is, its calls, what it has or what it wants: only the opening says anything about them. Use only {{opening}}, {{business}}, {{first name}}, {{city}}, {{your name}}, {{your business}}, and {{booking link}} after the first only. No link, price or exclamation mark in the first.",
   "Write a step to leads in the owner's own voice: the first emails they started before (their length, greeting, how they open, ask and sign off) and the lines Ask remembers about how they write come first: where one shows what Ask drafted beside what they sent, what they changed is how they want it, and what wrote back is what worked, where it went to enough businesses to tell (a few sends say nothing either way); you never copy a sentence of them; where there is neither, plain and short. Say what the business offers as it says it itself, from what it does and its services, never more. You may say who the email goes to as the owner's own act (\"I'm writing to a few auto shops in {{city}}\"), never as a fact about the business.",
   "Never a price, a discount or a date in any words you write.",
+  "A number about the owner's own business (how many customers, how long, a result) stands in the words only inside one of the claims it can prove, word for word; where there are none, write no such number.",
 ];
 
 const RULES = [
@@ -158,8 +160,19 @@ const lines = (title: string, rows: string[]) => (rows.length ? `${title}:\n${ro
 /** What the model is told of what the business offers and how its owner writes, all as data: a draft's and a rewrite's. */
 export function ownerSaid(known: OwnerKnown): Array<string | null> {
   return [
-    known.goal
-      ? `What it is working toward, which an email to leads offers: ${fencedInline("record", known.goal)}`
+    // What an email to leads offers: How it reaches out's own words where the owner wrote them (0113), else the goal.
+    known.offer
+      ? `What it offers the businesses it writes to, in its owner's words: ${fencedInline("record", known.offer)}`
+      : known.goal
+        ? `What it is working toward, which an email to leads offers: ${fencedInline("record", known.goal)}`
+        : null,
+    known.whoFor ? `Who it writes to, in its owner's words: ${fencedInline("record", known.whoFor)}` : null,
+    known.fixes ? `What it fixes for them, in its owner's words: ${fencedInline("record", known.fixes)}` : null,
+    known.proof?.length
+      ? lines(
+          "What it can prove, in its owner's words: use one at most in an email, word for word, and no other claim or number about the business",
+          known.proof.map((c) => `- ${fencedInline("record", c)}`),
+        )
       : null,
     known.about ? `What the business does, in its own words: ${fencedInline("record", known.about)}` : null,
     known.services?.length ? `Its services: ${fencedInline("record", known.services.join(", "))}` : null,
@@ -256,10 +269,14 @@ export async function draftSequenceFrom(
 export async function getOwner(
   rc: ReaderContext,
   rows: ReadonlyArray<{ id: string; starts: string; state: string }>,
-  config: { brain?: { profile?: { services?: ReadonlyArray<{ name: string }>; tone?: string } } } | null,
-): Promise<Pick<DraftKnown, "about" | "services" | "tone" | "memory" | "examples">> {
+  config: {
+    brain?: { profile?: { services?: ReadonlyArray<{ name: string }>; tone?: string } };
+    reach_out?: { offer?: string; who_for?: string; fixes?: string; proof?: readonly string[]; tone?: string };
+  } | null,
+): Promise<OwnerRead> {
   const { ctx, tenantId } = rc;
   const profile = config?.brain?.profile;
+  const reachOut = config?.reach_out;
   const [about, memory, examples] = await Promise.all([
     readOrNull(findWorkspaceAbout(ctx.supabase, tenantId), "about", tenantId),
     readOrNull(askMemoryLines(ctx.supabase, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId),
@@ -268,11 +285,22 @@ export async function getOwner(
   return {
     about,
     services: (profile?.services ?? []).slice(0, SERVICES_SAID).map((s) => s.name),
-    tone: profile?.tone?.trim() || null,
+    // A cold email's own tone where the owner set one on How it reaches out (0113), else the receptionist's.
+    tone: reachOutToneOf(config),
+    offer: reachOut?.offer?.trim() || null,
+    whoFor: reachOut?.who_for?.trim() || null,
+    fixes: reachOut?.fixes?.trim() || null,
+    proof: (reachOut?.proof ?? []).map((c) => c.trim()).filter(Boolean),
     memory: (memory ?? []).map((m) => ({ text: m.text, source: m.source })),
     examples: examples ?? [],
   };
 }
+
+/** What getOwner answers: the business's own words, How it reaches out's (0113), Ask's memory and the started first emails. */
+type OwnerRead = Pick<
+  DraftKnown,
+  "about" | "services" | "tone" | "memory" | "examples" | "offer" | "whoFor" | "fixes" | "proof"
+>;
 
 /** A chain's first email, as the drafter reads one: an email with words, never a call's or a note's. */
 type FirstOf = { steps: ReadonlyArray<{ subject: string | null; body: string; hand: unknown }> };

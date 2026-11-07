@@ -112,7 +112,10 @@ export interface DraftExample {
 }
 
 /** What the model is told of what a business offers and how its owner writes: a draft's, and a rewrite's (rewrite.ts). */
-export type OwnerKnown = Pick<DraftKnown, "goal" | "about" | "services" | "tone" | "memory" | "examples">;
+export type OwnerKnown = Pick<
+  DraftKnown,
+  "goal" | "about" | "services" | "tone" | "memory" | "examples" | "offer" | "whoFor" | "fixes" | "proof"
+>;
 
 /** What a draft is judged against: the business, what it offers and holds, and what already runs. */
 export interface DraftKnown {
@@ -121,7 +124,7 @@ export interface DraftKnown {
   goal?: string | null;
   /** What the business does, in its own words (business_records.about), as the check's writer reads it (0078). */
   about?: string | null;
-  /** What a cold email offers, who it is for and what it fixes: How it reaches out's, with their fallbacks (0113). */
+  /** What a cold email offers, who it is for and what it fixes: How it reaches out's own words, where set (0113). */
   offer?: string | null;
   whoFor?: string | null;
   fixes?: string | null;

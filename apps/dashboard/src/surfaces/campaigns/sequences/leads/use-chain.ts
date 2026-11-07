@@ -11,12 +11,14 @@ import {
   firstNameOf,
   reachOutChainBodyOf,
   reachOutDraftOf,
+  reachOutSignedByOf,
   type ReachOutChainDto,
   type ReachOutDraft,
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
 import { reachOuts } from "../../reach-out/surface";
 import { meNow, refusalToast, type FrameFlash } from "../../../frame-verbs";
+import { surfaceValue } from "../../../surface-values";
 
 /** How long after the last change a save goes: long enough for a word, short enough to feel kept. */
 const SAVE_AFTER_MS = 700;
@@ -24,9 +26,14 @@ const SAVE_AFTER_MS = 700;
 /** Where the chain's save stands. */
 export type ChainSaving = "saved" | "saving" | "failed";
 
-/** The draft a chain opens as, signed with the member's first name where it names no one. */
+/**
+ * The draft a chain opens as, where it names no one signed: the name How it reaches out signs with (decision 0113), else
+ * the member's first name, as before the page.
+ */
 function chainDraftOf(chain: ReachOutChainDto): ReachOutDraft {
-  return reachOutDraftOf({ chain, searchName: chain.name, signedBy: firstNameOf(meNow()?.display_name ?? null, null) });
+  const member = firstNameOf(meNow()?.display_name ?? null, null);
+  const signedBy = reachOutSignedByOf(surfaceValue("settings")?.settings?.config ?? null, member);
+  return reachOutDraftOf({ chain, searchName: chain.name, signedBy });
 }
 
 export interface LeadChain {

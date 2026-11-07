@@ -88,3 +88,15 @@ export function leadReplyNote(params: {
 export function draftExcerpt(draft: string): string {
   return flatClip(draft, DRAFT_NOTICE_MAX);
 }
+
+/**
+ * What the answer to a lead who wrote back is steered to offer (decision 0113, How it reaches out's When a lead writes
+ * back): nothing for the booking link, which is what an answer offered before the page and what the receptionist offers
+ * where it has one; a short call, signed as the sequence signs; or the answer alone. Told to the receptionist as a
+ * member's change is (drafts/writer.ts), never in the receptionist's own prompt.
+ */
+export function replyOfferSteer(offer: string | null | undefined): string | null {
+  if (offer === "call") return "Offer a short call in the next few days, at a time that suits them, and no link.";
+  if (offer === "answer") return "Answer what they asked and offer nothing more: no link and no call.";
+  return null;
+}

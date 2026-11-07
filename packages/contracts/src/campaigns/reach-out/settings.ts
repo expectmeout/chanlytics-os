@@ -137,6 +137,8 @@ export const REACH_OUT_REFUSAL_WORDS = {
   tooLong: (max: number) => `Keep it under ${max} characters.`,
   claims: `Up to ${REACH_OUT_LIMITS.claims} claims.`,
   signature: `${REACH_OUT_LIMITS.signatureLines} lines at most, and no link.`,
+  unbacked:
+    "Not written: it kept saying a number about your business that none of your claims backs. Add it to Proof you stand behind, on How it reaches out.",
 } as const;
 
 /** Every word the page says that is not a row's own value (the canvas, Version 3). */

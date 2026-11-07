@@ -9,10 +9,13 @@ import {
   ReachOutChainSchema,
   SEQUENCE_WORDS,
   firstNameOf,
+  parseTenantConfig,
+  reachOutSignedByOf,
   AppError,
   UUID,
 } from "@chanlytics/contracts";
 import { getJournalMemberNames } from "@chanlytics/db/ask";
+import { getStoredConfig } from "../../../../workspace/config-row";
 import { listMailboxConnections } from "../../../../connections/mailbox-connections";
 import { searchRow } from "../../../../leads/leads";
 import { stepNamed, str } from "../../context/tool-reads";
@@ -73,8 +76,14 @@ async function hasMailbox(t: ToolContext): Promise<boolean> {
  * that fails is none (30 Oct 2026: Ask made a sequence no one signed, whose sends ended unsigned or were held).
  */
 async function signerOf(t: ToolContext): Promise<string | null> {
-  const names = await getJournalMemberNames(t.ctx.supabase, [t.ctx.userId]).catch((): Record<string, string> => ({}));
-  return firstNameOf(names[t.ctx.userId] ?? null, null);
+  const [names, config] = await Promise.all([
+    getJournalMemberNames(t.ctx.supabase, [t.ctx.userId]).catch((): Record<string, string> => ({})),
+    getStoredConfig(t.ctx.supabase, t.tenantId)
+      .then(parseTenantConfig)
+      .catch(() => null),
+  ]);
+  // The name How it reaches out signs with (decision 0113), else the member's first name, as before the page.
+  return reachOutSignedByOf(config, firstNameOf(names[t.ctx.userId] ?? null, null));
 }
 
 export async function proposeColdEmail(
