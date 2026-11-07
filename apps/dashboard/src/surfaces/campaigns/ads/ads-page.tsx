@@ -40,7 +40,7 @@ import {
 import type { AdDraft, AdsGroupBy, AdsVM, AskVM, HeadVM } from "@chanlytics/contracts/ads-page";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { afterMove, askAbout, askOnScreenKey, gate, setAskOnScreen, useLegacyToast } from "../../legacy-verbs";
+import { afterMove, askAbout, askOnScreenKey, gate, setAskOnScreen, useFrameToast } from "../../frame-verbs";
 import { CmHead } from "../parts/head";
 import {
   pressRowOpener,
@@ -262,7 +262,7 @@ export function AdsPage({ param }: AdsPageProps) {
   const address = parseAds(param);
   const nav = useAdsNav(address);
   const { read, config, example, setExample, verbs, readAgain } = useAdsStore(opensOnOfAddress(address));
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   const phone = useCmPhone();
   const [groupBy, setGroupBy] = useGroupBy();
   const [hushed, setHushed] = useState<string | null>(null);

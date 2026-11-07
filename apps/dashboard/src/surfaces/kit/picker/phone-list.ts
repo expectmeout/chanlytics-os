@@ -5,7 +5,7 @@
  * here only so the pull can close it.
  */
 import { useState } from "react";
-import { keepTouch, onAPhone, touchSwipe } from "../../legacy-verbs";
+import { keepTouch, onAPhone, touchSwipe } from "../../frame-verbs";
 
 export function usePhoneList() {
   const [open, setOpen] = useState(false);

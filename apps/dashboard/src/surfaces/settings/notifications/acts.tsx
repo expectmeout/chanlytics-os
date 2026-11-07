@@ -14,15 +14,15 @@ import {
   withTopicPush,
   type AlertTopic,
 } from "@chanlytics/contracts/alert-pane";
-import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { WorkspaceSettings } from "@/bridge/surfaces/settings";
+import type { FrameFlash } from "../../frame-verbs";
 import { EMAIL_SHAPE } from "../shared";
 import { alertVerbs } from "./verbs";
 
 /** The config as this pane reads it: the section it writes, beside whatever else the workspace holds. */
 export type Config = WorkspaceSettings & { notifications?: Partial<NotificationsConfig> };
 type Section = Partial<NotificationsConfig>;
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /** The config and its version as the server last answered them: what the next save, and an Undo, go from. */
 type Latest = RefObject<{ cfg: Config; version: number } | null>;

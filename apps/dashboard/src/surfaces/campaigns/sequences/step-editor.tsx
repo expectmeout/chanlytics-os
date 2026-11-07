@@ -45,8 +45,8 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { Segmented } from "../../kit/segmented/segmented";
 import { Select } from "../../kit/select/select";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
-import { gate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { cmBusinessOf, cmOfferedFrom, cmStandInOf, type CmOffered } from "../parts/channels";
 import { warmMessagePane } from "../home/campaigns-code";
@@ -59,7 +59,7 @@ import { HandTask } from "./step-words";
 import { useBatchRead } from "./use-record";
 import { pressed } from "./verbs";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /** The waits a step may take, in days (00441: one to ninety). */
 const WAITS = [1, 2, 3, 4, 5, 7, 10, 14, 21, 28, 30, 45, 60, 90] as const;

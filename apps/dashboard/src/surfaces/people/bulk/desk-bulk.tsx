@@ -4,7 +4,7 @@
  * a receptionist mode (one menu, Messages: messages.ts), a note, a file, and for an owner gone (Delete…,
  * delete-many.tsx) -- each drawn where the role allows and says why when it does not.
  */
-import { editorBox, focusAsDrawn, gateTitle } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, gateTitle } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { addToListMenu as addMenu, barMenu } from "./bar-menu";
 import type { BulkActs } from "./bulk-acts";

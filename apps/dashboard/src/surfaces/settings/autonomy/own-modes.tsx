@@ -8,7 +8,7 @@
 import { PERSON_MODE_LABELS, addressOf, ownModesWords, type OwnModesDto } from "@chanlytics/contracts";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { RecordRow } from "../../kit/record/row";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 
 export function AutOwnModes({ own }: { own: OwnModesDto | null | undefined }) {
   const W = ownModesWords(own);

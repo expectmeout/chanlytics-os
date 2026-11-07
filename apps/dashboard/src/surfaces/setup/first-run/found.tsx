@@ -20,7 +20,7 @@ import {
   type BusinessReadDto,
   type FoundVM,
 } from "@chanlytics/contracts";
-import { gate, type LegacyFlash } from "../../legacy-verbs";
+import { gate, type FrameFlash } from "../../frame-verbs";
 import { businessTabSave } from "../shell";
 import { brainOf } from "./inputs";
 
@@ -30,7 +30,7 @@ type Profile = Record<string, unknown>;
 const asList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 /** One change of the profile through the tab's one saver, said in a toast once the server takes it. */
-function keepFound(row: string, change: (p: Profile) => Profile, said: string, flash: (f: LegacyFlash) => void): void {
+function keepFound(row: string, change: (p: Profile) => Profile, said: string, flash: (f: FrameFlash) => void): void {
   businessTabSave.saver.save({
     row,
     change: (b, p) => {
@@ -43,7 +43,7 @@ function keepFound(row: string, change: (p: Profile) => Profile, said: string, f
 }
 
 /** What a press adds: services (as many as there is room for), a day closed, or a rule or an answer as a note. */
-function foundActs(profile: Profile, flash: (f: LegacyFlash) => void) {
+function foundActs(profile: Profile, flash: (f: FrameFlash) => void) {
   const addServices = (picked: FoundVM["services"]) => {
     const take = foundServicesRoom(profile, picked);
     const [only] = take;
@@ -180,7 +180,7 @@ export function FrFound({
 }: {
   reads: readonly BusinessReadDto[] | null | undefined;
   canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }) {
   const brain = brainOf(businessTabSave.saver.base());
   if (!brain || !reads?.length) return null;

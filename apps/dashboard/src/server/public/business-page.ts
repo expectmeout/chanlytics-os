@@ -4,7 +4,7 @@ import "server-only";
  * The public facts of one workspace's own page, read by slug.
  *
  * No session — a carrier reviewer opens this from a campaign registration, and a
- * customer from a link — so it reads with the service role (public-facts.ts) and
+ * customer from a link — so it reads with the service role (public/facts.ts) and
  * returns EXACTLY what the page shows. Nothing else crosses this boundary and
  * nothing here writes.
  *
@@ -20,7 +20,7 @@ import "server-only";
  */
 import { parseTenantConfig, type BusinessPageFacts } from "@chanlytics/contracts";
 import type { PublicWorkspaceRead } from "@chanlytics/db";
-import { activeNumberOf, publicFactsFor } from "./public-facts";
+import { activeNumberOf, publicFactsFor } from "./facts";
 
 /** The page's facts, from the one load; null without a business on record, which identifies nobody. */
 function businessFactsOf(w: PublicWorkspaceRead): BusinessPageFacts | null {

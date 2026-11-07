@@ -25,7 +25,7 @@ import { AttnRow } from "../kit/attention/attn-row";
 import { Button } from "../kit/button/button";
 import { PageHead } from "../kit/head/page-head";
 import { SubTabs } from "../kit/sub-tabs/sub-tabs";
-import { backOffice } from "@/legacy-bridge/platform";
+import { backOffice } from "@/bridge/platform";
 import { PlatformEvents, SetupAndLines } from "./lines";
 import { ActRow } from "./log";
 import { NoneRow, ScreenFailed, ScreenReading, ScreenSection, useConsoleRead, type Flash, type Go } from "./parts";

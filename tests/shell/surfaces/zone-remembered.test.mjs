@@ -29,7 +29,7 @@ const storage = () => {
 const tab = (over = {}) => ({ location: { pathname: "/w/marisas", hash: "" }, localStorage: storage(), ...over });
 
 globalThis.window = tab();
-const { knownZone, workspaceZone } = await import(at("apps/dashboard/src/legacy-bridge/zone.ts"));
+const { knownZone, workspaceZone } = await import(at("apps/dashboard/src/bridge/zone.ts"));
 
 test("the workspace's own zone, once published, is what the tab knows, and this browser remembers it by the workspace's address", () => {
   const win = tab({

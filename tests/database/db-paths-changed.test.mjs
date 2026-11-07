@@ -59,9 +59,9 @@ test("a change that leaves the database alone does not start a stack", () => {
   for (const files of [
     [],
     ["apps/dashboard/src/x.tsx"],
-    ["apps/dashboard/src/legacy/pages/inbox.jsx", "docs/system-map.md", ".github/workflows/ci.yml"],
+    ["apps/dashboard/mockup/pages/inbox.jsx", "docs/system-map.md", ".github/workflows/ci.yml"],
     ["tests/tenancy.test.mjs"],
-    ["packages/contracts/src/calendar/calendar-words.ts"],
+    ["packages/contracts/src/calendar/words.ts"],
     ["packages/channels/src/lines/sms.ts"],
   ]) {
     assert.equal(couldTheDatabaseHaveChanged(files), false, files.join(", ") || "no files");

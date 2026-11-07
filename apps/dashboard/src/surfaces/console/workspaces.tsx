@@ -8,7 +8,7 @@ import { CONSOLE_GROUP_WORDS, consoleGroups, type ConsoleGroup } from "@chanlyti
 import { PageHead } from "../kit/head/page-head";
 import { Search } from "../kit/search/search";
 import { SubTabs } from "../kit/sub-tabs/sub-tabs";
-import { backOffice } from "@/legacy-bridge/platform";
+import { backOffice } from "@/bridge/platform";
 import { NoneRow, ScreenFailed, ScreenReading, ScreenSection, useConsoleRead, type Flash, type Go } from "./parts";
 import { WorkspaceRow } from "./rows";
 import { consoleVerbs } from "./verbs";

@@ -180,7 +180,7 @@ test("REGRESSION: the five tests main left red on 28 Oct 2026 run for the module
       "links/every-alert-mail-ends-with-the-link-to-its-page.test.mjs",
     ],
     // #1890
-    "apps/dashboard/src/legacy-bridge/surface-registry.ts": [
+    "apps/dashboard/src/bridge/surface-registry.ts": [
       "console/back-office/back-office.test.mjs",
       "reports/headline/on-demand-boot.test.mjs",
     ],
@@ -253,8 +253,8 @@ test("a change the hearing tests trace or run runs them, which no such path name
   // both its ratchets (reads-not-heard.json, on-demand-reads.json) read them.
   const hearing = "tests/shell/hearing";
   for (const f of [
-    "apps/dashboard/src/legacy-bridge/refresh-map.ts",
-    "apps/dashboard/src/legacy-bridge/surface-registry.ts",
+    "apps/dashboard/src/bridge/refresh-map.ts",
+    "apps/dashboard/src/bridge/surface-registry.ts",
     "packages/db/src/realtime.ts",
     "apps/dashboard/src/surfaces/surface-values.ts",
     "apps/dashboard/app/api/v1/contacts/route.ts",
@@ -276,12 +276,12 @@ test("a change the hearing tests trace or run runs them, which no such path name
 
 test("a stylesheet anywhere in the dashboard runs the style tests, which no such path names; the code beside it does not", () => {
   // 1 Nov 2026: #2018's two rules in today/phone/phone.css broke styles/has-subjects.test.mjs, and its path named no
-  // `styles`, so the red waited for #2019, which touched legacy/styles/.
+  // `styles`, so the red waited for #2019, which touched styles/.
   const styles = `${T}/styles`;
   for (const f of [
     "apps/dashboard/src/surfaces/today/phone/phone.css",
     "apps/dashboard/src/surfaces/kit/kit.css",
-    "apps/dashboard/src/legacy-bridge/legacy.css",
+    "apps/dashboard/src/bridge/frame.css",
     "apps/dashboard/app/globals.css",
   ])
     assert.ok(run(f).includes(styles), f);
@@ -292,9 +292,9 @@ test("a stylesheet anywhere in the dashboard runs the style tests, which no such
   assert.ok(runs.length <= BUDGET, `${runs.length} of ${REACH.tests.length}`);
 });
 
-test("a stylesheet of legacy/styles runs layout-measure, which walks that folder; one outside it does not", () => {
+test("a stylesheet of styles runs layout-measure, which walks that folder; one outside it does not", () => {
   const measure = `${T}/shell/layout-measure.test.mjs`;
-  assert.ok(run("apps/dashboard/src/legacy/styles/leads.css").includes(measure));
+  assert.ok(run("apps/dashboard/src/styles/leads.css").includes(measure));
   assert.ok(!run("apps/dashboard/src/surfaces/today/phone/phone.css").includes(measure));
 });
 
@@ -322,9 +322,9 @@ test("a changed test runs itself; a folder already asked for covers it; a helper
 });
 
 test("the runner, a shared helper at the tests' root or a stand-in runs the rules and ratchets and what imports it, never past the budget", () => {
-  // 10 Oct 2026: one line in tests/_legacy-react.mjs ran #1539's whole suite, 21 to 40 minutes, past CI's cap. The
+  // 10 Oct 2026: one line in tests/_stub-react.mjs ran #1539's whole suite, 21 to 40 minutes, past CI's cap. The
   // nightly runs everything; a pull request that wants it asks with the `suite` label.
-  for (const f of ["tests/_fake-db.mjs", "tests/_legacy-react.mjs"]) {
+  for (const f of ["tests/_fake-db.mjs", "tests/_stub-react.mjs"]) {
     assert.deepEqual(run(f), ALWAYS, f);
     const { targets, added } = picked(f);
     const runs = REACH.tests.filter((t) => targets.some((x) => t === x || t.startsWith(`${x}/`)));

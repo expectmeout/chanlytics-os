@@ -17,7 +17,7 @@ import {
   TEMPLATE_TITLE_MAX,
   VERSION_CHANNEL_WORDS,
 } from "@chanlytics/contracts";
-import { gate, navigate } from "../../legacy-verbs";
+import { gate, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { EmptyState } from "../../kit/empty/empty";
 import { Field } from "../../kit/field/field";

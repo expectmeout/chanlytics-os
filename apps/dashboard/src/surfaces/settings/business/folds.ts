@@ -5,7 +5,7 @@
 // (willSay, at the foot). Pure but for that helper's cache, and no JSX: nothing here draws. The tab's saver (saver.ts)
 // adds its names to what save.tsx holds. The save helpers it needs are save.tsx's, imported by name.
 
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import {
   CHECK_OF,
   STORED_AS,

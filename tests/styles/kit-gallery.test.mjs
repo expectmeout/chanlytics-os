@@ -11,7 +11,7 @@
  *   stylesheets its `source` names declare the classes it draws, but the kit's own (read with _css.mjs; the line is
  *   for the reader); a width, a stage and a list of exceptions are ones the spec knows.
  * - The page links the fonts, then the stylesheets the app imports in the app's order, then the app's own rules, and
- *   loads no script by its src (repo/legacy-harness.test.mjs holds Chanlytics.html to the same list).
+ *   loads no script by its src (repo/mockup-harness.test.mjs holds Chanlytics.html to the same list).
  * Each check runs on fixtures too, where it must find what it looks for.
  */
 import { test } from "node:test";
@@ -26,7 +26,6 @@ import { FAMILIES, galleryDocument, UNLISTED } from "../../tooling/scripts/e2e-h
 /** Every name classes.json holds: the kit's classes, and the modifiers kit.css names beside them (.active, .icon…). */
 const json = JSON.parse(fs.readFileSync(path.join(ROOT, KIT_REGISTRY), "utf8"));
 const registry = [...json.classes, ...(json.modifiers ?? [])];
-const LEGACY = "apps/dashboard/src/legacy";
 
 /** The classes an entry's markup names, as a browser reads its class attributes. */
 const classesOf = (html) => [...html.matchAll(/\bclass="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/).filter(Boolean));
@@ -45,13 +44,12 @@ function coverage(families, names, unlisted) {
   };
 }
 
-/** A source's stylesheets, from its `file:line` list: the legacy tree's and the kit's are written from the dashboard's
+/** A source's stylesheets, from its `file:line` list: the shell's and the kit's are written from the dashboard's
  *  src (styles/…, surfaces/…), anything else from the repository's root. */
 const sheetsOf = (source) =>
   source.split(/,\s*/).map((at) => {
     const file = at.replace(/:\d+(-\d+)?$/, "");
-    if (file.startsWith("styles/")) return `${LEGACY}/${file}`;
-    return file.startsWith("surfaces/") ? `apps/dashboard/src/${file}` : file;
+    return /^(styles|surfaces)\//.test(file) ? `apps/dashboard/src/${file}` : file;
   });
 
 /** What is wrong with the entries as data: their ids, their twins, their sources and the fields the spec reads. */
@@ -176,7 +174,7 @@ test("each entry is its own, a twin names a source, a source is a twin's and dra
   );
 });
 
-/** The stylesheets a stylesheet @imports, from the repository's root (repo/legacy-harness.test.mjs reads them so too). */
+/** The stylesheets a stylesheet @imports, from the repository's root (repo/mockup-harness.test.mjs reads them so too). */
 function cssImports(sheet) {
   const urls = [];
   transform({
@@ -187,8 +185,8 @@ function cssImports(sheet) {
   return urls.map((url) => path.posix.join(path.posix.dirname(sheet), url));
 }
 
-/** The stylesheets the app imports (legacy-bridge/legacy.css), each where the harness serves it (serve-legacy.mjs). */
-const APP_SHEETS = cssImports("apps/dashboard/src/legacy-bridge/legacy.css").map((p) =>
+/** The stylesheets the app imports (bridge/frame.css), each where the harness serves it (serve-mockup.mjs). */
+const APP_SHEETS = cssImports("apps/dashboard/src/bridge/frame.css").map((p) =>
   p.replace(/^apps\/dashboard\/src\/(legacy\/)?/, ""),
 );
 

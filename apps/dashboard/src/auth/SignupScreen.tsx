@@ -12,7 +12,7 @@ import {
   verifyCodeWords,
 } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
-import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
+import { clearSurfaceCache } from "@/bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
 import AuthShell from "@/auth/AuthShell";

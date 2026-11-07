@@ -18,7 +18,7 @@ import {
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { gate, leaving } from "../../legacy-verbs";
+import { gate, leaving } from "../../frame-verbs";
 import { Sheet } from "../../kit/sheet/sheet";
 import { JOB_CANCEL, PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import { dockAct } from "../../people/bulk/phone-bulk";

@@ -3,7 +3,7 @@
  * apps/dashboard/src/surfaces/settings/business, and its parts import each other). The app publishes only the names a
  * page of the shell or the first run still reads (business/globals.ts); a test draws or drives any part by the name the
  * JSX published, so this puts every one of them on the window. Import it once the stub React is installed
- * (_legacy-react.mjs installLegacyReact, or a test's own stub with its hooks set on "react").
+ * (_stub-react.mjs installStubReact, or a test's own stub with its hooks set on "react").
  *
  * Not named *.test.mjs, so the runner skips it.
  */

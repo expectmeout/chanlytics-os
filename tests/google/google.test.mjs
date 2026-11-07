@@ -933,7 +933,7 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // old place's reviews forgotten), unlink, refresh, and the two events --
   // runs in google-door.test.mjs. The library is modules: the key's, the check's and the profile's sync. The
   // bell each of them rings, and the lens it opens, run there and in cron-doors-b.test.mjs.
-  const lib = ["google-config", "listing-check", "profile-sync"]
+  const lib = ["config", "listing-check", "profile-sync"]
     .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
     .join("\n");
   assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));
@@ -993,7 +993,7 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   const setup = readCode("apps/dashboard/src/server/workspace/setup.ts");
   // What Setup reads of the listing, and of Google's facts, setup.test.mjs runs (setupDtoFor over a database in memory).
   assert.ok(setup.includes("ready: google.places || google.profile,"));
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/google.ts");
   assert.ok(
     bridge.includes('key: "google",') &&
       bridge.includes('declareReads("google", {') &&
@@ -1001,13 +1001,13 @@ test("the dashboard: owners and the partner link and search, operators read, mem
       bridge.includes('reads: ["review", "rules"],'),
   );
   assert.deepEqual(
-    (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST google/link"]().map((o) => o.key),
+    (await importSrc("apps/dashboard/src/bridge/refresh-map.ts")).AFTER["POST google/link"]().map((o) => o.key),
     ["google", "setup", "settings"],
     "a link repaints Setup and Settings too (whether the listing has a review link: the Library's review ask and the composers' slot, S1-4); the Reviews lens's read, which draws the same listing, is forgotten and read as the lens comes on screen",
   );
   // The app lists Google's surface and installs nothing for it: its verbs are imported (`googleVerbs`), its value is the
   // seam's alone, so no window door or `__GOOGLE` mirror is published.
-  const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
+  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(/setupOverride,\s*googleOverride,\s*billingOverride\b/.test(app) && !app.includes("installGoogle"));
   assert.ok(bridge.includes("export const googleVerbs: GoogleApi = {") && !bridge.includes("__GOOGLE"));
   // A review is told when it is first seen and when its answer moved (00431): Today's line and the bell close at once.

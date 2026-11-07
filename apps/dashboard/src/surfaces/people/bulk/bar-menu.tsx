@@ -8,7 +8,7 @@ import { Button } from "../../kit/button/button";
 import { Menu } from "../../kit/menu/menu";
 import type { MenuGroup } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
-import { gatedProps } from "../../legacy-verbs";
+import { gatedProps } from "../../frame-verbs";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
 

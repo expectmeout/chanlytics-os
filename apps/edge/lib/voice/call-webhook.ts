@@ -76,7 +76,7 @@ import { upsertEscalation } from "@chanlytics/jobs";
 import { frameGuardrail, pauseMsOf, MIN_MS, priceAllowance, spokenBreach } from "@chanlytics/contracts";
 import { linkOfferedOn } from "../calendar/availability.js";
 import { env } from "../shared/env.js";
-import { keptUrl, retellSigned } from "./voice-door-auth.js";
+import { keptUrl, retellSigned } from "./door-auth.js";
 import { logger, errField } from "../shared/log.js";
 import {
   planCallEvent,
@@ -170,7 +170,7 @@ async function admitted(raw: string, signature: string | null): Promise<boolean>
     // know: without it, no delivery verifies.
     L.warn("retell_webhook_key_unset", { fix: "set RETELL_WEBHOOK_KEY to the badged key" });
   }
-  // The check itself is voice-door-auth.ts's `retellSigned`, which the other three voice doors use too.
+  // The check itself is voice/door-auth.ts's `retellSigned`, which the other three voice doors use too.
   const { ok: sigOk, raw: sigRaw, restringified: sigRestringified } = retellSigned(raw, signature);
   L.info("retell_webhook_auth", { sig: sigOk });
   // AWAITED, not fired and forgotten. A serverless invocation is frozen when it

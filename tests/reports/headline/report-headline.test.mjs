@@ -102,7 +102,7 @@ test("a database's answer is a report only when it holds the series and the days
 });
 
 /**
- * Today's period line as it was written over the report's own view model (contracts today-period.ts, until the headline): the
+ * Today's period line as it was written over the report's own view model (contracts today/period.ts, until the headline): the
  * oracle the new line is held to. It reads the page's `period.now`, `answered`, the messages tile's comparison and `calls`.
  */
 const periodLineOver = (page) => {

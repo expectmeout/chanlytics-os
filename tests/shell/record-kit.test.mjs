@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   again,
   unmount,
   remount,
@@ -20,21 +20,21 @@ import {
   classes,
   press,
   atWidth,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 import { keysDrawn } from "../_keys.mjs";
 import { KIT_GLOBALS } from "../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
 
-// The app's chrome bridge publishes contracts' stateOf as __chrome.state (legacy-bridge/shell.ts). Without it every
+// The app's chrome bridge publishes contracts' stateOf as __chrome.state (bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
-const L = "../../apps/dashboard/src/legacy";
+installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+const SRC = "../../apps/dashboard/src";
 Object.assign(globalThis, {
   CHANLY: { nav: () => {}, R: {} },
   canDo: () => true,
   gate: () => ({}),
   usePPToast: () => [null, () => {}],
 });
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const W = globalThis.window;
 
 /** A glyph: the kit's Icon, which the record kit draws itself (the shell's pages draw the host element "Icon"). */
@@ -2120,7 +2120,7 @@ test("a fold open when the window crosses the phone's width is drawn again in th
 
 test("on a touch screen a fold opens on itself, as a sheet or under its row, and its first field waits for a tap", () => {
   // Ruben, 8 October 2026: a sheet that put a person in its first field as it rose raised the keyboard over what
-  // they had not read yet, and the phone moved the page to the field. A touch screen is the pointer (legacy-verbs.ts),
+  // they had not read yet, and the phone moved the page to the field. A touch screen is the pointer (frame-verbs.ts),
   // never the width: the sheet takes focus itself there, as RecordSheet does, and Tab and a tap go on from it. A fold
   // under its row, and an inline editor, open on themselves there too (the 9th: no editor a press opens is an
   // exception); every frame under a mouse keeps its first field.

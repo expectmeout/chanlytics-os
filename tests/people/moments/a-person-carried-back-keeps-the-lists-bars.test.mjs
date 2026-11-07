@@ -22,11 +22,11 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { transform } from "lightningcss";
 import { ROOT } from "../../_source.mjs";
-import { again, fresh, installLegacyReact } from "../../_legacy-react.mjs";
+import { again, fresh, installStubReact } from "../../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 const fromDashboard = createRequire(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/legacy-bridge/_.js"),
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/bridge/_.js"),
 );
 const react = fromDashboard("react");
 const { useNameAway, PhoneDock } = fromDashboard("../surfaces/people/person/hero.tsx");
@@ -137,7 +137,7 @@ const rulesOf = (sheet) => {
 
 test("no dock takes the tab bar or Ask's circle down under a page carried back to its list", () => {
   for (const [sheet, bar] of [
-    ["apps/dashboard/src/legacy/styles/mobile.css", "phone-places"],
+    ["apps/dashboard/src/styles/mobile.css", "phone-places"],
     ["apps/dashboard/src/surfaces/ask/ask.css", "phone-ask"],
   ]) {
     let hides = 0;

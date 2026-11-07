@@ -1,5 +1,5 @@
 /**
- * The Inbox's verbs, run over a fake wire (surfaces/inbox/verbs.ts, moved from legacy-bridge/inbox-verbs.ts, decision 0015
+ * The Inbox's verbs, run over a fake wire (surfaces/inbox/verbs.ts, moved from bridge/inbox-verbs.ts, decision 0015
  * step 3): the three rules a person meets without knowing they are there.
  *
  * - One verb per thread at a time: pressed twice while the first is out, the second is told it is still working and
@@ -10,9 +10,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",

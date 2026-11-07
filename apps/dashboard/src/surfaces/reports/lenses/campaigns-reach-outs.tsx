@@ -12,7 +12,7 @@
 import { SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import type { ReachOutMailboxRow } from "@chanlytics/contracts";
 import type { CampaignLensVM, ReachOutLensSourceLine, ReachOutLensVM } from "@chanlytics/contracts/report-lens";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { BarChart, BarList } from "../../kit/charts/bar";
 import { ChartCard } from "../../kit/charts/card";
 import { EmptyState } from "../../kit/empty/empty";

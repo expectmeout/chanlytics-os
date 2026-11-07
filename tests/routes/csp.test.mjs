@@ -123,6 +123,8 @@ test("no Supabase URL, or a malformed one, allows no Supabase origin rather than
   const dev = directives(contentSecurityPolicy({ supabaseUrl: "https://x.supabase.co", dev: true }));
   assert.ok(dev["script-src"].includes("'unsafe-eval'"), "fast refresh needs it");
   assert.ok(!("upgrade-insecure-requests" in dev), "a laptop is http");
+  const copy = directives(contentSecurityPolicy({ supabaseUrl: "http://127.0.0.1:54321" }));
+  assert.ok(!("upgrade-insecure-requests" in copy), "a copy whose database is on http has no https to go to");
   assert.equal(
     CSP_HEADER,
     "content-security-policy",

@@ -6,9 +6,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, byTestId, find, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId, find, press } from "../_stub-react.mjs";
 
-installLegacyReact();
+installStubReact();
 const { PeoplePhoneBar } = await import("../../apps/dashboard/src/surfaces/people/rail/phone-bar.tsx");
 const { Search } = await import("../../apps/dashboard/src/surfaces/kit/search/search.tsx");
 

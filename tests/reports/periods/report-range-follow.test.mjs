@@ -14,11 +14,11 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { reportDaysCount, reportRangeOfKey, shiftKey } from "@chanlytics/contracts";
-import { again, classes, find, fresh, installLegacyReact, settle, textOf } from "../../_legacy-react.mjs";
+import { again, classes, find, fresh, installStubReact, settle, textOf } from "../../_stub-react.mjs";
 import { CALENDAR, quiet, rday, reportDto, surface } from "../_report-world.mjs";
 
 const moves = [];
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.__WORKSPACES = [
   { id: "w1", slug: "harbor", name: "Harbor Studio", status: "active", timezone: "America/New_York", role: "owner" },
 ];
@@ -32,8 +32,8 @@ const { keepReportPeriod, paintHeldReports, reportsOverride, shownReportPeriod }
 );
 const { reportsPeopleOverride } = await import(`${S}/surfaces/reports/people-surface.ts`);
 const { setReportRange } = await import(`${S}/surfaces/reports/period.ts`);
-const { refreshSurfaces, startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
-const { getSurfaceStatuses } = await import(`${S}/legacy-bridge/surface-status.ts`);
+const { refreshSurfaces, startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
+const { getSurfaceStatuses } = await import(`${S}/bridge/surface-status.ts`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
 const { Segmented } = await import(`${S}/surfaces/kit/segmented/segmented.tsx`);

@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-const { saveSettings } = await import(at("apps/dashboard/src/legacy-bridge/inbox-verbs.ts"));
+const { saveSettings } = await import(at("apps/dashboard/src/bridge/inbox-verbs.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const envelope = (data) =>

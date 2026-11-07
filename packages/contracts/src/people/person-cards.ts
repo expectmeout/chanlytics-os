@@ -6,12 +6,12 @@
  * builders are person-timeline.ts. Decomposed from toPersonVM (Phase 2 of the organization plan), proven equal by
  * value. index.ts names the card types; the builders are internal.
  */
-import { visitDay, visitLine } from "../calendar/calendar-people";
+import { visitDay, visitLine } from "../calendar/people";
 import { appointmentWords, isAppointmentWord, type AppointmentWord } from "../journey/appointment-word";
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "../shared/clock";
 import { type DealVM, proposalLinkOf, toDealVM } from "../deals/deal-vm";
 import { leadsRoute } from "../leads/leads";
-import { reachOutPersonOf } from "../campaigns/reach-out/reach-out-leads";
+import { reachOutPersonOf } from "../campaigns/reach-out/leads";
 import { linkHost } from "../shared/link";
 import { listRuleWhy } from "./lists/list-rules";
 import { PEOPLE_LISTS } from "./lists/builtin-lists";
@@ -31,7 +31,7 @@ import { ago } from "./person-row-facts";
 import { holderOf, personStanding } from "./person-state";
 import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
 import { igClockOfRow, toPersonRowVM, type PersonRowVM } from "./person-row";
-import { visitTitleWithout } from "../calendar/visit/visit-service";
+import { visitTitleWithout } from "../calendar/visit/service";
 import { addedBy, ourWireOfThreads, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA, REPLY_WIRE } from "./person-words";
 import { replyWindow, windowClockOf } from "../config/policy";

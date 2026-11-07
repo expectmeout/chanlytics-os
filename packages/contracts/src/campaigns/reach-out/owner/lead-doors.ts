@@ -3,7 +3,7 @@
  * owner sends (00429) Send it and They wrote back….
  */
 import { clockDate } from "../../../shared/clock";
-import { REPLY_INTENT_WORDS, type OwnerSaidIntent } from "../reach-out-replies";
+import { REPLY_INTENT_WORDS, type OwnerSaidIntent } from "../replies";
 
 /**
  * They wrote back…, on a lead an email its owner sent went to (00429): what the business said, as the owner says it,

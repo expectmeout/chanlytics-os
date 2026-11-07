@@ -10,7 +10,7 @@
  */
 import { ROLE_SAYS, roleSays } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { meNow, routeDoor } from "../../legacy-verbs";
+import { meNow, routeDoor } from "../../frame-verbs";
 import { settingsNow } from "../business/shell";
 import type { SetTab } from "./tabs";
 

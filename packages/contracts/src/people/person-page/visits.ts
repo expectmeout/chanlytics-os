@@ -5,11 +5,11 @@
  * the record's count of theirs from before it (`profile.visits.earlier`, R7); the line says over how long it counts:
  * what the page holds, never more.
  */
-import { visitDateKey, visitDay } from "../../calendar/calendar-people";
+import { visitDateKey, visitDay } from "../../calendar/people";
 import { visitDoor } from "../../calendar/appointment-key";
-import type { VisitLineVM } from "../../calendar/calendar-words";
+import type { VisitLineVM } from "../../calendar/words";
 import { SEASON_BACK_DAYS } from "../../calendar/feed-url";
-import type { EarlierVisitsDto } from "../../calendar/calendar-dto";
+import type { EarlierVisitsDto } from "../../calendar/dto";
 import { clockDate } from "../../shared/clock";
 import { visitLineForDto } from "../person-row";
 import type { PersonCardContext } from "../person-cards";

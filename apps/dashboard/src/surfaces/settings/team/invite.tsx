@@ -13,7 +13,7 @@
  */
 import { useState, type ReactNode } from "react";
 import { TEAM_INVITE_DAYS, roleSays } from "@chanlytics/contracts";
-import { teamVerbs } from "@/legacy-bridge/inbox-verbs";
+import { teamVerbs } from "@/bridge/inbox-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -21,7 +21,7 @@ import { Panel } from "../../kit/panel/panel";
 import { Press } from "../../kit/press";
 import { RecordField } from "../../kit/record/field";
 import { Segmented } from "../../kit/segmented/segmented";
-import { editorBox, focusAsDrawn, type LegacyFlash } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, type FrameFlash } from "../../frame-verbs";
 import { EMAIL_SHAPE } from "../shared";
 import { onTheCard, type TeamPerson } from "./people";
 
@@ -88,7 +88,7 @@ async function inviteEach(to: readonly string[], people: readonly TeamPerson[], 
 }
 
 /** What the card flashes once every address was answered. */
-function sentFlash(out: readonly Said[]): LegacyFlash {
+function sentFlash(out: readonly Said[]): FrameFlash {
   const sent = out.filter((s) => s.done).length;
   if (sent === out.length)
     return { tone: "ok", msg: <>{sent === 1 ? "Invitation sent" : `${sent} invitations sent`}</> };
@@ -141,7 +141,7 @@ export function TeamInvite({
   onClose,
 }: {
   people: readonly TeamPerson[];
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   /** The card's Resend, which says what happened. */
   onResend: (invitationId: string) => void;
   onClose: () => void;

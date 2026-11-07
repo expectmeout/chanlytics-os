@@ -1,7 +1,7 @@
 /**
  * A reach-out's email as a message on the Templates page (One message, every channel, step 5), run on the stub React over
  * the page's own words (surfaces/campaigns/reach-out/email-message.tsx, templates/version-view.tsx and its editor,
- * contracts message-versions.ts and reach-out-words.ts) and its verbs stubbed on the one `templates` object the page
+ * contracts message-versions.ts and reach-out/words.ts) and its verbs stubbed on the one `templates` object the page
  * imports.
  *
  * - It opens on the same version view a campaign message's email does: its subject and its words with examples in the six
@@ -21,10 +21,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const toasts = [];
 const went = [];
@@ -37,8 +37,8 @@ Object.assign(W, {
   __surfaceState: () => "live",
   useHotkey: () => {},
 });
-const L = "../../../apps/dashboard/src/legacy";
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const SRC = "../../../apps/dashboard/src";
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 W.usePPToast = () => [null, (t) => toasts.push(t)];
 const S = "../../../apps/dashboard/src/surfaces";
 const { TemplatesPage } = await import(`${S}/campaigns/templates/templates-page.tsx`);
@@ -522,7 +522,7 @@ test("the page's preview and the edge's send fill the six the same way: the same
 /* ---------------------------------- what a save re-reads ---------------------------------- */
 
 test("a saved email re-reads what a chain's edit moves: its words, the playbooks' counts, and the settings that hold the rows; no lead, whose row carries nothing of a chain", async () => {
-  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   const keys = AFTER["POST templates/versions"]().map((o) => o.key);
   // The reach-outs surface is the pane's own source: a save that left it stale would show the words as they were. The runs its held
   // sends are in read no template (Sent's rows are the broadcasts table's, and the sheet that shows a run's words draws them from the

@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { until } from "../shared/_until.mjs";
 import * as contracts from "@chanlytics/contracts";
 import {
-  installLegacyReact,
+  installStubReact,
   fresh as freshTree,
   again,
   all,
@@ -24,13 +24,13 @@ import {
   classes,
   textOf,
   press,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
 const W = contracts.NEW_WORDS;
 
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/studio/campaigns",
     hash: "",
@@ -46,7 +46,7 @@ installLegacyReact({
   clearInterval() {},
 });
 const SRC = "../../apps/dashboard/src";
-const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
+const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 // The shell's own components the pages draw by name (PolicyChip, Confirm, the record kit's sheet): the frame's JSX.
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();

@@ -2,7 +2,7 @@
  * The Booking tool's sheet on the page a person is on: the Business tab's own fold (business/open-bookings.tsx
  * BtBookingTool), drawn with no row under it, over the tab's one saver. Nothing here is a second editor: what it opens
  * with, refuses, saves and says is the fold's, and a save reads Settings, Today, the Calendar and Setup again as it
- * does from Settings (legacy-bridge/refresh-map.ts).
+ * does from Settings (bridge/refresh-map.ts).
  *
  * It needs what Settings reads, which another page may not have: the workspace's record, and the Calendar's read for
  * the tool's emails. Each is asked for where it is missing, and the sheet opens once they have answered. A workspace
@@ -11,10 +11,10 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { CALENDAR_SETTING_ROUTE } from "@chanlytics/contracts";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { recFolds } from "../../kit/record/registry";
-import { canDo, navigate, refreshSurface } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { canDo, navigate, refreshSurface } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { BtBookingTool, BOOKING_TOOL_FOLD } from "../business/open-bookings";
 import type { Config } from "../business/save";
 import { businessTabSave } from "../business/saver";
@@ -61,7 +61,7 @@ function useBookingToolDraws(): void {
   }, [saver]);
 }
 
-export function BookingToolSheet({ onClosed, flash }: { onClosed: () => void; flash: (flash: LegacyFlash) => void }) {
+export function BookingToolSheet({ onClosed, flash }: { onClosed: () => void; flash: (flash: FrameFlash) => void }) {
   useBookingToolDraws();
   const read = useBookingToolReads();
   const settings = (read && settingsNow()) || null;

@@ -45,9 +45,9 @@ const {
   markHydrated,
   onSurfaceStatusChange,
   refreshSurfaces,
-} = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { getActiveWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
-const { read } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
+} = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { getActiveWorkspace } = await importSrc("apps/dashboard/src/bridge/workspace.ts");
+const { read } = await importSrc("apps/dashboard/src/bridge/api.ts");
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n) => {
@@ -316,7 +316,7 @@ test("a return to the tab reads the surface on screen first and the rest behind 
 test("a glance at another app reads nothing again; half a minute away, a surface not live, or the live feed down reads every surface", async () => {
   // Every return read every surface -- about 28 reads on a workspace for a look at a message elsewhere, and the phone
   // app's five pages each did it on every return to the app. The live feed keeps them current while the tab is away.
-  const { setConnection } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+  const { setConnection } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
   mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
   const { doc, back, away } = returnable();
   globalThis.document = doc;
@@ -558,7 +558,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
   // Today draws the day beside its queue from the calendar, the queue's runs from broadcasts, the card's period line
   // and Worth a look from reports. Measured on the salon's Today (22 Sep 2026): the calendar was read eleventh, behind
   // Settings, People and Leads that nobody was looking at, and the day popped in 1.6 s after the queue beside it.
-  const { ROUTE_DRAWS } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const { ROUTE_DRAWS } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   const keys = [
     "conversations",
     "inbox",
@@ -627,7 +627,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "../surfaces/today/ask-morning-surface",
         // The drafts Ask kept for Need you's rows, read with Today's first reads (decision 0071).
         "../surfaces/today/need-you/drafts-surface",
-      ].map((m) => importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`)),
+      ].map((m) => importSrc(`apps/dashboard/src/bridge/${m}.ts`)),
     );
     known = new Set(
       modules.flatMap((mod) =>
@@ -663,7 +663,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
 
 test("the Reviews lens reads its own surface right after Reports' own, ahead of every stranger", async () => {
   // Every lens of Reports draws from the one read of the page; Reviews alone draws a read of its own beside it (surfaces/reports/reviews-surface.ts).
-  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   assert.deepEqual(reg.ROUTE_DRAWS["reports/reviews"], ["reports_reviews"]);
   assert.deepEqual(
     reg.routeDrawsFor("reports", "reviews"),
@@ -695,7 +695,7 @@ test("the Reviews lens reads its own surface right after Reports' own, ahead of 
 
 test("the Receptionist lens reads its own surface right after Reports' own, ahead of every stranger", async () => {
   // Reviews and the Receptionist each draw a read of their own beside the one of the page (surfaces/reports/receptionist-surface.ts).
-  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   assert.deepEqual(reg.ROUTE_DRAWS["reports/receptionist"], ["reports_receptionist"]);
   assert.deepEqual(
     reg.routeDrawsFor("reports", "receptionist"),
@@ -729,7 +729,7 @@ test("the Receptionist lens reads its own surface right after Reports' own, ahea
 
 test("the People lens reads its own surface right after Reports' own, ahead of every stranger", async () => {
   // Reviews, the Receptionist and People each draw a read of their own beside the one of the page (surfaces/reports/people-surface.ts).
-  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   assert.deepEqual(reg.ROUTE_DRAWS["reports/people"], ["reports_people"]);
   assert.deepEqual(
     reg.routeDrawsFor("reports", "people"),
@@ -764,7 +764,7 @@ test("the People lens reads its own surface right after Reports' own, ahead of e
 
 test("the Campaigns lens reads its own surface right after Reports' own, ahead of every stranger; the Overview reads it there too, for one fact, and the Pipeline lens does not", async () => {
   // Reviews, the Receptionist, People and Campaigns each draw a read of their own beside the one of the page (surfaces/reports/campaigns-surface.ts).
-  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   assert.deepEqual(reg.ROUTE_DRAWS["reports/campaigns"], ["reports_campaigns"]);
   assert.deepEqual(
     reg.routeDrawsFor("reports", "campaigns"),
@@ -818,7 +818,7 @@ test("Settings' Connections pane reads what it draws right after who is looking,
   // account. It draws none of the settings read, so its gate waits for who is looking alone, and a load's first draw for these
   // (settings/frame/pane-reads.ts): read in the boot's second pass, Setup landed after the pane and moved it (the Settings load
   // review, 28 Oct 2026).
-  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   const drawn = ["partner", "channels", "google", "setup"];
   assert.deepEqual(reg.ROUTE_DRAWS["admin/integrations"], drawn);
   assert.deepEqual(reg.routeDrawsFor("admin", "integrations"), drawn, "asked as the shell asks: page and pane");
@@ -855,7 +855,7 @@ test("a person's page waits only for who is looking, then reads the person, then
   // the gate waits for the workspace, which carries the role the page's acts depend on. The person's own read names them
   // in the crumbs, so People's rows come after it (the People load review, 28 Oct 2026: everyone's every page was read
   // ahead of the one person drawn).
-  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
   assert.equal(reg.routeSurfaceFor("clients", ID), "workspace", "the gate waits for who is looking");
   assert.equal(reg.routeSurfaceFor("clients", "c-ana"), "people", "the mockup's seeded people keep the list's gate");
@@ -884,7 +884,7 @@ test("a person's page waits only for who is looking, then reads the person, then
 test("(lane C, D) a cold Calendar reads its campaigns right after its own surface, and People not at all for it: a visit's person comes with the board's own read", async () => {
   // The peek drew the person's deal and standing from People's whole book, read second for it; the board's read carries
   // them now (contracts calendar-person-facts.ts), and what it draws beside its own is the campaigns over its days.
-  const { ROUTE_DRAWS } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const { ROUTE_DRAWS } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   assert.deepEqual(ROUTE_DRAWS.calendar, ["calendar_runs"]);
   const keys = [
     "conversations",
@@ -913,7 +913,7 @@ test("(lane C, D) a cold Calendar reads its campaigns right after its own surfac
 test("Today reads what is left to set up right after its own surface: the card is drawn above the queue", async () => {
   // Read seventh, Setup landed after the queue and the card pushed it down (Ruben, 24 Sep 2026: "does not load
   // properly like the rest of the page").
-  const { ROUTE_DRAWS, ROUTE_WAITS } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const { ROUTE_DRAWS, ROUTE_WAITS } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   assert.equal(ROUTE_DRAWS.today[0], "setup");
   assert.equal(
     ROUTE_WAITS.today[0],

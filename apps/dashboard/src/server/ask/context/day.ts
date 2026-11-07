@@ -81,7 +81,7 @@ export const today: Provider = async (rc, ctx) => {
   );
   const rows: ContextRow[] = [];
   for (const r of idsOf(ctx, "thread", "call", "search")) {
-    // The page's own mapping (legacy-bridge/ask/context.ts): a search is `q-s-<id>`, a person's row its thread, else the call.
+    // The page's own mapping (bridge/ask/context.ts): a search is `q-s-<id>`, a person's row its thread, else the call.
     const q = vm.queue.rows.find((x) =>
       r.kind === "search"
         ? x.kind === "search" && x.id === `q-s-${r.id}`

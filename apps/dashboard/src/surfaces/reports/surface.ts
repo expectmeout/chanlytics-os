@@ -1,6 +1,6 @@
 /**
  * The Reports override: what the page shows and the report over it. Part of the SurfaceData seam
- * (legacy-bridge/surface-data.ts); the page reads what it publishes through `useSurface("reports")`. The lens on screen
+ * (bridge/surface-data.ts); the page reads what it publishes through `useSurface("reports")`. The lens on screen
  * is the address's, not this surface's: every lens draws from this one read, so a move between lenses asks for nothing.
  *
  * What it shows is a range (contracts ReportRange): a period by name, kept in this browser, or the days a member picked,
@@ -10,10 +10,10 @@
  */
 
 import { ApiError } from "@/client/api";
-import { read } from "@/legacy-bridge/api";
-import { heldViews } from "@/legacy-bridge/held-views";
-import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
+import { read } from "@/bridge/api";
+import { heldViews } from "@/bridge/held-views";
+import { isLiveCallTurn } from "@/bridge/surface-realtime";
+import { routeOnScreen } from "@/bridge/workspace";
 import {
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_STORAGE,
@@ -30,8 +30,8 @@ import {
   type ReportRange,
   type ReportVM,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads, keepForItsPage } from "@/legacy-bridge/surface-registry";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads, keepForItsPage } from "@/bridge/surface-registry";
 import { setSurfaceValue } from "../surface-values";
 
 /* ------------------------------- Reports --------------------------------- */

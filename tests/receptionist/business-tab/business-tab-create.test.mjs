@@ -18,7 +18,7 @@ import {
   roleGate,
   whyNotAPhone,
 } from "@chanlytics/contracts";
-import { again, unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
+import { again, unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { W, saving } from "../../_business-tab-harness.mjs";
 
 // The last card this file drew goes as React would take it away (the harness says why).
@@ -318,7 +318,7 @@ test("a number typed and then put back to the line is stored as no number, not a
 
 /* ------------------------------------ what it does not ask ------------------------------------ */
 
-/** The workspace's courier (legacy-bridge/identity.ts `patch`), standing in for it: it records what it is sent. */
+/** The workspace's courier (bridge/identity.ts `patch`), standing in for it: it records what it is sent. */
 const courier = () => {
   const sent = [];
   W.__workspace = {

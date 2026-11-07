@@ -25,10 +25,10 @@ import {
   withReplies,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
-import { installLegacyReact, fresh, all, byTestId, find, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh, all, byTestId, find, textOf } from "../_stub-react.mjs";
 
 // The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
 const { TODAY_HELPERS } = await import("../../apps/dashboard/src/surfaces/today/helpers.ts");
 const { TodayAlertBand } = await import("../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
 const { TodayHeadFigures } = await import("../../apps/dashboard/src/surfaces/today/zones/figures.tsx");
@@ -489,7 +489,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "and one not read yet");
   // The helpers are the page's by import, and nothing publishes them on the window (window.__today had no reader).
   assert.equal(globalThis.__today, undefined, "no window name for the helpers");
-  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installToday"));
+  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installToday"));
   const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
   for (const s of [
     // The day's one derivation (dayVmOf), which the strip and the brief both read: a feed that is not ok is no day.
@@ -547,7 +547,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   );
   delete globalThis.__CALENDAR;
   setSurfaceValue("today", undefined);
-  const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
+  const css = readRaw("apps/dashboard/src/styles/dashboard-a-v2.css");
   // The zones' one column below a desk's width is a browser's to see: e2e/today/today.spec.ts measures the bento's tracks.
   assert.ok(
     !css.includes(".td-") && !dayModule.includes("cal-agenda"),

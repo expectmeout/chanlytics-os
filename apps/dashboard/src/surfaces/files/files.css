@@ -1,7 +1,15 @@
 /* Settings › Files (decision 0099): the grid and the sheet's picture. Every value is a token. */
 
+/* A file brought over the page says so as Ask's panel does, and nothing moves. */
 .files-page {
   padding-bottom: var(--rec-gutter);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color var(--duration-fast) var(--ease-out);
+}
+
+.files-page[data-dropping] {
+  outline-color: var(--accent);
 }
 
 .files-head {
@@ -9,9 +17,24 @@
   align-items: center;
 }
 
+/* What the head says keeps its line while Add is counting, or the grid would move down as a batch starts and up as it ends. */
+.files-head[data-adding] .files-heading {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .files-head-act {
   flex: none;
   margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.files-head-act[data-away] {
+  visibility: hidden;
+  opacity: 0;
 }
 
 /* More shelves than a phone's width holds: the row keeps its line and slides under a thumb. */
@@ -27,11 +50,100 @@
   white-space: nowrap;
 }
 
-.files-grid {
+/* The card goes to each new height (useHeightGlide): what it holds doesn't stand past its edge on the way. */
+.files-page[data-glides] {
+  overflow: clip;
+}
+
+/* The empty tiles stand behind the grid, in its own columns, so a first photo lands on one and nothing jumps. */
+.files-wall {
+  position: relative;
   display: grid;
+  margin-top: 14px;
+}
+
+.files-wall > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.files-grid,
+.files-blanks {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
-  margin-top: 14px;
+}
+
+.files-grid {
+  display: grid;
+}
+
+/* One row of them, however many the width fits, gone with a fade once the library holds something. */
+.files-blanks {
+  display: none;
+  grid-template-rows: auto;
+  grid-auto-rows: 0;
+  row-gap: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    display var(--duration-base) allow-discrete;
+}
+
+.files-blanks[data-on] {
+  display: grid;
+  opacity: 1;
+}
+
+.files-blank {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset-fill);
+}
+
+/* A photo waiting its turn is one of them, until it has a picture of its own. */
+.files-going:not([data-state="arrived"]) span.files-pic {
+  background: var(--surface-inset-fill);
+}
+
+.files-none {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.files-none-says {
+  max-width: 46ch;
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--ink-dim);
+}
+
+.files-none-acts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* A hand with a mouse can drag; a thumb has nothing to drop. */
+.files-or-drop {
+  display: none;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.files-page[data-dropping] .files-or-drop {
+  opacity: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .files-or-drop {
+    display: inline;
+  }
 }
 
 .files-photo {
@@ -47,6 +159,62 @@
   cursor: pointer;
 }
 
+/* Ask's three in a tile's corner while it looks at the photo: its geometry (a tile 0.49 of the box, a step of 0.255, corners 0.26), in the
+   colour they are while Ask works, with the mark's small shadow and no glow. */
+.files-looking {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+
+.files-looking[data-on] {
+  opacity: 1;
+}
+
+@starting-style {
+  .files-looking[data-coming][data-on] {
+    opacity: 0;
+  }
+}
+
+.files-looking > span {
+  position: absolute;
+  width: 49%;
+  height: 49%;
+  border-radius: var(--radius-ask);
+  background: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.files-looking > span:nth-child(1) {
+  top: 0;
+  left: 0;
+  opacity: 0.5;
+}
+
+.files-looking > span:nth-child(2) {
+  top: 25.5%;
+  left: 25.5%;
+  opacity: 0.75;
+}
+
+.files-looking > span:nth-child(3) {
+  top: 51%;
+  left: 51%;
+}
+
+/* A picture and what stands on it: as a photo arrives the server's comes in over this device's, and it is one tile throughout. */
+.files-frame {
+  position: relative;
+  display: block;
+  transition: scale var(--duration-base) var(--ease-out);
+}
+
 .files-pic {
   display: block;
   width: 100%;
@@ -54,6 +222,11 @@
   object-fit: cover;
   border-radius: var(--radius-lg);
   background: var(--surface-page-fill);
+}
+
+.files-frame > .files-pic + .files-pic {
+  position: absolute;
+  inset: 0;
 }
 
 .files-photo:focus-visible .files-pic {
@@ -73,7 +246,7 @@ span.files-pic {
   opacity: 1;
 }
 
-.files-photo:active .files-pic {
+.files-photo:is(button, [data-state="arrived"]):active .files-pic {
   scale: 0.98;
 }
 
@@ -89,16 +262,18 @@ span.files-big {
 
 /* An outline, since a box-shadow inside an <img> paints beneath its picture. */
 @media (hover: hover) {
-  .files-photo:hover .files-pic {
+  .files-photo:is(button, [data-state="arrived"]):hover .files-pic {
     outline: 1px solid var(--surface-inset-edge);
     outline-offset: -1px;
   }
 }
 
+/* Its own line height: a press's words and a tile's on its way would otherwise stand 2px apart, and the card would move as one becomes the other. */
 .files-name,
 .files-state {
   overflow: hidden;
   font-size: var(--text-sm);
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -126,21 +301,43 @@ span.files-big {
   overflow-wrap: anywhere;
 }
 
-/* On its way: a photo that hasn't arrived isn't one to press. */
+/* On its way: a blank tile until its turn, then its picture clearing as it goes, a touch small until it lands. One that hasn't arrived isn't one to press. */
 .files-going {
   cursor: default;
 }
 
-.files-going .files-pic[data-arrived] {
-  opacity: 0.55;
+.files-going:not([data-state="arrived"]) .files-frame {
+  scale: 0.985;
+}
+
+.files-going[data-state="sending"] .files-pic[data-arrived] {
+  opacity: calc(0.4 + 0.6 * var(--sent, 0));
 }
 
 .files-sent {
-  width: 100%;
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  transition: opacity var(--duration-base) var(--ease-out);
 }
 
-.files-going .files-state {
-  color: var(--ink-dim);
+.files-going[data-state="arrived"] .files-sent {
+  opacity: 0;
+}
+
+.files-open {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  cursor: pointer;
+}
+
+.files-open:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .files-failed {
@@ -233,23 +430,37 @@ span.files-big {
 
 @media (prefers-reduced-motion: reduce) {
   .files-pic,
-  .files-big {
+  .files-big,
+  .files-frame,
+  .files-looking,
+  .files-sent,
+  .files-page,
+  .files-blanks,
+  .files-head-act {
     transition: none;
   }
 
-  .files-photo:active .files-pic {
+  .files-photo:is(button, [data-state="arrived"]):active .files-pic,
+  .files-going:not([data-state="arrived"]) .files-frame {
     scale: none;
   }
 }
 
 /* A phone scans photos in threes, edge to edge, as its own camera roll taught it. What failed still says its name. */
 @media (max-width: 720px) {
-  .files-grid {
+  .files-grid,
+  .files-blanks {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 3px;
   }
 
-  .files-pic {
+  .files-blanks {
+    row-gap: 0;
+  }
+
+  .files-pic,
+  .files-open,
+  .files-blank {
     border-radius: var(--radius-sm);
   }
 
@@ -257,8 +468,17 @@ span.files-big {
     display: none;
   }
 
-  .files-going .files-state {
-    display: none;
+  .files-sent {
+    right: 4px;
+    bottom: 4px;
+    left: 4px;
+  }
+
+  .files-looking {
+    top: 4px;
+    right: 4px;
+    width: 14px;
+    height: 14px;
   }
 
   /* A row of its own, its picture small: eight that failed should not be eight screens. */
@@ -271,7 +491,7 @@ span.files-big {
     margin: 6px 0;
   }
 
-  .files-failed .files-pic {
+  .files-failed .files-frame {
     grid-row: 1 / span 3;
   }
 }

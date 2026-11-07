@@ -1,6 +1,6 @@
 /**
  * The shell names itself the way the site reads it (src/site.ts against contracts' inAppFrom), and addresses a
- * workspace page the way legacy-bridge/workspace.ts does; a foreign URL is never the WebView's to open.
+ * workspace page the way bridge/workspace.ts does; a foreign URL is never the WebView's to open.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

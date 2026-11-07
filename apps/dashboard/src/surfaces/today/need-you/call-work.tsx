@@ -14,7 +14,7 @@ import {
   callDays,
   stepDays,
 } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { answerRequest } from "../../booking-request";
 import { Button } from "../../kit";
 import { appNavigate, gate } from "../shell";

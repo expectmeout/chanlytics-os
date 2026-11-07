@@ -12,8 +12,8 @@
  */
 import { defang } from "../ai/fence";
 import { DAYS, DAY_NAMES, PROFILE_LIMITS } from "../config/workspace-config/config-rules";
-import type { AskSettingsChange, GuardrailRule } from "../ask/ask-settings-change";
-import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/ask-settings-change";
+import type { AskSettingsChange, GuardrailRule } from "../ask/settings-change";
+import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/settings-change";
 import { noteNamesContact, noteNamesMoney, noteOverlap } from "../notes/note-suggest";
 import type { FixKind } from "./review";
 

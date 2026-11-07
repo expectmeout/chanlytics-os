@@ -26,7 +26,7 @@ import {
   triggerOf,
   triggerOffered,
 } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
 const TID = "t-studio";
@@ -134,7 +134,7 @@ test("a trigger says its label and hint in the workspace's word, and so do the w
 
 /* ------------------------------ the surface and the home ------------------------------ */
 
-installLegacyReact({
+installStubReact({
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
   __chrome: { state: stateOf },
@@ -612,7 +612,7 @@ test("an After-the-visit playbook that still sends the marketing thank-you it wa
  * 10 Oct 2026 (Ask, the marketing manager, task 4): what the surface makes of GET playbooks' answer for the home (the
  * business's shape, each card's next run, why it runs nothing here, its list archived and its trigger's words, which
  * moments a new campaign may start from, whether every moment was counted, and the WhatsApp line) is contracts' one
- * reading (lifecycle-inputs.ts), which Ask's campaigns.journey reads too. Pinned as the surface made it before that
+ * reading (lifecycle/inputs.ts), which Ask's campaigns.journey reads too. Pinned as the surface made it before that
  * reading moved, over two answers on one clock: a calendar that cannot be read just now, its own lists (one archived),
  * one of People's, one deleted, a follow-up with no deal on file and a paused win-back; and a server whose lists could
  * not be read, with no calendar, its bookings by a tool's emails, and a moment it could not count.

@@ -1,6 +1,6 @@
 /**
  * The call's limits and the shared secret, as provisioning and convergence hold them (decision 0092, packages/channels
- * voice-shell.ts CALL_LIMITS, voice-provision.ts):
+ * voice/shell.ts CALL_LIMITS, voice-provision.ts):
  *   - a call may run twenty minutes, a silent line is ended after thirty seconds, and the provider keeps a call a week:
  *     a new agent is made with them, and a live agent without them is drift the converger patches;
  *   - the shared secret follows the switch: while the voice doors read it, a booking tool with no header is the drift;

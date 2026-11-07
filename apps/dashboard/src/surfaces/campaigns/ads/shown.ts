@@ -7,7 +7,7 @@
  * draws again when that read moves.
  */
 import { adsPreviewOf } from "@chanlytics/contracts";
-import { demoSession } from "../../legacy-verbs";
+import { demoSession } from "../../frame-verbs";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 

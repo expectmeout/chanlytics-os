@@ -15,7 +15,7 @@
  */
 import { stateOf } from "@chanlytics/contracts";
 import type { KeyboardEvent, MouseEventHandler, ReactNode } from "react";
-import { showTip } from "../../legacy-verbs";
+import { showTip } from "../../frame-verbs";
 import { Face, type FacePerson } from "../face/face";
 import { Icon } from "../icon/icon";
 import { SAYS_WHEN } from "../says-when";

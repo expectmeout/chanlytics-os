@@ -83,7 +83,7 @@
   }
 }
 /* A thumb's 44 round the door's 28px line, drawn nothing larger (the phone pass, 3 Nov 2026), as the queue's doors take
-   theirs (legacy.css, the touch floor). */
+   theirs (frame.css, the touch floor). */
 @media (pointer: coarse) {
   .tpd-door {
     position: relative;

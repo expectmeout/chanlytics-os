@@ -15,24 +15,19 @@ import {
   type LeadCardEmailVM,
   type LeadCardLead,
 } from "../../leads/lead-card";
-import type { ReachOutChainDto, ReachOutMailboxChoice, ReachOutMailboxFacts } from "../reach-out/reach-out-dtos";
+import type { ReachOutChainDto, ReachOutMailboxChoice, ReachOutMailboxFacts } from "../reach-out/dtos";
 import { CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_DAILY_CAP_MAX, mailboxDailyCap } from "../../email/mailbox-standing";
 import { reachOutWritesFrom } from "../../email/mailbox-connections";
-import { chainFirstSender, type ReachOutDraft, type ReachOutDraftStep } from "../reach-out/reach-out-draft";
-import {
-  REACH_OUT_DRAFTS_PER_DAY,
-  reachOutCardSlotsOf,
-  type SlotLead,
-  type SlotWorkspace,
-} from "../reach-out/reach-out-rules";
-import { chainPaceOf } from "../reach-out/reach-out-sheet";
+import { chainFirstSender, type ReachOutDraft, type ReachOutDraftStep } from "../reach-out/draft";
+import { REACH_OUT_DRAFTS_PER_DAY, reachOutCardSlotsOf, type SlotLead, type SlotWorkspace } from "../reach-out/rules";
+import { chainPaceOf } from "../reach-out/sheet";
 import {
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_GAP_MINUTES,
   REACH_OUT_SLOT_SET,
   REACH_OUT_STEPS_MAX,
   type ReachOutSlot,
-} from "../reach-out/reach-out-words";
+} from "../reach-out/words";
 import { plural } from "../../shared/words";
 import { slotMentions } from "../templates/slot-sets";
 import { SEQUENCE_MODE_LABEL } from "./sequence";

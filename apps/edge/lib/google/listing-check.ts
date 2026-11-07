@@ -11,16 +11,9 @@ import { scheduleWebsiteRead } from "../imports/website-read.js";
 import { keepAndPush } from "../ops/notify.js";
 import { logger } from "../shared/log.js";
 import { readAllRows } from "../shared/paged.js";
-import { placesKey } from "./google-config.js";
+import { placesKey } from "./config.js";
 import { readPlace } from "./places.js";
-import {
-  aboutReview,
-  connectionOf,
-  reviewRowIds,
-  type ConnectionRow,
-  type Db,
-  type ListingRow,
-} from "./google-rows.js";
+import { aboutReview, connectionOf, reviewRowIds, type ConnectionRow, type Db, type ListingRow } from "./rows.js";
 
 export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
@@ -55,7 +48,7 @@ export async function checkListing(
     // The stamp is NOT moved. It was, briefly, to stop a permanently failing
     // listing holding the head of every hourly page — but `checked_at` is the
     // last SUCCESSFUL read (00069's own comment), and three things read it as
-    // that: it is the news cutoff for which reviews are new (google-sync.ts),
+    // that: it is the news cutoff for which reviews are new (google/sync.ts),
     // it is the `first` flag that clears the Places copies and withholds the
     // first sync's bells, and it is the twenty-hour due window. Moving it on a
     // failure announced days-old reviews as new, replied to them in public,

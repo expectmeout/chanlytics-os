@@ -8,8 +8,8 @@
 
 import type { ComponentProps } from "react";
 import type { GreetingNote } from "@chanlytics/contracts";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import { gate } from "../../../legacy-verbs";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
+import { gate } from "../../../frame-verbs";
 import { RecordField, RecordTip } from "../../../kit/record/field";
 import type { Fields } from "../answers-fields";
 import { BtFold } from "../gestures/fold";

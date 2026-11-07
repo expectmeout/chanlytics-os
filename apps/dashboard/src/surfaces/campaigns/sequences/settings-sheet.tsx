@@ -26,8 +26,8 @@ import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { Select } from "../../kit/select/select";
 import { Sheet } from "../../kit/sheet/sheet";
-import { gate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { pressed } from "./verbs";
 
 const HOW_IT_RUNS = SCHEDULE_WORDS.settings;
@@ -85,7 +85,7 @@ function changeOf(was: Values, now: Values): Record<string, number | string | nu
 interface SettingsSheetProps {
   open: boolean;
   rec: SequenceRecordDto;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   moved: () => void;
   onClose: () => void;
 }

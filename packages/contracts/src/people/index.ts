@@ -85,6 +85,19 @@ export type { ListNeed } from "./lists/list-fields";
 export { listRuleMatches, ruleLists, ruleNeeds } from "./lists/list-match";
 export type { InList } from "./lists/list-match";
 export {
+  cannotBeSentWords,
+  NO_CHANNEL_REACH,
+  NO_NUMBER_REACH,
+  noChannelWords,
+  noNumberWords,
+  noYesWords,
+  peopleAggregates,
+  peopleListAction,
+  saidYesWords,
+  savedListAction,
+} from "./lists/list-page";
+export type { PeopleAggregates, PeopleListAction } from "./lists/list-page";
+export {
   asListRule,
   draftListRule,
   LIST_CONDITIONS_JSON_SCHEMA,
@@ -130,19 +143,6 @@ export type {
 export { GET_YES_PARAM, GET_YES_ROUTE, parsePeopleRoute, peopleRoute } from "./lists/people-route";
 export { pinTokens, TODAY_PINS_MAX, todayPins, togglePin } from "./lists/today-pins";
 export type { ListCountsDto, TodayPin } from "./lists/today-pins";
-export {
-  cannotBeSentWords,
-  NO_CHANNEL_REACH,
-  NO_NUMBER_REACH,
-  noChannelWords,
-  noNumberWords,
-  noYesWords,
-  peopleAggregates,
-  peopleListAction,
-  saidYesWords,
-  savedListAction,
-} from "./people-lists";
-export type { PeopleAggregates, PeopleListAction } from "./people-lists";
 export { attentionRow } from "./person-attention";
 export type { AttentionRowVM } from "./person-attention";
 export type { PersonAboutFact, PersonFact, PersonRightNow } from "./person-cards";

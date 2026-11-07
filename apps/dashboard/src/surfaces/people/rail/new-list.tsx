@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import type { ListRule } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
-import { focusAsDrawn } from "../../legacy-verbs";
+import { focusAsDrawn } from "../../frame-verbs";
 import { visitWordHere } from "../../workspace-word";
 import { lists } from "../people-lists";
 import type { ApiResult } from "@/client/api";

@@ -22,7 +22,7 @@ import {
   type PrivacyRequestVM,
   type SupportRowVM,
 } from "@chanlytics/contracts";
-import { backOffice } from "@/legacy-bridge/platform";
+import { backOffice } from "@/bridge/platform";
 import { AttnRow } from "../kit/attention/attn-row";
 import { Figure } from "../kit/figure/figure";
 import { PageHead } from "../kit/head/page-head";

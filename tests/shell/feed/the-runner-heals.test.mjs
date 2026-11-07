@@ -1,5 +1,5 @@
 /**
- * The runner heals what it missed (legacy-bridge/surface-runner.ts; the wiring's second audit, lane R9: S2-4, S2-5, S2-6, S10-2,
+ * The runner heals what it missed (bridge/surface-runner.ts; the wiring's second audit, lane R9: S2-4, S2-5, S2-6, S10-2,
  * S10-3), run on the real runner over surfaces whose answers the test says, the feed held here and the clock by hand.
  *
  *  1. A read asked for after the boot that fails is asked for again two seconds on and ten after that, then left to the status
@@ -46,9 +46,9 @@ const setVisibility = (state) => {
   for (const fn of [...docListeners]) fn({ type: "visibilitychange" });
 };
 
-const { startSurfaces, refreshAllSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { getSurfaceStatuses, getConnection } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
-const { deliveryTicksOnly } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+const { startSurfaces, refreshAllSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { getSurfaceStatuses, getConnection } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
+const { deliveryTicksOnly } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
 
 const SECOND = 1_000;
 /** The runner's own wait before a notice's read: REFRESH_DEBOUNCE_MS. */

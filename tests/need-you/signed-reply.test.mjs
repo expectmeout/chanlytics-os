@@ -8,9 +8,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NEED_YOU_WORDS } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, all, textOf, press } from "../_legacy-react.mjs";
+import { installStubReact, fresh, all, textOf, press } from "../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
 const { Words } = await import("../../apps/dashboard/src/surfaces/today/need-you/parts.tsx");
 
 const lineOf = (tree) => all(tree, (n) => n.props?.["data-testid"] === "ny-signed")[0];

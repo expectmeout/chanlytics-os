@@ -13,7 +13,7 @@ import { PERSON_TAB_WORDS, addressOf, personRouteOf, scopeFromRoute, vitalsPageO
 
 const S = "../../apps/dashboard/src";
 const { opensRoute } = await import(`${S}/surfaces/addresses.ts`);
-const { personRouteId } = await import(`${S}/legacy-bridge/surface-registry.ts`);
+const { personRouteId } = await import(`${S}/bridge/surface-registry.ts`);
 
 const ID = "11111111-2222-4333-8444-555555555555";
 const TABS = Object.keys(PERSON_TAB_WORDS).filter((t) => t !== "overview");

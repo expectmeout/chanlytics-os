@@ -19,7 +19,7 @@ import { readCode, readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { isRetryableAuthError } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/auth/auth-errors.ts")).href
+  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/auth/errors.ts")).href
 );
 
 const route = (p) => readCode(p.startsWith("packages/") ? p : `apps/dashboard/app/api/v1/${p}/route.ts`);

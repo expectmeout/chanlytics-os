@@ -12,7 +12,7 @@ import { previewForSignup } from "@/server/previews/claim";
  * signed in already makes it theirs with one press.
  *
  * Public by the proxy's `/preview/` prefix, and a token that names nothing is Not found before this renders
- * (public-page-gate.ts). One that can no longer be made theirs (someone's own, ended) goes back to its page, which says
+ * (public/page-gate.ts). One that can no longer be made theirs (someone's own, ended) goes back to its page, which says
  * which. Never indexed, and it sends no referrer: the token is the link's whole authority.
  */
 export const metadata: Metadata = {

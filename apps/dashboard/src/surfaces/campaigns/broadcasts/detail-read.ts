@@ -4,8 +4,8 @@
  * behind. A module of its own, apart from the broadcasts verbs and the view models they draw, so a page that only starts a
  * run's read before it is opened (the Inbox's run row) carries none of them. A refusal is never kept.
  */
-import { api } from "@/legacy-bridge/api";
-import { readCache } from "@/legacy-bridge/read-cache";
+import { api } from "@/bridge/api";
+import { readCache } from "@/bridge/read-cache";
 import type { ApiResult, Output } from "@/client/api";
 import { rememberRun } from "./run-names";
 

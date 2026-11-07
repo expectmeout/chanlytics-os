@@ -3,7 +3,7 @@
  * refresh map reads the workspace list again after either, so the row and the preview wear it as the answer lands.
  */
 import type { ApiResult } from "@/client/api";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 
 export const lookVerbs = {
   save: (accent: string): Promise<ApiResult<{ accent: string | null }>> =>

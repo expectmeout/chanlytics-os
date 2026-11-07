@@ -27,7 +27,7 @@ import { readCode, readRaw, importSrc } from "../_source.mjs";
 const frame = Object.fromEntries(
   ["page.tsx", "tabs.ts", "workspace.tsx"].map((f) => [f, readRaw(`apps/dashboard/src/surfaces/settings/frame/${f}`)]),
 );
-const verbsBridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+const verbsBridge = readCode("apps/dashboard/src/bridge/inbox-verbs.ts");
 
 test("F4: a save re-reads the settings surface, so the next save carries the new version", async () => {
   const start = verbsBridge.indexOf("export async function saveSettings");
@@ -37,7 +37,7 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
     fn.includes('(deps.client ?? api())("PUT settings", { body: { config, version }, onAccepted })'),
     "the save goes through the client, so the map re-reads after it",
   );
-  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
     // The postal address saved here is one of the channels' readiness, which People's reach reads too, and the composers, each where
@@ -53,7 +53,7 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   // The read's half is RUN: a config the parser refuses answers { config: null, configBroken: true, issues }, never
   // {} read as "no receptionist yet" -- through the route in settings-routes.test.mjs ("the settings read") and
   // through its reader in readers.test.mjs, so the three pins on the route's text are gone.
-  const surface = readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
+  const surface = readCode("apps/dashboard/src/bridge/surfaces/settings.ts");
   assert.ok(surface.includes("broken: { issues: cfg.issues ?? [] }"));
   const business = frame["workspace.tsx"];
   assert.ok(business.includes("if (settings && settings.broken) return <BrokenConfig"));
@@ -251,7 +251,7 @@ test("the workspace timezone is visible and an owner can change it", () => {
 
   const route = readCode(
     "apps/dashboard/app/api/v1/workspaces/route.ts",
-    "apps/dashboard/src/server/workspace/workspace-list.ts",
+    "apps/dashboard/src/server/workspace/list.ts",
   );
   assert.ok(route.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
   assert.ok(

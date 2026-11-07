@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { shiftKey, toCalendarVM } from "@chanlytics/contracts";
-import { all, byTestId, classes, textOf } from "../../_legacy-react.mjs";
+import { all, byTestId, classes, textOf } from "../../_stub-react.mjs";
 import { unmarkedTimes } from "../../shell/views/_unmarked-times.mjs";
 import { NOW, W, ZONE, dayWith, draw } from "./_world.mjs";
 

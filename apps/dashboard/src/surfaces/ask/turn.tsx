@@ -17,7 +17,7 @@ import type {
   AskProposal,
   AskProposalOutcome,
 } from "@chanlytics/contracts";
-import type { AskApi } from "@/legacy-bridge/ask";
+import type { AskApi } from "@/bridge/ask";
 import { Button } from "../kit/button/button";
 import { AskFace } from "../kit/face/ask-face";
 import { Icon } from "../kit/icon/icon";

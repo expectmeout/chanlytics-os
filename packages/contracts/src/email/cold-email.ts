@@ -6,13 +6,8 @@
  */
 import { emailFoot } from "../campaigns/templates/email-foot";
 import { whyFrom } from "../campaigns/reach-out/reach-out";
-import {
-  REACH_OUT_LANGUAGE,
-  coldEndingOf,
-  coldSignedOff,
-  type ReachOutSignsWith,
-} from "../campaigns/reach-out/reach-out-rules";
-import { firstSubject, replySubject } from "./email-subject";
+import { REACH_OUT_LANGUAGE, coldEndingOf, coldSignedOff, type ReachOutSignsWith } from "../campaigns/reach-out/rules";
+import { firstSubject, replySubject } from "./subject";
 
 /** A cold email's parts as the wire takes them (channels buildEmailRequest), and emailTextOf lays out. */
 export interface ColdEmail {

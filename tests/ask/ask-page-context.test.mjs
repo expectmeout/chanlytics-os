@@ -1,17 +1,17 @@
-// The page, as Ask is sent it (legacy-bridge/ask/context.ts; the Phase 2 plan, PR 2.1): one provider a surface, each
+// The page, as Ask is sent it (bridge/ask/context.ts; the Phase 2 plan, PR 2.1): one provider a surface, each
 // over what its page already holds, the rows in the page's order, forty at most, kind and id only; the row the words
 // name by its place or its name; and the surfaces as the palette places them. Ask reads two things only (OW6): the typed
 // store, which a surface publishes its value to, and the on-screen ledger a page that holds its rows in state says it
-// drew (legacy-bridge/ask/on-screen.ts, here a fixture window's `__askOnScreen`).
+// drew (bridge/ask/on-screen.ts, here a fixture window's `__askOnScreen`).
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { PageContextSchema } from "@chanlytics/contracts";
 
-const { pageContext, focusFromWords } = await import("../../apps/dashboard/src/legacy-bridge/ask/context.ts");
-const { askPalette, surfaceFor } = await import("../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
+const { pageContext, focusFromWords } = await import("../../apps/dashboard/src/bridge/ask/context.ts");
+const { askPalette, surfaceFor } = await import("../../apps/dashboard/src/bridge/ask/palette.ts");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 const { askOnScreenOf, askOnScreenKey, setAskOnScreen } =
-  await import("../../apps/dashboard/src/legacy-bridge/ask/on-screen.ts");
+  await import("../../apps/dashboard/src/bridge/ask/on-screen.ts");
 
 /** The typed store as a page publishes it, held for one test and put back after it. */
 const held = new Set();

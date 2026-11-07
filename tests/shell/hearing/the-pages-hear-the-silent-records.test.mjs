@@ -49,10 +49,10 @@ globalThis.window.fetch = async (url) => {
     : json(404, { ok: false, error: { code: "not_found", message: "no" } });
 };
 
-const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const { ownsTable, readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-const { workspaceOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
-const { settingsOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const { ownsTable, readWhatWasMissed } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
+const { workspaceOverride } = await importSrc("apps/dashboard/src/bridge/surface-data.ts");
+const { settingsOverride } = await importSrc("apps/dashboard/src/bridge/surfaces/settings.ts");
 const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
 const { inboxOverride } = await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts");
 const { conversationsOverride } = await importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts");

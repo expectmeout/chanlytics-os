@@ -9,7 +9,7 @@
  */
 import type { DealReportVM } from "../deals/deal-report";
 import type { LensId } from "./lenses";
-import type { PeopleReportVM } from "./people/people-report";
+import type { PeopleReportVM } from "./people/report";
 import type { ReportVM } from "./reports";
 import type { ReviewsReportVM } from "./review-report";
 

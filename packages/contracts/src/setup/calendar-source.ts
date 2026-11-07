@@ -13,7 +13,7 @@
  */
 import { DAY_MS } from "../shared/time";
 import { bookingToolCalendar, bookingToolName, bookingToolOptions } from "../calendar/booking-notice";
-import { CALENDAR_FEED_WORDS, type CalendarFeedHealth } from "../calendar/calendar-words";
+import { CALENDAR_FEED_WORDS, type CalendarFeedHealth } from "../calendar/words";
 import { SETUP_STATE_WORDS } from "./setup";
 
 /**

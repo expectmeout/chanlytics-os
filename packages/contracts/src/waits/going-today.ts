@@ -4,13 +4,13 @@
  * stopped, so each is a row with when it goes and its Stop, soonest first. What waits for an OK is the queue's ("Need
  * you"), and what already went is the day's card. A reply of the receptionist's counting down to go in the owner's name
  * was a row here too; since decision 0071 it is Need you's own row, where it can be stopped, changed and sent
- * (today/today-queue.ts heldRow), and Ask's read says it as needs_you's replies on their way.
+ * (today/queue.ts heldRow), and Ask's read says it as needs_you's replies on their way.
  *
  * Pure: the page hands in the runs it holds, the business's zone and the clock; every sentence is said here, from the
  * wait rule's own words (wait-rules.ts waitEndsWords).
  */
 import { addressOf } from "../activity/record-address";
-import { isReachOutRun } from "../campaigns/reach-out/reach-out-rules";
+import { isReachOutRun } from "../campaigns/reach-out/rules";
 import { clockTime, zoneDayKey } from "../shared/clock";
 import { HOUR_MS } from "../shared/time";
 import { plural } from "../shared/words";

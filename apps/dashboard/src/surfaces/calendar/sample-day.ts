@@ -1,5 +1,5 @@
 /**
- * The demo Calendar's day (moved from legacy-bridge/today-sample/calendar.ts when Today's own sample went): four
+ * The demo Calendar's day (moved from bridge/today-sample/calendar.ts when Today's own sample went): four
  * yesterday, two of them still to mark; six today (the day module's cap cuts one), three tomorrow, two open times today.
  * Between them every way a visit stands that its sheet draws: kept, missed, not marked yet, booked, a request a booking
  * tool sent, a lunch that is nobody's, someone the calendar names that People does not hold, and the people's own facts

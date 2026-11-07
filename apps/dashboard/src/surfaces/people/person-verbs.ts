@@ -1,13 +1,13 @@
 /**
  * What a person's page and the two sheets it opens still ask of the shell (decision 0015, step 5): the Inbox's reply
  * courier, the frame's Back to People, a list's address, the window's own events, and the shell's toast as these draw it.
- * Each calls the shell's own where it is; the page reads no `window` name itself, it imports these (and legacy-verbs.ts, for
+ * Each calls the shell's own where it is; the page reads no `window` name itself, it imports these (and frame-verbs.ts, for
  * what every surface asks). A line here is deleted on the day its owner moves: `threadVerbs` with the Inbox,
  * `backToPeople` and the toast with the frame.
  */
 import type { ReactNode } from "react";
 import { backToPeople } from "../frame-doors";
-import { useLegacyToast, windowValue } from "../legacy-verbs";
+import { useFrameToast, windowValue } from "../frame-verbs";
 
 /** What the shell's one flash takes, as a person's page raises it: words, a tone, an Undo or a door in the toast. */
 export interface PersonFlash {
@@ -53,7 +53,7 @@ export function saidBy(e: unknown): string {
 
 /** The shell's toast as a person's page and its sheets use it: its node to draw, and the flash that raises one. */
 export function usePersonToast(): [ReactNode, FlashFn] {
-  return useLegacyToast();
+  return useFrameToast();
 }
 
 /** The person's own Back: the People view they were opened from (the frame's rule, filled into the bridge's doors), else People itself. */

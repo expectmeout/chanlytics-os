@@ -93,7 +93,7 @@ test.describe("Google on a real workspace", () => {
 
     // The listing is the first step's, which every workspace has reached. Since the five steps (decision 0073) the step
     // is Find while an owner can link a listing (contracts first-run.ts: Google searchable and nothing linked), and
-    // otherwise draws Setup's rows, the listing's among them (setup-rows.ts); the Check is the receptionist's step's once
+    // otherwise draws Setup's rows, the listing's among them (setup/rows.ts); the Check is the receptionist's step's once
     // a receptionist is made. So with a listing on record, or nowhere to search for one, there is nothing to find and
     // the listing's row stands, never offering Find; where Google can be searched and nothing is linked, an owner is
     // offered Find, or the row once they put it off.
@@ -102,7 +102,11 @@ test.describe("Google on a real workspace", () => {
     await expect(page.getByTestId("first-run")).toBeVisible();
     const find = page.getByTestId("fr-find");
     const setupListing = page.getByTestId("setup-row-google");
-    if (data.google.listing || !ready) {
+    if (!ready) {
+      // No key on this deployment: nothing to search, so no listing's row at all (setup-rows.ts googleRow).
+      await expect(find).toHaveCount(0);
+      await expect(setupListing).toHaveCount(0);
+    } else if (data.google.listing) {
       await expect(find).toHaveCount(0);
       await expect(setupListing).toBeVisible();
       await expect(setupListing).not.toContainText("Find it");

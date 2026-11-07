@@ -74,7 +74,7 @@ export interface LineProvider {
   /*
    * LOOK BEFORE CREATING AGAIN. Each create's receipt is written after the provider answers, so a run killed in that
    * window left the thing made and the row silent. The saga marks a create as asked before it asks, and a later run
-   * that finds the mark looks with these before asking again (lines-saga.ts `once`). Each is one read in the line's own
+   * that finds the mark looks with these before asking again (lines/saga.ts `once`). Each is one read in the line's own
    * subaccount (the subaccount's, as the master, by a name that carries the line), and a read that FAILS throws: "not
    * found" sends the saga on to create a second one.
    */

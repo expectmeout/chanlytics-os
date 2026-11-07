@@ -51,6 +51,7 @@ import {
   visitsWrittenIn,
   fixedWaitsIn,
   droppedDbErrorsIn,
+  quarantinesIn,
   SOURCE,
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
@@ -74,7 +75,7 @@ const SRC = repoFiles(["apps", "packages"]);
 /** Where a directory's size is measured: everything hand-written, the tests included. */
 const TREES = repoFiles(["apps", "packages", "tooling/scripts", "tests", "e2e"]);
 /** The shell and its bridge: the only code that may touch `window` at all. */
-const SHELL = SRC.filter((f) => f.startsWith("apps/dashboard/src/"));
+const SHELL = SRC.filter((f) => /^apps\/dashboard\/(src|mockup)\//.test(f));
 /** A route module exports what the framework names (GET, POST, default); those are not copies. */
 const notARoute = (f) => !/^apps\/dashboard\/app\/|^apps\/edge\/api\//.test(f);
 /** The doors: the edge's provider webhooks, sweeps and admin doors, and the dashboard's member routes. */
@@ -89,11 +90,11 @@ export const ROUTES = SRC.filter((f) => /^apps\/edge\/api\/|^apps\/dashboard\/ap
 export const DOOR_FORBIDS = [/^@chanlytics\/(db|channels)$/, /^@supabase\/supabase-js$/];
 /**
  * Where a length of time is measured: the shipped sources, less what cannot import the units' home — the shell's
- * classic scripts (legacy/) and the static files the browser loads as they are (public/) — and less the home itself.
+ * classic scripts (mockup/) and the static files the browser loads as they are (public/) — and less the home itself.
  */
 const TIMED = SRC.filter(
   (f) =>
-    !/^apps\/dashboard\/src\/legacy\/|^apps\/dashboard\/public\/|(^|\/)test\/|\.test\.|^packages\/[^/]+\/(?!src\/)/.test(
+    !/^apps\/dashboard\/mockup\/|^apps\/dashboard\/public\/|(^|\/)test\/|\.test\.|^packages\/[^/]+\/(?!src\/)/.test(
       f,
     ) && f !== "packages/contracts/src/shared/time.ts",
 );
@@ -108,7 +109,7 @@ const ZONED = SRC.filter((f) => !/(^|\/)test\/|\.test\.|^packages\/[^/]+\/(?!src
  * primitives. A class the kit's registry lists (kit/classes.json, which _css.mjs reads) is a primitive in every other
  * stylesheet, whatever its words.
  */
-export const TOKENS_CSS = "apps/dashboard/src/legacy/styles/tokens.css";
+export const TOKENS_CSS = "apps/dashboard/src/styles/tokens.css";
 const KIT_CSS = "apps/dashboard/src/surfaces/kit/kit.css";
 const STYLES = repoFiles(["apps/dashboard"], { keep: /\.css$/ }).filter((f) => f !== TOKENS_CSS);
 /**
@@ -130,11 +131,11 @@ export function breakpointSet() {
   return new Set(set);
 }
 /**
- * The shell's markup, which the kit will style: the legacy pages and components, and the surfaces that leave them
+ * The markup the kit styles: the surfaces, and the mockup's stand-ins
  * (§3.7). The app's own error screens and the bridge's host draw before the stylesheets or without them, so a prop is
  * all they have and they are not held.
  */
-const MARKUP = SRC.filter((f) => /^apps\/dashboard\/src\/(legacy|surfaces)\/.*\.(jsx|tsx)$/.test(f));
+const MARKUP = SRC.filter((f) => /^apps\/dashboard\/(mockup|src\/surfaces)\/.*\.(jsx|tsx)$/.test(f));
 
 /** The tables whose every row belongs to one workspace: each names `tenant_id` in its Row (the generated types). */
 export function tenantTablesOf() {
@@ -200,15 +201,13 @@ const perFile = (files, count, floor = 0) =>
   Object.fromEntries(files.map((f) => [f, count(parse(f))]).filter(([, n]) => n > floor));
 
 /**
- * The writes a module of the dashboard's browser code makes past the verb layer (legacy-bridge/verbs): each call
+ * The writes a module of the dashboard's browser code makes past the verb layer (bridge/verbs): each call
  * `api()("POST …")`, `PUT`, `PATCH` or `DELETE` with its route written in place. A write that goes through its verb's spec
  * makes the same call Ask's card makes for the same act, says the same receipt and offers the same undo (the sheets as
  * verbs, 14 Oct 2026); one made here makes its own.
  */
 const BROWSER_WRITERS = SHELL.filter(
-  (f) =>
-    /^apps\/dashboard\/src\/(surfaces|legacy-bridge)\//.test(f) &&
-    !f.startsWith("apps/dashboard/src/legacy-bridge/verbs/"),
+  (f) => /^apps\/dashboard\/src\/(surfaces|bridge)\//.test(f) && !f.startsWith("apps/dashboard/src/bridge/verbs/"),
 );
 function writesPastVerbs(sf) {
   let n = 0;
@@ -443,12 +442,12 @@ export const MEASURES = [
     advice: "Publish nothing new on window: import it, or add the name to a component that already publishes.",
   },
   {
-    // The app's own code (the frozen legacy tree is the mockup's, drawn only where the registry says demo).
+    // The app's own code, the mockup's stand-ins left out.
     name: "seeds read outside a demo",
     file: "seed-reads.json",
     measure: () =>
       perFile(
-        SHELL.filter((f) => /.tsx?$/.test(f) && !f.startsWith("apps/dashboard/src/legacy/")),
+        SHELL.filter((f) => /.tsx?$/.test(f) && !f.startsWith("apps/dashboard/mockup/")),
         seedReadsOutsideADemo,
       ),
     advice:
@@ -478,21 +477,11 @@ export const MEASURES = [
       "Resume a campaign or a reach-out through the ledger's question (ResumeAct, or ResumePress and ResumeQuestion with useResumeAsk), fed by contracts' act (rowResumeOf, chainResumeOf): it says when it runs next, to about how many, and whether it sends on its own (the wiring's second audit, S9-2).",
   },
   {
-    // Every file of the tree, one each: it may only lose them. The address step (decision 0015) closed the tree: a
-    // surface is written in TSX under src/surfaces, and one that leaves deletes its files.
-    name: "files in the legacy tree",
-    file: "legacy-files.json",
-    measure: () =>
-      Object.fromEntries(repoFiles(["apps/dashboard/src/legacy"], { keep: /./, drop: /^$/ }).map((f) => [f, 1])),
-    advice:
-      "A new page or component goes under apps/dashboard/src/surfaces, in TSX, and never in the legacy tree (decision 0015): the tree only shrinks.",
-  },
-  {
     name: "writes past the verb layer",
     file: "writes-past-verbs.json",
     measure: () => perFile(BROWSER_WRITERS, writesPastVerbs),
     advice:
-      "Commit it through its verb (legacy-bridge/verbs commitVerb, its spec in contracts PROPOSAL_SPECS): the call, the receipt and the undo a sheet and Ask's card share. A verb no spec has yet gets one, beside the family it belongs with (contracts ask-proposals/).",
+      "Commit it through its verb (bridge/verbs commitVerb, its spec in contracts PROPOSAL_SPECS): the call, the receipt and the undo a sheet and Ask's card share. A verb no spec has yet gets one, beside the family it belongs with (contracts ask-proposals/).",
   },
   {
     name: "copies",
@@ -601,7 +590,7 @@ export const MEASURES = [
       return out;
     },
     advice:
-      "Say it by the workspace's clock: contracts' clock.ts (clockTime, clockDate, clockNearWhen and the rest) with the workspace's zone, which a page reads from pageClock().zone() and a server from its tenant, or dateFormat(locale, { timeZone, … }). A day key, which is no instant, is formatted from its UTC noon with timeZone: \"UTC\" (calendar-words.ts).",
+      "Say it by the workspace's clock: contracts' clock.ts (clockTime, clockDate, clockNearWhen and the rest) with the workspace's zone, which a page reads from pageClock().zone() and a server from its tenant, or dateFormat(locale, { timeZone, … }). A day key, which is no instant, is formatted from its UTC noon with timeZone: \"UTC\" (calendar/words.ts).",
   },
   {
     name: "zones read outside zone-math",
@@ -648,7 +637,7 @@ export const MEASURES = [
       return out;
     },
     advice:
-      "Read a token: a type size, radius, shadow, colour or blur is declared once, in apps/dashboard/src/legacy/styles/tokens.css, and a stylesheet reads it with var(). If no token fits, add one there (the interface kit's rule 1, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md).",
+      "Read a token: a type size, radius, shadow, colour or blur is declared once, in apps/dashboard/src/styles/tokens.css, and a stylesheet reads it with var(). If no token fits, add one there (the interface kit's rule 1, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md).",
   },
   {
     name: "primitives outside the kit",
@@ -805,7 +794,7 @@ export const SOURCE_SCAN_EXEMPT = [
   "repo/env-manifest.test.mjs",
   "repo/event-kinds.test.mjs",
   "repo/hygiene.test.mjs",
-  "repo/legacy-harness.test.mjs",
+  "repo/mockup-harness.test.mjs",
   "repo/ops-hygiene.test.mjs",
   "routes/workspace-scoping.test.mjs",
 ];
@@ -1129,6 +1118,27 @@ export const COUNTED_WAITS = {
     'Wait for what the next lines read: `await until(() => <it>, "<what>")` from tests/shared/_until.mjs (a toast up, a write the fake wire saw, the page drawn as it is after the answer). A wait before asserting that nothing more happened is the one a count is for: argue it in the pull request.',
 };
 
+/* ---- Browser specs in quarantine ---- */
+
+/**
+ * Tests that are red, known and not worth today (quarantinesIn, _ast.mjs), by spec file. The nightly's whole suite is held
+ * green by these, so a new one is a decision a pull request says out loud, and they may only fall. Without the count a
+ * quarantine is the same always-red by another name: the nightly was red 32 nights in a row, and nobody read it.
+ */
+export const E2E_QUARANTINE = {
+  name: "browser specs in quarantine",
+  key: "e2e-quarantine",
+  measure: () =>
+    Object.fromEntries(
+      repoFiles(["e2e"])
+        .filter((f) => f.endsWith(".spec.ts"))
+        .map((f) => [f, quarantinesIn(parse(f))])
+        .filter(([, n]) => n > 0),
+    ),
+  advice:
+    "Fix the spec or the page it found. Where it is truly not worth today, say why in the pull request's `Debt:` line, in the one shape: `test.fixme(true, \"quarantine: <date> <why>\")` as the test body's first line.",
+};
+
 /* ---- Event kinds written only from TypeScript (repo/event-kinds.test.mjs reads the same map) ---- */
 
 /** An event kind as the product spells it: `<record>.<what happened>`. */
@@ -1256,6 +1266,7 @@ export const RATCHETS = [
   UNCHECKED_INDEX,
   TEST_LENGTH,
   COUNTED_WAITS,
+  E2E_QUARANTINE,
   TS_ONLY_EVENTS,
   APPOINTMENT_WORDS,
   SOURCE_SCAN,

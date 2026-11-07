@@ -19,7 +19,7 @@
  * forgot a column in a SELECT.
  */
 import type { SystemOneQuestion } from "../ai/system-one";
-import { yesCovers } from "./consent-channels";
+import { yesCovers } from "./channels";
 
 export interface ConsentBearing {
   consent?: string | null;
@@ -133,7 +133,7 @@ export type MessageAbout = "theirs" | "ours";
  * a broadcast's news and any moment's about "ours" are (a proactive conversational message about the business's news).
  * An email of the business's own choosing is a commercial message whatever its template's category says, so it owes what
  * an offer owes: the postal address and the one-click unsubscribe in its foot, the campaigns domain it leaves from, the
- * deployment's switch for that domain, and the pause the bounce and complaint gates may put on it (deliver-email.ts, the
+ * deployment's switch for that domain, and the pause the bounce and complaint gates may put on it (deliver/email.ts, the
  * composers' readiness in reach-for.ts channelRefuses). A visit, a proposal, a reply and a cold email are not: they keep
  * their own foot and the mailbox. THE one statement of it, so the door, the batch and the pages never disagree about
  * which email is which.
@@ -153,7 +153,7 @@ export function isOfferByEmail(m: {
 export interface PurposeBearing extends ConsentBearing {
   marketing_consent?: string | null;
   /**
-   * The channels each yes covers (consent-channels.ts, step 2 of One message, every channel). Null or absent: a yes
+   * The channels each yes covers (consent/channels.ts, step 2 of One message, every channel). Null or absent: a yes
    * recorded before the channels were, which covers WhatsApp alone, the reach it always had (yesCovers).
    */
   consent_channels?: readonly string[] | null;
@@ -218,7 +218,7 @@ export function mayMessageFor(
   // email. The wire's own rules (email only, a lead, a mailbox it connected, the unsubscribe) are the door's.
   if (purpose === "outreach")
     return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
-  // THE CHANNEL IS REQUIRED: a yes covers the channels it was given for (consent-channels.ts). A yes to offers covers
+  // THE CHANNEL IS REQUIRED: a yes covers the channels it was given for (consent/channels.ts). A yes to offers covers
   // the channels in marketing_channels; a yes to hear about a visit, the ones in consent_channels, which only a message
   // that starts a conversation asks about: a reply answers someone who wrote, on whatever channel they wrote on.
   if (opts.channel === "email") {

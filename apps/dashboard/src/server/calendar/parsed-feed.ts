@@ -1,5 +1,5 @@
 /**
- * The calendar's feed parsed once per fetch: the cache the board (calendar-week.ts), a profile (person-visits.ts), and
+ * The calendar's feed parsed once per fetch: the cache the board (calendar/week.ts), a profile (person-visits.ts), and
  * the People list and the report (people-visits.ts) read through, over the loader's own cache (ask/openings.ts).
  */
 import "server-only";

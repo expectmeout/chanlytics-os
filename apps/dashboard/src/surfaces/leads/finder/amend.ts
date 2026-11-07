@@ -3,8 +3,8 @@
  * one Ask turn, and approving the plan the card shows. Plain functions over the panel's setters, so the tests can run them.
  */
 import type { AskProposal, LeadSearchPlan, PageContext } from "@chanlytics/contracts";
-import type { SendEvent } from "@/legacy-bridge/ask";
-import { askCalls } from "../../legacy-verbs";
+import type { SendEvent } from "@/bridge/ask";
+import { askCalls } from "../../frame-verbs";
 import { addressRoute } from "../../people/shell-verbs";
 import { answerSearch, moreForSearch } from "../surface";
 import type { FinderProposal, FinderSet, LeadSearchCardPayload } from "./types";
@@ -13,7 +13,7 @@ import type { FinderProposal, FinderSet, LeadSearchCardPayload } from "./types";
 const payloadOf = (card: { payload?: unknown } | null | undefined): LeadSearchCardPayload =>
   card && card.payload && typeof card.payload === "object" ? card.payload : {};
 
-/** The Leads page as it stands, sent beside the answer (legacy-bridge/ask/context.ts); nothing where Ask cannot say it. */
+/** The Leads page as it stands, sent beside the answer (bridge/ask/context.ts); nothing where Ask cannot say it. */
 function leadsContext(): PageContext | null {
   const A = askCalls();
   try {
@@ -26,7 +26,7 @@ function leadsContext(): PageContext | null {
 }
 
 /**
- * The answer to a search's question, as one Ask turn on the Leads surface through Ask's own send (legacy-bridge/ask/api.ts).
+ * The answer to a search's question, as one Ask turn on the Leads surface through Ask's own send (bridge/ask/api.ts).
  * The SendEvent shapes are that file's: thread, trace, delta, final, error. The panel listens for the trace line while it
  * waits and for the `final` message: a lead_search proposal carrying `amends` is the plan card, taken as it comes (the
  * server already set its version and count, spec G1); one without `amends` would start a new search, so it is refused under
@@ -116,7 +116,7 @@ async function startPlan(proposal: FinderProposal | null, plan: LeadSearchPlan, 
 }
 
 /**
- * Find N leads. An Ask card goes through commitProposal (legacy-bridge ask/commit.ts), which posts the plan to POST
+ * Find N leads. An Ask card goes through commitProposal (bridge ask/commit.ts), which posts the plan to POST
  * lead-searches marked as Ask's, or, when the card carries `amends`, answers the search it amends: an answer that came
  * back from Ask commits as its card. An Include opened on the page (a strip's step on a round still waiting, no card) posts
  * the plan through answerSearch and the route versions it; any other plan the panel opened from a strip's next step, and

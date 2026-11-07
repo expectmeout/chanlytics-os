@@ -17,7 +17,7 @@ import {
   smallestPreset,
 } from "@chanlytics/contracts/ads-page";
 import type { AdDraft } from "@chanlytics/contracts/ads-page";
-import { mayAtLeast, onRolesChanged } from "../../../legacy-verbs";
+import { mayAtLeast, onRolesChanged } from "../../../frame-verbs";
 import type { FrameKind } from "../drawer/preview";
 
 export type Step = 1 | 2 | 3 | 4 | 5;

@@ -22,9 +22,9 @@
  */
 import { noteWhose, type SeenReading } from "@chanlytics/contracts";
 import { useEffect, useSyncExternalStore } from "react";
-import { api } from "@/legacy-bridge/api";
-import type { BellApi } from "@/legacy-bridge/notifications";
-import { resnapshotHere } from "@/legacy-bridge/surface-cache";
+import { api } from "@/bridge/api";
+import type { BellApi } from "@/bridge/notifications";
+import { resnapshotHere } from "@/bridge/surface-cache";
 import { carryMark, keepsCarried } from "./seen-carry";
 import { object } from "./shell-doors";
 

@@ -31,7 +31,7 @@ test("a change to what the fast checks read runs them; any other does not", () =
   for (const file of [
     "apps/dashboard/src/surfaces/kit/kit.css",
     "apps/dashboard/src/surfaces/kit/classes.json",
-    "apps/dashboard/src/legacy/styles/tokens.css",
+    "apps/dashboard/src/styles/tokens.css",
     "tooling/scripts/e2e-harness/kit-gallery.mjs",
     "tooling/scripts/e2e-harness/kit-shared.mjs",
     "e2e/kit/kit.spec.ts",
@@ -44,7 +44,7 @@ test("a change to what the fast checks read runs them; any other does not", () =
   // A component of the kit, a page's stylesheet, another spec, the harness's server, a document: the nightly's.
   const elsewhere = [
     "apps/dashboard/src/surfaces/kit/button/button.tsx",
-    "apps/dashboard/src/legacy/styles/record.css",
+    "apps/dashboard/src/styles/record.css",
     "e2e/people/people.spec.ts",
     "tooling/scripts/e2e-harness/server.mjs",
     ".github/workflows/nightly-kit.yml",

@@ -24,7 +24,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Segmented } from "../../kit/segmented/segmented";
 import { Sheet } from "../../kit/sheet/sheet";
-import { focusAsDrawn } from "../../legacy-verbs";
+import { focusAsDrawn } from "../../frame-verbs";
 import { gate } from "../shell";
 import { NewCall } from "./call";
 import { NewMessage } from "./message";

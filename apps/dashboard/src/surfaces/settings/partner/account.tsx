@@ -6,10 +6,10 @@ import { useEffect, useState, type SyntheticEvent } from "react";
 import type { Enrolment } from "@/auth/second-factor";
 import { Button } from "../../kit/button/button";
 import { RecordField, RecordSwitch } from "../../kit/record/field";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import type { PartnerApi } from "./surface";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /** The daily letter (0014): shown only when the server says where it stands, so an older database shows no switch. */
 export function PartnerLettersRow({

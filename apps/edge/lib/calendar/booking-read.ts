@@ -21,7 +21,7 @@ import { askJson, promptHashOf } from "../ai/model.js";
 import { env } from "../shared/env.js";
 import { notifyOnce } from "../ops/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
-import { addPeopleFromCalendar } from "./calendar-people.js";
+import { addPeopleFromCalendar } from "./people.js";
 
 type Db = SupabaseClient<Database>;
 type Bookings = NonNullable<JobContext["bookings"]>;

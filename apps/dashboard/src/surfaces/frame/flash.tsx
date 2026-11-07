@@ -27,7 +27,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import { Icon } from "../kit/icon/icon";
 import { touchSwipe } from "../kit/motion/swipe";
-import type { LegacyFlash } from "../legacy-verbs";
+import type { FrameFlash } from "../frame-verbs";
 
 /** A toast's shape, as contracts' toastShape says it from the flash it was asked for. */
 interface ToastShape {
@@ -38,7 +38,7 @@ interface ToastShape {
   stays: boolean;
 }
 
-type Toast = LegacyFlash & ToastShape & { id: number };
+type Toast = FrameFlash & ToastShape & { id: number };
 
 interface Timer {
   handle: number | null;
@@ -47,7 +47,7 @@ interface Timer {
 }
 
 type FlashWindow = Window & {
-  __chrome?: { toast?: (p: LegacyFlash) => ToastShape };
+  __chrome?: { toast?: (p: FrameFlash) => ToastShape };
   CHANLY?: { nav?: (route: string) => void };
 };
 const flashWindow = () => window as FlashWindow;
@@ -63,7 +63,7 @@ const TOAST_PHONE_QUERY = "(max-width: 900px)";
 /** The least a held clock keeps once let go. */
 const HELD_LEAST_MS = 1000;
 
-const toastShapeOf = (p: LegacyFlash): ToastShape => {
+const toastShapeOf = (p: FrameFlash): ToastShape => {
   const chrome = flashWindow().__chrome;
   return chrome && chrome.toast
     ? chrome.toast(p)
@@ -143,7 +143,7 @@ function toastOf(toast: Toast, acts: ToastActs): ReactNode {
 }
 
 /** The toast's node, for the page to draw, and the flash that raises one. `place`: a class of the caller's own on the stack. */
-export const usePPToast = (place?: string): [ReactNode, (flash: LegacyFlash) => void] => {
+export const usePPToast = (place?: string): [ReactNode, (flash: FrameFlash) => void] => {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const timers = useRef<Record<number, Timer>>({});
   const shown = useRef<Toast[]>([]);
@@ -211,7 +211,7 @@ export const usePPToast = (place?: string): [ReactNode, (flash: LegacyFlash) => 
   const byMouse = (fn: (id: number) => void, id: number) => (e: { pointerType?: string }) => {
     if (e && e.pointerType === "mouse") fn(id);
   };
-  const flash = (payload: LegacyFlash) => {
+  const flash = (payload: FrameFlash) => {
     const shape = toastShapeOf(payload);
     const id = ++seq;
     setToasts((ts) => {
@@ -262,7 +262,7 @@ interface Refusal {
  * words of the page's own, the refusal's title leads. Always the danger tone: nothing happened.
  *   flash(res.ok ? { msg: <>Stopped</> } : refusalToast(res, "Not stopped"))
  */
-export const refusalToast = (r: Refusal | null | undefined, what: string | null = null): LegacyFlash => {
+export const refusalToast = (r: Refusal | null | undefined, what: string | null = null): FrameFlash => {
   const lead = what || (r && r.title) || null;
   const why = (r && r.message) || "That didn't go through.";
   return {

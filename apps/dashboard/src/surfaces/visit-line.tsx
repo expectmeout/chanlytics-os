@@ -1,7 +1,7 @@
 /**
  * A visit, said where it is seen (decision 0047, D1-visit-mark): the parts every page that draws a visit line shares, so the
  * Calendar's panel, the person's History and Coming up, People's Visits cell, the Inbox's chip and Today say how a visit
- * stands in one way and ask the same two questions in one way. The line is contracts' (calendar-words.ts visitLineOf): its
+ * stands in one way and ask the same two questions in one way. The line is contracts' (calendar/words.ts visitLineOf): its
  * state, its match and the presses it may be asked with are worked out there, and these parts draw them, with the kit.
  *
  * What a press does is the Calendar's own door (POST calendar/visits/[id], an operator's: the gate says so to anyone else,
@@ -18,7 +18,7 @@ import {
   type VisitStateVM,
   type VisitWord,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { visitWordHere } from "./workspace-word";
 import { Button } from "./kit/button/button";
 import { Confirm } from "./kit/confirm/confirm";

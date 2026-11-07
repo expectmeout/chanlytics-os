@@ -6,10 +6,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, all, find, byTestId, textOf, classes } from "../_legacy-react.mjs";
+import { installStubReact, fresh, all, find, byTestId, textOf, classes } from "../_stub-react.mjs";
 
 const opened = [];
-installLegacyReact({ __DEMO_MODE: true, CHANLY: { nav: (to) => opened.push(to) } });
+installStubReact({ __DEMO_MODE: true, CHANLY: { nav: (to) => opened.push(to) } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const ads = await import("@chanlytics/contracts");

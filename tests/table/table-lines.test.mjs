@@ -5,10 +5,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, all, find, classes, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, classes, textOf } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 
-installLegacyReact();
+installStubReact();
 const { CellLines, cutWords } = await importSrc("apps/dashboard/src/surfaces/kit/table/lines.tsx");
 
 const h = (...a) => globalThis.React.createElement(...a);

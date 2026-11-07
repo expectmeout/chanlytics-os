@@ -14,7 +14,7 @@ it says so.
 
 There was no system map before this one. The closest things were the four-row
 table in `README.md`, the surface classification in
-`apps/dashboard/src/legacy-bridge/surface-registry.ts`, and eighteen plan
+`apps/dashboard/src/bridge/surface-registry.ts`, and eighteen plan
 documents. This file is the join of those three against what is actually built.
 
 ---
@@ -32,11 +32,11 @@ the receptionist never confirms a slot, and there is no appointments table for
 it to confirm one into. That is the product, and "100% in all layers" means
 _that_ product complete, safe and observable.
 
-**The mockup** is the ported HTML artifact in `apps/dashboard/src/legacy` —
+**The mockup** is the ported HTML artifact in `apps/dashboard/mockup` —
 28,061 lines of JSX across 69 files, 50 pages. It contains an entire second
 product: an agent fleet, an agent store, an agent studio, a task manager, a
 content tool, a sales pipeline. Those were drawn, never specified, and never
-promised to anyone. From `apps/dashboard/src/legacy/CLAUDE.md:3-7`:
+promised to anyone. From `apps/dashboard/mockup/CLAUDE.md:3-7`:
 
 > The mockup-only surfaces — Agents (fleet, store, studio, tasks), Content,
 > Pipeline and Leads, the shared report viewer — stay here and stay hidden from
@@ -44,8 +44,8 @@ promised to anyone. From `apps/dashboard/src/legacy/CLAUDE.md:3-7`:
 > product is at 100%**; none of those features is built before then.
 
 So the mockup's unbuilt half is not distance-to-100%. It is _after_ 100%, by an
-explicit decision recorded in three places (`legacy/CLAUDE.md`,
-`surface-registry.ts:36-41`, `legacy-bridge/manifest.ts:56-60`). This map counts
+explicit decision recorded in three places (`mockup/CLAUDE.md`,
+`surface-registry.ts:36-41`, `bridge/manifest.ts:56-60`). This map counts
 it separately and never folds it into the gap.
 
 ---
@@ -258,7 +258,7 @@ distribution is the problem:
 | `apps/dashboard/src/server`  | Good — 29 of 45 executed                                                                                                                                                                                                                                                                 |
 | `apps/edge/lib`              | Good — 31 of 52 executed                                                                                                                                                                                                                                                                 |
 | `packages/contracts`         | Good — invoked by 152 test files through its entry point                                                                                                                                                                                                                                 |
-| the legacy-bridge            | Weak — 12 of 39 executed; the two most-pinned modules in the whole repo (`surface-data.ts`, `LegacyApp.tsx`) are text-only, and this is the exact seam every "fabricated data" bug has lived in                                                                                          |
+| the bridge                   | Weak — 12 of 39 executed; the two most-pinned modules in the whole repo (`surface-data.ts`, `FrameApp.tsx`) are text-only, and this is the exact seam every "fabricated data" bug has lived in                                                                                           |
 | **`apps/edge/api` handlers** | **Was the worst layer; now among the best.** 41 handlers; **30 execute** (was 5). 8 are still pinned by text — `whatsapp.ts`, `inbound-sms.ts`, `jobs/tick.ts`, `retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`'s `POST`, and two retired doors. 3 are touched by nothing. |
 
 That last row _was_ the finding: on the morning of 13 September the path a real
@@ -431,7 +431,7 @@ counts rather than edit them by hand:
 ls supabase/migrations/*.sql | wc -l                     # migrations
 find apps/edge/api -name '*.ts' | wc -l                  # edge endpoints
 python3 -c "import json;d=json.load(open('tests/route-policy.json'));print(len(d['routes']),'routes,',d['undeclared'],'undeclared')"
-grep -c ': "real"' apps/dashboard/src/legacy-bridge/surface-registry.ts   # 22
+grep -c ': "real"' apps/dashboard/src/bridge/surface-registry.ts   # 22
 find tests -name '*.test.mjs' | wc -l    # test files
 corepack pnpm test                                        # the honest pass/skip split
 ```

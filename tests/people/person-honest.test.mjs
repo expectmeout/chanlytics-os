@@ -17,7 +17,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
-import { all, byTestId, find, installRoleStore, kitPages, press, textOf, useStubHooks } from "../_legacy-react.mjs";
+import { all, byTestId, find, installRoleStore, kitPages, press, textOf, useStubHooks } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import { importSrc } from "../_source.mjs";
 import * as contracts from "@chanlytics/contracts";
@@ -286,7 +286,7 @@ const quietly = async (fn) => {
   }
 };
 const { peopleOverride } = await quietly(() => import("../../apps/dashboard/src/surfaces/people/surface.ts"));
-const { installClock } = await import("../../apps/dashboard/src/legacy-bridge/zone.ts");
+const { installClock } = await import("../../apps/dashboard/src/bridge/zone.ts");
 installClock();
 
 /**
@@ -469,7 +469,7 @@ Object.assign(globalThis.window, {
 });
 // The bridge's own globals for a profile.
 const { installPeopleCourier } = await import("../../apps/dashboard/src/surfaces/people/people-detail.ts");
-const { staleReadCaches } = await import("../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+const { staleReadCaches } = await import("../../apps/dashboard/src/bridge/read-cache.ts");
 installPeopleCourier();
 // The kit's components and the hooks the TSX draws with: the stub's, on the react module the TSX imports them from.
 useStubHooks();
@@ -486,12 +486,12 @@ const { ListsSheet } = await import(`${P}/person/sheets/lists-sheet.tsx`);
 const { PersonDealCard } = await import(`${P}/deal/person-deal.tsx`);
 const { personDetail } = await import(`${P}/people-detail.ts`);
 const { setSurfaceValue, surfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
-const { clearReadCaches } = await import("../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+const { clearReadCaches } = await import("../../apps/dashboard/src/bridge/read-cache.ts");
 const { recFolds } = await import("../../apps/dashboard/src/surfaces/kit/record/registry.ts");
-const { setStatus } = await import("../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { setStatus } = await import("../../apps/dashboard/src/bridge/surface-status.ts");
 // The write that lands moves the surfaces the refresh map names, through a module the loader hands over off the main
 // thread: loaded before a test waits on a write, so it is not the wait.
-await import("../../apps/dashboard/src/legacy-bridge/refresh-map.ts");
+await import("../../apps/dashboard/src/bridge/refresh-map.ts");
 const { StatePill } = kitPages;
 // The person's More is the kit's Menu (surfaces/kit/menu): its trigger is the page's Button, its items in groups.
 const { Menu } = await import(`${P}/../kit/menu/menu.tsx`);
@@ -1577,7 +1577,7 @@ test("their own message is chosen from what they wrote: the way opens their rece
 });
 
 test("a person opened from a People view steps to the one before and after (‹ 2 of 3 ›), the address replaced so Back still leaves the list, at every width: never for one opened from anywhere else (0052)", async () => {
-  const { tabMemoryFor } = await importSrc("apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  const { tabMemoryFor } = await importSrc("apps/dashboard/src/bridge/tab-memory.ts");
   const { keepWalk, leaveWalk, takeStep } = await importSrc("apps/dashboard/src/surfaces/people/walk.ts");
   const keep = {
     memory: globalThis.window.__tabMemory,
@@ -2205,7 +2205,7 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
 });
 
 test("a new list may be described: the assistant drafts a rule, the box shows its chips, who it holds for and what it left out, and Save makes the smart list", async () => {
-  // The lists' verbs are the module's own (people-lists.ts), so the draft goes over the wire it would go over, and who the
+  // The lists' verbs are the module's own (lists/list-page.ts), so the draft goes over the wire it would go over, and who the
   // rule holds for is counted by the real rule over the people the page has read: three of these four were last here
   // more than sixty days ago, on a calendar that reads. Sixty-two, never sixty-one: the rule counts the business's calendar
   // days, and 61 × 24 hours back across a clock change is sixty of them (it failed on 2 Nov 2026, the day after one).

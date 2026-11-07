@@ -9,8 +9,8 @@ export {
   isAppointmentWord,
 } from "./appointment-word";
 export type { AppointmentPhrases, AppointmentWord, AppointmentWordVM } from "./appointment-word";
+export { journeyGuide } from "./guide";
+export type { GuideRow } from "./guide";
 export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey";
 export type { JourneyGlyph, JourneyStage, JourneyStageId } from "./journey";
-export { journeyGuide } from "./journey-guide";
-export type { GuideRow } from "./journey-guide";
-export type { PlanLead } from "./journey-plan";
+export type { PlanLead } from "./plan";

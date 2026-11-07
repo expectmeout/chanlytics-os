@@ -26,6 +26,7 @@ import {
   linesOf,
   fixedWaitsIn,
   droppedDbErrorsIn,
+  quarantinesIn,
 } from "../_ast.mjs";
 
 // The measure the limits above rest on, kept honest: if the compiler ever stops
@@ -259,7 +260,7 @@ test("the zone measure counts dates said with no zone and nothing else", () => {
   // trial's end on the bell and in Billing, the runtime's own DATE_FMT, and a campaign's last send take the zone.
   for (const f of [
     "packages/contracts/src/workspace/billing.ts",
-    "apps/edge/lib/billing/billing-notices.ts",
+    "apps/edge/lib/billing/notices.ts",
     "packages/contracts/src/shared/time.ts",
     "packages/contracts/src/reports/campaign-report.ts",
   ])
@@ -325,8 +326,8 @@ test("the test-length measure counts a file's lines as file-length does, over th
 // clock and a name that shadows a helper are none. A miss would let a new count of turns in unseen.
 test("the counted-waits measure counts waits of a fixed count of turns or time, and nothing else", () => {
   const lines = [
-    'import { settle } from "../_legacy-react.mjs";',
-    'import * as LR from "../_legacy-react.mjs";',
+    'import { settle } from "../_stub-react.mjs";',
+    'import * as LR from "../_stub-react.mjs";',
     'import { until } from "../shared/_until.mjs";',
     "const tick = () => new Promise((r) => setTimeout(r, 0));",
     "const turn = () => new Promise((go) => setImmediate(go));",
@@ -336,8 +337,8 @@ test("the counted-waits measure counts waits of a fixed count of turns or time, 
     "const looked = async (cond) => { for (const from = Date.now(); !cond() && Date.now() - from < 5000; ) await tick(); };",
     "const flush = async () => { for (let i = 0; i < 30; i += 1) await Promise.resolve(); };",
     "const open = async () => { draw(); await many(); return draw(); }; // yes",
-    'const L = await import("../_legacy-react.mjs");',
-    'const { settle: s } = await import("../_legacy-react.mjs");',
+    'const L = await import("../_stub-react.mjs");',
+    'const { settle: s } = await import("../_stub-react.mjs");',
     "await tick(); // yes",
     "await turn(); // yes",
     "await sleep(260); // yes",
@@ -372,6 +373,22 @@ test("the counted-waits measure counts waits of a fixed count of turns or time, 
     fixedWaitsIn(sf).map((w) => w.line),
     marked,
   );
+});
+
+test("e2e-quarantine counts a test.fixme that says quarantine, per file, and no other skip", () => {
+  const sf = ts.createSourceFile(
+    "a.spec.ts",
+    [
+      'test("one", () => { test.fixme(true, "quarantine: 2026-11-07 why"); });',
+      'test("two", () => { test.fixme(true, `quarantine: 2026-11-07 why`); });',
+      'test("skipped", () => { test.skip(true, "quarantine: 2026-11-07 a skip is no quarantine"); });',
+      'test("fixme", () => { test.fixme(true, "later"); });',
+    ].join("\n"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  assert.equal(quarantinesIn(sf), 2);
 });
 
 // The dropped-error measure on a module written for it. supabase-js answers a failed statement with `{ error }` and never

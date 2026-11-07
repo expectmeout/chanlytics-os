@@ -6,7 +6,7 @@
  */
 import { acceptHandover, declineHandover } from "@chanlytics/db";
 import { requireUuid } from "@/server/shared/request-guards";
-import { workspaceBegun } from "@/server/workspace/workspace-create";
+import { workspaceBegun } from "@/server/workspace/create";
 import { handoverRefusal } from "@/server/workspace/handover";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Params } from "@/server/shared/route";
@@ -16,7 +16,7 @@ export async function acceptHandoverOf(
 ): Promise<{ workspace: { id: string; slug: string; name: string } }> {
   const r = await acceptHandover(ctx.supabase, requireUuid(ctx.params.id, "workspace"));
   if (!r.ok) throw handoverRefusal(r);
-  // The owner hears from their own workspace, as its creator does from one they make (workspace-create.ts): their
+  // The owner hears from their own workspace, as its creator does from one they make (workspace/create.ts): their
   // address, the session's, which handover_accept has just matched to the one the workspace was handed to, goes on its
   // alert list. Beside any address the partner chose while setting it up, never in its place: the partner's may be
   // their own, and the business is the one a customer needs. Best effort: the workspace is theirs whether or not this

@@ -14,7 +14,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -69,7 +69,7 @@ const conv = (messages, over = {}) => ({
 /* -------------------------------- a browser -------------------------------- */
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/marisas",
     hash: "",

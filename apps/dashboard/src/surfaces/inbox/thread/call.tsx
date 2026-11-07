@@ -31,7 +31,7 @@ export const tlCallFor = (messageId: string | null | undefined): ConversationLin
   return rows.find((c) => c.callId && c.messageId === messageId) || null;
 };
 
-// A note as the call wrote it (voice-retell.ts callSummaryLine): "Inbound call · 3 min — what they wanted (outcome)".
+// A note as the call wrote it (voice/retell.ts callSummaryLine): "Inbound call · 3 min — what they wanted (outcome)".
 // A short call's note can say its seconds instead ("Inbound call · 23 s — …"): three of the salon's 34 do.
 const tlNoteOf = (body: string | null | undefined) => {
   const text = String(body || "").trim();

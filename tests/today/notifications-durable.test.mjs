@@ -104,7 +104,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   );
   // This person's marks ride on each row -- their read and their dismissal, never another person's -- RUN through the
   // route in reads-routes.test.mjs ("reading notifications") and through its reader in readers.test.mjs.
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/notifications.ts");
+  const sd = readCode("apps/dashboard/src/bridge/surfaces/notifications.ts");
   assert.ok(
     sd.includes('key: "notifications",') &&
       sd.includes('declareReads("notifications", { reads: ["notification"], fresh: "live" })'),
@@ -112,7 +112,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   );
   assert.ok(
     /calendarOverride,\s*notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride\b/.test(
-      readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx"),
+      readCode("apps/dashboard/src/bridge/FrameApp.tsx"),
     ),
   );
   assert.deepEqual(
@@ -120,7 +120,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     ["INSERT", "UPDATE"],
     "the live feed is told of a note kept, and of one closed when what it asked for ended (00421)",
   );
-  const bell = readCode("apps/dashboard/src/legacy-bridge/notifications.ts");
+  const bell = readCode("apps/dashboard/src/bridge/notifications.ts");
   assert.ok(
     /bellFeed\(\{\s*derived: feedFromGlobals\(win, Date\.now\(\)\),\s*device: deviceState\(\),\s*kept: win\.__NOTIFICATIONS\?\.dto,\s*waits: whatWaits\(\),?\s*\}\)\.sort\(\(a, b\) => b\.at - a\.at\)/.test(
       bell,

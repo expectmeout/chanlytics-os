@@ -13,14 +13,14 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode, readRaw, importSrc } from "../../_source.mjs";
-import { installLegacyReact, fresh, again, byTestId, find, press, textOf, peoplePages } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, byTestId, find, press, textOf, peoplePages } from "../../_stub-react.mjs";
 import { personDto, personRow, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 // People's page parts, drawn on the shared stub React over the real TSX (surfaces/people/), as people-table.test.mjs draws
-// the table: the hooks go on the react module first (installLegacyReact does it), then the parts are imported.
-installLegacyReact();
+// the table: the hooks go on the react module first (installStubReact does it), then the parts are imported.
+installStubReact();
 const { peopleSurfaceOf } = await importSrc("apps/dashboard/src/surfaces/people/surface-map.ts");
 const { NewListRow } = await importSrc("apps/dashboard/src/surfaces/people/rail/new-list.tsx");
 const { ListTitle, DeleteListButton } = await importSrc("apps/dashboard/src/surfaces/people/lists/list-title.tsx");
@@ -130,11 +130,11 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
   );
   const v = readCode("apps/dashboard/src/surfaces/people/people-lists.ts");
   for (const verb of ["create:", "rename:", "remove:", "add:", "drop:"]) assert.ok(v.includes(verb), verb);
-  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   for (const k of ["POST segments", "PUT segments/[id]", "DELETE segments/[id]"])
     assert.deepEqual(
       AFTER[k]().map((o) => o.key),
-      // The stand-in window is at Reports (installLegacyReact), which draws neither composer: each is left for its pages (S10-6).
+      // The stand-in window is at Reports (installStubReact), which draws neither composer: each is left for its pages (S10-6).
       ["people"],
       `${k}: the chips are the server's, and a list is an audience and a playbook's moment too, where they are drawn`,
     );
@@ -197,8 +197,8 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   // The profile's section is the person page's rail (surfaces/people/person/person-real.tsx), and what it draws is the
   // person's lists (lists.tsx), run here on the stub React the page tests share, over the People the seam holds.
   assert.ok(readCode("apps/dashboard/src/surfaces/people/person/lists.tsx").includes('data-testid="person-lists"'));
-  const LR = await import("../../_legacy-react.mjs");
-  LR.installLegacyReact({ __DEMO_MODE: false });
+  const LR = await import("../../_stub-react.mjs");
+  LR.installStubReact({ __DEMO_MODE: false });
   const went = [];
   globalThis.CHANLY = { nav: (to) => went.push(to) };
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
@@ -235,17 +235,17 @@ test("the page: the rail's Saved section is real, a name typed there is the only
     "the empty section opens the lists sheet, where a list is made with them on it; 'the People rail' is not a place a phone has",
   );
   setSurfaceValue("people", undefined);
-  assert.ok(readRaw("apps/dashboard/src/legacy/styles/clients.css").includes(".cl-rail-newlist input {"));
+  assert.ok(readRaw("apps/dashboard/src/styles/clients.css").includes(".cl-rail-newlist input {"));
 });
 
 test("Lists is a view of People: a kept list is the page's title with its rename, its delete and its one door; the old route lands there; the seeded page keeps the demo", async () => {
   const reg = await import(
-    pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href
+    pathToFileURL(path.join(here, "../../../apps/dashboard/src/bridge/surface-registry.ts")).href
   );
   assert.equal(reg.SURFACE_STATES.segments, "real", "the route is real: it lands on People");
   assert.equal(reg.ROUTE_SURFACE.segments, "people", "the same facts as People, never a second fetch");
   assert.ok(
-    !readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes("segments-real"),
+    !readCode("apps/dashboard/src/bridge/manifest.ts").includes("segments-real"),
     "REGRESSION: a second page of the same people",
   );
   // The phone's way to the lists is the bar's list button now, pressed in people-honest ("on a phone the lists are

@@ -46,8 +46,8 @@ Object.assign(globalThis, {
 const { MESSAGE_STATUSES } = await importSrc("packages/contracts/src/shared/enums.ts");
 const { PERSON_TAB_WORDS, personTabRoute } = await importSrc("packages/contracts/src/people/person-page/route.ts");
 const { watchedEvents } = await importSrc("packages/db/src/realtime.ts");
-const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const registry = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 const { opensRoute } = await importSrc("apps/dashboard/src/surfaces/addresses.ts");
 const { PAGE_HEARS, ROUTE_SURFACE, ROUTE_DRAWS, ROUTES_MOVED, PERSON_ROUTE, routeFamilyOf, routeSurfaceFor } = registry;
 

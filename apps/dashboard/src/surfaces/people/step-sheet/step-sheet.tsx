@@ -34,8 +34,8 @@ import {
   stepSheetMerge,
 } from "@chanlytics/contracts";
 import type { PersonVM, StepDraft, StepSheetVM } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
-import { gate } from "../../legacy-verbs";
+import { pageClock } from "@/bridge/zone";
+import { gate } from "../../frame-verbs";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";

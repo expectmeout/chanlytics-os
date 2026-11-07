@@ -10,13 +10,13 @@
  * re-read every eight seconds while a call is live as insurance against a
  * channel that drops silently.
  *
- * Proved by drawing the page on the legacy stub React (_legacy-react.mjs) over its view model, with the clock's
+ * Proved by drawing the page on the legacy stub React (_stub-react.mjs) over its view model, with the clock's
  * intervals held by this test, and the re-read run through the bridge's own runner over a fetch this test holds.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_stub-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -62,7 +62,7 @@ const channels = [
 
 // The page's clock is a window interval, only while a call is up: held here, so a test fires it and reads whether it is still running.
 const intervals = [];
-installLegacyReact({
+installStubReact({
   __DEMO_MODE: false,
   __WORKSPACES: [{ id: "w1", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "w1",
@@ -81,7 +81,7 @@ const S = "../../../apps/dashboard/src";
 globalThis.usePPToast = () => [null, () => {}];
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
+const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
 
 const live = (calls) => toLiveVM(calls, channels, ZONE, new Date(NOW));
 const withLive = (calls) => {

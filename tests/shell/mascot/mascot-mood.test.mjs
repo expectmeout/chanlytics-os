@@ -6,8 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createMood, follow } from "../../../apps/dashboard/src/legacy-bridge/mascot/mood.ts";
-import { MASCOT } from "../../../apps/dashboard/src/legacy-bridge/mascot/index.ts";
+import { createMood, follow } from "../../../apps/dashboard/src/bridge/mascot/mood.ts";
+import { MASCOT } from "../../../apps/dashboard/src/bridge/mascot/index.ts";
 
 /** A face that writes down what it was told. */
 const face = () => {

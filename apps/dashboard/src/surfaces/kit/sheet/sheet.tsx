@@ -32,7 +32,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 import type { ReactElement, ReactNode, Ref, RefObject } from "react";
 import { useCallback, useRef } from "react";
-import { onAPhone, touchSwipe } from "../../legacy-verbs";
+import { onAPhone, touchSwipe } from "../../frame-verbs";
 import { useHeightGlide } from "../motion/use-height-glide";
 import { cx } from "../variants";
 import { useBackCloses } from "./back";

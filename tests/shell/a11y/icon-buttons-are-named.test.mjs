@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import ts from "typescript";
 import { parse, repoFiles } from "../../_ast.mjs";
 
-const TREES = ["apps/dashboard/src/legacy", "apps/dashboard/src/legacy-bridge", "apps/dashboard/src/surfaces"];
+const TREES = ["apps/dashboard/mockup", "apps/dashboard/src/bridge", "apps/dashboard/src/surfaces"];
 const files = repoFiles(TREES, { keep: /\.(jsx|tsx)$/ });
 
 const hasAttr = (open, name) =>

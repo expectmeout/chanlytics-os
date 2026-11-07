@@ -162,12 +162,12 @@ export async function apply() {
 }
 `,
 
-  "apps/dashboard/src/legacy-bridge/surface-data.ts": `export const workspaceOverride = { key: "workspace" };
+  "apps/dashboard/src/bridge/surface-data.ts": `export const workspaceOverride = { key: "workspace" };
 `,
 
-  // The shell's surfaces, as LegacyApp.tsx lists them: names and comments, and the imports they come from (one over lines,
+  // The shell's surfaces, as FrameApp.tsx lists them: names and comments, and the imports they come from (one over lines,
   // one beside a type, a module with no file, and a side effect with no names at all).
-  "apps/dashboard/src/legacy-bridge/LegacyApp.tsx": `import "./manifest";
+  "apps/dashboard/src/bridge/FrameApp.tsx": `import "./manifest";
 import {
   workspaceOverride,
   switchWorkspace,

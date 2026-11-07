@@ -15,7 +15,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, standingOf, stateOf, memberWords } from "@chanlytics/contracts";
-import { installLegacyReact, fresh } from "../../_legacy-react.mjs";
+import { installStubReact, fresh } from "../../_stub-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -268,7 +268,7 @@ test("an email's hold says its line, and what the email claimed to be in the rea
 /* ------------------------------ the pane, drawn ------------------------------ */
 
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
-installLegacyReact({
+installStubReact({
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },

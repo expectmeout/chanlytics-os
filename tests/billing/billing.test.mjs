@@ -425,7 +425,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.match(lib, /s\.subscriptions\.resume\(row\.stripe_subscription_id, \{\s*billing_cycle_anchor: "now"/);
   assert.ok(lib.includes('if (error.code === "23505") return false;'), "a second delivery hits the primary key");
   assert.ok(
-    // Rung once through billing-notices.ts ringOnce (S6-12), whose bell, of kind billing, the webhook and door tests read.
+    // Rung once through billing/notices.ts ringOnce (S6-12), whose bell, of kind billing, the webhook and door tests read.
     lib.includes("planBilling(") && lib.includes("await ringOnce("),
     "the plan decides, the edge writes and rings",
   );
@@ -497,7 +497,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
       bridge.includes('declareReads("billing", { reads: ["billing"], fresh: "live" })') &&
       bridge.includes("window.location.assign(r.data.url)"),
   );
-  const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
+  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(/googleOverride,\s*billingOverride\b/.test(app) && app.includes("installBilling();"));
   for (const t of [
     "billing-real",

@@ -81,6 +81,29 @@ export type { FirstRunStepKey } from "./first-run-route";
 export { FIRST_RUN_TRY_WORDS, firstRunTryOf, TRY_QUIET_AFTER_MS } from "./first-run-try";
 export type { FirstRunTryInput, FirstRunTryStage, FirstRunTryVM, TryTransferKey } from "./first-run-try";
 export {
+  CHANNELS_SEEN,
+  GOOGLE_CONNECT_LATER,
+  KEEP_ROW,
+  putOffEnds,
+  RECEPTIONIST_MET,
+  REHEARSE_SKIPPED,
+  REMIND_SKIPPED,
+  restEndsDay,
+  SETUP_LATER_REFUSED,
+  SETUP_REST_MS,
+  setupLaterOf,
+  setupPutOffNext,
+  setupRestsOf,
+  TRY_SKIPPED,
+  WORKSPACE_MARKS,
+} from "./put-off";
+export type { SetupPutOff, SetupPutOffChange, SetupPutOffWhy, SetupRests } from "./put-off";
+/** The fold over the rows' table lives with the table (setup/rows.ts); the name is the one the page has always read. */
+export { setupSteps } from "./rows";
+/** The kept number's row in Settings › How it answers, from Setup's own (setup/rows-phone.ts keepRow). */
+export { keptNumberRowOf } from "./rows-phone";
+export type { KeptNumberRowVM } from "./rows-phone";
+export {
   BROKEN_CONFIG_WORDS,
   callsNotByPhone,
   forwardedLineOf,
@@ -117,26 +140,3 @@ export type {
   SetupWorkspaceChoicesDto,
   WhatsappChoice,
 } from "./setup";
-export {
-  CHANNELS_SEEN,
-  GOOGLE_CONNECT_LATER,
-  KEEP_ROW,
-  putOffEnds,
-  RECEPTIONIST_MET,
-  REHEARSE_SKIPPED,
-  REMIND_SKIPPED,
-  restEndsDay,
-  SETUP_LATER_REFUSED,
-  SETUP_REST_MS,
-  setupLaterOf,
-  setupPutOffNext,
-  setupRestsOf,
-  TRY_SKIPPED,
-  WORKSPACE_MARKS,
-} from "./setup-put-off";
-export type { SetupPutOff, SetupPutOffChange, SetupPutOffWhy, SetupRests } from "./setup-put-off";
-/** The fold over the rows' table lives with the table (setup-rows.ts); the name is the one the page has always read. */
-export { setupSteps } from "./setup-rows";
-/** The kept number's row in Settings › How it answers, from Setup's own (setup-rows-phone.ts keepRow). */
-export { keptNumberRowOf } from "./setup-rows-phone";
-export type { KeptNumberRowVM } from "./setup-rows-phone";

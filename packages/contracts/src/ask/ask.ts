@@ -6,29 +6,29 @@
  * jump index and suggestions, and the three questions answered without a
  * model. A citation -- its kinds, the rule that keeps it honest, where a row
  * opens -- is citations.ts's; the answer -- its shape and how it is read back
- * -- ask-answer.ts's, and the format the model writes it in answer-format.ts's.
+ * -- ask/answer.ts's, and the format the model writes it in answer-format.ts's.
  * The route that runs the model lives in the dashboard; the Line that shows
- * the answer lives in the legacy pages; both read from here.
+ * the answer lives in the shell's pages; both read from here.
  *
  * This module holds the limits, the message and its cards (and what became of each), where a question is asked
  * from: the row in view (AskScope, scopeFromRoute) and the pages Ask knows it is on (ASK_SURFACES), and the shapes of
  * what a read hands a plan of Ask's (MessageRead). The rest is beside it: the languages and the guess at a question's
- * (ask-language.ts), the rules an answer's text passes (answer-text.ts), the jump index (ask-jump.ts), the suggestions
- * (ask-suggestions.ts), the three questions answered without a model (ask-fast-paths.ts) and the settings a card may
- * change (ask-settings-change.ts).
+ * (ask/language.ts), the rules an answer's text passes (answer-text.ts), the jump index (ask/jump.ts), the suggestions
+ * (ask/suggestions.ts), the three questions answered without a model (ask/fast-paths.ts) and the settings a card may
+ * change (ask/settings-change.ts).
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import { DAY_MS, MIN_MS, WEEK_MS } from "../shared/time";
-import type { AskAnswer } from "./ask-answer";
+import type { AskAnswer } from "./answer";
 import type { AskCitation } from "./citations";
 import type { ProposalNeeds } from "./proposals/spec";
 import { parseLeadsRoute } from "../leads/lead-plan";
-import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
-import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm";
+import { parsePipelineRoute } from "../deals/pipeline/views";
+import { pipelinePersonOf } from "../deals/pipeline/vm";
 import { personRouteOf } from "../people/person-page/route";
 import { parseSequencesRoute } from "../campaigns/sequences/sequence-address";
-import type { AskLanguage } from "./ask-language";
-import type { ReachOutChainDto } from "../campaigns/reach-out/reach-out-dtos";
+import type { AskLanguage } from "./language";
+import type { ReachOutChainDto } from "../campaigns/reach-out/dtos";
 import type { TemplateStatus } from "../shared/enums";
 import type { VersionChannel } from "../campaigns/templates/message-versions";
 import type { TemplateCategoryChoice } from "../campaigns/templates/templates";
@@ -39,7 +39,7 @@ import type { TemplateCategoryChoice } from "../campaigns/templates/templates";
 export const ASK_MAX_CHARS = 1000;
 
 /**
- * The column the Line draws an answer in, as the tab measures it when a question is sent (legacy-bridge/ask/column.ts):
+ * The column the Line draws an answer in, as the tab measures it when a question is sent (bridge/ask/column.ts):
  * its width in CSS pixels, and whether a phone is looking. It rides with the question and is told to the model in the
  * turn's words, so the answer is shaped for the space it is read in (18 Oct 2026: a desk's docked panel draws answers
  * 408px wide, a phone 358px). None from an older tab or a script.

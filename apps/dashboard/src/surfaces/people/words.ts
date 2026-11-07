@@ -7,7 +7,7 @@
 import { appointmentWords, csvCell, PEOPLE_TABS, stateOf, type AppointmentWord } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import type { PeopleRead } from "./types";
 
 /**

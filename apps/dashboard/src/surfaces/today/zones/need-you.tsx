@@ -1,7 +1,7 @@
 /**
  * Need you (Today in three zones, 2 Nov 2026, over decisions 0071 and 0076): one list of everything that waits on you, in
  * groups, each row in the kit's one grammar (AttnRow) with what Ask prepared for it. Up next first, the one thing to do now
- * (contracts need-you-groups.ts); who else waits on you, five drawn, a reply that never reached them first; what waits for
+ * (contracts need-you/groups.ts); who else waits on you, five drawn, a reply that never reached them first; what waits for
  * your OK, three drawn (a search's question, and the runs an approval can still send, the very rows the Inbox's Needs you
  * draws, surfaces/waits/wait-rows.tsx; a run too late to approve is the sweep's to skip); your own to-dos, three drawn
  * and never counted (to-do.tsx); and whoever has waited past a week, one row at the end with Mark all done, never

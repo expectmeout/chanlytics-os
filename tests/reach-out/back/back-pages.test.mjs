@@ -11,17 +11,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { toCampaignLensVM } from "@chanlytics/contracts/report-lens";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { CAMPAIGNS, dtoWith } from "../../reports/campaigns/_campaign-world.mjs";
 
 // The fixtures are dated around 28 Sep 2026 and the lines say "Tue" within a week and a date after it, so the clock
 // the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
 const NOW = Date.parse("2026-09-28T18:00:00.000Z");
 Date.now = () => NOW;
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
-const L = "../../../apps/dashboard/src/legacy";
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const SRC = "../../../apps/dashboard/src";
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 // Reports' Reach-outs section is TSX (decision 0015): the Campaigns lens's part of it, on the same stub.
 const { reachOutsSection } =
   await import("../../../apps/dashboard/src/surfaces/reports/lenses/campaigns-reach-outs.tsx");

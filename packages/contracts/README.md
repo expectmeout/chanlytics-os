@@ -21,4 +21,4 @@ Nothing of ours. Every other package and app imports it.
 ## Tests
 
 `tests/<domain>/`, by the same domain names. A view model's canonical example is
-`packages/contracts/src/calendar/calendar-vm.ts`.
+`packages/contracts/src/calendar/vm.ts`.

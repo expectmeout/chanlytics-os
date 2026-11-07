@@ -15,7 +15,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { ABILITY_CHANNEL_WORDS, abilityRows, cannotRows, POLICY_MODE_WORDS } from "@chanlytics/contracts";
-import { unmount, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
+import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
   POLICIES,
   SETUP,

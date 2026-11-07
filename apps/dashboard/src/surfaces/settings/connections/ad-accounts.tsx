@@ -30,7 +30,7 @@ import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
-import { gate, routeDoor, type LegacyFlash } from "../../legacy-verbs";
+import { gate, routeDoor, type FrameFlash } from "../../frame-verbs";
 import { disconnected, usingAccount, withChoices } from "./ad-accounts-mock";
 
 /** What a row is asked or told under it: Disconnect's question, its refusal, or the accounts to change to. */
@@ -290,7 +290,7 @@ function pauseRow(on: boolean, set: (on: boolean) => void) {
   );
 }
 
-export function AdAccounts({ flash }: { flash: (f: LegacyFlash) => void }) {
+export function AdAccounts({ flash }: { flash: (f: FrameFlash) => void }) {
   const { read, example } = useAdsStore();
   const [mine, setMine] = useState<Partial<Record<AdPlatform, AdAccountRead>>>({});
   const [ask, setAsk] = useState<Ask>(null);

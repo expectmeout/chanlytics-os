@@ -1,4 +1,32 @@
 /** Ask, the workspace assistant: its limits, the answer as the Line draws it, the model it runs on and a turn's shape. */
+export {
+  answerForCards,
+  answerFromV1,
+  answerWords,
+  ASK_ANSWER_CAPS,
+  callsAnswer,
+  clip,
+  failedAnswer,
+  needsAnswer,
+  normalizeAnswer,
+  oneDoor,
+  openingsAnswer,
+  proseAnswer,
+  storedAnswer,
+  v1FromAnswer,
+} from "./answer";
+export type {
+  AskAnswer,
+  AskAnswerRead,
+  AskBreakdown,
+  AskBreakdownPart,
+  AskFigure,
+  AskItem,
+  AskOpen,
+  AskOpeningsView,
+  AskSource,
+  AskSourceRef,
+} from "./answer";
 export { ASK_ANSWER_FORMAT, ASK_ANSWER_TEXT_FORMAT } from "./answer-format";
 export { answerSoFar, partialSay, stoppedAnswer } from "./answer-stream";
 export type { AskSayPreview, AskShowPreview } from "./answer-stream";
@@ -70,84 +98,7 @@ export type {
   MessageRead,
 } from "./ask";
 export type { AskScopeKind } from "./ask";
-export {
-  answerForCards,
-  answerFromV1,
-  answerWords,
-  ASK_ANSWER_CAPS,
-  callsAnswer,
-  clip,
-  failedAnswer,
-  needsAnswer,
-  normalizeAnswer,
-  oneDoor,
-  openingsAnswer,
-  proseAnswer,
-  storedAnswer,
-  v1FromAnswer,
-} from "./ask-answer";
-export type {
-  AskAnswer,
-  AskAnswerRead,
-  AskBreakdown,
-  AskBreakdownPart,
-  AskFigure,
-  AskItem,
-  AskOpen,
-  AskOpeningsView,
-  AskSource,
-  AskSourceRef,
-} from "./ask-answer";
-export { askCallOutcome, callJumpSub } from "./ask-calls";
-export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, isAskAdsView, itemFocus } from "./ask-context";
-export type { AskContextRowKind, PageContext, PageContextRow } from "./ask-context";
-export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./ask-fast-paths";
-export type { AskIntent, FastCall } from "./ask-fast-paths";
-export { ASK_PAGES, askJump, askPages } from "./ask-jump";
-export type { JumpEntry } from "./ask-jump";
-export {
-  ASK_LANGUAGES,
-  detectLanguage,
-  messageLanguageOf,
-  messageLanguagesNext,
-  messageLanguagesOf,
-} from "./ask-language";
-export type { AskLanguage } from "./ask-language";
-export {
-  ASK_DRAFT_EFFORT,
-  ASK_DRAFT_MAX_TOKENS,
-  ASK_EFFORT,
-  ASK_MODEL,
-  ASK_SPEED,
-  askModelProfile,
-  askRoundCap,
-} from "./ask-model";
-export type { AskModelProfile } from "./ask-model";
-export { AskProposalOutcomeSchema } from "./ask-schemas";
-export { AskSettingsChangeSchema, FixChangeSchema } from "./ask-schemas";
-export { PageContextSchema } from "./ask-schemas";
-export type { FixChange } from "./ask-schemas";
-export {
-  applySettingsChange,
-  ASK_ANSWERS_PANE,
-  ASK_ANSWERS_ROWS,
-  describeSettingsChange,
-  GUARDRAIL_RULE_WORDS,
-  GUARDRAIL_RULES,
-} from "./ask-settings-change";
-export type {
-  AskAnswersChange,
-  AskFixChange,
-  AskMessageKey,
-  AskSettingsChange,
-  GuardrailRule,
-} from "./ask-settings-change";
-export { cacheHitOf } from "./ask-shape";
-export type { AskTurnShape, AskTurnTokens } from "./ask-shape";
-export { buildAskSuggestions, MAKE_POST_ASK } from "./ask-suggestions";
-export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
-export { rightNowCounts, rightNowLine } from "./ask-waiting";
-export type { AskWaiting } from "./ask-waiting";
+export { askCallOutcome, callJumpSub } from "./calls";
 export {
   ASK_CITATION_KINDS,
   ASK_PAGE_ROUTES,
@@ -158,6 +109,24 @@ export {
   noteRows,
 } from "./citations";
 export type { AskCitation, AskCitationKind, AskReadSet, AskRowRef } from "./citations";
+export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, isAskAdsView, itemFocus } from "./context";
+export type { AskContextRowKind, PageContext, PageContextRow } from "./context";
+export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./fast-paths";
+export type { AskIntent, FastCall } from "./fast-paths";
+export { ASK_PAGES, askJump, askPages } from "./jump";
+export type { JumpEntry } from "./jump";
+export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf } from "./language";
+export type { AskLanguage } from "./language";
+export {
+  ASK_DRAFT_EFFORT,
+  ASK_DRAFT_MAX_TOKENS,
+  ASK_EFFORT,
+  ASK_MODEL,
+  ASK_SPEED,
+  askModelProfile,
+  askRoundCap,
+} from "./model";
+export type { AskModelProfile } from "./model";
 export { PLAN_WORDS, planOf } from "./plan";
 export type { PlanIntent, PlanStep, PlanWorld } from "./plan";
 export {
@@ -173,3 +142,28 @@ export {
   wordsLessHolds,
 } from "./plan-steps";
 export type { PlanMade } from "./plan-steps";
+export { AskProposalOutcomeSchema } from "./schemas";
+export { AskSettingsChangeSchema, FixChangeSchema } from "./schemas";
+export { PageContextSchema } from "./schemas";
+export type { FixChange } from "./schemas";
+export {
+  applySettingsChange,
+  ASK_ANSWERS_PANE,
+  ASK_ANSWERS_ROWS,
+  describeSettingsChange,
+  GUARDRAIL_RULE_WORDS,
+  GUARDRAIL_RULES,
+} from "./settings-change";
+export type {
+  AskAnswersChange,
+  AskFixChange,
+  AskMessageKey,
+  AskSettingsChange,
+  GuardrailRule,
+} from "./settings-change";
+export { cacheHitOf } from "./shape";
+export type { AskTurnShape, AskTurnTokens } from "./shape";
+export { buildAskSuggestions, MAKE_POST_ASK } from "./suggestions";
+export type { AskSuggestion, SuggestionInput } from "./suggestions";
+export { rightNowCounts, rightNowLine } from "./waiting";
+export type { AskWaiting } from "./waiting";

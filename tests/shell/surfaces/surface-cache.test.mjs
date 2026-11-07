@@ -111,8 +111,8 @@ const {
   flushSurfaceCache,
   cachedTenant: cachedTenantNow,
   dropExpiredSlots,
-} = await import("../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
-const { SURFACE_SHAPES } = await import("../../../apps/dashboard/src/legacy-bridge/surfaces/shapes.generated.ts");
+} = await import("../../../apps/dashboard/src/bridge/surface-cache.ts");
+const { SURFACE_SHAPES } = await import("../../../apps/dashboard/src/bridge/surfaces/shapes.generated.ts");
 /** The cache's slot as the next load reads it: after the page's hide, which writes what waits. */
 const stored = (at = CACHE) => (flushSurfaceCache(), globalThis.localStorage.getItem(at));
 
@@ -225,7 +225,7 @@ test("with no workspace active, a save writes nothing into the cache -- not even
 
 test("signing out clears what the pages kept in the tab -- a view's place, a half-written draft -- with the cache: nothing the tab kept outlives the session that kept it", async () => {
   // The pages' one store (tab-memory.ts): an owner's words in a box, and a plan they had not approved.
-  const { tabMemoryFor } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  const { tabMemoryFor } = await import("../../../apps/dashboard/src/bridge/tab-memory.ts");
   const tm = tabMemoryFor({ location: { pathname: "/w/salon" }, sessionStorage: globalThis.sessionStorage });
   tm.keepPlace("leads", "clients/leads", { q: "nail", top: 380 });
   tm.keepDraft("leads-find", { words: "dentists in Queens" });

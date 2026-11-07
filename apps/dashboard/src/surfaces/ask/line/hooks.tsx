@@ -2,7 +2,7 @@
 import { askedWords, takeAskedOfTheLine } from "../../frame-doors";
 import type { AskedSeed, Line } from "./types";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { MASCOT } from "@/legacy-bridge/mascot";
+import { MASCOT } from "@/bridge/mascot";
 import { trapFocus } from "../../kit/focus/trap";
 import {
   ahSlide,
@@ -98,7 +98,7 @@ export const useArMood = ({ M, talk, live, quick, speech, composing }: Line) => 
               ? "listening"
               : "idle";
   // Said as it changes, never the same word twice: at mount, and at a strict mode's second mount, the Line has nothing
-  // to say, and the three may be reading the page in for a face that mounted a moment before (legacy-bridge/arrival.ts);
+  // to say, and the three may be reading the page in for a face that mounted a moment before (bridge/arrival.ts);
   // a first word of "idle" ended that read on nothing.
   const moodSaid = useRef("idle");
   useEffect(() => {
@@ -151,12 +151,12 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
     return () => evs.forEach((e) => window.removeEventListener(e, bump));
   }, [open, A, openedAt, setScope, threadsReady, setThreads, setTick]);
 
-  // Open, and the page under the Line changing while it is open: the page is warmed (POST ask/warm; legacy-bridge/ask/api.ts),
+  // Open, and the page under the Line changing while it is open: the page is warmed (POST ask/warm; bridge/ask/api.ts),
   // so the server has read the rows on screen before the question comes. Never waited on; a page that cannot say what it
   // holds, or a warm that fails, costs nothing.
   useEffect(() => {
     if (!open || !A || !A.warm || !A.context) return;
-    // A tick later, so a page that has just come under the Line has said what it drew (legacy-bridge/ask/context.ts).
+    // A tick later, so a page that has just come under the Line has said what it drew (bridge/ask/context.ts).
     const id = setTimeout(() => {
       try {
         Promise.resolve(A.warm(A.context(arRoute()))).catch(() => {});
@@ -234,7 +234,7 @@ export const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech
   }, [open]);
 };
 
-// The draft and the conversation's id, kept in the tab (legacy-bridge/tab-memory.ts) so a reload keeps them too (S9):
+// The draft and the conversation's id, kept in the tab (bridge/tab-memory.ts) so a reload keeps them too (S9):
 // the words as typed, never on a timer (record-fold.jsx useUnsavedWork), forgotten when the field empties while open;
 // the Line is made closed, so being made forgets nothing. The id whenever a thread is opened or made, forgotten when
 // the conversation ends (Clear, or deleted), never by the Line being made, or when the kept one cannot be read, so a

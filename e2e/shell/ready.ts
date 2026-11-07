@@ -10,13 +10,26 @@ interface Drawn {
   part: string | null;
 }
 
+/**
+ * A read of the page that a navigation may cut off, as the address moving from its hash to its path does: that is a new
+ * document, so the read has nothing to say yet, and the poll asks again. It failed the check of production on 7 Nov 2026.
+ */
+export const orIfItMoved = <T>(read: Promise<T>, otherwise: T): Promise<T> =>
+  read.catch((e: unknown) => {
+    if (String(e).includes("Execution context was destroyed")) return otherwise;
+    throw e;
+  });
+
 /** The READY measures the page has said so far: the page's own (no part), with the time each took. */
 const readies = (page: Page): Promise<Drawn[]> =>
-  page.evaluate(() =>
-    (performance.getEntriesByType("measure") as PerformanceMeasure[]).flatMap((m) => {
-      const s = (m.detail as { speed?: { name?: string; page?: string; part?: string } } | null)?.speed;
-      return s?.name === "READY" ? [{ page: s.page ?? "", part: s.part ?? null, ms: Math.round(m.duration) }] : [];
-    }),
+  orIfItMoved(
+    page.evaluate(() =>
+      (performance.getEntriesByType("measure") as PerformanceMeasure[]).flatMap((m) => {
+        const s = (m.detail as { speed?: { name?: string; page?: string; part?: string } } | null)?.speed;
+        return s?.name === "READY" ? [{ page: s.page ?? "", part: s.part ?? null, ms: Math.round(m.duration) }] : [];
+      }),
+    ),
+    [],
   );
 
 /** How many times this page has said it was drawn, for a spec about to move to it. */

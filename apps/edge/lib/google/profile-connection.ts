@@ -25,9 +25,9 @@ import {
   type TokenGrant,
 } from "@chanlytics/channels";
 import type { EdgeRefusal } from "@chanlytics/contracts";
-import { profileClient } from "./google-config.js";
+import { profileClient } from "./config.js";
 import { http } from "./places.js";
-import { connectionOf, type ConnectionRow, type Db } from "./google-rows.js";
+import { connectionOf, type ConnectionRow, type Db } from "./rows.js";
 import { grantFrom, readCredentials, storeCredentials, tokenFor } from "./profile-credentials.js";
 import type { CheckResult } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";

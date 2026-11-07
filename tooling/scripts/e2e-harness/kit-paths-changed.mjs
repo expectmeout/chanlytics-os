@@ -27,7 +27,7 @@ import { pathToFileURL } from "node:url";
 export const KIT_PATHS = [
   "apps/dashboard/src/surfaces/kit/kit.css",
   "apps/dashboard/src/surfaces/kit/classes.json",
-  "apps/dashboard/src/legacy/styles/tokens.css",
+  "apps/dashboard/src/styles/tokens.css",
   "tooling/scripts/e2e-harness/kit-gallery.mjs",
   "tooling/scripts/e2e-harness/kit-shared.mjs",
   "e2e/kit/",

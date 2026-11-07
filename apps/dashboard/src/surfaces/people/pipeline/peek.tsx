@@ -18,7 +18,7 @@
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { PersonVM, PipelinePeekVM, PipelineRowVM, PipelineSheetVM } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Face } from "../../kit/face/face";
@@ -27,7 +27,7 @@ import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { recFolds } from "../../kit/record/registry";
 import { Sheet, SheetOpens, type SheetOpensTo } from "../../kit/sheet/sheet";
 import { useNewConversation } from "../../inbox/new-conversation/store";
-import { touchSwipe } from "../../legacy-verbs";
+import { touchSwipe } from "../../frame-verbs";
 import { CallSheet, usePersonCall, type CallCtx } from "../person/call";
 import { dealPersonOf } from "../person/ctx";
 import { PersonWalkNav } from "../person/hero";

@@ -5,7 +5,7 @@
  * entry in the history, so Back closes it and the page under it is as it was left; closed with the page, whose move leaves
  * the query behind. The one home of what the two do alike: each names its word and what its value holds.
  */
-import { hearPageMoves } from "../legacy-verbs";
+import { hearPageMoves } from "../frame-verbs";
 
 interface OverQuery {
   /** The word's value on the address, or null: none there, or no window (a prerender). */

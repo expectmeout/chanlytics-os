@@ -23,7 +23,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-const { askApi } = await import(at("apps/dashboard/src/legacy-bridge/ask/api.ts"));
+const { askApi } = await import(at("apps/dashboard/src/bridge/ask/api.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const T1 = "11111111-1111-4111-8111-111111111111";

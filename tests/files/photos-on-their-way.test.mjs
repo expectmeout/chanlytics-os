@@ -1,7 +1,8 @@
 /**
  * Photos on their way (apps/dashboard/src/surfaces/files/sending.ts and verbs.ts, decision 0099), bundled for node with
- * the dashboard's own React and run over a browser in memory. Three go at a time, a failed one stays with its picture and its
- * words until the person says, a twin leaves calmly, a dropped line is tried again, and the end is told once.
+ * the dashboard's own React and run over a browser in memory. Three go at a time, one that arrived stands where it is until the list
+ * has it, a failed one stays with its picture and its words until the person says, a twin leaves calmly, a dropped line is tried again,
+ * and the end is told once.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -16,6 +17,16 @@ import { until } from "../shared/_until.mjs";
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
 
 const heard = {};
+let reads = 0;
+let readAnswers = async () => true;
+const theReadLands = async () => {
+  if (!(await readAnswers())) return;
+  reads += 1;
+  S.setSurfaceValue("files", {
+    dto: { files: [], shelf: "all", next: null, tally: { total: 0, kept: 0, waiting: 0, looking: 0, shelves: {} } },
+    fetchedAt: reads,
+  });
+};
 const win = {
   location: { pathname: "/w/harbor/admin/files", search: "", hash: "", assign() {} },
   sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -23,7 +34,8 @@ const win = {
   addEventListener: (t, fn) => (heard[t] ||= []).push(fn),
   removeEventListener() {},
   dispatchEvent: () => true,
-  __refreshSurface: async () => {},
+  // The read a run's end asks for: as a real one does, it lands in the surface's value, unless a test says otherwise.
+  __refreshSurface: async () => theReadLands(),
   fetch: async () => {
     throw new Error("nothing answers");
   },
@@ -47,6 +59,9 @@ const out = await build({
     contents:
       'export * from "../../apps/dashboard/src/surfaces/files/sending.ts";\n' +
       'export { fileVerbs } from "../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
+      'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
+      'export { Photo, PhotosOnTheirWay } from "../../apps/dashboard/src/surfaces/files/photo.tsx";\n' +
+      'export { useRowOpens } from "../../apps/dashboard/src/surfaces/kit/motion/use-row-opens.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tests/files"),
@@ -90,8 +105,11 @@ const toasts = [];
 const flash = (f) => toasts.push(f);
 const realAdd = S.fileVerbs.add;
 
+const handedOver = () => waitFor(() => !stateNow().photos.some((p) => p.state === "arrived"));
+
 beforeEach(async () => {
   toasts.length = 0;
+  readAnswers = async () => true;
   S.fileVerbs.add = realAdd;
   for (const p of stateNow().photos) S.takeAway(p.key);
   S.clearSaid();
@@ -103,7 +121,7 @@ function heldAdds() {
   S.fileVerbs.add = (f) => new Promise((resolve) => held.push({ name: f.name, resolve }));
   return held;
 }
-const KEPT = { kept: true, twin: false };
+const KEPT = { kept: true, twin: false, id: "a-file" };
 
 test("three go at a time, the rest wait their turn, and the next starts as one comes free", async () => {
   const held = heldAdds();
@@ -119,11 +137,16 @@ test("three go at a time, the rest wait their turn, and the next starts as one c
   assert.equal(stateNow().photos[3].picture, null, "only what is going holds a picture");
   held[0].resolve(KEPT);
   await waitFor(() => held.length === 4);
-  assert.equal(stateNow().photos.length, 4);
+  assert.deepEqual(
+    stateNow().photos.map((p) => p.state),
+    ["arrived", "sending", "sending", "sending", "waiting"],
+    "what arrived stands where it is, and the next goes",
+  );
   for (const h of held.slice(1)) h.resolve(KEPT);
   await waitFor(() => held.length === 5);
   held[4].resolve(KEPT);
   await waitFor(() => toasts.length === 1);
+  await handedOver();
   assert.equal(stateNow().photos.length, 0);
   assert.equal(toasts[0].msg, "5 photos added.");
   assert.equal(toasts[0].tone, undefined);
@@ -136,6 +159,7 @@ test("a failed photo stays with its picture and its words, and Try again sends o
   held[0].resolve({ kept: false, message: "That photo is too small to use." });
   held[1].resolve(KEPT);
   await waitFor(() => toasts.length === 1);
+  await handedOver();
   const [failed] = stateNow().photos;
   assert.equal(stateNow().photos.length, 1);
   assert.equal(failed.state, "failed");
@@ -151,6 +175,7 @@ test("a failed photo stays with its picture and its words, and Try again sends o
   assert.equal(goneUrls.length, gone + 1, "its old picture let go");
   held[2].resolve(KEPT);
   await waitFor(() => toasts.length === 2);
+  await handedOver();
   assert.equal(stateNow().photos.length, 0);
 });
 
@@ -173,7 +198,118 @@ test("Try all sends every failed one, Remove takes one off the page, and each le
   );
   for (const h of held.slice(3)) h.resolve(KEPT);
   await waitFor(() => toasts.length === 2);
+  await handedOver();
   assert.equal(stateNow().photos.length, 0);
+});
+
+test("a batch stays whole to its end: nothing goes until the read that ends it has landed, where a first add once said it held nothing", async () => {
+  const held = heldAdds();
+  let answer;
+  readAnswers = () =>
+    new Promise((resolve) => {
+      answer = resolve;
+    });
+  S.addPhotos([photo("a.jpg"), photo("b.jpg")], flash);
+  await waitFor(() => held.length === 2);
+  held[0].resolve({ kept: true, twin: false, id: "file-a" });
+  held[1].resolve({ kept: true, twin: false, id: "file-b" });
+  await waitFor(() => toasts.length === 1);
+  await waitFor(() => answer);
+  assert.deepEqual(
+    stateNow().photos.map((p) => [p.state, p.id]),
+    [
+      ["arrived", "file-a"],
+      ["arrived", "file-b"],
+    ],
+    "the toast has said so and the list isn't in: each still stands, as the file it became",
+  );
+  assert.equal(stateNow().finished, 0);
+  answer(true);
+  await handedOver();
+  assert.equal(stateNow().photos.length, 0);
+});
+
+test("a read that failed leaves what arrived standing, since it is true, and is asked again", async (t) => {
+  quickly(t);
+  const held = heldAdds();
+  let asked = 0;
+  let onTheSecondAsk = null;
+  readAnswers = async () => {
+    asked += 1;
+    if (asked === 1) return false;
+    onTheSecondAsk = stateNow().photos[0]?.state;
+    return true;
+  };
+  S.addPhotos([photo("a.jpg")], flash);
+  await waitFor(() => held.length === 1);
+  held[0].resolve({ kept: true, twin: false, id: "file-a" });
+  await waitFor(() => asked === 2 && stateNow().photos.length === 0);
+  assert.equal(onTheSecondAsk, "arrived", "it stood through the read that failed");
+});
+
+test("a read that never lands stops asking, and what arrived goes with the next run's", async (t) => {
+  quickly(t);
+  const held = heldAdds();
+  let asked = 0;
+  readAnswers = async () => {
+    asked += 1;
+    return false;
+  };
+  S.addPhotos([photo("a.jpg")], flash);
+  await waitFor(() => held.length === 1);
+  held[0].resolve({ kept: true, twin: false, id: "file-a" });
+  await waitFor(() => asked === 3);
+  assert.equal(stateNow().photos.length, 1, "it goes on standing");
+  readAnswers = async () => true;
+  S.addPhotos([photo("b.jpg")], flash);
+  await waitFor(() => held.length === 2);
+  held[1].resolve({ kept: true, twin: false, id: "file-b" });
+  await handedOver();
+  assert.equal(stateNow().photos.length, 0);
+});
+
+test("one that arrived lets its full-size picture go as the server's comes in, once", async () => {
+  const held = heldAdds();
+  S.addPhotos([photo("a.jpg")], flash);
+  await waitFor(() => held.length === 1);
+  readAnswers = () => new Promise(() => {});
+  held[0].resolve({ kept: true, twin: false, id: "file-a" });
+  await waitFor(() => stateNow().photos[0]?.state === "arrived");
+  const [{ key, picture }] = stateNow().photos;
+  assert.ok(picture, "its own stands until then, so the tile never blinks");
+  const gone = goneUrls.length;
+  S.serverPictureIn(key);
+  assert.equal(stateNow().photos[0].picture, null);
+  assert.equal(goneUrls.at(-1), picture);
+  S.serverPictureIn(key);
+  assert.equal(goneUrls.length, gone + 1, "asked twice, let go once");
+  S.takeAway(key);
+});
+
+test("the list draws what was added here where it stood, and everything else in the server's order after it", async () => {
+  const held = heldAdds();
+  S.addPhotos([photo("a.jpg"), photo("b.jpg"), photo("c.jpg")], flash);
+  await waitFor(() => held.length === 3);
+  held[0].resolve({ kept: true, twin: false, id: "first" });
+  held[1].resolve({ kept: true, twin: false, id: "second" });
+  held[2].resolve({ kept: true, twin: false, id: "third" });
+  await waitFor(() => stateNow().photos.length === 0);
+  // Newest first, as the server answers: a batch sent in the order it was picked has its last on top.
+  const fromTheServer = ["third", "second", "older", "first", "oldest"].map((id) => ({ id }));
+  assert.deepEqual(
+    S.inLandedOrder(fromTheServer).map((f) => f.id),
+    ["first", "second", "third", "older", "oldest"],
+  );
+  held.length = 0;
+  S.addPhotos([photo("d.jpg")], flash);
+  await waitFor(() => held.length === 1);
+  held[0].resolve({ kept: true, twin: false, id: "later" });
+  await waitFor(() => stateNow().photos.length === 0);
+  assert.deepEqual(
+    S.inLandedOrder(fromTheServer.concat({ id: "later" })).map((f) => f.id),
+    ["later", "first", "second", "third", "older", "oldest"],
+    "a later batch comes in above an earlier one, as it was drawn",
+  );
 });
 
 test("a twin leaves calmly, said in the end, with no warning in it", async () => {
@@ -241,6 +377,7 @@ test("the screen is held awake while there is work, and a refusal stops nothing"
     assert.equal(asked[0], "screen");
     held[0].resolve(KEPT);
     await waitFor(() => toasts.length === 1);
+    await handedOver();
     assert.equal(lock.released, 1);
 
     globalThis.navigator.wakeLock = {
@@ -252,8 +389,114 @@ test("the screen is held awake while there is work, and a refusal stops nothing"
     await waitFor(() => held.length === 2);
     held[1].resolve(KEPT);
     await waitFor(() => toasts.length === 2);
+    await handedOver();
   } finally {
     delete globalThis.navigator.wakeLock;
+  }
+});
+
+/* --------------------------------------------------- how a tile draws it */
+
+const drawn = (photos) =>
+  S.renderToStaticMarkup(S.createElement(S.PhotosOnTheirWay, { photos, flash, onOpen: () => {} }));
+const onItsWay = (over) => ({
+  key: 1,
+  file: photo("IMG_4417.jpg"),
+  state: "waiting",
+  picture: null,
+  sent: null,
+  message: null,
+  id: null,
+  ...over,
+});
+
+test("a tile waiting says nothing beneath itself and no file's name, and a screen reader is told which, and how far", () => {
+  const waiting = drawn([onItsWay()]);
+  assert.ok(!/>[^<]*IMG_4417[^<]*</.test(waiting), "no name on the screen");
+  assert.ok(!waiting.includes("<img"), "and no picture until its turn");
+  assert.match(waiting, /aria-label="IMG_4417\.jpg: Waiting to send"/);
+  const going = drawn([onItsWay({ state: "sending", picture: "blob:1", sent: 0.42 })]);
+  assert.match(going, /aria-label="IMG_4417\.jpg: 42% sent"/);
+  assert.match(going, /data-testid="fl-sent"/);
+  assert.equal((going.match(/<img/g) ?? []).length, 1);
+});
+
+test("one that arrived is a photo to open, the server's picture over its own, and Ask is looking at it", () => {
+  const arrived = drawn([onItsWay({ state: "arrived", picture: "blob:1", sent: 1, id: "file-a" })]);
+  assert.match(arrived, /data-testid="fl-tile"/);
+  assert.match(arrived, /aria-label="IMG 4417"|aria-label="Img 4417"/);
+  assert.equal((arrived.match(/<img/g) ?? []).length, 2);
+  assert.match(arrived, /src="[^"]*file-a[^"]*w=480"/);
+  assert.match(arrived, /data-testid="fl-looking"/);
+  assert.doesNotMatch(arrived, /fl-arrived"[^>]*role="img"/, "the press names it now");
+  assert.match(
+    arrived,
+    /aria-hidden="true"[^>]*data-testid="fl-sent"|data-testid="fl-sent"[^>]*aria-hidden="true"/,
+    "and the bar fading out says nothing",
+  );
+});
+
+test("Ask's three stand on a photo only while the look is out", () => {
+  const file = (look_status) => ({ id: "a", name: "bench-tools", line: null, look_status });
+  const tile = (look_status) =>
+    S.renderToStaticMarkup(S.createElement(S.Photo, { file: file(look_status), onOpen() {} }));
+  assert.match(tile("waiting"), /data-testid="fl-looking"/);
+  for (const done of ["done", "failed", "refused"]) assert.doesNotMatch(tile(done), /fl-looking/);
+  assert.match(tile("done"), />Bench tools</);
+});
+
+test("a row that comes opens once, its card following it frame by frame, and stands at once for someone who asked for less motion", () => {
+  const refOf = (wanted) => {
+    let ref;
+    S.renderToStaticMarkup(
+      S.createElement(() => {
+        ref = S.useRowOpens(wanted);
+        return null;
+      }),
+    );
+    return ref;
+  };
+  const attributes = new Set();
+  const card = {
+    setAttribute: (name) => attributes.add(name),
+    removeAttribute: (name) => attributes.delete(name),
+  };
+  const runs = [];
+  const aRow = () => ({
+    offsetHeight: 36,
+    closest: () => card,
+    animate(frames, options) {
+      const run = { frames, options };
+      runs.push(run);
+      return run;
+    },
+  });
+  globalThis.matchMedia = () => ({ matches: false });
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => "cubic-bezier(0.22, 1, 0.36, 1)" });
+  try {
+    refOf(false)(aRow());
+    assert.equal(runs.length, 0, "a page that opened with its shelves draws them at once");
+
+    const open = refOf(true);
+    const row = aRow();
+    open(null);
+    open(row);
+    assert.ok(attributes.has("data-rising"), "the card follows the row, rather than gliding to its first frame");
+    assert.equal(runs[0].frames[0].height, "0px");
+    assert.equal(runs[0].frames[1].height, "36px");
+    assert.equal(runs[0].options.easing, "cubic-bezier(0.22, 1, 0.36, 1)");
+    open(row);
+    assert.equal(runs.length, 1, "handed over twice, it opens once: the second would measure it shut");
+    runs[0].onfinish();
+    assert.ok(!attributes.has("data-rising"));
+
+    globalThis.matchMedia = () => ({ matches: true });
+    open(aRow());
+    assert.equal(runs.length, 1);
+    assert.ok(!attributes.has("data-rising"));
+  } finally {
+    delete globalThis.matchMedia;
+    delete globalThis.getComputedStyle;
   }
 });
 

@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mountCharacter } from "../../../apps/dashboard/src/legacy-bridge/mascot/driver.ts";
+import { mountCharacter } from "../../../apps/dashboard/src/bridge/mascot/driver.ts";
 
 function fakeButton(rect = { left: 0, top: 0, width: 260, height: 30 }) {
   const on = new Map();
@@ -148,7 +148,7 @@ const spread = (tiles) => Math.hypot(tiles[2][0] - tiles[0][0], tiles[2][1] - ti
 const QUIET_FIDGETS_AT = [36.1, 52.1, 69, 84.9];
 
 test("the published mount tells who listens once per face that mounts, a face that cannot mount tells nobody, and a listener stopped hears no more", async () => {
-  const { MASCOT } = await import("../../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
+  const { MASCOT } = await import("../../../apps/dashboard/src/bridge/mascot/index.ts");
   const told = [];
   const off = MASCOT.onMount((m) => told.push(m.role));
   const F = fakeEnv();
@@ -364,7 +364,7 @@ test("a pointer near a resting face wakes it within a frame, a press too, and a 
 });
 
 test("a word from the page wakes a resting face within a frame: a state, a reaction, a pulse, a glow", () => {
-  // The ✦ lights as a page lands (legacy-bridge/arrival.ts), on the press this rest must not slow.
+  // The ✦ lights as a page lands (bridge/mascot/arrival.ts), on the press this rest must not slow.
   for (const say of [(m) => m.set("listening"), (m) => m.react("hop"), (m) => m.pulse(0.7), (m) => m.glow(true)]) {
     const { F, m } = restedIcon();
     say(m);

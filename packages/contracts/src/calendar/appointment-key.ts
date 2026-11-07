@@ -10,7 +10,7 @@
  * CalendarBlockVM.visit carries, never by the key (a feed's UID has colons and an `@` in it) or by the block's id.
  */
 import type { AppointmentWord } from "../journey/appointment-word";
-import type { CalendarView } from "./calendar-views";
+import type { CalendarView } from "./views";
 import { isDayKey } from "./day-keys";
 import type { FeedItem } from "./feed";
 

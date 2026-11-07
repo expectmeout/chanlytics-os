@@ -36,7 +36,7 @@ import { RecordDisclosure } from "../../kit/record/disclosure";
 import { leaveSheet } from "../../kit/sheet/back";
 import { Sheet } from "../../kit/sheet/sheet";
 import type { PickerGroup } from "../../kit/picker/picker";
-import { gate, navigate, openDealSheet } from "../../legacy-verbs";
+import { gate, navigate, openDealSheet } from "../../frame-verbs";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { visitWordHere } from "../../workspace-word";

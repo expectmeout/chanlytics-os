@@ -13,7 +13,7 @@ import {
   type FIRST_RUN_PHONE_WORDS,
   type FirstRunPhoneVM,
 } from "@chanlytics/contracts";
-import { canDo, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { setupVerbs, type LineChoice } from "../surface";
 import type { KeptPhoneChoice } from "./memory";
 
@@ -25,7 +25,7 @@ export interface PhoneActs {
   c: KeptPhoneChoice;
   setChoice: (c: KeptPhoneChoice | null) => void;
   W: PhoneWords;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
   busy: boolean;
   setBusy: (b: boolean) => void;

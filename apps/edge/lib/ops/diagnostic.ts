@@ -26,7 +26,7 @@ import {
 import { metaAppId } from "../whatsapp/meta-graph.js";
 import { DAY_MS } from "@chanlytics/contracts";
 import { voiceDoorKnocks } from "@chanlytics/db";
-import { signatureOnly } from "../voice/voice-door-auth.js";
+import { signatureOnly } from "../voice/door-auth.js";
 import { env } from "../shared/env.js";
 import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../shared/dashboard-origin.js";
 

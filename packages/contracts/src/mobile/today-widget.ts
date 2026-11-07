@@ -3,10 +3,10 @@
  * amended by Today in three zones, 2 Nov 2026). Apart from widget.ts, the shape and its parser, so the phone app's entry
  * does not compile Today's builders.
  */
-import { needYouGroupsOf } from "../need-you/need-you-groups";
-import type { TodayVM } from "../today/today-vm";
-import { standingWithRuns, todayHeadLine } from "../today/today-bands";
-import { isHoldRow } from "../today/today-queue";
+import { needYouGroupsOf } from "../need-you/groups";
+import type { TodayVM } from "../today/vm";
+import { standingWithRuns, todayHeadLine } from "../today/bands";
+import { isHoldRow } from "../today/queue";
 import { needsYouCount, type Waits } from "../waits/waits";
 import type { TodayWidgetSnapshot } from "./widget";
 

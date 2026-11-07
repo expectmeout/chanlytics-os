@@ -207,7 +207,7 @@ test("a copy kept here, under these sheets, at this width, is drawn over the out
   assert.ok("inert" in r.picture.attrs, "nothing in it is pressed or reached");
   assert.equal(r.picture.attrs["aria-hidden"], "true");
   assert.equal(r.html.attrs[FIRST_ROWS_ATTR], "inbox");
-  assert.ok("class:legacy-on" in r.html.attrs, "the page's rules read what the frame stamps");
+  assert.ok("class:frame-on" in r.html.attrs, "the page's rules read what the frame stamps");
   assert.ok("data-page-top" in r.html.attrs);
   r.frames.forEach((f) => f());
   assert.equal(r.html.attrs[FIRST_ROWS_AT_ATTR], "412", "it says when it was painted");

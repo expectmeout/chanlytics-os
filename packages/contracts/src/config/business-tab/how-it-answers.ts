@@ -5,7 +5,7 @@
 import { INSTRUCTIONS_MAX } from "../workspace-config/config-rules";
 import { FALLBACK_DEFAULTS, isProductFallback } from "../workspace-config/fallbacks";
 import { notesInForce } from "../workspace-config/compose";
-import { closureDatesLabel } from "../../calendar/calendar-words";
+import { closureDatesLabel } from "../../calendar/words";
 import { CHIPS_SHOWN, chipsMoreWords, count } from "./counts";
 
 /* ---- How it answers ---- */

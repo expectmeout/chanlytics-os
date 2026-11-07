@@ -144,7 +144,7 @@ test("the fixture makes the role store, with the shell's own reading, so an owne
   // receptionist row's act). settings.jsx used to make the store in the mockup and the fixture completed it as it was
   // assigned; the mockup no longer draws Settings, so the fixture makes it as the app's seed-globals does
   // (identity.ts installRoleStore) and gives it the shell's reading (installRoles), or those items are never offered.
-  const { installRoles } = await import("../../apps/dashboard/src/legacy-bridge/identity.ts");
+  const { installRoles } = await import("../../apps/dashboard/src/bridge/identity.ts");
   for (const name of SCENARIOS.filter((n) => n !== "kit")) {
     const w = await publishedGlobals(name);
     assert.equal(typeof w.ST_STORE?.get, "function", `${name}: the fixture makes the store, as the app's boot does`);
@@ -176,7 +176,7 @@ test("the messages the fixture publishes are the scenario's own, the nightly has
   // (contracts bookingTemplate, and the openings row's ", then the link" clause).
   // A workspace's messages with no WhatsApp version (the email-only record's three rows, two messages) are approved the moment
   // they are written and are nobody's verdict but their author's: they are not what the bridge publishes as __TEMPLATES_ALL
-  // (legacy-bridge/surfaces/settings.ts keeps WhatsApp's rows alone), and Setup, which counts Meta's verdicts
+  // (bridge/surfaces/settings.ts keeps WhatsApp's rows alone), and Setup, which counts Meta's verdicts
   // (server/workspace/setup.ts templatesSection), counts none of them.
   for (const [name, approved] of [
     ["nightly", []],
@@ -306,7 +306,7 @@ test("the document runs the fixture before the mockup's stubs, which write only 
 });
 
 test("the document carries the app's own rules after the mockup's stylesheets, the touch floor among them", () => {
-  // The app imports legacy-bridge/legacy.css, which is the mockup's stylesheets in their order and then the app's own
+  // The app imports bridge/frame.css, which is the mockup's stylesheets in their order and then the app's own
   // rules: the 44px floor under a coarse pointer among them. The mockup's document never had those rules, so a spec on
   // a touch phone measured a Save 26px tall on the harness that the app draws at 44.
   const html = documentWithFixture();

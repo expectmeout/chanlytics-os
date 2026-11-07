@@ -1,5 +1,6 @@
 import "server-only";
 import { ASK_GUIDE_PAGES, ASK_ROW_WORDS, DATA_NOT_INSTRUCTIONS } from "@chanlytics/contracts";
+import { ASK_ADS_VIEW } from "@chanlytics/contracts";
 
 /**
  * What Ask is told to do, in labelled sections (prompt.ts says them in the cached block, before the examples, the
@@ -102,3 +103,27 @@ export const ANSWER_TOOL_RULES = [
   "Every answer is written by calling the answer tool once, with the whole answer in its format (say, show, do and language) as its input, never as text. Call it when you have read what you need: alone, or beside the cards you propose, never beside a read. A plan is proposed with no answer beside it: its answer is written after, from its result.",
   'Beside a card, say.headline is the one sentence of what you proposed ("I proposed …"), never that you set it up, added, changed or did it, and nothing after it: the card already says it waits for their press, so never add a sentence that it needs approving.',
 ] as const;
+
+/**
+ * The Ads line, in place of the Campaigns line on that page, in the turn's words as that line is. Until the Ads read is wired (0049)
+ * no tool makes or reads an ad. What is on screen is said by what the page says it shows, and never in general: told "whatever the page
+ * shows" and warned of examples while none was on screen, the model told an owner their own counts were an example (a real turn, 6 Nov).
+ */
+const ADS_LINE =
+  "They are on Campaigns › Ads, where a business will run paid ads on Facebook and Instagram, Google and TikTok from its own ad accounts. It is a preview: no account can be connected yet, no ad of theirs exists, nothing runs and nothing is spent, and no tool makes or changes an ad. Asked to make, run, pause, pay for or connect anything here, say so plainly and that connecting an account comes next, then offer what they can do today: a sequence to the people they have, or a post. Someone is counted as coming from an ad only when Meta names the ad in their first message on WhatsApp or Instagram, so an ad that rings a phone, or one elsewhere, is not counted.";
+
+/** What the Ads page shows now, by the word it said (ASK_ADS_VIEW). */
+const ADS_ON_SCREEN = {
+  [ASK_ADS_VIEW.today]:
+    "What the page shows now is theirs and true: that nothing is connected, and how new people first reached them. No example is on screen, so never call any of it one.",
+  [ASK_ADS_VIEW.example]:
+    "What the page shows now is an example they chose from its menu, and it is made up: never say one of its ads, numbers or people as theirs.",
+};
+
+/** An ad as a scope, which has no read until 0049: asked to read it first, the model had nothing to read and only its name to go on. */
+export const AD_SCOPE_LINE =
+  "It is an example on the page, made up, and no ad of theirs, and there is nothing to read about it: say so first, then answer about how ads would work here or what they can do today.";
+
+/** The Ads line with what the page shows now, by the word it said. These ride in a turn's words (prompt.ts turnWords), never in the rules. */
+export const adsLine = (view: string | null | undefined): string =>
+  `${ADS_LINE} ${view === ASK_ADS_VIEW.example ? ADS_ON_SCREEN[ASK_ADS_VIEW.example] : ADS_ON_SCREEN[ASK_ADS_VIEW.today]}`;

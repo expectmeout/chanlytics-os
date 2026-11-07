@@ -35,7 +35,7 @@ export const LINK_PAGE_HEADERS = {
   "referrer-policy": "no-referrer",
 };
 
-/** The product's paper and ink (legacy tokens.css), light and dark, so the page reads as the app's. */
+/** The product's paper and ink (tokens.css), light and dark, so the page reads as the app's. */
 const LINK_PAGE_STYLE = `
 :root{--bg:oklch(0.985 0.003 80);--raised:oklch(1 0 0);--line:oklch(0.92 0.005 80);--ink:oklch(0.18 0.01 260);
 --muted:oklch(0.42 0.01 260);--accent:oklch(0.52 0.19 25);--on-accent:#fff;color-scheme:light dark}

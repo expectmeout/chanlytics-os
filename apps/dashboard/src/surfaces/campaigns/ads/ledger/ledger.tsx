@@ -18,7 +18,7 @@ import { Panel } from "../../../kit/panel/panel";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { Tooltip } from "../../../kit/tooltip/tooltip";
 import { cx } from "../../../kit/variants";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { cmRowPress } from "../../parts/head";
 
 /** A ledger number: the value, and under it the short unit where the unit is not obvious. A dash says why on hover or focus. */

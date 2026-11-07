@@ -9,11 +9,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, press } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, press } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
 const TID = "t-studio";
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/studio/campaigns/new",
     hash: "",
@@ -28,7 +28,7 @@ installLegacyReact({
   __DEMO_MODE: false,
 });
 const SRC = "../../../apps/dashboard/src";
-const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
+const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 Object.assign(globalThis, {

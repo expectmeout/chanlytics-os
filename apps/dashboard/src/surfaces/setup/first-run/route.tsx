@@ -5,7 +5,7 @@
  * (`navigate`). The route word is the shell's own, `start`, which is the product's word too.
  */
 import { routeOfPath } from "@chanlytics/contracts";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import { addressReplace } from "../../people/shell-verbs";
 import { FirstRun } from "./page";
 

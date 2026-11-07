@@ -23,7 +23,7 @@ import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Sheet } from "../../kit/sheet/sheet";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 
 type Suggestion = LeadSuggestionsDto["items"][number];
 

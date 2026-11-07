@@ -297,14 +297,14 @@ async function adsAggregate(rc: ReaderContext, view: string | null | undefined):
     "Campaigns › Ads, a preview: no ad account is connected, no ad of theirs exists, nothing runs and nothing is spent",
     view === ASK_ADS_VIEW.example
       ? "on screen now is an example they chose from the page's menu: its ads, numbers and people are made up"
-      : "on screen now is their own",
+      : "on screen now is theirs and no example",
     await firstCameWords(rc),
   ]);
 }
 
 /**
  * Campaigns: the home's ledger (its campaigns and one-off sends), Sent's runs, the Library's messages or Ads, whichever the page is
- * (legacy-bridge/ask/context.ts), and its rows are that page's.
+ * (bridge/ask/context.ts), and its rows are that page's.
  */
 export const campaigns: Provider = async (rc, ctx) => {
   if (isAskAdsView(ctx.view)) return { rows: [], aggregate: await adsAggregate(rc, ctx.view) };

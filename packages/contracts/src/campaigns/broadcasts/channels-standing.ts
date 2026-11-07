@@ -5,7 +5,7 @@
  * Settings › Connections where the owner can mend it there. Every word is one the product already says of a channel
  * (VERSION_CHANNEL_WORDS, CONSENT_CHANNEL_WORDS, CHANNEL_WORDS): nothing here is a second spelling.
  */
-import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../../consent/channels";
 import { VERSION_CHANNEL_WORDS } from "../templates/message-versions";
 import { joinWords } from "../../shared/words";
 import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing";

@@ -7,8 +7,8 @@
 import { useRef, useState } from "react";
 import { CAMPAIGN_ROOMS, LIBRARY_WORDS, LIFECYCLE_WORDS, MESSAGES_ROUTE } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { canDo, gateTitle, routeDoor } from "../../legacy-verbs";
-import type { useLegacyToast } from "../../legacy-verbs";
+import { canDo, gateTitle, routeDoor } from "../../frame-verbs";
+import type { useFrameToast } from "../../frame-verbs";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { useSurface } from "../../use-surface";
@@ -25,7 +25,7 @@ const NONE_READ: readonly TemplateDto[] = [];
 export interface MessageInPlaceProps {
   name: string;
   /** The opener's toast host: what a change says outlives the pane. */
-  flash: ReturnType<typeof useLegacyToast>[1];
+  flash: ReturnType<typeof useFrameToast>[1];
   onClose: () => void;
 }
 

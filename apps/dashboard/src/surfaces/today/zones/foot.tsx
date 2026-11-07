@@ -3,7 +3,7 @@
  * member pinned (decision 0009), each its count and the page it opens. On a desk they are one strip under the zones; on a
  * phone the week stands in Today so far under the day's four figures, the pins under it, and the page says it is done.
  * The week is contracts' (todayPeriodLine over Reports' headline, one small read); the pins' counts are People's lists'
- * (people-lists.ts), read as Today's page loads.
+ * (lists/list-page.ts), read as Today's page loads.
  */
 import { LIST_GROUP_WORDS, TODAY_PHONE_WORDS as P, type PeopleListsLike } from "@chanlytics/contracts";
 import { codeOnce } from "@/lib/code-once";
@@ -12,7 +12,7 @@ import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { borrowed, useMoved } from "../shell";

@@ -151,7 +151,7 @@ export async function expectSinceOpens(page: Page): Promise<void> {
 
 /**
  * The Leads scope, as an owner sees it: the People | Leads switch with Leads
- * chosen, the one standing line, and the strongest fit at the top of the table.
+ * chosen, the one standing line, and who is first in the queue at the top of the table.
  * "Reached" means in the viewport here too -- a standing line below the fold
  * says nothing about whether the owner can see what the search found.
  */
@@ -161,11 +161,12 @@ export async function expectLeadsScope(page: Page, want: { standing: string; fir
   await expect(tabs).toBeVisible();
   await expect(tabs.getByRole("link", { name: "Leads" })).toHaveAttribute("aria-current", "page");
   // In Glass the standing line is the frame's head's sentence (the page's own line, leads-standing, is drawn on a
-  // phone alone): "3 leads · 2 ready · 1 search", each part read on its own. On a desk the head is kept for a reader
+  // phone alone): "3 leads · 2 not contacted · 2 searches", each part read on its own. On a desk the head is kept for a reader
   // and the frame's focus alone (components.css, the head's slot, 1 Oct 2026), so it is read, not looked for on screen.
   const standing = page.locator(".pg-head .pg-sentence");
   for (const part of want.standing.split("·")) await expect(standing).toContainText(part.trim());
-  await expect(page.locator(".cl-table tbody tr").first()).toContainText(want.first);
+  // A row, not its group's heading (Leads is a queue, #2137).
+  await expect(page.locator(".cl-table tbody tr:not(.dtable-group)").first()).toContainText(want.first);
 }
 
 /** The strip says how the round ended, in words, where the owner can read them. */

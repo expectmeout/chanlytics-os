@@ -7,11 +7,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, settle } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, settle } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
 
-installLegacyReact();
+installStubReact();
 const { fromView, toView, viewKey, extraOf } = await importSrc("apps/dashboard/src/surfaces/kit/table/view.ts");
 const { useTableState, narrowedBy, sortingFor, chosenSortOf } = await importSrc(
   "apps/dashboard/src/surfaces/kit/table/state.ts",

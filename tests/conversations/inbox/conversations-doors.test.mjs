@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM, toInboxThreadVM, toCallVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find as findNode, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, find as findNode, textOf } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
@@ -163,7 +163,7 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
 /* ------------------------------ the pages, drawn ------------------------------ */
 
 const went = [];
-installLegacyReact({
+installStubReact({
   __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },

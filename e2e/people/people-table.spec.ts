@@ -94,15 +94,22 @@ test.describe("The kit's table on a real workspace", () => {
     );
     expect(narrower.over, "nothing to scroll to").toBeLessThanOrEqual(1);
     await expect.poll(() => saved.some((s) => typeof s.view?.widths?.name === "number")).toBe(true);
-    // Far wider: Person, pinned at the left while the table scrolls, stops at 45% of the box (kit/table/widths.ts
-    // PIN_SHARE), so it never covers the columns that scroll under it, and the table past its box scrolls to them.
+    // Far wider: Person, pinned at the left, gives way as far as the table then fits (kit/table/widths.ts), so it never
+    // covers the columns beside it. Here the others leave it more than its share of the box, so that is all it stops at.
     await drag(400);
-    const wide = await room(page);
-    expect(
-      Math.abs((await widthOf(page, "name")) - Math.round(wide.box * 0.45)),
-      "Person stops at 45%",
-    ).toBeLessThanOrEqual(2);
-    expect(wide.over, "the table past its box scrolls sideways").toBeGreaterThan(0);
+    await expect
+      .poll(async () => (await room(page)).over, "the table fits, with nothing to scroll")
+      .toBeLessThanOrEqual(1);
+    // In a box too narrow for that, it stops at 45% of it (PIN_SHARE), and the table past its box scrolls to the rest.
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await expect
+      .poll(
+        async () => Math.abs((await widthOf(page, "name")) - Math.round((await room(page)).box * 0.45)),
+        "Person stops at 45%",
+      )
+      .toBeLessThanOrEqual(2);
+    expect((await room(page)).over, "the table past its box scrolls sideways").toBeGreaterThan(0);
+    await page.setViewportSize({ width: 1440, height: 900 });
     await resetLayout(page);
     await expect(table, "the way back").toHaveAttribute("data-sizing", "fill");
     const back = await room(page);

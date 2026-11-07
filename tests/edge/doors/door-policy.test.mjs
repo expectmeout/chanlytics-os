@@ -61,8 +61,8 @@ const CHANNELS = "@chanlytics/channels";
 const KNOCKS = {
   authorizeAdmin: { from: "apps/edge/lib/shared/admin-auth.ts" }, // a token minted for this door, or the platform's key where it allows
   authorizeCron: { from: "apps/edge/lib/shared/cron-auth.ts" }, // the sweep key held in Vault
-  voiceDoorAuth: { from: "apps/edge/lib/voice/voice-door-auth.ts" }, // Retell's signature, or the shared secret while it is read
-  retellSigned: { from: "apps/edge/lib/voice/voice-door-auth.ts" }, // the same module: Retell's signature alone
+  voiceDoorAuth: { from: "apps/edge/lib/voice/door-auth.ts" }, // Retell's signature, or the shared secret while it is read
+  retellSigned: { from: "apps/edge/lib/voice/door-auth.ts" }, // the same module: Retell's signature alone
   verifyTwilioSignature: { from: CHANNELS }, // Twilio's signature, with the token of the line's own account
   verifyGooglePushToken: { from: CHANNELS }, // the token Google signs on a Gmail push
   clientStateMatches: { from: CHANNELS }, // the secret a Graph subscription echoes on each notification

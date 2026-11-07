@@ -4,14 +4,14 @@
  *
  * Nothing in lint or the build runs a page; a page that throws at render is found by the first owner who opens it. So
  * the page is drawn here the way reports-page.test.mjs draws Reports: the real component tree over the legacy stub React
- * (_legacy-react.mjs), its view model handed over the seam (setSurfaceValue), and the call verbs run for real over a
+ * (_stub-react.mjs), its view model handed over the seam (setSurfaceValue), and the call verbs run for real over a
  * fetch this test holds, so what a click reaches is the request the route would take. What is proved is what a click
  * reaches, and what the transcript says about who spoke.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM, frameWhisper, frameHandOver } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf } from "../../_stub-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -64,7 +64,7 @@ const channels = [
 /* ---- the page itself, drawn without a browser ---- */
 const flashed = [];
 const sent = [];
-installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav: () => {} }, setInterval: () => 1, clearInterval() {} });
+installStubReact({ __DEMO_MODE: false, CHANLY: { nav: () => {} }, setInterval: () => 1, clearInterval() {} });
 const S = "../../../apps/dashboard/src";
 // The end is confirmed through the shared Confirm, and a control asks the role gate: the shell's JSX (surfaces/frame), drawn for real.
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();

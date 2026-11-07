@@ -5,7 +5,7 @@
  * view model is person-row.ts, the page's person-profile.ts.
  */
 import type { ConsentChange } from "../consent/consent";
-import type { PersonVisitsDto } from "../calendar/calendar-people";
+import type { PersonVisitsDto } from "../calendar/people";
 import type { StepColumns } from "../notes/steps";
 import type { CallDto } from "../conversations/call-dto";
 import type { ConversationDto } from "../conversations/thread-dto";
@@ -13,7 +13,7 @@ import type { DealDto, OpenDealDto } from "../deals/deal-vm";
 import type { DealPaceDto } from "../deals/deal-waits";
 import type { RecipientState } from "../campaigns/broadcasts/broadcasts";
 import type { PersonNoteDto, PersonNoteTeamDto } from "../notes/person-notes";
-import type { ReachOutLeadTimelineDto } from "../campaigns/reach-out/reach-out-leads";
+import type { ReachOutLeadTimelineDto } from "../campaigns/reach-out/leads";
 import type { LeadRowDto } from "../leads/lead-dtos";
 import type { PersonDoubtDto } from "./person-doubts";
 
@@ -40,7 +40,7 @@ export interface PersonRowDto {
   marketing_consent_updated_at?: string | null;
   consent_updated_at: string | null;
   /**
-   * The channels each yes covers (consent-channels.ts; the database keeps them from each consent event). Absent or null:
+   * The channels each yes covers (consent/channels.ts; the database keeps them from each consent event). Absent or null:
    * a yes recorded before the channels were, which covers WhatsApp alone.
    */
   consent_channels?: string[] | null;

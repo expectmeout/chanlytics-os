@@ -79,7 +79,7 @@ export interface KnownFacts {
    */
   booking_message?: boolean | null;
   /**
-   * Whether the workspace has a texting line the carriers approved, as the send door asks it (core deliver-text.ts: the
+   * Whether the workspace has a texting line the carriers approved, as the send door asks it (core deliver/text.ts: the
    * line a text leaves on, active and no test filing): a call may send the booking link by text only with one. Absent or
    * null where it was not read, which offers no text: the call never promises what the door may refuse.
    */

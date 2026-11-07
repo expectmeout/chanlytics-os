@@ -14,7 +14,7 @@ import type { TodayQueueRowVM, TodayStepsVM } from "@chanlytics/contracts";
 import type { PeopleSurface } from "@/surfaces/people/surface";
 import { TODAY_HELPERS } from "../helpers";
 import { completeStep, type StepSay } from "../../step-done";
-import { refreshSurface } from "../../legacy-verbs";
+import { refreshSurface } from "../../frame-verbs";
 import { borrowed, personNotes, workspaceClock } from "../shell";
 
 /**

@@ -2,7 +2,7 @@
  * What the owner's calendar feed names now, for the send that holds a reminder for a visit the calendar no longer has
  * (S1-05, decision 0002 beside the record).
  *
- * The record of appointments is only as new as the hourly sweep (calendar-sweep.ts): a visit cancelled in the owner's own
+ * The record of appointments is only as new as the hourly sweep (calendar/sweep.ts): a visit cancelled in the owner's own
  * calendar and nowhere else is `booked` on it until the sweep marks it vanished, and a reminder that goes within that hour
  * would still go. The feed drops a cancelled event at once, and the edge keeps it five minutes (availability.ts
  * feedItemsFor), so a broadcast's batch asks it here, through the jobs context's `calendar` port, and holds a recipient

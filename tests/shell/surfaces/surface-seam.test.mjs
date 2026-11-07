@@ -31,10 +31,10 @@ import {
   isSurfaceReady,
   markHydrated,
   setStatus,
-} from "../../../apps/dashboard/src/legacy-bridge/surface-status.ts";
+} from "../../../apps/dashboard/src/bridge/surface-status.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const BRIDGE = path.join(here, "../../../apps/dashboard/src/legacy-bridge");
+const BRIDGE = path.join(here, "../../../apps/dashboard/src/bridge");
 const src = (p) => fs.readFileSync(path.join(BRIDGE, p), "utf8");
 
 /* ------------------------- 1. ready is not settled ------------------------ */
@@ -83,7 +83,7 @@ test("an unknown surface is neither ready nor failed", () => {
 /* --------------- 2. the gate exists before any consumer renders -------------- */
 
 test("the route gate is installed at module scope, not in an effect", () => {
-  const s = src("LegacyApp.tsx");
+  const s = src("FrameApp.tsx");
   const call = s.indexOf("\ninstallRouteGate();");
   assert.notEqual(call, -1, "installRouteGate() must be called at top level");
 
@@ -100,11 +100,11 @@ test("the route gate is installed at module scope, not in an effect", () => {
 });
 
 test("the cache is hydrated at module scope, before React renders", () => {
-  const s = src("LegacyApp.tsx");
+  const s = src("FrameApp.tsx");
   const hydrate = s.indexOf("markHydrated(hydrateSurfaceCache())");
   assert.notEqual(hydrate, -1, "boot must restore the cache");
   assert.ok(
-    hydrate < s.indexOf("export default function LegacyApp"),
+    hydrate < s.indexOf("export default function FrameApp"),
     "hydration moved inside the component — a refresh will show a frame of mockup data before correcting itself",
   );
 });
@@ -145,14 +145,14 @@ test("nothing outside the runner calls activateOverride directly", () => {
 {
   // The third, a failed boot over cached real data said as degraded, runs the runner in surface-boot.test.mjs.
   const { readCode } = await import("../../_source.mjs");
-  // The seam and each surface's module beside it (legacy-bridge/surfaces/, and the surfaces that have left the shell),
+  // The seam and each surface's module beside it (bridge/surfaces/, and the surfaces that have left the shell),
   // read as one text.
   const seam = [
-    "apps/dashboard/src/legacy-bridge/surface-data.ts",
+    "apps/dashboard/src/bridge/surface-data.ts",
     "apps/dashboard/src/surfaces/reports/surface.ts",
     "apps/dashboard/src/surfaces/inbox/surface.ts",
     "apps/dashboard/src/surfaces/inbox/conversations-surface.ts",
-    ...fs.readdirSync(path.join(BRIDGE, "surfaces")).map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),
+    ...fs.readdirSync(path.join(BRIDGE, "surfaces")).map((f) => `apps/dashboard/src/bridge/surfaces/${f}`),
   ]
     .map((p) => readCode(p))
     .join("\n");
@@ -179,7 +179,7 @@ test("nothing outside the runner calls activateOverride directly", () => {
     // ONE predicate, shared with the middleware — which used to answer 401
     // for API paths before the wrapper ever ran.
     assert.match(wrapper, /isRetryableAuthError\(authErr\)/);
-    const predicate = readCode("apps/dashboard/src/server/auth/auth-errors.ts");
+    const predicate = readCode("apps/dashboard/src/server/auth/errors.ts");
     assert.match(predicate, /AuthRetryableFetchError|err\.status >= 500/);
     const middleware = readCode("apps/dashboard/proxy.ts");
     assert.match(middleware, /isRetryableAuthError\(authErr\)/, "the gate must not answer 401 for an outage");
@@ -201,7 +201,7 @@ test("nothing outside the runner calls activateOverride directly", () => {
   };
   globalThis.window.dispatchEvent ??= () => true;
   const { importSrc } = await import("../../_source.mjs");
-  const { activateOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { activateOverride } = await importSrc("apps/dashboard/src/bridge/surface-data.ts");
 
   /** An override whose reads are held: each `apply` is a promise the test lets land, in the order it chooses. */
   const held = (key, extra = {}) => {

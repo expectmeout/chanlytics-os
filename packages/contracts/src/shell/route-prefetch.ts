@@ -7,7 +7,7 @@
 import { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE } from "../reports/report-periods";
 import { ROUTE_WORDS } from "./address";
 
-/** The settings read (legacy-bridge/surfaces/settings.ts): the business, the team, the policies, every template. */
+/** The settings read (bridge/surfaces/settings.ts): the business, the team, the policies, every template. */
 const SETTINGS_READ = ["settings", "team", "policies", "templates?all=1"] as const;
 /** A person's id in the address, as the route reads it (surface-registry personRouteId): a uuid, nothing else. */
 const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -146,6 +146,10 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   "admin/team": [...SETTINGS_READ, "partner", "team/partner"],
   "admin/notifications": [...SETTINGS_READ, "partner", "me/alerts"],
   "admin/profile": ["partner", "views"],
+  // A partner's own page and the back office, drawn from none of the settings read: fallen through to `admin`, each open
+  // started its four reads and nobody took them, so they were asked for nothing and the page never fell quiet (6 Nov 2026).
+  "admin/partner": ["partner"],
+  "admin/platform": ["partner"],
   "admin/integrations": [
     "partner",
     "channels",
@@ -242,7 +246,7 @@ const PREFETCH_TIMEOUT_MS = 15_000;
 /**
  * The route's own reads, started from the document head.
  *
- * Nothing was fetched until the shell had mounted: the HTML, the framework's chunks, hydration, the legacy chunk,
+ * Nothing was fetched until the shell had mounted: the HTML, the framework's chunks, hydration, the frame's chunk,
  * the mount, and only then the first request -- 2,033 ms into a cold load of a person's page, on a document whose
  * first byte came at 26 ms (measured on production, 25 Sep 2026). This script runs as the head arrives and starts
  * the read every workspace page opens on -- who is looking (GET workspaces) -- and the page's own: on a person's page

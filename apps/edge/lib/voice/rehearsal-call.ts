@@ -7,7 +7,7 @@
  * secret, the workspace and its runtime (a paused one, one with nothing to answer from, and a lead's preview while
  * previews are switched off are refused), the rehearsal's row reserved (one start a workspace at a time, so two presses
  * at once are one call), the free minutes (contracts rehearsalAllowance, read over the window's spoken rehearsals after
- * the reservation), the workspace's agent (made when there is none, and kept before any number: voice-agent.ts
+ * the reservation), the workspace's agent (made when there is none, and kept before any number: voice/agent.ts
  * ensureVoiceAgent), the plan a real call gets (call-start.ts planRehearsalStart: no memory, no line to put a caller
  * through to), the web call at the provider with the call's own voice, its length and its metadata, and the row named
  * for the call before the token is answered, so its webhooks and its tools find it; a way out that made no call gives
@@ -24,7 +24,7 @@ import { pg } from "../shared/pg.js";
 import { workspaceFor, personFor, type Admitted } from "../shared/admin-auth.js";
 import { loadTenantRuntime } from "../shared/tenant-runtime.js";
 import { env } from "../shared/env.js";
-import { secretToProvision } from "./voice-door-auth.js";
+import { secretToProvision } from "./door-auth.js";
 import { logger, errField } from "../shared/log.js";
 import { createWebCall, webCallBody, webCallMadeOf, type RetellCall } from "@chanlytics/channels";
 import {
@@ -49,7 +49,7 @@ import {
   SECOND_MS,
   UUID,
 } from "@chanlytics/contracts";
-import { ensureVoiceAgent } from "./voice-agent.js";
+import { ensureVoiceAgent } from "./agent.js";
 import { planRehearsalStart } from "./call-start.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;

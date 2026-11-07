@@ -52,15 +52,15 @@ globalThis.window.fetch = async (url, init = {}) => {
     : json(404, { ok: false, error: { code: "not_found", message: "no" } });
 };
 
-const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
-const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const { readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
+const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
+const { readWhatWasMissed } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
-const { setPolicy } = await importSrc("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-const { meVerbs } = await importSrc("apps/dashboard/src/legacy-bridge/identity.ts");
-const { workspaceOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
-const { settingsOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
+const { setPolicy } = await importSrc("apps/dashboard/src/bridge/inbox-verbs.ts");
+const { meVerbs } = await importSrc("apps/dashboard/src/bridge/identity.ts");
+const { workspaceOverride } = await importSrc("apps/dashboard/src/bridge/surface-data.ts");
+const { settingsOverride } = await importSrc("apps/dashboard/src/bridge/surfaces/settings.ts");
 const { todayOverride } = await importSrc("apps/dashboard/src/surfaces/today/override.ts");
 const { liveOverride } = await importSrc("apps/dashboard/src/surfaces/live/surface.ts");
 const { peopleOverride } = await importSrc("apps/dashboard/src/surfaces/people/surface.ts");
@@ -68,7 +68,7 @@ const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campa
 const { broadcastsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
 const { audiencesOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-surface.ts");
 const { reviewsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
-const { DEFAULT_REFRESH_TABLES } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
+const { DEFAULT_REFRESH_TABLES } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
 
 const keysOf = (route) => AFTER[route]().map((o) => o.key);
 const at = (hash) => {

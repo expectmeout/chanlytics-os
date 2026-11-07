@@ -197,10 +197,10 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
 // its own door is drawn by (Settings' rail); Memory lands on Business, where what the receptionist knows lives (#417).
 // A real page added to the registry without a jump fails here.
 const { SURFACE_STATES, surfaceStateFor, surfaceRetiredTo } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href
+  pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/surface-registry.ts")).href
 );
 const { jumpIndexFrom } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/ask/palette.ts")).href
+  pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/ask/palette.ts")).href
 );
 
 /**
@@ -641,7 +641,7 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   assert.ok(dropped.includes("Read it before answering about it."), dropped);
 });
 
-test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {
+test("the three quick questions are told by their words; the answers are ask/answer.ts's (ask-answer.test.mjs)", () => {
   const TZ = "America/New_York";
   assert.deepEqual(askIntent("who needs me right now?", NOW, TZ), { kind: "needs" });
   assert.deepEqual(askIntent("what's waiting on me", NOW, TZ), { kind: "needs" });
@@ -845,7 +845,7 @@ test("a request's column (contracts askColumnOf): a width in CSS pixels a screen
 });
 
 test("the bridge: the jump index and Right now come from the surfaces, the quick answers need no route, and a turn is read as JSON lines", async () => {
-  const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/ask.ts")).href);
+  const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/ask.ts")).href);
   const store = new Map();
   const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
   const lines = [
@@ -1385,12 +1385,12 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
   assert.ok(!shell.includes("Ask stubbed outside demo"));
   // The seeded palette went with the mockup's pages (17 Oct 2026): the AskBar is the Line (surfaces/ask/) everywhere, and
   // the door into Ask is the bridge's (surfaces/frame-doors.ts).
-  assert.equal(existsSync("apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx"), false, "no seeded palette");
+  assert.equal(existsSync("apps/dashboard/mockup/demo/pages/dashboard-a-ask.jsx"), false, "no seeded palette");
   // A real workspace's AskBar is the frame's door to the Line (ask/line.tsx, published by seed-globals.ts), with no seeded
   // file to choose it, and the Line is its own dialog with nothing seeded in it: executed in ask-palette.test.mjs ("the Line
   // is its own dialog"). A quick answer never spends a model turn: there too ("the Line at rest").
   // The Line is a chunk of its own, fetched by the frame's ask/line.tsx: the imports are walked in ask-line-chunk.test.mjs.
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installAsk();"));
+  assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installAsk();"));
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./ask";'));
   const wr = readCode("apps/dashboard/src/server/shared/with-route.ts");
   assert.ok(wr.includes('req.headers.get("x-via") === "ask"'), "a card's commit is marked in the ledger");
@@ -1486,7 +1486,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   const route = readCode("apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts");
   assert.ok(route.includes("AskProposalOutcomeSchema.safeParse(body)"));
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/ask/api.ts").includes('via: "ask"'),
+    readCode("apps/dashboard/src/bridge/ask/api.ts").includes('via: "ask"'),
     "a card's commit is marked in the ledger: the client sends x-via (typed-client.test.mjs)",
   );
   // The route each card commits and undoes through -- the reply, the steer, the thread verbs, a person's mode, a
@@ -1550,14 +1550,13 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
     "the five tabs keep their places",
   );
   assert.ok(
-    !readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(".phone-ask") &&
-      !readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".ask-card"),
+    !readRaw("apps/dashboard/src/styles/mobile.css").includes(".phone-ask") &&
+      !readRaw("apps/dashboard/src/styles/dashboard-a-v2.css").includes(".ask-card"),
     "the palette's rules live in ask.css alone",
   );
-  const legacyCss = readRaw("apps/dashboard/src/legacy-bridge/legacy.css");
+  const legacyCss = readRaw("apps/dashboard/src/bridge/frame.css");
   assert.ok(
-    legacyCss.indexOf('@import "../surfaces/ask/ask.css";') >
-      legacyCss.indexOf('@import "../legacy/styles/mobile.css";'),
+    legacyCss.indexOf('@import "../surfaces/ask/ask.css";') > legacyCss.indexOf('@import "../styles/mobile.css";'),
     "imported after mobile.css, so its phone rules win",
   );
 });
@@ -1698,7 +1697,7 @@ test("the cards to finish: an operator is offered cards to finish, a viewer none
   assert.ok(es.some((s) => s.kind === "act" && /Retén cada respuesta/.test(s.q)));
   // A compose row lands in the input for the person to finish: executed in ask-palette.test.mjs ("a compose row").
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/ask/palette.ts").includes(
+    readCode("apps/dashboard/src/bridge/ask/palette.ts").includes(
       "canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,",
     ),
   );
@@ -1734,8 +1733,8 @@ test("the Open button says where it goes, a repeated question is the same thread
   // Copy, read aloud and Clear are the line's, once an answer is on it: executed in ask-palette.test.mjs.
   // The bridge is four modules composed into one object; the shell reaches nothing else.
   for (const f of ["api", "commit", "speech", "palette"])
-    assert.ok(readCode(`apps/dashboard/src/legacy-bridge/ask/${f}.ts`).length > 200, f);
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/ask.ts");
+    assert.ok(readCode(`apps/dashboard/src/bridge/ask/${f}.ts`).length > 200, f);
+  const bridge = readCode("apps/dashboard/src/bridge/ask.ts");
   assert.ok(
     bridge.includes("...palette,") && bridge.includes("...api,") && bridge.includes("...speech,"),
     "composed, not re-implemented",

@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IN_APP_CLASS, ROLE_PERMS, roleGate, stateOf, billingAccountDto } from "@chanlytics/contracts";
-import { kitPages, useStubHooks } from "../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../_stub-react.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
 
@@ -190,7 +190,7 @@ const { connectedMailboxes } = await import(`${SETTINGS}/connected-mailboxes.ts`
 const { mailbox } = await import(`${SETTINGS}/mailbox.ts`);
 const { EmailSetupForm } = await import(`${SETTINGS}/email-setup.tsx`);
 const { waConnect, lineCodes, waStanding } = await import(`${SETTINGS}/whatsapp.ts`);
-const { googleVerbs } = await import("../../apps/dashboard/src/legacy-bridge/google.ts");
+const { googleVerbs } = await import("../../apps/dashboard/src/bridge/google.ts");
 const { MoreMenu } = await import("../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
 // What every pane draw asks, and nothing here may send: Meta's door, asked once, has nothing to say, and the browser has
 // come back from nowhere on Google's side.
@@ -1522,7 +1522,7 @@ test("a person deletes their own account from Settings, in two steps, and the do
   asRole("owner");
   // Profile is TSX (surfaces/settings/profile, decision 0015 step 11); its two doors are the bridge's meVerbs.
   const { PaneProfile } = await import("../../apps/dashboard/src/surfaces/settings/profile/pane.tsx");
-  const { meVerbs } = await import("../../apps/dashboard/src/legacy-bridge/identity.ts");
+  const { meVerbs } = await import("../../apps/dashboard/src/bridge/identity.ts");
   const Profile = (props) => PaneProfile(props);
   const calls = [];
   const real = { ...meVerbs };
@@ -1565,8 +1565,8 @@ test("a person deletes their own account from Settings, in two steps, and the do
 
 // Last in the file: the account's deletion closes the tab's cache for the rest of the page's life, so for this process.
 test("REGRESSION: an account deleted leaves nothing of theirs in the tab, and nothing written back after -- it went to sign in with the cache whole, for whoever signed in next", async () => {
-  const { meVerbs } = await import("../../apps/dashboard/src/legacy-bridge/identity.ts");
-  const cache = await import("../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+  const { meVerbs } = await import("../../apps/dashboard/src/bridge/identity.ts");
+  const cache = await import("../../apps/dashboard/src/bridge/surface-cache.ts");
   // The cache's slot for this window's workspace (/w/studio): local storage, one slot a workspace.
   const CACHE = "chanlytics.surfaces.v2:studio";
   const w = globalThis.window;

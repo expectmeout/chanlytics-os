@@ -799,7 +799,7 @@ test("the migration: the connection row, the three Vault doors for the service r
 
 test("the edge: the secret alone on the edge, a read before a row, the grant given back on every refusal, the profile's reviews replacing the public five", () => {
   // The library's modules that hold the client, the vault doors, the connection, the sync and the listing's check.
-  const lib = ["google-config", "profile-credentials", "profile-connection", "profile-sync", "listing-check"]
+  const lib = ["config", "profile-credentials", "profile-connection", "profile-sync", "listing-check"]
     .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
     .join("\n");
   for (const v of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"])
@@ -889,7 +889,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(connection.includes("export const DELETE") && connection.includes('op: "disconnect"'));
   const rate = readCode("apps/dashboard/src/server/shared/rate-limit.ts");
   assert.ok(rate.includes("google_reply: {"));
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/google.ts");
   assert.ok(
     // The way there, with the first run's way back where it asked (decision 0073, R17: `back: "start"`).
     /window\.location\.assign\(\s*api\(\)\.url\("GET google\/connect"/.test(bridge) &&

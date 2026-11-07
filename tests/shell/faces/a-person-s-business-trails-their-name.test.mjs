@@ -28,11 +28,11 @@ import {
   toLeadRowVM,
   toLiveCallVM,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, daysAgo, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
 
 const opened = [];
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false, CHANLY: { nav: (to) => opened.push(to) } });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false, CHANLY: { nav: (to) => opened.push(to) } });
 const S = "../../../apps/dashboard/src";
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { businessTrailFor } = await import(`${S}/surfaces/people/business-trail.ts`);
@@ -171,7 +171,7 @@ test("Live's row and its panel trail the caller's name with their business, from
 
 /**
  * The Calendar's block for an appointment titled `title`, matched by the board's own path (personLikeOf, matchPerson), with
- * the facts the read attaches from the same People row (calendar-week.ts: calendarPersonFactsOf).
+ * the facts the read attaches from the same People row (calendar/week.ts: calendarPersonFactsOf).
  */
 const blockFor = (title, dto) => {
   const matched = matchPerson(

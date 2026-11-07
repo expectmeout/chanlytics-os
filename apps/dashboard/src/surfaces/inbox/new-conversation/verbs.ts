@@ -9,8 +9,8 @@
  * 7 October 2026: thirteen to twenty kilobytes on each of People, Campaigns, Sent and Templates).
  */
 import { poolRowOf, type ConsentChannel, type PersonDraftInput, type PersonRowVM } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
+import { api } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
 
 /**
  * Who matches, from the server (GET contacts, which matches a name, a WhatsApp name or three digits of a number), read

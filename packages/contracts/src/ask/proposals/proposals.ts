@@ -6,7 +6,7 @@
  * before Approve; the call its commit makes (the route by its key, its params and body), a refusal in words where the
  * tab cannot make it, and the second call a deal's next step makes on the first one's answer; the receipt; and its
  * undo -- the words on the button, how long it stays true, what the commit keeps for it and the call that reverses
- * it. The dashboard's walk (legacy-bridge/ask/commit.ts) makes the calls through the typed client; the act tools read
+ * it. The dashboard's walk (bridge/ask/commit.ts) makes the calls through the typed client; the act tools read
  * `needs`, the refusal and the undo's words from here; the gate (PROPOSAL_GATE), the undo window (askUndoOpen) and
  * where a card opens (cardOpenRoute) are readings of the specs, in page-specs.ts. Pure: nothing here sends, reads a
  * window or a clock.

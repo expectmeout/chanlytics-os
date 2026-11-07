@@ -17,18 +17,30 @@ import type { Reporter, TestCase, TestResult, FullResult } from "@playwright/tes
  * skip is, whatever its reason, and the reasons are printed so a morning that
  * trips the ceiling says what was missing.
  *
+ * A test in quarantine is not hollow either: it is red, known, and not worth
+ * today, in one shape only, `test.fixme(true, "quarantine: <date> <why>")` as the
+ * first line of its body. It is said apart, every night, and the build holds how
+ * many there are (the `e2e-quarantine` measure, check:debt): they may only fall.
+ *
  * Only bites on a run that declares it holds credentials, so a developer's
  * credential-free run is untouched.
  */
 export const DELIBERATE = /\bset E2E_[A-Z_]+/;
+export const QUARANTINE = /^quarantine: /;
 
 export class SkipCeiling implements Reporter {
   private counted = new Map<string, number>();
   private deliberate = 0;
+  private quarantined: string[] = [];
 
   onTestEnd(test: TestCase, result: TestResult): void {
     if (result.status !== "skipped") return;
-    const why = test.annotations.find((a) => a.type === "skip")?.description ?? "(no reason given)";
+    const why =
+      test.annotations.find((a) => a.type === "skip" || a.type === "fixme")?.description ?? "(no reason given)";
+    if (QUARANTINE.test(why)) {
+      this.quarantined.push(`${test.title}: ${why}`);
+      return;
+    }
     if (DELIBERATE.test(why)) {
       this.deliberate += 1;
       return;
@@ -37,6 +49,8 @@ export class SkipCeiling implements Reporter {
   }
 
   async onEnd(_result: FullResult): Promise<{ status?: FullResult["status"] } | undefined> {
+    if (this.quarantined.length)
+      console.log(`\n${this.quarantined.length} quarantined:\n${this.quarantined.map((q) => `  ${q}`).join("\n")}`);
     if (process.env.REQUIRE_SERVICE_CREDENTIALS !== "1") return undefined;
     const max = Number(process.env.E2E_MAX_SKIPS ?? "8");
     const skipped = [...this.counted.values()].reduce((n, c) => n + c, 0);

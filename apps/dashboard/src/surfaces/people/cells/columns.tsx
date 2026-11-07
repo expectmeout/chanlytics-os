@@ -22,7 +22,7 @@ import {
   type SeenReading,
 } from "@chanlytics/contracts";
 import { carryReply } from "../../inbox/carried-reply";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import { unreadHere } from "../../seen";
 import { VisitState } from "../../visit-line";
 import { visitWordHere } from "../../workspace-word";

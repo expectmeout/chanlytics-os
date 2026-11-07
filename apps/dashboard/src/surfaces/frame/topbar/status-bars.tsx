@@ -13,7 +13,7 @@ import {
   todayVisitsSub,
   type CalendarLike,
 } from "@chanlytics/contracts";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { surfaceValue } from "../../surface-values";
 import { visitWordHere } from "../../workspace-word";
 import { frameChrome, frameGlyph, frameSurfaceHook } from "../frame-window";
@@ -174,7 +174,7 @@ export function NextVisitBar({ page }: { page: string }) {
 
 // The shell's one line, under the top bar: this device offline, the receptionist paused, a newer build, surfaces that
 // stopped refreshing, the live feed not coming through -- one at a time, with the one press that helps. Which one, its
-// words and its press are contracts' (chrome.ts shellStatusLine); the status is the bridge's (legacy-bridge/shell.ts). The
+// words and its press are contracts' (chrome.ts shellStatusLine); the status is the bridge's (bridge/shell.ts). The
 // live region stays mounted while all is well, so the next change is announced.
 const SHELL_STATUS_ICON: Record<string, string> = {
   offline: "alert",

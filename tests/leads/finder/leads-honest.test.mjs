@@ -26,7 +26,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../../shell/address/_address.mjs";
-import { installRoleStore, kitPages, useStubHooks } from "../../_legacy-react.mjs";
+import { installRoleStore, kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { importSrc } from "../../_source.mjs";
 import {
@@ -42,12 +42,12 @@ import {
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { lineBox } from "../../shared/_line.mjs";
-const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 // People's TSX, the Leads page and the surface it reads, loaded as the app's own modules are (one instance of the surface's value
 // store and of its signal, which the page's hooks and this file share): the page, how many rows a table draws first, and the
 // Leads surface itself -- its read of a view, its acts, and what it forgets between one test's wire and the next.
-const { surfaceMoved } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+const { surfaceMoved } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { PeopleReal } = await importSrc("apps/dashboard/src/surfaces/people/page/people-real.tsx");
 const { forgetLeadsViews, leadsView } = await importSrc("apps/dashboard/src/surfaces/leads/surface.ts");
@@ -508,7 +508,7 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.window.React = globalThis.React;
 // The tab's one store for what pages keep (the place in a view: the words in the box, the cursor), which People's hooks read
 // through the bridge's own module, on this window's sessionStorage.
-const { clearTabMemory, tabMemoryFor } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+const { clearTabMemory, tabMemoryFor } = await import("../../../apps/dashboard/src/bridge/tab-memory.ts");
 (await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
 installRoleStore();
@@ -966,7 +966,7 @@ const install = ({ role = "owner" } = {}) => {
     __chrome: { state: stateOf },
     // The shell's doors to Ask, recorded: askAbout (dashboard-a-ask.jsx) with what the page hands it, and appAsk
     // (surfaces/frame/app-shell.tsx), the plain open ⌘K makes, which keeps what the owner left in the field. The page reaches them through
-    // legacy-verbs.ts (askAbout, openAsk, askCalls).
+    // frame-verbs.ts (askAbout, openAsk, askCalls).
     askAbout: (detail) => asks.push(detail),
     appAsk: () => asks.push("open"),
     __roleGate: roleGate,

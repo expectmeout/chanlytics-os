@@ -144,10 +144,9 @@ const settle = async () => {
 const bridge = await import("../../apps/dashboard/src/surfaces/people/people-detail.ts");
 // What the person's page reads them with (surfaces/people/person/read.ts): the courier's, the tab's copy first.
 const { heldPerson, readPerson } = await import("../../apps/dashboard/src/surfaces/people/person/read.ts");
-const { startSurfaces } = await import("../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { readCache, clearReadCaches, flushReadCaches } =
-  await import("../../apps/dashboard/src/legacy-bridge/read-cache.ts");
-const { clearSurfaceCache } = await import("../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
+const { readCache, clearReadCaches, flushReadCaches } = await import("../../apps/dashboard/src/bridge/read-cache.ts");
+const { clearSurfaceCache } = await import("../../apps/dashboard/src/bridge/surface-cache.ts");
 /**
  * What a reload finds: the person cache made again the way people-detail.ts makes it, over the same tab's storage and
  * with nothing in memory. (A module imported again under a query is the same instance here, so it cannot stand in.) The page

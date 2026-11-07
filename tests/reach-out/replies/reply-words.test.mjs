@@ -1,5 +1,5 @@
 /**
- * What the Inbox says of a reply from a lead (Reach out Part 5, PR 7; contracts reach-out-reply-words.ts): the strip
+ * What the Inbox says of a reply from a lead (Reach out Part 5, PR 7; contracts reach-out/reply-words.ts): the strip
  * above the composer for each intent, an undone no, a reply not read yet and one read at last; the row's chip; the
  * composer's line of where an answer goes out from (C15, N5); a sent reply's line when it went from the mailbox; and
  * the notice's sentence for a no.

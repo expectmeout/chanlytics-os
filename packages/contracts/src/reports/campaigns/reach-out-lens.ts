@@ -16,7 +16,7 @@
  * Pure, and only Reports' page reads it (PAGE_ONLY in tooling/scripts/gen/contracts-browser-entry.mjs).
  */
 import { mailboxHoldWords } from "../../email/mailbox-standing";
-import { stepLabelOf } from "../../campaigns/reach-out/reach-out-sheet";
+import { stepLabelOf } from "../../campaigns/reach-out/sheet";
 import { clockDate, clockNear } from "../../shared/clock";
 import { pct, sumOf } from "../../shared/numbers";
 import { isCount } from "../../shared/unknown";

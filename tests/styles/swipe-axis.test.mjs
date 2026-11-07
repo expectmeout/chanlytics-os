@@ -15,7 +15,7 @@ import path from "node:path";
 import { transform } from "lightningcss";
 import { ROOT } from "../_source.mjs";
 
-const SHEET = "apps/dashboard/src/legacy/styles/components.css";
+const SHEET = "apps/dashboard/src/styles/components.css";
 /**
  * The element that scrolls under each strip on a phone: Reports, the Inbox, Conversations, People, Settings, a person, and a
  * Campaigns pane open (a sequence's tabs).

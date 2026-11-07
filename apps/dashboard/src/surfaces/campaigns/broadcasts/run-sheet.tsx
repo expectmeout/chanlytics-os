@@ -20,7 +20,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
-import { gateTitle, navigate } from "../../legacy-verbs";
+import { gateTitle, navigate } from "../../frame-verbs";
 import { cmSplitWords, cmStandInOf } from "../parts/channels";
 import { mpParts } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";

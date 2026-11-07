@@ -35,7 +35,7 @@ import { ROOT, importSrc, readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import {
-  installLegacyReact,
+  installStubReact,
   installRoleStore,
   fresh,
   again,
@@ -45,7 +45,7 @@ import {
   find,
   press,
   textOf,
-} from "../_legacy-react.mjs";
+} from "../_stub-react.mjs";
 
 // The profile's route runs below over a database in memory; a module that ever builds a service client reads these,
 // and nothing dials it.
@@ -59,7 +59,7 @@ setRateStore(memoryStore());
 
 /**
  * People's page, drawn rather than read: the real TSX (apps/dashboard/src/surfaces/people/) on the shared stub React
- * (_legacy-react.mjs), over the sample business's people (sample.ts) through the surface's own mapping (surface-map.ts).
+ * (_stub-react.mjs), over the sample business's people (sample.ts) through the surface's own mapping (surface-map.ts).
  * The page was one legacy file (people.jsx, with people-table.jsx beside it) that these pins scanned; it is a folder of
  * TSX now, and what it shows is asked of what it draws. Installed on first use, so the tests that do not draw it keep the
  * bare node they had: the role store (who is acting), the toast and the shell's move (CHANLY.nav, recorded in `went`).
@@ -69,7 +69,7 @@ const moved = [];
 let harness = null;
 async function peopleHarness() {
   if (harness) return harness;
-  installLegacyReact();
+  installStubReact();
   installRoleStore(globalThis.window);
   const went = moved;
   Object.assign(globalThis.window, {
@@ -676,8 +676,8 @@ const detail_ = (over = {}) => ({
 let profileWorld = null;
 async function profileUi() {
   if (profileWorld) return profileWorld;
-  const LR = await import("../_legacy-react.mjs");
-  LR.installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+  const LR = await import("../_stub-react.mjs");
+  LR.installStubReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
   const went = moved;
   Object.assign(globalThis, {
     __WORKSPACES: [{ id: HARBOR, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
@@ -701,7 +701,7 @@ async function profileUi() {
   };
   // What a write reads again after it lands (loaded by the client on a first write): loaded now, so a write's answer is
   // not waiting on a module's first load while the test waits on the write.
-  await quietly(() => importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts"));
+  await quietly(() => importSrc("apps/dashboard/src/bridge/refresh-map.ts"));
   /** What the page hands each of its parts: the person, and who is looking. */
   const ctx = (p, over = {}) => ({
     p,
@@ -840,9 +840,9 @@ test("the profile: a Next appointment fact and About rows when the calendar is c
 });
 
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", async () => {
-  // The board (calendar-week.ts) and the profile (person-visits.ts), and the lookup that names the calendar for the
-  // profile (calendar-settings.ts).
-  const svc = ["calendar-settings", "calendar-week", "person-visits"]
+  // The board (calendar/week.ts) and the profile (person-visits.ts), and the lookup that names the calendar for the
+  // profile (calendar/settings.ts).
+  const svc = ["settings", "week", "person-visits"]
     .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
     .join("\n");
   assert.ok(
@@ -1078,7 +1078,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
   // decision 0034; 00344): a new person with the appointment on their added event, a known number named and given the
   // address it came with, an address another person holds left theirs, and a person who asked to be erased left erased
   // and counted, never made again. The door itself is proved on a stack (people/doors/resolve-person.db.test.mjs).
-  const { addPeopleFromCalendar } = await importSrc("apps/edge/lib/calendar/calendar-people.ts");
+  const { addPeopleFromCalendar } = await importSrc("apps/edge/lib/calendar/people.ts");
   const { createHash } = await import("node:crypto");
   const digest = (phone) => createHash("sha256").update(`${HARBOR}:${phone}`, "utf8").digest("hex");
   const tables = {
@@ -1164,7 +1164,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
     ],
     "each row that went through the door is on the ledger; the erased one was refused before it",
   );
-  // The board's read (calendar-week.ts calendarWeek, and the calendar route) is not a writer any more: it reaches no door
+  // The board's read (calendar/week.ts calendarWeek, and the calendar route) is not a writer any more: it reaches no door
   // (a read never writes, decision 0047 lane 6; the executed proof is calendar-feed.test.mjs and reads-never-write/).
   assert.equal(
     fs.existsSync(path.join(ROOT, "apps/dashboard/src/server/calendar/people-seen.ts")),
@@ -1172,7 +1172,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
     "the board's own writer is gone",
   );
   assert.ok(
-    !readCode("apps/dashboard/src/server/calendar/calendar-week.ts").includes('rpc("create_person"'),
+    !readCode("apps/dashboard/src/server/calendar/week.ts").includes('rpc("create_person"'),
     "and calendarWeek reaches no door",
   );
   assert.ok(
@@ -1531,7 +1531,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(
     readCode("apps/dashboard/src/surfaces/reports/surface.ts").includes("booking: toBookingReportVM(data.booking),"),
   );
-  const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const reg = readCode("apps/dashboard/src/bridge/surface-registry.ts");
   // Leads came back on 18 Sep 2026 as a SCOPE of People, so the old address lands on that scope, not on the list of clients.
   assert.ok(
     reg.includes('leads: "clients/leads",') &&
@@ -2449,14 +2449,14 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   const day = booked.nextVisit.toLowerCase().split(" · ")[0];
   assert.ok(plMatcher(day)(booked), "the day they are coming");
   assert.ok(!plMatcher(day)({ ...booked, nextVisit: null }), "and only that: the day is the row's own");
-  const css = readCode("apps/dashboard/src/legacy/styles/clients.css");
+  const css = readCode("apps/dashboard/src/styles/clients.css");
   // The header that sticks is the kit's table's (kit.css, the gallery's Table family holds it); the cards are People's.
   assert.ok(
     css.includes('grid-template-areas: "sel name state" "sel last visits" "sel offers offers";'),
     "cards under 900px",
   );
-  // The link as the settings hold it (calendar-settings.ts calendarOf), on the list's envelope (people-visits.ts).
-  const svc = ["calendar-settings", "people-visits"]
+  // The link as the settings hold it (calendar/settings.ts calendarOf), on the list's envelope (people-visits.ts).
+  const svc = ["settings", "people-visits"]
     .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
     .join("\n");
   assert.ok(
@@ -2636,9 +2636,9 @@ test("the Calendar never labels an appointment as the owner's, and still finds t
 });
 
 test("a visit's title drops the person's own name, and nothing else: on Tom's page it is Consultation", async () => {
-  // The one rule every page says a visit's title by (visit-service.ts), which the calendar's serviceOf and People's
+  // The one rule every page says a visit's title by (visit/service.ts), which the calendar's serviceOf and People's
   // visitTitleFor were two more of.
-  const { visitTitleWithout } = await import("../../packages/contracts/src/calendar/visit/visit-service");
+  const { visitTitleWithout } = await import("../../packages/contracts/src/calendar/visit/service");
   const visitTitleFor = (title, name) => visitTitleWithout(title, [name]);
   assert.equal(visitTitleFor("Consultation · Tom Baker", "Tom Baker"), "Consultation", "a booking app's title");
   assert.equal(visitTitleFor("Color treatment - tom baker", "Tom Baker"), "Color treatment", "any case, any dash");
@@ -2712,7 +2712,7 @@ test("a caller's appointment, told to a receptionist with no booking link, is ch
 
 test("the receptionist's match by name is what it was: a first name of four letters finds the visit and says so; only a message that is sent judges it by the full name (fullNameKey)", async () => {
   const { indexFeed, visitsIn } = await import("@chanlytics/contracts");
-  const { fullNameKey, visitServiceOf } = await importSrc("packages/contracts/src/calendar/visit/visit-service.ts");
+  const { fullNameKey, visitServiceOf } = await importSrc("packages/contracts/src/calendar/visit/service.ts");
   const index = indexFeed(guestFeed().items, NO_OWN);
   const first = visitsIn(index, { id: "p-first", name: "Daniela", phone: null, email: null }, NOW);
   assert.deepEqual([first.next?.title, first.next?.via], ["Daniela Ruiz · Colour", "name"]);

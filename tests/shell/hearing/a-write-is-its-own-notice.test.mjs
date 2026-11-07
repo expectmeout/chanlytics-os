@@ -34,7 +34,7 @@ import { at, writeReach } from "./_write-reach.mjs";
 
 const reach = await writeReach();
 const { AFTER, PAGE_HEARS, routes, narrowed, surfaces, families, askedAt, drawsTheScreen } = reach;
-const { drawnHere, readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { drawnHere, readWhatWasMissed } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 
 /* ------------------------------------------------------------------------------------------------------------------------ *
  * 1. What a write changes                                                                                                  *

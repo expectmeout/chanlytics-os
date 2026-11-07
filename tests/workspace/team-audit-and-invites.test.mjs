@@ -26,7 +26,7 @@ const sql = readRaw("supabase/migrations/00023_team_audit_and_invite_lookup.sql"
 const service = readCode("apps/dashboard/src/server/workspace/team.ts");
 const workspaces = readCode(
   "apps/dashboard/app/api/v1/workspaces/route.ts",
-  "apps/dashboard/src/server/workspace/workspace-list.ts",
+  "apps/dashboard/src/server/workspace/list.ts",
 );
 const teamIdRoute = readCode("apps/dashboard/app/api/v1/team/[id]/route.ts");
 
@@ -316,8 +316,8 @@ test("the index matches how the reader actually filters", () => {
     "apps/dashboard/src/surfaces/settings/team/acts.tsx",
     "apps/dashboard/src/surfaces/settings/team/invite.tsx",
   );
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-  const seam = readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
+  const bridge = readCode("apps/dashboard/src/bridge/inbox-verbs.ts");
+  const seam = readCode("apps/dashboard/src/bridge/surfaces/settings.ts");
 
   test("invite, role change and remove call the API on a real roster", () => {
     // They mutated ST_STORE and toasted success on a pane fed by live data:

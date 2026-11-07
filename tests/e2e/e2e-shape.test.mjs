@@ -1,7 +1,7 @@
 /**
  * A spec that reaches the API must name its workspace, because the app does.
  *
- * `scoped()` (apps/dashboard/src/legacy-bridge/surface-data.ts) appends
+ * `scoped()` (apps/dashboard/src/bridge/surface-data.ts) appends
  * ?workspace= to every URL the client fetches, and its own comment records
  * this bug being fixed there once already. Specs that call page.request
  * directly skip it, so they test a request the product never makes — and

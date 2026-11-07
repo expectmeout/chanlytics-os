@@ -1,6 +1,6 @@
 /**
  * The route's own reads, started from the document head (contracts routePrefetchScript, client/api.ts `prefetched`,
- * legacy-bridge/api.ts takePrefetched; 25 Sep 2026).
+ * bridge/api.ts takePrefetched; 25 Sep 2026).
  *
  * Nothing was fetched until the shell had mounted: on a cold load of a person's page the first request left 2,033 ms
  * after a document whose first byte came at 26 ms. The head now starts who is looking and, on a person's page, the
@@ -196,6 +196,9 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["settings/files", "admin/files"],
     ["settings/activity", "admin/activity"],
     ["settings/profile", "admin/profile"],
+    // Drawn from none of the settings read, and named so: fallen through to `admin`, each open started four reads nobody took.
+    ["settings/partner", "admin/partner"],
+    ["settings/platform", "admin/platform"],
     ["settings/notifications", "admin/notifications"],
     ["settings/autonomy", "admin"],
     ["settings/workspace", "admin"],
@@ -693,7 +696,7 @@ test("the bridge's client takes the window's slot for a URL and forgets it as it
   globalThis.window = win;
   globalThis.sessionStorage = win.sessionStorage;
   globalThis.localStorage = win.localStorage;
-  const { apiFor } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
+  const { apiFor } = await importSrc("apps/dashboard/src/bridge/api.ts");
   const api = apiFor(win);
   const r = await api("GET contacts/[id]", { params: { id: ID } });
   assert.equal(r.data.person.id, "early");
@@ -723,8 +726,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   globalThis.window = win;
   globalThis.sessionStorage = win.sessionStorage;
   globalThis.localStorage = win.localStorage;
-  const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
-  const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const { api } = await importSrc("apps/dashboard/src/bridge/api.ts");
+  const registry = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   const S = "apps/dashboard/src";
   const overrides = Object.fromEntries(
     [
@@ -740,7 +743,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/campaigns/playbooks/surface.ts`)).playbooksOverride,
       (await importSrc(`${S}/surfaces/campaigns/reach-out/override.ts`)).reachOutsOverride,
       (await importSrc(`${S}/surfaces/campaigns/sequences/surface.ts`)).sequencesOverride,
-      (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
+      (await importSrc(`${S}/bridge/surfaces/settings.ts`)).settingsOverride,
       // The channels read every page that draws a number is made of (Live, the composers, the Library, Connections).
       (await importSrc(`${S}/surfaces/channels/surface.ts`)).channelsOverride,
       (await importSrc(`${S}/surfaces/calendar/surface.ts`)).calendarOverride,
@@ -748,13 +751,13 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/reports/surface.ts`)).reportsOverride,
       (await importSrc(`${S}/surfaces/leads/override.ts`)).leadsOverride,
       // Who is looking: Reports' strip waits for it (ROUTE_WAITS), and its read is every page's.
-      (await importSrc(`${S}/legacy-bridge/surface-data.ts`)).workspaceOverride,
+      (await importSrc(`${S}/bridge/surface-data.ts`)).workspaceOverride,
       // What Today draws beside its own: the period line and the bell (PREFETCH_BESIDE), Google's reviews and the reach-outs'
       // replies (which its first draw waits for, PREFETCH_READS).
       (await importSrc(`${S}/surfaces/reports/headline.ts`)).reportsHeadlineOverride,
-      (await importSrc(`${S}/legacy-bridge/surfaces/notifications.ts`)).notificationsOverride,
-      (await importSrc(`${S}/legacy-bridge/google.ts`)).googleOverride,
-      (await importSrc(`${S}/legacy-bridge/reach-out/replies.ts`)).repliesOverride,
+      (await importSrc(`${S}/bridge/surfaces/notifications.ts`)).notificationsOverride,
+      (await importSrc(`${S}/bridge/google.ts`)).googleOverride,
+      (await importSrc(`${S}/bridge/reach-out/replies.ts`)).repliesOverride,
       // And the counts of the lists pinned there (R10), which ask nothing where nothing is pinned.
       (await importSrc(`${S}/surfaces/today/pins-surface.ts`)).todayPinsOverride,
       // And Ask for you: the member's morning as it stands (decision 0070).
@@ -824,6 +827,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     "admin/team": ["partner"],
     "admin/notifications": ["partner", "alerts"],
     "admin/profile": ["partner"],
+    "admin/partner": ["partner"],
+    "admin/platform": ["partner"],
     "admin/integrations": ["partner", "channels", "google", "setup"],
     "admin/billing": ["partner", "billing"],
     "admin/memory": ["partner", "ask_memory"],
@@ -923,7 +928,7 @@ test("every page there is says what it opens on: a page that arrives without its
   // The Calendar, Reports, Leads and Campaigns' home had no entry, each for a reason that read well and cost half a
   // second (9 Oct 2026). A page that truly cannot say its first read from the address is named here with why.
   const NONE = {};
-  const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const registry = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
   const pages = [...new Set(Object.keys(registry.ROUTE_SURFACE).map((route) => route.split("/")[0]))];
   assert.ok(pages.length > 10, "the pages are read from the registry");
   for (const page of pages)
@@ -961,8 +966,8 @@ test("REGRESSION: what the head started and the page's own reads did not take is
   globalThis.sessionStorage = win.sessionStorage;
   globalThis.localStorage = win.localStorage;
   globalThis.document ??= { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-  const { api } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
-  const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { api } = await importSrc("apps/dashboard/src/bridge/api.ts");
+  const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
   api().forget();
   // The page's own read is the order this tab last read (leadsBootView): not the head's URL, which it never takes.
   const leads = {

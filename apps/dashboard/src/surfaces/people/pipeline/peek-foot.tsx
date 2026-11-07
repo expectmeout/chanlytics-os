@@ -16,7 +16,7 @@ import type { DealActId, PipelineSheetAct } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuItem } from "../../kit/menu/menu";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { pdRun } from "../deal/person-deal";
 import { passDeals } from "../people-detail";

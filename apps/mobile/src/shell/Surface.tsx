@@ -4,7 +4,7 @@
  * before paint, hears the page over the bridge, keeps foreign links out of the app, recovers when iOS kills the
  * content process, reads "signed out" from the address so the shell can show the sign-in screen and keep nothing of
  * the person who left, hands the page the phone's push token to register, and opens the route of a tapped
- * notification. The page forgets the phone on its own before a sign-out (legacy-bridge/app-bridge.ts forgetPhone):
+ * notification. The page forgets the phone on its own before a sign-out (bridge/app-bridge.ts forgetPhone):
  * the shell used to intercept the sign-out for that and replay it as a GET, which the route does not answer, so on
  * iOS nobody was ever signed out.
  */
@@ -73,7 +73,7 @@ interface Props {
 
 export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   const ref = useRef<WebView>(null);
-  // Whether a sheet, a dialog or a menu stands over the page, as the page last said (legacy-bridge/app-bridge.ts
+  // Whether a sheet, a dialog or a menu stands over the page, as the page last said (bridge/app-bridge.ts
   // watchOverlays, at install and on every change): Android's Back closes it before it walks the history.
   const overlay = useRef(false);
   const focused = useIsFocused();

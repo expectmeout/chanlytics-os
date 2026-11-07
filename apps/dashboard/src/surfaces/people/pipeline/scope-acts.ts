@@ -4,7 +4,7 @@
  * from. Plain functions over the page's state, drawn again with it; none keeps state of its own.
  */
 import type { PipelineGroupKey, PipelineRowVM, PipelineView } from "@chanlytics/contracts";
-import { openDealSheet } from "../../legacy-verbs";
+import { openDealSheet } from "../../frame-verbs";
 import type { PipelineFrame, PipelineRows, PipelineUi } from "./scope-state";
 import { P, dealSheetOffered } from "./pipe";
 import type { PipelineSection } from "./pipe";

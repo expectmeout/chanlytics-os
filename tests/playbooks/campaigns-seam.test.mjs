@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../_legacy-react.mjs";
+import { installStubReact } from "../_stub-react.mjs";
 
 // The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
 const CACHE = "chanlytics.surfaces.v2:studio";
@@ -22,7 +22,7 @@ const storage = () => {
     peek: (k) => m.get(k),
   };
 };
-installLegacyReact();
+installStubReact();
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
@@ -30,13 +30,13 @@ globalThis.__ACTIVE_WORKSPACE = "t-salon";
 
 const S = "../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
-const cache = await import(`${S}/legacy-bridge/surface-cache.ts`);
+const cache = await import(`${S}/bridge/surface-cache.ts`);
 // Importing the overrides declares the mirrors, as the app's boot does.
 const { playbooksOverride } = await import(`${S}/surfaces/campaigns/playbooks/surface.ts`);
 const { broadcastsOverride } = await import(`${S}/surfaces/campaigns/broadcasts/surface.ts`);
 const { reachOutsOverride } = await import(`${S}/surfaces/campaigns/reach-out/override.ts`);
 const { liveOverride } = await import(`${S}/surfaces/live/surface.ts`);
-const { settingsOverride } = await import(`${S}/legacy-bridge/surfaces/settings.ts`);
+const { settingsOverride } = await import(`${S}/bridge/surfaces/settings.ts`);
 
 test("each surface's value is held under its key and mirrored under the name the pages that have not moved read", () => {
   const rows = [

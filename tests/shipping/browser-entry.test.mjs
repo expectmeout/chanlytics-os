@@ -6,7 +6,7 @@
  * contracts' sources a module at a time (decision 0074), so it takes the modules it imports and no others: this holds
  * the package's word that none of them but zod's setting runs anything as it loads.
  *
- * A page's module is one under the browser layers (legacy-bridge, client, yes, auth, surfaces, lib), a "use client"
+ * A page's module is one under the browser layers (bridge, client, yes, auth, surfaces, lib), a "use client"
  * file under app/, or instrumentation-client.ts. A miss here is a page that would not build: the bundler finds no such
  * export in the browser's entry.
  */
@@ -40,7 +40,7 @@ function pageModules() {
       else if (/\.(ts|tsx|jsx)$/.test(e.name) && !/\.(type-test|d)\.ts$/.test(e.name) && take(p)) out.push(p);
     }
   };
-  for (const layer of ["legacy-bridge", "client", "yes", "auth", "surfaces", "lib"])
+  for (const layer of ["bridge", "client", "yes", "auth", "surfaces", "lib"])
     walk(path.join(DASH, "src", layer), () => true);
   walk(path.join(DASH, "app"), (p) => /^\s*["']use client["']/.test(fs.readFileSync(p, "utf8")));
   return out;
@@ -168,10 +168,10 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "reports/report-metrics.ts",
     "reports/report-window.ts",
     "reports/report-mix.ts",
-    "reports/receptionist/receptionist-report.ts",
-    "reports/receptionist/receptionist-words.ts",
-    "reports/people/people-report.ts",
-    "reports/people/people-words.ts",
+    "reports/receptionist/report.ts",
+    "reports/receptionist/words.ts",
+    "reports/people/report.ts",
+    "reports/people/words.ts",
     "reports/campaigns/reach-out-lens.ts",
     "reports/campaigns/campaign-words.ts",
     "reports/campaigns/campaign-lens.ts",
@@ -259,7 +259,7 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
   const own = (from, out) => ({ types: from, bundled: `./dist/${out}.js`, import: from, default: from });
   assert.deepEqual(pkg.exports["./report-lens"], own("./src/reports/report-lens.ts", "report-lens"));
-  assert.deepEqual(pkg.exports["./ads-page"], own("./src/ads/ads-page.ts", "ads-page"));
+  assert.deepEqual(pkg.exports["./ads-page"], own("./src/ads/page-entry.ts", "ads-page"));
   assert.deepEqual(pkg.exports["./ask-only"], own("./src/ask/proposals/ask-only.ts", "ask-only"));
   // The pages' verb specs: the root entry's own module in the browser, the index itself elsewhere, so the table Ask's
   // kinds join is one table however it was reached.
@@ -309,7 +309,7 @@ test("every page-only path names a file, since one that names none would filter 
 });
 
 test("a page reads the verbs it presses at once, and the kinds only Ask's cards commit once their entry is loaded", async () => {
-  // The modules a page's bundle and Ask's bridge load (legacy-bridge/verbs moreSpecs), run as the browser runs them.
+  // The modules a page's bundle and Ask's bridge load (bridge/verbs moreSpecs), run as the browser runs them.
   const src = (f) => import(pathToFileURL(path.join(ROOT, "packages/contracts/src", f)).href);
   const page = await src("browser.generated.ts");
   assert.ok(page.proposalSpec("answer") && page.proposalSpec("sequence_step"), "a page's verbs are in from the start");

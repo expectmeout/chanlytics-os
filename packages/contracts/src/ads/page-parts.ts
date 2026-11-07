@@ -5,8 +5,8 @@
  * the rest of the models.
  */
 import { appointmentWords } from "../journey/appointment-word";
-import type { PeopleSeriesDto } from "../reports/people/people-record";
-import { firstCameEntries, firstCameRecorded } from "../reports/people/people-words";
+import type { PeopleSeriesDto } from "../reports/people/record";
+import { firstCameEntries, firstCameRecorded } from "../reports/people/words";
 import { joinWords } from "../shared/words";
 import type { AdDoor, AdPlatform, AdRead, AdsConfig, AdsRead } from "./ads";
 import { addDays, daysBetween } from "./ads";

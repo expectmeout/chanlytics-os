@@ -41,8 +41,8 @@ async function a11yOn(file, code) {
 
 test("a clickable div is flagged in the shell's JSX and in the TSX, a surface's and the kit's included, as a warning the baseline holds; a button is not", async () => {
   const places = [
-    "apps/dashboard/src/legacy/pages/a11y-probe.jsx",
-    "apps/dashboard/src/legacy-bridge/a11y-probe.tsx",
+    "apps/dashboard/mockup/pages/a11y-probe.jsx",
+    "apps/dashboard/src/bridge/a11y-probe.tsx",
     "apps/dashboard/app/a11y-probe/page.tsx",
     // A surface that has left the shell (0015), and the kit it draws with.
     "apps/dashboard/src/surfaces/reports/a11y-probe.tsx",

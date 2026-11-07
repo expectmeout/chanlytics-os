@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { HOUR_MS, SEQUENCES_ROUTE, runRoute, sequenceRoute } from "@chanlytics/contracts";
 import type { ConsentChannel } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { backFrom, navigate, replaceRoute } from "../../../legacy-verbs";
+import { backFrom, navigate, replaceRoute } from "../../../frame-verbs";
 import { tabDraft } from "../../../kit/record/work";
 import type { AudienceOption } from "../audiences-surface";
 import type { BroadcastTemplate } from "../surface";

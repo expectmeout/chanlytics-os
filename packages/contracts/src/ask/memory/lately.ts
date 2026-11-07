@@ -9,7 +9,7 @@
 import type { AskProposal, AskProposalOutcome } from "../ask";
 import type { BroadcastCounts } from "../../campaigns/broadcasts/broadcasts";
 
-/** How long an idea set aside rests: a week, as every "not now" Today offers (setup-put-off.ts). */
+/** How long an idea set aside rests: a week, as every "not now" Today offers (setup/put-off.ts). */
 export const ASK_IDEA_REST_DAYS = 7;
 
 /** How far back a morning looks: long enough to outlast a rest. */

@@ -13,7 +13,7 @@ import {
   type SpendKind,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../database.types";
-import { emailWordsFrom } from "./reach-out-sheet";
+import { emailWordsFrom } from "./sheet";
 import { withdrawQueued } from "../../conversations/control";
 import { recordEvent } from "../../events/events";
 

@@ -282,7 +282,7 @@ async function requestHashOf(req: Request, body: string): Promise<string> {
  * request is refused, 422, since a client that reuses a key for a second intent would otherwise be told the first
  * one's answer. An Ask card's write keeps its own prefix, `card:`, and no hash: a card approved from two tabs is one
  * write whatever each tab sent (the scorecard, 29 September: "a broadcast or playbook card approved in two tabs runs
- * twice"; legacy-bridge/ask commit.ts names the proposal id as the key and says it is Ask's). A request that arrives
+ * twice"; bridge/ask commit.ts names the proposal id as the key and says it is Ask's). A request that arrives
  * while the first still runs is refused in words; a write that fails lets the key go, so pressing again tries again; a
  * request that died holding it (killed mid-write, its receipt never kept) is taken over by the next once HOLD_MS has
  * passed, as core's reply key is, so a key never sticks. A route that keeps its own key (the reply, `idempotent:

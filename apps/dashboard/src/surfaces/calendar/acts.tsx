@@ -4,14 +4,14 @@
  * acts on and returns the handler the page hands its control: plain functions the page calls, never hooks. The booking
  * link is copied in place by the kit's Menu (board-parts.tsx), and the hours and rules are a sheet.
  */
-import type { useLegacyToast } from "../legacy-verbs";
+import type { useFrameToast } from "../frame-verbs";
 import { surfaceValue } from "../surface-values";
 import { OWN_TOUCH } from "../kit/view-tabs/own-touch";
 import type { ViewPage } from "../kit/view-tabs/pager";
 import { flushChange } from "./shell-verbs";
 import { calendar } from "./verbs";
 
-type Flash = ReturnType<typeof useLegacyToast>[1];
+type Flash = ReturnType<typeof useFrameToast>[1];
 
 /**
  * The owner's Refresh (C2): the calendar itself, now, and what came of it, in the words the read found -- the board read

@@ -1,6 +1,6 @@
 /**
  * The Leads scope's surface and acts (PRD §6, §8, §9; the review's E8, E9,
- * S13), moved from legacy-bridge/leads.ts with the page (decision 0015). The
+ * S13), moved from bridge/leads.ts with the page (decision 0015). The
  * page reads the surface through the seam (`useSurface("leads")`) and imports
  * the acts below; every act goes through its route (routes.generated.ts) and
  * refresh-map re-applies this surface after a write, which PATCHES what is
@@ -33,11 +33,11 @@ import {
   type LeadSuggestionsDto,
   type LeadsBulkInput,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
-import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
-import { heldViews } from "@/legacy-bridge/held-views";
-import { canDo } from "../legacy-verbs";
+import { api } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
+import { getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
+import { heldViews } from "@/bridge/held-views";
+import { canDo } from "../frame-verbs";
 import { unwrap, type ApiResult, type RouteKey } from "@/client/api";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 

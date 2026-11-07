@@ -1,0 +1,345 @@
+/* ── The first run (#/start) ─────────────────────────────────────────────────
+   Full screen, the shell's chrome set aside (surfaces/setup/first-run). Desktop: a top bar with the four steps, the step
+   at the prose measure, the receptionist beside it. At 900px and under: the step's line, a 2px bar, the receptionist as
+   one line that opens, and the step's button held at the foot.
+   Every control here is the kit's (its button, quiet link, pane, face, pill, and the record kit's field and choice), so
+   this sheet places them and sets the step's own words: layout, and tokens for every size and colour. The page stands on
+   the look's light, as every page of the app does, and its groups are panes on it. */
+/* The shell is the page's scroll: the app holds html and body to the viewport (frame.css, for its own panes'
+   scrolling), so a step taller than the screen was cut off. The phone's sticky head and the card stick inside it. The
+   light is the app root's own (components.css), which this screen is drawn in place of. */
+.fr-shell {
+  height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior-y: contain;
+  background-color: var(--bg); background-image: var(--surface-page-light); background-repeat: no-repeat; color: var(--ink);
+}
+.fr-root { min-height: 100dvh; display: flex; flex-direction: column; color: var(--ink); }
+/* On a phone the window is the page's scroll, as on every page there (mobile.css, "The window scrolls"): the document is
+   held to the screen only wider than a phone, and Safari floats its glass toolbar over the document's own scroll alone, so
+   in a box of its own the step stood on a flat band under the toolbar at its full size (Ruben, 21 Oct 2026). The head
+   sticks to the window and the foot floats over the page, as they did over the box. It is at least the screen at its
+   largest, as the frame is (mobile.css, .app-root), so a short step scrolls far enough for Safari to tuck its bar away. */
+@media (max-width: 720px) {
+  .fr-shell { height: auto; min-height: 100vh; min-height: 100lvh; overflow: visible; }
+  .fr-root { min-height: 100vh; min-height: 100lvh; }
+}
+.fr-waiting { align-items: center; justify-content: center; padding: 32px var(--gutter-page); }
+.fr-reading { margin: 0; color: var(--ink-dim); font-size: var(--text-base); }
+
+.fr-top {
+  display: flex; align-items: center; gap: 24px;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) var(--gutter-page) 14px;
+  border-bottom: 1px solid var(--line);
+}
+.fr-brand { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.fr-rail { display: flex; align-items: center; margin: 0 auto; padding: 0; list-style: none; }
+.fr-rail-step { display: flex; align-items: center; }
+.fr-rail-step + .fr-rail-step::before { content: ""; width: 20px; height: 1px; margin: 0 6px; background: var(--line); }
+/* A step is the kit's quiet button where it opens, and its name alone where it is not reached. The step ON SCREEN is
+   the strong one, wherever the workspace stands: Check kept on screen after its last fact, the code after the line
+   answers, Try it after the call. The filled number once followed where the workspace stands, so the rail named the
+   step after the one drawn. */
+.fr-rail-step > * { gap: 8px; color: var(--ink-dim); }
+/* As tall as the button it becomes once reached, so the rail holds still when a step opens. */
+.fr-rail-ahead { display: inline-flex; align-items: center; min-height: var(--control-h-sm); padding: 0 11px; font-size: var(--text-sm); color: var(--ink-faint); }
+.fr-rail-n {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: var(--radius-full);
+  border: 1px solid var(--line-strong); font-size: var(--text-xs); font-variant-numeric: tabular-nums;
+}
+.fr-rail-step:not([data-state="ahead"]) .fr-rail-n { border-color: var(--ink-dim); }
+.fr-rail-step[aria-current="step"] > * { color: var(--ink); font-weight: var(--weight-medium); background: var(--selected-fill); }
+.fr-rail-step[aria-current="step"] .fr-rail-n { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+/* A step done and on screen: its tick is drawn in the ground's colour too (a button's glyph is dim by the kit's rule). */
+.fr-rail-step[aria-current="step"] .fr-rail-n > * { color: var(--bg); }
+
+.fr-phone { display: none; }
+
+.fr-body {
+  flex: 1 1 auto; display: grid;
+  grid-template-columns: minmax(0, var(--measure-prose)) minmax(260px, 340px);
+  justify-content: center; align-items: start; gap: 48px;
+  padding: 40px var(--gutter-page) 48px;
+}
+.fr-step { display: grid; gap: 20px; min-width: 0; }
+.fr-step-head { display: grid; gap: 8px; }
+.fr-part { display: grid; gap: 10px; }
+.fr-heading { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: -0.01em; text-wrap: balance; }
+.fr-heading:focus-visible { outline: none; }
+.fr-lead { margin: 0; max-width: 60ch; font-size: var(--text-md); color: var(--ink-dim); line-height: var(--leading-relaxed); }
+.fr-sub { margin: 0; font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink-dim); }
+
+/* The step's foot: Back first, then what the way on waits for or says, then the way on, at the right. One foot a step. */
+.fr-foot { display: flex; align-items: center; gap: 12px; }
+.fr-foot > :first-child { margin-right: auto; }
+.fr-held, .fr-foot-note { flex: 1 1 auto; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
+/* The way on, held: in reach, with why beside it. Its words may fold on a narrow screen (a number picked is in them). */
+.fr-go { height: auto; min-height: var(--control-h-lg); padding-block: 8px; white-space: normal; text-align: center; }
+/* Held, it is no longer the accent: the secondary's ground and quiet ink, no depth, under the pointer too (the kit's rule
+   for a primary that cannot be pressed). A coral at half strength read as live and as broken at once. */
+.fr-go[aria-disabled="true"] { cursor: default; background: var(--secondary-fill); border-color: var(--line); color: var(--quiet-ink); box-shadow: none; }
+@media (hover: hover) {
+  .fr-go[aria-disabled="true"]:hover { background: var(--secondary-fill); border-color: var(--line); color: var(--quiet-ink); box-shadow: none; }
+}
+/* A press whose words change while it works ("Building…"): both sets of words hold the one place, the press as wide as
+   the wider, and the shown one fades in over the other, so nothing beside it moves (parts.tsx SteadyLabel). */
+.fr-steady { display: inline-grid; }
+.fr-steady > * { grid-area: 1 / 1; text-align: center; transition: opacity var(--duration-fast) var(--ease-out); }
+.fr-steady > [aria-hidden="true"] { opacity: 0; }
+/* What the press starts charging, said in the foot on a phone, and the press that dials: a desk has the plan's pane
+   over its foot, and nothing to dial with. */
+.fr-price, .fr-call { display: none; }
+
+/* What the steps share: a pane's own column, a choice's options one above the other, the small words. */
+.fr-line-step, .fr-find, .fr-check { display: grid; gap: 16px; }
+.fr-pane { display: grid; gap: 14px; justify-items: start; }
+.fr-pane > * { min-width: 0; max-width: 100%; }
+/* The kit's choice lays its options side by side where they fit; a list read down (the listings, the three ways, where
+   a caller goes) is one column. By position: the group is the kit's, and this sheet names none of its classes. */
+.fr-stack { width: 100%; }
+.fr-step .fr-stack > div { grid-template-columns: minmax(0, 1fr); }
+.fr-opt { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fr-label { font-size: var(--text-sm); color: var(--ink-dim); }
+.fr-note, .fr-quiet { margin: 0; font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--ink-dim); }
+.fr-sentence { font-size: var(--text-md); line-height: var(--leading-normal); }
+.fr-detail { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.fr-links { display: flex; flex-wrap: wrap; gap: 16px; }
+.fr-proof { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--text-base); color: var(--ink-dim); }
+
+/* Find (canvas R1, P1): Google's answer as one choice, the best match first; the owner's own words under it. While Google
+   is asked, the pane its answer comes in stands already, saying so, as tall as three matches on a desk and the best one
+   on a phone, so the search and the foot under it never jump down when the answer lands. */
+.fr-find-more { display: none; }
+.fr-find-looking { display: flex; align-items: center; gap: 10px; min-height: 196px; }
+.fr-find-form { display: flex; align-items: flex-end; gap: 8px; width: 100%; max-width: 460px; }
+.fr-find-form > :first-child { flex: 1 1 auto; min-width: 0; }
+.fr-legal { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-faint); }
+
+/* Check (canvas R2, V2, P2): the Business tab's own rows, in three cards, with a quiet note under the hours. The rows
+   and their sheets are the record kit's; only the cards' spacing is the first run's. A card here has no head, so its
+   first row draws no rule over itself. */
+.fr-check-group { padding-top: 6px; }
+.fr-check-group > :first-child { border-top: 0; }
+.fr-unsure { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
+.fr-make { display: grid; gap: 14px; justify-items: start; }
+/* What it offers and the languages it speaks, a press each (check-chips.ts): the kit's small button, ticked and edged in
+   ink once on. A row of its own, under a rule, as the record's rows are. */
+.fr-picks { display: grid; gap: 8px; padding: 11px 0 13px; border-top: 1px solid var(--line); }
+.fr-picks-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.fr-pick[aria-pressed="true"] { border-color: var(--ink); }
+
+/* Your phone (canvas R3–R5, V4–V6, P3, P5): the three ways and the number or the area code in one pane, the plan in its
+   own; then where the number stands, the two questions, and the code, large, with its press to copy. */
+.fr-question { display: grid; gap: 8px; justify-items: start; }
+.fr-status { gap: 6px; }
+.fr-new { display: grid; gap: 12px; width: 100%; }
+.fr-area > :first-child { flex: 0 0 120px; }
+.fr-plan { display: grid; gap: 4px; }
+.fr-plan-offer { font-size: var(--text-md); font-weight: var(--weight-medium); }
+.fr-dial-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.fr-dial { font-size: var(--text-hero); font-weight: var(--weight-semibold); letter-spacing: 0.02em; color: var(--ink); overflow-wrap: anywhere; }
+.fr-steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: var(--text-base); line-height: var(--leading-normal); }
+.fr-warn { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: var(--text-base); line-height: var(--leading-normal); }
+.fr-warn-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--warn); transform: translateY(-1px); }
+.fr-notes { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.fr-with { display: grid; justify-items: start; gap: 8px; }
+
+/* Try it (canvas R6–R8): the number to call, what the page is doing, and the call's words as they come. */
+.fr-listen { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; row-gap: 2px; }
+.fr-listen .fr-detail { grid-column: 2; }
+.fr-pulse { width: 8px; height: 8px; border-radius: var(--radius-full); background: var(--accent); animation: fr-pulse 1.6s var(--ease-out) infinite; }
+@keyframes fr-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.fr-causes { margin: 0; display: grid; gap: 10px; }
+.fr-causes dt { font-size: var(--text-base); font-weight: var(--weight-medium); }
+.fr-causes dd { margin: 2px 0 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.fr-turns { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; width: 100%; }
+.fr-turn { display: grid; gap: 2px; }
+.fr-skip { display: grid; gap: 8px; }
+
+/* Live (canvas R9, P8): what was set up, four lines, each with its Change. */
+.fr-summary-rows { margin: 0; display: grid; }
+.fr-summary-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 12px; padding: 12px 16px; }
+.fr-summary-row + .fr-summary-row { border-top: 1px solid var(--line); }
+.fr-summary-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0; font-size: var(--text-md); line-height: var(--leading-normal); overflow-wrap: anywhere; }
+.fr-summary-value > :first-child { flex: 1 1 auto; min-width: 0; }
+
+/* The owner's receptionist, so far: a pane beside the step, its rows a label and a value. */
+.fr-rcp { position: sticky; top: 24px; display: grid; gap: 8px; min-width: 0; }
+.fr-rcp-cap { font-size: var(--text-sm); color: var(--ink-dim); }
+.fr-rcp-pane { display: grid; gap: 14px; }
+.fr-rcp-head { display: flex; align-items: center; gap: 10px; }
+.fr-rcp-who { display: grid; gap: 4px; justify-items: start; min-width: 0; }
+.fr-rcp-who b { font-size: var(--text-md); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.fr-rcp-greet { margin: 0; display: grid; gap: 4px; font-size: var(--text-base); line-height: var(--leading-relaxed); }
+.fr-rcp-rows { margin: 0; display: grid; gap: 8px; }
+.fr-rcp-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; font-size: var(--text-base); }
+.fr-rcp-row dd { margin: 0; overflow-wrap: anywhere; }
+.fr-rcp-none { color: var(--ink-faint); }
+.fr-rcp-foot { margin: 0; font-size: var(--text-sm); color: var(--ink-faint); line-height: var(--leading-relaxed); }
+
+/* The five steps (decision 0073): every step but Your business lays out its own two columns, the step and what stands
+   beside it (how it sounds, what it reads, the dashboard filling in, Ask getting it ready), so the body is one column at
+   the page's measure and the receptionist card is the phone's strip alone. */
+.fr-body[data-wide] { grid-template-columns: minmax(0, var(--measure-page)); }
+.fr-body[data-wide] > .fr-rcp { display: none; }
+.fr-receptionist, .fr-rehearse, .fr-channels, .fr-pay, .fr-on {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-items: start; gap: 32px;
+}
+.fr-receptionist-main, .fr-rehearse-main, .fr-channels-list, .fr-pay-main, .fr-on-main { display: grid; gap: 16px; min-width: 0; }
+.fr-sounds-aside { position: sticky; top: 24px; }
+/* An aside that is a pane itself takes the kit's `position: relative` with it, which wins on equal weight: two of the
+   page's own classes keep it held beside the step as the step scrolls. */
+.fr-rehearse > .fr-using, .fr-channels > .fr-filling, .fr-on > .fr-on-ask { position: sticky; top: 24px; }
+.fr-receptionist-main > .fr-sounds-strip { display: none; }
+.fr-golive { display: grid; gap: 16px; }
+.fr-live { grid-template-columns: minmax(0, var(--measure-prose)); }
+
+/* Your receptionist (canvas 2): the greeting, the two things only you know, how it sounds. */
+.fr-greet .fr-sentence { line-height: var(--leading-relaxed); }
+.fr-only-you { display: grid; gap: 10px; }
+/* Found for you (decision 0073, R10, R17): what the profile and the website say, a press each. */
+.fr-found { display: grid; gap: 10px; }
+.fr-found-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.fr-found-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fr-found-words { display: grid; gap: 2px; min-width: 0; }
+/* Connect it to Google (decision 0073, R17; canvas 1B·g, 1B·h, 1B·i): what one sign-in brings, and its way back. */
+.fr-google { display: grid; gap: 16px; }
+.fr-google-brings { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: var(--text-base); line-height: var(--leading-normal); }
+.fr-google-brings > li { display: flex; align-items: baseline; gap: 8px; }
+.fr-google-brings > li > svg { flex: 0 0 auto; color: var(--ok-ink); }
+/* Your workspace, building (canvas 1B): over the receptionist card beside Find and Connect it to Google, a desk's alone. */
+.fr-building { margin-bottom: 8px; }
+.fr-building-lines { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: var(--text-base); line-height: var(--leading-normal); }
+.fr-building-line { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.fr-building-line[data-state="ahead"] { color: var(--ink-dim); }
+.fr-building-sign { display: inline-flex; align-items: center; justify-content: center; align-self: center; color: var(--ok-ink); }
+.fr-building-dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--ink-faint); }
+.fr-sounds { display: grid; gap: 12px; }
+.fr-voices { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; width: 100%; }
+.fr-voice { display: flex; align-items: center; gap: 6px; }
+.fr-voice-pick { flex: 1 1 auto; justify-content: space-between; min-width: 0; }
+.fr-voice-pick[aria-pressed="true"] { background: var(--selected-fill); }
+.fr-voice-name { font-weight: var(--weight-medium); }
+.fr-quote { margin: 0; font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--ink-dim); }
+.fr-accent { display: grid; gap: 4px; justify-items: start; }
+.fr-sounds-strip { justify-content: flex-start; gap: 10px; width: 100%; }
+
+/* Rehearse (canvas 3, 3R): the call or the typing, how it did, and what it reads beside them. */
+.fr-rehearse-pane { justify-items: stretch; }
+.fr-using { display: grid; gap: 10px; }
+.fr-asks { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Where it answers (canvas 4): a box a choice, and the dashboard filling in beside them. */
+.fr-place { justify-items: stretch; }
+.fr-filling { display: grid; gap: 12px; }
+.fr-filling-rows { margin: 0; display: grid; gap: 10px; }
+.fr-filling-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fr-filling-row dt { display: grid; gap: 2px; min-width: 0; }
+.fr-filling-row dd { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.fr-imports { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.fr-import { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fr-import-words { display: grid; gap: 2px; min-width: 0; }
+.fr-import-stand { flex: 0 0 auto; font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.fr-import[data-state="failed"] .fr-detail { color: var(--danger-ink); }
+/* A source brought in (brought.tsx ImportLines): its glyph, its words with how far it has come and what was set aside,
+   and where it stands at its end, a tick once in (Ruben, 27 Oct 2026: "In" on every line read as clutter). */
+.fr-source { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+/* The glyph and the words, a link to their page on Today (brought.tsx `doors`): the title's quiet chevron says so. */
+.fr-import-door { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 12px; min-width: 0; color: inherit; text-decoration: none; border-radius: var(--radius-md); }
+.fr-import-glyph { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); color: var(--ink-dim); }
+.fr-import-title { display: inline-flex; align-items: center; gap: 4px; }
+.fr-import-chevron { color: var(--ink-faint); }
+.fr-source .fr-import-stand { justify-self: end; display: inline-flex; align-items: center; }
+.fr-source[data-state="done"] .fr-import-stand { color: var(--ok-ink); }
+.fr-import-bar { width: min(240px, 100%); margin-top: 6px; }
+/* What the mailbox set aside, under the words (past the glyph's 32 and the gap's 12), a link to where it is listed. */
+.fr-import-aside { grid-column: 1; justify-self: start; margin-left: 44px; display: inline-flex; align-items: center; gap: 2px; font-size: var(--text-xs); color: var(--ink-faint); text-decoration: none; border-radius: var(--radius-sm); }
+a.fr-import-door:focus-visible, a.fr-import-aside:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: hover) {
+  a.fr-import-door:hover .fr-import-chevron, a.fr-import-aside:hover { color: var(--ink); }
+}
+.fr-clients { display: grid; gap: 14px; }
+.fr-clients-foot { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Go live (canvas 5A–5C): what starts, the card, the list that fills in, and Ask's moves. */
+.fr-starts { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.fr-start { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.fr-pay-box { justify-items: stretch; }
+.fr-checkout { min-height: 360px; width: 100%; }
+.fr-on-items { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+.fr-on-item { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; row-gap: 10px; align-items: start; }
+.fr-on-item > :nth-child(n + 3) { grid-column: 2; }
+.fr-on-state { display: inline-grid; place-items: center; min-height: 22px; color: var(--ink-dim); }
+.fr-on-item[data-state="done"] .fr-on-state { color: var(--ok-ink); }
+.fr-on-words { display: grid; gap: 2px; }
+.fr-needs { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--warn-ink); }
+.fr-on-ask { display: grid; gap: 8px; }
+.fr-wa-steps, .fr-forward { display: grid; gap: 12px; }
+/* The kept app's chats in Meta's three parts (canvas 5B·i): a part still to come reads quieter than one in. */
+.fr-chat-parts { display: grid; gap: 10px; }
+.fr-chat-parts .fr-import[data-state="next"] { color: var(--ink-dim); }
+.fr-moves { display: grid; gap: 8px; }
+.fr-move-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.fr-move { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fr-move-words { display: grid; gap: 2px; min-width: 0; }
+.fr-note-pane { gap: 4px; }
+
+@media (max-width: 900px) {
+  /* On a phone the page's top is plain paper under the phone's bar, as the app root's is (tokens.css). */
+  .fr-shell { background-image: var(--surface-page-top), var(--surface-page-light); }
+  .fr-top { display: none; }
+  /* The head and the foot stay as the step scrolls under them: the control layer's glass, as the app's own bars are. */
+  .fr-phone, .fr-foot {
+    background-color: var(--surface-control-fill); background-image: var(--surface-control-sheen);
+    backdrop-filter: var(--surface-control-blur);
+  }
+  .fr-phone { display: grid; position: sticky; top: 0; z-index: 2; padding-top: env(safe-area-inset-top, 0px); }
+  .fr-phone-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 16px 4px; font-size: var(--text-base); font-weight: var(--weight-medium); }
+  .fr-bar { height: 2px; background: var(--line); }
+  .fr-bar > span { display: block; height: 100%; background: var(--ink); transition: width var(--duration-fast) var(--ease-out); }
+  /* The receptionist's one line: the whole width, its words taking what the face and the chevron leave. */
+  .fr-strip { justify-content: flex-start; gap: 10px; width: 100%; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0 16px; }
+  .fr-strip-words { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+  .fr-body { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 20px 16px calc(112px + env(safe-area-inset-bottom, 0px)); }
+  .fr-rcp { position: static; order: -1; display: none; }
+  .fr-rcp[data-open="true"] { display: grid; }
+  .fr-rcp-cap, .fr-rcp-foot, .fr-building { display: none; }
+  .fr-find-form { max-width: none; }
+  /* A question's answers one above the other on a phone: three across in a pane, their words folded in two. By
+     position, as the stack is: the group is the kit's. */
+  .fr-question { justify-items: stretch; width: 100%; }
+  .fr-step .fr-question > div { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; border-radius: var(--surface-inset-radius); }
+  /* Find on a phone (canvas P1): the best match alone until "Not this one? Search again". By position: the choice is
+     the kit's, and its options are its children. */
+  .fr-find[data-hits]:not([data-more]) .fr-stack > div > :nth-child(n + 2),
+  .fr-find[data-hits]:not([data-more]) .fr-find-form { display: none; }
+  .fr-find[data-hits]:not([data-more]) .fr-find-more { display: inline-flex; justify-self: start; }
+  /* The foot floats as every phone foot does, a sheet's and a person's dock: a capsule 14px in from the edges and over
+     the home bar, its way on 6px in (19 Oct 2026: a flat bar on the screen's edge, the only one). */
+  .fr-foot {
+    position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 2;
+    flex-wrap: wrap; gap: 8px; padding: 6px;
+    border-radius: var(--surface-control-radius);
+    box-shadow: var(--surface-control-depth);
+  }
+  /* A foot with no way on (Rehearse before its call, Pay, whose press is in its card) holds Back alone: it stays at the
+     step's end, not a capsule floating over the step for one quiet button. */
+  .fr-foot:not(:has(.fr-go)) { position: static; padding: 0; background: none; backdrop-filter: none; box-shadow: none; }
+  /* No Back on the first step: its empty place is not kept, or the button starts a gap in from the page's edge. */
+  .fr-foot > span:empty { display: none; }
+  .fr-go { flex: 1 1 auto; justify-content: center; }
+  /* Why the way on is held, what it starts charging, and Live's note: over the button, never squeezed beside it. */
+  .fr-held, .fr-foot-note, .fr-price { flex: 1 1 100%; order: -1; padding: 8px 10px 2px; text-align: left; }
+  .fr-price { display: block; font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink); }
+  .fr-call { display: inline-flex; }
+  .fr-summary-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  /* The five steps on a phone: one column, what stands beside the step under it (how it sounds is the strip's sheet). */
+  .fr-receptionist, .fr-rehearse, .fr-channels, .fr-pay, .fr-on { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .fr-sounds-aside, .fr-rehearse > .fr-using, .fr-channels > .fr-filling, .fr-on > .fr-on-ask { position: static; }
+  .fr-find-looking { min-height: 88px; }
+  .fr-sounds-aside { display: none; }
+  .fr-receptionist-main > .fr-sounds-strip { display: flex; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fr-pulse { animation: none; }
+  .fr-bar > span { transition: none; }
+  .fr-steady > * { transition: none; }
+}

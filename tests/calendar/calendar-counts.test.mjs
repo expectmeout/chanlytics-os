@@ -31,7 +31,7 @@ const { everyone, PEOPLE_PAGE } = await import(at("apps/dashboard/src/server/peo
 const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
 const { allPeople } = await import(at("apps/edge/lib/campaigns/playbooks/playbooks.ts"));
-const { addPeopleFromCalendar } = await import(at("apps/edge/lib/calendar/calendar-people.ts"));
+const { addPeopleFromCalendar } = await import(at("apps/edge/lib/calendar/people.ts"));
 const { feedItemsFor, forgetFeeds: forgetEdgeFeeds } = await import(at("apps/edge/lib/calendar/availability.ts"));
 
 const TZ = "America/New_York";

@@ -6,7 +6,7 @@
  */
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
-import { demoSession } from "../../legacy-verbs";
+import { demoSession } from "../../frame-verbs";
 import type { PeopleSurface } from "../surface";
 
 /**

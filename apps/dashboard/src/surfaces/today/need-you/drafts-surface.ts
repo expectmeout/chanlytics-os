@@ -9,9 +9,9 @@
  */
 import type { ReplyDraftDto } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
-import { read } from "@/legacy-bridge/api";
-import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import { read } from "@/bridge/api";
+import { readAged, type SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads } from "@/bridge/surface-registry";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 
 /** The workspace's newest kept drafts, whether they are all it keeps, and when they were read. */

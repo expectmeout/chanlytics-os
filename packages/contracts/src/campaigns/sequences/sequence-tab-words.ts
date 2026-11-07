@@ -3,7 +3,7 @@
  * to be changed, what needs you in it, and what it sent over a period, day by day. Pure: the clock is an argument, and
  * every number is counted from what the readers answer (sequence-dto.ts), so a figure here is the one Reports says.
  */
-import { toSendRowOf, type ToSendRowVM } from "../reach-out/reach-out-approval";
+import { toSendRowOf, type ToSendRowVM } from "../reach-out/approval";
 import {
   HELD_REWRITE_ADVICE,
   HELD_TAKE_OUT,
@@ -17,9 +17,9 @@ import {
   type HeldAnswer,
   type MarkedOpening,
 } from "./sequence-held";
-import { isReachOutHold, type ReachOutHold } from "../reach-out/reach-out-words";
-import { personHandWords, type HandKind } from "../reach-out/reach-out-hand";
-import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
+import { isReachOutHold, type ReachOutHold } from "../reach-out/words";
+import { personHandWords, type HandKind } from "../reach-out/hand";
+import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/replies";
 import { REPORT_MIN_N } from "../../reports/report-tiles";
 import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words";
 import { addressOf } from "../../activity/record-address";
@@ -456,7 +456,7 @@ export function historyCovers(
  * History's figures over the batches of a period: what went, what reached, what was read, who wrote back. Only those its
  * sequence can know (the walk of 30 Oct 2026 read "Read 0 · on WhatsApp" and "Delivered 0 of 1" for leads' email): Read
  * where it sends on WhatsApp, the one channel with a read receipt, and Delivered never for a sequence to leads, whose
- * email goes from a mailbox, which says it left and never whether it arrived (mailbox-reconcile.ts). Unsaid, all four.
+ * email goes from a mailbox, which says it left and never whether it arrived (mailbox/reconcile.ts). Unsaid, all four.
  */
 export function historyFigures(
   batches: readonly SequenceBatchDto[],

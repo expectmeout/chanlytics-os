@@ -132,9 +132,7 @@ test("this device's read state: seen moves the line, read and dismissed are by k
 });
 
 test("the bridge: reads the globals, keeps state per workspace and device, alerts only for what appears after the first look and only in the background", async () => {
-  const mod = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/notifications.ts")).href
-  );
+  const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/notifications.ts")).href);
   const store = new Map();
   const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
   const handlers = {};
@@ -209,9 +207,7 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
 });
 
 test("REGRESSION (X6-2): each source takes its own first look -- the Inbox's read landing after the calls' is its backlog, not news", async () => {
-  const mod = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/notifications.ts")).href
-  );
+  const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/notifications.ts")).href);
   // Alerts already on, as a person who asked for them comes back to the app.
   const store = new Map([
     ["chanlytics:notifs:default", JSON.stringify({ seenAt: 0, read: [], dismissed: [], alerts: true })],
@@ -266,9 +262,7 @@ test("REGRESSION (X6-2): each source takes its own first look -- the Inbox's rea
 // A search waits a day on its question and then ends; the bell's row is the trigger's (a KEPT row), and the device
 // was only ever woken for DERIVED rows, so the owner away from the tab heard nothing.
 test("a kept row of an alerting kind wakes the device like a derived one: not the backlog, only new, only in the background", async () => {
-  const mod = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/notifications.ts")).href
-  );
+  const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/notifications.ts")).href);
   const store = new Map();
   const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
   const handlers = {};
@@ -361,9 +355,7 @@ test("a kept row of an alerting kind wakes the device like a derived one: not th
 });
 
 test("two devices agree after Mark all read: the seen moment is the server's, the marks are keyed by the workspace's id, and a mark for a row that left the feed goes", async () => {
-  const mod = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/notifications.ts")).href
-  );
+  const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/notifications.ts")).href);
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const device = (over = {}) => {
     const store = new Map();
@@ -426,9 +418,7 @@ test("two devices agree after Mark all read: the seen moment is the server's, th
 // A17 (audit, 2 Oct 2026): the bell read Live's recent list, which holds the newest eight finished calls for the page, so
 // on a busy day a 9 AM missed call had no row. The bell now reads every missed call inside its day (LiveVM.missedCalls).
 test("the bell raises a row for every missed call in its day, not just the newest eight Live lists", async () => {
-  const mod = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/legacy-bridge/notifications.ts")).href
-  );
+  const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/notifications.ts")).href);
   const base = Date.now();
   const ago = (ms) => new Date(base - ms).toISOString();
   const dto = (id, over) => ({
@@ -506,7 +496,7 @@ test("the top bar shows the real feed outside a demo, with the device-alert swit
   );
   assert.ok(tb.includes("Alerts are blocked in your browser settings"), "a denied permission is said, not hidden");
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installNotifications();"),
+    readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installNotifications();"),
     "the refresh map re-reads the notifications surface after a mark; the bridge never imports the runner",
   );
   assert.ok(readCode("packages/contracts/src/today/index.ts").includes('from "./notifications";'));

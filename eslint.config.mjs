@@ -171,12 +171,12 @@ const A11Y_RULES = Object.fromEntries(
 /** The markup the browser draws, each path one a block below already parses. */
 const DASHBOARD_MARKUP = [
   "apps/dashboard/app/**/*.tsx",
-  "apps/dashboard/src/legacy-bridge/**/*.tsx",
+  "apps/dashboard/src/bridge/**/*.tsx",
   "apps/dashboard/src/client/**/*.tsx",
   "apps/dashboard/src/auth/**/*.tsx",
   "apps/dashboard/src/yes/**/*.tsx",
   "apps/dashboard/src/surfaces/**/*.tsx",
-  "apps/dashboard/src/legacy/**/*.jsx",
+  "apps/dashboard/mockup/**/*.jsx",
 ];
 
 /**
@@ -185,7 +185,7 @@ const DASHBOARD_MARKUP = [
  * file could reach into a server module, and only a failed Vercel build would
  * have said so. Type-only imports cross freely; they carry a shape, not code.
  *
- *   browser code (legacy-bridge, client, yes, auth, → never the server, never
+ *   browser code (bridge, client, yes, auth, → never the server, never
  *                 surfaces)                           the packages that hold
  *                                                     rules or providers
  *   server code (src/server, app/api)               → never the shell or the
@@ -217,11 +217,10 @@ const BROWSER_MAY_NOT_IMPORT = [
 const SERVER_MAY_NOT_IMPORT = [
   {
     group: [
-      "**/legacy-bridge/**",
-      "**/legacy-bridge",
-      "@/legacy-bridge",
-      "@/legacy-bridge/**",
-      "**/legacy/**",
+      "**/bridge/**",
+      "**/bridge",
+      "@/bridge",
+      "@/bridge/**",
       "**/src/client/**",
       "@/client/**",
       "../client/**",
@@ -340,15 +339,15 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
 export const LIMITED_TREES = [
   "apps/dashboard/src/auth",
   "apps/dashboard/src/client",
-  "apps/dashboard/src/legacy-bridge/ask",
-  "apps/dashboard/src/legacy-bridge/billing",
-  "apps/dashboard/src/legacy-bridge/hearing",
-  "apps/dashboard/src/legacy-bridge/invitations",
-  "apps/dashboard/src/legacy-bridge/mascot",
-  "apps/dashboard/src/legacy-bridge/reach-out",
-  "apps/dashboard/src/legacy-bridge/rehearse",
-  "apps/dashboard/src/legacy-bridge/surfaces",
-  "apps/dashboard/src/legacy-bridge/verbs",
+  "apps/dashboard/src/bridge/ask",
+  "apps/dashboard/src/bridge/billing",
+  "apps/dashboard/src/bridge/hearing",
+  "apps/dashboard/src/bridge/invitations",
+  "apps/dashboard/src/bridge/mascot",
+  "apps/dashboard/src/bridge/reach-out",
+  "apps/dashboard/src/bridge/rehearse",
+  "apps/dashboard/src/bridge/surfaces",
+  "apps/dashboard/src/bridge/verbs",
   "apps/dashboard/src/lib",
   "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/auth",
@@ -456,7 +455,7 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/config",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/campaigns/reach-out",
-  "apps/dashboard/src/legacy-bridge/mascot",
+  "apps/dashboard/src/bridge/mascot",
   "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/calendar",
   "apps/dashboard/src/server/console",
@@ -482,7 +481,7 @@ const DASHBOARD_CODE = [
   "apps/dashboard/app/**/*.{ts,tsx}",
   "apps/dashboard/src/server/**/*.ts",
   "apps/dashboard/src/lib/**/*.ts",
-  "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
+  "apps/dashboard/src/bridge/**/*.{ts,tsx}",
   // The typed client and the sign-in screens ran without any static
   // analysis until the boundaries below needed to see them.
   "apps/dashboard/src/client/**/*.{ts,tsx}",
@@ -672,7 +671,7 @@ export default [
   // The dashboard's layers, held apart (see BROWSER_MAY_NOT_IMPORT).
   {
     files: [
-      "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
+      "apps/dashboard/src/bridge/**/*.{ts,tsx}",
       "apps/dashboard/src/client/**/*.{ts,tsx}",
       "apps/dashboard/src/yes/**/*.tsx",
       "apps/dashboard/src/auth/**/*.{ts,tsx}",
@@ -748,7 +747,7 @@ export default [
   // repo/shell-names-are-published.test.mjs against what the shell publishes on
   // the window; no-undef here would believe the files' `/* global */` headers.
   {
-    files: ["apps/dashboard/src/legacy/**/*.jsx"],
+    files: ["apps/dashboard/mockup/**/*.jsx"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "script",

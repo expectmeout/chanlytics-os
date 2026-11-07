@@ -13,9 +13,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, setupSteps } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, kitPages, press, unmount } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, kitPages, press, unmount } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/legacy-verbs.ts");
+const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -108,7 +108,7 @@ const conversation = (id, name, messages) => ({
 
 const went = [];
 const flashes = [];
-installLegacyReact({
+installStubReact({
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
   __surfaceState: () => "live",

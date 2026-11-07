@@ -64,7 +64,6 @@ export {
 export type { DealActId, DealClearable, DealLostReason, DealPer, DealSource, DealStage } from "./deal-words";
 export { dealPaceFrom, medianWait, SAME_SITTING_MS, yesWaits } from "./pace";
 export type { DealWaitRow } from "./pace";
-export { pipelineOf, pipelineWorth } from "./pipeline/pipeline";
 export {
   PIPELINE_BOARD_CAP,
   PIPELINE_PASS_MAX,
@@ -76,10 +75,11 @@ export {
   pipelinePassDone,
   pipelinePassMany,
   pipelineSorted,
-} from "./pipeline/pipeline-board";
-export type { PipelineMove, PipelinePassManyVM, PipelineSort } from "./pipeline/pipeline-board";
-export { pipelinePeekOf, pipelineSheetOf } from "./pipeline/pipeline-peek";
-export type { PipelinePeekFact, PipelinePeekVM, PipelineSheetAct, PipelineSheetVM } from "./pipeline/pipeline-peek";
+} from "./pipeline/board";
+export type { PipelineMove, PipelinePassManyVM, PipelineSort } from "./pipeline/board";
+export { pipelinePeekOf, pipelineSheetOf } from "./pipeline/peek";
+export type { PipelinePeekFact, PipelinePeekVM, PipelineSheetAct, PipelineSheetVM } from "./pipeline/peek";
+export { pipelineOf, pipelineWorth } from "./pipeline/pipeline";
 export {
   isPipelineView,
   parsePipelineRoute,
@@ -87,9 +87,9 @@ export {
   pipelineRail,
   pipelineRoute,
   pipelineViewLabel,
-} from "./pipeline/pipeline-views";
-export type { PipelineRailRow, PipelineRailSection, PipelineView } from "./pipeline/pipeline-views";
-export { PIPELINE_GROUPS, pipelinePersonOf, pipelineRowId, pipelineRowNow } from "./pipeline/pipeline-vm";
+} from "./pipeline/views";
+export type { PipelineRailRow, PipelineRailSection, PipelineView } from "./pipeline/views";
+export { PIPELINE_GROUPS, pipelinePersonOf, pipelineRowId, pipelineRowNow } from "./pipeline/vm";
 export type {
   PipelineChip,
   PipelineFilter,
@@ -101,8 +101,8 @@ export type {
   PipelineSource,
   PipelineStep,
   PipelineVM,
-} from "./pipeline/pipeline-vm";
-export { PIPELINE_WORDS } from "./pipeline/pipeline-words";
+} from "./pipeline/vm";
+export { PIPELINE_WORDS } from "./pipeline/words";
 export {
   calendarPeekDeal,
   DEAL_ACT_HINTS,

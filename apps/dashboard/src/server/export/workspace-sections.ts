@@ -3,12 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { exportSectionPages, personExportPages, type Database } from "@chanlytics/db";
 import { signedMediaUrls } from "@/server/conversations/media";
 import { teamRoster } from "@/server/workspace/team";
-import {
-  FILE_LINK_SECONDS,
-  type BundleReaders,
-  type BundleTeamMember,
-  type PersonBundleReaders,
-} from "./export-bundle";
+import { FILE_LINK_SECONDS, type BundleReaders, type BundleTeamMember, type PersonBundleReaders } from "./bundle";
 
 /**
  * The readers of the owner's copy beyond the customer record (the wiring's second audit, R14 X1 and X6): the team as the

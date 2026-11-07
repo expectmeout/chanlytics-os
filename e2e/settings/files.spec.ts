@@ -139,6 +139,12 @@ test.describe("Files, from a photo to a post", () => {
       expect(done.ok(), "the photo arrived").toBeTruthy();
       photoId = ((await done.json()) as { data: { file_id: string } }).data.file_id;
 
+      // It stays where it landed through the read that ends the run: a first add once went back to saying the page held nothing.
+      await expect(page.getByTestId("fl-tile").first(), "the photo stands on the grid").toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(page.getByTestId("fl-empty"), "and the page never says it holds nothing").toHaveCount(0);
+
       // Said by a person, over whatever the look says of a picture of coloured blocks: a post is made from what shows a place.
       const said = await page.request.patch(scoped(`/api/v1/files/${photoId}`, workspace), {
         data: { shows: "storefront", who_in_it: "no_one" },

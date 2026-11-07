@@ -1548,7 +1548,7 @@ test("a read of outreach's facts that fails is not a yes: the door throws and th
   assert.equal(t.messages[0].status, "queued", "left for the retry");
 });
 
-/** A connected mailbox's route, as the edge binds one (mailbox-wire.ts): its sends recorded, each answered `answer`. */
+/** A connected mailbox's route, as the edge binds one (mailbox/wire.ts): its sends recorded, each answered `answer`. */
 const ownRoute = (address = OWN.address, answer = { ok: true, wamid: "g-1", status: 200 }) => {
   const sent = [];
   return {

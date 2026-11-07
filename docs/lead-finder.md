@@ -95,7 +95,7 @@ found, and since 00506 the bell says so.
 | The runner's database half      | `apps/edge/lib/leads/lead-db.ts` (the edge's binding of core's `LeadDb`)                                                                           |
 | The provider and the judge      | `packages/channels/src/leads/apify.ts`, `packages/channels/src/leads/lead-judge.ts`, `apps/edge/lib/leads/lead-wires.ts`                           |
 | The webhook                     | `apps/edge/api/apify-webhook.ts`, `apps/edge/lib/leads/apify-delivery.ts`                                                                          |
-| The sweep                       | `apps/edge/api/cron/leads.ts`, `apps/edge/lib/leads/leads-sweep.ts`, `apps/edge/lib/leads/lead-sweep.ts`                                           |
+| The sweep                       | `apps/edge/api/cron/leads.ts`, `apps/edge/lib/leads/sweep.ts`, `apps/edge/lib/leads/lead-sweep.ts`                                                 |
 | The routes                      | `apps/dashboard/app/api/v1/lead-searches/`, `apps/dashboard/app/api/v1/leads/`                                                                     |
 | What they call                  | `apps/dashboard/src/server/leads/`                                                                                                                 |
 | Ask's cards                     | `apps/dashboard/src/server/ask/tools/act/leads/`                                                                                                   |

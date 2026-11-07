@@ -4,8 +4,8 @@
  * read these and nothing else of a sequence, so the number Ask says is the number the page shows.
  */
 import type { AppointmentWord } from "../../journey/appointment-word";
-import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
-import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
+import type { ReachOutChainDto } from "../reach-out/dtos";
+import type { ReachOutFedBy } from "../reach-out/leads";
 import type { NewOnceKept } from "./new-draft";
 import type { SequenceMode, SequenceStart, SequenceState } from "./sequence";
 import type { SequenceEvidence } from "./sequence-evidence";

@@ -3,13 +3,13 @@
  * key lives here and nowhere else. Dry run by default, idempotent; the platform's alone.
  *
  * The door is the knock (authorizeAdmin: a token minted by the platform for this door, or the key on an edge without
- * the secret) and the body (readBody); convergeVoiceAgents in lib/voice/voice-converge.ts refuses a token that names a
+ * the secret) and the body (readBody); convergeVoiceAgents in lib/voice/converge.ts refuses a token that names a
  * workspace (platform_only) and does the rest.
  */
 import { readBody } from "../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
 import { adminDoor } from "../../lib/shared/log.js";
-import { convergeVoiceAgents } from "../../lib/voice/voice-converge.js";
+import { convergeVoiceAgents } from "../../lib/voice/converge.js";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/voice-converge");

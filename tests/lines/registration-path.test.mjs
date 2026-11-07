@@ -52,7 +52,7 @@ import {
   addressRequest,
 } from "@chanlytics/channels";
 import { registerLine } from "../../apps/edge/lib/lines/a2p-register.ts";
-import { installLegacyReact, fresh, again, all, walk, byTestId, textOf, settle } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, walk, byTestId, textOf, settle } from "../_stub-react.mjs";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -312,7 +312,7 @@ test("what the narrow path gives up is said before the button, with the real num
  * The page itself, rendered without a browser.
  *
  * No jsdom: the form is TSX now (surfaces/settings/connections/record-form.tsx),
- * drawn on the shared stub React (_legacy-react.mjs), so the component body runs
+ * drawn on the shared stub React (_stub-react.mjs), so the component body runs
  * for real -- real branching, real calls into the contract -- and what comes back
  * is the element tree. surface-seam.test.mjs names the tradeoff for view
  * properties it cannot reach without a renderer; this one CAN be reached, so it
@@ -322,7 +322,7 @@ test("what the narrow path gives up is said before the button, with the real num
  * One shared React, so these mount one page at a time -- which node:test does
  * anyway for top-level tests.
  * -------------------------------------------------------------------------- */
-installLegacyReact();
+installStubReact();
 Object.assign(globalThis.window, { __ME: { email: "ada@example.com" }, __WORKSPACES: [{ slug: "harbor" }] });
 // Filing is confirmed through the kit's Confirm and a role is gated by the shell's `gate` (surfaces/frame, which also
 // answers `canDo`): the stub draws the Confirm, and the walker below finds the Yes inside.

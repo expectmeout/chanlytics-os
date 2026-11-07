@@ -23,7 +23,7 @@ import { UUID, defineActions, noteRow, readAction, str, unlessNotFound, type Too
 
 /**
  * The open escalation the Inbox shows on each thread, as the page picks it
- * (legacy-bridge/surface-data.ts, inboxOverride): the open escalations come
+ * (bridge/surface-data.ts, inboxOverride): the open escalations come
  * newest first and the last one keyed for a thread wins, so a thread shows its
  * oldest. The inbox tool's two actions, list and thread, both pick with this.
  */

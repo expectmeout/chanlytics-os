@@ -5,7 +5,7 @@
 import type { Closure, Hours } from "../workspace-config/business-profile";
 import { DAYS } from "../workspace-config/config-rules";
 import { dayIntervals } from "../../calendar/availability";
-import { closureDatesLabel, closuresFrom } from "../../calendar/calendar-words";
+import { closureDatesLabel, closuresFrom } from "../../calendar/words";
 import { zoneDayKey } from "../../shared/clock";
 import { timezoneCity } from "../../shared/time";
 

@@ -1,6 +1,6 @@
 /**
  * The Inbox's strip and chip for a reply from a lead (Reach out Part 5, PR 7; surfaces/inbox/thread/reply-strip.tsx), run on the stub React over the
- * bridge's own words (legacy-bridge/reach-out/replies.ts over contracts reach-out-reply-words.ts) and the readings as
+ * bridge's own words (bridge/reach-out/replies.ts over contracts reach-out/reply-words.ts) and the readings as
  * `__REPLIES` holds them. The undo is the one verb stubbed, so what is proved is what the page draws and what it asks
  * of the bridge: each intent's strip and doors; the undo pressed once, its refusal said in its own words and its
  * success in the page's; "Use the draft" handing the draft to the composer's door; the composer's seed; a thread with
@@ -9,9 +9,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, unmount, byTestId, textOf, press, settle } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again, unmount, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
+installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const role = { real: "owner" };
 Object.assign(W, {
@@ -23,11 +23,11 @@ Object.assign(W, {
   },
   __clock: { zone: () => "America/New_York" },
 });
-const L = "../../../apps/dashboard/src/legacy";
-(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const SRC = "../../../apps/dashboard/src";
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { ReplyStrip, ReplyChip, useReplyDraftDoor } =
   await import("../../../apps/dashboard/src/surfaces/inbox/thread/reply-strip.tsx");
-const bridge = await import("../../../apps/dashboard/src/legacy-bridge/reach-out/replies.ts");
+const bridge = await import("../../../apps/dashboard/src/bridge/reach-out/replies.ts");
 
 const CONV = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
 const reading = (over = {}) => ({

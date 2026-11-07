@@ -371,6 +371,18 @@ export {
   leadAllowanceFor,
   leadMonth,
 } from "./search/caps";
+// A search's card in Ask: its rows, its press, the card a newer one replaces, and the waiting card as a turn is told it.
+export {
+  replacedOutcome,
+  SEARCH_CARD_REPLACED,
+  searchCardsReplaced,
+  searchCardView,
+  startsSearch,
+  waitingSearchWords,
+  withAnswerLanded,
+  withIdeaCarried,
+} from "./search/card";
+export type { SearchCardView } from "./search/card";
 export {
   estimateRoundUsd,
   LEAD_CARDS,
@@ -466,18 +478,6 @@ export type {
 export { LeadSearchPlanSchema } from "./search/plan-schema";
 export { questionAfterProbe } from "./search/question";
 export type { LeadQuestion, ProbeMember } from "./search/question";
-// A search's card in Ask: its rows, its press, the card a newer one replaces, and the waiting card as a turn is told it.
-export {
-  replacedOutcome,
-  SEARCH_CARD_REPLACED,
-  searchCardsReplaced,
-  searchCardView,
-  startsSearch,
-  waitingSearchWords,
-  withAnswerLanded,
-  withIdeaCarried,
-} from "./search/search-card";
-export type { SearchCardView } from "./search/search-card";
 export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords } from "./search/sentence";
 export type { LeadPlanWord } from "./search/sentence";
 export {

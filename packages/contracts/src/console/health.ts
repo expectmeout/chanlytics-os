@@ -21,7 +21,7 @@ import { vitalVerdict } from "../shell/vitals";
 import type { PlatformDayRowDto } from "../workspace/platform-days";
 import { agoWords, DAY_MS, WEEK_MS } from "../shared/time";
 import { capitalize } from "../shared/words";
-import { CONSOLE_PATH } from "./console-path";
+import { CONSOLE_PATH } from "./path";
 import {
   clocksOf,
   pagesOf,

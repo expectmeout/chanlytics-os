@@ -15,9 +15,9 @@ import {
   FIRST_ROWS_SHEETS_ATTR,
   FIRST_ROWS_SLOT,
 } from "@chanlytics/contracts";
-import { fresh, installLegacyReact, textOf } from "../../_legacy-react.mjs";
+import { fresh, installStubReact, textOf } from "../../_stub-react.mjs";
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false, innerWidth: 393, scrollY: 0 });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false, innerWidth: 393, scrollY: 0 });
 const S = "../../../apps/dashboard/src";
 const { firstRowsMeetRoute, installFirstRows, useFirstRowsLetGo } = await import(`${S}/surfaces/frame/first-rows.ts`);
 const { hearPartReady, installPageSpeed, partReady, speedHost } = await import(`${S}/client/page-speed.ts`);
@@ -307,7 +307,7 @@ test("a copy keeps the test ids a stylesheet draws by, and no id the app looks i
 
 // Last in the file: a seal is for the page's life, and each file runs in a process of its own.
 test("a device sealed keeps no copy, and what it held goes", async () => {
-  const { sealSurfaceCache } = await import(`${S}/legacy-bridge/surface-cache.ts`);
+  const { sealSurfaceCache } = await import(`${S}/bridge/surface-cache.ts`);
   const { deviceSealed } = await import(`${S}/client/kept-on-device.ts`);
   assert.equal(deviceSealed(), false);
   sealSurfaceCache();

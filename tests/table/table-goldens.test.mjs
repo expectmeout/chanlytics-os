@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { installLegacyReact, fresh, again } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { peopleOrder } from "../people/_people-shown.mjs";
 import {
@@ -35,7 +35,7 @@ import {
   LEAD_REACH,
 } from "./_fixtures.mjs";
 
-installLegacyReact();
+installStubReact();
 const { useTableState } = await importSrc("apps/dashboard/src/surfaces/kit/table/state.ts");
 const { useDataTable } = await importSrc("apps/dashboard/src/surfaces/kit/table/use-data-table.ts");
 const { columnsIn } = await importSrc("apps/dashboard/src/surfaces/kit/table/columns.ts");

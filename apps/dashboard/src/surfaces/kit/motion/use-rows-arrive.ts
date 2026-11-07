@@ -20,7 +20,7 @@
  */
 import { useCallback, useRef } from "react";
 import { firstRowsStand } from "@chanlytics/contracts";
-import { onAPhone } from "../../legacy-verbs";
+import { onAPhone } from "../../frame-verbs";
 import { cameBack } from "./held-list";
 
 /** The fade: as the house's `arrive-in` (kit.css), twelve rows, each 30 ms after the one above, the eighth on at once. */

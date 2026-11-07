@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isUnseen, noteWhose, seenBy, toConversationVM, toInboxThreadVM, toPersonRowVM } from "@chanlytics/contracts";
-import { installLegacyReact } from "../../_legacy-react.mjs";
+import { installStubReact } from "../../_stub-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-10-07T14:00:00Z");
@@ -197,7 +197,7 @@ test("a bell row is about a person by what it says it is about, else by where it
 
 /* -------------------------------- the tab's store -------------------------------- */
 
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 Object.assign(globalThis, {
   location: { pathname: "/w/marisas", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
   __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's", status: "active", timezone: ZONE }],

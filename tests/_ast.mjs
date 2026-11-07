@@ -1870,14 +1870,14 @@ function importedWaitsOf(sf) {
   return { names, namespaces };
 }
 
-/** The module beside `sf` a relative specifier names, when it is a script there is: `../_legacy-react.mjs`. */
+/** The module beside `sf` a relative specifier names, when it is a script there is: `../_stub-react.mjs`. */
 const besideOf = (sf, specifier) => {
   if (!specifier.startsWith(".")) return null;
   const file = path.posix.normalize(path.posix.join(path.posix.dirname(sf.fileName), specifier));
   return /\.m?js$/.test(file) && fs.existsSync(path.join(ROOT, file)) ? file : null;
 };
 
-/** `await import("../_legacy-react.mjs")`: the module beside it a declaration takes, or null. */
+/** `await import("../_stub-react.mjs")`: the module beside it a declaration takes, or null. */
 const awaitedImportOf = (sf, init) =>
   init &&
   ts.isAwaitExpression(init) &&
@@ -1891,7 +1891,7 @@ const awaitedImportOf = (sf, init) =>
 /** A file's wait helpers, each by the declaration its name is bound to, and the test a wait answers. */
 function waitsOf(sf) {
   const fns = new Map();
-  // `const LR = await import("../_legacy-react.mjs")` and `const { settle } = await import(…)`: the module's own waits.
+  // `const LR = await import("../_stub-react.mjs")` and `const { settle } = await import(…)`: the module's own waits.
   const loaded = new Map();
   const collect = (n) => {
     if (ts.isFunctionDeclaration(n) && n.name && n.body) fns.set(n, n);
@@ -1958,6 +1958,25 @@ function waitsOf(sf) {
  * condition; a wait helper's own turns, counted where it is called; `await Promise.resolve()`, whose count of microtask
  * hops a busy machine cannot change; and a mocked clock's ticks, which are not awaited turns.
  */
+/**
+ * A browser spec's tests in quarantine: `test.fixme(true, "quarantine: <date> <why>")`, the one shape of a test that is
+ * red, known and not worth today (e2e/skip-ceiling.ts says them apart at night). Any other skip is not one.
+ */
+export function quarantinesIn(sf) {
+  let n = 0;
+  const visit = (c) => {
+    if (
+      ts.isCallExpression(c) &&
+      c.expression.getText(sf) === "test.fixme" &&
+      c.arguments.some((a) => ts.isStringLiteralLike(a) && a.text.startsWith("quarantine: "))
+    )
+      n += 1;
+    ts.forEachChild(c, visit);
+  };
+  visit(sf);
+  return n;
+}
+
 export function fixedWaitsIn(sf) {
   const { functions, isWait } = waitsOf(sf);
   const out = [];

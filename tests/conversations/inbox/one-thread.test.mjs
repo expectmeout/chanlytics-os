@@ -12,7 +12,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, memberWords, toInboxThreadVM, toConversationVM, toCallVM } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again } from "../../_legacy-react.mjs";
+import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
@@ -22,7 +22,7 @@ const ZONE = "America/New_York";
 const went = [];
 const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
 const realFetch = globalThis.fetch;
-installLegacyReact({
+installStubReact({
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -69,9 +69,9 @@ const { Menu } = await import(`${S}/surfaces/kit/menu/menu.tsx`);
 // A kit Menu's items as one list, whatever the groups.
 const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
+const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
 // The courier reads the surfaces again behind a write (refresh-map.ts), loaded on the first one: loaded here, so it is there.
-await import(`${S}/legacy-bridge/refresh-map.ts`);
+await import(`${S}/bridge/refresh-map.ts`);
 // The runner the re-read goes through; it boots nothing.
 const stopRunner = startSurfaces([], () => () => {});
 after(() => {

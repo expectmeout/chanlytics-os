@@ -4,7 +4,7 @@
  *
  * Nothing here decides who may look. The frame asks who is looking (GET platform/me): everybody but the platform's staff
  * is told there is no such page, as any unknown address is; staff who have not shown their second factor this session
- * are sent to the second step by the client (legacy-bridge/api.ts), which brings them back here. Each screen reads its
+ * are sent to the second step by the client (bridge/api.ts), which brings them back here. Each screen reads its
  * own rows on demand, and each act asks why before it runs.
  */
 import { Fragment, useCallback, useEffect, useState } from "react";
@@ -22,7 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
-import { useLegacyToast } from "../legacy-verbs";
+import { useFrameToast } from "../frame-verbs";
 import { FindSheet } from "./find";
 import { HealthScreen } from "./health/health";
 import { HomeScreen } from "./home";
@@ -134,7 +134,7 @@ export function ConsoleRoute({ pathname }: { pathname: string }) {
   const address = consoleAddressOf(pathname || CONSOLE_PATH);
   const me = useConsoleRead(consoleVerbs.me, "me");
   const [finding, setFinding] = useState(false);
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   const openFind = useCallback(() => setFinding(true), []);
   // ⌘K (Ctrl+K off a Mac) opens Find from anywhere in the Console, as the rail's row says.
   useEffect(() => {

@@ -18,7 +18,7 @@ plan's Phase 4, after each surface leaves the shell under decision 0015). Until 
 The plan's contract (its §2.1), with what the build holds of each today.
 
 1. **A value is a token.** A colour, type size, radius, shadow, blur or duration is declared once, in
-   `apps/dashboard/src/legacy/styles/tokens.css`, and a rule reads it with `var()`. Layout lengths (widths, gaps, grid
+   `apps/dashboard/src/styles/tokens.css`, and a rule reads it with `var()`. Layout lengths (widths, gaps, grid
    tracks) stay with the page. Held: the type sizes, radii, shadows, colours and blurs a stylesheet writes as
    literals, and the `style` props in the shell's markup, are counted. No measure counts a duration.
 2. **A look is a set of token values.** Two settings on `<html>` and on every root that stamps a theme: `data-theme`
@@ -41,7 +41,7 @@ The plan's contract (its §2.1), with what the build holds of each today.
 
 | What | Where |
 | --- | --- |
-| The tokens | `apps/dashboard/src/legacy/styles/tokens.css`: the scales on `:root`; each theme's colours and shadows on `[data-theme="light"]` and `[data-theme="dark"]`; the roles on `:root, [data-theme]`, which are Classic; Glass's two blocks after them |
+| The tokens | `apps/dashboard/src/styles/tokens.css`: the scales on `:root`; each theme's colours and shadows on `[data-theme="light"]` and `[data-theme="dark"]`; the roles on `:root, [data-theme]`, which are Classic; Glass's two blocks after them |
 | The kit's rules | `apps/dashboard/src/surfaces/kit/kit.css`, reading a role where a look sets the value (a surface, a control, an action), and otherwise a scale or the theme's colour; one breakpoint, 900px. Four primitives stand in it twice until Phase 4 takes the house's out: `.avatar` and `.face`, `.rec-sheet` and `.sheet`, and the surfaces of `.rec-card-tip` and `.confirm-block` beside `.panel-pop` and `.panel-inset`. Its header says what belongs there |
 | Its registry | `apps/dashboard/src/surfaces/kit/classes.json`: the kit's class names (the house's own, no prefix) and, apart, the modifiers its rules name (`.active`, `.show`). The measures read it |
 | Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`, `Figure`, `LinePress` and `LineField` (what a conversation is pressed and typed through, Ask's Line), `DayRangePicker` (a range of days picked on a month, in the date picker's folder), and those with behaviour of their own, on Base UI: `Sheet`, `Menu`, `Popover`, `DatePicker`, `Select`, `Combobox`, `Tooltip`, `useToast`, `Switch`, `Segmented`, `Field` (Behaviour: Base UI, below): a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
@@ -53,7 +53,7 @@ The plan's contract (its §2.1), with what the build holds of each today.
 ## Draw with the kit
 
 1. Find the primitive in the gallery: its family, and the entry whose markup is what the page needs.
-2. On a legacy page (`apps/dashboard/src/legacy/`), draw the house component where one exists (`MoreMenu` for a menu,
+2. On a shell page (`apps/dashboard/mockup/`), draw the house component where one exists (`MoreMenu` for a menu,
    never its markup typed again), and otherwise write the entry's classes (a button, a chip, a panel). On a surface
    under `apps/dashboard/src/surfaces/`, import the component from the kit's `index.ts`: a press that opens a page
    takes `href` and is drawn as a link, and `className` carries layout alone. A surface cannot import the house's JSX:
@@ -156,9 +156,9 @@ A new token says, in a comment beside it, what it is for.
 
 | Hold | What turns it red |
 | --- | --- |
-| the `style-values` measure (`corepack pnpm check:debt`) | a type size, radius, shadow, colour or blur written as a literal, counted per stylesheet: every stylesheet of the dashboard but the tokens, the kit's among them. The charts' validated palette in `apps/dashboard/src/legacy/styles/charts.css` is counted, and kept |
+| the `style-values` measure (`corepack pnpm check:debt`) | a type size, radius, shadow, colour or blur written as a literal, counted per stylesheet: every stylesheet of the dashboard but the tokens, the kit's among them. The charts' validated palette in `apps/dashboard/src/styles/charts.css` is counted, and kept |
 | the `kit-primitives` measure (`corepack pnpm check:debt`) | in every stylesheet but the tokens' and the kit's: each selector naming a class the registry lists, even one that only places it (`.cal-tools > .btn`), or a class whose name holds a primitive's word (`btn`, `chip`, `tab`, `card`, `sheet`, `field`, `face`, `menu`, `pop`, `tip`, `toast`…, so `.pl-card-slot` counts). Not a row, nor a page's own count |
-| the `inline-styles` measure (`corepack pnpm check:debt`) | a `style` prop under `apps/dashboard/src/legacy` or `apps/dashboard/src/surfaces`, counted per file |
+| the `inline-styles` measure (`corepack pnpm check:debt`) | a `style` prop under `apps/dashboard/mockup` or `apps/dashboard/src/surfaces`, counted per file |
 | the raw-element lint (`eslint.config.mjs`) | a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<dialog>` in `apps/dashboard/src/surfaces` outside the kit; a surface moved before its kit step waits in `KIT_PENDING` |
 | `tests/styles/kit-css.test.mjs` | a class the kit's stylesheet declares and the registry lacks; an `@media` width in it other than 900px; a page outside the shell drawing a kit class while `apps/dashboard/app/globals.css` does not import the kit |
 | `tests/styles/kit-gallery.test.mjs` | a registry name no entry draws |
@@ -216,7 +216,7 @@ through it.
 
 ## What the kit already answers
 
-The families the plan found built more than once (its Appendix A), with what a page takes instead. A legacy page draws
+The families the plan found built more than once (its Appendix A), with what a page takes instead. A shell page draws
 each as it stands. A surface imports the kit's own components (`Button`, `LinkButton`, `Panel`, `Face`, `ListRow`,
 `Meter`, `Figure`, and those on Base UI); the rest are the house's JSX, which the first surface to need one moves into the kit as
 TSX (Draw with the kit, step 2).
@@ -224,12 +224,12 @@ TSX (Draw with the kit, step 2).
 | A page's own | The kit's |
 | --- | --- |
 | close or back button | `Button` with `iconOnly` and its `aria-label` (`.btn.btn-icon`) |
-| segmented control | `Segmented` (`.rec-seg`); `RecordToggleGroup` on a legacy page |
+| segmented control | `Segmented` (`.rec-seg`); `RecordToggleGroup` on a shell page |
 | a number, what it counts and the period before | `Figure`, in the `dl` the page draws (Reports' strip, Google's four) |
-| switch | `Switch` (`.rec-switch`); `RecordSwitch` on a legacy page |
-| sheet, modal | `Sheet` (`.sheet`): a record's composer, or a phone's small job (`shape="job"`); `RecordSheet` (`.rec-sheet`) on a legacy page |
-| menu, popover | `Menu` (`.more-*`), `Popover` (the panel's pop); `MoreMenu` on a legacy page |
-| select, picker, field | `Select` and `Combobox` (`.rec-combo-*`), in a `Field` (`.rec-field`); `RecordCombobox`, `RecordField` and `.input` on a legacy page |
+| switch | `Switch` (`.rec-switch`); `RecordSwitch` on a shell page |
+| sheet, modal | `Sheet` (`.sheet`): a record's composer, or a phone's small job (`shape="job"`); `RecordSheet` (`.rec-sheet`) on a shell page |
+| menu, popover | `Menu` (`.more-*`), `Popover` (the panel's pop); `MoreMenu` on a shell page |
+| select, picker, field | `Select` and `Combobox` (`.rec-combo-*`), in a `Field` (`.rec-field`); `RecordCombobox`, `RecordField` and `.input` on a shell page |
 | face, initials | `Face` (`.face`); a person is its `person` prop (their name and initials), which contracts' `personFaceOf` reads: initials for a name, the phone glyph for a number, the mail glyph for an address, on every page that names a person, so no page keeps its own avatar or its own test of a name |
 | a person who asked to stop | `StoppedMark` (`apps/dashboard/src/surfaces/kit/pill/stopped-mark.tsx`, the pill in contracts' `STOP_WORDS.mark`): beside the name wherever a person is offered as someone to answer or contact, from the row's `stopped` or `optedOut` |
 | empty state | `EmptyState`, and `FailedRead` for a read that failed (`.empty*`) |
@@ -239,11 +239,11 @@ TSX (Draw with the kit, step 2).
 | a phone's tab bar | `TabBar` (`.tab-bar`): the places a thumb goes, as links, and More; a press answers at the touch and its lozenge glides on the strip's spring (`kit/tab-bar/`, `docs/superpowers/specs/2026-10-12-the-tab-bar-answers-at-the-touch-design.md`) |
 | card | `Panel`: `pane`, `inset` or `pop`; `sm` or `flush` |
 | meter, bar | `Meter` (`.meter`) |
-| tooltip, a native `title` | `Tooltip` (`.ui-tip`); on a legacy page a `data-tip` attribute, drawn by `.ui-tip` on hover and on keyboard focus, and `RecordTip` in the record kit |
+| tooltip, a native `title` | `Tooltip` (`.ui-tip`); on a shell page a `data-tip` attribute, drawn by `.ui-tip` on hover and on keyboard focus, and `RecordTip` in the record kit |
 | quiet link | `LinkButton` (`.link-btn`) |
 | a conversation's circle at a field's end, an answer's small acts, a question offered, a row or a figure of an answer, a door in its words, the field that grows | `LinePress` by its `kind`, and `LineField` (`.line-*`) |
 | list row | `ListRow` (`.list-row`) |
-| confirmation, flash | `Confirm` (`.confirm*`); `useToast` (`.pp-toast*`), `usePPToast` on a legacy page |
+| confirmation, flash | `Confirm` (`.confirm*`); `useToast` (`.pp-toast*`), `usePPToast` on a shell page |
 | glyph | `Icon` (`apps/dashboard/src/surfaces/kit/icon/icon.tsx`) |
 
 ## Behaviour: Base UI
@@ -282,7 +282,7 @@ told), and the kit's classes draw its parts, since Base UI draws nothing.
 - A glyph is the page's: a component that draws one (the sheet's Close, the select's chevron, the combobox's glass, a
   field's problem, a toast's tone and its ×, a menu item's and a set's tick) takes it as a prop, the Icon at the
   house's size, as the Button and the Face do, until the Icon moves into the kit (the plan's Phase 3).
-- A legacy page keeps the house's component (`RecordSheet`, `MoreMenu`, `RecordCombobox`, `usePPToast`, `[data-tip]`)
+- A shell page keeps the house's component (`RecordSheet`, `MoreMenu`, `RecordCombobox`, `usePPToast`, `[data-tip]`)
   until its surface's Phase 4 step swaps it for the kit's. The swap is a listed difference, not a byte-equal move (the
   plan's step 2.5 lists what each draws and does otherwise): it deletes the surface's hand-written behaviour in the same
   change, and the first Base UI component a surface draws raises the workspace route's JS budget there, with the

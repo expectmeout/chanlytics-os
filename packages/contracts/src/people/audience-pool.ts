@@ -18,7 +18,7 @@ import {
   type PersonLike,
   type PersonVisitsDto,
   type VisitDto,
-} from "../calendar/calendar-people";
+} from "../calendar/people";
 import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
 import { isOptedOutContact } from "../consent/consent";
 import { isEmailStopped } from "../conversations/thread-contact";

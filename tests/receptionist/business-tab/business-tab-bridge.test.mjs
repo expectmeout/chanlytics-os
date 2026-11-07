@@ -71,8 +71,8 @@ const { composePromptPreview } = await import(at("apps/dashboard/src/server/rece
 
 globalThis.window = {};
 const W = globalThis.window;
-const { BUSINESS_TAB, FOLD_BLOCK } = await import(at("apps/dashboard/src/legacy-bridge/business-tab.ts"));
-const { composedPrompt, installInboxVerbs } = await import(at("apps/dashboard/src/legacy-bridge/inbox-verbs.ts"));
+const { BUSINESS_TAB, FOLD_BLOCK } = await import(at("apps/dashboard/src/bridge/business-tab.ts"));
+const { composedPrompt, installInboxVerbs } = await import(at("apps/dashboard/src/bridge/inbox-verbs.ts"));
 installInboxVerbs();
 const tab = BUSINESS_TAB;
 // The save's own rules, before the tab has asked for them (it does as it mounts, surfaces/settings/business/tab.tsx): a draft the save

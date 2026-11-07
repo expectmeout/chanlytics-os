@@ -11,7 +11,7 @@ import { toTodayVM, todayBriefWords, QUOTE_MAX, leadQuestionRoute, attentionRow 
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { personRow, daysAgo, ROW_NOW, ROW_TZ } from "../consent/_person-row.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf } from "../_legacy-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf } from "../_stub-react.mjs";
 
 // People's cells, from the code the page draws its rows with (surfaces/people/cells/columns.tsx).
 const { PL_COLUMNS, PL_CARD } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
@@ -429,7 +429,7 @@ test("the six are the six worth most: an ask to book from today is drawn first, 
 
 // Today's Need you is TSX (surfaces/today/zones/need-you.tsx, the runs its To decide rows), drawn by import over the day the
 // seam holds (surface-values.ts); its row is the kit's (surfaces/kit/attention/attn-row.tsx).
-installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const { NeedYou } = await import("../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { AttnRow } = await import("../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -502,7 +502,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
   // again -- so the strip went and each row carries the words itself. Run, not read: a person who needs you,
   // every cell of their row drawn (the desktop's columns and the phone's card) with the attention row the surface
   // computed for them, holds no AttnRow and no strip's status, and the words are on the row.
-  installLegacyReact();
+  installStubReact();
   const needsYou = personRow({
     id: "p1",
     needs_human: true,
@@ -551,9 +551,9 @@ test("the wiring: one row component for People and Today, the queue in the comma
     "the queue, not a command bar; the seed is gone",
   );
   assert.ok(!queue.includes("tq-count"), "no count over rows that say it");
-  const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
+  const css = readRaw("apps/dashboard/src/styles/dashboard-a-v2.css");
   assert.ok(css.includes(".tq-list .cl-attn-row:first-child { border-top: none; }"));
-  const attn = readRaw("apps/dashboard/src/legacy/styles/clients.css");
+  const attn = readRaw("apps/dashboard/src/styles/clients.css");
   assert.ok(attn.includes(".cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }"));
   // The line a person decides from gets TWO lines, with a real ellipsis past
   // them; one line cut 23% off a call-back summary at 1440, including who the
@@ -809,7 +809,7 @@ test("a person and four calls: the brief says one person needs you, not 'and 4 m
 
 test("the brief says who the head counts: a hold past a week is Older, neither named nor counted among who needs you", () => {
   const { people, asking } = crowd(3);
-  // Flagged twelve days ago: Need you's Older, which the one count leaves out (need-you-groups.ts).
+  // Flagged twelve days ago: Need you's Older, which the one count leaves out (need-you/groups.ts).
   asking[2] = { ...asking[2], created_at: "2026-08-25T05:00:00Z" };
   const vm = toTodayVM(metrics({ now: { ...metrics().now, escalations_open: 3 } }), people, asking, [], NOW);
   const words = todayBriefWords(vm, null, []).text;

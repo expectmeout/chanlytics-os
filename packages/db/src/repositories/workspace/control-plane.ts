@@ -418,7 +418,7 @@ export interface PublicWorkspaceRead {
   open: OpenToCustomers;
   /**
    * The record's public columns, as the select reads them: exactly those contracts lets the page show (the dashboard's
-   * server/public/public-facts.type-test.ts holds it).
+   * server/public/facts.type-test.ts holds it).
    */
   record: PublicRecordRead | null;
   /**

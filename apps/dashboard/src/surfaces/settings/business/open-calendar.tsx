@@ -5,12 +5,12 @@
 // opens with, refuses and writes is folds.ts's.
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import type { CalendarVM } from "@chanlytics/contracts";
 import { CALENDAR_PAGE } from "../../calendar/words";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordBox } from "../../kit/record/field";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import { businessTabSave } from "./saver";
 import { calendarApi, calendarNow, chromeWords, surfaceFailedFn } from "./shell";
 

@@ -5,7 +5,8 @@
  */
 import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
 import { ASK_ATTACHED_MAX, type AskAttached } from "@chanlytics/contracts";
-import { refreshSurface } from "../../legacy-verbs";
+import { refreshSurface } from "../../frame-verbs";
+import { holdsFiles, imagesIn } from "../../kit/drop/drop";
 import { Icon } from "../../kit/icon/icon";
 import { LineFiles, LinePress } from "../../kit/line/line";
 import { FILE_PICKS, fileVerbs, type AddSaid } from "../../files/verbs";
@@ -94,7 +95,7 @@ export const arAttach = ({ attached, setAttached, flash, t }: Line) => {
 
 /** The images a paste holds: a screenshot, a photo copied from another app. Words pasted stay the field's. */
 export const pastedPhotos = (e: ClipboardEvent, attach: (files: readonly File[]) => void): void => {
-  const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"));
+  const files = imagesIn(e.clipboardData);
   if (files.length === 0) return;
   e.preventDefault();
   attach(files);
@@ -103,11 +104,10 @@ export const pastedPhotos = (e: ClipboardEvent, attach: (files: readonly File[])
 /** The panel takes what is dropped on it, and says so while something is over it. */
 export const useArDrop = (attach: (files: readonly File[]) => void) => {
   const [dropping, setDropping] = useState(false);
-  const holdsFiles = (e: DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
   return {
     dropping,
     onDragOver: (e: DragEvent) => {
-      if (!holdsFiles(e)) return;
+      if (!holdsFiles(e.dataTransfer)) return;
       e.preventDefault();
       setDropping(true);
     },
@@ -116,7 +116,7 @@ export const useArDrop = (attach: (files: readonly File[]) => void) => {
     },
     onDrop: (e: DragEvent) => {
       setDropping(false);
-      if (!holdsFiles(e)) return;
+      if (!holdsFiles(e.dataTransfer)) return;
       e.preventDefault();
       attach(Array.from(e.dataTransfer.files));
     },

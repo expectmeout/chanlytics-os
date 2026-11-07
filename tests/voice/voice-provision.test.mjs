@@ -207,7 +207,7 @@ test("the receptionist is made once, in the lib both line paths share: the shell
   // the bodies on the wire, the row after the number, the bell and the event,
   // secrets never echoed, the read-back planning nothing -- is run in
   // voice-doors.test.mjs.
-  const agent = readCode("apps/edge/lib/voice/voice-agent.ts");
+  const agent = readCode("apps/edge/lib/voice/agent.ts");
   for (const pin of [
     "createRetellLlm(cfg, voiceLlmCreateBody(secrets, fnUrl))",
     "voiceAgentCreateBody({ llmId, llmVersion, agentName: o.agentName }, secrets, fnUrl)",
@@ -231,7 +231,7 @@ test("the laptop script is retired: the key lives on the edge and nowhere else",
     !fs.existsSync(path.join(ROOT, "tooling/scripts/setup_voice.py")),
     "the Python provisioning script is gone",
   );
-  const adapter = readCode("packages/channels/src/voice/voice-retell.ts");
+  const adapter = readCode("packages/channels/src/voice/retell.ts");
   for (const fn of ["createRetellLlm", "createAgent", "createPhoneNumber", "updatePhoneNumber", "getPhoneNumber"]) {
     assert.ok(
       adapter.includes(`export function ${fn}(`) || adapter.includes(`export async function ${fn}(`),
@@ -244,7 +244,7 @@ test("the laptop script is retired: the key lives on the edge and nowhere else",
   );
   // The package hands the edge every value the provisioning module exports: its barrel names each one.
   const channels = await import("@chanlytics/channels");
-  const provision = await import(new URL("../../packages/channels/src/voice/voice-provision.ts", import.meta.url).href);
+  const provision = await import(new URL("../../packages/channels/src/voice/provision.ts", import.meta.url).href);
   for (const name of Object.keys(provision)) assert.ok(name in channels, `voice-provision.ts: ${name}`);
   // The diagnostic saying which model each line runs is run in diag-door.test.mjs.
 });

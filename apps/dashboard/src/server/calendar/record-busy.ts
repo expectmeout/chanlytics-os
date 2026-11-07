@@ -2,7 +2,7 @@
  * The record's taken time over the days the receptionist may offer (00345,
  * docs/plans/2026-10-07-bookings-arrive-by-email.md): a booking that arrived by email took its slot even where the
  * tool writes no calendar, so every reader here that names an open time subtracts it beside the feed's busy blocks --
- * the board (calendar-week.ts), Ask's openings (ask/openings.ts, through its reader) and the prompt's preview
+ * the board (calendar/week.ts), Ask's openings (ask/openings.ts, through its reader) and the prompt's preview
  * (receptionist/prompt-preview.ts) -- as the receptionist does on the edge (apps/edge/lib/calendar/availability.ts).
  * One rule (contracts busyOfAppointments) over one span (offeringHorizon), so none offers a time another draws as taken.
  *

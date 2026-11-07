@@ -12,7 +12,7 @@ import { keepBusinessRead, listingFactsStored, patchListing, type Json } from "@
 import { errField, logger } from "../shared/log.js";
 import { http } from "./places.js";
 import { tokenFor } from "./profile-credentials.js";
-import type { ConnectionRow, Db } from "./google-rows.js";
+import type { ConnectionRow, Db } from "./rows.js";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
 
 /** The listing's facts with what the owner's own listing says, where it says it; everything else as it was. */

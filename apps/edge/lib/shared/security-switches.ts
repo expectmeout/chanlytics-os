@@ -7,11 +7,11 @@
  */
 import { daysToSunset, FLAGS } from "@chanlytics/contracts";
 import { env } from "./env.js";
-import { signatureOnly } from "../voice/voice-door-auth.js";
+import { signatureOnly } from "../voice/door-auth.js";
 
 /** Whether each weaker mode is open on this deployment: what the code allows with the variables it holds now. */
 const OPEN: Readonly<Record<string, () => boolean>> = {
-  // Unset, the shared secret still opens the three voice doors (voice/voice-door-auth.ts).
+  // Unset, the shared secret still opens the three voice doors (voice/door-auth.ts).
   RETELL_DOORS_SIGNED: () => !signatureOnly(),
   // The secret opens a door only while it is set and the signature is not the only key.
   RETELL_FN_SECRET: () => !!env.RETELL_FN_SECRET && !signatureOnly(),

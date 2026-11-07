@@ -33,7 +33,7 @@ export async function heldThreadsBeyond(
 }
 
 /**
- * The Inbox, as the browser composes it (legacy-bridge/surface-data.ts,
+ * The Inbox, as the browser composes it (bridge/surface-data.ts,
  * inboxOverride): the newest hundred conversations and the open escalations
  * at once, then, in one read by id, every escalated thread that fell outside
  * the hundred, so a waiting customer is never invisible. One that read could

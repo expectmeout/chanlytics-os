@@ -2,7 +2,7 @@
  * A workspace a partner sets up and hands to its owner (decision 0016) starts as one an owner makes does: the platform
  * mailbox hears of it, and someone is emailed when a customer needs a person.
  *
- * Both used to run only in create_workspace's route (workspace-create.ts). A partner's workspace was never told to the
+ * Both used to run only in create_workspace's route (workspace/create.ts). A partner's workspace was never told to the
  * platform, and the owner who accepted it had no alert address, so every "a customer needs you" went to the platform,
  * redacted, until the owner found Settings › Notifications. The notice goes as the partner sets the workspace up, naming
  * the address it waits for; the owner's own address goes on the alert list as they accept, through the same versioned

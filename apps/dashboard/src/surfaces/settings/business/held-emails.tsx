@@ -8,7 +8,7 @@
  */
 import { useState } from "react";
 import { bookingEmailsHeldWords, type CalendarVM } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { Button } from "../../kit/button/button";
 
 type Notices = CalendarVM["feed"]["notices"];

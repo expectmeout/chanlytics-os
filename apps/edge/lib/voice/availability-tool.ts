@@ -34,7 +34,7 @@ import {
   type ServiceLike,
   type ServiceOffer,
 } from "@chanlytics/contracts";
-import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./voice-door-auth.js";
+import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./door-auth.js";
 import { logger } from "../shared/log.js";
 
 /**
@@ -117,7 +117,7 @@ export function availabilityAnswer(
 
 export async function availabilityTool(request: Request): Promise<Response> {
   const raw = await request.text();
-  // The third Retell door, guarded like the other two (voice-door-auth.ts): the signature, or the x-fn-secret header
+  // The third Retell door, guarded like the other two (voice/door-auth.ts): the signature, or the x-fn-secret header
   // while this door still reads one.
   const knock = voiceDoorAuth("availability", request, raw);
   await keepKnock("availability", knock);

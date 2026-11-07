@@ -158,7 +158,7 @@ export function firstRowsScript(): string {
     `if(g>=${AGED_MS})d.setAttribute("data-aged","");`,
     "d.innerHTML=k.html;D.body.appendChild(d);",
     // What the frame stamps as it mounts, and the page's rules read: the same now, under the picture.
-    `H.setAttribute(${JSON.stringify(FIRST_ROWS_ATTR)},P);H.classList.add("legacy-on");H.setAttribute("data-page-top","");`,
+    `H.setAttribute(${JSON.stringify(FIRST_ROWS_ATTR)},P);H.classList.add("frame-on");H.setAttribute("data-page-top","");`,
     `requestAnimationFrame(function(){H.setAttribute(${JSON.stringify(FIRST_ROWS_AT_ATTR)},String(Math.round(performance.now())))});`,
     "var W=function(x,y,l){for(var j=0;j<l.length;j++){var b=l[j].getBoundingClientRect();" +
       "if(x>=b.left&&x<b.right&&y>=b.top&&y<b.bottom)return j}return -1};",

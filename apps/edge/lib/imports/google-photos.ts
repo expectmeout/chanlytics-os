@@ -9,7 +9,7 @@ import { IMPORT_STOPPED_WORDS, recordOrNull, type FileShows } from "@chanlytics/
 import { listMedia, reviewParent, type GbpPhoto } from "@chanlytics/channels";
 import { fileListingAside, importCursorOf, noteImport } from "@chanlytics/db";
 import { keepFoundFile, type FoundFile } from "../files/found.js";
-import { connectionOf, type Db } from "../google/google-rows.js";
+import { connectionOf, type Db } from "../google/rows.js";
 import { tokenFor } from "../google/profile-credentials.js";
 import { http } from "../google/places.js";
 import type { Part, PartOutcome } from "./history-import.js";

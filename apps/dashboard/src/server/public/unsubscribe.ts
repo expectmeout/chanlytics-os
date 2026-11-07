@@ -14,7 +14,7 @@ import "server-only";
  * unsubscribe-token.ts); the one write is 00174's set_email_marketing, which can only ever narrow what may be
  * sent, and says nothing twice.
  *
- * It holds the service role, like consent-page.ts, because the person pressing has no session; unlike it, it
+ * It holds the service role, like consent/public-page.ts, because the person pressing has no session; unlike it, it
  * writes, and only through that door. The page draws its own small HTML: it is the one screen a stranger sees
  * from an email, and it must not depend on the app's bundle to say "you're unsubscribed".
  */

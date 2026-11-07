@@ -64,6 +64,8 @@ test.describe("Delete this person", () => {
     // Back on the list afterwards. Its standing line is the head's sentence on a desk (page/people-head.tsx; the rail's
     // own line is a phone's), so the list itself is the proof.
     await expect.poll(() => routeOf(page.url())).toBe("clients");
+    // One, once the page has come back: its picture stands in for a moment as the record goes.
+    await expect(page.locator(".cl-table")).toHaveCount(1);
     await expect(page.locator(".cl-table")).toBeVisible();
   });
 });

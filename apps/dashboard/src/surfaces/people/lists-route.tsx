@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef } from "react";
 import { routeOfPath } from "@chanlytics/contracts";
-import { goToRoute } from "@/legacy-bridge/workspace";
+import { goToRoute } from "@/bridge/workspace";
 import { useSurface } from "../use-surface";
 import { plListRoute } from "./words";
 

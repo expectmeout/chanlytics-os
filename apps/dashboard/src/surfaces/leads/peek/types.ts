@@ -13,7 +13,7 @@ import type {
   LeadStageInput,
 } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
-import type { useLegacyToast } from "../../legacy-verbs";
+import type { useFrameToast } from "../../frame-verbs";
 
 /** What the peek shows under its top row: the lead, a draft of an email to them, a question, or an Erase in flight. */
 export type PeekMode = "info" | "draft" | "why" | "erase" | "erasing";
@@ -68,7 +68,7 @@ export interface Deck {
 export type ArmedSetter = (v: Armed | null | ((a: Armed | null) => Armed | null)) => void;
 
 /** The toast the shell raises (frame/flash.tsx `usePPToast`). */
-export type Flash = ReturnType<typeof useLegacyToast>[1];
+export type Flash = ReturnType<typeof useFrameToast>[1];
 
 /** The one act the ⋯ menu offers (contracts' `leadPeekMenu`). */
 type PeekMenuItem = ReturnType<typeof leadPeekMenu>[number];

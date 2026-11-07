@@ -64,7 +64,7 @@ import {
   SECOND_MS,
 } from "@chanlytics/contracts";
 import { refusalScript } from "@chanlytics/core";
-import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./voice-door-auth.js";
+import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./door-auth.js";
 import {
   gateOnTheCall,
   linkByText,
@@ -86,7 +86,7 @@ import { logger, errField } from "../shared/log.js";
  * marked approved with NO meta_id, so Meta had never seen it and the send
  * failed there too: the caller heard "that number may not have WhatsApp",
  * which named the wrong cause entirely. The Inbox and the composer left the
- * same literal behind for the same reason (legacy-bridge inbox-verbs.ts); this
+ * same literal behind for the same reason (bridge inbox-verbs.ts); this
  * was the last caller holding it.
  *
  * `bookingTemplate` asks the questions that matter -- approved, fillable
@@ -354,7 +354,7 @@ async function alreadySentOnThisCall(leg: LinkLeg, callId: string | undefined): 
 export async function sendBookingLinkOnCall(request: Request): Promise<Response> {
   const raw = await request.text();
   // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
-  // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
+  // custom-function calls is what the log answers (voice/door-auth.ts); this file used to say it did not.
   const knock = voiceDoorAuth("fn", request, raw);
   await keepKnock("fn", knock);
   if (!knock.ok) return refusedOutLoud("fn", KNOCK_REFUSED);

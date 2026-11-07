@@ -4,10 +4,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fresh, installLegacyReact } from "../_legacy-react.mjs";
+import { fresh, installStubReact } from "../_stub-react.mjs";
 import { LineField, LinePress } from "../../apps/dashboard/src/surfaces/kit/line/line.tsx";
 
-installLegacyReact();
+installStubReact();
 
 const h = (type, props, ...children) => globalThis.React.createElement(type, props, ...children);
 /** The element a part drew, as the stub holds it: its tag, and its props. */

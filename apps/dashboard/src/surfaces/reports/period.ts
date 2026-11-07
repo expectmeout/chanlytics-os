@@ -1,14 +1,14 @@
 /**
- * What Reports shows, changed (moved from legacy-bridge/inbox-verbs.ts, decision 0015): a period by name is kept in this
+ * What Reports shows, changed (moved from bridge/inbox-verbs.ts, decision 0015): a period by name is kept in this
  * browser; days a member picked are the address's, so they are shared with a link, walked by Back, and never opened on by
  * tomorrow's visit (contracts lensRoute). The read goes through the runner, so the cache, the status and the pill agree
  * with what is on screen.
  */
 import { lensRoute, reportRangeKey, reportsRouteParts, type ReportRange } from "@chanlytics/contracts";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
-import { ownsTheScreen } from "@/legacy-bridge/surface-registry";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
-import { navigate } from "../legacy-verbs";
+import { refreshSurfaces } from "@/bridge/surface-runner";
+import { ownsTheScreen } from "@/bridge/surface-registry";
+import { routeOnScreen } from "@/bridge/workspace";
+import { navigate } from "../frame-verbs";
 import { surfaceValue } from "../surface-values";
 import { reportsCampaigns } from "./campaigns-surface";
 import { headline } from "./headline";

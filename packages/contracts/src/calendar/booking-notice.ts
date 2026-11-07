@@ -11,7 +11,7 @@
  */
 import { dayInZone, localToUtcMs } from "./zone-math";
 import type { FeedItem } from "./feed";
-import { extractContacts, sameVisitStart, type OwnAddresses } from "./calendar-people";
+import { extractContacts, sameVisitStart, type OwnAddresses } from "./people";
 import { normalizeEmail } from "../shared/email-address";
 import { normalizePhone } from "../shared/phone";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
