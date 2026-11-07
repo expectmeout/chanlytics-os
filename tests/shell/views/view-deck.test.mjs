@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { until } from "../../shared/_until.mjs";
 
 const {
   CROSS_FADE_MS,
@@ -569,9 +570,8 @@ test("a view inside another that rests on its layer keeps its arrival's last fra
   assert.equal(travel.options.fill, "forwards", "its last frame held");
   travel.finish();
   for (const f of fading(b)) f.finish();
-  await settle();
+  await until(() => touched.length === 1, "the slide over, a wait for the page's touch");
   assert.equal(moving(b).length, 1, "still on its layer once the slide is over");
-  assert.equal(touched.length, 1, "until the page is touched");
   touched[0]();
   assert.equal(moving(b).length, 0, "touched, it is drawn on the page again");
 });
@@ -589,7 +589,7 @@ test("a held view taken by a finger or asked to leave lets go of its hold first,
   main.inside.push(b);
   replace(seat, a, b);
   for (const anim of b.anims) anim.finish();
-  await settle();
+  await until(() => touched.length === 1, "the slide over, a wait for the page's touch");
   const [held] = moving(b);
   w.deck.drag(-40);
   assert.equal(held.cancelled, true, "the finger's transform is not under a held frame");
@@ -619,8 +619,7 @@ test("the frame's own page never holds its layer, nor a view that does not say s
     const [travel] = moving(next);
     assert.equal(travel.options.fill, "none", name);
     for (const anim of next.anims) anim.finish();
-    await settle();
-    assert.equal(moving(next).length, 0, `${name}: drawn on the page again as its slide ends`);
+    await until(() => moving(next).length === 0, `${name}: drawn on the page again as its slide ends`);
   }
 });
 
