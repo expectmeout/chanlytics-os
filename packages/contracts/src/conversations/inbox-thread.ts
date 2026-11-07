@@ -25,7 +25,7 @@ import {
   emailSignedWithOf,
   emailSubjectsOf,
 } from "./message-email";
-import { replyLeftAsOf } from "../campaigns/reach-out/reach-out-reply-words";
+import { replyLeftAsOf } from "../campaigns/reach-out/reply-words";
 import { bookingRequestCardOf } from "../calendar/visit/booking-request";
 import {
   sentFactsOf,
@@ -318,7 +318,7 @@ export const THREAD_PANE_WORDS = {
   profile: "Profile",
   /**
    * More's acts on the person, under Contact: their receptionist, and the one that says they are no customer (decision
-   * 0080), whose line says what it does in the words Today's Not a person says it (need-you-words.ts NOT_A_PERSON_WORDS).
+   * 0080), whose line says what it does in the words Today's Not a person says it (need-you/words.ts NOT_A_PERSON_WORDS).
    */
   receptionist: "Receptionist",
   notACustomerAct: "Not a customer…",

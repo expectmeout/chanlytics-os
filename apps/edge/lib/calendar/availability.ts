@@ -96,7 +96,7 @@ function httpsUrl(u: string): string {
 
 /**
  * A calendar read through a connected mailbox's grant (decision 0073, R20): its events over the season, as iCal
- * (mailbox-calendar.ts). Null where it cannot be read now, as a link that does not answer is.
+ * (mailbox/calendar.ts). Null where it cannot be read now, as a link that does not answer is.
  */
 async function grantFeed(tenantId: string, mailboxId: string, daysAhead: number): Promise<string | null> {
   const db = pg();

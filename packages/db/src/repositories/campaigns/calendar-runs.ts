@@ -1,6 +1,6 @@
 /**
  * Campaigns over a span of the Calendar (the Calendar's lane C): the runs that fall in it and the campaigns' schedules,
- * as GET calendar/runs reads them for the board's marks (contracts calendar-runs.ts). Each read whole and in a stable
+ * as GET calendar/runs reads them for the board's marks (contracts calendar/runs.ts). Each read whole and in a stable
  * order (paged.ts): a select answers a thousand rows at most, silently. Reads only, on the member's client, where RLS
  * decides; a failed read throws.
  */

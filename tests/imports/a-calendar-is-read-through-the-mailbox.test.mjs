@@ -1,6 +1,6 @@
 /**
  * The calendar a connected mailbox's grant reads (decision 0073, R20; apps/edge/lib/calendar/mailbox-calendar.ts over
- * channels mailbox-calendar.ts), run over a database in memory with Google's and Microsoft's calendars answered by the
+ * channels mailbox/calendar.ts), run over a database in memory with Google's and Microsoft's calendars answered by the
  * test: every calendar of the account but the ones made for everyone, page by page, each occurrence apart, written out
  * as the iCal the account's own link would give, which the feed's reader (contracts parseIcs) takes exactly as it takes a
  * link; a calendar that cannot be read leaves the feed unread rather than half. Then the door the dashboard reads it by

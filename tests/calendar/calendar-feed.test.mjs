@@ -42,9 +42,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { loadFeed, forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
-const { calendarWeek, itemsToDays, MAX_ITEMS_PER_DAY } = await import(
-  at("apps/dashboard/src/server/calendar/calendar-week.ts")
-);
+const { calendarWeek, itemsToDays, MAX_ITEMS_PER_DAY } = await import(at("apps/dashboard/src/server/calendar/week.ts"));
 const { previewFeed } = await import(at("apps/dashboard/src/server/calendar/feed-preview.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
 const visitRoute = await import(at("apps/dashboard/app/api/v1/calendar/visits/[id]/route.ts"));

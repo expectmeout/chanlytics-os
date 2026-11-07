@@ -20,7 +20,7 @@
  * (core/inbound/model-turn.ts); a reach-out's unsubscribe links that do not
  * open (lib/email/unsubscribe-probe.ts); a carrier's report on a
  * text that the database would not take, which Twilio never sends again
- * (lib/sms/sms-status.ts); and a lead source refusing to start a run, one
+ * (lib/sms/status.ts); and a lead source refusing to start a run, one
  * whose pinned build its provider deleted, or one whose pin names two builds
  * (lib/leads/lead-sources.ts). Each reaches the platform, never an owner.
  *

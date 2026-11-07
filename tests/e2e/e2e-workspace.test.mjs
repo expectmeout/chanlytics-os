@@ -79,7 +79,7 @@ const { chooseAddressing, reachesTenant } = await import(
 const { planLeadSweep, QUESTION_WAIT_MS } = await import(
   pathToFileURL(path.join(here, "../../apps/edge/lib/leads/lead-sweep.ts")).href
 );
-const { sweepGoogle } = await import(pathToFileURL(path.join(here, "../../apps/edge/lib/google/google-sweep.ts")).href);
+const { sweepGoogle } = await import(pathToFileURL(path.join(here, "../../apps/edge/lib/google/sweep.ts")).href);
 const { listingsDue, connectionsDue } = await import(
   pathToFileURL(path.join(here, "../../apps/edge/lib/google/listing-check.ts")).href
 );

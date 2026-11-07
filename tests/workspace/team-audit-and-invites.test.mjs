@@ -26,7 +26,7 @@ const sql = readRaw("supabase/migrations/00023_team_audit_and_invite_lookup.sql"
 const service = readCode("apps/dashboard/src/server/workspace/team.ts");
 const workspaces = readCode(
   "apps/dashboard/app/api/v1/workspaces/route.ts",
-  "apps/dashboard/src/server/workspace/workspace-list.ts",
+  "apps/dashboard/src/server/workspace/list.ts",
 );
 const teamIdRoute = readCode("apps/dashboard/app/api/v1/team/[id]/route.ts");
 

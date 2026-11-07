@@ -43,7 +43,7 @@ test("Reports says none: the booking line and its metric's tip", async () => {
 });
 
 test("the Calendar and its setup say none: the booking rules, connecting a calendar, a booking email", async () => {
-  const { ruleParts } = await importSrc(`${K}/calendar/calendar-words.ts`);
+  const { ruleParts } = await importSrc(`${K}/calendar/words.ts`);
   const { FEED_GUIDES } = await importSrc(`${K}/calendar/feed-url.ts`);
   const { BOOKING_TOOL_IDS, BOOKING_TOOL_STEPS, NOTICE_HOLD_WORDS } = await importSrc(
     `${K}/calendar/booking-notice.ts`,
@@ -62,7 +62,7 @@ test("the Calendar and its setup say none: the booking rules, connecting a calen
 
 test("People's lists say none: each list's tip and its next step", async () => {
   const { PEOPLE_LISTS } = await importSrc(`${K}/people/lists/builtin-lists.ts`);
-  const { peopleListAction } = await importSrc(`${K}/people/people-lists.ts`);
+  const { peopleListAction } = await importSrc(`${K}/people/lists/list-page.ts`);
   saysNone(
     "a list's label and tip",
     PEOPLE_LISTS.map((l) => [l.label, l.tip]),
@@ -90,7 +90,7 @@ test("Settings › Business says none: what it cannot do, the booking rules, eac
 });
 
 test("Ask says none: a source's kind on an old answer, and a plan's moment", async () => {
-  const { answerFromV1 } = await importSrc(`${K}/ask/ask-answer.ts`);
+  const { answerFromV1 } = await importSrc(`${K}/ask/answer.ts`);
   const { PLAN_WORDS } = await importSrc(`${K}/ask/plan.ts`);
   const old = answerFromV1({
     text: "Two ahead.",

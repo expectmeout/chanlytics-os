@@ -809,7 +809,7 @@ test("a person and four calls: the brief says one person needs you, not 'and 4 m
 
 test("the brief says who the head counts: a hold past a week is Older, neither named nor counted among who needs you", () => {
   const { people, asking } = crowd(3);
-  // Flagged twelve days ago: Need you's Older, which the one count leaves out (need-you-groups.ts).
+  // Flagged twelve days ago: Need you's Older, which the one count leaves out (need-you/groups.ts).
   asking[2] = { ...asking[2], created_at: "2026-08-25T05:00:00Z" };
   const vm = toTodayVM(metrics({ now: { ...metrics().now, escalations_open: 3 } }), people, asking, [], NOW);
   const words = todayBriefWords(vm, null, []).text;

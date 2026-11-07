@@ -25,7 +25,7 @@ import {
 } from "@chanlytics/channels";
 import { readRaw } from "../_source.mjs";
 
-const module_ = readRaw("packages/channels/src/voice/voice-provision.ts");
+const module_ = readRaw("packages/channels/src/voice/provision.ts");
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
 const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 const llm = voiceLlmCreateBody({ fnSecret: "s" }, FN_URL);

@@ -1,7 +1,7 @@
 /**
  * One inbound customer message, whatever brought it (decision 0001): the shape each channel's adapter makes at its door
  * and the message path reads. A WhatsApp message (whatsapp.ts inboundFromWhatsapp), a text (lines/sms.ts
- * inboundFromSms) and an Instagram DM (instagram/instagram-events.ts inboundFromInstagram) are made into it; email keeps
+ * inboundFromSms) and an Instagram DM (instagram/events.ts inboundFromInstagram) are made into it; email keeps
  * its own intake (decision 0001, step 6, met by 0071).
  *
  * It is NormalizedInbound (whatsapp.ts) with the wire it came on, and the person as an identity rather than WhatsApp's

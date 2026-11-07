@@ -554,7 +554,7 @@ test("the pages link to the routes, and only where the bridge can name the works
  * the door (owners, the workspace named, the export bucket) and that the file
  * parses.
  * ------------------------------------------------------------------------- */
-const B = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/server/export/export-bundle.ts")).href);
+const B = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/server/export/bundle.ts")).href);
 
 /** The sections the bundle reads page by page (packages/db exportSectionPages): all but the six it reads its own way. */
 const PAGED = EXPORT_SECTIONS.filter(

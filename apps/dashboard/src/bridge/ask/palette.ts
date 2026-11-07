@@ -421,7 +421,7 @@ type Openings = (
 
 /**
  * A quick question's answer, without a model: who needs me from Today's queue, today's calls, or the openings route's
- * days; null for every other question, which is the model's. The sentences are contracts' (ask-answer.ts).
+ * days; null for every other question, which is the model's. The sentences are contracts' (ask/answer.ts).
  */
 export function quickAnswer(p: ReturnType<typeof askPalette>, openings: Openings) {
   return (question: string): Promise<AskAnswer> | null => {

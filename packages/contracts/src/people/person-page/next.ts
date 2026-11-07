@@ -11,7 +11,7 @@
  *   4. Their next step: Done.
  *   5. Before a visit whose message was held for want of a yes: Record a yes.
  */
-import { VISIT_WORDS, type VisitLineVM } from "../../calendar/calendar-words";
+import { VISIT_WORDS, type VisitLineVM } from "../../calendar/words";
 import type { DealAct } from "../../deals/sheet/deal-acts";
 import type { DealCardVM, DealQuietVM } from "../../deals/sheet/deal-card";
 import type { PersonNextStepVM } from "../../notes/steps";

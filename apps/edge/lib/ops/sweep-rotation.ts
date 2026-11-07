@@ -96,7 +96,7 @@ export async function calendarDue(
 }
 
 /**
- * Stamp a workspace as read, a read that failed included (calendar-sweep.ts says why). `failedSince`, where given, is
+ * Stamp a workspace as read, a read that failed included (calendar/sweep.ts says why). `failedSince`, where given, is
  * written with it in the same update: the moment its reads began failing (00435), or null once one works. The sweep
  * gives it only on a change, and only where the database keeps the stamp (its page carried one).
  */

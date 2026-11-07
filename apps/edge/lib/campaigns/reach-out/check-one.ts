@@ -12,8 +12,8 @@
  * JSON-model transport, with no retry of its own on "not now"; an overload is asked once of the route's fallback when
  * the call's deadline leaves room), the budget a caller's calls keep to (checkBudget), and the input built from a
  * business's record and a step's words, which the clock and the preview both use (checkInputOf, checkWorkspaceOf). The
- * tick that drives it is check.ts, which re-exports all of this. The rules are contracts' (reach-out-words.ts,
- * reach-out-opening.ts). Moved whole from check.ts.
+ * tick that drives it is check.ts, which re-exports all of this. The rules are contracts' (reach-out/words.ts,
+ * reach-out/opening.ts). Moved whole from check.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {

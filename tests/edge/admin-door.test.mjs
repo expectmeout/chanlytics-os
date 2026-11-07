@@ -38,8 +38,8 @@ for (const k of [
 const { readBody } = await importSrc("apps/edge/lib/shared/admin-door.ts");
 const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
 const { UNKNOWN_LINE_OP } = await importSrc("apps/edge/lib/lines/line-ops.ts");
-const { UNKNOWN_GOOGLE_OP } = await importSrc("apps/edge/lib/google/google-ops.ts");
-const { UNKNOWN_BILLING_OP } = await importSrc("apps/edge/lib/billing/billing-ops.ts");
+const { UNKNOWN_GOOGLE_OP } = await importSrc("apps/edge/lib/google/ops.ts");
+const { UNKNOWN_BILLING_OP } = await importSrc("apps/edge/lib/billing/ops.ts");
 after(() => setPg(null));
 
 /** Harbor Moving: the workspace every token below is about. */

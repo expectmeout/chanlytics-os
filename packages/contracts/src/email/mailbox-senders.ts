@@ -4,7 +4,7 @@
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import { isFreeMail } from "./free-mail";
-import { NOT_A_PERSON_WORDS } from "../need-you/need-you-words";
+import { NOT_A_PERSON_WORDS } from "../need-you/words";
 
 /**
  * Why a connected mailbox left an email where it was:
@@ -109,7 +109,7 @@ export const MAILBOX_SENDERS_WORDS = {
   more: (n: number) => `and ${n} more`,
   /**
    * The act, on a person's page, on their thread's Actions and on their row in Need you (decision 0080): it opens Delete
-   * person's question with the switch below on. Its words are Need you's (need-you-words.ts), which Today reads alone.
+   * person's question with the switch below on. Its words are Need you's (need-you/words.ts), which Today reads alone.
    */
   act: NOT_A_PERSON_WORDS.act,
   actHint: NOT_A_PERSON_WORDS.actHint,

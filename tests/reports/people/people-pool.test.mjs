@@ -1,6 +1,6 @@
 /**
  * The People lens's book as it stands now, EXECUTED: the pool's rows (people_list, through contracts' own builder) counted
- * by People's own predicates and never restated (contracts reports/people/people-now.ts) -- how long since a person was
+ * by People's own predicates and never restated (contracts reports/people/now.ts) -- how long since a person was
  * heard (`heardDays`), the lists (`membersOf` over the built-ins), the day of their next step, the ways they reach you and
  * a stopped address -- and held to what People's rail says of the same rows. Rows are made as people-vm.test.mjs makes
  * them, at 4 Sep 2026 16:00Z in the workspace's zone; every assertion names the zone it reads days in, so the file reads

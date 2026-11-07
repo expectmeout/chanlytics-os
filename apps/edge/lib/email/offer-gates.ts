@@ -1,7 +1,7 @@
 /**
  * The gates on offers by email (One message, every channel, step 4; the campaigns-on-every-channel spec, 4.5): complaints
  * above 0.1% of the last 1,000 offers that left, or hard bounces above 2% of the last 500, pause a workspace's offers by
- * email (contracts OFFER_GATES). Judged where the receipts that move them arrive (email-receipts.ts), from the receipts the
+ * email (contracts OFFER_GATES). Judged where the receipts that move them arrive (email/receipts.ts), from the receipts the
  * edge already stores (a complaint stamped on its row, a bounce its status): nothing is counted twice and no sweep is needed.
  *
  * The pause is the workspace's, and holds offers alone: reminders and replies by email, and offers by WhatsApp, go on. The

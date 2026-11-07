@@ -3,7 +3,7 @@
  * limits, and what the reach read answers (GET people/[id]/reach). No zod here: the sheet reads these in the browser;
  * what the routes parse is person-draft-schema.ts.
  */
-import type { ConsentChannel } from "../consent/consent-channels";
+import type { ConsentChannel } from "../consent/channels";
 import type { WriteWay } from "./write-ways";
 
 export const DRAFT_HOWS = ["message", "call"] as const;

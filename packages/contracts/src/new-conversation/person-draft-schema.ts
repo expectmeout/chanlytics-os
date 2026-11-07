@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { REPLY_MAX_ANY } from "../config/policy";
-import { CONSENT_CHANNELS } from "../consent/consent-channels";
+import { CONSENT_CHANNELS } from "../consent/channels";
 import {
   DRAFT_ABOUT_MAX,
   DRAFT_ANSWER_MAX,

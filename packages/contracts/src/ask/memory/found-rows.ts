@@ -1,6 +1,6 @@
 /**
  * Ask found (Today in three zones, 2 Nov 2026), Today's third zone: one ranked list of what is worth a look and waits on
- * nobody, three drawn. What the workspace's own counts say leaks (today-leaks.ts, the six rules: a booking gap, nobody
+ * nobody, three drawn. What the workspace's own counts say leaks (today/leaks.ts, the six rules: a booking gap, nobody
  * answered, proposals and consultations nothing followed, people out of reach, gone quiet), what Ask noticed (decision
  * 0087), a call worth a listen and a lead who tried their receptionist (Need you's `found` rows), then Ask's own ideas from
  * its morning (decision 0071), last, since a model's idea never stands before what the numbers say. Each row the same
@@ -10,8 +10,8 @@
  * Never counted in who needs you, and never the coral but where it leads the page, Need you drawing no pane (the page's to
  * say).
  */
-import type { TodayQueueRowVM } from "../../today/today-vm";
-import type { TodayLeakVM } from "../../today/today-leaks";
+import type { TodayQueueRowVM } from "../../today/vm";
+import type { TodayLeakVM } from "../../today/leaks";
 import { isFindingCard, isRested, type AskRested } from "./findings";
 import type { AskLately } from "./lately";
 import type { AskMorningCard } from "./morning";

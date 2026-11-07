@@ -1,6 +1,6 @@
 /**
  * The workspace's receptionist made at the provider before any number (decision 0073, R1; POST
- * /api/admin/rehearsal/agent, apps/edge/lib/voice/rehearsal-call.ts makeRehearsalAgent over voice-agent.ts
+ * /api/admin/rehearsal/agent, apps/edge/lib/voice/rehearsal-call.ts makeRehearsalAgent over voice/agent.ts
  * ensureVoiceAgent), run over a database in memory with Retell answered by the test: the first run's Your receptionist
  * asks for it as the owner goes on to rehearse, so the first call starts at once. Made once and kept on the workspace
  * (voice_agents); a second ask, or a number's voice row, finds the one there; nothing dialed.

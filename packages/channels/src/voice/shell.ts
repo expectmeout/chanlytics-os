@@ -1,0 +1,787 @@
+/**
+ * The Retell "shell": everything the phone agent is told that is NOT a fact.
+ *
+ * The facts — hours, address, services, closures, the handoff line, the
+ * owner's own notes — arrive at call start as dynamic variables, composed by
+ * the inbound-call webhook from the same profile the WhatsApp receptionist
+ * reads. What is written here is only what the variables cannot say for
+ * themselves: where they go in the prompt, which tools exist, and what the
+ * agent hears when a variable could not be supplied.
+ *
+ * ONE definition, in code, for three readers: the converger that brings a
+ * live agent onto it, the diagnostic that reports whether a line has
+ * drifted off it, and the provisioning endpoint for a new workspace
+ * (voice-provision.ts builds the LLM from it; a test proves the converger
+ * plans nothing against what it creates). The live agent predates all of this and was
+ * typed by hand in Retell's dashboard — its prompt bakes the hours, the
+ * address and a transfer number, so correcting the hours in Settings changed
+ * what the chat receptionist said and left the phone saying the old ones.
+ *
+ * Retell's variable semantics decide the shape of the defaults:
+ *   - a variable that is omitted or null is substituted from
+ *     `default_dynamic_variables`, and left as the literal `{{name}}` when
+ *     there is no default either — read aloud, braces and all;
+ *   - a variable set to "" is substituted with nothing AND skips the default.
+ * So every placeholder in the prompt has a default here that is a real
+ * sentence, and the webhook OMITS a variable it cannot fill rather than
+ * sending "".
+ */
+
+import {
+  BRAIN_INTENTS,
+  BRAIN_LANGUAGES,
+  CALL_OUTCOMES,
+  greetingFor,
+  GREETING_DEFAULT,
+  MIN_MS,
+  PHONE_VOICE_DEFAULT,
+  POLICY_COVERS,
+  RETELL_MODELS,
+  SECOND_MS,
+} from "@chanlytics/contracts";
+
+/** The opening line and its unnamed default: contracts' (greeting.ts), so the first run can show it; said here too. */
+export { greetingFor, GREETING_DEFAULT };
+
+/** The prompt body. Both placeholders are mandatory; a test pins them. */
+export const VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
+
+/** Composed by the webhook so the business name never becomes a third copy. */
+export const VOICE_SHELL_BEGIN = "{{greeting}}";
+
+/** The transfer tool dials this; the webhook fills it from the profile. */
+export const HANDOFF_VAR = "{{handoff_number}}";
+
+/**
+ * What the agent is told when the business's facts could not be loaded.
+ *
+ * It must never be omitted and never be empty. Retell leaves an unsupplied
+ * variable in the prompt AS the literal `{{business_facts}}`, and treats ""
+ * as a real value that also skips this default -- so the two ways of saying
+ * "we have nothing" are an agent reading its own placeholder aloud, or an
+ * agent with no knowledge and no idea that it has none. This is the third
+ * option: no facts, and told so. The call-start judgement on the edge
+ * (apps/edge/lib/voice/call-start.ts) sends this same constant as its fallback, so
+ * the shell's default and the webhook's answer cannot drift apart. It offers nothing it may not be able to do: with no
+ * details there is no knowing whether the business has a booking link or a WhatsApp line to send one by, so it takes a
+ * message (11 Oct 2026: it offered the link by WhatsApp to every call it was said on).
+ */
+export const FACTS_UNAVAILABLE =
+  "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory — you do not have them. Say you will have someone confirm, and offer to take their name and a message so the team can call them back. Do not offer to send anything.";
+
+/** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
+export const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
+
+/** The availability tool posts beside it, on the same host and secret. */
+export function availabilityUrl(fnUrl: string): string {
+  return /\/api\/retell-fn$/.test(fnUrl)
+    ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability")
+    : `${fnUrl}-availability`;
+}
+
+/** Retell's own tool object, loosely: the fields we set plus whatever it adds. */
+export type RetellTool = Record<string, unknown> & { type: string; name: string };
+
+export interface VoiceShellTarget {
+  general_prompt: string;
+  begin_message: string;
+  default_dynamic_variables: Record<string, string>;
+  general_tools: RetellTool[];
+}
+
+/**
+ * The tools, as Retell stores them.
+ *
+ * `headers` on the booking-link tool carries the shared secret the edge
+ * checks (`x-fn-secret`). The converger never knows it unless told, so the
+ * live tool's headers are carried over untouched, and a tool with none is
+ * reported rather than silently created secret-less.
+ */
+export function voiceShellTools(fnUrl: string, bookingHeaders?: Record<string, string> | null): RetellTool[] {
+  return [
+    {
+      type: "end_call",
+      name: "end_call",
+      description: "End the call once the conversation is complete and the caller has said goodbye.",
+    },
+    {
+      type: "transfer_call",
+      name: "transfer_to_staff",
+      description:
+        "Transfer the caller to a person on the business's own line. Use during opening hours when the caller asks for a person, has a complaint, or needs something the facts do not cover.",
+      // A dynamic variable, filled per call from the workspace's profile. An
+      // E.164 number typed here would be a fact kept in a second place.
+      transfer_destination: { type: "predefined", number: HANDOFF_VAR },
+      transfer_option: {
+        type: "warm_transfer",
+        show_transferee_as_caller: true,
+        on_hold_music: "relaxing_sound",
+      },
+    },
+    {
+      type: "custom",
+      name: "send_booking_link",
+      description:
+        "Send the booking link to the caller's WhatsApp, or by text message when WhatsApp cannot carry it, when the caller wants to book, unless your instructions say there is no link or no way to send it. It goes to the number they are calling from unless another number is given, and its answer says how it went.",
+      url: fnUrl,
+      method: "POST",
+      speak_during_execution: true,
+      // Said while the tool runs, before it has answered: so it promises nothing, and the answer it speaks after says
+      // what happened (11 Oct 2026: "sending it to their WhatsApp now" came before every refusal).
+      execution_message_description: "Say one moment, please.",
+      speak_after_execution: true,
+      ...(bookingHeaders ? { headers: bookingHeaders } : {}),
+      // No `required` list: the provider drops an empty one on save, and the
+      // plan would then see a difference that is not there.
+      parameters: {
+        type: "object",
+        properties: {
+          phone_number: {
+            type: "string",
+            description:
+              "Alternate number to send the link to, digits only with country code. Omit to use the caller's number.",
+          },
+          // No `enum`: a plain string and its words, the shape the provider keeps as given, so the plan sees no
+          // difference that is not there. The edge reads "text" and nothing else (call-booking-link.ts).
+          by: {
+            type: "string",
+            description:
+              'Set to "text" when the caller says they do not use WhatsApp on the number, and your instructions say a text can be sent. Omit to send by WhatsApp first.',
+          },
+        },
+      },
+    },
+    {
+      type: "custom",
+      name: "check_availability",
+      description:
+        "Check which appointment times are open right now. Use when the caller asks when they could come in, or before offering a time. Returns the open windows and what to offer after them; offer up to three that fit, then do what the answer says. Never confirm a slot yourself.",
+      url: availabilityUrl(fnUrl),
+      method: "POST",
+      speak_during_execution: true,
+      execution_message_description: "Say you are checking the calendar.",
+      speak_after_execution: true,
+      ...(bookingHeaders ? { headers: bookingHeaders } : {}),
+      parameters: {
+        type: "object",
+        properties: {
+          day: {
+            type: "string",
+            description: "A day the caller asked about, as YYYY-MM-DD or a weekday name. Omit for the next few days.",
+          },
+          service: {
+            type: "string",
+            description: "The service they want, so only windows long enough for it are offered. Omit if unknown.",
+          },
+        },
+      },
+    },
+  ];
+}
+
+/** The whole target: what a converged agent's LLM holds. */
+export function desiredVoiceShell(fnUrl: string, bookingHeaders?: Record<string, string> | null): VoiceShellTarget {
+  return {
+    general_prompt: VOICE_SHELL_PROMPT,
+    begin_message: VOICE_SHELL_BEGIN,
+    default_dynamic_variables: {
+      business_facts: FACTS_UNAVAILABLE,
+      caller_context: CALLER_UNKNOWN,
+      greeting: GREETING_DEFAULT,
+      // Empty on purpose: with no line to reach, the transfer tool has
+      // nowhere to dial and the composed facts tell the agent to take a
+      // message instead of transferring.
+      handoff_number: "",
+    },
+    general_tools: voiceShellTools(fnUrl, bookingHeaders),
+  };
+}
+
+/** What the converger reads off a live Retell LLM. */
+export interface LiveVoiceLlm {
+  /** Read for the notes alone: a model or temperature is never changed here (a model change goes through the gate). */
+  model?: string | null;
+  model_temperature?: number | null;
+  general_prompt?: string | null;
+  begin_message?: string | null;
+  default_dynamic_variables?: Record<string, string> | null;
+  general_tools?: RetellTool[] | null;
+}
+
+export interface VoiceConvergencePlan {
+  /** Human-readable, one line per difference. Never carries a secret. */
+  drift: string[];
+  /** The PATCH body for update-retell-llm, or null when nothing differs. */
+  llmPatch: Partial<VoiceShellTarget> | null;
+  /** Live tools the shell does not define. Listed, never silently dropped. */
+  unknownTools: string[];
+  /** What differs from the product's defaults and is reported, never changed: the model and its temperature. */
+  notes: string[];
+}
+
+const normalizedText = (s: string | null | undefined) => (s ?? "").replace(/\r\n/g, "\n").trim();
+
+/** Deterministic JSON for comparing the fields WE set on a tool. */
+function stableJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stableJson(o[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(v);
+}
+
+/**
+ * Every field the desired tool sets is present and equal on the live one.
+ *
+ * Fields the provider adds on save — speak_after_execution on every tool, a
+ * bridge audio cue inside transfer_option — are Retell's defaults, not drift,
+ * and comparing whole objects reported a freshly converged agent as drifting
+ * forever (seen on the first real apply). Objects recurse; arrays and
+ * scalars compare whole.
+ */
+function subsetEqual(live: unknown, desired: unknown): boolean {
+  if (Array.isArray(desired)) return stableJson(live) === stableJson(desired);
+  if (desired && typeof desired === "object") {
+    if (!live || typeof live !== "object" || Array.isArray(live)) return false;
+    return Object.entries(desired as Record<string, unknown>).every(([k, v]) =>
+      subsetEqual((live as Record<string, unknown>)[k], v),
+    );
+  }
+  return stableJson(live) === stableJson(desired);
+}
+
+/**
+ * What separates a live LLM from the shell, and the patch that closes it.
+ *
+ * Pure, so the dry run IS the plan the apply executes: the script prints the
+ * result of this function and, with --apply, sends exactly `llmPatch`. Extra
+ * default variables on the live LLM are kept (merged), not deleted; tools the
+ * shell does not know are reported and would be REPLACED by an apply, which
+ * is why they are listed by name in the plan. A header is ours, never the
+ * provider's default: a live tool carrying one the shell does not set (the
+ * shared secret once the doors read the signature alone) differs, by its name.
+ */
+export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarget): VoiceConvergencePlan {
+  const drift: string[] = [];
+  const patch: Partial<VoiceShellTarget> = {};
+
+  if (normalizedText(live.general_prompt) !== normalizedText(desired.general_prompt)) {
+    const has = (v: string) => normalizedText(live.general_prompt).includes(v);
+    drift.push(
+      `general_prompt differs (${normalizedText(live.general_prompt).length} chars live; ` +
+        `reads {{business_facts}}: ${has("{{business_facts}}")}, {{caller_context}}: ${has("{{caller_context}}")})`,
+    );
+    patch.general_prompt = desired.general_prompt;
+  }
+  if (normalizedText(live.begin_message) !== normalizedText(desired.begin_message)) {
+    drift.push(
+      `begin_message is typed in (${JSON.stringify(normalizedText(live.begin_message).slice(0, 60))}…), not ${desired.begin_message}`,
+    );
+    patch.begin_message = desired.begin_message;
+  }
+
+  const liveDefaults = live.default_dynamic_variables ?? {};
+  const missingDefaults = Object.keys(desired.default_dynamic_variables).filter(
+    (k) => liveDefaults[k] !== desired.default_dynamic_variables[k],
+  );
+  if (missingDefaults.length) {
+    drift.push(`default_dynamic_variables missing or different: ${missingDefaults.join(", ")}`);
+    patch.default_dynamic_variables = { ...liveDefaults, ...desired.default_dynamic_variables };
+  }
+
+  const liveTools = live.general_tools ?? [];
+  const byName = new Map(liveTools.map((t) => [t.name, t] as const));
+  let toolsDiffer = false;
+  for (const want of desired.general_tools) {
+    const have = byName.get(want.name);
+    if (!have) {
+      drift.push(`tool ${want.name} is missing`);
+      toolsDiffer = true;
+      continue;
+    }
+    if (!subsetEqual(have, want)) {
+      const what =
+        want.name === "transfer_to_staff"
+          ? ` (live destination: ${JSON.stringify((have.transfer_destination as { number?: string } | undefined)?.number ?? "?")}, ` +
+            `option: ${JSON.stringify((have.transfer_option as { type?: string } | undefined)?.type ?? "?")})`
+          : "";
+      drift.push(`tool ${want.name} differs${what}`);
+      toolsDiffer = true;
+      continue;
+    }
+    const wanted = (want.headers as Record<string, string> | undefined) ?? {};
+    const extra = Object.keys((have.headers as Record<string, string> | undefined) ?? {}).filter((k) => !(k in wanted));
+    if (extra.length) {
+      drift.push(`tool ${want.name} carries a header the shell does not set (${extra.join(", ")}): an apply drops it`);
+      toolsDiffer = true;
+    }
+  }
+  const unknownTools = liveTools.map((t) => t.name).filter((n) => !desired.general_tools.some((t) => t.name === n));
+  if (unknownTools.length)
+    drift.push(`live tools the shell does not define (an apply would drop them): ${unknownTools.join(", ")}`);
+  if (toolsDiffer) patch.general_tools = desired.general_tools;
+
+  return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools, notes: llmNotes(live) };
+}
+
+/**
+ * The diagnostic's view: on the shell or not, and why not. Strings only —
+ * this is printed by /api/diag, and the live tools carry a secret header.
+ *
+ * `secretRetired`: the edge opens the voice doors for Retell's signature alone (RETELL_DOORS_SIGNED, edge
+ * voice/door-auth.ts signatureOnly). Until then a booking tool with no `x-fn-secret` header is refused, so its absence
+ * is the drift; once the secret is retired, a header still carrying it is a secret left in the provider's dashboard,
+ * so its presence is. The target drops the header either way the switch says.
+ */
+export function voiceShellDrift(
+  live: LiveVoiceLlm,
+  fnUrl: string,
+  secretRetired = false,
+): { converged: boolean; drift: string[] } {
+  const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
+  const url = typeof booking?.url === "string" ? booking.url : fnUrl;
+  const headers = (booking?.headers as Record<string, string> | undefined) ?? null;
+  const plan = planVoiceConvergence(live, desiredVoiceShell(url, secretRetired ? null : headers));
+  const drift = [...plan.drift];
+  // Once retired, a tool still carrying the header is the plan's own drift: a header the shell does not set.
+  if (!secretRetired && booking && !headers)
+    drift.push("send_booking_link has no x-fn-secret header — the edge will refuse it");
+  return { converged: drift.length === 0, drift };
+}
+
+/* ----------------------------- agent settings ----------------------------- */
+
+/** The webhook events the call pipeline is built on. transcript_updated is
+ *  opt-in at Retell and is what makes the Live page's transcript live. */
+export const VOICE_WEBHOOK_EVENTS = ["call_started", "call_ended", "call_analyzed", "transcript_updated"] as const;
+/** The webhook copies the recording inside its budget; Retell's default 10 s is too short for it. */
+export const VOICE_WEBHOOK_TIMEOUT_MS = 20000;
+/** What Retell applies when webhook_events is absent. */
+const RETELL_DEFAULT_EVENTS = ["call_started", "call_ended", "call_analyzed"];
+
+/**
+ * How long one call may run, how long a silent line is held, and how long the provider keeps a call (decision 0092).
+ * One provider account answers every workspace's line and the platform pays it by the minute, so a line left open or a
+ * robocaller once cost up to an hour a call (the provider's default, which provisioning pinned). Our own copy -- the
+ * row, the transcript, the audio in the private bucket -- is the record minutes after a call ends (the copy retries
+ * for two days at most, call-recording.ts RECORDING_DEFER_LIMIT_MS), so the provider keeps a call a week, not ninety
+ * days: less of a customer's call sits where an erasure has to ask for it.
+ */
+export const CALL_LIMITS = {
+  max_call_duration_ms: 20 * MIN_MS,
+  end_call_after_silence_ms: 30 * SECOND_MS,
+  data_storage_retention_days: 7,
+} as const;
+
+/**
+ * What the agent's post-call analysis fills in after every call, in the
+ * caller's own terms: what they wanted, how it ended, what a person should
+ * do next, the name they gave, the email address they spelled out, what the
+ * call was mainly about and the language it was spoken in (Reports read both,
+ * as the receptionist's texts carry the same two: contracts BRAIN_INTENTS,
+ * BRAIN_LANGUAGES). The provider's default summary ("The user called Marisa's
+ * Beauty Salon to inquire about…") is kept beside it; these are what the strip,
+ * the profile and the call card say. The webhook files them through ingest_call
+ * (migration 00061): the first four as columns, the rest inside the analysis it
+ * keeps whole (calls.analysis). The name and the address are suggestions for the
+ * person's page, never applied to the contact by themselves.
+ */
+export const CALL_ANALYSIS_FIELDS = [
+  {
+    type: "string",
+    name: "caller_wanted",
+    description:
+      "What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
+    examples: [
+      "Asked whether Saturday at 10 is free.",
+      "Wanted Tuesday's hours and a price.",
+      "Moved Friday's appointment to next week.",
+    ],
+  },
+  {
+    type: "enum",
+    name: "outcome",
+    description:
+      "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the business has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
+    choices: [...CALL_OUTCOMES],
+  },
+  {
+    type: "string",
+    name: "follow_up",
+    description:
+      "What a person at the business should do next for this caller, in one short sentence. Leave empty when nothing is needed.",
+    examples: ["Call back to confirm a Saturday 10:00 gel manicure.", "Text the price list for highlights."],
+  },
+  {
+    type: "string",
+    name: "caller_name",
+    description: "The caller's name exactly as they gave it. Leave empty if they did not say one.",
+    examples: ["Ana", "Daniela R."],
+  },
+  {
+    type: "string",
+    name: "caller_email",
+    description:
+      "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
+    examples: ["ana.ruiz@example.com", "daniela.r@example.net"],
+  },
+  {
+    type: "enum",
+    name: "topic",
+    // The classes a rule covers are said in the words the receptionist's prompt and its texts' intent say them
+    // (POLICY_COVERS), so a call and a text read one meaning; only what no rule covers is said here.
+    description: `What the call was mainly about. booking: ${POLICY_COVERS.booking}. pricing: ${POLICY_COVERS.faq}, when it is about what something costs. services: ${POLICY_COVERS.faq}, when it is about what the business offers. money: ${POLICY_COVERS.money}. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: a greeting or a chat with no request. other: none of these.`,
+    choices: [...BRAIN_INTENTS],
+  },
+  {
+    type: "enum",
+    name: "language",
+    description: "The language the caller mostly spoke. en: English. es: Spanish. other: any other language.",
+    choices: [...BRAIN_LANGUAGES],
+  },
+] as const;
+
+type AnalysisField = (typeof CALL_ANALYSIS_FIELDS)[number];
+
+/** The live field is ours, unchanged: same name, type, description, choices and examples. */
+function sameAnalysisField(live: Record<string, unknown>, want: AnalysisField): boolean {
+  const w = want as unknown as Record<string, unknown>;
+  return (
+    live.name === w.name &&
+    live.type === w.type &&
+    live.description === w.description &&
+    JSON.stringify(live.choices ?? null) === JSON.stringify(w.choices ?? null) &&
+    JSON.stringify(live.examples ?? null) === JSON.stringify(w.examples ?? null)
+  );
+}
+
+/** The agent-level fields the plan reads, as get-agent returns them. */
+export interface LiveAgentSettings {
+  /**
+   * The call webhook's URL. Raw from the provider it may still carry the
+   * retired `?key=`; parsed (voice-retell getAgent) the query is gone and
+   * webhook_url_keyed says it was there. Either form is the same drift.
+   */
+  webhook_url?: string | null;
+  webhook_url_keyed?: boolean | null;
+  webhook_events?: string[] | null;
+  webhook_timeout_ms?: number | null;
+  opt_in_signed_url?: boolean | null;
+  data_storage_retention_days?: number | null;
+  /** How long a call may run, and a silent line be held; unset is the provider's default (an hour; ten minutes). */
+  max_call_duration_ms?: number | null;
+  end_call_after_silence_ms?: number | null;
+  post_call_analysis_data?: unknown[] | null;
+  /** A locale, a list of them, or the deprecated "multi" (stored as its ten locales); unset is en-US. */
+  language?: string | string[] | null;
+  reminder_trigger_ms?: number | null;
+  reminder_max_count?: number | null;
+  /** How a call sounds and takes turns (CALL_FEEL, CALL_HANDBOOK); unset is the provider's default. */
+  interruption_sensitivity?: number | null;
+  begin_message_delay_ms?: number | null;
+  enable_backchannel?: boolean | null;
+  handbook_config?: Record<string, unknown> | null;
+  voice_id?: string | null;
+  post_call_analysis_model?: string | null;
+}
+
+export interface AgentPlan {
+  drift: string[];
+  /** The PATCH body for update-agent, or null when nothing differs. */
+  agentPatch: Record<string, unknown> | null;
+  /** What differs from the product's defaults and is reported, never changed: the voice and the post-call model. */
+  notes: string[];
+}
+
+/**
+ * The agent settings the pipeline depends on, and the patch that sets them.
+ *
+ * Signed recording URLs: with opt_in_signed_url off, every recording link
+ * Retell hands out is public and permanent (review F10 made this urgent).
+ * The pipeline copies audio into private storage within seconds of the call
+ * and refetches a fresh link through get-call when a copy has to retry, so a
+ * link that expires costs it nothing.
+ *
+ * The call's limits are drift (CALL_LIMITS, decision 0092): the longest a
+ * call may run, a silent line's end, and the days the provider keeps a call,
+ * which the converger may be told otherwise (`retentionDays`).
+ */
+export function planAgentSettings(
+  live: LiveAgentSettings,
+  opts: { retentionDays?: number; locales?: readonly string[] } = {},
+): AgentPlan {
+  const drift: string[] = [];
+  const patch: Record<string, unknown> = {};
+  const events = live.webhook_events ?? RETELL_DEFAULT_EVENTS;
+  const missing = VOICE_WEBHOOK_EVENTS.filter((e) => !events.includes(e));
+  if (missing.length) {
+    drift.push(`webhook_events missing ${missing.join(", ")} (the live transcript needs transcript_updated)`);
+    patch.webhook_events = [...new Set([...events, ...VOICE_WEBHOOK_EVENTS])];
+  }
+  const timeout = live.webhook_timeout_ms ?? 10000;
+  if (timeout < VOICE_WEBHOOK_TIMEOUT_MS) {
+    drift.push(`webhook_timeout_ms is ${timeout}; the recording copy needs ${VOICE_WEBHOOK_TIMEOUT_MS}`);
+    patch.webhook_timeout_ms = VOICE_WEBHOOK_TIMEOUT_MS;
+  }
+  if (live.opt_in_signed_url !== true) {
+    drift.push(
+      "recording URLs are public and permanent (opt_in_signed_url off); the pipeline copies audio within seconds and refetches a fresh link when it must",
+    );
+    patch.opt_in_signed_url = true;
+  }
+  // The analysis fields: ours present and unchanged; anything else on the
+  // agent (a preset, a field added by hand) is kept beside them.
+  const liveFields = Array.isArray(live.post_call_analysis_data)
+    ? (live.post_call_analysis_data.filter((f) => f !== null && typeof f === "object") as Record<string, unknown>[])
+    : [];
+  const missingFields = CALL_ANALYSIS_FIELDS.filter((f) => !liveFields.some((l) => sameAnalysisField(l, f)));
+  if (missingFields.length) {
+    drift.push(
+      `post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile, the call card and Reports read what the call was about)`,
+    );
+    patch.post_call_analysis_data = [
+      ...liveFields.filter((l) => !CALL_ANALYSIS_FIELDS.some((f) => f.name === l.name)),
+      ...CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+    ];
+  }
+  // The call webhook's credential is Retell's signature; a `?key=` on the URL
+  // is a secret in the provider's dashboard and in access logs, and the door
+  // no longer reads it. The same URL, bare.
+  if (
+    typeof live.webhook_url === "string" &&
+    live.webhook_url !== "" &&
+    (live.webhook_url_keyed === true || /[?&]key=/.test(live.webhook_url))
+  ) {
+    drift.push(
+      "webhook_url still carries the retired query-string key; the signature is the credential and the door no longer reads one",
+    );
+    patch.webhook_url = live.webhook_url.split("?")[0];
+  }
+  const retentionDays = opts.retentionDays ?? CALL_LIMITS.data_storage_retention_days;
+  if (live.data_storage_retention_days !== retentionDays) {
+    if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 730) {
+      drift.push(`retention must be a whole number of days from 1 to 730, not ${retentionDays}`);
+    } else {
+      drift.push(
+        `data_storage_retention_days is ${live.data_storage_retention_days ?? "unset (kept forever)"}; the product keeps ${retentionDays}`,
+      );
+      patch.data_storage_retention_days = retentionDays;
+    }
+  }
+  planCallLimits(live, drift, patch);
+  planFirstSeconds(live, opts.locales, drift, patch);
+  planCallFeel(live, drift, patch);
+  return { drift, agentPatch: Object.keys(patch).length ? patch : null, notes: agentNotes(live) };
+}
+
+/**
+ * How a call sounds and takes turns, the product's on every line (the call-feel read, 28 Oct 2026). Of the salon's
+ * fifteen callers from 7 to 12 October, twelve never spoke, and its agent ran the provider's defaults: no persona set
+ * (the provider's is a "professional call-center representative"), stopped by any sound on the line, and speaking 0.2
+ * seconds after pickup. Ruben's own line had been set by hand to sound like a person; every line now does.
+ *   - interruption_sensitivity 0.8: an "uh-huh" or a noise in the room no longer cuts it off mid-sentence (the
+ *     provider's default, 1, is the easiest to interrupt; its own advice for noisy lines is 0.8).
+ *   - begin_message_delay_ms 400: a forwarded call's audio settles before the first word, which was clipped.
+ *   - enable_backchannel: short listening sounds while the caller talks, so a long answer is not met with silence.
+ * The voice and its pace are the owner's (sent with each call), the model goes through the gate, and the reminders are
+ * SILENCE_REMINDER_MS.
+ */
+export const CALL_FEEL = {
+  interruption_sensitivity: 0.8,
+  begin_message_delay_ms: 400,
+  enable_backchannel: true,
+} as const;
+
+/**
+ * The provider's prompt presets a line runs with (its "handbook"): conversational rather than a call-center script,
+ * with natural filler words; key details (a name, a number, a day and time) read back to the caller; numbers, dates and
+ * prices said the way people say them. Any other preset on the line is kept as it is.
+ */
+export const CALL_HANDBOOK = {
+  default_personality: false,
+  conversational_personality: true,
+  natural_filler_words: true,
+  echo_verification: true,
+  speech_normalization: true,
+} as const;
+
+/** The longest a call may run and a silent line's end (CALL_LIMITS): what the platform pays the provider for. */
+function planCallLimits(live: LiveAgentSettings, drift: string[], patch: Record<string, unknown>): void {
+  for (const key of ["max_call_duration_ms", "end_call_after_silence_ms"] as const) {
+    if (live[key] === CALL_LIMITS[key]) continue;
+    drift.push(`${key} is ${String(live[key] ?? "unset")}; the product's is ${CALL_LIMITS[key]}`);
+    patch[key] = CALL_LIMITS[key];
+  }
+}
+
+/** The call's feel: each setting the product holds, and the handbook's presets merged into what the line has. */
+function planCallFeel(live: LiveAgentSettings, drift: string[], patch: Record<string, unknown>): void {
+  for (const key of Object.keys(CALL_FEEL) as (keyof typeof CALL_FEEL)[]) {
+    if (live[key] === CALL_FEEL[key]) continue;
+    drift.push(`${key} is ${String(live[key] ?? "unset")}; the product's is ${String(CALL_FEEL[key])}`);
+    patch[key] = CALL_FEEL[key];
+  }
+  const book = live.handbook_config ?? {};
+  const differ = (Object.keys(CALL_HANDBOOK) as (keyof typeof CALL_HANDBOOK)[]).filter(
+    (k) => book[k] !== CALL_HANDBOOK[k],
+  );
+  if (!differ.length) return;
+  drift.push(
+    `the handbook's ${differ.join(", ")} differ from the product's: a conversational receptionist that reads key details back`,
+  );
+  patch.handbook_config = { ...book, ...CALL_HANDBOOK };
+}
+
+/**
+ * How long a caller's silence after the agent speaks waits before the agent speaks again, and how many times. Retell's
+ * default is ten seconds once; of the salon's twelve callers in thirty days, three heard the whole greeting and hung up
+ * after two to nine seconds of silence (the engine review's second pass, 11 Oct 2026). Four seconds, twice.
+ */
+export const SILENCE_REMINDER_MS = 4_000;
+export const SILENCE_REMINDERS = 2;
+
+/** The ten locales Retell's deprecated "multi" is stored as: what every agent was provisioned with. */
+const RETELL_MULTI = ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"];
+
+/**
+ * The locale for each language a workspace can say it speaks (the Business tab's names, contracts COMMON_LANGUAGES
+ * first), lower-cased. Spanish is Latin American and Portuguese Brazilian: the forms a US business's callers speak.
+ */
+const RETELL_LOCALE_OF: Readonly<Record<string, string>> = {
+  english: "en-US",
+  spanish: "es-419",
+  español: "es-419",
+  espanol: "es-419",
+  portuguese: "pt-BR",
+  french: "fr-FR",
+  mandarin: "zh-CN",
+  chinese: "zh-CN",
+  cantonese: "yue-CN",
+  arabic: "ar-SA",
+  russian: "ru-RU",
+  polish: "pl-PL",
+  italian: "it-IT",
+  hindi: "hi-IN",
+  german: "de-DE",
+  japanese: "ja-JP",
+  korean: "ko-KR",
+  vietnamese: "vi-VN",
+  tagalog: "fil-PH",
+  filipino: "fil-PH",
+  ukrainian: "uk-UA",
+  turkish: "tr-TR",
+  dutch: "nl-NL",
+  greek: "el-GR",
+  hebrew: "he-IL",
+};
+
+/**
+ * The locales an agent listens for, from the languages its workspace speaks, or why what it listens for is kept. Every
+ * agent was given Retell's ten-locale "multi", which has recognition choose among ten languages on every word; a
+ * workspace that speaks English and Spanish now listens for those two. English is always among them: the greeting is
+ * English, so a caller may answer in it. The line is left as it is when the workspace names no language, or names one
+ * the table has no locale for (typed by hand, "Spanish (Mexico)", or one Retell lacks, Haitian Creole): narrowed to
+ * the rest, a line that understood those callers would stop, for a word nobody meant as a setting.
+ */
+export function retellLocalesFor(
+  languages: readonly string[] | null | undefined,
+): { locales: string[] } | { kept: string } {
+  const named = (languages ?? []).map((l) => l.trim()).filter(Boolean);
+  if (!named.length) return { kept: "the workspace names no language: what the agent listens for is kept" };
+  const pairs = named.map((name) => ({ name, locale: RETELL_LOCALE_OF[name.toLowerCase()] }));
+  const unknown = pairs.filter((p) => !p.locale).map((p) => p.name);
+  if (unknown.length)
+    return {
+      kept: `the workspace names ${unknown.join(", ")}, which the provider has no locale for here: what the agent listens for is kept`,
+    };
+  const found = pairs.map((p) => p.locale).filter((l): l is string => typeof l === "string");
+  return { locales: [...new Set(["en-US", ...found])] };
+}
+
+/** A locale's language, without its region: en-GB and en-US are both English. */
+const languageOf = (locale: string) => locale.replace(/-.*$/, "").toLowerCase();
+
+/**
+ * Said whenever the agent's latest version is an unpublished draft. The converger never publishes a draft it did not
+ * make in that run: it may hold edits made elsewhere. 11 Oct 2026: a draft was patched in place in silence, and the
+ * line kept the old words.
+ */
+export function unpublishedLatestNote(version: unknown): string {
+  return `v${String(version)}, the agent's latest, is an unpublished draft: what is planned here is that draft, and a pinned line runs the last published version, which is not read here. The converger never publishes a draft it did not make in this run (it may hold edits made elsewhere): look at v${String(version)} in Retell and publish it there`;
+}
+
+/** Said when the converger made a draft and was not told to publish it: a second run will find it and leave it. */
+export function newDraftNote(draft: unknown, published: unknown): string {
+  return `v${String(draft)} is a draft: a pinned line stays on v${String(published)} until it is published. A second run finds it as a draft it did not make and leaves it, so publish it in Retell, or apply and publish together next time`;
+}
+
+/** The live language as locales, whatever form Retell returned it in. */
+function liveLocales(language: LiveAgentSettings["language"]): string[] {
+  if (Array.isArray(language)) return language;
+  if (language === "multi") return RETELL_MULTI;
+  return [language || "en-US"];
+}
+
+/** The first seconds of a call: the silence reminders, and, where the workspace is known, the locales it listens for. */
+function planFirstSeconds(
+  live: LiveAgentSettings,
+  locales: readonly string[] | undefined,
+  drift: string[],
+  patch: Record<string, unknown>,
+): void {
+  const trigger = live.reminder_trigger_ms ?? 10_000;
+  const times = live.reminder_max_count ?? 1;
+  if (trigger !== SILENCE_REMINDER_MS || times !== SILENCE_REMINDERS) {
+    drift.push(
+      `a silent caller is reminded after ${trigger} ms, ${times} time(s); the product reminds after ${SILENCE_REMINDER_MS} ms, ${SILENCE_REMINDERS} times`,
+    );
+    patch.reminder_trigger_ms = SILENCE_REMINDER_MS;
+    patch.reminder_max_count = SILENCE_REMINDERS;
+  }
+  if (!locales?.length) return;
+  const have = liveLocales(live.language);
+  // By language, not region: a dialect the owner picked (en-GB) is theirs, and is not overwritten with en-US.
+  const languages = (ls: readonly string[]) => [...new Set(ls.map(languageOf))].sort().join();
+  if (languages(have) !== languages(locales)) {
+    drift.push(`listens for ${have.join(", ")}; the workspace speaks ${locales.join(", ")}`);
+    patch.language = locales.length === 1 ? locales[0] : [...locales];
+  }
+}
+
+/** The agent's settings that differ from the product's defaults and stay as they are: the voice, the post-call model. */
+function agentNotes(live: LiveAgentSettings): string[] {
+  const notes: string[] = [];
+  if (live.voice_id && live.voice_id !== PHONE_VOICE_DEFAULT)
+    notes.push(
+      `voice is ${live.voice_id}; the product's default is ${PHONE_VOICE_DEFAULT} (a voice is the owner's: kept)`,
+    );
+  if (live.post_call_analysis_model && live.post_call_analysis_model !== RETELL_MODELS.analysis)
+    notes.push(
+      `post-call analysis runs on ${live.post_call_analysis_model}; the product's is ${RETELL_MODELS.analysis} (kept: a model change goes through the gate)`,
+    );
+  return notes;
+}
+
+/** The LLM's settings that differ from the product's defaults and stay as they are: the model, the temperature. */
+function llmNotes(live: LiveVoiceLlm): string[] {
+  const notes: string[] = [];
+  if (live.model && live.model !== RETELL_MODELS.llm)
+    notes.push(
+      `model is ${live.model}; the product's is ${RETELL_MODELS.llm} (kept: a model change goes through the gate)`,
+    );
+  if (typeof live.model_temperature === "number" && live.model_temperature !== 0)
+    notes.push(
+      `temperature is ${live.model_temperature}; the product's is 0, so the facts are read, not improvised (kept)`,
+    );
+  return notes;
+}
+
+/** The diagnostic's view of the agent settings. Strings only. */
+export function agentSettingsDrift(live: LiveAgentSettings): { converged: boolean; drift: string[] } {
+  const plan = planAgentSettings(live);
+  return { converged: plan.drift.length === 0, drift: plan.drift };
+}

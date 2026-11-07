@@ -28,7 +28,7 @@ import type { Member } from "../shared/route";
  * before it runs a turn. The brain door is called by ElevenLabs with no cookie, so the token is how it runs Ask as
  * this member under RLS: sealed with a secret the database does not hold (ASK_VOICE_SECRET), good for the token's own
  * hour, opened only by the door. The id the browser and the vendor carry is 256 random bits; the row is keyed by its
- * sha256, so a read of the table alone opens nothing. The table is packages/db's (ask-voice-session.ts); this module is
+ * sha256, so a read of the table alone opens nothing. The table is packages/db's (ask/voice-session.ts); this module is
  * the one that knows the secret.
  */
 

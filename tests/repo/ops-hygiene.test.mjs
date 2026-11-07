@@ -26,10 +26,10 @@ import {
   startByAt,
 } from "../../packages/jobs/src/runner/ledger.ts";
 import { WHATSAPP_SEND_TIMEOUT_MS } from "../../packages/channels/src/whatsapp/whatsapp.ts";
-import { TWILIO_TIMEOUT_MS } from "../../packages/channels/src/lines/lines-twilio.ts";
+import { TWILIO_TIMEOUT_MS } from "../../packages/channels/src/lines/twilio.ts";
 import { READS_UNTIL_MS as MAILBOXES_READS_UNTIL_MS } from "../../apps/edge/api/cron/mailboxes.ts";
 import { PUSH_READS_UNTIL_MS } from "../../apps/edge/api/mailbox/gmail.ts";
-import { MAILBOX_READ_MS } from "../../packages/channels/src/email/mailbox/mailbox-read.ts";
+import { MAILBOX_READ_MS } from "../../packages/channels/src/email/mailbox/read.ts";
 import { YIELD_AT_MS as QUALITY_YIELD_AT_MS } from "../../apps/edge/api/cron/channel-quality.ts";
 import { GRAPH_TIMEOUT_MS } from "../../apps/edge/lib/whatsapp/meta-graph.ts";
 import {
@@ -38,7 +38,7 @@ import {
   CHECK_DONE_BY_MS,
 } from "../../apps/edge/lib/campaigns/reach-out/check.ts";
 import { PREVIEW_LIMITS } from "../../apps/edge/lib/campaigns/reach-out/preview.ts";
-import { SEND_DEADLINE_MS, SEND_MIN_MS } from "../../packages/channels/src/email/email-resend.ts";
+import { SEND_DEADLINE_MS, SEND_MIN_MS } from "../../packages/channels/src/email/resend.ts";
 import { NOTIFY_TIMEOUT_MS } from "../../apps/edge/lib/ops/notify.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 

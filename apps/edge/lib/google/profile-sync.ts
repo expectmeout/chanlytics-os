@@ -1,6 +1,6 @@
 /**
  * A connected profile synced: every review of its location read, decided
- * against what is on record (packages/channels google-sync.ts), written and
+ * against what is on record (packages/channels google/sync.ts), written and
  * told, under the auto mode the new ones answered (review-answers.ts), and
  * last the listing's review link read again from its location (00415).
  * The hourly sweep, "Check now" and a location's bind call it.
@@ -28,7 +28,7 @@ import { keepOnce, recordNotification } from "../ops/notify.js";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { readAllRows } from "../shared/paged.js";
 import { http } from "./places.js";
-import { aboutReview, reviewRowIds, type ConnectionRow, type Db } from "./google-rows.js";
+import { aboutReview, reviewRowIds, type ConnectionRow, type Db } from "./rows.js";
 import { tokenFor } from "./profile-credentials.js";
 import { causeOfRead, causeOfToken, syncMended, tellSyncStopped, type SyncCause } from "./sync-notice.js";
 import { answerNewReviews } from "./review-answers.js";

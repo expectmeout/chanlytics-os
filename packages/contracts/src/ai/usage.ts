@@ -1,6 +1,6 @@
 /**
  * What a model call cost: its tokens by kind, and their price at the models' list prices (scorecard move 10; category
- * 39, metering). Every model call the platform makes is written once, through one writer (packages/db ai-usage.ts
+ * 39, metering). Every model call the platform makes is written once, through one writer (packages/db ai/usage.ts
  * recordModelUsage), as one row of the kept ledger (00273 ai_usage); this module is the row's shape and its dollars.
  *
  * Tokens come in four kinds and each has its own price: uncached input, output, a five-minute cache write and a cache

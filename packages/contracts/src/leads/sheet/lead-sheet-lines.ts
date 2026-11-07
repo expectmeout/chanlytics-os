@@ -9,7 +9,7 @@
  */
 import { clockDate } from "../../shared/clock";
 import { capitalize } from "../../shared/words";
-import { REPLY_INTENT_WORDS, isReplyIntent } from "../../campaigns/reach-out/reach-out-replies";
+import { REPLY_INTENT_WORDS, isReplyIntent } from "../../campaigns/reach-out/replies";
 import type { SequencePlaceDto } from "../../campaigns/sequences/sequence-place";
 import { sequenceLeftWords } from "../../campaigns/sequences/sequence-words";
 import type { LeadPeekVM } from "../lead-peek";

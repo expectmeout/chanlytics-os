@@ -71,7 +71,7 @@ export interface AskMorningDto {
 }
 
 /**
- * What the morning's cards say outside Today's rows (whose words are need-you-words.ts since decision 0071): what a card
+ * What the morning's cards say outside Today's rows (whose words are need-you/words.ts since decision 0071): what a card
  * let go of is kept as on its turn, and the bell's line while they wait.
  */
 export const ASK_MORNING_WORDS = {

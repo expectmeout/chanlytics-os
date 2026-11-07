@@ -64,9 +64,9 @@ import {
   type EventData,
   type Json,
 } from "@chanlytics/db";
-import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
-import { heldByThread, lateDraft, liveHoldOf } from "./deliver-hold";
-import { textRefusal } from "./deliver-text";
+import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./email";
+import { heldByThread, lateDraft, liveHoldOf } from "./hold";
+import { textRefusal } from "./text";
 import { namedFailure, putOnWire, type WireUnavailable } from "./wire-senders";
 
 export type { DeliveryRefusal };
@@ -191,7 +191,7 @@ export interface Delivery {
   kind?: SendKind;
   /**
    * The call this send is made on, by the provider's id for it (the hold's control_ref, as the inbound door took it):
-   * that call's own hold on the thread does not refuse it (deliver-hold.ts). Absent for every send not made mid-call.
+   * that call's own hold on the thread does not refuse it (deliver/hold.ts). Absent for every send not made mid-call.
    */
   onCall?: string | null;
   /** Recorded on a row this call writes. */
@@ -272,7 +272,7 @@ interface WireFacts {
     dnc: boolean | null;
     marketing_consent: string | null;
     /**
-     * The channels each yes covers (consent-channels.ts; the database keeps them by each consent event). Null, or absent
+     * The channels each yes covers (consent/channels.ts; the database keeps them by each consent event). Null, or absent
      * from the answer of a database 00297 has not reached (wireRowOf): WhatsApp alone.
      */
     consent_channels?: string[] | null;
@@ -289,7 +289,7 @@ interface WireFacts {
   tenantStatus: string | null;
   /** The texting line a text leaves on (db textLineFacts); read for a text alone, null for every other send. */
   smsLine: Awaited<ReturnType<typeof textLineFacts>>;
-  offers: OfferFacts; // what an offer by email asks of the deployment and the workspace (deliver-email.ts)
+  offers: OfferFacts; // what an offer by email asks of the deployment and the workspace (deliver/email.ts)
 }
 
 /**
@@ -319,7 +319,7 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promis
   };
   return {
     pausedUntil: row.paused_until ?? null,
-    // The one reading of the hold's columns (deliver-hold.ts liveHoldOf): the receptionist's memory reads them the same way.
+    // The one reading of the hold's columns (deliver/hold.ts liveHoldOf): the receptionist's memory reads them the same way.
     control: liveHoldOf(row),
     contactId: row.contact_id ?? null,
     contact: row.contacts ?? {
@@ -429,11 +429,11 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   // A cold message goes by email and nothing else: a phone's lines are registered, and consented, for people who
   // wrote to the business, never for businesses it found.
   if (d.purpose === "outreach" && d.channel !== "email") return "outreach_is_email_only";
-  // What a text carries and leaves on: no promotion, and only a line the carriers approved (deliver-text.ts).
+  // What a text carries and leaves on: no promotion, and only a line the carriers approved (deliver/text.ts).
   const text = d.channel === "sms" ? textRefusal(d.purpose, f.smsLine) : null;
   if (text) return text;
   if (d.channel === "email") {
-    // An offer by email goes only where the deployment, the workspace and the email allow it (deliver-email.ts).
+    // An offer by email goes only where the deployment, the workspace and the email allow it (deliver/email.ts).
     const offer = offerRefusal(d, f.offers);
     if (offer) return offer;
     // A permanent bounce, a complaint or the provider's own list: a fact about
@@ -445,7 +445,7 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
     if (f.contact.email !== d.to) return "recipient_changed";
   }
   // Consent outranks everything, asked with this message's own purpose.
-  // A yes covers the channels it was given for: asked on the channel this message goes out on (consent-channels.ts).
+  // A yes covers the channels it was given for: asked on the channel this message goes out on (consent/channels.ts).
   const begins = d.kind === "reply" && d.proactive; // a person's own message that is a start (messages/send.ts)
   const asked = { proactive: d.proactive, channel: d.channel, about: d.about, begins };
   const may = mayMessageFor(f.contact, d.purpose, asked);

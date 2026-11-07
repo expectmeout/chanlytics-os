@@ -54,7 +54,7 @@ export type LateFailureOutcome = "raised" | "not_ours" | "not_a_reply" | "alread
  * WhatsApp's status webhook and Twilio's status callback both say `failed` (or `undelivered`) about a message they
  * accepted a moment before, and until this the row learned it and nobody else did: the thread read as answered, the
  * bell stayed quiet, and the customer waited on a reply that never arrived. An email receipt flags its thread
- * already (edge email-receipts.ts); this is the same rule for the other two wires, said once, in the same words the
+ * already (edge email/receipts.ts); this is the same rule for the other two wires, said once, in the same words the
  * send says it (raiseSendFailed).
  *
  * Whose failure it is, by the one predicate every reader of a campaign asks (contracts isAutomatedSend): a reply the

@@ -4460,7 +4460,7 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
       // Since 00345 the board's read holds the record too: the bookings that arrived by email over the span, the
       // notices' health line (two reads) and the workspace's mailbox, before everyone; and, once the feed has read,
       // the record's taken time over the days on offer, which a week alone does not cover. The record's reads are
-      // asked together (9 Oct 2026, calendar-week.ts recordOverSpan), so they reach the database in no one order:
+      // asked together (9 Oct 2026, calendar/week.ts recordOverSpan), so they reach the database in no one order:
       // each, as often. The span's record is two reads since a member's word on a visit (00397, visitsOver): the
       // bookings whole, and the feed's rows by key; the season's record beside everyone is two more since 3 Nov 2026,
       // for when each person was last in (people-visits.ts boardVisits).

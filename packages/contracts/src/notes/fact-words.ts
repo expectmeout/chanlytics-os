@@ -3,7 +3,7 @@
  * 0063). Apart from the rules (fact-suggest.ts), which the edge's sweep reads, because the Autonomy pane and the verb every
  * page loads (ask/proposals/autonomy.ts) need these words alone.
  */
-import type { AskSettingsChange } from "../ask/ask-settings-change";
+import type { AskSettingsChange } from "../ask/settings-change";
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 
 /** What an owner corrected (00448 fact_suggestions.source): a held draft rewritten to their instruction, or their reply. */

@@ -30,8 +30,8 @@ import {
   type Json,
   type MailboxConnectionRow,
 } from "@chanlytics/db";
-import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
-import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
+import { tokenFor } from "../email/mailbox/credentials.js";
+import { markSignedOut } from "../email/mailbox/wire.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
 type Db = SupabaseClient<Database>;

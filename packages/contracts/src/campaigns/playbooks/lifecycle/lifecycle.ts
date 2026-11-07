@@ -1,6 +1,6 @@
 /**
  * Campaigns' home: the lifecycle (canvas A, "Lifecycle", approved 2 Oct 2026). The page is five moments around a customer,
- * each covered or not, with every campaign in a ledger under it (lifecycle-ledger.ts); and three tiles: who can hear the
+ * each covered or not, with every campaign in a ledger under it (lifecycle/ledger.ts); and three tiles: who can hear the
  * workspace, what goes out in the next seven days, and what came back. Every sentence and every number it says is made
  * here, from what the surfaces already carry, so the page composes and never derives (`campaignsHomeOf`).
  *
@@ -20,14 +20,14 @@ import { channelsStandingParts } from "../../broadcasts/channels-standing";
 import { offersPausedLine } from "../../broadcasts/email-offers";
 import type { ChannelsReady } from "../../broadcasts/reach-for";
 import { purposeOfPlaybook } from "../../../consent/consent";
-import { CONSENT_CHANNELS } from "../../../consent/consent-channels";
+import { CONSENT_CHANNELS } from "../../../consent/channels";
 import { journeyOf, journeyStageOf, type JourneyStage } from "../../../journey/journey";
-import { emailTemplateRowsOf } from "../../reach-out/reach-out-sheet";
+import { emailTemplateRowsOf } from "../../reach-out/sheet";
 import { CALENDAR_SETTING_ROUTE } from "../../../setup/calendar-source";
 import { libraryCount } from "../../templates/library-count";
-import { channelMarksOf, lifecycleLedger, readyOf, stagePlaybooks, tallyOf } from "./lifecycle-ledger";
-import { lifecycleComing, lifecycleReach, lifecycleResults } from "./lifecycle-tiles";
-import { LIFECYCLE_WORDS, lifecycleStateOf, tallyWords } from "./lifecycle-words";
+import { channelMarksOf, lifecycleLedger, readyOf, stagePlaybooks, tallyOf } from "./ledger";
+import { lifecycleComing, lifecycleReach, lifecycleResults } from "./tiles";
+import { LIFECYCLE_WORDS, lifecycleStateOf, tallyWords } from "./words";
 import type {
   LifecycleAct,
   LifecycleBar,
@@ -41,7 +41,7 @@ import type {
   LifecyclePlaybooks,
   LifecycleShape,
   LifecycleStage,
-} from "./lifecycle-types";
+} from "./types";
 import { isWinBack, triggerOf } from "../playbook-triggers";
 
 /** The moment a new campaign on the win-back starts from: the one the workspace offers, by visits or by silence. */

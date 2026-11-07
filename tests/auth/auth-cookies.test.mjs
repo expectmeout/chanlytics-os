@@ -24,7 +24,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { writeAuthCookies } = await import(at("apps/dashboard/src/server/auth/auth-cookies.ts"));
+const { writeAuthCookies } = await import(at("apps/dashboard/src/server/auth/cookies.ts"));
 
 /** What NextResponse gives the writer: somewhere to put cookies, somewhere to put headers. */
 function sink() {

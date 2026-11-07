@@ -22,7 +22,7 @@ import {
 import { draftReviewReply } from "./review-reply.js";
 import { logger } from "../shared/log.js";
 import { http } from "./places.js";
-import { connectionOf, type ConnectionRow, type Db } from "./google-rows.js";
+import { connectionOf, type ConnectionRow, type Db } from "./rows.js";
 import { tokenFor } from "./profile-credentials.js";
 
 /**

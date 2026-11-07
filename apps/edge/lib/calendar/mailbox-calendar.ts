@@ -26,8 +26,8 @@ import { getTenantConfig, mailboxConnectionOf, type Database } from "@chanlytics
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
-import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
-import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
+import { tokenFor } from "../email/mailbox/credentials.js";
+import { markSignedOut } from "../email/mailbox/wire.js";
 import { logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;

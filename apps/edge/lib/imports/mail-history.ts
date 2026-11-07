@@ -1,25 +1,25 @@
 /**
  * A connected mailbox's six months (decision 0073, R19; decision 0080): the mail it holds from before it connected, read
- * a page at a time through its own grant, each message sorted as the live read sorts it (email/mailbox/mailbox-sorting.ts).
+ * a page at a time through its own grant, each message sorted as the live read sorts it (email/mailbox/sorting.ts).
  * An email a person wrote, and one the owner sent to one person, is kept in that person's thread as before Chanlytics
  * (db keepBefore, ingest_before: the person resolved as a client list's would be, the message once by its provider id,
  * never answered, never a yes, never today's); everything else (lists, receipts, notifications, automatic replies, what
  * Gmail filed as promotions, social or forums, a notice from a stranger in Updates or through a mailing service, what the
  * workspace said is automated, a sender read as selling to the business or as a program, mail to many) is left where it
  * is, counted as dropped and noted one line a sender. A booking tool's notice is dropped too: a mailbox hands over no
- * proof of who sent it (channels mailbox-read.ts), so it is never read as a booking; the calendar brings the visits.
+ * proof of who sent it (channels mailbox/read.ts), so it is never read as a booking; the calendar brings the visits.
  *
  * Gmail's mailbox is read the way a person would read it (decision 0080): what the owner sent first, so whom they write
  * to is known before the mail written to them is judged, then the rest, drafts never; and each received message by its
  * headers first (format=metadata), so what the rules leave on them is never read whole. Graph's road reads everything at
  * once, every message whole, as it did (Microsoft is halted, 27 Oct 2026).
  *
- * The window ends where the mailbox connected, and the live read (mailbox-sync.ts) starts there: nothing is read twice
+ * The window ends where the mailbox connected, and the live read (mailbox/sync.ts) starts there: nothing is read twice
  * and nothing between them is missed. The cursor (the ledger's job_cursor) is the window, which of the mailbox's mail
  * the part reads, the provider's page and how far into it a part got, so a part that stops mid-page picks up at the next
  * message.
  *
- * A message the mailbox refuses to hand over (mailbox-sync.ts readEmail) is counted unreadable and gone on without, so
+ * A message the mailbox refuses to hand over (mailbox/sync.ts readEmail) is counted unreadable and gone on without, so
  * one odd message never holds the rest back. The mailbox's pace or quota of requests is no failure: the part notes
  * where it stood and ends, and the next part reads on after a rest (restAfterPace), never using up the ledger's tries.
  * A provider that cannot be asked now throws, after the part notes what it brought and where it stood, and the job
@@ -56,9 +56,9 @@ import {
   type Json,
   type MailboxConnectionRow,
 } from "@chanlytics/db";
-import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
-import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
-import { mailboxEmailMeta, readEmail } from "../email/mailbox/mailbox-sync.js";
+import { tokenFor } from "../email/mailbox/credentials.js";
+import { markSignedOut } from "../email/mailbox/wire.js";
+import { mailboxEmailMeta, readEmail } from "../email/mailbox/sync.js";
 import {
   mailSortingFor,
   noteLeft,
@@ -66,7 +66,7 @@ import {
   type MailSorting,
   type RulesSay,
   type SortedWhy,
-} from "../email/mailbox/mailbox-sorting.js";
+} from "../email/mailbox/sorting.js";
 import type { Part, PartOutcome } from "./history-import.js";
 import type { Logger } from "../shared/log.js";
 
@@ -180,7 +180,7 @@ interface MailRead {
   /** Which mail is being read now: a part that finishes what the owner sent reads on into the rest. */
   phase: MailPhase;
   began: MailPlace;
-  /** What the workspace said of its senders, and what it knows of them, read once a part (mailbox-sorting.ts). */
+  /** What the workspace said of its senders, and what it knows of them, read once a part (mailbox/sorting.ts). */
   sorting: MailSorting;
   /** Whether a thread is one a reach-out started, asked once a thread a part. */
   reached: Map<string, boolean>;
@@ -248,7 +248,7 @@ async function inAReachOut(r: MailRead, e: MailboxEmail): Promise<boolean> {
 }
 
 /**
- * What the rules say of what someone else wrote (mailbox-sorting.ts sortByRules), a thread a reach-out started taking in
+ * What the rules say of what someone else wrote (mailbox/sorting.ts sortByRules), a thread a reach-out started taking in
  * what only a tab, a mailing service or what was read of its sender would leave, and its stranger too: never read. A
  * mailbox connected again reads back over its earlier connection's months, reach-outs among them; the threads are asked
  * only when such a reason alone would leave an email.
@@ -261,7 +261,7 @@ async function rulesOfImport(r: MailRead, e: MailboxEmail): Promise<RulesSay> {
 
 /**
  * Why the six months leave what someone else wrote, or null to keep it: the rules, then a stranger's first email read
- * (mailbox-reader.ts), which counts one more who asked about the business's services where it reads them so.
+ * (mailbox/reader.ts), which counts one more who asked about the business's services where it reads them so.
  */
 async function leftByImport(r: MailRead, tally: MailTally, e: MailboxEmail): Promise<SortedWhy | null> {
   const say = await rulesOfImport(r, e);

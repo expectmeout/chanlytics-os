@@ -29,7 +29,7 @@ import { PERSON_MODE_WORDS } from "../people/person-receptionist";
 import { PERSON_STATE_LABELS } from "../people/person-state";
 import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "../setup/setup";
-import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
+import { CALENDAR_FEED_WORDS } from "../calendar/words";
 import { SOURCE_WORDS, type FactSource } from "../config/facts";
 import {
   LEAD_CALL_OUTCOME_TONES,
@@ -43,7 +43,7 @@ import {
 } from "../leads/leads";
 import { DEAL_STAGE_WORDS } from "../deals/deal-words";
 import { TEMPLATE_STATUS_WORDS } from "../campaigns/templates/templates";
-import { REPLY_CHIP_WORDS } from "../campaigns/reach-out/reach-out-replies";
+import { REPLY_CHIP_WORDS } from "../campaigns/reach-out/replies";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -281,7 +281,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS,
-  // The chip's words (reach-out-replies.ts); the strip's sentence ("Wrote back · interested") keeps REPLY_INTENT_WORDS.
+  // The chip's words (reach-out/replies.ts); the strip's sentence ("Wrote back · interested") keeps REPLY_INTENT_WORDS.
   reply: REPLY_CHIP_WORDS,
   // `lead_row_state` is a tone and no words: the row composes its own tag (`Contacted · 2m`) in toLeadRowVM,
   // and nothing ever asks this map for it. Words here would be a second set of the same five. A map whose

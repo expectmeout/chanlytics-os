@@ -35,7 +35,7 @@
  *     starter's, else the name made words: not the anchor's alone, so a title written with the first email version stays
  *     when a WhatsApp row with none comes.
  */
-import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import { purposeOfTemplate, type AskedPurpose } from "../../consent/consent";
 import { TEMPLATE_STATUSES, type TemplateStatus } from "../../shared/enums";
 import type { ChannelsReady } from "../broadcasts/reach-for";

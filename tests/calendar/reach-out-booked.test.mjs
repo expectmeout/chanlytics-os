@@ -1,5 +1,5 @@
 /**
- * What the calendar sweep hands the booking door (bookedSeenOf, reach-out-booked.ts): each address and number of each
+ * What the calendar sweep hands the booking door (bookedSeenOf, reach-out/booked.ts): each address and number of each
  * appointment with its start, at most BOOKED_SEEN_CAP of them, the NEWEST appointments first.
  *
  * The cap is what decides who the door hears about. The door (00227 reach_out_booked) converts a lead on an

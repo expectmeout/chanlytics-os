@@ -53,13 +53,13 @@ export {
 export { CAMPAIGN_SCOPE_ALL, campaignScopeKey, campaignScopeOfKey } from "./lenses";
 export type { LensEmpty, LensId, LensRange, LensRow, LensScope, LensWho, ReportsParts } from "./lenses";
 export type { CampaignScope } from "./lenses";
-export { peopleNowOf } from "./people/people-now";
-export type { PeopleNowDto } from "./people/people-now";
-export { isPeopleSeriesDto, peopleDtoOf } from "./people/people-record";
-export type { PeopleDto, PeopleSeriesDto } from "./people/people-record";
-export { toPeopleReportVM } from "./people/people-report";
-export type { PeopleFigureVM, PeopleReportVM } from "./people/people-report";
-export { PEOPLE_RHYTHM_UNIT } from "./people/people-words";
+export { peopleNowOf } from "./people/now";
+export type { PeopleNowDto } from "./people/now";
+export { isPeopleSeriesDto, peopleDtoOf } from "./people/record";
+export type { PeopleDto, PeopleSeriesDto } from "./people/record";
+export { toPeopleReportVM } from "./people/report";
+export type { PeopleFigureVM, PeopleReportVM } from "./people/report";
+export { PEOPLE_RHYTHM_UNIT } from "./people/words";
 export { chainTotalsFromReport, chainTotalsOf, reachOutDayWords } from "./reach-out-report";
 export type {
   ReachOutChainTotalsDto,
@@ -71,14 +71,10 @@ export type {
   ReachOutReportMailboxDto,
   ReachOutReportStepDto,
 } from "./reach-out-report";
-export {
-  isReceptionistSeriesDto,
-  MISSED_CALL_TOUCH_WORDS,
-  receptionistDtoOf,
-} from "./receptionist/receptionist-record";
-export type { ReceptionistDto, ReceptionistSeriesDto } from "./receptionist/receptionist-record";
-export { toReceptionistReportVM } from "./receptionist/receptionist-report";
-export type { ReceptionistReportVM } from "./receptionist/receptionist-report";
+export { isReceptionistSeriesDto, MISSED_CALL_TOUCH_WORDS, receptionistDtoOf } from "./receptionist/record";
+export type { ReceptionistDto, ReceptionistSeriesDto } from "./receptionist/record";
+export { toReceptionistReportVM } from "./receptionist/report";
+export type { ReceptionistReportVM } from "./receptionist/report";
 export { closedOf } from "./report-closed";
 export type { ReportArrivalDto, ReportProfile } from "./report-closed";
 export { reportFacts } from "./report-facts";

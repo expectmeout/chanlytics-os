@@ -1,7 +1,7 @@
 /**
  * An email a mailbox may have sent, found to be settled (decision 0056): a send whose provider call timed out after it
  * may have taken the email is recorded failed with its outcome unknown (core deliver.ts), and no receipt comes from a
- * mailbox to settle it. The edge looks in the mailbox (lib/email/mailbox/mailbox-reconcile.ts) for the ones read here,
+ * mailbox to settle it. The edge looks in the mailbox (lib/email/mailbox/reconcile.ts) for the ones read here,
  * and settles each through the email repository (email.ts emailFoundSent, emailNeverLeft). Beside them, the mailboxes
  * clock asked to run now, for a push that must answer its provider at once.
  */

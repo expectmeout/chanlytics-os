@@ -44,7 +44,7 @@ import {
   tenantOf,
 } from "./billing.js";
 import { noteInvoiceAmount } from "./invoice-amount.js";
-import { noteTrialEnding } from "./billing-notices.js";
+import { noteTrialEnding } from "./notices.js";
 import {
   earnFromInvoice,
   invoiceOfPayment,

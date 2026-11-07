@@ -63,7 +63,7 @@ import { errField, logger } from "../shared/log.js";
 import { askJson, promptHashOf } from "../ai/model.js";
 import { brainCallOf, generateReply } from "../receptionist/brain.js";
 import { recordTokens, tokensLast24h } from "../receptionist/budget.js";
-import { senderFactsReaderFor } from "../email/mailbox/mailbox-reader.js";
+import { senderFactsReaderFor } from "../email/mailbox/reader.js";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 
 type Db = SupabaseClient<Database>;

@@ -4,7 +4,7 @@
  * Under Cache Components a page's shell goes out with its 200 before the page's own notFound() runs, so
  * `/yes/no-such-workspace-here` answered 200 with the Not found page in it, and `/b/<slug>` for a workspace with no
  * business on record read as a page that publishes (the nightly's consent spec, red from 13 Oct 2026; the closed-loop
- * audit of 17 Oct, D). The proxy now asks the pages' own readers first (src/server/public/public-page-gate.ts) and
+ * audit of 17 Oct, D). The proxy now asks the pages' own readers first (src/server/public/page-gate.ts) and
  * rewrites an address that names nothing to a path no route answers, which Next draws as app/not-found.tsx with a 404.
  *
  * The real proxy runs over a database in memory, as the readers' own tests run them.
@@ -22,7 +22,7 @@ const require = createRequire(import.meta.url);
 const { NextRequest } = require("next/server");
 const { proxy } = await importSrc("apps/dashboard/proxy.ts");
 const { setServiceClient } = await importSrc("apps/dashboard/src/server/shared/service-db.ts");
-const { publicPageNamesNothing } = await importSrc("apps/dashboard/src/server/public/public-page-gate.ts");
+const { publicPageNamesNothing } = await importSrc("apps/dashboard/src/server/public/page-gate.ts");
 
 const APP = "https://app.example.com";
 const T = "aaaaaaaa-0000-4000-8000-000000000611";

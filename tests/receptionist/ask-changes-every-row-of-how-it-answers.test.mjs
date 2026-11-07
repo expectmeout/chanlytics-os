@@ -1,6 +1,6 @@
 /**
  * Ask changes every row of How it answers (the Settings wiring review, item 14, 18 Oct 2026; contracts
- * ask/ask-settings-change.ts, the `answers` action of propose_settings): its voice, the languages, what callers hear
+ * ask/settings-change.ts, the `answers` action of propose_settings): its voice, the languages, what callers hear
  * first and in which voice, who they reach, words added to the owner's own, the three messages and the photo switch.
  * Until then a card could close a day, change the hours, add a note or a service, and nothing else on that page. Each
  * card writes what the row's own save writes, opens on that row, and is refused in the row's own words.

@@ -14,7 +14,7 @@ import { reviewHeldWords } from "../google/review-reply";
 import { standingChangeWords } from "../lines/number-standing";
 import { businessFieldLabel } from "../lines/business-record";
 import { HELD_REASONS } from "../campaigns/broadcasts/run-words";
-import { REPLY_INTENT_WORDS, isReplyIntent } from "../campaigns/reach-out/reach-out-replies";
+import { REPLY_INTENT_WORDS, isReplyIntent } from "../campaigns/reach-out/replies";
 import { plural } from "../shared/words";
 import type { ActivationMilestone } from "./activation";
 import { partnerEventBits } from "./partner";

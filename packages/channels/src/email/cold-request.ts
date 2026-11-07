@@ -19,7 +19,7 @@
  * before, as plain text they open or paste.
  */
 import { createHash } from "node:crypto";
-import { mailboxSignatureOf } from "./mailbox/mailbox-signature";
+import { mailboxSignatureOf } from "./mailbox/signature";
 import { signUnsubscribeToken, unsubscribeUrl } from "../tokens/unsubscribe-token";
 import { connectedIdentity } from "./identity";
 import { buildEmailRequest, type EmailParent, type EmailRequest } from "./request";

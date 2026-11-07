@@ -14,7 +14,7 @@ import { WEEKDAY_KEYS } from "../../calendar/zone-math";
 import { DAYS } from "../../config/workspace-config/config-rules";
 import type { GooglePeriod } from "../../google/google";
 import { leadCalledByOf } from "../../leads/search/called-by";
-import type { WrittenOpening } from "./reach-out-words";
+import type { WrittenOpening } from "./words";
 
 export interface OpenWindow {
   from: number;

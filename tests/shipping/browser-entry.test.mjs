@@ -168,10 +168,10 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "reports/report-metrics.ts",
     "reports/report-window.ts",
     "reports/report-mix.ts",
-    "reports/receptionist/receptionist-report.ts",
-    "reports/receptionist/receptionist-words.ts",
-    "reports/people/people-report.ts",
-    "reports/people/people-words.ts",
+    "reports/receptionist/report.ts",
+    "reports/receptionist/words.ts",
+    "reports/people/report.ts",
+    "reports/people/words.ts",
     "reports/campaigns/reach-out-lens.ts",
     "reports/campaigns/campaign-words.ts",
     "reports/campaigns/campaign-lens.ts",
@@ -259,7 +259,7 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
   const own = (from, out) => ({ types: from, bundled: `./dist/${out}.js`, import: from, default: from });
   assert.deepEqual(pkg.exports["./report-lens"], own("./src/reports/report-lens.ts", "report-lens"));
-  assert.deepEqual(pkg.exports["./ads-page"], own("./src/ads/ads-page.ts", "ads-page"));
+  assert.deepEqual(pkg.exports["./ads-page"], own("./src/ads/page-entry.ts", "ads-page"));
   assert.deepEqual(pkg.exports["./ask-only"], own("./src/ask/proposals/ask-only.ts", "ask-only"));
   // The pages' verb specs: the root entry's own module in the browser, the index itself elsewhere, so the table Ask's
   // kinds join is one table however it was reached.

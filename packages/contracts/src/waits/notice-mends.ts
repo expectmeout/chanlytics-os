@@ -69,7 +69,7 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
     sameSubject: true,
   },
   // A connected mailbox held for its own mail is mended by its owner's resume, one signed out by connecting it again, and
-  // either by its removal (decision 0056, mailbox-notices.ts words them).
+  // either by its removal (decision 0056, mailbox/notices.ts words them).
   {
     warns: { kind: "sweep", title: /^.+ is held: /u },
     by: { change: "mailbox_connection.resumed" },

@@ -7,7 +7,7 @@ import "server-only";
  * Business record, and the number on the lead the sender wrote to.
  *
  * A token that names nothing is no page (null): the proxy answers it Not found before the page renders
- * (public-page-gate.ts), and the page's own notFound() is the floor. A preview whose workspace is gone (ended, its lead
+ * (public/page-gate.ts), and the page's own notFound() is the floor. A preview whose workspace is gone (ended, its lead
  * erased) still has a page, which says it ended.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";

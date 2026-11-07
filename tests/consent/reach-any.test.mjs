@@ -1,6 +1,6 @@
 /**
  * One reachability rule everywhere (One message, every channel, the review's item 7). People's rows and lists, Today's
- * leaks, the empty-audience refusal and the proposal follow-up's stand each asked WhatsApp alone (a constant of consent-channels.ts, gone);
+ * leaks, the empty-audience refusal and the proposal follow-up's stand each asked WhatsApp alone (a constant of consent/channels.ts, gone);
  * each now asks what a send asks (contracts reachFor), of every channel at once, against what the workspace can send on
  * now (reach-any.ts). Over real rows -- the database's columns through toPersonRowVM -- so what is proved is the page's
  * own answer: an email-only person is reachable for a message where email is set up and not where it is not, a text-only

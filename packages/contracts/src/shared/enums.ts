@@ -859,7 +859,7 @@ export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
 
 /**
  * What a member may say became of a visit (00397 mark_visit; decision 0002, step 8). Here, with the closed sets, and not in
- * calendar-words.ts, which says them: Today's view model names it and the phone app's program reaches that (mobile/widget.ts),
+ * calendar/words.ts, which says them: Today's view model names it and the phone app's program reaches that (mobile/widget.ts),
  * which must not reach the calendar's words.
  */
 export type VisitWord = "kept" | "missed" | "cancelled";

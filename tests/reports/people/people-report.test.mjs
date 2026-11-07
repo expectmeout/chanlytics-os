@@ -1,5 +1,5 @@
 /**
- * The People lens's own parts, in words (contracts reports/people/people-report.ts and people-words.ts): the page-only fold
+ * The People lens's own parts, in words (contracts reports/people/report.ts and people/words.ts): the page-only fold
  * that says every sentence the lens draws from the PeopleDto -- the head, the four figures against the period before, the
  * mixes of the window (how they reached you, how the new ones first came, how the yeses were won and the stops came, the
  * steps done on time, the addresses that stopped), the book as it stands now (its wires, how fresh it is, what is stuck,

@@ -11,7 +11,7 @@
 import { neverConnected, type CallDto } from "../../conversations/call-dto";
 import { isTheirOwnWords, writtenChannelOf, type WrittenChannel } from "../../conversations/thread-channel";
 import { messageAt, type MessageDto } from "../../conversations/thread-dto";
-import { CONSENT_CHANNEL_WORDS } from "../../consent/consent-channels";
+import { CONSENT_CHANNEL_WORDS } from "../../consent/channels";
 import type { PersonBeforeDto, PersonDetailDto } from "../person-dto";
 import { viaWords } from "../../imports/csv";
 import type { PersonCameFrom } from "../person-words";

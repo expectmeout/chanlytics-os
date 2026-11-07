@@ -37,9 +37,9 @@ const LEVELS = new Set(["info", "warn", "error"]);
  * a value typed `LogEvent` and named here.
  */
 const FORWARDED = {
-  "apps/edge/lib/billing/billing-admin.ts": ["log.event"], // billingLogOf (billing-ops.ts)
+  "apps/edge/lib/billing/admin.ts": ["log.event"], // billingLogOf (billing/ops.ts)
   "apps/edge/lib/email/resend-event.ts": ["verdict.log", "verdict.log"], // planResendEvent
-  "apps/edge/lib/google/google-admin.ts": ["log.event", "log.event"], // connectAnswer, draftAnswer (google-ops.ts)
+  "apps/edge/lib/google/admin.ts": ["log.event", "log.event"], // connectAnswer, draftAnswer (google/ops.ts)
   "apps/edge/lib/leads/apify-delivery.ts": ["verdict.log", "verdict.log", "verdict.log"], // planApifyIngress
   "apps/edge/lib/ops/sweep-door.ts": ["noDbEvent"], // sweepDoor: the line a sweep says when it has no database
   "apps/edge/lib/campaigns/reach-out/check.ts": ["event"], // the check sweep's error(...)

@@ -22,7 +22,7 @@
  * either (403 model_paused, decision 0097), and a day that could not be counted holds the turn (503 read_failed). Every
  * round is written to the usage ledger with the model that answered and its dollars.
  *
- * A request may ask for fast mode (`speed: "fast"`, Ask's default on a model that runs it: ask-model.ts). Fast mode's
+ * A request may ask for fast mode (`speed: "fast"`, Ask's default on a model that runs it: ask/model.ts). Fast mode's
  * own limit refusing it (a 429) is no failure: the port asks the same model again at standard speed, said in the log as
  * ask_gateway_slowed. The speed the answering request went at is said back in `x-model-speed`, which the turn keeps on
  * its shape, and the round's usage row and its ledger dollars are at the speed the API says it ran (fast mode's own

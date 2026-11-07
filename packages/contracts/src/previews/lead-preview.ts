@@ -13,11 +13,11 @@
  * The page's words are preview-words.ts's, apart, so the page that draws them carries none of this.
  */
 import { dayIntervals } from "../calendar/availability";
-import { hoursLines } from "../calendar/calendar-words";
+import { hoursLines } from "../calendar/words";
 import type { BusinessProfile } from "../config/workspace-config/business-profile";
 import { DAY_NAMES, DAYS } from "../config/workspace-config/config-rules";
 import { REHEARSAL_LIMITS } from "../rehearsal/rehearsal";
-import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/setup-put-off";
+import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/put-off";
 import { SECOND_MS } from "../shared/time";
 import { LEAD_PREVIEW_WORDS } from "./preview-words";
 

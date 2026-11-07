@@ -7,7 +7,7 @@
  * readiness alone, and said "could also go by Text" of an offer, which no text carries, and "on" of a channel whose
  * version the message did not hold, which its own drawer said waits.
  */
-import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import type { AskedPurpose, MessageAbout } from "../../consent/consent";
 import {
   DEFAULT_CAMPAIGN_CHANNELS,

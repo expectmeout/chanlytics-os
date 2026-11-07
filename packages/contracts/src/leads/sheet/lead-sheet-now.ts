@@ -10,8 +10,8 @@
 import { clockDate, clockNear, zoneDayKey } from "../../shared/clock";
 import { capitalize, plural } from "../../shared/words";
 import { runApproveWords } from "../../shell/campaign-rooms";
-import { REPLY_INTENT_WORDS, isReplyIntent } from "../../campaigns/reach-out/reach-out-replies";
-import { isReachOutHold } from "../../campaigns/reach-out/reach-out-words";
+import { REPLY_INTENT_WORDS, isReplyIntent } from "../../campaigns/reach-out/replies";
+import { isReachOutHold } from "../../campaigns/reach-out/words";
 import { heldAnswersOf, heldOwnWordsOf, heldWhyOf } from "../../campaigns/sequences/sequence-held";
 import {
   PLACE_NOT_PLANNED_WORD,

@@ -1,5 +1,5 @@
 /**
- * A connected mailbox read back (apps/edge/lib/email/mailbox/mailbox-sync.ts; decision 0056), over a database in memory
+ * A connected mailbox read back (apps/edge/lib/email/mailbox/sync.ts; decision 0056), over a database in memory
  * with Gmail and Graph answered by the test. From its cursor, only what sits in a thread a reach-out started is ever
  * fetched; a reply there becomes one intake job, once; a delivery report about one of our emails is applied as the
  * bounce it reports (the row failed, the address stopped, the lead's address marked); a delay is nothing yet. One sync
@@ -18,7 +18,7 @@ import { MAILBOX_ENV, b64url, liveCredentials, providers, vault, withEnv } from 
 
 const restore = withEnv(MAILBOX_ENV);
 after(restore);
-const { syncMailbox } = await importSrc("apps/edge/lib/email/mailbox/mailbox-sync.ts");
+const { syncMailbox } = await importSrc("apps/edge/lib/email/mailbox/sync.ts");
 const { logger } = await importSrc("apps/edge/lib/shared/log.ts");
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

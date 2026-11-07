@@ -10,7 +10,7 @@
  *
  * A fallback is asked only for an answer that never came (a 529, a 5xx or a try that ran out of time) or for a model
  * the API does not know (a 404: a variable's misspelt name, an id since retired). A refusal, a bad request or a 429 is
- * the answer. Ask's model is whatever its deployment names (ASK_MODEL: any Claude model, ask-model.ts), and a model that
+ * the answer. Ask's model is whatever its deployment names (ASK_MODEL: any Claude model, ask/model.ts), and a model that
  * is not the route's own falls back to the route's: a deployment that runs Ask on Sonnet falls back to Opus 5.5.
  *
  * A purpose whose answer is a closed set may also name a shadow port (`shadow`): a second model that is put the same
@@ -74,7 +74,7 @@ export type ThinkingType = (typeof THINKING_TYPES)[number];
  *
  * Haiku 5.5 also refuses three things no route sends it: a server-side `fallbacks` list (its refusals have no fallback;
  * the lead judge's `fallbacks: "default"` is taken and does nothing), an assistant prefill (Ask's requests end on the
- * person's turn), and a temperature other than its default (Ask sends none, ask-model.ts). Our routes fall back in our
+ * person's turn), and a temperature other than its default (Ask sends none, ask/model.ts). Our routes fall back in our
  * own code (MODEL_ROUTES), so none of them changes anything here.
  */
 export interface ModelTakes {
@@ -117,7 +117,7 @@ export function hasFastMode(model: string): boolean {
 
 /**
  * How hard a request asks a model to think (`output_config.effort`), least first: the levels the gateway lets through,
- * which every model a route asks accepts. Ask's is its deployment's to name (ASK_EFFORT, ask-model.ts), and a draft's
+ * which every model a route asks accepts. Ask's is its deployment's to name (ASK_EFFORT, ask/model.ts), and a draft's
  * (ASK_DRAFT_EFFORT); xhigh and max since 15 Oct 2026, for the drafts (the effort sweep: ai/effort.ts).
  */
 export const MODEL_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;

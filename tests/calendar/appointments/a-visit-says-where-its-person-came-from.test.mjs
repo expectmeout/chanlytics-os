@@ -13,7 +13,7 @@ import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/calendar-week.ts"));
+const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/week.ts"));
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

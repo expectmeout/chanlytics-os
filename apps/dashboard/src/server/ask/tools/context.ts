@@ -153,7 +153,7 @@ export interface ProposalOutcome {
   isError: boolean;
   /** A plan's own words for the person (proposeMany): a round that made it answers with them (loop.ts). */
   words?: string;
-  /** What a setup's answer leads with where something comes first (contracts journey-plan.ts PlanLead): the round answers with it. */
+  /** What a setup's answer leads with where something comes first (contracts journey/plan.ts PlanLead): the round answers with it. */
   lead?: PlanLead;
   /** Why nothing was proposed (refuse), as the model is told it: read by a plan of its step's refusal (act/plan.ts). */
   refusal?: string;

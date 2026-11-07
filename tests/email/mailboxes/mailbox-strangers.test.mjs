@@ -1,6 +1,6 @@
 /**
- * A connected mailbox brings people, not programs (decision 0080; apps/edge/lib/email/mailbox/mailbox-sorting.ts and
- * mailbox-reader.ts), over a database in memory: whom the business talks with comes in without a question; a program's
+ * A connected mailbox brings people, not programs (decision 0080; apps/edge/lib/email/mailbox/sorting.ts and
+ * mailbox/reader.ts), over a database in memory: whom the business talks with comes in without a question; a program's
  * notice through a mailing service is left on its headers; what Chanlytics read a sender to be is kept and read again
  * before anything asks; what three other workspaces said of a domain is heard; and a stranger's first email is read by
  * the model, once a sender, its reading kept, the business's own name and words about itself in what the model is told.
@@ -14,8 +14,8 @@ import { MAILBOX_ENV, withEnv } from "./_mailbox-world.mjs";
 
 const restore = withEnv({ ...MAILBOX_ENV, ANTHROPIC_API_KEY: null });
 after(restore);
-const { leftWhy, mailSortingFor, sortByRules } = await importSrc("apps/edge/lib/email/mailbox/mailbox-sorting.ts");
-const { senderReaderFor } = await importSrc("apps/edge/lib/email/mailbox/mailbox-reader.ts");
+const { leftWhy, mailSortingFor, sortByRules } = await importSrc("apps/edge/lib/email/mailbox/sorting.ts");
+const { senderReaderFor } = await importSrc("apps/edge/lib/email/mailbox/reader.ts");
 const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
 const { mailboxSendersOf } = await importSrc("packages/db/src/repositories/email/senders.ts");
 const { logger } = await importSrc("apps/edge/lib/shared/log.ts");

@@ -3590,7 +3590,7 @@ test("a quick answer nods, and a failed turn shakes: the palette says how a turn
   };
   try {
     render(Palette, CLOSED);
-    // "who needs me?" is one the Line answers itself (contracts askIntent, ask-answer.ts): no turn, a nod. First,
+    // "who needs me?" is one the Line answers itself (contracts askIntent, ask/answer.ts): no turn, a nod. First,
     // because a conversation left open takes every later question to the model.
     sent("ask:seed", { prompt: "who needs me?" });
     await opens();

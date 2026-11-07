@@ -1,6 +1,6 @@
 /**
  * The thread's live hold (00132: a call in progress on it, or a person who took it over) reaches the receptionist's
- * memory with the rest of the thread's state, as the wire reads it (core deliver-hold.ts HoldFacts): the kind, the
+ * memory with the rest of the thread's state, as the wire reads it (core deliver/hold.ts HoldFacts): the kind, the
  * call's own ref and until when, or none. The edge's pgThread over db readThreadState, run here over the double, so
  * the inbound path can ask the wire's question before the model is asked (core inbound reply-gates.ts).
  */

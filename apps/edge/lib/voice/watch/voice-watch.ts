@@ -27,7 +27,7 @@ import { edgeFnUrl } from "../../shared/dashboard-origin.js";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";
 import { pageOperator } from "../../ops/page-operator.js";
-import { signatureOnly } from "../voice-door-auth.js";
+import { signatureOnly } from "../door-auth.js";
 
 type Db = SupabaseClient<Database>;
 

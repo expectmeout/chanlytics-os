@@ -18,11 +18,11 @@
  * deal's own wherever it has them (DealVM); nothing is decided twice. Every other word the Pipeline says is here, and
  * a page only composes it. Pure.
  *
- * This module builds the Pipeline (pipelineOf) in the shape pipeline-vm.ts declares and in pipeline-words.ts's
- * words. Its views, the rail and the address are pipeline-views.ts's; the peek is pipeline-peek.ts's; the board's
- * moves, the rows' order and a selection's pass are pipeline-board.ts's.
+ * This module builds the Pipeline (pipelineOf) in the shape pipeline/vm.ts declares and in pipeline/words.ts's
+ * words. Its views, the rail and the address are pipeline/views.ts's; the peek is pipeline/peek.ts's; the board's
+ * moves, the rows' order and a selection's pass are pipeline/board.ts's.
  */
-import { visitStateOf } from "../../calendar/calendar-words";
+import { visitStateOf } from "../../calendar/words";
 import { clockDate, clockNear, clockNearWhen } from "../../shared/clock";
 import { plural } from "../../shared/words";
 import { DEAL_CARD_WORDS } from "../sheet/deal-card";
@@ -43,10 +43,10 @@ import type {
   PipelineStep,
   PipelineVM,
   PipelineFilter,
-} from "./pipeline-vm";
-import { pipelineRowId } from "./pipeline-vm";
-import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words";
-import { serviceOf, stepDue, type PipelineView } from "./pipeline-views";
+} from "./vm";
+import { pipelineRowId } from "./vm";
+import { GROUP_WORDS, PIPELINE_WORDS } from "./words";
+import { serviceOf, stepDue, type PipelineView } from "./views";
 
 const upper = (s: string): string => (s ? `${s[0].toUpperCase()}${s.slice(1)}` : s);
 /** A time in stage in words, "8 d" or "today", from the one count of whole days (wholeDaysSince); "" without one. */
@@ -169,7 +169,7 @@ function dealRow<T extends PipelineSource>(
 /**
  * A consultation that has ended with no proposal since: when, and the step not taken yet. The rule measures from its end
  * (`consultedMs`); the words date it from its start, the day it was, so one that took Monday reads Monday. It is
- * said as the visit is everywhere (calendar-words.ts visitStateOf, D1-consult-held): "Kept" where the owner said they came,
+ * said as the visit is everywhere (calendar/words.ts visitStateOf, D1-consult-held): "Kept" where the owner said they came,
  * "Past" where nobody said, never "Held", which says it took place. A missed one is no consultation to follow (the row's
  * last visit leaves it out).
  */

@@ -67,7 +67,7 @@ export async function sortSender(
   return { sender, verdict: input.verdict, kept };
 }
 
-/** What a person with no address to say automated is told (here, and for a press of many, people-many.ts). */
+/** What a person with no address to say automated is told (here, and for a press of many, people/many.ts). */
 export const NO_ADDRESS_TO_SORT = "This person has no email address to sort.";
 
 /** A person's address, or every address at their domain where that is offered, said to be automated. */

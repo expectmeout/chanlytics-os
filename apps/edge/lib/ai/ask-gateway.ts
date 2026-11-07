@@ -311,7 +311,7 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
 /**
  * The models a small draft's request may name: every model and fallback of the registry's routes the gateway serves,
  * so the dashboard's JSON_MODEL and the fallback the port may ask are the list, and the two cannot drift apart. Ask is
- * not held to it: its model is its deployment's to name (contracts ask-model.ts), any that reads as a Claude model, so
+ * not held to it: its model is its deployment's to name (contracts ask/model.ts), any that reads as a Claude model, so
  * trying one is a variable on the dashboard and no change here. The door is the dashboard's alone (a signed token),
  * the day's cap counts tokens whatever the model, and a name the API does not know is asked of the route's own.
  */

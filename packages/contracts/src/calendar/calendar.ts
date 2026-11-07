@@ -15,9 +15,9 @@
  * closures ahead, the booking rules, the services and how long they take.
  * Pure; tests feed fixtures.
  *
- * This module builds the view model (toCalendarVM) in the shape calendar-vm.ts declares. The modules beside it
- * hold the rest: the route's DTO (calendar-dto.ts), day keys (day-keys.ts), the words (calendar-words.ts), and
- * the views and the window loaded around them (calendar-views.ts).
+ * This module builds the view model (toCalendarVM) in the shape calendar/vm.ts declares. The modules beside it
+ * hold the rest: the route's DTO (calendar/dto.ts), day keys (day-keys.ts), the words (calendar/words.ts), and
+ * the views and the window loaded around them (calendar/views.ts).
  */
 import { timezoneCity } from "../shared/time";
 import { replyReachOf } from "../people/person-reach";
@@ -25,7 +25,7 @@ import { formatPhoneDisplay } from "../shared/phone";
 import { BOOKING_DEFAULTS, closedOn, dayIntervals, hasHours } from "./availability";
 import { clockInZone, dayInZone, dayPlusInZone } from "./zone-math";
 import { offerFor } from "./service-offer";
-import { visitTitleWithout } from "./visit/visit-service";
+import { visitTitleWithout } from "./visit/service";
 import { DAY_SHORT, DOW, keyParts, monthLabelOf, shiftKey, zoneMidnight } from "./day-keys";
 import { bookingToolName, NOTICE_HOLD_WORDS } from "./booking-notice";
 import {
@@ -48,7 +48,7 @@ import {
   shortDate,
   spanLabel,
   type CalendarFeedHealth,
-} from "./calendar-words";
+} from "./words";
 import type {
   CalendarBandVM,
   CalendarBlockVM,
@@ -57,8 +57,8 @@ import type {
   CalendarServiceVM,
   CalendarVM,
   CalendarWindowVM,
-} from "./calendar-vm";
-import type { CalendarFeedDto, CalendarItemDto, CalendarWeekDto } from "./calendar-dto";
+} from "./vm";
+import type { CalendarFeedDto, CalendarItemDto, CalendarWeekDto } from "./dto";
 
 function hoursOf(tz: string, ms: number): number {
   const c = clockInZone(tz, ms);
@@ -93,7 +93,7 @@ function noticeFacts(item: CalendarItemDto): Pick<CalendarBlockVM, "tool" | "sta
 /**
  * What the block is for: the service a notice stated; else the title with the person's name taken out of it, so a row
  * that names them does not say them twice ("Gloss · Emily Chen" beside Emily Chen is "Gloss"), by the one rule every page
- * says a visit's title by (visit-service.ts visitTitleWithout). A salon writes the customer into the event's title, so
+ * says a visit's title by (visit/service.ts visitTitleWithout). A salon writes the customer into the event's title, so
  * the feed hands us both, and Today's card and the Calendar's agenda each drew the pair.
  */
 function serviceWordsOf(item: CalendarItemDto): string {
