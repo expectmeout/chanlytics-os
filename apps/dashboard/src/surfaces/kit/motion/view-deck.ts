@@ -622,14 +622,13 @@ function comeHome(table: Table, el: HTMLElement, away: Away): Follow | null {
   const { from, level, width } = away;
   if (table.env.reduced() || from === 0) return null;
   const now = table.env.now();
-  const run: Run = { ms: TIMELINE_MS, t0: now, keep: false };
   // Home on its layer as an arrival rests: handed back as the spring ended, Leads stepped a pixel up 240 ms after a
   // finger let it go short (Ruben's third recording, 7 Nov 2026).
-  const onLayer = restsOnLayer(table, el);
-  const anims = [startAt(el, springFrames({ from, to: 0, speed: 0 }, TIMELINE_MS), { ...run, keep: onLayer })];
+  const run: Run = { ms: TIMELINE_MS, t0: now, keep: restsOnLayer(table, el) };
+  const anims = [startAt(el, springFrames({ from, to: 0, speed: 0 }, TIMELINE_MS), run)];
   if (level < 1)
     anims.push(startAt(el, [{ opacity: level }, { opacity: 1 }], { ms: JOIN_FADE_MS, t0: now, keep: false }));
-  restAfter(table, el, { move: null, role: "back", spot: null, anims, onLayer }, anims[0]);
+  restAfter(table, el, { move: null, role: "back", spot: null, anims, onLayer: run.keep }, anims[0]);
   const share = (t: number) => (t >= TIMELINE_MS ? 0 : shareOf(springAt(from, 0, 0, t), width));
   return {
     follow: (other, frame) =>
