@@ -911,6 +911,22 @@
       }
     },
     {
+      "table": "files",
+      "name": "files_media_ref",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "media_ref"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "media_ref"
+        }
+      }
+    },
+    {
       "table": "files_let_go",
       "name": "files_let_go_pkey",
       "primary": true,

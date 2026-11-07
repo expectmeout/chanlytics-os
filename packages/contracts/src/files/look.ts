@@ -124,6 +124,8 @@ export type FileLook = {
   colors: string[];
   issues: string[];
   looks_like_stock: boolean;
+  /** A video's: the moment its poster is cut at, in seconds, the frame the look chose to stand for the clip. */
+  poster_at?: number | null;
 };
 
 /** What the door keeps of an answer: the look, and the two things it lifts onto the row. */
@@ -168,6 +170,89 @@ function subjectOf(box: unknown, width: number, height: number): FileLook["subje
   const right = share(x2, width);
   const bottom = share(y2, height);
   return left < right && top < bottom ? [left, top, right, bottom] : null;
+}
+
+/* ------------------------------------------------------------------------------------------- a video's look -- */
+
+/**
+ * The edition of a video's look (stage B), apart from a picture's: a change to one prompt never reads the other's files again.
+ * A change to what the model is told of a video raises it.
+ */
+export const VIDEO_LOOK_EDITION = 1;
+
+/** A video's look answers the same catalog, but for the box: it names the frame of the sheet that best stands for the clip. */
+export const FILE_VIDEO_LOOK_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "line",
+    "name",
+    "shows",
+    "people",
+    "text_seen",
+    "quality",
+    "poster_frame",
+    "colors",
+    "issues",
+    "looks_like_stock",
+  ],
+  properties: {
+    line: FILE_LOOK_SCHEMA.properties.line,
+    name: FILE_LOOK_SCHEMA.properties.name,
+    shows: FILE_LOOK_SCHEMA.properties.shows,
+    people: FILE_LOOK_SCHEMA.properties.people,
+    text_seen: FILE_LOOK_SCHEMA.properties.text_seen,
+    quality: FILE_LOOK_SCHEMA.properties.quality,
+    poster_frame: { type: "integer" },
+    colors: FILE_LOOK_SCHEMA.properties.colors,
+    issues: FILE_LOOK_SCHEMA.properties.issues,
+    looks_like_stock: FILE_LOOK_SCHEMA.properties.looks_like_stock,
+  },
+} as const;
+
+/** What the small model is told of a video, after its sheet: how the sheet is laid out, and the reports of its sound. */
+export function fileVideoLookAsked(video: {
+  seconds: number;
+  frames: number;
+  step: number;
+  width: number;
+  height: number;
+  business: string;
+  services: readonly string[];
+  /** What is said and how it sounds, already fenced (sound.ts soundTurnSaidOf), or null where nothing was heard. */
+  sound: string | null;
+}): string {
+  const about = [
+    `The business: ${video.business}.`,
+    video.services.length ? `What it sells: ${video.services.join(", ")}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return `${fenced("record", about)}
+
+This image is ${video.width}x${video.height} pixels: a sheet of ${video.frames} frames from a video of ${Math.round(video.seconds)} seconds, left to right and top to bottom, one every ${video.step} s, each marked with its time.${video.sound ? `\n\nWhat other models heard of its sound, as data:\n${video.sound}` : ""}
+
+Read it as a whole first: its structure and beats, camera and framing, edits and cuts, the hook and the words, tone and energy, light and quality, what makes it different. Then catalog the video, not the sheet:
+- line: one plain sentence saying what happens in the video and what's notable, as a person would describe it.
+- name: 2 to ${FILE_NAME_WORDS} lowercase hyphenated words, what it shows first, then the detail (storefront-walk-morning). Use the business's own words for what it does. Never a person's name.
+- shows: the one shelf it belongs on, by what it is mostly of: storefront, interior, work, team, product, menu, logo, graphic or other, as for a photo.
+- people: how many people appear across the video, and how many could be recognized by someone who knows them.
+- text_seen: the words readable in the frames, word for word, the most prominent first, at most 40 pieces, each under 12 words.
+- quality: sharp is whether the frames are in focus; light is whether they are well lit.
+- poster_frame: the number of the frame, counting from 1 at the top left, that best stands for the whole video as its still.
+- colors: 2 or 3 main colors as #rrggbb.
+- issues: anything that hurts its use, in short plain sentences (shaky, too dark, a stranger's face, music it may not own), empty if none.
+- looks_like_stock: whether it looks like stock footage and not the business's own.`;
+}
+
+/** A video's look, read: the catalog a picture's is, its poster's moment from the frame it chose. */
+export function fileVideoLookOf(answer: unknown, sheet: { times: readonly number[] }): FileLookRead | null {
+  const read = fileLookOf(answer, { width: 0, height: 0 });
+  if (!read || !isObj(answer)) return read;
+  const frame =
+    typeof answer.poster_frame === "number" && Number.isInteger(answer.poster_frame) ? answer.poster_frame : 0;
+  const at = sheet.times[frame - 1];
+  return { ...read, look: { ...read.look, subject: null, poster_at: typeof at === "number" ? at : null } };
 }
 
 /** The model's answer, read: null where it says nothing a person could use (no sentence at all). */

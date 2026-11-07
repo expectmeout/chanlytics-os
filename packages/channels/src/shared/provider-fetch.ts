@@ -1,6 +1,6 @@
 /**
  * The one way a call leaves for a provider (Meta, Twilio, Retell, Resend, Google, Apify, Expo, Anthropic, TypeSafe, ElevenLabs,
- * Microsoft, Instagram, Firecrawl): bounded, never
+ * Microsoft, Instagram, Firecrawl, Cloudflare, Gemini): bounded, never
  * throwing, and said as one of four outcomes a caller can act on without reading the provider's answer itself.
  *
  * Before it, each adapter had its own fetch. Sixteen calls had no bound at all, and one hung connection held a
@@ -60,6 +60,10 @@ const PROVIDER_NAMES = [
   "instagram",
   // A business's page, read for what it says and declares (site-reads.ts): drawn on the provider's network, never ours.
   "firecrawl",
+  // A business's videos, kept, played and cut into frames by Cloudflare Stream (video/stream.ts, decision 0099).
+  "cloudflare",
+  // A video's sound, heard by Gemini (ai/gemini.ts): Google's, but not the Business Profile's breaker.
+  "gemini",
 ] as const;
 export type Provider = (typeof PROVIDER_NAMES)[number];
 

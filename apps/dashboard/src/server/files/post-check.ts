@@ -108,6 +108,7 @@ const PHOTO_WONT_TO_MODEL: Readonly<Record<PostPhotoWont, string>> = {
   made: "that is a post Ask already made, with its words on it. Use the photo it came from",
   unkept: "it waits in the Inbox or was set aside: it is the owner's to keep first",
   design: "it already has words or a design on it, so more would clash",
+  video: "it is a video, and a post is drawn from a photo. Say so, and offer nothing in its place",
 };
 
 /** What a file needs before a post is made from it, in a sentence for the model, or null. */

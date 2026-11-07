@@ -4,7 +4,7 @@
  * file_start holds a place on the ledger and nothing else, and file_found is the one door every road keeps a file by.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FileLook, FileShows, FileStatus } from "@chanlytics/contracts";
+import type { FileLook, FileShows, FileStatus, HeardBy, SoundNote, SoundPart, SoundWords } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -168,4 +168,141 @@ export async function setFileListingAside(db: Db, tenantId: string): Promise<num
 export async function recordFilePurged(db: Db, tenantId: string, id: string): Promise<void> {
   const { error } = await db.rpc("file_purged", { p_tenant_id: tenantId, p_id: id });
   if (error) throw new Error(`file purged: ${error.message}`);
+}
+
+/* ------------------------------------------------------------------------------------------------- videos (00556) -- */
+
+/**
+ * What became of a video on its way: kept, the clip already here, or no room (the workspace's files, or its minutes). A row
+ * kept by an earlier asking says the reservation it holds, which may not be this call's.
+ */
+export type VideoFate = {
+  fate: "kept" | "here" | "full" | "minutes";
+  file_id: string | null;
+  media_ref: string | null;
+};
+
+/**
+ * A member's video on its way, once the video platform holds its reservation: the row, uploading, with every fact the browser
+ * gave, so the platform's word alone can finish it. The service role's; asked twice it answers the same.
+ */
+export async function beginFileVideo(
+  db: Db,
+  video: {
+    tenantId: string;
+    id: string;
+    mediaRef: string;
+    name: string;
+    mime: string;
+    bytes: number;
+    fingerprint: string;
+    seconds: number | null;
+    actor: string | null;
+  },
+): Promise<VideoFate> {
+  const { data, error } = await db.rpc("file_video_begin", {
+    p_tenant_id: video.tenantId,
+    p_id: video.id,
+    p_media_ref: video.mediaRef,
+    p_name: video.name,
+    p_mime: video.mime,
+    p_bytes: video.bytes,
+    p_fingerprint: video.fingerprint,
+    p_seconds: video.seconds as number,
+    ...(video.actor ? { p_actor: video.actor } : {}),
+  });
+  if (error) throw new Error(`file video begin: ${error.message}`);
+  const answer = (data ?? {}) as { fate?: unknown; file_id?: unknown; media_ref?: unknown };
+  if (answer.fate !== "kept" && answer.fate !== "here" && answer.fate !== "full" && answer.fate !== "minutes")
+    throw new Error("file video begin: no fate answered");
+  return {
+    fate: answer.fate,
+    file_id: typeof answer.file_id === "string" ? answer.file_id : null,
+    media_ref: typeof answer.media_ref === "string" ? answer.media_ref : null,
+  };
+}
+
+/** A video's bytes have all gone: its tile says it is being made ready. Only from uploading. */
+export async function markFileMediaProcessing(db: Db, tenantId: string, id: string): Promise<void> {
+  const { error } = await db.rpc("file_media_processing", { p_tenant_id: tenantId, p_id: id });
+  if (error) throw new Error(`file media processing: ${error.message}`);
+}
+
+/** What the platform's word did to a row, found by its id there. */
+export type MediaFate = {
+  fate: "ready" | "failed" | "repeated" | "gone" | "unknown";
+  tenant_id: string | null;
+  file_id: string | null;
+};
+
+const MEDIA_FATES = new Set<MediaFate["fate"]>(["ready", "failed", "repeated", "gone", "unknown"]);
+
+function mediaFateOf(data: unknown, door: string): MediaFate {
+  const o = (data ?? {}) as { fate?: unknown; tenant_id?: unknown; file_id?: unknown };
+  if (typeof o.fate !== "string" || !MEDIA_FATES.has(o.fate as MediaFate["fate"]))
+    throw new Error(`${door}: no fate answered`);
+  return {
+    fate: o.fate as MediaFate["fate"],
+    tenant_id: typeof o.tenant_id === "string" ? o.tenant_id : null,
+    file_id: typeof o.file_id === "string" ? o.file_id : null,
+  };
+}
+
+/**
+ * The platform says a video is playable: a file whether or not the browser said done, its length and size the platform's,
+ * and its digest's first step on the ledger. A second delivery changes nothing.
+ */
+export async function markFileMediaReady(
+  db: Db,
+  media: { mediaRef: string; seconds: number | null; width: number | null; height: number | null },
+): Promise<MediaFate> {
+  const { data, error } = await db.rpc("file_media_ready", {
+    p_media_ref: media.mediaRef,
+    p_seconds: media.seconds as number,
+    p_width: media.width as number,
+    p_height: media.height as number,
+  });
+  if (error) throw new Error(`file media ready: ${error.message}`);
+  return mediaFateOf(data, "file media ready");
+}
+
+/** The platform could not read a video: its tile says so, with the platform's own code kept for the server. */
+export async function markFileMediaFailed(db: Db, mediaRef: string, code: string | null): Promise<MediaFate> {
+  const { data, error } = await db.rpc("file_media_failed", { p_media_ref: mediaRef, p_error: code ?? "" });
+  if (error) throw new Error(`file media failed: ${error.message}`);
+  return mediaFateOf(data, "file media failed");
+}
+
+/** A video whose bytes never arrived, a day on: removed, for the purge to finish. Answers whether it was one. */
+export async function removeLapsedUpload(db: Db, tenantId: string, id: string): Promise<boolean> {
+  const { data, error } = await db.rpc("file_upload_lapsed", { p_tenant_id: tenantId, p_id: id });
+  if (error) throw new Error(`file upload lapsed: ${error.message}`);
+  return data === true;
+}
+
+/**
+ * One part of what was heard of a video, as it lands: its words, the note on how it sounds, or that it has no sound, with
+ * the model that heard it, and the list's few words for the whole as it now stands.
+ */
+export async function keepFileSound(
+  db: Db,
+  entry: {
+    tenantId: string;
+    id: string;
+    part: SoundPart;
+    value: SoundWords | SoundNote | true;
+    by: HeardBy | null;
+    said: string | null;
+  },
+): Promise<void> {
+  const { error } = await db.rpc("file_sound_keep", {
+    p_tenant_id: entry.tenantId,
+    p_id: entry.id,
+    p_part: entry.part,
+    // As the jsonb holds it: what was heard, read in code already (contracts sound.ts), its fields and nothing else.
+    p_value: JSON.parse(JSON.stringify(entry.value)) as Json,
+    p_by: entry.by ? { model: entry.by.model, at: entry.by.at } : null,
+    p_said: entry.said as string,
+  });
+  if (error) throw new Error(`file sound keep: ${error.message}`);
 }

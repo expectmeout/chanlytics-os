@@ -331,6 +331,46 @@ export const env = {
     return trimmedEnv(process.env.LEAD_WEBHOOK_BASE);
   },
 
+  // A business's videos (decision 0099, stage B): Cloudflare Stream keeps and plays them, Gemini hears them. Every key is the
+  // edge's alone; the dashboard asks the edge for what it needs. Without Stream's, the Files page adds photos alone.
+  /** The Cloudflare account that holds the videos. */
+  get CLOUDFLARE_ACCOUNT_ID() {
+    return trimmedEnv(process.env.CLOUDFLARE_ACCOUNT_ID);
+  },
+  /** An API token scoped to Stream edit on that account and nothing else; never logged. */
+  get CLOUDFLARE_STREAM_API_TOKEN() {
+    return trimmedEnv(process.env.CLOUDFLARE_STREAM_API_TOKEN);
+  },
+  /** The playback host's code (customer-<code>.cloudflarestream.com): not a secret. */
+  get CLOUDFLARE_STREAM_CUSTOMER_CODE() {
+    return trimmedEnv(process.env.CLOUDFLARE_STREAM_CUSTOMER_CODE);
+  },
+  /** The secret Stream signs its webhook with (one webhook per account, at production's edge); never logged. */
+  get CLOUDFLARE_STREAM_WEBHOOK_SECRET() {
+    return trimmedEnv(process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET);
+  },
+  /** The signing key's id: every token for a video names it. */
+  get CLOUDFLARE_STREAM_KEY_ID() {
+    return trimmedEnv(process.env.CLOUDFLARE_STREAM_KEY_ID);
+  },
+  /** The signing key itself, the JWK as Stream gave it (base64); never logged. */
+  get CLOUDFLARE_STREAM_KEY_JWK() {
+    return trimmedEnv(process.env.CLOUDFLARE_STREAM_KEY_JWK);
+  },
+  /** The Gemini API key, made on a Google Cloud project with billing on, never a free one; never logged. */
+  get GEMINI_API_KEY() {
+    return trimmedEnv(process.env.GEMINI_API_KEY);
+  },
+  /** Switch: who writes down what a video says (decision 0099, D8): "gemini", the ear's one call, or "scribe", ElevenLabs
+   * Scribe with ELEVENLABS_API_KEY; empty is "gemini". Listed in contracts ai/flags.ts with its sunset. */
+  get VIDEO_WORDS_MODEL() {
+    return trimmedEnv(process.env.VIDEO_WORDS_MODEL);
+  },
+  /** Switch: another Gemini model for the ear (`gemini-3.8-flash`); empty is Flash-Lite. Listed in contracts ai/flags.ts with its sunset. */
+  get VIDEO_EAR_MODEL() {
+    return trimmedEnv(process.env.VIDEO_EAR_MODEL);
+  },
+
   // Postgres, the receptionist's only memory
   get SUPABASE_URL() {
     return trimmedEnv(process.env.SUPABASE_URL);

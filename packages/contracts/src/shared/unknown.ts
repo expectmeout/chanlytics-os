@@ -28,6 +28,10 @@ export const nonBlankOrNull = (value: unknown): string | null =>
 export const recordOrEmpty = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
+/** A plain object (never an array), as a type guard: what a provider's JSON is read from, field by field. */
+export const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 /** A plain object (never an array), or null. */
 export const recordOrNull = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;

@@ -16,5 +16,7 @@ export { deleteClaudeFile, uploadClaudeFile } from "./anthropic-files";
 export type { ClaudeFileUploaded } from "./anthropic-files";
 export { createUserProfile, deleteUserProfile, listUserProfiles } from "./anthropic-profiles";
 export type { AnthropicProfile, ProfileCreated, ProfilesPage } from "./anthropic-profiles";
+export { askGemini, GEMINI_INLINE_BYTES } from "./gemini";
+export type { GeminiAnswer, GeminiAsked } from "./gemini";
 export { askSystemOne, SYSTEM_ONE_URL } from "./typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./typesafe";

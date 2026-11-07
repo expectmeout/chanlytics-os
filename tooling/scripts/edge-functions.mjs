@@ -84,6 +84,36 @@ export const nodeMajor = () =>
 const REQUIRE =
   'import { createRequire as __edgeRequire } from "node:module"; const require = __edgeRequire(import.meta.url);';
 
+/**
+ * The native modules a function loads at run time (decision 0099, stage B: sharp draws a video's sheet on the edge). esbuild
+ * cannot bundle a `.node` file, so each stays a bare import, and a function whose bundle imports one gets the package and every
+ * package it needs copied into its own node_modules, as Vercel's builder traced them: what this platform installed of each
+ * optional binary (the Linux one on Vercel's build), and nothing of another's.
+ */
+export const NATIVE_MODULES = ["sharp"];
+
+/** A package's folder as Node would find it from `fromDir`, its links followed; null where it is not installed (another platform's). */
+function packageDirOf(name, fromDir) {
+  for (let dir = fromDir; ; dir = path.dirname(dir)) {
+    const candidate = path.join(dir, "node_modules", name);
+    if (fs.existsSync(path.join(candidate, "package.json"))) return fs.realpathSync(candidate);
+    if (path.dirname(dir) === dir) return null;
+  }
+}
+
+/** A package and what it depends on, copied flat into `modules` (pnpm keeps each one's own beside it, so each is found from its folder). */
+export function copyPackage(name, fromDir, modules, seen = new Set()) {
+  if (seen.has(name)) return seen;
+  seen.add(name);
+  const dir = packageDirOf(name, fromDir);
+  if (!dir) return seen;
+  fs.cpSync(dir, path.join(modules, name), { recursive: true, dereference: true });
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+  for (const dep of Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies }))
+    copyPackage(dep, dir, modules, seen);
+  return seen;
+}
+
 /** Build the functions (every one, or those named) and the rest of the output into `out`, emptied first. */
 export async function buildEdge({ out = OUT, files = functionFiles() } = {}) {
   const started = Date.now();
@@ -92,7 +122,7 @@ export async function buildEdge({ out = OUT, files = functionFiles() } = {}) {
   const major = nodeMajor();
   const funcDir = (file) => path.join(out, "functions", `${file.replace(/\.ts$/, "")}.func`);
   fs.rmSync(out, { recursive: true, force: true });
-  await esbuild.build({
+  const built = await esbuild.build({
     absWorkingDir: EDGE,
     entryPoints: Object.fromEntries(files.map((f) => [`${f.replace(/\.ts$/, "")}.func/index`, path.join(EDGE, f)])),
     outdir: path.join(out, "functions"),
@@ -107,9 +137,18 @@ export async function buildEdge({ out = OUT, files = functionFiles() } = {}) {
     minifyWhitespace: true,
     minifySyntax: true,
     banner: { js: REQUIRE },
+    external: NATIVE_MODULES,
+    metafile: true,
     logLevel: "warning",
   });
   for (const file of files) {
+    const bundle = path
+      .relative(EDGE, path.join(funcDir(file), "index.js"))
+      .split(path.sep)
+      .join("/");
+    const imports = built.metafile.outputs[bundle]?.imports ?? [];
+    for (const native of NATIVE_MODULES.filter((m) => imports.some((i) => i.external && i.path === m)))
+      copyPackage(native, EDGE, path.join(funcDir(file), "node_modules"));
     fs.writeFileSync(path.join(funcDir(file), "package.json"), '{ "type": "module" }\n');
     fs.writeFileSync(
       path.join(funcDir(file), ".vc-config.json"),

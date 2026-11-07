@@ -277,6 +277,10 @@
   /* A badge's height and its round ends: a pill, a chip. */
   --chip-h: 20px;
   --chip-radius: var(--radius-full);
+  /* What is written on a picture, whatever the theme: a video's length in a corner of its poster, light figures on a dark
+     wash, as a camera roll writes it (decision 0099, stage B). The picture under it is the business's, not the theme's. */
+  --media-wash: oklch(0.16 0.01 280 / 0.62);
+  --media-ink: oklch(0.985 0 0);
   /* A thread of the first priority rings its face (Classic; Glass draws none). */
   --face-ring: inset 0 0 0 1.5px var(--accent);
 
