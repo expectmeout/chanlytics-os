@@ -447,6 +447,16 @@ const swipeHold = (e: SwipeEvent) => {
   if ((g.way === "page" || g.way === "back" || g.way === "away") && e.cancelable !== false && e.preventDefault)
     e.preventDefault();
 };
+/**
+ * Whether a page is carried across by the touch on `el`, said on it (`data-carried`) from the moment the reader takes the
+ * touch until the next touch begins. An iPhone keeps `:hover` on the row a finger lands on, and a touch whose scroll is
+ * refused is no scroll to it: the row a swipe began on lit as the page went (Ruben's recording, 7 Nov 2026). The rows'
+ * fill gives way under the mark (clients.css), and the next touch, a tap, lights its row as before.
+ */
+const carried = (el: HTMLElement, on: boolean) => {
+  if (on && el.setAttribute) el.setAttribute("data-carried", "");
+  else if (!on && el.removeAttribute) el.removeAttribute("data-carried");
+};
 /** Elements whose move listener stands from their mount (`holdMoves`), not from a touch's start. */
 const heldFromMount = new WeakSet<EventTarget>();
 const swipeDrop = (el: HTMLElement) => {
@@ -582,6 +592,7 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
     const t = firstTouchOf(e && e.touches);
     const el = elementOf(e);
     if (!t || !el) return;
+    carried(el, false);
     if (swipeOwnDrag(e.target, el)) {
       swipeDrop(el);
       return;
@@ -623,6 +634,7 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < GRAB_AT) return;
       swipeTake(g, dx, dy);
       if (g.way === "none") return;
+      if (g.way === "page") carried(el, true);
     }
     if (!el.style) return;
     swipeFollow(g, dx, dy);

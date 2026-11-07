@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef } from "react";
 import { leadsRoute, type LeadRowVM } from "@chanlytics/contracts";
+import { usePeekFocus } from "../../kit/table/peek-focus";
 import { leadArmOnReturn, leadPeekFocus, leadPeekFollows, leadPhotoWarm } from "../peek/seams";
 import type { Armed, ArmedSetter, DraftState, PeekMode } from "../peek/types";
 import type { LeadView } from "./state";
@@ -71,10 +72,9 @@ export const useLeadPeek = ({
     [armed && armed.kind, armed && armed.leadId, armed && armed.asked], // eslint-disable-line react-hooks/exhaustive-deps
   );
   // The dialog's focus rule (leadPeekFocus): focus moves into the peek when it opens and back to the row when it closes,
-  // and the row is the cursor, so Tab carries on from where the owner was.
-  useEffect(() => {
-    leadPeekFocus(peekId, cursor);
-  }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // and the row is the cursor, so Tab carries on from where the owner was; never as Leads is shown again after a swipe
+  // (kit/table/peek-focus.ts).
+  usePeekFocus(peekId, (to) => leadPeekFocus(to, cursor));
   return deckMove;
 };
 

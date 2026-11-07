@@ -816,6 +816,30 @@ test("a touch mostly down is the browser's own: nothing is refused, a pull follo
   assert.deepEqual(el.listeners, []);
 });
 
+// An iPhone keeps `:hover` on the row a finger lands on, and a touch the reader takes across is no scroll to the phone
+// since its scroll is refused: the row a swipe began on lit as the page went (Ruben's recording, 7 Nov 2026). The reader
+// says the page is carried (`data-carried` on its element), the rows' fill gives way under it (clients.css), and the next
+// touch takes the mark off, so a tap lights its row as before.
+test("a page carried across is marked so until the next touch; a touch mostly down marks nothing", () => {
+  const marked = (el) => "data-carried" in el.attrs;
+  const el = listened({ attrs: {} });
+  el.setAttribute = (name, value) => void (el.attrs[name] = value);
+  el.removeAttribute = (name) => void delete el.attrs[name];
+  const h = touchSwipe({ onDown() {}, pages: () => pager() });
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  browserMove(el, 196, 302);
+  assert.equal(marked(el), false, "not before the reader takes it");
+  browserMove(el, 170, 304);
+  assert.equal(marked(el), true, "taken across: the page is carried");
+  h.onTouchEnd({ changedTouches: [{ clientX: 170, clientY: 304 }], currentTarget: el });
+  assert.equal(marked(el), true, "and stays so once the finger lifts, while the touched row still wears its hover");
+  h.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target: el });
+  assert.equal(marked(el), false, "the next touch takes it off");
+  browserMove(el, 204, 330);
+  assert.equal(marked(el), false, "a touch mostly down carries nothing");
+  h.onTouchCancel({ currentTarget: el });
+});
+
 test("a thread swiped back and a drawer slid away hold the browser's scroll the same way", () => {
   for (const [opts, from, to] of [
     [{ onBack() {} }, 60, 140],
