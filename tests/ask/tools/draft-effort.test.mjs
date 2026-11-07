@@ -73,17 +73,42 @@ test("a picture opened raises the rounds after it to the draft's effort, once; a
   assert.equal(t.lookHarder(messages), false, "once a turn");
   assert.equal(messages.length, 1);
 
+  // The question's pictures are known once the first reads are in (the scope's photo, or one attached), so the first
+  // request is opened with them: the first real turn with eyes (7 Nov 2026) came by the sheet, not attached, and ran its
+  // first round at the turn's own effort.
   const withPictures = { draft: null };
   const opened = [];
-  turnEffort(model, { text: "what is in this photo", spoken: false }, withPictures, { pictures: true }).open(opened);
+  const pictured = turnEffort(model, { text: "what is in this photo", spoken: false }, withPictures);
+  pictured.open(opened, { pictures: true });
   assert.deepEqual(withPictures.draft, { effort: "high", by: "picture" });
   assert.equal(opened.length, 1, "the effort message, after the question");
+  pictured.open(opened, { pictures: true });
+  assert.equal(opened.length, 1, "already in force: a replayed chain that holds the raise is not raised again");
+  assert.equal(pictured.lookHarder(opened), false, "once a turn, by whichever way");
+
+  const noPictures = { draft: null };
+  const plain = [];
+  turnEffort(model, { text: "what is in this photo", spoken: false }, noPictures).open(plain, { pictures: false });
+  assert.equal(noPictures.draft, null);
+  assert.equal(plain.length, 0, "the turn's own effort is in force with no message");
+
+  const asksDraft = { draft: null };
+  turnEffort(model, { text: "draft the offer email from this photo", spoken: false }, asksDraft).open([], {
+    pictures: true,
+  });
+  assert.deepEqual(asksDraft.draft, { effort: "high", by: "question" }, "the question's own words come first");
 
   const spoken = { draft: null };
-  const voice = turnEffort(model, { text: "what is this", spoken: true }, spoken, { pictures: true });
-  assert.equal(voice.lookHarder([]), false);
+  const voice = turnEffort(model, { text: "what is this", spoken: true }, spoken);
+  const heard = [];
+  voice.open(heard, { pictures: true });
   assert.equal(spoken.draft, null);
+  assert.equal(heard.length, 0);
+  assert.equal(voice.lookHarder([]), false);
 
   const noDraft = { draft: null };
-  assert.equal(turnEffort({ effort: "low", draft: null }, { text: "x", spoken: false }, noDraft).lookHarder([]), false);
+  const none = turnEffort({ effort: "low", draft: null }, { text: "x", spoken: false }, noDraft);
+  none.open([], { pictures: true });
+  assert.equal(noDraft.draft, null, "a profile with no draft effort has nothing to raise to");
+  assert.equal(none.lookHarder([]), false);
 });
