@@ -43,7 +43,7 @@ import { firstReads, questionPictures, readsIn, shapeOf, type FirstReads } from 
 import type { AttachedFile } from "../files/attached";
 import { sayAsWritten } from "./loop/say";
 import { wordsBlock } from "./loop/words";
-import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
+import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type CallOutcome, type RoundBlock } from "./round";
 import { askModel } from "./model";
 import { turnEffort } from "./effort";
 import {
@@ -182,6 +182,8 @@ export interface TurnResult {
   text: string;
   ungrounded: boolean;
   tools: string[];
+  /** The files whose pictures the turn opened, in order, for its history line (store.ts modelTurnOf). */
+  opened: string[];
   proposals: AskProposal[];
   latencyMs: number;
   failed: boolean;
@@ -351,6 +353,8 @@ interface TurnState extends TurnRequests {
   say: ReturnType<typeof sayAsWritten>;
   reads: number;
   toolsUsed: string[];
+  /** The files whose pictures this turn opened, each once, in order. */
+  opened: string[];
   /** Its cards, and its plans' words (roundPlan). */
   proposals: AskProposal[];
   planWords: PlanSaid[];
@@ -374,7 +378,7 @@ async function openTurn(input: TurnInput, ports: AskPorts): Promise<TurnState> {
   const tc = toolContextOf(input, now, t0 + budgetMs);
   const unmade = turnUnmade();
   const meter = turnMeter(t0);
-  const effort = turnEffort(model, input, meter);
+  const effort = turnEffort(model, input, meter, { pictures: (input.attached?.length ?? 0) > 0 });
   const first = await firstReads(input, ports, tc);
   const { built, prefetched, scopedRow } = first;
 
@@ -443,6 +447,7 @@ async function openTurn(input: TurnInput, ports: AskPorts): Promise<TurnState> {
     say: sayAsWritten(input, tc, requests.offer, meter),
     reads: readsIn(first),
     toolsUsed: prefetched.map((p) => calledName(p.run.name, p.run.input)),
+    opened: [],
     proposals: [],
     planWords: [],
     unmade,
@@ -493,6 +498,7 @@ function done(turn: TurnState, r: TurnEnd): TurnResult {
     meter,
     format: turn.offer.format,
     toolsUsed: turn.toolsUsed,
+    opened: turn.opened,
     proposals: turn.proposals,
     questionAt: turn.questionAt,
     live: turn.live,
@@ -539,8 +545,18 @@ async function proposeCall(turn: TurnState, b: RoundBlock) {
     proposals.push(...cardsOf(p));
     if (p.words) turn.planWords.push({ words: p.words, lead: p.lead });
     turn.unmade.heard(calledName(b.name, args), p);
-    return { result: p.result, isError: p.isError, noted: !!p.noted };
+    return {
+      result: p.result,
+      isError: p.isError,
+      noted: !!p.noted,
+      ...(p.pictures?.length ? { pictures: p.pictures } : {}),
+    };
   });
+}
+
+/** Pictures came back this round: the rounds after it judge what they see, at the draft's effort (effort.ts lookHarder). */
+function lookedHarder(turn: TurnState, outcomes: readonly CallOutcome[]): void {
+  if (outcomes.some(({ out }) => out.pictures?.length)) turn.effort.lookHarder(turn.messages);
 }
 
 /** A read tool's call, as the person: one that comes back is a read the answer is grounded on (isUngrounded). */
@@ -552,6 +568,7 @@ async function readCall(turn: TurnState, b: RoundBlock) {
   return timed(turn, calledName(b.name, args), async () => {
     const out = await ports.tool(tc, { name: b.name, input: args });
     if (!out.isError) turn.reads++;
+    for (const p of out.pictures ?? []) if (p.id && !turn.opened.includes(p.id)) turn.opened.push(p.id);
     return { result: out.result, isError: out.isError, ...(out.pictures ? { pictures: out.pictures } : {}) };
   });
 }
@@ -697,11 +714,16 @@ async function roundOf(
   );
   const refused = outcomes.some(({ out }) => out.isError);
   const leftOut = outcomes.some(({ out }) => "noted" in out && out.noted);
+  // An act answered with a picture to look at and no card (a post drawn, act/files/post.ts): the model looks first.
+  const looking = outcomes.some(
+    ({ block, out }) => ACT_TOOL_NAMES.has(block.name) && "pictures" in out && !!out.pictures?.length,
+  );
 
   const planned = roundPlan(calls, acts, refused, turn.planWords.slice(saidBefore));
   written = besideActs(written, {
     refused,
     leftOut,
+    looking,
     planned,
     unsay: turn.say.unsay,
     log: () =>
@@ -740,6 +762,7 @@ async function roundOf(
     turn.planOwed = { cards: proposals.slice(before), plan: planned, lastRound };
     turn.messages.push({ role: "assistant", content: replayBlocks(blocks) });
     turn.messages.push({ role: "user", content: resultBlocks(ordered) });
+    lookedHarder(turn, ordered);
     tellNext(turn.messages, PLAN_ANSWER_WORDS);
     return "on";
   }
@@ -751,6 +774,7 @@ async function roundOf(
   }
   turn.messages.push({ role: "assistant", content: replayBlocks(blocks) });
   turn.messages.push({ role: "user", content: resultBlocks(ordered) });
+  lookedHarder(turn, ordered);
   if (alone === "owed") tellNext(turn.messages, turn.unmade.words());
   return "answered";
 }

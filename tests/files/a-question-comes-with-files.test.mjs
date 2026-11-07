@@ -245,7 +245,7 @@ test("the scope's file is read by its id, so a rename since is still the one on 
   const ctx = ctxOf(world());
   const tc = newToolContext(ctx, A, "owner", TZ, NOW);
   const out = await runTool(tc, { name: "files", input: { action: "view", names: [ID(1)] } });
-  assert.deepEqual(out.pictures, [{ name: "photo-1", fileId: "file_one" }]);
+  assert.deepEqual(out.pictures, [{ name: "photo-1", id: ID(1), fileId: "file_one" }]);
   assert.ok(!out.result.includes("file_one"));
 });
 
@@ -369,4 +369,22 @@ test("a thread with no files reads no file, and its turns are what they were", a
     "read with nothing known, a file is not drawn as there",
   );
   assert.equal(modelTurnOf(row).text, "Hi\n[Attached: a file since removed]");
+});
+
+test("an answer's history line says which files Ask opened in that turn, by the name that opens them now, so a cold turn knows what it saw", () => {
+  const answer = {
+    id: "y",
+    role: "assistant",
+    created_at: "2026-11-05T11:00:01Z",
+    content: { text: "A shopfront at dusk.", opened: [ID(1)] },
+  };
+  assert.equal(modelTurnOf(answer).text, "A shopfront at dusk.\n[Opened: a file since removed]");
+  const named = new Map([[ID(1), { id: ID(1), name: "photo-1", line: "Dusk." }]]);
+  assert.equal(modelTurnOf(answer, named).text, "A shopfront at dusk.\n[Opened: photo-1 (Dusk.)]");
+  assert.equal(modelTurnOf({ ...answer, content: { text: "Nothing opened" } }).text, "Nothing opened");
+  assert.equal(
+    modelTurnOf({ ...answer, role: "user", content: { text: "Hi", opened: [ID(1)] } }).text,
+    "Hi",
+    "a question opens nothing",
+  );
 });

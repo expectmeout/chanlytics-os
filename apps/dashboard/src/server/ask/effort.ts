@@ -64,9 +64,12 @@ export function turnEffort(
   model: AskModelProfile,
   input: Pick<TurnInput, "text" | "spoken">,
   meter: ReturnType<typeof turnMeter>,
+  { pictures = false }: { pictures?: boolean } = {},
 ) {
   const draft: ModelEffort | null = input.spoken ? null : model.draft;
   if (draft && draftAsked(input.text)) meter.draft = { effort: draft, by: "question" };
+  // A question that came with pictures is judged from its first round (Ask's eyes): the turn thinks at the draft's effort.
+  else if (draft && pictures) meter.draft = { effort: draft, by: "picture" };
   const wanted = (): ModelEffort => (meter.draft ? draft : null) ?? model.effort;
   return {
     /**
@@ -92,6 +95,16 @@ export function turnEffort(
     redraft(calls: readonly RoundBlock[], messages: Msg[]): boolean {
       if (!draft || meter.draft || !calls.some(isDraftCall)) return false;
       meter.draft = { effort: draft, by: "call" };
+      messages.push(effortMessage(draft));
+      return true;
+    },
+    /**
+     * A picture came back this round (a file opened, a box of one, a post drawn for a look): the rounds after it judge what
+     * they see, at the draft's effort, by an effort message after the results (true). Once a turn, as a draft is.
+     */
+    lookHarder(messages: Msg[]): boolean {
+      if (!draft || meter.draft) return false;
+      meter.draft = { effort: draft, by: "picture" };
       messages.push(effortMessage(draft));
       return true;
     },

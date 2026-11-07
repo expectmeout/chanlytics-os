@@ -24,10 +24,11 @@ export interface AskTurnShape {
   effort: string;
   /**
    * A draft, asked harder than `effort` (15 Oct 2026, ask/model.ts ASK_DRAFT_EFFORT): the effort it was raised to, and
-   * what found it -- its question's words, or a round at `effort` that began one, set aside and asked again. Null for a
-   * turn asked at `effort` throughout; a turn stored before it has no such key.
+   * what found it -- its question's words, or a round at `effort` that began one, set aside and asked again, or a picture
+   * opened, after which the rounds judge what they see (Ask's eyes). Null for a turn asked at `effort` throughout; a
+   * turn stored before it has no such key.
    */
-  draft: { effort: string; by: "question" | "call" } | null;
+  draft: { effort: string; by: "question" | "call" | "picture" } | null;
   /**
    * The speed the rounds ran at, as the edge said each one went (15 Oct 2026, fast mode on): fast mode, standard, or
    * mixed when fast mode's limit slowed some of them to standard. A turn stored before it has no such key: standard,

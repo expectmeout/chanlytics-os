@@ -9,17 +9,21 @@ import {
   shelfOf,
   type FileForAsk,
 } from "@chanlytics/contracts";
-import { fileCopiesOf } from "../../../files/copies";
+import { fileOf } from "@chanlytics/db";
+import { fileCopiesOf, pictureCopyOf, type FileCopy } from "../../../files/copies";
 import { newestPostLookOf } from "../../../files/post/record";
+import { zoomInto, type Box, type Size } from "../../../files/zoom";
 import { load } from "../../../readers";
 import { filesForAsk } from "../../../readers/files";
-import { PICTURES, defineActions, readAction, type ToolContext } from "../context";
+import { PICTURES, defineActions, readAction, type ToolContext, type ToolPicture } from "../context";
 
 /**
  * The business's photos, the way a person who knows them would use them (decision 0099, step 2). Three levels: the one line in
  * the facts says what exists; `list` and `get` read what the look wrote, which is enough to choose; `view` and `compare` open the
- * pixels, by Anthropic's id for a copy only the edge makes. Names go in and ids stay out: `view` takes the names the owner and
- * Ask both say, and an id is never shown to the model or taken from a tool's input.
+ * pixels, by Anthropic's id for a copy only the edge makes, each with the size the model sees it at, so it can name a box in
+ * those pixels; `zoom` cuts that box out and enlarges it, which is how a small sign or a face is read (Ask's eyes). Names go in
+ * and ids stay out: `view` takes the names the owner and Ask both say, and an id is never shown to the model or taken from a
+ * tool's input.
  */
 
 /** The most lines a list answers: enough to choose from, and a narrower ask finds the rest. */
@@ -29,6 +33,9 @@ const VIEW_MAX = 4;
 
 const filesOfTurn = async (t: ToolContext): Promise<FileForAsk[]> =>
   (await load(t.rc, filesForAsk, undefined)).data.files;
+
+/** How long the edge has for a copy, from what is left of the turn. */
+const leftOf = (t: ToolContext): number | undefined => (t.endsAt === undefined ? undefined : t.endsAt - Date.now());
 
 /**
  * The named files, by the words either of them uses for one: what is typed is cleaned as a name is. A turn's scope names its
@@ -46,6 +53,9 @@ export function filesNamed(files: readonly FileForAsk[], names: readonly string[
   return { found, missing };
 }
 
+/** A copy's size, where the edge said it, as the model is told it. */
+const sizeOf = (c: FileCopy): Size | null => (c.width && c.height ? [c.width, c.height] : null);
+
 /** A picture opened, and what is known of it beside it, or why it could not be. */
 async function picturesOpened(t: ToolContext, names: readonly string[]) {
   const { found, missing } = filesNamed(await filesOfTurn(t), names);
@@ -53,20 +63,61 @@ async function picturesOpened(t: ToolContext, names: readonly string[]) {
   const copies = await fileCopiesOf(
     { tenantId: t.tenantId, userId: t.ctx.userId },
     found.map((f) => f.id),
-    t.endsAt === undefined ? undefined : t.endsAt - Date.now(),
+    leftOf(t),
   );
   const shown = found.filter((f) => copies.has(f.id));
   // How their newest post looks, so the next keeps what they settled on: read only where a post may come of it.
   const lastPost = shown.length ? await newestPostLookOf(t.tenantId) : null;
+  const pictures: ToolPicture[] = shown.map((f) => {
+    const copy = copies.get(f.id) as FileCopy;
+    const size = sizeOf(copy);
+    return { name: f.name, id: f.id, fileId: copy.fileId, ...(size ? { size } : {}) };
+  });
   return {
-    shown: shown.map((f) => ({ name: f.name, shelf: fileShelfSaid(f), who: fileWhoSaid(f) })),
+    shown: shown.map((f) => {
+      const size = sizeOf(copies.get(f.id) as FileCopy);
+      return { name: f.name, shelf: fileShelfSaid(f), who: fileWhoSaid(f), ...(size ? { size } : {}) };
+    }),
     ...(lastPost ? { last_post: lastPost } : {}),
     ...(missing.length ? { no_such_file: missing, hint: "Names come from files with action list." } : {}),
     ...(found.length > shown.length
       ? { could_not_open: found.filter((f) => !copies.has(f.id)).map((f) => f.name) }
       : {}),
-    [PICTURES]: shown.map((f) => ({ name: f.name, fileId: copies.get(f.id) as string })),
+    [PICTURES]: pictures,
   };
+}
+
+/**
+ * A box of one picture, cut and enlarged. The box is in the pixels the picture was shown at, which is the copy's size: the
+ * edge says it, and the cut is made here from the photo itself, then held at Anthropic for the turn.
+ */
+async function pictureZoomed(t: ToolContext, name: string, box: Box) {
+  const { found, missing } = filesNamed(await filesOfTurn(t), [name]);
+  const f = found.at(0);
+  if (!f) return { error: `no file named ${missing.at(0)}; names come from files with action list` };
+  const who = { tenantId: t.tenantId, userId: t.ctx.userId };
+  const [copy, row] = await Promise.all([
+    fileCopiesOf(who, [f.id], leftOf(t)).then((m) => m.get(f.id) ?? null),
+    fileOf(t.ctx.supabase, f.id),
+  ]);
+  const of = copy ? sizeOf(copy) : null;
+  if (!copy || !of || !row) return { error: `${f.name} could not be opened just now; say so` };
+  const cut = await zoomInto(row, box, of);
+  if ("wont" in cut) return { error: `${f.name}: ${cut.wont}` };
+  const held = await pictureCopyOf(
+    who,
+    { bytes: cut.bytes, mime: "image/jpeg", name: `${f.name}-zoom.jpg` },
+    leftOf(t),
+  );
+  if (!held) return { error: `${f.name}: the box was cut but could not be shown to you just now; say so` };
+  const picture: ToolPicture = {
+    name: f.name,
+    id: f.id,
+    fileId: held.fileId,
+    size: cut.size,
+    zoom: { box: cut.box, of: cut.of },
+  };
+  return { zoomed: f.name, box: cut.box, of: cut.of, shown_as: cut.size, [PICTURES]: [picture] };
 }
 
 /** One shape for both actions that open pictures, as a field a tool's actions share must have (registry.ts flatten). */
@@ -76,11 +127,17 @@ const FILE_NAMES_ASKED = z
   .max(VIEW_MAX)
   .describe(`Up to ${VIEW_MAX} names, from list.`);
 
+const BOX_ASKED = z
+  .tuple([z.number(), z.number(), z.number(), z.number()])
+  .describe(
+    "[x1, y1, x2, y2]: the top-left and bottom-right corners, in the pixels of the size the picture was shown at.",
+  );
+
 export const filesTool = defineActions({
   name: "files",
   description:
     "The business's own photos and images: its files, library, pictures, logo. Each has one name, the same one the owner sees.",
-  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. To make a post from one, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
+  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. To make a post from one, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
   actions: {
     list: readAction({
       input: z.object({
@@ -113,7 +170,8 @@ export const filesTool = defineActions({
       input: z.object({ name: z.string().min(1).max(120) }),
       examples: [{ name: "storefront-dusk-street" }],
       label: "Reading what a photo shows",
-      words: "Action get answers what the look wrote of one file: a note, not the picture.",
+      words:
+        "Action get answers what the look wrote of one file: a note, not the picture, and the photo's size in pixels.",
       async run(t, input) {
         const { found, missing } = filesNamed(await filesOfTurn(t), [input.name]);
         const f = found.at(0);
@@ -133,6 +191,7 @@ export const filesTool = defineActions({
           issues: f.issues,
           looks_like_stock: f.looks_like_stock,
           look: f.look_status,
+          ...(f.width && f.height ? { size: [f.width, f.height] } : {}),
           added: f.created_at,
         };
       },
@@ -151,6 +210,14 @@ export const filesTool = defineActions({
       words: "Action compare opens two pictures side by side, for which is better for something: name exactly two.",
       run: async (t, input) =>
         input.names.length === 2 ? picturesOpened(t, input.names) : { error: "name exactly two files to compare" },
+    }),
+    zoom: readAction({
+      input: z.object({ name: z.string().min(1).max(120), box: BOX_ASKED }),
+      examples: [{ name: "storefront-dusk-street", box: [420, 90, 980, 310] }],
+      label: "Looking closer",
+      words:
+        "Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it.",
+      run: (t, input) => pictureZoomed(t, input.name, input.box),
     }),
   },
 });

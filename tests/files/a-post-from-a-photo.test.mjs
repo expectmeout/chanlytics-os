@@ -2,7 +2,7 @@
  * A post made from a photo, by code (decision 0099, step 3). The layout is arithmetic a test can hold; the real composer draws real
  * pixels; the act holds the words to what the owner said; and its card shows one press whose Undo takes back only what it made.
  */
-import { test, beforeEach } from "node:test";
+import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -11,6 +11,8 @@ import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+process.env.EDGE_URL ??= "https://edge.example";
+process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -28,6 +30,7 @@ const { POST_LAYOUTS, POST_LIMITS, POST_SHAPES, POST_WORDS, postPhotoWont, postP
   await import(at("packages/contracts/src/files/post.ts"));
 const { postSpec } = await import(at("packages/contracts/src/files/post-spec.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { shelfOf } = await import(at("packages/contracts/src/files/files.ts"));
 
@@ -481,7 +484,7 @@ const fileRow = (over = {}) => ({
   ...over,
 });
 
-function asked(input, { file = {}, question = OWNER, earlier = [], phone = "(555) 010-0100" } = {}) {
+function askedOnce(input, { file = {}, question = OWNER, earlier = [], phone = "(555) 010-0100" } = {}) {
   const config = {
     brain: {
       business_name: "Harbor",
@@ -511,6 +514,58 @@ function asked(input, { file = {}, question = OWNER, earlier = [], phone = "(555
     voice: "classic",
     ...input,
   });
+}
+
+/** The edge's door as the act knocks it: the drawn post is decoded, so it must be a real JPEG, and comes back as a copy at its size. */
+const doorKnocks = [];
+let doorHolds = true;
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (input, init) => {
+  const url = String(input instanceof Request ? input.url : input);
+  if (!url.includes("/api/admin/files/copies")) return realFetch(input, init);
+  const body = JSON.parse(init.body);
+  const pictures = [];
+  for (const p of body.pictures ?? []) {
+    const meta = await sharp(Buffer.from(p.bytes, "base64")).metadata();
+    doorKnocks.push({
+      key: p.key,
+      mime: p.mime,
+      name: p.name,
+      format: meta.format,
+      width: meta.width,
+      height: meta.height,
+    });
+    pictures.push(
+      doorHolds
+        ? { key: p.key, file_id: "file_post", width: meta.width, height: meta.height }
+        : { key: p.key, file_id: null, width: null, height: null },
+    );
+  }
+  return new Response(JSON.stringify({ ok: true, copies: [], pictures }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+};
+after(() => {
+  globalThis.fetch = realFetch;
+  setServiceClient(null);
+});
+
+/** A photo in Storage, as the service reads it to draw: made when first asked for, never by a top-level await after the tests. */
+let stored = null;
+const storedOf = () => (stored ??= busyPhoto(1600, 1200));
+function photoInStorage() {
+  const service = fakeDb({ files: [] }, {}, {});
+  service.storage = { from: () => ({ download: async () => ({ data: new Blob([await storedOf()]), error: null }) }) };
+  setServiceClient(service);
+}
+
+/** The act as a turn runs it: the first call draws the post for a look, and the second, with the look's key, makes the card. */
+async function asked(input, opts) {
+  photoInStorage();
+  const first = await askedOnce(input, opts);
+  if (first.proposal || first.isError) return first;
+  return askedOnce({ ...input, looked: JSON.parse(first.result).look_key }, opts);
 }
 
 test("a card from the owner's words: the photo by its id, and the plan its Save will draw", async () => {
@@ -622,4 +677,44 @@ test("what Ask made stands on a shelf of its own, unless a person moved it", () 
   assert.equal(shelfOf({ status: "filed", shows: "graphic", source: "made" }), "made");
   assert.equal(shelfOf({ status: "set_aside", shows: "graphic", source: "made" }), "set_aside");
   assert.equal(shelfOf({ status: "filed", shows: "graphic", source: "upload" }), "brand");
+});
+
+test("Ask looks at the post before it offers it: the first call draws it and shows it, and the card waits for the look's key", async () => {
+  photoInStorage();
+  doorKnocks.length = 0;
+  const first = await askedOnce({ over: "Fall special" });
+  assert.equal(first.proposal, null);
+  assert.equal(first.isError, false);
+  const said = JSON.parse(first.result);
+  assert.equal(said.drawn, true);
+  assert.match(said.look_key, /^[0-9a-f]{10}$/);
+  assert.match(said.note, /call again with looked/);
+  assert.deepEqual(first.pictures, [
+    { name: "storefront-dusk", what: "The post drawn from storefront-dusk", fileId: "file_post", size: [1080, 1350] },
+  ]);
+  assert.deepEqual(doorKnocks, [
+    { key: "one", mime: "image/jpeg", name: "storefront-dusk-post.jpg", format: "jpeg", width: 1080, height: 1350 },
+  ]);
+  const second = await askedOnce({ over: "Fall special", looked: said.look_key });
+  assert.equal(second.proposal?.kind, "post", second.result);
+  assert.equal(postPlanOf(second.proposal.payload).over, "Fall special");
+  const changed = await askedOnce({ over: "Autumn special", looked: said.look_key });
+  assert.equal(changed.proposal, null);
+  assert.match(changed.refusal, /changed since you looked/);
+  assert.equal(doorKnocks.length, 1, "a key that is not the plan's draws nothing");
+});
+
+test("a post that could not be shown is still the owner's to have: the card is made on the key, and the model is told to say it could not check it", async () => {
+  photoInStorage();
+  doorHolds = false;
+  try {
+    const first = await askedOnce({});
+    const said = JSON.parse(first.result);
+    assert.equal(said.could_not_show, true);
+    assert.equal(first.pictures, undefined);
+    const second = await askedOnce({ looked: said.look_key });
+    assert.equal(second.proposal?.kind, "post", second.result);
+  } finally {
+    doorHolds = true;
+  }
 });

@@ -136,6 +136,7 @@ interface TurnSoFar {
   /** How the answer that ended the turn was written: the answer tool's input, as text, or null where none was. */
   answerIn: "tool" | "text" | null;
   toolsUsed: string[];
+  opened: string[];
   proposals: AskProposal[];
   /** Where the question sits in every request of the turn: a later round only appends. */
   questionAt: number;
@@ -151,7 +152,8 @@ interface TurnSoFar {
  */
 export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
   const { lastRound, ...end } = r;
-  const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan, format, toolsUsed } = soFar;
+  const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan, format, toolsUsed, opened } =
+    soFar;
   const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits } = soFar.meter;
   const { messageIds, cacheMiss, hopMs, speeds } = soFar.meter;
   const { proposals, live } = soFar;
@@ -201,6 +203,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
   return {
     ungrounded: false,
     tools: toolsUsed,
+    opened,
     proposals,
     latencyMs: Date.now() - t0,
     ...end,
@@ -334,13 +337,14 @@ export function cardsAnswer(cards: readonly AskProposal[], input: TurnInput, pla
  * An answer beside a round's acts, which stands where every card was made (an act only checks), or "" where it is set
  * aside, its Say taken back: beside a card refused or cut off it claims a card that is not there, so the model answers
  * again knowing why (logged); beside a plan's cards it was written before the plan's words came back (roundPlan); beside
- * a card that leaves out a part asked because it already holds (ProposalOutcome.noted), before it knew that.
+ * a card that leaves out a part asked because it already holds (ProposalOutcome.noted), before it knew that; beside a
+ * post drawn for it to look at (ProposalOutcome.pictures), before it has.
  */
 export function besideActs(
   written: string,
-  r: { refused: boolean; leftOut: boolean; planned: PlanSaid | null; unsay(): void; log(): void },
+  r: { refused: boolean; leftOut: boolean; looking?: boolean; planned: PlanSaid | null; unsay(): void; log(): void },
 ) {
-  if (!written || (!r.refused && !r.leftOut && r.planned === null)) return written;
+  if (!written || (!r.refused && !r.leftOut && !r.looking && r.planned === null)) return written;
   if (r.refused) r.log();
   r.unsay();
   return "";
