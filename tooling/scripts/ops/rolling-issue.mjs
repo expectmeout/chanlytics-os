@@ -11,9 +11,9 @@
  * every comment, and an issue nobody was assigned reached nobody: the nightly sat red for seventeen runs in October 2026
  * while the pager had no address.
  *
- *   node tooling/scripts/ops/rolling-issue.mjs --state red --title "Nightly e2e is red" --match "Nightly e2e" \
- *     --body-file summary.md --page-after 2 --condition nightly_red --assignee <login>
- *   node tooling/scripts/ops/rolling-issue.mjs --state green --title "Nightly e2e is red" --match "Nightly e2e"
+ *   node tooling/scripts/ops/rolling-issue.mjs --state red --title "Production check is red" \
+ *     --match "Production check is red" --body-file summary.md --page-after 1 --condition production_check_red --assignee <login>
+ *   node tooling/scripts/ops/rolling-issue.mjs --state green --title "Production check is red" --match "Production check is red"
  *
  * Reads GITHUB_REPOSITORY and GH_TOKEN (or GITHUB_TOKEN), and the run's address from GITHUB_SERVER_URL and
  * GITHUB_RUN_ID; PAGER_URL (the edge's origin) and PAGER_KEY (the platform's DIAG_KEY) when it may page. It writes
