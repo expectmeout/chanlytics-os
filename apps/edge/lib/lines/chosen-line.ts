@@ -20,12 +20,13 @@ import {
   type BillingStatus,
   type SetupPhoneWant,
 } from "@chanlytics/contracts";
-import { setupChoicesOf } from "@chanlytics/db/workspace";
-import { tenantDb } from "@chanlytics/db/shared";
+import { findSetupAsked, setupChoicesOf } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import { lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
 import { liveLineOf, planBuy, provisionJob } from "./ops/search-buy.js";
+import { insertLineRow, listLinesOf } from "@chanlytics/db/lines";
+import { findPlanStanding } from "@chanlytics/db/billing";
 
 type Db = SupabaseClient<Database>;
 
@@ -86,15 +87,9 @@ export async function startChosenLine(
   try {
     const [choices, billing, lines, asked] = await Promise.all([
       setupChoicesOf(db, tenantId),
-      db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
-      db.from("lines").select("*").eq("tenant_id", tenantId).order("created_at"),
-      db
-        .from("events")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "setup.requested")
-        .in("data->>what", ["line", "port"])
-        .limit(1),
+      findPlanStanding(db, tenantId),
+      listLinesOf(db, tenantId),
+      findSetupAsked(db, tenantId, ["line", "port"]),
     ]);
     if (billing.error) throw new Error(billing.error.message);
     if (lines.error) throw new Error(lines.error.message);
@@ -135,7 +130,7 @@ export async function startChosenLine(
       now,
     });
     if (buy.kind === "refuse") return { kind: "stands" };
-    const ins = await tenantDb(db, tenantId).from("lines").insert(buy.row).select("*").single();
+    const ins = await insertLineRow(db, tenantId, buy.row);
     // Two starts crossed (the webhook and the sweep, or the owner's own tab): the database holds one line a workspace
     // (lines_one_live_per_tenant_idx, 00195), and the other's line stands.
     if (ins.error) return ins.error.code === "23505" ? { kind: "stands" } : startFailed(ins.error.message);

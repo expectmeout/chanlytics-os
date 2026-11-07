@@ -15,12 +15,12 @@ import {
 } from "@chanlytics/channels/lines";
 import { formatPhoneDisplay, type EdgeErrorCode } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
-import { tenantDb } from "@chanlytics/db/shared";
 import { logger } from "../shared/log.js";
 import { keepOnce } from "../shared/alerts/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { findLineAccount, refreshLineToken } from "./sms.js";
 import type { Db, LineRow } from "./a2p-register.js";
+import { saveLineRow } from "@chanlytics/db/lines";
 
 const SYNC_READ_MS = 15000;
 
@@ -72,25 +72,22 @@ async function keepAnswer(
   const { smsState, mock, reason } = answer;
   const moved = smsState !== line.sms_state;
   const news = moved || mock !== line.reg_mock || reason !== line.last_error;
-  const written = await tenantDb(db, line.tenant_id)
-    .from("lines")
-    .update({
-      // Asked: to the back of the sweep's queue, news or not (lines_set_updated_at stamps it too).
-      updated_at: new Date().toISOString(),
-      ...(news ? { sms_state: smsState, reg_mock: mock, last_error: reason } : {}),
-      // Only when the state actually MOVED. This sweep runs hourly and wrote it
-      // every time, so `state_since` meant "the last hour" rather than "when this
-      // wait began" -- and the Setup row reads it to say how long the carriers
-      // have had it, which therefore never got past an hour.
-      ...(moved ? { state_since: new Date().toISOString() } : {}),
-    })
-    .eq("id", line.id);
+  const written = await saveLineRow(db, line, {
+    // Asked: to the back of the sweep's queue, news or not (lines_set_updated_at stamps it too).
+    updated_at: new Date().toISOString(),
+    ...(news ? { sms_state: smsState, reg_mock: mock, last_error: reason } : {}),
+    // Only when the state actually MOVED. This sweep runs hourly and wrote it
+    // every time, so `state_since` meant "the last hour" rather than "when this
+    // wait began" -- and the Setup row reads it to say how long the carriers
+    // have had it, which therefore never got past an hour.
+    ...(moved ? { state_since: new Date().toISOString() } : {}),
+  });
   if (written.error) lineStateNotWritten(line, written.error.message);
 }
 
 /** A read of the registration that could not be had, kept on the row so the sweep's queue moves past it (see below). */
 async function noteLineError(db: Db, line: LineRow, lastError: string): Promise<void> {
-  const noted = await tenantDb(db, line.tenant_id).from("lines").update({ last_error: lastError }).eq("id", line.id);
+  const noted = await saveLineRow(db, line, { last_error: lastError });
   if (noted.error) lineStateNotWritten(line, noted.error.message);
 }
 

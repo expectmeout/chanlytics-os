@@ -44,10 +44,10 @@ import { lineProviderFromEnv } from "./lines.js";
 import { findLineAccount } from "./sms.js";
 import { logger } from "../shared/log.js";
 import { getTenantConfig } from "@chanlytics/db/workspace";
-import { tenantDb } from "@chanlytics/db/shared";
 import { env } from "../shared/env.js";
 import { campaignFactsFor } from "./a2p-campaign-facts.js";
 import { CAMPAIGN_NAME_FACT, factsOf, FILED_NAME_FACT } from "./resume.js";
+import { claimLineForFiling, listLineNumbersOf, saveLineRow } from "@chanlytics/db/lines";
 
 export type Db = SupabaseClient<Database>;
 export type LineRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -155,7 +155,7 @@ export async function listFilingProblems(
   // The numbers this workspace was given by us, so the check can tell an owner's
   // handset from the line we answer on their behalf.
   const [ours, receptionistName] = await Promise.all([
-    db.from("lines").select("e164").eq("tenant_id", line.tenant_id),
+    listLineNumbersOf(db, line.tenant_id),
     receptionistNameOf(db, line.tenant_id),
   ]);
   // Our numbers unread are not none: the check would take the line we answer on for the owner's own phone.
@@ -278,9 +278,11 @@ async function takeFiling(db: Db, filing: Filing, record: BusinessRecord): Promi
   // owner who incorporates and types their new tax id would otherwise read
   // back as a standard brand while the carriers still hold the narrow one --
   // promising throughput the line does not have.
-  const { data, error } = await tenantDb(db, filing.line.tenant_id)
-    .from("lines")
-    .update({
+  // Held by no other filing, asked in the same statement: the lease is the claim, whatever the row read said.
+  const { data, error } = await claimLineForFiling(
+    db,
+    filing.line,
+    {
       sms_state: "registering",
       reg_mock: filing.mock,
       reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR",
@@ -292,12 +294,9 @@ async function takeFiling(db: Db, filing: Filing, record: BusinessRecord): Promi
         ...campaignNameFiled(filing.line, filing.workspaceName),
         [LEASE_FACT]: new Date(now + A2P_FILING_LEASE_MS).toISOString(),
       },
-    })
-    .eq("id", filing.line.id)
-    .eq("updated_at", filing.line.updated_at)
-    // And held by no other filing, asked in the same statement: the lease is the claim, whatever the row read said.
-    .or(`facts->>${LEASE_FACT}.is.null,facts->>${LEASE_FACT}.lt.${new Date(now).toISOString()}`)
-    .select("*");
+    },
+    { fact: LEASE_FACT, now: new Date(now).toISOString() },
+  );
   if (error) throw new Error(`taking the line for its filing: ${error.message}`);
   return data?.[0] ?? null;
 }
@@ -396,14 +395,11 @@ async function preflightRefusal(db: Db, filing: Filing, state: A2PState): Promis
   // sentences are what the owner has to act on. They are RETURNED as well as
   // stored: the row is read by a page that reloads, and the person who just
   // pressed the button is owed the answer now rather than an error token.
-  const marked = await tenantDb(db, filing.line.tenant_id)
-    .from("lines")
-    .update({
-      sms_state: "needs_record",
-      last_error: problems.join(" "),
-      state_since: new Date().toISOString(),
-    })
-    .eq("id", filing.line.id);
+  const marked = await saveLineRow(db, filing.line, {
+    sms_state: "needs_record",
+    last_error: problems.join(" "),
+    state_since: new Date().toISOString(),
+  });
   if (marked.error)
     logger({ tenant_id: filing.line.tenant_id }).error("line_state_write_failed", {
       line_id: filing.line.id,
@@ -481,10 +477,7 @@ function receiptSaver(db: Db, line: LineRow, facts: Record<string, unknown>): A2
       }
     }
     if (touchedFacts) row.facts = facts;
-    const { error } = await tenantDb(db, line.tenant_id)
-      .from("lines")
-      .update(row as Database["public"]["Tables"]["lines"]["Update"])
-      .eq("id", line.id);
+    const { error } = await saveLineRow(db, line, row as Database["public"]["Tables"]["lines"]["Update"]);
     if (error) throw new Error(`keeping the registration's receipt: ${error.message}`);
   };
 }
@@ -555,16 +548,13 @@ async function settleFiling(
   // The receipts as this filing kept them, without its lease: the next press or the next hour may file again.
   const kept = { ...facts };
   delete kept[LEASE_FACT];
-  const written = await tenantDb(db, filing.line.tenant_id)
-    .from("lines")
-    .update({
-      sms_state: smsState,
-      reg_step: result.ok ? null : result.step,
-      last_error: result.ok || waiting ? null : result.error,
-      state_since: new Date().toISOString(),
-      facts: kept as Json,
-    })
-    .eq("id", filing.line.id);
+  const written = await saveLineRow(db, filing.line, {
+    sms_state: smsState,
+    reg_step: result.ok ? null : result.step,
+    last_error: result.ok || waiting ? null : result.error,
+    state_since: new Date().toISOString(),
+    facts: kept as Json,
+  });
   // The filing happened whatever the row says; a row that could not take it is said, and the next status read writes it.
   if (written.error) log.error("line_state_write_failed", { line_id: filing.line.id, error: written.error.message });
   if (result.ok)

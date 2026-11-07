@@ -238,7 +238,7 @@ test("a question we could not ask is never reported as an answer", () => {
   const sms = readCode("apps/edge/lib/lines/sms.ts");
   assert.ok(sms.includes("export async function refreshLineToken("));
   assert.ok(sms.includes("Accounts/${line.subaccount_sid}.json"), "read as the parent");
-  assert.ok(sms.includes('db.rpc("put_line_credentials"'), "and written back through the one write path");
+  assert.ok(sms.includes("await putLineCredentials(db, line.id, "), "and written back through the one write path");
   assert.ok(lib.includes("const fresh = await refreshLineToken(db, line);"));
   assert.ok(
     readRaw("apps/edge/lib/lines/sms.ts").includes("the platform's own Twilio credentials were refused"),

@@ -21,6 +21,7 @@ import {
   type ProvisionSecrets,
 } from "@chanlytics/channels/voice";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
+import { findVoiceRouting } from "@chanlytics/db/lines";
 
 interface VoiceAgent {
   llmId: string;
@@ -155,15 +156,7 @@ export async function ensureVoiceAgent(
   secrets: ProvisionSecrets,
   tenant: { id: string; name: string },
 ): Promise<{ agentId: string; llmId: string | null; pinned: boolean }> {
-  const { data, error } = await db
-    .from("tenant_channels")
-    .select("external_id, config")
-    .eq("tenant_id", tenant.id)
-    .eq("kind", "voice")
-    .eq("status", "active")
-    .order("created_at")
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await findVoiceRouting(db, tenant.id);
   if (error) throw new Error(`reading the voice row: ${error.message}`);
   if (data?.external_id) {
     const agentRaw = await getAgentRaw(cfg, data.external_id);

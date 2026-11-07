@@ -27,6 +27,18 @@ export const findWorkspaceSlug = (db: Db, tenantId: string) =>
 export const listWorkspaceZones = (db: Db, tenantIds: string[]) =>
   db.from("tenants").select("id, timezone").in("id", tenantIds);
 
+/** The workspace's name, by its id. */
+export const findWorkspaceName = (db: Db, tenantId: string) =>
+  db.from("tenants").select("id, name").eq("id", tenantId).maybeSingle();
+
+/** These workspaces' addresses, standing and clocks, by their ids: a sweep's page. */
+export const listWorkspaceStandings = (db: Db, tenantIds: string[]) =>
+  db.from("tenants").select("id, slug, status, timezone").in("id", tenantIds);
+
 /** The workspace's settings row, as stored. */
 export const findConfigRow = (db: Db, tenantId: string) =>
   db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+
+/** The workspace's id, name and address in the app: what an admin door answers about. */
+export const findWorkspaceCard = (db: Db, tenantId: string) =>
+  db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle();

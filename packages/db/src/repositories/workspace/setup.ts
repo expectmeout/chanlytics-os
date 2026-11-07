@@ -10,3 +10,13 @@ type Args<F extends keyof Database["public"]["Functions"]> = Database["public"][
 
 /** Help with one part of the setup asked for (setup_request). */
 export const requestSetup = (db: Db, args: Args<"setup_request">) => db.rpc("setup_request", args);
+
+/** Whether the workspace asked for help with any of `whats` (a `setup.requested` event): one id, or none. */
+export const findSetupAsked = (db: Db, tenantId: string, whats: string[]) =>
+  db
+    .from("events")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "setup.requested")
+    .in("data->>what", whats)
+    .limit(1);
