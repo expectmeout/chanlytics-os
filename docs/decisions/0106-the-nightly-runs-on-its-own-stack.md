@@ -33,10 +33,15 @@ at one commit tested whatever had deployed since.
    customer may be seeing it. A check that did not run says nothing of production and pages nobody.
 6. **A red may be quarantined, and the number may only fall:** one shape, `test.fixme(true, "quarantine: <date> <why>")`, said
    apart every night and counted per file (`e2e-quarantine`, check:debt). None is in it.
-7. **The skip ceiling is the seed's own number,** 11. The workspace is the run's own, so it holds still, and a twelfth is a red
-   night. Those 11 are coverage the seed does not give.
+7. **The skip ceiling is zero.** The workspace is the run's own, so it holds still, and the first skip for want of data is a red
+   night. It stood at 11 on 7 November, the coverage the seed did not give, and each of those now runs: six on what only a copy
+   may hold, four where a spec read an old page or another spec's leftover, one over a read only the edge can answer.
 8. **A dispatch can name its specs** (`-f specs="e2e/leads.spec.ts"`): those alone on the copy, in minutes, no issue filed. It is
    the only way to run a spec on a stack from a machine that has none.
+9. **A copy holds what production's sweeps would act on,** which the seed cannot write there: the paused Win-back
+   (`--seed-win-back`), a run waiting for an OK and emails handed to their owner
+   (`tooling/scripts/e2e-harness/copy-states.mjs`, which refuses any address but the runner's). Only `whole` runs them, nothing
+   sweeps a copy, and the seed's own check, which production's job runs, still names a run left waiting.
 
 ## What it does not do
 
@@ -54,11 +59,12 @@ what the nightly now asks.
 | The Node suite takes no database  | its job's env                                                   |
 | The stub                          | set `EDGE_URL` to a real edge, and take the hosts line out      |
 | The ceiling                       | `E2E_MAX_SKIPS` on `whole`                                      |
+| What a copy holds                 | the two seed steps of `whole`                                   |
 
 ## Tests
 
 `repo/settings/workflow-rules.test.mjs` holds the jobs' shape and who holds which secret, `edge/page-door.test.mjs` the conditions
-a workflow may page for, `e2e/skip-ceiling.test.mjs` and `repo/code-health-ratchets.test.mjs` the quarantine, `e2e/session-kept.test.mjs` the one session a run.
+a workflow may page for, `e2e/skip-ceiling.test.mjs` and `repo/code-health-ratchets.test.mjs` the quarantine, `e2e/session-kept.test.mjs` the one session a run, `e2e/e2e-copy-states.test.mjs` what only a copy may hold.
 
 ## Open
 

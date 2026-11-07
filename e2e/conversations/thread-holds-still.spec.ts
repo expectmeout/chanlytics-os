@@ -63,13 +63,16 @@ test.describe("An open thread on a phone", () => {
     );
     expect(edge, "the reply box ends at the screen's bottom edge").toBe(0);
 
-    // At the conversation's top, and pulled down past it: the head and the reply box hold.
+    // At the conversation's top, and pulled down past it: the head and the reply box hold. Each pull starts inside the
+    // conversation's own box: a reply box that keeps its own shape (a shut window's, template-box.tsx) stands higher than
+    // a chat's line, and a pull from a fixed height took it by its handle and opened it.
     const conversation = page.locator(CONVERSATION).first();
+    const room = (await conversation.boundingBox())!;
     await conversation.evaluate((el) => {
       el.scrollTop = 0;
     });
     const atTop = await standing(page);
-    const down = await pullHeld(page, 195, 400, 180);
+    const down = await pullHeld(page, 195, room.y + 40, 180);
     expect(await standing(page), "the head and the reply box hold").toEqual(atTop);
     await down.letGo();
     // At its end, and pulled up past it: the same, where they stood at its top.
@@ -78,7 +81,7 @@ test.describe("An open thread on a phone", () => {
     });
     const atFoot = await standing(page);
     expect(atFoot, "the conversation scrolls in its own box, under the head and over the reply box").toEqual(atTop);
-    const up = await pullHeld(page, 195, 500, -180);
+    const up = await pullHeld(page, 195, room.y + room.height - 40, -180);
     expect(await standing(page), "the head and the reply box hold").toEqual(atFoot);
     await up.letGo();
     expect((await theWindow()).y, "and the window never moved").toBe(0);
@@ -86,7 +89,10 @@ test.describe("An open thread on a phone", () => {
     // The reply box, folded, pulled up by its handle: it opens, and the head holds. From its foot the pull began in a
     // chat's one-line field, whose words are the field's to scroll and select (kit sheet/dock.ts), and nothing opened.
     const foot = page.locator(".ix-th-foot").first();
-    test.skip((await foot.getAttribute("data-folded")) === null, "this thread's reply box does not fold");
+    await expect(foot, "a thread opens with it folded, and the pulls above leave it so").toHaveAttribute(
+      "data-folded",
+      "",
+    );
     const folded = (await foot.boundingBox())!;
     const opening = await pullHeld(page, 195, folded.y + 8, -60);
     await opening.letGo();

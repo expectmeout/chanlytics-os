@@ -230,6 +230,15 @@ test("the nightly's node suite and its whole suite hold no live secret, and the 
     "the app it tests is this commit",
   );
   assert.ok(whole.includes("e2e-workspace.mjs --apply"), "seeded before any spec");
+  assert.ok(
+    whole.includes("e2e-workspace.mjs --apply --seed-win-back") && whole.includes("e2e-harness/copy-states.mjs"),
+    "a copy holds what production's sweeps would act on",
+  );
+  const production = job(workflow("nightly-e2e.yml"), "production");
+  assert.ok(
+    !production.includes("--seed-win-back") && !production.includes("copy-states"),
+    "and production's workspace does not",
+  );
   assert.ok(whole.includes('REQUIRE_SERVICE_CREDENTIALS: "1"'), "the skip ceiling bites only on a run that says so");
   assert.match(whole, /E2E_MAX_SKIPS: "\d+"/, "a ceiling held to the seed's own number, not the default's");
 });

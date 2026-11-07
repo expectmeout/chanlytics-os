@@ -161,7 +161,7 @@ export async function expectLeadsScope(page: Page, want: { standing: string; fir
   await expect(tabs).toBeVisible();
   await expect(tabs.getByRole("link", { name: "Leads" })).toHaveAttribute("aria-current", "page");
   // In Glass the standing line is the frame's head's sentence (the page's own line, leads-standing, is drawn on a
-  // phone alone): "3 leads · 2 not contacted · 2 searches", each part read on its own. On a desk the head is kept for a reader
+  // phone alone): "3 leads · 2 not contacted · 3 searches", each part read on its own. On a desk the head is kept for a reader
   // and the frame's focus alone (components.css, the head's slot, 1 Oct 2026), so it is read, not looked for on screen.
   const standing = page.locator(".pg-head .pg-sentence");
   for (const part of want.standing.split("·")) await expect(standing).toContainText(part.trim());
