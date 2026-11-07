@@ -640,10 +640,8 @@
 }
 
 /* ---- The month: one pane ---- */
-/* It fills the room the page leaves at every width, its six rows sharing it, as the phone's does (below, where a month
-   of dots keeps its own height): a desk's stood 160px short of the window's foot. It grows and never shrinks under its
-   rows, so where the window is short the body scrolls to the last week: allowed to shrink, it clipped its own sixth row
-   to a sliver at 1280x720, with nothing to scroll (the nightly's calendar.spec.ts, red from 30 Oct 2026). */
+/* It fills the room the page leaves, its six rows sharing it (a desk's stood 160px short of the window's foot), and never
+   shrinks under them, so a short window scrolls to the last week: it clipped its sixth row to a sliver at 1280x720. */
 .main-scroll > .calendar .cal-body > .cal-month {
   flex: 1 0 auto;
 }
