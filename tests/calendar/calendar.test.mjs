@@ -1024,15 +1024,16 @@ test("where the page stands after a change on a phone: the days' top under the f
     const under = boxAt(120);
     const shown = boxAt(260);
     const at = (change, body, board = false) => standAfter({ body, change, board, nowAt: null, opened: false });
+    globalThis.window.scrollY = 300; // the page had gone 300 down
     at("days", under);
     assert.deepEqual(
       b.scrolls,
-      [["by", -76]],
-      "new days in the Agenda or the Month: their top just under the frame's top, the bar in it",
+      [["to", 224]],
+      "new days in the Agenda or the Month: their top just under the frame's top, the bar in it: 76px back",
     );
     b.scrolls.length = 0;
     at("view", under, true);
-    assert.deepEqual(b.scrolls, [["by", -76]], "a new view too, a board's included");
+    assert.deepEqual(b.scrolls, [["to", 224]], "a new view too, a board's included");
     b.scrolls.length = 0;
     at("days", under, true);
     at("days", shown);

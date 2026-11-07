@@ -703,7 +703,11 @@ test("where the window scrolls, a view in place of another comes in under the fr
     seat(lens);
     scrolls.length = 0;
     replace(seat, lens, next);
-    assert.deepEqual(scrolls, [["by", -46]], "its top just under the frame's top, where the page had gone past it");
+    assert.deepEqual(
+      scrolls,
+      [["to", 254]],
+      "its top just under the frame's top, 46px back from the 300 the page had gone",
+    );
     scrolls.length = 0;
     replace(seat, next, days);
     assert.deepEqual(

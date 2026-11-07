@@ -31,7 +31,7 @@
  * gesture or a press moves.
  */
 import { VIEW_CHANGE_MS } from "@chanlytics/contracts";
-import { clearOfFoot, documentScroller, isDocumentScroller, scrollerOf, shownHeight } from "./page-scroll";
+import { clearOfFoot, documentScroller, isDocumentScroller, scrollerOf, shownHeight, windowTo } from "./page-scroll";
 
 /** How long a change of view takes: the spring is within a pixel of its place by then. */
 export const TIMELINE_MS = VIEW_CHANGE_MS;
@@ -768,12 +768,12 @@ export const viewDeck: Deck = createDeck({
     if (!nested) {
       // The browser puts back a scroll of its own on Back, before the page it goes to is drawn: the deck keeps it.
       if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-      if (window.scrollY > 0) window.scrollTo(0, 0);
+      windowTo(0);
       return;
     }
     // Just under what stands over the page (the frame's top on a phone: the document's scroll-padding, mobile.css).
     const under = Number.parseFloat(getComputedStyle(documentScroller()).scrollPaddingTop) || 0;
     const top = el.getBoundingClientRect().top;
-    if (top < under) window.scrollBy(0, top - under);
+    windowTo(window.scrollY + Math.min(0, top - under));
   },
 });
