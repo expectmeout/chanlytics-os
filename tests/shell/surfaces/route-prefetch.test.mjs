@@ -196,6 +196,9 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["settings/files", "admin/files"],
     ["settings/activity", "admin/activity"],
     ["settings/profile", "admin/profile"],
+    // Drawn from none of the settings read, and named so: fallen through to `admin`, each open started four reads nobody took.
+    ["settings/partner", "admin/partner"],
+    ["settings/platform", "admin/platform"],
     ["settings/notifications", "admin/notifications"],
     ["settings/autonomy", "admin"],
     ["settings/workspace", "admin"],
@@ -824,6 +827,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     "admin/team": ["partner"],
     "admin/notifications": ["partner", "alerts"],
     "admin/profile": ["partner"],
+    "admin/partner": ["partner"],
+    "admin/platform": ["partner"],
     "admin/integrations": ["partner", "channels", "google", "setup"],
     "admin/billing": ["partner", "billing"],
     "admin/memory": ["partner", "ask_memory"],

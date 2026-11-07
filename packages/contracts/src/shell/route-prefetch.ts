@@ -146,6 +146,10 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   "admin/team": [...SETTINGS_READ, "partner", "team/partner"],
   "admin/notifications": [...SETTINGS_READ, "partner", "me/alerts"],
   "admin/profile": ["partner", "views"],
+  // A partner's own page and the back office, drawn from none of the settings read: fallen through to `admin`, each open
+  // started its four reads and nobody took them, so they were asked for nothing and the page never fell quiet (6 Nov 2026).
+  "admin/partner": ["partner"],
+  "admin/platform": ["partner"],
   "admin/integrations": [
     "partner",
     "channels",
