@@ -156,7 +156,7 @@ test("an email handed over is whole as 00429 holds one, to a place the waiting s
   assert.deepEqual(
     [list.via, list.name],
     ["chosen", HANDED_OVER.name],
-    "on a list of its own: the rail keeps no door for a search a sequence writes to, and a spec presses the waiting search's",
+    "on a list of its own: a search a sequence writes to leaves the rail's Searches, and a spec presses the waiting search's door",
   );
 });
 

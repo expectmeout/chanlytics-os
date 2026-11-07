@@ -170,8 +170,8 @@ async function writeHandedOver(db, { T, ownerId, stamp, now }) {
       .select("id")
       .single(),
   );
-  // A list of its own, empty, as a sequence to leads has (00459): the rail keeps no door for a search a sequence writes to,
-  // and e2e/leads.spec.ts presses the waiting search's.
+  // A list of its own, empty, as every sequence to leads has (00459). Written onto a search of the seed's, that search would
+  // be a sequence's list, which the rail files apart (contracts leadRail), and e2e/leads.spec.ts presses the waiting search's.
   const list = wrote(
     "the reach-out's list",
     await db.rpc("reach_out_list_for", { p_tenant_id: T, p_name: HANDED_OVER.name, p_by: ownerId }),
