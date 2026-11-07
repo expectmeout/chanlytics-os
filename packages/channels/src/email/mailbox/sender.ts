@@ -72,10 +72,10 @@ const hostNamedBy = (v: string | null | undefined): string =>
 const atService = (host: string): boolean => !!host && SERVICE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
 
 /** Whether a mailing service sent the email: by a header only one writes, or by the host its Message-ID or Return-Path names. */
-export function sentByAService(e: Pick<ReceivedEmail, "headers" | "messageId">): boolean {
-  const h = e.headers;
+export function sentByAService(receivedEmail: Pick<ReceivedEmail, "headers" | "messageId">): boolean {
+  const h = receivedEmail.headers;
   if (SERVICE_HEADERS.some((n) => n in h)) return true;
-  return atService(hostNamedBy(e.messageId ?? h["message-id"])) || atService(hostNamedBy(h["return-path"]));
+  return atService(hostNamedBy(receivedEmail.messageId ?? h["message-id"])) || atService(hostNamedBy(h["return-path"]));
 }
 
 /**
@@ -83,12 +83,12 @@ export function sentByAService(e: Pick<ReceivedEmail, "headers" | "messageId">):
  * another domain than the From's, that is no no-reply. A website's form passes on a person's message this way; a
  * program's notice from a stranger with nobody behind it has none. Null otherwise.
  */
-export function replyToElsewhere(e: Pick<ReceivedEmail, "headers" | "from">): string | null {
-  const to = addressesOf((e.headers["reply-to"] ?? "").split(","));
+export function replyToElsewhere(receivedEmail: Pick<ReceivedEmail, "headers" | "from">): string | null {
+  const to = addressesOf((receivedEmail.headers["reply-to"] ?? "").split(","));
   const [only] = to;
   if (to.length !== 1 || !only || noReplyAddress(only)) return null;
   const domain = (a: string) => a.slice(a.lastIndexOf("@") + 1).toLowerCase();
-  return e.from && domain(only) !== domain(e.from.address) ? only : null;
+  return receivedEmail.from && domain(only) !== domain(receivedEmail.from.address) ? only : null;
 }
 
 /** HTML's entities as a Gmail snippet writes them. */

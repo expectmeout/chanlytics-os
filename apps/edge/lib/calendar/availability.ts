@@ -48,11 +48,11 @@ import {
   DAY_MS,
   MIN_MS,
 } from "@chanlytics/contracts";
-import { publicFetcher } from "@chanlytics/channels";
-import { appointmentsBetween, appointmentsForClient, feedWordsOver } from "@chanlytics/db";
+import { publicFetcher } from "@chanlytics/channels/shared";
+import { listAppointmentsBetween, listAppointmentsForClient, listFeedWordsOver } from "@chanlytics/db/calendar";
 import { pg } from "../shared/pg.js";
 import type { TenantRuntime } from "../shared/tenant-runtime.js";
-import { mailboxCalendarText } from "./mailbox-calendar.js";
+import { findMailboxCalendarText } from "./mailbox-calendar.js";
 import { logger, errField } from "../shared/log.js";
 
 const CACHE_MS = 5 * MIN_MS;
@@ -101,11 +101,11 @@ function httpsUrl(u: string): string {
 async function grantFeed(tenantId: string, mailboxId: string, daysAhead: number): Promise<string | null> {
   const db = pg();
   if (!db) return null;
-  return mailboxCalendarText(db, tenantId, mailboxId, seasonHorizon(new Date(), daysAhead));
+  return findMailboxCalendarText(db, tenantId, mailboxId, seasonHorizon(new Date(), daysAhead));
 }
 
 async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: number): Promise<string | null> {
-  const L = logger({ tenant_id: tenantId });
+  const log = logger({ tenant_id: tenantId });
   const key = cacheKey(tenantId, url);
   const hit = feeds.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.text;
@@ -115,7 +115,7 @@ async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: n
     try {
       text = await grantFeed(tenantId, granted, daysAhead);
     } catch (e) {
-      L.error("availability_feed_failed", { error: errField(e), via: "mailbox" });
+      log.error("availability_feed_failed", { error: errField(e), via: "mailbox" });
     }
     const at = Date.now();
     prune(at);
@@ -128,28 +128,28 @@ async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: n
     const safe = feedUrlOk(url);
     if (!safe) throw new Error("address refused: not a public https/webcal address");
     // Every hop judged by the address rule (fetchPublic), not only the first.
-    const r = await fetchPublic(publicFetcher(), httpsUrl(safe), {
+    const result = await fetchPublic(publicFetcher(), httpsUrl(safe), {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: { accept: "text/calendar, text/plain;q=0.5, */*;q=0.1" },
     });
-    if (!r) {
-      L.error("availability_feed_redirect_refused", {});
-    } else if (!r.ok) {
-      L.error("availability_feed_http", { status: r.status });
+    if (!result) {
+      log.error("availability_feed_redirect_refused", {});
+    } else if (!result.ok) {
+      log.error("availability_feed_http", { status: result.status });
     } else {
-      const body = await r.text();
+      const body = await result.text();
       // One ceiling, one judgement, shared with the dashboard's loader: this
       // inlined 2 * 1024 * 1024 while the dashboard refused at FEED_MAX_BYTES,
       // so a feed between the two was read by one reader and refused by the
       // other, and the receptionist and the board would then disagree about a
       // business's own week with nothing on any page to say why.
       const problem = feedBodyProblem(body);
-      if (problem === "too_large") L.error("availability_feed_too_large", { bytes: body.length });
-      else if (problem === "not_ical") L.error("availability_feed_not_ical", { head: body.slice(0, 40) });
+      if (problem === "too_large") log.error("availability_feed_too_large", { bytes: body.length });
+      else if (problem === "not_ical") log.error("availability_feed_not_ical", { head: body.slice(0, 40) });
       else text = body;
     }
   } catch (e) {
-    L.error("availability_feed_failed", { error: errField(e) });
+    log.error("availability_feed_failed", { error: errField(e) });
   }
   // A failure is cached too, briefly: one broken feed must not add a six
   // second wait to every message for as long as it stays broken.
@@ -198,7 +198,7 @@ async function parsedFeed(rt: TenantRuntime, url: string, now: Date): Promise<Pa
 }
 
 /** The feed's appointments for one workspace, for the sweep that puts the people they name in People. Null when the feed cannot be read. */
-export async function feedItemsFor(
+export async function listFeedItems(
   tenantId: string,
   url: string,
   tz: string,
@@ -220,13 +220,13 @@ interface OpeningsData {
  * The openings, or null when there is nothing to say — no feed configured,
  * or a feed that could not be read.
  */
-export async function openingsData(
+export async function findOpeningsData(
   rt: TenantRuntime,
   now = new Date(),
   /** A person whose own open request takes no slot from them (decision 0061): picking it again is the same request. */
   mine: string | null = null,
 ): Promise<OpeningsData | null> {
-  const L = logger({ tenant_id: rt.tenantId });
+  const log = logger({ tenant_id: rt.tenantId });
   const url = feedKeyOf(rt);
   const profile = rt.brain?.profile;
   if (!url || !profile || !rt.timezone) return null;
@@ -244,10 +244,10 @@ export async function openingsData(
       rules,
       now,
     });
-    if (feed.skippedRecurring) L.info("availability_recurring_skipped", { count: feed.skippedRecurring });
+    if (feed.skippedRecurring) log.info("availability_recurring_skipped", { count: feed.skippedRecurring });
     return { openings, tz: rt.timezone, daysAhead };
   } catch (e) {
-    L.error("availability_compute_failed", { error: errField(e) });
+    log.error("availability_compute_failed", { error: errField(e) });
     return null;
   }
 }
@@ -270,7 +270,7 @@ async function recordBusy(
   if (!db) return [];
   const span = offeringHorizon(now, daysAhead);
   try {
-    const rows = await appointmentsBetween(
+    const rows = await listAppointmentsBetween(
       db,
       tenantId,
       new Date(span.from).toISOString(),
@@ -320,10 +320,10 @@ export function takesRequests(rt: Pick<TenantRuntime, "brain" | "known" | "polic
  */
 export async function requestTermsFor(
   rt: TenantRuntime,
-  who: string | null,
+  personName: string | null,
   now = new Date(),
 ): Promise<BookingRequestTerms | null> {
-  const data = await openingsData(rt, now, who);
+  const data = await findOpeningsData(rt, now, personName);
   if (!data) return null;
   const profile = rt.brain?.profile;
   return {
@@ -335,8 +335,8 @@ export async function requestTermsFor(
 }
 
 /** The openings block for the prompt, or null when there is nothing to say. */
-export async function openingsFor(rt: TenantRuntime, on: "call" | "chat", now = new Date()): Promise<string | null> {
-  const data = await openingsData(rt, now);
+export async function findOpenings(rt: TenantRuntime, on: "call" | "chat", now = new Date()): Promise<string | null> {
+  const data = await findOpeningsData(rt, now);
   return data
     ? describeOpenings(data.openings, data.tz, {
         daysAhead: data.daysAhead,
@@ -364,22 +364,22 @@ export function forgetFeeds(): void {
  * board and the profile, which read People's own row, have one.
  * Null when there is nothing to say; never throws.
  */
-export async function visitsFor(
+export async function findVisits(
   rt: TenantRuntime,
-  who: { phone: string | null; name: string | null },
+  caller: { phone: string | null; name: string | null },
   on: "call" | "chat",
   now = new Date(),
 ): Promise<string | null> {
-  const L = logger({ tenant_id: rt.tenantId });
+  const log = logger({ tenant_id: rt.tenantId });
   const url = feedKeyOf(rt);
-  if (!rt.timezone || (!who.phone && !who.name)) return null;
+  if (!rt.timezone || (!caller.phone && !caller.name)) return null;
   try {
     // The feed's events, when there is a feed, and the record joined to them as People and the playbooks join it
     // (0002's readers): a booking that arrived by email is theirs by their number, so a workspace with no calendar still
     // knows their next visit (00345), and a visit a member cancelled or said missed is never confirmed to them.
     const [feed, record] = await Promise.all([
       url ? parsedFeed(rt, url, now) : null,
-      recordFor(rt.tenantId, who, now, url ? seasonHorizon(now, daysAheadOf(rt)).to : null),
+      recordFor(rt.tenantId, caller, now, url ? seasonHorizon(now, daysAheadOf(rt)).to : null),
     ]);
     if (record === "failed") return null;
     // The caller is known by their number, so the business's own ADDRESSES
@@ -389,13 +389,13 @@ export async function visitsFor(
     const items = feedWithRecord(feed?.items ?? [], record, own);
     if (!items.length) return null;
     return describeVisits(
-      visitsOf(items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own),
+      visitsOf(items, { id: "caller", name: caller.name ?? "", phone: caller.phone, email: null }, now.getTime(), own),
       rt.timezone,
       now.getTime(),
       { hasBookingLink: linkOfferedOn(on, rt) },
     );
   } catch (e) {
-    L.error("availability_visits_failed", { error: errField(e) });
+    log.error("availability_visits_failed", { error: errField(e) });
     return null;
   }
 }
@@ -409,7 +409,7 @@ export async function visitsFor(
  */
 async function recordFor(
   tenantId: string,
-  who: { phone: string | null },
+  caller: { phone: string | null },
   now: Date,
   feedTo: number | null,
 ): Promise<PoolRecord | null | "failed"> {
@@ -418,8 +418,8 @@ async function recordFor(
   const from = new Date(now.getTime() - VISITS_BACK_MS).toISOString();
   try {
     const [noted, words] = await Promise.all([
-      who.phone ? appointmentsForClient(db, tenantId, { phone: who.phone, email: null }, from) : [],
-      feedTo !== null ? feedWordsOver(db, tenantId, from, new Date(feedTo).toISOString()) : [],
+      caller.phone ? listAppointmentsForClient(db, tenantId, { phone: caller.phone, email: null }, from) : [],
+      feedTo !== null ? listFeedWordsOver(db, tenantId, from, new Date(feedTo).toISOString()) : [],
     ]);
     return { noted, marks: feedMarksOf(words) };
   } catch (e) {

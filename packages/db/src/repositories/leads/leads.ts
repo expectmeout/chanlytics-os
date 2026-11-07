@@ -103,15 +103,15 @@ export async function readLeadOne(
 const rowCount = (v: Json | undefined): number => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : 0);
 
 /** What 00552 adds to a view's counts, where the database said it. */
-const statusCountsOf = (o: {
+const statusCountsOf = (options: {
   [key: string]: Json | undefined;
 }): Pick<LeadViewCountsDto, "status_groups" | "with_email" | "with_phone"> => {
-  const g = o.status_groups;
+  const g = options.status_groups;
   return g && typeof g === "object" && !Array.isArray(g)
     ? {
         status_groups: { needs: rowCount(g.needs), in: rowCount(g.in), none: rowCount(g.none) },
-        with_email: rowCount(o.with_email),
-        with_phone: rowCount(o.with_phone),
+        with_email: rowCount(options.with_email),
+        with_phone: rowCount(options.with_phone),
       }
     : {};
 };
@@ -121,25 +121,28 @@ const statusCountsOf = (o: {
  * leads_page reads: its members, how many its filters keep, and each criterion's count over the view without them; and,
  * from 00552, each status group's count and how many can be reached each way, which a database before it does not say.
  */
-export async function leadViewCounts(
+export async function getLeadViewCounts(
   db: Db,
-  p: { tenantId: string; searchId: string | null; cls: string | null; list: string; filters: Json | null },
+  params: { tenantId: string; searchId: string | null; cls: string | null; list: string; filters: Json | null },
 ): Promise<LeadViewCountsDto> {
   const { data, error } = await db.rpc("lead_view_counts", {
-    p_tenant_id: p.tenantId,
-    ...(p.searchId ? { p_search_id: p.searchId } : {}),
-    ...(p.cls ? { p_class: p.cls } : {}),
-    p_list: p.list,
-    ...(p.filters ? { p_filters: p.filters } : {}),
+    p_tenant_id: params.tenantId,
+    ...(params.searchId ? { p_search_id: params.searchId } : {}),
+    ...(params.cls ? { p_class: params.cls } : {}),
+    p_list: params.list,
+    ...(params.filters ? { p_filters: params.filters } : {}),
   });
   if (error) throw new Error(`lead_view_counts: ${error.message}`);
-  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
-  const by = o.excluded_by && typeof o.excluded_by === "object" && !Array.isArray(o.excluded_by) ? o.excluded_by : {};
+  const value = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const by =
+    value.excluded_by && typeof value.excluded_by === "object" && !Array.isArray(value.excluded_by)
+      ? value.excluded_by
+      : {};
   return {
-    view: rowCount(o.view),
-    matching: rowCount(o.matching),
+    view: rowCount(value.view),
+    matching: rowCount(value.matching),
     excluded_by: Object.fromEntries(Object.entries(by).map(([k, n]) => [k, rowCount(n)])),
-    ...statusCountsOf(o),
+    ...statusCountsOf(value),
   };
 }
 
@@ -178,8 +181,8 @@ async function writeIdeas(db: Db, args: IdeasWriteArgs): Promise<Record<string, 
  * back, or null while another read writes them.
  */
 export async function claimIdeas(db: Db, tenantId: string, line: string): Promise<string | null> {
-  const got = await writeIdeas(db, { p_tenant_id: tenantId, p_act: "claim", p_line: line });
-  return typeof got.claim === "string" && got.claim ? got.claim : null;
+  const result = await writeIdeas(db, { p_tenant_id: tenantId, p_act: "claim", p_line: line });
+  return typeof result.claim === "string" && result.claim ? result.claim : null;
 }
 
 /**
@@ -187,7 +190,7 @@ export async function claimIdeas(db: Db, tenantId: string, line: string): Promis
  * owner saved a line, or a slower write was taken over), and nothing is written.
  */
 export async function keepIdeas(db: Db, tenantId: string, claim: string, row: IdeasKept): Promise<boolean> {
-  const got = await writeIdeas(db, {
+  const result = await writeIdeas(db, {
     p_tenant_id: tenantId,
     p_act: "keep",
     p_claim: claim,
@@ -198,7 +201,7 @@ export async function keepIdeas(db: Db, tenantId: string, claim: string, row: Id
     p_basis: row.basis ?? "",
     p_passed: row.passed,
   });
-  return got.kept === true;
+  return result.kept === true;
 }
 
 /** The model would not write them under this claim: the claim let go, and the next reads say so for a while. */
@@ -218,7 +221,7 @@ export async function saveIdeasLine(db: Db, tenantId: string, line: string): Pro
  * New ideas (00470, act again): the same line written again, so the next write asks the model, with the ideas shown
  * kept to be passed on (ideaPassed), so the four it writes are new ones. Like a line, it clears any claim.
  */
-export async function againIdeas(db: Db, tenantId: string): Promise<void> {
+export async function askForIdeasAgain(db: Db, tenantId: string): Promise<void> {
   await writeIdeas(db, { p_tenant_id: tenantId, p_act: "again" });
 }
 
@@ -227,7 +230,7 @@ export async function againIdeas(db: Db, tenantId: string): Promise<void> {
  * cannot be read: the month the ideas' room is counted in, and the language they are written in (00399). Read on the
  * member's session; the server's tenantFactsOf says the clock where the row says none.
  */
-export async function ideasClockAndLanguage(
+export async function findIdeasClockAndLanguage(
   db: Db,
   tenantId: string,
 ): Promise<{ timezone: string | null; locale: string | null } | null> {
@@ -240,7 +243,7 @@ export async function ideasClockAndLanguage(
  * When the workspace's newest round ended, or null when none has: what its ideas are written over (lead_suggestions.basis),
  * so a round that ends since asks for new ones. Read on the member's session: rounds are a member's to read.
  */
-export async function ideasBasis(db: Db, tenantId: string): Promise<string | null> {
+export async function findIdeasBasis(db: Db, tenantId: string): Promise<string | null> {
   const { data, error } = await db
     .from("lead_rounds")
     .select("ended_at")
@@ -258,7 +261,7 @@ export async function ideasBasis(db: Db, tenantId: string): Promise<string | nul
  * The cards that find leads now (00430 lead_cards_live: lead_platform.cards_on): the Maps card, and the people card once
  * its calibration run proved it. What the Leads page offers and Ask proposes; the door refuses the rest itself.
  */
-export async function leadCardsLive(db: Db): Promise<string[]> {
+export async function listLeadCardsLive(db: Db): Promise<string[]> {
   const { data, error } = await db.rpc("lead_cards_live");
   if (error) throw new Error(`cannot read which cards find leads: ${error.message}`);
   return data ?? ["local_businesses"];
@@ -271,7 +274,7 @@ export type LeadPricesSeen = Record<string, Record<string, number>>;
  * What the lead sources charged when the price watch last read them, and when (00506: lead_platform.prices and its
  * prices_checked_at, the one row of the platform's lead switch). The service role's: nothing here is a workspace's.
  */
-export async function leadPricesSeen(db: Db): Promise<{ prices: LeadPricesSeen; checkedAt: string | null }> {
+export async function findLeadPricesSeen(db: Db): Promise<{ prices: LeadPricesSeen; checkedAt: string | null }> {
   const { data, error } = await db.from("lead_platform").select("prices, prices_checked_at").limit(1).maybeSingle();
   if (error) throw new Error(`cannot read the lead sources' prices: ${error.message}`);
   const prices = data?.prices;
@@ -295,16 +298,16 @@ export async function keepLeadPrices(db: Db, prices: LeadPricesSeen, at: Date): 
  * the route worked out and the Ask thread it was planned in. The door's own refusals ({error, sentence}) come back as
  * its answer; a thrown one is a request it refused outright.
  */
-export async function leadPeopleSearchCreate(
+export async function createLeadPeopleSearch(
   db: Db,
-  p: { tenantId: string; plan: Json; via: "people" | "ask"; estimateUsd: number; threadId: string | null },
+  params: { tenantId: string; plan: Json; via: "people" | "ask"; estimateUsd: number; threadId: string | null },
 ): Promise<{ search_id?: string; round_id?: string; error?: string; sentence?: string }> {
   const { data, error } = await db.rpc("lead_people_search_create", {
-    p_tenant_id: p.tenantId,
-    p_plan: p.plan,
-    p_via: p.via,
-    p_estimate_usd: p.estimateUsd,
-    ...(p.threadId ? { p_thread_id: p.threadId } : {}),
+    p_tenant_id: params.tenantId,
+    p_plan: params.plan,
+    p_via: params.via,
+    p_estimate_usd: params.estimateUsd,
+    ...(params.threadId ? { p_thread_id: params.threadId } : {}),
   });
   if (error) throw new Error(`lead_people_search_create: ${error.message}`);
   return (data ?? {}) as { search_id?: string; round_id?: string; error?: string; sentence?: string };
@@ -320,11 +323,11 @@ type LeadAddresseeAnswer =
  * the index of one of the people its source named. The door's own refusals ({error}, and a spend's {error, sentence})
  * come back as its answer; a thrown one is a request it refused outright (not signed in, not this member's lead).
  */
-export async function leadAddresseeChoose(
+export async function chooseLeadAddressee(
   db: Db,
-  p: { leadId: string; person: number },
+  params: { leadId: string; person: number },
 ): Promise<{ data: LeadAddresseeAnswer; error: null } | { data: null; error: { code?: string; message: string } }> {
-  const { data, error } = await db.rpc("lead_addressee_choose", { p_lead_id: p.leadId, p_person: p.person });
+  const { data, error } = await db.rpc("lead_addressee_choose", { p_lead_id: params.leadId, p_person: params.person });
   if (error) return { data: null, error };
   return { data: (data ?? { error: "no_answer" }) as LeadAddresseeAnswer, error: null };
 }
@@ -333,7 +336,7 @@ export async function leadAddresseeChoose(
  * A people run's page of companies (00430 lead_company_upsert), service role: a lead for each new company, waiting in
  * Needs review on its address, and the people a company already held gains. Idempotent.
  */
-export async function leadCompanyUpsert(
+export async function upsertLeadCompany(
   db: Db,
   roundId: string,
   companies: Json[],
@@ -348,7 +351,7 @@ export async function leadCompanyUpsert(
  * Each lead's country (two letters, as the finder kept it; null where it kept none), by id: what the reach-out check
  * reads a lead's place by (decision 0056, 9). Service role; a read that fails throws.
  */
-export async function leadCountriesOf(db: Db, ids: readonly string[]): Promise<Map<string, string | null>> {
+export async function findLeadCountries(db: Db, ids: readonly string[]): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
   const unique = [...new Set(ids)];
   // A hundred at a time: an id list rides in the request's address.
@@ -379,7 +382,7 @@ export interface IdeaCustomerRows {
  * ideas are written rarely (a month, a round, a press), so a whole read is affordable; a read that fails THROWS, and the
  * ideas are written without it.
  */
-export async function ideaCustomerRows(db: Db, tenantId: string): Promise<IdeaCustomerRows> {
+export async function getIdeaCustomerRows(db: Db, tenantId: string): Promise<IdeaCustomerRows> {
   const [contacts, leads, deals] = await Promise.all([
     readAllRows<{ id: string; acquired_via: string | null; lead_id: string | null }>("contacts", (from, to) =>
       db
@@ -424,7 +427,7 @@ export async function ideaCustomerRows(db: Db, tenantId: string): Promise<IdeaCu
  * says trialing, else the month's. The Leads page and the plan card read it beside what the month has taken, so the
  * number left is the one lead_reserve holds. A read that fails throws: "we could not check" is not a whole month.
  */
-export async function leadAllowanceOf(db: Db, tenantId: string): Promise<number> {
+export async function getLeadAllowance(db: Db, tenantId: string): Promise<number> {
   const { data, error } = await db.rpc("lead_allowance", { p_tenant_id: tenantId });
   if (error) throw new Error(`lead_allowance: ${error.message}`);
   const n = typeof data === "number" ? data : Number(data);
@@ -437,7 +440,7 @@ export async function leadAllowanceOf(db: Db, tenantId: string): Promise<number>
  * the round while it lives, else the month and the day it was read in; `roundId` null is a read no round asked for. The
  * service role's.
  */
-export async function leadSiteReadsSpent(
+export async function recordLeadSiteReadsSpent(
   db: Db,
   tenantId: string,
   roundId: string | null,
@@ -467,7 +470,7 @@ interface LeadToMark {
  * workspace's, on purpose: the sweep's, each tick, so its filters are those of the partial index on `found_at`
  * (leads_untouched_purge). A lead someone has already acted on waits for the next round that finds its place.
  */
-export async function leadsUnmarked(db: Db, from: Date, until: Date, limit: number): Promise<LeadToMark[]> {
+export async function listLeadsUnmarked(db: Db, from: Date, until: Date, limit: number): Promise<LeadToMark[]> {
   const { data, error } = await platformWide(db)
     .from("leads")
     .select("id, tenant_id, website_host, logo_url")
@@ -494,13 +497,15 @@ export async function leadsUnmarked(db: Db, from: Date, until: Date, limit: numb
  */
 export async function keepLeadMark(
   db: Db,
-  m: { id: string; tenantId: string; had: string | null; logoUrl: string | null; markPath: string },
+  message: { id: string; tenantId: string; had: string | null; logoUrl: string | null; markPath: string },
 ): Promise<boolean> {
-  const patch = m.had ? { mark_path: m.markPath } : { mark_path: m.markPath, logo_url: m.logoUrl };
-  const { data, error } = await tenantDb(db, m.tenantId)
+  const patch = message.had
+    ? { mark_path: message.markPath }
+    : { mark_path: message.markPath, logo_url: message.logoUrl };
+  const { data, error } = await tenantDb(db, message.tenantId)
     .from("leads")
     .update(patch)
-    .eq("id", m.id)
+    .eq("id", message.id)
     .is("mark_path", null)
     .is("blanked_at", null)
     .is("erased_at", null)

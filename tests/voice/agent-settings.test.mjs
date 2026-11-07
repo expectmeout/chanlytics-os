@@ -29,7 +29,7 @@ import {
   CALL_FEEL,
   CALL_HANDBOOK,
   CALL_LIMITS,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import { RETELL_MODELS } from "@chanlytics/contracts";
 import { readCode } from "../_source.mjs";
 
@@ -173,7 +173,9 @@ test("the converger, the diagnostic and the provisioning script all read the sam
   );
   // The door's plan, its shell beside it and the draft made before any patch lands are run in voice-doors.test.mjs.
   // The diagnostic's agent-settings drift is run in diag-door.test.mjs.
-  const adapter = readCode("packages/channels/src/voice/retell.ts");
+  const adapter = ["packages/channels/src/voice/retell/calls.ts", "packages/channels/src/voice/retell/agents.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(adapter.includes('data_storage_retention_days: num("data_storage_retention_days")'));
   // Provisioning creates the agent with the same settings the converger keeps.
   const created = voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" }, FN_URL);

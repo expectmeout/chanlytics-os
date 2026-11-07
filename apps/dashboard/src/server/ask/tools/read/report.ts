@@ -27,11 +27,12 @@ import {
   type ReportStripTile,
   type ReviewsReportVM,
 } from "@chanlytics/contracts";
-import { load } from "../../../readers";
+import { load } from "../../../shared/reader";
 import { campaignLedgerReport, campaignReport, reachOutReport } from "../../../readers/campaign-report";
 import * as facts from "../../../readers/facts";
 import { peopleReport, receptionistReport, report, reportWindowFor, reviewsReport } from "../../../readers/report";
-import { defineRead, noteRow, unlessNotFound, unread, type ToolContext } from "../context";
+import { defineRead, type ToolContext } from "../context/tool-defs";
+import { noteRow, readUnlessNotFound, unread } from "../context/tool-reads";
 
 /** The periods by name, as the model reads them: said from the one table (contracts REPORT_RANGES). */
 const PERIODS_SAID = `${REPORT_PERIOD_IDS.slice(0, -1).join(", ")} or ${REPORT_PERIOD_IDS.at(-1)}`;
@@ -191,23 +192,28 @@ function gainedSaid(rv: ReviewsReportVM) {
  * (`connect`) where none is connected, and with no listing linked there is `linked: false` and the words the fold has
  * for it.
  */
-function reviewsSaid(t: ToolContext, rv: ReviewsReportVM) {
+function reviewsSaid(toolContext: ToolContext, rv: ReviewsReportVM) {
   if (rv.empty) return { linked: false, words: rv.lines.empty };
   // Each review the lens lists is a row an answer may cite (kind review, by its row, google_reviews.id): it opens on the
   // lens with the review first and its reply box open. Five of each, its words cut as the timeline cuts a message.
   const reviewOf = (r: ReviewsReportVM["latest"][number]) => {
-    noteRow(t, "review", r.id, `${r.author} · ${r.stars}`, reviewRoute(r.id));
+    noteRow(toolContext, "review", r.id, `${r.author} · ${r.stars}`, reviewRoute(r.id));
     return { id: r.id, author: r.author, stars: r.stars, when: r.when, text: r.text.slice(0, 240), replied: r.replied };
   };
-  const said = {
+  const sentence = {
     head: rv.lines.head,
     // What the figure draws beside its value is its `compare` (no Reviews tile has a percentage); null where history falls short.
     tiles: rv.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.compare })),
   };
   if (rv.source === "places")
-    return { ...said, gained: gainedSaid(rv), latest: rv.latest.slice(0, 5).map(reviewOf), connect: rv.lines.connect };
+    return {
+      ...sentence,
+      gained: gainedSaid(rv),
+      latest: rv.latest.slice(0, 5).map(reviewOf),
+      connect: rv.lines.connect,
+    };
   return {
-    ...said,
+    ...sentence,
     // The mix as the card says it (the line holds how many were rated) and its five rows; null where there is none to say.
     stars: rv.stars ? { line: rv.lines.mix, rows: rv.stars.rows.map(shownRow) } : null,
     weekly: weeklySaid(rv),
@@ -314,7 +320,7 @@ function peopleSaid(pv: PeopleReportVM) {
  * in the route's own words where it is not a window.
  */
 async function askedWindow(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: {
     period?: (typeof REPORT_PERIOD_IDS)[number];
     from?: string;
@@ -322,22 +328,22 @@ async function askedWindow(
     shortcut?: (typeof SHORTCUTS)[number];
   },
 ) {
-  let asked: { period?: (typeof REPORT_PERIOD_IDS)[number]; from?: string; to?: string } = {
+  let otherInput: { period?: (typeof REPORT_PERIOD_IDS)[number]; from?: string; to?: string } = {
     period: input.period,
     from: input.from,
     to: input.to,
   };
   const shortcut = input.shortcut;
   if (shortcut) {
-    const zone = (await load(t.rc, facts.facts, undefined)).data.timezone;
-    const today = zoneDayKey(t.rc.now.getTime(), zone);
+    const zone = (await load(toolContext.rc, facts.facts, undefined)).data.timezone;
+    const today = zoneDayKey(toolContext.rc.now.getTime(), zone);
     const cut = reportShortcuts(today).find((s) => s.id === shortcut.replace(/_/g, "-"));
     if (!cut) return { refusal: "shortcut is yesterday, last_week or last_month" };
-    asked = { from: cut.days.from, to: cut.days.to };
+    otherInput = { from: cut.days.from, to: cut.days.to };
   }
-  if (!asked.period && !asked.from && !asked.to) asked = { period: "30d" };
+  if (!otherInput.period && !otherInput.from && !otherInput.to) otherInput = { period: "30d" };
   try {
-    return { window: await reportWindowFor(t.rc, asked) };
+    return { window: await reportWindowFor(toolContext.rc, otherInput) };
   } catch (e) {
     if (e instanceof AppError) return { refusal: e.message };
     throw e;
@@ -348,40 +354,56 @@ async function askedWindow(
  * Each lens's own read, beside the Reports page's (readers/report.ts), for the lenses asked for alone: one not asked is
  * null, one that fails is null too, and said in the log.
  */
-function lensReads(t: ToolContext, window: Parameters<typeof report.read>[1], want: Set<Lens>) {
+function lensReads(toolContext: ToolContext, window: Parameters<typeof report.read>[1], want: Set<Lens>) {
   const none = Promise.resolve(null);
   return Promise.all([
     // The Campaigns lens's own read (readers/campaign-report.ts), beside it: one that fails is said as null, and in the log.
     want.has("campaigns")
-      ? load(t.rc, campaignReport, window).then((x) => x.data.report, unread(t, "report", "campaigns"))
+      ? load(toolContext.rc, campaignReport, window).then(
+          (x) => x.data.report,
+          unread(toolContext, "report", "campaigns"),
+        )
       : none,
     // The Campaigns lens's ledger (readers/campaign-report.ts campaignLedgerReport: the window's people, runs, holds and
     // failures, and what is stuck now, judged at the turn's clock), which the page reads beside the sends. Each of its parts
     // fails alone inside the reader; the whole failing is null here, said as an error beside the sends and in the log.
     want.has("campaigns")
-      ? load(t.rc, campaignLedgerReport, window).then((x) => x.data, unread(t, "report", "campaign_ledger"))
+      ? load(toolContext.rc, campaignLedgerReport, window).then(
+          (x) => x.data,
+          unread(toolContext, "report", "campaign_ledger"),
+        )
       : none,
     // The Reviews lens's own read (readers/report.ts reviewsReport: Google as its page reads it, and the reviews on
     // record): one that fails, a slow edge or a ledger that cannot be read, is null too. Folded below, outside the catch:
     // a fold that throws is a bug to see, never "could not be read".
-    want.has("reviews") ? load(t.rc, reviewsReport, window).then((x) => x.data, unread(t, "report", "reviews")) : none,
+    want.has("reviews")
+      ? load(toolContext.rc, reviewsReport, window).then((x) => x.data, unread(toolContext, "report", "reviews"))
+      : none,
     // The Reach-outs section's own read (readers/campaign-report.ts reachOutReport), the page's, over the same window:
     // null where it fails.
     want.has("campaigns") || want.has("cold_email")
-      ? load(t.rc, reachOutReport, window).then((x) => x.data.report, unread(t, "report", "reach_outs"))
+      ? load(toolContext.rc, reachOutReport, window).then(
+          (x) => x.data.report,
+          unread(toolContext, "report", "reach_outs"),
+        )
       : none,
     // The Receptionist lens's own read (readers/report.ts receptionistReport: the database's receptionist_series, the
     // people sent the booking link counted against the calendar, and the hours): a database without the function answers
     // with no series (said as `{ available: false }`: the page draws its kept cards and none of these parts), one that
     // fails is null too, and the fold is outside the catch, as above.
     want.has("receptionist")
-      ? load(t.rc, receptionistReport, window).then((x) => x.data, unread(t, "report", "receptionist"))
+      ? load(toolContext.rc, receptionistReport, window).then(
+          (x) => x.data,
+          unread(toolContext, "report", "receptionist"),
+        )
       : none,
     // The People lens's own read (readers/report.ts peopleReport: the database's people_series, and the book as People counts
     // it over the turn's one read of People, the zone and the channels, which the booking line and the others share): a
     // database without the function answers with no series (said as `window: null`), People that cannot be counted leave
     // the book null, one that fails is null here (said as an error), and the fold is outside the catch, as above.
-    want.has("people") ? load(t.rc, peopleReport, window).then((x) => x.data, unread(t, "report", "people")) : none,
+    want.has("people")
+      ? load(toolContext.rc, peopleReport, window).then((x) => x.data, unread(toolContext, "report", "people"))
+      : none,
   ]);
 }
 
@@ -435,7 +457,7 @@ function overviewSaid(
 
 /** Each lens asked for, as the page says it; an error where its read failed, never as nothing. */
 function lensesSaid(
-  t: ToolContext,
+  toolContext: ToolContext,
   want: Set<Lens>,
   lens: {
     campaigns: ReturnType<typeof toCampaignLensVM>;
@@ -450,7 +472,11 @@ function lensesSaid(
     // Each lens as the page says it, where it was asked for; an error where its read failed, never as nothing.
     ...(want.has("campaigns") ? { campaigns: campaignsSaid(campaigns) } : {}),
     ...(want.has("reviews")
-      ? { reviews: reviews ? reviewsSaid(t, reviews) : { error: "the review numbers could not be read just now" } }
+      ? {
+          reviews: reviews
+            ? reviewsSaid(toolContext, reviews)
+            : { error: "the review numbers could not be read just now" },
+        }
       : {}),
     ...(want.has("campaigns") || want.has("cold_email")
       ? {
@@ -473,7 +499,7 @@ function lensesSaid(
 }
 
 async function getReport(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: {
     period?: (typeof REPORT_PERIOD_IDS)[number];
     from?: string;
@@ -482,25 +508,28 @@ async function getReport(
     lenses?: Lens[];
   },
 ): Promise<unknown> {
-  const w = await askedWindow(t, input);
-  if ("refusal" in w) return { error: w.refusal };
-  const { window } = w;
+  const result = await askedWindow(toolContext, input);
+  if ("refusal" in result) return { error: result.refusal };
+  const { window } = result;
   // Only the lenses asked for are read (every one where none is named), so a question about reviews reads reviews.
   const want = new Set<Lens>(input.lenses?.length ? input.lenses : LENSES);
   // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
   // beside it, with the turn's own reads (ledger #1). A report the function will not
   // answer is the reader's 404, said as the tool always said it. Each lens asked for is read beside it.
-  const [r, lensRead] = await Promise.all([unlessNotFound(load(t.rc, report, window)), lensReads(t, window, want)]);
+  const [r, lensRead] = await Promise.all([
+    readUnlessNotFound(load(toolContext.rc, report, window)),
+    lensReads(toolContext, window, want),
+  ]);
   const [campaignRead, ledgerRead, reviewRead, reachRead, receptionistRead, peopleRead] = lensRead;
   // The Campaigns lens is folded from its three reads at once, as the page folds them (a read that failed is null, and the
   // fold says what stands); the Reach-outs section is the same fold's own part, said whether or not the sends were read.
   const campaigns = toCampaignLensVM(
     { campaigns: campaignRead, ledger: ledgerRead, reachOuts: reachRead },
-    t.rc.now.getTime(),
+    toolContext.rc.now.getTime(),
   );
-  const reviews = reviewRead ? toReviewsReportVM(reviewRead, { nowMs: t.rc.now.getTime() }) : null;
+  const reviews = reviewRead ? toReviewsReportVM(reviewRead, { nowMs: toolContext.rc.now.getTime() }) : null;
   const receptionist = receptionistRead
-    ? toReceptionistReportVM(receptionistRead, { nowMs: t.rc.now.getTime() })
+    ? toReceptionistReportVM(receptionistRead, { nowMs: toolContext.rc.now.getTime() })
     : null;
   const people = peopleRead ? toPeopleReportVM(peopleRead) : null;
   if (!r) return { error: "report unavailable" };
@@ -511,7 +540,7 @@ async function getReport(
   return {
     range: vm.rangeLabel,
     ...(want.has("overview") ? overviewSaid(vm, booking, deals) : {}),
-    ...lensesSaid(t, want, { campaigns, reviews, receptionist, people }),
+    ...lensesSaid(toolContext, want, { campaigns, reviews, receptionist, people }),
   };
 }
 

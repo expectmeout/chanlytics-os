@@ -17,8 +17,9 @@
 import { json, refuse } from "../shared/http.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { registerLine } from "./a2p-register.js";
-import { filingPages, sweepFilingHold } from "./line-ops.js";
-import { workspaceOpenToCustomers } from "@chanlytics/db";
+import { filingPages } from "./ops/filing.js";
+import { sweepFilingHold } from "./ops/search-buy.js";
+import { isWorkspaceOpenToCustomers } from "@chanlytics/db/workspace";
 import { syncRegistration } from "./a2p-sync.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
@@ -72,29 +73,29 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
   let held = 0;
   for (const line of lines) {
     try {
-      const r = await syncRegistration(db, line);
-      if (!r.ok) {
+      const result = await syncRegistration(db, line);
+      if (!result.ok) {
         // We could not ask: the provider refused the credentials (the platform's, or the line's after a refresh), or
         // refused to give this line's subaccount at all, or the line has none on file. A provider that could not be
         // asked just now (unavailable) is not that: the next tick asks again.
         if (
-          r.error === "provider_unauthorized" ||
-          r.error === "provider_refused" ||
-          r.error === "no_line_credentials"
+          result.error === "provider_unauthorized" ||
+          result.error === "provider_refused" ||
+          result.error === "no_line_credentials"
         ) {
           unreadable++;
-          L.error("registration_unreadable", { line_id: line.id, error: r.error, detail: r.detail });
+          L.error("registration_unreadable", { line_id: line.id, error: result.error, detail: result.detail });
         }
         continue;
       }
       // Moved means CHANGED. Counting "not registering any more" called a
       // line that has sat in the same state for a week a move, every hour.
-      if (r.smsState !== line.sms_state) moved++;
+      if (result.smsState !== line.sms_state) moved++;
       // The wait's own ending: the brand is through, so the campaign can go. Never for a refused line (ASKED).
-      if (r.brand === "APPROVED" && !line.campaign_sid && line.sms_state !== "rejected") {
+      if (result.brand === "APPROVED" && !line.campaign_sid && line.sms_state !== "rejected") {
         // Asked first, as the owner's press asks it: nothing is filed, and nothing spent, for a workspace that is not
         // open to its customers or may not spend. The line goes to the back of the queue and is asked again next hour.
-        const hold = sweepFilingHold(await workspaceOpenToCustomers(db, line.tenant_id));
+        const hold = sweepFilingHold(await isWorkspaceOpenToCustomers(db, line.tenant_id));
         if (hold) {
           held++;
           L.info("registration_filing_held", { line_id: line.id, tenant_id: line.tenant_id, why: hold });

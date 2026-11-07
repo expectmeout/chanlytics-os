@@ -137,8 +137,8 @@ export function recordingStateOf(dto: Pick<CallDto, "recording">): RecordingStat
 
 /** Why the call ended, in the owner's words, or the provider's own word for an ending the labels do not know; null when it gave none. */
 export function endedHowOf(dto: Pick<CallDto, "disconnection_reason">): string | null {
-  const why = dto.disconnection_reason;
-  return why ? (DISCONNECTION_LABELS[why] ?? why.replace(/_/g, " ")) : null;
+  const reason = dto.disconnection_reason;
+  return reason ? (DISCONNECTION_LABELS[reason] ?? reason.replace(/_/g, " ")) : null;
 }
 
 /**
@@ -156,8 +156,8 @@ export function reachedVoicemail(dto: Pick<CallDto, "in_voicemail" | "disconnect
  * not_connected) and the customer's own. The one the receptionist placed and nobody answered is not missed by anyone
  * (callAttemptWords). Every caller says who dialled; a row whose direction was never recorded (null) is a customer's.
  */
-export function missedCall(c: { missed: boolean; direction: "inbound" | "outbound" | null }): boolean {
-  return c.missed && c.direction !== "outbound";
+export function missedCall(context: { missed: boolean; direction: "inbound" | "outbound" | null }): boolean {
+  return context.missed && context.direction !== "outbound";
 }
 
 /**
@@ -177,7 +177,7 @@ export const CALL_TRANSCRIPT = "Transcript";
  * row and on the thread's call card, and the line a person's History says it with. A call simply handled was "Ended" on
  * Live, "Receptionist handled it" in Conversations and nothing on the call's card.
  */
-export const CALL_OUTCOME_WORDS = {
+export const CALL_RESULT_WORDS = {
   live: "Live",
   missed: "Never connected",
   failed: "Call failed",
@@ -195,7 +195,7 @@ export const UNCONNECTED_DIAL_LINE = "Outbound call — it never connected.";
 export const NEVER_CONNECTED_LINES: readonly string[] = [MISSED_CALL_LINE, UNCONNECTED_DIAL_LINE];
 
 /** One of the outcomes of the ladder (callOutcomeFor). */
-export type CallOutcome = keyof typeof CALL_OUTCOME_WORDS;
+export type CallResult = keyof typeof CALL_RESULT_WORDS;
 
 /**
  * Why the call ended, in words a salon owner uses: the one table of the provider's endings (voice/call-endings.ts),

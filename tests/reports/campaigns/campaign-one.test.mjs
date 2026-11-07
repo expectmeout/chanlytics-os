@@ -6,15 +6,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { campaignReportRoute, historyFigures, lensRoute, reportsParamParts } from "@chanlytics/contracts";
 import {
   CAMPAIGN_SCOPE_WORDS as W,
   campaignChoicesOf,
   campaignOneOf,
-  campaignReportRoute,
-  historyFigures,
-  lensRoute,
-  reportsParamParts,
-} from "@chanlytics/contracts";
+} from "../../../apps/dashboard/src/surfaces/reports/lenses/campaign-one.ts";
 
 const SEQ = "5d0b7c1e-0000-4000-8000-000000000001";
 const TZ = "America/New_York";

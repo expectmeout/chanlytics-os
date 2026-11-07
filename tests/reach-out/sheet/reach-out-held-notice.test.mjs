@@ -1,6 +1,6 @@
 /**
  * The first-hold notice (Reach out, Part 4 PR 7, R20; apps/edge/lib/campaigns/reach-out/held-notice.ts), run over the fake
- * database with the real notification door (ops/notify.ts notifyOnce) and a stubbed mail provider: a live run holding
+ * database with the real notification door (shared/alerts/notify.ts notifyOnce) and a stubbed mail provider: a live run holding
  * sends its owner was not told of is told once, with its link; the mark on the run says sent only once the owner was
  * told; a mail that failed leaves no bell twin and is asked again when its claim goes stale, not before; a workspace
  * the mail cannot address has its bell row, which is the notice; a row that could not be kept sends no mail; and of
@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { fakeDb } from "../../_fake-db.mjs";
 import { at } from "../../_cron-doors-world.mjs";
 
-const { noticeHeldRuns } = await import(at("apps/edge/lib/campaigns/reach-out/held-notice.ts"));
+const { notifyHeldRuns } = await import(at("apps/edge/lib/campaigns/reach-out/held-notice.ts"));
 /** held-notice.ts's CLAIM_STALE_MS: a claim that never went is asked again ten minutes on. */
 const CLAIM_STALE_MS = 10 * 60_000;
 
@@ -84,7 +84,7 @@ function provider(answers) {
 
 const tick = (w, now = new Date(), over = {}) => {
   const errors = [];
-  return noticeHeldRuns({
+  return notifyHeldRuns({
     db: w.db,
     now,
     error: (event, fields, e) => errors.push({ event, fields, e }),

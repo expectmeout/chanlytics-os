@@ -50,10 +50,10 @@ const realError = console.error;
 const SWALLOWS = /escalation_\w+_failed|resolve_escalation_\w+|pause_conversation_\w+|pg_\w+_failed|_failed"/;
 
 let phones = 400;
-/** A customer's WhatsApp message, taken in by the edge (persist.ts pgIngest). */
+/** A customer's WhatsApp message, taken in by the edge (persist.ts runPgIngest). */
 async function customerWrites(words, digits) {
   phones += 1;
-  const ing = await persist.pgIngest(db, T, {
+  const ing = await persist.runPgIngest(db, T, {
     channel: "whatsapp",
     externalId: `wamid.in.${stamp}.${phones}`,
     identity: { externalId: digits, phoneE164: `+${digits}`, email: null },
@@ -97,7 +97,7 @@ before(async () => {
   };
   persist = await import(at("apps/edge/lib/whatsapp/persist.ts"));
   core = await import(at("packages/core/src/index.ts"));
-  ports = await import(at("apps/dashboard/src/server/ports/core-ports.ts"));
+  ports = await import(at("apps/dashboard/src/server/conversations/ports.ts"));
   // The dashboard's service-role calls (a thread's hold, withdrawing a job) go to this database.
   (await import(at("apps/dashboard/src/server/shared/service-db.ts"))).setServiceClient(db);
   T = ok(

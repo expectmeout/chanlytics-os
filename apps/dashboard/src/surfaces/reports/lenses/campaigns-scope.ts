@@ -10,13 +10,12 @@ import { useEffect, useReducer, useState } from "react";
 import {
   CAMPAIGN_SCOPE_ALL,
   campaignReportRoute,
-  type CampaignChoice,
-  type CampaignOneVM,
   type CampaignScope,
   type LensId,
   type ReportsParts,
   type SequenceRowDto,
 } from "@chanlytics/contracts";
+import type { CampaignChoice, CampaignOneVM } from "./campaign-one";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
 import { navigate } from "../../frame-verbs";
 import type { ReportsSurface } from "../surface";

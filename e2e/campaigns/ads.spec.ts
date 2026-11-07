@@ -1,7 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
-import { CONNECT, EXAMPLE, V0, firstTouchOf } from "../../packages/contracts/src/ads/page-entry";
+import { CONNECT } from "../../apps/dashboard/src/surfaces/settings/connections/model/ads-words.ts";
+import { EXAMPLE } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
+import { V0 } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
+import { firstTouchOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-parts.ts";
 import { ASK_ADS_VIEW } from "../../packages/contracts/src/ask/context";
 
 /**

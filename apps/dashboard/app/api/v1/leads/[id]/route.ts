@@ -2,7 +2,7 @@ import { LeadOneQuerySchema } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { eraseLead, leadScope } from "@/server/leads/leads";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { lead } from "@/server/readers/leads";
 
 /**

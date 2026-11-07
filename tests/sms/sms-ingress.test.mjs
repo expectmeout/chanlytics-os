@@ -23,7 +23,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { twilioSignature, SMS_FOOTER, SMS_HELD_REASON, SMS_HELD_DETAILS } from "@chanlytics/channels";
+import { signTwilio, SMS_FOOTER, SMS_HELD_REASON, SMS_HELD_DETAILS } from "@chanlytics/channels/lines";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -141,7 +141,7 @@ test("a number no line carries is a 404, and the platform is told once for the w
 });
 
 test("a line whose voice provisioning failed is not a line at all", async () => {
-  // lineByNumber excludes failed rows, so this is the unknown-line answer
+  // findLineByNumber excludes failed rows, so this is the unknown-line answer
   // rather than a half-provisioned line being trusted.
   const to = freshNumber();
   const v = await plan(to, world(to, { lines: [lineRow(to, { voice_state: "failed" })] }));
@@ -191,7 +191,7 @@ test("the signature is Twilio's real rule: a forged one is refused, and it pages
 test("a correctly signed text on a real provider is accepted", async () => {
   const to = freshNumber();
   const f = form(to);
-  const sig = await twilioSignature(TOKEN, URL_, f);
+  const sig = await signTwilio(TOKEN, URL_, f);
   const v = await plan(to, world(to, { lines: [lineRow(to, { provider: "twilio" })] }), { form: f, signature: sig });
   assert.equal(v.kind, "accept", "the token from the vault verifies the delivery");
 });

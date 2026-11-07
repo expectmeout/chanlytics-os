@@ -5,16 +5,12 @@
  * platform looks for. Nothing here spends anything.
  */
 import { useId } from "react";
-import {
-  ADS_SPECIAL_MILES,
-  CHIPS,
-  NEW_AD,
-  PLATFORM_WORD,
-  STANDING,
-  adAccountOf,
-  accountRows,
-  platformsFor,
-} from "@chanlytics/contracts/ads-page";
+import { ADS_SPECIAL_MILES } from "../model/rules";
+import { CHIPS } from "../model/drawer/words";
+import { NEW_AD } from "../model/words-new";
+import { PLATFORM_WORD } from "../model/words";
+import { STANDING } from "../model/words-page";
+import { adAccountOf, accountRows, platformsFor } from "../model/vm-base";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Picker } from "../../../kit/picker/picker";

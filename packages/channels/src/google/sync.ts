@@ -22,7 +22,7 @@ import {
   NEW_REVIEW_NEWS,
 } from "@chanlytics/contracts";
 import type { PlaceDetails, PlaceReview } from "./places";
-import type { GbpReview, GbpReviewsPage } from "./profile";
+import type { GbpReview, GbpReviewsPage } from "./profile/profile";
 
 export interface ListingBefore {
   rating: number | null;
@@ -72,14 +72,14 @@ export function reviewBells(
     }));
   }
   if (news.length > REVIEW_BELL_MAX) {
-    const who = news
+    const person = news
       .map((r) => r.author?.trim() || "a customer")
       .slice(0, 5)
       .join(", ");
     return [
       {
         title: `${news.length} new reviews on Google`,
-        body: `From ${who}${news.length > 5 ? " and others" : ""}. ${overall(listing.rating, listing.review_count)}. The words are on Reports.`,
+        body: `From ${person}${news.length > 5 ? " and others" : ""}. ${overall(listing.rating, listing.review_count)}. The words are on Reports.`,
         review_id: null,
       },
     ];

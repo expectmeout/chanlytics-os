@@ -1,5 +1,5 @@
 import { read, account } from "@/server/shared/route";
-import { instagramCallback } from "@/server/connections/instagram";
+import { handleInstagramCallback } from "@/server/connections/instagram";
 
 /**
  * GET /api/v1/channels/instagram/callback — back from Instagram with a code and the state.
@@ -10,5 +10,5 @@ import { instagramCallback } from "@/server/connections/instagram";
  */
 export const GET = read({
   scope: account,
-  handle: ({ ctx, req }) => instagramCallback(ctx, req),
+  handle: ({ ctx, req }) => handleInstagramCallback(ctx, req),
 });

@@ -15,8 +15,8 @@ import { pageKeyWords } from "@chanlytics/contracts";
 import { leadPins } from "../../../packages/core/src/leads/cards.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { pageSourceRefused, watchLeadPins } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/leads/lead-sources.ts")).href
+const { recordPageSourceRefused, watchLeadPins } = await import(
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/leads/sources.ts")).href
 );
 
 process.env.LEAD_TO = "ops@example.test";
@@ -106,8 +106,12 @@ test("a refused start pages the platform once a window, naming the actor, the bu
   const db = pagerMemory();
   const m = mailbox();
   const why = 'the provider refused: record-not-found (Build with number "0.14.757" was not found.)';
-  await pageSourceRefused(db, { actor: MAPS, build: "0.14.757", why }, { send: m.send, now: () => FIVE_AM });
-  await pageSourceRefused(db, { actor: MAPS, build: "0.14.757", why }, { send: m.send, now: () => FIVE_AM + 60_000 });
+  await recordPageSourceRefused(db, { actor: MAPS, build: "0.14.757", why }, { send: m.send, now: () => FIVE_AM });
+  await recordPageSourceRefused(
+    db,
+    { actor: MAPS, build: "0.14.757", why },
+    { send: m.send, now: () => FIVE_AM + 60_000 },
+  );
   assert.equal(m.sent.length, 1, "the second refusal is counted, not mailed again");
   assert.equal(db.rows.get(`lead_source_refused:${MAPS}`).count, 2);
   assert.match(m.sent[0].subject, /A lead source refused to start: compass\/crawler-google-places$/);

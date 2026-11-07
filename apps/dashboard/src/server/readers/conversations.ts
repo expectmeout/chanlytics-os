@@ -8,7 +8,8 @@ import {
   type ConversationDto,
   type MessageDto,
 } from "@chanlytics/contracts";
-import { failedMessageErrors, lastClosedHolds, searchMessages } from "@chanlytics/db";
+import { listFailedMessageErrors, searchMessages } from "@chanlytics/db/conversations";
+import { listLastClosedHolds } from "@chanlytics/db/people";
 import {
   CONVERSATION_COLUMNS,
   LISTED_CONVERSATION_COLUMNS,
@@ -17,8 +18,8 @@ import {
   toConversationDto,
 } from "../conversations/dto";
 import { stillListed } from "../people/going";
-import { seenOfPeople } from "../people/person-seen";
-import { stamp, type Reader, type ReaderContext, type RowRef } from "./index";
+import { getSeenOfPeople } from "../people/person-seen";
+import { readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
 
 /** The threads the Inbox's read holds: the newest hundred, or as many as one read by id names. */
 const THREADS_MAX = 100;
@@ -61,18 +62,18 @@ export const conversations: Reader<
   async read(rc, { ids: named, said }) {
     const { supabase } = rc.ctx;
     const { tenantId, userId } = rc;
-    const asked = said ? await threadsSaying(rc, said) : named;
-    if (asked && !asked.length) return { data: { conversations: [] }, rows: [], stamp: stamp() };
+    const request = said ? await threadsSaying(rc, said) : named;
+    if (request && !request.length) return { data: { conversations: [] }, rows: [], stamp: readerStamp() };
     const threads = () => supabase.from("conversations");
     const listed = () =>
       threads()
         .select(LISTED_CONVERSATION_COLUMNS)
         .eq("tenant_id", tenantId)
         .or(stillListed(rc.now.getTime()), { referencedTable: "contacts" });
-    const { data: convs, error } = await (said && asked
-      ? listed().in("id", asked)
-      : asked
-        ? threads().select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).in("id", asked)
+    const { data: convs, error } = await (said && request
+      ? listed().in("id", request)
+      : request
+        ? threads().select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).in("id", request)
         : listed().order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS_MAX));
     if (error) throw new Error(error.message);
     const ids = (convs ?? []).map((c) => c.id);
@@ -96,8 +97,8 @@ export const conversations: Reader<
         list.filter((m) => m.status === "failed").map((m) => m.id),
       );
       if (failed.length) {
-        const why = new Map((await failedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]));
-        for (const list of grouped.values()) for (const m of list) if (why.has(m.id)) m.error = why.get(m.id);
+        const reason = new Map((await listFailedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]));
+        for (const list of grouped.values()) for (const m of list) if (reason.has(m.id)) m.error = reason.get(m.id);
       }
       return grouped;
     };
@@ -108,22 +109,32 @@ export const conversations: Reader<
     // waits on no round trip more: one held and closed with nothing sent waits on a person for good (unansweredOf).
     const [byConv, seenOf, closedHolds] = await Promise.all([
       messagesOf(),
-      seenOfPeople(
+      getSeenOfPeople(
         rc.ctx,
         tenantId,
         (convs ?? []).flatMap((c) => (c.contacts?.id ? [c.contacts.id] : [])),
       ),
-      ids.length ? lastClosedHolds(supabase, tenantId, ids) : Promise.resolve([]),
+      ids.length ? listLastClosedHolds(supabase, tenantId, ids) : Promise.resolve([]),
     ]);
     const holdOf = new Map(closedHolds.map((h) => [h.conversation_id, h]));
-    const conversations: ConversationDto[] = (convs ?? []).map((c) => {
-      const dto = toConversationDto(c, byConv.get(c.id) ?? [], userId, c.contacts?.id ? seenOf(c.contacts.id) : {});
+    const conversations: ConversationDto[] = (convs ?? []).map((item) => {
+      const dto = toConversationDto(
+        item,
+        byConv.get(item.id) ?? [],
+        userId,
+        item.contacts?.id ? seenOf(item.contacts.id) : {},
+      );
       // Carried only where the customer wrote last: on any other thread a closed hold says nothing about who is waiting.
-      const h = holdOf.get(c.id);
-      return h && theyWroteLast(dto.messages)
+      const result = holdOf.get(item.id);
+      return result && theyWroteLast(dto.messages)
         ? {
             ...dto,
-            last_hold: { reason: h.reason, details: h.details, created_at: h.created_at, resolved_at: h.resolved_at },
+            last_hold: {
+              reason: result.reason,
+              details: result.details,
+              created_at: result.created_at,
+              resolved_at: result.resolved_at,
+            },
           }
         : dto;
     });
@@ -135,7 +146,7 @@ export const conversations: Reader<
         route: addressOf({ kind: "conversation", id: c.id }),
         label: whoOf(c),
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

@@ -19,9 +19,9 @@ const HISTORY = /^(docs\/(decisions|plans|superpowers|specs|scorecard|mockup|sto
 /** The names that mean it: an older format of data the code still reads. */
 const OLDER_FORMATS = new Map([
   ["legacyDigest", "an erased person's digest from before the keyed one"],
-  ["legacyErasedPhoneHash", "the same, for a phone"],
-  ["legacyErasedEmailHash", "the same, for an email"],
-  ["legacyLeadSuppressionHash", "a lead's suppression digest from before the keyed one"],
+  ["hashLegacyErasedPhone", "the same, for a phone"],
+  ["hashLegacyErasedEmail", "the same, for an email"],
+  ["hashLegacyLeadSuppression", "a lead's suppression digest from before the keyed one"],
   ["legacyAddress", "the shell's old hash addresses, which land on the word for ever"],
   ["legacyReply", "a model's plain-text answer, from before its structured one"],
   ["planHoldsLegacy", "a plan name from before decision 0037"],

@@ -116,8 +116,8 @@ export type ThreadMoveKey =
  */
 export function heldPill(holder: "yours" | "theirs", name?: string | null): string {
   if (holder === "yours") return HELD_WORDS.yours.pill;
-  const said = typeof name === "string" ? name.trim() : "";
-  return said ? `${said} has it` : HELD_WORDS.theirs.pill;
+  const sentence = typeof name === "string" ? name.trim() : "";
+  return sentence ? `${sentence} has it` : HELD_WORDS.theirs.pill;
 }
 
 export interface StandingVerdict {
@@ -132,20 +132,20 @@ export interface StandingVerdict {
   claimedByOther: boolean;
 }
 
-export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
-  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
+export function standingOf(standingInput: StandingInput, nowMs: number): StandingVerdict {
+  const paused = !!standingInput.paused_until && new Date(standingInput.paused_until).getTime() > nowMs;
   // An open hold that waits on nobody (a STOP, decision 0048) is no escalation here: it is news the bell already told.
-  const holds = holdWaits(i.open_escalation ? { reason: i.escalation_reason } : false);
-  const flagged = holds || i.state === "needs_human" || paused;
-  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
+  const holds = holdWaits(standingInput.open_escalation ? { reason: standingInput.escalation_reason } : false);
+  const flagged = holds || standingInput.state === "needs_human" || paused;
+  const claimedByTeammate = !!standingInput.assignee_user_id && standingInput.assignee_is_me === false;
   // A pause with no escalation open is the one a person's own reply leaves
   // behind: the receptionist stepped back because someone answered. A pause
   // WITH an escalation open is the receptionist waiting for that someone. A
   // reply typed in the WhatsApp Business app settles the hold it answers too
   // (00438), so its thread reads as yours, as a reply from the dashboard's does.
-  const mine = !!i.assignee_user_id || (paused && !holds);
+  const mine = !!standingInput.assignee_user_id || (paused && !holds);
   const standing: Standing =
-    i.state === "snoozed"
+    standingInput.state === "snoozed"
       ? "snoozed"
       : !flagged
         ? "quiet"
@@ -190,12 +190,12 @@ export function standingOfThread(
 }
 
 export function replyWaitsOnYou(
-  r: { endsAtMs?: number | null; queued?: boolean; held?: boolean },
+  row: { endsAtMs?: number | null; queued?: boolean; held?: boolean },
   nowMs: number,
 ): boolean {
-  if (r.held) return false;
-  if (r.endsAtMs !== undefined && r.endsAtMs !== null) return r.endsAtMs > nowMs;
-  return !!r.queued;
+  if (row.held) return false;
+  if (row.endsAtMs !== undefined && row.endsAtMs !== null) return row.endsAtMs > nowMs;
+  return !!row.queued;
 }
 
 /* ------------------------------------------------------ what a member has seen */

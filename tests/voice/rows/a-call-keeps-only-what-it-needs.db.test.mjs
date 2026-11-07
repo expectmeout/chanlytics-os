@@ -5,7 +5,7 @@
  *     object keeps nothing;
  *   - a delivery that carries no payload (a live turn) leaves the row's as it was;
  *   - a spoken price's correction is claimed once (claimGuardCorrection);
- *   - a notice claimed and not told is the sweep's to finish (callsOwedANotice) until it is told (markCallNoticeTold).
+ *   - a notice claimed and not told is the sweep's to finish (listCallsOwedANotice) until it is told (markCallNoticeTold).
  *
  * Local only: it writes calls, and refuses a database that is not on this machine.
  */
@@ -13,13 +13,13 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import {
-  callsOwedANotice,
+  listCallsOwedANotice,
   claimCallNotification,
   claimGuardCorrection,
   ingestCall,
   markCallNoticeTold,
-} from "@chanlytics/db";
-import { normalizeCall } from "@chanlytics/channels";
+} from "@chanlytics/db/voice";
+import { normalizeCall } from "@chanlytics/channels/voice";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -116,13 +116,13 @@ test("a correction is claimed once, and a notice claimed and not told is owed un
   assert.equal(await claimGuardCorrection(db, tenant, res.call_id), false, "a second instance corrects nothing");
 
   assert.equal(await claimCallNotification(db, tenant, res.call_id), true);
-  const owed = await callsOwedANotice(db, { nowMs: Date.now() + 1_000, fromMs: 0, toMs: 60_000, limit: 50 });
+  const owed = await listCallsOwedANotice(db, { nowMs: Date.now() + 1_000, fromMs: 0, toMs: 60_000, limit: 50 });
   assert.ok(
     owed.some((r) => r.id === res.call_id),
     "claimed and not told: the sweep's",
   );
   await markCallNoticeTold(db, tenant, res.call_id);
-  const after = await callsOwedANotice(db, { nowMs: Date.now() + 1_000, fromMs: 0, toMs: 60_000, limit: 50 });
+  const after = await listCallsOwedANotice(db, { nowMs: Date.now() + 1_000, fromMs: 0, toMs: 60_000, limit: 50 });
   assert.equal(
     after.some((r) => r.id === res.call_id),
     false,

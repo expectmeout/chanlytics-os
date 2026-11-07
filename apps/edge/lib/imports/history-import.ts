@@ -29,23 +29,16 @@ import {
   type MailboxHistory,
   type MailboxProvider,
 } from "@chanlytics/contracts";
-import { grantHolds } from "@chanlytics/channels";
-import {
-  importRowOf,
-  importsOf,
-  noteCalendarGrant,
-  noteImport,
-  patchMailboxConnection,
-  type Database,
-  type Json,
-  type MailboxConnectionRow,
-} from "@chanlytics/db";
+import { grantHolds } from "@chanlytics/channels/email";
+import { importRowOf, listImports, noteImport } from "@chanlytics/db/imports";
+import { noteCalendarGrant, patchMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
+import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { mailHistoryPart } from "./mail-history.js";
-import { contactsPart } from "./mail-people.js";
-import { calendarPart } from "./calendar-part.js";
-import { googlePhotosPart } from "./google-photos.js";
+import { getContactsPart } from "./mail-people.js";
+import { getCalendarPart } from "./calendar-part.js";
+import { getGooglePhotosPart } from "./google-photos.js";
 import { HISTORY_PARTS, SETTLE_AFTER_MS, whatsappContactsPart, whatsappHistoryPart } from "./whatsapp-history.js";
 
 type Db = SupabaseClient<Database>;
@@ -79,9 +72,9 @@ type Runner = (db: Db, part: Part) => Promise<PartOutcome>;
 /** The sources a part runs here. The clients' file is the browser's; Google's reviews are the profile sync's. */
 const RUNNERS: Readonly<Partial<Record<ImportSource, Runner>>> = {
   mailbox: mailHistoryPart,
-  contacts: contactsPart,
-  calendar: calendarPart,
-  google_photos: googlePhotosPart,
+  contacts: getContactsPart,
+  calendar: getCalendarPart,
+  google_photos: getGooglePhotosPart,
   whatsapp_contacts: whatsappContactsPart,
   whatsapp_history: whatsappHistoryPart,
 };
@@ -101,16 +94,16 @@ function seqOf(raw: unknown): { run: string; n: number } {
 /** The next part of a run on the job ledger, once (its key holds the workspace, the source, the run and the number). */
 async function schedulePart(
   db: Db,
-  p: { tenantId: string; source: ImportSource; run: string; n: number; connectionId: string | null; dueAt?: Date },
+  params: { tenantId: string; source: ImportSource; run: string; n: number; connectionId: string | null; dueAt?: Date },
 ): Promise<void> {
   await scheduleJobOnce(db, {
-    tenantId: p.tenantId,
+    tenantId: params.tenantId,
     kind: "history_import",
-    dueAt: p.dueAt ?? new Date(),
+    dueAt: params.dueAt ?? new Date(),
     payload: {
-      source: p.source,
-      seq: `${p.run}:${p.n}`,
-      ...(p.connectionId ? { connection_id: p.connectionId } : {}),
+      source: params.source,
+      seq: `${params.run}:${params.n}`,
+      ...(params.connectionId ? { connection_id: params.connectionId } : {}),
     },
   });
 }
@@ -143,20 +136,26 @@ async function runHolds(
  */
 export async function startHistory(
   db: Db,
-  p: { tenantId: string; source: ImportSource; connectionId: string | null; via: string | null; again: boolean },
+  params: { tenantId: string; source: ImportSource; connectionId: string | null; via: string | null; again: boolean },
 ): Promise<void> {
-  if (!runnerOf(p.source)) throw new Error(`history_import: nothing here brings ${p.source} in`);
-  const run = p.again ? String(Date.now()) : "1";
-  const mailbox = ledgerMailboxOf(p.source, p.connectionId);
+  if (!runnerOf(params.source)) throw new Error(`history_import: nothing here brings ${params.source} in`);
+  const run = params.again ? String(Date.now()) : "1";
+  const mailbox = ledgerMailboxOf(params.source, params.connectionId);
   await noteImport(db, {
-    tenantId: p.tenantId,
-    source: p.source,
+    tenantId: params.tenantId,
+    source: params.source,
     state: "queued",
-    via: p.via,
+    via: params.via,
     ...(mailbox ? { connectionId: mailbox, run, take: true } : {}),
-    ...(p.again ? { add: true } : { counts: {}, partsDone: 0, cursor: {} }),
+    ...(params.again ? { add: true } : { counts: {}, partsDone: 0, cursor: {} }),
   });
-  await schedulePart(db, { tenantId: p.tenantId, source: p.source, run, n: 1, connectionId: p.connectionId });
+  await schedulePart(db, {
+    tenantId: params.tenantId,
+    source: params.source,
+    run,
+    n: 1,
+    connectionId: params.connectionId,
+  });
 }
 
 /**
@@ -168,7 +167,7 @@ export async function startHistory(
  */
 export async function startMailboxHistory(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     mailboxId: string;
     provider: MailboxProvider;
@@ -181,45 +180,48 @@ export async function startMailboxHistory(
     log: Logger;
   },
 ): Promise<void> {
-  const wanted: ImportSource[] = p.first && p.history === "from_now" ? [] : ["mailbox"];
-  if (grantHolds(p.provider, p.scopes, "contacts")) wanted.push("contacts");
-  const calendar = grantHolds(p.provider, p.scopes, "calendar");
+  const wanted: ImportSource[] = params.first && params.history === "from_now" ? [] : ["mailbox"];
+  if (grantHolds(params.provider, params.scopes, "contacts")) wanted.push("contacts");
+  const calendar = grantHolds(params.provider, params.scopes, "calendar");
   if (calendar) wanted.push("calendar");
   try {
     if (calendar)
       await noteCalendarGrant(db, {
-        tenantId: p.tenantId,
-        mailboxId: p.mailboxId,
-        provider: p.provider,
+        tenantId: params.tenantId,
+        mailboxId: params.mailboxId,
+        provider: params.provider,
         on: true,
-        by: p.by,
+        by: params.by,
       });
     // A reconnect: what stopped (signed out, most often) starts again from where it stopped; what is done stays done.
     // What a mailbox brings is its own row's; the calendar is the workspace's.
-    const stoppedNow = p.first
+    const stoppedNow = params.first
       ? null
       : new Set(
-          (await importsOf(db, p.tenantId))
+          (await listImports(db, params.tenantId))
             .filter(
               (r) =>
                 isSource(r.source) &&
                 r.state === "failed" &&
-                r.connection_id === ledgerMailboxOf(r.source, p.mailboxId),
+                r.connection_id === ledgerMailboxOf(r.source, params.mailboxId),
             )
             .map((r) => r.source),
         );
     for (const source of wanted) {
       if (stoppedNow && !stoppedNow.has(source)) continue;
       await startHistory(db, {
-        tenantId: p.tenantId,
+        tenantId: params.tenantId,
         source,
-        connectionId: p.mailboxId,
-        via: p.provider,
-        again: !p.first,
+        connectionId: params.mailboxId,
+        via: params.provider,
+        again: !params.first,
       });
     }
   } catch (e) {
-    p.log.error("history_start_failed", { mailbox: p.mailboxId, error: e instanceof Error ? e.message : String(e) });
+    params.log.error("history_start_failed", {
+      mailbox: params.mailboxId,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 
@@ -231,15 +233,15 @@ type MailboxOf = Pick<MailboxConnectionRow, "tenant_id" | "id" | "provider" | "h
  * (IMPORT_STOPPED_WORDS.byYou), and Stop takes the row from every run, so a part mid-read writes nothing over it and
  * the next ends as it wakes. What came in is kept. Answers whether anything was coming in.
  */
-export async function stopMailboxHistory(db: Db, m: MailboxOf, nowMs: number): Promise<boolean> {
-  const going = (await importsOf(db, m.tenant_id)).filter(
-    (r) => r.connection_id === m.id && (r.state === "queued" || r.state === "running"),
+export async function stopMailboxHistory(db: Db, mailboxOf: MailboxOf, nowMs: number): Promise<boolean> {
+  const going = (await listImports(db, mailboxOf.tenant_id)).filter(
+    (r) => r.connection_id === mailboxOf.id && (r.state === "queued" || r.state === "running"),
   );
-  for (const r of going)
+  for (const item of going)
     await noteImport(db, {
-      tenantId: m.tenant_id,
-      source: r.source,
-      connectionId: m.id,
+      tenantId: mailboxOf.tenant_id,
+      source: item.source,
+      connectionId: mailboxOf.id,
       state: "failed",
       error: IMPORT_STOPPED_WORDS.byYou,
       add: true,
@@ -253,15 +255,17 @@ export async function stopMailboxHistory(db: Db, m: MailboxOf, nowMs: number): P
  * Resume after Stop, or Try again after a failure, on a mailbox's row (0086): what of its own stopped starts again from
  * where it stopped, a run of its own. Answers whether anything had stopped.
  */
-export async function resumeMailboxHistory(db: Db, m: MailboxOf): Promise<boolean> {
-  const stopped = (await importsOf(db, m.tenant_id)).filter((r) => r.connection_id === m.id && r.state === "failed");
+export async function resumeMailboxHistory(db: Db, mailboxOf: MailboxOf): Promise<boolean> {
+  const stopped = (await listImports(db, mailboxOf.tenant_id)).filter(
+    (r) => r.connection_id === mailboxOf.id && r.state === "failed",
+  );
   for (const r of stopped)
     if (isSource(r.source))
       await startHistory(db, {
-        tenantId: m.tenant_id,
+        tenantId: mailboxOf.tenant_id,
         source: r.source,
-        connectionId: m.id,
-        via: m.provider,
+        connectionId: mailboxOf.id,
+        via: mailboxOf.provider,
         again: true,
       });
   return stopped.length > 0;
@@ -272,17 +276,24 @@ export async function resumeMailboxHistory(db: Db, m: MailboxOf): Promise<boolea
  * six months before it connected (mail-history.ts firstWindow), which ends where the live read began, and its choice
  * becomes the six months. Once: a mailbox with a run of its own resumes that instead. Answers whether it started.
  */
-export async function bringMailboxHistory(db: Db, m: MailboxOf): Promise<boolean> {
-  if (m.history !== "from_now") return false;
-  if ((await importsOf(db, m.tenant_id)).some((r) => r.source === "mailbox" && r.connection_id === m.id)) return false;
+export async function bringMailboxHistory(db: Db, mailboxOf: MailboxOf): Promise<boolean> {
+  if (mailboxOf.history !== "from_now") return false;
+  if (
+    (await listImports(db, mailboxOf.tenant_id)).some((r) => r.source === "mailbox" && r.connection_id === mailboxOf.id)
+  )
+    return false;
   await startHistory(db, {
-    tenantId: m.tenant_id,
+    tenantId: mailboxOf.tenant_id,
     source: "mailbox",
-    connectionId: m.id,
-    via: m.provider,
+    connectionId: mailboxOf.id,
+    via: mailboxOf.provider,
     again: false,
   });
-  await patchMailboxConnection(db, { tenantId: m.tenant_id, id: m.id, patch: { history: "six_months" } });
+  await patchMailboxConnection(db, {
+    tenantId: mailboxOf.tenant_id,
+    id: mailboxOf.id,
+    patch: { history: "six_months" },
+  });
   return true;
 }
 
@@ -295,14 +306,14 @@ export async function bringMailboxHistory(db: Db, m: MailboxOf): Promise<boolean
  */
 export async function startWhatsappHistory(
   db: Db,
-  p: { tenantId: string; channelId: string; nowMs: number; log: Logger },
+  params: { tenantId: string; channelId: string; nowMs: number; log: Logger },
 ): Promise<void> {
-  const run = String(p.nowMs);
-  const cursor = { channel: p.channelId, connected_at: new Date(p.nowMs).toISOString() } as Json;
+  const run = String(params.nowMs);
+  const cursor = { channel: params.channelId, connected_at: new Date(params.nowMs).toISOString() } as Json;
   try {
     for (const source of ["whatsapp_contacts", "whatsapp_history"] as const) {
       await noteImport(db, {
-        tenantId: p.tenantId,
+        tenantId: params.tenantId,
         source,
         state: "queued",
         via: "whatsapp",
@@ -312,18 +323,28 @@ export async function startWhatsappHistory(
         cursor,
       });
       await schedulePart(db, {
-        tenantId: p.tenantId,
+        tenantId: params.tenantId,
         source,
         run,
         n: 1,
-        connectionId: p.channelId,
-        dueAt: new Date(p.nowMs),
+        connectionId: params.channelId,
+        dueAt: new Date(params.nowMs),
       });
-      const settleAt = new Date(p.nowMs + SETTLE_AFTER_MS);
-      await schedulePart(db, { tenantId: p.tenantId, source, run, n: 2, connectionId: p.channelId, dueAt: settleAt });
+      const settleAt = new Date(params.nowMs + SETTLE_AFTER_MS);
+      await schedulePart(db, {
+        tenantId: params.tenantId,
+        source,
+        run,
+        n: 2,
+        connectionId: params.channelId,
+        dueAt: settleAt,
+      });
     }
   } catch (e) {
-    p.log.error("history_start_failed", { channel: p.channelId, error: e instanceof Error ? e.message : String(e) });
+    params.log.error("history_start_failed", {
+      channel: params.channelId,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 
@@ -334,10 +355,16 @@ export async function startWhatsappHistory(
  */
 export async function handDeliveryOn(
   db: Db,
-  p: { tenantId: string; source: "whatsapp_contacts" | "whatsapp_history"; deliveryKey: string },
+  params: { tenantId: string; source: "whatsapp_contacts" | "whatsapp_history"; deliveryKey: string },
 ): Promise<void> {
-  const run = p.deliveryKey.replace(/^sha256:/, "").slice(0, 16);
-  await schedulePart(db, { tenantId: p.tenantId, source: p.source, run, n: 1, connectionId: p.deliveryKey });
+  const run = params.deliveryKey.replace(/^sha256:/, "").slice(0, 16);
+  await schedulePart(db, {
+    tenantId: params.tenantId,
+    source: params.source,
+    run,
+    n: 1,
+    connectionId: params.deliveryKey,
+  });
 }
 
 /** The job runner's port (packages/jobs context `imports`): one part of the job's source, and the next scheduled. */

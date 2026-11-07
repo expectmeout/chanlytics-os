@@ -69,6 +69,6 @@ export const unreadableThread = (): ThreadState => ({
 });
 
 /** True when this state came from a failed read rather than from the rows. */
-export function isThreadUnknown(s: ThreadState): boolean {
-  return s.unknown === true;
+export function isThreadUnknown(threadState: ThreadState): boolean {
+  return threadState.unknown === true;
 }

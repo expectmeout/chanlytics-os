@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/shared/route";
 import { JobKindPauseSchema } from "@chanlytics/contracts";
-import { healthPauseKind } from "@/server/console/health";
+import { pauseHealthKind } from "@/server/console/health";
 
 /**
  * POST /api/v1/platform/jobs/pause — {kind, paused, why}: a kind of background work paused, so no claim takes it and
@@ -13,5 +13,5 @@ export const POST = write({
   rate: "platform_job_pause",
   act: "job_kind_pause",
   input: JobKindPauseSchema,
-  handle: async ({ office, input }) => healthPauseKind(office, input.kind, input.paused, input.why),
+  handle: async ({ office, input }) => pauseHealthKind(office, input.kind, input.paused, input.why),
 });

@@ -80,10 +80,10 @@ function groupedBy(
 ): Array<{ channels: ConsentChannel[]; words: string }> {
   const groups: Array<{ channels: ConsentChannel[]; words: string }> = [];
   for (const channel of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
-    const said = words(channel);
-    const same = groups.find((g) => g.words === said);
+    const sentence = words(channel);
+    const same = groups.find((g) => g.words === sentence);
     if (same) same.channels.push(channel);
-    else groups.push({ channels: [channel], words: said });
+    else groups.push({ channels: [channel], words: sentence });
   }
   return groups;
 }

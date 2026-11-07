@@ -1,5 +1,5 @@
 import { read, platform } from "@/server/shared/route";
-import { consoleHome } from "@/server/console/console";
+import { getConsoleHome } from "@/server/console/console";
 
 /**
  * GET /api/v1/platform/home — the Console's Home (decision 0066): every workspace (grouped on the page by who the next
@@ -8,5 +8,5 @@ import { consoleHome } from "@/server/console/console";
  */
 export const GET = read({
   scope: platform,
-  handle: async ({ office }) => consoleHome(office),
+  handle: async ({ office }) => getConsoleHome(office),
 });

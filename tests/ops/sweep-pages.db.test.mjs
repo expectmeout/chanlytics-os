@@ -18,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { runDueNow } from "@chanlytics/contracts";
+import { importBundle } from "../_source.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CLI = process.env.SUPABASE_CLI || "supabase";
@@ -47,8 +48,8 @@ const ok = (res) => {
 };
 
 let db;
-let duePlaybooks;
-let dueCalendars;
+let getDuePlaybooks;
+let getDueCalendars;
 const made = [];
 
 /**
@@ -125,7 +126,7 @@ const ids = (rows) => rows.map((r) => r.step.id);
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  ({ duePlaybooks, dueCalendars } = await import("@chanlytics/db"));
+  ({ getDuePlaybooks, getDueCalendars } = await importBundle("db"));
 });
 after(async () => {
   if (skip) return;
@@ -232,7 +233,7 @@ test(
     assert.deepEqual(await page(ws, AT, { p_limit: -1 }), [], "a limit below none is none");
 
     // Through packages/db, as the sweep reads it: the page, each row with its zone, and what is left beyond it.
-    const read = await duePlaybooks(db, { kind: "moment", at: new Date(AT), limit: 3, tenantId: ws.id });
+    const read = await getDuePlaybooks(db, { kind: "moment", at: new Date(AT), limit: 3, tenantId: ws.id });
     assert.deepEqual(
       read.rows.map((r) => [r.step.id, r.timezone]),
       [
@@ -243,11 +244,16 @@ test(
     );
     assert.equal(read.remaining, 2);
     assert.equal(
-      (await duePlaybooks(db, { kind: "moment", at: new Date(AT), limit: 100, tenantId: ws.id })).remaining,
+      (await getDuePlaybooks(db, { kind: "moment", at: new Date(AT), limit: 100, tenantId: ws.id })).remaining,
       0,
     );
     assert.deepEqual(
-      await duePlaybooks(db, { kind: "moment", at: new Date("2026-09-26T14:00:00.000Z"), limit: 3, tenantId: ws.id }),
+      await getDuePlaybooks(db, {
+        kind: "moment",
+        at: new Date("2026-09-26T14:00:00.000Z"),
+        limit: 3,
+        tenantId: ws.id,
+      }),
       {
         rows: [],
         remaining: 0,
@@ -330,7 +336,7 @@ test("a reach-out step is on its own page, judged the same way, and never on the
     "the step that has not run today, and only it",
   );
   assert.deepEqual(ids(await page(ws, AT)), [beside], "the moments' page has no reach-out on it");
-  const read = await duePlaybooks(db, { kind: "reach_out", at: new Date(AT), limit: 25, tenantId: ws.id });
+  const read = await getDuePlaybooks(db, { kind: "reach_out", at: new Date(AT), limit: 25, tenantId: ws.id });
   assert.deepEqual([read.rows.map((r) => r.step.id), read.remaining], [[root], 0]);
 });
 
@@ -532,14 +538,14 @@ test(
       "with the whole queue in the page, every row counts the page",
     );
     // Through packages/db, as the sweep reads it: what is left beyond a page of one is everything but the one.
-    const whole = await dueCalendars(db, { before: new Date(before), limit: 1000 });
+    const whole = await getDueCalendars(db, { before: new Date(before), limit: 1000 });
     assert.equal(whole.remaining, 0);
-    const first = await dueCalendars(db, { before: new Date(before), limit: 1 });
+    const first = await getDueCalendars(db, { before: new Date(before), limit: 1 });
     assert.equal(first.rows.length, 1);
     // Five of this suite's own are due (never, mars, granted, older, old), so at least four are beyond a page of one; the
     // exact figure is another call's, and the suites beside this one may add feeds between the two.
     assert.ok(first.remaining >= 4, `what is left beyond a page of one: ${first.remaining}`);
-    const kept = await dueCalendars(db, { before: new Date(before), limit: 1, tenantId: old.id });
+    const kept = await getDueCalendars(db, { before: new Date(before), limit: 1, tenantId: old.id });
     // And since when its reads have failed (00435): null, as nothing here has failed.
     assert.deepEqual(kept, {
       rows: [{ tenant_id: old.id, config: feed(old), timezone: "America/Chicago", failed_since: null }],

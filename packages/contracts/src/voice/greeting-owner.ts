@@ -210,7 +210,7 @@ export function greetingNotes(input: {
   const raw = (input.stored ?? "").trim();
   if (!raw) return [];
   const name = spokenNameOf(input.name);
-  const t = judged(raw, name);
+  const result = judged(raw, name);
   const notes: GreetingNote[] = [];
   if (deniesAutomated(raw, name)) {
     notes.push({
@@ -226,12 +226,12 @@ export function greetingNotes(input: {
       words: `It doesn't say it's automated, so callers also hear “${clauseFor(raw, name)}” Say it your own way to replace it.`,
     });
   }
-  if (any(DENIES_RECORDING, t)) {
+  if (any(DENIES_RECORDING, result)) {
     notes.push({
       key: "denies_recording",
       words: "This tells callers they aren't recorded. Calls to your receptionist are recorded, so that isn't so.",
     });
-  } else if (!any(SAYS_RECORDING, t)) {
+  } else if (!any(SAYS_RECORDING, result)) {
     notes.push({
       key: "no_recording",
       words:
@@ -246,7 +246,7 @@ export function greetingNotes(input: {
       words: `About ${Math.round(words * SECONDS_PER_WORD)} seconds before a caller can speak. Callers hang up during long greetings; under 7 seconds keeps more of them.`,
     });
   }
-  if (LINK.test(t)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
+  if (LINK.test(result)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
   const [slot] = (raw.match(/\{[^{}]*\}/g) ?? []).filter((s) => s !== GREETING_NAME_SLOT);
   if (slot) {
     notes.push({
@@ -254,13 +254,13 @@ export function greetingNotes(input: {
       words: `${slot} isn't filled in, so callers hear it as written. Only ${GREETING_NAME_SLOT} is.`,
     });
   }
-  if (input.namesMoney(t)) {
+  if (input.namesMoney(result)) {
     notes.push({
       key: "money",
       words: "It mentions a discount, deposit or refund. If a caller asks about it, your receptionist hands it to you.",
     });
   }
-  if (input.neverQuotePrices && input.namesPrice(t)) {
+  if (input.neverQuotePrices && input.namesPrice(result)) {
     notes.push({
       key: "price",
       words: "It says a price while “Never quote a price” is on. Callers hear this one anyway.",

@@ -10,7 +10,6 @@
  */
 import {
   businessGap,
-  ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotFoldWords,
   cannotRows,
@@ -20,23 +19,17 @@ import {
   capabilityStatus,
   calendarFeedKeyOf,
   POLICY_MODES,
-  ruleStrength,
-  ALWAYS_TOLD,
-  ALWAYS_ON,
   allowedPrices,
-  pricesWrittenWords,
   greetingNotes,
   greetingOf,
   GREETING_TEMPLATE,
   namesMoney,
   violatesNoPrices,
   VISION_SWITCH_WORDS,
-  rulesKept,
   GUARDRAIL_KEYS,
   promptBlocks,
   resolveSystemPrompt,
   hasProfile,
-  PROFILE_CROSSING_WORDS,
   openWeekWords,
   hoursZoneWords,
   closuresAheadWords,
@@ -50,8 +43,6 @@ import {
   promptTotalWords,
   PROMPT_READERS,
   PROMPT_NOW,
-  bookingRulesWords,
-  BOOKING_RULE_HINTS,
   needsConsultation,
   foldName,
   serviceUndoName,
@@ -59,7 +50,6 @@ import {
   serviceLineWords,
   lengthWords,
   SERVICE_PRICE_EMPTY,
-  bookingRuleRefusal,
   TONE_PRESETS,
   handoffWords,
   handoffChatWords,
@@ -73,11 +63,8 @@ import {
   instructionsWords,
   fallbacksWords,
   isProductFallback,
-  rulesWithoutFieldsWords,
   guardrailsInForce,
   PROFILE_LIMITS,
-  profileRefusal,
-  writtenOutDetail,
   appointmentWordVM,
   appointmentWordSaved,
   BOOKING_LINK_ROW_WORDS,
@@ -86,8 +73,27 @@ import {
   sameListed,
   SERVICES_ON_PUBLIC_PAGE,
   type PromptBlockVM,
-  type ProfileCrossing,
 } from "@chanlytics/contracts";
+import {
+  ABILITY_CHANNEL_WORDS,
+  ruleStrength,
+  ALWAYS_TOLD,
+  ALWAYS_ON,
+  pricesWrittenWords,
+  rulesKept,
+  rulesWithoutFieldsWords,
+} from "@/surfaces/settings/business/model/rule-strengths";
+import {
+  PROFILE_CROSSING_WORDS,
+  profileRefusal,
+  writtenOutDetail,
+  type ProfileCrossing,
+} from "@/surfaces/settings/business/model/fold-limits";
+import {
+  bookingRulesWords,
+  BOOKING_RULE_HINTS,
+  bookingRuleRefusal,
+} from "@/surfaces/settings/business/model/booking-rules-words";
 import type { TenantConfigWriteSchema } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
 

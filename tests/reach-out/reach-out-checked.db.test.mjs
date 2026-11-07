@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { claimSends, recordCheck, uncheckedSends } from "@chanlytics/db";
+import { claimSends, recordCheck, listUncheckedSends } from "@chanlytics/db/campaigns";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -428,7 +428,7 @@ test(
   { skip },
   async () => {
     const take = (over = {}) =>
-      uncheckedSends(db, { limit: 50, perWorkspace: 50, aheadMinutes: 120, tenantId: A, ...over });
+      listUncheckedSends(db, { limit: 50, perWorkspace: 50, aheadMinutes: 120, tenantId: A, ...over });
     // Every planned send, whatever its day (decision 0098). The one due next week is the older, and still goes after those
     // due within two hours or waiting for their owner.
     const later = await sendIn({ send_at: iso(Date.now() + 7 * DAY) });
@@ -511,7 +511,7 @@ test(
   { skip },
   async () => {
     const id = await sendIn({ send_at: iso(Date.now() + H) });
-    const [u] = (await uncheckedSends(db, { limit: 50, perWorkspace: 50, aheadMinutes: 120, tenantId: A })).filter(
+    const [u] = (await listUncheckedSends(db, { limit: 50, perWorkspace: 50, aheadMinutes: 120, tenantId: A })).filter(
       (x) => x.send.id === id,
     );
     // The owner's edit moves the words on while the check writes.

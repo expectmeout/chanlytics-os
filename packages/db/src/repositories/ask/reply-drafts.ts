@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { answerWireOf, isOptedOutContact, REACH_OUT_REPLY_DAYS, type MessageDto } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
-import { reachOutReplyOf } from "../campaigns/reach-out/outreach";
+import { findReachOutReply } from "../campaigns/reach-out/outreach";
 
 type Db = SupabaseClient<Database>;
 
@@ -31,7 +31,7 @@ const DRAFT_COLUMNS = "conversation_id, kind, for_message_id, words, made_at, st
 const SET_ASIDE_READ = 50;
 
 /** The workspace's threads set aside (00539), newest first: the Today line's, on the member's own session. */
-export async function conversationsSetAside(db: Db, tenantId: string): Promise<string[]> {
+export async function listConversationsSetAside(db: Db, tenantId: string): Promise<string[]> {
   const { data, error } = await db
     .from("conversations")
     .select("id")
@@ -49,7 +49,7 @@ export async function conversationsSetAside(db: Db, tenantId: string): Promise<s
  * newest, newest first, at most n and one more: the caller learns from that one whether these are all there are (a page's
  * read of them with its own first reads, before it knows its rows).
  */
-export async function conversationDraftsOf(
+export async function listConversationDrafts(
   db: Db,
   tenantId: string,
   which: readonly string[] | { newest: number },
@@ -67,7 +67,7 @@ export async function conversationDraftsOf(
  * The customer's newest message on a thread, and the open hold's reason and what it left: all a send asks of a thread it could
  * not deliver on (jobs handlers.ts openHold), under the client it is handed.
  */
-export async function threadDraftFacts(
+export async function findThreadDraftFacts(
   db: Db,
   tenantId: string,
   conversationId: string,
@@ -183,7 +183,7 @@ export async function replyDraftThreadOf(
           .eq("id", conv.data.contact_id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    conversationDraftsOf(db, tenantId, [conversationId]),
+    listConversationDrafts(db, tenantId, [conversationId]),
   ]);
   if (messages.error) throw new Error(`messages: ${messages.error.message}`);
   if (hold.error) throw new Error(`escalations: ${hold.error.message}`);
@@ -196,7 +196,7 @@ export async function replyDraftThreadOf(
   // Only an email can answer a reach-out, and only a hold makes it matter: nobody asks of the rest.
   const reachOutReply =
     !!theirs && !!hold.data && wire === "email"
-      ? !!(await reachOutReplyOf(db, { tenantId, messageId: theirs.id, days: REACH_OUT_REPLY_DAYS }))
+      ? !!(await findReachOutReply(db, { tenantId, messageId: theirs.id, days: REACH_OUT_REPLY_DAYS }))
       : false;
   return {
     contactId: conv.data.contact_id,
@@ -223,9 +223,9 @@ export async function replyDraftThreadOf(
 }
 
 /** The thread's draft says it is being written (00538 conversation_draft_claim): true when this call took it. */
-export async function conversationDraftClaim(
+export async function claimConversationDraft(
   db: Db,
-  d: {
+  details: {
     tenantId: string;
     conversationId: string;
     kind: string;
@@ -237,15 +237,15 @@ export async function conversationDraftClaim(
   },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("conversation_draft_claim", {
-    p_tenant_id: d.tenantId,
-    p_conversation_id: d.conversationId,
-    p_kind: d.kind,
+    p_tenant_id: details.tenantId,
+    p_conversation_id: details.conversationId,
+    p_kind: details.kind,
     // None for a call back nothing was written on: the door reads it as SQL's null.
-    p_for_message_id: d.forMessageId as string,
-    p_rules: d.rules,
-    p_source: d.source,
-    ...(d.again ? { p_again: true } : {}),
-    ...(d.staleBefore ? { p_stale_before: d.staleBefore.toISOString() } : {}),
+    p_for_message_id: details.forMessageId as string,
+    p_rules: details.rules,
+    p_source: details.source,
+    ...(details.again ? { p_again: true } : {}),
+    ...(details.staleBefore ? { p_stale_before: details.staleBefore.toISOString() } : {}),
   });
   if (error) throw new Error(`conversation_draft_claim: ${error.message}`);
   return data === true;
@@ -255,9 +255,9 @@ export async function conversationDraftClaim(
  * A thread's draft kept (00538 conversation_draft_write), or null where its row was claimed for a newer message since: a
  * slow run writes nothing over it.
  */
-export async function conversationDraftWrite(
+export async function writeConversationDraft(
   db: Db,
-  d: {
+  details: {
     tenantId: string;
     conversationId: string;
     kind: string;
@@ -272,48 +272,48 @@ export async function conversationDraftWrite(
   },
 ): Promise<ConversationDraftRow | null> {
   const { data, error } = await db.rpc("conversation_draft_write", {
-    p_tenant_id: d.tenantId,
-    p_conversation_id: d.conversationId,
-    p_kind: d.kind,
+    p_tenant_id: details.tenantId,
+    p_conversation_id: details.conversationId,
+    p_kind: details.kind,
     // None for a call back nothing was written on: the door reads it as SQL's null.
-    p_for_message_id: d.forMessageId as string,
-    p_state: d.state,
-    p_words: d.words,
-    p_source: d.source,
-    p_rules: d.rules,
-    p_used: [...(d.used ?? [])],
-    ...(d.whyFailed ? { p_why_failed: d.whyFailed } : {}),
-    ...(d.madeBy ? { p_made_by: d.madeBy } : {}),
+    p_for_message_id: details.forMessageId as string,
+    p_state: details.state,
+    p_words: details.words,
+    p_source: details.source,
+    p_rules: details.rules,
+    p_used: [...(details.used ?? [])],
+    ...(details.whyFailed ? { p_why_failed: details.whyFailed } : {}),
+    ...(details.madeBy ? { p_made_by: details.madeBy } : {}),
   });
   if (error) throw new Error(`conversation_draft_write: ${error.message}`);
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const r = data as Record<string, unknown>;
+  const item = data as Record<string, unknown>;
   const text = (v: unknown) => (typeof v === "string" ? v : null);
   return {
-    conversation_id: text(r.conversation_id) ?? d.conversationId,
-    kind: text(r.kind) ?? d.kind,
-    for_message_id: text(r.for_message_id),
-    words: (r.words ?? {}) as Json,
-    made_at: text(r.made_at) ?? new Date().toISOString(),
-    state: text(r.state),
-    source: text(r.source),
-    rules: typeof r.rules === "number" ? r.rules : null,
-    used: Array.isArray(r.used) ? r.used.filter((u): u is string => typeof u === "string") : [],
-    why_failed: text(r.why_failed),
+    conversation_id: text(item.conversation_id) ?? details.conversationId,
+    kind: text(item.kind) ?? details.kind,
+    for_message_id: text(item.for_message_id),
+    words: (item.words ?? {}) as Json,
+    made_at: text(item.made_at) ?? new Date().toISOString(),
+    state: text(item.state),
+    source: text(item.source),
+    rules: typeof item.rules === "number" ? item.rules : null,
+    used: Array.isArray(item.used) ? item.used.filter((u): u is string => typeof u === "string") : [],
+    why_failed: text(item.why_failed),
   };
 }
 
 /** A thread's claim let go: its hold was answered before the draft was written, so nothing stands for it. */
-export async function conversationDraftDrop(
+export async function dropConversationDraft(
   db: Db,
-  d: { tenantId: string; conversationId: string; kind: string },
+  details: { tenantId: string; conversationId: string; kind: string },
 ): Promise<void> {
   const { error } = await db
     .from("conversation_drafts")
     .delete()
-    .eq("tenant_id", d.tenantId)
-    .eq("conversation_id", d.conversationId)
-    .eq("kind", d.kind)
+    .eq("tenant_id", details.tenantId)
+    .eq("conversation_id", details.conversationId)
+    .eq("kind", details.kind)
     .eq("state", "writing");
   if (error) throw new Error(`conversation_drafts: ${error.message}`);
 }
@@ -322,19 +322,19 @@ export async function conversationDraftDrop(
  * A claim that will not be written says so (the job's settlement): only a row still saying it is being written, for this
  * message. True when one moved.
  */
-export async function conversationDraftFailed(
+export async function recordConversationDraftFailed(
   db: Db,
-  d: { tenantId: string; conversationId: string; kind: string; forMessageId: string | null; whyFailed: string },
+  details: { tenantId: string; conversationId: string; kind: string; forMessageId: string | null; whyFailed: string },
 ): Promise<boolean> {
   const held = db
     .from("conversation_drafts")
-    .update({ state: "failed", why_failed: d.whyFailed, made_at: new Date().toISOString() })
-    .eq("tenant_id", d.tenantId)
-    .eq("conversation_id", d.conversationId)
-    .eq("kind", d.kind)
+    .update({ state: "failed", why_failed: details.whyFailed, made_at: new Date().toISOString() })
+    .eq("tenant_id", details.tenantId)
+    .eq("conversation_id", details.conversationId)
+    .eq("kind", details.kind)
     .eq("state", "writing");
   const { data, error } = await (
-    d.forMessageId ? held.eq("for_message_id", d.forMessageId) : held.is("for_message_id", null)
+    details.forMessageId ? held.eq("for_message_id", details.forMessageId) : held.is("for_message_id", null)
   ).select("id");
   if (error) throw new Error(`conversation_drafts: ${error.message}`);
   return (data?.length ?? 0) > 0;
@@ -344,14 +344,14 @@ export async function conversationDraftFailed(
  * A thread set aside as not a customer's, whole (00539 conversation_set_aside): the row says so, and its open hold is
  * resolved, so nothing counts it or warns of it. True when the row moved.
  */
-export async function conversationSetAside(
+export async function setConversationAside(
   db: Db,
-  d: { tenantId: string; conversationId: string; why: "pitch" | "notice" },
+  details: { tenantId: string; conversationId: string; why: "pitch" | "notice" },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("conversation_set_aside", {
-    p_tenant_id: d.tenantId,
-    p_conversation_id: d.conversationId,
-    p_why: d.why,
+    p_tenant_id: details.tenantId,
+    p_conversation_id: details.conversationId,
+    p_why: details.why,
   });
   if (error) throw new Error(`conversation_set_aside: ${error.message}`);
   return data === true;
@@ -369,7 +369,11 @@ export async function replyDraftsDue(
 }
 
 /** The thread an escalation is on, or null where it is gone: what escalation.changed names is the hold's own id. */
-export async function conversationOfEscalation(db: Db, tenantId: string, escalationId: string): Promise<string | null> {
+export async function findConversationOfEscalation(
+  db: Db,
+  tenantId: string,
+  escalationId: string,
+): Promise<string | null> {
   const { data, error } = await db
     .from("escalations")
     .select("conversation_id")

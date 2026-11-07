@@ -26,16 +26,16 @@ import { json, refuse } from "../../shared/http.js";
 import { env } from "../../shared/env.js";
 import { logger } from "../../shared/log.js";
 import { pg } from "../../shared/pg.js";
-import { tokenWorkspace, type Admitted } from "../../shared/admin-auth.js";
+import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../../shared/admin-auth.js";
 import { REWRITE_NOW_MAX, UUID, type RewriteStep } from "@chanlytics/contracts";
-import { uncheckedWaiting } from "@chanlytics/db";
+import { getUncheckedWaiting } from "@chanlytics/db/campaigns";
 import { checkSends } from "./check.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
 
 export async function sweepReachOutChecks({ db, L, started }: SweepTick): Promise<Response> {
   try {
     if (!env.ANTHROPIC_API_KEY) {
-      const waiting = await uncheckedWaiting(db);
+      const waiting = await getUncheckedWaiting(db);
       L.warn("reach_out_check_unset", { waiting });
       return waiting ? json(503, { ok: false, error: "check_unset" }) : json(200, { ok: true, unset: true });
     }
@@ -67,12 +67,7 @@ export async function checkPressedSends(
   body: { send_ids?: unknown; stream?: unknown },
 ): Promise<Response> {
   const tenantId = tokenWorkspace(auth);
-  if (!tenantId || !UUID.test(tenantId))
-    return refuse(
-      400,
-      "bad_tenant",
-      "this door acts only for a workspace its credential names, and this one names none",
-    );
+  if (!tenantId || !UUID.test(tenantId)) return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
   const ids = Array.isArray(body.send_ids)
     ? body.send_ids.filter((x): x is string => typeof x === "string" && UUID.test(x))
     : [];
@@ -81,11 +76,11 @@ export async function checkPressedSends(
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "check_unset");
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  const L = logger({ tenant_id: tenantId });
+  const log = logger({ tenant_id: tenantId });
   const run = async (onStep?: (sendId: string, step: RewriteStep) => void) => {
     const started = Date.now();
-    const out = await checkSends({ db, now: new Date(), started, log: L, tenantId, sendIds: ids, onStep });
-    L.info("reach_out_checked", { ...out, pressed: ids.length, took_ms: Date.now() - started });
+    const out = await checkSends({ db, now: new Date(), started, log: log, tenantId, sendIds: ids, onStep });
+    log.info("reach_out_checked", { ...out, pressed: ids.length, took_ms: Date.now() - started });
     const { read, checked, held, failed, late, gated } = out;
     return { read, checked, held, failed, late, gated };
   };
@@ -105,7 +100,7 @@ export async function checkPressedSends(
         const counts = await run((sendId, step) => send({ t: "step", send_id: sendId, step }));
         send({ t: "done", ...counts });
       } catch (e) {
-        L.error("reach_out_check_sweep_failed", {
+        log.error("reach_out_check_sweep_failed", {
           error: e instanceof Error ? e.message : String(e),
           pressed: ids.length,
         });

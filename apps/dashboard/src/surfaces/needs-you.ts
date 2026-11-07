@@ -23,7 +23,6 @@ import {
   needsYouCount,
   replyWaitsOnYou,
   runsThatWait,
-  waitRowsOf,
   waitsOf,
   type BroadcastVM,
   type TodayQueueRowVM,
@@ -31,6 +30,7 @@ import {
   type WaitingThread,
   type Waits,
 } from "@chanlytics/contracts";
+import { waitRowsOf } from "@/surfaces/waits/rows";
 import { onSurfaceMoved } from "@/bridge/surface-status";
 import { approvalDaysNow } from "./campaigns/broadcasts/when-words";
 import { ixWaiting, ixWaitsOnYou, vetoKeyOf } from "./inbox/rules";

@@ -15,7 +15,6 @@ import assert from "node:assert/strict";
 import {
   EMPTY_READ_STATE,
   NOTHING_WAITS_KNOWN,
-  bellFeed,
   buildNotificationFeed,
   closeSettledNotices,
   noticeStillWaits,
@@ -24,6 +23,7 @@ import {
   todayAwayGrouped,
   unreadCount,
 } from "@chanlytics/contracts";
+import { bellFeed } from "../../../apps/dashboard/src/bridge/surfaces/hold-rows.ts";
 import { importSrc } from "../../_source.mjs";
 
 const NOW = Date.parse("2026-10-11T18:00:00Z");

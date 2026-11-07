@@ -2,14 +2,6 @@
 export { ACTIVATION_MILESTONES } from "./activation";
 export type { ActivationMilestone } from "./activation";
 export {
-  activityKindWords,
-  activityWords,
-  CALL_MISSED_WORDS,
-  CALL_UNANSWERED_WORDS,
-  REACH_OUT_EMAILED_WORDS,
-} from "./activity";
-export type { ActivityMemberDto, ActivityPageDto, ActivityRowDto, ActivityVerb } from "./activity";
-export {
   ACTIVITY_KINDS,
   ACTIVITY_NOISE_KINDS,
   ACTIVITY_NOISE_PREFIXES,
@@ -19,68 +11,80 @@ export {
   isActivityNoise,
 } from "./activity-rows";
 export type { ActivityDecisionRow, ActivityEventRow } from "./activity-rows";
+export type { ActivityMemberDto, ActivityPageDto, ActivityRowDto } from "./activity/dtos";
+export { activityKindWords, CALL_MISSED_WORDS, CALL_UNANSWERED_WORDS, REACH_OUT_EMAILED_WORDS } from "./activity/kinds";
+export { activityWords } from "./activity/words";
+export type { ActivityVerb } from "./activity/words";
 export {
-  BILLING_MODES,
-  BILLING_STATUSES,
-  BILLING_TEST_MODE_CLAUSE,
-  BILLING_TRIAL_DAYS,
   billingAccountDto,
-  billingDoorOpen,
-  billingPill,
-  callMinutesWords,
-  CAMPAIGNS_PAUSED_WORDS,
   CHECKOUT_OUTCOME_WORDS,
   CHECKOUT_RETURN_ROUTE,
   CHECKOUT_RETURNS,
-  dayWords,
-  hasPublicPages,
   INVOICE_STATUS_WORDS,
   invoiceStatusWords,
   isCheckoutReturn,
+  moneyWords,
+  pausedVoiceFacts,
+} from "./billing/checkout";
+export type { CheckoutReturn, SetupBillingFacts } from "./billing/checkout";
+export {
+  BILLING_MODES,
+  BILLING_STATUSES,
+  BILLING_TRIAL_DAYS,
+  billingDoorOpen,
+  callMinutesWords,
+  hasPublicPages,
   maySpend,
   mayUseModels,
-  moneyWords,
   openToCustomersOf,
-  PAUSED_WORDS,
-  pausedVoiceFacts,
-  planBilling,
-  priceWords,
   receptionistOn,
   SPEND_KINDS,
   SPEND_LEADS,
   SPEND_NUMBER,
   SPEND_TEXTING,
-  START_PLAN_WORDS,
   takesSignUps,
+  trialDaysFor,
+  whyCannotSpend,
+} from "./billing/dtos";
+export type {
+  BillingAccountDto,
+  BillingDto,
+  BillingInvoiceDto,
+  BillingMode,
+  BillingPriceDto,
+  BillingStatus,
+  OpenToCustomers,
+  SpendKind,
+  SpendWords,
+} from "./billing/dtos";
+export {
+  BILLING_TEST_MODE_CLAUSE,
+  billingDayWords,
+  billingPill,
+  CAMPAIGNS_PAUSED_WORDS,
+  PAUSED_WORDS,
+  planBilling,
+  priceWords,
+  START_PLAN_WORDS,
   tenantStatusFor,
   toBillingVM,
   TRIAL_COVERS,
   TRIAL_INCLUDES,
   TRIAL_SPENT_WORDS,
-  trialDaysFor,
   trialOffer,
   trialSpentOf,
   trialUseWords,
   trialWords,
-  whyCannotSpend,
-} from "./billing";
-export type {
-  BillingAccountDto,
-  BillingBell,
-  BillingDto,
-  BillingInvoiceDto,
-  BillingMode,
-  BillingPlan,
-  BillingPriceDto,
-  BillingStatus,
-  BillingVM,
-  CheckoutReturn,
-  OpenToCustomers,
-  SetupBillingFacts,
-  SpendKind,
-  SpendWords,
-  SubscriptionFacts,
-} from "./billing";
+} from "./billing/plans";
+export type { BillingBell, BillingPlan, BillingVM, SubscriptionFacts } from "./billing/plans";
+export {
+  BILLING_DOOR,
+  HANDOVER_INVITE_DOOR,
+  PARTNER_INVITE_DOOR,
+  SETUP_REQUEST_DOOR,
+  SIGNUP_NOTIFY_DOOR,
+  YOU_ARE_LIVE_DOOR,
+} from "./edge-doors";
 export {
   ContactAddedData,
   ContactConsentChangedData,
@@ -102,60 +106,6 @@ export {
 export type { HandoverState, OpenHandoverDto, PartnerHandoverDto, PartnerHandoverVM } from "./handover";
 export { HandoverCreateSchema, HandoverResendSchema } from "./handover-schema";
 export {
-  broughtWords,
-  cleanPartnerCode,
-  isPartnerCode,
-  PARTNER_CODE_MAX,
-  PARTNER_CODE_MIN,
-  PARTNER_CODES_RESERVED,
-  PARTNER_COOKIE,
-  PARTNER_COOKIE_DAYS,
-  PARTNER_EARNING_KINDS,
-  PARTNER_EARNING_STATES,
-  PARTNER_HOLD_DAYS,
-  PARTNER_SHARE_BP_DEFAULT,
-  PARTNER_STANDING_WORDS,
-  PARTNER_STANDINGS,
-  PARTNER_STATUSES,
-  PARTNER_WORDS,
-  partnerCodeFromCookie,
-  partnerEarningsWords,
-  partnerLinkFor,
-  partnerPathFor,
-  partnerVM,
-  partnerWorkspacesVM,
-  shareWords,
-} from "./partner";
-export {
-  PARTNER_REVERSAL_KINDS,
-  PARTNER_STANDING_VERBS,
-  PARTNER_STATUS_VERBS,
-  partnerPayoutOutcomeWords,
-  partnerStandingChoices,
-  partnerStandingOutcomeWords,
-  partnerStatusChoices,
-  partnerStatusOutcomeWords,
-  platformPartnerRows,
-  platformPartnerStanding,
-  platformPartnerSummary,
-} from "./partner";
-export { partnerLetter, partnerPaneUrl } from "./partner";
-export type {
-  PartnerBalanceRow,
-  PartnerDto,
-  PartnerEarningsVM,
-  PartnerVM,
-  PartnerWorkspaceMoneyDto,
-  PartnerWorkspacesVM,
-  PartnerWorkspaceVM,
-} from "./partner";
-export type {
-  PlatformPartnerBalanceDto,
-  PlatformPartnerRowVM,
-  PlatformPartnerStandingVM,
-  PlatformPartnerWorkspaceDto,
-} from "./partner";
-export {
   PARTNER_INVITE_DAYS,
   PARTNER_INVITE_WORDS,
   partnerCodeFrom,
@@ -174,6 +124,60 @@ export { PartnerInviteSchema } from "./partner-invite-schema";
 export { PartnerBecomeSchema } from "./partner-schema";
 export { PartnerLetterNewsSchema, PartnerLettersSchema } from "./partner-schema";
 export type { PartnerLetterNews } from "./partner-schema";
+export {
+  cleanPartnerCode,
+  isPartnerCode,
+  PARTNER_CODE_MAX,
+  PARTNER_CODE_MIN,
+  PARTNER_CODES_RESERVED,
+  PARTNER_COOKIE,
+  PARTNER_COOKIE_DAYS,
+  PARTNER_EARNING_KINDS,
+  PARTNER_EARNING_STATES,
+  PARTNER_HOLD_DAYS,
+  PARTNER_SHARE_BP_DEFAULT,
+  PARTNER_STANDINGS,
+  PARTNER_STATUSES,
+  PARTNER_WORDS,
+  partnerCodeFromCookie,
+  partnerLinkFor,
+  partnerPathFor,
+} from "./partner/dtos";
+export { PARTNER_REVERSAL_KINDS } from "./partner/dtos";
+export type { PartnerDto } from "./partner/dtos";
+export {
+  broughtWords,
+  PARTNER_STANDING_WORDS,
+  partnerEarningsWords,
+  partnerVM,
+  partnerWorkspacesVM,
+  shareWords,
+} from "./partner/earnings";
+export {
+  PARTNER_STANDING_VERBS,
+  PARTNER_STATUS_VERBS,
+  partnerStandingChoices,
+  partnerStatusChoices,
+  partnerStatusOutcomeWords,
+  platformPartnerRows,
+} from "./partner/earnings";
+export type {
+  PartnerBalanceRow,
+  PartnerEarningsVM,
+  PartnerVM,
+  PartnerWorkspaceMoneyDto,
+  PartnerWorkspacesVM,
+  PartnerWorkspaceVM,
+} from "./partner/earnings";
+export type { PlatformPartnerBalanceDto, PlatformPartnerRowVM, PlatformPartnerWorkspaceDto } from "./partner/earnings";
+export {
+  partnerPayoutOutcomeWords,
+  partnerStandingOutcomeWords,
+  platformPartnerStanding,
+  platformPartnerSummary,
+} from "./partner/platform";
+export { partnerLetter, partnerPaneUrl } from "./partner/platform";
+export type { PlatformPartnerStandingVM } from "./partner/platform";
 export { isUsablePassword, PASSWORD_MAX_BYTES, PASSWORD_MIN, PASSWORD_WORDS, passwordProblem } from "./password";
 export {
   PLATFORM_NEW_DAYS,

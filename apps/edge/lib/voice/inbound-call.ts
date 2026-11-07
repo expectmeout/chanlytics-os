@@ -5,7 +5,7 @@
  * Auth: voiceDoorAuth("inbound"): Retell's signature, or ?key=<RETELL_FN_SECRET> on the URL until Ruben sets
  * RETELL_DOORS_SIGNED=1; a knock with neither is a 401 that reads nothing and sends nothing, and what each knock that
  * came in carried is logged (voice_door_auth) and kept as a `webhook.auth` row naming the door
- * (lib/voice/door-auth.ts says which doors read the secret, what is built and what waits).
+ * (lib/shared/door-auth.ts says which doors read the secret, what is built and what waits).
  *
  * The door is api/retell-inbound.ts: `door(receiveInboundCall)`, which names the request the platform's way (log.ts).
  * Everything a delivery does is here, in the order the door had it: the knock is checked (voiceDoorAuth, then keepKnock), the call
@@ -46,12 +46,12 @@ import { phoneTail, divertedNumbers } from "@chanlytics/contracts";
 import { markForwardingVerified } from "./forwarding.js";
 import { json } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
-import { keepDelivery, signatureHeaders } from "../intake/keep.js";
+import { keepDelivery, signatureHeaders } from "../shared/keep-event.js";
 import { planCallStartWithin } from "./call-start.js";
-import { claimControl, CALL_CONTROL_S } from "@chanlytics/db";
+import { claimControl, CALL_CONTROL_S } from "@chanlytics/db/conversations";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { logger } from "../shared/log.js";
-import { keptUrl, keepKnock, voiceDoorAuth } from "./door-auth.js";
+import { keptUrl, keepKnock, voiceDoorAuth } from "../shared/door-auth.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
 const ALERT_BUDGET_MS = 3_000;
@@ -69,7 +69,7 @@ async function alertWithin(agentId: string | undefined): Promise<void> {
 
 export async function receiveInboundCall(request: Request): Promise<Response> {
   const raw = await request.text();
-  // The signature, or the ?key= while this door still reads one (voice/door-auth.ts says which doors do, and why).
+  // The signature, or the ?key= while this door still reads one (shared/door-auth.ts says which doors do, and why).
   const knock = voiceDoorAuth("inbound", request, raw);
   await keepKnock("inbound", knock);
   if (!knock.ok) {
@@ -97,16 +97,16 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
   // The last four digits identify a caller across a log search without
   // writing their number into every line; the call id is what the webhook's
   // later stages carry, so one call reads as one call in the log.
-  const L = logger({ from_tail: phoneTail(from), agent_id: agentId, call_id: inbound.call_id });
+  const log = logger({ from_tail: phoneTail(from), agent_id: agentId, call_id: inbound.call_id });
 
   // Within its budget (PLAN_BUDGET_MS): past it the call is answered with the shell's own words, never dropped.
   const t0 = Date.now();
   const start = await planCallStartWithin({ agentId, from, db: pg() });
   const planMs = Date.now() - t0;
 
-  if (start.error) L.error("inbound_ctx_failed", { facts: start.facts, memory: start.memory, error: start.error });
-  else if (start.facts === "unrouted") L.warn("inbound_ctx_unrouted");
-  else if (start.facts === "missing") L.warn("inbound_facts_missing");
+  if (start.error) log.error("inbound_ctx_failed", { facts: start.facts, memory: start.memory, error: start.error });
+  else if (start.facts === "unrouted") log.warn("inbound_ctx_unrouted");
+  else if (start.facts === "missing") log.warn("inbound_facts_missing");
 
   // The four things the answer waits for, each never fatal and none needing another, so they run together (they ran
   // one after another inside Retell's ten seconds, behind the plan): the delivery kept, the platform told, the
@@ -142,7 +142,7 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
           holder: { kind: "call", callId: inbound.call_id },
           seconds: CALL_CONTROL_S,
         }).catch((e: unknown) => {
-          L.error("retell_inbound_hold_failed", { error: e instanceof Error ? e.message : String(e) });
+          log.error("retell_inbound_hold_failed", { error: e instanceof Error ? e.message : String(e) });
           return null;
         })
       : null,
@@ -160,7 +160,7 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
       : null,
   ]);
 
-  L.info("retell_inbound", {
+  log.info("retell_inbound", {
     facts: start.facts,
     memory: start.memory,
     facts_chars: start.variables.business_facts.length,

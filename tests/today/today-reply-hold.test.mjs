@@ -1,6 +1,6 @@
 /**
  * How fast the receptionist replied, said against the hold the owner set (spec D14, deferred from phase A): where most of the day's
- * replies waited a hold, Today says they went out as it ended (or later than it) by the one rule Reports reads (report-speed.ts
+ * replies waited a hold, Today says they went out as it ended (or later than it) by the one rule Reports reads (reports/speed.ts
  * `holdOf`, whose slack no sentence here writes); else the median, as it did. The same words in the day's four sentences: the
  * answered figure's clause, the recap's line, Ask's fact and the calm headline's detail.
  */

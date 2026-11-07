@@ -20,7 +20,7 @@
  * greeting's own turn (policy.ts spokenBreach), so the line is heard as written and nothing after it may repeat a price.
  */
 import { greetingOf } from "../../voice/greeting-owner";
-import { namesMoney, priceFigures } from "../policy";
+import { namesMoney, priceFigures } from "../policy/prices";
 import type { BrainConfig } from "./brain-config-schema";
 import { notesInForce } from "./compose";
 import { guardrailsInForce } from "./config-rules";

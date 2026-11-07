@@ -12,7 +12,7 @@ import {
   type InboxThreadVM,
   threadWaitsOf,
 } from "@chanlytics/contracts";
-import { load, type ReaderContext } from "../../readers";
+import { load, type ReaderContext } from "../../shared/reader";
 import * as facts from "../../readers/facts";
 import { today as todayReader } from "../../readers/today";
 import { inbox as inboxReader } from "../../readers/inbox";
@@ -66,7 +66,7 @@ const escalationsBy = <E extends { conversation_id: string }>(open: E[]): Map<st
 const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
 
 /** Today: the queue's rows the page drew, each as the queue says it, and the day's standing and figures. */
-export const today: Provider = async (rc, ctx) => {
+export const readToday: Provider = async (rc, ctx) => {
   const { metrics, conversations, escalations, calls, searches, runs, heldThreads, previewsTried } = (
     await load(rc, todayReader, undefined)
   ).data;
@@ -80,26 +80,26 @@ export const today: Provider = async (rc, ctx) => {
     (p): p is string => !!p,
   );
   const rows: ContextRow[] = [];
-  for (const r of idsOf(ctx, "thread", "call", "search")) {
+  for (const item of idsOf(ctx, "thread", "call", "search")) {
     // The page's own mapping (bridge/ask/context.ts): a search is `q-s-<id>`, a person's row its thread, else the call.
-    const q = vm.queue.rows.find((x) =>
-      r.kind === "search"
-        ? x.kind === "search" && x.id === `q-s-${r.id}`
+    const query = vm.queue.rows.find((x) =>
+      item.kind === "search"
+        ? x.kind === "search" && x.id === `q-s-${item.id}`
         : x.kind !== "search" &&
-          (r.kind === "thread" ? x.conversationId === r.id : !x.conversationId && x.callId === r.id),
+          (item.kind === "thread" ? x.conversationId === item.id : !x.conversationId && x.callId === item.id),
     );
-    if (!q) continue;
+    if (!query) continue;
     // Each row at its kind's one route, whatever its button opens (the line keeps the button's, a search's question).
     const ref =
-      r.kind === "search"
-        ? refOf("search", r.id, q.who, leadsRoute({ searchId: r.id }))
-        : r.kind === "thread"
-          ? refOf("thread", r.id, q.who, `inbox/th-${r.id}`)
-          : refOf("call", r.id, q.who, `conversations/cv-${r.id}`);
+      item.kind === "search"
+        ? refOf("search", item.id, query.who, leadsRoute({ searchId: item.id }))
+        : item.kind === "thread"
+          ? refOf("thread", item.id, query.who, `inbox/th-${item.id}`)
+          : refOf("call", item.id, query.who, `conversations/cv-${item.id}`);
     rows.push({
-      source: sourceOf(r.kind, r.id),
-      title: q.who,
-      text: line([q.who, q.status[0], q.when, ...q.status.slice(1), q.sentence], q.cta.to),
+      source: sourceOf(item.kind, item.id),
+      title: query.who,
+      text: line([query.who, query.status[0], query.when, ...query.status.slice(1), query.sentence], query.cta.to),
       ref,
     });
   }
@@ -117,7 +117,7 @@ export const today: Provider = async (rc, ctx) => {
 };
 
 /** The Inbox: the threads in the bucket the page drew, and how many each bucket holds, counted as inbox.list counts. */
-export const inbox: Provider = async (rc, ctx) => {
+export const readInbox: Provider = async (rc, ctx) => {
   const [{ conversations, escalations }, tz] = await Promise.all([
     load(rc, inboxReader, undefined).then((r) => r.data),
     zone(rc),
@@ -126,15 +126,15 @@ export const inbox: Provider = async (rc, ctx) => {
   const vms = conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, tz, rc.now));
   const byId = new Map(vms.map((v) => [v.conversationId, v]));
   const rows: ContextRow[] = [];
-  for (const r of idsOf(ctx, "thread")) {
-    const v = byId.get(r.id);
-    if (!v) continue;
-    const route = `inbox/th-${r.id}`;
+  for (const item of idsOf(ctx, "thread")) {
+    const found = byId.get(item.id);
+    if (!found) continue;
+    const route = `inbox/th-${item.id}`;
     rows.push({
-      source: sourceOf("thread", r.id),
-      title: v.who,
-      text: threadLine(v, route, rc.now),
-      ref: refOf("thread", r.id, v.who, route),
+      source: sourceOf("thread", item.id),
+      title: found.who,
+      text: threadLine(found, route, rc.now),
+      ref: refOf("thread", item.id, found.who, route),
     });
   }
   const count = (f: (v: InboxThreadVM) => boolean) => vms.filter(f).length;
@@ -158,7 +158,7 @@ export const inbox: Provider = async (rc, ctx) => {
  * Conversations: the threads and calls on the tab the page drew. The threads by their ids, in one read under the
  * workspace's filter; the calls from the Calls page's own read, the newest hundred.
  */
-export const conversations: Provider = async (rc, ctx) => {
+export const readConversations: Provider = async (rc, ctx) => {
   // Read by id in SQL: an id that is not a uuid names no row, and would fail the read for every row on the page.
   const convIds = idsOf(ctx, "conversation")
     .map((r) => r.id)
@@ -180,20 +180,20 @@ export const conversations: Provider = async (rc, ctx) => {
   const rows: ContextRow[] = [];
   let nConv = 0;
   let nCalls = 0;
-  for (const r of idsOf(ctx, "conversation", "call")) {
-    if (r.kind === "conversation") {
-      const v = threads.get(r.id);
-      if (!v) continue;
+  for (const item of idsOf(ctx, "conversation", "call")) {
+    if (item.kind === "conversation") {
+      const thread = threads.get(item.id);
+      if (!thread) continue;
       nConv++;
-      const route = `conversations/${r.id}`;
+      const route = `conversations/${item.id}`;
       rows.push({
-        source: sourceOf("conversation", r.id),
-        title: v.who,
-        text: threadLine(v, route, rc.now),
-        ref: refOf("conversation", r.id, v.who, route),
+        source: sourceOf("conversation", item.id),
+        title: thread.who,
+        text: threadLine(thread, route, rc.now),
+        ref: refOf("conversation", item.id, thread.who, route),
       });
     } else {
-      const v = callVms.get(r.id);
+      const v = callVms.get(item.id);
       if (!v) continue;
       nCalls++;
       rows.push(callRow(v));
@@ -206,7 +206,7 @@ export const conversations: Provider = async (rc, ctx) => {
 };
 
 /** Live: the calls the page drew, and how many are live now among the newest hundred. */
-export const live: Provider = async (rc, ctx) => {
+export const readLive: Provider = async (rc, ctx) => {
   const [calls, tz] = await Promise.all([load(rc, callsReader, {}).then((r) => r.data.calls), zone(rc)]);
   const vms = new Map(calls.map((c) => [c.id, toCallVM(c, tz, rc.now)]));
   const rows = idsOf(ctx, "call").flatMap((r) => {

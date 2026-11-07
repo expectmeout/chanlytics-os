@@ -25,7 +25,7 @@ export interface ColdEmail {
  * first; its ending is coldEndingOf's; its foot the cold one, in the language every reach-out email is filed in. Throws
  * where the foot lacks who or where (emailFoot): every caller says so first, as a refusal of its own.
  */
-export function coldEmailOf(p: {
+export function coldEmailOf(params: {
   /** The words with this lead's values in; a null subject answers the email before. */
   filled: { subject: string | null; body: string };
   /** The email before's subject, which a step after the first answers under; null for the first. */
@@ -43,23 +43,23 @@ export function coldEmailOf(p: {
   /** The send's one-click way out; null where the email says its way out in words alone. */
   unsubscribeUrl: string | null;
 }): ColdEmail {
-  const first = p.filled.subject !== null;
+  const first = params.filled.subject !== null;
   const ending = coldEndingOf({
-    signsWith: p.signsWith,
-    signedBy: p.signedBy,
-    signature: p.signature,
+    signsWith: params.signsWith,
+    signedBy: params.signedBy,
+    signature: params.signature,
     first,
-    body: p.written,
-    address: p.address,
+    body: params.written,
+    address: params.address,
   });
   return {
-    subject: first ? firstSubject(p.filled.subject ?? "") : replySubject(p.before),
-    body: coldSignedOff(p.filled.body, ending.signOff),
+    subject: first ? firstSubject(params.filled.subject ?? "") : replySubject(params.before),
+    body: coldSignedOff(params.filled.body, ending.signOff),
     signature: ending.signature,
     footer: emailFoot(
-      p.business,
-      p.address,
-      { kind: "cold", why: whyFrom(p.source ?? "local_businesses"), unsubscribeUrl: p.unsubscribeUrl },
+      params.business,
+      params.address,
+      { kind: "cold", why: whyFrom(params.source ?? "local_businesses"), unsubscribeUrl: params.unsubscribeUrl },
       REACH_OUT_LANGUAGE,
     ),
   };

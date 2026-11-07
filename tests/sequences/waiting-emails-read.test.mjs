@@ -15,7 +15,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerCache, load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache, load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { sequencePeople } = await import(at("apps/dashboard/src/server/readers/sequences.ts"));
 
 beforeEach(() => readerCache.clear());
@@ -88,7 +88,7 @@ test("each email waiting or held is read with the opening it goes with and wheth
 });
 
 test("a batch to leads counts the emails an OK sends: those planned, never one the check held (30 Oct 2026)", async () => {
-  const { sequenceOverview } = await import("@chanlytics/db");
+  const { listSequenceOverview } = await import("@chanlytics/db/campaigns");
   const LEADS_BATCH = "55555555-5555-4555-8555-555555555551";
   const CUSTOMER_BATCH = "55555555-5555-4555-8555-555555555552";
   const batch = (id, kind) => ({
@@ -128,7 +128,7 @@ test("a batch to leads counts the emails an OK sends: those planned, never one t
   const rpcs = {
     sequence_overview: () => [row("leads", LEADS_BATCH, "reach_out"), row("customers", CUSTOMER_BATCH, "playbook")],
   };
-  const [leads, customers] = await sequenceOverview(fakeDb(tables, {}, rpcs), TID);
+  const [leads, customers] = await listSequenceOverview(fakeDb(tables, {}, rpcs), TID);
   // "Approve all 4", as four go: the held one waits for its own answer, in Needs you; another workspace's is none of these.
   assert.equal(leads.needs.batches[0].people, 4);
   assert.equal(leads.needs.waiting_people, 4);

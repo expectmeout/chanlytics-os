@@ -1,6 +1,3 @@
-/** A workspace's own logo (00407): where it is kept, what is kept, the words, and how a picture becomes it. */
-export { LOGO_PAD, LOGO_PLATE_DARK, LOGO_PLATE_LIGHT, logoDrawRect, logoLayout } from "./layout";
-export type { LogoLayout, LogoMode, LogoNote, LogoPixels } from "./layout";
 export {
   isLogoPathOf,
   LOGO_BASE64_MAX,

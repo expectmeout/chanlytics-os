@@ -4,7 +4,7 @@
  *
  *   - broadcast_recipients.attempt: the guard adds one on every release of a claim (failed outcome_unknown -> queued,
  *     throttled or not_taken), and on nothing else, so a person tried again is sent under a new email id;
- *   - queuedRecipients reads a batch in contact_id order, with each person's attempt;
+ *   - listQueuedRecipients reads a batch in contact_id order, with each person's attempt;
  *   - has_relationship counts a call they placed that connected only when it has a start, as People's
  *     last_inbound_call_at (max(started_at)) and contracts' relationshipOnRecord read it;
  *   - campaign_month_sent and reach_out_month_sent read the workspace's zone through safe_zone: a zone Postgres does not
@@ -21,7 +21,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { queuedRecipients } from "@chanlytics/db";
+import { listQueuedRecipients } from "@chanlytics/db/campaigns";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CLI = process.env.SUPABASE_CLI || "supabase";
@@ -155,7 +155,7 @@ test("a batch is read in contact_id order, each person with their attempt", asyn
   const released = people[1];
   ok(await move(b, released, { state: "failed", reason: "outcome_unknown" }));
   ok(await move(b, released, { state: "queued", reason: "not_taken" }));
-  const batch = await queuedRecipients(db, { tenantId: A, broadcastId: b, limit: 25 });
+  const batch = await listQueuedRecipients(db, { tenantId: A, broadcastId: b, limit: 25 });
   assert.deepEqual(
     batch.map((r) => r.contact_id),
     [...people].sort(),

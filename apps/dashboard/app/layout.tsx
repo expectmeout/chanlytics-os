@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import {
   firstRowsScript,
-  homeBootScript,
   inAppBootScript,
   outlineBootScript,
   routePrefetchScript,
@@ -10,6 +9,7 @@ import {
   themeColorOf,
   DEFAULT_LOOK_PREF,
 } from "@chanlytics/contracts";
+import { homeBootScript } from "@/frame-boot";
 import { OUTLINE_ROUTES } from "@/surfaces/frame/places";
 import "./globals.css";
 

@@ -7,7 +7,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ASK_FOUND_WORDS as F, askFoundOf, isRested, restedWith } from "@chanlytics/contracts";
+import { isRested, restedWith } from "@chanlytics/contracts";
+import { ASK_FOUND_WORDS as F, askFoundOf } from "../../../apps/dashboard/src/surfaces/today/zones/found-rows.ts";
 
 const TODAY = "2026-09-18";
 const rule = (id, tone, over = {}) => ({

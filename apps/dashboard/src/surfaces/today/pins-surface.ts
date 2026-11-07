@@ -4,7 +4,7 @@
  * someone new getting in touch moved the queue above the chips at once and left their numbers where they were.
  *
  * GET people/list-counts counts each pinned list on the server, over the pool People's lists are counted on, for the member
- * looking (readers/audience-pool.ts listCounts): the same rule as People's rail, without People's whole book. Read on Today alone, where
+ * looking (readers/audience-pool.ts listAudienceCounts): the same rule as People's rail, without People's whole book. Read on Today alone, where
  * the chips are drawn, and only when something is pinned; heard there for what the lists are made of, and waited out as a
  * dear read is, since each is a read of everyone on the server.
  */

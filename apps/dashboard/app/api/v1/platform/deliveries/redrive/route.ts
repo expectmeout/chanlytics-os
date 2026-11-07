@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/shared/route";
 import { DeliveryRedriveSchema } from "@chanlytics/contracts";
-import { healthRedrive } from "@/server/console/health";
+import { redriveHealth } from "@/server/console/health";
 
 /**
  * POST /api/v1/platform/deliveries/redrive — {subscriber, why}: Deliver again (decision 0068). Every failed or paused
@@ -13,5 +13,5 @@ export const POST = write({
   rate: "platform_delivery_redrive",
   act: "delivery_redrive",
   input: DeliveryRedriveSchema,
-  handle: async ({ office, input }) => healthRedrive(office, input.subscriber, input.why),
+  handle: async ({ office, input }) => redriveHealth(office, input.subscriber, input.why),
 });

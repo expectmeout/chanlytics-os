@@ -6,7 +6,7 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../../_fake-db.mjs";
 import { at, withEnv } from "../../_cron-doors-world.mjs";
 

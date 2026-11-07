@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { mailDomainsFrom } from "@chanlytics/channels";
+import { mailDomainsFrom } from "@chanlytics/channels/email";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { judgeMailDomain, describeMailDomainTrouble, checkMailDomain } = await import(

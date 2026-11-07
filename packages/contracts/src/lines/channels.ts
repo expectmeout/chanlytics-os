@@ -1,4 +1,4 @@
-import { usableZone } from "../calendar/zone-math";
+import { usableZone } from "../shared/zone/math";
 import { agoWords, dateFormat, DAY_MS } from "../shared/time";
 /**
  * Channels — the numbers a business is reachable on, as facts.
@@ -54,7 +54,7 @@ export interface ChannelDto {
  * back onto Setup.
  *
  * `facts.ts` already resolved this correctly for the receptionist's own facts, and
- * `ensureVoiceAgent`, `line_forwarding_set` and `businessPageFor` all filter and
+ * `ensureVoiceAgent`, `line_forwarding_set` and `findBusinessPage` all filter and
  * order too. This is that same rule where the two page-facing readers can share it.
  *
  * ACTIVE FIRST, then the oldest of them — deterministic, and the oldest active row

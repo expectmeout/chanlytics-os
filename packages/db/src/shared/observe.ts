@@ -1,8 +1,8 @@
 /**
  * What packages/db asks of the process it runs in: somewhere to write a line, and the name of the request it serves.
  *
- * Both belong to channels (its logger, its request store), which db may not import: db sits under every other package
- * (lint-boundaries). So db takes them as a port. The edge's lib/shared/log.ts and the dashboard's server/shared/log.ts hand in the
+ * Both are `@chanlytics/log`'s (its logger, its request store). db leans on contracts alone (docs/architecture.md, "Which way the
+ * code leans"), so it takes them as a port. The edge's lib/shared/log.ts and the dashboard's server/shared/log.ts hand in the
  * one logger when they load (`observeDb`), and db's lines then go out as every other line does, redacted and carrying
  * the request's name. Before it, db wrote twenty positional console lines that no query could read.
  *

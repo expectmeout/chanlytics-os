@@ -1,5 +1,5 @@
 /**
- * An export of any size (decision 0103): the route answers a chunk and where the next begins (server/leads/lead-export.ts
+ * An export of any size (decision 0103): the route answers a chunk and where the next begins (server/leads/export.ts
  * exportChunk), and the page asks until none is left and joins them (surfaces/leads/export-walk.ts). Over a fake read and a
  * fake wire: the route's own answer is lead-routes.test.mjs's. Every name here is made up.
  */
@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../../_fake-db.mjs";
 
-const { exportChunk, exportLeads } = await import("../../../apps/dashboard/src/server/leads/lead-export.ts");
+const { exportChunk, exportLeads } = await import("../../../apps/dashboard/src/server/leads/export.ts");
 const { walkLeadsExport } = await import("../../../apps/dashboard/src/surfaces/leads/export-walk.ts");
 
 const NOTHING_SAID = { progress: () => assert.fail("a file of one chunk says nothing meanwhile") };

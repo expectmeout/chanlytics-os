@@ -9,10 +9,11 @@
  * accounts that cannot be read, no location, none on Maps. A connect is also a RE-connect, so a vault write that fails
  * puts the previous row back rather than deleting a working connection, and gives the new grant back only when it is
  * another Google account's. Only one location on Maps is bound at once; several wait for the owner's choice
- * (`locationsFor` reads them again). A connect and a disconnect each write their event (google.connected,
+ * (`getLocations` reads them again). A connect and a disconnect each write their event (google.connected,
  * google.disconnected).
  */
-import { emitEvent, linkedPlaceOf } from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db/events";
+import { findLinkedPlace } from "@chanlytics/db/imports";
 import {
   tokenExchangeRequest,
   revokeRequest,
@@ -23,12 +24,12 @@ import {
   type GbpLocation,
   type PlacesHttp,
   type TokenGrant,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/google";
 import type { EdgeRefusal } from "@chanlytics/contracts";
-import { profileClient } from "./config.js";
-import { http } from "./places.js";
-import { connectionOf, type ConnectionRow, type Db } from "./rows.js";
-import { grantFrom, readCredentials, storeCredentials, tokenFor } from "./profile-credentials.js";
+import { profileClient } from "../shared/google/config.js";
+import { http } from "../shared/google/places.js";
+import { connectionOf, type ConnectionRow, type Db } from "../shared/google/rows.js";
+import { grantFrom, readCredentials, storeCredentials, tokenFor } from "../shared/google/credentials.js";
 import type { CheckResult } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";
 import { syncMended } from "./sync-notice.js";
@@ -148,7 +149,7 @@ export async function connectProfile(
       expires_at: now.getTime() + grant.expires_in * 1000,
       scope: grant.scope,
     });
-  } catch (e) {
+  } catch (error) {
     // Without the token the row is a lie. Deleting it unconditionally was the
     // lie's cure and somebody else's outage: a workspace whose profile was
     // connected and syncing lost the connection entirely because a RE-connect
@@ -171,7 +172,7 @@ export async function connectProfile(
     // connection.
     const otherAccount = claims.sub != null && prior.data?.google_sub !== claims.sub;
     if (!restored || otherAccount) await net(revokeRequest(grant.refresh_token)).catch(() => null);
-    return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: "credentials_failed", detail: error instanceof Error ? error.message : String(error) };
   }
   await emitEvent(db, tenantId, "google.connected", "listing", null, {
     email: claims.email,
@@ -182,7 +183,7 @@ export async function connectProfile(
   }).catch(() => {});
   // One location on Maps is the one; among several, the one the owner already said was theirs (the first run's "That's
   // us", decision 0073 R17) is bound at once, and only otherwise does the owner choose.
-  const linked = onMaps.length > 1 ? await linkedPlaceOf(db, tenantId).catch(() => null) : null;
+  const linked = onMaps.length > 1 ? await findLinkedPlace(db, tenantId).catch(() => null) : null;
   const pick = onMaps.length === 1 ? onMaps[0] : (onMaps.find((l) => !!linked && l.place_id === linked) ?? null);
   if (pick) {
     const bound = await bindLocation(db, saved.data, pick, userId, tz, now, net);
@@ -193,14 +194,14 @@ export async function connectProfile(
 }
 
 /** The locations a pending (or connected) profile may choose among, read again: Google's refusal is in `detail`. */
-export async function locationsFor(
+export async function getLocations(
   db: Db,
   tenantId: string,
 ): Promise<{ ok: true; locations: LocationChoice[] } | EdgeRefusal> {
-  const t = await tokenFor(db, tenantId);
-  if (!t.ok) return t;
+  const token = await tokenFor(db, tenantId);
+  if (!token.ok) return token;
   try {
-    return { ok: true, locations: (await allLocations(t.token)).filter((l) => !!l.place_id) };
+    return { ok: true, locations: (await allLocations(token.token)).filter((l) => !!l.place_id) };
   } catch (e) {
     return {
       ok: false,

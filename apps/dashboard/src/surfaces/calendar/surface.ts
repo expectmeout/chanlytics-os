@@ -9,7 +9,7 @@ import type { SurfaceOverride } from "@/bridge/surface-data";
 import { declareReads } from "@/bridge/surface-registry";
 import { getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
 import { knownZone } from "@/bridge/zone";
-import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM } from "@chanlytics/contracts";
+import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM, DAY_KEY } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { calendarAddress, calendarParam } from "./address";
 import { CR_REFRESH_MS } from "./words";
@@ -36,7 +36,7 @@ export function getCalendarSpan(): { from: string | null; days: number } {
 }
 
 export function setCalendarSpan(from: string | null, days = 63): void {
-  calendarFrom = from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null;
+  calendarFrom = from && DAY_KEY.test(from) ? from : null;
   calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));
 }
 

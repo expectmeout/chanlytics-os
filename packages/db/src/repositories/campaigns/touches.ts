@@ -5,7 +5,7 @@
  * and broadcast composer (apps/dashboard/src/server/campaigns/playbooks.ts) read through this file, so the rule below
  * is written once and what the page says a person waits for is what the sweep holds them for.
  *
- * touchesSince reads every touch since a moment, and recentTouches those from the week's breath before now on, every one
+ * listTouchesSince reads every touch since a moment, and getRecentTouches those from the week's breath before now on, every one
  * per person in order (a send by hand leaves out who has one within a week of it, either side). followUpTouchesSince reads
  * only the runs that carry a proposal's link, because its window is as long as a proposal waits, far longer than the
  * breath. touchIndex folds touches into the latest one per person by each playbook (byThis, its gap) and by proposal
@@ -35,7 +35,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
 import { readAllRows } from "../../shared/paged";
-import { workspaceZoneOf } from "../workspace/control-plane";
+import { findWorkspaceZone } from "../workspace/control-plane/capabilities";
 
 type Db = SupabaseClient<Database>;
 
@@ -87,7 +87,7 @@ const STOPPED = new Set(["canceled", "failed"]);
  * zone, read beside the runs, says which day is today for a run waiting for a person; unreadable, every waiting run
  * still holds its people, which never messages anyone twice either.
  */
-export async function touchesSince(db: Db, tenantId: string, since: Date, now: Date): Promise<Touch[]> {
+export async function listTouchesSince(db: Db, tenantId: string, since: Date, now: Date): Promise<Touch[]> {
   return touchesOf(db, tenantId, since, now, false);
 }
 
@@ -98,11 +98,11 @@ export async function touchesSince(db: Db, tenantId: string, since: Date, now: D
  * it, either side (contracts heardWithin): the Playbooks page says by it how many of a moment's people wait (at now), the
  * broadcast composer how many a send leaves out (now, or for the time it is set for: contracts leftOutBy), Ask's cards the
  * same, and a send by hand (core createBroadcast's `touches` port) leaves them out by it, so all of them say one number.
- * Throws as touchesSince does: "nobody was touched" is the reading that messages people twice.
+ * Throws as listTouchesSince does: "nobody was touched" is the reading that messages people twice.
  */
-export async function recentTouches(db: Db, tenantId: string, now: Date): Promise<Record<string, string[]>> {
+export async function getRecentTouches(db: Db, tenantId: string, now: Date): Promise<Record<string, string[]>> {
   const touched: Record<string, string[]> = {};
-  for (const t of await touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now))
+  for (const t of await listTouchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now))
     (touched[t.contact_id] ??= []).push(t.at);
   for (const times of Object.values(touched)) times.sort((a, b) => Date.parse(a) - Date.parse(b));
   return touched;
@@ -149,7 +149,7 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
         .or(runsSince(since));
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
     }),
-    workspaceZoneOf(db, tenantId).then(
+    findWorkspaceZone(db, tenantId).then(
       (zone) => zone || DEFAULT_TIMEZONE,
       () => null,
     ),
@@ -165,7 +165,7 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
   const ids = runs.map((b) => b.id);
   const out: Touch[] = [];
   const sinceMs = since.getTime();
-  for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
+  for (let index = 0; index < ids.length; index += RUN_IDS_PER_QUERY) {
     const rows = await readAllRows<{
       broadcast_id: string | null;
       contact_id: string | null;
@@ -182,28 +182,28 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
         )
         .eq("tenant_id", tenantId)
         .is("lead_id", null)
-        .in("batch_id", ids.slice(i, i + RUN_IDS_PER_QUERY))
+        .in("batch_id", ids.slice(index, index + RUN_IDS_PER_QUERY))
         .in("state", ["sent", "queued"])
         .order("batch_id")
         .order("contact_id")
         .range(from, to),
     );
-    for (const r of rows) {
-      const run = r.broadcast_id ? ofRun.get(r.broadcast_id) : null;
-      if (!run || !r.contact_id) continue;
-      if (STOPPED.has(run.state) && r.state !== "sent") continue;
-      const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
+    for (const row of rows) {
+      const run = row.broadcast_id ? ofRun.get(row.broadcast_id) : null;
+      if (!run || !row.contact_id) continue;
+      if (STOPPED.has(run.state) && row.state !== "sent") continue;
+      const at = row.sent_at ?? run.scheduled_for ?? run.created_at;
       if (Date.parse(at) < sinceMs) continue;
       out.push({
-        contact_id: r.contact_id,
+        contact_id: row.contact_id,
         playbook_id: run.playbook_id,
         at,
-        sent: r.state === "sent",
+        sent: row.state === "sent",
         held: run.state === "pending_approval",
         follow_up: followUp.has(run.id),
         // As the run wrote them from the deal (contracts proposalFactsFor), so they are compared as they are.
-        deal: followUp.has(run.id) ? factString(r.proposal_deal) : null,
-        link: followUp.has(run.id) ? factString(r.proposal_link) : null,
+        deal: followUp.has(run.id) ? factString(row.proposal_deal) : null,
+        link: followUp.has(run.id) ? factString(row.proposal_link) : null,
       });
     }
   }
@@ -224,20 +224,20 @@ export function touchIndex(touches: readonly Touch[], now: Date): TouchIndex {
   const followUps = new Map<string, number>();
   const followUpKeys = new Map<string, Map<string, number>>();
   const breath = heardWithin(now.getTime(), now.getTime());
-  for (const t of touches) {
-    const at = Date.parse(t.at);
-    if (t.playbook_id) {
-      const m = byThis.get(t.playbook_id) ?? new Map<string, number>();
-      m.set(t.contact_id, Math.max(m.get(t.contact_id) ?? 0, at));
-      byThis.set(t.playbook_id, m);
+  for (const touch of touches) {
+    const at = Date.parse(touch.at);
+    if (touch.playbook_id) {
+      const m = byThis.get(touch.playbook_id) ?? new Map<string, number>();
+      m.set(touch.contact_id, Math.max(m.get(touch.contact_id) ?? 0, at));
+      byThis.set(touch.playbook_id, m);
     }
-    if (breath(at)) byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
-    if (t.follow_up) followUps.set(t.contact_id, Math.max(followUps.get(t.contact_id) ?? 0, at));
-    if (t.follow_up) {
-      const m = followUpKeys.get(t.contact_id) ?? new Map<string, number>();
-      const key = followUpKey(t);
+    if (breath(at)) byAny.set(touch.contact_id, Math.max(byAny.get(touch.contact_id) ?? 0, at));
+    if (touch.follow_up) followUps.set(touch.contact_id, Math.max(followUps.get(touch.contact_id) ?? 0, at));
+    if (touch.follow_up) {
+      const m = followUpKeys.get(touch.contact_id) ?? new Map<string, number>();
+      const key = followUpKey(touch);
       m.set(key, Math.max(m.get(key) ?? 0, at));
-      followUpKeys.set(t.contact_id, m);
+      followUpKeys.set(touch.contact_id, m);
     }
   }
   return { byThis, byAny, followUps, followUpKeys };

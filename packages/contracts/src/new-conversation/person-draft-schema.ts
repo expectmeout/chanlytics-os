@@ -3,7 +3,7 @@
  * Kept apart from person-draft.ts so the browser's bundle of contracts holds no zod for it.
  */
 import { z } from "zod";
-import { REPLY_MAX_ANY } from "../config/policy";
+import { REPLY_MAX_ANY } from "../config/policy/reply-limits";
 import { CONSENT_CHANNELS } from "../consent/channels";
 import {
   DRAFT_ABOUT_MAX,

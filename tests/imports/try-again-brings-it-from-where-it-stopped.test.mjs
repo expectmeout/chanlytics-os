@@ -10,7 +10,7 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { signEdgeToken, verifyEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken, verifyEdgeToken } from "@chanlytics/channels/tokens";
 import { IMPORT_STOPPED_WORDS } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";

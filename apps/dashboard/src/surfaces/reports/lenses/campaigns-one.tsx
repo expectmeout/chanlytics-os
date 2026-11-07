@@ -9,20 +9,22 @@
  * out.
  */
 import {
-  CAMPAIGN_CHOICE_GROUPS,
-  CAMPAIGN_SCOPE_WORDS as W,
-  campaignChoicesOf,
-  campaignOneOf,
   campaignScopeKey,
   campaignScopeOfKey,
   historyCovers,
   runRoute,
-  type CampaignOneVM,
   type CampaignScope,
   type SequenceBatchDto,
   type SequenceRecordDto,
   type SequenceRowDto,
 } from "@chanlytics/contracts";
+import {
+  CAMPAIGN_CHOICE_GROUPS,
+  CAMPAIGN_SCOPE_WORDS as W,
+  campaignChoicesOf,
+  campaignOneOf,
+  type CampaignOneVM,
+} from "./campaign-one";
 import { api } from "@/bridge/api";
 import { BarChart, BarList } from "../../kit/charts/bar";
 import { ChartCard } from "../../kit/charts/card";

@@ -5,12 +5,12 @@
  * contracts' (leads/sheet/lead-named-views.ts); a phone lists the views and keeps none.
  */
 import { useCallback, useRef, useState } from "react";
+import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import {
   LEAD_NAMED_NAME_MAX,
   LEAD_NAMED_PAGE,
   LEAD_NAMED_WORDS as N,
   LEAD_STARTER_VIEWS,
-  LEAD_WORDS as W,
   leadNamedActive,
   leadNamedAdd,
   leadNamedChanged,
@@ -19,7 +19,7 @@ import {
   type LeadNamedLayout,
   type LeadNamedNow,
   type LeadNamedView,
-} from "@chanlytics/contracts";
+} from "./named-views";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Field } from "../../kit/field/field";

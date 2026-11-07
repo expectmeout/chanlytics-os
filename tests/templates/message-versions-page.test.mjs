@@ -22,6 +22,7 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../_stub-react.mjs";
 import { lineBox } from "../shared/_line.mjs";
+import { toSlotParts } from "../../apps/dashboard/src/surfaces/campaigns/templates/message-version-slots.ts";
 
 installStubReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -647,7 +648,7 @@ test("the editor shows each slot by its name, as a chip, and never as {{n}}: in 
     assert.equal(box.props.value, words, "the stored words are the string with its slots, as they were");
     assert.deepEqual(
       chipsOf(box).map(([, n]) => n),
-      contracts.toSlotParts(words).flatMap((part) => (part.kind === "slot" ? [Number(part.slot)] : [])),
+      toSlotParts(words).flatMap((part) => (part.kind === "slot" ? [Number(part.slot)] : [])),
       "a chip for each slot, in order",
     );
     for (const [name, n] of chipsOf(box))

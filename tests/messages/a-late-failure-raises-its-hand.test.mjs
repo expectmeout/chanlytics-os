@@ -180,7 +180,7 @@ test("once per hold: a thread already held for a failed send is brought up to da
 });
 
 test("a message that cannot be read is the receipt's to say again: the read's own error reaches the door", async () => {
-  const p = ports({ message: new Error("messageByExternalId: the database is down") });
+  const p = ports({ message: new Error("findMessageByExternalId: the database is down") });
   await assert.rejects(late(p), /the database is down/);
   assert.deepEqual(p.ops(), ["message"]);
 });
@@ -198,7 +198,7 @@ test("a text's receipt is read as Twilio's: the code in its own words, and a sta
 
 test("the message the provider's id names is read in its own workspace, and no more of the person than the flag needs; none, or a read that fails, is not a guess", async () => {
   const { fakeDb } = await import("../_fake-db.mjs");
-  const { messageByExternalId } = await import("@chanlytics/db");
+  const { findMessageByExternalId } = await import("@chanlytics/db/channels");
   const T = "aaaaaaaa-0000-4000-8000-0000000000e1";
   const OTHER = "bbbbbbbb-0000-4000-8000-0000000000e1";
   const row = (id, tenant_id, over = {}) => ({
@@ -218,7 +218,7 @@ test("the message the provider's id names is read in its own workspace, and no m
     messages: [row("mine", T, { contact_id: "k1" }), row("theirs", OTHER)],
   };
   const db = fakeDb(tables);
-  assert.deepEqual(await messageByExternalId(db, T, "wamid.same"), {
+  assert.deepEqual(await findMessageByExternalId(db, T, "wamid.same"), {
     messageId: "mine",
     conversationId: "cv-mine",
     direction: "outbound",
@@ -226,9 +226,9 @@ test("the message the provider's id names is read in its own workspace, and no m
     status: "sent",
     meta: { source: "broadcast" },
   });
-  assert.equal(await messageByExternalId(db, T, "wamid.nobody"), null);
+  assert.equal(await findMessageByExternalId(db, T, "wamid.nobody"), null);
   await assert.rejects(
-    messageByExternalId(fakeDb(tables, { "messages.select": { message: "down" } }), T, "wamid.same"),
-    /messageByExternalId: down/,
+    findMessageByExternalId(fakeDb(tables, { "messages.select": { message: "down" } }), T, "wamid.same"),
+    /findMessageByExternalId: down/,
   );
 });

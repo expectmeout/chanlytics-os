@@ -2,8 +2,8 @@
  * The Calendar's views and the window loaded around them: the days a week, a day, a month or the agenda needs,
  * whether the loaded days cover them, and a day's frame before its data has landed.
  */
-import { DOW, keyParts, mondayOf, monthSpan, shiftKey } from "./day-keys";
-import { longDate, shortDate } from "./words";
+import { DOW, keyParts, mondayOf, monthSpan, shiftKey } from "../shared/zone/day-keys";
+import { longDate, shortDate } from "./words/labels";
 
 /* ------------------------------------------------- the window and the views */
 

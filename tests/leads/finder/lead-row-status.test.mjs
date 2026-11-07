@@ -5,16 +5,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { LEAD_LEFT_OUT_WORD, LEAD_REVIEW_WORD, formatPhoneLocal } from "@chanlytics/contracts";
+import { LEAD_DOCK_WORDS } from "../../../apps/dashboard/src/surfaces/leads/sheet/model/dock.ts";
 import {
-  LEAD_DOCK_WORDS,
-  LEAD_LEFT_OUT_WORD,
-  LEAD_REVIEW_WORD,
-  formatPhoneLocal,
   leadFootOf,
   leadGroupOf,
   leadRowActOf,
   leadStatusOf,
-} from "@chanlytics/contracts";
+} from "../../../apps/dashboard/src/surfaces/leads/row-status.ts";
 
 const NOW = Date.parse("2026-11-05T15:00:00Z");
 const CLOCK = { tz: "America/New_York", nowMs: NOW };

@@ -7,8 +7,8 @@
 let encoder: InstanceType<typeof TextEncoder> | null = null;
 
 /** A string's UTF-8 bytes. */
-export const utf8Bytes = (s: string): ReturnType<InstanceType<typeof TextEncoder>["encode"]> =>
-  (encoder ??= new TextEncoder()).encode(s);
+export const utf8Bytes = (text: string): ReturnType<InstanceType<typeof TextEncoder>["encode"]> =>
+  (encoder ??= new TextEncoder()).encode(text);
 
 /** A digest's bytes as lowercase hex, two characters a byte. */
 export const hexOf = (buf: ArrayBuffer): string =>

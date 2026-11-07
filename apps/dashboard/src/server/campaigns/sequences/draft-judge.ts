@@ -155,8 +155,8 @@ function paramsOf(slots: readonly ParamSourceKind[], texts: readonly string[]): 
   let t = 0;
   return slots.map((kind) => {
     if (kind !== "text") return { kind };
-    const said = (texts[t++] ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
-    return { kind: "text", value: violatesNoPrices(said) ? "" : said };
+    const sentence = (texts[t++] ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+    return { kind: "text", value: violatesNoPrices(sentence) ? "" : sentence };
   });
 }
 
@@ -179,16 +179,20 @@ function fillable(slots: readonly ParamSourceKind[], first: boolean, moment: Kno
 const cleanWords = (s: string) => s.replace(/\r\n?/g, "\n").trim();
 
 /** A message Ask wrote for a person's step, as the message door would file it; null where it would refuse it. */
-function askWrittenOf(w: NewDraftAnswerStep["write"], first: boolean, moment: KnownMoment | null): NewMessage | null {
-  const wa = cleanWords(w.whatsapp);
+function askWrittenOf(
+  write: NewDraftAnswerStep["write"],
+  first: boolean,
+  moment: KnownMoment | null,
+): NewMessage | null {
+  const wa = cleanWords(write.whatsapp);
   // A message about the person's own visit is utility where WhatsApp reviews it; anything else is marketing, an offer or
   // news, which only a yes to offers hears and a text never carries (consent purposeOfTemplate; write-message.ts).
-  const utility = !w.offer && !!moment?.visits && !!wa;
-  const sms = utility ? cleanWords(w.text) : "";
-  const subject = cleanWords(w.email_subject);
-  const email = cleanWords(w.email_body);
+  const utility = !write.offer && !!moment?.visits && !!wa;
+  const sms = utility ? cleanWords(write.text) : "";
+  const subject = cleanWords(write.email_subject);
+  const email = cleanWords(write.email_body);
   const numbered = numberedValues([wa, sms, subject, email]);
-  const title = w.title.trim();
+  const title = write.title.trim();
   if (!numbered || !title || (!wa && !sms && !(subject && email))) return null;
   const { rewrite, slots } = numbered;
   if (
@@ -226,8 +230,15 @@ function askWrittenOf(w: NewDraftAnswerStep["write"], first: boolean, moment: Kn
 }
 
 /** A person's message step: a held message by its key, or one Ask wrote. */
-function peopleMessage(a: NewDraftAnswerStep, first: boolean, known: DraftKnown, moment: KnownMoment | null) {
-  const held = a.message ? known.messages.find((m) => m.key === a.message) : undefined;
+function peopleMessage(
+  newDraftAnswerStep: NewDraftAnswerStep,
+  first: boolean,
+  known: DraftKnown,
+  moment: KnownMoment | null,
+) {
+  const held = newDraftAnswerStep.message
+    ? known.messages.find((m) => m.key === newDraftAnswerStep.message)
+    : undefined;
   if (held) {
     if (!fillable(held.slots, first, moment)) return null;
     return {
@@ -235,50 +246,53 @@ function peopleMessage(a: NewDraftAnswerStep, first: boolean, known: DraftKnown,
       title: held.title,
       body: held.body,
       channels: held.channels,
-      params: paramsOf(held.slots, a.texts),
+      params: paramsOf(held.slots, newDraftAnswerStep.texts),
       offer: held.offer,
       written: null,
       ...(held.labels ? { labels: held.labels } : {}),
     } satisfies NewMessage;
   }
-  return a.write.title ? askWrittenOf(a.write, first, moment) : null;
+  return newDraftAnswerStep.write.title ? askWrittenOf(newDraftAnswerStep.write, first, moment) : null;
 }
 
 /**
  * A lead's email: kept where it holds as every email must, and a first one with no link (the check says so), else left for
  * the owner to write.
  */
-export function leadEmail(a: Pick<NewDraftAnswerStep, "subject" | "body">, first: boolean): NewEmail {
-  const w = { subject: first ? cleanWords(a.subject) || null : null, body: cleanWords(a.body) };
+export function leadEmail(newDraftAnswerStep: Pick<NewDraftAnswerStep, "subject" | "body">, first: boolean): NewEmail {
+  const item = {
+    subject: first ? cleanWords(newDraftAnswerStep.subject) || null : null,
+    body: cleanWords(newDraftAnswerStep.body),
+  };
   const holds =
-    validateReachOutWords(w, first).length === 0 &&
-    !violatesNoPrices(`${w.subject ?? ""} ${w.body}`) &&
-    !(first && linkCount(w.body) > 0);
-  return holds ? w : { subject: first ? w.subject : null, body: "" };
+    validateReachOutWords(item, first).length === 0 &&
+    !violatesNoPrices(`${item.subject ?? ""} ${item.body}`) &&
+    !(first && linkCount(item.body) > 0);
+  return holds ? item : { subject: first ? item.subject : null, body: "" };
 }
 
 /** A call's or a note's words, kept where they say something to do. */
 const handWords = (a: NewDraftAnswerStep): string => a.words.replace(/\s+/g, " ").trim().slice(0, HAND_WORDS_MAX);
 
 function judgeStep(
-  a: NewDraftAnswerStep,
-  i: number,
-  p: { audience: NewAudience; known: DraftKnown; moment: KnownMoment | null; name: string },
+  newDraftAnswerStep: NewDraftAnswerStep,
+  index: number,
+  params: { audience: NewAudience; known: DraftKnown; moment: KnownMoment | null; name: string },
 ): Judged {
-  const first = i === 0;
+  const first = index === 0;
   const base = {
-    name: first ? p.name : "",
-    after_days: first ? null : newWaitOf(p.audience, a.after_days),
-    only_if: first ? [] : a.only_if.filter((c) => newConditionsOf(p.audience).includes(c)),
+    name: first ? params.name : "",
+    after_days: first ? null : newWaitOf(params.audience, newDraftAnswerStep.after_days),
+    only_if: first ? [] : newDraftAnswerStep.only_if.filter((c) => newConditionsOf(params.audience).includes(c)),
   };
-  if (a.does !== "message") {
-    const hand = handWords(a);
+  if (newDraftAnswerStep.does !== "message") {
+    const hand = handWords(newDraftAnswerStep);
     if (first || !hand) return { dropped: NEW_WORDS.cannot.stepDropped };
-    return { step: { ...base, does: a.does, message: null, email: null, hand } };
+    return { step: { ...base, does: newDraftAnswerStep.does, message: null, email: null, hand } };
   }
-  if (p.audience === "leads")
-    return { step: { ...base, does: "message", message: null, email: leadEmail(a, first), hand: "" } };
-  const message = peopleMessage(a, first, p.known, p.moment);
+  if (params.audience === "leads")
+    return { step: { ...base, does: "message", message: null, email: leadEmail(newDraftAnswerStep, first), hand: "" } };
+  const message = peopleMessage(newDraftAnswerStep, first, params.known, params.moment);
   if (!message) return { dropped: first ? NEW_WORDS.cannot.noMessage : NEW_WORDS.cannot.stepDropped };
   return { step: { ...base, does: "message", message, email: null, hand: "" } };
 }
@@ -286,14 +300,14 @@ function judgeStep(
 /** The steps kept, at most the audience's, a once's one; a call or a note only as the last. */
 function judgeSteps(
   answer: NewDraftAnswer,
-  p: { audience: NewAudience; kind: NewKind; known: DraftKnown; moment: KnownMoment | null; name: string },
+  params: { audience: NewAudience; kind: NewKind; known: DraftKnown; moment: KnownMoment | null; name: string },
 ): { steps: NewStep[]; cannot: string[] } {
-  const max = p.kind === "once" ? 1 : NEW_STEPS_MAX[p.audience];
+  const max = params.kind === "once" ? 1 : NEW_STEPS_MAX[params.audience];
   const steps: NewStep[] = [];
   const cannot: string[] = [];
   for (const a of answer.steps) {
     if (steps.length >= max) break;
-    const j = judgeStep(a, steps.length, p);
+    const j = judgeStep(a, steps.length, params);
     if ("dropped" in j) {
       cannot.push(j.dropped);
       if (steps.length === 0) break;
@@ -314,21 +328,25 @@ function judgeSteps(
 /** Who the answer named, by its key, else the one the owner or a door chose. */
 function answerWhoOf(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk): DraftWho | null {
   if (ask.who) return ask.who;
-  const k = answer.who;
-  const moment = known.moments.find((m) => m.key === k);
+  const key = answer.who;
+  const moment = known.moments.find((m) => m.key === key);
   if (moment) return { kind: "moment", trigger: moment.trigger, label: moment.label };
-  const list = known.lists.find((l) => l.key === k);
+  const list = known.lists.find((l) => l.key === key);
   if (list) return { kind: "list", token: list.token, label: list.label };
-  const search = known.searches.find((s) => s.key === k);
+  const search = known.searches.find((s) => s.key === key);
   if (search) return { kind: "search", id: search.id, label: search.label };
-  return k === "everyone" ? { kind: "everyone", label: NEW_WORDS.draft.everyoneNews } : null;
+  return key === "everyone" ? { kind: "everyone", label: NEW_WORDS.draft.everyoneNews } : null;
 }
 
 /** Who New names, as its list rule reads it (contracts newListOf): never who said stop; a one-off's list of yeses, everyone. */
-function asNewWho(who: DraftWho | null, kind: NewKind): DraftWho | null {
-  if (who?.kind !== "list") return who;
-  const is = newListOf(who.token, kind);
-  return is === "never" ? null : is === "everyone" ? { kind: "everyone", label: NEW_WORDS.draft.everyoneNews } : who;
+function asNewWho(draftWho: DraftWho | null, kind: NewKind): DraftWho | null {
+  if (draftWho?.kind !== "list") return draftWho;
+  const is = newListOf(draftWho.token, kind);
+  return is === "never"
+    ? null
+    : is === "everyone"
+      ? { kind: "everyone", label: NEW_WORDS.draft.everyoneNews }
+      : draftWho;
 }
 
 /** A one-off's moment: now, or a time ahead the send may be set for (within NEW_ONCE_AHEAD_DAYS), as the model said it. */
@@ -356,7 +374,7 @@ function classOf(audience: NewAudience, moment: KnownMoment | null): string {
 
 /** How a draft goes, by what it is: its hour, a one-off's moment, its channels and mailbox, its class and its mode. */
 function howOf(
-  p: {
+  params: {
     kind: NewKind;
     audience: NewAudience;
     who: DraftWho | null;
@@ -366,25 +384,25 @@ function howOf(
   answer: NewDraftAnswer,
   known: DraftKnown,
 ): Pick<NewDraftDto, "run_hour" | "at" | "channels" | "mailbox" | "adds_new" | "policy_class" | "mode"> {
-  const leads = p.audience === "leads";
-  const policy = classOf(p.audience, p.moment);
+  const leads = params.audience === "leads";
+  const policy = classOf(params.audience, params.moment);
   const box = known.mailbox;
   return {
     run_hour: Math.min(PLAYBOOK_HOURS.max, Math.max(PLAYBOOK_HOURS.min, answer.hour || PLAYBOOK_DEFAULTS.runHour)),
-    at: p.kind === "once" ? onceAt(answer.when, known.localNow) : null,
-    channels: leads ? ["email"] : (p.first ? carriersOf(p.first) : []).filter((c) => known.ready.includes(c)),
+    at: params.kind === "once" ? onceAt(answer.when, known.localNow) : null,
+    channels: leads ? ["email"] : (params.first ? carriersOf(params.first) : []).filter((c) => known.ready.includes(c)),
     mailbox: leads ? { ids: box?.ids ?? [], owner_sends: !box, label: box?.label ?? "" } : null,
-    adds_new: leads && p.who?.kind === "search",
+    adds_new: leads && params.who?.kind === "search",
     policy_class: policy,
-    mode: p.kind === "once" ? null : newSequenceMode(known.classModes[policy] ?? null, leads ? "leads" : null),
+    mode: params.kind === "once" ? null : newSequenceMode(known.classModes[policy] ?? null, leads ? "leads" : null),
   };
 }
 
 /** Everyone is who said yes to what it is: an offer's yes, or a message's. */
-const everyoneSaid = (who: DraftWho | null, first: NewMessage | null): DraftWho | null =>
-  who?.kind === "everyone"
-    ? { ...who, label: first?.offer ? NEW_WORDS.draft.everyoneOffers : NEW_WORDS.draft.everyoneNews }
-    : who;
+const everyoneSaid = (draftWho: DraftWho | null, first: NewMessage | null): DraftWho | null =>
+  draftWho?.kind === "everyone"
+    ? { ...draftWho, label: first?.offer ? NEW_WORDS.draft.everyoneOffers : NEW_WORDS.draft.everyoneNews }
+    : draftWho;
 
 /**
  * The draft from Ask's answer: the kind and audience the owner chose, else Ask's; who, when and the steps, each as this
@@ -394,32 +412,33 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
   const kind = ask.kind ?? answer.kind;
   const audience = ask.audience ?? answer.audience;
   const named = asNewWho(answerWhoOf(answer, known, ask), kind);
-  const who = named && whoSuits(named, audience, kind) ? named : null;
-  const moment = who?.kind === "moment" ? (known.moments.find((m) => m.trigger === who.trigger) ?? null) : null;
-  const name = (answer.name.trim() || who?.label || NEW_WORDS.title).slice(0, 80);
+  const personName = named && whoSuits(named, audience, kind) ? named : null;
+  const moment =
+    personName?.kind === "moment" ? (known.moments.find((m) => m.trigger === personName.trigger) ?? null) : null;
+  const name = (answer.name.trim() || personName?.label || NEW_WORDS.title).slice(0, 80);
   const { steps, cannot } = judgeSteps(answer, { audience, kind, known, moment, name });
-  const said = answer.cannot.trim();
-  if (steps.length === 0) throw new AppError("validation", said || cannot[0] || NEW_WORDS.cannot.nothingFits, 422);
+  const sentence = answer.cannot.trim();
+  if (steps.length === 0) throw new AppError("validation", sentence || cannot[0] || NEW_WORDS.cannot.nothingFits, 422);
   const first = steps[0]?.message ?? null;
-  const how = howOf({ kind, audience, who, moment, first }, answer, known);
+  const how = howOf({ kind, audience, who: personName, moment, first }, answer, known);
   const draft: NewDraftDto = {
     said: ask.words.trim(),
     business: known.business,
     kind,
     audience,
     name,
-    who: everyoneSaid(who, first),
+    who: everyoneSaid(personName, first),
     ...how,
     steps,
-    reach: newReachOf(who, knownCountsOf(known), {
+    reach: newReachOf(personName, knownCountsOf(known), {
       kind,
       channels: how.channels,
       offer: !!first?.offer,
       review: !!first?.written?.versions.whatsapp,
     }),
     checks: [],
-    twin: kind === "sequence" ? twinOf(who, known.running) : null,
-    cannot: said || (cannot.length ? [...new Set(cannot)].join(" ") : null),
+    twin: kind === "sequence" ? twinOf(personName, known.running) : null,
+    cannot: sentence || (cannot.length ? [...new Set(cannot)].join(" ") : null),
   };
   return { ...draft, checks: newChecksOf(draft, known.ready) };
 }

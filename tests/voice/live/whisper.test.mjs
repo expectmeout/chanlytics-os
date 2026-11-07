@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DECISION_VERBS, DECISION_SUBJECTS, toLiveVM } from "@chanlytics/contracts";
-import { updateLiveCall } from "@chanlytics/channels";
+import { updateLiveCall } from "@chanlytics/channels/voice";
 import { readCode, readRaw } from "../../_source.mjs";
 import { installStubReact, fresh, again, find, byTestId } from "../../_stub-react.mjs";
 

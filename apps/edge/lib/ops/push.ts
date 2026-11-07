@@ -22,7 +22,7 @@ import type { PushMessage } from "@chanlytics/contracts";
 import type { PushPort, PushReceipt } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
-import { providerFetch, type ProviderReply } from "@chanlytics/channels";
+import { fetchFromProvider, type ProviderReply } from "@chanlytics/channels/shared";
 
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 export const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
@@ -50,8 +50,8 @@ function ticketsOf(batch: PushMessage[], body: { data?: ExpoTicket[] }): PushRec
   });
 }
 
-const refused = (batch: PushMessage[], why: string): PushReceipt[] =>
-  batch.map((m) => ({ to: m.to, status: "error", error: why }));
+const refused = (batch: PushMessage[], reason: string): PushReceipt[] =>
+  batch.map((m) => ({ to: m.to, status: "error", error: reason }));
 
 /**
  * The apps a refused batch's tokens belong to, when the service says there was more than one
@@ -76,7 +76,7 @@ function experienceGroups(detail: string): Set<string>[] {
 export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
   const post = async (url: string, body: unknown): Promise<ProviderReply> => {
     const token = env.EXPO_ACCESS_TOKEN;
-    const r = await providerFetch(
+    const item = await fetchFromProvider(
       "expo",
       url,
       {
@@ -91,37 +91,41 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
       },
       { fetch: fetchImpl },
     );
-    return r;
+    return item;
   };
   const text = (r: ProviderReply) => r.text;
 
   return {
     async send(messages: PushMessage[]): Promise<PushReceipt[]> {
       const receipts: PushReceipt[] = [];
-      for (let i = 0; i < messages.length; i += PUSH_BATCH) {
-        const batch = messages.slice(i, i + PUSH_BATCH);
-        const r = await post(EXPO_PUSH_URL, batch);
-        if (r.outcome === "ok") {
-          receipts.push(...ticketsOf(batch, r.json as { data?: ExpoTicket[] }));
+      for (let index = 0; index < messages.length; index += PUSH_BATCH) {
+        const batch = messages.slice(index, index + PUSH_BATCH);
+        const result = await post(EXPO_PUSH_URL, batch);
+        if (result.outcome === "ok") {
+          receipts.push(...ticketsOf(batch, result.json as { data?: ExpoTicket[] }));
           continue;
         }
-        if (r.outcome === "unknown") {
+        if (result.outcome === "unknown") {
           // It may have been taken (defect 50): the phones may be told already, so nothing here asks again, and the
           // rest are not sent either. Said in the receipts and on the log; the ledger records the job done.
-          const why = `push_outcome_unknown ${r.status || r.error || "no answer"}`;
-          logger().warn("push_outcome_unknown", { batch: i / PUSH_BATCH, messages: messages.length - i, why });
-          receipts.push(...refused(messages.slice(i), why));
+          const otherReason = `push_outcome_unknown ${result.status || result.error || "no answer"}`;
+          logger().warn("push_outcome_unknown", {
+            batch: index / PUSH_BATCH,
+            messages: messages.length - index,
+            why: otherReason,
+          });
+          receipts.push(...refused(messages.slice(index), otherReason));
           break;
         }
-        if (r.status === 0) {
+        if (result.status === 0) {
           // Provably not taken: the connection never opened, or this provider's breaker held the call.
-          const why = `push_rejected ${r.error ?? "no answer"}`;
-          if (i === 0) throw new Error(why);
-          receipts.push(...refused(messages.slice(i), why));
+          const otherReason = `push_rejected ${result.error ?? "no answer"}`;
+          if (index === 0) throw new Error(otherReason);
+          receipts.push(...refused(messages.slice(index), otherReason));
           break;
         }
-        const detail = text(r);
-        const groups = r.status === 400 ? experienceGroups(detail) : [];
+        const detail = text(result);
+        const groups = result.status === 400 ? experienceGroups(detail) : [];
         if (groups.length) {
           // Tokens of more than one app in one request: the service refuses the whole batch, so each app's tokens go
           // in a request of their own. This app's get through; the others' are the service's to answer for, and a
@@ -143,23 +147,23 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
           );
           continue;
         }
-        const why = `push_rejected ${r.status} ${detail.slice(0, 200)}`.trim();
-        if (i === 0) throw new Error(why);
-        receipts.push(...refused(messages.slice(i), why));
+        const reason = `push_rejected ${result.status} ${detail.slice(0, 200)}`.trim();
+        if (index === 0) throw new Error(reason);
+        receipts.push(...refused(messages.slice(index), reason));
         break;
       }
       return receipts;
     },
     async receipts(ids) {
       const out: Record<string, { status: "ok" | "error"; error?: string }> = {};
-      for (let i = 0; i < ids.length; i += RECEIPTS_BATCH) {
-        const batch = ids.slice(i, i + RECEIPTS_BATCH);
-        const r = await post(EXPO_RECEIPTS_URL, { ids: batch });
-        if (r.outcome !== "ok") {
-          const detail = text(r);
-          throw new Error(`push_receipts_rejected ${r.status || r.error} ${detail.slice(0, 200)}`.trim());
+      for (let index = 0; index < ids.length; index += RECEIPTS_BATCH) {
+        const batch = ids.slice(index, index + RECEIPTS_BATCH);
+        const result = await post(EXPO_RECEIPTS_URL, { ids: batch });
+        if (result.outcome !== "ok") {
+          const detail = text(result);
+          throw new Error(`push_receipts_rejected ${result.status || result.error} ${detail.slice(0, 200)}`.trim());
         }
-        const { data } = (r.json ?? {}) as { data?: Record<string, ExpoReceipt> };
+        const { data } = (result.json ?? {}) as { data?: Record<string, ExpoReceipt> };
         for (const [id, rc] of Object.entries(data ?? {})) {
           out[id] =
             rc.status === "ok"

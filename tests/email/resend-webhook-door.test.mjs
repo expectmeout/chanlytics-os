@@ -12,7 +12,7 @@ import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
-import { resendWebhookSignature } from "@chanlytics/channels";
+import { resendWebhookSignature } from "@chanlytics/channels/email";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;

@@ -63,7 +63,7 @@ test("land takes main's side only of what a command writes, and has a command fo
   ])
     assert.equal(isWritten(file), true, file);
   for (const file of [
-    "packages/contracts/src/ask/proposals/guide.ts",
+    "apps/dashboard/src/server/ask/proposals/guide.ts",
     "supabase/schema.sql",
     "packages/contracts/src/schema-sets.generated.ts",
     "supabase/migrations/00448_an_owners_correction_is_kept.sql",

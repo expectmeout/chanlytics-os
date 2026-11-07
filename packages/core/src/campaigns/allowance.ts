@@ -1,7 +1,7 @@
 /**
  * The month's allowance, at enrolment (One message, every channel, step 3; contracts reach-for.ts). Chanlytics pays for the
  * emails and texts a workspace's campaigns send, so it meters them (CAMPAIGN_MONTH_ALLOWANCE). The send holds a person
- * past the month's room at the wire (messages/broadcast-channels.ts overAllowance), which is the backstop; this reads the
+ * past the month's room at the wire (messages/broadcast-channels.ts isOverAllowance), which is the backstop; this reads the
  * month BEFORE anyone is enrolled and names who is already past it, so the run's own page says so up front instead of
  * each person failing at send time.
  *
@@ -44,7 +44,7 @@ export function allowanceRecord(held: number, unheld: number): Record<string, nu
  * now (a broadcast's `when`) gives the moment to the port it hands in (create-broadcast.ts); a playbook's run is made when it
  * sends, and hands in the port as it is.
  */
-export async function pastTheMonth<T extends { channel: ConsentChannel }>(
+export async function listPastTheMonth<T extends { channel: ConsentChannel }>(
   ports: { monthSent(channel: keyof MonthSent): Promise<number> },
   people: readonly T[],
   trigger: string | null,

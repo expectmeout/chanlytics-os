@@ -2,31 +2,27 @@
  * The opening's two model calls (Reach out, Part 4; spec §4.3–4.4, F2), said once: the writer writes one business's
  * opening from its record, and the reader reads what the writer wrote against the same record. Their prompts, their
  * answers' schemas and the answers parsed are here. The edge (lib/campaigns/reach-out/check.ts) does the transport, and code
- * (reach-out/words.ts checkOpening) reads the writer's answer before the reader does.
+ * (reach-out/words/opening.ts checkOpening) reads the writer's answer before the reader does.
  *
  * Haiku, the smallest model: an opening is one sentence from a short record, and each email costs at most four calls
- * (two, and two more on its one rewrite). The id is the registry's (ai/models.ts MODEL_ROUTES.reach_out_check), the
+ * (two, and two more on its one rewrite). The id is the registry's (ai/models/routes.ts MODEL_ROUTES.reach_out_check), the
  * same one the notes sweep and the reply reader ask: one model for the platform's small reads, written once.
  */
+import { ANGLE_WORDS_MAX, OPENING_CHARS_MAX, OPENING_WORDS_MAX } from "./words/limits";
 import {
-  ANGLE_WORDS_MAX,
-  OPENING_CHARS_MAX,
   OPENING_FACT_KEYS,
-  OPENING_CLAIM_KINDS,
   OPENING_HEDGES,
-  OPENING_WORDS_MAX,
-  heldClaimDetail,
   openingGuess,
   openingProblemWords,
   type WrittenOpening,
-  type OpeningClaimKind,
   type OpeningProblem,
   type OpeningRecord,
-} from "./words";
-import { languageBase } from "../templates/template-languages";
+} from "./words/opening";
+import { OPENING_CLAIM_KINDS, heldClaimDetail, type OpeningClaimKind } from "./words/claims";
+import { languageBase } from "../templates/languages";
 import { leadCalledByOf } from "../../leads/search/called-by";
 import { DATA_NOT_INSTRUCTIONS, defang } from "../../ai/fence";
-import { MODEL_ROUTES } from "../../ai/models";
+import { MODEL_ROUTES } from "../../ai/models/routes";
 
 export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 
@@ -127,20 +123,20 @@ export const fenceLine = (key: string, value: string | number | null | undefined
  * (leadCalledByOf), as every email says it; how its listing writes it follows where that is more, since those words are
  * the business's own about itself.
  */
-function recordLines(r: OpeningRecord): string[] {
-  const name = leadCalledByOf(r);
+function recordLines(opening: OpeningRecord): string[] {
+  const name = leadCalledByOf(opening);
   const lines = [
     fenceLine("name", name),
-    name === r.business_name.replace(/\s+/g, " ").trim() ? null : fenceLine("listed_as", r.business_name),
-    fenceLine("category", r.category),
-    fenceLine("city", [r.city, r.region].filter(Boolean).join(", ") || null),
-    fenceLine("rating", r.rating),
-    fenceLine("reviews", r.reviews),
-    fenceLine("website", r.website),
-    fenceLine("hours", r.hours),
-    fenceLine("about", r.about),
-    fenceLine("why_it_fits", r.why_it_fits),
-    fenceLine("website_says", r.website_says),
+    name === opening.business_name.replace(/\s+/g, " ").trim() ? null : fenceLine("listed_as", opening.business_name),
+    fenceLine("category", opening.category),
+    fenceLine("city", [opening.city, opening.region].filter(Boolean).join(", ") || null),
+    fenceLine("rating", opening.rating),
+    fenceLine("reviews", opening.reviews),
+    fenceLine("website", opening.website),
+    fenceLine("hours", opening.hours),
+    fenceLine("about", opening.about),
+    fenceLine("why_it_fits", opening.why_it_fits),
+    fenceLine("website_says", opening.website_says),
   ].filter((l): l is string => l !== null);
   return ["<record>", ...lines, "</record>"];
 }
@@ -175,7 +171,7 @@ function askedLines(a: OpeningAsked): string[] {
   ];
 }
 
-export function openingUserContent(p: {
+export function openingUserContent(params: {
   record: OpeningRecord;
   workspace: OpeningWorkspace;
   words: { subject: string | null; body: string };
@@ -184,24 +180,24 @@ export function openingUserContent(p: {
 }): string {
   return [
     "The business's record:",
-    ...recordLines(p.record),
+    ...recordLines(params.record),
     "",
-    ...(p.record.what_you_asked
-      ? [fenceLine("What the owner searched for (not about this business)", p.record.what_you_asked)!]
+    ...(params.record.what_you_asked
+      ? [fenceLine("What the owner searched for (not about this business)", params.record.what_you_asked)!]
       : []),
-    `The owner's business: ${p.workspace.name}`,
-    ...(p.workspace.what_we_do ? [`What they do: ${p.workspace.what_we_do}`] : []),
-    ...(p.workspace.tone ? [`Their tone: ${p.workspace.tone}`] : []),
+    `The owner's business: ${params.workspace.name}`,
+    ...(params.workspace.what_we_do ? [`What they do: ${params.workspace.what_we_do}`] : []),
+    ...(params.workspace.tone ? [`Their tone: ${params.workspace.tone}`] : []),
     "",
     "The owner's email, where {{opening}} is your sentence:",
-    ...(p.words.subject ? [`Subject: ${p.words.subject}`] : []),
-    p.words.body,
-    ...(p.asked ? askedLines(p.asked) : []),
-    ...(p.retry
+    ...(params.words.subject ? [`Subject: ${params.words.subject}`] : []),
+    params.words.body,
+    ...(params.asked ? askedLines(params.asked) : []),
+    ...(params.retry
       ? [
           "",
-          fenceLine("Your last opening was", p.retry.opening) ?? "",
-          `It could not be sent: ${defang(p.retry.why)}. Write it again from the record only.`,
+          fenceLine("Your last opening was", params.retry.opening) ?? "",
+          `It could not be sent: ${defang(params.retry.why)}. Write it again from the record only.`,
         ]
       : []),
   ].join("\n");
@@ -222,9 +218,9 @@ export function readingSystemPrompt(): string {
 }
 
 /** The sentence holds a listing's name where a listing's own fields said it (leadFactOf), so it is held as the record is. */
-export function readingUserContent(p: { record: OpeningRecord; opening: string }): string {
-  const sentence = fenceLine("The sentence", p.opening) ?? "";
-  return ["The business's record:", ...recordLines(p.record), "", sentence].join("\n");
+export function readingUserContent(params: { record: OpeningRecord; opening: string }): string {
+  const sentence = fenceLine("The sentence", params.opening) ?? "";
+  return ["The business's record:", ...recordLines(params.record), "", sentence].join("\n");
 }
 
 /** Words a tag never ends on: a cut that leaves one ("their reviews and") drops it. */
@@ -247,15 +243,16 @@ function angleOf(raw: string): string {
   return words.join(" ");
 }
 
-export function parseOpening(a: unknown): WrittenOpening | null {
-  if (!a || typeof a !== "object") return null;
-  const o = a as Record<string, unknown>;
-  if (typeof o.opening !== "string" || typeof o.angle !== "string" || !Array.isArray(o.facts_used)) return null;
+export function parseOpening(first: unknown): WrittenOpening | null {
+  if (!first || typeof first !== "object") return null;
+  const value = first as Record<string, unknown>;
+  if (typeof value.opening !== "string" || typeof value.angle !== "string" || !Array.isArray(value.facts_used))
+    return null;
   // A name that is no field of the record is kept as written: checkOpening refuses it (unnamed_fact), never drops it.
-  const facts = o.facts_used.filter((k): k is string => typeof k === "string").map((k) => k.trim());
+  const facts = value.facts_used.filter((k): k is string => typeof k === "string").map((k) => k.trim());
   return {
-    opening: o.opening.trim().replace(/\s+/g, " "),
-    angle: angleOf(o.angle),
+    opening: value.opening.trim().replace(/\s+/g, " "),
+    angle: angleOf(value.angle),
     facts_used: [...new Set(facts)],
   };
 }
@@ -272,18 +269,19 @@ export interface Reading {
 const isClaimKind = (k: unknown): k is OpeningClaimKind =>
   typeof k === "string" && (OPENING_CLAIM_KINDS as readonly string[]).includes(k);
 
-export function parseReading(a: unknown): Reading | null {
-  if (!a || typeof a !== "object") return null;
-  const o = a as Record<string, unknown>;
+export function parseReading(first: unknown): Reading | null {
+  if (!first || typeof first !== "object") return null;
+  const value = first as Record<string, unknown>;
   // An answer missing a part is no reading: the check fails closed (asked again, then held), never open.
-  if (typeof o.backed !== "boolean" || typeof o.pitch !== "boolean" || typeof o.language !== "string") return null;
+  if (typeof value.backed !== "boolean" || typeof value.pitch !== "boolean" || typeof value.language !== "string")
+    return null;
   return {
-    backed: o.backed,
-    unbacked: typeof o.unbacked === "string" ? o.unbacked.trim() : "",
-    pitch: o.pitch,
-    language: o.language.trim().toLowerCase(),
+    backed: value.backed,
+    unbacked: typeof value.unbacked === "string" ? value.unbacked.trim() : "",
+    pitch: value.pitch,
+    language: value.language.trim().toLowerCase(),
     // The kind is how a hold says it, never whether it holds: one out of the set is none.
-    kind: isClaimKind(o.kind) ? o.kind : null,
+    kind: isClaimKind(value.kind) ? value.kind : null,
   };
 }
 
@@ -321,25 +319,25 @@ export function openingVerdict(
   if (theirs && ours && theirs !== ours)
     return { ok: false, hold: "language", detail: theirs, rewrite: false, why: "" };
   if (!reading.backed) {
-    const said = reading.unbacked.slice(0, 120) || null;
+    const sentence = reading.unbacked.slice(0, 120) || null;
     return {
       ok: false,
       hold: "unbacked_fact",
       // Its kind beside its words (30 Oct 2026), so the held email says what it guessed at.
-      detail: heldClaimDetail(reading.kind ?? "detail", said),
+      detail: heldClaimDetail(reading.kind ?? "detail", sentence),
       rewrite: true,
       // The kind of claim, not only its words: told the words alone, a rewrite made the same guess in others.
-      why: `${said ? `it said “${said}”, which the record does not hold` : "it said something the record does not hold"}; no record holds ${OPENING_UNSTATED}`,
+      why: `${sentence ? `it said “${sentence}”, which the record does not hold` : "it said something the record does not hold"}; no record holds ${OPENING_UNSTATED}`,
     };
   }
   if (code === "guess") {
-    const said = (openingGuess(written) ?? written).slice(0, 120);
+    const sentence = (openingGuess(written) ?? written).slice(0, 120);
     return {
       ok: false,
       hold: "unbacked_fact",
-      detail: heldClaimDetail("guess", said),
+      detail: heldClaimDetail("guess", sentence),
       rewrite: true,
-      why: `it guessed (“${said}”), and a guess is a claim the record does not hold; no record holds ${OPENING_UNSTATED}`,
+      why: `it guessed (“${sentence}”), and a guess is a claim the record does not hold; no record holds ${OPENING_UNSTATED}`,
     };
   }
   if (code === "unnamed_fact" || code === "unbacked_number")

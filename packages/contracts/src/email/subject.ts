@@ -4,8 +4,8 @@
  */
 
 /** A header value is one line: a newline in one is how a second header is smuggled in. */
-export const oneLine = (s: string): string =>
-  s
+export const oneLine = (text: string): string =>
+  text
     .replace(/\p{Cc}+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();

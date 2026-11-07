@@ -20,7 +20,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore, RATE } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { platformJobRequeue } = await import(at("apps/dashboard/src/server/console/platform.ts"));
+const { requeuePlatformJob } = await import(at("apps/dashboard/src/server/console/platform.ts"));
 const requeue = await import(at("apps/dashboard/app/api/v1/platform/jobs/requeue/route.ts"));
 const { requeueFailedJob } = await import(at("packages/jobs/src/runner/schedule.ts"));
 
@@ -74,7 +74,7 @@ test("the door is on the platform scope with a support ceiling of its own, and a
 test("a failed job is run again as a fresh row of its kind and payload, due now, and who asked is written first", async () => {
   const l = ledger();
   const before = Date.now();
-  const out = await platformJobRequeue(l.office, A, J, WHY);
+  const out = await requeuePlatformJob(l.office, A, J, WHY);
   assert.deepEqual(out, { ok: true, job_id: J, kind: "email_ingest" });
 
   assert.deepEqual(
@@ -109,9 +109,9 @@ test("a failed job is run again as a fresh row of its kind and payload, due now,
 
 test("a job of another workspace is not found there, and nothing is recorded or run", async () => {
   const l = ledger();
-  await assert.rejects(platformJobRequeue(l.office, B, J, WHY), (e) => e.code === "not_found" && e.status === 404);
+  await assert.rejects(requeuePlatformJob(l.office, B, J, WHY), (e) => e.code === "not_found" && e.status === 404);
   await assert.rejects(
-    platformJobRequeue(l.office, A, "dddddddd-dddd-4ddd-8ddd-dddddddddddd", WHY),
+    requeuePlatformJob(l.office, A, "dddddddd-dddd-4ddd-8ddd-dddddddddddd", WHY),
     (e) => e.code === "not_found",
   );
   assert.deepEqual([l.tables.events, l.tables.jobs.length], [[], 1]);
@@ -121,7 +121,7 @@ test("only a failed job is run again: one still waiting, running or done is refu
   for (const state of ["scheduled", "fired", "done", "canceled"]) {
     const l = ledger({ state });
     await assert.rejects(
-      platformJobRequeue(l.office, A, J, WHY),
+      requeuePlatformJob(l.office, A, J, WHY),
       (e) => e.code === "conflict" && e.status === 409 && e.message.includes(`is ${state}, not failed`),
       state,
     );
@@ -133,7 +133,7 @@ test("work that speaks to a person is never run again from here: it may have rea
   for (const kind of ["outbound_send", "broadcast_send"]) {
     const l = ledger({ kind, payload: { message_id: "m-1", broadcast_id: "b-1" } });
     await assert.rejects(
-      platformJobRequeue(l.office, A, J, WHY),
+      requeuePlatformJob(l.office, A, J, WHY),
       (e) => e.code === "conflict" && e.message.includes("never run again from here"),
       kind,
     );
@@ -151,7 +151,7 @@ test("a job of any kind whose run put words on a wire before it failed is never 
     spoke_at: "2026-09-29T09:59:58.000Z",
   });
   await assert.rejects(
-    platformJobRequeue(spoke.office, A, J, WHY),
+    requeuePlatformJob(spoke.office, A, J, WHY),
     (e) => e.code === "conflict" && e.message.includes("never run again from here"),
   );
   assert.deepEqual([spoke.tables.events, spoke.tables.jobs.length], [[], 1], "nothing recorded, nothing run");
@@ -162,7 +162,7 @@ test("a job of any kind whose run put words on a wire before it failed is never 
     payload: { message_id: "m-8", conversation_id: "c-8" },
     spoke_at: null,
   });
-  assert.deepEqual(await platformJobRequeue(quiet.office, A, J, WHY), { ok: true, job_id: J, kind: "inbound_answer" });
+  assert.deepEqual(await requeuePlatformJob(quiet.office, A, J, WHY), { ok: true, job_id: J, kind: "inbound_answer" });
   assert.equal(quiet.tables.jobs.length, 2);
 });
 
@@ -172,7 +172,7 @@ test("an event's delivery is not run again from here: it goes again by its subsc
     payload: { event_id: "e-1", subscriber: "reach_out_booked", kind: "appointment.changed", lane: "2" },
   });
   await assert.rejects(
-    platformJobRequeue(l.office, A, J, WHY),
+    requeuePlatformJob(l.office, A, J, WHY),
     (e) => e.code === "conflict" && e.message.includes("event_deliveries_redrive('reach_out_booked')"),
   );
   assert.deepEqual([l.tables.events, l.tables.jobs.length], [[], 1], "nothing recorded, nothing run");
@@ -181,7 +181,7 @@ test("an event's delivery is not run again from here: it goes again by its subsc
 test("a kind this deploy does not know waits for the deploy that does", async () => {
   const l = ledger({ kind: "made_up_kind" });
   await assert.rejects(
-    platformJobRequeue(l.office, A, J, WHY),
+    requeuePlatformJob(l.office, A, J, WHY),
     (e) => e.code === "conflict" && e.message.includes("does not know that kind"),
   );
   assert.deepEqual([l.tables.events, l.tables.jobs.length], [[], 1]);
@@ -190,7 +190,7 @@ test("a kind this deploy does not know waits for the deploy that does", async ()
 test("a record that cannot be written leaves nothing run: an act on somebody else's business nobody can be held to did not happen", async () => {
   const l = ledger({}, { faults: { "events.insert": { message: "connection reset" } } });
   await assert.rejects(
-    platformJobRequeue(l.office, A, J, WHY),
+    requeuePlatformJob(l.office, A, J, WHY),
     (e) => e.code === "internal" && e.status === 503 && e.message.includes("so it was not done"),
   );
   assert.equal(l.tables.jobs.length, 1, "no row was made");
@@ -220,7 +220,7 @@ test("work the ledger holds once per subject answers that it is on the ledger ag
     due_at: "2026-09-29T11:00:00.000Z",
   });
   await assert.rejects(
-    platformJobRequeue(l.office, A, J, WHY),
+    requeuePlatformJob(l.office, A, J, WHY),
     (e) => e.code === "conflict" && e.message.includes("on the ledger again already"),
   );
   assert.equal(l.tables.jobs.length, 2, "no second row for the same subject");
@@ -228,10 +228,10 @@ test("work the ledger holds once per subject answers that it is on the ledger ag
 
 test("a dead letter is run again once: a second press, or a second person, finds the copy the first left and makes no other", async () => {
   const l = ledger();
-  await platformJobRequeue(l.office, A, J, WHY);
+  await requeuePlatformJob(l.office, A, J, WHY);
   for (let again = 0; again < 2; again += 1)
     await assert.rejects(
-      platformJobRequeue(l.office, A, J, WHY),
+      requeuePlatformJob(l.office, A, J, WHY),
       (e) => e.code === "conflict" && e.message.includes("on the ledger again already"),
     );
   assert.equal(l.tables.jobs.length, 2, "one failed row and one copy, however many times it was pressed");
@@ -239,7 +239,7 @@ test("a dead letter is run again once: a second press, or a second person, finds
   // A copy that itself failed does not count: the work can be run again, and the second copy is a fresh row.
   const copy = l.tables.jobs.find((j) => j.id !== J);
   copy.state = "failed";
-  const third = await platformJobRequeue(l.office, A, J, WHY);
+  const third = await requeuePlatformJob(l.office, A, J, WHY);
   assert.deepEqual(third, { ok: true, job_id: J, kind: "email_ingest" });
   assert.equal(l.tables.jobs.length, 3);
 
@@ -254,7 +254,7 @@ test("a dead letter is run again once: a second press, or a second person, finds
     due_at: "2026-09-29T11:00:00.000Z",
     created_at: "2026-09-29T10:30:00.000Z",
   });
-  await platformJobRequeue(other.office, A, J, WHY);
+  await requeuePlatformJob(other.office, A, J, WHY);
   assert.equal(other.tables.jobs.length, 3);
 });
 

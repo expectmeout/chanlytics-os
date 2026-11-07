@@ -9,8 +9,9 @@
  */
 import { useState } from "react";
 import type { ReactNode } from "react";
-import type { AdPersonRowVM, AdTone, PeopleVM } from "@chanlytics/contracts/ads-page";
-import { PEOPLE_TAB } from "@chanlytics/contracts/ads-page";
+import type { AdPersonRowVM, PeopleVM } from "../model/drawer/parts";
+import type { AdTone } from "../model/vm-base";
+import { PEOPLE_TAB } from "../model/drawer/words";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { ListRow } from "../../../kit/list-row/list-row";

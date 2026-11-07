@@ -1,6 +1,6 @@
 import { read, platform } from "@/server/shared/route";
 import { ActsQuerySchema, actsCsv } from "@chanlytics/contracts";
-import { consoleActs } from "@/server/console/acts";
+import { listConsoleActs } from "@/server/console/acts";
 
 /**
  * GET /api/v1/platform/acts?who=&before=&format=rows|csv — the Admin log (decision 0066): every act the team took,
@@ -11,7 +11,7 @@ export const GET = read({
   scope: platform,
   query: ActsQuerySchema,
   handle: async ({ office, input }) => {
-    const rows = await consoleActs(office, {
+    const rows = await listConsoleActs(office, {
       ...(input.who ? { who: input.who } : {}),
       ...(input.before ? { before: input.before } : {}),
       csv: input.format === "csv",

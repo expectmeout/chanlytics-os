@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/shared/route";
 import { SupportResendSchema } from "@chanlytics/contracts";
-import { supportResend } from "@/server/console/support";
+import { resendSupport } from "@/server/console/support";
 
 /**
  * POST /api/v1/platform/support/resend — {id}: a report the inbox did not get, sent to it again through the edge's
@@ -13,5 +13,5 @@ export const POST = write({
   rate: "platform_support_resend",
   act: "report_resent",
   input: SupportResendSchema,
-  handle: async ({ office, input }) => supportResend(office, input.id),
+  handle: async ({ office, input }) => resendSupport(office, input.id),
 });

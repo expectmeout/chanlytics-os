@@ -25,15 +25,15 @@ import {
   type ModelPurpose,
   type ProfiledSubject,
 } from "@chanlytics/contracts";
-import { createUserProfile, type ModelAttribution, type ModelDeps } from "@chanlytics/channels";
+import { createUserProfile, type ModelAttribution, type ModelDeps } from "@chanlytics/channels/ai";
 import {
-  anthropicProfileOf,
+  findAnthropicProfile,
   claimAnthropicProfile,
   dropAnthropicProfile,
   keepAnthropicProfileId,
   type AnthropicProfileHeld,
-  type Database,
-} from "@chanlytics/db";
+} from "@chanlytics/db/ai";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";
@@ -60,22 +60,26 @@ export async function makeAnthropicProfile(
   key: string,
   deps: ModelDeps,
 ): Promise<string | null> {
-  const L = logger(subject.kind === "workspace" ? { tenant_id: subject.tenantId } : {});
+  const log = logger(subject.kind === "workspace" ? { tenant_id: subject.tenantId } : {});
   const claim = await claimAnthropicProfile(db, subject);
   if (!claim) return null;
-  const made = await createUserProfile(
+  const created = await createUserProfile(
     key,
     profileDetailsOf(subject.kind, { referenceId: claim.referenceId, onboardedAt: claim.onboardedAt }),
     deps,
   );
-  if (made.outcome === "ok") {
-    await keepAnthropicProfileId(db, claim.id, made.profile.id).catch((e: unknown) =>
-      L.error("anthropic_profile_write_failed", { kind: subject.kind, error: errField(e) }),
+  if (created.outcome === "ok") {
+    await keepAnthropicProfileId(db, claim.id, created.profile.id).catch((e: unknown) =>
+      log.error("anthropic_profile_write_failed", { kind: subject.kind, error: errField(e) }),
     );
-    return made.profile.id;
+    return created.profile.id;
   }
-  L.error("anthropic_profile_not_made", { kind: subject.kind, outcome: made.outcome, error: made.error.slice(0, 200) });
-  if (made.outcome !== "unknown") await dropAnthropicProfile(db, claim.id);
+  log.error("anthropic_profile_not_made", {
+    kind: subject.kind,
+    outcome: created.outcome,
+    error: created.error.slice(0, 200),
+  });
+  if (created.outcome !== "unknown") await dropAnthropicProfile(db, claim.id);
   return null;
 }
 
@@ -95,7 +99,7 @@ async function profileHeldOf(
   const had = heldLately.get(ref);
   if (had && Date.now() - had.at < MIN_MS) return had.row;
   try {
-    const row = await anthropicProfileOf(db, subject);
+    const row = await findAnthropicProfile(db, subject);
     heldLately.set(ref, { at: Date.now(), row });
     return row;
   } catch (e) {
@@ -105,17 +109,17 @@ async function profileHeldOf(
 }
 
 /** Whom this call goes as: the decision, the row it comes to, and a profile made if it has none. Never thrown. */
-export async function attributionFor(
+export async function getAttribution(
   purpose: ModelPurpose,
-  who: { tenantId: string | null; userId?: string | null },
+  personName: { tenantId: string | null; userId?: string | null },
   key: string,
   deps: ModelDeps,
 ): Promise<AttributionAnswer> {
-  const subject = modelSubjectOf(purpose, who);
+  const subject = modelSubjectOf(purpose, personName);
   if (!anthropicProfilesOn()) return NO_PROFILE;
-  const L = logger(who.tenantId ? { tenant_id: who.tenantId } : {});
+  const log = logger(personName.tenantId ? { tenant_id: personName.tenantId } : {});
   if (subject.kind === "ours") {
-    L.error("model_call_ours", { purpose });
+    log.error("model_call_ours", { purpose });
     return NO_PROFILE;
   }
   const db = pg();
@@ -123,19 +127,19 @@ export async function attributionFor(
   const held = await profileHeldOf(db, subject);
   if (held === "unread") return { held: "unread" };
   if (held && anthropicPaused(held.enforcement_status)) {
-    L.warn("model_call_paused", { purpose, kind: subject.kind });
+    log.warn("model_call_paused", { purpose, kind: subject.kind });
     return { held: "paused" };
   }
   if (held?.profile_id) return { attribution: { profileId: held.profile_id } };
-  const made = held ? null : await makeAnthropicProfile(db, subject, key, deps).catch(madeNothing);
-  if (made) {
+  const created = held ? null : await makeAnthropicProfile(db, subject, key, deps).catch(madeNothing);
+  if (created) {
     heldLately.set(profileReferenceOf(subject), {
       at: Date.now(),
-      row: { profile_id: made, enforcement_status: "unrestricted" },
+      row: { profile_id: created, enforcement_status: "unrestricted" },
     });
-    return { attribution: { profileId: made } };
+    return { attribution: { profileId: created } };
   }
-  L.warn("model_call_no_profile", { purpose, kind: subject.kind });
+  log.warn("model_call_no_profile", { purpose, kind: subject.kind });
   return NO_PROFILE;
 }
 

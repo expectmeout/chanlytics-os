@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REPLY_INTENTS, parseReplyReading, readingPlan, replyTextOf } from "@chanlytics/contracts";
-import { incomingEmailOf } from "../../../packages/jobs/src/handlers/handlers.ts";
+import { incomingEmailOf } from "../../../packages/jobs/src/handlers/incoming-email.ts";
 import { loadFixtures, readerInputOf, judgeReading } from "../../../tooling/scripts/evals/reply-intents.mjs";
 
 const set = loadFixtures();

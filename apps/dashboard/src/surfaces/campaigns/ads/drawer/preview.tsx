@@ -11,8 +11,8 @@
 import { useState } from "react";
 import { fileSaidOf, fileViewOf } from "@chanlytics/contracts";
 import type { AdDoor, AdFilePick } from "@chanlytics/contracts";
-import { PREVIEW, SHOWN } from "@chanlytics/contracts/ads-page";
-import type { PreviewVM, ThreadVM } from "@chanlytics/contracts/ads-page";
+import { PREVIEW, SHOWN } from "../model/drawer/words";
+import type { PreviewVM, ThreadVM } from "../model/drawer/parts";
 import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { postShapeAddress } from "../../../files/post-shapes";

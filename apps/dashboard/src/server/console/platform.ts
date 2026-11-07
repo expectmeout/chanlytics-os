@@ -28,26 +28,22 @@ import "server-only";
  *
  * Cross-workspace: the back office; its service-role client exists only behind backOffice(ctx)'s admin check.
  */
+import { deleteSecondFactor, listSecondFactors } from "@chanlytics/db/auth";
 import {
-  deleteSecondFactor,
   getPlatformPartners,
-  listSecondFactors,
   markPartnerPaid,
-  markWaitlistInvited,
   setPartnerStanding,
   recordPartnerSecondFactorReset,
   setPartnerStatus,
-  staffStateOf,
-  waitlistWaiting,
   type PartnerPayoutAnswer,
-} from "@chanlytics/db";
-import { recordEvent, type Database } from "@chanlytics/db";
+} from "@chanlytics/db/partners";
+import { markWaitlistInvited, getWaitlistWaiting } from "@chanlytics/db/workspace";
+import { recordEvent } from "@chanlytics/db/events";
+import type { Database } from "@chanlytics/db/types";
 import { requeueFailedJob } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AppError,
-  SECOND_FACTOR_WORDS,
-  STAFF_STATES,
   platformHealthOf,
   QUEUE_SHOWN,
   type PlatformHealth,
@@ -56,76 +52,11 @@ import {
   type PlatformQueue,
   type PlatformTenantDto,
   type SweepHealthRow,
-  type StaffRole,
-  type StaffState,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "../shared/with-route";
 import { serviceDb } from "../shared/service-db";
+import type { BackOffice } from "../shared/back-office";
 import { takeAct } from "./acts";
 import { log } from "@/server/shared/log";
-
-declare const backOfficeBrand: unique symbol;
-
-/**
- * Proof that the database said this session is on the Console's staff and showed its second factor, carrying the
- * client that proof unlocks and who it is. Only `backOffice()` can make one.
- */
-export interface BackOffice {
-  readonly [backOfficeBrand]: true;
-  /** Service-role, RLS off, every workspace. Reachable only through the check above it. */
-  readonly db: SupabaseClient<Database>;
-  /** The session client, for the reads whose own RPC carries the same check. */
-  readonly session: SupabaseClient<Database>;
-  /** What the database says they may do (decision 0066): owner, support or billing. */
-  readonly role: StaffRole;
-  /** Who: the act log's actor. */
-  readonly userId: string;
-  readonly email: string | null;
-}
-
-/**
- * Ask the database what this session is to the Console (platform_staff_state, 00467): its role once it showed its
- * second factor, `needs_second_factor` before, `none` for everybody else.
- *
- * Three answers, not two, and the third is the one that was wrong: a database that cannot answer is not a "no".
- * Telling a real admin "No such page" during a Postgres hiccup is exactly the moment they opened the Console for.
- */
-async function staffState(ctx: RouteContext): Promise<StaffState> {
-  const { data, error } = await staffStateOf(ctx.supabase);
-  if (error) throw new AppError("internal", "Could not check that just now — try again in a moment.", 503);
-  return (STAFF_STATES as readonly string[]).includes(String(data)) ? (data as StaffState) : "none";
-}
-
-/**
- * The Console, or a refusal.
- *
- * 404, not 403: a customer who guessed the URL learns nothing about whether there is a Console behind it. Staff who
- * have not shown their second factor this session are told so (mfa_required), and the tab goes to the second step,
- * which sets an authenticator up for an account that has none (decision 0066: no grace).
- */
-export async function backOffice(ctx: RouteContext): Promise<BackOffice> {
-  const state = await staffState(ctx);
-  if (state === "none") throw new AppError("not_found", "No such page.", 404);
-  if (state === "needs_second_factor") throw new AppError("mfa_required", SECOND_FACTOR_WORDS.staffRequired, 403);
-  return {
-    db: serviceDb(),
-    session: ctx.supabase,
-    role: state,
-    userId: ctx.userId,
-    email: ctx.email ?? null,
-  } as BackOffice;
-}
-
-/**
- * Whether this session is on the Console's staff, its second factor shown or not: the bit the boot hands the nav, so
- * Settings links to the Console, which asks for the factor itself.
- */
-export async function isPlatformAdmin(ctx: RouteContext): Promise<boolean> {
-  return staffState(ctx).then(
-    (state) => state !== "none",
-    () => false,
-  );
-}
 
 /**
  * Every workspace, from the guarded RPC.
@@ -135,7 +66,7 @@ export async function isPlatformAdmin(ctx: RouteContext): Promise<boolean> {
  * key gets a 403 from it like everybody else, which is a property worth keeping
  * rather than routing around.
  */
-export async function platformOverview(office: BackOffice): Promise<PlatformTenantDto[]> {
+export async function listPlatformOverview(office: BackOffice): Promise<PlatformTenantDto[]> {
   const { data, error } = await office.session.rpc("platform_overview");
   if (error) {
     // 42501 is the function's own refusal — which the caller has already been
@@ -164,7 +95,7 @@ export async function platformOverview(office: BackOffice): Promise<PlatformTena
  * exactly that moment. A backlog that could not be read stays null, which the
  * judgement treats as "not healthy" rather than "all clear".
  */
-export async function platformHealth(office: BackOffice, now = new Date()): Promise<PlatformHealth> {
+export async function getPlatformHealth(office: BackOffice, now = new Date()): Promise<PlatformHealth> {
   const [health, backlog] = await Promise.all([
     office.db.rpc("sweep_health").then(
       (r) => r,
@@ -193,8 +124,8 @@ export async function platformHealth(office: BackOffice, now = new Date()): Prom
  * must not come back as "nobody is waiting" either, which is the one answer a
  * queue must never give by accident.
  */
-export async function platformWaitlist(office: BackOffice, limit = QUEUE_SHOWN): Promise<PlatformQueue> {
-  const { data, error, count } = await waitlistWaiting(office.db, limit);
+export async function getPlatformWaitlist(office: BackOffice, limit = QUEUE_SHOWN): Promise<PlatformQueue> {
+  const { data, error, count } = await getWaitlistWaiting(office.db, limit);
   if (error) {
     log.error("platform_waitlist_unreadable", { error: error.message });
     return { waiting: null, total: null };
@@ -210,18 +141,17 @@ export async function platformWaitlist(office: BackOffice, limit = QUEUE_SHOWN):
  * not both claim it, and the row count says which of them this was. `invited_by`
  * is the attribution the table was given a column for.
  */
-export async function platformWaitlistInvited(
+export async function getPlatformWaitlistInvited(
   office: BackOffice,
   id: string,
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
 ): Promise<"marked" | "already"> {
   return takeAct(
     office,
-    { act: "waitlist_invited", why, tenantId: null, target: "waitlist", targetId: id },
+    { act: "waitlist_invited", why: reason, tenantId: null, target: "waitlist", targetId: id },
     async () => {
       const { data, error } = await markWaitlistInvited(office.db, id, office.userId, new Date().toISOString());
-      if (error)
-        throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+      if (error) throw new AppError("internal", NOT_RECORDED, 503);
       return data && data.length > 0 ? ("marked" as const) : ("already" as const);
     },
     (out) => ({ outcome: "done", note: out === "already" ? "Someone had marked them already." : null }),
@@ -229,7 +159,7 @@ export async function platformWaitlistInvited(
 }
 
 /** One workspace's identity, for the detail view's heading. */
-export async function platformTenant(
+export async function findPlatformTenant(
   office: BackOffice,
   tenantId: string,
 ): Promise<{ id: string; slug: string; name: string; status: string; timezone: string; created_at: string } | null> {
@@ -264,7 +194,7 @@ interface PlatformEvent {
  * quiet over-reach a cross-tenant surface has no excuse for. If support ever
  * needs one, it should be a deliberate per-event read with a named field list.
  */
-export async function platformEvents(office: BackOffice, tenantId: string, limit = 40): Promise<PlatformEvent[]> {
+export async function listPlatformEvents(office: BackOffice, tenantId: string, limit = 40): Promise<PlatformEvent[]> {
   const { data, error } = await office.db
     .from("events")
     .select("kind, category, subject_type, created_at")
@@ -295,11 +225,13 @@ export async function platformEvents(office: BackOffice, tenantId: string, limit
  * one surface in the product where that would be handing out the master key.
  * -------------------------------------------------------------------------- */
 
-import { EDGE_LINES_TIMEOUT_MS, edgeLines } from "../connections/lines";
+import { EDGE_LINES_TIMEOUT_MS, callEdgeLines } from "../connections/lines";
 import { LINE_ACTS, whyWords, type ConsoleWhy, type PlatformLineAction } from "@chanlytics/contracts";
+import { NOT_RECORDED } from "@/server/console/words";
+import type { EdgeBody } from "@/server/shared/edge";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
-const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => Record<string, unknown>> = {
+const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => EdgeBody<"/api/admin/lines">> = {
   retry: (tenant_id, line_id) => ({ op: "retry", tenant_id, line_id, by: "support" }),
   // `refile` is the same edge operation as an owner's own registration, with the
   // flag that lets it replace a rehearsal or resend a rejected campaign -- the
@@ -325,8 +257,8 @@ interface PlatformActionResult {
 function edgeWords(r: PlatformActionResult): string {
   if (r.body?.error === "edge_timeout")
     return "The edge did not answer in time. It may still have finished: look at the line before trying again.";
-  const said = r.body?.detail ?? r.body?.error ?? r.body?.message;
-  return typeof said === "string" && said ? said : `The edge answered ${r.status}.`;
+  const sentence = r.body?.detail ?? r.body?.error ?? r.body?.message;
+  return typeof sentence === "string" && sentence ? sentence : `The edge answered ${r.status}.`;
 }
 
 /**
@@ -337,26 +269,25 @@ function edgeWords(r: PlatformActionResult): string {
  * worse than an action that did not happen. What happened next is the line's own event, written by the edge moments
  * later, so the pair reads in order in the workspace's ledger, and the log row says what the edge answered.
  */
-export async function platformLineAct(
+export async function runPlatformLineAct(
   office: BackOffice,
   action: PlatformLineAction,
   tenantId: string,
   lineId: string,
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
 ): Promise<PlatformActionResult> {
   return takeAct(
     office,
-    { act: LINE_ACTS[action], why, tenantId, target: "line", targetId: lineId },
+    { act: LINE_ACTS[action], why: reason, tenantId, target: "line", targetId: lineId },
     async () => {
       const { error: auditErr } = await recordEvent(office.db, tenantId, "platform.acted", "line", lineId, {
         action,
         by: office.userId,
         by_email: office.email,
       });
-      if (auditErr)
-        throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
-      const a = await edgeLines(EDGE_OP[action](tenantId, lineId), EDGE_LINES_TIMEOUT_MS);
-      return { ok: a.status === 200, status: a.status, body: a.body };
+      if (auditErr) throw new AppError("internal", NOT_RECORDED, 503);
+      const answer = await callEdgeLines(EDGE_OP[action](tenantId, lineId), EDGE_LINES_TIMEOUT_MS);
+      return { ok: answer.status === 200, status: answer.status, body: answer.body };
     },
     // Refused only when the edge said no (a 4xx), so nothing was done; a fault, or no answer, failed.
     (r) =>
@@ -375,7 +306,7 @@ export async function platformLineAct(
  * themselves. NOT FATAL, like the health read: the workspaces are the page's work, and a partner list that could
  * not be read is said as such rather than taking them down with it.
  */
-export async function platformPartners(
+export async function findPlatformPartners(
   office: BackOffice,
 ): Promise<{ balances: PlatformPartnerBalanceDto[]; workspaces: PlatformPartnerWorkspaceDto[] } | null> {
   return getPlatformPartners(office.session).then(
@@ -392,15 +323,15 @@ export async function platformPartners(
  * What the partner verbs keep and a partner may read: the note the Console asks for on them (PartnerWhySchema), not the
  * reason's kind or ticket, which are the log's.
  */
-function partnerReads(why: ConsoleWhy): string {
-  return why.note ?? whyWords(why);
+function partnerReads(reason: ConsoleWhy): string {
+  return reason.note ?? whyWords(reason);
 }
 
 function partnerVerbError(r: { code: string; message: string }): AppError {
   if (r.code === "22023") return new AppError("validation", r.message, 400);
   if (r.code === "P0002") return new AppError("not_found", r.message, 404);
   if (r.code === "42501") return new AppError("not_found", "No such page.", 404);
-  return new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+  return new AppError("internal", NOT_RECORDED, 503);
 }
 
 /**
@@ -408,17 +339,17 @@ function partnerVerbError(r: { code: string; message: string }): AppError {
  * partner.standing_set, against the caller) in the same transaction as the change, so there is no order to get
  * wrong here: it is recorded, or it did not happen.
  */
-export async function platformPartnerStanding(
+export async function findPlatformPartnerStanding(
   office: BackOffice,
   tenantId: string,
   standing: string,
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
 ): Promise<{ standing: string; from: string | null; voided: number; matured: number }> {
   return takeAct(
     office,
-    { act: "partner_standing", why, tenantId, target: "workspace", targetId: tenantId },
+    { act: "partner_standing", why: reason, tenantId, target: "workspace", targetId: tenantId },
     async () => {
-      const r = await setPartnerStanding(office.session, tenantId, standing, partnerReads(why));
+      const r = await setPartnerStanding(office.session, tenantId, standing, partnerReads(reason));
       if (!r.ok) throw partnerVerbError(r);
       return r.value;
     },
@@ -426,25 +357,25 @@ export async function platformPartnerStanding(
 }
 
 /** Record a payout sent to a partner by hand: every payable earning in the currency, netted, into one payout. */
-export async function platformPartnerPayout(
+export async function runPlatformPartnerPayout(
   office: BackOffice,
   partnerId: string,
   payout: { currency: string; reference: string; expectedCents?: number },
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
 ): Promise<PartnerPayoutAnswer> {
   return takeAct(
     office,
-    { act: "partner_payout", why, tenantId: null, target: "partner", targetId: partnerId },
+    { act: "partner_payout", why: reason, tenantId: null, target: "partner", targetId: partnerId },
     async () => {
-      const r = await markPartnerPaid(
+      const result = await markPartnerPaid(
         office.session,
         partnerId,
         payout.currency,
         payout.reference,
         payout.expectedCents,
       );
-      if (!r.ok) throw partnerVerbError(r);
-      return r.value;
+      if (!result.ok) throw partnerVerbError(result);
+      return result.value;
     },
   );
 }
@@ -453,17 +384,17 @@ export async function platformPartnerPayout(
  * Pause, close or restore a partner. A pause takes their seat on every workspace they brought (a viewer's until they
  * are restored) and releases what they held there; the function does it, and records it, in one transaction.
  */
-export async function platformPartnerStatus(
+export async function getPlatformPartnerStatus(
   office: BackOffice,
   partnerId: string,
   status: string,
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
 ): Promise<{ status: string; from: string; seats: number }> {
   return takeAct(
     office,
-    { act: "partner_status", why, tenantId: null, target: "partner", targetId: partnerId },
+    { act: "partner_status", why: reason, tenantId: null, target: "partner", targetId: partnerId },
     async () => {
-      const r = await setPartnerStatus(office.session, partnerId, status, partnerReads(why));
+      const r = await setPartnerStatus(office.session, partnerId, status, partnerReads(reason));
       if (!r.ok) throw partnerVerbError(r);
       return r.value;
     },
@@ -476,22 +407,22 @@ export async function platformPartnerStatus(
  * the factor itself lives in Supabase Auth, so the platform's own client removes it. A record with nothing removed is
  * a partner who had no authenticator, and says so.
  */
-export async function platformPartnerSecondFactorReset(
+export async function resetPlatformPartnerSecondFactor(
   office: BackOffice,
   partnerId: string,
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
   svc: SupabaseClient<Database> = serviceDb(),
 ): Promise<{ removed: number }> {
   return takeAct(
     office,
-    { act: "partner_second_factor", why, tenantId: null, target: "partner", targetId: partnerId },
+    { act: "partner_second_factor", why: reason, tenantId: null, target: "partner", targetId: partnerId },
     async () => {
-      const r = await recordPartnerSecondFactorReset(office.session, partnerId, partnerReads(why));
-      if (!r.ok) {
-        if (r.code === "55000") throw new AppError("conflict", r.message, 409);
-        throw partnerVerbError(r);
+      const factorReset = await recordPartnerSecondFactorReset(office.session, partnerId, partnerReads(reason));
+      if (!factorReset.ok) {
+        if (factorReset.code === "55000") throw new AppError("conflict", factorReset.message, 409);
+        throw partnerVerbError(factorReset);
       }
-      const userId = r.value;
+      const userId = factorReset.value;
       const { data, error } = await listSecondFactors(svc, userId);
       if (error) throw new AppError("upstream_auth", "Could not reach sign-in just now. Try again in a moment.", 503);
       let removed = 0;
@@ -516,13 +447,13 @@ export async function platformPartnerSecondFactorReset(
  * a send whose outcome nobody knows goes again from its thread or its broadcast, where a person can see whether it
  * left, never from here.
  */
-export async function platformJobRequeue(
+export async function requeuePlatformJob(
   office: BackOffice,
   tenantId: string,
   jobId: string,
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
 ): Promise<{ ok: true; job_id: string; kind: string }> {
-  return takeAct(office, { act: "job_requeue", why, tenantId, target: "job", targetId: jobId }, () =>
+  return takeAct(office, { act: "job_requeue", why: reason, tenantId, target: "job", targetId: jobId }, () =>
     requeueOnce(office, tenantId, jobId),
   );
 }
@@ -533,22 +464,21 @@ async function requeueOnce(
   tenantId: string,
   jobId: string,
 ): Promise<{ ok: true; job_id: string; kind: string }> {
-  const r = await requeueFailedJob(office.db, tenantId, jobId, async (kind) => {
+  const result = await requeueFailedJob(office.db, tenantId, jobId, async (kind) => {
     const { error } = await recordEvent(office.db, tenantId, "platform.acted", "job", jobId, {
       action: `requeue:${kind}`,
       by: office.userId,
       by_email: office.email,
     });
-    if (error)
-      throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+    if (error) throw new AppError("internal", NOT_RECORDED, 503);
   });
-  switch (r.outcome) {
+  switch (result.outcome) {
     case "requeued":
-      return { ok: true, job_id: jobId, kind: r.kind };
+      return { ok: true, job_id: jobId, kind: result.kind };
     case "not_found":
       throw new AppError("not_found", "That job does not exist in that workspace.", 404);
     case "not_failed":
-      throw new AppError("conflict", `That job is ${r.state}, not failed: only a failed job is run again.`, 409);
+      throw new AppError("conflict", `That job is ${result.state}, not failed: only a failed job is run again.`, 409);
     case "speaks_to_a_person":
       throw new AppError(
         "conflict",
@@ -564,7 +494,7 @@ async function requeueOnce(
     case "redrive":
       throw new AppError(
         "conflict",
-        `An event's delivery goes again with its subscriber, once the subscriber is mended: event_deliveries_redrive('${r.subscriber}') replays every failed or paused delivery of it, each once.`,
+        `An event's delivery goes again with its subscriber, once the subscriber is mended: event_deliveries_redrive('${result.subscriber}') replays every failed or paused delivery of it, each once.`,
         409,
       );
     case "already_scheduled":

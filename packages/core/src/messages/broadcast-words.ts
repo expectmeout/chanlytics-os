@@ -105,9 +105,9 @@ const RUN_STOP_CAUSE: Record<RunStop, string> = {
  * owner's words: the cause, with how many it reached first (`sent`, null where that could not be counted). What to do next
  * is contracts stoppedRunFix, by whose run it was. A run a pause let reach nobody says "nothing went out", as it always has.
  */
-export function stoppedRunCause(why: RunStop, sent: number | null): string {
-  if (why === "paused" && sent === 0) return "The workspace is paused until billing resumes, so nothing went out.";
-  return [RUN_STOP_CAUSE[why], gotIt(sent)].filter(Boolean).join(" ");
+export function stoppedRunCause(reason: RunStop, sent: number | null): string {
+  if (reason === "paused" && sent === 0) return "The workspace is paused until billing resumes, so nothing went out.";
+  return [RUN_STOP_CAUSE[reason], gotIt(sent)].filter(Boolean).join(" ");
 }
 
 /**
@@ -142,12 +142,12 @@ export const LIMIT_WORDS: Record<
  * may outlast tomorrow and is not the owner's to end, the next run that can go.
  */
 export function thenWhat(
-  b: { playbook_id: string | null; audience: unknown },
+  input: { playbook_id: string | null; audience: unknown },
   remedy: string | null,
   again: string,
   by: PlaybookRunNextBy,
 ): string {
-  const next = playbookRunNext({ playbook_id: b.playbook_id, trigger: audienceTrigger(b.audience) }, by);
+  const next = playbookRunNext({ playbook_id: input.playbook_id, trigger: audienceTrigger(input.audience) }, by);
   if (!next) return again;
   return remedy ? `${remedy}. ${next}` : next;
 }

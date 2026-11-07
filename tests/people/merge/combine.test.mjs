@@ -6,7 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COMBINE_WORDS, WORKS_AT_WORDS, combineOf, personNoticesOf } from "@chanlytics/contracts";
+import { WORKS_AT_WORDS, personNoticesOf } from "@chanlytics/contracts";
+import { COMBINE_WORDS, combineOf } from "../../../apps/dashboard/src/surfaces/people/person/sheets/combine-view.ts";
 
 /** The page's facts for a person at a business: the stand-in (the record we wrote to) or the person who answered. */
 const facts = (over) => ({

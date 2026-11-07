@@ -23,7 +23,6 @@ import {
   IMPORT_WORDS,
   importLineOf,
   sourceRowsOf,
-  type ConnectionLine,
   type ImportRowDto,
   type ImportSource,
   type MailboxConnectionDto,
@@ -32,6 +31,7 @@ import {
   type MailboxProvider,
   type SetupDto,
 } from "@chanlytics/contracts";
+import type { ConnectionLine } from "./model/setup";
 import type { ApiResult } from "@/client/api";
 import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";

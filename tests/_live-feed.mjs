@@ -6,7 +6,7 @@
  *
  * The client's own behaviour, the shared channel and the join, is shell/surfaces/realtime-scope.test.mjs's.
  */
-import { subscribeWorkspaceChanges, watchedEvents } from "@chanlytics/db";
+import { subscribeWorkspaceChanges, watchedEvents } from "@chanlytics/db/realtime";
 
 /** Every event a table can be told for. */
 export const EVERY_EVENT = ["INSERT", "UPDATE", "DELETE"];

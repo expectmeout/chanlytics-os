@@ -7,14 +7,14 @@
  */
 
 /** "1 review" · "3 reviews" · "2 people": the count, then the word it takes. The plural is the word plus "s" unless given. */
-export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+export const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
 /** plural() for a count that can run to thousands, grouped as the product groups one: "1 review" · "1,284 reviews". */
-export const groupedPlural = (n: number, one: string, many = `${one}s`): string =>
-  `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+export const groupedPlural = (count: number, one: string, many = `${one}s`): string =>
+  `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
 
 /** A place's reviews, ours (the Google card) or another business's (the Leads peek and card): "1 review" · "1,284 reviews". */
-export const reviewsPhrase = (n: number): string => groupedPlural(n, "review");
+export const reviewsPhrase = (count: number): string => groupedPlural(count, "review");
 
 /**
  * What a member is called when the page cannot name them: no name and no address, or a row's member the roster does not
@@ -25,10 +25,10 @@ export const reviewsPhrase = (n: number): string => groupedPlural(n, "review");
 export const UNKNOWN_MEMBER_WORD = "Someone";
 
 /** The first letter upper-cased, the rest as written; an empty string stays empty. */
-export const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
+export const capitalize = (text: string): string => (text ? text[0].toUpperCase() + text.slice(1) : text);
 
 /** Words as a sentence: ended with a full stop unless they end with one already ("." "!" "?"). */
-export const withStop = (s: string): string => (/[.!?]$/.test(s) ? s : `${s}.`);
+export const withStop = (text: string): string => (/[.!?]$/.test(text) ? text : `${text}.`);
 
 /** A name as the one something belongs to: "Harbor Salon's", and "Lantern Barbers'" for a name that ends in s. */
 export const possessive = (name: string): string => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
@@ -53,3 +53,21 @@ export function clipAtWord(text: string, max: number): string {
   const space = cut.lastIndexOf(" ");
   return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}…`;
 }
+
+/**
+ * Every control character and every format character (bidi overrides, tag characters, zero-width marks): none may ride
+ * into a prompt's data block unseen. Use with `replace` or `matchAll`: it has the `g` flag, so `test` would keep state.
+ */
+export const CONTROL_CHARS = /[\p{Cc}\p{Cf}]/gu;
+
+/** A template's numbered slot, `{{1}}`, its number in the first group. Use with `replace` or `matchAll`: it has the `g` flag, so `test` would keep state. */
+export const NUMBERED_SLOT = /\{\{(\d+)\}\}/g;
+
+/** The last line of a prompt that asks for JSON. */
+export const ANSWER_JSON_ONLY = "Answer with only a JSON object in the shape asked.";
+
+/** What a voice door says of a workspace that may not use it, on the edge and in the dashboard. */
+export const VOICE_IS_OFF = "Voice is off while this workspace is paused or its plan has ended.";
+
+/** What a mailbox action says when it failed for no reason a person can act on. */
+export const TRY_AGAIN_IN_A_MINUTE = "That didn't go through. Try again in a minute.";

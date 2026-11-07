@@ -14,7 +14,7 @@ import {
   feedStillNames,
   type AppointmentState,
 } from "@chanlytics/contracts";
-import { errField, logger } from "@chanlytics/channels";
+import { errField, logger } from "@chanlytics/log";
 import { rowFacts, type Work } from "./broadcast-channels";
 import type { BroadcastBatchPorts, BroadcastRow, RecipientRow } from "./ports";
 
@@ -24,15 +24,15 @@ const askLog = logger();
  * The appointments the batch's reminders were drawn for (decision 0002), one read for all of them. A read that fails is
  * none, said in the log: the people go as they did before the record, never held for a read this run could not make.
  */
-export async function appointmentsOf(
+export async function getAppointments(
   ports: BroadcastBatchPorts,
-  b: BroadcastRow,
+  broadcast: BroadcastRow,
   batch: readonly RecipientRow[],
 ): Promise<ReadonlyMap<string, AppointmentState>> {
   const keys = appointmentKeysOf(batch);
   if (!ports.appointments || keys.length === 0) return new Map();
   return ports.appointments(keys).catch((e: unknown) => {
-    askLog.warn("broadcast_appointments_unread", { broadcast_id: b.id, error: errField(e) });
+    askLog.warn("broadcast_appointments_unread", { broadcast_id: broadcast.id, error: errField(e) });
     return new Map<string, AppointmentState>();
   });
 }
@@ -43,14 +43,14 @@ export async function appointmentsOf(
  * is "unread", said in the log: a reminder for a calendar event whose standing is not known waits for the next batch
  * (visitStands), as every read the send cannot make does, rather than going for a visit that may be gone.
  */
-export async function feedOf(
+export async function getFeed(
   ports: BroadcastBatchPorts,
-  b: BroadcastRow,
+  broadcast: BroadcastRow,
   batch: readonly RecipientRow[],
 ): Promise<Work["feed"]> {
   if (!ports.feed || !batch.some((r) => asksTheFeed(rowFacts(r)))) return null;
   return ports.feed().catch((e: unknown) => {
-    askLog.warn("broadcast_feed_unread", { broadcast_id: b.id, error: errField(e) });
+    askLog.warn("broadcast_feed_unread", { broadcast_id: broadcast.id, error: errField(e) });
     return "unread" as const;
   });
 }
@@ -63,11 +63,11 @@ export async function feedOf(
  * record alone. THROWS when the feed could not be read and the reminder needs it: the batch's per-person guard leaves such a
  * person queued for the next batch (fail closed per person), never skipped for a read the run could not make.
  */
-export function visitStands(w: Work, r: RecipientRow): boolean {
-  const facts = rowFacts(r);
-  if (!appointmentHolds(w.appointments, facts)) return false;
-  if (!w.feed || !asksTheFeed(facts)) return true;
-  if (w.feed === "unread")
+export function visitStands(work: Work, recipient: RecipientRow): boolean {
+  const facts = rowFacts(recipient);
+  if (!appointmentHolds(work.appointments, facts)) return false;
+  if (!work.feed || !asksTheFeed(facts)) return true;
+  if (work.feed === "unread")
     throw new Error("the calendar feed could not be read; the reminder waits for the next batch");
-  return feedStillNames(w.feed, facts);
+  return feedStillNames(work.feed, facts);
 }

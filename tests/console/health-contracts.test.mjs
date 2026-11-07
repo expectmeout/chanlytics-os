@@ -18,8 +18,6 @@ import {
   clocksOf,
   creditRanOut,
   deliveriesOf,
-  errorGroupReport,
-  errorGroupsOf,
   failureReadingOf,
   healthCounts,
   healthLooksOf,
@@ -36,6 +34,7 @@ import {
   sendsOf,
   workspaceNamer,
 } from "@chanlytics/contracts";
+import { errorGroupReport, errorGroupsOf } from "../../apps/dashboard/src/surfaces/console/health/errors.ts";
 
 const NOW = Date.parse("2026-10-21T12:00:00Z");
 const MIN = 60_000;

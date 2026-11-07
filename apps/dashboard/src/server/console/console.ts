@@ -11,7 +11,7 @@ import "server-only";
  *
  * Cross-workspace: the Console's reads; the service-role client exists only behind backOffice(ctx)'s admin check.
  */
-import { claimOf, findAcross, letClaimGo, liveClaims, modelSpend, takeClaim, tenantBySlug } from "@chanlytics/db";
+import { claimOf, findAcross, letClaimGo, getModelSpend, takeClaim, findTenantBySlug } from "@chanlytics/db/console";
 import {
   AppError,
   CLAIM_MS,
@@ -36,12 +36,14 @@ import {
   type SupportBookDto,
   type SupportReportDto,
 } from "@chanlytics/contracts";
-import { platformEvents, platformOverview, platformPartners, platformWaitlist, type BackOffice } from "./platform";
-import { consoleRequests } from "./requests";
-import { billingReadiness } from "@/server/workspace/billing";
-import { consoleActs } from "./acts";
-import { asksSince, reportsSince, supportDueBook } from "./support";
+import { listPlatformEvents, listPlatformOverview, findPlatformPartners, getPlatformWaitlist } from "./platform";
+import type { BackOffice } from "../shared/back-office";
+import { listConsoleRequests } from "./requests";
+import { getBillingReadiness } from "@/server/workspace/billing";
+import { listConsoleActs } from "./acts";
+import { listAsksSince, listReportsSince, readSupportDueBook } from "./support";
 import { log } from "@/server/shared/log";
+import { claimsNow } from "@/server/console/support";
 
 /** Who is asking, as the Console's frame draws them. */
 interface ConsoleMe {
@@ -56,28 +58,20 @@ export function consoleMe(office: BackOffice): ConsoleMe {
 }
 
 /** A side read: its answer, or null with the failure logged under the read's name. */
-export async function side<T>(what: string, read: () => Promise<T>): Promise<T | null> {
+export async function readSide<T>(text: string, read: () => Promise<T>): Promise<T | null> {
   try {
     return await read();
   } catch (e) {
-    log.error("platform_console_read_failed", { read: what, error: e });
+    log.error("platform_console_read_failed", { read: text, error: e });
     return null;
   }
-}
-
-/* ---------------------------------------------------------------------------------------------- who has it */
-
-async function claimsNow(office: BackOffice, nowIso: string): Promise<ClaimDto[]> {
-  const { data, error } = await liveClaims(office.db, nowIso);
-  if (error) throw new Error(error.message);
-  return data ?? [];
 }
 
 /**
  * Take a workspace for CLAIM_HOURS, or let it go. Not an act on the business, so no reason and no log row: it tells the
  * rest of the team who is on it. A workspace someone else holds is refused with who.
  */
-export async function consoleClaim(office: BackOffice, tenantId: string, take: boolean): Promise<ClaimDto | null> {
+export async function claimConsole(office: BackOffice, tenantId: string, take: boolean): Promise<ClaimDto | null> {
   if (!take) {
     const { error } = await letClaimGo(office.db, tenantId, office.userId);
     if (error) throw new AppError("internal", "That could not be saved just now. Try again in a moment.", 503);
@@ -115,7 +109,7 @@ interface ConsoleHomeDto {
   support: SupportBookDto | null;
   /** Due: the open requests (null to a role that does not see them), and the partners' workspaces held for a person. */
   requests: PrivacyRequestDto[] | null;
-  partners: Awaited<ReturnType<typeof platformPartners>> | null;
+  partners: Awaited<ReturnType<typeof findPlatformPartners>> | null;
   /** Waiting to get in: the waiting list, as the back office read it. */
   queue: PlatformQueue | null;
   /** What each workspace's model calls cost in the last thirty days, in dollars, by its id; null when unread. */
@@ -124,7 +118,7 @@ interface ConsoleHomeDto {
 
 /** What each workspace's model calls cost in the last thirty days, summed in the database. */
 async function spendOf(office: BackOffice): Promise<Record<string, number>> {
-  const { data, error } = await modelSpend(office.db, 30);
+  const { data, error } = await getModelSpend(office.db, 30);
   if (error) throw new Error(error.message);
   return Object.fromEntries((data ?? []).map((r) => [r.tenant_id, Number(r.usd)]));
 }
@@ -148,23 +142,23 @@ const seen = <T>(office: BackOffice, sight: ConsoleSight, read: () => Promise<T>
  * get in. The plan's price is the edge's, read from Stripe and held five minutes. The open
  * requests are the roles' that work them (CONSOLE_SIGHTS): to any other they are null, and Due draws the rest.
  */
-export async function consoleHome(office: BackOffice, now = Date.now()): Promise<ConsoleHomeDto> {
+export async function getConsoleHome(office: BackOffice, now = Date.now()): Promise<ConsoleHomeDto> {
   const nowIso = new Date(now).toISOString();
   const weekAgo = new Date(now - WEEK_MS).toISOString();
-  const overview = platformOverview(office);
+  const overview = listPlatformOverview(office);
   const [tenants, spend, readiness, claims, reports, asks, support, requests, partners, queue] = await Promise.all([
     overview,
-    side("model_spend", () => spendOf(office)),
-    side("price", () => billingReadiness(now)),
-    side("claims", () => claimsNow(office, nowIso)),
-    side("reports", () => reportsSince(office, { sinceIso: weekAgo, side: "support", limit: 200 })),
-    side("asks", () => asksSince(office, { sinceIso: weekAgo, limit: 100 })),
-    side("support", () => supportDueBook(office, now, overview)),
+    readSide("model_spend", () => spendOf(office)),
+    readSide("price", () => getBillingReadiness(now)),
+    readSide("claims", () => claimsNow(office, nowIso)),
+    readSide("reports", () => listReportsSince(office, { sinceIso: weekAgo, side: "support", limit: 200 })),
+    readSide("asks", () => listAsksSince(office, { sinceIso: weekAgo, limit: 100 })),
+    readSide("support", () => readSupportDueBook(office, now, overview)),
     seen(office, "requests", () =>
-      side("requests", async () => (await consoleRequests(office)).filter((r) => !r.closed_at)),
+      readSide("requests", async () => (await listConsoleRequests(office)).filter((r) => !r.closed_at)),
     ),
-    platformPartners(office),
-    platformWaitlist(office),
+    findPlatformPartners(office),
+    getPlatformWaitlist(office),
   ]);
   return {
     me: consoleMe(office),
@@ -187,7 +181,7 @@ interface ConsoleWorkspaceDto {
   me: ConsoleMe;
   tenant: { id: string; slug: string; name: string; status: string; timezone: string; created_at: string };
   row: PlatformTenantDto | null;
-  events: Awaited<ReturnType<typeof platformEvents>> | null;
+  events: Awaited<ReturnType<typeof listPlatformEvents>> | null;
   acts: PlatformActDto[] | null;
   reports: SupportReportDto[] | null;
   asks: SetupAskDto[] | null;
@@ -199,20 +193,20 @@ interface ConsoleWorkspaceDto {
  * reported and asked for, and who has it. Its Setup, as its owner sees it, is the back office's read by id
  * (GET platform/tenants/:id, setupDtoFor), which its Setup and lines tab asks for.
  */
-export async function consoleWorkspace(office: BackOffice, slug: string): Promise<ConsoleWorkspaceDto> {
-  const found = await tenantBySlug(office.db, slug);
+export async function getConsoleWorkspace(office: BackOffice, slug: string): Promise<ConsoleWorkspaceDto> {
+  const found = await findTenantBySlug(office.db, slug);
   if (found.error) throw new Error(found.error.message);
   const tenant = found.data;
   if (!tenant) throw new AppError("not_found", CONSOLE_WORDS.noSuchWorkspace, 404);
   const nowIso = new Date().toISOString();
   const monthAgo = new Date(Date.now() - 30 * DAY_MS).toISOString();
   const [rows, events, acts, reports, asks, claim] = await Promise.all([
-    side("overview", () => platformOverview(office)),
-    side("events", () => platformEvents(office, tenant.id)),
-    side("acts", () => consoleActs(office, { tenantId: tenant.id })),
-    side("reports", () => reportsSince(office, { tenantId: tenant.id, side: "all", limit: 200 })),
-    side("asks", () => asksSince(office, { sinceIso: monthAgo, tenantId: tenant.id, limit: 100 })),
-    side("claim", async () => (await claimOf(office.db, tenant.id, nowIso)).data ?? null),
+    readSide("overview", () => listPlatformOverview(office)),
+    readSide("events", () => listPlatformEvents(office, tenant.id)),
+    readSide("acts", () => listConsoleActs(office, { tenantId: tenant.id })),
+    readSide("reports", () => listReportsSince(office, { tenantId: tenant.id, side: "all", limit: 200 })),
+    readSide("asks", () => listAsksSince(office, { sinceIso: monthAgo, tenantId: tenant.id, limit: 100 })),
+    readSide("claim", async () => (await claimOf(office.db, tenant.id, nowIso)).data ?? null),
   ]);
   return {
     me: consoleMe(office),
@@ -229,8 +223,8 @@ export async function consoleWorkspace(office: BackOffice, slug: string): Promis
 /* --------------------------------------------------------------------------------------------------------- Find */
 
 /** One box over every workspace. On the session client: the function asks is_platform_admin() itself. */
-export async function consoleFind(office: BackOffice, q: string): Promise<FindRowDto[]> {
-  const { data, error } = await findAcross(office.session, q);
+export async function findInConsole(office: BackOffice, query: string): Promise<FindRowDto[]> {
+  const { data, error } = await findAcross(office.session, query);
   if (error) {
     if (error.code === "42501") throw new AppError("not_found", "No such page.", 404);
     throw new AppError("internal", "Find could not search just now. Try again in a moment.", 503);

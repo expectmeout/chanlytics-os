@@ -61,8 +61,8 @@ export function sitePhotosFrom(html: string, pageUrl: string): string[] {
   for (const [tag] of html.matchAll(/<img\b[^>]*>/gi)) {
     const a = attrsOf(tag);
     // Pixels alone: a width of 100% is a hero, and says nothing about how small it is.
-    const said = a.width ?? "";
-    if (/^\d+$/.test(said) && Number(said) < WIDTH_LEAST) continue;
+    const sentence = a.width ?? "";
+    if (/^\d+$/.test(sentence) && Number(sentence) < WIDTH_LEAST) continue;
     // A page that loads its pictures late keeps the address beside the placeholder.
     offer(widestOf(a.srcset ?? a["data-srcset"]) ?? a["data-src"] ?? a.src);
   }

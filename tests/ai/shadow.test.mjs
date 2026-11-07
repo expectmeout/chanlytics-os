@@ -16,7 +16,7 @@
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import {
   MODEL_PURPOSES,
   SECOND_KEY_OFF,
@@ -47,9 +47,9 @@ for (const k of [
 
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { setModelFetch } = await import(at("apps/edge/lib/ai/model.ts"));
-const { generateReply } = await import(at("apps/edge/lib/receptionist/brain.ts"));
+const { generateReply } = await import(at("apps/edge/lib/ai/receptionist-brain.ts"));
 const { replyReader } = await import(at("apps/edge/lib/campaigns/reach-out/reply-read.ts"));
-const { leadWires } = await import(at("apps/edge/lib/leads/lead-wires.ts"));
+const { leadWires } = await import(at("apps/edge/lib/leads/wires.ts"));
 after(() => {
   setPg(null);
   setModelFetch(null);

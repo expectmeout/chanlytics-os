@@ -8,14 +8,14 @@
  */
 import QRCode from "qrcode";
 import { AppError, optInLink, takesSignUps } from "@chanlytics/contracts";
-import { workspaceOpenToCustomers } from "@chanlytics/db";
+import { isWorkspaceOpenToCustomers } from "@chanlytics/db/workspace";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
 
-export async function consentQr(ctx: RouteContext, member: Member) {
+export async function findConsentQr(ctx: RouteContext, member: Member) {
   const tenantId = member.tenantId;
-  const open = await workspaceOpenToCustomers(ctx.supabase, tenantId).then(
+  const open = await isWorkspaceOpenToCustomers(ctx.supabase, tenantId).then(
     (s) => s.open,
     (e: unknown) => {
       log.error("consent_qr_standing_failed", {

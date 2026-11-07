@@ -12,7 +12,7 @@ import { channelsReady, followUpLeaves, followUpStop, numberHealth, personHandWo
 import { importSrc } from "../_source.mjs";
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
-const { handStepIdFor, reachOutRunIdFor, sendIdFor } = await importSrc("packages/core/src/campaigns/reach-out-ids.ts");
+const { handStepIdFor, getReachOutRunId, sendIdFor } = await importSrc("packages/core/src/campaigns/reach-out-ids.ts");
 const NOW = new Date("2026-10-08T14:00:00Z"); // 10:00 in New York
 const D = 86_400_000;
 const SENT = new Date(NOW.getTime() - 4 * D).toISOString();
@@ -344,7 +344,7 @@ test("a customer's call hands each one due to Today in the run's own sentence --
     runFor: "2026-10-08",
     by: { kind: "system" },
   });
-  const runId = await reachOutRunIdFor("s2", "2026-10-08");
+  const runId = await getReachOutRunId("s2", "2026-10-08");
   assert.deepEqual(r, {
     outcome: "sent",
     broadcast_id: runId,

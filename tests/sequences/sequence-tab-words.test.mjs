@@ -1,5 +1,5 @@
 /**
- * What a sequence's tabs say past its flow (decision 0060, contracts sequence-tab-words.ts and sequence-words.ts), executed
+ * What a sequence's tabs say past its flow (decision 0060, contracts sequences/tab-words.ts and sequences/words/next.ts), executed
  * on batches as the readers answer them: History's period, its four figures counted from the batches Reports counts (never
  * one that has not gone), whether the pages read reach back over a period, a day's row; a lead's step done, going now or
  * still to come; a message's WhatsApp standing; and the list tokens a new sequence may start on.

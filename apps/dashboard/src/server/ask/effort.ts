@@ -11,7 +11,7 @@ import {
 import { draftAsked } from "./cross-page";
 import { argsOf, type RoundBlock } from "./round";
 import { calledName } from "./tools";
-import type { Msg, TurnInput } from "./loop";
+import type { Msg, TurnInput } from "./loop/turn-head";
 import type { turnMeter } from "./turn-end";
 
 /**

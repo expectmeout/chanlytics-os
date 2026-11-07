@@ -19,9 +19,9 @@ import {
   ASK_THREAD_ROUTES,
   ASK_THREAD_VERBS,
   DAY_MS,
-  PROPOSAL_SPECS,
   PROPOSAL_WORDS,
   applySettingsChange,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";

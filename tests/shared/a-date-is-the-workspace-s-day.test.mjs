@@ -11,17 +11,9 @@
 process.env.TZ = "Pacific/Auckland";
 const { test } = await import("node:test");
 const assert = (await import("node:assert/strict")).default;
-const {
-  dayWords,
-  fmtDay,
-  importLineOf,
-  lineReleaseWarning,
-  planBilling,
-  toBillingVM,
-  toCampaignReportVM,
-  toChannelVM,
-  trialWords,
-} = await import("@chanlytics/contracts");
+const { billingDayWords, fmtDay, importLineOf, planBilling, toBillingVM, toCampaignReportVM, toChannelVM, trialWords } =
+  await import("@chanlytics/contracts");
+const { lineReleaseWarning } = await import("../../apps/edge/lib/lines/release-rules.ts");
 
 const NY = "America/New_York";
 /** 03:00 UTC on 3 November: the evening of the 2nd in New York, the afternoon of the 3rd in Auckland. */
@@ -35,11 +27,12 @@ test("the machine is twelve hours east: without that, nothing below could fail",
 });
 
 test("a day is the workspace's: New York's evening before, Auckland's own day, and UTC's for a zone that is none", () => {
-  assert.equal(dayWords(END, NY), "Nov 2");
-  assert.equal(dayWords(END, "Pacific/Auckland"), "Nov 3");
-  for (const zone of ["UTC", "Mars/Olympus", "", null, undefined]) assert.equal(dayWords(END, zone), "Nov 3", zone);
-  assert.equal(dayWords(null, NY), "");
-  assert.equal(dayWords("not a time", NY), "");
+  assert.equal(billingDayWords(END, NY), "Nov 2");
+  assert.equal(billingDayWords(END, "Pacific/Auckland"), "Nov 3");
+  for (const zone of ["UTC", "Mars/Olympus", "", null, undefined])
+    assert.equal(billingDayWords(END, zone), "Nov 3", zone);
+  assert.equal(billingDayWords(null, NY), "");
+  assert.equal(billingDayWords("not a time", NY), "");
 });
 
 test("a trial's end on the bell, in Billing and its words: the day it ends where the business is", () => {

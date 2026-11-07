@@ -11,7 +11,7 @@
  * to it, and on Sequences a step's message or the call's text opens over the list (Ruben, 11 Oct 2026: a message is never
  * a page of its own). A move that asks for the home itself (the sheet's Open in Campaigns) says so (`home`).
  */
-import { SEE_PARAM, seeRefOf, seeRefOfRoute, seeValueOf, type SeeRef } from "@chanlytics/contracts";
+import { SEE_PARAM, seeRefOf, seeRefOfRoute, seeValueOf, type SeeRef } from "./over";
 import { overQuery } from "./over-query";
 
 const SEE = overQuery(SEE_PARAM);

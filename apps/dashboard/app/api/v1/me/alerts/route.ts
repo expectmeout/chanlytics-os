@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { read, write, workspace } from "@/server/shared/route";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { memberAlerts } from "@/server/readers/notifications";
 import { saveMemberPushOff } from "@/server/workspace/alerts";
 

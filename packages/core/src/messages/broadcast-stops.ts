@@ -18,7 +18,7 @@ import {
   type RunStop,
   runRoute,
 } from "@chanlytics/contracts";
-import { errField, logger } from "@chanlytics/channels";
+import { errField, logger } from "@chanlytics/log";
 import { cancelBroadcast } from "../campaigns/cancel";
 import type { DeliveryRefusal } from "../deliver/deliver";
 import type { BroadcastChannel as Channel } from "./broadcast-channels";
@@ -31,9 +31,9 @@ const stopLog = logger();
 
 /**
  * Whether one of a batch's checks before its first claim holds it, each asked in turn and saying why itself: the wires it
- * goes by (broadcast.ts wireIsUnbound), then a freed time taken since it was offered (takenBeforeItWent).
+ * goes by (broadcast.ts wireIsUnbound), then a freed time taken since it was offered (isTakenBeforeItWent).
  */
-export async function heldBeforeAnyClaim(checks: ReadonlyArray<() => Promise<boolean>>): Promise<boolean> {
+export async function holdBeforeAnyClaim(checks: ReadonlyArray<() => Promise<boolean>>): Promise<boolean> {
   for (const held of checks) if (await held()) return true;
   return false;
 }
@@ -44,28 +44,33 @@ export async function heldBeforeAnyClaim(checks: ReadonlyArray<() => Promise<boo
  * through the cancel verb (reason `taken`) and told once, rather than offer a time nobody can have. A batch already
  * sending goes on: its people were offered the time. True when the batch ends here, told or not.
  */
-export async function takenBeforeItWent(ports: BroadcastBatchPorts, b: BroadcastRow, tz: string): Promise<boolean> {
-  if (b.state !== "scheduled" || !b.offered_from || !b.offered_start || !b.offered_end) return false;
-  const offered = { start: Date.parse(b.offered_start), end: Date.parse(b.offered_end) };
-  const facts = await ports.freedTimeFacts(b.offered_from);
+export async function isTakenBeforeItWent(
+  ports: BroadcastBatchPorts,
+  broadcast: BroadcastRow,
+  tz: string,
+): Promise<boolean> {
+  if (broadcast.state !== "scheduled" || !broadcast.offered_from || !broadcast.offered_start || !broadcast.offered_end)
+    return false;
+  const offered = { start: Date.parse(broadcast.offered_start), end: Date.parse(broadcast.offered_end) };
+  const facts = await ports.freedTimeFacts(broadcast.offered_from);
   if (!facts || !freedTimeTaken(offered, facts.row, facts.calendar.standing)) return false;
   try {
     await cancelBroadcast(
       { withdraw: () => Promise.resolve(0), cancel: ports.cancelFrom, record: ports.recordDecision },
-      { row: { id: b.id, state: b.state, name: b.name }, reason: "taken" },
+      { row: { id: broadcast.id, state: broadcast.state, name: broadcast.name }, reason: "taken" },
     );
   } catch (e) {
     // Approved again, stopped or started since it was read: the row's answer stands, and this batch sends nothing.
     if (e instanceof AppError && e.code === "conflict") return true;
     throw e;
   }
-  const told = freedTimeTakenNotice(b.name, clockNearWhen(offered.start, tz, ports.now()));
+  const notice = freedTimeTakenNotice(broadcast.name, clockNearWhen(offered.start, tz, ports.now()));
   await ports.alert({
     kind: "broadcast_stopped",
-    route: runRoute(b.id),
-    about: { type: "broadcast", id: b.id },
-    subject: told.subject,
-    body: told.body,
+    route: runRoute(broadcast.id),
+    about: { type: "broadcast", id: broadcast.id },
+    subject: notice.subject,
+    body: notice.body,
   });
   return true;
 }
@@ -108,28 +113,28 @@ export async function release(
  * a run stopped for them would never reach the others, and the owner, told to send it again, would reach the rest twice.
  *
  * Met at the head of a batch (broadcast.ts stoppedByBilling, offersAtTheHead) or at the door by the first person it
- * applied to (afterRefusal): the run fails with the stop, the owner is told how many it reached before and what to do, and
+ * applied to (handleRefusal): the run fails with the stop, the owner is told how many it reached before and what to do, and
  * everyone not yet reached stays unsent (queued), where each of them skipped for it would have ended the run as "reached
  * nobody" with nobody told why. What to do is by whose run it was (contracts stoppedRunFix): a playbook's is not sent
  * again by hand.
  */
 export async function stopForTheWorkspace(
   ports: BroadcastBatchPorts,
-  b: Pick<BroadcastRow, "id" | "name" | "playbook_id" | "audience">,
-  why: RunStop,
+  broadcast: Pick<BroadcastRow, "id" | "name" | "playbook_id" | "audience">,
+  reason: RunStop,
 ): Promise<void> {
   // The tally is best effort: the run is stopping for a reason that may be the database's own.
-  const sent = await ports.tally(b.id).then(
+  const sent = await ports.tally(broadcast.id).then(
     (t) => t.sent,
     () => null,
   );
-  await ports.fail(b.id, why);
+  await ports.fail(broadcast.id, reason);
   await ports.alert({
     kind: "broadcast_stopped",
-    route: runRoute(b.id),
-    about: { type: "broadcast", id: b.id },
-    subject: `Campaign “${b.name}” ${why === "paused" && sent === 0 ? "not sent" : "stopped"}`,
-    body: `${stoppedRunCause(why, sent)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger(b.audience) })}`,
+    route: runRoute(broadcast.id),
+    about: { type: "broadcast", id: broadcast.id },
+    subject: `Campaign “${broadcast.name}” ${reason === "paused" && sent === 0 ? "not sent" : "stopped"}`,
+    body: `${stoppedRunCause(reason, sent)} ${stoppedRunFix(reason, { playbook_id: broadcast.playbook_id, trigger: audienceTrigger(broadcast.audience) })}`,
   });
 }
 
@@ -170,17 +175,18 @@ export async function pageTheDomain(
  * run that also goes another way that hold is this email person's skip. A live hold on the day-before reminder waits
  * (holdForLater). Any other refusal is the person's own, and final: they are skipped with its reason, and the run goes on.
  */
-export async function afterRefusal(w: Work, r: RecipientRow, reason: DeliveryRefusal): Promise<Verdict> {
-  const { ports, b } = w;
+export async function handleRefusal(work: Work, recipient: RecipientRow, reason: DeliveryRefusal): Promise<Verdict> {
+  const { ports, b } = work;
   const emailStop = emailRunStop(reason);
-  const stop: RunStop | null = reason === "paused" ? "paused" : emailStop && (await emailAlone(w)) ? emailStop : null;
+  const stop: RunStop | null =
+    reason === "paused" ? "paused" : emailStop && (await emailAlone(work)) ? emailStop : null;
   if (stop) {
-    await release(ports, b.id, r.contact_id, "not_taken");
+    await release(ports, b.id, recipient.contact_id, "not_taken");
     await stopForTheWorkspace(ports, b, stop);
     if (stop === "campaigns_domain_unverified")
       await pageTheDomain(
         ports,
-        { tenantId: w.cmd.tenantId, id: b.id },
+        { tenantId: work.cmd.tenantId, id: b.id },
         {
           stopped: true,
           cause: `the door refused an offer by email (${reason}): this runtime holds no verified campaigns domain`,
@@ -188,8 +194,9 @@ export async function afterRefusal(w: Work, r: RecipientRow, reason: DeliveryRef
       );
     return "stop";
   }
-  if (reason === "human_has_it" && passesHandoverPause(w.trigger) && (await holdForLater(w, r))) return "go on";
-  await w.mark(r.contact_id, { state: "skipped", reason });
+  if (reason === "human_has_it" && passesHandoverPause(work.trigger) && (await holdForLater(work, recipient)))
+    return "go on";
+  await work.mark(recipient.contact_id, { state: "skipped", reason });
   return "go on";
 }
 

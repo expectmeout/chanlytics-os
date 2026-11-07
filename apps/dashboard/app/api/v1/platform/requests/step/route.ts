@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/shared/route";
 import { RequestStepSchema } from "@chanlytics/contracts";
-import { consoleRequestStep } from "@/server/console/requests";
+import { stepConsoleRequest } from "@/server/console/requests";
 
 /**
  * POST /api/v1/platform/requests/step — {id, step, done, why}: one step of a request marked done or not done, or the
@@ -13,5 +13,5 @@ export const POST = write({
   rate: "platform_request",
   act: "request_step",
   input: RequestStepSchema,
-  handle: async ({ office, input }) => ({ request: await consoleRequestStep(office, input) }),
+  handle: async ({ office, input }) => ({ request: await stepConsoleRequest(office, input) }),
 });

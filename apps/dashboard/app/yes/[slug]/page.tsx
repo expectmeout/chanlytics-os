@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { businessPageVM, consentPageMetadata, consentPageVM } from "@chanlytics/contracts";
-import { consentPageFor } from "@/server/public/consent-page";
-import { businessPageFor } from "@/server/public/business-page";
+import { findConsentPage } from "@/server/public/consent-page";
+import { findBusinessPage } from "@/server/public/business-page";
 import { SignUpPage } from "@/yes/SignUpPage";
 
 /**
@@ -31,7 +31,7 @@ import { SignUpPage } from "@/yes/SignUpPage";
 // workspace answers to the slug (the wiring audit's N14 and N21). Never indexed; the rule is contracts'.
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  return consentPageMetadata(await consentPageFor(slug));
+  return consentPageMetadata(await findConsentPage(slug));
 }
 // Rendered for each request, as it always was: it reads its slug and the workspace's record before anything is drawn,
 // and a business's page must say what is true now. Under cacheComponents a page that reads before it draws may block,
@@ -40,11 +40,11 @@ export const instant = false;
 
 export default async function ConsentPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const facts = await consentPageFor(slug);
+  const facts = await findConsentPage(slug);
   if (!facts) notFound();
   const vm = consentPageVM(facts);
   // The business's own facts, by the rule `/b/<slug>` publishes by: a record too thin to identify anybody shows nothing.
-  const record = await businessPageFor(slug);
+  const record = await findBusinessPage(slug);
   const who = record ? businessPageVM(record) : null;
   const business = who && !who.empty ? who : null;
   const qr = vm.qrLink

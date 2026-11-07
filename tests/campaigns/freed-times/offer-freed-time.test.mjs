@@ -11,7 +11,7 @@ import { channelsReady, numberHealth } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { importSrc } from "../../_source.mjs";
 
-const { offerFreedTime } = await importSrc("apps/edge/lib/calendar/freed-time-offer.ts");
+const { offerFreedTime } = await importSrc("apps/edge/lib/campaigns/freed-time-offer.ts");
 const { CONTEXT_PAUSED } = await importSrc("apps/edge/lib/campaigns/playbooks/playbooks.ts");
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

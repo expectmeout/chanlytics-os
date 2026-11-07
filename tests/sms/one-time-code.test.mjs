@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { oneTimeCodeOf, lineCodesFrom } from "@chanlytics/channels";
+import { oneTimeCodeOf, lineCodesFrom } from "@chanlytics/channels/lines";
 
 const CODES = [
   // The two Meta texts of 6 October (12:08 and 12:34 UTC): ordinary long numbers, no short code.

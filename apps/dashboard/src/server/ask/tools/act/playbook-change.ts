@@ -23,12 +23,15 @@ import {
   type PlaybookPatch,
   type PlaybookPatchKey,
   type SequenceMode,
+  UUID,
 } from "@chanlytics/contracts";
-import { checkPlaybookPatch, untilOf } from "@chanlytics/core";
-import { playbookForChange } from "@chanlytics/db";
+import { checkPlaybookPatch, findUntil } from "@chanlytics/core";
+import { findPlaybookForChange } from "@chanlytics/db/campaigns";
 import { playbookPatchPorts } from "../../../campaigns/playbooks";
-import { UUID, actAction, propose, refuse, stepNamed, str, type ProposalOutcome, type ToolContext } from "../context";
-import { paramSpecsOf } from "./playbook";
+import { stepNamed, str } from "../context/tool-reads";
+import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
+import { paramSpecsOf } from "./playbook/params";
 
 /** Where a playbook's id is read, said as the model calls it. */
 const PLAYBOOK_FROM = "sequences with action moments";
@@ -54,18 +57,18 @@ function changeParts(
   how: { mode: SequenceMode; wordsNew: boolean; waits: number | null },
   at: { tz: string; now: Date },
 ) {
-  const W = PLAYBOOK_PATCH_WORDS;
+  const words = PLAYBOOK_PATCH_WORDS;
   const parts: string[] = [];
-  if (set.state === "paused") parts.push(W.paused, ...(how.waits === null ? [] : [W.pausedWaits(how.waits)]));
-  if (set.state === "running") parts.push(W.resumed(resumeDoes(how.mode, how.wordsNew)));
-  if (set.name !== undefined) parts.push(W.name(set.name));
+  if (set.state === "paused") parts.push(words.paused, ...(how.waits === null ? [] : [words.pausedWaits(how.waits)]));
+  if (set.state === "running") parts.push(words.resumed(resumeDoes(how.mode, how.wordsNew)));
+  if (set.name !== undefined) parts.push(words.name(set.name));
   for (const k of ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const) {
     const to = set[k];
-    if (to !== undefined) parts.push(W[k](to, was[k] ?? to));
+    if (to !== undefined) parts.push(words[k](to, was[k] ?? to));
   }
-  if (set.params !== undefined) parts.push(W.params(set.params));
-  if (set.until !== undefined) parts.push(W.until(set.until && campaignDayWords(set.until, at.tz, at.now)));
-  if (set.mode !== undefined) parts.push(W.mode(set.mode, was.mode ?? set.mode));
+  if (set.params !== undefined) parts.push(words.params(set.params));
+  if (set.until !== undefined) parts.push(words.until(set.until && campaignDayWords(set.until, at.tz, at.now)));
+  if (set.mode !== undefined) parts.push(words.mode(set.mode, was.mode ?? set.mode));
   return parts;
 }
 
@@ -128,7 +131,11 @@ type ChangeAsked = Omit<PlaybookPatch, "params"> & { playbook_id: string; params
  * each judged as a value by its own judge (paramSpecsOf; core untilOf), and the PUT judges it against the campaign at
  * its press, the token filled with the campaign's id by then. The card says the campaign is the one step `step` makes.
  */
-async function proposeChangeOnStep(t: ToolContext, input: ChangeAsked, step: number): Promise<ProposalOutcome> {
+async function proposeChangeOnStep(
+  toolContext: ToolContext,
+  input: ChangeAsked,
+  step: number,
+): Promise<ProposalOutcome> {
   const { playbook_id: token, state, params, until, ...rest } = input;
   const others = Object.values(rest).some((v) => v !== undefined);
   if (others || (state !== undefined && state !== "paused")) return refuse(PLAN_WORDS.stepChangeOnly(step));
@@ -136,7 +143,10 @@ async function proposeChangeOnStep(t: ToolContext, input: ChangeAsked, step: num
   if (words && "refusal" in words) return refuse(words.refusal);
   let end: string | null | undefined;
   try {
-    end = await untilOf({ timezone: () => Promise.resolve(t.timezone) }, until, { now: t.now, undo: false });
+    end = await findUntil({ timezone: () => Promise.resolve(toolContext.timezone) }, until, {
+      now: toolContext.now,
+      undo: false,
+    });
   } catch (e) {
     return refuse(e instanceof Error ? e.message : String(e));
   }
@@ -147,7 +157,7 @@ async function proposeChangeOnStep(t: ToolContext, input: ChangeAsked, step: num
   };
   if (Object.keys(named).length === 0) return refuse(PLAYBOOK_PATCH_WORDS.nothing);
   const name = PLAN_WORDS.stepCampaign(step);
-  const at = { tz: t.timezone, now: t.now };
+  const at = { tz: toolContext.timezone, now: toolContext.now };
   return propose({
     kind: "playbook_change",
     title: PLAYBOOK_PATCH_WORDS.title(named, name),
@@ -159,7 +169,7 @@ async function proposeChangeOnStep(t: ToolContext, input: ChangeAsked, step: num
       ...named,
       was: {},
       run_waits: false,
-      timezone: t.timezone,
+      timezone: toolContext.timezone,
     },
   });
 }
@@ -183,28 +193,28 @@ function payloadOf(set: PlaybookPatch): Record<string, unknown> {
  * any rename's, its mode as How it runs says it. The same card and undo as any change.
  */
 function proposeLeadsState(
-  t: ToolContext,
+  toolContext: ToolContext,
   row: { id: string; name: string; waiting: { recipient_count: number } | null },
   { set, was }: { set: PlaybookPatch; was: PlaybookPatch },
   noted: string | null | undefined,
 ): ProposalOutcome {
-  const W = PLAYBOOK_PATCH_WORDS;
-  const said = [
-    ...(set.state === "paused" ? [W.paused] : set.state === "running" ? [LIFECYCLE_WORDS.ledger.resume.chain] : []),
-    ...(set.name ? [W.name(set.name)] : []),
-    ...(set.mode ? [W.mode(set.mode, was.mode ?? set.mode)] : []),
+  const words = PLAYBOOK_PATCH_WORDS;
+  const sentence = [
+    ...(set.state === "paused" ? [words.paused] : set.state === "running" ? [LIFECYCLE_WORDS.ledger.resume.chain] : []),
+    ...(set.name ? [words.name(set.name)] : []),
+    ...(set.mode ? [words.mode(set.mode, was.mode ?? set.mode)] : []),
   ];
   return propose({
     kind: "playbook_change",
-    title: W.title(set, row.name),
-    summary: [...said, ...(noted ? [noted] : [])].join(" · "),
+    title: words.title(set, row.name),
+    summary: [...sentence, ...(noted ? [noted] : [])].join(" · "),
     payload: {
       playbook_id: row.id,
       playbook_name: row.name,
       ...payloadOf(set),
       was,
       run_waits: row.waiting !== null,
-      timezone: t.timezone,
+      timezone: toolContext.timezone,
       ...(set.state === "paused" ? { mode: null } : {}),
     },
   });
@@ -213,21 +223,21 @@ function proposeLeadsState(
 /**
  * A playbook that exists, paused, resumed, renamed or retimed (the moment spec §4.9 A5), and since 00416 given new
  * words or a last day, and since 00462 its sequence's mode (decision 0064): what its drawer does, proposed as a card. It reads the
- * one playbook (packages/db playbookForChange: its row, and a run of it that waits), never the Playbooks page, and judges
+ * one playbook (packages/db findPlaybookForChange: its row, and a run of it that waits), never the Playbooks page, and judges
  * what is asked by the PUT's own judgement (core checkPlaybookPatch, against the playbook as it stands), so a value its
  * Approve would refuse is refused here in the same words. The card carries what changes and what each field held, and
  * nothing else of the playbook, so its Approve and its Undo change nothing else. A pause leaves a run that waits
  * waiting, and says so (D8); a resume says what its next batch does by its sequence's mode, in full under auto (D7). A
  * reach-out's step is changed on its own sheet, but for its state, its mode and its first step's name (0072).
  */
-async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promise<ProposalOutcome> {
+async function proposePlaybookChange(toolContext: ToolContext, input: ChangeAsked): Promise<ProposalOutcome> {
   // The campaign an earlier step of Ask's plan makes, named by its token: no row to read yet (proposeChangeOnStep).
-  const step = stepNamed(t, str(input.playbook_id, 40));
-  if (step !== null) return proposeChangeOnStep(t, input, step);
+  const step = stepNamed(toolContext, str(input.playbook_id, 40));
+  if (step !== null) return proposeChangeOnStep(toolContext, input, step);
   // An id is one id in either case: the pattern takes both, so the row is asked for as the table writes it.
   const id = str(input.playbook_id, 40).toLowerCase();
   if (!UUID.test(id)) return refuse(`playbook_id must be a playbook's id, as ${PLAYBOOK_FROM} gives it`);
-  const read = await playbookForChange(t.ctx.supabase, t.tenantId, id);
+  const read = await findPlaybookForChange(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (!read) return refuse(`no such playbook in this workspace; ${PLAYBOOK_FROM} names them`);
   // A sequence to leads is paused, resumed, renamed or given its mode here, as its page's Pause, Turn on, Rename and How
   // it runs are; what core takes of it is core's to say (checkPlaybookPatch), its emails and steps its own page's (0060).
@@ -237,17 +247,24 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
     throw new Error(`playbook ${read.id} holds a state the check does not: ${read.state}`);
   const row = { ...read, state: read.state };
   // The playbook is a row the answer may cite, opened where its drawer is.
-  noteRows(t.read, [{ kind: "playbook" as const, id: row.id, route: sequenceRoute(row.id), label: row.name }]);
+  noteRows(toolContext.read, [
+    { kind: "playbook" as const, id: row.id, route: sequenceRoute(row.id), label: row.name },
+  ]);
   // Its words as the model writes them ("@first_name", typed text), turned into the specs the route stores as a new
-  // playbook's are (act/playbook.ts paramSpecsOf); core then holds them to its message's slots.
+  // playbook's are (act/playbook/playbook.ts paramSpecsOf); core then holds them to its message's slots.
   const words = input.params === undefined ? undefined : paramSpecsOf(input.params);
   if (words && "refusal" in words) return refuse(words.refusal);
   const given: PlaybookPatch = { ...input, params: words?.specs };
-  const asked = Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => given[k] !== undefined).map((k) => [k, given[k]]));
+  const fromEntries = Object.fromEntries(
+    PLAYBOOK_PATCH_KEYS.filter((k) => given[k] !== undefined).map((k) => [k, given[k]]),
+  );
   let judged: { set: PlaybookPatch; was: PlaybookPatch };
   try {
     // A card is never an undo: its dates are still to come.
-    judged = await checkPlaybookPatch(playbookPatchPorts(t.ctx, t.tenantId), row, asked, { now: t.now, undo: false });
+    judged = await checkPlaybookPatch(playbookPatchPorts(toolContext.ctx, toolContext.tenantId), row, fromEntries, {
+      now: toolContext.now,
+      undo: false,
+    });
   } catch (e) {
     // Core's refusal of the rest of a sequence to leads is the person's sentence; the model is told where it is changed.
     if (leads && e instanceof Error && e.message === REACH_OUT_IS_NOT_A_MOMENT) return refuse(leadsPast(read.id));
@@ -258,7 +275,7 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   // A part asked that it holds already (a pause of one paused) is no part of the card, and a change to a paused one's
   // runs waits for its resume: each said on the card and beside it.
   const noted = changeNoted(row, given, set);
-  if (leads) return proposeLeadsState(t, row, { set, was }, noted);
+  if (leads) return proposeLeadsState(toolContext, row, { set, was }, noted);
   // Its sequence's mode as the campaign will stand after this change, and whether its words are new (new words wait for
   // an OK: decision 0064), said for a resume (D7: under auto a resume sends on its own); a pause's undo resumes it under
   // the mode its next batch goes under (contracts batchModeOf), so it never promises a batch of new words goes alone.
@@ -271,7 +288,12 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
       kind: "playbook_change",
       title: PLAYBOOK_PATCH_WORDS.title(set, row.name),
       summary: [
-        ...changeParts(set, was, { mode: seqMode, wordsNew: !wordsOk, waits }, { tz: t.timezone, now: t.now }),
+        ...changeParts(
+          set,
+          was,
+          { mode: seqMode, wordsNew: !wordsOk, waits },
+          { tz: toolContext.timezone, now: toolContext.now },
+        ),
         ...(noted ? [noted] : []),
       ].join(" · "),
       payload: {
@@ -280,7 +302,7 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
         ...payloadOf(set),
         was,
         run_waits: row.waiting !== null,
-        timezone: t.timezone,
+        timezone: toolContext.timezone,
         // A pause's undo resumes it: the mode it would resume under, as read now (contracts playbookChangeSpec's undo).
         ...(set.state === "paused" ? { mode } : {}),
       },

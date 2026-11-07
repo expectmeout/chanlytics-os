@@ -1,19 +1,27 @@
 /**
  * The public listing, read on the hour: `checkListing` reads it from Places,
- * writes what changed and tells the bell, and `listingsDue` and
- * `connectionsDue` are what the sweep (api/cron/google.ts) reads each tick.
+ * writes what changed and tells the bell, and `listListingsDue` and
+ * `listConnectionsDue` are what the sweep (api/cron/google.ts) reads each tick.
  * A connected profile's own read is profile-sync.ts.
  */
-import { emitEvent, patchListing } from "@chanlytics/db";
-import { planListingCheck, type PlaceDetails } from "@chanlytics/channels";
+import { emitEvent } from "@chanlytics/db/events";
+import { patchListing } from "@chanlytics/db/imports";
+import { planListingCheck, type PlaceDetails } from "@chanlytics/channels/google";
 import { localDate, HOUR_MS } from "@chanlytics/contracts";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
-import { keepAndPush } from "../ops/notify.js";
+import { keepAndPush } from "../shared/alerts/notify.js";
 import { logger } from "../shared/log.js";
 import { readAllRows } from "../shared/paged.js";
-import { placesKey } from "./config.js";
-import { readPlace } from "./places.js";
-import { aboutReview, connectionOf, reviewRowIds, type ConnectionRow, type Db, type ListingRow } from "./rows.js";
+import { placesKey } from "../shared/google/config.js";
+import { readPlace } from "../shared/google/places.js";
+import {
+  aboutReview,
+  connectionOf,
+  reviewRowIds,
+  type ConnectionRow,
+  type Db,
+  type ListingRow,
+} from "../shared/google/rows.js";
 
 export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
@@ -36,15 +44,15 @@ export async function checkListing(
   tz: string,
   { askWebsite = false, now = new Date() }: { askWebsite?: boolean; now?: Date } = {},
 ): Promise<CheckResult> {
-  const L = logger({ tenant_id: row.tenant_id, place: row.place_id });
+  const log = logger({ tenant_id: row.tenant_id, place: row.place_id });
   const key = placesKey();
   if (!key) return { ok: false, error: "no_places_key" };
 
   let details: PlaceDetails;
   try {
     details = await readPlace(key, row.place_id);
-  } catch (e) {
-    const error = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+  } catch (otherError) {
+    const error = (otherError instanceof Error ? otherError.message : String(otherError)).slice(0, 300);
     // The stamp is NOT moved. It was, briefly, to stop a permanently failing
     // listing holding the head of every hourly page — but `checked_at` is the
     // last SUCCESSFUL read (00069's own comment), and three things read it as
@@ -57,7 +65,7 @@ export async function checkListing(
     // which is a migration, not a stamp borrowed from a column that means
     // something else.
     await patchListing(db, row.tenant_id, { check_error: error });
-    L.warn("google_check_failed", { error });
+    log.warn("google_check_failed", { error });
     return { ok: false, error };
   }
 
@@ -89,19 +97,19 @@ export async function checkListing(
   if (plan.reviews.length) {
     // first_seen_at is not in the payload: an existing row keeps its own.
     const reviews = await db.from("google_reviews").upsert(
-      plan.reviews.map((r) => ({
+      plan.reviews.map((review) => ({
         tenant_id: row.tenant_id,
-        review_id: r.review_id,
+        review_id: review.review_id,
         origin: "places",
-        rating: r.rating,
-        author: r.author,
-        author_uri: r.author_uri,
-        author_photo_uri: r.author_photo_uri,
-        body: r.text,
-        language_code: r.language_code,
-        published_at: r.published_at,
-        maps_uri: r.maps_uri,
-        last_seen_at: r.last_seen_at,
+        rating: review.rating,
+        author: review.author,
+        author_uri: review.author_uri,
+        author_photo_uri: review.author_photo_uri,
+        body: review.text,
+        language_code: review.language_code,
+        published_at: review.published_at,
+        maps_uri: review.maps_uri,
+        last_seen_at: review.last_seen_at,
       })),
       { onConflict: "tenant_id,review_id" },
     );
@@ -130,7 +138,7 @@ export async function checkListing(
       review_count: plan.listing.review_count,
     }).catch(() => {});
   }
-  L.info("google_checked", {
+  log.info("google_checked", {
     rating: plan.listing.rating,
     review_count: plan.listing.review_count,
     shown: plan.reviews.length,
@@ -145,7 +153,7 @@ export async function checkListing(
 const CHECK_EVERY_MS = 20 * HOUR_MS;
 
 /** The listings the sweep reads this tick: never read first, then the oldest. */
-export async function listingsDue(db: Db, now: Date, limit: number): Promise<ListingRow[]> {
+export async function listListingsDue(db: Db, now: Date, limit: number): Promise<ListingRow[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
   const { data, error } = await db
     .from("google_listings")
@@ -158,7 +166,7 @@ export async function listingsDue(db: Db, now: Date, limit: number): Promise<Lis
 }
 
 /** The connected profiles the sweep syncs this tick: complete ones, never synced first, then the oldest. */
-export async function connectionsDue(db: Db, now: Date, limit: number): Promise<ConnectionRow[]> {
+export async function listConnectionsDue(db: Db, now: Date, limit: number): Promise<ConnectionRow[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
   const { data, error } = await db
     .from("google_connections")

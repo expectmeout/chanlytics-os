@@ -22,9 +22,9 @@ import {
   repairMojibake,
   splitQuotedReply,
   tidyEmailWords,
-  toConversationVM,
   toInboxThreadVM,
 } from "@chanlytics/contracts";
+import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 
 /* ------------------------- the words, and the chain ------------------------- */
 

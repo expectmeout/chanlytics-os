@@ -5,7 +5,8 @@
  * And a press's words that change while it works, held to one width (SteadyLabel).
  */
 import type { ReactNode } from "react";
-import type { FirstRunLiveVM, FirstRunVM, ReceptionistCardVM } from "@chanlytics/contracts";
+import type { FirstRunLiveVM, ReceptionistCardVM } from "@chanlytics/contracts";
+import type { FirstRunVM } from "./model/view";
 import type { WorkspaceSettings } from "@/bridge/surfaces/settings";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";

@@ -4,7 +4,9 @@
  * prompt composed from it is compose.ts.
  */
 import { z } from "zod";
-import { BOOKING_RULE_BOUNDS, DAYS, E164, PROFILE_LIMITS as L, type BookingRuleKey } from "./config-rules";
+import { BOOKING_RULE_BOUNDS, DAYS, PROFILE_LIMITS as L, type BookingRuleKey } from "./config-rules";
+import { E164 } from "../../shared/phone";
+import { DAY_KEY } from "../../shared/zone/day-keys";
 
 /* --------------------------------------------------------------- E4 config */
 
@@ -56,7 +58,7 @@ export const HoursSchema = z
   .strip();
 
 /** A plain calendar date in the business's own zone — never an instant. */
-const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const DATE = z.string().regex(DAY_KEY);
 
 /**
  * A day the business is shut whatever the weekly grid says.

@@ -97,7 +97,7 @@ import {
   leadsRoute,
   newReceptionistDefaults,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db/events";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -482,7 +482,7 @@ export const GOOGLE_DAYS = [
 export const RECEPTIONIST_PREFIX = "e2e-seed-r-";
 /** The call nobody took: Casey Example's, that never connected, with nobody ringing back or writing in the hour after. */
 export const MISSED_CALL_ID = `${RECEPTIONIST_PREFIX}missed`;
-/** The hold the owner set, as a held draft carries it (apps/edge/lib/receptionist/draft-queue.ts: `meta.delay_ms`). */
+/** The hold the owner set, as a held draft carries it (apps/edge/lib/ai/draft-queue.ts: `meta.delay_ms`). */
 const HOLD_MS = MIN_MS;
 /**
  * Sam's five asks, on the workspace's own calendar (days before the run, and the wall-clock time), every one at least two

@@ -17,8 +17,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ASK_CITATION_KINDS,
   ASK_MAX_TOKENS,
-  ASK_PAGES,
-  ASK_GUIDE_PAGES,
   ASK_PAGE_ROUTES,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
@@ -28,8 +26,6 @@ import {
   navigateLabel,
   sameQuestion,
   applySettingsChange,
-  askJump,
-  askPages,
   cleanAnswer,
   buildAskSuggestions,
   citationRoute,
@@ -53,6 +49,8 @@ import {
   REPORT_LENSES,
   lensRoute,
 } from "@chanlytics/contracts";
+import { ASK_PAGES, askJump, askPages } from "../../apps/dashboard/src/bridge/ask/jump.ts";
+import { ASK_GUIDE_PAGES } from "../../apps/dashboard/src/server/ask/proposals/guide.ts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fromContext } from "../../tooling/scripts/eval-ask-context.mjs";
 import { MODEL_QUESTIONS, QUICK_FORMS } from "./quick-path/_questions.mjs";
@@ -65,8 +63,11 @@ const { toApiTools, ACT_TOOL_NAMES } = await import(
   pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/tools/index.ts")).href
 );
 // The rules the model is told (prompt.ts), read as it reads them.
-const { ASK_RULES, systemBlocks } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt.ts")).href
+const { systemBlocks } = await import(
+  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/prompt.ts")).href
+);
+const { ASK_RULES } = await import(
+  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/stable-system.ts")).href
 );
 // The words history a turn is asked with (executed in ask-turn.test.mjs): memory.ts's, beside the live replay.
 const { foldHistory } = await import(
@@ -584,7 +585,7 @@ test("on Leads, the chips are the first day's ideas, each a search; after that, 
 
 test("the prompt on Leads: the page is named and words that describe businesses are a search to propose; every other page keeps its one line", async () => {
   const { turnWords } = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt.ts")).href
+    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/prompt.ts")).href
   );
   const facts = {
     role: "owner",
@@ -641,7 +642,7 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   assert.ok(dropped.includes("Read it before answering about it."), dropped);
 });
 
-test("the three quick questions are told by their words; the answers are ask/answer.ts's (ask-answer.test.mjs)", () => {
+test("the three quick questions are told by their words; the answers are ask/answer/normalize.ts's (ask-answer.test.mjs)", () => {
   const TZ = "America/New_York";
   assert.deepEqual(askIntent("who needs me right now?", NOW, TZ), { kind: "needs" });
   assert.deepEqual(askIntent("what's waiting on me", NOW, TZ), { kind: "needs" });
@@ -1087,7 +1088,9 @@ test("the turn route: same-origin POST, a rate bucket, the thread saved before t
 test("the loop and its reads: several at once, the stable block cached, through the pages' own view models, capped, each recording what an answer may name", () => {
   // How a turn ends -- the answer's format, auto then none, strict and the format retried without, sources grounded,
   // a proposal counted as a read -- runs against scripted rounds in ask-turn.test.mjs.
-  const l = readCode("apps/dashboard/src/server/ask/loop.ts");
+  const l = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(l.includes("const outcomes = await Promise.all("), "several reads run at once");
   // The stable block and the workspace's shape are each a cache breakpoint, and no shape is one block (prompt.ts).
   assert.deepEqual(
@@ -1170,7 +1173,7 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   // llm-door.test.mjs.
   const lib = readCode("apps/edge/lib/ai/ask-gateway.ts");
   assert.ok(lib.includes('export const ASK_USAGE_KIND = "usage.ask_tokens" as const;'));
-  const budget = readCode("apps/edge/lib/receptionist/budget.ts");
+  const budget = readCode("apps/edge/lib/ai/budget.ts");
   assert.ok(
     budget.includes('.eq("kind", "usage.llm_tokens")') && !budget.includes("ask_tokens"),
     "the receptionist's budget never counts Ask",
@@ -1182,7 +1185,10 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   );
   // What the dashboard's call names and binds is run in edge/dashboard-names-its-callers.test.mjs.
   assert.ok(
-    !readCode("apps/dashboard/src/server/ask/loop.ts").includes("ANTHROPIC_API_KEY"),
+    !["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
+      .map((p) => readCode(p))
+      .join("\n")
+      .includes("ANTHROPIC_API_KEY"),
     "no model key on the dashboard",
   );
   const vercel = readRaw("apps/edge/vercel.json");
@@ -1318,7 +1324,9 @@ test("the gateway's usage tee reports a round once however its stream ends: cut 
 });
 
 test("the dashboard's stream parser: blocks, deltas, thinking and its signature, the stop reason, and pings ignored", async () => {
-  const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/sse.ts")).href);
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/shared/model/stream.ts")).href
+  );
   assert.equal(mod.parseFrame('event: ping\ndata: {"type":"ping"}'), null);
   assert.deepEqual(
     mod.parseFrame(
@@ -1458,15 +1466,17 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     ],
   );
   // A viewer is never offered an act tool: ask-turn.test.mjs, on the request itself.
-  const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
+  const loop = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
     loop.includes(
-      "const p = notAgain(await ports.propose(tc, b.name, args), [...(input.waiting ?? []), ...proposals]);",
+      "const result = notAgain(await ports.propose(tc, roundBlock.name, args), [...(input.waiting ?? []), ...proposals]);",
     ),
     "an act tool becomes a proposal, never an action",
   );
   assert.ok(
-    loop.includes("if (!args) return cutOff(b, input.tenantId);"),
+    loop.includes("if (!args) return cutOff(roundBlock, input.tenantId);"),
     "a call whose arguments did not arrive whole is told so, not judged as a plan with every field missing",
   );
   const prompt = ASK_RULES.join("\n");
@@ -1625,7 +1635,9 @@ test("the eval checks that an Open asked for is followed, and what the words dec
 });
 
 test("context first: the page rides into every turn (ask-turn.test.mjs runs it), loaders are memoised and lighter, and the rounds run at low effort", () => {
-  const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
+  const loop = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   // Every round asks at low effort: the request itself, in ask-turn.test.mjs.
   assert.ok(
     loop.includes("effort: model.effort") && !loop.includes("const EFFORT"),
@@ -1740,7 +1752,9 @@ test("the Open button says where it goes, a repeated question is the same thread
     "composed, not re-implemented",
   );
   assert.ok(!bridge.includes("fetch("), "the composer holds no fetch of its own");
-  const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
+  const loop = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
     loop.includes("await ports.round(") && !loop.includes("for await (const ev of"),
     "the loop delegates the stream to round.ts, through the ports a test can replace",
@@ -1770,15 +1784,19 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
 });
 
 test("the speed pass: a fast model for a short answer, the autonomy modes in the prompt", () => {
-  const l = readCode("apps/dashboard/src/server/ask/loop.ts");
+  const l = ["apps/dashboard/src/server/ask/loop/turn-head.ts", "apps/dashboard/src/server/ask/loop/loop.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
-    l.includes('import { askModel } from "./model";') &&
+    l.includes('import { askModel } from "../model";') &&
       !l.includes("export { ASK_MODEL }") &&
       !l.includes("const EFFORT"),
     "the loop asks the deployment's profile for the model and the effort, and names neither itself (spec 5.11)",
   );
   // The turn's own text moved to server/ask/turn.ts (the voice door's half-and-half, spec 2026-10-03 §3.4).
-  const route = readCode("apps/dashboard/app/api/v1/ask/route.ts");
+  const route = ["apps/dashboard/app/api/v1/ask/route.ts", "apps/dashboard/src/server/ask/doors/turn-request.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   const turn = readCode("apps/dashboard/src/server/ask/turn.ts");
   assert.ok(
     turn.includes("model: result.model,") && !turn.includes('model: "claude-') && !route.includes('model: "claude-'),
@@ -1791,7 +1809,12 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
       turn.includes("cfg?.config ?? null, rc.now, offered)"),
     "the policies still ride in the stable block, read through the turn's cache and tolerated when they fail",
   );
-  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  const prompt = [
+    "apps/dashboard/src/server/ask/prompt/stable-system.ts",
+    "apps/dashboard/src/server/ask/prompt/prompt.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
     prompt.includes("autonomy: POLICY_CLASSES.flatMap(") &&
       prompt.includes("Autonomy, class by class (auto: on its own"),
@@ -2032,7 +2055,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
 
 test("the speed pass, four: the page's data before the words needs no second read; no line guesses their language", async () => {
   const { turnWords } = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt.ts")).href
+    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/prompt.ts")).href
   );
   const facts = {
     role: "owner",
@@ -2062,8 +2085,11 @@ test("the speed pass, four: the page's data before the words needs no second rea
 });
 
 test("on Campaigns the turn's words say what a sentence there is: a campaign to propose, a change on its id, results from the rows; after an approval, read campaigns again; and the rules carry the setup rule (the moment spec, A2 and A4)", async () => {
-  const { turnWords, ASK_RULES, ASK_DEFINITIONS } = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt.ts")).href
+  const { turnWords } = await import(
+    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/prompt.ts")).href
+  );
+  const { ASK_RULES, ASK_DEFINITIONS } = await import(
+    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/stable-system.ts")).href
   );
   const facts = {
     role: "owner",
@@ -2109,7 +2135,7 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
 
 test("the rules know the plan and the message (the marketing manager's §5.7): an offer, a promotion or a whole setup is one plan, whose steps Ask never assembles, and a message's words are a message card's alone, every channel's version on it; the setup rule says so itself, no rule left says otherwise, the rules name no tool (the answer canvas, A2: the tools' descriptions say which), and on Campaigns the turn's words name the plan first", async () => {
   const { turnWords } = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt.ts")).href
+    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/prompt/prompt.ts")).href
   );
   const PLAN =
     "An offer, a promotion or a whole setup of the customer journey is one plan, which builds its own steps.";

@@ -9,7 +9,8 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { elevenLabsWebhookSignature, resetBreakers } from "@chanlytics/channels";
+import { verifyElevenLabsWebhookSignature } from "@chanlytics/channels/voice";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.ELEVENLABS_WEBHOOK_SECRET = "webhook-secret-for-this-file";
@@ -120,7 +121,7 @@ const event = (over = {}) => ({
 async function deliver(body, { secret = SECRET, at = Date.now(), header } = {}) {
   const raw = typeof body === "string" ? body : JSON.stringify(body);
   const t = String(Math.floor(at / 1000));
-  const sig = await elevenLabsWebhookSignature(secret, t, raw);
+  const sig = await verifyElevenLabsWebhookSignature(secret, t, raw);
   return door.POST(
     new Request("http://edge/api/elevenlabs-webhook", {
       method: "POST",

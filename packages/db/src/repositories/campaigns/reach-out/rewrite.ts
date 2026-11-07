@@ -16,12 +16,12 @@ type Db = SupabaseClient<Database>;
  */
 export async function decideSendDoor(
   db: Db,
-  p: { sendId: string; decision: string; change: string | null },
+  params: { sendId: string; decision: string; change: string | null },
 ): Promise<DoorResult<{ send_id: string; decision: string }>> {
   const { data, error } = await db.rpc("reach_out_send_decide", {
-    p_send_id: p.sendId,
-    p_decision: p.decision,
-    ...(p.change ? { p_change: p.change } : {}),
+    p_send_id: params.sendId,
+    p_decision: params.decision,
+    ...(params.change ? { p_change: params.change } : {}),
   });
   return answer(data, error);
 }
@@ -57,35 +57,43 @@ interface SendOpening {
  * The openings these emails stand with, read on the member's session (sequence_sends_member_select), in the order asked;
  * one they cannot see is left out.
  */
-export async function sendOpeningsOf(db: Db, p: { tenantId: string; sendIds: string[] }): Promise<SendOpening[]> {
+export async function sendOpeningsOf(db: Db, params: { tenantId: string; sendIds: string[] }): Promise<SendOpening[]> {
   const { data, error } = await db
     .from("sequence_sends")
     .select("id, opening, checked_at, state, reason, rewrite_asked, step_id, sequence_id")
-    .eq("tenant_id", p.tenantId)
-    .in("id", p.sendIds)
+    .eq("tenant_id", params.tenantId)
+    .in("id", params.sendIds)
     .not("lead_id", "is", null);
   if (error) throw new Error(`cannot read the emails' openings: ${error.message}`);
   const rows = data ?? [];
   const stepIds = [...new Set(rows.flatMap((r) => [r.step_id, r.sequence_id]).filter((x): x is string => !!x))];
   const steps = stepIds.length
-    ? await db.from("sequence_steps").select("id, state").eq("tenant_id", p.tenantId).in("id", stepIds)
+    ? await db.from("sequence_steps").select("id, state").eq("tenant_id", params.tenantId).in("id", stepIds)
     : { data: [], error: null };
   if (steps.error) throw new Error(`cannot read the emails' steps: ${steps.error.message}`);
   const running = new Set((steps.data ?? []).filter((s) => s.state === "running").map((s) => s.id));
   const byId = new Map(rows.map((r) => [r.id, r]));
-  return p.sendIds.flatMap((id) => {
-    const r = byId.get(id);
-    if (!r) return [];
-    const asked = r.rewrite_asked;
-    const was = asked && typeof asked === "object" && !Array.isArray(asked) ? (asked as { was?: unknown }).was : null;
-    const paused = !(r.step_id && r.sequence_id && running.has(r.step_id) && running.has(r.sequence_id));
+  return params.sendIds.flatMap((id) => {
+    const found = byId.get(id);
+    if (!found) return [];
+    const rewriteAsked = found.rewrite_asked;
+    const was =
+      rewriteAsked && typeof rewriteAsked === "object" && !Array.isArray(rewriteAsked)
+        ? (rewriteAsked as { was?: unknown }).was
+        : null;
+    const paused = !(
+      found.step_id &&
+      found.sequence_id &&
+      running.has(found.step_id) &&
+      running.has(found.sequence_id)
+    );
     return [
       {
         send_id: id,
-        opening: r.opening,
-        written: r.checked_at !== null,
-        held: r.state === "held" ? r.reason : null,
-        paused: r.checked_at === null && paused,
+        opening: found.opening,
+        written: found.checked_at !== null,
+        held: found.state === "held" ? found.reason : null,
+        paused: found.checked_at === null && paused,
         undo: !!was && typeof was === "object",
       },
     ];
@@ -110,17 +118,17 @@ interface LeadListing {
  * null while none is written or the step has no send for them yet; and the listing's fields the sentence code says is
  * said from. contracts leadOpeningOf reads the two. Read on the member's session; a lead they cannot see has no listing.
  */
-export async function leadStepOpeningOf(
+export async function findLeadStepOpening(
   db: Db,
-  p: { tenantId: string; stepId: string; leadId: string },
+  params: { tenantId: string; stepId: string; leadId: string },
 ): Promise<{ written: string | null; listing: LeadListing | null }> {
   const [send, lead] = await Promise.all([
     db
       .from("sequence_sends")
       .select("opening")
-      .eq("tenant_id", p.tenantId)
-      .eq("lead_id", p.leadId)
-      .eq("step_id", p.stepId)
+      .eq("tenant_id", params.tenantId)
+      .eq("lead_id", params.leadId)
+      .eq("step_id", params.stepId)
       .in("state", SENDS_THAT_GO)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
@@ -129,8 +137,8 @@ export async function leadStepOpeningOf(
     db
       .from("leads")
       .select("business_name, city, hours, rating, reviews")
-      .eq("tenant_id", p.tenantId)
-      .eq("id", p.leadId)
+      .eq("tenant_id", params.tenantId)
+      .eq("id", params.leadId)
       .maybeSingle(),
   ]);
   if (send.error) throw new Error(`cannot read the lead's email at its step: ${send.error.message}`);

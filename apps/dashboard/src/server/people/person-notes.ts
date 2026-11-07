@@ -9,7 +9,7 @@ import {
   type PersonNoteDto,
   type PersonNoteTeamDto,
 } from "@chanlytics/contracts";
-import { logPersonCall, seePersonNote } from "@chanlytics/db";
+import { logPersonCall, seePersonNote } from "@chanlytics/db/people";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
 
@@ -38,32 +38,32 @@ const NOTE_COLUMNS =
   "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, version, created_at, updated_at, due_on, done_at, done_by, deal_id, for_seen_at";
 
 /** A stored note as the page reads it, with the names of who wrote it and who it is for (0007). */
-function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): PersonNoteDto {
+function toNoteDto(note: NoteRow, names: Map<string, string>, me: string): PersonNoteDto {
   return {
-    id: n.id,
-    body: n.body,
-    author_kind: n.author_kind === "receptionist" ? "receptionist" : "member",
-    author_name: n.author_user_id ? (names.get(n.author_user_id) ?? null) : null,
-    mine: !!n.author_user_id && n.author_user_id === me,
-    for_user_id: n.for_user_id,
-    for_name: n.for_user_id ? (names.get(n.for_user_id) ?? null) : null,
-    for_me: !!n.for_user_id && n.for_user_id === me,
-    team_only: n.team_only,
-    state: n.state === "suggested" ? "suggested" : "kept",
+    id: note.id,
+    body: note.body,
+    author_kind: note.author_kind === "receptionist" ? "receptionist" : "member",
+    author_name: note.author_user_id ? (names.get(note.author_user_id) ?? null) : null,
+    mine: !!note.author_user_id && note.author_user_id === me,
+    for_user_id: note.for_user_id,
+    for_name: note.for_user_id ? (names.get(note.for_user_id) ?? null) : null,
+    for_me: !!note.for_user_id && note.for_user_id === me,
+    team_only: note.team_only,
+    state: note.state === "suggested" ? "suggested" : "kept",
     source:
-      (["page", "bulk", "moved", "call", "thread", "reach_out", "website"] as const).find((s) => s === n.source) ??
+      (["page", "bulk", "moved", "call", "thread", "reach_out", "website"] as const).find((s) => s === note.source) ??
       "page",
-    version: n.version,
-    created_at: n.created_at,
-    updated_at: n.updated_at,
+    version: note.version,
+    created_at: note.created_at,
+    updated_at: note.updated_at,
     // A note with a day is a step (00166): its day, who did it and when, and the deal it moves.
-    due_on: n.due_on ?? null,
-    done_at: n.done_at ?? null,
-    done_by_name: n.done_by ? (names.get(n.done_by) ?? null) : null,
-    done_by_me: !!n.done_by && n.done_by === me,
-    deal_id: n.deal_id ?? null,
+    due_on: note.due_on ?? null,
+    done_at: note.done_at ?? null,
+    done_by_name: note.done_by ? (names.get(note.done_by) ?? null) : null,
+    done_by_me: !!note.done_by && note.done_by === me,
+    deal_id: note.deal_id ?? null,
     // Got it (00413): the reader it is for has read it; it leaves their Up next.
-    for_seen: !!n.for_seen_at,
+    for_seen: !!note.for_seen_at,
   };
 }
 
@@ -87,7 +87,7 @@ async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNot
  * A person's notes and the team they can be for, for the person read. Never fatal: a database without the table
  * (a read before 00157) or a team that cannot be read costs the notes card, never the profile.
  */
-export async function personNotesRead(
+export async function getPersonNotes(
   ctx: RouteContext,
   tenantId: string,
   contactId: string,
@@ -143,22 +143,23 @@ export function noteAnswer(
   error: { code?: string; message: string } | null,
 ): { note?: NoteRow; removed?: string } {
   if (error) throw dbRefusal(error);
-  const r = (data ?? {}) as { error?: string; note?: NoteRow; removed?: string };
-  if (r.note || r.removed) return { note: r.note, removed: r.removed };
-  if (!(r.error && NOTE_REFUSALS[r.error])) {
-    log.error("note_door_unknown_answer", { door, error: r.error ?? null });
+  const item = (data ?? {}) as { error?: string; note?: NoteRow; removed?: string };
+  if (item.note || item.removed) return { note: item.note, removed: item.removed };
+  if (!(item.error && NOTE_REFUSALS[item.error])) {
+    log.error("note_door_unknown_answer", { door, error: item.error ?? null });
   }
-  const status = r.error === "not_found" ? 404 : r.error === "not_yours" ? 403 : r.error === "moved" ? 409 : 400;
+  const status =
+    item.error === "not_found" ? 404 : item.error === "not_yours" ? 403 : item.error === "moved" ? 409 : 400;
   throw new AppError(
     status === 404 ? "not_found" : status === 403 ? "forbidden" : status === 409 ? "conflict" : "validation",
-    NOTE_REFUSALS[r.error ?? ""] ?? "Could not save this note.",
+    NOTE_REFUSALS[item.error ?? ""] ?? "Could not save this note.",
     status,
   );
 }
 
 /** The note a door wrote, as the page reads it: names come with the next read, so the writer's own is filled here. */
-export function writtenNote(ctx: RouteContext, n: NoteRow, forName: string | null = null): PersonNoteDto {
-  return toNoteDto(n, new Map(n.for_user_id && forName ? [[n.for_user_id, forName]] : []), ctx.userId);
+export function writtenNote(ctx: RouteContext, note: NoteRow, forName: string | null = null): PersonNoteDto {
+  return toNoteDto(note, new Map(note.for_user_id && forName ? [[note.for_user_id, forName]] : []), ctx.userId);
 }
 
 /**
@@ -175,8 +176,8 @@ export async function seeNote(ctx: RouteContext, contactId: string, noteId: stri
   }
   if (answer.seen) return { seen: noteId };
   const notYours = answer.why === "not_yours";
-  const why = notYours ? "not_for_you" : "not_found";
-  throw new AppError(notYours ? "forbidden" : "not_found", NOTE_REFUSALS[why] ?? why, notYours ? 403 : 404);
+  const reason = notYours ? "not_for_you" : "not_found";
+  throw new AppError(notYours ? "forbidden" : "not_found", NOTE_REFUSALS[reason] ?? reason, notYours ? 403 : 404);
 }
 
 /** What the lead became, where the call moved it (lead_set_stage's answer, through the door). */
@@ -210,11 +211,11 @@ export async function logCall(
     closesCallBack: input.closes_call_back === true,
   });
   const { note } = noteAnswer("person_call_logged", data, error);
-  const r = (data ?? {}) as { step?: NoteRow | null; lead?: CallLead | null };
+  const item = (data ?? {}) as { step?: NoteRow | null; lead?: CallLead | null };
   return {
     note: note ? writtenNote(ctx, note) : null,
-    step: r.step ? writtenNote(ctx, r.step) : null,
-    lead: r.lead ?? null,
+    step: item.step ? writtenNote(ctx, item.step) : null,
+    lead: item.lead ?? null,
   };
 }
 
@@ -234,7 +235,7 @@ export function stepFor(
  * list's other reads, and answers a mapping the route lays over the rows. Never fatal: without the team a step names
  * no one.
  */
-export async function stepNamer<R extends { step_for_user_id?: string | null }>(
+export async function readStepNamer<R extends { step_for_user_id?: string | null }>(
   ctx: RouteContext,
   tenantId: string,
   rows: readonly R[],

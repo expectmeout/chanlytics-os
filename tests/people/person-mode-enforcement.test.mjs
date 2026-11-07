@@ -38,7 +38,7 @@ test("WhatsApp: the non-text acknowledgement obeys the mode in force", () => {
   // The mode in force, by the one rule (reply-posture.ts speaksUnattended, its truth table run in reply-posture.test.mjs).
   assert.ok(wa.includes("const mayAck = !!brainCfg && speaksUnattended(replyMode);"));
   // The escalation and the alert still happen — a photo always needs a human.
-  assert.ok(wa.includes('sink.escalate("non_text", `Customer sent a ${n.rawType} message — ${why}.`)'));
+  assert.ok(wa.includes('sink.escalate("non_text", `Customer sent a ${n.rawType} message — ${reason}.`)'));
 });
 
 test("WhatsApp: a person's hold is its own reason, alerted once per open hold", () => {
@@ -46,7 +46,7 @@ test("WhatsApp: a person's hold is its own reason, alerted once per open hold", 
   // Once per hold, a workspace's own hold as well since decision 0043: a hold written is told from its event, and the
   // handler tells only one it could not write (run in whatsapp/inbound-executed.test.mjs).
   assert.ok(wa.includes("const alertNeeded = !toldFromItsEvent(outcome);"));
-  assert.ok(steps.includes("const personHold = !!x.brainCfg && !!x.personMode;"));
+  assert.ok(steps.includes("const personHold = !!input.brainCfg && !!input.personMode;"));
 });
 
 test("the gate: Veto sends a caller's link, Never and Ask hold it", () => {

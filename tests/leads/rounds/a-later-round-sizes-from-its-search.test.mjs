@@ -9,8 +9,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { startRound, UNMEASURED_YIELD } from "../../../packages/core/src/leads/runner/start.ts";
-import { collect } from "../../../packages/core/src/leads/runner/collect.ts";
-import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
+import { collect } from "../../../packages/core/src/leads/runner/collect/collect.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
 import { PLAN } from "../../_lead-fixtures.mjs";
 

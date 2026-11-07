@@ -187,8 +187,10 @@ const isDomainFolder = (from, spec) => {
 };
 
 test("the measure sees every package's barrels", () => {
-  for (const p of ["channels", "contracts", "core", "db", "jobs"])
-    assert.ok(packageNames.includes(p), `${p}'s src/index.ts was found`);
+  for (const p of ["contracts", "core", "jobs"]) assert.ok(packageNames.includes(p), `${p}'s src/index.ts was found`);
+  // db and channels have no root: each domain's barrel is an entry (decision 0110).
+  for (const barrel of ["packages/channels/src/ai/index.ts", "packages/db/src/repositories/ai/index.ts"])
+    assert.ok(packageBarrels.includes(barrel), `${barrel} was found`);
   assert.ok(
     packageBarrels.length > packageNames.length,
     `the domain barrels were found too (${packageBarrels.length})`,
@@ -262,7 +264,10 @@ test("export * is written nowhere in a package's or an app's source but a root's
 const BACKEND_TREES = ["apps/dashboard/src/server", "apps/edge/lib"];
 const PACKAGE_SRC = /^packages\/[^/]+\/src(?=\/)/;
 /** What a backend root holds beside its folders. Contracts' own is PLUMBING, above. */
-const ROOT_ENTRIES = { "packages/db/src": ["index.ts", "realtime.ts", "database.types.ts"] };
+const ROOT_ENTRIES = {
+  "packages/db/src": ["realtime.ts", "database.types.ts"],
+  "packages/log/src": ["index.ts", "logger.ts", "redact.ts", "request.ts"],
+};
 const isRootEntry = (tree, name) =>
   tree === SRC
     ? PLUMBING.test(name)

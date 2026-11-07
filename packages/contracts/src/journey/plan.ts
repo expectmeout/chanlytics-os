@@ -1,6 +1,6 @@
 /**
  * A setup of the journey, with no model (the marketing manager's spec §5.4; the setup review, 15 Oct 2026): what
- * contracts planOf (ask/plan.ts) makes of the intent cover_journey against the workspace as Ask's reads see it. A
+ * contracts planOf (ask/plan/plan.ts) makes of the intent cover_journey against the workspace as Ask's reads see it. A
  * campaign on each moment of the business's journey that this workspace runs and nothing covers yet, on its action's
  * pick (stageInput); a moment it does not run yet said with what it needs first, never dropped in silence: an
  * appointment's two need the calendar's feed. A proposal's is the journey's where a deal was recorded here, or where
@@ -9,12 +9,12 @@
  * question's language; the answer leads with what comes first (PlanLead). Its rows are in
  * tests/ask/plan/plan-of.test.mjs, beside the offer's.
  */
-import { clip } from "../ask/answer";
-import type { PlanIntent, PlanStep, PlanWorld } from "../ask/plan";
+import { clip } from "../ask/answer/shape";
+import type { PlanIntent, PlanStep, PlanWorld } from "../ask/plan/intents";
 import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
 import { capitalize, joinWords, joinWordsEs, plural } from "../shared/words";
-import { LIVE_VERSION_STATES } from "../campaigns/templates/message-versions";
-import { languageBase } from "../campaigns/templates/template-languages";
+import { LIVE_VERSION_STATES } from "../campaigns/templates/message-versions/email-rules";
+import { languageBase } from "../campaigns/templates/languages";
 import { appointmentWords, type AppointmentWord } from "./appointment-word";
 import { JOURNEY_STAGE_IDS, journeyStageOf, type JourneyStageId } from "./journey";
 
@@ -49,14 +49,14 @@ export const JOURNEY_PLAN_WORDS = {
  */
 function setupSteps() {
   const steps: PlanStep[] = [];
-  const push = (kind: "playbook" | "change", input: Record<string, unknown>, why: string): number => {
+  const push = (kind: "playbook" | "change", input: Record<string, unknown>, reason: string): number => {
     const n = steps.length + 1;
-    steps.push({ n, kind, silent: false, input, why, after: [] });
+    steps.push({ n, kind, silent: false, input, why: reason, after: [] });
     return n;
   };
-  const add = (input: Record<string, unknown>, why: string): number => push("playbook", input, why);
-  const resume = (playbookId: string, why: string): number =>
-    push("change", { playbook_id: playbookId, state: "running" }, why);
+  const add = (input: Record<string, unknown>, reason: string): number => push("playbook", input, reason);
+  const resume = (playbookId: string, reason: string): number =>
+    push("change", { playbook_id: playbookId, state: "running" }, reason);
   return { steps, add, resume };
 }
 
@@ -65,7 +65,7 @@ const REVIEW_STARTER = "after_visit_review";
 const CHECK_STARTER = "after_visit_check";
 
 /**
- * A campaign on a stage's moment, naming nothing where the action's own pick will do (act/playbook.ts heldStarter: the
+ * A campaign on a stage's moment, naming nothing where the action's own pick will do (act/playbook/playbook.ts heldStarter: the
  * first of the moment's starters the Library holds, the after_visit the set retired among them, else the moment's own,
  * filed at Approve). The day after's is the review ask only where the Google listing keeps a review link, whose slot
  * fills from it alone: the one the Library holds in this language, by a version it can go by (live; WhatsApp's where
@@ -133,8 +133,8 @@ const SETUP_WORDS = {
     gets: { before: "a reminder the day before", after: "a follow-up the day after" },
     join: joinWords,
     thing: (word: AppointmentWord) => appointmentWords(word).one,
-    cover: (n: number, what: string) =>
-      `Starts ${plural(n, "campaign")} now${n > 1 ? ", each its own card" : ""}: ${what}.`,
+    cover: (n: number, text: string) =>
+      `Starts ${plural(n, "campaign")} now${n > 1 ? ", each its own card" : ""}: ${text}.`,
     calendar: (feed: boolean, each: string, gets: string) =>
       feed
         ? `First, connect your calendar's feed under Settings › Hours & booking (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.`
@@ -165,8 +165,8 @@ const SETUP_WORDS = {
     gets: { before: "un recordatorio el día antes", after: "un seguimiento el día después" },
     join: joinWordsEs,
     thing: (word: AppointmentWord) => APPOINTMENT_ES[word],
-    cover: (n: number, what: string) =>
-      `Empieza ${n === 1 ? "1 campaña" : `${n} campañas`} ya${n > 1 ? ", cada una en su tarjeta" : ""}: ${what}.`,
+    cover: (n: number, text: string) =>
+      `Empieza ${n === 1 ? "1 campaña" : `${n} campañas`} ya${n > 1 ? ", cada una en su tarjeta" : ""}: ${text}.`,
     calendar: (feed: boolean, each: string, gets: string) =>
       feed
         ? `Primero, conecta el feed de tu calendario en Ajustes › Negocio (los correos de reserva no bastan para programar una campaña), para que cada ${each} tenga ${gets}.`
@@ -188,12 +188,12 @@ const SETUP_WORDS = {
  * "each" ("cada"): its article and its closing mark left off, at most forty characters; else the workspace's own word.
  */
 function bookedThing(books: string | undefined, world: PlanWorld): string {
-  const said = (books ?? "")
+  const sentence = (books ?? "")
     .trim()
     .replace(/^(?:a|an|the|their|our|un|una|el|la|los|las|sus?|nuestras?)\s+/i, "")
     .replace(/[.!?…,;:]+$/, "")
     .trim();
-  return said ? clip(said, 40) : SETUP_WORDS[world.says].thing(world.shape.word);
+  return sentence ? clip(sentence, 40) : SETUP_WORDS[world.says].thing(world.shape.word);
 }
 
 /**
@@ -221,10 +221,10 @@ function momentsOf(intent: Cover, world: PlanWorld): Moment[] {
 
 /** What a setup says must come first (the calendar), naming what it starts. */
 function needLines(needs: ReadonlySet<Need>, later: readonly Moment[], books: string | undefined, world: PlanWorld) {
-  const S = SETUP_WORDS[world.says];
+  const words = SETUP_WORDS[world.says];
   if (!needs.has("calendar")) return [];
-  const gets = later.flatMap((id) => (id === "before" || id === "after" ? [S.gets[id]] : []));
-  return [S.calendar(world.shape.calendar === "email", bookedThing(books, world), S.join(gets))];
+  const gets = later.flatMap((id) => (id === "before" || id === "after" ? [words.gets[id]] : []));
+  return [words.calendar(world.shape.calendar === "email", bookedThing(books, world), words.join(gets))];
 }
 
 /**
@@ -243,7 +243,7 @@ export function journeyPlan(
 ): { steps: PlanStep[]; words: string; lead: PlanLead | null } | { refused: string } {
   const journey = world.journey;
   if (!journey) return { refused: JOURNEY_PLAN_WORDS.journeyUnread };
-  const S = SETUP_WORDS[world.says];
+  const otherWords = SETUP_WORDS[world.says];
   const { steps, add, resume } = setupSteps();
   const missing: string[] = [];
   const paused: string[] = [];
@@ -293,18 +293,22 @@ export function journeyPlan(
   });
   const words = [
     ...needLines(needs, later, intent.books, world),
-    ...(started.length ? [S.cover(started.length, S.join(started.map((id) => S.starts[id])))] : []),
-    ...(nobody.length ? [S.nobody(S.join(nobody.map((id) => S.named[id])), nobody.length === 1)] : []),
+    ...(started.length
+      ? [otherWords.cover(started.length, otherWords.join(started.map((id) => otherWords.starts[id])))]
+      : []),
+    ...(nobody.length
+      ? [otherWords.nobody(otherWords.join(nobody.map((id) => otherWords.named[id])), nobody.length === 1)]
+      : []),
     ...notOffered,
-    ...(paused.length ? [S.resume(paused)] : []),
-    ...(needs.size ? [S.again(later.length)] : []),
+    ...(paused.length ? [otherWords.resume(paused)] : []),
+    ...(needs.size ? [otherWords.again(later.length)] : []),
   ];
   // A campaign resumed starts again now, as one started does.
   const lead = needs.size
     ? {
-        headline: S.headline(started.length + paused.length, later.length),
-        open: { to: CALENDAR_SETTING_ROUTE, label: S.open },
-        next: [S.next],
+        headline: otherWords.headline(started.length + paused.length, later.length),
+        open: { to: CALENDAR_SETTING_ROUTE, label: otherWords.open },
+        next: [otherWords.next],
       }
     : null;
   return { steps, words: words.join(" "), lead };

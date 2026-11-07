@@ -10,6 +10,8 @@
  * person. Values go by position: the value for a slot is the one at its place in the set's `keys`.
  */
 
+import { NUMBERED_SLOT } from "../../shared/words";
+
 /** A slot's key as written between the braces: a number's digits, or a name as the set lists it. */
 export type SlotKey = string;
 
@@ -33,8 +35,6 @@ export function numberedSlots(labels: readonly string[] | number): SlotSet {
 export function namedSlots(names: readonly string[], labels: readonly string[] = names): SlotSet {
   return { kind: "named", keys: names, labels };
 }
-
-const NUMBERED_SLOT = /\{\{(\d+)\}\}/g;
 const NAMED_SLOT = /\{\{([^{}]*)\}\}/g;
 
 /** The slot's pattern for a kind of set: group 1 is what stands between the braces. */

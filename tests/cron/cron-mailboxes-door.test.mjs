@@ -7,7 +7,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mailboxMessageId } from "@chanlytics/channels";
+import { mailboxMessageId } from "@chanlytics/channels/email";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault as cronVault } from "../_cron-doors-world.mjs";

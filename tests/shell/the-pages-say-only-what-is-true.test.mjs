@@ -922,7 +922,7 @@ test("a deal card wears the deal word and Open goes to the person's page: a kind
     undo: async () => ({ ok: true, receipt: "" }),
     outcome: async () => true,
     commit: async () => ({ ok: true, receipt: "", undo: null }),
-    // Where a card's Open goes is the contract's (ask/answer.ts), as the bridge publishes it.
+    // Where a card's Open goes is the contract's (ask/answer/normalize.ts), as the bridge publishes it.
     cardOpenRoute,
   });
   globalThis.window.canDo = () => true;
@@ -967,7 +967,7 @@ test("REGRESSION: Ask's failures say what failed -- a failed read said 'Thread d
   const { openingsAnswer } = await import("@chanlytics/contracts");
   for (const lang of ["en", "es"]) {
     const t = askText(lang);
-    // The calendar's own sentence is the quick answer's now (contracts ask/answer.ts).
+    // The calendar's own sentence is the quick answer's now (contracts ask/answer/normalize.ts).
     const calendar = openingsAnswer({ state: "unavailable", days: [] }, lang).say.headline;
     for (const k of ["threadUnreadable", "deleteFailed", "copyFailed"]) {
       assert.equal(typeof t[k], "string", `${lang}.${k}`);

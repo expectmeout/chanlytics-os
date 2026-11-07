@@ -14,8 +14,15 @@ import {
   patternFailures,
   validateCases,
 } from "../../../tooling/scripts/evals/customer-message.mjs";
+import { CUSTOMER_MESSAGE_SKILL } from "../../../apps/dashboard/src/server/ask/skills/customer-message/skill.ts";
+import {
+  skillGuide,
+  skillsAsked,
+  isAskSkillId,
+  ASK_SKILL_IDS,
+} from "../../../apps/dashboard/src/server/ask/skills/registry.ts";
 
-const SKILL = C.CUSTOMER_MESSAGE_SKILL;
+const SKILL = CUSTOMER_MESSAGE_SKILL;
 
 /** A brief as the card makes one: Harbor Studio, an offer on WhatsApp and email, its three values. */
 const brief = (over = {}) => ({
@@ -88,7 +95,7 @@ test("every example's answer keeps the rules it teaches: its values, its opt-out
 });
 
 test("the guide is a short block, and a question's words ask for the skill in English and Spanish, and only then", () => {
-  const block = C.skillGuide("customer_message");
+  const block = skillGuide("customer_message");
   assert.equal(block, C.guideBlock(SKILL), "a skill's guide by its id is its own guide block");
   assert.ok(block.length <= C.SKILL_GUIDE_MAX, `${block.length} characters`);
   assert.ok(block.startsWith("Skill: Customer message writer."));
@@ -100,17 +107,17 @@ test("the guide is a short block, and a question's words ask for the skill in En
     "Escríbeme un mensaje para los clientes que no vienen hace meses",
     "redacta una oferta 2x1 para el fin de semana",
   ])
-    assert.deepEqual(C.skillsAsked(q), ["customer_message"], q);
+    assert.deepEqual(skillsAsked(q), ["customer_message"], q);
   for (const q of [
     "who wrote this week?",
     "¿quién me mandó un mensaje hoy?",
     "how many messages failed to deliver?",
     "What did the second one want?",
   ])
-    assert.deepEqual(C.skillsAsked(q), [], q);
-  assert.ok(C.isAskSkillId("customer_message"));
-  assert.ok(!C.isAskSkillId("toString"));
-  assert.deepEqual(C.ASK_SKILL_IDS, ["customer_message"]);
+    assert.deepEqual(skillsAsked(q), [], q);
+  assert.ok(isAskSkillId("customer_message"));
+  assert.ok(!isAskSkillId("toString"));
+  assert.deepEqual(ASK_SKILL_IDS, ["customer_message"]);
 });
 
 test("the brief says the business, the message, each value, the opt-out line, and fences its notes and the draft", () => {

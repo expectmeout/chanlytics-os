@@ -6,20 +6,20 @@
  * who may and how often, and the list is the row (listScope), found under RLS.
  */
 import { AppError, ruleNeedsViewer, asListRule, ruleLists } from "@chanlytics/contracts";
-import { jsonBody } from "@/server/shared/request-guards";
+import { readJsonBody } from "@/server/shared/request-guards";
 import {
   createList,
-  savedListsFor,
+  listSavedLists,
   addToList,
   archiveList,
   deleteList,
   dropFromList,
   listMemberIds,
-  playbooksOnList,
+  listPlaybooksOnList,
   renameList,
   setListRule,
-  type Json,
-} from "@chanlytics/db";
+} from "@chanlytics/db/people";
+import type { Json } from "@chanlytics/db/types";
 import { LIST_NAME_TAKEN, cleanListName, cleanListRule, cleanIdList, type SavedListDto } from "@/server/people/lists";
 import { recordDecision, type listScope } from "@/server/shared/verbs";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -29,10 +29,10 @@ import type { Member } from "@/server/shared/route";
 type SavedListRow = Awaited<ReturnType<typeof listScope.load>>;
 
 export async function createSavedList(ctx: RouteContext, req: Request, member: Member) {
-  const body = (await jsonBody(req)) as { name?: unknown; rule?: unknown } | null;
+  const body = (await readJsonBody(req)) as { name?: unknown; rule?: unknown } | null;
   const name = cleanListName(body?.name);
   // A rule may read the workspace's other lists (in_list): they are read to check it can (cleanListRule).
-  const rule = cleanListRule(body?.rule, body?.rule != null ? await savedListsFor(ctx.supabase, member.tenantId) : []);
+  const rule = cleanListRule(body?.rule, body?.rule != null ? await listSavedLists(ctx.supabase, member.tenantId) : []);
   const { list, error } = await createList(ctx.supabase, member.tenantId, name, ctx.userId, rule);
   if (error || !list) {
     if (error?.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);
@@ -44,13 +44,13 @@ export async function createSavedList(ctx: RouteContext, req: Request, member: M
     kept: rule ? "rule" : "hand",
     ...(rule ? { rule: rule as unknown as Json } : {}),
   });
-  const made: SavedListDto = { id: list.id, name: list.name, ids: [], rule, archived_at: null };
-  return made;
+  const created: SavedListDto = { id: list.id, name: list.name, ids: [], rule, archived_at: null };
+  return created;
 }
 
 export async function changeSavedList(ctx: RouteContext, req: Request, list: SavedListRow) {
   const id = list.id;
-  const body = (await jsonBody(req)) as {
+  const body = (await readJsonBody(req)) as {
     name?: unknown;
     add?: unknown;
     remove?: unknown;
@@ -64,7 +64,7 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
   const restore = body?.archived === false && !!list.archived_at;
   const rule = cleanListRule(
     body?.rule,
-    body?.rule != null ? await savedListsFor(ctx.supabase, list.tenant_id) : [],
+    body?.rule != null ? await listSavedLists(ctx.supabase, list.tenant_id) : [],
     list.id,
   );
   if (!rename && !add.length && !remove.length && !rule && !restore)
@@ -105,7 +105,7 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
   if (rule) {
     // A playbook runs on it with no one looking: a rule about "me" would stop it every day, so it is refused here.
     if (ruleNeedsViewer(rule)) {
-      const on = await playbooksOnList(ctx.supabase, tenantId, id);
+      const on = await listPlaybooksOnList(ctx.supabase, tenantId, id);
       if (on.length)
         throw new AppError(
           "conflict",
@@ -153,8 +153,8 @@ export async function removeSavedList(ctx: RouteContext, list: SavedListRow) {
   const tenantId = list.tenant_id;
   // What depends on it (decision 0009): the playbooks that name it, and the workspace's lists whose rule reads it.
   const [playbooks, lists] = await Promise.all([
-    playbooksOnList(ctx.supabase, tenantId, id),
-    savedListsFor(ctx.supabase, tenantId),
+    listPlaybooksOnList(ctx.supabase, tenantId, id),
+    listSavedLists(ctx.supabase, tenantId),
   ]);
   const token = `list:${id.toLowerCase()}`;
   const readBy = lists.filter((l) => {

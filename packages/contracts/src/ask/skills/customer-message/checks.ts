@@ -5,16 +5,17 @@
  * price (contracts priceBreach, against the draft's own figures, as the person drafts are checked), no money word, no
  * number, no link typed in. Every issue is a reason to keep the draft: the card then says what it says today.
  */
-import { namesMoney, priceBreach, priceFigures } from "../../../config/policy";
+import { namesMoney, priceBreach, priceFigures } from "../../../config/policy/prices";
 import {
   EMAIL_BODY_MAX,
   EMAIL_SUBJECT_MAX,
   smsSegments,
   smsStopLine,
-} from "../../../campaigns/templates/message-versions";
+} from "../../../campaigns/templates/message-versions/channels";
 import { placeholdersOf, templateBodyTooLong } from "../../../campaigns/templates/templates";
 import { CRAFT_CHANNELS, ownerWords, textAsSent, textPartsAllowed } from "./brief";
 import type { CraftChannel, CraftVersions, MessageBrief } from "./brief";
+import { NUMBERED_SLOT } from "../../../shared/words";
 
 /** What can be wrong with the writer's words, one code each. */
 export type CraftIssueCode =
@@ -42,9 +43,7 @@ export interface CraftIssue {
   /** What is wrong, for the log and the eval. */
   words: string;
 }
-
-const CRAFT_SLOT = /\{\{(\d+)\}\}/g;
-const craftWithoutSlots = (s: string): string => s.replace(CRAFT_SLOT, " ");
+const craftWithoutSlots = (s: string): string => s.replace(NUMBERED_SLOT, " ");
 /** Every number written in figures, outside the values. */
 const craftFigures = (s: string): string[] => craftWithoutSlots(s).match(/\d+(?:[.,:]\d+)*/g) ?? [];
 /** A freebie said in words: "free" (not "feel free", "free to"), "gratis", "gratuito". */
@@ -70,9 +69,14 @@ function craftWordsOf(v: CraftVersions, c: CraftChannel): string {
 }
 
 /** What any version may not say beyond the draft: a price, money, a freebie, a number, a contact typed in, shouting. */
-function craftBeyondDraft(c: CraftChannel, text: string, draft: string, b: MessageBrief): CraftIssue[] {
+function craftBeyondDraft(
+  craftChannel: CraftChannel,
+  text: string,
+  draft: string,
+  messageBrief: MessageBrief,
+): CraftIssue[] {
   const out: CraftIssue[] = [];
-  const at = (code: CraftIssueCode, words: string) => out.push({ channel: c, code, words });
+  const at = (code: CraftIssueCode, words: string) => out.push({ channel: craftChannel, code, words });
   if (priceBreach(text, new Set(priceFigures(draft)))) at("new_price", "a price or a share the draft does not hold");
   if ((namesMoney(text) && !namesMoney(draft)) || (CRAFT_FREE.test(text) && !CRAFT_FREE.test(draft)))
     at("new_money", "a discount, a free thing or a payment term the draft does not hold");
@@ -81,22 +85,22 @@ function craftBeyondDraft(c: CraftChannel, text: string, draft: string, b: Messa
   if (extra.length) at("new_number", `numbers the draft does not hold: ${[...new Set(extra)].join(", ")}`);
   if (CRAFT_CONTACT.test(craftWithoutSlots(text)))
     at("typed_contact", "a link, an email address or a phone number typed in");
-  const own = new Set([...b.business.name.split(/\s+/), ...(draft.match(CRAFT_CAPS) ?? []), "STOP"]);
+  const own = new Set([...messageBrief.business.name.split(/\s+/), ...(draft.match(CRAFT_CAPS) ?? []), "STOP"]);
   const loud = (text.match(CRAFT_CAPS) ?? []).filter((w) => !own.has(w));
   if (loud.length) at("shouting", `capitals for emphasis: ${[...new Set(loud)].join(", ")}`);
   return out;
 }
 
 /** WhatsApp's own: every value, never at an edge or side by side, its length, its blank lines, its opt-out line. */
-function craftWhatsappIssues(body: string, b: MessageBrief): CraftIssue[] {
+function craftWhatsappIssues(body: string, messageBrief: MessageBrief): CraftIssue[] {
   const out: CraftIssue[] = [];
   const at = (code: CraftIssueCode, words: string) => out.push({ channel: "whatsapp", code, words });
-  const want = b.message.values.map((v) => v.position).sort((x, y) => x - y);
-  const got = placeholdersOf(body);
-  if (got.join(",") !== want.join(","))
+  const want = messageBrief.message.values.map((v) => v.position).sort((x, y) => x - y);
+  const result = placeholdersOf(body);
+  if (result.join(",") !== want.join(","))
     at(
       "values",
-      `values ${got.map((n) => `{{${n}}}`).join(" ") || "none"}, asked ${want.map((n) => `{{${n}}}`).join(" ") || "none"}`,
+      `values ${result.map((n) => `{{${n}}}`).join(" ") || "none"}, asked ${want.map((n) => `{{${n}}}`).join(" ") || "none"}`,
     );
   if (/^\s*\{\{\d+\}\}|\{\{\d+\}\}\s*$/.test(body)) at("value_at_edge", "a value at the very start or end");
   // Side by side: nothing but a space or a mark between two values ("{{2}}: {{3}}"), which WhatsApp's reviewers read as
@@ -105,21 +109,22 @@ function craftWhatsappIssues(body: string, b: MessageBrief): CraftIssue[] {
     at("values_side_by_side", "two values with only a space or a mark between them");
   if (templateBodyTooLong(body)) at("too_long", "over WhatsApp's 1,024 characters");
   if (/\n[^\S\n]*\n[^\S\n]*\n/.test(body)) at("blank_lines", "more than one blank line in a row");
-  const stop = smsStopLine(b.message.language);
+  const stop = smsStopLine(messageBrief.message.language);
   const last = body.trim().split("\n").at(-1)?.trim().replace(/\.$/, "") ?? "";
-  if (b.message.category === "marketing" && last !== stop) at("opt_out", `an offer's last line is not "${stop}"`);
+  if (messageBrief.message.category === "marketing" && last !== stop)
+    at("opt_out", `an offer's last line is not "${stop}"`);
   return out;
 }
 
 /** An email's own: a subject of its length with no emoji, a body of its length, and no way out of its own. */
-function craftEmailIssues(e: { subject: string; body: string }): CraftIssue[] {
+function craftEmailIssues(input: { subject: string; body: string }): CraftIssue[] {
   const out: CraftIssue[] = [];
   const at = (code: CraftIssueCode, words: string) => out.push({ channel: "email", code, words });
-  if (!e.subject || e.subject.length > EMAIL_SUBJECT_MAX || CRAFT_PICTOGRAPH.test(e.subject))
+  if (!input.subject || input.subject.length > EMAIL_SUBJECT_MAX || CRAFT_PICTOGRAPH.test(input.subject))
     at("subject", `a subject under ${EMAIL_SUBJECT_MAX} characters, with no emoji`);
-  if (e.body.length > EMAIL_BODY_MAX) at("too_long", `over ${EMAIL_BODY_MAX} characters`);
-  if (/\n[^\S\n]*\n[^\S\n]*\n/.test(e.body)) at("blank_lines", "more than one blank line in a row");
-  if (CRAFT_UNSUBSCRIBE.test(e.body) || CRAFT_STOP.test(e.body))
+  if (input.body.length > EMAIL_BODY_MAX) at("too_long", `over ${EMAIL_BODY_MAX} characters`);
+  if (/\n[^\S\n]*\n[^\S\n]*\n/.test(input.body)) at("blank_lines", "more than one blank line in a row");
+  if (CRAFT_UNSUBSCRIBE.test(input.body) || CRAFT_STOP.test(input.body))
     at("stop_written", "a way out of its own: the sender's foot says it");
   return out;
 }
@@ -142,35 +147,41 @@ function craftTextIssues(body: string, b: MessageBrief): CraftIssue[] {
  * a price or money promotes, whatever the draft said. Empty when the words may go on the card.
  */
 export function messageCraftIssues(
-  v: CraftVersions,
-  b: MessageBrief,
+  craftVersions: CraftVersions,
+  messageBrief: MessageBrief,
   missing: readonly CraftChannel[] = [],
 ): CraftIssue[] {
   const out: CraftIssue[] = missing.map((c) => ({ channel: c, code: "missing" as const, words: "left empty" }));
   // What the message may hold: the draft's words, and the owner's own where a turn asked (a figure they gave is theirs).
-  const draft = [craftAllWords(b.message.draft), ownerWords(b)].filter(Boolean).join("\n");
-  const n = b.message.values.length;
-  for (const c of CRAFT_CHANNELS) {
-    const text = craftWordsOf(v, c);
+  const draft = [craftAllWords(messageBrief.message.draft), ownerWords(messageBrief)].filter(Boolean).join("\n");
+  const length = messageBrief.message.values.length;
+  for (const cRAFTCHANNELS of CRAFT_CHANNELS) {
+    const text = craftWordsOf(craftVersions, cRAFTCHANNELS);
     if (!text) continue;
-    const outside = placeholdersOf(text).filter((p) => p < 1 || p > n);
-    if (c !== "whatsapp" && outside.length)
+    const outside = placeholdersOf(text).filter((p) => p < 1 || p > length);
+    if (cRAFTCHANNELS !== "whatsapp" && outside.length)
       out.push({
-        channel: c,
+        channel: cRAFTCHANNELS,
         code: "values",
         words: `values it was not given: ${outside.map((p) => `{{${p}}}`).join(" ")}`,
       });
     if (/[{}]/.test(craftWithoutSlots(text)))
-      out.push({ channel: c, code: "braces", words: "braces that are not a value" });
-    if (c === "whatsapp" && v.whatsapp) out.push(...craftWhatsappIssues(v.whatsapp.body, b));
-    if (c === "email" && v.email) out.push(...craftEmailIssues(v.email));
-    if (c === "sms" && v.sms) out.push(...craftTextIssues(v.sms.body, b));
+      out.push({ channel: cRAFTCHANNELS, code: "braces", words: "braces that are not a value" });
+    if (cRAFTCHANNELS === "whatsapp" && craftVersions.whatsapp)
+      out.push(...craftWhatsappIssues(craftVersions.whatsapp.body, messageBrief));
+    if (cRAFTCHANNELS === "email" && craftVersions.email) out.push(...craftEmailIssues(craftVersions.email));
+    if (cRAFTCHANNELS === "sms" && craftVersions.sms)
+      out.push(...craftTextIssues(craftVersions.sms.body, messageBrief));
     if (
-      b.message.category === "utility" &&
+      messageBrief.message.category === "utility" &&
       (priceFigures(text).length > 0 || namesMoney(text) || CRAFT_FREE.test(text))
     )
-      out.push({ channel: c, code: "promotes", words: "a price, a discount or a free thing in a utility message" });
-    out.push(...craftBeyondDraft(c, text, draft, b));
+      out.push({
+        channel: cRAFTCHANNELS,
+        code: "promotes",
+        words: "a price, a discount or a free thing in a utility message",
+      });
+    out.push(...craftBeyondDraft(cRAFTCHANNELS, text, draft, messageBrief));
   }
   return out;
 }

@@ -12,10 +12,8 @@ import {
   LOGO_CHOSEN_TYPES,
   LOGO_SIDE,
   LOGO_SIDE_MIN,
-  logoDrawRect,
-  logoLayout,
-  type LogoNote,
 } from "@chanlytics/contracts";
+import { logoDrawRect, logoLayout, type LogoNote } from "./layout";
 
 /** The picture is read at this at most on its longer side: enough to judge its edges, and a phone's camera roll is 4000. */
 const WORK_SIDE = 512;

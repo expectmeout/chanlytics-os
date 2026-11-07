@@ -1,6 +1,6 @@
 /**
  * A web call's request and its answer, as Retell takes and gives them (decision 0069): pure, so a test reads what is
- * sent. The call itself is voice/retell.ts's (createWebCall), with the rest of the provider's wire.
+ * sent. The call itself is voice/retell/agents.ts's (createWebCall), with the rest of the provider's wire.
  */
 
 /** What a browser joins a web call with (POST /v3/create-web-call's answer): the call, its token, its transport. */
@@ -18,7 +18,7 @@ export interface WebCallMade {
  * own voice and length (agent_override, the saved agent untouched), and what the call is in our records (metadata, the
  * provider's to keep and ours to read back on every delivery and tool call). Pure, so a test reads what is sent.
  */
-export function webCallBody(o: {
+export function webCallBody(options: {
   agentId: string;
   variables: Record<string, string>;
   voiceId: string | null;
@@ -28,16 +28,16 @@ export function webCallBody(o: {
   metadata: Record<string, string | number>;
 }): Record<string, unknown> {
   return {
-    agent_id: o.agentId,
-    retell_llm_dynamic_variables: o.variables,
+    agent_id: options.agentId,
+    retell_llm_dynamic_variables: options.variables,
     agent_override: {
       agent: {
-        max_call_duration_ms: Math.round(o.maxMs),
-        ...(o.voiceId ? { voice_id: o.voiceId } : {}),
-        ...(typeof o.voiceSpeed === "number" ? { voice_speed: o.voiceSpeed } : {}),
+        max_call_duration_ms: Math.round(options.maxMs),
+        ...(options.voiceId ? { voice_id: options.voiceId } : {}),
+        ...(typeof options.voiceSpeed === "number" ? { voice_speed: options.voiceSpeed } : {}),
       },
     },
-    metadata: o.metadata,
+    metadata: options.metadata,
   };
 }
 

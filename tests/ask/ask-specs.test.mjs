@@ -28,13 +28,13 @@ import {
   PROPOSAL_GATE,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
-  PROPOSAL_SPECS,
   PROPOSAL_WORDS,
   ROLE_PERMS,
   ROUTE_KEYS,
   askUndoOpen,
   cardOpenRoute,
   canonicalRoute,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");

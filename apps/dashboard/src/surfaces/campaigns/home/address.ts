@@ -1,5 +1,5 @@
 /**
- * Campaigns' retired home addresses (`campaigns/<param>`), beside Sequences' own (contracts sequence-address.ts): the home
+ * Campaigns' retired home addresses (`campaigns/<param>`), beside Sequences' own (contracts sequences/address.ts): the home
  * went in decision 0060's S6, and its addresses are read here so a link kept from before still says what it named as it
  * lands (contracts retiredRouteOf, the one table of retired addresses).
  *

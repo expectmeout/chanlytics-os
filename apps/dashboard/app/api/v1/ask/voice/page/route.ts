@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError, PageContextSchema } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
-import { readerContext } from "@/server/readers";
+import { readerContext } from "@/server/shared/reader";
 import { buildContext } from "@/server/ask/context";
 import { moveVoiceContext, sessionHashOf, SESSION_ID } from "@/server/ask/voice-session";
 

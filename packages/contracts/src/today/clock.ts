@@ -1,10 +1,10 @@
 /**
  * Today's clock words: a time, a day and a wait said in the workspace's own zone, never the reader's. Every
  * module of the brief that names a moment reads it from here. The days are zone-math's, counted by the calendar
- * (shared/clock.ts localDaysBetween, calendar/zone-math.ts dayPlusInZone): tomorrow is the next day, never now plus
+ * (shared/clock.ts localDaysBetween, shared/zone/math.ts dayPlusInZone): tomorrow is the next day, never now plus
  * 24 hours, which late on the eve of a 23-hour day is the day after next.
  */
-import { dayPlusInZone } from "../calendar/zone-math";
+import { dayPlusInZone } from "../shared/zone/math";
 import { localDaysBetween, zoneDayKey } from "../shared/clock";
 import { dateFormat } from "../shared/time";
 
@@ -15,16 +15,16 @@ import { dateFormat } from "../shared/time";
  * beside "since 6:46 PM" read as the same moment.
  */
 export function tzClock(iso: string | null | undefined, tz: string, now: Date): string | null {
-  const t = tzTime(iso, tz);
-  if (!iso || !t) return t;
+  const result = tzTime(iso, tz);
+  if (!iso || !result) return result;
   // A time was said, so the zone is one Intl can use.
   const day = zoneDayKey(Date.parse(iso), tz);
-  if (day === zoneDayKey(now.getTime(), tz)) return t;
-  if (day === dayPlusInZone(tz, now.getTime(), 1).key) return `tomorrow ${t}`;
+  if (day === zoneDayKey(now.getTime(), tz)) return result;
+  if (day === dayPlusInZone(tz, now.getTime(), 1).key) return `tomorrow ${result}`;
   try {
-    return `${dateFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
+    return `${dateFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${result}`;
   } catch {
-    return t;
+    return result;
   }
 }
 
@@ -35,18 +35,18 @@ export function tzClock(iso: string | null | undefined, tz: string, now: Date): 
  * Today said "waiting since 6:51 PM" of a customer who had waited eight days.
  */
 export function tzSince(iso: string | null | undefined, tz: string, now: Date): string | null {
-  const t = tzTime(iso, tz);
-  if (!iso || !t) return t;
+  const result = tzTime(iso, tz);
+  if (!iso || !result) return result;
   const days = localDaysBetween(Date.parse(iso), now.getTime(), tz);
-  if (days <= 0) return t;
-  if (days === 1) return `yesterday ${t}`;
+  if (days <= 0) return result;
+  if (days === 1) return `yesterday ${result}`;
   try {
     const within: Intl.DateTimeFormatOptions & { timeZone: string } =
       days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
     const day = dateFormat("en-US", within).format(new Date(iso));
-    return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
+    return days < 7 ? `${day} ${result}` : `${day}, ${result}`;
   } catch {
-    return t;
+    return result;
   }
 }
 
@@ -71,23 +71,23 @@ export function tzTime(iso: string | null | undefined, tz: string): string | nul
  */
 export function tzDayAndTime(iso: string | null, tz: string, now: Date, form: "sentence" | "clipped"): string | null {
   if (!iso) return null;
-  const t = tzTime(iso, tz);
-  if (!t) return null;
+  const result = tzTime(iso, tz);
+  if (!result) return null;
   const at = form === "sentence" ? " at " : " ";
   // The tenant's calendar day, not a 24-hour multiple: at 8 AM, a message
   // from 9:15 AM yesterday is "yesterday", however few hours ago it was.
   const days = localDaysBetween(Date.parse(iso), now.getTime(), tz);
-  if (days < 1) return t;
-  if (days === 1) return `yesterday${at}${t}`;
+  if (days < 1) return result;
+  if (days === 1) return `yesterday${at}${result}`;
   try {
     const d = new Date(iso);
     if (days < 7) {
       const day = dateFormat("en-US", { weekday: "long", timeZone: tz }).format(d);
-      return `${day}${at}${t}`;
+      return `${day}${at}${result}`;
     }
     const md = dateFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
-    return `${md}${form === "sentence" ? " at " : ", "}${t}`;
+    return `${md}${form === "sentence" ? " at " : ", "}${result}`;
   } catch {
-    return t;
+    return result;
   }
 }

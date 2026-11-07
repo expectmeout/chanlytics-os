@@ -7,16 +7,21 @@ import { CHANNEL_WORDS } from "../../campaigns/broadcasts/reach-for";
 import { BREATH_WHY, goesToOf, heardWords } from "../../campaigns/broadcasts/run-words";
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, channelsWords, type ConsentChannel } from "../../consent/channels";
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../../campaigns/playbooks/lifecycle/words";
-import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../../campaigns/playbooks/playbook-patch";
-import { SEND_ONCE_STOP_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../../campaigns/playbooks/playbook-triggers";
-import { SEQUENCES_ROUTE, newSequenceRoute, runRoute, sequenceRoute } from "../../campaigns/sequences/sequence-address";
+import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../../campaigns/playbooks/patch";
+import { SEND_ONCE_STOP_WORDS } from "../../campaigns/playbooks/triggers/notices";
+import { SENDING_NOW_WORDS, whenItGoes } from "../../campaigns/playbooks/triggers/kinds";
+import { SEQUENCES_ROUTE, newSequenceRoute, runRoute, sequenceRoute } from "../../campaigns/sequences/address";
 import { MESSAGES_ROUTE } from "../../shell/address";
 import { clockWhen } from "../../shared/clock";
 import { joinWords } from "../../shared/words";
 import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, runApprovedTail } from "../../shell/campaign-rooms";
 import { MESSAGE_BEGIN_WORDS, metaStatusOf } from "../../campaigns/templates/campaign-message";
-import { OWN_VERSION_CHANNELS, versionWord, type OwnVersionChannel } from "../../campaigns/templates/message-versions";
-import { languageName } from "../../campaigns/templates/template-languages";
+import {
+  OWN_VERSION_CHANNELS,
+  versionWord,
+  type OwnVersionChannel,
+} from "../../campaigns/templates/message-versions/channels";
+import { languageName } from "../../campaigns/templates/languages";
 import { TEMPLATE_BODY_WORDS, TEMPLATE_SAME_NAME_WORDS } from "../../campaigns/templates/templates";
 import {
   PROPOSAL_WORDS,
@@ -67,7 +72,7 @@ export const PLAYBOOK_CARD_REFUSALS = {
   hiddenTemplate: (from: string): string =>
     `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
   noList: (from: string): string => `no such list; ${from} names them`,
-  uncounted: (list: string, why: string): string => `${list} can't be counted right now: ${why}`,
+  uncounted: (list: string, reason: string): string => `${list} can't be counted right now: ${reason}`,
   /**
    * A second running campaign on the same moment, list and message, where they named none of its own (D9). The model's
    * words, when the card is made; a card's start that meets one is answered in twinRunsWords, the owner's.
@@ -127,7 +132,7 @@ export const fixSpec: ProposalSpec = {
 
 /**
  * What POST playbooks answers, 409, a card's start (x-via ask) that a running twin refuses (the dashboard's
- * campaigns/playbook-row.ts twinRefusal): the card shows a route's refusal to the owner who pressed it, so it says what
+ * campaigns/playbook-row.ts findTwinRefusal): the card shows a route's refusal to the owner who pressed it, so it says what
  * happened, never what to do next (PLAYBOOK_CARD_REFUSALS.twin is the model's, when the card is made).
  */
 export const twinRunsWords = (name: string): string =>
@@ -190,23 +195,23 @@ export const broadcastSpec: ProposalSpec = {
   // The count and the name are the route's answer where it gave them, the card's where it did not: who it goes to, the
   // people it enrolled less those it left out for the breath (goesToOf), and how many were left out.
   receipt: ({ payload: pl }, data) => {
-    const d = rec(data);
-    const leftOut = typeof d.left_out === "number" ? d.left_out : 0;
-    const n =
-      typeof d.recipient_count === "number"
-        ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut })
+    const result = rec(data);
+    const leftOut = typeof result.left_out === "number" ? result.left_out : 0;
+    const count =
+      typeof result.recipient_count === "number"
+        ? goesToOf({ recipient_count: result.recipient_count, left_out: leftOut })
         : Number(pl.count ?? 0);
     // Whether it was scheduled is the route's answer (`scheduled_ahead`), never the card's time: one set for a time that
     // passed before it was approved went now. Who it left out hear from you within a week of the time it goes (leftOutBy).
-    const ahead = d.scheduled_ahead === true;
+    const ahead = result.scheduled_ahead === true;
     // Pressed for now, it goes ten minutes on unless stopped (decision 0064, step 3): its Undo is that Stop.
     const goes = ahead
       ? "scheduled"
-      : d.pressed_now === true
+      : result.pressed_now === true
         ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it`
         : SENDING_NOW_WORDS;
-    const said = heardWords(leftOut, true);
-    return `Send “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${goes}${said ? ` · ${said}` : ""}`;
+    const sentence = heardWords(leftOut, true);
+    return `Send “${result.name ?? asText(pl.name)}” — ${count} ${count === 1 ? "person" : "people"}, ${goes}${sentence ? ` · ${sentence}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -409,21 +414,21 @@ export const playbookChangeSpec: ProposalSpec = {
 };
 
 /**
- * When an approved run goes, in the one sentence every receipt says it (playbook-triggers.ts whenItGoes): now, or --
+ * When an approved run goes, in the one sentence every receipt says it (playbooks/triggers/notices.ts whenItGoes): now, or --
  * approved outside the hours a message may go out in -- when they open, by the business's clock, which the card carries.
  * The route answers when it was approved (moved_from) beside when it goes, so the day is said from the moment of the
  * approval; a card that names no zone is told in UTC rather than said to be sending now.
  */
 function runGoes(pl: Record<string, unknown>, data: unknown): string {
-  const d = rec(data);
-  const at = Date.parse(asText(d.scheduled_for));
-  const from = Date.parse(asText(d.moved_from));
+  const result = rec(data);
+  const at = Date.parse(asText(result.scheduled_for));
+  const from = Date.parse(asText(result.moved_from));
   const tz = asText(pl.timezone) || "UTC";
-  const asked = Number.isFinite(from) ? from : at;
+  const request = Number.isFinite(from) ? from : at;
   return whenItGoes(
-    { scheduled_for: asText(d.scheduled_for) || null, moved_from: asText(d.moved_from) || null },
-    (ms) => clockWhen(ms, tz, asked),
-    asked,
+    { scheduled_for: asText(result.scheduled_for) || null, moved_from: asText(result.moved_from) || null },
+    (ms) => clockWhen(ms, tz, request),
+    request,
   );
 }
 
@@ -548,8 +553,8 @@ export const MESSAGE_WORDS = {
    * An email version where email cannot send, which is known (channelsReady: no mailbox, or no email for the deployment):
    * why, in its sentence, else the mailbox's.
    */
-  noMailbox: (why: string | null): string =>
-    `${why ?? CHANNEL_WORDS.noMailbox} Say so, and write it without an email version.`,
+  noMailbox: (reason: string | null): string =>
+    `${reason ?? CHANNEL_WORDS.noMailbox} Say so, and write it without an email version.`,
   /**
    * An email version where whether email can send could not be asked just now (channelsReady's `unchecked`): not a no, so
    * the email stays in the message, and the card is asked for again in a moment.
@@ -580,14 +585,14 @@ export const MESSAGE_WORDS = {
     filed: readonly { channel: ConsentChannel; state: string }[],
     refused: { channel: ConsentChannel; words: string } | null,
   ): string => {
-    const said = filed.map((v) =>
+    const sentence = filed.map((v) =>
       v.channel === "whatsapp"
         ? `its WhatsApp version ${whatsappFiledWords(v.state)}`
         : `its ${versionWord(v.channel)} version is ready`,
     );
-    if (said.length === 0) return `“${name}” was not filed${refused ? `: ${refused.words}` : ""}`;
+    if (sentence.length === 0) return `“${name}” was not filed${refused ? `: ${refused.words}` : ""}`;
     const not = refused ? ` · its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
-    return `“${name}” is in ${CAMPAIGN_ROOMS.library} — ${said.join("; ")}${not}`;
+    return `“${name}” is in ${CAMPAIGN_ROOMS.library} — ${sentence.join("; ")}${not}`;
   },
   /** The undo's button: the email and text versions it deletes; none where the card writes none. */
   undo: (own: readonly OwnVersionChannel[]): string | null =>
@@ -675,7 +680,7 @@ export const messageSpec: ProposalSpec = {
     return MESSAGE_WORDS.filed(asText(d.name ?? pl.name), versionsIn(d.versions), not);
   },
   // The first version the door filed: a broadcast and a playbook take any version's id for the message (core
-  // templateValues), so a plan's send names this one. None where nothing was filed.
+  // getTemplateValues), so a plan's send names this one. None where nothing was filed.
   made: (_p, data) => versionsIn(rec(data).versions).at(0)?.id ?? null,
   undo: {
     // The versions the card writes that an undo can delete, in the order the door files them.

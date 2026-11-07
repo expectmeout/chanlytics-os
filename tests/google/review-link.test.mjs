@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reviewLinkOf } from "@chanlytics/db";
+import { reviewLinkOf } from "@chanlytics/db/campaigns";
 
 /** A client whose listing read answers `{ data, error }` as given, and remembers what it asked. */
 function client(read) {

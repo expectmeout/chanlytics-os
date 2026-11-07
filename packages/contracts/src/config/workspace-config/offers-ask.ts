@@ -48,7 +48,7 @@ const FACT = /* @__PURE__ */ (() => ({
  * ask: the rule fails closed.
  */
 export function offersFacts(
-  p: {
+  params: {
     /** contacts.marketing_consent: unknown, opted_in or opted_out. Absent where the reader never learned it. */
     marketingConsent?: string | null;
     /**
@@ -68,19 +68,19 @@ export function offersFacts(
   const out: string[] = [];
   if (channel === "sms") out.push(FACT.text);
   if (channel === "instagram") out.push(FACT.dm);
-  const asked = p.offersAskedAt;
+  const offersAskedAt = params.offersAskedAt;
   // Offers go by WhatsApp, so a yes counts where it covers WhatsApp (yesCovers, the one reading of a row's channels): a
   // yes kept for text alone is not said on WhatsApp, and reads like no answer yet.
   const open =
-    p.marketingConsent === "unknown" ||
-    (p.marketingConsent === "opted_in" && !yesCovers(p.marketingChannels, "whatsapp"));
-  if (p.marketingConsent === "opted_in" && !open) out.push(FACT.yes);
-  else if (p.marketingConsent === "opted_out") out.push(FACT.no);
+    params.marketingConsent === "unknown" ||
+    (params.marketingConsent === "opted_in" && !yesCovers(params.marketingChannels, "whatsapp"));
+  if (params.marketingConsent === "opted_in" && !open) out.push(FACT.yes);
+  else if (params.marketingConsent === "opted_out") out.push(FACT.no);
   else if (open) {
-    if (typeof asked === "string") {
-      const at = Date.parse(asked);
+    if (typeof offersAskedAt === "string") {
+      const at = Date.parse(offersAskedAt);
       out.push(FACT.asked(Number.isFinite(at) ? clockDate(at, tz, now.getTime()) : null));
-    } else if (asked === null && channel === "whatsapp" && !p.optedOut) out.push(FACT.never);
+    } else if (offersAskedAt === null && channel === "whatsapp" && !params.optedOut) out.push(FACT.never);
   }
   return out;
 }
@@ -98,11 +98,11 @@ export function offersFacts(
  * phrase, so the database counts it as the ask (offers_asked_at) and the receptionist does not ask after it.
  */
 export function offersAfterStart(
-  p: { marketingConsent?: string | null; marketingConsentSource?: string | null },
+  params: { marketingConsent?: string | null; marketingConsentSource?: string | null },
   channel: LeadChannel | undefined,
 ): string | null {
   if (channel !== "whatsapp") return null;
-  if (p.marketingConsent !== "unknown" || p.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
+  if (params.marketingConsent !== "unknown" || params.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
   return `Offers and news stay off. Reply ${OFFERS_OPT_IN_PHRASES.en} to get them here again.`;
 }
 

@@ -122,15 +122,15 @@ const SHARED_AS: Readonly<Record<string, string>> = {
  * it before the bytes are fetched (core inbound/unreadable.ts reads the type up front); the bytes' own type is read when
  * they are. Any other attachment's type is the bytes' to say.
  */
-function attachmentOf(a: { type?: string; payload?: { url?: string; title?: string } } | undefined): {
+function attachmentOf(args: { type?: string; payload?: { url?: string; title?: string } } | undefined): {
   kind: InboundMessage["kind"];
   rawType: string;
   body: string | null;
   media: LinkedMediaRef | null;
 } {
-  const rawType = trimmed(a?.type) || "attachment";
-  const url = trimmed(a?.payload?.url);
-  const title = trimmed(a?.payload?.title);
+  const rawType = trimmed(args?.type) || "attachment";
+  const url = trimmed(args?.payload?.url);
+  const title = trimmed(args?.payload?.title);
   if (MEDIA_KINDS.has(rawType) && url)
     return {
       kind: "media",
@@ -174,21 +174,21 @@ export function inboundFromInstagram(
   profileName: string | null,
 ): (InboundMessage & { channel: "instagram" }) | null {
   const from = trimmed(item.sender?.id);
-  const said = whatWasSaid(item);
-  if (!from || !said) return null;
-  const { kind, body, attached } = said;
+  const sentence = whatWasSaid(item);
+  if (!from || !sentence) return null;
+  const { kind, body, attached } = sentence;
   return {
     channel: "instagram",
-    externalId: said.mid,
+    externalId: sentence.mid,
     identity: { externalId: from, phoneE164: null, email: null },
     profileName,
     type: kind === "text" || (body !== null && kind !== "media") ? "text" : "media",
     kind,
-    rawType: said.rawType,
+    rawType: sentence.rawType,
     body,
     channelTsIso: atIsoOf(item),
     media: attached?.media ?? null,
-    consent: consentOf(kind, said.consentText),
+    consent: consentOf(kind, sentence.consentText),
     referral: referralOf(item),
   };
 }

@@ -145,7 +145,7 @@ test(
   "the follow-ups' own read (packages/db followUpTouchesSince): the runs that carry a proposal's link, by the database's own jsonb containment, and whether a run waits for a person",
   { skip },
   async () => {
-    const { followUpTouchesSince, touchesSince } = await import(
+    const { followUpTouchesSince, listTouchesSince } = await import(
       at("packages/db/src/repositories/campaigns/touches.ts")
     );
     const person = async (phone) => {
@@ -204,7 +204,7 @@ test(
       "the follow-ups alone: the win-back stays in the database",
     );
     assert.deepEqual(
-      (await touchesSince(db, tenantId, since, later)).map((t) => t.contact_id).sort(),
+      (await listTouchesSince(db, tenantId, since, later)).map((t) => t.contact_id).sort(),
       [a, b, c].sort(),
       "every run's, for the breath",
     );

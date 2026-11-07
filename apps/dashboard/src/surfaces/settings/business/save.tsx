@@ -16,6 +16,7 @@ import {
   normalizeLink,
   whyNotAHandoff,
   whyNotAPhone,
+  E164,
 } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
 import type { FrameFlash } from "../../frame-verbs";
@@ -176,8 +177,7 @@ interface Tried {
  * Exported as `phoneShown`, since the Business tab shows a number in more than one of its folds: one rule for
  * writing them.
  */
-export const phoneShown = (v: string | null | undefined) =>
-  v && /^\+[1-9][0-9]{6,14}$/.test(v) ? formatPhoneDisplay(v) : v;
+export const phoneShown = (v: string | null | undefined) => (v && E164.test(v) ? formatPhoneDisplay(v) : v);
 
 // Two drafts are the same when saving either would write the same thing.
 const btSame = (a: unknown, b: unknown) =>

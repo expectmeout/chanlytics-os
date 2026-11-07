@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { emailFoot, emailFootHtml, unsubscribePageWords, whyFrom, WHY_FROM_MAPS } from "@chanlytics/contracts";
-import { buildEmailRequest, hostedIdentity } from "@chanlytics/channels";
+import { buildEmailRequest, hostedIdentity } from "@chanlytics/channels/email";
 
 const URL_ =
   "https://app.chanlytics.com/u/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-abcdefghijklmnopqrstuvwxy";

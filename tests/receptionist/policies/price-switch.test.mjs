@@ -9,7 +9,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spokenBreach, ruleStrength, priceAllowance } from "@chanlytics/contracts";
+import { spokenBreach, priceAllowance } from "@chanlytics/contracts";
+import { ruleStrength } from "../../../apps/dashboard/src/surfaces/settings/business/model/rule-strengths.ts";
 import { layerTwo } from "../../../packages/core/src/inbound/steps.ts";
 
 const brainCfg = (guardrails, priceNote) => ({

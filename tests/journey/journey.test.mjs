@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
 import ts from "typescript";
 import { visitsWrittenIn } from "../_ast.mjs";
+import { campaignsHomeOf } from "../../apps/dashboard/src/server/campaigns/lifecycle/stages.ts";
 
 /** The four shapes: a calendar connected or not, a deal on file or not. */
 const SHAPES = [
@@ -204,7 +205,7 @@ const homeFor = (shape, word, rows) => {
     candidates: 3,
     named: null,
   }));
-  return C.campaignsHomeOf({
+  return campaignsHomeOf({
     nowMs: NOW,
     tz: ZONE,
     playbooks: { rows, pools, triggers, timezone: ZONE, countsRead: true },

@@ -61,13 +61,13 @@ export function identityWords(me: IdentityInput | null | undefined): IdentityWor
  * THE one function that names a member (Team's card, the Inbox's holder, a note's author, the Activity log, Notifications'
  * addresses, Ask): a page that builds a member's name by hand says "A member" on one page and "ana" on the next.
  */
-export function memberWords(m: { email: string | null; display_name?: string | null }): {
+export function memberWords(message: { email: string | null; display_name?: string | null }): {
   name: string;
   sub: string | null;
 } {
-  const name = (m.display_name ?? "").trim();
-  if (name) return { name, sub: m.email };
-  return { name: (m.email ?? "").trim() || UNKNOWN_MEMBER_WORD, sub: null };
+  const name = (message.display_name ?? "").trim();
+  if (name) return { name, sub: message.email };
+  return { name: (message.email ?? "").trim() || UNKNOWN_MEMBER_WORD, sub: null };
 }
 
 export const DISPLAY_NAME_MAX = 80;

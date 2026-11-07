@@ -176,16 +176,16 @@ test("a business with no website of its own files the page we publish", () => {
 
 test("the wiring: public, indexed, reads by slug, writes nothing", () => {
   const page = readCode("apps/dashboard/app/b/[slug]/page.tsx");
-  assert.ok(page.includes("const facts = await businessPageFor(slug);") && page.includes("if (!facts) notFound();"));
+  assert.ok(page.includes("const facts = await findBusinessPage(slug);") && page.includes("if (!facts) notFound();"));
   // INDEXED, unlike the opt-in page: a business a reviewer cannot look up is
   // exactly what 30919 was complaining about.
   assert.ok(
-    page.includes("return businessPageMetadata(await businessPageFor(slug));"),
+    page.includes("return businessPageMetadata(await findBusinessPage(slug));"),
     "indexed by contracts' rule, which public-page-titles.test.mjs runs",
   );
   assert.ok(
     readCode("apps/dashboard/app/yes/[slug]/page.tsx").includes(
-      "return consentPageMetadata(await consentPageFor(slug));",
+      "return consentPageMetadata(await findConsentPage(slug));",
     ),
     "and the opt-in page still is not",
   );
@@ -330,7 +330,7 @@ test("nothing is filed until they are answered, and the words reach the row", ()
   const edge = readCode("apps/edge/lib/lines/a2p-register.ts");
   // Same moment as the record check, and before anything is created: on a real
   // filing each of these is a week of waiting and a fee already spent.
-  assert.match(edge, /for \(const p of registrationPreflight\(\{/);
+  assert.match(edge, /for \(const item of registrationPreflight\(\{/);
   // WHICH function checks, not merely whether the file mentions it anywhere. This
   // used to compare whole-FILE indices -- `registrationPreflight({` before
   // `const send = async` -- which is trivially true of a file where one sender
@@ -339,17 +339,17 @@ test("nothing is filed until they are answered, and the words reach the row", ()
   // nothing. a2p-refile.test.mjs now slices each sender and asks of each.
   assert.match(
     edge,
-    /export async function filingProblems\(/,
+    /export async function listFilingProblems\(/,
     "one decider, so both senders can ask the same question",
   );
   const inRegister = edge.slice(edge.indexOf("export async function registerLine("));
   assert.ok(
-    inRegister.indexOf("filingProblems(") < inRegister.indexOf("const send = async"),
+    inRegister.indexOf("listFilingProblems(") < inRegister.indexOf("const send = async"),
     "before a single call is made",
   );
   assert.match(
     edge,
-    /problems\.push\(`\$\{p\.what\} \$\{p\.fix\}`\)/,
+    /problems\.push\(`\$\{item\.what\} \$\{item\.fix\}`\)/,
     "what is wrong AND what to do, on the row the page reads",
   );
   // And they REACH the owner. The sentences used to be stored and then dropped:
@@ -360,7 +360,7 @@ test("nothing is filed until they are answered, and the words reach the row", ()
     "returned as well as stored",
   );
   const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
-  assert.match(owner, /b\.error === "record_incomplete" \|\| b\.error === "sole_proprietor_incomplete"/);
+  assert.match(owner, /body\.error === "record_incomplete" \|\| body\.error === "sole_proprietor_incomplete"/);
   assert.match(owner, /problems\.length\s*\?\s*problems\.join\(" "\)/, "and become the refusal the owner reads");
   assert.ok(
     !owner.includes("sole_proprietor_unsupported"),
@@ -368,7 +368,7 @@ test("nothing is filed until they are answered, and the words reach the row", ()
   );
   // The workspace's name is what the campaign will say, so it is what gets
   // checked -- not the record's, which is what the brand says.
-  assert.match(edge, /workspaceName: o\.workspaceName,/);
+  assert.match(edge, /workspaceName: filing\.workspaceName,/);
   // And the door tells it whether anybody can say yes -- run in
   // lines-door.test.mjs: a line with no number and no active texting row is
   // refused with the sentence, and an active row beside it is enough.

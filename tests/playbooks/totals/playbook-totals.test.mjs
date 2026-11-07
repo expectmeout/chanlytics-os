@@ -6,7 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isPlaybookTotalsDto, runCountsOf, templateSendsOf } from "@chanlytics/contracts";
+import { runCountsOf, templateSendsOf } from "@chanlytics/contracts";
+import { isPlaybookTotalsDto } from "../../../apps/dashboard/src/server/campaigns/lifecycle/totals.ts";
 import { fakeDb } from "../../_fake-db.mjs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -295,7 +296,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const Bc = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
+const Bc = await import(at("apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts"));
 
 /** A function a database before 00374 does not have: PostgREST's PGRST202, which packages/db reads as "missing". */
 const gone = (name) => () => {
@@ -381,7 +382,7 @@ test("GET playbooks' rows: the database's count read in one call, the same bytes
   assert.deepEqual([t.runs, t.sent, t.delivered, t.replied, t.held], [4, 4, 4, 2, 3]);
   assert.deepEqual(t.lastRun, { id: "b3", state: "pending_approval", run_for: "2026-09-04", recipient_count: 3 });
   const bare = fakeDb(harbor());
-  const plain = await P.playbookRows({ supabase: bare }, T);
+  const plain = await P.listPlaybookRows({ supabase: bare }, T);
   assert.deepEqual(
     plain,
     rows.map(({ totals: _totals, ...r }) => r),
@@ -394,7 +395,7 @@ test("GET playbooks' rows: the database's count read in one call, the same bytes
   );
 });
 
-const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { templates: templatesReader } = await import(at("apps/dashboard/src/server/readers/templates.ts"));
 const turn = (db) =>
   kernel.readerContext(

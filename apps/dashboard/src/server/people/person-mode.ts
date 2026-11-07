@@ -8,7 +8,7 @@
  */
 import type { z } from "zod";
 import type { PersonReceptionistMode, ReceptionistModeBody } from "@chanlytics/contracts";
-import { setPersonReplyMode } from "@chanlytics/db";
+import { setPersonReplyMode } from "@chanlytics/db/workspace";
 import { recordDecision, type contactScope } from "@/server/shared/verbs";
 import type { RouteContext } from "@/server/shared/with-route";
 
@@ -21,8 +21,13 @@ export async function setPersonMode(
   input: z.infer<typeof ReceptionistModeBody>,
 ) {
   const id = contact.id;
-  const m: PersonReceptionistMode = input.mode;
-  const was = await setPersonReplyMode(ctx.supabase, contact.tenant_id, id, m === "inherit" ? null : m);
+  const receptionistMode: PersonReceptionistMode = input.mode;
+  const was = await setPersonReplyMode(
+    ctx.supabase,
+    contact.tenant_id,
+    id,
+    receptionistMode === "inherit" ? null : receptionistMode,
+  );
 
   // On the ledger as what it is: silencing or un-silencing the receptionist
   // for one person, with the mode in the payload.
@@ -31,11 +36,16 @@ export async function setPersonMode(
     contact.tenant_id,
     "contact",
     id,
-    m === "auto" || m === "inherit" ? "resume_agent" : "pause_agent",
-    { receptionist_mode: m },
+    receptionistMode === "auto" || receptionistMode === "inherit" ? "resume_agent" : "pause_agent",
+    { receptionist_mode: receptionistMode },
   );
 
   // The ledger row rides back so an undo can name it, and the mode the person had before this write (null: the
   // workspace's own), so an undo puts back what was there now and not what a card read when it was proposed.
-  return { contact_id: id, mode: m === "inherit" ? null : m, decision_id: decisionId, was: { mode: was } };
+  return {
+    contact_id: id,
+    mode: receptionistMode === "inherit" ? null : receptionistMode,
+    decision_id: decisionId,
+    was: { mode: was },
+  };
 }

@@ -6,13 +6,13 @@
  * reason of their own (followUpLeaves): one the workspace can mend (no channel ready, the message gone) keeps them due,
  * so the step reaches them the day it can (the loop review, 17 Oct 2026).
  */
-import type { CampaignHow } from "../broadcasts/broadcast-audience";
+import type { CampaignHow } from "../broadcasts/audience";
 import { reachFor, type HeldOn } from "../broadcasts/reach-for";
 import type { MessageAbout } from "../../consent/consent";
 import type { ConsentChannel } from "../../consent/channels";
-import type { PersonRowVM } from "../../people/person-row";
-import { enrolPurpose, type RunMessage } from "../playbooks/playbook-purpose";
-import type { RunReach } from "../playbooks/playbook-reach";
+import type { PersonRowVM } from "../../people/person-row/row-facts";
+import { enrolPurpose, type RunMessage } from "../playbooks/purpose";
+import type { RunReach } from "../playbooks/reach";
 
 /** What a step after the first may require still holds of a person: `sequence_steps.only_if` holds the same two. */
 export const FOLLOW_UP_CONDITIONS = ["no_booking", "no_reply"] as const;
@@ -45,7 +45,7 @@ export function followUpStop(
  * the step ticks can carry its message here now (`no_channel`: a mailbox disconnected or unread, the message gone, its
  * WhatsApp version not approved): that is the workspace's to mend, and they stay due until the step can reach them.
  */
-export const followUpLeaves = (why: HeldOn): boolean => why !== "no_channel";
+export const followUpLeaves = (reason: HeldOn): boolean => reason !== "no_channel";
 
 /**
  * What a customer's step is about, by its class (a step after the first carries its first step's): a visit's or a
@@ -101,15 +101,15 @@ export function followUpReach(
   const channelOf: Record<string, ConsentChannel> = {};
   const eligible: PersonRowVM[] = [];
   const held: Array<{ id: string; why: HeldOn }> = [];
-  for (const r of due) {
-    const pick = reachFor(r, purpose, how);
+  for (const item of due) {
+    const pick = reachFor(item, purpose, how);
     if (pick.channel) {
-      channelOf[r.id] = pick.channel;
+      channelOf[item.id] = pick.channel;
       byChannel[pick.channel] += 1;
-      eligible.push(r);
+      eligible.push(item);
       continue;
     }
-    held.push({ id: r.id, why: pick.held });
+    held.push({ id: item.id, why: pick.held });
     if (pick.held === "no_number") reach.noNumber += 1;
     else if (pick.held === "stopped" || pick.held === "unsubscribed") reach.stopped += 1;
     else if (pick.held === "no_yes") reach.noYes += 1;

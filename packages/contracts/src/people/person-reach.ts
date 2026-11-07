@@ -5,7 +5,8 @@
  * (policy.ts); the row (person-row.ts), the page, the deal sheet and the Calendar's block read it.
  */
 import { optOutWords } from "../consent/consent";
-import { replyWindow, windowClockOf } from "../config/policy";
+import { replyWindow } from "../config/policy/prices";
+import { windowClockOf } from "../config/policy/reply-limits";
 import { HOUR_MS } from "../shared/time";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA, type ReplyVia } from "./person-words";
 import type { WrittenChannel } from "../conversations/thread-channel";
@@ -121,7 +122,7 @@ export function bookingLinkAction(reach: ReplyReach, stop: { optedOut: boolean; 
  * whether mail to their address has stopped; `optedOut` whether they asked to stop or are on do-not-contact.
  */
 export function replyReachOf(
-  p: {
+  params: {
     wire: WrittenChannel | null;
     waInboundAt: string | null | undefined;
     igInboundAt?: string | null;
@@ -135,25 +136,29 @@ export function replyReachOf(
   replyVia: ReplyVia | null;
   bookingLinkAction: BookingLinkAction;
 } {
-  const stop = { optedOut: p.optedOut, who: p.who };
-  if (!p.wire)
+  const stop = { optedOut: params.optedOut, who: params.who };
+  if (!params.wire)
     return {
       replyWindow: null,
       replyVia: null,
-      bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped: p.emailStopped }, stop),
+      bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped: params.emailStopped }, stop),
     };
-  const w = replyWindow(p.wire, windowClockOf(p.wire, { whatsapp: p.waInboundAt, instagram: p.igInboundAt }), now);
+  const result = replyWindow(
+    params.wire,
+    windowClockOf(params.wire, { whatsapp: params.waInboundAt, instagram: params.igInboundAt }),
+    now,
+  );
   const win = {
-    open: w.open,
-    hoursLeft: w.closesAtIso
-      ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS))
+    open: result.open,
+    hoursLeft: result.closesAtIso
+      ? Math.max(0, Math.round((new Date(result.closesAtIso).getTime() - now.getTime()) / HOUR_MS))
       : 0,
   };
-  const via = REPLY_VIA[p.wire];
+  const via = REPLY_VIA[params.wire];
   return {
     replyWindow: win,
     replyVia: via,
-    bookingLinkAction: bookingLinkAction({ via, window: win, emailStopped: p.emailStopped }, stop),
+    bookingLinkAction: bookingLinkAction({ via, window: win, emailStopped: params.emailStopped }, stop),
   };
 }
 
@@ -283,7 +288,7 @@ export interface RowReachWords {
 
 /** `named`: the row has a name of its own. Named by a number or an address, the identifier is the name, and the cell says the wire alone. */
 export function rowReachWords(
-  p: {
+  params: {
     name: string;
     phone: string | null;
     email: string | null;
@@ -299,15 +304,19 @@ export function rowReachWords(
   },
   named: boolean,
 ): RowReachWords {
-  const wrote = p.lastChannel ?? WRITTEN_WIRES.find((c) => p.channels.includes(c)) ?? null;
+  const wrote = params.lastChannel ?? WRITTEN_WIRES.find((c) => params.channels.includes(c)) ?? null;
   const via = wrote ? REPLY_VIA[wrote] : null;
-  const wire = via ?? (p.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
-  const id = !named ? null : via === "Email" ? p.email || p.phone : p.phone || p.email;
-  const may = !p.stopped && p.replyVia === "Email" && p.emailSuppressed ? EMAIL_STOPPED_SHORT : null;
-  const replies = p.stopped
+  const wire = via ?? (params.channels.includes("voice") ? PERSON_CHANNEL_WORDS.voice : null);
+  const id = !named ? null : via === "Email" ? params.email || params.phone : params.phone || params.email;
+  const may = !params.stopped && params.replyVia === "Email" && params.emailSuppressed ? EMAIL_STOPPED_SHORT : null;
+  const replies = params.stopped
     ? null
-    : repliesWords(p.replyVia, p.replyWindow, { optedOut: false, who: p.name, emailStopped: p.emailSuppressed });
-  return { wire, id: id ?? null, may, tip: [p.channelWords, replies].filter(Boolean).join(" · ") };
+    : repliesWords(params.replyVia, params.replyWindow, {
+        optedOut: false,
+        who: params.name,
+        emailStopped: params.emailSuppressed,
+      });
+  return { wire, id: id ?? null, may, tip: [params.channelWords, replies].filter(Boolean).join(" · ") };
 }
 
 /**
@@ -317,16 +326,16 @@ export function rowReachWords(
  * WhatsApp takes only an approved message, their thread offers one. Every send the page offers asks this one rule: the
  * More menu's (personActs) and the deal card's (deal-sheet.ts dealSendOf).
  */
-export function mayReach(p: {
+export function mayReach(params: {
   openThread: string | null;
   consent: { state: string; dnc: boolean };
   replyVia: ReplyVia | null;
   emailSuppressed: boolean;
 }): boolean {
   return (
-    !!p.openThread &&
-    p.consent.state !== "opted_out" &&
-    !p.consent.dnc &&
-    !(p.replyVia === "Email" && p.emailSuppressed)
+    !!params.openThread &&
+    params.consent.state !== "opted_out" &&
+    !params.consent.dnc &&
+    !(params.replyVia === "Email" && params.emailSuppressed)
   );
 }

@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
-import { edgeGoogle } from "@/server/connections/google";
+import { callEdgeGoogle } from "@/server/connections/google";
 
 /**
  * POST /api/v1/google/refresh — read the listing now rather than at the
@@ -12,18 +12,19 @@ export const POST = write({
   role: "operator",
   rate: "google_refresh",
   handle: async ({ ctx, member }) => {
-    const a = await edgeGoogle({ op: "refresh", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
-    const b = a.body ?? {};
-    if (a.status === 404) throw new AppError("not_found", "No listing is linked yet. Find it on Setup first.", 404);
-    if (a.status === 503 && b.error === "no_places_key")
+    const answer = await callEdgeGoogle({ op: "refresh", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
+    const body = answer.body ?? {};
+    if (answer.status === 404)
+      throw new AppError("not_found", "No listing is linked yet. Find it on Setup first.", 404);
+    if (answer.status === 503 && body.error === "no_places_key")
       throw new AppError("conflict", "Reading listings is not available here yet.", 409);
-    const read = (b.read && typeof b.read === "object" ? b.read : null) as {
+    const read = (body.read && typeof body.read === "object" ? body.read : null) as {
       ok?: boolean;
       fresh?: number;
       counted?: number;
       error?: string;
     } | null;
-    if (a.status !== 200 || b.ok !== true)
+    if (answer.status !== 200 || body.ok !== true)
       throw new AppError(
         "internal",
         read?.error
@@ -31,6 +32,6 @@ export const POST = write({
           : "Google could not be read. It will be tried again within the hour.",
         502,
       );
-    return { listing: b.listing ?? null, fresh: read?.fresh ?? 0, counted: read?.counted ?? 0 };
+    return { listing: body.listing ?? null, fresh: read?.fresh ?? 0, counted: read?.counted ?? 0 };
   },
 });

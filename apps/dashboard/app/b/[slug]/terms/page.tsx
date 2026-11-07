@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { textingTermsMetadata, textingTermsVM } from "@chanlytics/contracts";
-import { businessPageFor } from "@/server/public/business-page";
+import { findBusinessPage } from "@/server/public/business-page";
 import { TextingTerms } from "@/yes/TextingTerms";
 
 /**
@@ -24,7 +24,7 @@ import { TextingTerms } from "@/yes/TextingTerms";
 // page renders by (contracts' textingTermsMetadata; the wiring audit's N21).
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  return textingTermsMetadata(await businessPageFor(slug));
+  return textingTermsMetadata(await findBusinessPage(slug));
 }
 
 // Rendered for each request, as it always was: it reads its slug and the workspace's record before anything is drawn,
@@ -34,7 +34,7 @@ export const instant = false;
 
 export default async function TextingTermsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const facts = await businessPageFor(slug);
+  const facts = await findBusinessPage(slug);
   if (!facts) notFound();
   const vm = textingTermsVM(facts);
   if (vm.empty) notFound();

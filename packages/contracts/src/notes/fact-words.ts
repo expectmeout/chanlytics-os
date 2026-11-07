@@ -21,8 +21,8 @@ export interface FactSuggestionDto {
 }
 
 /** The change a Keep makes: the note as the receptionist will be told it (contracts applySettingsChange). */
-export function factNoteChange(s: Pick<FactSuggestionDto, "title" | "body">): AskSettingsChange {
-  return { op: "add_note", title: s.title, text: s.body };
+export function factNoteChange(factSuggestion: Pick<FactSuggestionDto, "title" | "body">): AskSettingsChange {
+  return { op: "add_note", title: factSuggestion.title, text: factSuggestion.body };
 }
 
 /** The words the pane says of what it learned. */

@@ -38,7 +38,7 @@ export interface FoundLogo {
 }
 
 /** The first mark the page declares that fits, its bytes read through `image`; null when none of the first LOGO_TRIES does. */
-export async function siteLogoFrom(
+export async function findSiteLogo(
   image: (url: string) => Promise<Uint8Array | null>,
   html: string,
   origin: string,

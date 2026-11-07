@@ -11,7 +11,7 @@ import { A2P_POLICIES, TRUSTHUB, type A2PRequest } from "./wire";
 const attrs = (o: Record<string, unknown>) => JSON.stringify(o);
 
 /** The customer's own bundle, under our primary profile. */
-export function customerProfileRequest(o: {
+export function customerProfileRequest(options: {
   friendlyName: string;
   email: string;
   statusCallback?: string;
@@ -20,12 +20,12 @@ export function customerProfileRequest(o: {
     url: `${TRUSTHUB}/CustomerProfiles`,
     method: "POST",
     form: {
-      FriendlyName: o.friendlyName.slice(0, 64),
+      FriendlyName: options.friendlyName.slice(0, 64),
       // Twilio asks for the ISV's address here, not the customer's: we are
       // the one it writes to about the bundle.
-      Email: o.email,
+      Email: options.email,
       PolicySid: A2P_POLICIES.secondaryCustomerProfile,
-      ...(o.statusCallback ? { StatusCallback: o.statusCallback } : {}),
+      ...(options.statusCallback ? { StatusCallback: options.statusCallback } : {}),
     },
   };
 }
@@ -39,15 +39,19 @@ export function customerProfileRequest(o: {
  * phone) and an address, where the Secondary asks for a company, a tax id, an
  * authorised representative and a document proving the address.
  */
-export function starterProfileRequest(o: { friendlyName: string; email: string; statusCallback?: string }): A2PRequest {
+export function starterProfileRequest(options: {
+  friendlyName: string;
+  email: string;
+  statusCallback?: string;
+}): A2PRequest {
   return {
     url: `${TRUSTHUB}/CustomerProfiles`,
     method: "POST",
     form: {
-      FriendlyName: o.friendlyName.slice(0, 64),
-      Email: o.email,
+      FriendlyName: options.friendlyName.slice(0, 64),
+      Email: options.email,
       PolicySid: A2P_POLICIES.starterCustomerProfile,
-      ...(o.statusCallback ? { StatusCallback: o.statusCallback } : {}),
+      ...(options.statusCallback ? { StatusCallback: options.statusCallback } : {}),
     },
   };
 }
@@ -57,25 +61,25 @@ export function starterProfileRequest(o: { friendlyName: string; email: string; 
  * own requirements rather than a guess: first_name, last_name, email,
  * phone_number.
  */
-export function starterEndUserRequest(r: BusinessRecord): A2PRequest {
+export function starterEndUserRequest(business: BusinessRecord): A2PRequest {
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${r.contactFirstName} ${r.contactLastName}`.trim().slice(0, 64),
+      FriendlyName: `${business.contactFirstName} ${business.contactLastName}`.trim().slice(0, 64),
       Type: "starter_customer_profile_information",
       Attributes: attrs({
-        first_name: r.contactFirstName,
-        last_name: r.contactLastName,
-        email: r.contactEmail,
-        phone_number: r.contactPhone,
+        first_name: business.contactFirstName,
+        last_name: business.contactLastName,
+        email: business.contactEmail,
+        phone_number: business.contactPhone,
       }),
     },
   };
 }
 
 /** The messaging profile bundle a sole proprietor's brand is registered from. */
-export function soleProprietorProfileRequest(o: {
+export function soleProprietorProfileRequest(options: {
   friendlyName: string;
   email: string;
   statusCallback?: string;
@@ -84,10 +88,10 @@ export function soleProprietorProfileRequest(o: {
     url: `${TRUSTHUB}/TrustProducts`,
     method: "POST",
     form: {
-      FriendlyName: o.friendlyName.slice(0, 64),
-      Email: o.email,
+      FriendlyName: options.friendlyName.slice(0, 64),
+      Email: options.email,
       PolicySid: A2P_POLICIES.soleProprietor,
-      ...(o.statusCallback ? { StatusCallback: o.statusCallback } : {}),
+      ...(options.statusCallback ? { StatusCallback: options.statusCallback } : {}),
     },
   };
 }
@@ -100,90 +104,90 @@ export function soleProprietorProfileRequest(o: {
  * carriers send the one-time code, and it is the field a business gets wrong
  * by giving the number customers call.
  */
-export function soleProprietorEndUserRequest(r: BusinessRecord, industry: string): A2PRequest {
+export function soleProprietorEndUserRequest(business: BusinessRecord, industry: string): A2PRequest {
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${brandNameOf(r)} · sole proprietor`.slice(0, 64),
+      FriendlyName: `${brandNameOf(business)} · sole proprietor`.slice(0, 64),
       Type: "sole_proprietor_information",
       Attributes: attrs({
-        brand_name: brandNameOf(r),
-        mobile_phone_number: r.contactPhone,
+        brand_name: brandNameOf(business),
+        mobile_phone_number: business.contactPhone,
         vertical: industry,
       }),
     },
   };
 }
 
-export function businessEndUserRequest(r: BusinessRecord): A2PRequest {
+export function businessEndUserRequest(business: BusinessRecord): A2PRequest {
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${r.legalName} · business`.slice(0, 64),
+      FriendlyName: `${business.legalName} · business`.slice(0, 64),
       Type: "customer_profile_business_information",
       Attributes: attrs({
-        business_name: r.legalName,
+        business_name: business.legalName,
         social_media_profile_urls: "",
-        website_url: r.websiteUrl,
+        website_url: business.websiteUrl,
         business_regions_of_operation: "USA_AND_CANADA",
-        business_type: businessTypeOf(r.businessType),
+        business_type: businessTypeOf(business.businessType),
         business_registration_identifier: "EIN",
         business_identity: "direct_customer",
-        business_industry: industryOf(r.industry),
-        business_registration_number: r.ein ?? "",
+        business_industry: industryOf(business.industry),
+        business_registration_number: business.ein ?? "",
       }),
     },
   };
 }
 
 /** The person who signs for it. */
-export function representativeEndUserRequest(r: BusinessRecord): A2PRequest {
+export function representativeEndUserRequest(business: BusinessRecord): A2PRequest {
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${r.contactFirstName} ${r.contactLastName}`.slice(0, 64),
+      FriendlyName: `${business.contactFirstName} ${business.contactLastName}`.slice(0, 64),
       Type: "authorized_representative_1",
       Attributes: attrs({
-        job_position: r.contactJobPosition,
-        last_name: r.contactLastName,
-        phone_number: r.contactPhone,
-        first_name: r.contactFirstName,
-        email: r.contactEmail,
-        business_title: r.contactTitle,
+        job_position: business.contactJobPosition,
+        last_name: business.contactLastName,
+        phone_number: business.contactPhone,
+        first_name: business.contactFirstName,
+        email: business.contactEmail,
+        business_title: business.contactTitle,
       }),
     },
   };
 }
 
 /** The address as an account resource, which the supporting document points at. */
-export function addressRequest(accountSid: string, r: BusinessRecord): A2PRequest {
+export function addressRequest(accountSid: string, business: BusinessRecord): A2PRequest {
   return {
     url: `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Addresses.json`,
     method: "POST",
     form: {
-      FriendlyName: r.legalName.slice(0, 64),
-      CustomerName: r.legalName.slice(0, 64),
-      Street: r.street,
-      ...(r.streetSecondary ? { StreetSecondary: r.streetSecondary } : {}),
-      City: r.city,
-      Region: r.region,
-      PostalCode: r.postalCode,
-      IsoCountry: r.country,
+      FriendlyName: business.legalName.slice(0, 64),
+      CustomerName: business.legalName.slice(0, 64),
+      Street: business.street,
+      ...(business.streetSecondary ? { StreetSecondary: business.streetSecondary } : {}),
+      City: business.city,
+      Region: business.region,
+      PostalCode: business.postalCode,
+      IsoCountry: business.country,
     },
   };
 }
 
-export function supportingDocumentRequest(o: { legalName: string; addressSid: string }): A2PRequest {
+export function supportingDocumentRequest(options: { legalName: string; addressSid: string }): A2PRequest {
   return {
     url: `${TRUSTHUB}/SupportingDocuments`,
     method: "POST",
     form: {
-      FriendlyName: `${o.legalName} · address`.slice(0, 64),
+      FriendlyName: `${options.legalName} · address`.slice(0, 64),
       Type: "customer_profile_address",
-      Attributes: attrs({ address_sids: o.addressSid }),
+      Attributes: attrs({ address_sids: options.addressSid }),
     },
   };
 }
@@ -204,15 +208,15 @@ export function updateEndUserRequest(sid: string, attributes: Record<string, unk
 /** The attributes each end user carries, so the create and the update cannot drift. */
 const parsed = (req: A2PRequest): Record<string, unknown> =>
   JSON.parse(String(req.form?.Attributes ?? "{}")) as Record<string, unknown>;
-export function businessAttributes(r: BusinessRecord): Record<string, unknown> {
-  return parsed(businessEndUserRequest(r));
+export function businessAttributes(business: BusinessRecord): Record<string, unknown> {
+  return parsed(businessEndUserRequest(business));
 }
 /** The starter profile's one end user, refreshed the same way. */
-export function starterAttributes(r: BusinessRecord): Record<string, unknown> {
-  return parsed(starterEndUserRequest(r));
+export function starterAttributes(business: BusinessRecord): Record<string, unknown> {
+  return parsed(starterEndUserRequest(business));
 }
-export function representativeAttributes(r: BusinessRecord): Record<string, unknown> {
-  return parsed(representativeEndUserRequest(r));
+export function representativeAttributes(business: BusinessRecord): Record<string, unknown> {
+  return parsed(representativeEndUserRequest(business));
 }
 
 /** Everything a bundle carries is attached the same way. */
@@ -249,26 +253,30 @@ export function submitProfileRequest(bundleSid: string): A2PRequest {
 }
 
 /** The messaging profile a brand is registered from. */
-export function a2pProfileRequest(o: { friendlyName: string; email: string; statusCallback?: string }): A2PRequest {
+export function a2pProfileRequest(options: {
+  friendlyName: string;
+  email: string;
+  statusCallback?: string;
+}): A2PRequest {
   return {
     url: `${TRUSTHUB}/TrustProducts`,
     method: "POST",
     form: {
-      FriendlyName: `${o.friendlyName} · A2P`.slice(0, 64),
-      Email: o.email,
+      FriendlyName: `${options.friendlyName} · A2P`.slice(0, 64),
+      Email: options.email,
       PolicySid: A2P_POLICIES.a2pMessaging,
-      ...(o.statusCallback ? { StatusCallback: o.statusCallback } : {}),
+      ...(options.statusCallback ? { StatusCallback: options.statusCallback } : {}),
     },
   };
 }
 
-export function a2pProfileEndUserRequest(o: { friendlyName: string; companyType: string }): A2PRequest {
-  const companyType = companyTypeOf(o.companyType);
+export function a2pProfileEndUserRequest(options: { friendlyName: string; companyType: string }): A2PRequest {
+  const companyType = companyTypeOf(options.companyType);
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${o.friendlyName} · A2P`.slice(0, 64),
+      FriendlyName: `${options.friendlyName} · A2P`.slice(0, 64),
       Type: "us_a2p_messaging_profile_information",
       Attributes: attrs({ company_type: companyType }),
     },

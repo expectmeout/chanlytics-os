@@ -6,7 +6,8 @@
  * one editor over their own slot sets.
  */
 import { useId, useRef } from "react";
-import { VERSION_CHANNEL_WORDS, slotLabel } from "@chanlytics/contracts";
+import { VERSION_CHANNEL_WORDS } from "@chanlytics/contracts";
+import { slotLabel } from "../message-version-slots";
 import type { OwnVersionChannel, SlotKey, SlotSet, SlotValue } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";

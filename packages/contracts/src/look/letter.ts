@@ -21,27 +21,27 @@ export interface Letter {
   foot: string[];
 }
 
-export function letterHtml(l: Letter): string {
-  const name = escapeHtml(l.look.business);
-  const mark = l.look.logo_url
-    ? `<img src="${escapeHtml(l.look.logo_url)}" alt="${name}" height="40" style="display:block;height:40px;width:auto;border:0">`
+export function letterHtml(letter: Letter): string {
+  const name = escapeHtml(letter.look.business);
+  const mark = letter.look.logo_url
+    ? `<img src="${escapeHtml(letter.look.logo_url)}" alt="${name}" height="40" style="display:block;height:40px;width:auto;border:0">`
     : `<span class="ink" style="font-size:18px;font-weight:700;color:${INK}">${name}</span>`;
-  const lines = l.lines
+  const lines = letter.lines
     .map(
       (p) =>
         `<p class="ink2" style="margin:0 0 16px;font-size:15px;line-height:1.55;color:${INK_2}">${escapeHtml(p)}</p>`,
     )
     .join("\n");
-  const button = l.button ? mailButtonHtml(l.button.words, l.button.href, accentOf(l.look)) : "";
-  const foot = [...l.foot, LETTER_WORDS.sentFor(l.look.business)]
+  const button = letter.button ? mailButtonHtml(letter.button.words, letter.button.href, accentOf(letter.look)) : "";
+  const foot = [...letter.foot, LETTER_WORDS.sentFor(letter.look.business)]
     .map(
       (f) =>
         `<p class="ink3" style="margin:0 0 4px;font-size:12px;line-height:1.6;color:${INK_3}">${escapeHtml(f)}</p>`,
     )
     .join("");
   return mailFrameHtml({
-    subject: l.subject,
-    preview: l.preview,
+    subject: letter.subject,
+    preview: letter.preview,
     top: `<tr><td style="padding:0 4px 16px">${mark}</td></tr>`,
     card: `${lines}\n${button}`,
     foot: `<tr><td class="foot" style="padding:16px 4px 0">${foot}</td></tr>`,

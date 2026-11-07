@@ -3,7 +3,7 @@
  * lists and the word it keeps. The sweep's door test (cron/cron-channel-quality-door.test.mjs) runs them over a database
  * in memory; this holds what that cannot judge, the order PostgREST gives a JSON path (config.quality_read_at), and that
  * the wrapper means what the SQL door answers.
- *   - whatsappNumbersToRead lists the active WhatsApp numbers only (not a disabled one, not a voice line), each as the
+ *   - listWhatsappNumbersToRead lists the active WhatsApp numbers only (not a disabled one, not a voice line), each as the
  *     sweep reads it (the channel, its workspace, Meta's id for the number, when a rating was last kept), the ones never
  *     read first and then the longest unread;
  *   - keepChannelQuality answers first, same, changed, as the door does, and gone for a channel that is not the
@@ -17,6 +17,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { HOUR_MS } from "@chanlytics/contracts";
+import { importBundle } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -35,9 +36,9 @@ const ok = (r, what = "") => {
 };
 
 let db;
-let whatsappNumbersToRead;
+let listWhatsappNumbersToRead;
 let keepChannelQuality;
-let whatsappNumberOf;
+let findWhatsappNumber;
 let keepChannelStanding;
 let A;
 let B;
@@ -58,8 +59,8 @@ const channel = async (tenant, tag, over = {}) => {
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  ({ whatsappNumbersToRead, keepChannelQuality, whatsappNumberOf, keepChannelStanding } =
-    await import("@chanlytics/db"));
+  ({ listWhatsappNumbersToRead, keepChannelQuality, findWhatsappNumber, keepChannelStanding } =
+    await importBundle("db"));
   for (const tag of ["a", "b"]) {
     made.push(
       ok(
@@ -93,7 +94,7 @@ test(
   "the numbers it lists are the active WhatsApp ones, each as the sweep reads it, never read first and then the longest unread",
   { skip },
   async () => {
-    const listed = await whatsappNumbersToRead(db, 1000);
+    const listed = await listWhatsappNumbersToRead(db, 1000);
     const mine = listed.filter((n) => Object.values(ids).includes(n.channel_id));
     const idsOf = (rows) => rows.map((n) => n.channel_id);
     assert.equal(mine.length, 4);
@@ -138,7 +139,7 @@ test(
     );
     assert.equal(await keepChannelQuality(db, A, ids.voice, "RED"), "gone", "a voice line has no rating");
     // The number just kept is no longer the longest unread: it has moved behind the one that was read 30 hours ago.
-    const listed = await whatsappNumbersToRead(db, 1000);
+    const listed = await listWhatsappNumbersToRead(db, 1000);
     const order = listed.map((n) => n.channel_id).filter((id) => [ids.never, ids.older].includes(id));
     assert.deepEqual(order, [ids.older, ids.never]);
   },
@@ -165,7 +166,7 @@ test(
         .eq("id", ids.newer),
       "give it a WABA and a number",
     );
-    const mine = await whatsappNumberOf(db, A);
+    const mine = await findWhatsappNumber(db, A);
     assert.deepEqual(mine, {
       channel_id: ids.newer,
       tenant_id: A,
@@ -174,9 +175,9 @@ test(
       number_e164: "+13055550142",
       read_at: mine.read_at,
     });
-    assert.equal((await whatsappNumberOf(db, B)).channel_id, ids.theirs);
-    assert.equal(await whatsappNumberOf(db, "00000000-0000-4000-8000-000000000000"), null);
-    const listed = (await whatsappNumbersToRead(db, 1000)).find((n) => n.channel_id === ids.newer);
+    assert.equal((await findWhatsappNumber(db, B)).channel_id, ids.theirs);
+    assert.equal(await findWhatsappNumber(db, "00000000-0000-4000-8000-000000000000"), null);
+    const listed = (await listWhatsappNumbersToRead(db, 1000)).find((n) => n.channel_id === ids.newer);
     assert.deepEqual(
       [listed.waba_id, listed.number_e164],
       ["harbor-waba", "+13055550142"],

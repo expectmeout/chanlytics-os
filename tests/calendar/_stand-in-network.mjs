@@ -16,7 +16,9 @@
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
-import { emailPlainText, setPublicFetch, setSitePageReader } from "@chanlytics/channels";
+import { emailPlainText } from "@chanlytics/channels/email";
+import { setPublicFetch } from "@chanlytics/channels/shared";
+import { setSitePageReader } from "@chanlytics/channels/website";
 
 setPublicFetch((input, init) => globalThis.fetch(input, init));
 

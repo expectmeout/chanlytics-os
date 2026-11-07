@@ -11,37 +11,38 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-
-const {
+import { LEAD_SHEET_WORDS } from "../../../apps/dashboard/src/surfaces/leads/sheet/model/view.ts";
+import {
   leadSheetStateOf,
   leadSheetClosedOf,
   leadVerdictOf,
-  leadSheetSubOf,
-  leadSheetChecksLineOf,
   leadSheetAboutOf,
-  leadSheetWhyOf,
-  leadDockOf,
-  dockSlotsOf,
-  leadLeaveAskOf,
-  leadNowOf,
-  leadApproveAskOf,
-  leadLinesOf,
-  leadHistoryOf,
   leadPickerRowsOf,
   newStartFirst,
   leadPileEndOf,
-  placeWordOf,
-  heldAnswersOf,
-  placeRailOf,
-  runApproveWords,
-  LEAD_SHEET_WORDS: W,
-  LEAD_DOCK_WORDS: D,
-  LEAD_LEAVE_WORDS: L,
-  outreachRefusalOf,
-  LEAD_NOW_WORDS: N,
+  LEAD_SHEET_WORDS as W,
+} from "../../../apps/dashboard/src/surfaces/leads/sheet/model/view.ts";
+import {
+  leadSheetSubOf,
+  leadSheetChecksLineOf,
+  leadSheetWhyOf,
   LEAD_SHEET_CARD_WORDS,
-  PLACE_RAIL_WORDS: R,
-} = contracts;
+} from "../../../apps/dashboard/src/surfaces/leads/sheet/model/card.ts";
+import {
+  leadDockOf,
+  dockSlotsOf,
+  leadLeaveAskOf,
+  LEAD_DOCK_WORDS as D,
+  LEAD_LEAVE_WORDS as L,
+} from "../../../apps/dashboard/src/surfaces/leads/sheet/model/dock.ts";
+import {
+  leadNowOf,
+  leadApproveAskOf,
+  LEAD_NOW_WORDS as N,
+} from "../../../apps/dashboard/src/surfaces/leads/sheet/model/now.ts";
+import { leadLinesOf, leadHistoryOf } from "../../../apps/dashboard/src/surfaces/leads/sheet/model/lines.ts";
+
+const { placeWordOf, heldAnswersOf, placeRailOf, runApproveWords, outreachRefusalOf, PLACE_RAIL_WORDS: R } = contracts;
 
 const TZ = "America/New_York";
 const NOW = Date.parse("2026-10-18T14:00:00Z");
@@ -847,7 +848,11 @@ test("History says an email you wrote yourself, and never takes a sequence's sen
   const YOURS = "You wrote to them yourself";
   assert.ok(said(placeOf("next")).includes(YOURS), "their sequence has sent nothing yet: the email is yours");
   const went = said(placeOf("in", { place: 2 }, { sends: [sent(1)] }));
-  assert.equal(went.includes(YOURS), false, "a send of the sequence writes the same word on the lead (leadWritten)");
+  assert.equal(
+    went.includes(YOURS),
+    false,
+    "a send of the sequence writes the same word on the lead (recordLeadWritten)",
+  );
   assert.ok(went.includes("Step 1 sent"), "and that send is said already, as its step");
 
   const rows = leadHistoryOf({
@@ -973,7 +978,7 @@ test("many at once say who can't join, and what an add left out stays selected",
 
 test("the picker says when its emails are written in the owner's words, never the code's (30 Oct 2026)", () => {
   // REGRESSION: "Name it now; write the emails after the pile": the pile is the code's name for the leads being decided.
-  const W = contracts.LEAD_SHEET_WORDS.picker;
+  const W = LEAD_SHEET_WORDS.picker;
   for (const line of [W.none, W.newLine]) assert.doesNotMatch(line, /pile/i, line);
   assert.equal(W.newLine, "Name it now; write its emails when you're done here");
 });

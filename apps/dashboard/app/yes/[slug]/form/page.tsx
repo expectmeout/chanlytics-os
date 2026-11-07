@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { consentFormMetadata, consentFormVM } from "@chanlytics/contracts";
-import { consentPageFor } from "@/server/public/consent-page";
+import { findConsentPage } from "@/server/public/consent-page";
 import { printableOrigin } from "@/server/shared/origin";
 import { PaperForm } from "@/yes/PaperForm";
 
@@ -29,7 +29,7 @@ import { PaperForm } from "@/yes/PaperForm";
 // the rule is contracts'.
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  return consentFormMetadata(await consentPageFor(slug));
+  return consentFormMetadata(await findConsentPage(slug));
 }
 // Rendered for each request, as it always was: it reads its slug and the workspace's record before anything is drawn,
 // and a business's page must say what is true now. Under cacheComponents a page that reads before it draws may block,
@@ -38,7 +38,7 @@ export const instant = false;
 
 export default async function ConsentFormPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const facts = await consentPageFor(slug);
+  const facts = await findConsentPage(slug);
   if (!facts) notFound();
   const vm = consentFormVM(facts);
   // Printed, so its links are printed as addresses a person can type -- and

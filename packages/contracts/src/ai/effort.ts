@@ -17,7 +17,7 @@
  * was read through it (6,568 tokens): a hair salon's three-step win-back drafted in 8.1 s at low, 8.8 s at high, and
  * 86 s and 8,854 output tokens at max.
  */
-import { MODEL_EFFORTS, type ModelEffort } from "./models";
+import { MODEL_EFFORTS, type ModelEffort } from "./models/routes";
 
 /** The beta an effort message needs (Anthropic's migration guide for Opus 5.5, read 15 Oct 2026). */
 export const EFFORT_MESSAGE_BETA = "mid-conversation-output-config-2026-07-01";
@@ -37,9 +37,9 @@ export function effortMessage(effort: ModelEffort): EffortMessage {
 const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** Whether `m` is an effort message: a system message, no content, an output_config with a level the API takes and nothing else. */
-export function isEffortMessage(m: unknown): m is EffortMessage {
-  if (!isPlainObject(m)) return false;
-  const { role, content, output_config: oc, ...rest } = m;
+export function isEffortMessage(message: unknown): message is EffortMessage {
+  if (!isPlainObject(message)) return false;
+  const { role, content, output_config: oc, ...rest } = message;
   if (role !== "system" || !Array.isArray(content) || content.length > 0 || Object.keys(rest).length > 0) return false;
   if (!isPlainObject(oc)) return false;
   const { effort, ...more } = oc;
@@ -56,8 +56,8 @@ export function effortInForce<B extends ModelEffort | null>(messages: readonly u
 }
 
 /** Whether `a` thinks longer than `b`: further along MODEL_EFFORTS. */
-export function effortAbove(a: ModelEffort, b: ModelEffort): boolean {
-  return MODEL_EFFORTS.indexOf(a) > MODEL_EFFORTS.indexOf(b);
+export function effortAbove(modelEffort: ModelEffort, otherModelEffort: ModelEffort): boolean {
+  return MODEL_EFFORTS.indexOf(modelEffort) > MODEL_EFFORTS.indexOf(otherModelEffort);
 }
 
 /**

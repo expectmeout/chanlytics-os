@@ -12,7 +12,7 @@ import { importSrc, ROOT } from "../_source.mjs";
 const { replyToConversation, IDEMPOTENCY_WINDOW_MS, HOLD_EXPIRY_MS, SEND_GRACE_MS } = await importSrc(
   "packages/core/src/conversations/reply.ts",
 );
-const { MEMBER_REPLY_STALE_MS } = await importSrc("packages/contracts/src/config/policy.ts");
+const { MEMBER_REPLY_STALE_MS } = await importSrc("packages/contracts/src/config/policy/reply-limits.ts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const HOUR = 3_600_000;
 const iso = (ms) => new Date(ms).toISOString();
@@ -996,7 +996,7 @@ test("a business with no booking link (one that quotes each job) replies with an
 });
 
 test("the facts port answers with the business name alone: no link is null, and no name is no facts", async () => {
-  const { replyPorts } = await import("../../apps/dashboard/src/server/ports/core-ports.ts");
+  const { replyPorts } = await import("../../apps/dashboard/src/server/conversations/ports.ts");
   const { fakeDb } = await import("../_fake-db.mjs");
   const at = (config) =>
     replyPorts({ supabase: fakeDb({ tenant_config: [{ tenant_id: "t1", config }] }), userId: "u1" }).templateFacts(
@@ -1018,7 +1018,7 @@ test("the facts port answers with the business name alone: no link is null, and 
 });
 
 test("the key ports over the fake table: a claim wins once and the next is shown the hold; the receipt completes it on its own stamp only; a hold is taken over on its stamp once, and the caller taken over cannot complete; a release removes the row the caller stamped, and only that", async () => {
-  const { replyPorts } = await import("../../apps/dashboard/src/server/ports/core-ports.ts");
+  const { replyPorts } = await import("../../apps/dashboard/src/server/conversations/ports.ts");
   const { fakeDb } = await import("../_fake-db.mjs");
   const tables = { idempotency_keys: [] };
   const ports = replyPorts({ supabase: fakeDb(tables), userId: "u1" });

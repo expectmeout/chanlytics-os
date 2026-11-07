@@ -43,5 +43,5 @@ export * from "./today";
 export * from "./voice";
 export * from "./waits";
 export * from "./workspace";
-// Last, though first by name: it reads the workspace's own words (workspace/activity.ts), so it is built after them.
+// Last, though first by name: it reads the workspace's own words (workspace/activity/words.ts), so it is built after them.
 export * from "./activity";

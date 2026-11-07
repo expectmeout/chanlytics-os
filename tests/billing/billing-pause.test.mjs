@@ -99,7 +99,9 @@ test("the wiring: the runtime reads the switch, every path honours it, the shell
   // The batch's head, and the door's `paused` for a pause that lands mid-batch, stop the run in one place
   // (broadcast-stops.ts stopForTheWorkspace): the run fails with its reason and the owner is told, in the words said once
   // in broadcast-words.ts and contracts stoppedRunFix. core-broadcast.test.mjs runs both and asserts the words.
-  const jobs = readCode("packages/core/src/messages/broadcast.ts");
+  const jobs = ["packages/core/src/messages/broadcast/stops.ts", "packages/core/src/messages/broadcast/batch.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(jobs.includes('await stopForTheWorkspace(ports, b, "paused");'));
   // A text asked for on the phone goes through the same gate, which refuses it
   // before the wire: run in retell-fn-door.test.mjs.

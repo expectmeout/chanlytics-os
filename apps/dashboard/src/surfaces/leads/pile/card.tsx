@@ -2,7 +2,7 @@
  * What a lead's card knows (the lead workbench, canvas B v2's decide card), for the lead sheet that draws it
  * (sheet/sheet.tsx) and the pile's Add them all: the reason to write now and the marks it rests on, and the emails they
  * would get from a sequence, filled with their values by the send's own fill. `leadCardFor` reads the lead's peek view
- * model and its record from the page's surface once a draw; every rule and word is contracts' (lead-card.ts).
+ * model and its record from the page's surface once a draw; every rule and word is contracts' (leads/card.ts).
  */
 import {
   leadCardEmailOf,

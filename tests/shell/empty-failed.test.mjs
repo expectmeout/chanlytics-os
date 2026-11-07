@@ -14,7 +14,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, toTodayVM, toLiveVM, reportFacts } from "@chanlytics/contracts";
+import { stateOf, toTodayVM, toLiveVM } from "@chanlytics/contracts";
+import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitPages, useStubHooks } from "../_stub-react.mjs";
 

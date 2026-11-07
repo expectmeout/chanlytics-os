@@ -9,6 +9,5 @@ export {
   callActivityStart,
 } from "./live-activity";
 export type { CallActivityProps } from "./live-activity";
-export { todayWidgetSnapshot } from "./today-widget";
 export { parseTodayWidgetSnapshot } from "./widget";
 export type { TodayWidgetSnapshot } from "./widget";

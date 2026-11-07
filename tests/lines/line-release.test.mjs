@@ -19,12 +19,12 @@ import {
   lineReleasedWords,
   LINE_RELEASE_MIN_DAYS,
   LINE_RELEASE_WARN_DAYS,
-} from "@chanlytics/contracts";
-import { dryProvider, twilioProvider } from "@chanlytics/channels";
+} from "../../apps/edge/lib/lines/release-rules.ts";
+import { dryProvider, twilioProvider } from "@chanlytics/channels/lines";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 
-const { releaseLine, sweepEndedLines } = await import("../../apps/edge/lib/lines/line-release.ts");
+const { releaseLine, sweepEndedLines } = await import("../../apps/edge/lib/lines/release.ts");
 
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-10-20T15:00:00.000Z");

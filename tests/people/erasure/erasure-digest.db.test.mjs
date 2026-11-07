@@ -15,7 +15,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { legacyErasedEmailHash, legacyErasedPhoneHash } from "@chanlytics/contracts";
+import { hashLegacyErasedEmail, hashLegacyErasedPhone } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../tooling");
 const CLI = process.env.SUPABASE_CLI || "supabase";
@@ -87,7 +87,7 @@ test(
   { skip },
   async () => {
     const t = await workspace("made");
-    const legacy = await legacyErasedPhoneHash(t, PHONE);
+    const legacy = await hashLegacyErasedPhone(t, PHONE);
     assert.equal(
       ok(await db.rpc("erasure_digest", { p_tenant_id: t, p_value: PHONE })),
       legacy,
@@ -95,7 +95,7 @@ test(
     );
     assert.deepEqual(
       ok(await db.rpc("erasure_digests", { p_tenant_id: t, p_values: [PHONE, EMAIL, PHONE] })),
-      [legacy, await legacyErasedEmailHash(t, EMAIL), legacy],
+      [legacy, await hashLegacyErasedEmail(t, EMAIL), legacy],
       "in order, one per value",
     );
     const keyed = ok(await db.rpc("erasure_key", { p_digest: legacy }));
@@ -105,7 +105,7 @@ test(
     assert.notEqual(keyed.slice(3), legacy, "not the legacy digest dressed up");
     const other = await workspace("other");
     assert.notEqual(
-      ok(await db.rpc("erasure_key", { p_digest: await legacyErasedPhoneHash(other, PHONE) })),
+      ok(await db.rpc("erasure_key", { p_digest: await hashLegacyErasedPhone(other, PHONE) })),
       keyed,
       "still tenant-keyed underneath",
     );
@@ -123,8 +123,8 @@ test(
   { skip },
   async () => {
     const t = await workspace("rekey");
-    const phone = await legacyErasedPhoneHash(t, PHONE);
-    const email = await legacyErasedEmailHash(t, EMAIL);
+    const phone = await hashLegacyErasedPhone(t, PHONE);
+    const email = await hashLegacyErasedEmail(t, EMAIL);
     ok(
       await db.from("contacts").insert({
         tenant_id: t,
@@ -254,7 +254,7 @@ test(
       await db.from("contacts").insert({
         tenant_id: t,
         erased_at: new Date().toISOString(),
-        erased_phone_hash: await legacyErasedPhoneHash(t, PHONE),
+        erased_phone_hash: await hashLegacyErasedPhone(t, PHONE),
       }),
       "an erased contact",
     );

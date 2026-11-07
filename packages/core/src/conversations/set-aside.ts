@@ -8,7 +8,7 @@ type SetAsidePorts = Pick<ThreadPorts, "notACustomer" | "replyAnyway">;
  * address is said to be automated, so their mail stays out. With `undo`, all of it back. One door, one transaction (00539).
  * A door that changed no row did nothing at all: the thread moved while the person looked.
  */
-export async function notACustomer(
+export async function markNotACustomer(
   ports: Pick<SetAsidePorts, "notACustomer">,
   cmd: { conv: Pick<Thread, "id" | "tenant_id">; undo: boolean },
 ): Promise<{ set_aside: boolean; decision_id: string }> {

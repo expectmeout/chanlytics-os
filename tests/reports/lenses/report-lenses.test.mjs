@@ -6,15 +6,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  ASK_PAGES,
   ASK_PAGE_ROUTES,
   LENS_ROUTES,
   REPORT_LENSES,
   adsReportRoute,
-  askJump,
-  askPages,
   isLensParam,
-  lensAnswerOf,
   lensEmpty,
   lensIsShown,
   lensOfRoute,
@@ -27,6 +23,8 @@ import {
   toReportVM,
   toReviewsReportVM,
 } from "@chanlytics/contracts";
+import { ASK_PAGES, askJump, askPages } from "../../../apps/dashboard/src/bridge/ask/jump.ts";
+import { lensAnswerOf } from "../../../apps/dashboard/src/surfaces/reports/model/lens-answer.ts";
 import { REVIEWS_NOW, reviewsDto } from "../_report-world.mjs";
 
 const OWNER = { role: "owner", adsOn: false };

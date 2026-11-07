@@ -29,7 +29,7 @@ import {
   type ModelDeps,
   type ModelReply,
   type ModelStreamReply,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/ai";
 import {
   MODEL_TURN_WRITE_MS,
   aiUsageBodyOf,
@@ -38,10 +38,10 @@ import {
   type ModelPurpose,
   type ModelUsage,
 } from "@chanlytics/contracts";
-import { keepModelTurn, recordModelUsage, workspaceMayUseModels, type ModelTurnKept } from "@chanlytics/db";
+import { keepModelTurn, recordModelUsage, mayWorkspaceUseModels, type ModelTurnKept } from "@chanlytics/db/ai";
 import { pg } from "../shared/pg.js";
-import { attributionFor, forgetAnthropicProfiles } from "./anthropic-profiles/attribution.js";
-import { pageOperator } from "../ops/page-operator.js";
+import { getAttribution, forgetAnthropicProfiles } from "./anthropic-profiles/attribution.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
 
@@ -83,8 +83,8 @@ let deps: ModelDeps = {};
  * (lib/ai/shadow.ts, through modelDeps) as well as the primary's: a test's fetch answers by the address it is asked. A new
  * network forgets the profiles the last one's calls read, so no test inherits another's.
  */
-export function setModelFetch(f: typeof fetch | null): void {
-  deps = f ? { fetch: f, sleep: async () => {} } : {};
+export function setModelFetch(item: typeof fetch | null): void {
+  deps = item ? { fetch: item, sleep: async () => {} } : {};
   forgetAnthropicProfiles();
 }
 
@@ -175,7 +175,7 @@ export async function recordCall(
 export async function keepTurn(turn: ModelTurnKept): Promise<boolean> {
   const db = pg();
   if (!db) return false;
-  const L = logger({ tenant_id: turn.tenantId });
+  const log = logger({ tenant_id: turn.tenantId });
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const tooSlow = new Promise<"late">((resolve) => {
@@ -185,10 +185,10 @@ export async function keepTurn(turn: ModelTurnKept): Promise<boolean> {
     // Left behind, it may still land or fail after the reply has gone: either way nobody is waiting on it.
     write.catch(() => undefined);
     const kept = (await Promise.race([write, tooSlow])) === "kept";
-    if (!kept) L.error("model_turn_write_failed", { turn: turn.turnId, left_behind_ms: MODEL_TURN_WRITE_MS });
+    if (!kept) log.error("model_turn_write_failed", { turn: turn.turnId, left_behind_ms: MODEL_TURN_WRITE_MS });
     return kept;
   } catch (e) {
-    L.error("model_turn_write_failed", { turn: turn.turnId, error: errField(e) });
+    log.error("model_turn_write_failed", { turn: turn.turnId, error: errField(e) });
     return false;
   } finally {
     clearTimeout(timer);
@@ -204,7 +204,7 @@ export async function mayUseModelFor(purpose: ModelPurpose, tenantId: string | n
   const db = pg();
   if (!db) return true;
   try {
-    return await workspaceMayUseModels(db, tenantId);
+    return await mayWorkspaceUseModels(db, tenantId);
   } catch (e) {
     logger({ tenant_id: tenantId }).error("ai_spend_read_failed", { purpose, error: errField(e) });
     return false;
@@ -224,11 +224,11 @@ type ModelRequest = Omit<ModelAsk, "attribution">;
  * Whether a call for this purpose and person would go now: the two holds callModel asks, asked first by a caller with paid
  * work to save before the call (a copy to make, a picture to read). No key, it would not.
  */
-export async function modelMayGo(purpose: ModelPurpose, forWhom: ModelCallFor): Promise<boolean> {
+export async function mayModelGo(purpose: ModelPurpose, forWhom: ModelCallFor): Promise<boolean> {
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return false;
   if (!(await mayUseModelFor(purpose, forWhom.tenantId))) return false;
-  return !("held" in (await attributionFor(purpose, forWhom, key, deps)));
+  return !("held" in (await getAttribution(purpose, forWhom, key, deps)));
 }
 
 /** One model call through the port, written to the ledger; null with no key, `held` when it may not go. */
@@ -236,21 +236,21 @@ export async function callModel(ask: ModelRequest, forWhom: ModelCallFor): Promi
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return null;
   if (!(await mayUseModelFor(ask.purpose, forWhom.tenantId))) return { outcome: "held", why: "unpaid" };
-  const who = await attributionFor(ask.purpose, forWhom, key, deps);
-  if ("held" in who) return { outcome: "held", why: who.held };
-  const r = await portAsk(key, { ...ask, attribution: who.attribution }, deps);
+  const attribution = await getAttribution(ask.purpose, forWhom, key, deps);
+  if ("held" in attribution) return { outcome: "held", why: attribution.held };
+  const result = await portAsk(key, { ...ask, attribution: attribution.attribution }, deps);
   await recordCall(
     ask.purpose,
     {
-      asked: r.asked,
-      model: r.model,
-      outcome: outcomeOf(r, forWhom),
-      usage: r.usage,
-      error: r.outcome === "ok" ? null : { type: r.errorType, message: r.error },
+      asked: result.asked,
+      model: result.model,
+      outcome: outcomeOf(result, forWhom),
+      usage: result.usage,
+      error: result.outcome === "ok" ? null : { type: result.errorType, message: result.error },
     },
     forWhom,
   );
-  return r;
+  return result;
 }
 
 /** One streamed call through the port (Ask's gateway); its usage is written by the caller once the stream has said it. */
@@ -260,9 +260,9 @@ export async function streamModelCall(
 ): Promise<ModelStreamReply | ModelHeld | null> {
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return null;
-  const who = await attributionFor(ask.purpose, forWhom, key, deps);
-  if ("held" in who) return { outcome: "held", why: who.held };
-  return portStream(key, { ...ask, attribution: who.attribution }, deps);
+  const attribution = await getAttribution(ask.purpose, forWhom, key, deps);
+  if ("held" in attribution) return { outcome: "held", why: attribution.held };
+  return portStream(key, { ...ask, attribution: attribution.attribution }, deps);
 }
 
 /** The first JSON object in a text answer, or null. */
@@ -308,43 +308,47 @@ interface JsonAsk {
 }
 
 /** One answer in the shape asked; null when there is no model to ask, or the workspace may not pay for one. */
-export async function askJson(a: JsonAsk): Promise<JsonAnswer | null> {
+export async function askJson(jsonAsk: JsonAsk): Promise<JsonAnswer | null> {
   const base: Omit<ModelRequest, "body"> = {
-    purpose: a.purpose,
-    ...(a.timeoutMs ? { timeoutMs: a.timeoutMs } : {}),
-    ...(a.signal ? { signal: a.signal } : {}),
-    ...(a.deadlineMs ? { deadlineMs: a.deadlineMs } : {}),
+    purpose: jsonAsk.purpose,
+    ...(jsonAsk.timeoutMs ? { timeoutMs: jsonAsk.timeoutMs } : {}),
+    ...(jsonAsk.signal ? { signal: jsonAsk.signal } : {}),
+    ...(jsonAsk.deadlineMs ? { deadlineMs: jsonAsk.deadlineMs } : {}),
   };
-  const body = { max_tokens: a.maxTokens, messages: [{ role: "user", content: a.user }] };
-  const effort = a.effort ? { effort: a.effort } : {};
-  let r = await callModel(
+  const body = { max_tokens: jsonAsk.maxTokens, messages: [{ role: "user", content: jsonAsk.user }] };
+  const effort = jsonAsk.effort ? { effort: jsonAsk.effort } : {};
+  let result = await callModel(
     {
       ...base,
       body: {
         ...body,
-        system: a.system,
-        output_config: { format: { type: "json_schema", schema: a.schema }, ...effort },
+        system: jsonAsk.system,
+        output_config: { format: { type: "json_schema", schema: jsonAsk.schema }, ...effort },
       },
     },
-    a.for,
+    jsonAsk.for,
   );
   // The plain retry keeps the effort: only the format was refused.
-  if (r && r.outcome !== "held" && formatRejected(r)) {
-    r = await callModel(
+  if (result && result.outcome !== "held" && formatRejected(result)) {
+    result = await callModel(
       {
         ...base,
-        body: { ...body, system: `${a.system}\n${a.plainJsonHint}`, ...(a.effort ? { output_config: effort } : {}) },
+        body: {
+          ...body,
+          system: `${jsonAsk.system}\n${jsonAsk.plainJsonHint}`,
+          ...(jsonAsk.effort ? { output_config: effort } : {}),
+        },
       },
-      a.for,
+      jsonAsk.for,
     );
   }
-  if (!r || r.outcome === "held") return null;
-  if (r.outcome !== "ok") throw new ModelUnavailable(r);
-  const stop = r.message.stop_reason;
-  const answer = stop === "refusal" || stop === "max_tokens" ? null : firstJson(r.text);
+  if (!result || result.outcome === "held") return null;
+  if (result.outcome !== "ok") throw new ModelUnavailable(result);
+  const stop = result.message.stop_reason;
+  const answer = stop === "refusal" || stop === "max_tokens" ? null : firstJson(result.text);
   return {
     answer,
-    tokens: { input: r.usage.input, output: r.usage.output },
+    tokens: { input: result.usage.input, output: result.usage.output },
     ...(stop === "refusal" ? { refused: true as const } : {}),
   };
 }

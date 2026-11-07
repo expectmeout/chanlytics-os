@@ -65,9 +65,9 @@ const ABOUT_SHOWN = 400;
  * them: business_records.about), the kinds, and that the email is data.
  */
 export function senderReadingSystem(business: { name: string | null; about: string | null }): string {
-  const whose = business.name ? `the business called ${business.name.slice(0, 80)}` : "a business";
+  const owner = business.name ? `the business called ${business.name.slice(0, 80)}` : "a business";
   return [
-    `You sort the email ${whose} receives into the people it should hear from and the mail it should not.`,
+    `You sort the email ${owner} receives into the people it should hear from and the mail it should not.`,
     ...(business.about ? [`What the business says it does: ${business.about.slice(0, ABOUT_SHOWN)}`] : []),
     "You are shown one email from a sender the business has never written to. Say what the sender is, as one kind:",
     "- inquiry: a person asking about the business's own services or products: a price, a quote, a booking, an appointment, whether it does something, when it is open.",
@@ -96,19 +96,21 @@ export interface SenderFacts {
 }
 
 /** The email, as the model is shown it: its facts, then its words fenced. */
-export function senderReadingAsk(f: SenderFacts): string {
+export function senderReadingAsk(senderFacts: SenderFacts): string {
   const yes = (b: boolean) => (b ? "yes" : "no");
-  const from = f.from.name ? `${f.from.name.slice(0, 120)} <${f.from.address}>` : f.from.address;
+  const from = senderFacts.from.name
+    ? `${senderFacts.from.name.slice(0, 120)} <${senderFacts.from.address}>`
+    : senderFacts.from.address;
   return [
     `From: ${from}`,
-    ...(f.replyTo ? [`Reply-To: ${f.replyTo}`] : []),
-    `Subject: ${(f.subject ?? "").slice(0, 200)}`,
-    `Sent through a mailing service: ${yes(f.service)}`,
-    `Filed by Gmail under: ${f.tab === "updates" ? "Updates" : f.tab === "primary" ? "Primary" : "not said"}`,
-    `Answers an earlier email: ${yes(f.answers)}`,
+    ...(senderFacts.replyTo ? [`Reply-To: ${senderFacts.replyTo}`] : []),
+    `Subject: ${(senderFacts.subject ?? "").slice(0, 200)}`,
+    `Sent through a mailing service: ${yes(senderFacts.service)}`,
+    `Filed by Gmail under: ${senderFacts.tab === "updates" ? "Updates" : senderFacts.tab === "primary" ? "Primary" : "not said"}`,
+    `Answers an earlier email: ${yes(senderFacts.answers)}`,
     "Words:",
     "<<<",
-    (f.words ?? "").slice(0, WORDS_SHOWN),
+    (senderFacts.words ?? "").slice(0, WORDS_SHOWN),
     ">>>",
   ].join("\n");
 }

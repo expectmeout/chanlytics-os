@@ -14,8 +14,8 @@ import {
   CALENDAR_UNREADABLE_TOLD_AFTER_MS,
   CALENDAR_UNREADABLE_WORDS,
 } from "@chanlytics/contracts";
-import type { Database } from "@chanlytics/db";
-import { mendWarnings, notifyOnce } from "../ops/notify.js";
+import type { Database } from "@chanlytics/db/types";
+import { mendWarnings, notifyOnce } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { errField, type Logger } from "../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -23,7 +23,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type Db = SupabaseClient<Database>;
 
 /** The owner told that the link stopped answering, once its failures are old enough (see the header). */
-export async function tellUnreadable(db: Db, tenantId: string, since: string, now: Date, L: Logger): Promise<void> {
+export async function tellUnreadable(db: Db, tenantId: string, since: string, now: Date, log: Logger): Promise<void> {
   const sinceMs = Date.parse(since);
   if (now.getTime() - sinceMs < CALENDAR_UNREADABLE_TOLD_AFTER_MS) return;
   try {
@@ -43,11 +43,11 @@ export async function tellUnreadable(db: Db, tenantId: string, since: string, no
       { db },
     );
   } catch (e) {
-    L.error("calendar_notice_failed", { tenant_id: tenantId, error: errField(e) });
+    log.error("calendar_notice_failed", { tenant_id: tenantId, error: errField(e) });
   }
 }
 
 /** A read that worked after failures: the notice of the breakage closes (contracts NOTICE_MENDS). Never throws. */
-export async function readableAgain(db: Db, tenantId: string): Promise<void> {
+export async function makeReadableAgain(db: Db, tenantId: string): Promise<void> {
   await mendWarnings(db, { tenantId, by: { change: "calendar.readable" }, subject: null, keptId: null });
 }

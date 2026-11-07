@@ -10,7 +10,8 @@
  */
 import { Fragment } from "react";
 import { NOTE_WORDS } from "@chanlytics/contracts";
-import type { DealCardStepVM, PersonVM, PipelinePeekVM, PipelineRowVM, PipelineSheetVM } from "@chanlytics/contracts";
+import type { DealCardStepVM, PersonVM, PipelineRowVM } from "@chanlytics/contracts";
+import type { PipelinePeekVM, PipelineSheetVM } from "./peek-view";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";

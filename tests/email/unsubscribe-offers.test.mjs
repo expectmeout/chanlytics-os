@@ -10,8 +10,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { signUnsubscribeToken } from "@chanlytics/channels";
-import { STOP_ALL_REFUSALS } from "@chanlytics/contracts";
+import { signUnsubscribeToken } from "@chanlytics/channels/tokens";
+import { STOP_ALL_REFUSALS } from "../../apps/dashboard/src/server/public/offers-unsubscribe.ts";
 
 const SECRET = "the-unsubscribe-secret-for-this-file";
 process.env.UNSUBSCRIBE_SECRET = SECRET;
@@ -22,8 +22,8 @@ after(() => delete process.env.UNSUBSCRIBE_SECRET);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const route = await import(at("apps/dashboard/app/u/[token]/route.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/public/unsubscribe.ts"));
-after(() => setServiceClient(null));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/public/unsubscribe.ts"));
+after(() => setUnsubscribeServiceClient(null));
 
 const A = "22222222-2222-4222-8222-222222222222";
 const P = "33333333-3333-4333-8333-333333333333";
@@ -88,7 +88,7 @@ function world({ name = "Best Movers", fails = {}, readFails = false, languageFa
       },
     },
   );
-  setServiceClient(db);
+  setUnsubscribeServiceClient(db);
   return { db, calls };
 }
 

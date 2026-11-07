@@ -11,7 +11,7 @@
 import {
   toBillingVM,
   billingPill,
-  dayWords,
+  billingDayWords,
   moneyWords,
   trialWords,
   priceWords,
@@ -172,7 +172,7 @@ export const billingVerbs: BillingApi = {
   },
   outcomeWords: CHECKOUT_OUTCOME_WORDS,
   words: {
-    day: (iso) => dayWords(iso, pageClock().zone()),
+    day: (iso) => billingDayWords(iso, pageClock().zone()),
     money: moneyWords,
     trial: (trialEnd, nowMs) => trialWords(trialEnd, nowMs, pageClock().zone()),
     price: priceWords,

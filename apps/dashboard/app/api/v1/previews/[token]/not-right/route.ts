@@ -1,4 +1,4 @@
-import { previewNotRightBy } from "@/server/previews/preview-doors";
+import { recordPreviewNotRightBy } from "@/server/previews/doors";
 import { previewRoute } from "@/server/previews/public-route";
 
 /**
@@ -7,7 +7,7 @@ import { previewRoute } from "@/server/previews/public-route";
  * (server/previews/public-route.ts).
  */
 const door = previewRoute({ bucket: "preview_ip", spends: false }, (token, body) =>
-  previewNotRightBy(token, body.fact, body.said),
+  recordPreviewNotRightBy(token, body.fact, body.said),
 );
 
 /** A function of its own, as /api/v1/signup's: these doors are no route() and the typed client does not post them. */

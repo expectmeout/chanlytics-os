@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/shared/route";
-import { consentQr } from "@/server/people/consent-qr";
+import { findConsentQr } from "@/server/people/consent-qr";
 
 /**
  * GET /api/v1/consent/qr — the code a customer scans to say yes to offers,
@@ -7,10 +7,10 @@ import { consentQr } from "@/server/people/consent-qr";
  * the opt-in words, and nothing a caller chooses; a workspace with no
  * active number has nothing to say yes to.
  *
- * The handle is consentQr in src/server/people/consent-qr.ts: the route is its declaration (who may, how often), the
+ * The handle is findConsentQr in src/server/people/consent-qr.ts: the route is its declaration (who may, how often), the
  * verb is what it does.
  */
 export const GET = read({
   scope: workspace,
-  handle: ({ ctx, member }) => consentQr(ctx, member),
+  handle: ({ ctx, member }) => findConsentQr(ctx, member),
 });

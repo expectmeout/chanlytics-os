@@ -7,7 +7,7 @@
  * (00365). The server still needs the address for them: the Calendar and the receptionist's openings read the feed, and
  * a save writes the whole column back, so a masked one would be fetched as a feed or saved over the real one.
  * workspace/config-row.ts reads the table first, the door where the table answers nothing, and the row again with the
- * service role where the door hid the address. Proved here on configRowOf itself, and on a partner's settings read and
+ * service role where the door hid the address. Proved here on findConfigRow itself, and on a partner's settings read and
  * save through the route: shown the address masked, and the save keeping the stored one, written through
  * tenant_config_write since the table's own update finds no row the partner cannot read. The doors' own rules are
  * proved on a real database in the-feed-address-is-the-owner-s.db.test.mjs.
@@ -25,7 +25,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { configRowOf } = await import(at("apps/dashboard/src/server/workspace/config-row.ts"));
+const { findConfigRow } = await import(at("apps/dashboard/src/server/workspace/config-row.ts"));
 const settings = await import(at("apps/dashboard/app/api/v1/settings/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -113,7 +113,7 @@ test("a session that reads the row whole (the owner's, or anyone's before 00366)
   const tables = worldWithFeed("owner");
   setServiceClient(serviceOver(tables, { refuse: true }));
   const sb = fakeDb(tables);
-  const row = await configRowOf(sb, A);
+  const row = await findConfigRow(sb, A);
   assert.equal(row.config.calendar.ical_url, FEED);
   assert.equal(row.version, 3);
   assert.deepEqual(
@@ -126,7 +126,7 @@ test("a member the table shows nothing reads through the door; where it hid the 
   const tables = worldWithFeed("partner");
   setServiceClient(serviceOver(tables));
   const session = sessionPast00366(tables);
-  const row = await configRowOf(session, A);
+  const row = await findConfigRow(session, A);
   assert.deepEqual(
     [row.config.calendar.ical_url, row.version, session.asked],
     [FEED, 3, ["tenant_config_read"]],
@@ -136,16 +136,16 @@ test("a member the table shows nothing reads through the door; where it hid the 
   const plain = worldWithFeed("viewer");
   plain.tenant_config[0].config = { notes: "no calendar" };
   setServiceClient(serviceOver(plain, { refuse: true }));
-  const bare = await configRowOf(sessionPast00366(plain), A);
+  const bare = await findConfigRow(sessionPast00366(plain), A);
   assert.deepEqual(bare.config, { notes: "no calendar" }, "no address: the door's row is the row");
 });
 
 test("no row at all, a session of no member of the workspace, and a database before 00365 are each no row: the service role is never asked", async () => {
   const tables = worldWithFeed("viewer");
   setServiceClient(serviceOver(tables, { refuse: true }));
-  assert.equal(await configRowOf(sessionPast00366(tables, { door: "stranger" }), A), null, "not a member");
-  assert.equal(await configRowOf(sessionPast00366(tables, { door: "missing" }), A), null, "before 00365");
-  assert.equal(await configRowOf(sessionPast00366({ ...tables, tenant_config: [] }), A), null, "no row");
+  assert.equal(await findConfigRow(sessionPast00366(tables, { door: "stranger" }), A), null, "not a member");
+  assert.equal(await findConfigRow(sessionPast00366(tables, { door: "missing" }), A), null, "before 00365");
+  assert.equal(await findConfigRow(sessionPast00366({ ...tables, tenant_config: [] }), A), null, "no row");
 });
 
 test("a partner's settings read and save as 00366 leaves the database: shown the address masked, the save keeps the stored one, and it is written through tenant_config_write", async () => {

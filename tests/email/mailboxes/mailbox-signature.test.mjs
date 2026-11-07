@@ -17,11 +17,11 @@ import {
   buildEmailRequest,
   cleanGmailSignature,
   connectedIdentity,
-  gmailSignature,
+  readGmailSignature,
   gmailSignatureWords,
   mailboxDtoOf,
   mailboxSignatureOf,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import { mailboxSignsOf } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
@@ -142,8 +142,8 @@ test("Gmail is asked for the address's own signature; an address it does not sen
       : { status: 404, json: {} },
   );
   try {
-    assert.deepEqual(await gmailSignature("ya29.t", "hi@chanlytics.agency"), { ok: true, html: GMAIL });
-    assert.deepEqual(await gmailSignature("ya29.t", "other@chanlytics.agency"), { ok: true, html: null });
+    assert.deepEqual(await readGmailSignature("ya29.t", "hi@chanlytics.agency"), { ok: true, html: GMAIL });
+    assert.deepEqual(await readGmailSignature("ya29.t", "other@chanlytics.agency"), { ok: true, html: null });
     assert.equal(net.calls[0].headers.Authorization, "Bearer ya29.t");
   } finally {
     net.restore();

@@ -3,12 +3,12 @@
  * route holds who may, and nothing here runs by itself. It goes as the owner, with the token the connection holds, and the ledger keeps
  * Google's name for it, which is how a sheet says it is up and how it comes down.
  */
-import { createLocalPost, deleteLocalPost, reviewParent, type GbpPostAsked } from "@chanlytics/channels";
+import { createLocalPost, deleteLocalPost, reviewParent, type GbpPostAsked } from "@chanlytics/channels/google";
 import type { EdgeRefusal } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db";
-import { connectionOf, type Db } from "./rows.js";
-import { http } from "./places.js";
-import { tokenFor } from "./profile-credentials.js";
+import { emitEvent } from "@chanlytics/db/events";
+import { connectionOf, type Db } from "../shared/google/rows.js";
+import { http } from "../shared/google/places.js";
+import { tokenFor } from "../shared/google/credentials.js";
 
 /** The connection and a token good now, or why not. */
 async function asTheOwner(db: Db, tenantId: string, now: Date) {
@@ -24,45 +24,45 @@ const googleSaid = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export async function postOnProfile(
   db: Db,
   tenantId: string,
-  asked: { fileId: string; by: string | null; post: GbpPostAsked },
+  input: { fileId: string; by: string | null; post: GbpPostAsked },
   now = new Date(),
 ): Promise<{ ok: true; name: string; search_url: string | null; state: string | null } | EdgeRefusal> {
   const owner = await asTheOwner(db, tenantId, now);
   if (!owner.ok) return owner;
-  let made;
+  let created;
   try {
-    made = await createLocalPost(http, owner.token, owner.parent, asked.post);
+    created = await createLocalPost(http, owner.token, owner.parent, input.post);
   } catch (e) {
     return { ok: false, error: "google_refused", detail: googleSaid(e) };
   }
   await emitEvent(db, tenantId, "file.posted", "workspace", tenantId, {
-    file_id: asked.fileId,
-    post_name: made.name,
-    search_url: made.search_url,
-    by: asked.by,
+    file_id: input.fileId,
+    post_name: created.name,
+    search_url: created.search_url,
+    by: input.by,
   }).catch(() => {});
-  return { ok: true, ...made };
+  return { ok: true, ...created };
 }
 
 export async function unpostOnProfile(
   db: Db,
   tenantId: string,
-  asked: { fileId: string; by: string | null; name: string },
+  input: { fileId: string; by: string | null; name: string },
   now = new Date(),
 ): Promise<{ ok: true } | EdgeRefusal> {
   const owner = await asTheOwner(db, tenantId, now);
   if (!owner.ok) return owner;
   // Its name says whose it is: this connection's location, and no other's, whatever a caller sends.
-  if (!asked.name.startsWith(`${owner.parent}/localPosts/`)) return { ok: false, error: "not_found" };
+  if (!input.name.startsWith(`${owner.parent}/localPosts/`)) return { ok: false, error: "not_found" };
   try {
-    await deleteLocalPost(http, owner.token, asked.name);
+    await deleteLocalPost(http, owner.token, input.name);
   } catch (e) {
     return { ok: false, error: "google_refused", detail: googleSaid(e) };
   }
   await emitEvent(db, tenantId, "file.unposted", "workspace", tenantId, {
-    file_id: asked.fileId,
-    post_name: asked.name,
-    by: asked.by,
+    file_id: input.fileId,
+    post_name: input.name,
+    by: input.by,
   }).catch(() => {});
   return { ok: true };
 }

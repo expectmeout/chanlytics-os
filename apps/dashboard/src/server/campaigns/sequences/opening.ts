@@ -15,12 +15,13 @@ import {
   type ReachOutOpeningDto,
   type RewriteStep,
 } from "@chanlytics/contracts";
-import { emitEvent, sendOpeningsOf, undoSendRewrite } from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db/events";
+import { sendOpeningsOf, undoSendRewrite } from "@chanlytics/db/campaigns";
 import { deployment } from "@/server/shared/env";
 import { callEdge, edgeAnswered, edgeHeaders, edgeUrl } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import { serviceDb } from "@/server/shared/service-db";
-import { reachOutRefusal } from "@/server/campaigns/reach-outs";
+import { reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts";
 import type { RouteContext } from "@/server/shared/with-route";
 
 /** How long a press waits for its check: a rewrite is two model calls of about a second each, and a site read. */
@@ -58,21 +59,21 @@ export async function checkOpeningsNow(
  * the log, and the answer after says how the emails stand.
  */
 async function relaySteps(
-  p: { ctx: RouteContext; tenantId: string; ids: string[]; gone: AbortSignal },
+  params: { ctx: RouteContext; tenantId: string; ids: string[]; gone: AbortSignal },
   send: (line: ReachOutCheckLine) => void,
 ): Promise<void> {
-  const body = JSON.stringify({ send_ids: p.ids, stream: true });
-  const asked = new Set(p.ids);
+  const body = JSON.stringify({ send_ids: params.ids, stream: true });
+  const seen = new Set(params.ids);
   try {
     const res = await fetch(`${edgeUrl()}${CHECK_DOOR}`, {
       method: "POST",
-      headers: edgeHeaders(CHECK_DOOR, { workspace: p.tenantId, user: p.ctx.userId, body }),
+      headers: edgeHeaders(CHECK_DOOR, { workspace: params.tenantId, user: params.ctx.userId, body }),
       body,
       cache: "no-store",
-      signal: AbortSignal.any([AbortSignal.timeout(CHECK_NOW_MS), p.gone]),
+      signal: AbortSignal.any([AbortSignal.timeout(CHECK_NOW_MS), params.gone]),
     });
     if (!res.ok || !res.body) {
-      log.warn("reach_out_rewrite_unchecked", { tenant_id: p.tenantId, status: res.status });
+      log.warn("reach_out_rewrite_unchecked", { tenant_id: params.tenantId, status: res.status });
       return;
     }
     const reader = res.body.getReader();
@@ -85,7 +86,7 @@ async function relaySteps(
       } catch {
         return;
       }
-      if (line.t !== "step" || typeof line.send_id !== "string" || !asked.has(line.send_id)) return;
+      if (line.t !== "step" || typeof line.send_id !== "string" || !seen.has(line.send_id)) return;
       if (typeof line.step === "string" && STEPS.has(line.step))
         send({ t: "step", send_id: line.send_id, step: line.step as RewriteStep });
     };
@@ -100,7 +101,7 @@ async function relaySteps(
     if (carry.trim()) take(carry);
   } catch {
     // The wait ran out, the page let go, or the edge could not be reached: the answer says how they stand.
-    if (!p.gone.aborted) log.warn("reach_out_rewrite_unchecked", { tenant_id: p.tenantId, status: 0 });
+    if (!params.gone.aborted) log.warn("reach_out_rewrite_unchecked", { tenant_id: params.tenantId, status: 0 });
   }
 }
 

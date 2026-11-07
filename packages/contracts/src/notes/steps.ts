@@ -90,20 +90,20 @@ export interface StepColumns {
 }
 
 /** A row's next step; null without one, or on a row read before the columns existed. */
-export function nextStepOf(r: StepColumns, tz: string, nowMs: number): PersonNextStepVM | null {
-  const words = r.step_body?.trim();
-  if (!r.step_id || !words) return null;
-  const day = stepDayOf(r.step_due_on, tz, nowMs);
+export function nextStepOf(stepColumns: StepColumns, tz: string, nowMs: number): PersonNextStepVM | null {
+  const words = stepColumns.step_body?.trim();
+  if (!stepColumns.step_id || !words) return null;
+  const day = stepDayOf(stepColumns.step_due_on, tz, nowMs);
   if (!day) return null;
   return {
-    id: r.step_id,
+    id: stepColumns.step_id,
     words,
     day,
     due: day.due,
-    forWho: forWords(r.step_for_me, r.step_for_user_id, r.step_for_name),
-    forMe: !!r.step_for_me,
-    forUserId: r.step_for_user_id ?? null,
-    dealId: r.step_deal_id ?? null,
+    forWho: forWords(stepColumns.step_for_me, stepColumns.step_for_user_id, stepColumns.step_for_name),
+    forMe: !!stepColumns.step_for_me,
+    forUserId: stepColumns.step_for_user_id ?? null,
+    dealId: stepColumns.step_deal_id ?? null,
   };
 }
 

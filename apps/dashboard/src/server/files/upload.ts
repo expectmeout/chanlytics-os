@@ -20,14 +20,14 @@ import {
   recordOrNull,
   type FileMime,
 } from "@chanlytics/contracts";
-import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels";
+import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels/files";
 import { imageHeaderOf } from "@chanlytics/core";
-import { fileFound, fileStart } from "@chanlytics/db";
+import { recordFileFound, startFile } from "@chanlytics/db/files";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
-import { bucket, doorRefusal } from "./file";
+import { bucket, fileDoorRefusal } from "./file";
 
 /** How long the address of an upload's first bytes is good for, and how long reading them may take. */
 const HEAD_LINK_S = 60;
@@ -43,8 +43,8 @@ export async function startUpload(
   input: { mime: FileMime },
 ): Promise<{ id: string; upload_url: string }> {
   const id = randomUUID();
-  const started = await fileStart(ctx.supabase, member.tenantId, id);
-  if (started.error) throw doorRefusal(started.error);
+  const started = await startFile(ctx.supabase, member.tenantId, id);
+  if (started.error) throw fileDoorRefusal(started.error);
   const signed = await bucket().createSignedUploadUrl(filePathOf(member.tenantId, id, input.mime));
   if (signed.error || !signed.data) {
     log.error("file_upload_sign_failed", { tenant_id: member.tenantId, error: signed.error?.message ?? "no address" });
@@ -137,7 +137,7 @@ export async function finishUpload(
   if (!read) throw new AppError("validation", W.notSaved);
   const proven = await provenImage(read, path, member.tenantId, input.mime);
   if ("refused" in proven) throw new AppError("validation", proven.refused);
-  const answered = await fileFound(serviceDb(), {
+  const answered = await recordFileFound(serviceDb(), {
     tenantId: member.tenantId,
     id,
     status: "filed",

@@ -158,11 +158,13 @@ export const SIGNUP_WORDS = {
  * threw, and sign-up answered a 500 where the page has a sentence for exactly
  * this (13 Sep 2026).
  */
-export function sendFailureIsOurs(e: { code?: string; status?: number; message?: string } | null | undefined): boolean {
-  if (!e) return false;
-  if (e.code === "over_email_send_rate_limit" || e.code === "email_provider_disabled") return true;
-  if (e.status === 429) return true;
-  return /rate limit|too many requests|email provider|smtp|error sending [a-z ]*email/i.test(e.message ?? "");
+export function sendFailureIsOurs(
+  input: { code?: string; status?: number; message?: string } | null | undefined,
+): boolean {
+  if (!input) return false;
+  if (input.code === "over_email_send_rate_limit" || input.code === "email_provider_disabled") return true;
+  if (input.status === 429) return true;
+  return /rate limit|too many requests|email provider|smtp|error sending [a-z ]*email/i.test(input.message ?? "");
 }
 
 /**
@@ -183,10 +185,10 @@ export function sendFailureIsOurs(e: { code?: string; status?: number; message?:
  *
  * Matched on the code first: the code is the stable half and the wording is not.
  */
-export function addressAlreadyKnown(e: { code?: string; message?: string } | null | undefined): boolean {
-  if (!e) return false;
-  if (e.code === "email_exists" || e.code === "user_already_exists") return true;
-  return /already (been )?registered|already exists/i.test(e.message ?? "");
+export function addressAlreadyKnown(input: { code?: string; message?: string } | null | undefined): boolean {
+  if (!input) return false;
+  if (input.code === "email_exists" || input.code === "user_already_exists") return true;
+  return /already (been )?registered|already exists/i.test(input.message ?? "");
 }
 
 /**
@@ -205,10 +207,10 @@ export function addressAlreadyKnown(e: { code?: string; message?: string } | nul
  * caller who has supplied the correct password for an existing account reaches
  * this answer, and they plainly know the account exists. Nobody else gets here.
  */
-export function emailNotConfirmed(e: { code?: string; message?: string } | null | undefined): boolean {
-  if (!e) return false;
-  if (e.code === "email_not_confirmed") return true;
-  return /email not confirmed|not confirmed/i.test(e.message ?? "");
+export function emailNotConfirmed(input: { code?: string; message?: string } | null | undefined): boolean {
+  if (!input) return false;
+  if (input.code === "email_not_confirmed") return true;
+  return /email not confirmed|not confirmed/i.test(input.message ?? "");
 }
 
 /* `signupNext` lived here: the sign-up page sent the person to /login at the
@@ -242,14 +244,14 @@ export function deviceTimezone(
  */
 export type FirstWorkspaceDoor = { open: true } | { open: false; code: "forbidden"; message: string };
 
-export function firstWorkspaceDoor(o: {
+export function firstWorkspaceDoor(options: {
   posture: SignupPosture;
   memberships: number;
   codeMatches: boolean;
 }): FirstWorkspaceDoor {
-  if (o.memberships > 0) return { open: true };
-  if (o.posture === "waitlist") return { open: false, code: "forbidden", message: SIGNUP_WORDS.waitlistLead };
-  if (o.posture === "invite" && !o.codeMatches)
+  if (options.memberships > 0) return { open: true };
+  if (options.posture === "waitlist") return { open: false, code: "forbidden", message: SIGNUP_WORDS.waitlistLead };
+  if (options.posture === "invite" && !options.codeMatches)
     return { open: false, code: "forbidden", message: SIGNUP_WORDS.codeWrong };
   return { open: true };
 }
@@ -301,12 +303,12 @@ export function resendLeft(
  * account and is flagged rather than silently half-done.
  */
 export function requestCodeWords(
-  e: { code?: string; status?: number; message?: string } | null | undefined,
+  input: { code?: string; status?: number; message?: string } | null | undefined,
 ): string | null {
-  const message = e?.message ?? "";
+  const message = input?.message ?? "";
   const wait = /after (\d+) seconds/.exec(message);
   if (wait) return `Please wait ${wait[1]}s before requesting another code.`;
-  if (sendFailureIsOurs(e)) return SIGNUP_WORDS.notSent;
+  if (sendFailureIsOurs(input)) return SIGNUP_WORDS.notSent;
   if (/security purposes|rate limit|too many/i.test(message))
     return "Too many requests just now — wait a minute and try again.";
   // Anything that distinguishes "no such account" from "code sent" is

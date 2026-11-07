@@ -9,6 +9,8 @@
  * small object (2,000 characters at most), so a member holds at most ASK_FOLLOW_UPS_MAX at once, each in a few words.
  */
 
+import { DAY_KEY } from "../../shared/zone/day-keys";
+
 /** The page a member's follow-ups are kept under in their views. */
 export const ASK_VIEW_PAGE = "ask";
 /** How many follow-ups a member holds at once: a view is a small object. */
@@ -42,17 +44,17 @@ const isWake = (v: unknown): v is FollowUpWake =>
 const clipped = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
 /** One follow-up as a view keeps it, or null where it is not one: a view is the member's, and read leniently. */
-function followUpOf(v: unknown): AskFollowUp | null {
-  if (!v || typeof v !== "object") return null;
-  const r = v as Record<string, unknown>;
-  const id = clipped(r.id, 40);
-  const said = clipped(r.said, FOLLOW_UP_SAID_MAX);
-  const prompt = clipped(r.prompt, FOLLOW_UP_PROMPT_MAX);
-  if (!id || !said || !prompt || !isWake(r.wake)) return null;
-  const subject = clipped(r.subject, 40) || null;
-  const on = typeof r.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.on) ? r.on : null;
-  if (r.wake === "date" ? !on : !subject) return null;
-  return { id, said, prompt, wake: r.wake, subject, on, made_at: clipped(r.made_at, 40) };
+function followUpOf(value: unknown): AskFollowUp | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  const id = clipped(item.id, 40);
+  const sentence = clipped(item.said, FOLLOW_UP_SAID_MAX);
+  const prompt = clipped(item.prompt, FOLLOW_UP_PROMPT_MAX);
+  if (!id || !sentence || !prompt || !isWake(item.wake)) return null;
+  const subject = clipped(item.subject, 40) || null;
+  const on = typeof item.on === "string" && DAY_KEY.test(item.on) ? item.on : null;
+  if (item.wake === "date" ? !on : !subject) return null;
+  return { id, said: sentence, prompt, wake: item.wake, subject, on, made_at: clipped(item.made_at, 40) };
 }
 
 /** A member's follow-ups, from their views (GET views' `views`), oldest first: none where the view holds none. */
@@ -79,14 +81,14 @@ export interface FollowUpWorld {
 const SEARCH_WAKES = new Set(["ended", "waiting_on_owner"]);
 
 /** Whether a follow-up is due, by what the world says now; never due on what could not be read. */
-export function followUpDue(f: AskFollowUp, w: FollowUpWorld): boolean {
-  if (f.wake === "date") return !!f.on && f.on <= w.today;
-  if (!f.subject) return false;
-  if (f.wake === "search_done") {
-    const state = w.searches.get(f.subject);
+export function followUpDue(askFollowUp: AskFollowUp, followUpWorld: FollowUpWorld): boolean {
+  if (askFollowUp.wake === "date") return !!askFollowUp.on && askFollowUp.on <= followUpWorld.today;
+  if (!askFollowUp.subject) return false;
+  if (askFollowUp.wake === "search_done") {
+    const state = followUpWorld.searches.get(askFollowUp.subject);
     return state !== undefined && SEARCH_WAKES.has(state);
   }
-  return (w.replies.get(f.subject) ?? 0) > 0;
+  return (followUpWorld.replies.get(askFollowUp.subject) ?? 0) > 0;
 }
 
 /**

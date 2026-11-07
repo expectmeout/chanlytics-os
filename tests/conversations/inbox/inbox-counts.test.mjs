@@ -1014,7 +1014,7 @@ test("a flagged thread older than the newest hundred is read by its id, and stan
     const { needYouGroupsOf } = await import("@chanlytics/contracts");
     VW_STORE.state = {};
     // A customer flagged weeks ago whose thread is past the conversations read's newest hundred: the escalations read holds
-    // it, the conversations read does not, and the server reads that thread by its id (readers/today.ts heldThreadsBeyond).
+    // it, the conversations read does not, and the server reads that thread by its id (readers/today.ts findHeldThreadsBeyond).
     const old = wireThread("c9", "Lena Ruiz", {}, { ...asked("c9", 60 * 24 * 20) });
     const rows = salon();
     todayWire(rows, undefined, {

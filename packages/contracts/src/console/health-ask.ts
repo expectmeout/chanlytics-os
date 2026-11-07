@@ -6,7 +6,8 @@
  * usage ledger's rows, never the words anyone asked. Pure.
  */
 import { inScope, type HealthScope } from "./health-scope";
-import { modelCallsOf, type HealthPartsDto } from "./health-parts";
+import { modelCallsOf } from "./health-parts/models-connections";
+import type { HealthPartsDto } from "./health-parts/sends-calls";
 
 /** Past this at the 95th percentile, an owner is waiting too long: the tile turns red. */
 const ASK_SLOW_P95_MS = 30_000;
@@ -132,27 +133,27 @@ const askUsdOf = (m: ReturnType<typeof modelCallsOf>) =>
 
 export function healthAskOf(parts: HealthPartsDto | null, scope: HealthScope): HealthAskVM {
   const side = sideOf(scope);
-  const a = (parts?.ask ?? []).find((r) => r.ours === side) ?? NO_ANSWERS;
-  const t = (parts?.ask_traced ?? []).find((r) => r.ours === side) ?? NO_TRACES;
+  const ask = (parts?.ask ?? []).find((r) => r.ours === side) ?? NO_ANSWERS;
+  const askTraced = (parts?.ask_traced ?? []).find((r) => r.ours === side) ?? NO_TRACES;
   const model = modelCallsOf(parts, scope);
   const everyone = modelCallsOf(parts, "all");
   const allUsd = askUsdOf(everyone);
   const oursUsd = everyone.byWorkspace.filter((w) => w.ours).reduce((n, w) => n + w.askUsd, 0);
   return {
-    answers: a.answers,
+    answers: ask.answers,
     threads: (parts?.ask_threads ?? []).filter((r) => inScope(r.ours, scope)).reduce((n, r) => n + r.n, 0),
-    failed: a.failed,
-    ungrounded: a.ungrounded,
-    latencyP50: a.latency_p50,
-    latencyP95: a.latency_p95,
-    latencyMax: a.latency_max,
-    traced: t.traced,
-    firstTextP50: t.first_text_p50,
-    firstTextP95: t.first_text_p95,
-    stages: STAGES.map(([key, words]) => ({ key, words, p50: t[`${key}_p50`], p95: t[`${key}_p95`] })),
-    rounds: { one: t.one_round, two: t.two_rounds, more: t.more_rounds },
-    cacheHit: t.cache_hit,
-    fast: t.fast,
+    failed: ask.failed,
+    ungrounded: ask.ungrounded,
+    latencyP50: ask.latency_p50,
+    latencyP95: ask.latency_p95,
+    latencyMax: ask.latency_max,
+    traced: askTraced.traced,
+    firstTextP50: askTraced.first_text_p50,
+    firstTextP95: askTraced.first_text_p95,
+    stages: STAGES.map(([key, words]) => ({ key, words, p50: askTraced[`${key}_p50`], p95: askTraced[`${key}_p95`] })),
+    rounds: { one: askTraced.one_round, two: askTraced.two_rounds, more: askTraced.more_rounds },
+    cacheHit: askTraced.cache_hit,
+    fast: askTraced.fast,
     tools: mergeTools(parts, scope),
     failures: (parts?.ask_failures ?? [])
       .filter((f) => inScope(f.ours, scope))
@@ -163,7 +164,7 @@ export function healthAskOf(parts: HealthPartsDto | null, scope: HealthScope): H
     byWorkspace: workspacesOf(parts, scope, model),
     usd: model.byPurpose.some((p) => p.purpose === "ask") ? askUsdOf(model) : null,
     oursShare: allUsd > 0 ? oursUsd / allUsd : null,
-    slow: a.latency_p95 !== null && a.latency_p95 > ASK_SLOW_P95_MS,
+    slow: ask.latency_p95 !== null && ask.latency_p95 > ASK_SLOW_P95_MS,
   };
 }
 

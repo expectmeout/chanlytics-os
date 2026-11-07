@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { verifyRetellSignature } from "@chanlytics/channels";
+import { verifyRetellSignature } from "@chanlytics/channels/voice";
 
 const KEY = "key_with_the_webhook_badge";
 const sign = (raw, key = KEY, ts = Date.now()) =>

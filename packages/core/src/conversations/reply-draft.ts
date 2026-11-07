@@ -25,7 +25,8 @@ import {
   type ReplyDraftWhy,
   type SenderReading,
 } from "@chanlytics/contracts";
-import type { ConversationDraftRow, Json, ReplyDraftThread } from "@chanlytics/db";
+import type { ConversationDraftRow, ReplyDraftThread } from "@chanlytics/db/ask";
+import type { Json } from "@chanlytics/db/types";
 
 /** What the writer is asked: the thread's facts, and what a member wants changed. */
 export interface ReplyDraftAsk {
@@ -123,16 +124,16 @@ const wordsOf = (w: { text?: string; subject?: string; brief?: CallBrief | null;
 });
 
 /** What is owed of a thread now, as the rows say it. */
-const owedOf = (t: ReplyDraftThread, now: Date) =>
+const owedOf = (replyDraftThread: ReplyDraftThread, now: Date) =>
   replyDraftOwed({
-    holdReason: t.holdReason,
-    forMessageId: t.forMessageId,
-    wire: t.wire,
-    clocks: t.clocks,
-    optedOut: t.optedOut,
-    setAside: t.setAside,
-    queuedReply: t.queuedReply,
-    reachOutReply: t.reachOutReply,
+    holdReason: replyDraftThread.holdReason,
+    forMessageId: replyDraftThread.forMessageId,
+    wire: replyDraftThread.wire,
+    clocks: replyDraftThread.clocks,
+    optedOut: replyDraftThread.optedOut,
+    setAside: replyDraftThread.setAside,
+    queuedReply: replyDraftThread.queuedReply,
+    reachOutReply: replyDraftThread.reachOutReply,
     now,
   });
 
@@ -178,21 +179,26 @@ export async function askReplyDraft(
 async function senderSetAside(
   ports: Pick<ReplyDraftPorts, "sender">,
   tenantId: string,
-  t: ReplyDraftThread,
+  replyDraftThread: ReplyDraftThread,
   until: number,
 ): Promise<{ sentence: string; why: "pitch" | "notice" } | null> {
-  const from = t.theirAddress;
+  const from = replyDraftThread.theirAddress;
   if (!from) return null;
-  const said = await ports.sender.said(tenantId, from);
-  if (said === "person") return null;
-  if (said !== "automated" && (await ports.sender.talks(tenantId, from))) return null;
+  const sentence = await ports.sender.said(tenantId, from);
+  if (sentence === "person") return null;
+  if (sentence !== "automated" && (await ports.sender.talks(tenantId, from))) return null;
   const kept = await ports.sender.reading(tenantId, from);
-  if (said === "automated") return { sentence: setAsideSentence(kept?.about), why: "notice" };
+  if (sentence === "automated") return { sentence: setAsideSentence(kept?.about), why: "notice" };
   const reading =
     kept ??
     (await ports.sender.read(
       tenantId,
-      { from, name: t.theirName, subject: t.theirSubject, words: t.theirWords },
+      {
+        from,
+        name: replyDraftThread.theirName,
+        subject: replyDraftThread.theirSubject,
+        words: replyDraftThread.theirWords,
+      },
       until,
     ));
   if (!reading || !setsAside(reading.kind)) return null;
@@ -202,19 +208,19 @@ async function senderSetAside(
 /** The writer's ask for a thread. */
 function askOf(
   conversationId: string,
-  t: ReplyDraftThread,
+  replyDraftThread: ReplyDraftThread,
   wire: NonNullable<ReplyDraftThread["wire"]>,
   over: { source: ReplyDraftSource; instruction: string | null; given: string | null; deadline: number },
 ): ReplyDraftAsk {
   return {
     conversationId,
-    contactId: t.contactId,
-    forMessageId: t.forMessageId,
+    contactId: replyDraftThread.contactId,
+    forMessageId: replyDraftThread.forMessageId,
     wire,
-    theirWords: t.theirWords,
-    theirSubject: t.theirSubject,
-    holdReason: t.holdReason,
-    holdDetails: t.holdDetails,
+    theirWords: replyDraftThread.theirWords,
+    theirSubject: replyDraftThread.theirSubject,
+    holdReason: replyDraftThread.holdReason,
+    holdDetails: replyDraftThread.holdDetails,
     ...over,
   };
 }

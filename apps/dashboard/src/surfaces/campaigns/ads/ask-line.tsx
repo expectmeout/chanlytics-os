@@ -7,8 +7,8 @@
  * happened, and what it changes, is the page's (ads-page.tsx): nothing here is sent anywhere.
  */
 import { useState } from "react";
-import { GATE } from "@chanlytics/contracts/ads-page";
-import type { AskVM } from "@chanlytics/contracts/ads-page";
+import { GATE } from "./model/words";
+import type { AskVM } from "./model/page";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";

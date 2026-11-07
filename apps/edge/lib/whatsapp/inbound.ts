@@ -7,15 +7,15 @@
  * the edge brings to it: the real modules behind ./ports.ts.
  *
  * Each door makes its message into the one inbound shape with its own wire's adapter (decision 0001, step 3): the
- * WhatsApp webhook with inboundFromWhatsapp (lib/whatsapp/answer-later.ts), a text's door with inboundFromSms
+ * WhatsApp webhook with inboundFromWhatsapp (lib/intake/answer-later.ts), a text's door with inboundFromSms
  * (lib/sms/inbound-text.ts), the Instagram webhook with inboundFromInstagram (lib/instagram/dm-answer.ts). So a message
  * reaches the verb as what it is, with the carrier of its own wire: none for WhatsApp, the line's for a text, the
  * account's for a DM, which is recorded by its door and answered by its job as a text is (recordDmInbound, resumeDmInbound). A text is answered after its acknowledgement (decision 0031, Phase 2): its door records
  * it through recordInboundMessage, and its job answers it through resumeInbound. A WhatsApp message is too, for the
- * workspaces the edge names (Phase 3, lib/whatsapp/answer-later.ts): recordWhatsappInbound, then resumeWhatsappInbound.
+ * workspaces the edge names (Phase 3, lib/intake/answer-later.ts): recordWhatsappInbound, then resumeWhatsappInbound.
  */
-import type { InboundMessage } from "@chanlytics/channels";
-import type { IngestResult, RoutedChannel } from "@chanlytics/db";
+import type { InboundMessage } from "@chanlytics/channels/inbound";
+import type { IngestResult, RoutedChannel } from "@chanlytics/db/channels";
 import { answerInbound, recordInbound, type InboundCarrier } from "@chanlytics/core";
 import { corePorts, realPorts, type InboundPorts } from "./ports.js";
 
@@ -103,7 +103,7 @@ export async function resumeDmInbound(
 }
 
 /**
- * The door's half of a WhatsApp message answered after its acknowledgement (lib/whatsapp/answer-later.ts): the message
+ * The door's half of a WhatsApp message answered after its acknowledgement (lib/intake/answer-later.ts): the message
  * recorded, or set aside, and nothing answered. The ingest's row when it waits for its answer; null when it was set
  * aside, is a redelivery, or there is nowhere to record it. Throws IngestFailed when the write failed.
  */

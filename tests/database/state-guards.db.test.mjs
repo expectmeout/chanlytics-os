@@ -211,7 +211,7 @@ test(
     });
     assert.equal(again.error, null, `a same-state update is not a move: ${again.error?.message}`);
 
-    // The batch's claim (messages/broadcast.ts): failed with outcome_unknown just before the wire, then how the send
+    // The batch's claim (messages/broadcast/batch.ts): failed with outcome_unknown just before the wire, then how the send
     // went. That one failed is settled by the send it was claimed for, once (00182).
     for (const to of ["sent", "skipped"]) {
       const claimed = await recipient("queued");

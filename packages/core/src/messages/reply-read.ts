@@ -234,9 +234,9 @@ async function readNow(
       receivedDay: zoneDayKey(facts.receivedAt, facts.tz),
       answered: facts.answered,
     });
-    const asked = await ports.ask(replySystemPrompt(), user);
-    second = asked.second;
-    reading = parseReplyReading(asked.answer);
+    const request = await ports.ask(replySystemPrompt(), user);
+    second = request.second;
+    reading = parseReplyReading(request.answer);
     // Who signed it, kept only when it passes the person page's gate (0052): word for word in their own lines, one
     // person's own name, never ours, the business's, the workspace's or a member's, and never from a no.
     if (reading)
@@ -364,7 +364,7 @@ async function draftLater(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise
 
 export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome> {
   if (cmd.stage === DRAFT_STAGE) return draftLater(ports, cmd);
-  const n = rereadOf(cmd.stage);
+  const reread = rereadOf(cmd.stage);
   const { tenantId, messageId } = cmd;
   const facts = await ports.reply(tenantId, messageId);
   if (!facts) return "not_a_reply";
@@ -373,7 +373,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
   let applied = false;
   let second: SecondKey = SECOND_KEY_OFF;
 
-  if (isDue(kept, n)) {
+  if (isDue(kept, reread)) {
     const read = await readNow(ports, cmd, facts);
     const { reading, unread, now } = read;
     second = read.second;
@@ -386,7 +386,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
       leadWebsite: facts.leadWebsite,
       leadWebsiteRoot: facts.leadWebsiteRoot ?? null,
       replyFrom: facts.from,
-      reread: n > 0,
+      reread: reread > 0,
       readAt: now,
     });
     // Automatic naming (0052): only while it is on, and only when two independent signals agree.
@@ -395,17 +395,22 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
       ...planned,
       adoptSigner: AUTOMATIC_NAMING && !!signer && signerAgrees(signer, { address: facts.from, name: facts.fromName }),
     };
-    applied = await ports.apply(tenantId, messageId, { reading: reading ?? UNREAD_READING, unread, plan, reread: n });
+    applied = await ports.apply(tenantId, messageId, {
+      reading: reading ?? UNREAD_READING,
+      unread,
+      plan,
+      reread: reread,
+    });
     kept = await ports.reading(tenantId, messageId);
     if (!kept) throw new Error("reply_read: the reading was applied and is not there");
   }
   // Only this stage's own reading is carried on from: a later re-read, or an undo, has the row now.
-  if (!kept || kept.undone || kept.rereads !== n) return "already_read";
+  if (!kept || kept.undone || kept.rereads !== reread) return "already_read";
 
   // Still unread: read again later, once per stage, while there are tries and days left (G4).
   if (kept.unread) {
-    const at = rereadAt(kept.unread, n, facts.receivedAt, ports.now());
-    if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${n + 1}` });
+    const at = rereadAt(kept.unread, reread, facts.receivedAt, ports.now());
+    if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${reread + 1}` });
   }
 
   // The applying run's alone, and before the notice, so the thread the notice brings the owner to is closed already.
@@ -436,16 +441,16 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
     draft,
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
-    reread: n > 0,
+    reread: reread > 0,
     signer: kept.signerOffered,
   });
-  const told = await ports.tell(tenantId, {
+  const notice = await ports.tell(tenantId, {
     conversationId: facts.conversationId,
     subject: words.subject,
     body: words.body,
     redacted: words.redacted,
   });
-  if (!told) throw new Error("reply_read: the notice did not reach its owner");
+  if (!notice) throw new Error("reply_read: the notice did not reach its owner");
   await ports.told(tenantId, messageId, claim);
   return "told";
 }

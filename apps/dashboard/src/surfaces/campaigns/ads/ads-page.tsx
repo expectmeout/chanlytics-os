@@ -26,18 +26,13 @@ import "./new/new.css";
 import { useEffect, useMemo, useState } from "react";
 import { ADS_WORDS, ASK_ADS_VIEW, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
 import type { AdPlatform, AdsAddress } from "@chanlytics/contracts";
-import {
-  CHOOSE,
-  EXAMPLE,
-  GATE,
-  HEAD,
-  NEW_AD,
-  PLATFORM_OWNER,
-  REVIEW_WITHIN,
-  adFollowOn,
-  adsModel,
-} from "@chanlytics/contracts/ads-page";
-import type { AdDraft, AdsGroupBy, AdsVM, AskVM, HeadVM } from "@chanlytics/contracts/ads-page";
+import { CHOOSE, HEAD } from "./model/words-page";
+import { EXAMPLE, GATE, PLATFORM_OWNER, REVIEW_WITHIN } from "./model/words";
+import { NEW_AD } from "./model/words-new";
+import { adFollowOn } from "./model/new-ad-parts";
+import { adsModel } from "./model/page";
+import type { AdDraft } from "./model/new-ad";
+import type { AdsGroupBy, AdsVM, AskVM, HeadVM } from "./model/page";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { afterMove, askAbout, askOnScreenKey, gate, setAskOnScreen, useFrameToast } from "../../frame-verbs";

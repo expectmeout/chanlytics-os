@@ -12,7 +12,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { verifyEdgeToken, edgeBodyMatches } from "@chanlytics/channels";
+import { verifyEdgeToken, edgeBodyMatches } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../_fake-db.mjs";
 
 const SECRET = "edge-secret-for-this-file";

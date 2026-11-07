@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { frameWhisper, whisperText, toLiveCallVM, toLiveVM, toCallVM } from "@chanlytics/contracts";
-import { liveTurns } from "@chanlytics/channels";
+import { liveTurns } from "@chanlytics/channels/voice";
 import { installStubReact, fresh, again, all, byTestId, classes, textOf } from "../../_stub-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).

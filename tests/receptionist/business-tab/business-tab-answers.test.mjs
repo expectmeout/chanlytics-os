@@ -21,22 +21,24 @@ import {
   instructionsWords,
   fallbacksWords,
   fallbackMessages,
-  RULES_WITHOUT_FIELDS_WORDS,
-  PROFILE_CROSSING_WORDS,
   FALLBACK_DEFAULTS,
   EARLIER_FALLBACK_DEFAULTS,
   newReceptionistDefaults,
   hasProfile,
   GUARDRAIL_KEYS,
-  ruleStrength,
-  ALWAYS_ON,
   PRICE_CHOICE_WORDS,
   VISION_SWITCH_WORDS,
-  rulesKept,
   guardrailsInForce,
   GREETING_TEMPLATE,
   greetingOf,
 } from "@chanlytics/contracts";
+import {
+  RULES_WITHOUT_FIELDS_WORDS,
+  ruleStrength,
+  ALWAYS_ON,
+  rulesKept,
+} from "../../../apps/dashboard/src/surfaces/settings/business/model/rule-strengths.ts";
+import { PROFILE_CROSSING_WORDS } from "../../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
   BUSINESS_TAB,

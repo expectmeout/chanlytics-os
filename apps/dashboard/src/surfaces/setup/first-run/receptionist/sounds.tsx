@@ -10,7 +10,6 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  FIRST_RUN_HELPERS,
   PHONE_PACES,
   PHONE_PACE_WORDS,
   PHONE_VOICES,
@@ -24,6 +23,7 @@ import {
   type PhonePace,
   type Personality,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 import { Icon } from "../../../kit/icon/icon";
 import { RecordField, RecordToggleGroup } from "../../../kit/record/field";
 import { gate, type FrameFlash } from "../../../frame-verbs";

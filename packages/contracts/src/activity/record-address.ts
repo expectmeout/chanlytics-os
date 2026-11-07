@@ -1,11 +1,11 @@
 import { visitRoute } from "../calendar/appointment-key";
 import { pipelineRoute } from "../deals/pipeline/views";
 import { pipelineRowId } from "../deals/pipeline/vm";
-import { leadsRoute } from "../leads/lead-plan";
-import { listToken } from "../people/lists/list-token";
+import { leadsRoute } from "../leads/plan";
+import { listToken } from "../people/lists/token";
 import { personTabRoute, type PersonTab } from "../people/person-page/route";
 import { lensRoute, reviewRoute } from "../reports/lenses";
-import { messageRoute, runRoute, sequenceRoute } from "../campaigns/sequences/sequence-address";
+import { messageRoute, runRoute, sequenceRoute } from "../campaigns/sequences/address";
 import type { RecordKind } from "./record-kinds";
 
 /**

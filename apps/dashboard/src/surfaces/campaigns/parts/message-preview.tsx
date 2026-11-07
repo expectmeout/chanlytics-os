@@ -32,7 +32,7 @@
  */
 import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
-import { PREVIEW_WORDS, personInitials } from "@chanlytics/contracts";
+import { PREVIEW_WORDS, personInitials, NUMBERED_SLOT } from "@chanlytics/contracts";
 import { pageClock } from "@/bridge/zone";
 import { Icon } from "../../kit/icon/icon";
 import { cx } from "../../kit/variants";
@@ -52,7 +52,7 @@ export const mpParts = (body: string | null | undefined, values?: readonly unkno
   const out: MpPart[] = [];
   const src = String(body ?? "");
   let last = 0;
-  for (const m of src.matchAll(/\{\{(\d+)\}\}/g)) {
+  for (const m of src.matchAll(NUMBERED_SLOT)) {
     if (m.index > last) out.push({ kind: "text", text: src.slice(last, m.index) });
     const at = Number(m[1]) - 1;
     const v = values && values[at];

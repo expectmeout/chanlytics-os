@@ -11,6 +11,7 @@ import {
   type AskProposal,
   type AskProposalOutcome,
   type SearchCardView,
+  UUID,
 } from "@chanlytics/contracts";
 import type { AskApi, CommitResult } from "@/bridge/ask";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
@@ -61,7 +62,7 @@ const atRecord = (
   o: AskProposalOutcome,
 ): Promise<boolean> => {
   if (onOutcome && messageId) onOutcome(messageId, pid, o);
-  return A && messageId && /^[0-9a-f-]{36}$/.test(messageId) ? A.outcome(messageId, pid, o) : Promise.resolve(false);
+  return A && messageId && UUID.test(messageId) ? A.outcome(messageId, pid, o) : Promise.resolve(false);
 };
 
 /** Whether a card's undo is still true (contracts askUndoOpen): a reply until its cancel window closes, settings while nobody has saved since, anything else for ten minutes. */

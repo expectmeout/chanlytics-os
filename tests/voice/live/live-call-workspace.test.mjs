@@ -11,7 +11,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { verifyEdgeToken, edgeBodyMatches, signEdgeToken } from "@chanlytics/channels";
+import { verifyEdgeToken, edgeBodyMatches, signEdgeToken } from "@chanlytics/channels/tokens";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { linesOf, fieldsOf } from "../../_log-lines.mjs";

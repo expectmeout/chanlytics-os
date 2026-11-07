@@ -13,6 +13,7 @@
  */
 
 import type { SchemaSet } from "../../shared/schema-sets";
+import { CONTROL_CHARS } from "../../shared/words";
 
 /** How much Ask keeps, and how much of it rides into every turn. */
 export const ASK_MEMORY_LIMITS = {
@@ -103,10 +104,7 @@ export function memoryTextProblem(raw: string): string | null {
 
 /** A line as it is kept: one line of plain words, its spaces made one. */
 export function memoryText(raw: string): string {
-  return raw
-    .replace(/[\p{Cc}\p{Cf}]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return raw.replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim();
 }
 
 /** The words the card, its undo and the pane say. */

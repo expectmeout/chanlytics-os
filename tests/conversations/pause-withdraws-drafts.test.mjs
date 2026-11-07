@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pauseConversation } from "@chanlytics/db";
+import { pauseConversation } from "@chanlytics/db/channels";
 import { fakeDb } from "../_fake-db.mjs";
 
 const T = "t1";

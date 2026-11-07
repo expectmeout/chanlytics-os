@@ -9,8 +9,8 @@
  * edited in Settings › Business), else the linked listing's. A website that is a page on another service (a booking
  * platform, a social page, a link-in-bio page: contracts siteHost, the lead finder's own rule) is not looked at,
  * because its logo is the service's, and neither is our own. The home page is read by the platform's one page reader
- * (lib/shared/public-page.ts homePage: Firecrawl's scrape, as the site stands now), the marks it declares are found as the
- * website read finds them (core siteLogoFrom: the mark the reader saw, schema.org's logo, the home-screen icon, the
+ * (lib/shared/public-page.ts findHomePage: Firecrawl's scrape, as the site stands now), the marks it declares are found as the
+ * website read finds them (core findSiteLogo: the mark the reader saw, schema.org's logo, the home-screen icon, the
  * biggest icon; a builder's default refused), and each picture is asked for over the guarded fetch (channels
  * publicFetcher), which refuses any address that is not on the public internet at every hop. A candidate on a port that
  * is not the web's own, an SVG, a favicon file, or a picture too small or too large for the circle is passed over. The
@@ -26,10 +26,13 @@ import {
   siteHost,
   type LogoLookupAnswer,
 } from "@chanlytics/contracts";
-import { imageBytes, publicFetcher } from "@chanlytics/channels";
-import { siteLogoFrom } from "@chanlytics/core";
-import { getTenantConfig, listingFactsStored, type Database } from "@chanlytics/db";
-import { homePage, PAGE_READS } from "../shared/public-page.js";
+import { fetchImageBytes } from "@chanlytics/channels/website";
+import { publicFetcher } from "@chanlytics/channels/shared";
+import { findSiteLogo } from "@chanlytics/core";
+import { getTenantConfig } from "@chanlytics/db/workspace";
+import { findListingFactsStored } from "@chanlytics/db/imports";
+import type { Database } from "@chanlytics/db/types";
+import { findHomePage, PAGE_READS } from "../shared/public-page.js";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
@@ -43,7 +46,7 @@ const OURS = ["chanlytics.com", "chanlytics.agency"];
 const ours = (host: string): boolean => OURS.some((d) => host === d || host.endsWith(`.${d}`));
 
 /**
- * The home page to ask for, from the website as it was typed: its own spelling (www. or not, as the owner gave it; homePage
+ * The home page to ask for, from the website as it was typed: its own spelling (www. or not, as the owner gave it; findHomePage
  * asks the other if that gives none), on the host siteHost judged its own.
  */
 function homeToAsk(website: string, host: string): string {
@@ -61,7 +64,7 @@ function homeToAsk(website: string, host: string): string {
 async function websitesOf(db: Db, tenantId: string): Promise<string[]> {
   const [config, listing] = await Promise.all([
     getTenantConfig(db, tenantId).catch(() => null),
-    listingFactsStored(db, tenantId).catch(() => null),
+    findListingFactsStored(db, tenantId).catch(() => null),
   ]);
   const own = parseTenantConfig(config?.config ?? null)?.brain?.profile?.website ?? null;
   const google = listingFactsOf(listing)?.website ?? null;
@@ -70,12 +73,12 @@ async function websitesOf(db: Db, tenantId: string): Promise<string[]> {
 
 /** The first candidate the site declares that is a picture the circle can be made from, as bytes and its kind. */
 async function firstPicture(home: string): Promise<{ base64: string; content_type: string } | null | "unreachable"> {
-  const page = await homePage(home, PAGE_READS.logo);
+  const page = await findHomePage(home, PAGE_READS.logo);
   if (!page) return "unreachable";
-  // What a mark is, and which of a page's is taken, is core's (siteLogoFrom): the website read judges the same way.
+  // What a mark is, and which of a page's is taken, is core's (findSiteLogo): the website read judges the same way.
   const fetcher = publicFetcher();
-  const found = await siteLogoFrom(
-    (url) => imageBytes(fetcher, url, IMAGE_MS, LOGO_FOUND_MAX_BYTES),
+  const found = await findSiteLogo(
+    (url) => fetchImageBytes(fetcher, url, IMAGE_MS, LOGO_FOUND_MAX_BYTES),
     page.html,
     new URL(page.url).origin,
     page.brand?.logo ?? null,

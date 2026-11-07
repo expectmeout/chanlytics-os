@@ -47,8 +47,8 @@
       "entry": [
         "src/index.ts",
         "src/write-rules.ts",
-        "src/reports/report-window.ts",
-        "src/reports/report-lens.ts",
+        "src/reports/window.ts",
+        "src/reports/lens.ts",
         "src/ads/page-entry.ts",
         "src/**/*.type-test.ts"
       ],

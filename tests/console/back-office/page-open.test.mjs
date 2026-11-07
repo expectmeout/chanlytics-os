@@ -18,8 +18,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { openPage } = await import(at("apps/dashboard/src/server/workspace/page-open.ts"));
-const { memberContext } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
-const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { getMemberContext } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
+const { load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const openRoute = await import(at("apps/dashboard/app/api/v1/open/route.ts"));
 const viewsRoute = await import(at("apps/dashboard/app/api/v1/views/route.ts"));
 
@@ -173,7 +173,7 @@ test("the membership is read once for every read, and a reader two of them read 
   };
   const routeOf = () => ({
     run: async (req, c) => {
-      const m = await memberContext(c, new URL(req.url).searchParams.get("workspace"));
+      const m = await getMemberContext(c, new URL(req.url).searchParams.get("workspace"));
       return (await load(readerContext(c, m), shared, undefined)).data;
     },
   });

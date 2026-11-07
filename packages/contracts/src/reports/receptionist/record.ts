@@ -11,7 +11,7 @@
  */
 import { standingOfThread } from "../../conversations/standing";
 import type { BookingReportDto } from "../booking-report";
-import type { ReportProfile } from "../report-closed";
+import type { ReportProfile } from "../closed";
 
 /**
  * How long the business has to reach a person who rang and found nobody, said as the figure and its definition say it. The

@@ -4,7 +4,7 @@
  * press, and Escape, the wash and a pull down close it. A desk keeps the popover (sentence.tsx).
  */
 import type { ReactNode } from "react";
-import { DRAWER } from "@chanlytics/contracts/ads-page";
+import { DRAWER } from "../model/drawer/words";
 import { Sheet } from "../../../kit/sheet/sheet";
 
 /** Its word to close it: a choice not made, nothing changed. */

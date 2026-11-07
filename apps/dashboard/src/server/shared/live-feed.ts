@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 import { DAY_MS } from "@chanlytics/contracts";
-import { noticesSince, type ToldNotice } from "@chanlytics/db";
+import { getNoticesSince, type ToldNotice } from "@chanlytics/db/realtime";
 import type { MemberContext, RouteContext } from "./with-route";
 
 /** `since`: an ISO 8601 moment with its offset. */
@@ -22,7 +22,7 @@ export interface Changes {
  * The notices since `since`. Past a day the topic's partitions are being dropped (Realtime keeps a day's at a time), so a
  * moment that old answers none and `whole: false`, and the tab reads everything as it did before step 4.
  */
-export async function changesSince(
+export async function getChangesSince(
   ctx: Pick<RouteContext, "supabase">,
   member: Pick<MemberContext, "tenantId">,
   input: { since: string },
@@ -30,5 +30,5 @@ export async function changesSince(
 ): Promise<Changes> {
   const since = Date.parse(input.since);
   if (!Number.isFinite(since) || now - since > DAY_MS) return { notices: [], whole: false };
-  return noticesSince(ctx.supabase, member.tenantId, new Date(since).toISOString());
+  return getNoticesSince(ctx.supabase, member.tenantId, new Date(since).toISOString());
 }

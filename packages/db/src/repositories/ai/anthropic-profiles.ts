@@ -3,16 +3,16 @@
  * or a workspace, and the enforcement Anthropic last said of it. The service role's alone; a table is typed here and nowhere
  * else. The edge's lib/anthropic-profiles decides, and Health and the billing read ask.
  *
- *   anthropicProfileOf        the row for a subject, what a model call asks. A read that fails throws.
+ *   findAnthropicProfile        the row for a subject, what a model call asks. A read that fails throws.
  *   claimAnthropicProfile     the row made, once: what the create needs, to the one caller that made it, and null to any
  *                             other, or for a subject that is gone. Creating is not idempotent, so nothing creates without it.
  *   keepAnthropicProfileId    the id, once Anthropic has answered or the sweep has found it.
  *   dropAnthropicProfile      the row gone: a claim nothing came of, or a profile deleted at Anthropic.
- *   anthropicProfileRows      every row, for the sweep, with whether a workspace's last member has left it.
- *   anthropicProfilesWaiting  who has no row yet.
+ *   listAnthropicProfileRows      every row, for the sweep, with whether a workspace's last member has left it.
+ *   listAnthropicProfilesWaiting  who has no row yet.
  *   setAnthropicEnforcement   what Anthropic now says of a profile.
- *   workspaceModelStanding    what Anthropic has said of a workspace's profile: what its members are told.
- *   healthAnthropicProfiles   the counts and those Anthropic acted on, as Health reads them.
+ *   findWorkspaceModelStanding    what Anthropic has said of a workspace's profile: what its members are told.
+ *   getHealthAnthropicProfiles   the counts and those Anthropic acted on, as Health reads them.
  *
  * Cross-workspace: a person's profile belongs to no workspace, and the sweep and Health read every workspace's by name.
  */
@@ -44,7 +44,7 @@ export interface AnthropicProfileHeld {
 /** Anthropic's word as the column holds it: the schema's closed set, and a value nobody wrote reads restricted. */
 const statusOfRow = (raw: unknown): AnthropicEnforcementStatus => enforcementStatusOf(raw) ?? "restricted";
 
-export async function anthropicProfileOf(db: Db, subject: ProfiledSubject): Promise<AnthropicProfileHeld | null> {
+export async function findAnthropicProfile(db: Db, subject: ProfiledSubject): Promise<AnthropicProfileHeld | null> {
   const q = db.from("anthropic_profiles").select("profile_id, enforcement_status");
   const { data, error } = await (
     subject.kind === "person" ? q.eq("user_id", subject.userId) : q.eq("tenant_id", subject.tenantId)
@@ -100,26 +100,26 @@ export interface AnthropicProfileRow {
 const PROFILE_COLUMNS =
   "id, kind, user_id, tenant_id, reference_id, profile_id, claimed_at, enforcement_status, enforcement_actions, enforcement_at, tenants(left_empty_at)";
 
-export async function anthropicProfileRows(db: Db): Promise<AnthropicProfileRow[]> {
+export async function listAnthropicProfileRows(db: Db): Promise<AnthropicProfileRow[]> {
   const rows = await readAllRows("anthropic_profiles", (from, to) =>
     db.from("anthropic_profiles").select(PROFILE_COLUMNS).order("id").range(from, to),
   );
-  return rows.map((r) => ({
-    id: r.id,
-    kind: r.kind as AnthropicProfileKind,
-    user_id: r.user_id,
-    tenant_id: r.tenant_id,
-    reference_id: r.reference_id,
-    profile_id: r.profile_id,
-    claimed_at: r.claimed_at,
-    enforcement_status: statusOfRow(r.enforcement_status),
-    enforcement_actions: enforcementActionsOf(r.enforcement_actions),
-    enforcement_at: r.enforcement_at,
-    leaving: (!r.user_id && !r.tenant_id) || !!r.tenants?.left_empty_at,
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind as AnthropicProfileKind,
+    user_id: row.user_id,
+    tenant_id: row.tenant_id,
+    reference_id: row.reference_id,
+    profile_id: row.profile_id,
+    claimed_at: row.claimed_at,
+    enforcement_status: statusOfRow(row.enforcement_status),
+    enforcement_actions: enforcementActionsOf(row.enforcement_actions),
+    enforcement_at: row.enforcement_at,
+    leaving: (!row.user_id && !row.tenant_id) || !!row.tenants?.left_empty_at,
   }));
 }
 
-export async function anthropicProfilesWaiting(db: Db, limit: number): Promise<ProfiledSubject[]> {
+export async function listAnthropicProfilesWaiting(db: Db, limit: number): Promise<ProfiledSubject[]> {
   const { data, error } = await db.rpc("anthropic_profiles_waiting", { p_limit: limit });
   if (error) throw new Error(`anthropic_profiles_waiting: ${error.message}`);
   return (data ?? []).map((w) =>
@@ -145,16 +145,19 @@ export async function setAnthropicEnforcement(
   if (error) throw new Error(`anthropic_profiles: ${error.message}`);
 }
 
-export async function workspaceModelStanding(db: Db, tenantId: string): Promise<ModelStanding | null> {
-  const row = await anthropicProfileOf(db, { kind: "workspace", tenantId });
+export async function findWorkspaceModelStanding(db: Db, tenantId: string): Promise<ModelStanding | null> {
+  const row = await findAnthropicProfile(db, { kind: "workspace", tenantId });
   return row ? modelStandingOf(row.enforcement_status) : null;
 }
 
 /** How many a waiting count reads at most: Health's number, which says so past it. */
 const WAITING_READ = 1000;
 
-export async function healthAnthropicProfiles(db: Db): Promise<HealthAnthropicProfilesDto> {
-  const [rows, waiting] = await Promise.all([anthropicProfileRows(db), anthropicProfilesWaiting(db, WAITING_READ)]);
+export async function getHealthAnthropicProfiles(db: Db): Promise<HealthAnthropicProfilesDto> {
+  const [rows, waiting] = await Promise.all([
+    listAnthropicProfileRows(db),
+    listAnthropicProfilesWaiting(db, WAITING_READ),
+  ]);
   return {
     kept: rows.filter((r) => r.profile_id && !r.leaving).length,
     waiting: waiting.length,

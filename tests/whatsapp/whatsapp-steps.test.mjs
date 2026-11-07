@@ -15,7 +15,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, "../..");
 const steps = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
 const { ageVerdict, holdPlan, layerTwo, holdCopy, STALE_MS, STALE_REPLY_MS } = steps;
-const { handledOf, escalationOf, processedAfter } = await import(
+const { handledOf, escalationOf, getProcessedAfter } = await import(
   pathToFileURL(path.join(ROOT, "packages/core/src/inbound/handled.ts")).href
 );
 
@@ -213,18 +213,18 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   const HOME = {
     openInbound: "context",
     ingestMessage: "ingest",
-    modeInForce: "gates",
-    firstGates: "gates",
-    tooLate: "reply-gates",
+    readModeInForce: "gates",
+    runFirstGates: "gates",
+    isTooLate: "reply-gates",
     seeingOf: "unreadable",
-    unreadableGate: "unreadable",
+    runUnreadableGate: "unreadable",
     wordsOf: "unreadable",
-    confirmedYes: "reply-gates",
-    heldForThePerson: "reply-gates",
-    photoOf: "unreadable",
-    modelTurn: "model-turn",
+    hasConfirmedYes: "reply-gates",
+    holdForThePerson: "reply-gates",
+    findPhoto: "unreadable",
+    takeModelTurn: "model-turn",
     planTheHold: "dispatch",
-    heldOrKept: "dispatch",
+    holdOrKeep: "dispatch",
     sendNow: "dispatch",
   };
   const src = Object.fromEntries(
@@ -259,11 +259,11 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   );
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   for (const s of [
-    "export async function pgIngest(",
-    "export async function pgSafe<T>(",
+    "export async function runPgIngest(",
+    "export async function runPgSafe<T>(",
     "export function pgSink(",
     "export async function queueReply(",
-    "export async function pgThread(",
+    "export async function readPgThread(",
   ])
     assert.ok(persist.includes(s), s);
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
@@ -321,17 +321,17 @@ test("handled: the message is processed once its escalation has answered, saying
   };
   // Nobody was asked: it is marked at once, with the reply's own fate.
   const quiet = sink();
-  await processedAfter(quiet, null, "covered", "hours");
+  await getProcessedAfter(quiet, null, "covered", "hours");
   assert.deepEqual(quiet.calls, [["ai", "hours"]]);
   const bare = sink();
-  await processedAfter(bare, null, "none");
+  await getProcessedAfter(bare, null, "none");
   assert.deepEqual(bare.calls, [["blocked", null]]);
 
   // A person was asked: the verdict waits for the write to answer, and is not made before it.
   const waiting = sink();
   let answer;
   const asked = new Promise((resolve) => (answer = resolve));
-  const done = processedAfter(waiting, asked, "sent", "hours");
+  const done = getProcessedAfter(waiting, asked, "sent", "hours");
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(waiting.calls, [], "not before the escalation has answered");
   answer("refreshed");
@@ -340,10 +340,10 @@ test("handled: the message is processed once its escalation has answered, saying
 
   // The write refused, or the call threw: nobody was asked, and the message is still marked processed.
   const refusedWrite = sink();
-  await processedAfter(refusedWrite, Promise.resolve("failed"), "queued", "money");
+  await getProcessedAfter(refusedWrite, Promise.resolve("failed"), "queued", "money");
   assert.deepEqual(refusedWrite.calls, [["held", "money"]]);
   const thrown = sink();
-  await processedAfter(thrown, Promise.reject(new Error("connection reset")), "none");
+  await getProcessedAfter(thrown, Promise.reject(new Error("connection reset")), "none");
   assert.deepEqual(
     thrown.calls,
     [["blocked", null]],

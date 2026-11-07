@@ -8,7 +8,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { connectionRows, toChannelVM } from "@chanlytics/contracts";
+import { toChannelVM } from "@chanlytics/contracts";
+import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 
 const NOW = Date.parse("2026-10-06T15:00:00Z");
 const MIN = 60_000;

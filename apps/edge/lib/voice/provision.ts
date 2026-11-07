@@ -31,10 +31,19 @@ import { readBody } from "../shared/admin-door.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import { pg } from "../shared/pg.js";
-import { recordNotification } from "../ops/notify.js";
-import { emitEvent, voiceAgentOf } from "@chanlytics/db";
-import { FIRST_RUN_ROUTE, formatPhoneDisplay, isE164, type EdgeErrorCode } from "@chanlytics/contracts";
-import { createVoiceAgent } from "./agent.js";
+import { recordNotification } from "../shared/alerts/notify.js";
+import { emitEvent } from "@chanlytics/db/events";
+import { findVoiceAgent } from "@chanlytics/db/facts";
+import {
+  FIRST_RUN_ROUTE,
+  formatPhoneDisplay,
+  isE164,
+  type EdgeErrorCode,
+  US_AREA_CODE,
+  UUID,
+  VOICE_PROVISION_DOOR,
+} from "@chanlytics/contracts";
+import { createVoiceAgent } from "../lines/voice-agent.js";
 import {
   planVoiceProvision,
   voiceNumberCreateBody,
@@ -53,9 +62,9 @@ import {
   type RetellConfig,
   type VoiceProvisionPlan,
   type VoiceProvisionRequest,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import { env } from "../shared/env.js";
-import { secretToProvision, signatureOnly } from "./door-auth.js";
+import { secretToProvision, signatureOnly } from "../shared/door-auth.js";
 import { logger, errField } from "../shared/log.js";
 
 interface Body {
@@ -71,7 +80,7 @@ function requestOf(body: Body): VoiceProvisionRequest {
   const area =
     typeof body.area_code === "number"
       ? body.area_code
-      : typeof body.area_code === "string" && /^\d{3}$/.test(body.area_code.trim())
+      : typeof body.area_code === "string" && US_AREA_CODE.test(body.area_code.trim())
         ? Number(body.area_code.trim())
         : null;
   return {
@@ -143,13 +152,13 @@ async function checkProvisionKnock(auth: Admitted, request: Request): Promise<Pr
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  const body = await readBody<Body>(request);
+  const body = await readBody(request, VOICE_PROVISION_DOOR);
   const apply = body.apply === true;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+  if (!UUID.test(tenantId)) {
     return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   }
   return { apiKey, fnSecret, db, body, apply, tenantId };
@@ -171,9 +180,9 @@ async function readWorkspaceLine(db: ProvisionDb, tenantId: string) {
   if (existing.error) return refuse(503, "read_failed", existing.error.message);
   // The agent made before any number (a rehearsal's, decision 0069): adopted by a run that names none, so the number
   // answers in the agent the owner already heard.
-  let before: Awaited<ReturnType<typeof voiceAgentOf>>;
+  let before: Awaited<ReturnType<typeof findVoiceAgent>>;
   try {
-    before = await voiceAgentOf(db, tenantId);
+    before = await findVoiceAgent(db, tenantId);
   } catch (e) {
     return refuse(503, "read_failed", e instanceof Error ? e.message : String(e));
   }
@@ -187,8 +196,8 @@ function planAnswerFor(
   { tenant, existing, before }: WorkspaceLine,
   knock: ProvisionKnock,
 ): { req: VoiceProvisionRequest; plan: VoiceProvisionPlan; out: PlanAnswer } {
-  const asked = requestOf(knock.body);
-  const req = asked.agentId || asked.llmId || !before ? asked : { ...asked, agentId: before.agentId };
+  const request = requestOf(knock.body);
+  const req = request.agentId || request.llmId || !before ? request : { ...request, agentId: before.agentId };
   const plan = planVoiceProvision({
     tenant: { id: tenant.id, name: tenant.name },
     channel: existing
@@ -258,22 +267,22 @@ async function applyProvision(
   plan: VoiceProvisionPlan,
   out: PlanAnswer,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const provider: ProviderAccess = { cfg: { apiKey: knock.apiKey }, secrets: { fnSecret: knock.fnSecret } };
   const result: Record<string, unknown> = {};
   const fail = (leg: RefusedLeg) => failedStep(out, result, leg.step, leg.status, leg.detail);
 
   // 1–3. The LLM, the agent, the first version published — created, reused, or adopted.
-  const made = await createVoiceAgent(provider.cfg, provider.secrets, {
+  const created = await createVoiceAgent(provider.cfg, provider.secrets, {
     agentName: plan.names.agent,
     llmId: req.llmId,
     agentId: req.agentId,
   });
-  if (!made.ok) {
-    result.llm = made.partial.llmId ? { llm_id: made.partial.llmId, version: made.partial.llmVersion } : null;
-    return fail(made);
+  if (!created.ok) {
+    result.llm = created.partial.llmId ? { llm_id: created.partial.llmId, version: created.partial.llmVersion } : null;
+    return fail(created);
   }
-  const agent = made.agent;
+  const agent = created.agent;
   result.llm = { llm_id: agent.llmId, version: agent.llmVersion, created: agent.created.llm };
   result.agent = { agent_id: agent.agentId, version: agent.agentVersion, created: agent.created.agent };
   result.publish = agent.publish;
@@ -295,7 +304,7 @@ async function applyProvision(
   await announceLeg(knock, row.id, agent, bound);
   const after = await readBackLeg(provider.cfg, agent);
   result.after = after;
-  L.info("voice_provision", {
+  log.info("voice_provision", {
     tenant_id: knock.tenantId,
     agent_id: agent.agentId,
     llm_id: agent.llmId,
@@ -324,13 +333,13 @@ async function bindExistingNumber(
   plan: VoiceProvisionPlan,
   { agentId, pinned }: MadeAgent,
 ): Promise<BoundNumber | RefusedLeg> {
-  const w = await updatePhoneNumber(
+  const result = await updatePhoneNumber(
     cfg,
     number,
     voiceNumberBindBody({ agentId, pinned, nickname: plan.names.nickname }, secrets, edgeFnUrl()),
   );
-  if (!w.ok) return { ok: false, step: "number", status: w.status, detail: w.body };
-  const numberType = typeof w.body?.phone_number_type === "string" ? w.body.phone_number_type : null;
+  if (!result.ok) return { ok: false, step: "number", status: result.status, detail: result.body };
+  const numberType = typeof result.body?.phone_number_type === "string" ? result.body.phone_number_type : null;
   const answer = { phone_number: number, bound: true, pinned, type: numberType };
   return { ok: true, number, numberType, bought: false, answer };
 }
@@ -341,15 +350,16 @@ async function buyInAreaCode(
   plan: VoiceProvisionPlan,
   { agentId, pinned }: MadeAgent,
 ): Promise<BoundNumber | RefusedLeg> {
-  const w = await createPhoneNumber(
+  const phoneNumber = await createPhoneNumber(
     cfg,
     voiceNumberCreateBody({ areaCode, agentId, pinned, nickname: plan.names.nickname }, secrets, edgeFnUrl()),
   );
-  if (!w.ok) return { ok: false, step: "number", status: w.status, detail: w.body };
-  const bought = typeof w.body?.phone_number === "string" ? w.body.phone_number : "";
+  if (!phoneNumber.ok) return { ok: false, step: "number", status: phoneNumber.status, detail: phoneNumber.body };
+  const bought = typeof phoneNumber.body?.phone_number === "string" ? phoneNumber.body.phone_number : "";
   if (!isE164(bought))
     return { ok: false, step: "number", status: 502, detail: "the provider answered without a phone number" };
-  const numberType = typeof w.body?.phone_number_type === "string" ? w.body.phone_number_type : null;
+  const numberType =
+    typeof phoneNumber.body?.phone_number_type === "string" ? phoneNumber.body.phone_number_type : null;
   const answer = { phone_number: bought, bought: true, area_code: areaCode, pinned, type: numberType };
   return { ok: true, number: bought, numberType, bought: true, answer };
 }
@@ -397,7 +407,7 @@ async function announceLeg(
   { agentId, llmId, pinned }: MadeAgent,
   { number, numberType, bought }: BoundNumber,
 ): Promise<void> {
-  const L = logger();
+  const log = logger();
   const shown = formatPhoneDisplay(number) ?? number;
   await recordNotification(tenantId, {
     kind: "number",
@@ -416,7 +426,7 @@ async function announceLeg(
       number_type: numberType,
     });
   } catch (e) {
-    L.error("voice_provision_event_failed", { error: errField(e) });
+    log.error("voice_provision_event_failed", { error: errField(e) });
   }
 }
 

@@ -6,9 +6,9 @@
 import { AppError, memberMetaOf } from "@chanlytics/contracts";
 import type { MessageDto } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/shared/request-guards";
-import { tenantFacts } from "@/server/shared/tenant";
+import { getTenantFacts } from "@/server/shared/tenant";
 import { mediaPublic } from "@/server/conversations/dto";
-import { attachment, dateTag, personLabel, safeName, transcriptText } from "@/server/export/export";
+import { attachment, dateTag, personLabel, safeName, transcriptText } from "@/server/shared/export-file";
 import { recordDecision } from "@/server/shared/verbs";
 import { log } from "@/server/shared/log";
 import type { Member, Params } from "@/server/shared/route";
@@ -46,25 +46,25 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
       .range(page * THREAD_EXPORT_PAGE, page * THREAD_EXPORT_PAGE + THREAD_EXPORT_PAGE - 1);
     if (merr) throw new Error(merr.message);
     if (!data?.length) break;
-    for (const m of data) {
+    for (const row of data) {
       messages.push({
-        id: m.id,
-        direction: m.direction as MessageDto["direction"],
-        sender: m.sender as MessageDto["sender"],
-        type: m.type,
-        body: m.body,
-        media: mediaPublic(m.media),
-        meta: memberMetaOf(m.meta),
-        status: m.status,
-        created_at: m.created_at,
-        channel_ts: m.channel_ts,
+        id: row.id,
+        direction: row.direction as MessageDto["direction"],
+        sender: row.sender as MessageDto["sender"],
+        type: row.type,
+        body: row.body,
+        media: mediaPublic(row.media),
+        meta: memberMetaOf(row.meta),
+        status: row.status,
+        created_at: row.created_at,
+        channel_ts: row.channel_ts,
         // The wire it travelled, which the file says (R14 X4): a person's one thread holds every channel they wrote on.
-        ...(m.channel ? { channel: m.channel } : {}),
+        ...(row.channel ? { channel: row.channel } : {}),
       });
     }
     if (data.length < THREAD_EXPORT_PAGE) break;
   }
-  const { name, timezone } = await tenantFacts(supabase, member.tenantId);
+  const { name, timezone } = await getTenantFacts(supabase, member.tenantId);
   const contact = {
     id: conv.contacts?.id ?? "",
     display_name: conv.contacts?.display_name ?? null,

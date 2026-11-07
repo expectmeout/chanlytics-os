@@ -14,7 +14,8 @@
  * as erased and left alone. A doubt it raises (two records one identity could belong to) is its own to keep.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PERSON_FORGOTTEN, resolvePerson, type Database } from "@chanlytics/db";
+import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
+import type { Database } from "@chanlytics/db/types";
 import type { CalendarPerson } from "@chanlytics/contracts";
 
 interface AddedFromCalendar {
@@ -33,21 +34,21 @@ export async function addPeopleFromCalendar(
   rows: CalendarPerson[],
 ): Promise<AddedFromCalendar> {
   const out: AddedFromCalendar = { seen: rows.length, added: 0, named: 0, erased: 0, emailed: 0 };
-  for (const r of rows) {
+  for (const row of rows) {
     try {
-      const made = await resolvePerson(db, {
+      const created = await resolvePerson(db, {
         tenantId,
-        phone: r.phone,
-        email: r.email,
-        name: r.name,
+        phone: row.phone,
+        email: row.email,
+        name: row.name,
         assurance: "found",
         source: "calendar",
-        detail: { title: r.title, uid: r.uid, start: new Date(r.start).toISOString() },
+        detail: { title: row.title, uid: row.uid, start: new Date(row.start).toISOString() },
       });
-      if (made.outcome === "new") out.added += 1;
+      if (created.outcome === "new") out.added += 1;
       else {
-        if (made.filled.includes("display_name")) out.named += 1;
-        if (made.filled.includes("email")) out.emailed += 1;
+        if (created.filled.includes("display_name")) out.named += 1;
+        if (created.filled.includes("email")) out.emailed += 1;
       }
     } catch (e) {
       if ((e as { code?: string }).code === PERSON_FORGOTTEN) {

@@ -9,7 +9,7 @@ const Freed = z.object({
 });
 
 /** Why an offer could not be made, in the owner's words, where it is not the time's or the run's own (offerRefusedWords). */
-const SAID: Record<string, string> = {
+const REASON_WORDS: Record<string, string> = {
   preview: "Offering only works on the production dashboard.",
   no_step: "Nothing offers a freed time yet: set up Fill a cancellation in Campaigns.",
   paused: "Fill a cancellation is paused, or the workspace is, so nothing was offered.",
@@ -20,8 +20,8 @@ const SAID: Record<string, string> = {
 };
 
 /** A reason in the owner's words: the time's or the run's own, else the page's, else the code said plainly. */
-const saidOf = (why: string, detail: string | null = null): string =>
-  offerRefusedWords(why, detail) ?? SAID[why] ?? `Nothing was offered (${why}).`;
+const saidOf = (reason: string, detail: string | null = null): string =>
+  offerRefusedWords(reason, detail) ?? REASON_WORDS[reason] ?? `Nothing was offered (${reason}).`;
 
 /**
  * POST /api/v1/calendar/freed — offer an hour a cancellation freed, now (Today in three zones, 2 Nov 2026; Offer it on
@@ -38,9 +38,9 @@ export const POST = write({
   handle: async ({ ctx, member, input }) => {
     const r = await offerFreedNow(member.tenantId, ctx.userId, input.visit_id);
     if (!r.ok) {
-      const said = saidOf(r.reason, r.detail ?? null);
-      if (r.reason === "payment_required") throw new AppError("payment_required", said, 402);
-      throw new AppError("upstream_meta", said, 502);
+      const sentence = saidOf(r.reason, r.detail ?? null);
+      if (r.reason === "payment_required") throw new AppError("payment_required", sentence, 402);
+      throw new AppError("upstream_meta", sentence, 502);
     }
     if (!r.offered) return { offered: false as const, people: 0, why: saidOf(r.why, r.detail ?? null) };
     return { offered: true as const, people: r.people, waits: r.waits };

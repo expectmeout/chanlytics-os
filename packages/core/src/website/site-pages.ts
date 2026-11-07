@@ -22,17 +22,17 @@ const PATH_SAYS_DEPTH = 2;
 
 /** An address on the same site as `home` (its host, with or without www), in https or http, without its fragment. */
 function sameSite(href: string, home: URL): string | null {
-  let u: URL;
+  let url: URL;
   try {
-    u = new URL(decodeEntities(href), home);
+    url = new URL(decodeEntities(href), home);
   } catch {
     return null;
   }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
   const bare = (h: string) => h.toLowerCase().replace(/^www\./, "");
-  if (bare(u.hostname) !== bare(home.hostname)) return null;
-  u.hash = "";
-  return u.toString();
+  if (bare(url.hostname) !== bare(home.hostname)) return null;
+  url.hash = "";
+  return url.toString();
 }
 
 /** What an address says of its page, in words: its path's, near the root of the site; nothing deeper. */
@@ -79,15 +79,15 @@ export function sitePagesLinkedFrom(html: string, pageUrl: string, max = 2): str
   const picker = pagesPicker(pageUrl);
   if (!picker) return [];
   const start = /<a[\s>]/gi;
-  for (let at = 0, n = 0; n < LINKS_MAX; n++) {
+  for (let at = 0, count = 0; count < LINKS_MAX; count++) {
     start.lastIndex = at;
-    const m = start.exec(html);
-    if (!m) break;
-    const close = html.indexOf(">", m.index);
+    const match = start.exec(html);
+    if (!match) break;
+    const close = html.indexOf(">", match.index);
     if (close === -1) break;
     at = close + 1;
-    if (close - m.index > TAG_MAX) continue;
-    const attrs = attrsOf(html.slice(m.index + 2, close));
+    if (close - match.index > TAG_MAX) continue;
+    const attrs = attrsOf(html.slice(match.index + 2, close));
     if (!attrs.href) continue;
     const tail = html.slice(at, at + WORDS_MAX);
     const end = tail.search(/<\/a\s*>/i);

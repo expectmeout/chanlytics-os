@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/shared/route";
 import { PartnerSecondFactorSchema } from "@chanlytics/contracts";
-import { platformPartnerSecondFactorReset } from "@/server/console/platform";
+import { resetPlatformPartnerSecondFactor } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/partners/second-factor — {partner_id, why}: remove a partner's authenticator so they can set
@@ -15,6 +15,6 @@ export const POST = write({
   act: "partner_second_factor",
   input: PartnerSecondFactorSchema,
   handle: async ({ office, input }) => ({
-    result: await platformPartnerSecondFactorReset(office, input.partner_id, input.why),
+    result: await resetPlatformPartnerSecondFactor(office, input.partner_id, input.why),
   }),
 });

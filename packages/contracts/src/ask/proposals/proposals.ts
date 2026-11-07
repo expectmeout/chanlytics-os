@@ -24,13 +24,13 @@
  * the many-person kinds, person_add, person_merge, person_message), workspace.ts (policy, settings, invite),
  * campaigns.ts (broadcast, playbook, playbook_channels, playbook_change, run, message), sequences.ts (the sequence_*
  * kinds), lists.ts (list and its member, change and delete), leads.ts (lead_search, people_search, reach_out_add),
- * lead-work.ts (a lead's stage, mark, later, the bulk and check, the addressee, a list of leads, a search's more, a cold
+ * leads/work.ts (a lead's stage, mark, later, the bulk and check, the addressee, a list of leads, a search's more, a cold
  * email made and said), reviews.ts (review_reply), follow-up.ts (follow_up); spec.ts is what a spec is.
  */
-import type { AskProposal } from "../ask";
+import type { AskProposal } from "../thread-words";
+import type { ProposalSpec, ProposalSpecAboveOperator } from "./spec";
 import { ASK_ONLY_SPECS } from "./ask-only";
 import { PAGE_SPECS, addProposalSpecs } from "./page-specs";
-import type { ProposalSpec, ProposalSpecAboveOperator } from "./spec";
 
 /**
  * Every kind's spec. Each keeps its own type, so the kinds above operator are known to say what they do. Built, the
@@ -42,9 +42,6 @@ export const PROPOSAL_SPECS = /* @__PURE__ */ (() => {
   addProposalSpecs(ASK_ONLY_SPECS);
   return { ...PAGE_SPECS, ...ASK_ONLY_SPECS } satisfies Record<AskProposal["kind"], ProposalSpec>;
 })();
-
-/** The kinds a plan presses on their own, as the server names them: spec.ts holds them, beside a plan's count. */
-export { ASK_SENDS } from "./spec";
 
 /** The kinds above operator, whose refusal below `needs` is said in words (person_mode, settings, invite, lead_search). */
 export type ProposalKindAboveOperator = {

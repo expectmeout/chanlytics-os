@@ -51,7 +51,7 @@ test("the clock names the day when it is not today", () => {
 test("the wiring: words on the edge, a bounded reply on both sides, the layout fixes, and nothing of the workshop on a customer's screen", () => {
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
   assert.ok(
-    alerts.includes("subject: `${name} needs a person — ${why}`") &&
+    alerts.includes("subject: `${name} needs a person — ${otherReason}`") &&
       alerts.includes("about: ctx.about ?? null,") &&
       // The reason is said in the Inbox's words (reasonShort of the hold's reason), not a map of the notice's own.
       alerts.includes('["passed to a human", "human_token"]'),
@@ -81,7 +81,12 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     /bellFeed\(\{\s*derived: feedFromGlobals\(/.test(readCode("apps/dashboard/src/bridge/notifications.ts")),
     "the bridge shows the feed once, a hold as one row (contracts bellFeed, which hides the kept row by dedupeFeed)",
   );
-  const server = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
+  const server = [
+    "apps/dashboard/src/server/campaigns/broadcasts/replied.ts",
+    "apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
     server.includes("isReplyTo(sentAt, m.created_at)") &&
       server.includes("replied.set(m.conversation_id, m.created_at)"),
@@ -94,9 +99,14 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     "the SQL series keeps the same window",
   );
   assert.ok(
-    readCode("packages/contracts/src/reports/campaigns/campaign-words.ts").includes(
-      "were answered ${REPLY_WINDOW_WORDS}",
-    ),
+    [
+      "packages/contracts/src/reports/campaigns/words/heads.ts",
+      "packages/contracts/src/reports/campaigns/words/lines.ts",
+      "packages/contracts/src/reports/campaigns/words/tables.ts",
+    ]
+      .map((p) => readCode(p))
+      .join("\n")
+      .includes("were answered ${REPLY_WINDOW_WORDS}"),
   );
   assert.ok(
     readRaw("apps/dashboard/src/surfaces/today/zones/zones.css").includes(

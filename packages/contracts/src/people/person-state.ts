@@ -58,20 +58,21 @@ type StandingRow = Pick<
  * The latest thread's standing, from the one rule every surface reads (standing.ts), for `viewerId` when someone is
  * looking: a teammate's claim is theirs. With no one looking a claim reads as mine, as standing.ts reads an unknown.
  */
-export function personStanding(r: StandingRow, nowMs: number, viewerId: string | null = null): StandingVerdict {
+export function personStanding(standing: StandingRow, nowMs: number, viewerId: string | null = null): StandingVerdict {
   return standingOf(
     {
       state:
-        r.latest_state === "snoozed"
+        standing.latest_state === "snoozed"
           ? "snoozed"
-          : r.needs_human || r.latest_state === "needs_human"
+          : standing.needs_human || standing.latest_state === "needs_human"
             ? "needs_human"
-            : (r.latest_state ?? "open"),
-      paused_until: r.latest_paused_until,
-      assignee_user_id: r.latest_assignee_user_id,
-      assignee_is_me: viewerId && r.latest_assignee_user_id ? r.latest_assignee_user_id === viewerId : undefined,
-      open_escalation: !!r.open_escalation_reason,
-      escalation_reason: r.open_escalation_reason,
+            : (standing.latest_state ?? "open"),
+      paused_until: standing.latest_paused_until,
+      assignee_user_id: standing.latest_assignee_user_id,
+      assignee_is_me:
+        viewerId && standing.latest_assignee_user_id ? standing.latest_assignee_user_id === viewerId : undefined,
+      open_escalation: !!standing.open_escalation_reason,
+      escalation_reason: standing.open_escalation_reason,
     },
     nowMs,
   );
@@ -86,12 +87,12 @@ export function personStanding(r: StandingRow, nowMs: number, viewerId: string |
  * unknown so). People's Needs you and You have it lists, and the row's pill, are this.
  */
 export function attentionOf(
-  r: PersonRowDto,
+  person: PersonRowDto,
   nowMs: number,
   viewerId: string | null = null,
 ): "needs_you" | "waiting_on_you" | null {
-  const v = personStanding(r, nowMs, viewerId);
-  if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r.queued_reply_at }, nowMs)) return "needs_you";
+  const v = personStanding(person, nowMs, viewerId);
+  if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!person.queued_reply_at }, nowMs)) return "needs_you";
   return v.takenOver ? "waiting_on_you" : null;
 }
 
@@ -108,8 +109,8 @@ export type ThreadHolder = "yours" | "theirs" | "someone";
  * not a claim, which the standing rule keeps and the assignee column does not: it is never cleared, and the receptionist
  * answers that thread. With no one looking it cannot be said whose: a person has it (`someone`), not named.
  */
-export function holderOf(r: StandingRow, nowMs: number, viewerId: string | null): ThreadHolder | null {
-  const v = personStanding(r, nowMs, viewerId);
+export function holderOf(standing: StandingRow, nowMs: number, viewerId: string | null): ThreadHolder | null {
+  const v = personStanding(standing, nowMs, viewerId);
   return v.claimedByOther ? "theirs" : v.takenOver ? (viewerId ? "yours" : "someone") : null;
 }
 
@@ -121,17 +122,17 @@ export function holderOf(r: StandingRow, nowMs: number, viewerId: string | null)
  * heard from, quiet by Quiet 30+ days' rule, else active. Days are the workspace's own dates (`tz`).
  */
 export function personStateFor(
-  r: PersonRowDto,
+  person: PersonRowDto,
   nowMs: number,
   tz: string,
   viewerId: string | null = null,
 ): PersonState {
-  const attention = attentionOf(r, nowMs, viewerId);
+  const attention = attentionOf(person, nowMs, viewerId);
   if (attention) return attention;
-  if (isOptedOutContact({ consent: r.consent, dnc: r.dnc })) return "opted_out";
-  const first = firstContactOf(r, tz, nowMs);
+  if (isOptedOutContact({ consent: person.consent, dnc: person.dnc })) return "opted_out";
+  const first = firstContactOf(person, tz, nowMs);
   if (first.evidence && first.ts !== null && localDaysBetween(first.ts, nowMs, tz) <= NEW_WINDOW_DAYS) return "new";
-  const heard = heardAt(r);
+  const heard = heardAt(person);
   if (heard === null) return "unheard";
   if (localDaysBetween(heard, nowMs, tz) > QUIET_AFTER_DAYS) return "quiet";
   return "active";
@@ -142,6 +143,6 @@ export function personStateFor(
  * outranks a stop (personStateFor): a person who texted STOP on a thread that still waits on you read "Needs you" and
  * nothing of the stop anywhere on their row. While the pill says "Opted out" it is the stop already, and says it once.
  */
-export function stopToldBesideState(r: { stopped: boolean; state: PersonState }): boolean {
-  return r.stopped && r.state !== "opted_out";
+export function stopToldBesideState(row: { stopped: boolean; state: PersonState }): boolean {
+  return row.stopped && row.state !== "opted_out";
 }

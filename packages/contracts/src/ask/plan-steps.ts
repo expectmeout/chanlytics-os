@@ -5,7 +5,7 @@
  * cards. Apart from the plan itself (plan.ts, which reads the starters, the lists and the journey to make the steps), so
  * the browser's commit runner (bridge/ask/commit.ts) and the Line read these and nothing of how a plan is made.
  */
-import type { AskPlanStamp, AskProposal } from "./ask";
+import type { AskPlanStamp, AskProposal } from "./thread-words";
 import type { AskLanguage } from "./language";
 import { ASK_SENDS, PROPOSAL_WORDS, rec } from "./proposals/spec";
 
@@ -20,8 +20,8 @@ export type PlanMade = Record<number, { kind: string; id: string | null } | { un
 /** The token a step's input names what an earlier step makes by: `@step:1` is step 1's message. */
 export const STEP_TOKEN = /^@step:(\d+)$/;
 
-export function stepToken(n: number): string {
-  return `@step:${n}`;
+export function stepToken(count: number): string {
+  return `@step:${count}`;
 }
 
 /**
@@ -31,22 +31,23 @@ export function stepToken(n: number): string {
  */
 export function resolveSteps(
   payload: Record<string, unknown>,
-  made: PlanMade,
+  created: PlanMade,
 ): Record<string, unknown> | { unresolved: number } {
   let unresolved: number | null = null;
-  const fill = (v: unknown): unknown => {
-    if (typeof v === "string") {
-      const m = STEP_TOKEN.exec(v);
-      if (!m) return v;
+  const fill = (value: unknown): unknown => {
+    if (typeof value === "string") {
+      const m = STEP_TOKEN.exec(value);
+      if (!m) return value;
       const n = Number(m[1]);
-      const step = made[n];
+      const step = created[n];
       if (step && !("undone" in step) && step.id !== null) return step.id;
       unresolved ??= n;
-      return v;
+      return value;
     }
-    if (Array.isArray(v)) return v.map(fill);
-    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x)]));
-    return v;
+    if (Array.isArray(value)) return value.map(fill);
+    if (value && typeof value === "object")
+      return Object.fromEntries(Object.entries(value).map(([k, x]) => [k, fill(x)]));
+    return value;
   };
   const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill(x)]));
   return unresolved === null ? out : { unresolved };
@@ -59,13 +60,13 @@ export function resolveSteps(
  * committed. Only the cards of plan `planId` are read.
  */
 export function planMadeOf(planId: string, cards: readonly Pick<AskProposal, "kind" | "plan" | "outcome">[]): PlanMade {
-  const made: PlanMade = {};
+  const created: PlanMade = {};
   for (const p of cards) {
     if (p.plan?.id !== planId || !p.outcome) continue;
-    if (p.outcome.state === "done") made[p.plan.step] = { kind: p.kind, id: p.outcome.made?.id ?? null };
-    else if (p.outcome.state === "undone") made[p.plan.step] = { undone: true };
+    if (p.outcome.state === "done") created[p.plan.step] = { kind: p.kind, id: p.outcome.made?.id ?? null };
+    else if (p.outcome.state === "undone") created[p.plan.step] = { undone: true };
   }
-  return made;
+  return created;
 }
 
 /**
@@ -77,15 +78,15 @@ export function planMadeOf(planId: string, cards: readonly Pick<AskProposal, "ki
  */
 export function planWaits(
   plan: AskPlanStamp | undefined,
-  made: PlanMade,
+  created: PlanMade,
 ): { undone: number } | { waits: number } | null {
   if (!plan) return null;
   const undone = plan.after.find((n) => {
-    const step = made[n];
+    const step = created[n];
     return !!step && "undone" in step;
   });
   if (undone !== undefined) return { undone };
-  const waits = plan.after.find((n) => !made[n]);
+  const waits = plan.after.find((n) => !created[n]);
   return waits === undefined ? null : { waits };
 }
 
@@ -96,13 +97,13 @@ export function planWaits(
 function cardsInPlans<P extends Pick<AskProposal, "plan">>(cards: readonly P[]): ({ card: P } | { plan: P[] })[] {
   const out: ({ card: P } | { plan: P[] })[] = [];
   const plans = new Map<string, P[]>();
-  for (const p of cards) {
-    const id = p.plan?.id;
+  for (const card of cards) {
+    const id = card.plan?.id;
     const held = id === undefined ? undefined : plans.get(id);
-    if (id === undefined) out.push({ card: p });
-    else if (held) held.push(p);
+    if (id === undefined) out.push({ card: card });
+    else if (held) held.push(card);
     else {
-      const group = [p];
+      const group = [card];
       plans.set(id, group);
       out.push({ plan: group });
     }
@@ -245,13 +246,13 @@ export function planGroupOf<P extends HeldCard>(
   const mine = cards
     .flatMap((card) => (card.plan && card.plan.id === id ? [{ card, plan: card.plan }] : []))
     .sort((a, b) => a.plan.step - b.plan.step);
-  const made = planMadeOf(
+  const created = planMadeOf(
     id,
     mine.map((s) => s.card),
   );
   const byStep = new Map<number, HeldCard>(mine.map((s) => [s.plan.step, s.card]));
   const steps = mine.map(({ card, plan }): GroupStep<P> => {
-    const wait = planWaits(plan, made);
+    const wait = planWaits(plan, created);
     const undone = wait !== null && "undone" in wait;
     return {
       card,
@@ -262,12 +263,12 @@ export function planGroupOf<P extends HeldCard>(
       note: undone ? PROPOSAL_WORDS.planUndone : null,
     };
   });
-  const left = mine.filter((s) => s.plan.silent && !made[s.plan.step]).length;
+  const left = mine.filter((s) => s.plan.silent && !created[s.plan.step]).length;
   return { id, steps, left };
 }
 
 /**
- * The answer's sentences for a round's cards (ask/answer.ts answerForCards: the round that proposed and said nothing else,
+ * The answer's sentences for a round's cards (ask/answer/normalize.ts answerForCards: the round that proposed and said nothing else,
  * and the headline an answer that claimed a write is said as, the marketing manager's spec §5.8). The headline counts a
  * plan's cards as steps, as each card's head does ("Step 6 of 6"), and says how many send nothing, how many send (a kind
  * of ASK_SENDS) and how many wait for a send, pressed after it though they send nothing themselves, as a follow-up after
@@ -285,9 +286,9 @@ export function planCountWords(
   words: string | null,
 ): { headline: string | null; detail: string | null } {
   // No words (null, or a caller in the browser's JavaScript that passed none) is a round that made no plan.
-  const said = words || null;
+  const sentence = words || null;
   const id = cards[0]?.plan?.id;
-  if (id === undefined || cards.some((p) => p.plan?.id !== id)) return { headline: null, detail: said };
+  if (id === undefined || cards.some((p) => p.plan?.id !== id)) return { headline: null, detail: sentence };
   const silent = cards.filter((p) => p.plan?.silent).length;
   const sends = cards.filter((p) => !p.plan?.silent && ASK_SENDS.has(p.kind)).length;
   const waiting = cards.length - silent - sends;
@@ -305,7 +306,7 @@ export function planCountWords(
   const headline = es
     ? `Un plan de ${one(cards.length, "paso", "pasos")} para revisar: ${parts.join(" y luego ")}.`
     : `A plan of ${one(cards.length, "step", "steps")} to review: ${parts.join(", then ")}.`;
-  if (said !== null || silent === 0) return { headline, detail: said };
+  if (sentence !== null || silent === 0) return { headline, detail: sentence };
   // The sends' half only where the plan has a send to say it of.
   const together = es
     ? "Los pasos que no envían nada se aprueban con un toque"

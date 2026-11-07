@@ -1,20 +1,14 @@
 /**
- * The headline (contracts reports/report-headline.ts; `headlineOf` in reports.ts): what Today reads of a period, summed where
+ * The headline (contracts reports/headline.ts; `headlineOf` in reports.ts): what Today reads of a period, summed where
  * the series is. One derivation: its counts are `periodFactsOf`'s, the facts the page's view model is built from, so this holds it
  * to that view model for the same series (the world Reports' own tests draw, tests/reports/_report-world.mjs) over a matrix of
  * periods, and pins what goes over the wire.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  headlineOf,
-  isReportDto,
-  toBookingReportVM,
-  toHeadlineVM,
-  toReportVM,
-  todayLeaks,
-  todayPeriodLine,
-} from "@chanlytics/contracts";
+import { headlineOf, isReportDto, toBookingReportVM, toHeadlineVM, toReportVM } from "@chanlytics/contracts";
+import { todayLeaks } from "../../../apps/dashboard/src/surfaces/today/leaks.ts";
+import { todayPeriodLine } from "../../../apps/dashboard/src/surfaces/today/period.ts";
 import { CALENDAR, quiet, reportDto } from "../_report-world.mjs";
 
 const NONE = { calendar: "none", days: 30, asked: 0, booked: 0 };

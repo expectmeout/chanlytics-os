@@ -164,7 +164,7 @@ const NOBODY_LEFT = {
 /** Who a run reaches on each channel, WhatsApp alone: every run before the channels. */
 const onWhatsApp = (n) => ({ whatsapp: n, sms: 0, email: 0 });
 
-/** A template row as the port answers it (db messageVersionRowsOf): one version of a message, on its channel. */
+/** A template row as the port answers it (db listMessageVersionRows): one version of a message, on its channel. */
 const versionRow = (channel, over = {}) => ({
   id: `tpl-${channel}`,
   channel,
@@ -197,7 +197,7 @@ const messageOf =
 function fakes(over = {}) {
   const log = [];
   const answers = {
-    // The message's rows (db messageVersionRowsOf): Meta's approved row, and no email or text version of it.
+    // The message's rows (db listMessageVersionRows): Meta's approved row, and no email or text version of it.
     message: messageOf(),
     alreadyRan: false,
     record: undefined,

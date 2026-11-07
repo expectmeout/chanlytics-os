@@ -255,11 +255,11 @@ test("the zone measure counts dates said with no zone and nothing else", () => {
     marked,
   );
   // And on the tree: the mailbox card said its hold's day in the browser's zone until 29 October 2026, and says none now.
-  assert.deepEqual(zonelessDatesIn(parse("packages/contracts/src/email/mailbox-connections.ts")), []);
+  assert.deepEqual(zonelessDatesIn(parse("packages/contracts/src/email/mailbox-connections/rows.ts")), []);
   // And the six sites it held at 29 October 2026 are two (the partner's own day, the paused phone app's widget): the
   // trial's end on the bell and in Billing, the runtime's own DATE_FMT, and a campaign's last send take the zone.
   for (const f of [
-    "packages/contracts/src/workspace/billing.ts",
+    "packages/contracts/src/workspace/billing/plans.ts",
     "apps/edge/lib/billing/notices.ts",
     "packages/contracts/src/shared/time.ts",
     "packages/contracts/src/reports/campaign-report.ts",
@@ -291,11 +291,7 @@ test("the zone-readers measure counts a zone read outside zone-math and nothing 
     zoneReadersIn(sf).map((d) => d.line),
     marked,
   );
-  assert.equal(
-    zoneReadersIn(parse("packages/contracts/src/calendar/zone-math.ts")).length,
-    1,
-    "the one reading itself",
-  );
+  assert.equal(zoneReadersIn(parse("packages/contracts/src/shared/zone/math.ts")).length, 1, "the one reading itself");
   assert.deepEqual(zoneReadersIn(parse("packages/contracts/src/shared/clock.ts")), [], "the words read through it");
 });
 

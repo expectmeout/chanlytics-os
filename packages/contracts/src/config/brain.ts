@@ -87,8 +87,8 @@ export const BRAIN_OUTPUT_JSON_SCHEMA = {
  * The answer's schema for one turn: the record, and where the workspace takes booking requests on this turn, the two
  * fields a time the customer picked is written in (decision 0061). A turn that takes none is sent exactly the record.
  */
-export function brainOutputSchemaFor(o: { bookingRequests: boolean }) {
-  if (!o.bookingRequests) return BRAIN_OUTPUT_JSON_SCHEMA;
+export function brainOutputSchemaFor(options: { bookingRequests: boolean }) {
+  if (!options.bookingRequests) return BRAIN_OUTPUT_JSON_SCHEMA;
   return {
     ...BRAIN_OUTPUT_JSON_SCHEMA,
     properties: { ...BRAIN_OUTPUT_JSON_SCHEMA.properties, ...BOOKING_REQUEST_SCHEMA_FIELDS },

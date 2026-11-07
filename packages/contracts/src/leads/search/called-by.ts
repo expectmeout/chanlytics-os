@@ -49,11 +49,11 @@ function beforeComma(name: string): string {
 function saidFromCapitals(word: string, first: boolean): string {
   return word
     .split(/(?<=[-/])/)
-    .map((part, i) => {
+    .map((part, index) => {
       const lower = part.toLowerCase();
       const letters = lower.replace(/[^\p{L}]/gu, "");
       if (!letters || /[\d.]/.test(part)) return part;
-      if (NAME_JOINERS.has(letters) && !(first && i === 0)) return lower;
+      if (NAME_JOINERS.has(letters) && !(first && index === 0)) return lower;
       if (letters.length <= 2 && !TWO_LETTER_WORDS.has(letters)) return part;
       if (!/[aeiou]/.test(letters)) return part;
       if (!VOWEL.test(letters.slice(0, 2)) && !WORD_ONSETS.has(letters.slice(0, 2))) return part;
@@ -110,14 +110,14 @@ function casedAsSaid(name: string): string {
  * lead's, as Leads shows it; every email's fill says this (reach-out-rules reachOutValues), and so do the opening's
  * record and its check.
  */
-export function leadCalledByOf(l: { business_name: string | null; city?: string | null }): string | null {
-  const listed = (l.business_name ?? "").replace(/\s+/g, " ").trim();
+export function leadCalledByOf(input: { business_name: string | null; city?: string | null }): string | null {
+  const listed = (input.business_name ?? "").replace(/\s+/g, " ").trim();
   if (!listed) return null;
   // The first part that says something, unless it is only the city ("Springfield | Harbor Movers").
-  const city = l.city?.trim().toLowerCase();
+  const city = input.city?.trim().toLowerCase();
   const head = listed.split(NAME_TAIL).find((p) => hasLetter(p) && p.trim().toLowerCase() !== city) ?? listed;
   let name = keptOr(listed, head);
-  name = keptOr(name, withoutPlace(name, l.city));
+  name = keptOr(name, withoutPlace(name, input.city));
   name = keptOr(name, name.replace(COMPANY_FORM, ""));
   name = keptOr(name, beforeComma(name));
   name = keptOr(name, name.replace(COMPANY_FORM, ""));

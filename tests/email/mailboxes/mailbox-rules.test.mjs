@@ -1,5 +1,5 @@
 /**
- * A connected mailbox as contracts decides it (email/mailbox-connections.ts; decision 0056): the ramp by the days it
+ * A connected mailbox as contracts decides it (email/mailbox-connections/rows.ts; decision 0056): the ramp by the days it
  * sent, the day's cap (its ramp, its owner's cap, the customer domain's ceiling), whether it sends now, which a step
  * writes from, the hold its own mail earns, what each row says and offers, the records its domain needs, and the words
  * of a connect come back. And the reach-out rules the decision adds beside them: a first email free of links, and the

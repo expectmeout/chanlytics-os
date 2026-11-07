@@ -16,9 +16,9 @@ import {
   partnerCodeFromCookie,
   WORKSPACE_MARKS,
 } from "@chanlytics/contracts";
-import { createWorkspaceFn, membershipCountOf, setSetupChoices } from "@chanlytics/db";
+import { createWorkspaceFn, getMembershipCount, setSetupChoices } from "@chanlytics/db/workspace";
 import { z } from "zod";
-import { inviteCodeMatches, notifyPlatformSignup } from "@/server/console/signup";
+import { inviteCodeMatches, notifyPlatformSignup } from "@/server/workspace/signup";
 import { giveFirstAlertAddress, giveOwnerAlertAddress } from "@/server/workspace/first-alert";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
@@ -59,7 +59,7 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
   // door takes for "no memberships" -- so an owner making their second
   // workspace would be refused with a wrong-invite-code message, for a field
   // the create screen never showed them.
-  const memberships = await membershipCountOf(ctx.supabase, ctx.userId);
+  const memberships = await getMembershipCount(ctx.supabase, ctx.userId);
   const door = firstWorkspaceDoor({
     posture: signupPosture(env.SIGNUP_CODE),
     memberships,
@@ -97,9 +97,9 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
   // A call that raised nothing answers one row; none is the database's fault, not a workspace to hand over.
   if (!data) throw new Error("create_workspace answered no row");
 
-  // What follows every workspace made, in one place (workspaceBegun): the platform's notice, the creator's address
+  // What follows every workspace made, in one place (recordWorkspaceBegun): the platform's notice, the creator's address
   // as its first alert address, and sign-up's answers cleared.
-  await workspaceBegun(ctx, data.id, { by: "created", notify: ctx.email ?? "", alertTo: ctx.email ?? null });
+  await recordWorkspaceBegun(ctx, data.id, { by: "created", notify: ctx.email ?? "", alertTo: ctx.email ?? null });
 
   // Returned in the same shape /api/v1/workspaces lists, so the client can put
   // it straight into its workspace list without a second round trip.
@@ -114,7 +114,7 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
  * invited at, beside any the partner keeps), or accepted from a partner (`accepted`, told to the platform at set-up).
  * Each is best effort: the workspace exists whether or not any of them lands.
  */
-export async function workspaceBegun(
+export async function recordWorkspaceBegun(
   ctx: RouteContext,
   tenantId: string,
   how: {

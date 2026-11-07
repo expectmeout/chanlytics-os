@@ -26,13 +26,13 @@ const hex = (n: number, width = 32) => n.toString(16).padStart(width, "0");
 const DRY_TEXTS_PAGE = 20;
 
 /** The numbers a search finds: up to eight in the area code asked for, each able to call and text. */
-function dryNumbers(q: { areaCode: number; limit: number }): AvailableNumber[] {
+function dryNumbers(input: { areaCode: number; limit: number }): AvailableNumber[] {
   const out: AvailableNumber[] = [];
-  for (let i = 0; i < Math.min(q.limit, 8); i++) {
+  for (let i = 0; i < Math.min(input.limit, 8); i++) {
     const local = `555${String(100 + i).padStart(4, "0")}`;
     out.push({
-      e164: `+1${q.areaCode}${local}`,
-      friendly: `(${q.areaCode}) ${local.slice(0, 3)}-${local.slice(3)}`,
+      e164: `+1${input.areaCode}${local}`,
+      friendly: `(${input.areaCode}) ${local.slice(0, 3)}-${local.slice(3)}`,
       locality: "Dry Run",
       region: "XX",
       capabilities: { voice: true, sms: true, mms: false },
@@ -42,8 +42,8 @@ function dryNumbers(q: { areaCode: number; limit: number }): AvailableNumber[] {
 }
 
 export function dryProvider(seed = 1): DryProvider {
-  let n = seed;
-  const next = (prefix: string) => `${prefix}${hex(n++)}`;
+  let count = seed;
+  const next = (prefix: string) => `${prefix}${hex(count++)}`;
   const calls: DryCall[] = [];
   const owned = new Map<string, string>();
   // What it "made", so a look after a lost receipt finds it, as the carrier's own lists would.

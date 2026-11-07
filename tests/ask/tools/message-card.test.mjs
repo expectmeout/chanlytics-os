@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { PROPOSAL_SPECS } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -28,8 +29,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext, toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 // Read as a module, so a name contracts does not export yet is a failing assertion, not a file that will not load.
 const C = await import("@chanlytics/contracts");
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
@@ -107,7 +108,7 @@ beforeEach(async () => {
       headers: { "content-type": "application/json" },
     });
   };
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
 });
 after(() => (globalThis.fetch = real));
 
@@ -231,7 +232,7 @@ test("email that could not be checked (the edge did not answer) is no missing ma
   globalThis.fetch = async (url) => {
     throw new Error(`connect ECONNREFUSED ${url}`);
   };
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
   const r = await propose(OFFER);
   assert.equal(r.isError, true);
   assert.equal(said(r), C.MESSAGE_WORDS.emailUnchecked);
@@ -267,7 +268,7 @@ test("the language Ask names is filed under the product's code, through the one 
     C.STARTER_LANGUAGES.map((l) => l.id),
     "the starters' own codes",
   );
-  const commitOf = (p) => C.PROPOSAL_SPECS.message.commit(p, { settings: null }).body;
+  const commitOf = (p) => PROPOSAL_SPECS.message.commit(p, { settings: null }).body;
   const en = await propose(OFFER);
   assert.equal(en.isError, false, en.result);
   assert.deepEqual([en.proposal.payload.language, commitOf(en.proposal).language], ["en_US", "en_US"]);
@@ -429,7 +430,7 @@ const FILED = {
 };
 
 test("the spec: an operator's, gated by approve; the commit is POST templates/message with the door's body, and a card that names no message commits nothing", async () => {
-  const spec = C.PROPOSAL_SPECS.message;
+  const spec = PROPOSAL_SPECS.message;
   assert.ok(spec, "a spec for the kind");
   assert.deepEqual([spec.needs, spec.gate, C.PROPOSAL_GATE.message], ["operator", "approve", "approve"]);
   const p = (await propose(THANKS)).proposal;
@@ -454,7 +455,7 @@ test("the spec: an operator's, gated by approve; the commit is POST templates/me
 });
 
 test("the receipt says what the door filed and what it refused, from its answer", () => {
-  const spec = C.PROPOSAL_SPECS.message;
+  const spec = PROPOSAL_SPECS.message;
   const p = card({ name: "thanks_for_coming", versions: THANKS.versions });
   assert.equal(
     spec.receipt(p, FILED),
@@ -484,7 +485,7 @@ test("the receipt says what the door filed and what it refused, from its answer"
 });
 
 test("the undo keeps the email and text versions the door filed, deletes each through its own door within ten minutes, and leaves the WhatsApp version, saying so", () => {
-  const spec = C.PROPOSAL_SPECS.message;
+  const spec = PROPOSAL_SPECS.message;
   const p = card({ name: "thanks_for_coming", versions: THANKS.versions });
   assert.equal(spec.undo.window, "ten_minutes");
   const kept = spec.undo.record(p, FILED, { settings: null });
@@ -565,7 +566,7 @@ test("Approve sends the card's body to POST templates/message, marked as a card'
   assert.equal(r.ok, true, r.message);
   // What it made, as a plan's later step names it: the first version filed (a send takes any version's id).
   assert.deepEqual(r.made, { kind: "message", id: V(1) });
-  assert.equal(r.receipt, C.PROPOSAL_SPECS.message.receipt(p, FILED));
+  assert.equal(r.receipt, PROPOSAL_SPECS.message.receipt(p, FILED));
   assert.deepEqual(r.undo, {
     versions: [
       { channel: "email", id: V(1) },
@@ -575,7 +576,7 @@ test("Approve sends the card's body to POST templates/message, marked as a card'
   });
   const u = await undoProposal(win, p, { state: "done", receipt: r.receipt, atMs: 1, undo: r.undo }, client);
   assert.equal(u.ok, true, u.message);
-  assert.equal(u.receipt, C.PROPOSAL_SPECS.message.undo.receipt(null, r.undo));
+  assert.equal(u.receipt, PROPOSAL_SPECS.message.undo.receipt(null, r.undo));
   assert.deepEqual(
     sent.map((s) => [s.key, s.via, s.idem]),
     [
@@ -584,7 +585,7 @@ test("Approve sends the card's body to POST templates/message, marked as a card'
       [`DELETE /api/v1/templates/versions/${V(2)}`, "ask", `${p.id}:undo:2`],
     ],
   );
-  assert.deepEqual(sent[0].body, C.PROPOSAL_SPECS.message.commit(p, { settings: null }).body);
+  assert.deepEqual(sent[0].body, PROPOSAL_SPECS.message.commit(p, { settings: null }).body);
 });
 
 test("an undo refused part-way says what is already deleted, then the refusal; pressed again, the version that went is not deleted twice and only the refused one runs again (the real DELETE templates/versions/[id])", async () => {
@@ -666,7 +667,7 @@ test("an undo refused part-way says what is already deleted, then the refusal; p
     },
   };
   const p = (await propose(THANKS)).proposal;
-  const kept = C.PROPOSAL_SPECS.message.undo.record(
+  const kept = PROPOSAL_SPECS.message.undo.record(
     p,
     {
       ...FILED,
@@ -682,7 +683,7 @@ test("an undo refused part-way says what is already deleted, then the refusal; p
   const first = await undoProposal(win, p, outcome, client);
   assert.equal(first.ok, false);
   assert.equal(first.message, `Its email version is deleted; its text version is not: ${STILL_USED}`);
-  assert.equal(first.message, C.PROPOSAL_SPECS.message.undo.partial(kept, 1, STILL_USED));
+  assert.equal(first.message, PROPOSAL_SPECS.message.undo.partial(kept, 1, STILL_USED));
   assert.deepEqual(removed, ["email", "refused:sms"]);
   assert.deepEqual(sent, [`${p.id}:undo`, `${p.id}:undo:2`]);
   assert.deepEqual(answered, [200, 409]);
@@ -697,7 +698,7 @@ test("an undo refused part-way says what is already deleted, then the refusal; p
   textHeld = false;
   const second = await undoProposal(win, p, outcome, client);
   assert.equal(second.ok, true, second.message);
-  assert.equal(second.receipt, C.PROPOSAL_SPECS.message.undo.receipt(null, kept));
+  assert.equal(second.receipt, PROPOSAL_SPECS.message.undo.receipt(null, kept));
   assert.deepEqual(removed, ["email", "refused:sms", "sms"], "the email's delete ran once");
   assert.deepEqual(sent, [`${p.id}:undo`, `${p.id}:undo:2`, `${p.id}:undo`, `${p.id}:undo:2`]);
   assert.deepEqual(answered, [200, 409, 404, 200]);
@@ -709,7 +710,7 @@ test("an undo refused part-way says what is already deleted, then the refusal; p
   const listGone = await undoProposal(win, listCard, { ...outcome, undo: { list_id: V(9) } }, client);
   assert.deepEqual([listGone.ok, listGone.status, listGone.message], [false, 404, "List not found."]);
   // A refusal of the first call has nothing before it: the refusal alone, as an undo of one call says it.
-  const alone = C.PROPOSAL_SPECS.message.undo.partial(kept, 0, STILL_USED);
+  const alone = PROPOSAL_SPECS.message.undo.partial(kept, 0, STILL_USED);
   assert.equal(alone, STILL_USED);
 });
 
@@ -719,7 +720,7 @@ test("an approved card's body is what the door files: an offer by email alone, b
   setRateStore(memoryStore());
   const r = await propose(without(OFFER, "whatsapp"));
   assert.equal(r.isError, false, r.result);
-  const call = C.PROPOSAL_SPECS.message.commit(r.proposal, { settings: null });
+  const call = PROPOSAL_SPECS.message.commit(r.proposal, { settings: null });
   const tables = world();
   let next = 900;
   // The service role's door a first version is begun through (create_message_version, 00343), modelled over the table.
@@ -763,8 +764,8 @@ test("an approved card's body is what the door files: an offer by email alone, b
       versions: [{ channel: "email", id: row.id, state: "approved" }],
     });
     // What the undo would delete is the row the door filed.
-    const kept = C.PROPOSAL_SPECS.message.undo.record(r.proposal, answer, { settings: null });
-    assert.deepEqual(C.PROPOSAL_SPECS.message.undo.call(kept, { settings: null }), [
+    const kept = PROPOSAL_SPECS.message.undo.record(r.proposal, answer, { settings: null });
+    assert.deepEqual(PROPOSAL_SPECS.message.undo.call(kept, { settings: null }), [
       { route: "DELETE templates/versions/[id]", params: { id: row.id }, goneIsDone: true },
     ]);
   } finally {

@@ -1,12 +1,12 @@
 import "server-only";
 import { nextMonthStart, type MonthSent } from "@chanlytics/contracts";
-import { campaignMonthSent } from "@chanlytics/db";
+import { recordCampaignMonthSent } from "@chanlytics/db/campaigns";
 import { log } from "../shared/log";
 import { serviceDb } from "../shared/service-db";
 
 /**
  * What this workspace's campaigns have sent by email and by text in the calendar month `at` falls in, in its own zone
- * (packages/db campaignMonthSent): what its allowance (contracts CAMPAIGN_MONTH_ALLOWANCE) has spent, which the Campaigns head
+ * (packages/db recordCampaignMonthSent): what its allowance (contracts CAMPAIGN_MONTH_ALLOWANCE) has spent, which the Campaigns head
  * says from half used and the composers say before a send (contracts allowanceBeforeSend, allowanceLine). The count is a
  * function only the service role may call, so it is read here after the route's own scope has named the workspace.
  *
@@ -17,8 +17,8 @@ async function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null
   try {
     const db = serviceDb();
     const [email, sms] = await Promise.all([
-      campaignMonthSent(db, tenantId, "email", at),
-      campaignMonthSent(db, tenantId, "sms", at),
+      recordCampaignMonthSent(db, tenantId, "email", at),
+      recordCampaignMonthSent(db, tenantId, "sms", at),
     ]);
     return { email, sms };
   } catch (e) {
@@ -31,7 +31,7 @@ async function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null
  * This calendar month's count. `now` is the turn's clock, so the month is the one the page is read in; Ask's broadcast
  * card passes the time its send is set to go, so the month is the one it goes in, as the send screen counts it.
  */
-export function monthSentOrNull(tenantId: string, now: Date): Promise<MonthSent | null> {
+export function readMonthSentOrNull(tenantId: string, now: Date): Promise<MonthSent | null> {
   return monthSentIn(tenantId, now);
 }
 
@@ -42,7 +42,7 @@ export function monthSentOrNull(tenantId: string, now: Date): Promise<MonthSent 
  * whether or not the count could be made, which is null then, and the composer says nothing for that month. A zone that
  * cannot be read gives no next month at all, and the composer judges every send by this month's, as it did.
  */
-export async function monthSentNext(
+export async function readMonthSentNext(
   tenantId: string,
   now: Date,
   tz: string,

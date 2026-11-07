@@ -3,7 +3,7 @@
  * the occurrences an override moved or cancelled; with the shapes a read returns (BusyBlock, FeedItem, ParsedFeed).
  * The text is read line by line in ics-text.ts; the open times are worked out from the result in availability.ts.
  */
-import { dayNumber, localToUtcMs } from "./zone-math";
+import { dayNumber, localToUtcMs } from "../shared/zone/math";
 import { durationMs, localPartsOf, splitLine, toMs, unescapeText, unfold } from "./ics-text";
 
 /** A taken stretch of time, epoch milliseconds. */
@@ -145,31 +145,31 @@ function occurrences(
   const firstWeek = Math.floor((first - ((firstDate.getUTCDay() + 6) % 7)) / 7); // Monday-based week index
   const wanted = rule.byday ?? [firstDate.getUTCDay()];
   let produced = 0;
-  for (let n = 0; n < 20000; n++) {
-    const day = first + n;
+  for (let count = 0; count < 20000; count++) {
+    const day = first + count;
     const at = new Date(day * 86400000);
-    const y = at.getUTCFullYear(),
-      m = at.getUTCMonth() + 1,
-      d = at.getUTCDate();
+    const uTCFullYear = at.getUTCFullYear(),
+      uTCMonth = at.getUTCMonth() + 1,
+      uTCDate = at.getUTCDate();
     let hit = false;
-    if (rule.freq === "DAILY") hit = n % rule.interval === 0;
+    if (rule.freq === "DAILY") hit = count % rule.interval === 0;
     else if (rule.freq === "WEEKLY") {
       const week = Math.floor((day - ((at.getUTCDay() + 6) % 7)) / 7);
       hit = wanted.includes(at.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
     } else if (rule.freq === "MONTHLY") {
-      const months = (y - start.y) * 12 + (m - start.m);
-      hit = d === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
+      const months = (uTCFullYear - start.y) * 12 + (uTCMonth - start.m);
+      hit = uTCDate === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
     } else if (rule.freq === "YEARLY") {
-      hit = m === start.m && d === start.d && (y - start.y) % rule.interval === 0;
+      hit = uTCMonth === start.m && uTCDate === start.d && (uTCFullYear - start.y) % rule.interval === 0;
     }
     if (!hit) continue;
-    const s = localToUtcMs(start.tz, y, m, d, start.hh, start.mm);
-    if (rule.until !== null && s > rule.until) break;
+    const result = localToUtcMs(start.tz, uTCFullYear, uTCMonth, uTCDate, start.hh, start.mm);
+    if (rule.until !== null && result > rule.until) break;
     produced++;
     if (rule.count !== null && produced > rule.count) break;
-    if (s > horizon.to) break;
-    if (exdates.has(s)) continue;
-    if (s + durMs >= horizon.from) out.push({ start: s, end: s + durMs });
+    if (result > horizon.to) break;
+    if (exdates.has(result)) continue;
+    if (result + durMs >= horizon.from) out.push({ start: result, end: result + durMs });
   }
   return out;
 }
@@ -235,33 +235,33 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
       continue;
     }
     if (!cur) continue;
-    const s = splitLine(line);
-    if (!s) continue;
-    if (s.name === "EXDATE") {
-      cur.exdates.push({ params: s.params, value: s.value });
+    const result = splitLine(line);
+    if (!result) continue;
+    if (result.name === "EXDATE") {
+      cur.exdates.push({ params: result.params, value: result.value });
       continue;
     }
-    if (s.name === "RDATE") {
-      cur.rdates.push({ params: s.params, value: s.value });
+    if (result.name === "RDATE") {
+      cur.rdates.push({ params: result.params, value: result.value });
       continue;
     }
-    if (s.name === "ATTENDEE") {
-      const v = s.value.trim();
+    if (result.name === "ATTENDEE") {
+      const v = result.value.trim();
       cur.attendees.push({
-        name: s.params.CN?.trim() || null,
+        name: result.params.CN?.trim() || null,
         email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null,
       });
       continue;
     }
-    cur.props[s.name] = { params: s.params, value: s.value };
+    cur.props[result.name] = { params: result.params, value: result.value };
   }
 
   // The occurrences an override replaces, by the series' UID: cancelled or
   // moved, the series no longer has that instance.
   const overridden = new Map<string, Set<number>>();
-  for (const r of raws) {
-    const rid = r.props["RECURRENCE-ID"];
-    const uid = r.props.UID?.value.trim();
+  for (const raw of raws) {
+    const rid = raw.props["RECURRENCE-ID"];
+    const uid = raw.props.UID?.value.trim();
     if (!rid || !uid) continue;
     const ms = toMs(rid.value, rid.params, fallbackTz);
     if (ms === null) continue;
@@ -273,42 +273,44 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     set.add(ms);
   }
 
-  for (const r of raws) {
+  for (const raw of raws) {
     events++;
-    const p = r.props;
-    const status = p.STATUS?.value.toUpperCase();
-    const transp = p.TRANSP?.value.toUpperCase();
-    if (status === "CANCELLED" || transp === "TRANSPARENT" || !p.DTSTART) continue;
-    const start = toMs(p.DTSTART.value, p.DTSTART.params, fallbackTz);
+    const props = raw.props;
+    const status = props.STATUS?.value.toUpperCase();
+    const transp = props.TRANSP?.value.toUpperCase();
+    if (status === "CANCELLED" || transp === "TRANSPARENT" || !props.DTSTART) continue;
+    const start = toMs(props.DTSTART.value, props.DTSTART.params, fallbackTz);
     let end: number | null = null;
-    if (p.DTEND) end = toMs(p.DTEND.value, p.DTEND.params, fallbackTz);
-    else if (p.DURATION && start !== null) {
-      const d = durationMs(p.DURATION.value);
+    if (props.DTEND) end = toMs(props.DTEND.value, props.DTEND.params, fallbackTz);
+    else if (props.DURATION && start !== null) {
+      const d = durationMs(props.DURATION.value);
       end = d === null ? null : start + d;
     } else if (start !== null) {
       // No end: an all-day event takes the day; a timed one takes nothing we can name.
-      end = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim()) ? start + 86400000 : start;
+      end =
+        props.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(props.DTSTART.value.trim()) ? start + 86400000 : start;
     }
     if (start === null || end === null || end <= start) continue;
-    const title = unescapeText(p.SUMMARY?.value ?? "");
-    const description = unescapeText(p.DESCRIPTION?.value ?? "") || null;
-    const location = unescapeText(p.LOCATION?.value ?? "") || null;
-    const allDay = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim());
-    const uid = p.UID?.value.trim() || null;
-    const org = p.ORGANIZER?.value.trim() ?? "";
+    const title = unescapeText(props.SUMMARY?.value ?? "");
+    const description = unescapeText(props.DESCRIPTION?.value ?? "") || null;
+    const location = unescapeText(props.LOCATION?.value ?? "") || null;
+    const allDay = props.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(props.DTSTART.value.trim());
+    const uid = props.UID?.value.trim() || null;
+    const org = props.ORGANIZER?.value.trim() ?? "";
     const organizer = /^mailto:/i.test(org) ? org.slice(7).toLowerCase() : null;
-    const isOverride = !!p["RECURRENCE-ID"];
-    const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
-    const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
+    const isOverride = !!props["RECURRENCE-ID"];
+    const rule = props.RRULE && !isOverride ? parseRule(props.RRULE.value, fallbackTz) : null;
+    const local =
+      props.RRULE && !isOverride ? localPartsOf(props.DTSTART.value, props.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
-    const words = { title, allDay, uid, description, location, attendees: r.attendees.slice(), organizer };
+    const words = { title, allDay, uid, description, location, attendees: raw.attendees.slice(), organizer };
     const push = (o: BusyBlock, occurrence: number | null = null) => {
       busy.push(o);
       items.push({ ...o, ...words, ...seriesOf(occurrence) });
     };
 
-    if (p.RRULE && !isOverride && rule && local) {
-      const ex = new Set<number>(instantsOf(r.exdates, fallbackTz));
+    if (props.RRULE && !isOverride && rule && local) {
+      const ex = new Set<number>(instantsOf(raw.exdates, fallbackTz));
       for (const ms of uid ? (overridden.get(uid) ?? []) : []) ex.add(ms);
       const seen = new Set<number>();
       const occ = occurrences(local, dur, rule, ex, horizon);
@@ -319,18 +321,18 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
         }
       }
       // RDATE: dates the rule does not produce, added to the series.
-      for (const ms of instantsOf(r.rdates, fallbackTz)) {
+      for (const ms of instantsOf(raw.rdates, fallbackTz)) {
         if (ex.has(ms) || seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
         seen.add(ms);
         push({ start: ms, end: ms + dur }, ms);
       }
       recurringExpanded++;
-    } else if (!p.RRULE && r.rdates.length && !isOverride) {
+    } else if (!props.RRULE && raw.rdates.length && !isOverride) {
       // A list of dates with no rule: the event and its extra dates are a series.
-      const ex = new Set<number>(instantsOf(r.exdates, fallbackTz));
+      const ex = new Set<number>(instantsOf(raw.exdates, fallbackTz));
       const seen = new Set<number>([start]);
       push({ start, end }, start);
-      for (const ms of instantsOf(r.rdates, fallbackTz)) {
+      for (const ms of instantsOf(raw.rdates, fallbackTz)) {
         if (ex.has(ms) || seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
         seen.add(ms);
         push({ start: ms, end: ms + dur }, ms);
@@ -339,8 +341,8 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     } else {
       // A single event, an override standing where it moved to, or a rule we
       // cannot read keeping its first occurrence.
-      if (p.RRULE && !isOverride) skippedRecurring++;
-      push({ start, end }, dueAt(p["RECURRENCE-ID"], fallbackTz));
+      if (props.RRULE && !isOverride) skippedRecurring++;
+      push({ start, end }, dueAt(props["RECURRENCE-ID"], fallbackTz));
     }
   }
   busy.sort((a, b) => a.start - b.start);

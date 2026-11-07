@@ -6,10 +6,11 @@
  * door.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
-import { activityTokensOf, callerNameOf, claimCallActivity, forgetActivityTokens } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
+import { listActivityTokens, forgetActivityTokens } from "@chanlytics/db/notices";
+import { findCallerName, claimCallActivity } from "@chanlytics/db/voice";
 import { CALL_ACTIVITY_ROLES, callActivityPropsOf, callActivityStart } from "@chanlytics/contracts";
-import type { ApnsPort } from "../ops/apns.js";
+import type { ApnsPort } from "./apns.js";
 
 export interface CallForActivity {
   /** Our call's id and the person on it, as the call's row was filed (ingest_call). */
@@ -40,10 +41,10 @@ export async function tellPhonesCallStarted(
   now: Date = new Date(),
 ): Promise<ActivityOutcome> {
   if (!port) return NO_ACTIVITY;
-  const tokens = await activityTokensOf(db, tenantId, CALL_ACTIVITY_ROLES);
+  const tokens = await listActivityTokens(db, tenantId, CALL_ACTIVITY_ROLES);
   if (!tokens.length) return NO_ACTIVITY;
   if (!(await claimCallActivity(db, tenantId, call.call_id))) return { ...NO_ACTIVITY, already: true };
-  const name = call.contact_id ? await callerNameOf(db, tenantId, call.contact_id) : null;
+  const name = call.contact_id ? await findCallerName(db, tenantId, call.contact_id) : null;
   const sends = await port.startActivities(tokens, callActivityStart(callActivityPropsOf({ ...call, name }), now));
   const gone = sends.filter((s) => s.state === "gone").map((s) => s.token);
   await forgetActivityTokens(db, gone);

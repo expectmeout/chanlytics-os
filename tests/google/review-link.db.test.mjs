@@ -17,7 +17,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { reviewLinkOf } from "@chanlytics/db";
+import { reviewLinkOf } from "@chanlytics/db/campaigns";
 import { migrationNamed, query, runMigration } from "./_db-stack.mjs";
 
 const URL_ = process.env.SUPABASE_URL;

@@ -9,9 +9,10 @@ import { readBody } from "../../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { sendAlertTest } from "../../../lib/ops/you-are-live.js";
+import { ALERT_TEST_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/email/alert-test");
   if (!auth.ok) return auth.response;
-  return sendAlertTest(auth, await readBody(request));
+  return sendAlertTest(auth, await readBody(request, ALERT_TEST_DOOR));
 });

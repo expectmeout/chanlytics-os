@@ -12,9 +12,9 @@
  * the member, since the provider key lives here alone: eraseCallsDoor), and the erasure_finish job on this edge, which is
  * handed eraseCallsAtProvider as its port (jobs-tick.ts).
  */
-import { deleteCall } from "@chanlytics/channels";
-import { eachAtOnce } from "@chanlytics/core";
-import { isWorkspaceCall } from "@chanlytics/db";
+import { deleteCall } from "@chanlytics/channels/voice";
+import { runEachAtOnce } from "@chanlytics/core";
+import { isWorkspaceCall } from "@chanlytics/db/voice";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { env } from "../shared/env.js";
@@ -45,7 +45,7 @@ export async function eraseCallsAtProvider(
   del: typeof deleteCall = deleteCall,
 ): Promise<CallsErased> {
   const out: CallsErased = { asked: 0, deleted: 0, refused: 0 };
-  await eachAtOnce(
+  await runEachAtOnce(
     callIds.slice(0, MAX_CALLS),
     CALLS_AT_ONCE,
     () => true,
@@ -87,7 +87,7 @@ export async function eraseCallsDoor(
     : [];
   const mine: string[] = [];
   let notMine = 0;
-  await eachAtOnce(
+  await runEachAtOnce(
     ids,
     PROOFS_AT_ONCE,
     () => true,

@@ -23,7 +23,7 @@
  * steps together, in step order, stopping at the first refused; commitCard is a card pressed on the Line, judged by what
  * the turn's other cards of its plan became. A press after its key's day is held by what the turn recorded of each
  * card (planMadeOf), and where that record was lost, by each door's own rule: a message by its name (409), a campaign
- * by its running twin (POST playbooks, campaigns/playbook-row.ts twinRefusal), a send by the week's breath, which leaves
+ * by its running twin (POST playbooks, campaigns/playbook-row.ts findTwinRefusal), a send by the week's breath, which leaves
  * out whoever the first reached.
  *
  * The client is a parameter with the tab's own as the default, so a test hands in one bound to a fake fetch and runs

@@ -3,13 +3,13 @@
  * toast when a waiting run is approved. The page decides which runs wait; it composes none of their words.
  */
 
-import { audienceTrigger } from "../campaigns/broadcasts/broadcast-audience";
-import { batchWaitWords } from "../campaigns/playbooks/playbook-triggers";
+import { audienceTrigger } from "../campaigns/broadcasts/audience";
+import { batchWaitWords } from "../campaigns/playbooks/triggers/notices";
 import { isReachOutRun } from "../campaigns/reach-out/rules";
 import { RUN_WAITING_WORDS, heldEmailsWords, runApprovedTail, runStopWords } from "../shell/campaign-rooms";
 import { capitalize, plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";
-import { waitEndsWords } from "../waits/wait-rules";
+import { waitEndsWords } from "../waits/rules";
 
 /* ------------------------------ the runs' words ------------------------------ */
 
@@ -110,28 +110,30 @@ export interface TodayRunWordsVM {
  * scheduled or went out today; it composes none of their words. The words are sentences now ("3 people. Nothing
  * sends until you say so."), where the page had a middle dot and no capital. `facts` is a batch's own row's alone.
  */
-export function todayRunWords(r: RunLike, facts?: BatchFacts): TodayRunWordsVM {
+export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM {
   // A reach-out's run writes to businesses a search found, not to people the workspace knows (Reach out Part 5, PR 8).
-  const reach = isReachOutRun(r.audience);
-  const one = r.recipient_count === 1;
+  const reach = isReachOutRun(run.audience);
+  const one = run.recipient_count === 1;
   const people = reach
-    ? `${r.recipient_count} ${one ? "business" : "businesses"}`
-    : `${r.recipient_count} ${one ? "person" : "people"}`;
+    ? `${run.recipient_count} ${one ? "business" : "businesses"}`
+    : `${run.recipient_count} ${one ? "person" : "people"}`;
   // A person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026); a sequence to leads sends cold emails, never
   // "a reach-out" (the Campaigns wiring review's lane 7).
   const kind = reach ? "Cold email" : "Campaign";
-  const sent = `${r.counts.sent} sent`;
-  const held = `${heldEmailsWords(r.held ?? 0)}. The rest of the run goes as planned.`;
-  const drafted = `${plural(r.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
+  const sent = `${run.counts.sent} sent`;
+  const held = `${heldEmailsWords(run.held ?? 0)}. The rest of the run goes as planned.`;
+  const drafted = `${plural(run.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
   // How its wait ends, by the wait rule (decision 0064): a customer batch's until its day ends, then skipped and told, a
   // visit's until 21:00, as its notice says (batchWaitWords); a reach-out's or a one-off's until it is answered.
   const ends =
-    !reach && r.playbook_id ? batchWaitWords(audienceTrigger(r.audience), r.offered) : waitEndsWords("leads_batch");
+    !reach && run.playbook_id
+      ? batchWaitWords(audienceTrigger(run.audience), run.offered)
+      : waitEndsWords("leads_batch");
   // A freed time's run says the time first, and why these people (0082): they asked and never booked.
-  const waiting = r.offered
-    ? `${capitalize(r.offered)} opened. ${people} asked this month and never booked. ${ends}.`
+  const waiting = run.offered
+    ? `${capitalize(run.offered)} opened. ${people} asked this month and never booked. ${ends}.`
     : `${people}. ${facts ? batchSaid(facts, ends) : `${ends}.`}`;
-  const took = typeof r.counts.took === "number" ? `, ${r.counts.took} took it` : "";
+  const took = typeof run.counts.took === "number" ? `, ${run.counts.took} took it` : "";
   return {
     people,
     waiting: {
@@ -142,14 +144,14 @@ export function todayRunWords(r: RunLike, facts?: BatchFacts): TodayRunWordsVM {
     },
     late: { meta: `${kind} · too late to approve`, status: ["Too late to approve"] },
     soon: {
-      meta: `${kind} · sends ${r.when}`,
+      meta: `${kind} · sends ${run.when}`,
       // The verb of Sent's own cancel of a run still to come (campaign-rooms.ts RUN_STOP_WORDS), not a second one.
       sentence: `${people}. ${runStopWords("scheduled").verb} it if you'd rather not.`,
-      status: ["Scheduled", `sends ${r.when}`],
+      status: ["Scheduled", `sends ${run.when}`],
     },
     done: {
-      counts: `${r.counts.replied ? `${sent}, ${r.counts.replied} replied` : sent}${took}`,
-      still: r.state === "sending",
+      counts: `${run.counts.replied ? `${sent}, ${run.counts.replied} replied` : sent}${took}`,
+      still: run.state === "sending",
     },
     held: {
       meta: `${kind} · going`,
@@ -162,22 +164,22 @@ export function todayRunWords(r: RunLike, facts?: BatchFacts): TodayRunWordsVM {
       status: ["Handed to you"],
     },
     brief:
-      runHeldEmails(r) > 0
+      runHeldEmails(run) > 0
         ? { waits: "waiting for you", sentence: held }
-        : runDraftedEmails(r) > 0
+        : runDraftedEmails(run) > 0
           ? { waits: "waiting for you", sentence: drafted }
           : { waits: RUN_WAITING_WORDS.toLowerCase(), sentence: waiting },
   };
 }
 
 /** "2 runs waiting" beside the queue's own parts; null when none waits. */
-export function todayRunsSub(n: number): string | null {
-  return n ? `${n} run${n === 1 ? "" : "s"} waiting` : null;
+export function todayRunsSub(count: number): string | null {
+  return count ? `${count} run${count === 1 ? "" : "s"} waiting` : null;
 }
 
 /** "1 run too late to approve" beside the queue's parts: a run whose day has passed, which waits on nobody; null for none. */
-export function todayLateRunsSub(n: number): string | null {
-  return n ? `${n} run${n === 1 ? "" : "s"} too late to approve` : null;
+export function todayLateRunsSub(count: number): string | null {
+  return count ? `${count} run${count === 1 ? "" : "s"} too late to approve` : null;
 }
 
 /**
@@ -185,6 +187,6 @@ export function todayLateRunsSub(n: number): string | null {
  * and when it really goes, as every receipt of an approve says it (shell/campaign-rooms.ts runApprovedTail). Two parts, so
  * the page keeps its typography without composing the number.
  */
-export function todayRunApproved(label: string, n: number, when: string): { lead: string; rest: string } {
-  return { lead: label, rest: runApprovedTail(n, when) };
+export function todayRunApproved(label: string, count: number, when: string): { lead: string; rest: string } {
+  return { lead: label, rest: runApprovedTail(count, when) };
 }

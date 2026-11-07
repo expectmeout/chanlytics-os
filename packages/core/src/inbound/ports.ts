@@ -31,8 +31,11 @@ import type {
 // TYPES ONLY, and only these: the one inbound shape is the channels package's
 // and the verb speaks it, but a value from channels would be a provider
 // inside a verb. That is a port, not a widening (hygiene.test.mjs).
-import type { InboundMessage, WaConfig } from "@chanlytics/channels";
-import type { IngestResult, Json, LeadContext, RoutedChannel } from "@chanlytics/db";
+import type { InboundMessage } from "@chanlytics/channels/inbound";
+import type { WaConfig } from "@chanlytics/channels/whatsapp";
+import type { IngestResult, RoutedChannel } from "@chanlytics/db/channels";
+import type { Json } from "@chanlytics/db/types";
+import type { LeadContext } from "@chanlytics/db/conversations";
 import type { Delivered, SendKind, Sender, Wire } from "../deliver/deliver";
 import type { ThreadState, ThreadTurn } from "./thread";
 
@@ -317,7 +320,7 @@ export interface InboundPorts {
     describe(lead: LeadContext, now?: Date, tz?: string, channel?: InboundChannel): string;
   };
   /**
-   * The names the workspace's filings sent the carriers (packages/db filedNamesOf): the campaign's is the name a START by
+   * The names the workspace's filings sent the carriers (packages/db findFiledNames): the campaign's is the name a START by
    * text is confirmed in (contracts confirmationNameOf; the wiring's second audit, X4-5). Absent in an adapter that has
    * none: the confirmation is then in the workspace's name.
    */

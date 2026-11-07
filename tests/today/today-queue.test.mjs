@@ -7,7 +7,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, todayBriefWords, QUOTE_MAX, leadQuestionRoute, attentionRow } from "@chanlytics/contracts";
+import { toTodayVM, QUOTE_MAX, leadQuestionRoute } from "@chanlytics/contracts";
+import { todayBriefWords } from "../../apps/dashboard/src/surfaces/today/brief-words.ts";
+import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { personRow, daysAgo, ROW_NOW, ROW_TZ } from "../consent/_person-row.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";

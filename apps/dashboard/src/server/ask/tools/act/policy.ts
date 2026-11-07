@@ -9,7 +9,9 @@ import {
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
-import { actAction, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
+import { str } from "../context/tool-reads";
 
 /**
  * What a class's change asks that its row already holds (the operator stress run, 15 Oct 2026: a part of an ask already
@@ -18,23 +20,23 @@ import { actAction, propose, refuse, str, type ProposalOutcome, type ToolContext
  */
 function classHolds(
   cls: PolicyClass,
-  asked: { mode: string; conf: number | null },
+  input: { mode: string; conf: number | null },
   was: { mode: string | null; conf: number | null } | null,
 ): { all: boolean; words: string } | null {
   if (!was) return null;
-  const sameMode = !!asked.mode && was.mode === asked.mode;
-  const sameConf = asked.conf !== null && was.conf === asked.conf;
+  const sameMode = !!input.mode && was.mode === input.mode;
+  const sameConf = input.conf !== null && was.conf === input.conf;
   const holds = [
-    sameMode ? `is already ${POLICY_MODE_WORDS[asked.mode as PolicyMode].chip}` : null,
-    sameConf ? `already has its confidence dial at ${Math.round((asked.conf ?? 0) * 100)}%` : null,
+    sameMode ? `is already ${POLICY_MODE_WORDS[input.mode as PolicyMode].chip}` : null,
+    sameConf ? `already has its confidence dial at ${Math.round((input.conf ?? 0) * 100)}%` : null,
   ].filter((x): x is string => x !== null);
   if (!holds.length) return null;
-  const all = (!asked.mode || sameMode) && (asked.conf === null || sameConf);
+  const all = (!input.mode || sameMode) && (input.conf === null || sameConf);
   return { all, words: `“${POLICY_CLASS_WORDS[cls].name}” ${holds.join(" and ")}` };
 }
 
 async function proposePolicy(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { class: string; mode: string; min_confidence?: number },
 ): Promise<ProposalOutcome> {
   const cls = str(input.class, 20);
@@ -52,10 +54,10 @@ async function proposePolicy(
   if (conf !== null && (cls !== "reply" || conf < 0 || conf > 1))
     return refuse("the confidence dial is 0 to 1 and applies to reply");
   if (!mode && conf === null) return refuse("say a mode or a confidence");
-  const { data: row } = await t.ctx.supabase
+  const { data: row } = await toolContext.ctx.supabase
     .from("policies")
     .select("mode, limits")
-    .eq("tenant_id", t.tenantId)
+    .eq("tenant_id", toolContext.tenantId)
     .eq("class", cls)
     .is("subject_type", null)
     .maybeSingle();

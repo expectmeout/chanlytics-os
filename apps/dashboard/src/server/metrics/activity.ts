@@ -25,11 +25,12 @@ import {
   type ActivityPageDto,
   type ActivityRowDto,
   messageRoute,
+  DAY_KEY,
 } from "@chanlytics/contracts";
-import { activitySubjects } from "@chanlytics/db";
+import { getActivitySubjects } from "@chanlytics/db/events";
 import type { RouteContext } from "@/server/shared/with-route";
-import { tenantFacts } from "@/server/shared/tenant";
-import { teamRoster } from "@/server/workspace/team";
+import { getTenantFacts } from "@/server/shared/tenant";
+import { getTeamRoster } from "@/server/workspace/team";
 
 /** Rows per read, over both ledgers merged. */
 const ACTIVITY_PAGE = 100;
@@ -52,9 +53,6 @@ const TIE_SLACK = 50;
 const ACTIVITY_MIN_LINES = 25;
 const ACTIVITY_MAX_READS = 5;
 
-/** A day as the route takes one: "YYYY-MM-DD". */
-const DAY_ASKED = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * The filter as GET activity takes it, checked (and Ask's workspace.activity, which reads the same log): a person's
  * id, a kind as the ledgers spell it, a family of kinds, only what went wrong, who did it, a day or a span of days,
@@ -70,9 +68,9 @@ export const ActivityQuerySchema = z.object({
   family: z.enum(ACTIVITY_FAMILIES).optional(),
   only: z.literal("problems").optional(),
   actor: z.union([z.uuid(), z.enum(ACTIVITY_ACTORS)]).optional(),
-  day: z.string().regex(DAY_ASKED).optional(),
-  from: z.string().regex(DAY_ASKED).optional(),
-  to: z.string().regex(DAY_ASKED).optional(),
+  day: z.string().regex(DAY_KEY).optional(),
+  from: z.string().regex(DAY_KEY).optional(),
+  to: z.string().regex(DAY_KEY).optional(),
   // "<created_at>|<row id>", as a page hands back in next_cursor: the instant
   // exactly as the row carries it, a bar, then `d-` or `e-` and the ledger
   // row's own id. The zone suffix is optional because it is PostgREST's to
@@ -129,12 +127,14 @@ interface Narrowed {
 
 const VERBS = new Set<string>(DECISION_VERBS);
 
-function narrowedTo(f: ActivityFilter): Narrowed {
+function narrowedTo(activityFilter: ActivityFilter): Narrowed {
   // A kind by name is asked of both ledgers as it always was: a kind this build does not know is still a row.
-  if (f.kind) return { verbs: [f.kind], kinds: [f.kind] };
-  const named = f.family
-    ? activityFamilyKinds(f.family).filter((k) => f.family === "records" || !isActivityNoise(k))
-    : f.only === "problems"
+  if (activityFilter.kind) return { verbs: [activityFilter.kind], kinds: [activityFilter.kind] };
+  const named = activityFilter.family
+    ? activityFamilyKinds(activityFilter.family).filter(
+        (k) => activityFilter.family === "records" || !isActivityNoise(k),
+      )
+    : activityFilter.only === "problems"
       ? [...ACTIVITY_PROBLEM_KINDS]
       : null;
   if (!named) return { verbs: null, kinds: null };
@@ -157,26 +157,27 @@ interface Ask {
 }
 
 /** One read of the decisions ledger from `cut`; nothing where the filter leaves it nothing to say. */
-async function decisionsFrom(a: Ask, cut: Cut | null): Promise<ActivityRowDto[]> {
-  const { f, narrowed, range, subjects } = a;
+async function decisionsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[]> {
+  const { f, narrowed, range, subjects } = ask;
   if (narrowed.verbs?.length === 0) return [];
-  let q = a.ctx.supabase
+  let query = ask.ctx.supabase
     .from("decisions")
     .select("id, verb, subject_type, subject_id, actor_type, actor_user_id, payload, created_at")
-    .eq("tenant_id", a.tenantId)
+    .eq("tenant_id", ask.tenantId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(ACTIVITY_PAGE + 1 + TIE_SLACK);
   if (narrowed.verbs)
-    q = narrowed.verbs.length === 1 ? q.eq("verb", narrowed.verbs[0] ?? "") : q.in("verb", narrowed.verbs);
-  if (f.actor) q = isActor(f.actor) ? q.eq("actor_type", ACTOR_TYPE[f.actor]) : q.eq("actor_user_id", f.actor);
-  if (range?.from) q = q.gte("created_at", range.from);
-  if (range?.to) q = q.lt("created_at", range.to);
+    query = narrowed.verbs.length === 1 ? query.eq("verb", narrowed.verbs[0] ?? "") : query.in("verb", narrowed.verbs);
+  if (f.actor)
+    query = isActor(f.actor) ? query.eq("actor_type", ACTOR_TYPE[f.actor]) : query.eq("actor_user_id", f.actor);
+  if (range?.from) query = query.gte("created_at", range.from);
+  if (range?.to) query = query.lt("created_at", range.to);
   // lte, not lt: a row written in the same microsecond as the cursor's is
   // still ahead of it in the order, and the merge's own filter is what drops it.
-  if (cut) q = q.lte("created_at", cut.at);
-  if (subjects) q = q.in("subject_id", subjects);
-  const { data, error } = await q;
+  if (cut) query = query.lte("created_at", cut.at);
+  if (subjects) query = query.in("subject_id", subjects);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return (data ?? []).map(activityRowOfDecision);
 }
@@ -185,28 +186,28 @@ async function decisionsFrom(a: Ask, cut: Cut | null): Promise<ActivityRowDto[]>
  * One read of the events ledger from `cut`. An event has no hand of its own, so the receptionist and the system
  * narrow it to nothing; a member narrows it to the events whose data names them (`by`).
  */
-async function eventsFrom(a: Ask, cut: Cut | null): Promise<ActivityRowDto[]> {
-  const { f, narrowed, range, subjects } = a;
+async function eventsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[]> {
+  const { f, narrowed, range, subjects } = ask;
   if (narrowed.kinds?.length === 0 || (f.actor && isActor(f.actor))) return [];
-  let q = a.ctx.supabase
+  let items = ask.ctx.supabase
     .from("events")
     .select("id, kind, category, subject_type, subject_id, data, created_at")
-    .eq("tenant_id", a.tenantId)
+    .eq("tenant_id", ask.tenantId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(ACTIVITY_PAGE + 1 + TIE_SLACK);
   if (narrowed.kinds) {
-    q = narrowed.kinds.length === 1 ? q.eq("kind", narrowed.kinds[0] ?? "") : q.in("kind", narrowed.kinds);
+    items = narrowed.kinds.length === 1 ? items.eq("kind", narrowed.kinds[0] ?? "") : items.in("kind", narrowed.kinds);
   } else {
-    for (const p of ACTIVITY_NOISE_PREFIXES) q = q.not("kind", "like", `${p}%`);
-    for (const k of ACTIVITY_NOISE_KINDS) q = q.neq("kind", k);
+    for (const p of ACTIVITY_NOISE_PREFIXES) items = items.not("kind", "like", `${p}%`);
+    for (const k of ACTIVITY_NOISE_KINDS) items = items.neq("kind", k);
   }
-  if (f.actor) q = q.filter("data->>by", "eq", f.actor);
-  if (range?.from) q = q.gte("created_at", range.from);
-  if (range?.to) q = q.lt("created_at", range.to);
-  if (cut) q = q.lte("created_at", cut.at);
-  if (subjects) q = q.in("subject_id", subjects);
-  const { data, error } = await q;
+  if (f.actor) items = items.filter("data->>by", "eq", f.actor);
+  if (range?.from) items = items.gte("created_at", range.from);
+  if (range?.to) items = items.lt("created_at", range.to);
+  if (cut) items = items.lte("created_at", cut.at);
+  if (subjects) items = items.in("subject_id", subjects);
+  const { data, error } = await items;
   if (error) throw new Error(error.message);
   return (
     (data ?? [])
@@ -265,13 +266,20 @@ async function subjectsOf(ctx: RouteContext, tenantId: string, person: string): 
  * page from where the last one ended, so the fiftieth page costs what the
  * first one did.
  *
- * A page says what its rows are about by name and where they open (packages/db activitySubjects), who did them (the roster), and
+ * A page says what its rows are about by name and where they open (packages/db getActivitySubjects), who did them (the roster), and
  * reads on while its rows fold to a handful of lines (ACTIVITY_MIN_LINES).
  */
-export async function activityLog(ctx: RouteContext, tenantId: string, f: ActivityFilter): Promise<ActivityPageDto> {
+export async function getActivityLog(
+  ctx: RouteContext,
+  tenantId: string,
+  activityFilter: ActivityFilter,
+): Promise<ActivityPageDto> {
   const sb = ctx.supabase;
-  const bar = f.cursor ? f.cursor.indexOf("|") : -1;
-  const first: Cut | null = bar > 0 && f.cursor ? { at: f.cursor.slice(0, bar), id: f.cursor.slice(bar + 1) } : null;
+  const bar = activityFilter.cursor ? activityFilter.cursor.indexOf("|") : -1;
+  const first: Cut | null =
+    bar > 0 && activityFilter.cursor
+      ? { at: activityFilter.cursor.slice(0, bar), id: activityFilter.cursor.slice(bar + 1) }
+      : null;
 
   // The roster goes out WITH the ledgers rather than after them. It used to
   // wait for the merge to know whether any row had a member on it, which put a
@@ -279,18 +287,18 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
   // the page a person is already waiting in front of. A roster that refuses
   // still refuses the read where a row names a member; the catch is for the
   // case where none does and nothing awaits it at all.
-  const roster = teamRoster(sb, tenantId);
+  const roster = getTeamRoster(sb, tenantId);
   roster.catch(() => {});
   // The workspace's zone decides where a day starts: for a day asked for, and for the lines a page folds to. A log
   // with no day asked reads it beside its first page, never before it.
-  const zone = tenantFacts(sb, tenantId).then((t) => t.timezone);
+  const zone = getTenantFacts(sb, tenantId).then((t) => t.timezone);
   zone.catch(() => {});
   const [subjects, zoneFirst] = await Promise.all([
-    f.person ? subjectsOf(ctx, tenantId, f.person) : null,
-    f.day || f.from || f.to ? zone : null,
+    activityFilter.person ? subjectsOf(ctx, tenantId, activityFilter.person) : null,
+    activityFilter.day || activityFilter.from || activityFilter.to ? zone : null,
   ]);
-  const range = zoneFirst ? rangeOf(f, zoneFirst) : null;
-  const ask: Ask = { ctx, tenantId, f, narrowed: narrowedTo(f), range, subjects };
+  const range = zoneFirst ? rangeOf(activityFilter, zoneFirst) : null;
+  const ask: Ask = { ctx, tenantId, f: activityFilter, narrowed: narrowedTo(activityFilter), range, subjects };
 
   const page: ActivityRowDto[] = [];
   let cut = first;
@@ -303,7 +311,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
     if (!end) break;
     cut = { at: end.at, id: end.id };
     const dayOf = (at: string): string => zoneDayKey(Date.parse(at), timezone);
-    if (activityLines(page, dayOf, !f.kind).length >= ACTIVITY_MIN_LINES) break;
+    if (activityLines(page, dayOf, !activityFilter.kind).length >= ACTIVITY_MIN_LINES) break;
   }
 
   // Who: the member's name, else the address they signed in with. Owners read
@@ -320,7 +328,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
           (r) => r.members,
           () => [],
         ),
-    activitySubjects(sb, tenantId, about),
+    getActivitySubjects(sb, tenantId, about),
     zone,
   ]);
   const members: ActivityMemberDto[] = team.map((m) => ({

@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
+import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 
 const {
   DEAL_STAGES,
@@ -506,7 +507,7 @@ test("a deal is open while it is a proposal out or a client; the current deal an
   assert.equal(consultsHeldWords(1), "1 ended in the last week, nothing since");
 });
 
-/** A report as the route answers it (dealReport, 0008), the least one can be: a deal on file, none sent, nothing open. */
+/** A report as the route answers it (readDealReport, 0008), the least one can be: a deal on file, none sent, nothing open. */
 const report = (over = {}) => ({
   any: true,
   sent: 0,
@@ -1065,7 +1066,7 @@ test("the Journey continues past the booking: five lists, each gated on deals be
 });
 
 test("a row's second line says a waiting proposal after their words and before the visit; a client keeps the visit", () => {
-  const { attentionRow, toPersonRowVM } = contracts;
+  const { toPersonRowVM } = contracts;
   const vmOf = (over) => toPersonRowVM(personRow(over), TZ, new Date(NOW));
   const visits = {
     timezone: TZ,

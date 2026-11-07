@@ -3,7 +3,7 @@
  * owner's acts -- connect one at Google or Microsoft (its last six months or from now on: decision 0086), pause it,
  * resume one its own mail held, set its name, signature and cap, send a test to itself, Check its records, stop, resume
  * or bring in what it brings, remove it -- and what each row says, which are contracts'
- * (email/mailbox-connections.ts), so the row says the same sentence the door and the clock decided.
+ * (email/mailbox-connections/rows.ts), so the row says the same sentence the door and the clock decided.
  *
  * Every write is in the refresh map under Setup: the block repaints from Setup's re-read, and the mailboxes clock's
  * changes arrive the same way, by realtime (mailbox_connections is watched). A connect asks the door for the way to

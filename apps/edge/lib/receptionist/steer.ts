@@ -22,17 +22,11 @@
  * draft of another is refused. Body: { message_id, text }.
  */
 import { json, refuse } from "../shared/http.js";
-import { tokenWorkspace, type Admitted } from "../shared/admin-auth.js";
+import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
-import {
-  readThreadState,
-  readLeadContext,
-  describeLead,
-  instagramIdOf,
-  oldestActiveChannel,
-  withdrawQueued,
-} from "@chanlytics/db";
+import { readThreadState, readLeadContext, describeLead, withdrawQueued } from "@chanlytics/db/conversations";
+import { findInstagramId, findOldestActiveChannel } from "@chanlytics/db/channels";
 import type { InboundChannel } from "@chanlytics/core";
 import {
   resolveSystemPrompt,
@@ -46,9 +40,9 @@ import {
   fallbackMessages,
   UUID,
 } from "@chanlytics/contracts";
-import { smsBody } from "@chanlytics/channels";
-import { brainCallOf, generateReply } from "./brain.js";
-import { queueDraft } from "./draft-queue.js";
+import { smsBody } from "@chanlytics/channels/lines";
+import { brainCallOf, generateReply } from "../ai/receptionist-brain.js";
+import { queueDraft } from "../ai/draft-queue.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
 
@@ -122,17 +116,17 @@ function replyToOf(meta: unknown): string | undefined {
  */
 async function leadNoteOf(
   db: NonNullable<ReturnType<typeof pg>>,
-  m: { tenant_id: string; meta: unknown },
-  who: { phone: string | null; contactId: string | null },
+  message: { tenant_id: string; meta: unknown },
+  personName: { phone: string | null; contactId: string | null },
   timezone: string,
   channel: InboundChannel,
 ): Promise<string | undefined> {
   try {
     // By the number, or, for a person with none (a DM's), by their own row: as the receptionist reads them (model-turn.ts).
-    const lead = who.phone
-      ? await readLeadContext(db, m.tenant_id, who.phone, 1, replyToOf(m.meta))
-      : who.contactId
-        ? await readLeadContext(db, m.tenant_id, { contactId: who.contactId }, 1, replyToOf(m.meta))
+    const lead = personName.phone
+      ? await readLeadContext(db, message.tenant_id, personName.phone, 1, replyToOf(message.meta))
+      : personName.contactId
+        ? await readLeadContext(db, message.tenant_id, { contactId: personName.contactId }, 1, replyToOf(message.meta))
         : null;
     if (!lead) return undefined;
     return describeLead(lead, undefined, timezone, channel);
@@ -153,7 +147,7 @@ async function draftAddressOf(
   phone: string | null,
 ): Promise<string | null> {
   if (channel !== "instagram") return phone;
-  return m.contact_id ? instagramIdOf(db, m.tenant_id, m.contact_id).catch(() => null) : null;
+  return m.contact_id ? findInstagramId(db, m.tenant_id, m.contact_id).catch(() => null) : null;
 }
 
 function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: string | null) {
@@ -172,7 +166,7 @@ function refusedBeforeRead(auth: Admitted): Response | null {
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
   const workspace = tokenWorkspace(auth);
   if (auth.via !== "token" || (workspace && UUID.test(workspace))) return null;
-  return refuse(400, "bad_tenant", "this door acts only for a workspace its credential names, and this one names none");
+  return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
 }
 
 /**
@@ -273,7 +267,7 @@ export async function steerHeldDraft(
   const to = await draftAddressOf(db, channel, m, phone);
   if (!to) return refuse(409, "no_phone");
   // Its oldest active one, where a workspace holds two of the kind; a read that failed finds none, as it always did.
-  const routed = await oldestActiveChannel(db, m.tenant_id, channel).catch(() => null);
+  const routed = await findOldestActiveChannel(db, m.tenant_id, channel).catch(() => null);
   if (!routed) return refuse(409, "no_channel");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
@@ -288,9 +282,9 @@ export async function steerHeldDraft(
   const leadNote = await leadNoteOf(db, m, { phone, contactId: m.contact_id }, rt.timezone ?? "UTC", channel);
 
   const now = new Date(); // the rewrite's one clock: its prompt, its price check (steerAllowance) and its timing
-  let r: Awaited<ReturnType<typeof generateReply>>;
+  let item: Awaited<ReturnType<typeof generateReply>>;
   try {
-    r = await ask(
+    item = await ask(
       thread.history,
       lastUser.content,
       resolveSystemPrompt(rt.brain, channel, rt.timezone, now, rt.policy, rt.known),
@@ -306,8 +300,8 @@ export async function steerHeldDraft(
     return refuse(502, "brain_failed");
   }
   // The same second door the handler keeps: no price, no money a person decides; the original draft stays.
-  if (rewriteBlocked(r.text, messageId, steerAllowance(rt, now, text))) return refuse(409, "policy_block_price");
-  const words = wordsForTheWire(channel, r.text, thread.textedBefore);
+  if (rewriteBlocked(item.text, messageId, steerAllowance(rt, now, text))) return refuse(409, "policy_block_price");
+  const words = wordsForTheWire(channel, item.text, thread.textedBefore);
 
   const delayMs =
     typeof m.meta === "object" && m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number"
@@ -325,13 +319,13 @@ export async function steerHeldDraft(
       body: words,
       delayMs,
       source: "steered",
-      brainMeta: r.meta,
+      brainMeta: item.meta,
       // The rewrite goes out on the wire the draft it replaces was written for.
       // Unsaid, the row defaulted to WhatsApp, so a steered text was sent over
       // WhatsApp to a number that had only ever texted — and the customer's own
       // thread never got its answer.
       channel,
-      extra: { steer: text, steered_from: m.id, escalate: r.escalate, reply_to: replyToOf(m.meta) },
+      extra: { steer: text, steered_from: m.id, escalate: item.escalate, reply_to: replyToOf(m.meta) },
     },
     steerLog,
   );
@@ -347,15 +341,15 @@ export async function steerHeldDraft(
     new_message_id: newId,
     chars: text.length,
     ms: Date.now() - now.getTime(),
-    escalate: r.escalate,
+    escalate: item.escalate,
     delay_ms: delayMs,
   });
   return json(200, {
     ok: true,
     message_id: newId,
     text: words,
-    meta: r.meta ?? null,
-    escalate: r.escalate,
+    meta: item.meta ?? null,
+    escalate: item.escalate,
     delay_ms: delayMs,
   });
 }

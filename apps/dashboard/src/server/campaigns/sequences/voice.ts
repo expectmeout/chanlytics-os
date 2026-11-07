@@ -8,7 +8,7 @@ import {
   fenced,
   type SequenceVoiceDto,
 } from "@chanlytics/contracts";
-import { keepAskMemory } from "@chanlytics/db";
+import { keepAskMemory } from "@chanlytics/db/ask";
 import { askForJson } from "../../shared/model-json";
 import type { RouteContext } from "../../shared/with-route";
 
@@ -40,8 +40,8 @@ const VOICE_JSON_SCHEMA = {
 const VoiceAnswerSchema = z.object({ lines: z.array(z.string()) });
 
 /** A line the model said, as memory keeps it, or null where it is no line about writing. */
-function voiceLineKept(said: string): string | null {
-  const line = said.replace(/\s+/g, " ").trim();
+function voiceLineKept(sentence: string): string | null {
+  const line = sentence.replace(/\s+/g, " ").trim();
   if (!line.toLowerCase().startsWith(VOICE_LINE_LEAD.toLowerCase())) return null;
   if (line.length > Math.min(LINE_MAX, ASK_MEMORY_LIMITS.textMax)) return null;
   return line.slice(VOICE_LINE_LEAD.length).trim().length >= SAID_MIN ? line : null;
@@ -70,8 +70,8 @@ export async function learnVoice(
   );
   const seen = new Set<string>();
   const lines: string[] = [];
-  for (const said of answer.lines) {
-    const line = voiceLineKept(said);
+  for (const sentence of answer.lines) {
+    const line = voiceLineKept(sentence);
     if (!line || seen.has(line.toLowerCase())) continue;
     seen.add(line.toLowerCase());
     lines.push(line);

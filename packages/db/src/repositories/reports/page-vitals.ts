@@ -40,7 +40,7 @@ export async function notePageVitals(
 }
 
 /** The 75th percentile of the browser's five over page loads, over every page and over each. */
-export async function pageVitalsP75(
+export async function readPageVitalsP75(
   db: Db,
   window: PageVitalsWindow,
 ): Promise<PageVitalsAnswer<Fns["page_vitals_p75"]["Returns"]>> {
@@ -49,7 +49,7 @@ export async function pageVitalsP75(
 }
 
 /** Where the pages' time goes: the 75th percentile by page, part, how it was reached, device and held rows. */
-export async function pageSpeed(
+export async function readPageSpeed(
   db: Db,
   window: PageVitalsWindow,
 ): Promise<PageVitalsAnswer<Fns["page_speed"]["Returns"]>> {
@@ -58,7 +58,7 @@ export async function pageSpeed(
 }
 
 /** The elements whose interactions, paints and shifts cost the most, by page. */
-export async function pageSpots(
+export async function readPageSpots(
   db: Db,
   window: PageVitalsWindow,
 ): Promise<PageVitalsAnswer<Fns["page_spots"]["Returns"]>> {

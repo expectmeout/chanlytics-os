@@ -421,7 +421,7 @@ test("the edge reads the environment through env.ts and logs through log.ts, now
   // The edge's log.ts is a typed door to the one logger, no longer the place a line reaches stdout: that is the
   // package's writer, and only it (and db's fallback, until an app hands db the logger) may call console.
   assert.deepEqual(await rulesFiredOn("apps/edge/lib/shared/log.ts", 'console.error("{}");\n'), ["no-console"]);
-  assert.deepEqual(await rulesFiredOn("packages/channels/src/log/logger.ts", 'console.error("{}");\n'), []);
+  assert.deepEqual(await rulesFiredOn("packages/log/src/logger.ts", 'console.error("{}");\n'), []);
   assert.deepEqual(await rulesFiredOn("packages/db/src/shared/observe.ts", 'console.error("{}");\n'), []);
 });
 
@@ -669,7 +669,7 @@ async function fired(file, code) {
 }
 
 test("in a held tree each limit is an error one past its number, and not at it", async () => {
-  const held = "packages/contracts/src/shared/probe.ts";
+  const held = "packages/contracts/src/email/probe.ts";
   const at = { lines: LIMIT.lines, branches: LIMIT.branches, depth: LIMIT.depth, params: FUNCTION_LIMITS.params };
   assert.deepEqual(await fired(held, probe(at)), [], "a function at every limit passes");
   assert.deepEqual(await fired(held, probe({ ...at, lines: at.lines + 1 })), ["max-lines-per-function"]);

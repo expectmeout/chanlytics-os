@@ -13,7 +13,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { queuedRecipients, resolveOutboundTarget, resolveOutboundTargetForContact } from "@chanlytics/db";
+import { listQueuedRecipients } from "@chanlytics/db/campaigns";
+import { resolveOutboundTarget, resolveOutboundTargetForContact } from "@chanlytics/db/channels";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutColumns } from "../_schema.mjs";
 import { middayZone } from "../shared/_midday-zone.mjs";
@@ -235,7 +236,7 @@ test("a run's queued people are read once, each with their channel and attempt, 
     run({ contact_id: "k3", channel: "whatsapp", attempt: 1 }),
     run({ contact_id: "k4", state: "sent" }),
   ];
-  const ask = (db) => queuedRecipients(db, { tenantId: T, broadcastId: "b1", limit: 25 });
+  const ask = (db) => listQueuedRecipients(db, { tenantId: T, broadcastId: "b1", limit: 25 });
   // As the database is now: every column, and the people in the order of their ids (a batch is the same few every read).
   const now = fakeDb({ broadcast_recipients: rows() });
   const reads = watch(now, "sequence_sends");

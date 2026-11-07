@@ -15,8 +15,8 @@
  * a notice ("Use this name"); it is taken without a press only when automatic naming is on and two independent signals
  * agree (signerAgrees), and it is off until the signer evals pass on the live key (AUTOMATIC_NAMING).
  */
-import type { ReplyIntent } from "../../campaigns/reach-out/replies";
-import { replyTextOf } from "../../campaigns/reach-out/replies";
+import type { ReplyIntent } from "../../campaigns/reach-out/replies/intents";
+import { replyTextOf } from "../../campaigns/reach-out/replies/words";
 
 /** Automatic naming (0052, decision 5): off until the signer evals pass on the live key. The press is the default. */
 export const AUTOMATIC_NAMING = false;
@@ -228,18 +228,20 @@ export function isPersonsName(
  * The reply's signer, or null: what the reading returned, kept only when it stands word for word in the writer's own
  * lines and passes the human-name gate, from a person's own reply that is not a no.
  */
-export function signerOf(f: SignerFacts): Signer | null {
-  if (f.intent === "no" || f.claim !== "person") return null;
-  const name = squeezed(f.name);
+export function signerOf(signerFacts: SignerFacts): Signer | null {
+  if (signerFacts.intent === "no" || signerFacts.claim !== "person") return null;
+  const name = squeezed(signerFacts.name);
   if (!name) return null;
   // Word for word where they signed, and the reply has words of its own above the signature.
-  const own = signedLinesOf(f.text);
-  if (!replyTextOf(f.text) || !own || !standsIn(own, name)) return null;
-  if (!isPersonsName(name, [f.business, ...f.notNames], f.from)) return null;
-  const title = squeezed(f.title);
+  const own = signedLinesOf(signerFacts.text);
+  if (!replyTextOf(signerFacts.text) || !own || !standsIn(own, name)) return null;
+  if (!isPersonsName(name, [signerFacts.business, ...signerFacts.notNames], signerFacts.from)) return null;
+  const title = squeezed(signerFacts.title);
   // A title that is only a name again, or the business, says nothing more.
   const kept =
-    title && foldedName(title) !== foldedName(name) && !(f.business && foldedName(title) === foldedName(f.business))
+    title &&
+    foldedName(title) !== foldedName(name) &&
+    !(signerFacts.business && foldedName(title) === foldedName(signerFacts.business))
       ? title
       : null;
   return { name, title: kept };
@@ -251,17 +253,17 @@ export function signerOf(f: SignerFacts): Signer | null {
  * whose local part is a role word (hello@, info@), nor for a signer whose title says they write for someone else.
  */
 export function signerAgrees(
-  s: Signer,
+  signer: Signer,
   from: { address: string | null | undefined; name: string | null | undefined },
 ): boolean {
-  if (s.title && STAND_IN_TITLE.test(s.title)) return false;
+  if (signer.title && STAND_IN_TITLE.test(signer.title)) return false;
   const local = localPart(from.address);
   if (!local || ROLE_WORDS.has(local)) return false;
-  const words = foldedName(s.name).split(" ");
+  const words = foldedName(signer.name).split(" ");
   const first = words[0] ?? "";
   const last = words[words.length - 1] ?? "";
   const fromName = squeezed(from.name);
-  const byFromLine = !!fromName && foldedName(fromName) === foldedName(s.name);
+  const byFromLine = !!fromName && foldedName(fromName) === foldedName(signer.name);
   const byAddress =
     words.length > 0 &&
     (local === first || local === words.join("") || (words.length > 1 && local === `${first[0] ?? ""}${last}`));

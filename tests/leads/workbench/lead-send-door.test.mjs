@@ -8,7 +8,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { verifyUnsubscribeToken } from "@chanlytics/channels";
+import { verifyUnsubscribeToken } from "@chanlytics/channels/tokens";
 import {
   LEAD_NO_ADDRESS,
   LEAD_OWN_EMAIL_WORDS as W,

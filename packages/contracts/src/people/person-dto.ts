@@ -5,16 +5,16 @@
  * view model is person-row.ts, the page's person-profile.ts.
  */
 import type { ConsentChange } from "../consent/consent";
-import type { PersonVisitsDto } from "../calendar/people";
+import type { PersonVisitsDto } from "../calendar/people/visits";
 import type { StepColumns } from "../notes/steps";
 import type { CallDto } from "../conversations/call-dto";
 import type { ConversationDto } from "../conversations/thread-dto";
-import type { DealDto, OpenDealDto } from "../deals/deal-vm";
-import type { DealPaceDto } from "../deals/deal-waits";
-import type { RecipientState } from "../campaigns/broadcasts/broadcasts";
+import type { DealDto, OpenDealDto } from "../deals/vm";
+import type { DealPaceDto } from "../deals/waits";
+import type { RecipientState } from "../campaigns/broadcasts/states";
 import type { PersonNoteDto, PersonNoteTeamDto } from "../notes/person-notes";
-import type { ReachOutLeadTimelineDto } from "../campaigns/reach-out/leads";
-import type { LeadRowDto } from "../leads/lead-dtos";
+import type { ReachOutLeadTimelineDto } from "../campaigns/reach-out/leads/lines";
+import type { LeadRowDto } from "../leads/dtos";
 import type { PersonDoubtDto } from "./person-doubts";
 
 /* --------------------------------- DTOs ---------------------------------- */

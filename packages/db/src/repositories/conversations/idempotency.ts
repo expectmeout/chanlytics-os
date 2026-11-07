@@ -41,7 +41,7 @@ const HOLD_COLUMNS = "response, created_at, request_hash";
  */
 export async function claimIdempotencyKey(
   db: Db,
-  p: { tenantId: string; key: string; route: string; requestHash: string; nowIso: string },
+  params: { tenantId: string; key: string; route: string; requestHash: string; nowIso: string },
 ): Promise<IdempotencyClaim> {
   // ON CONFLICT DO NOTHING, with the inserted row read back: PostgREST returns
   // only what was inserted, so a row already there answers with none.
@@ -49,12 +49,12 @@ export async function claimIdempotencyKey(
     .from("idempotency_keys")
     .upsert(
       {
-        tenant_id: p.tenantId,
-        key: p.key,
-        route: p.route,
-        request_hash: p.requestHash,
+        tenant_id: params.tenantId,
+        key: params.key,
+        route: params.route,
+        request_hash: params.requestHash,
         response: null,
-        created_at: p.nowIso,
+        created_at: params.nowIso,
       },
       { onConflict: "tenant_id,key", ignoreDuplicates: true },
     )
@@ -64,8 +64,8 @@ export async function claimIdempotencyKey(
   const held = await db
     .from("idempotency_keys")
     .select(HOLD_COLUMNS)
-    .eq("tenant_id", p.tenantId)
-    .eq("key", p.key)
+    .eq("tenant_id", params.tenantId)
+    .eq("key", params.key)
     .maybeSingle();
   if (held.error) throw new Error(`idempotency lookup: ${held.error.message}`);
   return { won: false, held: held.data };
@@ -79,14 +79,14 @@ export async function claimIdempotencyKey(
  */
 export async function takeIdempotencyKey(
   db: Db,
-  p: { tenantId: string; key: string; requestHash: string; nowIso: string; from: string },
+  params: { tenantId: string; key: string; requestHash: string; nowIso: string; from: string },
 ): Promise<boolean> {
   const taken = await db
     .from("idempotency_keys")
-    .update({ request_hash: p.requestHash, response: null, created_at: p.nowIso })
-    .eq("tenant_id", p.tenantId)
-    .eq("key", p.key)
-    .eq("created_at", p.from)
+    .update({ request_hash: params.requestHash, response: null, created_at: params.nowIso })
+    .eq("tenant_id", params.tenantId)
+    .eq("key", params.key)
+    .eq("created_at", params.from)
     .select("key");
   if (taken.error) throw new Error(`idempotency take: ${taken.error.message}`);
   return (taken.data ?? []).length > 0;
@@ -99,14 +99,14 @@ export async function takeIdempotencyKey(
  */
 export async function releaseIdempotencyKey(
   db: Db,
-  p: { tenantId: string; key: string; nowIso: string },
+  params: { tenantId: string; key: string; nowIso: string },
 ): Promise<void> {
   const released = await db
     .from("idempotency_keys")
     .delete()
-    .eq("tenant_id", p.tenantId)
-    .eq("key", p.key)
-    .eq("created_at", p.nowIso);
+    .eq("tenant_id", params.tenantId)
+    .eq("key", params.key)
+    .eq("created_at", params.nowIso);
   if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
 }
 
@@ -119,14 +119,14 @@ export async function releaseIdempotencyKey(
  */
 export async function keepIdempotencyReceipt(
   db: Db,
-  p: { tenantId: string; key: string; requestHash: string; response: Json; stamp: string },
+  params: { tenantId: string; key: string; requestHash: string; response: Json; stamp: string },
 ): Promise<boolean> {
   const kept = await db
     .from("idempotency_keys")
-    .update({ request_hash: p.requestHash, response: p.response })
-    .eq("tenant_id", p.tenantId)
-    .eq("key", p.key)
-    .eq("created_at", p.stamp)
+    .update({ request_hash: params.requestHash, response: params.response })
+    .eq("tenant_id", params.tenantId)
+    .eq("key", params.key)
+    .eq("created_at", params.stamp)
     .select("key");
   if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
   return (kept.data ?? []).length > 0;

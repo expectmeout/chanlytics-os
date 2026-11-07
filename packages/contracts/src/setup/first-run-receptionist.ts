@@ -12,7 +12,7 @@ import { servicesWords, type ServiceWordsInput } from "../config/business-tab/se
 import { TONE_PRESETS, personalityOf } from "../config/business-tab/how-it-answers";
 import type { Hours } from "../config/workspace-config/business-profile";
 import { phoneVoiceShown } from "../voice/phone-voices";
-import type { SetupDto, SetupState } from "./setup";
+import type { SetupDto, SetupState } from "./lines";
 
 /** What the business goes by here: the receptionist's own name, else the workspace's (typed at sign-up). */
 export function businessNameOf(
@@ -99,9 +99,9 @@ export function soundsWords(
   profile: { phone_voice?: string | null; tone?: string | null; assistant_name?: string | null } | null,
 ): string {
   const voice = phoneVoiceShown(profile?.phone_voice).name;
-  const p = personalityOf(profile?.tone);
-  const personality = p
-    ? (TONE_PRESETS.find((t) => t.key === p)?.label ?? null)
+  const result = personalityOf(profile?.tone);
+  const personality = result
+    ? (TONE_PRESETS.find((t) => t.key === result)?.label ?? null)
     : profile?.tone
       ? "Your own words"
       : null;
@@ -123,19 +123,23 @@ const shownNumber = (n: string | null) => (n ? (formatPhoneDisplay(n) ?? n) : nu
  * The card's rows: when it is open, what it knows, how it books, what it speaks, the line it answers, and who it puts
  * through to.
  */
-function cardRowsOf(i: ReceptionistCardInputs): ReceptionistCardVM["rows"] {
-  const b = i.brain;
-  const p = b?.profile ?? null;
-  const sv = servicesWords(p?.services ?? null);
-  const kept = i.numbers?.keptLine ?? null;
-  const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
-  const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
+function cardRowsOf(cardInputs: ReceptionistCardInputs): ReceptionistCardVM["rows"] {
+  const brain = cardInputs.brain;
+  const profile = brain?.profile ?? null;
+  const sv = servicesWords(profile?.services ?? null);
+  const kept = cardInputs.numbers?.keptLine ?? null;
+  const line = cardInputs.numbers?.voiceLine ?? cardInputs.setup.channels.voice.number ?? null;
+  const through = cardInputs.numbers?.handoff ?? cardInputs.setup.business.handoff ?? null;
   const show = shownNumber;
   // With no link, whether the business books or quotes, its receptionist takes their details (decision 2; 0008, amended
   // 18 Oct 2026).
-  const takesDetails = !!b && !b.booking_link;
+  const takesDetails = !!brain && !brain.booking_link;
   return [
-    { key: "open", label: "Open", value: i.setup.business.hours && p?.hours ? openWeekWords(p.hours, i.tz) : null },
+    {
+      key: "open",
+      label: "Open",
+      value: cardInputs.setup.business.hours && profile?.hours ? openWeekWords(profile.hours, cardInputs.tz) : null,
+    },
     {
       key: "knows",
       label: "Knows",
@@ -143,8 +147,8 @@ function cardRowsOf(i: ReceptionistCardInputs): ReceptionistCardVM["rows"] {
     },
     takesDetails
       ? { key: "books", label: "To book", value: "Takes their details" }
-      : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
-    { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
+      : { key: "books", label: "Books with", value: brain?.booking_link ? linkShown(brain.booking_link) : null },
+    { key: "speaks", label: "Speaks", value: profile?.languages?.length ? profile.languages.join(", ") : null },
     // The line it answers, and the number set to forward to it, as recorded: no claim about when a call forwards.
     {
       key: "answers",
@@ -156,15 +160,15 @@ function cardRowsOf(i: ReceptionistCardInputs): ReceptionistCardVM["rows"] {
 }
 
 /** The owner's receptionist, so far: who it is, whether it answers, what it greets with and what it knows. */
-export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardVM {
-  const b = i.brain;
-  const p = b?.profile ?? null;
+export function receptionistCardOf(cardInputs: ReceptionistCardInputs): ReceptionistCardVM {
+  const brain = cardInputs.brain;
+  const profile = brain?.profile ?? null;
   // The name the phone greets with is the receptionist's own (voice call-start reads the brain), never the
   // workspace's: the card's title may borrow the workspace's until there is one, the greeting may not.
-  const spoken = (b?.business_name || i.setup.business.name || "").trim();
-  const name = businessNameOf(spoken, i.workspaceName) ?? "";
-  const assistant = (p?.assistant_name ?? "").trim() || null;
-  const status = cardStatusOf(i);
+  const spoken = (brain?.business_name || cardInputs.setup.business.name || "").trim();
+  const name = businessNameOf(spoken, cardInputs.workspaceName) ?? "";
+  const assistant = (profile?.assistant_name ?? "").trim() || null;
+  const status = cardStatusOf(cardInputs);
   return {
     caption: "Your receptionist, so far",
     initials: assistant ? initialsOf(assistant) : name ? initialsOf(name) : "",
@@ -173,9 +177,9 @@ export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardV
     status,
     strip: `${assistant ?? "Your receptionist"} · ${status.words}`,
     greetingLabel: "Greets every caller with",
-    greeting: cardGreeting(spoken, p, i.setup),
-    sounds: soundsWords(p),
-    rows: cardRowsOf(i),
+    greeting: cardGreeting(spoken, profile, cardInputs.setup),
+    sounds: soundsWords(profile),
+    rows: cardRowsOf(cardInputs),
     foot: "Fills in as you go. You can change any of it later in Settings.",
   };
 }

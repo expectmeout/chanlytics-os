@@ -4,7 +4,7 @@
  * table, the peek, the sheets and a selection's bar. Each is a plain function of the page's state, so the tree keeps the
  * nodes the JSX drew.
  */
-import { PIPELINE_PHONE_SORTS, pipelineCsv } from "@chanlytics/contracts";
+import { PIPELINE_PHONE_SORTS, pipelineCsv } from "./board-view";
 import { Button } from "../../kit/button/button";
 import { downloadCsv } from "../../kit/download";
 import { Menu } from "../../kit/menu/menu";

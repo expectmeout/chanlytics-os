@@ -9,31 +9,28 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { pg } from "../shared/pg.js";
-import {
-  fetchLinkedMedia,
-  fetchMediaBytes,
-  isLinkedMedia,
-  publicFetcher,
-  type InboundMessage,
-  type WaMediaRef,
-} from "@chanlytics/channels";
+import { fetchLinkedMedia } from "@chanlytics/channels/instagram";
+import { fetchMediaBytes, type WaMediaRef } from "@chanlytics/channels/whatsapp";
+import { isLinkedMedia, type InboundMessage } from "@chanlytics/channels/inbound";
+import { publicFetcher } from "@chanlytics/channels/shared";
 import {
   AnswerNotKept,
-  claimReplyTurn,
-  holdsReplyTurn,
   ingestInbound,
   markProcessed,
   stampHandled,
   pauseConversation,
-  emitEvent,
-  recordActivation,
+  type IngestResult,
+} from "@chanlytics/db/channels";
+import {
+  claimReplyTurn,
+  holdsReplyTurn,
   readLiveHold,
   readThreadState,
-  repliedTo,
-  openBookingRequest,
-  type IngestResult,
-} from "@chanlytics/db";
-import type { Database, Json } from "@chanlytics/db";
+  wasRepliedTo,
+} from "@chanlytics/db/conversations";
+import { emitEvent, recordActivation } from "@chanlytics/db/events";
+import { openBookingRequest } from "@chanlytics/db/calendar";
+import type { Database, Json } from "@chanlytics/db/types";
 import { upsertEscalation, type EscalationOutcome } from "@chanlytics/jobs";
 import {
   deliverSafely,
@@ -48,9 +45,9 @@ import {
   type Wire,
 } from "@chanlytics/core";
 import { loadTenantNotifications, waCfgFor, type TenantRuntime } from "../shared/tenant-runtime.js";
-import { notify } from "../ops/notify.js";
-import { queueDraft } from "../receptionist/draft-queue.js";
-import { recordTokens } from "../receptionist/budget.js";
+import { notify } from "../shared/alerts/notify.js";
+import { queueDraft } from "../ai/draft-queue.js";
+import { recordTokens } from "../ai/budget.js";
 import {
   addressOf,
   clockTime,
@@ -70,7 +67,7 @@ import { logger, errField } from "../shared/log.js";
  * back to: the handler hands an unknown thread to a person rather than
  * answering a customer mid-conversation from an invented empty history.
  */
-export async function pgThread(
+export async function readPgThread(
   db: ReturnType<typeof pg>,
   tenantId: string | null,
   ing: IngestResult | null,
@@ -121,7 +118,7 @@ export async function queueReply(
   to: string,
   body: string,
   delayMs: number,
-  L: ReturnType<typeof logger>,
+  log: ReturnType<typeof logger>,
   /** Why the draft waits: the hold window, or the confidence dial. */
   source: "veto_window" | "low_confidence" = "veto_window",
   /** What the row remembers about the answer (contracts/brain.ts). */
@@ -130,7 +127,7 @@ export async function queueReply(
   channel: InboundChannel = "whatsapp",
 ): Promise<string | null> {
   if (!db || !tenantId || !ing) {
-    L.warn("wa_queue_unavailable", {
+    log.warn("wa_queue_unavailable", {
       has_db: !!db,
       has_tenant: !!tenantId,
       has_ingest: !!ing,
@@ -154,7 +151,7 @@ export async function queueReply(
       // The message the draft answers (the sink's sends say it too): a text's answer taken up again finds it here.
       extra: { reply_to: ing.message_id },
     },
-    L,
+    log,
   );
   return id;
 }
@@ -177,18 +174,18 @@ export { IngestFailed };
 export const replyTurn = { claim: claimReplyTurn, holds: holdsReplyTurn };
 
 /**
- * Whether a reply names this message already (packages/db repliedTo): what a text's answer, taken up again after its
+ * Whether a reply names this message already (packages/db wasRepliedTo): what a text's answer, taken up again after its
  * runner died mid-turn, asks before it speaks (core inbound/ingest.ts). Every word a message's path says names it in
  * `meta.reply_to`: the sink's sends and queueReply's draft. No database or no workspace is nothing known to have
  * answered it.
  */
-export async function pgAnswered(
+export async function readPgAnswered(
   db: ReturnType<typeof pg>,
   tenantId: string | null,
   ing: IngestResult,
 ): Promise<boolean> {
   if (!db || !tenantId) return false;
-  return repliedTo(db, tenantId, ing.conversation_id, ing.message_id);
+  return wasRepliedTo(db, tenantId, ing.conversation_id, ing.message_id);
 }
 
 /**
@@ -197,11 +194,11 @@ export async function pgAnswered(
  * IngestFailed: the caller says so to the provider, which retries, rather
  * than acknowledging words that exist only in an email.
  */
-export async function pgIngest(
+export async function runPgIngest(
   db: SupabaseClient<Database> | null,
   tenantId: string | null,
   /** The message in the one inbound shape, on its own wire (decision 0001). */
-  n: InboundMessage & { channel: InboundChannel },
+  inboundMessage: InboundMessage & { channel: InboundChannel },
   line: string | null = null,
   /** A job takes this message up next (the door that records it and schedules its answer): see db ingestInbound. */
   opts: { jobFollows?: boolean } = {},
@@ -210,36 +207,43 @@ export async function pgIngest(
   try {
     return await ingestInbound(db, {
       tenantId,
-      channel: n.channel,
-      identityExternalId: n.identity.externalId,
-      phoneE164: n.identity.phoneE164,
-      waProfileName: n.profileName,
-      messageExternalId: n.externalId,
-      type: n.type,
-      body: n.body,
-      channelTs: n.channelTsIso,
-      media: n.media ? (n.media as unknown as Json) : null,
+      channel: inboundMessage.channel,
+      identityExternalId: inboundMessage.identity.externalId,
+      phoneE164: inboundMessage.identity.phoneE164,
+      waProfileName: inboundMessage.profileName,
+      messageExternalId: inboundMessage.externalId,
+      type: inboundMessage.type,
+      body: inboundMessage.body,
+      channelTs: inboundMessage.channelTsIso,
+      media: inboundMessage.media ? (inboundMessage.media as unknown as Json) : null,
       meta: {
-        raw_type: n.rawType,
+        raw_type: inboundMessage.rawType,
         // K3: the line it came in on and the ad it came from ride in the row's meta, where the database's own trigger
         // (00306) reads them for the first touch of the person this message made. Absent keys, never nulls.
         ...(line ? { line } : {}),
-        ...(n.referral ? { referral: { source_id: n.referral.sourceId, source_type: n.referral.sourceType } } : {}),
+        ...(inboundMessage.referral
+          ? {
+              referral: {
+                source_id: inboundMessage.referral.sourceId,
+                source_type: inboundMessage.referral.sourceType,
+              },
+            }
+          : {}),
       },
-      optOut: n.consent.optOut,
-      optIn: n.consent.optIn,
-      optInMarketing: n.consent.optInMarketing,
+      optOut: inboundMessage.consent.optOut,
+      optIn: inboundMessage.consent.optIn,
+      optInMarketing: inboundMessage.consent.optInMarketing,
       ...(opts.jobFollows ? { jobFollows: true } : {}),
     });
   } catch (e) {
-    logger().error("ingest_pg_failed", { tenant_id: tenantId, message: n.externalId, error: errField(e) });
+    logger().error("ingest_pg_failed", { tenant_id: tenantId, message: inboundMessage.externalId, error: errField(e) });
     // A yes the message carried that did not land (AnswerNotKept) is a message that IS kept: the provider is told to send
     // it again, or the job is tried again, and the words are not said to be lost (core ingestOrSay).
     throw new IngestFailed(e instanceof Error ? e.message : String(e), e instanceof AnswerNotKept);
   }
 }
 
-/** The steps pgSafe guards; each logs `pg_<step>_failed`, a name in LOG_EVENTS, when it throws. */
+/** The steps runPgSafe guards; each logs `pg_<step>_failed`, a name in LOG_EVENTS, when it throws. */
 type PgStep =
   | "allowlist_evt"
   | "booking_request"
@@ -258,7 +262,7 @@ type PgStep =
   | "usage"
   | "veto_fallback_evt";
 
-export async function pgSafe<T>(label: PgStep, fn: () => Promise<T>): Promise<T | undefined> {
+export async function runPgSafe<T>(label: PgStep, fn: () => Promise<T>): Promise<T | undefined> {
   try {
     return await fn();
   } catch (e) {
@@ -304,7 +308,7 @@ function pgProcessed(
   intent?: BrainIntent | null,
 ) {
   return Promise.all([
-    pgSafe("processed", () => markProcessed(db, tenantId, messageId)),
+    runPgSafe("processed", () => markProcessed(db, tenantId, messageId)),
     handled ? pgStamp(db, tenantId, messageId, handled, intent) : undefined,
   ]);
 }
@@ -321,7 +325,7 @@ function pgStamp(
   handled: Handled,
   intent?: BrainIntent | null,
 ) {
-  return pgSafe("handled", () => stampHandled(db, tenantId, messageId, handled, intent ?? null));
+  return runPgSafe("handled", () => stampHandled(db, tenantId, messageId, handled, intent ?? null));
 }
 
 /** What the sink's `processed` says: what the message became, and what it was about where the model read it. */
@@ -334,7 +338,7 @@ type Said = [handled?: Handled, intent?: BrainIntent | null];
 function pgFinishing(db: SupabaseClient<Database> | null, tenantId: string | null, ing: IngestResult | null) {
   const on = !!(db && tenantId && ing);
   return {
-    processed: (...said: Said) => (on ? pgProcessed(db, tenantId, ing.message_id, ...said) : Promise.resolve()),
+    processed: (...sentence: Said) => (on ? pgProcessed(db, tenantId, ing.message_id, ...sentence) : Promise.resolve()),
     noteHandled: (handled: Handled, intent?: BrainIntent | null) =>
       on ? pgStamp(db, tenantId, ing.message_id, handled, intent) : Promise.resolve(),
   };
@@ -362,7 +366,7 @@ type HeldReplyFacts = { atMs: number; unsure: boolean; reply: string; who: strin
 /**
  * The receptionist's reply waits to go in the owner's name (decision 0064, step 2): told once, as it is queued, on the
  * bell and the phones that take it (no mail: it waits minutes), opening its thread, with when it goes by the business's
- * clock. The server closes the row when the reply goes or is stopped (00462). A notice that fails is logged by pgSafe,
+ * clock. The server closes the row when the reply goes or is stopped (00462). A notice that fails is logged by runPgSafe,
  * never the reply's failure: the sink's `replyHeld`.
  */
 function tellReplyHeld(
@@ -370,15 +374,15 @@ function tellReplyHeld(
   tenantId: string,
   rt: TenantRuntime | null | undefined,
   ing: IngestResult,
-  n: HeldReplyFacts,
+  heldReplyFacts: HeldReplyFacts,
 ) {
-  return pgSafe("reply_held", async () => {
+  return runPgSafe("reply_held", async () => {
     const target = await loadTenantNotifications(db, tenantId);
-    const told = heldReplyNotice({
-      who: n.who ?? "a customer",
-      reply: n.reply,
-      at: `at ${clockTime(n.atMs, rt?.timezone ?? "UTC")}`,
-      unsure: n.unsure,
+    const notice = heldReplyNotice({
+      who: heldReplyFacts.who ?? "a customer",
+      reply: heldReplyFacts.reply,
+      at: `at ${clockTime(heldReplyFacts.atMs, rt?.timezone ?? "UTC")}`,
+      unsure: heldReplyFacts.unsure,
     });
     await notify(
       { tenantId, ...target },
@@ -386,8 +390,8 @@ function tellReplyHeld(
         kind: "reply_held",
         route: addressOf({ kind: "conversation", id: ing.conversation_id }),
         about: { type: "conversation", id: ing.conversation_id },
-        subject: told.subject,
-        body: told.body,
+        subject: notice.subject,
+        body: notice.body,
       },
     );
   });
@@ -407,8 +411,8 @@ async function requestOpened(
 ): Promise<EscalationOutcome | undefined> {
   try {
     const at = { tenantId, conversationId: ing.conversation_id, contactId: ing.contact_id };
-    const got = await openBookingRequest(db, { ...at, ...req });
-    if (!("error" in got)) return got.hold;
+    const result = await openBookingRequest(db, { ...at, ...req });
+    if (!("error" in result)) return result.hold;
     logger().info("booking_request_too_soon", { tenant_id: tenantId });
   } catch (e) {
     logger().error("booking_request_open_failed", { tenant_id: tenantId, error: errField(e) });
@@ -420,12 +424,12 @@ async function requestOpened(
 async function whatsappMediaOf(
   rt: TenantRuntime | null | undefined,
   ref: WaMediaRef,
-  said: { tenant_id: string; message: string },
+  sentence: { tenant_id: string; message: string },
 ): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
   const cfg = waCfg(rt);
-  // Nothing threw, so pgSafe logs nothing: without this line a tenant whose vault read failed, or an SMS-only one, has
+  // Nothing threw, so runPgSafe logs nothing: without this line a tenant whose vault read failed, or an SMS-only one, has
   // every photo and voice note their customers send stamped "failed" forever with no trace of why.
-  if (!cfg) logger().error("media_no_credentials", said);
+  if (!cfg) logger().error("media_no_credentials", sentence);
   return cfg ? await fetchMediaBytes(cfg, ref.provider_media_id) : null;
 }
 
@@ -490,7 +494,9 @@ export function pgSink(
     ...pgFinishing(db, tenantId, ing),
     allowlistSkip: () =>
       on
-        ? pgSafe("allowlist_evt", () => emitEvent(db, tenantId, "ingest.allowlist_skip", "message", ing.message_id, {}))
+        ? runPgSafe("allowlist_evt", () =>
+            emitEvent(db, tenantId, "ingest.allowlist_skip", "message", ing.message_id, {}),
+          )
         : Promise.resolve(),
     /**
      * The sender cannot receive a reply. Recorded like any other message, and
@@ -498,7 +504,7 @@ export function pgSink(
      */
     unreachableSender: () =>
       on
-        ? pgSafe("unreachable_evt", () =>
+        ? runPgSafe("unreachable_evt", () =>
             emitEvent(db, tenantId, "ingest.unreachable_sender", "message", ing.message_id, {}),
           )
         : Promise.resolve(),
@@ -511,7 +517,7 @@ export function pgSink(
      */
     noteEmail: (address: string) =>
       on
-        ? pgSafe("note_email", async () => {
+        ? runPgSafe("note_email", async () => {
             const { data, error: unread } = await db
               .from("contacts")
               .select("email")
@@ -537,7 +543,7 @@ export function pgSink(
      */
     vetoFallback: (delayMs: number, source: "veto_window" | "low_confidence" = "veto_window") =>
       on
-        ? pgSafe("veto_fallback_evt", () =>
+        ? runPgSafe("veto_fallback_evt", () =>
             emitEvent(db, tenantId, "policy.veto_window_skipped", "conversation", ing.conversation_id, {
               delay_ms: delayMs,
               // WHICH hold did not happen. The confidence dial rides this same
@@ -552,46 +558,50 @@ export function pgSink(
     /** The thread handed to a person; its held drafts go with it, all but the one this handoff queued. */
     pause: (iso: string, keepMessageId?: string) =>
       on
-        ? pgSafe("pause", () => pauseConversation(db, tenantId, ing.conversation_id, iso, { keepMessageId }))
+        ? runPgSafe("pause", () => pauseConversation(db, tenantId, ing.conversation_id, iso, { keepMessageId }))
         : Promise.resolve(),
     /** Tokens in and out, and the quality signal beside them (intent,
      *  confidence, latency, whether it waited or handed off). */
     usage: (u: Record<string, unknown>) =>
-      on ? pgSafe("usage", () => recordUsage(db, tenantId, ing.conversation_id, u)) : Promise.resolve(),
+      on ? runPgSafe("usage", () => recordUsage(db, tenantId, ing.conversation_id, u)) : Promise.resolve(),
     /** Resolves to how the escalation landed — "opened" for a new one,
      *  "refreshed" when the thread already had one open — so a caller can
      *  alert once per hold rather than once per message. Undefined when
      *  Postgres is off or the write failed. */
     escalate: (reason: string, details: string): Promise<EscalationOutcome | undefined> =>
       on
-        ? pgSafe("escalation", () => upsertEscalation(db, tenantId, ing.conversation_id, reason, details.slice(0, 400)))
+        ? runPgSafe("escalation", () =>
+            upsertEscalation(db, tenantId, ing.conversation_id, reason, details.slice(0, 400)),
+          )
         : Promise.resolve(undefined),
     request: (req: BookingRequestHold, details: string) =>
-      on ? pgSafe("booking_request", () => requestOpened(db, tenantId, ing, req, details)) : Promise.resolve(undefined),
+      on
+        ? runPgSafe("booking_request", () => requestOpened(db, tenantId, ing, req, details))
+        : Promise.resolve(undefined),
     /** Download from Meta, upload to storage, record where it went. Resolves
      *  to the bytes when they were fetched — a photo the receptionist looks
      *  at reads them — and to nothing on failure. A DM's attachment is a link to
      *  Meta's CDN, fetched by it (channels fetchLinkedMedia, through the guarded
      *  public fetch); WhatsApp's is asked for by its id with the tenant's token. */
-    media: (n: InboundMessage) =>
-      on && n.media
-        ? pgSafe("media_fetch", async () => {
-            const ref = n.media!;
-            const got = isLinkedMedia(ref)
+    media: (inboundMessage: InboundMessage) =>
+      on && inboundMessage.media
+        ? runPgSafe("media_fetch", async () => {
+            const ref = inboundMessage.media!;
+            const result = isLinkedMedia(ref)
               ? await fetchLinkedMedia(ref.url, publicFetcher())
               : await whatsappMediaOf(rt, ref, { tenant_id: tenantId, message: ing.message_id });
             const mediaOut = { ...ref } as Record<string, unknown>;
-            if (got) {
-              const ext = MIME_EXT[got.mime || ""] || "bin";
+            if (result) {
+              const ext = MIME_EXT[result.mime || ""] || "bin";
               const path = `${tenantId}/${ing.conversation_id}/${ing.message_id}.${ext}`;
-              const { error } = await db.storage.from("media").upload(path, got.bytes, {
-                contentType: got.mime || "application/octet-stream",
+              const { error } = await db.storage.from("media").upload(path, result.bytes, {
+                contentType: result.mime || "application/octet-stream",
                 upsert: true,
               });
               if (error) throw new Error(error.message);
               mediaOut.fetch_state = "stored";
               mediaOut.storage_path = path;
-              mediaOut.mime_type = got.mime;
+              mediaOut.mime_type = result.mime;
             } else {
               mediaOut.fetch_state = "failed";
             }
@@ -606,7 +616,7 @@ export function pgSink(
               .eq("id", ing.message_id)
               .eq("tenant_id", tenantId);
             if (rowErr) throw new Error(rowErr.message);
-            return got;
+            return result;
           })
         : Promise.resolve(null),
   };

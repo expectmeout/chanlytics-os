@@ -5,19 +5,20 @@
  * `registration-status` (api/admin/lines.ts) call it; the filing itself is
  * a2p-register.ts.
  */
+import { answerObject } from "@chanlytics/channels/shared";
 import {
-  answerObject,
   smsStateFor,
   registrationVerdict,
   refusalWords,
-  twilioRequest,
+  requestTwilio,
   type CampaignError,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/lines";
 import { formatPhoneDisplay, type EdgeErrorCode } from "@chanlytics/contracts";
-import { emitEvent, tenantDb } from "@chanlytics/db";
-import { keepOnce } from "../ops/notify.js";
+import { emitEvent } from "@chanlytics/db/events";
+import { tenantDb } from "@chanlytics/db/shared";
+import { keepOnce } from "../shared/alerts/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
-import { lineAccount, refreshLineToken } from "../sms/sms.js";
+import { findLineAccount, refreshLineToken } from "./sms.js";
 import type { Db, LineRow } from "./a2p-register.js";
 
 const SYNC_READ_MS = 15000;
@@ -38,7 +39,7 @@ export type RegistrationSync = {
  * throws, as the bare fetch it replaces did.
  */
 async function readAsTwilio(path: string, acct: { sid: string; token: string }) {
-  const r = await twilioRequest(acct, "GET", `https://messaging.twilio.com/v1${path}`, { timeoutMs: SYNC_READ_MS });
+  const r = await requestTwilio(acct, "GET", `https://messaging.twilio.com/v1${path}`, { timeoutMs: SYNC_READ_MS });
   if (r.status === 0) throw new Error(`twilio: ${r.error ?? "no answer"}`);
   return { status: r.status, body: answerObject(r) };
 }
@@ -92,7 +93,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   // defect below: a 401 and a brand the carriers are still thinking about
   // produced the same value -- null -- and null means "no answer yet".
   // Both are the workspace's own, so both are read as its subaccount.
-  const sub = await lineAccount(db, line).catch(() => null);
+  const sub = await findLineAccount(db, line).catch(() => null);
   if (!sub) {
     // Recorded, like the two refusals below, and for a second reason: the
     // hourly sweep reads the least-recently-asked lines first, and a row it
@@ -186,8 +187,8 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
         campaignErrors: Array.isArray(usa2p?.errors) ? (usa2p.errors as CampaignError[]) : null,
       }) ?? "the carriers sent the registration back")
     : null;
-  const told = await tellThenKeep(db, line, { smsState, mock, reason });
-  if (told === null)
+  const notice = await tellThenKeep(db, line, { smsState, mock, reason });
+  if (notice === null)
     return {
       ok: false,
       smsState: line.sms_state,
@@ -199,7 +200,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
     smsState,
     brand: brandStatus ?? undefined,
     campaign: campaignStatus ?? undefined,
-    told,
+    told: notice,
   };
 }
 

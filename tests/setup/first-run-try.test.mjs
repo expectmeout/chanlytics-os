@@ -5,13 +5,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { HANDOFF_FORWARDS_BACK } from "@chanlytics/contracts";
 import {
   firstRunTryOf,
   FIRST_RUN_TRY_WORDS as W,
   TRY_QUIET_AFTER_MS,
-  FIRST_RUN_HELPERS,
-  HANDOFF_FORWARDS_BACK,
-} from "@chanlytics/contracts";
+} from "../../apps/dashboard/src/surfaces/setup/first-run/model/try.ts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/first-run-helpers.ts";
 
 const NOW = Date.parse("2026-09-24T15:00:00Z");
 const SINCE = NOW - 60_000;
@@ -98,8 +98,11 @@ const callOf = (over = {}) => ({
 const tryOf = (dto, calls = [], since = SINCE, nowMs = NOW) => firstRunTryOf({ dto, calls, since, nowMs });
 
 test("published for the page", () => {
-  assert.equal(FIRST_RUN_HELPERS.tryIt, firstRunTryOf);
-  assert.equal(FIRST_RUN_HELPERS.tryWords, W);
+  assert.equal(FIRST_RUN_HELPERS.tryIt.name, firstRunTryOf.name);
+  // The helpers' copy and this file's are two loads of one module: the same words, a word that is a function by its arity.
+  const asWritten = (words) =>
+    JSON.parse(JSON.stringify(words, (_, v) => (typeof v === "function" ? `a function of ${v.length}` : v)));
+  assert.deepEqual(asWritten(FIRST_RUN_HELPERS.tryWords), asWritten(W));
   assert.equal(TRY_QUIET_AFTER_MS, 180_000);
 });
 

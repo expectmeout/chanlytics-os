@@ -1,5 +1,5 @@
 /**
- * The voice doors' evidence, kept as rows (decision 0092, apps/edge/lib/voice/door-auth.ts keepKnock): the switch
+ * The voice doors' evidence, kept as rows (decision 0092, apps/edge/lib/shared/door-auth.ts keepKnock): the switch
  * that closes the shared secret is set on proof that every door's real deliveries carry Retell's signature, and that
  * proof lived only in a log kept a day. Each knock let in is now a `webhook.auth` row under the platform naming its door
  * and what it carried, at most once a minute per door and credential, so a public door is no write amplifier; a refusal
@@ -21,7 +21,7 @@ after(() => {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { keepKnock, secretToProvision } = await import(at("apps/edge/lib/voice/door-auth.ts"));
+const { keepKnock, secretToProvision } = await import(at("apps/edge/lib/shared/door-auth.ts"));
 
 const PLATFORM = "00000000-0000-0000-0000-000000000000";
 const MIN = 60_000;

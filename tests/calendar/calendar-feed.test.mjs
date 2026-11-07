@@ -41,8 +41,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { loadFeed, forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
-const { calendarWeek, itemsToDays, MAX_ITEMS_PER_DAY } = await import(at("apps/dashboard/src/server/calendar/week.ts"));
+const { loadFeed, forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
+const { getCalendarWeek } = await import(at("apps/dashboard/src/server/calendar/week/week.ts"));
+const { itemsToDays, MAX_ITEMS_PER_DAY } = await import(at("apps/dashboard/src/server/calendar/week/items.ts"));
 const { previewFeed } = await import(at("apps/dashboard/src/server/calendar/feed-preview.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
 const visitRoute = await import(at("apps/dashboard/app/api/v1/calendar/visits/[id]/route.ts"));
@@ -404,12 +405,12 @@ test("settings that will not parse are a calendar that could not be read, never 
   answers.set("https://cal.example/ok.ics", { body: ONE });
   const shipped = tables("https://cal.example/ok.ics");
   shipped.tenant_config[0].config.calendar.ical_url_before_filler = "https://cal.example/old.ics";
-  const read = await calendarWeek(ctxFor(shipped), T, { from: "2026-09-07", days: 7 }, NOW);
+  const read = await getCalendarWeek(ctxFor(shipped), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.equal(read.feed.state, "ok", "the row that shipped reads its calendar");
 
   const broken = tables("https://cal.example/ok.ics");
   broken.tenant_config[0].config.brain.booking_link = "not a link";
-  const lost = await calendarWeek(ctxFor(broken), T, { from: "2026-09-07", days: 7 }, NOW);
+  const lost = await getCalendarWeek(ctxFor(broken), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.deepEqual(
     [lost.feed.state, lost.feed.present, lost.feed.reason, lost.feed.problem],
     ["unavailable", true, "settings", feedProblemWords("settings")],
@@ -424,16 +425,16 @@ test("settings that will not parse are a calendar that could not be read, never 
   // in a workspace that never connected one, has lost nothing. It stays silent — no calendar is not a fault.
   const noCalendar = tables(null);
   delete noCalendar.tenant_config[0].config.brain.system_prompt;
-  const quiet = await calendarWeek(ctxFor(noCalendar), T, { from: "2026-09-07", days: 7 }, NOW);
+  const quiet = await getCalendarWeek(ctxFor(noCalendar), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.deepEqual([quiet.feed.state, quiet.feed.present, quiet.feed.problem], ["none", false, null]);
 });
 
 test("the board's module: no feed says none; a failed feed says why; a good feed carries its items and the receptionist's windows", async () => {
-  const none = await calendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
+  const none = await getCalendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.deepEqual([none.feed.state, none.feed.problem, none.days.length], ["none", null, 7]);
 
   answers.set("https://cal.example/404.ics", { body: "nope", status: 404 });
-  const failed = await calendarWeek(
+  const failed = await getCalendarWeek(
     ctxFor(tables("https://cal.example/404.ics")),
     T,
     { from: "2026-09-07", days: 7 },
@@ -449,7 +450,12 @@ test("the board's module: no feed says none; a failed feed says why; a good feed
 
   forgetFeeds();
   answers.set("https://cal.example/ok.ics", { body: ONE });
-  const ok = await calendarWeek(ctxFor(tables("https://cal.example/ok.ics")), T, { from: "2026-09-07", days: 7 }, NOW);
+  const ok = await getCalendarWeek(
+    ctxFor(tables("https://cal.example/ok.ics")),
+    T,
+    { from: "2026-09-07", days: 7 },
+    NOW,
+  );
   assert.equal(ok.feed.state, "ok");
   assert.deepEqual([ok.feed.reason, ok.feed.problem, ok.feed.stale, ok.feed.dropped], [null, null, false, 0]);
   const tue = ok.days.find((d) => d.key === "2026-09-08");
@@ -474,20 +480,20 @@ test("REGRESSION (C1): the board's read carries the receptionist's next open tim
     start: new Date(ny(2026, 9, 8, 15, 30)).toISOString(),
     end: new Date(ny(2026, 9, 8, 18)).toISOString(),
   };
-  const week = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  const week = await getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.deepEqual(week.next_opening, first, "after Ana's appointment, this afternoon");
-  const december = await calendarWeek(ctxFor(t), T, { from: "2026-11-30", days: 7 }, NOW);
+  const december = await getCalendarWeek(ctxFor(t), T, { from: "2026-11-30", days: 7 }, NOW);
   assert.ok(
     december.days.every((d) => d.windows.length === 0),
     "December is past what the receptionist offers",
   );
   assert.deepEqual(december.next_opening, first, "REGRESSION: a span with no open times had no next opening");
   assert.equal(toCalendarVM(december, NOW).stats.next, "today 3:30 PM");
-  const none = await calendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
+  const none = await getCalendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.equal(none.next_opening, null, "no calendar: the receptionist names no open time");
   forgetFeeds();
   answers.set(url, { body: "nope", status: 404 });
-  const failed = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  const failed = await getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.equal(failed.next_opening, null, "a calendar that can't be read: none either");
 });
 
@@ -510,12 +516,12 @@ test("(C2) the board's read and the route can ask for a fresh read, and the answ
   const url = "https://cal.example/route-fresh.ics";
   answers.set(url, { body: ONE });
   const t = tables(url);
-  const one = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  const one = await getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.equal(fetched.length, 1);
   assert.equal(typeof one.feed.checked_at, "string", "when the calendar was last tried");
-  await later(20_000, () => calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW));
+  await later(20_000, () => getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW));
   assert.equal(fetched.length, 1, "an ordinary read: the cache");
-  await later(20_000, () => calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW, { fresh: true }));
+  await later(20_000, () => getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW, { fresh: true }));
   assert.equal(fetched.length, 2, "a fresh one asks the calendar again");
   await later(40_000, () =>
     route.GET.run(
@@ -524,7 +530,7 @@ test("(C2) the board's read and the route can ask for a fresh read, and the answ
     ),
   );
   assert.equal(fetched.length, 3, "and so does the route's fresh=1");
-  const none = await calendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
+  const none = await getCalendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.equal(none.feed.checked_at, null, "no calendar: never tried");
 });
 
@@ -532,10 +538,10 @@ test("the last good read is served when the calendar goes away, and the chip and
   const url = "https://cal.example/ok.ics";
   answers.set(url, { body: ONE });
   const t = tables(url);
-  await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  await getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
   answers.set(url, { body: "nope", status: 503 });
   const stale = await later(6 * 60 * 1000, () =>
-    calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, new Date(NOW.getTime() + 6 * 60 * 1000)),
+    getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, new Date(NOW.getTime() + 6 * 60 * 1000)),
   );
   assert.equal(stale.feed.state, "ok", "the last good read, not a blank board");
   assert.deepEqual([stale.feed.stale, stale.feed.reason, stale.feed.status], [true, "http", 503]);
@@ -580,7 +586,7 @@ test("reading the week adds nobody to People, whoever reads it; the board draws 
   };
   for (const role of ["owner", "operator", "viewer"]) {
     forgetFeeds();
-    const dto = await calendarWeek(ctxFor(tables(url, role), rpcs), T, { from: "2026-09-07", days: 7 }, NOW);
+    const dto = await getCalendarWeek(ctxFor(tables(url, role), rpcs), T, { from: "2026-09-07", days: 7 }, NOW);
     const ana = dto.days.find((d) => d.key === "2026-09-08").items[0];
     const bo = dto.days.find((d) => d.key === "2026-09-09").items[0];
     assert.deepEqual([ana.person, bo.person], [null, null], `${role}: nobody in People, so nobody to link`);
@@ -595,7 +601,7 @@ test("reading the week adds nobody to People, whoever reads it; the board draws 
   const known = [
     { id: "p-ana", display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: "+19175550100", email: null },
   ];
-  const matched = await calendarWeek(
+  const matched = await getCalendarWeek(
     ctxFor(tables(url, "owner"), { ...rpcs, people_list: () => known }),
     T,
     { from: "2026-09-07", days: 7 },
@@ -622,7 +628,7 @@ test("reading the week adds nobody to People, whoever reads it; the board draws 
         phone: "+19175550100",
         email: null,
         // When their next visit begins, which the consultation's "nothing since" reads (0008, amended 18 Oct 2026): this
-        // afternoon's. Her visits are read with the board's (people-visits.ts boardVisits); they were never attached,
+        // afternoon's. Her visits are read with the board's (people-visits.ts getBoardVisits); they were never attached,
         // and both facts were always blank (the audit of 3 Nov 2026).
         next_visit_at: "2026-09-08T18:00:00.000Z",
         // And the record holds no visit of hers before it, this season or earlier: Today's day says "First visit".
@@ -688,7 +694,7 @@ test("the board says when each person was last in, from the season's feed and th
     earlier("e2", { source: "booking_email", tool: "booksy", external_id: "bk-old", client_phone: "+19175550103" }),
   ];
   forgetFeeds();
-  const week = await calendarWeek(ctxFor(t, { people_list: () => people }), T, { from: "2026-09-07", days: 7 }, NOW);
+  const week = await getCalendarWeek(ctxFor(t, { people_list: () => people }), T, { from: "2026-09-07", days: 7 }, NOW);
   const factsOf = (name) => week.days.flatMap((d) => d.items).find((it) => it.person?.name === name)?.person.facts;
   const said = (name) => {
     const f = factsOf(name);
@@ -704,10 +710,10 @@ test("the board says when each person was last in, from the season's feed and th
   assert.deepEqual(said("Di Wong"), ["2026-09-09T16:00:00.000Z", "unsaid"], "found by the number the booking carried");
 
   // Without the record, nothing is laid on the rows and nobody is first: the day says neither fact.
-  const { boardVisits } = await import(at("apps/dashboard/src/server/calendar/people-visits.ts"));
+  const { getBoardVisits } = await import(at("apps/dashboard/src/server/calendar/people-visits.ts"));
   const rows = [{ ...people[1], visits: undefined }];
   const cal = { timezone: TZ, source: "your calendar", own: new Set(), services: [], rules: null };
-  const none = await boardVisits(ctxFor(t), T, rows, [], { ...cal, record: null }, NOW);
+  const none = await getBoardVisits(ctxFor(t), T, rows, [], { ...cal, record: null }, NOW);
   assert.deepEqual([none.rows, [...none.firsts]], [rows, []]);
 });
 
@@ -729,7 +735,7 @@ test("(0008) the board's read marks each consultation by the rule People's visit
   const t = tables("https://cal.example/consults.ics");
   t.tenant_config[0].config.brain.profile = { ...profile, services, booking_rules: rules };
   answers.set("https://cal.example/consults.ics", { body: feed });
-  const week = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  const week = await getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.equal(week.feed.state, "ok");
   const items = week.days.flatMap((d) => d.items).map((i) => [i.title, i.consultation, i.consult_service]);
   assert.deepEqual(items, [
@@ -902,7 +908,7 @@ test("the people are read beside the calendar's feed, not after it: a slow feed 
   };
   answers.set("https://cal.example/slow.ics", { body: ONE });
   try {
-    const reading = calendarWeek(
+    const reading = getCalendarWeek(
       ctxFor(tables("https://cal.example/slow.ics"), {
         people_list: () => {
           order.push("people asked");
@@ -1105,7 +1111,7 @@ test("the week reads the record: a cancelled booking is drawn struck and keeps t
       vanished_at: null,
     },
   ];
-  const week = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  const week = await getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
   const tue = week.days.find((d) => d.key === "2026-09-08").items;
   assert.deepEqual(
     tue.map((it) => [it.id, it.visit]),

@@ -88,7 +88,7 @@ test("archive: contracts' archive move, whole, unless archived already; one work
   assert.deepEqual(
     [mine.state, mine.paused_until, mine.assignee_user_id],
     ["archived", null, null],
-    "released completely: the pause and the claim go with the state (conversation-moves.ts archive)",
+    "released completely: the pause and the claim go with the state (conversations/moves.ts archive)",
   );
   assert.equal(await archiveConversation(db, { tenantId: T, conversationId: "c1" }), false, "archived already");
   assert.equal(await archiveConversation(db, { tenantId: T, conversationId: "c2" }), false);

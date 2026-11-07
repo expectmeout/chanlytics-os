@@ -13,49 +13,51 @@
  * times is one here. The book is "as of now, whatever period is picked", and says so wherever it is drawn.
  */
 import { STOP_WORDS } from "../../consent/consent";
-import { barsOf, mixOf, noMix, type MixEntry, type MixPartVM } from "../report-mix";
-import { REPORT_MIN_N, compareWords, type ReportMetric, type ReportStripTile } from "../report-tiles";
+import { barsOf, mixOf, noMix, type MixEntry, type MixPartVM } from "../mix";
+import { REPORT_MIN_N, compareWords, type ReportMetric, type ReportStripTile } from "../tiles";
 import { rangeLabelOf } from "../reports";
 import type { PeopleNowDto } from "./now";
 import type { PeopleDto, PeopleSeriesDto } from "./record";
 import {
   BOOK_EMPTY,
-  CHANNELS_EMPTY,
-  CHANNELS_LINE,
   EMAIL_STOPPED_EMPTY,
-  FIRST_CAME_NOBODY,
   STEPS_DONE_EMPTY,
   STOPS_EMPTY,
   STOPS_LINE,
   YESES_EMPTY,
   YESES_LINE,
-  channelEntries,
   emailStoppedEntries,
   emailStoppedLine,
   emailStoppedNowMeta,
-  firstCameEntries,
-  firstCameKnown,
-  firstCameLine,
-  firstCameNone,
   freshEntries,
   freshLine,
-  headWords,
-  listDoor,
-  newMeta,
   quietDoor,
-  reachedMeta,
   standMeta,
   stepsDoneEntries,
   stepsDoneLine,
   stepsDueTodayMeta,
   stepsOverdueMeta,
-  stopEntries,
-  stopsMeta,
   wireEntries,
   wiresLine,
+} from "./words/lines";
+import {
+  CHANNELS_EMPTY,
+  CHANNELS_LINE,
+  FIRST_CAME_NOBODY,
+  channelEntries,
+  firstCameEntries,
+  firstCameKnown,
+  firstCameLine,
+  firstCameNone,
+  headWords,
+  listDoor,
+  newMeta,
+  reachedMeta,
+  stopEntries,
+  stopsMeta,
   yesEntries,
   yesesMeta,
-} from "./words";
+} from "./words/heads";
 
 /** A figure of the lens: the strip's tile, with the count a share is of (`n`), the list a count opens (`door`) and the tone of its number where it has them. */
 export type PeopleFigureVM = ReportStripTile;

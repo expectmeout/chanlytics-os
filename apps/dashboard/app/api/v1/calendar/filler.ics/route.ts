@@ -15,8 +15,8 @@ import { fillerCalendar, zoneOk } from "@/server/calendar/filler-calendar";
  * the request, so the build never writes it once to stand still at its day (cacheComponents, decision 0053 step 5).
  */
 export function GET(req: Request): Response {
-  const asked = new URL(req.url).searchParams.get("tz") ?? "";
-  const tz = asked && zoneOk(asked) ? asked : DEFAULT_TIMEZONE;
+  const request = new URL(req.url).searchParams.get("tz") ?? "";
+  const tz = request && zoneOk(request) ? request : DEFAULT_TIMEZONE;
   return new Response(fillerCalendar(Date.now(), tz), {
     status: 200,
     headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "public, max-age=300" },

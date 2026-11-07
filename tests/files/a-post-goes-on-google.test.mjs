@@ -1,5 +1,5 @@
 /**
- * A kept post on the business's Google profile, from its sheet (apps/dashboard/src/server/files/post/google.ts, decision 0099, step
+ * A kept post on the business's Google profile, from its sheet (apps/dashboard/src/server/posts/google.ts, decision 0099, step
  * 3), run through route(): the real route, the real composer, a database and a Storage in memory, and a fetch where the edge would be.
  * The picture is drawn for what Google shows and kept in the file's own folder, Google is sent to fetch it, and the person's words go as
  * they wrote them. A press only: nothing here runs by itself.

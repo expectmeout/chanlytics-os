@@ -26,7 +26,7 @@ const { replyReader } = await import(at("apps/edge/lib/campaigns/reach-out/reply
 const { dispatchJob } = await import(at("packages/jobs/src/handlers/handlers.ts"));
 const { scheduleJobOnce } = await import(at("packages/jobs/src/runner/schedule.ts"));
 const { retryWait, LEASE_SECONDS } = await import(at("packages/jobs/src/runner/ledger.ts"));
-const { receivedEmailFrom } = await import("@chanlytics/channels");
+const { receivedEmailFrom } = await import("@chanlytics/channels/email");
 const { REACH_OUT_MODEL } = await import("@chanlytics/contracts");
 after(() => setModelFetch(null));
 

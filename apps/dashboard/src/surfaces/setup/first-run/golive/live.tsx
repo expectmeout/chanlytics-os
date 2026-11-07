@@ -7,12 +7,9 @@
  * step's onward is Open Today, which switches calls on (the page's Finish, with the "you're live" email).
  */
 import type { ReactNode } from "react";
-import {
-  FIRST_RUN_HELPERS,
-  firstRunStepRoute,
-  type FirstRunGoLiveVM,
-  type WhatsappChoice,
-} from "@chanlytics/contracts";
+import { firstRunStepRoute, type WhatsappChoice } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
+import type { FirstRunGoLiveVM } from "../model/golive";
 import type { FrameFlash } from "../../../frame-verbs";
 import { WhatsappSteps } from "./whatsapp";
 

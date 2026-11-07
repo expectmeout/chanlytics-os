@@ -4,16 +4,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { COMMON_LANGUAGES, PROFILE_LIMITS, foldName, sameListed } from "@chanlytics/contracts";
 import {
   serviceSuggestionsOf,
   SERVICE_SUGGESTION_TYPES,
   checkChipsOf,
-  COMMON_LANGUAGES,
-  PROFILE_LIMITS,
-  foldName,
-  sameListed,
-  profileRefusal,
-} from "@chanlytics/contracts";
+} from "../../../apps/dashboard/src/surfaces/setup/first-run/model/check-chips.ts";
+import { profileRefusal } from "../../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
 
 test("a kind of place suggests what such a business usually offers; a near kind shares its list; one we do not know suggests nothing", () => {
   assert.deepEqual(serviceSuggestionsOf("moving_company").slice(0, 3), ["Local move", "Long-distance move", "Packing"]);

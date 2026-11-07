@@ -30,14 +30,14 @@ export function eraseContact(ctx: RouteContext, contact: ErasedContact) {
       // The person's calls taken off the voice provider, by the edge that holds its key (decision 0092).
       providerCalls: async (callIds) => {
         if (!deployment.providersLive) return { asked: 0, deleted: 0, refused: callIds.length };
-        const r = await callEdge(
+        const answer = await callEdge(
           "/api/admin/voice/erase-calls",
           { tenant_id: contact.tenant_id, call_ids: callIds },
           { workspace: contact.tenant_id, user: ctx.userId, timeoutMs: ERASE_CALLS_TIMEOUT_MS },
         );
-        if (!edgeAnswered(r)) return { asked: callIds.length, deleted: 0, refused: callIds.length };
-        const b = (r.body ?? {}) as { asked?: number; deleted?: number; refused?: number };
-        return { asked: b.asked ?? callIds.length, deleted: b.deleted ?? 0, refused: b.refused ?? 0 };
+        if (!edgeAnswered(answer)) return { asked: callIds.length, deleted: 0, refused: callIds.length };
+        const body = (answer.body ?? {}) as { asked?: number; deleted?: number; refused?: number };
+        return { asked: body.asked ?? callIds.length, deleted: body.deleted ?? 0, refused: body.refused ?? 0 };
       },
     },
     contact,

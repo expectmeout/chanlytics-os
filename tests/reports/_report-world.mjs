@@ -159,7 +159,7 @@ export const CALENDAR = { calendar: "ok", days: 7, asked: 8, booked: 3 };
 
 /** Deals as the bridge publishes them where deals are off or none was ever recorded: the section is not drawn. */
 export const NO_DEALS = toDealReportVM(null, "in the last 7 days");
-/** A report as the route answers it (dealReport, 0008), for the bridge's own view model: the round trip. */
+/** A report as the route answers it (readDealReport, 0008), for the bridge's own view model: the round trip. */
 export const dealsDto = (over = {}) => ({
   any: true,
   sent: 0,

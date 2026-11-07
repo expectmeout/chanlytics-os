@@ -10,8 +10,8 @@
  * against each other.
  */
 
-import type { MailboxConnectionDto, MailboxProvider } from "./mailbox-connections";
-import type { GoogleAudience } from "../google/google";
+import type { MailboxConnectionDto, MailboxProvider } from "./mailbox-connections/states";
+import type { GoogleAudience } from "../google/listing";
 
 /** Addresses a mail system or a person expects to mean something else; "r" is the reply route (r+<token>@). 00126's list. */
 export const MAILBOX_RESERVED: ReadonlySet<string> = new Set([
@@ -74,7 +74,7 @@ export function whyNotAFromName(typed: string): string | null {
  * what is left is reserved; the owner then types their own.
  */
 export function suggestLocalPart(businessName: string | null | undefined): string | null {
-  const s = (businessName ?? "")
+  const text = (businessName ?? "")
     .normalize("NFKD")
     .replace(/\p{M}+/gu, "")
     .toLowerCase()
@@ -83,7 +83,7 @@ export function suggestLocalPart(businessName: string | null | undefined): strin
     .replace(/^-+|-+$/g, "")
     .slice(0, MAILBOX_LOCAL_PART_MAX)
     .replace(/-+$/g, "");
-  return s && whyNotALocalPart(s) === null ? s : null;
+  return text && whyNotALocalPart(text) === null ? text : null;
 }
 
 /** A workspace's mailbox, as the pages are told about it. The reply route's token is not among them: no page needs it. */

@@ -8,7 +8,8 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { askModel, streamModel, formatRejected, resetBreakers, resetFastHolds, tryBound } from "@chanlytics/channels";
+import { askModel, streamModel, formatRejected, resetFastHolds, tryBound } from "@chanlytics/channels/ai";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { EFFORT_MESSAGE_BETA, FAST_MODE_BETA, MODELS, MODEL_ROUTES } from "@chanlytics/contracts";
 import { scripted, said, status, hang, thrown, streamed } from "./_model-world.mjs";
 
@@ -71,7 +72,7 @@ test("a 5xx on both is unreachable, never a refusal; a timeout is asked of the f
 
 test("one try's bound is the route's, or a caller's sooner one, never a later one, and never past what is left of the deadline", () => {
   // A caller may give a sooner bound than the purpose's (ModelAsk.timeoutMs): the registry's number is the ceiling it
-  // set for that purpose (contracts ai/models.ts), and a caller passing its own ceiling (a job's time left, a notice's
+  // set for that purpose (contracts ai/models/routes.ts), and a caller passing its own ceiling (a job's time left, a notice's
   // read: booking_read's 30 s over the route's 8) widened it instead of narrowing it.
   const route = MODEL_ROUTES.booking_read;
   assert.equal(tryBound(route, {}, Infinity), route.timeoutMs, "the route's own, with no deadline");

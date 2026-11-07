@@ -1,5 +1,5 @@
 /**
- * The catch-up a tab asks for (GET changes, apps/dashboard/src/server/shared/live-feed.ts over packages/db noticesSince; 00508):
+ * The catch-up a tab asks for (GET changes, apps/dashboard/src/server/shared/live-feed.ts over packages/db getNoticesSince; 00508):
  * the workspace's notices since a moment, each as a table, an event, its statuses and its clock, never a row; `whole` false
  * where there were more than one answer carries, or the moment is past a day (Realtime drops a day's partition at a time),
  * and the tab then reads everything. And the browser's side (hearing/live-feed.ts catchUpLiveFeed): what it asks for is on
@@ -9,8 +9,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
-const { changesSince } = await importSrc("apps/dashboard/src/server/shared/live-feed.ts");
-const { noticesSince } = await importSrc("packages/db/src/realtime.ts");
+const { getChangesSince } = await importSrc("apps/dashboard/src/server/shared/live-feed.ts");
+const { getNoticesSince } = await importSrc("packages/db/src/realtime.ts");
 
 /** A session's client whose rpc answers `rows` and records what it was asked. */
 const clientAnswering = (rows, asked = []) => ({
@@ -35,7 +35,7 @@ test("the notices since a moment, each a table, an event, its statuses and its c
     ],
     asked,
   );
-  const got = await changesSince(
+  const got = await getChangesSince(
     { supabase: client },
     { tenantId: "t1" },
     { since: "2026-11-03T12:00:00.000Z" },
@@ -65,14 +65,14 @@ test("more than one answer carries is not whole, and the tab reads everything", 
   const rows = Array.from({ length: 201 }, (_, i) =>
     notice("deals", new Date(Date.UTC(2026, 10, 3, 12, 0, i)).toISOString()),
   );
-  const got = await noticesSince(clientAnswering(rows), "t1", "2026-11-03T12:00:00.000Z");
+  const got = await getNoticesSince(clientAnswering(rows), "t1", "2026-11-03T12:00:00.000Z");
   assert.equal(got.notices.length, 200);
   assert.equal(got.whole, false);
 });
 
 test("a moment past a day asks nothing and answers not whole: the topic's partitions are being dropped", async () => {
   const asked = [];
-  const got = await changesSince(
+  const got = await getChangesSince(
     { supabase: clientAnswering([], asked) },
     { tenantId: "t1" },
     { since: "2026-11-01T12:00:00.000Z" },
@@ -84,5 +84,5 @@ test("a moment past a day asks nothing and answers not whole: the topic's partit
 
 test("a refused read throws, and the runner reads everything as before", async () => {
   const client = { rpc: async () => ({ data: null, error: { message: "permission denied" } }) };
-  await assert.rejects(noticesSince(client, "t1", "2026-11-03T12:00:00.000Z"));
+  await assert.rejects(getNoticesSince(client, "t1", "2026-11-03T12:00:00.000Z"));
 });

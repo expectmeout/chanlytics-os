@@ -12,9 +12,11 @@
  * are read as picked.
  */
 import { ADS_ROUTE, addDays } from "@chanlytics/contracts";
-import type { AdsScope, ReportFactVM, ReportRange } from "@chanlytics/contracts";
-import { RESULTS, adsFactOf, adsResultsOf } from "@chanlytics/contracts/ads-page";
-import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
+import type { AdsScope, ReportRange } from "@chanlytics/contracts";
+import type { ReportFactVM } from "./model/facts";
+import { RESULTS } from "@/surfaces/campaigns/ads/results/words";
+import { adsFactOf, adsResultsOf } from "@/surfaces/campaigns/ads/results/view";
+import type { AdsResultsVM } from "@/surfaces/campaigns/ads/results/view";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
 import { exampleOn } from "../campaigns/ads/examples";
 import { adsOwnHere } from "../campaigns/ads/own";

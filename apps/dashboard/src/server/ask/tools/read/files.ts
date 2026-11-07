@@ -1,21 +1,14 @@
 import "server-only";
 import { z } from "zod";
-import {
-  FILE_SHELVES,
-  fileIndexLineOf,
-  fileNameOf,
-  fileShelfSaid,
-  fileWhoSaid,
-  shelfOf,
-  type FileForAsk,
-} from "@chanlytics/contracts";
-import { fileOf } from "@chanlytics/db";
-import { fileCopiesOf, pictureCopyOf, type FileCopy } from "../../../files/copies";
-import { newestPostLookOf } from "../../../files/post/record";
-import { zoomInto, type Box, type Size } from "../../../files/zoom";
-import { load } from "../../../readers";
+import { FILE_SHELVES, fileNameOf, shelfOf } from "@chanlytics/contracts";
+import { fileIndexLineOf, fileShelfSaid, fileWhoSaid, type FileForAsk } from "@/server/files/line";
+import { findFile } from "@chanlytics/db/files";
+import { listFileCopiesOf, findPictureCopy, type FileCopy } from "../../../files/copies";
+import { findNewestPostLook } from "../../../posts/record";
+import { getZoomInto, type Box, type Size } from "../../../files/zoom";
+import { load } from "../../../shared/reader";
 import { filesForAsk } from "../../../readers/files";
-import { PICTURES, defineActions, readAction, type ToolContext, type ToolPicture } from "../context";
+import { PICTURES, defineActions, readAction, type ToolContext, type ToolPicture } from "../context/tool-defs";
 
 /**
  * The business's photos, the way a person who knows them would use them (decision 0099, step 2). Three levels: the one line in
@@ -45,9 +38,9 @@ export function filesNamed(files: readonly FileForAsk[], names: readonly string[
   const byName = new Map(files.map((f) => [f.name, f]));
   const found: FileForAsk[] = [];
   const missing: string[] = [];
-  for (const asked of names) {
-    const file = byName.get(fileNameOf(asked)) ?? files.find((f) => f.id === asked);
-    if (!file) missing.push(asked);
+  for (const request of names) {
+    const file = byName.get(fileNameOf(request)) ?? files.find((f) => f.id === request);
+    if (!file) missing.push(request);
     else if (!found.includes(file)) found.push(file);
   }
   return { found, missing };
@@ -57,17 +50,17 @@ export function filesNamed(files: readonly FileForAsk[], names: readonly string[
 const sizeOf = (c: FileCopy): Size | null => (c.width && c.height ? [c.width, c.height] : null);
 
 /** A picture opened, and what is known of it beside it, or why it could not be. */
-async function picturesOpened(t: ToolContext, names: readonly string[]) {
-  const { found, missing } = filesNamed(await filesOfTurn(t), names);
+async function picturesOpened(toolContext: ToolContext, names: readonly string[]) {
+  const { found, missing } = filesNamed(await filesOfTurn(toolContext), names);
   // What the model refused is not sent again, and is not the owner's to wait for: it is said.
-  const copies = await fileCopiesOf(
-    { tenantId: t.tenantId, userId: t.ctx.userId },
+  const copies = await listFileCopiesOf(
+    { tenantId: toolContext.tenantId, userId: toolContext.ctx.userId },
     found.map((f) => f.id),
-    leftOf(t),
+    leftOf(toolContext),
   );
   const shown = found.filter((f) => copies.has(f.id));
   // How their newest post looks, so the next keeps what they settled on: read only where a post may come of it.
-  const lastPost = shown.length ? await newestPostLookOf(t.tenantId) : null;
+  const lastPost = shown.length ? await findNewestPostLook(toolContext.tenantId) : null;
   const pictures: ToolPicture[] = shown.map((f) => {
     const copy = copies.get(f.id) as FileCopy;
     const size = sizeOf(copy);
@@ -91,33 +84,33 @@ async function picturesOpened(t: ToolContext, names: readonly string[]) {
  * A box of one picture, cut and enlarged. The box is in the pixels the picture was shown at, which is the copy's size: the
  * edge says it, and the cut is made here from the photo itself, then held at Anthropic for the turn.
  */
-async function pictureZoomed(t: ToolContext, name: string, box: Box) {
-  const { found, missing } = filesNamed(await filesOfTurn(t), [name]);
-  const f = found.at(0);
-  if (!f) return { error: `no file named ${missing.at(0)}; names come from files with action list` };
-  const who = { tenantId: t.tenantId, userId: t.ctx.userId };
+async function pictureZoomed(toolContext: ToolContext, name: string, box: Box) {
+  const { found, missing } = filesNamed(await filesOfTurn(toolContext), [name]);
+  const item = found.at(0);
+  if (!item) return { error: `no file named ${missing.at(0)}; names come from files with action list` };
+  const fields = { tenantId: toolContext.tenantId, userId: toolContext.ctx.userId };
   const [copy, row] = await Promise.all([
-    fileCopiesOf(who, [f.id], leftOf(t)).then((m) => m.get(f.id) ?? null),
-    fileOf(t.ctx.supabase, f.id),
+    listFileCopiesOf(fields, [item.id], leftOf(toolContext)).then((m) => m.get(item.id) ?? null),
+    findFile(toolContext.ctx.supabase, item.id),
   ]);
   const of = copy ? sizeOf(copy) : null;
-  if (!copy || !of || !row) return { error: `${f.name} could not be opened just now; say so` };
-  const cut = await zoomInto(row, box, of);
-  if ("wont" in cut) return { error: `${f.name}: ${cut.wont}` };
-  const held = await pictureCopyOf(
-    who,
-    { bytes: cut.bytes, mime: "image/jpeg", name: `${f.name}-zoom.jpg` },
-    leftOf(t),
+  if (!copy || !of || !row) return { error: `${item.name} could not be opened just now; say so` };
+  const cut = await getZoomInto(row, box, of);
+  if ("wont" in cut) return { error: `${item.name}: ${cut.wont}` };
+  const held = await findPictureCopy(
+    fields,
+    { bytes: cut.bytes, mime: "image/jpeg", name: `${item.name}-zoom.jpg` },
+    leftOf(toolContext),
   );
-  if (!held) return { error: `${f.name}: the box was cut but could not be shown to you just now; say so` };
+  if (!held) return { error: `${item.name}: the box was cut but could not be shown to you just now; say so` };
   const picture: ToolPicture = {
-    name: f.name,
-    id: f.id,
+    name: item.name,
+    id: item.id,
     fileId: held.fileId,
     size: cut.size,
     zoom: { box: cut.box, of: cut.of },
   };
-  return { zoomed: f.name, box: cut.box, of: cut.of, shown_as: cut.size, [PICTURES]: [picture] };
+  return { zoomed: item.name, box: cut.box, of: cut.of, shown_as: cut.size, [PICTURES]: [picture] };
 }
 
 /** One shape for both actions that open pictures, as a field a tool's actions share must have (registry.ts flatten). */
@@ -148,11 +141,11 @@ export const filesTool = defineActions({
       label: "Looking through your files",
       words:
         "Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw.",
-      async run(t, input) {
-        const all = await filesOfTurn(t);
-        const asked = input.shelf ?? "all";
+      async run(item, input) {
+        const all = await filesOfTurn(item);
+        const shelf = input.shelf ?? "all";
         const onShelf =
-          asked === "all" ? all.filter((f) => f.status === "filed") : all.filter((f) => shelfOf(f) === asked);
+          shelf === "all" ? all.filter((f) => f.status === "filed") : all.filter((f) => shelfOf(f) === shelf);
         const words = input.about?.toLowerCase().split(/\s+/).filter(Boolean) ?? [];
         const matched = words.length
           ? onShelf.filter((f) => {
@@ -172,27 +165,27 @@ export const filesTool = defineActions({
       label: "Reading what a photo shows",
       words:
         "Action get answers what the look wrote of one file: a note, not the picture, and the photo's size in pixels.",
-      async run(t, input) {
-        const { found, missing } = filesNamed(await filesOfTurn(t), [input.name]);
-        const f = found.at(0);
-        if (!f) return { error: `no file named ${missing.at(0)}; names come from files with action list` };
+      async run(item, input) {
+        const { found, missing } = filesNamed(await filesOfTurn(item), [input.name]);
+        const result = found.at(0);
+        if (!result) return { error: `no file named ${missing.at(0)}; names come from files with action list` };
         return {
-          name: f.name,
-          shelf: fileShelfSaid(f),
-          status: f.status,
-          source: f.source,
-          who: fileWhoSaid(f),
-          saw: f.line,
-          words_in_it: f.text_seen,
-          sharp: f.quality.sharp,
-          light: f.quality.light,
-          colors: f.colors,
-          subject: f.subject,
-          issues: f.issues,
-          looks_like_stock: f.looks_like_stock,
-          look: f.look_status,
-          ...(f.width && f.height ? { size: [f.width, f.height] } : {}),
-          added: f.created_at,
+          name: result.name,
+          shelf: fileShelfSaid(result),
+          status: result.status,
+          source: result.source,
+          who: fileWhoSaid(result),
+          saw: result.line,
+          words_in_it: result.text_seen,
+          sharp: result.quality.sharp,
+          light: result.quality.light,
+          colors: result.colors,
+          subject: result.subject,
+          issues: result.issues,
+          looks_like_stock: result.looks_like_stock,
+          look: result.look_status,
+          ...(result.width && result.height ? { size: [result.width, result.height] } : {}),
+          added: result.created_at,
         };
       },
     }),

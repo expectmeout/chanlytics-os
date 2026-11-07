@@ -5,7 +5,7 @@
  * it answers words. Its words, never ours; it makes no request.
  */
 import { oneLine } from "@chanlytics/contracts";
-import type { SitePage } from "@chanlytics/channels";
+import type { SitePage } from "@chanlytics/channels/website";
 
 /*
  * Each mark's reading is bounded, so a page written to be slow to read is read no slower than any other: a run of `[`
@@ -54,10 +54,10 @@ export function siteWordsOf(page: SaidOfItself, max: number): string | null {
     plainOfMarkdown(page.markdown.slice(0, max * MARKDOWN_OVER_WORDS)),
   ])
     if (part && !parts.some((p) => p.includes(part))) parts.push(part);
-  const said = parts.join(" · ");
-  if (!said) return null;
-  if (said.length <= max) return said;
-  const cut = said.slice(0, max + 1);
+  const sentence = parts.join(" · ");
+  if (!sentence) return null;
+  if (sentence.length <= max) return sentence;
+  const cut = sentence.slice(0, max + 1);
   const space = cut.lastIndexOf(" ");
   return cut.slice(0, space > 0 ? space : max).replace(/[\s·,;:–—-]+$/, "");
 }

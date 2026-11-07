@@ -49,7 +49,6 @@ import {
   changeFreesATime,
   feedAdditionIsBooking,
   freedTimeOf,
-  holdNotice,
   memberJoinedBy,
   memberJoinedNotice,
   memberLeftBy,
@@ -66,13 +65,13 @@ import {
   type FreedTimeOffer,
   type FreedTimeRefusal,
   type FreedTimeLine,
-  type HoldFacts,
   type JobNews,
   type MemberJoined,
   type OptOutPerson,
 } from "@chanlytics/contracts";
-import { errField, logger } from "@chanlytics/channels";
-import type { DeliveredEvent } from "@chanlytics/db";
+import { holdNotice, type HoldFacts } from "../deliver/hold-notice";
+import { errField, logger } from "@chanlytics/log";
+import type { DeliveredEvent } from "@chanlytics/db/events";
 import type { FreedTimeRun } from "../campaigns/ports";
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
@@ -102,7 +101,7 @@ export interface SubscriberPorts {
   eventTold(tenantId: string, eventId: string): Promise<boolean>;
   /**
    * The visits of the record that are booked and still ahead among these, as the record says them now, with who booked
-   * (packages/db bookedVisitsOf). A visit cancelled, vanished from the feed, past, or a member's own entry is not among them;
+   * (packages/db listBookedVisits). A visit cancelled, vanished from the feed, past, or a member's own entry is not among them;
    * with `status` "cancelled", the cancelled ones still ahead instead.
    */
   bookedVisits(
@@ -124,17 +123,17 @@ export interface SubscriberPorts {
    * copy of it, whichever arrived first, the other's arrival answered by the bell.
    */
   twinTold(tenantId: string, appointmentId: string): Promise<boolean>;
-  /** The invitation a member.joined event is about: who accepted it and as what (packages/db memberJoinedOf); null when it is gone. */
+  /** The invitation a member.joined event is about: who accepted it and as what (packages/db findMemberJoined); null when it is gone. */
   memberJoined(tenantId: string, invitationId: string): Promise<MemberJoined | null>;
   /**
    * Whether the workspace was told of this invitation's acceptance already, by whichever event: a read that took the seat
    * twice (two tabs at once) writes two member.joined events, and the owner is told of one arrival once.
    */
   memberTold(tenantId: string, invitationId: string): Promise<boolean>;
-  /** The address of a person who left, from the identity store (packages/db memberEmailOf); null for an account that is gone. */
+  /** The address of a person who left, from the identity store (packages/db findMemberEmail); null for an account that is gone. */
   memberEmail(userId: string): Promise<string | null>;
   /**
-   * The appointment an event is about and the calendar the receptionist reads over it (packages/db freedTimeFactsOf), or
+   * The appointment an event is about and the calendar the receptionist reads over it (packages/db findFreedTimeFacts), or
    * null when the record no longer holds the row.
    */
   freedTimeFacts(
@@ -227,11 +226,11 @@ async function freedTimeAsked(
   nowMs: number,
 ): Promise<FreedTimeAsked | null> {
   if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
-  const said = freedTimeEventOf(event.data);
-  if (!said || !changeFreesATime(said.change)) return null;
+  const sentence = freedTimeEventOf(event.data);
+  if (!sentence || !changeFreesATime(sentence.change)) return null;
   const facts = await ports.freedTimeFacts(event.tenant_id, event.subject_id, nowMs);
   if (!facts) return { offered: false, why: "gone" };
-  const verdict = freedTimeOf(said, facts.row, facts.calendar, new Date(nowMs));
+  const verdict = freedTimeOf(sentence, facts.row, facts.calendar, new Date(nowMs));
   if (!verdict.ok) return { offered: false, why: verdict.why };
   return ports.offerFreedTime(event.tenant_id, { from: event.subject_id, start: verdict.start, end: verdict.end });
 }
@@ -247,10 +246,10 @@ async function offerForNews(
   nowMs: number,
 ): Promise<FreedTimeOffer | null> {
   try {
-    const asked = await freedTimeAsked(event, ports, nowMs);
-    if (!asked) return null;
-    if (asked.offered) return asked;
-    return asked.why === "nobody" ? { offered: false, why: "nobody" } : null;
+    const otherFreedTimeAsked = await freedTimeAsked(event, ports, nowMs);
+    if (!otherFreedTimeAsked) return null;
+    if (otherFreedTimeAsked.offered) return otherFreedTimeAsked;
+    return otherFreedTimeAsked.why === "nobody" ? { offered: false, why: "nobody" } : null;
   } catch (e) {
     logger().warn("freed_time_offer_unasked", { tenant_id: event.tenant_id, event_id: event.id, error: errField(e) });
     return null;
@@ -280,28 +279,31 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     // A hold that has taken another reason since this event is told by the event that gave it that reason, so two
     // deliveries out of order tell the hold once, as it stands.
     if (reasonOfEvent(event) !== facts.reason) return;
-    const told = await ports.holdTold(event.tenant_id, {
+    const notice = await ports.holdTold(event.tenant_id, {
       eventId: event.id,
       conversationId: facts.conversationId,
       at: event.created_at,
     });
-    if (told) return;
+    if (notice) return;
     await ports.tell({ ...holdNotice(facts), sourceEvent: event.id });
   },
   consent_notice: async (event, ports) => {
     if (event.kind !== "contact.consent_changed" || event.subject_type !== "contact" || !event.subject_id) return;
     // Only a no the customer or a provider gave: a yes, a member's own record and a merge are news to nobody.
-    const said = optOutOf(event.data);
-    if (!said) return;
+    const sentence = optOutOf(event.data);
+    if (!sentence) return;
     const person = await ports.optOutPerson(event.tenant_id, event.subject_id);
     if (!person) return;
-    const told = await ports.optOutTold(event.tenant_id, {
+    const notice = await ports.optOutTold(event.tenant_id, {
       eventId: event.id,
       contactId: event.subject_id,
       at: event.created_at,
     });
-    if (told) return;
-    await ports.tell({ ...optOutNotice({ ...person, ...said, contactId: event.subject_id }), sourceEvent: event.id });
+    if (notice) return;
+    await ports.tell({
+      ...optOutNotice({ ...person, ...sentence, contactId: event.subject_id }),
+      sourceEvent: event.id,
+    });
   },
   visit_notice: async (event, ports) => {
     // A booking the customer cancelled or moved: one visit, told by its own event, while it is still ahead.
@@ -359,14 +361,19 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     await ports.tell({ ...memberJoinedNotice(member), sourceEvent: event.id });
   },
   freed_time_offer: async (event, ports) => {
-    const asked = await freedTimeAsked(event, ports, Date.now());
-    if (!asked) return;
+    const otherFreedTimeAsked = await freedTimeAsked(event, ports, Date.now());
+    if (!otherFreedTimeAsked) return;
     const about = { tenant_id: event.tenant_id, appointment: event.subject_id, event_id: event.id };
-    if (asked.offered) {
-      logger().info("freed_time_offered", { ...about, people: asked.people, waits: asked.waits });
+    if (otherFreedTimeAsked.offered) {
+      logger().info("freed_time_offered", {
+        ...about,
+        people: otherFreedTimeAsked.people,
+        waits: otherFreedTimeAsked.waits,
+      });
       return;
     }
-    const detail = "detail" in asked && asked.detail ? { detail: asked.detail } : {};
-    logger().info("freed_time_not_offered", { ...about, why: asked.why, ...detail });
+    const detail =
+      "detail" in otherFreedTimeAsked && otherFreedTimeAsked.detail ? { detail: otherFreedTimeAsked.detail } : {};
+    logger().info("freed_time_not_offered", { ...about, why: otherFreedTimeAsked.why, ...detail });
   },
 };

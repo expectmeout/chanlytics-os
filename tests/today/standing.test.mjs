@@ -116,29 +116,33 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
   for (const [file, s] of [
     // A thread's columns reach standingOf through standingOfThread (standing.ts), a People row's through personStanding.
     ["packages/contracts/src/conversations/standing.ts", /standingOf\(\s*\{/],
-    ["packages/contracts/src/conversations/inbox-thread.ts", /standingOfThread\(/],
+    ["packages/contracts/src/conversations/inbox-thread/waits.ts", /standingOfThread\(/],
     ["packages/contracts/src/people/person-state.ts", /standingOf\(\s*\{/],
     ["packages/contracts/src/today/facts.ts", /standingOfThread\(/],
   ])
     assert.ok(s.test(readCode(file)), `${file} reads standingOf`);
-  // Today's view model, in the modules today.ts was split into.
+  // Today's view model, in the modules today.ts was split into: contracts' own, and the period line and the leaks,
+  // which are Today's page's alone (layer 3).
   const today = [
-    "metrics",
-    "vm",
-    "clock",
-    "facts",
-    "figures",
-    "rows",
-    "queue",
-    "brief",
-    "day",
-    "period",
-    "runs",
-    "leaks",
-    "away",
-    "to-do",
+    ...[
+      "metrics",
+      "vm",
+      "clock",
+      "facts",
+      "figures",
+      "rows",
+      "queue",
+      "brief",
+      "day/frame",
+      "day/zone",
+      "runs",
+      "away",
+      "to-do",
+    ].map((m) => `packages/contracts/src/today/${m}.ts`),
+    "apps/dashboard/src/surfaces/today/period.ts",
+    "apps/dashboard/src/surfaces/today/leaks.ts",
   ]
-    .map((m) => readCode(`packages/contracts/src/today/${m}.ts`))
+    .map((f) => readCode(f))
     .join("\n");
   assert.ok(
     !today.includes("live.escalations_open"),

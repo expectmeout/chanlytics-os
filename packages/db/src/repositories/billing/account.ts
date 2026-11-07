@@ -47,7 +47,7 @@ export type BillingExpectation = { status: string; updated_at: string } | { stri
 
 export async function applyBilling(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     row: BillingPatch;
     expect: BillingExpectation | null;
@@ -55,12 +55,12 @@ export async function applyBilling(
   },
 ): Promise<boolean> {
   const row: Record<string, Json> = {};
-  for (const [k, v] of Object.entries(p.row)) if (v !== undefined) row[k] = v;
+  for (const [k, v] of Object.entries(params.row)) if (v !== undefined) row[k] = v;
   const { data, error } = await db.rpc("billing_apply", {
-    p_tenant_id: p.tenantId,
+    p_tenant_id: params.tenantId,
     p_row: row,
-    ...(p.expect ? { p_expect: { ...p.expect } } : {}),
-    ...(p.tenantStatus ? { p_tenant_status: p.tenantStatus } : {}),
+    ...(params.expect ? { p_expect: { ...params.expect } } : {}),
+    ...(params.tenantStatus ? { p_tenant_status: params.tenantStatus } : {}),
   });
   if (error) throw new Error(`billing_apply: ${error.message}`);
   return data === true;

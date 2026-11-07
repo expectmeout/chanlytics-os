@@ -1,4 +1,4 @@
-import { previewCall } from "@/server/previews/preview-doors";
+import { previewCall } from "@/server/previews/doors";
 import { previewRoute } from "@/server/previews/public-route";
 
 /**

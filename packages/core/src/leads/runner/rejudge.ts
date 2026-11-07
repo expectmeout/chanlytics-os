@@ -30,7 +30,7 @@ import {
   wasJudged,
   wasWeighed,
 } from "./rules";
-import { readSitesBeforeJudge, settleSiteReads, siteFactOf, siteReadsOf, type SiteReads } from "./site-reads";
+import { readSitesBeforeJudge, settleSiteReads, findSiteFact, siteReadsOf, type SiteReads } from "./site-reads";
 
 /* ------------------------------------------------- an answer re-judges -- */
 
@@ -67,20 +67,20 @@ export type RejudgeOutcome = { changed: number; reused: number; judged: number; 
  * lists (an expired dataset) is left as it was and counted as unread. A new plan that reads sites has them read before
  * each batch, as the collect's does (site-reads.ts); one short of the time leaves the job to be tried again.
  */
-export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<RejudgeOutcome> {
-  const sites = siteReadsOf(p);
+export async function rejudgeProbe(leadPorts: LeadPorts, round: LeadRoundRow): Promise<RejudgeOutcome> {
+  const sites = siteReadsOf(leadPorts);
   try {
-    return await rejudged(p, round, sites);
+    return await rejudged(leadPorts, round, sites);
   } finally {
-    await settleSiteReads(p, round, sites);
+    await settleSiteReads(leadPorts, round, sites);
   }
 }
 
-async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Promise<RejudgeOutcome> {
+async function rejudged(leadPorts: LeadPorts, round: LeadRoundRow, sites: SiteReads): Promise<RejudgeOutcome> {
   const out: RejudgeOutcome = { changed: 0, reused: 0, judged: 0, unread: 0 };
   const plan = round.plan;
   const card = CARDS[plan.card];
-  const members = await p.db.membersOfRound(round.id);
+  const members = await leadPorts.db.membersOfRound(round.id);
   const looked = lookedAtUnder(plan);
   const pending = members.filter(
     (m) => looked(m) && !m.decided && m.place_id !== null && versionOf(m) < round.plan_version,
@@ -89,14 +89,14 @@ async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Pr
 
   // The probe's own items, by place id, with the term that found each.
   const listed = new Map<string, { clean: CleanPlace; term: string }>();
-  for (const r of await p.db.runsOfRound(round.id)) {
-    if (r.purpose !== "discover" || r.term === null || !r.dataset_id) continue;
-    if ((await runIdFor(round.id, "probe", r.term)) !== r.id) continue;
+  for (const item of await leadPorts.db.runsOfRound(round.id)) {
+    if (item.purpose !== "discover" || item.term === null || !item.dataset_id) continue;
+    if ((await runIdFor(round.id, "probe", item.term)) !== item.id) continue;
     for (let from = 0; ; from += PAGE_ITEMS) {
-      if (outOfTime(p)) throw new LeadRetry("out of time reading the first places again");
+      if (outOfTime(leadPorts)) throw new LeadRetry("out of time reading the first places again");
       let items: unknown[];
       try {
-        items = (await p.apify.listItems(r.dataset_id, from, PAGE_ITEMS, [...card.fields])).items;
+        items = (await leadPorts.apify.listItems(item.dataset_id, from, PAGE_ITEMS, [...card.fields])).items;
       } catch (e) {
         // A dataset the source no longer has (expired, deleted): its places stay as they were, and the round runs on.
         if (isRefused(e)) break;
@@ -105,7 +105,7 @@ async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Pr
       for (const it of items) {
         const mapped = card.mapItem(it);
         if (mapped && !listed.has(mapped.placeId))
-          listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: r.term });
+          listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: item.term });
       }
       if (items.length < PAGE_ITEMS) break;
     }
@@ -119,7 +119,7 @@ async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Pr
   if (!found.length) return out;
   // What the collect filtered before it judged, filtered again, so a stored answer's email index still points at
   // the same address.
-  const supp = await p.db.suppressed(round.tenant_id, {
+  const supp = await leadPorts.db.suppressed(round.tenant_id, {
     // Every address, free mail included, as the collect asks (a stop is a person's, whatever their domain).
     emails: found.flatMap((x) => x.clean.emails),
     placeIds: found.map((x) => x.clean.raw.placeId),
@@ -142,28 +142,28 @@ async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Pr
   }
 
   const place = (
-    x: (typeof found)[number],
+    item: (typeof found)[number],
     answer: JudgePlaceAnswer | null,
     opId: string | null,
     model: string | null,
   ): CollectPlace => {
     const rule =
-      geo.center && !inArea(geo.center, geo.radiusM, x.clean.raw.location)
+      geo.center && !inArea(geo.center, geo.radiusM, item.clean.raw.location)
         ? { class: "review" as const, reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null }
         : null;
-    const made = memberOf(plan, x.term, x.clean, answer, opId, model, rule, geo, [], null);
-    made.member.judgment = { ...made.member.judgment, plan_version: round.plan_version };
-    return made;
+    const created = memberOf(plan, item.term, item.clean, answer, opId, model, rule, geo, [], null);
+    created.member.judgment = { ...created.member.judgment, plan_version: round.plan_version };
+    return created;
   };
   const commit = async (xs: typeof found, places: CollectPlace[], judgment: CollectJudgment[] | null) => {
     // Their own marks, for the places the new plan lets back in (a left-out place kept none).
     await markPlaces(
-      p,
+      leadPorts,
       sites,
       places.filter((pl, i) => xs[i].m.class === "excluded" && pl.member.class !== "excluded").map((pl) => pl.place),
-      markUntil(p, false),
+      markUntil(leadPorts, false),
     );
-    const res = await p.db.roundRejudge(round.id, round.plan_version, places, judgment);
+    const res = await leadPorts.db.roundRejudge(round.id, round.plan_version, places, judgment);
     if (!res.ok) return false;
     out.changed += res.changed;
     return true;
@@ -179,25 +179,25 @@ async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Pr
   }
   const size = judgeBatchPlaces(plan);
   const reads = planReadsSites(plan);
-  for (let i = 0; i < judge.length; i += size) {
-    if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before judging the first places again");
-    const batch = judge.slice(i, i + size);
+  for (let index = 0; index < judge.length; index += size) {
+    if (outOfTime(leadPorts, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before judging the first places again");
+    const batch = judge.slice(index, index + size);
     const site = new Map<(typeof batch)[number], string | null>();
     if (reads) {
       const hosts = batch.flatMap((x) => (x.clean.host ? [x.clean.host] : []));
-      await readSitesBeforeJudge(p, sites, hosts, JUDGE_MARGIN_MS);
+      await readSitesBeforeJudge(leadPorts, sites, hosts, JUDGE_MARGIN_MS);
       if (hosts.some((h) => !sites.asked(h))) throw new LeadRetry("out of time reading the first places' sites again");
-      await Promise.all(batch.map(async (x) => site.set(x, await siteFactOf(sites, x.clean))));
+      await Promise.all(batch.map(async (x) => site.set(x, await findSiteFact(sites, x.clean))));
     }
     // In the calls the judge can answer in time, side by side (judgeInCalls), each kept by the places it asked about.
     const calls = await judgeInCalls(
-      p.judge,
+      leadPorts.judge,
       plan,
       batch,
       (x, ref) => factsOf(ref, x.clean, reads ? (site.get(x) ?? null) : undefined),
-      (_, asked) =>
+      (_, request) =>
         opIdFor(
-          `rejudge:${round.id}:${round.plan_version}:${asked
+          `rejudge:${round.id}:${round.plan_version}:${request
             .map((x) => x.clean.raw.placeId)
             .sort()
             .join(",")}`,
@@ -205,18 +205,18 @@ async function rejudged(p: LeadPorts, round: LeadRoundRow, sites: SiteReads): Pr
           0,
         ),
       round,
-      () => !outOfTime(p, JUDGE_MARGIN_MS),
+      () => !outOfTime(leadPorts, JUDGE_MARGIN_MS),
     );
     // A call refused twice leaves its places as they were; the others are committed together.
     const answered = calls.filter((c) => !c.judged.refused);
     if (!answered.length) continue;
-    const told = answered.flatMap((c) => c.items);
+    const notice = answered.flatMap((c) => c.items);
     const places = answered.flatMap(({ items, judged }) =>
       items.map((x, ref) => place(x, judged.answers.get(ref) ?? null, judged.judgment?.op_id ?? null, judged.model)),
     );
     const judgments = answered.flatMap((c) => (c.judged.judgment ? [c.judged.judgment] : []));
-    out.judged += told.length;
-    if (!(await commit(told, places, judgments.length ? judgments : null))) return out;
+    out.judged += notice.length;
+    if (!(await commit(notice, places, judgments.length ? judgments : null))) return out;
   }
   return out;
 }

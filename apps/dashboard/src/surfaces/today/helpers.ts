@@ -7,26 +7,25 @@ import {
   todayDay,
   todayDayNote,
   todayHeadLine,
-  todayBriefWords,
   todaySteps,
   todayStepsSub,
   withSteps,
   todayVisitsAsked,
   todayVisitsSub,
   withVisitsAsked,
-  todayLeaks,
-  todayPeriodLine,
   todayRunWords,
   todayRunsSub,
   todayLateRunsSub,
   todayDraftsSub,
   todayRunApproved,
-  withReplies,
-  withoutWrongPerson,
   type ReachOutRepliesDto,
   type TodayNoReplyVM,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
+import { todayBriefWords } from "./brief-words";
+import { todayLeaks } from "./leaks";
+import { todayPeriodLine } from "./period";
+import { withReplies, withoutWrongPerson } from "@/surfaces/campaigns/reach-out/reply-today";
 
 /** The readings of reach-out replies as the Inbox's surface holds them (reach-out/replies.ts); none when unread. */
 const readings = () => (window as Window & { __REPLIES?: ReachOutRepliesDto | null }).__REPLIES?.replies ?? [];

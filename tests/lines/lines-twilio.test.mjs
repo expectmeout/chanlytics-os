@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dryProvider, twilioProvider, TwilioError } from "@chanlytics/channels";
+import { dryProvider, twilioProvider, TwilioError } from "@chanlytics/channels/lines";
 
 const master = { sid: "ACmaster", token: "t" };
 const acct = { sid: "ACsub", token: "s" };

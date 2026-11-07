@@ -51,6 +51,7 @@ export const DB_PATHS = [
   // launcher builds from them, decision 0074)
   "packages/core/**",
   "packages/jobs/**",
+  "packages/log/**",
   "packages/db/**",
   // the edge's doors and sweeps and what they call, and the dashboard's server, its database client and its routes
   "apps/edge/api/**",

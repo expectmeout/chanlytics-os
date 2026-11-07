@@ -3,13 +3,13 @@
  * feed. Nothing here writes, and nothing here fetches the feed (parsed-feed.ts does that).
  *
  * `readSettings` parses a workspace's `tenant_config.config` and tells settings that will not parse apart from a
- * workspace without a calendar. `calendarOf` is the lookup the People list, the pools and the report (people-visits.ts)
+ * workspace without a calendar. `findCalendar` is the lookup the People list, the pools and the report (people-visits.ts)
  * and one person's profile (person-visits.ts) start from: the feed's address (`url`), the zone, the calendar's name
  * (`source`, from feedSourceLabel: "Google Calendar", never the address), the booking link the settings offer
  * (brain.booking_link), the business's own addresses (ownAddressesOf, never a customer's visit) and its
- * BusinessProfile. It reads the zone (tenantFacts) and the config row through the caller's own client (ctx.supabase,
+ * BusinessProfile. It reads the zone (getTenantFacts) and the config row through the caller's own client (ctx.supabase,
  * under RLS) unless the caller hands in the zone and raw settings it read this turn (`known`); a read that fails
- * throws. The board's week reads the row itself (calendar/week.ts calendarSources) but judges it with `readSettings`,
+ * throws. The board's week reads the row itself (calendar/week/week.ts calendarSources) but judges it with `readSettings`,
  * so the board and the lookup agree on what a broken row means.
  *
  * Settings that will not parse are a READ THAT FAILED, not a workspace without a calendar.
@@ -43,9 +43,9 @@ import {
   calendarFeedKeyOf,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/shared/with-route";
-import { tenantFacts } from "@/server/shared/tenant";
+import { getTenantFacts } from "@/server/shared/tenant";
 import { log } from "@/server/shared/log";
-import { storedConfigOf } from "@/server/workspace/config-row";
+import { getStoredConfig } from "@/server/workspace/config-row";
 
 /**
  * Settings that will not parse are a READ THAT FAILED, not a workspace without a calendar.
@@ -65,14 +65,18 @@ import { storedConfigOf } from "@/server/workspace/config-row";
  * news, said out loud. No: nothing was lost, stay quiet, and the log still has the issues either way.
  */
 export function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfig | null; lostCalendar: boolean } {
-  const r = parseTenantConfigResult(raw);
-  if (r.ok) return { cfg: r.config, lostCalendar: false };
-  const said = raw as { calendar?: { ical_url?: unknown }; calendar_grant?: { mailbox_id?: unknown } } | null;
-  const named = said?.calendar?.ical_url;
-  const granted = said?.calendar_grant?.mailbox_id;
+  const tenantConfigResult = parseTenantConfigResult(raw);
+  if (tenantConfigResult.ok) return { cfg: tenantConfigResult.config, lostCalendar: false };
+  const sentence = raw as { calendar?: { ical_url?: unknown }; calendar_grant?: { mailbox_id?: unknown } } | null;
+  const named = sentence?.calendar?.ical_url;
+  const granted = sentence?.calendar_grant?.mailbox_id;
   const lostCalendar =
     (typeof named === "string" && named.trim() !== "") || (typeof granted === "string" && granted.trim() !== "");
-  log.error("tenant_config_unreadable", { tenant_id: tenantId, lostCalendar, issues: r.issues.slice(0, 8) });
+  log.error("tenant_config_unreadable", {
+    tenant_id: tenantId,
+    lostCalendar,
+    issues: tenantConfigResult.issues.slice(0, 8),
+  });
   return { cfg: null, lostCalendar };
 }
 
@@ -83,7 +87,7 @@ export function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfi
  * settings, handed in by a caller that read them this turn (readers/report.ts), so neither is read again; without it,
  * both are read here.
  */
-export async function calendarOf(
+export async function findCalendar(
   ctx: RouteContext,
   tenantId: string,
   known?: { timezone: string; config: unknown },
@@ -105,8 +109,8 @@ export async function calendarOf(
   } else {
     // The settings whole, the feed's address with them, for any member: the reads in this module need it.
     const [facts, config] = await Promise.all([
-      tenantFacts(ctx.supabase, tenantId),
-      storedConfigOf(ctx.supabase, tenantId),
+      getTenantFacts(ctx.supabase, tenantId),
+      getStoredConfig(ctx.supabase, tenantId),
     ]);
     timezone = facts.timezone;
     raw = config;

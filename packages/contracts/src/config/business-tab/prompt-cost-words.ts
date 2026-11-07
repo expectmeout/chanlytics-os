@@ -28,11 +28,11 @@ export function blockShareWords(chars: number, total: number): string | null {
     [9 / 10, "nine tenths"],
   ];
   if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
-  const f = Math.min(1, chars / total);
-  if (f >= 0.95) return "nearly everything it reads";
-  if (f < 0.075) return "less than a tenth of everything it reads";
-  const [share, words] = SHARES.reduce((best, s) => (Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best));
-  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words} of everything it reads`;
+  const lowest = Math.min(1, chars / total);
+  if (lowest >= 0.95) return "nearly everything it reads";
+  if (lowest < 0.075) return "less than a tenth of everything it reads";
+  const [share, words] = SHARES.reduce((best, s) => (Math.abs(s[0] - lowest) < Math.abs(best[0] - lowest) ? s : best));
+  return `${Math.abs(share - lowest) > 0.03 ? "about " : ""}${words} of everything it reads`;
 }
 
 /**

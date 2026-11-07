@@ -1,6 +1,6 @@
 /**
  * A website's sign-up, confirmed by its person (00489): what the edge reads before it asks (signupAskFacts, judged by
- * contracts signupAskRefusal), and the confirmation email the dashboard's page opens (confirmationEmailOf). An ask is
+ * contracts signupAskRefusal), and the confirmation email the dashboard's page opens (findConfirmationEmail). An ask is
  * the email itself, a row of messages under meta.source signup_confirm: it is counted by its row, so no table keeps
  * what the thread already holds. Each read throws when it fails: "we could not count" is never "none asked".
  */
@@ -48,70 +48,70 @@ function base(db: Db, tenantId: string, sinceMs: number) {
  * this address (`addressKey`, contracts signupAddressKey) in ninety days and by the workspace in the last day; and the
  * form their newest ask carried (`lastForm`, null with none), which a member's ask again keeps as its evidence.
  */
-export async function signupAskFacts(
+export async function findSignupAskFacts(
   db: Db,
-  p: { tenantId: string; contactId: string; addressKey: string; nowMs: number },
+  params: { tenantId: string; contactId: string; addressKey: string; nowMs: number },
 ): Promise<Omit<SignupAskFacts, "mailbox"> & { lastForm: Json | null }> {
-  const dayAgo = p.nowMs - DAY_MS;
+  const dayAgo = params.nowMs - DAY_MS;
   const [person, open, last, addressAsks, workspaceToday, failedToday] = await Promise.all([
     db
       .from("contacts")
       .select(
         "email, consent, dnc, email_suppressed_at, email_marketing, acquired_via, erased_at, erasing_since, merged_into_contact_id",
       )
-      .eq("tenant_id", p.tenantId)
-      .eq("id", p.contactId)
+      .eq("tenant_id", params.tenantId)
+      .eq("id", params.contactId)
       .maybeSingle(),
     db
       .from("messages")
       .select("id")
-      .eq("tenant_id", p.tenantId)
-      .eq("contact_id", p.contactId)
+      .eq("tenant_id", params.tenantId)
+      .eq("contact_id", params.contactId)
       .eq("channel", "email")
       .eq("direction", "outbound")
       .eq("meta->>source", SIGNUP_CONFIRM_SOURCE)
       .in("status", ASKING)
-      .gte("created_at", new Date(p.nowMs - SIGNUP_CONFIRM_MS).toISOString())
+      .gte("created_at", new Date(params.nowMs - SIGNUP_CONFIRM_MS).toISOString())
       .limit(1),
     // Their newest ask, whatever became of it: that a sign-up of theirs was asked, and the form it carried.
     db
       .from("messages")
       .select("meta")
-      .eq("tenant_id", p.tenantId)
-      .eq("contact_id", p.contactId)
+      .eq("tenant_id", params.tenantId)
+      .eq("contact_id", params.contactId)
       .eq("channel", "email")
       .eq("direction", "outbound")
       .eq("meta->>source", SIGNUP_CONFIRM_SOURCE)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    asksSince(db, p.tenantId, p.nowMs - SIGNUP_ASK_LIMITS.perAddressMs, (q) =>
-      q.eq("meta->signup_confirm->>key", p.addressKey).neq("status", "canceled"),
+    asksSince(db, params.tenantId, params.nowMs - SIGNUP_ASK_LIMITS.perAddressMs, (q) =>
+      q.eq("meta->signup_confirm->>key", params.addressKey).neq("status", "canceled"),
     ),
-    asksSince(db, p.tenantId, dayAgo, (q) => q.neq("status", "canceled")),
-    asksSince(db, p.tenantId, dayAgo, (q) => q.eq("status", "failed")),
+    asksSince(db, params.tenantId, dayAgo, (q) => q.neq("status", "canceled")),
+    asksSince(db, params.tenantId, dayAgo, (q) => q.eq("status", "failed")),
   ]);
   if (person.error) throw new Error(`cannot read the person a sign-up asks: ${person.error.message}`);
   if (open.error) throw new Error(`cannot read the person's open sign-up confirmation: ${open.error.message}`);
   if (last.error) throw new Error(`cannot read the person's last sign-up confirmation: ${last.error.message}`);
-  const asked = (last.data?.meta ?? null) as { signup_confirm?: { form?: Json } } | null;
-  const c = person.data;
-  const gone = !c || !!c.erased_at || !!c.erasing_since || !!c.merged_into_contact_id;
+  const meta = (last.data?.meta ?? null) as { signup_confirm?: { form?: Json } } | null;
+  const data = person.data;
+  const gone = !data || !!data.erased_at || !!data.erasing_since || !!data.merged_into_contact_id;
   return {
     person: gone
       ? null
       : {
-          email: c.email,
-          stopped: c.consent === "opted_out" || !!c.dnc,
-          suppressed: !!c.email_suppressed_at,
-          emailOffers: c.email_marketing,
-          fromWebsite: c.acquired_via === "website" || !!last.data,
+          email: data.email,
+          stopped: data.consent === "opted_out" || !!data.dnc,
+          suppressed: !!data.email_suppressed_at,
+          emailOffers: data.email_marketing,
+          fromWebsite: data.acquired_via === "website" || !!last.data,
         },
     open: (open.data ?? []).length > 0,
     addressAsks,
     workspaceToday,
     failedToday,
-    lastForm: asked?.signup_confirm?.form ?? null,
+    lastForm: meta?.signup_confirm?.form ?? null,
   };
 }
 
@@ -129,15 +129,15 @@ interface ConfirmationEmail {
  * The confirmation email a link names, or null when the workspace holds no such email (another email's id, an inbound
  * one, another workspace's). The page reads it to say whose question it asks; the yes door judges the press itself.
  */
-export async function confirmationEmailOf(
+export async function findConfirmationEmail(
   db: Db,
-  p: { tenantId: string; messageId: string },
+  params: { tenantId: string; messageId: string },
 ): Promise<ConfirmationEmail | null> {
   const { data, error } = await db
     .from("messages")
     .select("contact_id, meta")
-    .eq("tenant_id", p.tenantId)
-    .eq("id", p.messageId)
+    .eq("tenant_id", params.tenantId)
+    .eq("id", params.messageId)
     .eq("channel", "email")
     .eq("direction", "outbound")
     .eq("meta->>source", SIGNUP_CONFIRM_SOURCE)

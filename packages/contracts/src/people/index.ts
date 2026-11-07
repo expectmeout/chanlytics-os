@@ -68,22 +68,7 @@ export {
   websiteFormPerson,
 } from "./doors/website-form";
 export type { WebsiteForm, WebsiteFormInput } from "./doors/website-form";
-export { legacyErasedEmailHash, legacyErasedPhoneHash, legacyLeadSuppressionHash } from "./erasure";
-export { BUILTIN_LISTS, LIST_GROUP_WORDS, listAsks, PEOPLE_LIST_GROUPS, PEOPLE_LISTS } from "./lists/builtin-lists";
-export type { PeopleListGroup } from "./lists/builtin-lists";
-export {
-  LIST_ANY_MAX,
-  LIST_ASSIGNED,
-  LIST_DEAL_STAGES,
-  LIST_NEEDS,
-  LIST_PURPOSES,
-  LIST_RULE_FIELDS,
-  LIST_RULE_MAX,
-  LIST_STANDINGS,
-} from "./lists/list-fields";
-export type { ListNeed } from "./lists/list-fields";
-export { listRuleMatches, ruleLists, ruleNeeds } from "./lists/list-match";
-export type { InList } from "./lists/list-match";
+export { hashLegacyErasedEmail, hashLegacyErasedPhone, hashLegacyLeadSuppression } from "./erasure";
 export {
   cannotBeSentWords,
   NO_CHANNEL_REACH,
@@ -95,27 +80,21 @@ export {
   peopleListAction,
   saidYesWords,
   savedListAction,
-} from "./lists/list-page";
-export type { PeopleAggregates, PeopleListAction } from "./lists/list-page";
+} from "./lists/actions";
+export type { PeopleAggregates, PeopleListAction } from "./lists/actions";
+export { BUILTIN_LISTS, LIST_GROUP_WORDS, listAsks, PEOPLE_LIST_GROUPS, PEOPLE_LISTS } from "./lists/builtin-lists";
+export type { PeopleListGroup } from "./lists/builtin-lists";
 export {
-  asListRule,
-  draftListRule,
-  LIST_CONDITIONS_JSON_SCHEMA,
-  ListConditionSchema,
-  listConditionWords,
-  listDraftFieldLines,
-  ListFactSchema,
-  listFactWords,
-  listRuleParts,
-  ListRuleSchema,
-  listRuleWhy,
-  ruleUndated,
-} from "./lists/list-rules";
-export type { ListAny, ListCondition, ListFact, ListRule } from "./lists/list-rules";
-export { LIST_DRAFT_JSON_SCHEMA, ListDraftAnswerSchema, PeopleExportQuerySchema } from "./lists/list-schemas";
-export type { ListDraftAnswer } from "./lists/list-schemas";
-export { listToken, parseListToken } from "./lists/list-token";
-export type { ListRef } from "./lists/list-token";
+  LIST_ANY_MAX,
+  LIST_ASSIGNED,
+  LIST_DEAL_STAGES,
+  LIST_NEEDS,
+  LIST_PURPOSES,
+  LIST_RULE_FIELDS,
+  LIST_RULE_MAX,
+  LIST_STANDINGS,
+} from "./lists/fields";
+export type { ListNeed } from "./lists/fields";
 export {
   listMembers,
   listNamer,
@@ -140,12 +119,31 @@ export type {
   SavedListLike,
   SavedListRowLike,
 } from "./lists/lists";
+export { listRuleMatches, ruleLists, ruleNeeds } from "./lists/match";
+export type { InList } from "./lists/match";
 export { GET_YES_PARAM, GET_YES_ROUTE, parsePeopleRoute, peopleRoute } from "./lists/people-route";
+export {
+  asListRule,
+  draftListRule,
+  LIST_CONDITIONS_JSON_SCHEMA,
+  ListConditionSchema,
+  listConditionWords,
+  listDraftFieldLines,
+  ListFactSchema,
+  listFactWords,
+  listRuleParts,
+  ListRuleSchema,
+  listRuleWhy,
+  ruleUndated,
+} from "./lists/rules";
+export type { ListAny, ListCondition, ListFact, ListRule } from "./lists/rules";
+export { LIST_DRAFT_JSON_SCHEMA, ListDraftAnswerSchema, PeopleExportQuerySchema } from "./lists/schemas";
+export type { ListDraftAnswer } from "./lists/schemas";
 export { pinTokens, TODAY_PINS_MAX, todayPins, togglePin } from "./lists/today-pins";
 export type { ListCountsDto, TodayPin } from "./lists/today-pins";
-export { attentionRow } from "./person-attention";
-export type { AttentionRowVM } from "./person-attention";
-export type { PersonAboutFact, PersonFact, PersonRightNow } from "./person-cards";
+export { listToken, parseListToken } from "./lists/token";
+export type { ListRef } from "./lists/token";
+export type { PersonAboutFact, PersonFact, PersonRightNow } from "./person-cards/right-now";
 export {
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
@@ -175,6 +173,7 @@ export type {
   PersonRowDto,
   PersonSignerDto,
 } from "./person-dto";
+export { fmtDate } from "./person-helpers";
 export { MERGE_ANSWERS, MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, mergedAnswers } from "./person-merge";
 export type { MergedAnswers, RecordAnswers } from "./person-merge";
 export { callerName } from "./person-name";
@@ -182,17 +181,16 @@ export { callerName } from "./person-name";
 // like every other surface, and the index exports it from there.
 export { personName } from "./person-name";
 export type { NameableCaller, NameableContact } from "./person-name";
+export { personNextFor, toPersonVM } from "./person-profile/person-vm";
 export {
   filterTimeline,
   PERSON_ACT_WORDS,
   PERSON_DELETE_WORDS,
   personActs,
-  personNextFor,
   TIMELINE_FILTERS,
   timelineFilterLabel,
-  toPersonVM,
-} from "./person-profile";
-export type { OwnMessageVM, PersonActVM, PersonDoubtVM, PersonVM, TimelineFilterId } from "./person-profile";
+} from "./person-profile/timeline";
+export type { OwnMessageVM, PersonActVM, PersonDoubtVM, PersonVM, TimelineFilterId } from "./person-profile/timeline";
 export {
   bookingLinkAction,
   mayReach,
@@ -213,10 +211,13 @@ export {
   PERSON_MODES,
 } from "./person-receptionist";
 export type { HolderNames, OwnModesDto, PersonMode, PersonReceptionist, ReceptionistTone } from "./person-receptionist";
-export { cameFromOf, threadHeadFactOf, threadPersonFactsOf, toPersonRowVM, visitLineForDto } from "./person-row";
-export type { PersonRowVM, ThreadHeadFact, ThreadPersonFact } from "./person-row";
 export { ago } from "./person-row-facts";
+export { theirTurnWords } from "./person-row-facts";
 export type { PersonFirstContact, PersonLastContact } from "./person-row-facts";
+export { cameFromOf, visitLineForDto } from "./person-row/row-facts";
+export type { PersonRowVM } from "./person-row/row-facts";
+export { threadHeadFactOf, threadPersonFactsOf, toPersonRowVM } from "./person-row/row-vm";
+export type { ThreadHeadFact, ThreadPersonFact } from "./person-row/row-vm";
 export {
   attentionOf,
   holderOf,

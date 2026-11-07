@@ -10,7 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bookedSeenOf, BOOKED_SEEN_CAP } from "@chanlytics/contracts";
+import { bookedSeenOf, BOOKED_SEEN_CAP } from "../../apps/edge/lib/calendar/reach-out-booked-rule.ts";
 
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-10-06T12:00:00Z");

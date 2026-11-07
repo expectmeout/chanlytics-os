@@ -8,7 +8,7 @@
  *   node --import tsx tooling/scripts/evals/lead-ideas.mjs --live --repeats 3   # three askings each: the model is not the same twice
  *
  * Each workspace (fixtures/lead-ideas/workspaces.json) goes through what the dashboard's reader does
- * (server/leads/lead-suggestions.ts): lead_suggest_history's answer narrowed (ideaHistoryOf), the code's decisions made
+ * (server/leads/suggestions.ts): lead_suggest_history's answer narrowed (ideaHistoryOf), the code's decisions made
  * (ideaPacket: each kind's verdict, the places an idea may name, the sizes this month allows), the question and its
  * schema, the model's answer read leniently (LeadIdeasAnswerSchema) and back into plans (ideasFrom). The ideas are
  * judged by code: at least three, each a plan in a listed place, none of a kind that did not work nor the business's

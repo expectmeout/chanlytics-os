@@ -91,8 +91,8 @@ export function coveredChannels(channels: readonly string[] | null | undefined):
  */
 export function countsByChannelWords(by: Partial<Record<ConsentChannel, number>> | null | undefined): string | null {
   if (!by) return null;
-  const went = CONSENT_CHANNELS.filter((c) => (by[c] ?? 0) > 0);
-  return went.length > 1 ? went.map((c) => `${by[c]} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ") : null;
+  const sent = CONSENT_CHANNELS.filter((c) => (by[c] ?? 0) > 0);
+  return sent.length > 1 ? sent.map((c) => `${by[c]} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ") : null;
 }
 
 /** The channels in a sentence: "on WhatsApp", "on WhatsApp and by text", "on WhatsApp, by text and by email". */

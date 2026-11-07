@@ -149,46 +149,46 @@ const titleKey = (mode: StepSheetVM["mode"], kind: StepSheetVM["kind"]) =>
  * and when), a new note (`note`: no day first), or a change to one of theirs; a note of theirs with no day opens as a note.
  */
 export function stepSheetFor(
-  p: StepPerson,
+  stepPerson: StepPerson,
   ask: { noteId?: string | null; dealId?: string | null; note?: boolean; lead?: string | null },
   nowMs: number,
   tz: string,
 ): StepSheetVM {
-  const W = STEP_SHEET_WORDS;
-  const note = ask.noteId ? ((p.noteList ?? []).find((n) => n.id === ask.noteId) ?? null) : null;
+  const words = STEP_SHEET_WORDS;
+  const note = ask.noteId ? ((stepPerson.noteList ?? []).find((n) => n.id === ask.noteId) ?? null) : null;
   const mode = ask.noteId ? "edit" : "add";
   const kind = (note ? !note.step : ask.note === true) ? "note" : "step";
   const dealId = note ? note.dealId : (ask.dealId ?? null);
-  const service = dealId ? ((p.deals ?? []).find((d) => d.id === dealId)?.service ?? null) : null;
+  const service = dealId ? ((stepPerson.deals ?? []).find((d) => d.id === dealId)?.service ?? null) : null;
   // Five at most, so they hold the sheet's one line: a note's No day comes before the notes composer's own four.
   const days =
     kind === "note"
-      ? [{ key: NO_DAY, label: W.when.none, title: W.when.none }, ...composerDays(nowMs, tz)]
+      ? [{ key: NO_DAY, label: words.when.none, title: words.when.none }, ...composerDays(nowMs, tz)]
       : stepSheetDays(nowMs, tz);
   return {
     mode,
     kind,
-    title: W.titles[titleKey(mode, kind)],
-    sub: service ? `${p.name} · ${service}` : p.name,
+    title: words.titles[titleKey(mode, kind)],
+    sub: service ? `${stepPerson.name} · ${service}` : stepPerson.name,
     days,
     team: [
-      { id: "", label: W.for.anyone },
-      ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name })),
+      { id: "", label: words.for.anyone },
+      ...(stepPerson.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? words.for.me : m.name })),
     ],
     draft: openedWith(note, kind, days, dealId ? (ask.lead ?? null) : null),
     note: note ? { id: note.id, version: note.version } : null,
     dealId,
-    blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? (NOTE_REFUSALS.not_yours ?? null) : null,
-    save: mode === "edit" ? W.save.edit : W.save[kind === "note" ? "note" : "add"],
+    blocked: ask.noteId && !note ? words.noStep : note && !note.mine ? (NOTE_REFUSALS.not_yours ?? null) : null,
+    save: mode === "edit" ? words.save.edit : words.save[kind === "note" ? "note" : "add"],
   };
 }
 
 /** What it says once saved: a note or a step, new or changed, by the day it was saved with. */
 export function stepSheetDone(sheet: Pick<StepSheetVM, "mode">, draft: Pick<StepDraft, "day" | "picking">): string {
-  const W = STEP_SHEET_WORDS.done;
+  const done = STEP_SHEET_WORDS.done;
   const step = draft.day !== NO_DAY || draft.picking;
-  if (sheet.mode === "edit") return step ? W.edit : W.editNote;
-  return step ? W.add : W.note;
+  if (sheet.mode === "edit") return step ? done.edit : done.editNote;
+  return step ? done.add : done.note;
 }
 
 /** What the notes route takes for a note or a step (POST contacts/[id]/notes). */
@@ -208,17 +208,18 @@ export function stepSheetBody(
   sheet: Pick<StepSheetVM, "note" | "dealId"> & Partial<Pick<StepSheetVM, "kind">>,
   draft: StepDraft,
 ): { body: StepNoteBody; problem: null } | { body: null; problem: { field: "what" | "day"; words: string } } {
-  const P = STEP_SHEET_WORDS.problems;
-  const what = draft.what.trim();
+  const problems = STEP_SHEET_WORDS.problems;
+  const text = draft.what.trim();
   const dayless = draft.day === NO_DAY && !draft.picking;
-  if (!what) return { body: null, problem: { field: "what", words: sheet.kind === "note" ? P.note : P.what } };
-  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
+  if (!text)
+    return { body: null, problem: { field: "what", words: sheet.kind === "note" ? problems.note : problems.what } };
+  if (text.length > NOTE_MAX) return { body: null, problem: { field: "what", words: problems.tooLong(NOTE_MAX) } };
   if (!dayless && (!draft.day || !isRealDate(draft.day)))
-    return { body: null, problem: { field: "day", words: P.day } };
+    return { body: null, problem: { field: "day", words: problems.day } };
   return {
     problem: null,
     body: {
-      body: what,
+      body: text,
       ...(dayless || !draft.day ? {} : { due_on: draft.day }),
       for_user_id: draft.forId || null,
       // A step is the team's (00166); a note is the receptionist's to read unless it is kept from it.
@@ -257,10 +258,10 @@ export function stepSheetMerge(draft: StepDraft, opened: StepDraft, fresh: StepD
 }
 
 /** One line for many people: what each of them gets, or what is wrong with it before a round trip. */
-export function noteManyLine(what: string): { line: string; problem: null } | { line: null; problem: string } {
-  const P = STEP_SHEET_WORDS.problems;
-  const line = what.trim();
-  if (!line) return { line: null, problem: P.note };
-  if (line.length > NOTE_LINE_MAX) return { line: null, problem: P.tooLong(NOTE_LINE_MAX) };
+export function noteManyLine(text: string): { line: string; problem: null } | { line: null; problem: string } {
+  const problems = STEP_SHEET_WORDS.problems;
+  const line = text.trim();
+  if (!line) return { line: null, problem: problems.note };
+  if (line.length > NOTE_LINE_MAX) return { line: null, problem: problems.tooLong(NOTE_LINE_MAX) };
   return { line, problem: null };
 }

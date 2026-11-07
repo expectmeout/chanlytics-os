@@ -4,7 +4,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEAD_OWN_EMAIL_WORDS as W, leadEmailFromOf, leadHistoryOf } from "@chanlytics/contracts";
+import { LEAD_OWN_EMAIL_WORDS as W, leadEmailFromOf } from "@chanlytics/contracts";
+import { leadHistoryOf } from "../../../apps/dashboard/src/surfaces/leads/sheet/model/lines.ts";
 
 const NOW = Date.parse("2026-11-05T15:00:00Z");
 const ME = "user-me";

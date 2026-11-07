@@ -20,13 +20,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { json, refuse } from "../shared/http.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
-import { keepChannelStanding, whatsappNumberOf, type Database, type WhatsappNumber } from "@chanlytics/db";
+import { keepChannelStanding, findWhatsappNumber, type WhatsappNumber } from "@chanlytics/db/jobs";
+import type { Database } from "@chanlytics/db/types";
 import { standingAlertWords, UUID, type NumberStanding } from "@chanlytics/contracts";
 import { errField, logger, type Logger } from "../shared/log.js";
-import { notify } from "../ops/notify.js";
-import { waCredentialsForTenant } from "../shared/tenant-runtime.js";
-import { numberStanding } from "./meta-graph.js";
-import { NUM, notificationsFor } from "./waba-events.js";
+import { notify } from "../shared/alerts/notify.js";
+import { getWaCredentialsForTenant } from "../shared/tenant-runtime.js";
+import { getNumberStanding } from "./meta-graph.js";
+import { NUM, findNotifications } from "./waba-events.js";
 
 /** What one read came to: the door's own answer when the standing was kept, else that it could not be. */
 export type StandingOutcome = "first" | "changed" | "same" | "gone" | "unreadable";
@@ -42,7 +43,7 @@ interface StandingPorts {
   db: SupabaseClient<Database>;
   log: Logger;
   /** Meta's read, and the owner's notice: the real ones unless a test hands others. */
-  read?: typeof numberStanding;
+  read?: typeof getNumberStanding;
   tell?: typeof notify;
 }
 
@@ -50,54 +51,87 @@ interface StandingPorts {
 type NumberAsked = Pick<WhatsappNumber, "tenant_id" | "channel_id" | "phone_number_id" | "waba_id" | "number_e164">;
 
 /** The owner told, on the bell and by mail. True where the notice was handed on; a notice that could not be is a line, never a throw. */
-async function tellBlocked(p: StandingPorts, n: NumberAsked, standing: NumberStanding): Promise<boolean> {
+async function tellBlocked(
+  standingPorts: StandingPorts,
+  numberAsked: NumberAsked,
+  standing: NumberStanding,
+): Promise<boolean> {
   try {
-    const words = standingAlertWords(n.number_e164, standing);
+    const words = standingAlertWords(numberAsked.number_e164, standing);
     const target = {
-      tenantId: n.tenant_id,
-      notifications: await notificationsFor(p.db, n.tenant_id),
+      tenantId: numberAsked.tenant_id,
+      notifications: await findNotifications(standingPorts.db, numberAsked.tenant_id),
       isEnvDefault: false,
     };
     // The notice is the bell row, kept first (the workspace's own record), and the owner's mail; notify answers whether the
     // mail went. The line says it, so a notice whose mail did not go is seen: the door has kept BLOCKED, and a later read
     // will not tell it again.
-    const mailed = await (p.tell ?? notify)(target, { ...NUM, subject: words.subject, body: words.body }, { db: p.db });
-    p.log.info("wa_standing_told", { tenant_id: n.tenant_id, channel_id: n.channel_id, mailed: mailed === true });
+    const mailed = await (standingPorts.tell ?? notify)(
+      target,
+      { ...NUM, subject: words.subject, body: words.body },
+      { db: standingPorts.db },
+    );
+    standingPorts.log.info("wa_standing_told", {
+      tenant_id: numberAsked.tenant_id,
+      channel_id: numberAsked.channel_id,
+      mailed: mailed === true,
+    });
     return true;
   } catch (e) {
-    p.log.error("wa_standing_tell_failed", { tenant_id: n.tenant_id, channel_id: n.channel_id, error: errField(e) });
+    standingPorts.log.error("wa_standing_tell_failed", {
+      tenant_id: numberAsked.tenant_id,
+      channel_id: numberAsked.channel_id,
+      error: errField(e),
+    });
     return false;
   }
 }
 
 /** One number: Meta's answer, the door, and the owner's notice when it turned BLOCKED. Every failure is an outcome and a line. */
-export async function readAndKeepStanding(p: StandingPorts, token: string, n: NumberAsked): Promise<StandingRead> {
-  const read = p.read ?? numberStanding;
+export async function readAndKeepStanding(
+  standingPorts: StandingPorts,
+  token: string,
+  numberAsked: NumberAsked,
+): Promise<StandingRead> {
+  const read = standingPorts.read ?? getNumberStanding;
   try {
-    const got = await read(token, n.phone_number_id, n.waba_id);
-    if (!got.ok) {
-      p.log.warn("wa_standing_read_failed", {
-        tenant_id: n.tenant_id,
-        channel_id: n.channel_id,
-        status: got.status,
-        code: got.code,
+    const result = await read(token, numberAsked.phone_number_id, numberAsked.waba_id);
+    if (!result.ok) {
+      standingPorts.log.warn("wa_standing_read_failed", {
+        tenant_id: numberAsked.tenant_id,
+        channel_id: numberAsked.channel_id,
+        status: result.status,
+        code: result.code,
       });
       return { outcome: "unreadable", standing: null, told: false };
     }
     // What Meta answered, by its shape alone: the word for whether it may send and each problem's entity and code (never its
     // words, which name the number). The codes are what tells a calling problem from a messaging one once they are known
     // (contracts number-standing.ts CALLING_PROBLEM reads the words until then).
-    p.log.info("wa_standing_read", {
-      tenant_id: n.tenant_id,
-      channel_id: n.channel_id,
-      can_send: got.data.can_send,
-      problems: got.data.problems.map((x) => `${x.entity}:${x.code ?? "none"}`),
+    standingPorts.log.info("wa_standing_read", {
+      tenant_id: numberAsked.tenant_id,
+      channel_id: numberAsked.channel_id,
+      can_send: result.data.can_send,
+      problems: result.data.problems.map((x) => `${x.entity}:${x.code ?? "none"}`),
     });
-    const kept = await keepChannelStanding(p.db, n.tenant_id, n.channel_id, got.data);
-    const turned = (kept === "first" || kept === "changed") && got.data.can_send === "BLOCKED";
-    return { outcome: kept, standing: got.data, told: turned ? await tellBlocked(p, n, got.data) : false };
+    const kept = await keepChannelStanding(
+      standingPorts.db,
+      numberAsked.tenant_id,
+      numberAsked.channel_id,
+      result.data,
+    );
+    const turned = (kept === "first" || kept === "changed") && result.data.can_send === "BLOCKED";
+    return {
+      outcome: kept,
+      standing: result.data,
+      told: turned ? await tellBlocked(standingPorts, numberAsked, result.data) : false,
+    };
   } catch (e) {
-    p.log.error("wa_standing_keep_failed", { tenant_id: n.tenant_id, channel_id: n.channel_id, error: errField(e) });
+    standingPorts.log.error("wa_standing_keep_failed", {
+      tenant_id: numberAsked.tenant_id,
+      channel_id: numberAsked.channel_id,
+      error: errField(e),
+    });
     return { outcome: "unreadable", standing: null, told: false };
   }
 }
@@ -118,12 +152,12 @@ export async function checkNumberStanding(auth: Admitted, body: Partial<{ tenant
   if (!db) return refuse(503, "no_database");
   let number: WhatsappNumber | null;
   try {
-    number = await whatsappNumberOf(db, tenantId);
+    number = await findWhatsappNumber(db, tenantId);
   } catch (e) {
     return refuse(503, "channel_read_failed", errField(e));
   }
   if (!number) return refuse(409, "no_channel");
-  const creds = await waCredentialsForTenant(db, tenantId);
+  const creds = await getWaCredentialsForTenant(db, tenantId);
   // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
   if (creds.outcome !== "present") return refuse(503, "no_token");
   const read = await readAndKeepStanding(

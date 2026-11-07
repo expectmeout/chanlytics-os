@@ -1,6 +1,6 @@
 /**
  * An Instagram account connected to its workspace, and disconnected (decision 0001, step 8): the edge's op table
- * (lib/instagram/connect.ts instagramOp) run over a database in memory, with Instagram's answers as Meta documents them.
+ * (lib/instagram/connect.ts runInstagramOp) run over a database in memory, with Instagram's answers as Meta documents them.
  *
  * The way in: the code is traded for a short token, then a 60-day one; the account it speaks for is read (`/me`'s
  * user_id: the id its webhooks name); an account another workspace holds is refused before anything is written or
@@ -12,7 +12,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 
 for (const k of ["INSTAGRAM_APP_ID", "INSTAGRAM_APP_SECRET", "INSTAGRAM_REDIRECT_URI", "SUPABASE_URL"])
@@ -25,7 +25,7 @@ const APP = {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const { instagramOp } = await import(at("apps/edge/lib/instagram/connect.ts"));
+const { runInstagramOp } = await import(at("apps/edge/lib/instagram/connect.ts"));
 
 const T = "abababab-1111-4000-8000-000000000001";
 const OTHER = "abababab-1111-4000-8000-000000000002";
@@ -100,13 +100,13 @@ const heard = async (res) => [res.status, await res.json()];
 
 test("without the app's id, secret and return address, nothing can be connected, and status says so", async () => {
   world();
-  assert.deepEqual(await heard(await instagramOp(auth, { op: "status" })), [200, { ok: true, ready: false }]);
-  assert.deepEqual(await heard(await instagramOp(auth, { op: "connect", code: "AQB" })), [
+  assert.deepEqual(await heard(await runInstagramOp(auth, { op: "status" })), [200, { ok: true, ready: false }]);
+  assert.deepEqual(await heard(await runInstagramOp(auth, { op: "connect", code: "AQB" })), [
     503,
     { ok: false, error: "no_app_credentials" },
   ]);
   Object.assign(process.env, APP);
-  assert.deepEqual(await heard(await instagramOp(auth, { op: "status" })), [
+  assert.deepEqual(await heard(await runInstagramOp(auth, { op: "status" })), [
     200,
     { ok: true, ready: true, app: { client_id: APP.INSTAGRAM_APP_ID, redirect_uri: APP.INSTAGRAM_REDIRECT_URI } },
   ]);
@@ -116,7 +116,7 @@ test("a code becomes the business's 60-day token, its account a channel: subscri
   Object.assign(process.env, APP);
   resetBreakers();
   const w = world();
-  const [status, body] = await heard(await instagramOp(auth, { op: "connect", code: "AQB-code#_" }));
+  const [status, body] = await heard(await runInstagramOp(auth, { op: "connect", code: "AQB-code#_" }));
   assert.equal(status, 200, JSON.stringify(body));
   assert.equal(body.account_id, w.ACCOUNT);
   assert.equal(body.username, "harbor.nails");
@@ -164,7 +164,7 @@ test("an account another workspace holds is refused before anything is written o
     status: "active",
     config: {},
   });
-  assert.deepEqual(await heard(await instagramOp(auth, { op: "connect", code: "AQB" })), [
+  assert.deepEqual(await heard(await runInstagramOp(auth, { op: "connect", code: "AQB" })), [
     409,
     { ok: false, error: "instagram_account_taken" },
   ]);
@@ -178,19 +178,19 @@ test("Meta's refusals are codes with Meta's words, and a business that withheld 
   resetBreakers();
   const w = world();
   answers.code = [400, { error_type: "OAuthException", code: 400, error_message: "Invalid authorization code" }];
-  assert.deepEqual(await heard(await instagramOp(auth, { op: "connect", code: "AQB" })), [
+  assert.deepEqual(await heard(await runInstagramOp(auth, { op: "connect", code: "AQB" })), [
     502,
     { ok: false, error: "exchange_failed", detail: "Invalid authorization code" },
   ]);
   world();
   answers.code = [200, { data: [{ access_token: "short", user_id: "1", permissions: "instagram_business_basic" }] }];
-  const [s, b] = await heard(await instagramOp(auth, { op: "connect", code: "AQB" }));
+  const [s, b] = await heard(await runInstagramOp(auth, { op: "connect", code: "AQB" }));
   assert.equal(s, 403);
   assert.equal(b.error, "instagram_messages_not_granted");
   assert.equal(w.tables.tenant_channels.length, 0);
   const unsubscribed = world();
   answers.subscribe = [200, { success: false }];
-  const [s2, b2] = await heard(await instagramOp(auth, { op: "connect", code: "AQB" }));
+  const [s2, b2] = await heard(await runInstagramOp(auth, { op: "connect", code: "AQB" }));
   assert.equal(s2, 502);
   assert.equal(b2.error, "subscribe_failed");
   assert.equal(unsubscribed.tables.tenant_channels.length, 0, "no row for an account whose DMs would never arrive");
@@ -200,7 +200,7 @@ test("a token the Vault would not keep leaves the row disabled, so it never rout
   Object.assign(process.env, APP);
   resetBreakers();
   const w = world({ vaultFails: true });
-  assert.deepEqual(await heard(await instagramOp(auth, { op: "connect", code: "AQB" })), [
+  assert.deepEqual(await heard(await runInstagramOp(auth, { op: "connect", code: "AQB" })), [
     500,
     { ok: false, error: "credentials_failed" },
   ]);
@@ -220,7 +220,7 @@ test("a disconnect turns this workspace's row off, and finds no row of another's
     status: "active",
     config: {},
   });
-  assert.deepEqual(await heard(await instagramOp(auth, { op: "disconnect", channel_id: id })), [200, { ok: true }]);
+  assert.deepEqual(await heard(await runInstagramOp(auth, { op: "disconnect", channel_id: id })), [200, { ok: true }]);
   assert.equal(w.tables.tenant_channels[0].status, "disabled");
   const theirs = "efefefef-1111-4000-8000-000000000003";
   w.tables.tenant_channels.push({
@@ -231,7 +231,7 @@ test("a disconnect turns this workspace's row off, and finds no row of another's
     status: "active",
     config: {},
   });
-  assert.deepEqual(await heard(await instagramOp(auth, { op: "disconnect", channel_id: theirs })), [
+  assert.deepEqual(await heard(await runInstagramOp(auth, { op: "disconnect", channel_id: theirs })), [
     404,
     { ok: false, error: "not_found" },
   ]);

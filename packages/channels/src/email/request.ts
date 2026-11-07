@@ -166,10 +166,10 @@ export function referencesFor(parent: Pick<EmailParent, "rfcMessageId" | "refere
  */
 const UNSUBSCRIBE_URL = /^https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+;=%]+$/;
 const BARE_ADDRESS = /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
-function unsubscribeHeaders(c: EmailCampaign): Record<string, string> {
-  const url = c.unsubscribeUrl.trim();
+function unsubscribeHeaders(emailCampaign: EmailCampaign): Record<string, string> {
+  const url = emailCampaign.unsubscribeUrl.trim();
   if (!UNSUBSCRIBE_URL.test(url)) throw new Error("buildEmailRequest: a campaign's unsubscribe is one https address");
-  const mail = c.unsubscribeMailto?.trim().replace(/^mailto:/i, "");
+  const mail = emailCampaign.unsubscribeMailto?.trim().replace(/^mailto:/i, "");
   if (mail !== undefined && !BARE_ADDRESS.test(mail))
     throw new Error("buildEmailRequest: a campaign's unsubscribe by mail is one address");
   return {
@@ -216,15 +216,15 @@ function autoSubmittedOf(i: EmailRequestInput): "auto-generated" | "auto-replied
  * The HTML part: the words as paragraphs, then the signature (its own markup in Gmail's block where it has one, else its
  * words), then a campaign's foot (its own markup where it has one, else its words, which `text` already holds).
  */
-function htmlOf(i: EmailRequestInput, footerHtml: string | null, text: string): string {
-  const signed = i.signatureHtml?.trim();
+function htmlOf(emailRequestInput: EmailRequestInput, footerHtml: string | null, text: string): string {
+  const signed = emailRequestInput.signatureHtml?.trim();
   if (!signed)
     return footerHtml
-      ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}\n${footerHtml}`
+      ? `${emailHtml([emailRequestInput.body.trim(), emailRequestInput.signature?.trim()].filter(Boolean).join("\n\n"))}\n${footerHtml}`
       : emailHtml(text);
-  const foot = footerHtml ?? (i.campaign ? emailHtml(i.campaign.footer.trim()) : "");
+  const foot = footerHtml ?? (emailRequestInput.campaign ? emailHtml(emailRequestInput.campaign.footer.trim()) : "");
   return [
-    emailHtml(i.body.trim()),
+    emailHtml(emailRequestInput.body.trim()),
     `<div class="gmail_signature" data-smartmail="gmail_signature">${signed}</div>`,
     foot,
   ]
@@ -232,24 +232,35 @@ function htmlOf(i: EmailRequestInput, footerHtml: string | null, text: string): 
     .join("\n");
 }
 
-export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
-  const subject = i.parent ? replySubject(i.parent.subject) : firstSubject(i.subject ?? "");
+export function buildEmailRequest(emailRequestInput: EmailRequestInput): EmailRequest {
+  const subject = emailRequestInput.parent
+    ? replySubject(emailRequestInput.parent.subject)
+    : firstSubject(emailRequestInput.subject ?? "");
   if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
   // A first email a program sends never poses as a reply or a forward (contracts posesAsReply: the sheet asks it too).
-  if (!i.parent && (i.campaign || i.actor === "ai") && posesAsReply(subject))
+  if (
+    !emailRequestInput.parent &&
+    (emailRequestInput.campaign || emailRequestInput.actor === "ai") &&
+    posesAsReply(subject)
+  )
     throw new Error("buildEmailRequest: a first email a program sends does not pose as a reply");
-  if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
-  const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};
-  const text = emailTextOf({ body: i.body, signature: i.signature, footer: i.campaign?.footer });
-  const footerHtml = i.campaign?.footerHtml?.trim() || null;
-  if (footerHtml && !footerHtml.includes(`href="${escapeHtml(i.campaign!.unsubscribeUrl.trim())}"`))
+  if (emailRequestInput.campaign && !emailRequestInput.campaign.footer.trim())
+    throw new Error("buildEmailRequest: a campaign's footer is never empty");
+  const unsubscribe = emailRequestInput.campaign ? unsubscribeHeaders(emailRequestInput.campaign) : {};
+  const text = emailTextOf({
+    body: emailRequestInput.body,
+    signature: emailRequestInput.signature,
+    footer: emailRequestInput.campaign?.footer,
+  });
+  const footerHtml = emailRequestInput.campaign?.footerHtml?.trim() || null;
+  if (footerHtml && !footerHtml.includes(`href="${escapeHtml(emailRequestInput.campaign!.unsubscribeUrl.trim())}"`))
     throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
-  const drawn = i.html?.trim() || null;
-  if (drawn && i.campaign) throw new Error("buildEmailRequest: a campaign's HTML is the builder's");
-  const html = i.plain ? "" : (drawn ?? htmlOf(i, footerHtml, text));
-  const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
-  const references = i.parent ? referencesFor(i.parent) : [];
-  const autoSubmitted = autoSubmittedOf(i);
+  const drawn = emailRequestInput.html?.trim() || null;
+  if (drawn && emailRequestInput.campaign) throw new Error("buildEmailRequest: a campaign's HTML is the builder's");
+  const html = emailRequestInput.plain ? "" : (drawn ?? htmlOf(emailRequestInput, footerHtml, text));
+  const inReplyTo = emailRequestInput.parent ? messageIdHeader(emailRequestInput.parent.rfcMessageId) : null;
+  const references = emailRequestInput.parent ? referencesFor(emailRequestInput.parent) : [];
+  const autoSubmitted = autoSubmittedOf(emailRequestInput);
   const headers: Record<string, string> = {
     ...(inReplyTo ? { "In-Reply-To": inReplyTo } : {}),
     ...(references.length ? { References: references.join(" ") } : {}),
@@ -257,38 +268,38 @@ export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
     ...unsubscribe,
   };
   return {
-    from: mailboxHeader(i.identity.fromName, i.identity.fromAddress),
-    to: [i.to],
-    reply_to: [i.identity.replyTo],
+    from: mailboxHeader(emailRequestInput.identity.fromName, emailRequestInput.identity.fromAddress),
+    to: [emailRequestInput.to],
+    reply_to: [emailRequestInput.identity.replyTo],
     subject,
     text,
     html,
     headers,
     tags: [
-      { name: "cl_message", value: i.messageId },
-      { name: "cl_tenant", value: i.tenantId },
+      { name: "cl_message", value: emailRequestInput.messageId },
+      { name: "cl_tenant", value: emailRequestInput.tenantId },
     ],
-    idempotency_key: i.messageId,
+    idempotency_key: emailRequestInput.messageId,
   };
 }
 
 /** Is this stored value a request the wire may send? The row's meta is JSON; the wire trusts its shape, not its type. */
-export function isEmailRequest(v: unknown): v is EmailRequest {
-  if (!v || typeof v !== "object") return false;
-  const r = v as Record<string, unknown>;
+export function isEmailRequest(value: unknown): value is EmailRequest {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
   const strings = (x: unknown): x is string[] =>
     Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
   return (
-    typeof r.from === "string" &&
-    strings(r.to) &&
-    strings(r.reply_to) &&
-    typeof r.subject === "string" &&
-    typeof r.text === "string" &&
-    typeof r.html === "string" &&
-    !!r.headers &&
-    typeof r.headers === "object" &&
-    Array.isArray(r.tags) &&
-    typeof r.idempotency_key === "string" &&
-    r.idempotency_key.length > 0
+    typeof item.from === "string" &&
+    strings(item.to) &&
+    strings(item.reply_to) &&
+    typeof item.subject === "string" &&
+    typeof item.text === "string" &&
+    typeof item.html === "string" &&
+    !!item.headers &&
+    typeof item.headers === "object" &&
+    Array.isArray(item.tags) &&
+    typeof item.idempotency_key === "string" &&
+    item.idempotency_key.length > 0
   );
 }

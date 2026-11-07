@@ -21,7 +21,6 @@ import {
   ROLE_PERMS,
   roleGate,
   ASK_CITATION_KINDS,
-  ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_SCOPE_KINDS,
   answerBlocks,
@@ -29,7 +28,6 @@ import {
   answerRuns,
   answerSpoken,
   answerText,
-  askJump,
   cardOpenRoute,
   emptyReadSet,
   groundCitations,
@@ -40,6 +38,7 @@ import {
   leadsRoute,
   planSentence,
 } from "@chanlytics/contracts";
+import { ASK_PAGES, askJump } from "../../apps/dashboard/src/bridge/ask/jump.ts";
 const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 /* ---------------------------------- the window ---------------------------------- */
@@ -3590,7 +3589,7 @@ test("a quick answer nods, and a failed turn shakes: the palette says how a turn
   };
   try {
     render(Palette, CLOSED);
-    // "who needs me?" is one the Line answers itself (contracts askIntent, ask/answer.ts): no turn, a nod. First,
+    // "who needs me?" is one the Line answers itself (contracts askIntent, ask/answer/normalize.ts): no turn, a nod. First,
     // because a conversation left open takes every later question to the model.
     sent("ask:seed", { prompt: "who needs me?" });
     await opens();

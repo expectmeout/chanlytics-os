@@ -21,9 +21,9 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildContext, clearContextCache, shapeBlock, CONTEXT_TTL_MS } = await import(
   at("apps/dashboard/src/server/ask/context.ts")
 );
-const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { shape } = await import(at("apps/dashboard/src/server/readers/shape.ts"));
-const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 
 beforeEach(() => {
   readerCache.clear();

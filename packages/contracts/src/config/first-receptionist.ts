@@ -12,7 +12,7 @@ import { BrainConfigSchema, type BrainConfig } from "./workspace-config/brain-co
 import { BusinessProfileSchema, type BusinessProfile } from "./workspace-config/business-profile";
 import { DAYS } from "./workspace-config/config-rules";
 import { resolveFacts } from "./facts";
-import { hoursFromGoogle, type GoogleListingFacts } from "../google/google";
+import { hoursFromGoogle, type GoogleListingFacts } from "../google/listing";
 
 /** What is known when the first receptionist is set up. */
 export interface FirstReceptionistKnown {

@@ -40,7 +40,7 @@ import {
   automaticResumesOf,
   countAutomaticResume,
   MAX_AUTOMATIC_RESUMES,
-} from "../../apps/edge/lib/lines/line-resume.ts";
+} from "../../apps/edge/lib/lines/resume.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const NOW = 1_800_000_000_000;
@@ -500,7 +500,7 @@ test("a released line leaves a disabled route beside the active one, and the pic
   assert.equal(channelFor(rows, "sms"), null, "no row of that kind at all");
 
   // Two active rows of one kind: the oldest, deterministically — which is what
-  // ensureVoiceAgent, line_forwarding_set and businessPageFor all choose.
+  // ensureVoiceAgent, line_forwarding_set and findBusinessPage all choose.
   const two = [
     { kind: "voice", status: "active", number_e164: "+1305555AAAA", created_at: ago(86_400_000) },
     { kind: "voice", status: "active", number_e164: "+1305555BBBB", created_at: ago(2 * 86_400_000) },
@@ -527,17 +527,21 @@ test("a released line leaves a disabled route beside the active one, and the pic
 
   // Both page readers use it, rather than one of them getting it right.
   assert.match(
-    readCode("apps/dashboard/src/server/workspace/setup.ts"),
+    ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+      .map((p) => readCode(p))
+      .join("\n"),
     /const byKind = \(kind: string\) => channelFor\(channels\.data \?\? \[\], kind\);/,
   );
   assert.match(
-    readCode("apps/dashboard/src/server/workspace/setup.ts"),
+    ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+      .map((p) => readCode(p))
+      .join("\n"),
     /select\("kind, status, number_e164, config, created_at"\)/,
     "or the tie-break has nothing to read",
   );
   assert.match(
-    readCode("packages/contracts/src/setup/connections.ts"),
-    /const channel = \(kind: string\) => channelFor\(i\.channels, kind\);/,
+    readCode("apps/dashboard/src/surfaces/settings/connections/model/setup.ts"),
+    /const channel = \(kind: string\) => channelFor\(connectionInputs\.channels, kind\);/,
   );
 });
 
@@ -560,7 +564,7 @@ test("a failure at the vault is named as one: no Retry on the row, the refusal s
 });
 
 test("counting a try is one function, because two callers resume a line and only one of them used to count", async () => {
-  // The sweep here and the ledger's handler (line-provision-job.ts) both take
+  // The sweep here and the ledger's handler (lines/provision-job.ts) both take
   // a line and resume it on nobody's behalf. MAX_AUTOMATIC_RESUMES is only a
   // ceiling if BOTH count against it, and the ledger path did not: the header
   // claiming they matched was the only thing that said so. The count is now

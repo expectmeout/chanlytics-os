@@ -32,7 +32,7 @@ import assert from "node:assert/strict";
 import {
   DEAL_ACT_WORDS,
   calendarPeekDeal,
-  hoursLines,
+  calendarHoursLines,
   noProposalSince,
   shiftKey,
   stateOf,
@@ -2285,7 +2285,7 @@ test("REGRESSION (C3): hours are said in the board's clock -- the bar said 'Mon�
     `REGRESSION: 09:00–18:00: ${textOf(hours)}`,
   );
   assert.deepEqual(
-    hoursLines({
+    calendarHoursLines({
       mon: { open: "10:00", close: "24:00" },
       tue: { open: "09:00" },
       fri: { open: "20:00", close: "24:00" },
@@ -2464,10 +2464,10 @@ test("REGRESSION (C3): a service that needs a consultation is spoken of as the r
 
 test("(C3) the Business card says the hours in the Calendar's words, beside the bar", async () => {
   // With contracts' hoursLines, which the tab's hours row imports (surfaces/settings/business/open.tsx).
-  const { hoursLines } = await import("@chanlytics/contracts");
+  const { calendarHoursLines } = await import("@chanlytics/contracts");
   const week = { mon: { open: "09:00", close: "18:00" }, sat: { open: "10:00", close: "16:00" } };
   assert.deepEqual(
-    hoursLines(week),
+    calendarHoursLines(week),
     ["Mon 9 AM – 6 PM", "Tue–Fri closed", "Sat 10 AM – 4 PM", "Sun closed"],
     "REGRESSION: the card summarised the prompt's runs in the prompt's clock",
   );

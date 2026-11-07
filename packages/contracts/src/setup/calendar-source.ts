@@ -13,8 +13,8 @@
  */
 import { DAY_MS } from "../shared/time";
 import { bookingToolCalendar, bookingToolName, bookingToolOptions } from "../calendar/booking-notice";
-import { CALENDAR_FEED_WORDS, type CalendarFeedHealth } from "../calendar/words";
-import { SETUP_STATE_WORDS } from "./setup";
+import { CALENDAR_FEED_WORDS, type CalendarFeedHealth } from "../calendar/words/labels";
+import { SETUP_STATE_WORDS } from "./lines";
 
 /**
  * The pill of a step that waits on the owner (an address to make, a forward to confirm): Setup's word for every step it
@@ -103,11 +103,11 @@ export type BookingEmailsStep = "address" | "forwarding" | "held" | "waiting" | 
  * then emails held for a look (the owner's to see whether or not one has become an appointment yet), then the first
  * email, then working. The Business row's phrase (calendar/calendar.ts noticeRowOf) and every page's status ask this one rule.
  */
-export function bookingEmailsStep(e: BookingEmailsFacts): BookingEmailsStep {
-  if (!e.address) return "address";
-  if (e.forwarding) return "forwarding";
-  if (e.held > 0) return "held";
-  return e.lastAt ? "working" : "waiting";
+export function bookingEmailsStep(bookingEmailsFacts: BookingEmailsFacts): BookingEmailsStep {
+  if (!bookingEmailsFacts.address) return "address";
+  if (bookingEmailsFacts.forwarding) return "forwarding";
+  if (bookingEmailsFacts.held > 0) return "held";
+  return bookingEmailsFacts.lastAt ? "working" : "waiting";
 }
 
 const TO_THE_ROW = (label: string) => ({ label, to: CALENDAR_SETTING_ROUTE });
@@ -120,8 +120,8 @@ const leadAndRest = (lead: string, rest = ""): Pick<CalendarSourceVM, "lead" | "
 };
 
 /** How many booking emails wait for a person, as a sentence: the status's lead and the fold's own line over its list. */
-export const bookingEmailsHeldWords = (n: number): string =>
-  n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`;
+export const bookingEmailsHeldWords = (count: number): string =>
+  count === 1 ? "One booking email needs a look." : `${count} booking emails need a look.`;
 
 /** What the receptionist does about open times with no link to read them from. */
 const noTimesWords = (bookingLink: boolean) =>
@@ -130,7 +130,11 @@ const noTimesWords = (bookingLink: boolean) =>
     : "The receptionist does not name open times.";
 
 /** The link could not be read: the owner's to check, whatever else arrives. */
-function unreadLink(f: CalendarSourceFacts, by: CalendarSourceVM["by"], emailsWork: boolean): CalendarSourceVM {
+function unreadLink(
+  sourceFacts: CalendarSourceFacts,
+  by: CalendarSourceVM["by"],
+  emailsWork: boolean,
+): CalendarSourceVM {
   return {
     by,
     state: "attention",
@@ -138,7 +142,7 @@ function unreadLink(f: CalendarSourceFacts, by: CalendarSourceVM["by"], emailsWo
     words: CALENDAR_FEED_WORDS.unavailable,
     ...leadAndRest(
       "Your calendar could not be read.",
-      `${f.problem ?? ""}${emailsWork ? " Booking emails still arrive." : ""}`,
+      `${sourceFacts.problem ?? ""}${emailsWork ? " Booking emails still arrive." : ""}`,
     ),
     times: false,
     next: TO_THE_ROW("Check the link"),
@@ -148,12 +152,12 @@ function unreadLink(f: CalendarSourceFacts, by: CalendarSourceVM["by"], emailsWo
 /** A named tool's emails that wait on the owner; null when none of them does. */
 function emailsNeedYou(
   step: BookingEmailsStep,
-  f: CalendarSourceFacts,
-  e: BookingEmailsFacts,
+  sourceFacts: CalendarSourceFacts,
+  bookingEmailsFacts: BookingEmailsFacts,
   by: CalendarSourceVM["by"],
   times: boolean,
 ): CalendarSourceVM | null {
-  const tool = bookingToolName(f.tool) ?? "Your booking tool";
+  const tool = bookingToolName(sourceFacts.tool) ?? "Your booking tool";
   if (step === "address")
     return {
       by,
@@ -179,20 +183,20 @@ function emailsNeedYou(
     return {
       by,
       // Held before any became an appointment is setting up still; held after is a thing that works asking for a look.
-      state: e.lastAt || times ? "attention" : "needs_you",
+      state: bookingEmailsFacts.lastAt || times ? "attention" : "needs_you",
       tone: "warn",
-      words: `${e.held} to look at`,
-      ...leadAndRest(bookingEmailsHeldWords(e.held)),
+      words: `${bookingEmailsFacts.held} to look at`,
+      ...leadAndRest(bookingEmailsHeldWords(bookingEmailsFacts.held)),
       times,
-      next: TO_THE_ROW(e.held === 1 ? "Look at it" : "Look at them"),
+      next: TO_THE_ROW(bookingEmailsFacts.held === 1 ? "Look at it" : "Look at them"),
     };
   return null;
 }
 
 /** A link that reads, with whatever its tool's emails add. */
-function readLink(f: CalendarSourceFacts, step: BookingEmailsStep | null): CalendarSourceVM {
-  const tool = bookingToolName(f.tool);
-  if (f.link === "stale")
+function readLink(sourceFacts: CalendarSourceFacts, step: BookingEmailsStep | null): CalendarSourceVM {
+  const tool = bookingToolName(sourceFacts.tool);
+  if (sourceFacts.link === "stale")
     return {
       by: tool ? "both" : "link",
       state: "ready",
@@ -220,8 +224,8 @@ function readLink(f: CalendarSourceFacts, step: BookingEmailsStep | null): Calen
 }
 
 /** No link, and a tool named: its emails are the calendar. */
-function emailsAlone(f: CalendarSourceFacts, step: BookingEmailsStep | null): CalendarSourceVM {
-  const tool = bookingToolName(f.tool) ?? "your booking tool";
+function emailsAlone(sourceFacts: CalendarSourceFacts, step: BookingEmailsStep | null): CalendarSourceVM {
+  const tool = bookingToolName(sourceFacts.tool) ?? "your booking tool";
   if (step === "waiting")
     return {
       by: "emails",
@@ -238,7 +242,7 @@ function emailsAlone(f: CalendarSourceFacts, step: BookingEmailsStep | null): Ca
     state: "ready",
     tone: "ok",
     words: "By email",
-    ...leadAndRest(`Bookings arrive by email from ${tool}.`, noTimesWords(f.bookingLink)),
+    ...leadAndRest(`Bookings arrive by email from ${tool}.`, noTimesWords(sourceFacts.bookingLink)),
     times: false,
     next: TO_THE_BOARD,
   };
@@ -249,26 +253,29 @@ function emailsAlone(f: CalendarSourceFacts, step: BookingEmailsStep | null): Ca
  * where they wait on the owner; then what works (the link, with what the emails add; else the emails alone); then a
  * business that books by hand; then nothing set up.
  */
-export function calendarSourceOf(f: CalendarSourceFacts): CalendarSourceVM {
-  const linked = f.link !== "none";
-  const named = !!f.tool;
+export function calendarSourceOf(sourceFacts: CalendarSourceFacts): CalendarSourceVM {
+  const linked = sourceFacts.link !== "none";
+  const named = !!sourceFacts.tool;
   const by: CalendarSourceVM["by"] = linked && named ? "both" : linked ? "link" : named ? "emails" : "nothing";
-  const step = named && f.emails ? bookingEmailsStep(f.emails) : null;
-  if (f.link === "unavailable") return unreadLink(f, by, step === "working" || step === "held");
-  const times = f.link === "ok" || f.link === "stale";
-  if (step && f.emails) {
-    const owed = emailsNeedYou(step, f, f.emails, by, times);
+  const step = named && sourceFacts.emails ? bookingEmailsStep(sourceFacts.emails) : null;
+  if (sourceFacts.link === "unavailable") return unreadLink(sourceFacts, by, step === "working" || step === "held");
+  const times = sourceFacts.link === "ok" || sourceFacts.link === "stale";
+  if (step && sourceFacts.emails) {
+    const owed = emailsNeedYou(step, sourceFacts, sourceFacts.emails, by, times);
     if (owed) return owed;
   }
-  if (linked) return readLink(f, step);
-  if (named) return emailsAlone(f, step);
-  if (f.byHand)
+  if (linked) return readLink(sourceFacts, step);
+  if (named) return emailsAlone(sourceFacts, step);
+  if (sourceFacts.byHand)
     return {
       by: "hand",
       state: "hand",
       tone: "plain",
       words: "Booked by hand",
-      ...leadAndRest("You take bookings yourself, so there is nothing to connect.", noTimesWords(f.bookingLink)),
+      ...leadAndRest(
+        "You take bookings yourself, so there is nothing to connect.",
+        noTimesWords(sourceFacts.bookingLink),
+      ),
       times: false,
       next: TO_THE_ROW("Change"),
     };
@@ -287,7 +294,7 @@ export function calendarSourceOf(f: CalendarSourceFacts): CalendarSourceVM {
 }
 
 /** The same facts as a wire shape carries them (SetupDto's calendar, CalendarFeedDto), read into the rule's own. */
-export function calendarSourceFacts(c: {
+export function calendarSourceFacts(context: {
   state: "ok" | "unavailable" | "none";
   stale?: boolean;
   problem?: string | null;
@@ -297,14 +304,19 @@ export function calendarSourceFacts(c: {
   booking_link?: boolean;
 }): CalendarSourceFacts {
   return {
-    link: c.state === "ok" ? (c.stale ? "stale" : "ok") : c.state,
-    problem: c.problem ?? null,
-    tool: c.tool ?? null,
-    byHand: !!c.by_hand,
-    emails: c.emails
-      ? { address: c.emails.address, forwarding: c.emails.forwarding, lastAt: c.emails.last_at, held: c.emails.held }
+    link: context.state === "ok" ? (context.stale ? "stale" : "ok") : context.state,
+    problem: context.problem ?? null,
+    tool: context.tool ?? null,
+    byHand: !!context.by_hand,
+    emails: context.emails
+      ? {
+          address: context.emails.address,
+          forwarding: context.emails.forwarding,
+          lastAt: context.emails.last_at,
+          held: context.emails.held,
+        }
       : null,
-    bookingLink: !!c.booking_link,
+    bookingLink: !!context.booking_link,
   };
 }
 
@@ -335,8 +347,12 @@ export function booksWithOptions(): Array<{ value: string; label: string }> {
  * link is stored; else their own hands, where they said so; else "" for nothing said yet. A link outranks "by hand":
  * a calendar that is read is what every page says (calendarSourceOf).
  */
-export function booksWithOf(c: { tool?: string | null; by_hand?: boolean | null; ical_url?: string | null }): string {
-  return c.tool || (c.ical_url ? BOOKS_WITH_CALENDAR : c.by_hand ? BOOKS_BY_HAND : "");
+export function booksWithOf(context: {
+  tool?: string | null;
+  by_hand?: boolean | null;
+  ical_url?: string | null;
+}): string {
+  return context.tool || (context.ical_url ? BOOKS_WITH_CALENDAR : context.by_hand ? BOOKS_BY_HAND : "");
 }
 
 /** What the row states as its value: the tool's name, "Calendar link", "Booked by hand"; null for nothing said yet. */

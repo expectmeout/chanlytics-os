@@ -10,7 +10,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ASK_JOURNAL_LIMITS, checkJournal, journalSystemPrompt, journalUserContent } from "@chanlytics/contracts";
+import { ASK_JOURNAL_LIMITS } from "@chanlytics/contracts";
+import { checkJournal, journalSystemPrompt, journalUserContent } from "../../../apps/edge/lib/notes/ask-journal.ts";
 
 const { journalLinesOf, writeJournal } = await import("../../../apps/edge/lib/notes/notes.ts");
 const { activityRowOfDecision, activityRowOfEvent } = await import("@chanlytics/contracts");

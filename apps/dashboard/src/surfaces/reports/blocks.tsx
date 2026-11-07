@@ -15,10 +15,10 @@ import {
   plural,
   type BookingReportVM,
   type CampaignSourceVM,
-  type ReportFactVM,
   type ReportStripTile,
   type ReportVM,
 } from "@chanlytics/contracts";
+import type { ReportFactVM } from "./model/facts";
 import { metricWordsOf } from "@chanlytics/contracts/report-lens";
 import { listRoute, openBookingTool, routeDoor } from "../frame-verbs";
 import { titleOf } from "../campaigns/templates/verbs";
@@ -217,7 +217,7 @@ export function RptStrip({
 
 // The strip: three of the receptionist's counts, the one conversion and the handovers, each the kit's figure with the period
 // before in counts beside its value. The answered share and the reply time are the hero's. Each figure is named by its tile's
-// metric (contracts report-tiles.ts); the grid, the dividers and the padding are the page's.
+// metric (contracts reports/tiles.ts); the grid, the dividers and the padding are the page's.
 export function RptTiles({ vm, booking }: { vm: ReportVM; booking: BookingReportVM | null }) {
   const by = Object.fromEntries(vm.tiles.map((t) => [t.id, t]));
   const tiles = [by.messages, by.calls, by.people, bookedTileOf(booking), by.needed].filter(

@@ -1,7 +1,7 @@
 /**
  * The billing door's ops (api/admin/billing.ts), decided apart from the wire.
  *
- * The routines themselves are billing.ts's (checkoutFor, syncFor and the
+ * The routines themselves are billing.ts's (getCheckout, syncFor and the
  * rest) and their decisions are contracts' (planBilling). What the door adds
  * is small and used to be repeated per op: which status each refusal earns
  * on the wire, which line each op logs, and what the body may say about
@@ -15,7 +15,7 @@ import type { DoorAnswer } from "../shared/admin-door.js";
 export interface BillingBody {
   op?: string;
   tenant_id?: string;
-  email?: string;
+  email?: string | null;
   /** Where Checkout comes back to: a place on contracts' closed list, or Billing. */
   return?: unknown;
   /** Checkout made in the page (decision 0073, R16): the session's client secret and the key, not a page to go to. */
@@ -53,8 +53,8 @@ const STATUS_OF: Partial<Record<EdgeErrorCode, number>> = {
   stripe_refused: 502,
 };
 
-export function billingStatusOf(r: BillingOutcome): number {
-  return r.ok ? 200 : (STATUS_OF[r.error] ?? 500);
+export function billingStatusOf(billingOutcome: BillingOutcome): number {
+  return billingOutcome.ok ? 200 : (STATUS_OF[billingOutcome.error] ?? 500);
 }
 
 /** The ops that move the subscription log the status they left it in, or the refusal. */
@@ -68,18 +68,21 @@ const MOVES: Record<"sync" | "resume" | "start_now" | "end", { done: LogEvent; r
 /** The line an op logs, or none: the portal and the invoices are reads and say nothing. Event names never change. */
 export function billingLogOf(
   op: BillingOp,
-  r: BillingOutcome,
+  billingOutcome: BillingOutcome,
 ): { event: LogEvent; fields: Record<string, unknown> } | null {
   if (op === "checkout") {
-    return r.ok
+    return billingOutcome.ok
       ? { event: "billing_checkout_opened", fields: {} }
-      : { event: "billing_checkout_refused", fields: { error: r.error, detail: r.detail?.slice(0, 200) } };
+      : {
+          event: "billing_checkout_refused",
+          fields: { error: billingOutcome.error, detail: billingOutcome.detail?.slice(0, 200) },
+        };
   }
   if (!Object.hasOwn(MOVES, op)) return null;
   const names = MOVES[op as keyof typeof MOVES];
-  return r.ok
-    ? { event: names.done, fields: { status: r.status } }
-    : { event: names.refused, fields: { error: r.error } };
+  return billingOutcome.ok
+    ? { event: names.done, fields: { status: billingOutcome.status } }
+    : { event: names.refused, fields: { error: billingOutcome.error } };
 }
 
 /**

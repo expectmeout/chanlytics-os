@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/shared/route";
 import { requireUuidList } from "@/server/shared/request-guards";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { conversations } from "@/server/readers/conversations";
 
 /** The longest a search may be: GET calls' own. */
@@ -34,8 +34,8 @@ export const GET = read({
   scope: workspace,
   query: Query,
   handle: async ({ ctx, member, input }) => {
-    const asked = requireUuidList(input.ids, "conversation", IDS_MAX);
-    const said = input.q?.trim() || null;
-    return (await load(readerContext(ctx, member), conversations, { ids: asked, said })).data;
+    const uuidList = requireUuidList(input.ids, "conversation", IDS_MAX);
+    const sentence = input.q?.trim() || null;
+    return (await load(readerContext(ctx, member), conversations, { ids: uuidList, said: sentence })).data;
   },
 });

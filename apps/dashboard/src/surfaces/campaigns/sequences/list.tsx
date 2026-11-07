@@ -6,7 +6,7 @@
  * stands Pipeline's row (Ruben, 21 Oct 2026, for parity; list-bar.tsx): which view it shows, and at its right the type it
  * keeps and how its rows are sorted; a search narrows what they leave. A row opens its record beside the list, and on a
  * phone pushed in over it, the row lit as the finger left it (sequences-page.tsx). New is the head's act, beside the strip
- * of views (sequences-page.tsx), as Messages' New is. Every word is contracts' (sequence-words.ts); the list composes
+ * of views (sequences-page.tsx), as Messages' New is. Every word is contracts' (sequences/words/next.ts); the list composes
  * them. First contact is no sequence (D7: the receptionist leaves the list), and the list says nothing of it (Ruben, 21 Oct
  * 2026: its foot line broke the group).
  */

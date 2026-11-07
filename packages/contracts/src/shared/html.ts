@@ -4,8 +4,13 @@
  * Here in contracts because the sender (packages/channels) and the preview's view model sit below packages/core,
  * which cannot be imported by either; core/html.ts is the other direction, reading what a fetched page says.
  */
-export const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+export const escapeHtml = (text: string): string =>
+  text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 /** A web address in the words, read AFTER escaping, so `"` and `<` are already entities and cannot end it early. */
 const LINK_IN_TEXT = /https?:\/\/[^\s<>]+/g;

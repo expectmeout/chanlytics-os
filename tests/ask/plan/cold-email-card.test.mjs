@@ -1,7 +1,7 @@
 /**
  * Ask's cold email card says what holds it on its sheet (decision 0088 reached a campaign's card and not this one: on
  * 3 November 2026 both real cold email turns said the hand-over line again beside a card that carried it in its summary
- * alone). The card is built by its own action's handler (act/sequence.ts proposeColdEmail, its words act/leads/cold-email-card.ts)
+ * alone). The card is built by its own action's handler (act/sequence/sequence.ts proposeColdEmail, its words act/leads/cold-email-card.ts)
  * through the real registry over a workspace in memory: with no mailbox connected the owner sends each email, which is the
  * sheet's one hold; with one connected the mailboxes send, a row and no hold. The summary stays what it was, word for
  * word, for the turns stored before the sheet. The model is told the hold beside the card's title, alone and as a plan's
@@ -21,7 +21,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 beforeEach(() => readerCache.clear());

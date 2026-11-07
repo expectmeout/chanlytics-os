@@ -5,7 +5,7 @@
  * A correction is a held draft rewritten to the owner's instruction (steer), or the owner's own first text after the
  * receptionist handed a thread to them (reply): 00448's fact_corrections says which, and its batch stamps each so it is
  * looked at once. Three gates, all of them here so each is proved without a model, as a person's note has
- * (note-suggest.ts):
+ * (notes/suggest.ts):
  *
  *   1. whyNotFactLook: before any model call -- enough of the owner's own words, room in the notes, and the workspace's
  *      day not spent.
@@ -18,14 +18,7 @@
  */
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import type { CorrectionSource } from "./fact-words";
-import {
-  noteClean,
-  noteNamesContact,
-  noteNamesMoney,
-  noteOverlap,
-  noteWords,
-  NOTE_SUGGEST_MODEL,
-} from "./note-suggest";
+import { noteClean, noteNamesContact, noteNamesMoney, noteOverlap, noteWords, NOTE_SUGGEST_MODEL } from "./suggest";
 
 /** The smallest model, the person's note's (the registry's note_suggest route): a yes-or-nothing read of one correction. */
 export const FACT_SUGGEST_MODEL = NOTE_SUGGEST_MODEL;
@@ -59,11 +52,11 @@ export interface FactLookFacts {
 const wordCount = (s: string) => s.trim().match(/\S+/g)?.length ?? 0;
 
 /** Gate 1: why this look ends before any model call, or null to look. Each reason is a log line, never shown. */
-export function whyNotFactLook(f: FactLookFacts): string | null {
-  const L = FACT_SUGGEST_LIMITS;
-  if (wordCount(f.words) < L.minOwnerWords) return "few_words";
-  if (f.notesCount >= L.notesMax) return "notes_full";
-  if (f.workspaceToday >= L.perWorkspaceDay) return "workspace_cap";
+export function whyNotFactLook(factLookFacts: FactLookFacts): string | null {
+  const log = FACT_SUGGEST_LIMITS;
+  if (wordCount(factLookFacts.words) < log.minOwnerWords) return "few_words";
+  if (factLookFacts.notesCount >= log.notesMax) return "notes_full";
+  if (factLookFacts.workspaceToday >= log.perWorkspaceDay) return "workspace_cap";
   return null;
 }
 
@@ -109,12 +102,12 @@ export interface FactCorrection {
 }
 
 /** The correction as quoted JSON inside tags. */
-export function factSuggestUserContent(c: FactCorrection): string {
+export function factSuggestUserContent(factCorrection: FactCorrection): string {
   return [
-    `<customer>\n${JSON.stringify(c.asked.map(asData).filter(Boolean))}\n</customer>`,
-    `<receptionist>\n${JSON.stringify(c.said ? asData(c.said) : "")}\n</receptionist>`,
-    `<owner kind="${c.source}">\n${JSON.stringify(asData(c.words))}\n</owner>`,
-    `<known>\n${JSON.stringify(c.known.map(asData).filter(Boolean))}\n</known>`,
+    `<customer>\n${JSON.stringify(factCorrection.asked.map(asData).filter(Boolean))}\n</customer>`,
+    `<receptionist>\n${JSON.stringify(factCorrection.said ? asData(factCorrection.said) : "")}\n</receptionist>`,
+    `<owner kind="${factCorrection.source}">\n${JSON.stringify(asData(factCorrection.words))}\n</owner>`,
+    `<known>\n${JSON.stringify(factCorrection.known.map(asData).filter(Boolean))}\n</known>`,
   ].join("\n");
 }
 
@@ -144,16 +137,16 @@ const modelWords = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " 
  * say what the notes or the services already say.
  */
 export function checkFactSuggestion(answer: unknown, words: string, known: readonly string[]): FactCheck {
-  const a = (answer ?? {}) as { worth?: unknown; title?: unknown; text?: unknown; quote?: unknown };
-  if (a.worth !== true) return { ok: false, why: "nothing" };
-  const title = modelWords(a.title);
-  const text = modelWords(a.text);
-  const quote = modelWords(a.quote);
+  const first = (answer ?? {}) as { worth?: unknown; title?: unknown; text?: unknown; quote?: unknown };
+  if (first.worth !== true) return { ok: false, why: "nothing" };
+  const title = modelWords(first.title);
+  const text = modelWords(first.text);
+  const quote = modelWords(first.quote);
   if (!title || title.length > FACT_SUGGEST_LIMITS.titleMax) return { ok: false, why: "length" };
   if (!text || text.length > FACT_SUGGEST_LIMITS.textMax) return { ok: false, why: "length" };
-  const q = noteWords(quote);
-  if (q.split(" ").filter(Boolean).length < 3) return { ok: false, why: "no_quote" };
-  if (!noteWords(words).includes(q)) return { ok: false, why: "not_their_words" };
+  const result = noteWords(quote);
+  if (result.split(" ").filter(Boolean).length < 3) return { ok: false, why: "no_quote" };
+  if (!noteWords(words).includes(result)) return { ok: false, why: "not_their_words" };
   for (const s of [title, text, quote]) {
     if (noteNamesMoney(s)) return { ok: false, why: "money" };
     if (noteNamesContact(s)) return { ok: false, why: "contact_detail" };
@@ -164,6 +157,6 @@ export function checkFactSuggestion(answer: unknown, words: string, known: reado
 }
 
 /** Whether the business's notes already say this one: a Keep then marks it kept without a second copy. */
-export function factAlreadyNoted(s: { title: string; body: string }, notes: readonly string[]): boolean {
-  return notes.some((n) => noteOverlap(n, `${s.title}. ${s.body}`) >= 0.6 || noteOverlap(n, s.body) >= 0.6);
+export function factAlreadyNoted(state: { title: string; body: string }, notes: readonly string[]): boolean {
+  return notes.some((n) => noteOverlap(n, `${state.title}. ${state.body}`) >= 0.6 || noteOverlap(n, state.body) >= 0.6);
 }

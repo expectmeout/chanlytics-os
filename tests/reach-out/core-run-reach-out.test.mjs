@@ -7,14 +7,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { runReachOut, sendIdFor, sendMessageId, reachOutRunIdFor } = await importSrc(
+const { runReachOut, sendIdFor, sendMessageId, getReachOutRunId } = await importSrc(
   "packages/core/src/campaigns/index.ts",
 );
 
 const NOW = Date.parse("2026-09-28T11:00:00Z"); // a Monday, 6 AM in Austin, 4 AM in Los Angeles
 /** When its owner last let a batch of a step's words go (00462 words_ok_at): its words seen. */
 const SEEN = "2026-09-21T15:00:00Z";
-const RUN = await reachOutRunIdFor("p1", "2026-09-28");
+const RUN = await getReachOutRunId("p1", "2026-09-28");
 const lead = (id, over = {}) => ({
   lead_id: id,
   email: `${id}@fixture.example`,
@@ -351,7 +351,7 @@ test("the run is its step and its day, whatever tick makes it: a replay meets th
     one.made.sends.map((s) => s.id),
     two.made.sends.map((s) => s.id),
   );
-  assert.notEqual(one.made.runs[0].id, await reachOutRunIdFor("p1", "2026-09-29"), "the next day's is another");
+  assert.notEqual(one.made.runs[0].id, await getReachOutRunId("p1", "2026-09-29"), "the next day's is another");
 });
 
 test("a later step's lead keeps the mailbox its chain wrote from; one whose mailbox is gone is skipped, never written to from another (decision 0056)", async () => {

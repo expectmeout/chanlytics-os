@@ -1,17 +1,13 @@
 import "server-only";
-import {
-  emitEvent,
-  getOwnPartner,
-  inviteUserByEmail,
-  recordEvent,
-  subjectsWith,
-  workspaceIdsOf,
-  type Database,
-} from "@chanlytics/db";
+import { emitEvent, recordEvent, getSubjectsWith } from "@chanlytics/db/events";
+import { getOwnPartner } from "@chanlytics/db/partners";
+import { inviteUserByEmail } from "@chanlytics/db/auth";
+import { listWorkspaceIds } from "@chanlytics/db/workspace";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError, type InvitationsAcceptedDto, type JoinedWorkspaceDto } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
-import { tenantFacts } from "../shared/tenant";
+import { getTenantFacts } from "../shared/tenant";
 import { requireSecondFactor, type RouteContext } from "../shared/with-route";
 import { log } from "@/server/shared/log";
 
@@ -19,7 +15,7 @@ import { log } from "@/server/shared/log";
  * Team operations: the roster, an invitation, a role change, a removal, and the sign-in that completes an invitation.
  * The one email it sends, the invitation's, goes through packages/db's inviteUserByEmail (SQL cannot send mail); no file
  * here names the admin API. A function takes the workspace the route has already proven the caller belongs
- * to (memberContext) and hands it to the database's team_* functions with the session's verified user as the actor;
+ * to (getMemberContext) and hands it to the database's team_* functions with the session's verified user as the actor;
  * each checks that the actor owns the workspace before it changes anything. The service role bypasses RLS, so that
  * scoping lives in those functions and in the tenant each call names.
  *
@@ -103,7 +99,7 @@ async function teamCall(
  * lets this drop the service role rather than merely parallelise it. Fewer
  * privileged paths is the point; the speed is a side effect.
  */
-export async function teamRoster(db: SupabaseClient<Database>, tenantId: string) {
+export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: string) {
   const [members, invites] = await Promise.all([
     db.rpc("team_roster", { p_tenant_id: tenantId }),
     // Plain RLS: invitations_member_read already scopes this to the caller's
@@ -365,9 +361,9 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
     // between the seat and its news is finished by the next one, which finds the seat held (23505) and the ledger without
     // the news. The ledger is asked first, so a read that finds the news there writes none, and a seat that was held from
     // another door while the invitation stayed open is accepted and said once, when it is first signed in to.
-    const said = await subjectsWith(db, inv.tenant_id, "member.joined", [inv.id]).catch(() => null);
-    if (!said) continue;
-    if (!said.has(inv.id)) {
+    const sentence = await getSubjectsWith(db, inv.tenant_id, "member.joined", [inv.id]).catch(() => null);
+    if (!sentence) continue;
+    if (!sentence.has(inv.id)) {
       const { error } = await recordEvent(db, inv.tenant_id, "member.joined", "invitation", inv.id, {
         by: userId,
         role: inv.role,
@@ -404,7 +400,7 @@ export async function joinFromInvitations(
   const joined: JoinedWorkspaceDto[] = await Promise.all(
     seated.map(async (inv) => ({
       id: inv.tenant_id,
-      name: (await tenantFacts(db, inv.tenant_id).catch(() => null))?.name ?? "a workspace",
+      name: (await getTenantFacts(db, inv.tenant_id).catch(() => null))?.name ?? "a workspace",
       role: inv.role,
     })),
   );
@@ -413,10 +409,10 @@ export async function joinFromInvitations(
 
 /**
  * The workspaces a person is in, read before their account goes: its rows go with it, and each of those workspaces
- * is told a member left (saidLeft). A read that fails is no list, and the deletion goes on without the record.
+ * is told a member left (recordLeft). A read that fails is no list, and the deletion goes on without the record.
  */
-export async function seatsOf(db: SupabaseClient<Database>, userId: string): Promise<string[]> {
-  return workspaceIdsOf(db, userId).catch(() => []);
+export async function listSeats(db: SupabaseClient<Database>, userId: string): Promise<string[]> {
+  return listWorkspaceIds(db, userId).catch(() => []);
 }
 
 /**
@@ -424,7 +420,7 @@ export async function seatsOf(db: SupabaseClient<Database>, userId: string): Pro
  * sees a seat go rather than a name vanish from the roster with no trace. Who they were is not kept: the account is
  * gone, and the id names no row. As the service role: their own session ended with the account.
  */
-export async function saidLeft(tenantIds: readonly string[], userId: string): Promise<void> {
+export async function recordLeft(tenantIds: readonly string[], userId: string): Promise<void> {
   const db = serviceDb();
   for (const tenantId of tenantIds)
     await emitEvent(db, tenantId, "member.left", "workspace", tenantId, { by: userId, how: "account_deleted" });

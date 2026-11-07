@@ -5,7 +5,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { withReplies, replyRowOf, bellActionOf, bellSections, pushFor } from "@chanlytics/contracts";
+import { bellSections, pushFor } from "@chanlytics/contracts";
+import {
+  withReplies,
+  replyRowOf,
+  bellActionOf,
+} from "../../../apps/dashboard/src/surfaces/campaigns/reach-out/reply-today.ts";
 
 const C1 = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
 const C2 = "cccccccc-cccc-4ccc-8ccc-cccccccccc02";

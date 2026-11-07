@@ -14,12 +14,13 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { OUTCOME_UNKNOWN, isWaitRefusal } from "@chanlytics/contracts";
+import { importBundle } from "../_source.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const {
   deliver,
   deliverSafely,
-  templatePurpose,
+  getTemplatePurpose,
   whatsappSender,
   whatsappWire,
   wireUnavailable,
@@ -755,7 +756,7 @@ test("a draft is not a send: recorded as queued it writes no message.sent, and t
   // event that says a message went out is the send moment first_replies reads
   // (00035), so a draft that wrote one would be timed from its draft, and a
   // cancelled draft would say it went out.
-  const { recordOutbound } = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+  const { recordOutbound } = await importBundle("db");
   const t = tables();
   const id = await recordOutbound(fakeDb(t), {
     tenantId: T,
@@ -795,16 +796,16 @@ test("which yes a queued template needs: Meta's category, failing closed, and a 
       { tenant_id: T, channel: "whatsapp", name: "visit_reminder", language: "en_US", category: "utility" },
     ],
   };
-  assert.equal(await templatePurpose(fakeDb(t), T, undefined), "conversational");
-  assert.equal(await templatePurpose(fakeDb(t), T, { name: "visit_reminder", language: "en_US" }), "conversational");
-  assert.equal(await templatePurpose(fakeDb(t), T, { name: "month_offer", language: "en_US" }), "marketing");
+  assert.equal(await getTemplatePurpose(fakeDb(t), T, undefined), "conversational");
+  assert.equal(await getTemplatePurpose(fakeDb(t), T, { name: "visit_reminder", language: "en_US" }), "conversational");
+  assert.equal(await getTemplatePurpose(fakeDb(t), T, { name: "month_offer", language: "en_US" }), "marketing");
   assert.equal(
-    await templatePurpose(fakeDb(t), T, { name: "seeded_by_hand", language: "en_US" }),
+    await getTemplatePurpose(fakeDb(t), T, { name: "seeded_by_hand", language: "en_US" }),
     "marketing",
     "unknown to us is marketing until Meta says otherwise",
   );
   await assert.rejects(
-    templatePurpose(fakeDb(t, { "templates.select": { message: "reset" } }), T, {
+    getTemplatePurpose(fakeDb(t, { "templates.select": { message: "reset" } }), T, {
       name: "month_offer",
       language: "en_US",
     }),
@@ -1045,9 +1046,7 @@ test("a wire that cannot be read is a failure with its own name, never a throw p
 const { emailSender, sendBroadcastBatch } = await import(
   pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href
 );
-const { buildEmailRequest, connectedIdentity, sendsAsConnected, sendsAs } = await import(
-  pathToFileURL(path.join(ROOT, "packages/channels/dist/index.js")).href
-);
+const { buildEmailRequest, connectedIdentity, sendsAsConnected, sendsAs } = await importBundle("channels");
 
 const ADDRESS = "ana@example.com";
 const frozen = (over = {}) =>
@@ -1290,7 +1289,7 @@ test("an email leaves only from the queued row its request was frozen for: witho
     assert.equal(t.events.length, 0, `${why}: and nothing is said about it, because nothing was read`);
   }
   // The door's own after-the-send writer takes no email either: an id it mints is one no receipt can name.
-  const { recordOutbound } = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+  const { recordOutbound } = await importBundle("db");
   const t = tables();
   await assert.rejects(
     recordOutbound(fakeDb(t), {
@@ -2050,9 +2049,7 @@ test("only a text reads the line: a WhatsApp message or an email goes whatever t
 
 /* ----------------------------------------------------- offers by email (step 4) */
 
-const { campaignsIdentity, sendsAsCampaigns } = await import(
-  pathToFileURL(path.join(ROOT, "packages/channels/dist/index.js")).href
-);
+const { campaignsIdentity, sendsAsCampaigns } = await importBundle("channels");
 const OFFER_MAILBOX = {
   local_part: "bestmovers",
   reply_token: "abcdefghijklmnopqrstuvwx",

@@ -23,7 +23,7 @@ import {
   zoneOfRegion,
   type WeekHours,
 } from "@chanlytics/contracts";
-import { reachOutRunIdFor, sendIdFor } from "./reach-out-ids";
+import { getReachOutRunId, sendIdFor } from "./reach-out-ids";
 import { followerRefusalOf } from "./reach-out-ports";
 import type { PlannedSend, ReachOutLead, ReachOutRunOutcome, ReachOutRunPorts, ReachOutStep } from "./reach-out-ports";
 
@@ -106,7 +106,7 @@ export async function runReachOut(
 
   const firstAt = Math.min(...placed.map((p) => p.sendAtMs));
   const run = {
-    id: await reachOutRunIdFor(step.id, cmd.runFor),
+    id: await getReachOutRunId(step.id, cmd.runFor),
     tenant_id: step.tenant_id,
     playbook_id: step.id,
     run_for: cmd.runFor,

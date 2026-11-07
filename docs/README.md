@@ -14,6 +14,7 @@ them without checking the code.
 | [runbook.md](runbook.md)                     | Run it, test it, deploy it, roll it back                                   |
 | [system-prd.md](system-prd.md)               | The as-built reference, sheet by sheet                                     |
 | [conversation-flow.md](conversation-flow.md) | What happens to a message, step by step                                    |
+| [data-flow.md](data-flow.md)                 | The paths data takes, hop by hop, and where a request's name reaches       |
 | [lead-finder.md](lead-finder.md)             | How the lead finder works                                                  |
 | [voice.md](voice.md)                         | How a call works                                                           |
 | [takeover.md](takeover.md)                   | The quality checklist: could a senior developer take this over tomorrow    |

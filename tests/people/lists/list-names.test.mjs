@@ -55,7 +55,7 @@ test("a list's name: a People list's label, the workspace's own name, archived o
 
 test("Ask's lists say a rule's lists by the one namer", async () => {
   const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-  const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+  const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
   readerCache.clear();
   const t = {
     memberships: [

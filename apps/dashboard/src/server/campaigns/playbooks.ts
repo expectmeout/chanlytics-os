@@ -11,7 +11,6 @@ import {
   PLAYBOOK_TOUCH_WINDOW_MS,
   playbookStopBy,
   purposeOfTemplate,
-  isPlaybookTotalsDto,
   ruleNeedsViewer,
   viewerListWords,
   DEFAULT_CAMPAIGN_CHANNELS,
@@ -20,10 +19,10 @@ import {
   type FollowUpFactsDto,
   type PlaybookDto,
   type PlaybookPolicyClass,
-  type PlaybookTotalsDto,
   type PlaybookTrigger,
   type Touches,
 } from "@chanlytics/contracts";
+import { isPlaybookTotalsDto, type PlaybookTotalsDto } from "./lifecycle/totals";
 import {
   checkPlaybook,
   checkPlaybookChannels,
@@ -34,27 +33,27 @@ import {
 } from "@chanlytics/core";
 import {
   followUpTouchesSince,
-  listRow,
-  messageVersionRowsOf,
-  playbookChannels,
-  playbookTotals,
-  readAllRows,
-  recentTouches,
-  sequenceModesOf,
+  listMessageVersionRows,
+  listPlaybookChannels,
+  getRecentTouches,
+  getSequenceModes,
   touchIndex,
-  workspacePaused,
+  isWorkspacePaused,
   type Touch,
-} from "@chanlytics/db";
+} from "@chanlytics/db/campaigns";
+import { listRow } from "@chanlytics/db/people";
+import { getPlaybookTotals } from "@chanlytics/db/reports";
+import { readAllRows, saysMissing } from "@chanlytics/db/shared";
 import type { RouteContext } from "@/server/shared/with-route";
-import { listRuns } from "@/server/campaigns/broadcasts";
-import { calendarOf } from "@/server/calendar/settings";
+import { listRuns } from "@/server/campaigns/broadcasts/broadcasts";
+import { findCalendar } from "@/server/calendar/settings";
 import type { ZoneAndSettings } from "@/server/calendar/people-visits";
-import { archivedListWords } from "@/server/people/audience";
-import { templateValuePorts } from "@/server/ports/campaign-ports";
-import { whatsappHealthOf } from "@/server/campaigns/channels-ready";
-import { appointmentWordRead } from "@/server/people/deals";
-import { lazily } from "@/server/shared/lazy";
-import { tenantFacts } from "@/server/shared/tenant";
+import { archivedListWords } from "@/server/campaigns/audience";
+import { templateValuePorts } from "@/server/campaigns/ports";
+import { findWhatsappHealth } from "@/server/campaigns/channels-ready";
+import { getAppointmentWord } from "@/server/people/deals";
+import { loadLazily } from "@/server/shared/lazy";
+import { getTenantFacts } from "@/server/shared/tenant";
 
 /**
  * Playbooks, read and checked.
@@ -133,7 +132,7 @@ export const noFollowUps = (): FollowUpsRead => ({ followUps: new Map(), followU
 
 /**
  * The touches a moment is counted against before a campaign on it has run (contracts playbookRunReach): nobody heard from
- * that campaign yet, who any campaign reaches within a week of `now`, either side (`touched`, db recentTouches, by
+ * that campaign yet, who any campaign reaches within a week of `now`, either side (`touched`, db getRecentTouches, by
  * contracts breathTouchOf: the week's breath, as the sweep's touchIndex reads it), and who had a proposal's follow-up.
  * The page's pools (playbook-pools.ts triggerPools) and Ask's campaign card count by it, so the card's count is the page's.
  */
@@ -155,7 +154,7 @@ export function poolTouches(
  * touchIndex followUps): whom the run leaves out, and so the Playbooks counts and Ask (0006). None out, none. A read
  * that fails throws. By the proposal's link too (0029): a person's second proposal is owed its own.
  */
-export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpsRead> {
+export async function getProposalFollowUps(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpsRead> {
   const out = await proposalsOut(ctx, tenantId);
   if (!out) return noFollowUps();
   const { followUps, followUpKeys } = touchIndex(await followUpTouchesFor(ctx, tenantId, now, out), now);
@@ -167,14 +166,14 @@ export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now
  * playbookStopBy, the one core's run-playbook asks) over the channels it ticks (null, a database before 00298, is WhatsApp
  * alone), the WhatsApp version's status (null: the message has none) and the number as the send screen reads it. A
  * workspace with no number reads as the edge's run reads it: numberHealth of a number that reported nothing, which cannot
- * be flagged, so it can send (contracts broadcast-number.ts). Who goes by WhatsApp on a workspace with none is
+ * be flagged, so it can send (contracts broadcasts/number.ts). Who goes by WhatsApp on a workspace with none is
  * channelsReady's, person by person (contracts followUpStandOf), never this stop's. So a follow-up that also goes by email
  * or text is not stopped by Meta not approving its WhatsApp version, or by there being none, as its run is not, and one
  * that does not tick WhatsApp is not stopped by the number at all.
  */
 function whatsappStops(
   channels: readonly string[] | null,
-  number: Awaited<ReturnType<typeof whatsappHealthOf>>,
+  number: Awaited<ReturnType<typeof findWhatsappHealth>>,
   templateStatus: string | null,
 ): boolean {
   return (
@@ -208,35 +207,35 @@ export async function followUpFacts(
       .eq("tenant_id", tenantId)
       .eq("trigger", "proposal_waiting")
       .maybeSingle(),
-    workspacePaused(ctx.supabase, tenantId),
+    isWorkspacePaused(ctx.supabase, tenantId),
     // The number as the send screen reads it (channels-ready.ts): none, or its health.
-    whatsappHealthOf(ctx, tenantId),
+    findWhatsappHealth(ctx, tenantId),
     proposalsOut(ctx, tenantId),
   ]);
   if (pb.error) throw new Error(pb.error.message);
-  const p = pb.data;
+  const data = pb.data;
   // It is the proposal follow-up, read where a deal is on file (readers/people.ts).
-  const runs = !!p && campaignRunsOn({ ...p, trigger: "proposal_waiting" }, { tz, now });
-  if (!p || !runs || paused || !out) return null;
+  const runs = !!data && campaignRunsOn({ ...data, trigger: "proposal_waiting" }, { tz, now });
+  if (!data || !runs || paused || !out) return null;
   // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
-  if (!p.template_name || !p.template_language) return null;
+  if (!data.template_name || !data.template_language) return null;
   // The channels it ticks (step 3; null on a database before 00298, WhatsApp alone): the number and Meta's approval stop
   // only a follow-up that goes by WhatsApp, as the run's own stop does (core run-playbook).
   // Its message, read once from its rows (contracts campaignMessageOf), with or without a WhatsApp version.
   const [channels, rows, modes] = await Promise.all([
-    playbookChannels(ctx.supabase, p.id),
-    messageVersionRowsOf(ctx.supabase, tenantId, { name: p.template_name, language: p.template_language }),
-    sequenceModesOf(ctx.supabase, tenantId, [p.sequence_id]),
+    listPlaybookChannels(ctx.supabase, data.id),
+    listMessageVersionRows(ctx.supabase, tenantId, { name: data.template_name, language: data.template_language }),
+    getSequenceModes(ctx.supabase, tenantId, [data.sequence_id]),
   ]);
   // Whether its next batch waits for an OK (contracts batchModeOf: its sequence's mode, or ask while its words are new).
-  const mode = batchModeOf({ mode: modes.get(p.sequence_id), words_ok_at: p.words_ok_at });
-  const message = campaignMessageOf(rows, p.template_name, p.template_language);
+  const mode = batchModeOf({ mode: modes.get(data.sequence_id), words_ok_at: data.words_ok_at });
+  const message = campaignMessageOf(rows, data.template_name, data.template_language);
   if (whatsappStops(channels, number, message?.versions.whatsapp?.status ?? null)) return null;
-  // Who heard, or is due a message, is the breath's one read (packages/db recentTouches), as every other page and the
+  // Who heard, or is due a message, is the breath's one read (packages/db getRecentTouches), as every other page and the
   // send read it.
   const [followUps, recent] = await Promise.all([
     followUpTouchesFor(ctx, tenantId, now, out),
-    recentTouches(ctx.supabase, tenantId, now),
+    getRecentTouches(ctx.supabase, tenantId, now),
   ]);
   const had: Record<string, string> = {};
   const queued: Record<string, string> = {};
@@ -251,8 +250,8 @@ export async function followUpFacts(
   // within a week of (contracts followUpStandOf), so its day is the day the sweep would next send them.
   for (const [id, times] of Object.entries(recent)) if (out.contacts.has(id)) heard[id] = times;
   return {
-    run_hour: p.run_hour,
-    last_run_for: p.last_run_for,
+    run_hour: data.run_hour,
+    last_run_for: data.last_run_for,
     asks: mode === "ask",
     purpose: message?.purpose ?? purposeOfTemplate(undefined),
     had,
@@ -281,7 +280,7 @@ const noTotals = (): PlaybookTotals => ({
  * The workspace's moment playbooks, newest first, without what their runs earned: the rows GET playbooks lists, the pools
  * count by, and Ask's shape names. A reach-out's steps are its own sheet's (Reach out, Part 4), never cards here.
  */
-export async function playbookRows(ctx: RouteContext, tenantId: string): Promise<PlaybookDto[]> {
+export async function listPlaybookRows(ctx: RouteContext, tenantId: string): Promise<PlaybookDto[]> {
   // The query is returned as it is built, and runs when it is awaited.
   const read = (
     columns: string,
@@ -295,8 +294,7 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
   // A database 00168 has not reached has no list_key, and one 00155 has not reached no list_id: read again without
   // them, and no playbook runs on a People list (or on any list).
   let { data: rows, error } = await read(COLUMNS);
-  const missing = (col: string) =>
-    !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
+  const missing = (col: string) => !!error && new RegExp(col).test(error.message) && saysMissing(error.message);
   let columns = COLUMNS;
   // A database 00298 has not reached has no channels, and every playbook there goes by WhatsApp: read again without it,
   // and each of the reads below keeps that.
@@ -311,7 +309,7 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
   if (missing("list_id")) ({ data: rows, error } = await read(columns.replace("list_id, list_key, ", ""), moments));
   if (error) throw new Error(error.message);
   // Each step's sequence's mode (decision 0064): what its batches do, which the run, Resume and Ask say by.
-  const modes = await sequenceModesOf(
+  const modes = await getSequenceModes(
     ctx.supabase,
     tenantId,
     (rows ?? []).map((r) => String(r.sequence_id)),
@@ -357,16 +355,16 @@ function toPlaybookTotals(dto: PlaybookTotalsDto): Map<string, PlaybookTotals> {
             trigger: t.waiting.trigger,
           }
         : null,
-      history: t.history.map((h) => ({
-        id: h.id,
-        run_for: h.run_for,
-        state: h.state,
-        scheduled_for: h.scheduled_for,
-        recipient_count: h.recipient_count,
-        sent: h.sent,
-        held: h.held,
-        delivered: h.delivered,
-        replied: h.replied,
+      history: t.history.map((item) => ({
+        id: item.id,
+        run_for: item.run_for,
+        state: item.state,
+        scheduled_for: item.scheduled_for,
+        recipient_count: item.recipient_count,
+        sent: item.sent,
+        held: item.held,
+        delivered: item.delivered,
+        replied: item.replied,
       })),
     });
   }
@@ -380,37 +378,38 @@ function toPlaybookTotals(dto: PlaybookTotalsDto): Map<string, PlaybookTotals> {
  */
 function foldTotals(runs: BroadcastDto[]): Map<string, PlaybookTotals> {
   const totals = new Map<string, PlaybookTotals>();
-  for (const b of runs) {
-    if (!b.playbook_id) continue;
-    const t = totals.get(b.playbook_id) ?? noTotals();
-    t.runs += 1;
-    t.sent += b.counts.sent;
-    t.delivered += b.counts.delivered;
-    t.replied += b.counts.replied;
-    t.held += b.counts.skipped + b.counts.failed;
-    if (t.history.length < HISTORY_ON_CARD) {
-      t.history.push({
-        id: b.id,
-        run_for: b.run_for,
-        state: b.state,
-        scheduled_for: b.scheduled_for,
-        recipient_count: b.recipient_count,
-        sent: b.counts.sent,
-        held: b.counts.skipped + b.counts.failed,
-        delivered: b.counts.delivered,
-        replied: b.counts.replied,
+  for (const run of runs) {
+    if (!run.playbook_id) continue;
+    const total = totals.get(run.playbook_id) ?? noTotals();
+    total.runs += 1;
+    total.sent += run.counts.sent;
+    total.delivered += run.counts.delivered;
+    total.replied += run.counts.replied;
+    total.held += run.counts.skipped + run.counts.failed;
+    if (total.history.length < HISTORY_ON_CARD) {
+      total.history.push({
+        id: run.id,
+        run_for: run.run_for,
+        state: run.state,
+        scheduled_for: run.scheduled_for,
+        recipient_count: run.recipient_count,
+        sent: run.counts.sent,
+        held: run.counts.skipped + run.counts.failed,
+        delivered: run.counts.delivered,
+        replied: run.counts.replied,
       });
     }
-    if (!t.lastRun) t.lastRun = { id: b.id, state: b.state, run_for: b.run_for, recipient_count: b.recipient_count };
-    if (b.state === "pending_approval" && !t.waiting)
-      t.waiting = {
-        id: b.id,
-        recipient_count: b.recipient_count,
-        name: b.name,
-        run_for: b.run_for,
-        trigger: audienceTrigger(b.audience),
+    if (!total.lastRun)
+      total.lastRun = { id: run.id, state: run.state, run_for: run.run_for, recipient_count: run.recipient_count };
+    if (run.state === "pending_approval" && !total.waiting)
+      total.waiting = {
+        id: run.id,
+        recipient_count: run.recipient_count,
+        name: run.name,
+        run_for: run.run_for,
+        trigger: audienceTrigger(run.audience),
       };
-    totals.set(b.playbook_id, t);
+    totals.set(run.playbook_id, total);
   }
   return totals;
 }
@@ -421,15 +420,15 @@ function foldTotals(runs: BroadcastDto[]): Map<string, PlaybookTotals> {
  * over every run it replaced, so either deploy order works.
  */
 async function playbookTotalsOf(ctx: RouteContext, tenantId: string): Promise<Map<string, PlaybookTotals>> {
-  const read = await playbookTotals(ctx.supabase, tenantId, HISTORY_ON_CARD);
+  const read = await getPlaybookTotals(ctx.supabase, tenantId, HISTORY_ON_CARD);
   if (read === "missing") return foldTotals(await listRuns(ctx, tenantId));
   if (!isPlaybookTotalsDto(read)) throw new Error("playbook_totals answered a shape it does not know");
   return toPlaybookTotals(read);
 }
 
-/** The moment playbooks with what their runs earned: GET playbooks' rows (playbookRows), each with its totals. */
+/** The moment playbooks with what their runs earned: GET playbooks' rows (listPlaybookRows), each with its totals. */
 export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promise<PlaybookListRow[]> {
-  const [rows, totals] = await Promise.all([playbookRows(ctx, tenantId), playbookTotalsOf(ctx, tenantId)]);
+  const [rows, totals] = await Promise.all([listPlaybookRows(ctx, tenantId), playbookTotalsOf(ctx, tenantId)]);
   return rows.map((r) => ({ ...r, totals: totals.get(r.id) ?? noTotals() }));
 }
 
@@ -442,10 +441,10 @@ export type { PlaybookInput };
  */
 async function archivedListRefusal(
   ctx: Pick<RouteContext, "supabase">,
-  p: { id: string; trigger: string },
+  params: { id: string; trigger: string },
 ): Promise<string | null> {
-  if (p.trigger !== "saved_list") return null;
-  const { data: on } = await ctx.supabase.from("sequence_steps").select("list_id").eq("id", p.id).maybeSingle();
+  if (params.trigger !== "saved_list") return null;
+  const { data: on } = await ctx.supabase.from("sequence_steps").select("list_id").eq("id", params.id).maybeSingle();
   const listId = (on as { list_id?: string | null } | null)?.list_id ?? null;
   const list = listId ? await listRow(ctx.supabase, listId) : null;
   return list?.archived_at
@@ -456,9 +455,9 @@ async function archivedListRefusal(
 /** The same, refused: a run now of such a playbook is not made (app/api/v1/playbooks/[id]/run). */
 export async function refuseOnArchivedList(
   ctx: Pick<RouteContext, "supabase">,
-  p: { id: string; trigger: string },
+  params: { id: string; trigger: string },
 ): Promise<void> {
-  const words = await archivedListRefusal(ctx, p);
+  const words = await archivedListRefusal(ctx, params);
   if (words) throw new AppError("validation", words);
 }
 
@@ -472,7 +471,7 @@ export function playbookPatchPorts(ctx: RouteContext, tenantId: string): CheckPl
   return {
     ...templateValuePorts(ctx, tenantId),
     archivedList: (r) => archivedListRefusal(ctx, r),
-    timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
+    timezone: async () => (await getTenantFacts(ctx.supabase, tenantId)).timezone,
   };
 }
 
@@ -494,9 +493,9 @@ export function checkPlaybookChannelsInput(
   ctx: RouteContext,
   tenantId: string,
   row: { trigger: string; policy_class: string | null; template_id: string | null; channels: string[] | null },
-  asked: unknown,
+  value: unknown,
 ): Promise<ConsentChannel[]> {
-  return checkPlaybookChannels(templateValuePorts(ctx, tenantId), row, asked);
+  return checkPlaybookChannels(templateValuePorts(ctx, tenantId), row, value);
 }
 
 /**
@@ -544,14 +543,14 @@ function playbookCheckPorts(ctx: RouteContext, tenantId: string, known?: ZoneAnd
       if (ruleNeedsViewer(list.rule)) throw new AppError("validation", viewerListWords(list.name));
       return list.name;
     },
-    // Whether a calendar is connected: an address in the settings, or one the settings lost (calendarOf), which is the
+    // Whether a calendar is connected: an address in the settings, or one the settings lost (findCalendar), which is the
     // page's calendar state not being "none" (peopleVisits) -- the feed is not fetched for it.
     calendarOn: async () => {
-      const c = await calendarOf(ctx, tenantId, known === undefined ? undefined : await lazily(known));
+      const c = await findCalendar(ctx, tenantId, known === undefined ? undefined : await loadLazily(known));
       return !!c.url || c.lostCalendar;
     },
-    // What the workspace calls an appointment, read where businessShape reads it (people/deals.ts appointmentWordRead):
+    // What the workspace calls an appointment, read where businessShape reads it (people/deals.ts getAppointmentWord):
     // a refusal's words, and a new campaign's name on an appointment moment. Read only when one of them is said.
-    appointmentWord: () => appointmentWordRead(ctx, tenantId),
+    appointmentWord: () => getAppointmentWord(ctx, tenantId),
   };
 }

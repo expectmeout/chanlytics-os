@@ -18,12 +18,12 @@ export async function sendPartnerInvite(
   ports: { fetch?: typeof fetch; live?: boolean } = {},
 ): Promise<boolean> {
   if (!(ports.live ?? deployment.providersLive) || !edgeConfigured()) return false;
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/partner-invite",
     { tenant_id: tenantId },
     { workspace: tenantId, user: userId, timeoutMs: PARTNER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
   );
-  if (!edgeAnswered(r))
-    log.error("partner_invite_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
-  return edgeAnswered(r);
+  if (!edgeAnswered(answer))
+    log.error("partner_invite_failed", { tenant_id: tenantId, status: answer.status, error: answer.body?.error });
+  return edgeAnswered(answer);
 }

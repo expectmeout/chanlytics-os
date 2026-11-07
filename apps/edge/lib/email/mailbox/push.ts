@@ -14,8 +14,13 @@
  * What a push says is only "read this mailbox now": no body is trusted for more, and the sync reads the rest from the
  * provider with the mailbox's own grant. A push that cannot be checked is refused (401) and nothing is read.
  */
-import { gmailPushOf, graphNotificationsOf, clientStateMatches, verifyGooglePushToken } from "@chanlytics/channels";
-import { liveMailboxByAddress, requestMailboxesSweep, type MailboxConnectionRow } from "@chanlytics/db";
+import {
+  gmailPushOf,
+  graphNotificationsOf,
+  clientStateMatches,
+  verifyGooglePushToken,
+} from "@chanlytics/channels/email";
+import { findLiveMailboxByAddress, requestMailboxesSweep, type MailboxConnectionRow } from "@chanlytics/db/email";
 import { refuse, text } from "../../shared/http.js";
 import { pg } from "../../shared/pg.js";
 import { errField, logger, type Logger } from "../../shared/log.js";
@@ -38,49 +43,49 @@ export const PUSH_READS_UNTIL_MS = 5_000;
 async function readOne(
   db: NonNullable<ReturnType<typeof pg>>,
   row: MailboxConnectionRow | null,
-  L: Logger,
+  log: Logger,
   until: number,
 ) {
   if (!row) return "no_mailbox";
   if (Date.now() >= until) return "later";
-  const s = await syncMailbox(db, row, L.child({ tenant_id: row.tenant_id }), Date.now(), until);
+  const s = await syncMailbox(db, row, log.child({ tenant_id: row.tenant_id }), Date.now(), until);
   return s.outcome;
 }
 
 /** A Pub/Sub push for a Gmail mailbox. */
 export async function receiveGmailPush(request: Request): Promise<Response> {
   const until = Date.now() + PUSH_READS_UNTIL_MS;
-  const L = logger({ push: "gmail" });
+  const log = logger({ push: "gmail" });
   const push = gmailPush();
   if (!push) return refuse(404, "not_found");
   const token = await verifyGooglePushToken(request.headers.get("authorization"), push.audience);
   if (!token.ok) {
-    L.warn("mailbox_push_refused", { why: token.why });
+    log.warn("mailbox_push_refused", { why: token.why });
     return refuse(401, "unauthorized");
   }
   // Signed by Google for our audience is not yet ours: any Google account can mint such a token. Ours is the one our
   // push subscription authenticates as.
   if (token.email?.toLowerCase() !== push.serviceAccount) {
-    L.warn("mailbox_push_refused", { why: "not_our_subscription" });
+    log.warn("mailbox_push_refused", { why: "not_our_subscription" });
     return refuse(401, "unauthorized");
   }
-  const said = gmailPushOf(await request.json().catch(() => null));
-  if (!said) return pushHeard();
+  const sentence = gmailPushOf(await request.json().catch(() => null));
+  if (!sentence) return pushHeard();
   const db = pg();
   if (!db) return refuse(503, "no_database");
   try {
-    const outcome = await readOne(db, await liveMailboxByAddress(db, said.address), L, until);
-    L.info("mailbox_pushed", { provider: "google", outcome });
+    const outcome = await readOne(db, await findLiveMailboxByAddress(db, sentence.address), log, until);
+    log.info("mailbox_pushed", { provider: "google", outcome });
   } catch (e) {
     // Read again by the sweep: a push redelivered for a database that is down helps nobody.
-    L.error("mailbox_push_failed", { provider: "google", error: errField(e) });
+    log.error("mailbox_push_failed", { provider: "google", error: errField(e) });
   }
   return pushHeard();
 }
 
 /** A Graph notification for a Microsoft mailbox, or the validation Graph sends when a subscription is made. */
 export async function receiveGraphPush(request: Request): Promise<Response> {
-  const L = logger({ push: "microsoft" });
+  const log = logger({ push: "microsoft" });
   const push = graphPush();
   if (!push) return refuse(404, "not_found");
   const validation = new URL(request.url).searchParams.get("validationToken");
@@ -91,7 +96,7 @@ export async function receiveGraphPush(request: Request): Promise<Response> {
   const notes = graphNotificationsOf(await request.json().catch(() => null));
   const trusted = notes.filter((n) => clientStateMatches(n.clientState, push.clientState));
   if (notes.length > 0 && trusted.length === 0) {
-    L.warn("mailbox_push_refused", { why: "client_state", notes: notes.length });
+    log.warn("mailbox_push_refused", { why: "client_state", notes: notes.length });
     return refuse(401, "unauthorized");
   }
   const db = pg();
@@ -100,10 +105,13 @@ export async function receiveGraphPush(request: Request): Promise<Response> {
   // asked to read now (Postgres calls it on its own, at most once a minute), and the push is answered at once.
   if (trusted.length > 0)
     try {
-      const asked = await requestMailboxesSweep(db, new Date());
-      L.info("mailbox_pushed", { provider: "microsoft", outcome: asked ? "clock_asked" : "clock_asked_lately" });
+      const otherRequestMailboxesSweep = await requestMailboxesSweep(db, new Date());
+      log.info("mailbox_pushed", {
+        provider: "microsoft",
+        outcome: otherRequestMailboxesSweep ? "clock_asked" : "clock_asked_lately",
+      });
     } catch (e) {
-      L.error("mailbox_push_failed", { provider: "microsoft", error: errField(e) });
+      log.error("mailbox_push_failed", { provider: "microsoft", error: errField(e) });
     }
   return text(202, "");
 }

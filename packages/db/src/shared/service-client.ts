@@ -42,9 +42,9 @@ function boundedFetch(ms: number, base: typeof fetch): typeof fetch {
       return await base(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, bound]) : bound });
     } catch (e) {
       if (!bound.aborted || init?.signal?.aborted) throw e;
-      const said = new Error(`the database did not answer within ${ms} ms (timeout)`, { cause: e });
-      said.name = "AbortError";
-      throw said;
+      const sentence = new Error(`the database did not answer within ${ms} ms (timeout)`, { cause: e });
+      sentence.name = "AbortError";
+      throw sentence;
     }
   };
 }

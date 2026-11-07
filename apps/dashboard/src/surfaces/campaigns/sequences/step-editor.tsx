@@ -11,7 +11,7 @@
  * stood, every channel's version and its languages with it. The foot says what a save reaches. Saved through the
  * sequence's own doors (00442): a new step at the end, or this one changed; its words changed apart, since a WhatsApp
  * version not yet approved waits while the step sends its own (`waits`). The server judges the values against the
- * message (core templateValues) and says what it refused in words. Inside the step's sheet, Cancel and Save stand in its
+ * message (core getTemplateValues) and says what it refused in words. Inside the step's sheet, Cancel and Save stand in its
  * foot (record-foot.ts RecordFootContext), with what a save reaches beside them on a desk and over the fields' end on a
  * phone, so the press is at the thumb however long the step's fields run. A call for you or a note for the team (decision
  * 0065 step 6) is changed in its own one-column editor below (HandEditor), its wait and condition the same choices.

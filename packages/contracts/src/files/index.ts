@@ -1,13 +1,13 @@
+export { FILE_COPIES_DOOR } from "./edge-doors";
+export { FILE_WORDS, fileCursorOf, filesSayOf } from "./files";
 export {
   FILE_BYTES_MAX,
   FILE_CACHE_S,
-  FILE_GOOGLE_WORDS_MAX,
   FILE_LOOK_STATUSES,
   FILE_MIMES,
   FILE_NAME_MAX,
   FILE_NAME_WORDS,
   FILE_PIXELS_MAX,
-  FILE_SHELVES,
   FILE_SHOWS,
   FILE_SIDE_MIN,
   FILE_SOURCES,
@@ -15,47 +15,13 @@ export {
   FILE_TYPES,
   FILE_UPLOADS_AT_ONCE,
   FILE_WHO_IN_IT,
-  FILE_WORDS,
-  fileCursorOf,
-  fileFolderOf,
-  fileNameOf,
   filePathOf,
   FILES_BUCKET,
   FILES_MAX,
   FILES_PAGE,
-  fileSaidOf,
-  fileShelfOpening,
-  filesSayOf,
-  filesTallyOf,
-  fileViewOf,
-  inboxCleanOf,
   isFileMime,
-  postNameOf,
-  shelfFilterOf,
-  shelfOf,
-  uploadNameOf,
-  whoStandsOf,
-} from "./files";
-export type {
-  FileDto,
-  FileLookStatus,
-  FileMade,
-  FileMime,
-  FilePeople,
-  FilePosted,
-  FileRecordDto,
-  FileShelf,
-  FileShelfFilter,
-  FileShows,
-  FileSource,
-  FilesPageDto,
-  FilesTally,
-  FileStatus,
-  FileWhoInIt,
-  FileWhoStands,
-} from "./files";
-export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid, withFilesAttached, withFilesOpened } from "./line";
-export type { FileForAsk } from "./line";
+} from "./limits";
+export type { FileLookStatus, FileMime, FileShows, FileSource, FileStatus, FileWhoInIt } from "./limits";
 export {
   FILE_COPY_KEEP_S,
   FILE_COPY_SIDE,
@@ -68,6 +34,7 @@ export {
   fileLookOf,
 } from "./look";
 export type { FileLook, FileLookRead } from "./look";
+export type { FileQuality } from "./look";
 export {
   POST_LAYOUTS,
   POST_LIMITS,
@@ -93,10 +60,30 @@ export type {
   PostWords,
 } from "./post";
 export {
-  postBandOf,
-  postPathOf,
-  postPhotoProblem,
-  postPlanProblem,
-  postUndrawable,
-  postWordsProblem,
-} from "./post-check";
+  FILE_GOOGLE_WORDS_MAX,
+  FILE_SHELVES,
+  fileFolderOf,
+  fileNameOf,
+  fileSaidOf,
+  fileShelfOpening,
+  filesTallyOf,
+  fileViewOf,
+  inboxCleanOf,
+  postNameOf,
+  shelfFilterOf,
+  shelfOf,
+  uploadNameOf,
+  whoStandsOf,
+} from "./views";
+export type {
+  FileDto,
+  FileMade,
+  FilePeople,
+  FilePosted,
+  FileRecordDto,
+  FileShelf,
+  FileShelfFilter,
+  FilesPageDto,
+  FilesTally,
+  FileWhoStands,
+} from "./views";

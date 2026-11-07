@@ -30,8 +30,8 @@ import {
   type PersonRowVM,
   type HolderNames,
   type AppointmentWord,
-  attentionRow,
 } from "@chanlytics/contracts";
+import { attentionRow } from "./person/model/attention";
 import type { PeopleSurface } from "./surface";
 
 /** What the People surface holds between reads: the rows loaded so far, and the rest it derives from. */

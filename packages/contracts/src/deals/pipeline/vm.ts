@@ -2,11 +2,11 @@
  * The Pipeline's view model (0008): the shape of its groups, its rows with their chips, steps and next steps, and
  * the line over them. Types and the groups' order only; pipeline.ts builds it (pipelineOf).
  */
-import type { PersonRowVM } from "../../people/person-row";
+import type { PersonRowVM } from "../../people/person-row/row-facts";
 import type { StepDue } from "../../notes/steps";
 import type { Tone } from "../../shell/tone";
-import type { DealVM } from "../deal-vm";
-import type { DealPaceVM } from "../deal-waits";
+import type { DealVM } from "../vm";
+import type { DealPaceVM } from "../waits";
 import type { PipelineView } from "./views";
 
 export type PipelineGroupKey = "consultations" | "proposals" | "clients" | "closed";

@@ -32,23 +32,31 @@ export async function draftReviewReply(
   review: ReviewToAnswer,
   forWhom: ReviewDraftFor,
 ): Promise<DraftResult> {
-  const p = reviewReplyPrompt(facts, review);
-  const r = await callModel(
+  const result = reviewReplyPrompt(facts, review);
+  const otherCallModel = await callModel(
     {
       purpose: "review_reply",
-      body: { system: p.system, messages: [{ role: "user", content: p.user }] },
+      body: { system: result.system, messages: [{ role: "user", content: result.user }] },
     },
     { tenantId: forWhom.tenantId, subjectId: forWhom.reviewId ?? null },
   );
-  if (!r) return { ok: false, error: "no_model_key" };
-  if (r.outcome === "held")
+  if (!otherCallModel) return { ok: false, error: "no_model_key" };
+  if (otherCallModel.outcome === "held")
     return {
       ok: false,
       error: "payment_required",
-      detail: r.why === "unpaid" ? "This workspace is paused or its plan has ended." : MODEL_PAUSED_WORDS.reviewReply,
+      detail:
+        otherCallModel.why === "unpaid"
+          ? "This workspace is paused or its plan has ended."
+          : MODEL_PAUSED_WORDS.reviewReply,
     };
-  if (r.outcome !== "ok") return { ok: false, error: "model_failed", detail: `${r.status} ${r.error}` };
-  const text = cleanDraft(r.text);
+  if (otherCallModel.outcome !== "ok")
+    return { ok: false, error: "model_failed", detail: `${otherCallModel.status} ${otherCallModel.error}` };
+  const text = cleanDraft(otherCallModel.text);
   if (!text) return { ok: false, error: "empty_draft" };
-  return { ok: true, text, usage: { input_tokens: r.usage.input, output_tokens: r.usage.output } };
+  return {
+    ok: true,
+    text,
+    usage: { input_tokens: otherCallModel.usage.input, output_tokens: otherCallModel.usage.output },
+  };
 }

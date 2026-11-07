@@ -17,7 +17,8 @@ import {
   isOptedOut,
   toInboxThreadVM,
 } from "@chanlytics/contracts";
-import { normalizeInbound, smsKeywordConsent } from "@chanlytics/channels";
+import { normalizeInbound } from "@chanlytics/channels/whatsapp";
+import { smsKeywordConsent } from "@chanlytics/channels/lines";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";

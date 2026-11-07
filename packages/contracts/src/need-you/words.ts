@@ -5,9 +5,9 @@
  * receipt's `cancelable_until`) counted down to the second in the row, where a toast offered four seconds of it.
  *
  * Pure: the page and the tests read the same words and the same clock. The times Not now offers are the business's, read
- * in its zone (calendar/zone-math.ts), never the device's.
+ * in its zone (shared/zone/math.ts), never the device's.
  */
-import { clockInZone, dayPlusInZone, localToUtcMs } from "../calendar/zone-math";
+import { clockInZone, dayPlusInZone, localToUtcMs } from "../shared/zone/math";
 import { shortName } from "../conversations/thread-contact";
 import { HOUR_MS } from "../shared/time";
 
@@ -48,9 +48,9 @@ export const NEED_YOU_WORDS = {
    * here once; the sentence says only what it is (3 Nov 2026: "Not a customer, by the look of it: … not a customer or
    * prospect, so no reply" said it twice in five lines).
    */
-  pitch: (what: string) => `Not a customer: ${what}`,
+  pitch: (text: string) => `Not a customer: ${text}`,
   edit: "Edit",
-  editDraft: (who: string) => `Change the reply to ${who}`,
+  editDraft: (personName: string) => `Change the reply to ${personName}`,
   /** While the member types in the words: what the head says, and the press that leaves them as they are. */
   editing: "editing",
   done: "Done",
@@ -59,26 +59,26 @@ export const NEED_YOU_WORDS = {
   /** The signature an email reply leaves with (00487), under the draft: what is sent is what is seen. */
   changeSignature: "Change",
   changeSignatureTip: "Change what this mailbox signs with, in Settings › Connections",
-  yourWords: (who: string) => `Your reply to ${who}`,
+  yourWords: (personName: string) => `Your reply to ${personName}`,
   yours: "your words",
   /** Where the member writes it from nothing: what stands in the empty words. */
-  writeHere: (who: string) => `Write to ${who}…`,
+  writeHere: (personName: string) => `Write to ${personName}…`,
   writeItMyself: "Write it myself",
   cancel: "Cancel",
   send: "Send",
   sendTo: (address: string) => `Send to ${address}`,
   pickTemplate: "Choose a template",
   notNow: "Not now",
-  notNowFor: (who: string) => `Not now: when ${who} comes back`,
+  notNowFor: (personName: string) => `Not now: when ${personName} comes back`,
   sendingIn: (seconds: number) => `Sending in ${leftWords(seconds)}`,
-  sendingTo: (who: string, wire: string) => `to ${who} · ${wire}`,
+  sendingTo: (personName: string, wire: string) => `to ${personName} · ${wire}`,
   undo: "Undo",
   sent: "Sent",
   open: "Open",
   wake: "Wake",
   canceled: "Not sent. Your words are kept.",
   back: (when: string) => `back ${when}`,
-  backSooner: (who: string) => `Back sooner if ${who} writes again.`,
+  backSooner: (personName: string) => `Back sooner if ${personName} writes again.`,
   windowCloses: (clock: string) => `Their WhatsApp window closes at ${clock}; after it only a template reaches them.`,
   windowClosed: "Their WhatsApp window has closed: only an approved template reaches them now. Your words go with you.",
   viewer: "Only an owner or operator can send.",
@@ -200,7 +200,7 @@ export const NEED_YOU_WORDS = {
     rebookAbout: (word: string, when: string) =>
       `They missed their ${word} ${when}. Say sorry we missed them, and ask whether they would like another time. Use the booking link where one helps.`,
     rebookSent: "Missed · rebook sent",
-    noWay: (why: string) => `Nothing to send a rebook by. ${why}`,
+    noWay: (reason: string) => `Nothing to send a rebook by. ${reason}`,
     change: "Change",
   },
   step: { moved: (day: string) => `Moved to ${day}`, moveFor: "Not now: move this step" },
@@ -381,17 +381,25 @@ const oneOrCount = (n: number, one: string, many: string) => `${n === 1 ? "a" : 
  * on its own leads, since it goes in minutes, before a window that closes in hours. Null when Ask prepared nothing,
  * writes nothing and nothing closes: the head says the count alone, and the rows say the rest.
  */
-export function needYouSay(f: NeedYouSayFacts): string | null {
+export function needYouSay(needYouSayFacts: NeedYouSayFacts): string | null {
   // A first name, as the canvas says them ("Sofia's window"), a number or an address whole (thread-contact.ts shortName);
   // a time that is tomorrow's says so before it.
   const when = (at: string) => (/^tomorrow /i.test(at) ? at.replace(/^tomorrow /i, "tomorrow at ") : `at ${at}`);
-  const held = f.held ? `Your receptionist answers ${shortName(f.held.who)} on its own unless you stop it.` : "";
+  const held = needYouSayFacts.held
+    ? `Your receptionist answers ${shortName(needYouSayFacts.held.who)} on its own unless you stop it.`
+    : "";
   const ready = [
-    f.replies ? oneOrCount(f.replies, "reply", "replies") : "",
-    f.briefs ? oneOrCount(f.briefs, "call brief", "call briefs") : "",
+    needYouSayFacts.replies ? oneOrCount(needYouSayFacts.replies, "reply", "replies") : "",
+    needYouSayFacts.briefs ? oneOrCount(needYouSayFacts.briefs, "call brief", "call briefs") : "",
   ].filter(Boolean);
-  const drafted = ready.length ? `Ask drafted ${ready.join(" and ")}` : f.writing ? "Ask is drafting your replies" : "";
-  const window = f.firstWindow ? `${shortName(f.firstWindow.who)}'s window closes ${when(f.firstWindow.at)}` : "";
+  const drafted = ready.length
+    ? `Ask drafted ${ready.join(" and ")}`
+    : needYouSayFacts.writing
+      ? "Ask is drafting your replies"
+      : "";
+  const window = needYouSayFacts.firstWindow
+    ? `${shortName(needYouSayFacts.firstWindow.who)}'s window closes ${when(needYouSayFacts.firstWindow.at)}`
+    : "";
   const then = drafted && window ? `${drafted}, and ${window}.` : drafted || window ? `${drafted || window}.` : "";
   return [held, then].filter(Boolean).join(" ") || null;
 }

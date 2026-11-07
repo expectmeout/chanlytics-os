@@ -5,7 +5,8 @@
  * the words and the threshold; this holds what the runner does with its
  * answer.
  */
-import { questionAfterProbe, type LeadSearchPlan, type ProbeMember } from "@chanlytics/contracts";
+import type { LeadSearchPlan } from "@chanlytics/contracts";
+import { questionAfterProbe, type ProbeMember } from "./search-question";
 import type { RoundQuestion } from "./ports";
 import { probeYield } from "./sizing";
 
@@ -15,14 +16,14 @@ export type ProbeYieldMember = ProbeMember & { phone: string | null; email: stri
 export type AfterProbe = { kind: "ask"; question: RoundQuestion } | { kind: "go"; yield: number };
 
 export function afterProbe(plan: LeadSearchPlan, members: ProbeYieldMember[], now: Date): AfterProbe {
-  const q = questionAfterProbe(plan, members);
-  if (q.ask)
+  const result = questionAfterProbe(plan, members);
+  if (result.ask)
     return {
       kind: "ask",
       question: {
-        sentence: q.sentence,
-        criterionKey: q.criterionKey,
-        dropTerm: q.dropTerm,
+        sentence: result.sentence,
+        criterionKey: result.criterionKey,
+        dropTerm: result.dropTerm,
         asked_at: now.toISOString(),
       },
     };

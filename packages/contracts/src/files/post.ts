@@ -76,10 +76,10 @@ export type PostPhotoWont = "made" | "unkept" | "design";
  * Why this file can't be a post's photo, or null: it is a post already, or it isn't kept yet, or it has a design of its own that
  * more words would clash with. Here, with nothing behind it, so a page can ask before it offers the press.
  */
-export function postPhotoWont(f: { status: string; source: string; shows: string | null }): PostPhotoWont | null {
-  if (f.source === "made") return "made";
-  if (f.status !== "filed") return "unkept";
-  if (f.shows === "graphic" || f.shows === "logo") return "design";
+export function postPhotoWont(fields: { status: string; source: string; shows: string | null }): PostPhotoWont | null {
+  if (fields.source === "made") return "made";
+  if (fields.status !== "filed") return "unkept";
+  if (fields.shows === "graphic" || fields.shows === "logo") return "design";
   return null;
 }
 

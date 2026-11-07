@@ -217,7 +217,7 @@ const troubleIn = (log) => log.lines.filter((l) => l.level !== "info");
 let phones = 100;
 /** A person who wrote in on WhatsApp: START (a yes to messages), or STOP. */
 /**
- * People in the order a batch reads them: by contact id (campaign-channels.ts queuedRecipients, 00301), not the order
+ * People in the order a batch reads them: by contact id (campaigns/channels.ts listQueuedRecipients, 00301), not the order
  * they were made in, so a test that says who goes first names them so.
  */
 const inBatchOrder = (...people) => [...people].sort((a, b) => (a.contactId < b.contactId ? -1 : 1));

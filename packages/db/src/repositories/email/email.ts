@@ -2,22 +2,22 @@
  * Email's rows: a workspace's mailbox, taking a received email in, the email a reply answers, and what became of an
  * email sent. Groups, top to bottom:
  *
- *   the mailbox            mailboxById, mailboxFor (a published address, or a reply route: a rotated-out token still
- *                          routes until it is revoked, 00126), mailboxOfTenant (null is a workspace with no email
+ *   the mailbox            findMailboxById, findMailbox (a published address, or a reply route: a rotated-out token still
+ *                          routes until it is revoked, 00126), findMailboxOfTenant (null is a workspace with no email
  *                          line) and stampMailboxReceived (the mailbox's health stamp, which only logs when it fails);
  *                          keepForwardingConfirmation and clearForwardingConfirmation (Gmail's pending confirmation of
  *                          a forward here, 00345: kept by the intake, shown by Settings, let go of by the first notice
  *                          read, packages/jobs/src/booking-read.ts).
- *   taking one in          ingestInboundEmail and sentEmailWithMessageId (how a sent email coming back is known),
+ *   taking one in          ingestInboundEmail and getSentEmailWithMessageId (how a sent email coming back is known),
  *                          asked by the email_ingest job (packages/jobs/src/handlers.ts); the edge's door finds the
- *                          mailbox with mailboxFor (apps/edge/lib/email/email-ingress.ts).
- *   what a reply answers   lastInboundEmail (the person's latest email on one thread) and answeredReachOutEmail (the
+ *                          mailbox with findMailbox (apps/edge/lib/email/email-ingress.ts).
+ *   what a reply answers   findLastInboundEmail (the person's latest email on one thread) and findAnsweredReachOutEmail (the
  *                          reach-out email a reply answers), read for the dashboard's reply routes on the member's
- *                          client (apps/dashboard/src/server/ports/core-ports.ts, connections/email.ts).
+ *                          client (apps/dashboard/src/server/conversations/ports.ts, connections/email.ts).
  *   what became of a sent  the provider's receipts, applied by apps/edge/lib/email/receipts.ts: stampEmailSent,
- *   email                  sentEmailOf, recordEmailStatus, stampEmailComplaint, recordEmailNo and suppressEmailOf.
+ *   email                  findSentEmail, recordEmailStatus, stampEmailComplaint, recordEmailNo and suppressEmailOf.
  *                          stampEmailLeftAs is written by core's deliver() after an email leaves.
- *   one of unknown outcome emailFoundSent and emailNeverLeft, a mailbox's sent mail looked in for an email whose send
+ *   one of unknown outcome getEmailFoundSent and getEmailNeverLeft, a mailbox's sent mail looked in for an email whose send
  *                          timed out (the edge's mailbox/reconcile.ts).
  *
  * Taking an email in goes through ingest_inbound, the atomic gate every channel uses (one advisory lock per identity,
@@ -39,7 +39,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
-import { ingestInbound, stoppedNow, type IngestResult } from "../conversations/ingest";
+import { ingestInbound, stoppedNow, type IngestResult } from "../channels/ingest";
 import { setEmailOffersYes, setEmailUnsubscribed } from "../campaigns/email-offers";
 import { stampEmailFromMailbox } from "./connections";
 import { dbLog } from "../../shared/observe";
@@ -47,14 +47,14 @@ import { dbLog } from "../../shared/observe";
 type Db = SupabaseClient<Database>;
 export type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
 
-export async function mailboxById(db: Db, id: string): Promise<MailboxRow | null> {
+export async function findMailboxById(db: Db, id: string): Promise<MailboxRow | null> {
   const { data, error } = await db.from("mailboxes").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(`mailbox: ${error.message}`);
   return data;
 }
 
 /** The mailbox a published address or a reply route names. A rotated-out token still routes until it is revoked (00126). */
-export async function mailboxFor(
+export async function findMailbox(
   db: Db,
   to: { kind: "mailbox"; localPart: string } | { kind: "reply"; token: string },
 ): Promise<MailboxRow | null> {
@@ -106,7 +106,7 @@ export interface IngestEmailParams {
   words?: string | null;
 }
 
-export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<IngestResult> {
+export async function ingestInboundEmail(db: Db, ingestEmailParams: IngestEmailParams): Promise<IngestResult> {
   // Who has this address is the inbound door's to say (00344: ingest_inbound hands the address to resolve_person, which
   // matches by the email identity, then by the address on a row, keeps the identity, and sets the address on a new
   // person's row). The read and the two writes that did that here until 00344 was on production are gone.
@@ -117,30 +117,30 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
   // handled and keyed by the message (ingest.ts), so a run that resumes after a failed note writes it. The read that asked
   // whether the email was already held left with 00361's arrival on production: it also kept that run from writing it.
   const out = await ingestInbound(db, {
-    tenantId: p.tenantId,
+    tenantId: ingestEmailParams.tenantId,
     channel: "email",
-    identityExternalId: p.address,
+    identityExternalId: ingestEmailParams.address,
     phoneE164: null,
     waProfileName: null,
-    messageExternalId: p.receivedId,
+    messageExternalId: ingestEmailParams.receivedId,
     type: "text",
-    body: p.body,
-    channelTs: p.channelTs,
-    meta: p.meta,
-    optOut: p.optOut ?? false,
-    optIn: p.optIn ?? false,
+    body: ingestEmailParams.body,
+    channelTs: ingestEmailParams.channelTs,
+    meta: ingestEmailParams.meta,
+    optOut: ingestEmailParams.optOut ?? false,
+    optIn: ingestEmailParams.optIn ?? false,
   });
 
   // They wrote from the address a hard bounce stopped: it works. Lifted for that address and that reason alone, and
   // only for an email not yet handled, as their answers below are. A write that fails throws: the run that resumes
   // writes it again, which changes nothing twice.
-  if (p.fromThemProven && !out.processed) {
+  if (ingestEmailParams.fromThemProven && !out.processed) {
     const { error } = await db
       .from("contacts")
       .update({ email_suppressed_at: null, email_suppressed_reason: null })
       .eq("id", out.contact_id)
-      .eq("tenant_id", p.tenantId)
-      .eq("email", p.address)
+      .eq("tenant_id", ingestEmailParams.tenantId)
+      .eq("email", ingestEmailParams.address)
       .eq("email_suppressed_reason", "hard_bounce");
     if (error) throw new Error(`ingest_email: cannot lift the bounce from the address: ${error.message}`);
   }
@@ -149,29 +149,37 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
   // the never-again list): a no first, so it is never lost behind a yes. Only for an email not yet handled: a delivery the
   // provider repeats after it was handled must not put back a yes the person has since taken away (a run that died before
   // it finished finds the email unhandled, and writes again what it wrote, which changes nothing twice).
-  const evidence = { channel: "email", message_external_id: p.receivedId, words: (p.words ?? "").slice(0, 80) || null };
-  if (p.unsubscribe && !out.processed)
+  const evidence = {
+    channel: "email",
+    message_external_id: ingestEmailParams.receivedId,
+    words: (ingestEmailParams.words ?? "").slice(0, 80) || null,
+  };
+  if (ingestEmailParams.unsubscribe && !out.processed)
     await setEmailUnsubscribed(db, {
-      tenantId: p.tenantId,
+      tenantId: ingestEmailParams.tenantId,
       contactId: out.contact_id,
       messageId: out.message_id,
       evidence: { ...evidence, via: "reply" },
     });
-  if (p.optInOffers && !out.processed && stoppedNow(out)) {
+  if (ingestEmailParams.optInOffers && !out.processed && stoppedNow(out)) {
     // The same rule a texted YES OFFERS has (ingest.ts stoppedNow): a yes under a stop is not recorded.
-    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: "email" });
-  } else if (p.optInOffers && !out.processed) {
+    dbLog().warn("offers_yes_while_stopped", {
+      tenant_id: ingestEmailParams.tenantId,
+      contact_id: out.contact_id,
+      channel: "email",
+    });
+  } else if (ingestEmailParams.optInOffers && !out.processed) {
     // A write that fails is said, then thrown: the run that resumes finds the email unhandled and writes the yes again,
     // which changes nothing twice (the no's above are written the same way).
     const yes = await setEmailOffersYes(db, {
-      tenantId: p.tenantId,
+      tenantId: ingestEmailParams.tenantId,
       contactId: out.contact_id,
       source: "customer_message",
       messageId: out.message_id,
       evidence,
     }).catch((e: unknown) => {
       dbLog().error("email_yes_not_recorded", {
-        tenant_id: p.tenantId,
+        tenant_id: ingestEmailParams.tenantId,
         contact_id: out.contact_id,
         error: e instanceof Error ? e.message : String(e),
       });
@@ -180,7 +188,7 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     // A yes never undoes an unsubscribe: said, so "I wrote YES OFFERS and nothing happened" has an answer.
     if (yes === "unsubscribed")
       dbLog().warn("email_yes_refused", {
-        tenant_id: p.tenantId,
+        tenant_id: ingestEmailParams.tenantId,
         contact_id: out.contact_id,
         reason: "unsubscribed",
       });
@@ -189,7 +197,7 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
 }
 
 /** Did this workspace send a message with this Message-ID? How an email that is our own, coming back, is known. */
-export async function sentEmailWithMessageId(db: Db, tenantId: string, rfcMessageId: string): Promise<boolean> {
+export async function getSentEmailWithMessageId(db: Db, tenantId: string, rfcMessageId: string): Promise<boolean> {
   const { data, error } = await db
     .from("messages")
     .select("id")
@@ -208,7 +216,7 @@ export async function stampMailboxReceived(db: Db, mailboxId: string, at: string
 }
 
 /** A workspace's mailbox; null when it has none, which is a workspace with no email line. */
-export async function mailboxOfTenant(db: Db, tenantId: string): Promise<MailboxRow | null> {
+export async function findMailboxOfTenant(db: Db, tenantId: string): Promise<MailboxRow | null> {
   const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`mailbox: ${error.message}`);
   return data;
@@ -218,14 +226,14 @@ export async function mailboxOfTenant(db: Db, tenantId: string): Promise<Mailbox
 export async function keepForwardingConfirmation(
   db: Db,
   mailboxId: string,
-  p: { account: string; code: string; link: string | null },
+  params: { account: string; code: string; link: string | null },
 ): Promise<void> {
   const { error } = await db
     .from("mailboxes")
     .update({
-      forward_confirm_account: p.account,
-      forward_confirm_code: p.code,
-      forward_confirm_link: p.link,
+      forward_confirm_account: params.account,
+      forward_confirm_code: params.code,
+      forward_confirm_link: params.link,
       forward_confirm_at: new Date().toISOString(),
     })
     .eq("id", mailboxId);
@@ -263,7 +271,7 @@ export interface InboundEmailFacts {
  * conversation and nowhere else: a reply cannot be threaded under another
  * workspace's or another person's message, because no such row can be returned.
  */
-export async function lastInboundEmail(
+export async function findLastInboundEmail(
   db: Db,
   tenantId: string,
   conversationId: string,
@@ -280,18 +288,20 @@ export async function lastInboundEmail(
     .maybeSingle();
   if (error) throw new Error(`email: cannot read the email being answered: ${error.message}`);
   if (!data) return null;
-  const e = (data.meta as { email?: Record<string, unknown> } | null)?.email ?? {};
+  const otherError = (data.meta as { email?: Record<string, unknown> } | null)?.email ?? {};
   const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
   const list = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((r): r is string => typeof r === "string").map((r) => r.toLowerCase()) : [];
   return {
     messageId: data.id,
-    from: str(e.from),
-    rfcMessageId: str(e.message_id),
-    references: Array.isArray(e.references) ? e.references.filter((r): r is string => typeof r === "string") : [],
-    subject: str(e.subject),
+    from: str(otherError.from),
+    rfcMessageId: str(otherError.message_id),
+    references: Array.isArray(otherError.references)
+      ? otherError.references.filter((r): r is string => typeof r === "string")
+      : [],
+    subject: str(otherError.subject),
     // Who it was written to: a mailbox the business connected among them answers it (decision 0073, R13).
-    to: [...list(e.to), ...list(e.cc)],
+    to: [...list(otherError.to), ...list(otherError.cc)],
   };
 }
 
@@ -299,7 +309,7 @@ export async function lastInboundEmail(
  * The subject of the newest email the business sent on one thread, or null when it has sent none: what a second email
  * is filed under when the person has not answered the first (core conversations/reply.ts shapeFirstEmail).
  */
-export async function lastOutboundEmailSubject(
+export async function findLastOutboundEmailSubject(
   db: Db,
   tenantId: string,
   conversationId: string,
@@ -327,36 +337,36 @@ const ANSWERED_LOOKBACK = 50;
  * whose Message-ID the reply's References name, else the latest one on the thread. Its From and Reply-To are as its
  * request was frozen. Null when the thread holds no reach-out email that left: every other email reply.
  */
-export async function answeredReachOutEmail(
+export async function findAnsweredReachOutEmail(
   db: Db,
-  p: { tenantId: string; conversationId: string; references: string[] },
+  params: { tenantId: string; conversationId: string; references: string[] },
 ): Promise<{ messageId: string; from: string | null; replyTo: string | null } | null> {
   const { data, error } = await db
     .from("messages")
     .select("id, meta, status")
-    .eq("tenant_id", p.tenantId)
-    .eq("conversation_id", p.conversationId)
+    .eq("tenant_id", params.tenantId)
+    .eq("conversation_id", params.conversationId)
     .eq("channel", "email")
     .eq("direction", "outbound")
     .order("created_at", { ascending: false })
     .limit(ANSWERED_LOOKBACK);
   if (error) throw new Error(`email: cannot read the reach-out being answered: ${error.message}`);
   const left = new Set(["sent", "delivered", "read"]);
-  const sent = (data ?? []).flatMap((m) => {
-    const meta = (m.meta ?? {}) as { source?: unknown; email?: { message_id?: unknown; request?: unknown } };
-    if (meta.source !== "reach_out" || !left.has(String(m.status))) return [];
+  const sent = (data ?? []).flatMap((match) => {
+    const meta = (match.meta ?? {}) as { source?: unknown; email?: { message_id?: unknown; request?: unknown } };
+    if (meta.source !== "reach_out" || !left.has(String(match.status))) return [];
     const req = (meta.email?.request ?? {}) as { from?: unknown; reply_to?: unknown };
     const replyTo = Array.isArray(req.reply_to) && typeof req.reply_to[0] === "string" ? req.reply_to[0] : null;
     return [
       {
-        messageId: m.id,
+        messageId: match.id,
         rfc: typeof meta.email?.message_id === "string" ? meta.email.message_id : null,
         from: typeof req.from === "string" ? req.from : null,
         replyTo,
       },
     ];
   });
-  const named = new Set(p.references);
+  const named = new Set(params.references);
   const hit = sent.find((e) => e.rfc !== null && named.has(e.rfc)) ?? sent[0];
   return hit ? { messageId: hit.messageId, from: hit.from, replyTo: hit.replyTo } : null;
 }
@@ -369,13 +379,13 @@ export async function answeredReachOutEmail(
  */
 export async function stampEmailSent(
   db: Db,
-  p: { tenantId: string; messageId: string; providerId: string; rfcMessageId: string | null },
+  params: { tenantId: string; messageId: string; providerId: string; rfcMessageId: string | null },
 ): Promise<{ status: string; conversationId: string } | null> {
   const { data, error } = await db.rpc("stamp_email_sent", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_provider_id: p.providerId,
-    p_rfc_message_id: p.rfcMessageId,
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_provider_id: params.providerId,
+    p_rfc_message_id: params.rfcMessageId,
   } as never);
   if (error) throw new Error(`stamp_email_sent: ${error.message}`);
   const row = (data as Array<{ status: string; conversation_id: string }> | null)?.[0];
@@ -389,13 +399,13 @@ export async function stampEmailSent(
  */
 export async function stampEmailLeftAs(
   db: Db,
-  p: { tenantId: string; messageId: string; leftAs: "own" | "mailbox"; why: string | null },
+  params: { tenantId: string; messageId: string; leftAs: "own" | "mailbox"; why: string | null },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("stamp_email_left_as", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_left_as: p.leftAs,
-    p_why: p.why,
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_left_as: params.leftAs,
+    p_why: params.why,
   } as never);
   if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
   return data === true;
@@ -406,15 +416,15 @@ export async function stampEmailLeftAs(
  * (meta.reach_out.lead_id), so a permanent bounce marks that lead's address (Reach out C11). Null when there is no such
  * row. A read that fails throws; the receipt comes again.
  */
-export async function sentEmailOf(
+export async function findSentEmail(
   db: Db,
-  p: { tenantId: string; messageId: string },
+  params: { tenantId: string; messageId: string },
 ): Promise<{ request: unknown | null; leadId: string | null } | null> {
   const { data, error } = await db
     .from("messages")
     .select("meta")
-    .eq("id", p.messageId)
-    .eq("tenant_id", p.tenantId)
+    .eq("id", params.messageId)
+    .eq("tenant_id", params.tenantId)
     .eq("channel", "email")
     .eq("direction", "outbound")
     .maybeSingle();
@@ -431,12 +441,12 @@ export async function sentEmailOf(
  */
 export async function stampEmailComplaint(
   db: Db,
-  p: { tenantId: string; messageId: string; at: string },
+  params: { tenantId: string; messageId: string; at: string },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("stamp_email_complaint", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_at: p.at,
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_at: params.at,
   });
   if (error) throw new Error(`stamp_email_complaint: ${error.message}`);
   return data === true;
@@ -450,30 +460,31 @@ export async function stampEmailComplaint(
  */
 export async function recordEmailNo(
   db: Db,
-  p: { tenantId: string; messageId: string; source: "complaint" },
+  params: { tenantId: string; messageId: string; source: "complaint" },
 ): Promise<{ contactId: string | null; from: string | null }> {
   const { data, error } = await db
     .from("messages")
     .select("contact_id, meta")
-    .eq("id", p.messageId)
-    .eq("tenant_id", p.tenantId)
+    .eq("id", params.messageId)
+    .eq("tenant_id", params.tenantId)
     .eq("channel", "email")
     .eq("direction", "outbound")
     .maybeSingle();
-  if (error) throw new Error(`email receipt: cannot read message ${p.messageId}: ${error.message}`);
+  if (error) throw new Error(`email receipt: cannot read message ${params.messageId}: ${error.message}`);
   const meta = (data?.meta ?? {}) as { email?: { request?: { from?: unknown } } };
   const from = typeof meta.email?.request?.from === "string" ? meta.email.request.from : null;
   const contactId = data?.contact_id ?? null;
   if (!contactId) return { contactId: null, from };
-  const r = await db.rpc("set_email_marketing", {
-    p_tenant_id: p.tenantId,
+  const result = await db.rpc("set_email_marketing", {
+    p_tenant_id: params.tenantId,
     p_contact_id: contactId,
     p_state: "opted_out",
-    p_source: p.source,
-    p_message_id: p.messageId,
-    p_evidence: { channel: "email", via: p.source },
+    p_source: params.source,
+    p_message_id: params.messageId,
+    p_evidence: { channel: "email", via: params.source },
   });
-  if (r.error) throw new Error(`email receipt: cannot record the ${p.source} as a no: ${r.error.message}`);
+  if (result.error)
+    throw new Error(`email receipt: cannot record the ${params.source} as a no: ${result.error.message}`);
   return { contactId, from };
 }
 
@@ -484,17 +495,17 @@ export async function recordEmailNo(
  */
 export async function recordEmailStatus(
   db: Db,
-  p: { tenantId: string; messageId: string; status: "delivered" | "failed"; error: Json | null },
+  params: { tenantId: string; messageId: string; status: "delivered" | "failed"; error: Json | null },
 ): Promise<void> {
   const { error } = await db
     .from("messages")
-    .update({ status: p.status, ...(p.error ? { error: p.error } : {}) })
-    .eq("id", p.messageId)
-    .eq("tenant_id", p.tenantId)
+    .update({ status: params.status, ...(params.error ? { error: params.error } : {}) })
+    .eq("id", params.messageId)
+    .eq("tenant_id", params.tenantId)
     .eq("channel", "email")
     .eq("direction", "outbound");
   if (error && !/monotone|terminal/.test(error.message))
-    throw new Error(`email receipt: cannot move message ${p.messageId}: ${error.message}`);
+    throw new Error(`email receipt: cannot move message ${params.messageId}: ${error.message}`);
 }
 
 /**
@@ -505,7 +516,7 @@ export async function recordEmailStatus(
  */
 export async function suppressEmailOf(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     messageId: string;
     addresses: string[];
@@ -513,22 +524,22 @@ export async function suppressEmailOf(
     at: string;
   },
 ): Promise<string | null> {
-  if (!p.addresses.length) return null;
+  if (!params.addresses.length) return null;
   const sent = await db
     .from("messages")
     .select("contact_id")
-    .eq("id", p.messageId)
-    .eq("tenant_id", p.tenantId)
+    .eq("id", params.messageId)
+    .eq("tenant_id", params.tenantId)
     .maybeSingle();
   if (sent.error)
-    throw new Error(`email receipt: cannot read who message ${p.messageId} went to: ${sent.error.message}`);
+    throw new Error(`email receipt: cannot read who message ${params.messageId} went to: ${sent.error.message}`);
   if (!sent.data?.contact_id) return null;
   const { data, error } = await db
     .from("contacts")
-    .update({ email_suppressed_at: p.at, email_suppressed_reason: p.reason })
+    .update({ email_suppressed_at: params.at, email_suppressed_reason: params.reason })
     .eq("id", sent.data.contact_id)
-    .eq("tenant_id", p.tenantId)
-    .in("email", p.addresses)
+    .eq("tenant_id", params.tenantId)
+    .in("email", params.addresses)
     .is("email_suppressed_at", null)
     .select("id");
   if (error) throw new Error(`email receipt: cannot stop sends to the address: ${error.message}`);
@@ -543,25 +554,25 @@ export async function suppressEmailOf(
  */
 async function settleUnknownEmail(
   db: Db,
-  p: { tenantId: string; id: string },
+  params: { tenantId: string; id: string },
   patch: Database["public"]["Tables"]["messages"]["Update"],
 ): Promise<boolean> {
   const { data, error } = await db
     .from("messages")
     .update(patch)
-    .eq("id", p.id)
-    .eq("tenant_id", p.tenantId)
+    .eq("id", params.id)
+    .eq("tenant_id", params.tenantId)
     .eq("status", "failed")
     .eq("error->>outcome", "unknown")
     .select("id");
-  if (error) throw new Error(`cannot settle the email ${p.id}: ${error.message}`);
+  if (error) throw new Error(`cannot settle the email ${params.id}: ${error.message}`);
   return (data ?? []).length > 0;
 }
 
 /** Found in what the mailbox sent: stamped with the id, Message-ID and thread it went under, then sent. */
-export async function emailFoundSent(
+export async function getEmailFoundSent(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     id: string;
     mailboxId: string;
@@ -571,17 +582,20 @@ export async function emailFoundSent(
   },
 ): Promise<boolean> {
   await stampEmailFromMailbox(db, {
-    tenantId: p.tenantId,
-    messageId: p.id,
-    providerId: p.providerId,
-    rfcMessageId: p.rfcMessageId,
-    threadId: p.threadId,
-    mailboxId: p.mailboxId,
+    tenantId: params.tenantId,
+    messageId: params.id,
+    providerId: params.providerId,
+    rfcMessageId: params.rfcMessageId,
+    threadId: params.threadId,
+    mailboxId: params.mailboxId,
   });
-  return settleUnknownEmail(db, p, { status: "sent", error: null });
+  return settleUnknownEmail(db, params, { status: "sent", error: null });
 }
 
 /** Not in what the mailbox sent: it never left, so the reach-out clock plans its send again (clock.ts neverLeft). */
-export async function emailNeverLeft(db: Db, p: { tenantId: string; id: string; note: string }): Promise<boolean> {
-  return settleUnknownEmail(db, p, { error: { reason: "never_delivered", note: p.note.slice(0, 200) } });
+export async function getEmailNeverLeft(
+  db: Db,
+  params: { tenantId: string; id: string; note: string },
+): Promise<boolean> {
+  return settleUnknownEmail(db, params, { error: { reason: "never_delivered", note: params.note.slice(0, 200) } });
 }

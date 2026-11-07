@@ -100,7 +100,7 @@ test("the webhook's signature: HMAC-SHA256 over `t.body`, hex, as v0; verified i
   const body = JSON.stringify({ type: "post_call_transcription", data: { conversation_id: "conv_1" } });
   const nowMs = Date.parse("2026-10-03T12:00:00Z");
   const t = String(Math.floor(nowMs / 1000) - 5);
-  const signed = await port.elevenLabsWebhookSignature(secret, t, body);
+  const signed = await port.verifyElevenLabsWebhookSignature(secret, t, body);
   assert.equal(
     signed,
     `v0=${createHmac("sha256", secret).update(`${t}.${body}`).digest("hex")}`,

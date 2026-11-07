@@ -134,35 +134,35 @@ export function clocksOf(rows: readonly HealthClockDto[] | null): {
   runs: number;
   failed: number;
 } {
-  const vms = (rows ?? []).map((c): ClockVM => {
-    const asks = c.judged_by === "request";
-    const lastIso = asks ? c.last_request_at : (c.last_run ?? c.last_request_at);
+  const vms = (rows ?? []).map((item): ClockVM => {
+    const asks = item.judged_by === "request";
+    const lastIso = asks ? item.last_request_at : (item.last_run ?? item.last_request_at);
     const lastMs = lastIso ? Date.parse(lastIso) : null;
-    const idleNote = ASKS_ONLY_WITH_WORK[c.sweep] ?? null;
+    const idleNote = ASKS_ONLY_WITH_WORK[item.sweep] ?? null;
     const state: ClockState =
-      c.healthy === null
+      item.healthy === null
         ? "unknown"
-        : !c.healthy
+        : !item.healthy
           ? "stopped"
-          : asks && !c.last_request_at && (idleNote || !c.max_silence)
+          : asks && !item.last_request_at && (idleNote || !item.max_silence)
             ? "idle"
             : "running";
     return {
-      sweep: c.sweep,
-      words: SWEEP_WORDS[c.sweep] ?? c.sweep.replace(/_/g, " "),
-      machine: c.jobname ?? c.sweep,
-      schedule: scheduleWords(c.schedule),
+      sweep: item.sweep,
+      words: SWEEP_WORDS[item.sweep] ?? item.sweep.replace(/_/g, " "),
+      machine: item.jobname ?? item.sweep,
+      schedule: scheduleWords(item.schedule),
       state,
       stateWords: CLOCK_STATE_WORDS[state],
       lastMs: lastMs !== null && Number.isFinite(lastMs) ? lastMs : null,
-      lateAfter: c.max_silence ? silenceWords(c.max_silence) : "",
-      runs: c.runs,
-      failed: c.failed,
+      lateAfter: item.max_silence ? silenceWords(item.max_silence) : "",
+      runs: item.runs,
+      failed: item.failed,
       problem:
-        !c.healthy && c.healthy !== null
-          ? c.detail || "It has not reported in time."
-          : c.failed
-            ? c.last_failure
+        !item.healthy && item.healthy !== null
+          ? item.detail || "It has not reported in time."
+          : item.failed
+            ? item.last_failure
             : null,
       note: state === "idle" ? (idleNote ?? "asks only when there is work") : null,
     };
@@ -268,24 +268,24 @@ export function pagesOf(
   const byId = new Map((workspaces ?? []).map((w) => [w.id, w]));
   return {
     read: rows !== null,
-    rows: (rows ?? []).map((p) => {
-      const firstMs = Date.parse(p.first_at);
-      const lastMs = Date.parse(p.last_at);
-      const alertedMs = p.alerted_at ? Date.parse(p.alerted_at) : null;
-      const id = /^model_failures:(.+)$/.exec(p.key)?.[1] ?? null;
-      const w = id ? byId.get(id) : undefined;
+    rows: (rows ?? []).map((item) => {
+      const firstMs = Date.parse(item.first_at);
+      const lastMs = Date.parse(item.last_at);
+      const alertedMs = item.alerted_at ? Date.parse(item.alerted_at) : null;
+      const id = /^model_failures:(.+)$/.exec(item.key)?.[1] ?? null;
+      const otherItem = id ? byId.get(id) : undefined;
       return {
-        key: p.key,
-        words: pageKeyWords(p.key),
-        count: p.count,
+        key: item.key,
+        words: pageKeyWords(item.key),
+        count: item.count,
         firstMs,
         first: date(firstMs),
         last: when(lastMs),
         lastMailed: alertedMs ? when(alertedMs) : null,
         recent: nowMs - lastMs <= DAY_MS,
         alertedToday: alertedMs !== null && nowMs - alertedMs <= DAY_MS,
-        where: w ? w.name : PLATFORM_WHERE,
-        ours: w?.ours ?? false,
+        where: otherItem ? otherItem.name : PLATFORM_WHERE,
+        ours: otherItem?.ours ?? false,
       };
     }),
   };

@@ -82,13 +82,13 @@ function grouped(n: number): string {
  * moment to hear "about one message a second" is while it is still a choice.
  */
 export function soleProprietorLimits(): readonly string[] {
-  const L = SOLE_PROP_LIMITS;
+  const log = SOLE_PROP_LIMITS;
   return [
     `One number and one campaign: a second number cannot text on this registration.`,
-    `About ${L.messagesPerSecond} message a second, so a hundred texts go out over a minute or two rather than at once.`,
-    `T-Mobile takes ${grouped(L.perDayTMobile)} a day from you, AT&T ${L.perMinuteAtt} a minute.`,
+    `About ${log.messagesPerSecond} message a second, so a hundred texts go out over a minute or two rather than at once.`,
+    `T-Mobile takes ${grouped(log.perDayTMobile)} a day from you, AT&T ${log.perMinuteAtt} a minute.`,
     `The carriers text a code to your own mobile and you reply from that handset — there is no code to bring back here.`,
-    `That mobile can be used on ${L.mobileUsesEver} of these registrations ever, across every provider; your email and address on ${L.emailUsesEver} each. Only the carriers can count what you have already spent.`,
+    `That mobile can be used on ${log.mobileUsesEver} of these registrations ever, across every provider; your email and address on ${log.emailUsesEver} each. Only the carriers can count what you have already spent.`,
     `It cannot be withdrawn once filed. If you get a tax id later, the standard registration is a new filing.`,
   ];
 }

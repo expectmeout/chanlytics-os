@@ -1,8 +1,8 @@
 import { SayItInputSchema } from "@chanlytics/contracts";
 import { write } from "@/server/shared/route";
 import { contactScope } from "@/server/shared/verbs";
-import { readerContext } from "@/server/readers";
-import { sayIt } from "@/server/people/say-it";
+import { readerContext } from "@/server/shared/reader";
+import { sayIt } from "@/server/drafts/say-it";
 
 /** A model call that reads a person first: the platform's ceiling, as the draft route's. */
 export const maxDuration = 60;

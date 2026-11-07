@@ -7,7 +7,7 @@
  * put in the address bar, whoever sent it. Both sides import this one definition, so they cannot drift.
  */
 
-import type { Theme } from "../shell/chrome";
+import type { Theme } from "../shell/chrome/theme";
 import { isUuid } from "../shared/identity";
 import { isCount } from "../shared/unknown";
 import { parseTodayWidgetSnapshot, type TodayWidgetSnapshot } from "./widget";
@@ -110,30 +110,30 @@ const PAGE_MESSAGES: { [K in PageMessage["t"]]: (v: Record<string, unknown>) => 
 
 /** What the page said, or null when it is not one of its shapes. */
 export function parsePageMessage(raw: string): PageMessage | null {
-  let v: unknown;
+  let value: unknown;
   try {
-    v = JSON.parse(raw);
+    value = JSON.parse(raw);
   } catch {
     return null;
   }
-  if (!isRecord(v) || typeof v.t !== "string") return null;
+  if (!isRecord(value) || typeof value.t !== "string") return null;
   // Own keys only: "toString" and its kin are on every object and are no shape.
-  if (!Object.prototype.hasOwnProperty.call(PAGE_MESSAGES, v.t)) return null;
-  return PAGE_MESSAGES[v.t as PageMessage["t"]](v);
+  if (!Object.prototype.hasOwnProperty.call(PAGE_MESSAGES, value.t)) return null;
+  return PAGE_MESSAGES[value.t as PageMessage["t"]](value);
 }
 
 const token = (v: unknown): string | null =>
   typeof v === "string" && v.trim() && v.trim().length <= PUSH_TOKEN_MAX ? v.trim() : null;
 
 /** What the shell asked, or null when it is not one of its shapes. */
-export function parseShellMessage(v: unknown): ShellMessage | null {
-  if (!isRecord(v)) return null;
-  switch (v.t) {
+export function parseShellMessage(value: unknown): ShellMessage | null {
+  if (!isRecord(value)) return null;
+  switch (value.t) {
     case "navigate":
-      if (typeof v.route !== "string" || !APP_ROUTE_RE.test(v.route)) return null;
-      return isUuid(v.workspace)
-        ? { t: "navigate", route: v.route, workspace: String(v.workspace) }
-        : { t: "navigate", route: v.route };
+      if (typeof value.route !== "string" || !APP_ROUTE_RE.test(value.route)) return null;
+      return isUuid(value.workspace)
+        ? { t: "navigate", route: value.route, workspace: String(value.workspace) }
+        : { t: "navigate", route: value.route };
     case "menu":
       return { t: "menu" };
     case "top":
@@ -141,12 +141,12 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
     case "close":
       return { t: "close" };
     case "front":
-      return typeof v.front === "boolean" ? { t: "front", front: v.front } : null;
+      return typeof value.front === "boolean" ? { t: "front", front: value.front } : null;
     case "device": {
-      const tok = token(v.token);
-      const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;
-      const version = typeof v.version === "string" ? v.version.trim().slice(0, 40) : "";
-      const activity = token(v.activity);
+      const tok = token(value.token);
+      const platform = value.platform === "ios" || value.platform === "android" ? value.platform : null;
+      const version = typeof value.version === "string" ? value.version.trim().slice(0, 40) : "";
+      const activity = token(value.activity);
       return tok && platform ? { t: "device", token: tok, platform, version, ...(activity ? { activity } : {}) } : null;
     }
     default:

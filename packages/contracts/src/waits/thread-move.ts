@@ -127,18 +127,18 @@ function draftMove(draft: MessageDto, rest: ThreadMove, nowMs: number): ThreadMo
  * flagged goes quiet like any wait.
  */
 function failedMove(
-  v: StandingVerdict,
+  standingVerdict: StandingVerdict,
   escalation: EscalationDto | null,
   failed: MessageDto | null,
   nowMs: number,
 ): ThreadMove | null {
-  if (v.standing === "theirs") return null;
+  if (standingVerdict.standing === "theirs") return null;
   if (failed && !isAutomatedSend(failed.meta)) {
     const sinceMs = atMs(failed);
     const move: ThreadMove = { move: "failed", list: "escalated", sinceMs };
     return escalation ? move : goesQuiet(move, sinceMs, nowMs);
   }
-  return v.standing === "yours" && escalation?.reason === "send_failed"
+  return standingVerdict.standing === "yours" && escalation?.reason === "send_failed"
     ? { move: "failed", list: "escalated", sinceMs: Date.parse(escalation.created_at) }
     : null;
 }
@@ -160,18 +160,18 @@ function heldMove(v: StandingVerdict, escalation: EscalationDto | null): ThreadM
  * down; then who had the last word.
  */
 export function threadMoveOf(dto: ConversationDto, escalation: EscalationDto | null, nowMs: number): ThreadMove {
-  const v = standingOfThread(dto, escalation, nowMs);
-  if (v.standing === "snoozed") return { move: "snoozed", list: "snoozed" };
+  const result = standingOfThread(dto, escalation, nowMs);
+  if (result.standing === "snoozed") return { move: "snoozed", list: "snoozed" };
   if (dto.state === "archived" && dto.set_aside_at) return { move: "aside", list: "aside" };
-  if (dto.state === "archived" && !v.flagged) return { move: "archived", list: "out" };
-  if (isOptedOut(dto) && v.standing !== "needs_you") return { move: "stopped", list: "done" };
+  if (dto.state === "archived" && !result.flagged) return { move: "archived", list: "out" };
+  if (isOptedOut(dto) && result.standing !== "needs_you") return { move: "stopped", list: "done" };
   const chat = dto.messages.filter(isChatMessage);
   const last = lastExchanged(chat);
   // Our newest words after the last exchange that failed; a reply someone canceled is not a failure.
   const failed =
     [...chat.slice(last ? chat.indexOf(last) + 1 : 0)].reverse().find((m) => m.status === "failed") ?? null;
-  const asked = failedMove(v, escalation, failed, nowMs) ?? heldMove(v, escalation);
-  if (asked) return asked;
+  const otherFailedMove = failedMove(result, escalation, failed, nowMs) ?? heldMove(result, escalation);
+  if (otherFailedMove) return otherFailedMove;
   const rest = quietMove(dto, last, failed, nowMs);
   const draft = heldDraftOf(dto.messages);
   return draft ? draftMove(draft, rest, nowMs) : rest;

@@ -43,8 +43,8 @@ import {
   type StepHand,
 } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
-import { handStepIdFor, reachOutRunIdFor, sendIdFor } from "./reach-out-ids";
-import { allowanceRecord, pastTheMonth } from "./allowance";
+import { handStepIdFor, getReachOutRunId, sendIdFor } from "./reach-out-ids";
+import { allowanceRecord, listPastTheMonth } from "./allowance";
 import { parseChannels } from "./message-channels";
 import type {
   AssembleDecision,
@@ -94,8 +94,8 @@ type Message = {
  * category it is enrolled by. A read that could not be made is this run failing, not the message withdrawn: nothing is
  * recorded, so the next sweep asks again rather than skipping the day.
  */
-async function readMessage(r: Run): Promise<Message | { error: string }> {
-  const { ports, p } = r;
+async function readMessage(run: Run): Promise<Message | { error: string }> {
+  const { ports, p } = run;
   try {
     const m = campaignMessageOf(
       await ports.message(p.template_name, p.template_language),
@@ -139,20 +139,20 @@ async function withoutCalendar(r: Run): Promise<RunOutcome> {
  * stops nothing that does not tick WhatsApp.
  */
 async function allowed(
-  r: Run,
+  run: Run,
   message: Message,
 ): Promise<{ ended: RunOutcome } | { ended: null; listIds: ReadonlySet<string> | null; kept: KeptList | undefined }> {
-  const { p, ctx } = r;
+  const { p, ctx } = run;
   const stop = playbookStopBy({
-    channels: r.channels,
+    channels: run.channels,
     templateStatus: message.m?.versions.whatsapp?.status ?? null,
     numberCanSend: ctx.health.canSend,
   });
-  if (stop) return { ended: await r.off(stop) };
+  if (stop) return { ended: await run.off(stop) };
   // One run per local day: a second ask says so and records nothing twice. A freed time has no day: one batch per freed
   // appointment, which the database holds (sequence_batches_offered_once).
-  if (!r.freed && (await r.ports.alreadyRan(p.id, r.runFor)))
-    return { ended: await r.off("already_ran_today", { record: false }) };
+  if (!run.freed && (await run.ports.alreadyRan(p.id, run.runFor)))
+    return { ended: await run.off("already_ran_today", { record: false }) };
   // A step after the first reaches whoever its sequence brought to it: no moment or list of its own. One that goes only to
   // those who haven't booked judges a booking by the calendar, so a calendar that could not be READ fails the run, as a
   // visit moment's does, and the next sweep asks again: never a day on which nobody looks booked.
@@ -164,7 +164,7 @@ async function allowed(
   // A visit playbook, or Lapsed's, without a calendar has nothing to read: off, and the run says so.
   const trig = triggerOf(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok")
-    return { ended: await withoutCalendar(r) };
+    return { ended: await withoutCalendar(run) };
   // A playbook on a list (decision 0009): who is on it now, one of People's or one of the workspace's own. A list
   // deleted under it runs nobody, and one that can't be counted here -- a calendar not read, a rule this build can't
   // read -- runs nobody either; each says so.
@@ -173,9 +173,9 @@ async function allowed(
   if (trig?.kind === "saved") {
     const ref = playbookListRef(p);
     const m = ref ? ctx.listMembers(ref) : null;
-    if (!m || !ref) return { ended: await r.off("no_list") };
+    if (!m || !ref) return { ended: await run.off("no_list") };
     if (m.state === "unknown")
-      return { ended: m.reason === "calendar" ? await withoutCalendar(r) : await r.off("list_uncounted") };
+      return { ended: m.reason === "calendar" ? await withoutCalendar(run) : await run.off("list_uncounted") };
     listIds = m.ids;
     kept = { token: listToken(ref), rule: m.rule ?? null, counted_at: ctx.now.toISOString() };
   }
@@ -193,14 +193,14 @@ async function allowed(
  * are named in the run's record, never dropped in silence.
  */
 function draw(
-  r: Run,
+  run: Run,
   message: Message["m"],
   how: CampaignHow,
   among: { listIds: ReadonlySet<string> | null; reached: ReadonlySet<string> },
 ): { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel>; dropped: number } {
   const { listIds, reached } = among;
-  const { p, ctx } = r;
-  const byTwin = twinTouches(r);
+  const { p, ctx } = run;
+  const byTwin = twinTouches(run);
   // Whoever the sequence already reached heard from it, for good (a list's: once each), counted as heard from it.
   const byThis = new Map(ctx.touches.byThis.get(p.id) ?? []);
   for (const id of reached) byThis.set(id, ctx.now.getTime());
@@ -225,7 +225,7 @@ function draw(
     ctx.pace,
     listIds,
   );
-  return withinTheNumbersDay(r, drawn);
+  return withinTheNumbersDay(run, drawn);
 }
 
 /**
@@ -248,10 +248,10 @@ function twinTouches(r: Run): Map<string, number> {
  * people past it named in the run's record, never dropped in silence. A moment's run and a step after the first both.
  */
 function withinTheNumbersDay(
-  r: Run,
+  run: Run,
   drawn: { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel> },
 ): { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel>; dropped: number } {
-  const { ctx } = r;
+  const { ctx } = run;
   const reach: RunReach = { ...drawn.reach };
   const room =
     ctx.health.limitPerDay === null ? Number.POSITIVE_INFINITY : Math.max(0, Math.floor(ctx.health.limitPerDay));
@@ -280,29 +280,31 @@ function withinTheNumbersDay(
  * a leave that fails is this run failing: nothing is recorded, and the next sweep asks again.
  */
 async function drawFollowUp(
-  r: Run,
+  run: Run,
   message: Message["m"],
   how: CampaignHow,
 ): Promise<ReturnType<typeof withinTheNumbersDay> | { error: string }> {
   try {
-    const due = await r.ports.followUpsDue(r.p.id, r.runFor);
-    const people = new Map(r.ctx.people.map((person) => [person.id, person]));
+    const due = await run.ports.followUpsDue(run.p.id, run.runFor);
+    const people = new Map(run.ctx.people.map((person) => [person.id, person]));
     const leaving = new Map<string, string[]>();
-    const leave = (why: string, id: string) => leaving.set(why, [...(leaving.get(why) ?? []), id]);
+    const leave = (reason: string, id: string) => leaving.set(reason, [...(leaving.get(reason) ?? []), id]);
     const goes: PersonRowVM[] = [];
     const enrolmentOf = new Map<string, string>();
-    for (const d of due) {
-      const person = people.get(d.contact_id);
-      const stop = person ? followUpStop(person, r.p.only_if ?? [], d.sent_at ? Date.parse(d.sent_at) : null) : "gone";
+    for (const row of due) {
+      const person = people.get(row.contact_id);
+      const stop = person
+        ? followUpStop(person, run.p.only_if ?? [], row.sent_at ? Date.parse(row.sent_at) : null)
+        : "gone";
       if (!person || stop) {
-        leave(stop ?? "gone", d.enrollment_id);
+        leave(stop ?? "gone", row.enrollment_id);
         continue;
       }
       goes.push(person);
-      enrolmentOf.set(person.id, d.enrollment_id);
+      enrolmentOf.set(person.id, row.enrollment_id);
     }
     const drawn = followUpReach(goes, {
-      policy_class: r.p.policy_class,
+      policy_class: run.p.policy_class,
       message,
       channels: how.channels,
       ready: how.ready,
@@ -312,9 +314,9 @@ async function drawFollowUp(
       if (id && followUpLeaves(h.why)) leave(h.why, id);
     }
     // The cap holds the rest to tomorrow: they stay in their sequence, due, the longest waiting first (the due order).
-    const capped = drawn.eligible.slice(0, Math.max(1, r.p.cap_per_run));
-    for (const [why, ids] of leaving) await r.ports.leave(ids, why);
-    return withinTheNumbersDay(r, {
+    const capped = drawn.eligible.slice(0, Math.max(1, run.p.cap_per_run));
+    for (const [why, ids] of leaving) await run.ports.leave(ids, why);
+    return withinTheNumbersDay(run, {
       eligible: capped,
       reach: { ...drawn.reach, overCap: drawn.eligible.length - capped.length, will: capped.length },
       channelOf: drawn.channelOf,
@@ -332,9 +334,9 @@ async function drawFollowUp(
  * or asks for a channel. The run, its handed sends and the steps are written whole by the door. A read or a write that
  * fails is this run failing: nothing is recorded, and the next sweep asks again.
  */
-async function runPeopleHand(r: Run, hand: StepHand): Promise<RunOutcome> {
-  const { p, ctx, ports, runFor, mode } = r;
-  if (await ports.alreadyRan(p.id, runFor)) return r.off("already_ran_today", { record: false });
+async function runPeopleHand(run: Run, hand: StepHand): Promise<RunOutcome> {
+  const { p, ctx, ports, runFor, mode } = run;
+  if (await ports.alreadyRan(p.id, runFor)) return run.off("already_ran_today", { record: false });
   if ((p.only_if ?? []).includes("no_booking") && ctx.calendar === "unavailable")
     return { outcome: "failed", error: PLAYBOOK_CALENDAR_UNREAD };
   try {
@@ -351,10 +353,10 @@ async function runPeopleHand(r: Run, hand: StepHand): Promise<RunOutcome> {
     for (const [why, ids] of leaving) await ports.leave(ids, why);
     const handed = goes.slice(0, Math.max(1, p.cap_per_run));
     if (handed.length === 0) {
-      await r.record({ mode, eligible: 0, hand: hand.kind });
+      await run.record({ mode, eligible: 0, hand: hand.kind });
       return { outcome: "empty", eligible: 0, mode };
     }
-    const runId = await reachOutRunIdFor(p.id, runFor);
+    const runId = await getReachOutRunId(p.id, runFor);
     const items = await Promise.all(
       handed.map(async (person) => ({
         send_id: await sendIdFor(runId, person.id),
@@ -365,12 +367,12 @@ async function runPeopleHand(r: Run, hand: StepHand): Promise<RunOutcome> {
         source_id: await handStepIdFor(p.id, person.id),
       })),
     );
-    const made = await ports.handRun({ stepId: p.id, runId, day: runFor, items });
-    await r.record({ mode, eligible: made.made, hand: hand.kind, broadcast_id: runId, state: "sent" });
+    const created = await ports.handRun({ stepId: p.id, runId, day: runFor, items });
+    await run.record({ mode, eligible: created.made, hand: hand.kind, broadcast_id: runId, state: "sent" });
     return {
       outcome: "sent",
       broadcast_id: runId,
-      eligible: made.made,
+      eligible: created.made,
       mode,
       state: "sent",
       scheduled_for: ctx.now.toISOString(),
@@ -387,15 +389,15 @@ async function runPeopleHand(r: Run, hand: StepHand): Promise<RunOutcome> {
  * anyone it already reached or holds. A read of who it reached that fails is this run failing: nothing is recorded.
  */
 async function drawOf(
-  r: Run,
+  run: Run,
   message: Message["m"],
   how: CampaignHow,
   listIds: ReadonlySet<string> | null,
 ): Promise<ReturnType<typeof withinTheNumbersDay> | { error: string }> {
-  if (isFollowUp(r.p)) return drawFollowUp(r, message, how);
-  if (listIds === null) return draw(r, message, how, { listIds: null, reached: new Set() });
+  if (isFollowUp(run.p)) return drawFollowUp(run, message, how);
+  if (listIds === null) return draw(run, message, how, { listIds: null, reached: new Set() });
   try {
-    return draw(r, message, how, { listIds, reached: await r.ports.reached(r.p.id) });
+    return draw(run, message, how, { listIds, reached: await run.ports.reached(run.p.id) });
   } catch (e) {
     return { error: `reached: ${e instanceof Error ? e.message : String(e)}` };
   }
@@ -409,7 +411,7 @@ async function drawOf(
  * rather than a run enrolling past a room nobody counted.
  */
 async function pastTheRoom(
-  r: Run,
+  run: Run,
   message: Message["m"],
   drawn: { eligible: readonly PersonRowVM[]; channelOf: Record<string, ConsentChannel> },
   goesAt: Date,
@@ -419,10 +421,10 @@ async function pastTheRoom(
       id: person.id,
       channel: drawn.channelOf[person.id] ?? "whatsapp",
     }));
-    const purpose = enrolPurpose(triggerOf(r.p.trigger)?.cls, message);
+    const purpose = enrolPurpose(triggerOf(run.p.trigger)?.cls, message);
     // Counted against the month the run goes in: a run approved past midnight on the 1st is the new month's.
-    const month = { monthSent: (channel: "email" | "sms") => r.ports.monthSent(channel, goesAt) };
-    return { held: (await pastTheMonth(month, people, r.p.trigger, purpose)).map((person) => person.id) };
+    const month = { monthSent: (channel: "email" | "sms") => run.ports.monthSent(channel, goesAt) };
+    return { held: (await listPastTheMonth(month, people, run.p.trigger, purpose)).map((person) => person.id) };
   } catch (e) {
     return { error: `month: ${e instanceof Error ? e.message : String(e)}` };
   }
@@ -434,25 +436,26 @@ async function pastTheRoom(
  * a run asked for at night goes at nine, and "tomorrow" said at eleven is "today" by then. A follow-up keeps the link of
  * the proposal the person's deal waits on (0006).
  */
-function recipientFacts(r: Run, goesAt: Date): (person: PersonRowVM) => Record<string, string> | null {
-  const { p, ctx } = r;
+function recipientFacts(run: Run, goesAt: Date): (person: PersonRowVM) => Record<string, string> | null {
+  const { p, ctx } = run;
   // A step after the first keeps no visit's or proposal's words: what it says is its own.
   if (isFollowUp(p)) return () => null;
   // A freed time's words are the same for everyone its batch reaches, read at the moment it goes (0082).
-  const freed = r.freed;
+  const freed = run.freed;
   if (freed) return () => freedTimeFactsFor(freed, ctx.tz, goesAt);
   const trig = triggerOf(p.trigger);
   // Whose a visit is, as the run judged it when it named them (contracts theirVisitTest): the same rows, the same test.
   const theirs = theirVisitTest(ctx.people);
   return (person) => {
     if (trig?.kind === "deal") return proposalFactsFor(p.trigger, person);
-    const v = ctx.visits.get(person.id);
+    const value = ctx.visits.get(person.id);
     // The visit ON the moment's day (contracts visitOnDay), as the run named them for it (visitMomentDay): the next visit
     // of a person with one later today is today's, and the reminder said today's time for tomorrow's visit.
-    const day = v ? visitMomentDay(p.trigger, v.timezone, ctx.now.getTime()) : null;
+    const day = value ? visitMomentDay(p.trigger, value.timezone, ctx.now.getTime()) : null;
     const tomorrow = p.trigger === "visit_tomorrow";
-    const onDay = v && day ? visitOnDay(v, day, tomorrow ? "next" : "last", (via) => theirs(person, via)) : null;
-    const visit = onDay ?? (tomorrow ? (v?.next ?? null) : (v?.last ?? null));
+    const onDay =
+      value && day ? visitOnDay(value, day, tomorrow ? "next" : "last", (via) => theirs(person, via)) : null;
+    const visit = onDay ?? (tomorrow ? (value?.next ?? null) : (value?.last ?? null));
     // The service alone: the person's own name comes out of the event's title (visitFactsFor).
     const words = visitFactsFor(p.trigger, visit, ctx.tz, [person.givenName, person.waName], goesAt);
     // Which appointment the words are about, when it starts, and when the run read it from the calendar (the context's
@@ -471,11 +474,11 @@ function recipientFacts(r: Run, goesAt: Date): (person: PersonRowVM) => Record<s
  * one person could be sent two moments the same morning. Those the month's allowance held are skipped, and touched by
  * nothing (touchesAfterRun, which the database's own reading of a run agrees with).
  */
-function touchEnrolled(r: Run, goesAt: Date, eligible: readonly PersonRowVM[], held: readonly string[]): void {
+function touchEnrolled(run: Run, goesAt: Date, eligible: readonly PersonRowVM[], held: readonly string[]): void {
   const skipped = new Set(held);
-  r.ctx.touches = touchesAfterRun(
-    r.ctx.touches,
-    { playbookId: r.p.id, at: goesAt.getTime(), followUp: triggerOf(r.p.trigger)?.kind === "deal" },
+  run.ctx.touches = touchesAfterRun(
+    run.ctx.touches,
+    { playbookId: run.p.id, at: goesAt.getTime(), followUp: triggerOf(run.p.trigger)?.kind === "deal" },
     // With the proposal's link a follow-up carries to each (their deal is the proposal it is about, 0029).
     eligible
       .filter((person) => !skipped.has(person.id))
@@ -509,24 +512,24 @@ function decisionOf(run: Run, send: { n: number; at: Date; movedFrom: string | n
  * itself, tells them when: "unless you stop it" is kept only for someone who is told, and until this nobody was unless
  * Campaigns happened to be open. A run that sends is on the ledger already, written with the run (decisionOf).
  */
-async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date | null }): Promise<void> {
+async function sayTheRun(run: Run, created: { madeId: string; n: number; at: Date | null }): Promise<void> {
   const { ports, p, ctx, by, mode } = run;
-  const { n, at } = made;
+  const { n, at } = created;
   if (!at) {
     // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
     // and reads the old word too (contracts today/away.ts), since the bell keeps rows written before. How its wait ends is
     // the wait rule's (contracts batchWaitWords: until the end of its day, then skipped and told), but for a visit's, which
     // ends with the day's sending hours and reaches nobody after: its moment says which.
-    const told = readyRunNotice(p.name, n, p.trigger, run.freed ? slotShort(run.freed.start, ctx.tz) : null);
-    await ports.notify(told.subject, told.body, made.madeId);
+    const notice = readyRunNotice(p.name, n, p.trigger, run.freed ? slotShort(run.freed.start, ctx.tz) : null);
+    await ports.notify(notice.subject, notice.body, created.madeId);
     return;
   }
   if (mode === "veto" && by.kind !== "user") {
     // With its day: a run made past the day's hours goes at nine tomorrow, and "9:00 AM" alone reads as already gone.
-    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
+    const notice = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
     // The run is made and on the ledger: telling of it must not cost the run its record, so a bell that fails is let
     // go (the adapter says so in its own log), where the ask notice, the only way a waiting run is found, is not.
-    await ports.notify(told.subject, told.body, made.madeId).catch(() => undefined);
+    await ports.notify(notice.subject, notice.body, created.madeId).catch(() => undefined);
   }
 }
 
@@ -644,8 +647,8 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   if ("error" in past) return { outcome: "failed", error: past.error };
   const specs = parseParamSpecs(p.params);
   const facts = recipientFacts(run, goesAt);
-  const n = eligible.length;
-  const made = await assembleRun(ports, {
+  const length = eligible.length;
+  const created = await assembleRun(ports, {
     broadcast: {
       ...batchWhen(p, freed, runFor, ctx),
       template_id: p.template_id,
@@ -664,7 +667,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
       },
       state: plan.state,
       scheduled_for: goesAt.toISOString(),
-      recipient_count: n,
+      recipient_count: length,
       created_by: by.kind === "user" ? by.userId : p.created_by,
       playbook_id: p.id,
       channels: [...channels],
@@ -682,32 +685,32 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     leftOut: [],
     // The ledger's line, in the run's own write: a run that sends says whose decision it was; one that waits says nothing
     // until a person approves it.
-    decision: open ? decisionOf(run, { n, at: open.at, movedFrom }) : null,
+    decision: open ? decisionOf(run, { n: length, at: open.at, movedFrom }) : null,
   });
-  if (!made.ok) return { outcome: "failed", error: made.error };
+  if (!created.ok) return { outcome: "failed", error: created.error };
   touchEnrolled(run, goesAt, eligible, past.held);
 
-  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null });
+  await sayTheRun(run, { madeId: created.id, n: length, at: open ? open.at : null });
   await record({
     mode,
-    eligible: n,
+    eligible: length,
     reach,
-    broadcast_id: made.id,
+    broadcast_id: created.id,
     state: plan.state,
     ...(movedFrom ? { moved_from: movedFrom } : {}),
     // Held at enrolment for the month's allowance (allowance.ts).
-    ...allowanceRecord(past.held.length, made.unheld),
+    ...allowanceRecord(past.held.length, created.unheld),
   });
   // A sent run says when it really goes, so the person who asked is not told "now" over a run moved to nine.
   return open
     ? {
         outcome: "sent",
-        broadcast_id: made.id,
-        eligible: n,
+        broadcast_id: created.id,
+        eligible: length,
         mode,
         state: plan.state,
         scheduled_for: open.at.toISOString(),
         moved_from: movedFrom,
       }
-    : { outcome: "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
+    : { outcome: "held", broadcast_id: created.id, eligible: length, mode, state: plan.state };
 }

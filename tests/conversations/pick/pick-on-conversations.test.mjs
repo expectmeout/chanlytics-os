@@ -12,7 +12,8 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { toConversationVM, toCallVM, stateOf } from "@chanlytics/contracts";
+import { toCallVM, stateOf } from "@chanlytics/contracts";
+import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { legacyAddress } from "../../shell/address/_address.mjs";
 import { installStubReact, fresh as freshTree, again, all, find, textOf, settle } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";

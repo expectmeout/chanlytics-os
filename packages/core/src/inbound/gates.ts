@@ -4,15 +4,15 @@
  * message returns; a message that passes them all returns GO.
  */
 import { isOptedOutContact } from "@chanlytics/contracts";
-import type { IngestResult } from "@chanlytics/db";
+import type { IngestResult } from "@chanlytics/db/channels";
 import { effectiveReplyMode } from "./reply-posture";
 import { resolveConsent } from "./consent";
 import { isThreadUnknown } from "./thread";
-import { handledOf, processedAfter, SET_ASIDE } from "./handled";
+import { handledOf, getProcessedAfter, SET_ASIDE } from "./handled";
 import { GO, type Answering, type InboundContext, type ModeInForce } from "./context";
 
 /** The mode in force for this one message: the workspace's posture, or this person's own setting where one is set. */
-export async function modeInForce(cx: InboundContext, ing: IngestResult | null): Promise<ModeInForce> {
+export async function readModeInForce(cx: InboundContext, ing: IngestResult | null): Promise<ModeInForce> {
   const { db, tenantId, ports, posture, L } = cx;
   // Reassigned once THIS person's own setting is known, just before the
   // policy is consulted below.
@@ -40,7 +40,7 @@ export async function modeInForce(cx: InboundContext, ing: IngestResult | null):
 }
 
 /** A thread that could not be read, consent, the carriers' hold and what kind of message arrived, in that order. */
-export async function firstGates(at: Answering): Promise<typeof GO | undefined> {
+export async function runFirstGates(at: Answering): Promise<typeof GO | undefined> {
   const { thread, L, sink, tell, n, ing, carrier } = at;
   // The memory could not be read, and there is no second copy to ask. We do
   // not know whether a human has taken this thread over, what was already
@@ -49,18 +49,18 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // guessing; the customer's message is already persisted above.
   if (isThreadUnknown(thread)) {
     L.error("wa_state_unavailable");
-    const asked = sink.escalate(
+    const escalate = sink.escalate(
       "state_unavailable",
       "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
     );
     await Promise.all([
-      asked,
-      tell(asked, {
+      escalate,
+      tell(escalate, {
         said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent — the receptionist could not read the thread state)",
         why: "state unavailable",
       }),
-      processedAfter(sink, asked, "none"),
+      getProcessedAfter(sink, escalate, "none"),
     ]);
     return;
   }
@@ -98,7 +98,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     // event (SUBSCRIBERS.consent_notice), in the Inbox's words. NO hold is opened: nothing may be sent to them, so a
     // hold asked a person for something that cannot be done, and sat in Needs you, Today's queue and the badge, with a
     // mail and a push, until a member pressed Resolve. A later message from the same person asks nobody either.
-    await processedAfter(sink, null, "none");
+    await getProcessedAfter(sink, null, "none");
     // `decided_by` matters after the fact: which of the two sources held them out.
     L.info("wa_skip_opt_out", {
       this_message: n.consent.optOut,
@@ -113,15 +113,15 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // answered until the line is approved. After consent, which outranks it;
   // before every branch that can speak.
   if (carrier?.held) {
-    const asked = sink.escalate(carrier.held.reason, carrier.held.details);
+    const escalate = sink.escalate(carrier.held.reason, carrier.held.details);
     await Promise.all([
-      asked,
-      tell(asked, {
+      escalate,
+      tell(escalate, {
         said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent — the carriers have not approved this line for texting yet)",
         why: "carriers",
       }),
-      processedAfter(sink, asked, "none"),
+      getProcessedAfter(sink, escalate, "none"),
     ]);
     L.info("sms_held_for_carriers");
     return;
@@ -151,11 +151,15 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // customer we did not receive what they plainly sent. So this escalates like
   // the branch below, without the ack and without muting the receptionist.
   if (n.kind === "location" || n.kind === "contacts") {
-    const asked = sink.escalate("non_text", `${n.body} — needs a person.`);
+    const escalate = sink.escalate("non_text", `${n.body} — needs a person.`);
     await Promise.all([
-      asked,
-      tell(asked, { said: n.body ?? `[${n.rawType}]`, answered: "(no reply sent — passed to a human)", why: n.kind }),
-      processedAfter(sink, asked, "none"),
+      escalate,
+      tell(escalate, {
+        said: n.body ?? `[${n.rawType}]`,
+        answered: "(no reply sent — passed to a human)",
+        why: n.kind,
+      }),
+      getProcessedAfter(sink, escalate, "none"),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
     return;

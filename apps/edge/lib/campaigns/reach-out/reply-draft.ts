@@ -1,14 +1,14 @@
 /**
  * The receptionist's draft of an answer to a reach-out's reply (Reach out Part 5, PR 5; decision 0017, the plan's G14): the
- * draft port the reply_read job asks. Core's readReply decides when; the one writer of a reply (drafts/draft-writer.ts,
+ * draft port the reply_read job asks. Core's readReply decides when; the one writer of a reply (drafts/writer.ts,
  * decision 0093) asks the gates and the brain, here with a reach-out's own note and its one extra gate, the workspace's
  * reply policy. Why it was not drafted is told in a reach-out's words: a draft that named money is simply not drafted.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import type { JobContext } from "@chanlytics/jobs";
-import { draftWriter } from "../../drafts/draft-writer.js";
-import type { generateReply } from "../../receptionist/brain.js";
+import { draftWriter } from "../../drafts/writer.js";
+import type { generateReply } from "../../ai/receptionist-brain.js";
 
 type Db = SupabaseClient<Database>;
 type Draft = NonNullable<JobContext["replies"]>["draft"];

@@ -11,7 +11,7 @@
 import { json, refuse } from "../shared/http.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
-import { waCredentialsForTenant } from "../shared/tenant-runtime.js";
+import { getWaCredentialsForTenant } from "../shared/tenant-runtime.js";
 import {
   createTemplate,
   mapCategory,
@@ -22,9 +22,9 @@ import {
   templateRow,
   type MetaTemplateComponent,
 } from "./meta-templates.js";
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 import { logger } from "../shared/log.js";
-import { UUID } from "@chanlytics/contracts";
+import { UUID, NUMBERED_SLOT } from "@chanlytics/contracts";
 
 const NAME = /^[a-z0-9_]{1,512}$/;
 
@@ -53,7 +53,7 @@ export async function createWhatsappTemplate(
     labels?: unknown;
   }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -80,7 +80,7 @@ export async function createWhatsappTemplate(
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  // The account of the oldest active number, whose credentials waCredentialsForTenant gives: a workspace may hold two.
+  // The account of the oldest active number, whose credentials getWaCredentialsForTenant gives: a workspace may hold two.
   const { data: ch } = await db
     .from("tenant_channels")
     .select("id, waba_id")
@@ -92,22 +92,22 @@ export async function createWhatsappTemplate(
     .maybeSingle();
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
-  const creds = await waCredentialsForTenant(db, tenantId);
+  const creds = await getWaCredentialsForTenant(db, tenantId);
   const token = creds.outcome === "present" ? creds.credentials.accessToken : null;
   if (!token) return refuse(503, "no_token");
-  const made = await createTemplate(token, ch.waba_id, { name, language, category, components });
-  if (!made.ok) {
-    L.error("wa_template_create_failed", {
+  const created = await createTemplate(token, ch.waba_id, { name, language, category, components });
+  if (!created.ok) {
+    log.error("wa_template_create_failed", {
       tenant_id: tenantId,
       name,
-      status: made.status,
-      error: made.error.slice(0, 300),
+      status: created.status,
+      error: created.error.slice(0, 300),
     });
-    return refuse(502, "meta_refused", made.error);
+    return refuse(502, "meta_refused", created.error);
   }
 
-  const status = mapStatus(made.data.status);
-  const positions = [...new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
+  const status = mapStatus(created.data.status);
+  const positions = [...new Set([...text.matchAll(NUMBERED_SLOT)].map((m) => Number(m[1])))].sort((a, b) => a - b);
   const variables = positions.map((n) => ({
     position: n,
     label: labels[n - 1] || `Value ${n}`,
@@ -119,8 +119,8 @@ export async function createWhatsappTemplate(
     name,
     language,
     meta_status: status,
-    category: mapCategory(made.data.category ?? category),
-    meta_id: made.data.id,
+    category: mapCategory(created.data.category ?? category),
+    meta_id: created.data.id,
     components: components as unknown as Json,
     body_preview: text,
     variables: variables as unknown as Json,
@@ -135,8 +135,8 @@ export async function createWhatsappTemplate(
     .select("id")
     .single();
   if (error || !saved) return refuse(500, "write_failed", error?.message);
-  L.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: made.data.id });
-  return json(200, { ok: true, id: saved.id, meta_id: made.data.id, meta_status: status });
+  log.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: created.data.id });
+  return json(200, { ok: true, id: saved.id, meta_id: created.data.id, meta_status: status });
 }
 
 /**
@@ -152,7 +152,7 @@ export async function deleteWhatsappTemplate(
   auth: Admitted,
   body: Partial<{ tenant_id?: unknown; template_id?: unknown }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -181,7 +181,7 @@ export async function deleteWhatsappTemplate(
     .limit(1)
     .maybeSingle();
   if (!ch?.waba_id) return refuse(409, "no_waba");
-  const creds = await waCredentialsForTenant(db, tenantId);
+  const creds = await getWaCredentialsForTenant(db, tenantId);
   // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
   if (creds.outcome !== "present") return refuse(503, "no_token");
   const accessToken = creds.credentials.accessToken;
@@ -199,10 +199,10 @@ export async function deleteWhatsappTemplate(
     ? await deleteTemplate(accessToken, ch.waba_id, row.name, row.meta_id)
     : ({ ok: false, status: 404, error: "not synced: no template id on file, so Meta was not asked" } as const);
   if (!row.meta_id)
-    L.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });
+    log.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });
   // Not found at Meta is a delete that already happened.
   if (!gone.ok && gone.status !== 404 && !/does not exist|not found|Unsupported get request/i.test(gone.error)) {
-    L.error("wa_template_delete_failed", {
+    log.error("wa_template_delete_failed", {
       tenant_id: tenantId,
       name: row.name,
       status: gone.status,
@@ -212,7 +212,7 @@ export async function deleteWhatsappTemplate(
   }
   const { error } = await db.from("templates").delete().eq("id", row.id).eq("tenant_id", tenantId);
   if (error) return refuse(500, "write_failed", error.message);
-  L.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
+  log.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
   return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });
 }
 
@@ -252,7 +252,7 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
   if (chErr) return refuse(500, "channel_read_failed", chErr.message);
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
-  const synced = await templatesSynced(db, tenantId, ch.waba_id);
+  const synced = await syncTemplates(db, tenantId, ch.waba_id);
   if (!synced.ok) return refuse(synced.status, synced.code, synced.detail);
   return json(200, {
     ok: true,
@@ -279,19 +279,19 @@ type TemplatesSynced =
  * wiring's second audit, R11 S11-6: the bell said "Template approved" over a Library still saying pending). Never throws
  * for Meta's or the database's refusal: it answers why.
  */
-export async function templatesSynced(
+export async function syncTemplates(
   db: NonNullable<ReturnType<typeof pg>>,
   tenantId: string,
   wabaId: string,
 ): Promise<TemplatesSynced> {
-  const L = logger();
-  const creds = await waCredentialsForTenant(db, tenantId);
+  const log = logger();
+  const creds = await getWaCredentialsForTenant(db, tenantId);
   // None on file, or none readable just now: a 503 either way, since the door is tried again by hand.
   if (creds.outcome !== "present") return { ok: false, status: 503, code: "no_token" };
 
   const listed = await listTemplates(creds.credentials.accessToken, wabaId);
   if (!listed.ok) {
-    L.error("wa_templates_list_failed", {
+    log.error("wa_templates_list_failed", {
       tenant_id: tenantId,
       status: listed.status,
       error: listed.error.slice(0, 200),
@@ -339,6 +339,6 @@ export async function templatesSynced(
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;
   const marketing = rows.filter((r) => r.meta_status === "approved" && r.category === "marketing").length;
-  L.info("wa_templates_synced", { tenant_id: tenantId, seen: rows.length, approved, marketing });
+  log.info("wa_templates_synced", { tenant_id: tenantId, seen: rows.length, approved, marketing });
   return { ok: true, seen: rows.length, approved, marketing, syncedAt: now.toISOString() };
 }

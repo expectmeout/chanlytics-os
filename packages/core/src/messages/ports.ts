@@ -11,8 +11,9 @@ import type {
   JobNews,
   SendPurpose,
 } from "@chanlytics/contracts";
-import type { EmailRequest } from "@chanlytics/channels";
-import type { Json, MessageVersionRow } from "@chanlytics/db";
+import type { EmailRequest } from "@chanlytics/channels/email";
+import type { Json } from "@chanlytics/db/types";
+import type { MessageVersionRow } from "@chanlytics/db/campaigns";
 import type { CancelBroadcastPorts } from "../campaigns/ports";
 import type { Channel, Delivered, Delivery } from "../deliver/deliver";
 
@@ -196,7 +197,7 @@ export interface BroadcastBatchPorts {
   startSending(id: string): Promise<boolean>;
   /**
    * The appointment a freed time's batch offers the time of, and what stands on the record over the days ahead (db
-   * freedTimeFactsOf), or null when the record no longer holds it (decision 0082): read before the batch's first send.
+   * findFreedTimeFacts), or null when the record no longer holds it (decision 0082): read before the batch's first send.
    */
   freedTimeFacts(appointmentId: string): Promise<{ row: FreedTimeLine; calendar: FreedTimeCalendar } | null>;
   /** The batch moved to canceled as the system, only from the state it was read in (db cancelBroadcastFrom). */
@@ -297,7 +298,7 @@ export interface BroadcastBatchPorts {
    */
   withdrawEmail(messageId: string): Promise<void>;
   /**
-   * How many emails or texts this workspace's campaigns sent this calendar month (packages/db campaignMonthSent): what
+   * How many emails or texts this workspace's campaigns sent this calendar month (packages/db recordCampaignMonthSent): what
    * contracts CAMPAIGN_MONTH_ALLOWANCE is held against. Throws when it cannot be read.
    */
   monthSent(channel: "sms" | "email"): Promise<number>;

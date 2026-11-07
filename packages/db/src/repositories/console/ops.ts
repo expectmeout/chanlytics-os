@@ -18,7 +18,7 @@ export interface MigrationHead {
  * (docs/runbook.md, Deploy). A database the function has not reached yet refuses, and that refusal is thrown as it was
  * worded.
  */
-export async function migrationHead(db: Db): Promise<MigrationHead> {
+export async function getMigrationHead(db: Db): Promise<MigrationHead> {
   const { data, error } = await db.rpc("migration_head");
   if (error) throw new Error(error.message);
   const row = data?.[0];
@@ -46,7 +46,7 @@ const NAMES_PER_READ = 100;
  * contracts' PLATFORM_NUMBERS once a day.
  * A read that fails throws, with the database's words.
  */
-export async function platformDay(db: Db, day: string): Promise<PlatformDayPromises[]> {
+export async function listPlatformDay(db: Db, day: string): Promise<PlatformDayPromises[]> {
   const { data, error } = await db
     .from("platform_metrics")
     .select("tenant_id, brain_p95_ms, job_lag_ms, duplicate_sends, dead_letters, relay_lag_ms, intake_lag_ms")
@@ -64,17 +64,17 @@ export async function platformDay(db: Db, day: string): Promise<PlatformDayPromi
     if (t.error) throw new Error(t.error.message);
     for (const w of t.data ?? []) if (w.status === "active" && !w.ours) live.set(w.id, w.name);
   }
-  return rows.flatMap((r) => {
-    const name = live.get(r.tenant_id);
+  return rows.flatMap((row) => {
+    const name = live.get(row.tenant_id);
     return name === undefined
       ? []
       : [
           {
-            ...r,
+            ...row,
             name,
-            job_lag_ms: r.job_lag_ms as Record<string, number> | null,
-            dead_letters: r.dead_letters as Record<string, number> | null,
-            intake_lag_ms: r.intake_lag_ms as Record<string, number> | null,
+            job_lag_ms: row.job_lag_ms as Record<string, number> | null,
+            dead_letters: row.dead_letters as Record<string, number> | null,
+            intake_lag_ms: row.intake_lag_ms as Record<string, number> | null,
           },
         ];
   });

@@ -6,14 +6,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { buildEmailRequest, hostedIdentity } from "@chanlytics/channels/email";
 import {
-  buildEmailRequest,
-  hostedIdentity,
   signUnsubscribeToken,
   unsubscribeUrl,
   verifyUnsubscribeToken,
   UNSUBSCRIBE_PATH,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/tokens";
 
 const SECRET = "a-secret-only-this-file-holds";
 const CLAIMS = {

@@ -10,7 +10,8 @@
  * attribute), which is what a test hands it, and the three that touch the page (the selection, the range) are in
  * slot-box-edits.ts.
  */
-import { slotWritten, toSlotParts } from "@chanlytics/contracts";
+import { slotWritten } from "@chanlytics/contracts";
+import { toSlotParts } from "../message-version-slots";
 import type { SlotKey, SlotSet } from "@chanlytics/contracts";
 
 const TEXT_NODE = 3;

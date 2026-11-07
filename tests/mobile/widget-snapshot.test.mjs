@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseTodayWidgetSnapshot } from "../../packages/contracts/src/mobile/widget.ts";
-import { todayWidgetSnapshot } from "../../packages/contracts/src/mobile/today-widget.ts";
+import { todayWidgetSnapshot } from "../../apps/dashboard/src/bridge/surfaces/today-widget.ts";
 
 const vm = {
   standing: {

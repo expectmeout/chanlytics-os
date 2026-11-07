@@ -22,8 +22,9 @@ import {
 } from "@chanlytics/contracts";
 // The database's count of the same sends (00374); contracts' templateSends is the fold it replaced, read below for a
 // database before it.
-import { sequenceNamesOf, templateSends as sendsByTemplate } from "@chanlytics/db";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
+import { listSequenceNames } from "@chanlytics/db/campaigns";
+import { getTemplateSends as sendsByTemplate } from "@chanlytics/db/reports";
+import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as facts from "./facts";
 
 /**
@@ -47,13 +48,13 @@ const TEMPLATES_PAGE = 1000;
  * another.
  */
 async function everyRow<T>(
-  what: string,
+  text: string,
   page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<T[]> {
   const out: T[] = [];
   for (;;) {
     const { data, error } = await page(out.length, out.length + TEMPLATES_PAGE - 1);
-    if (error) throw new Error(`${what}: ${error.message}`);
+    if (error) throw new Error(`${text}: ${error.message}`);
     out.push(...(data ?? []));
     if ((data ?? []).length < TEMPLATES_PAGE) return out;
   }
@@ -181,7 +182,7 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
       .eq("tenant_id", tenantId),
     runs,
     templateSendsRead(rc, runs),
-    sequenceNamesOf(rc.ctx.supabase, tenantId),
+    listSequenceNames(rc.ctx.supabase, tenantId),
   ]);
   if (pb.error) throw new Error(pb.error.message);
   // A campaign past its last day by the business's day (the turn's zone) sends nothing more: said so, never its clock (S1-3).
@@ -223,16 +224,16 @@ type LibraryRead = Extract<TemplatesRead, { usedBy: unknown }>;
 export function messageReadsOf(read: LibraryRead): MessageRead[] {
   const rows = new Map(read.templates.map((t) => [t.id, t]));
   const usedBy = new Map(Object.entries(read.usedBy));
-  return read.messages.map((m) => {
-    const row = rows.get(m.versions.whatsapp?.id ?? m.anchor.id);
+  return read.messages.map((message) => {
+    const row = rows.get(message.versions.whatsapp?.id ?? message.anchor.id);
     const variables: unknown[] = Array.isArray(row?.variables) ? row.variables : [];
     const labels = row ? slotLabels(row) : [];
     return {
-      name: m.name,
-      language: m.language,
-      category: m.purpose === "marketing" ? "marketing" : "utility",
+      name: message.name,
+      language: message.language,
+      category: message.purpose === "marketing" ? "marketing" : "utility",
       versions: VERSION_CHANNELS.flatMap((channel) => {
-        const v = m.versions[channel];
+        const v = message.versions[channel];
         return v ? [{ channel, id: v.id, state: metaStatusOf(rows.get(v.id)?.meta_status) }] : [];
       }),
       slots: (row ? defaultSlotKinds(row) : []).map((kind, i) => {
@@ -244,7 +245,7 @@ export function messageReadsOf(read: LibraryRead): MessageRead[] {
           kind,
         };
       }),
-      used_by: (usedBy.get(m.name)?.playbooks ?? []).map((p) => ({ id: p.id, name: p.name })),
+      used_by: (usedBy.get(message.name)?.playbooks ?? []).map((p) => ({ id: p.id, name: p.name })),
     };
   });
 }
@@ -274,7 +275,7 @@ export const templates: Reader<{ all: boolean }, TemplatesRead> = {
         route: addressOf({ kind: "template", name: t.name }),
         label: t.title || t.name,
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

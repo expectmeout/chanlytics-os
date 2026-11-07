@@ -7,7 +7,7 @@
  * (proposals.ts), in the browser once their own entry has loaded (bridge/verbs, moreSpecs), which Ask's bridge
  * waits for before it hands over a turn or a thread with cards in it. Until then a lookup of one of them finds nothing.
  */
-import { ASK_UNDO_MS, type AskProposal } from "../ask";
+import { ASK_UNDO_MS, type AskProposal } from "../thread-words";
 import type { AskOnlyKind } from "./ask-only";
 import { bookingRequestSpec, replySpec, steerSpec, threadVerbSpec } from "./inbox";
 import { factSuggestionSpec } from "./autonomy";
@@ -32,19 +32,21 @@ import {
   sequenceDiscardSpec,
   sequenceEndSpec,
   sequenceDraftSpec,
-  sequenceLeaveSpec,
-  sequenceMakeSpec,
   sequenceNewSpec,
-  sequenceLeadWordsSpec,
   sequenceSendDecideSpec,
   sequenceSendSaidSpec,
   sequenceStartSpec,
+} from "./sequences/specs";
+import {
+  sequenceLeaveSpec,
+  sequenceMakeSpec,
+  sequenceLeadWordsSpec,
   sequenceStepRemoveSpec,
   sequenceStepSpec,
   sequenceTestSpec,
   sequenceVoiceSpec,
   sequenceWordsSpec,
-} from "./sequences";
+} from "./sequences/step-specs";
 import type { ProposalGate, ProposalSpec } from "./spec";
 import { settingsSpec } from "./workspace";
 import { postSpec } from "../../files/post-spec";
@@ -66,7 +68,7 @@ export const PAGE_SPECS = {
   person_add: personAddSpec,
   person_merge: personMergeSpec,
   list_member: listMemberSpec,
-  // The Sequences page's own (decision 0060, ask/proposals/sequences.ts), with a campaign's change and a batch's run.
+  // The Sequences page's own (decision 0060, ask/proposals/sequences/specs.ts), with a campaign's change and a batch's run.
   sequence_step: sequenceStepSpec,
   sequence_step_remove: sequenceStepRemoveSpec,
   sequence_words: sequenceWordsSpec,
@@ -159,10 +161,10 @@ export function addProposalSpecs(specs: Readonly<Record<AskOnlyKind, ProposalSpe
  * its payload names, as a thread card does; before the kinds only Ask's cards commit are in, a kind not a page's has
  * none.
  */
-export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
-  const card = { payload: p.payload ?? {} };
-  const spec = proposalSpec(p.kind) ?? proposalSpec("thread_verb");
-  return spec ? spec.open(card, p.outcome ?? null) : null;
+export function cardOpenRoute(askProposal: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
+  const card = { payload: askProposal.payload ?? {} };
+  const spec = proposalSpec(askProposal.kind) ?? proposalSpec("thread_verb");
+  return spec ? spec.open(card, askProposal.outcome ?? null) : null;
 }
 
 /**

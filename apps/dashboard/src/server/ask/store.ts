@@ -8,18 +8,17 @@ import {
   type AskProposalOutcome,
   type AskScope,
   type AskThreadVM,
-  type AskTurnShape,
   DAY_MS,
   citationRoute,
   storedAnswer,
   v1FromAnswer,
-  withFilesAttached,
-  withFilesOpened,
 } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import type { AskTurnShape } from "./shape";
+import { withFilesAttached, withFilesOpened } from "@/server/files/line";
+import type { Json } from "@chanlytics/db/types";
 import type { RouteContext } from "../shared/with-route";
-import { attachedNow, fileIdsOf, type AttachedFile } from "../files/attached";
-import { answeringOf, askTurnText, titleFromQuestion } from "./prompt";
+import { getAttached, fileIdsOf, type AttachedFile } from "../files/attached";
+import { answeringOf, askTurnText, titleFromQuestion } from "./prompt/prompt";
 import { log } from "@/server/shared/log";
 
 /**
@@ -50,12 +49,12 @@ const MESSAGES_CAP = 60;
 type NamedFiles = ReadonlyMap<string, AttachedFile>;
 const NONE_NAMED: NamedFiles = new Map();
 
-export function toThreadVM(r: ThreadRow): AskThreadVM {
+export function toThreadVM(thread: ThreadRow): AskThreadVM {
   return {
-    id: r.id,
-    title: r.title || "Untitled",
-    lastAtMs: Date.parse(r.last_at) || 0,
-    scope: (r.scope as AskScope | null) ?? null,
+    id: thread.id,
+    title: thread.title || "Untitled",
+    lastAtMs: Date.parse(thread.last_at) || 0,
+    scope: (thread.scope as AskScope | null) ?? null,
   };
 }
 
@@ -63,32 +62,33 @@ export function toThreadVM(r: ThreadRow): AskThreadVM {
  * The stored turn, back into the shape the Line draws: a turn made since the Line carries its answer ({v: 2, answer},
  * spec 7.6); one made before has the v1 fields only, and the Line reads it through answerFromV1.
  */
-export function toMessageVM(r: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
-  const c = (r.content ?? {}) as Record<string, unknown>;
-  const cites = Array.isArray(c.citations) ? (c.citations as AskMessageVM["citations"]) : [];
-  const files = fileIdsOf(c.files);
+export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
+  const content = (message.content ?? {}) as Record<string, unknown>;
+  const cites = Array.isArray(content.citations) ? (content.citations as AskMessageVM["citations"]) : [];
+  const files = fileIdsOf(content.files);
   const answer =
-    c.v === 2 && c.answer && typeof c.answer === "object" && (c.answer as AskAnswer).v === 2
-      ? storedAnswer(c.answer as AskAnswer)
+    content.v === 2 && content.answer && typeof content.answer === "object" && (content.answer as AskAnswer).v === 2
+      ? storedAnswer(content.answer as AskAnswer)
       : null;
   return {
     ...(answer ? { answer } : {}),
     ...(files.length ? { files: files.map((id) => ({ id, name: named.get(id)?.name ?? null })) } : {}),
-    id: r.id,
-    role: r.role === "assistant" ? "assistant" : "user",
-    text: typeof c.text === "string" ? c.text : "",
-    at: r.created_at,
-    atMs: Date.parse(r.created_at) || 0,
+    id: message.id,
+    role: message.role === "assistant" ? "assistant" : "user",
+    text: typeof content.text === "string" ? content.text : "",
+    at: message.created_at,
+    atMs: Date.parse(message.created_at) || 0,
     citations: cites.map((x) => ({ ...x, to: x.to || citationRoute(x) })),
-    followups: Array.isArray(c.followups) ? (c.followups as string[]) : [],
-    navigate: c.navigate && typeof c.navigate === "object" ? (c.navigate as AskMessageVM["navigate"]) : null,
-    proposals: Array.isArray(c.proposals) ? (c.proposals as AskMessageVM["proposals"]) : [],
-    language: c.language === "es" || c.language === "en" ? c.language : "other",
-    ungrounded: c.ungrounded === true,
-    tools: Array.isArray(c.tools) ? (c.tools as string[]) : [],
-    latencyMs: typeof c.latency_ms === "number" ? c.latency_ms : null,
-    rounds: typeof c.rounds === "number" ? c.rounds : null,
-    failed: c.failed === true,
+    followups: Array.isArray(content.followups) ? (content.followups as string[]) : [],
+    navigate:
+      content.navigate && typeof content.navigate === "object" ? (content.navigate as AskMessageVM["navigate"]) : null,
+    proposals: Array.isArray(content.proposals) ? (content.proposals as AskMessageVM["proposals"]) : [],
+    language: content.language === "es" || content.language === "en" ? content.language : "other",
+    ungrounded: content.ungrounded === true,
+    tools: Array.isArray(content.tools) ? (content.tools as string[]) : [],
+    latencyMs: typeof content.latency_ms === "number" ? content.latency_ms : null,
+    rounds: typeof content.rounds === "number" ? content.rounds : null,
+    failed: content.failed === true,
   };
 }
 
@@ -118,17 +118,19 @@ export async function listThreads(ctx: RouteContext, tenantId: string): Promise<
  * (withFilesOpened), so a cold turn knows what it looked at and that it must open one again to judge it.
  */
 export function modelTurnOf(
-  r: MessageRow,
+  message: MessageRow,
   named: NamedFiles = NONE_NAMED,
 ): { role: "user" | "assistant"; text: string } {
-  const vm = toMessageVM(r);
-  const c = (r.content ?? {}) as Record<string, unknown>;
-  const said = askTurnText(vm.text, vm.role === "user" ? answeringOf(c.answering) : null);
+  const vm = toMessageVM(message);
+  const content = (message.content ?? {}) as Record<string, unknown>;
+  const sentence = askTurnText(vm.text, vm.role === "user" ? answeringOf(content.answering) : null);
   const namedOf = (ids: unknown) => fileIdsOf(ids).map((id) => named.get(id) ?? null);
   return {
     role: vm.role,
     text:
-      vm.role === "assistant" ? withFilesOpened(said, namedOf(c.opened)) : withFilesAttached(said, namedOf(c.files)),
+      vm.role === "assistant"
+        ? withFilesOpened(sentence, namedOf(content.opened))
+        : withFilesAttached(sentence, namedOf(content.files)),
   };
 }
 
@@ -181,7 +183,7 @@ export async function readThread(
     .map(({ id: messageId, role, created_at, ...content }) => ({ id: messageId, role, created_at, content }));
   // What the thread's questions came with, as those files are now. Most threads have none, and read nothing more.
   const fileIds = [...new Set(rows.flatMap((r) => [...fileIdsOf(r.content.files), ...fileIdsOf(r.content.opened)]))];
-  const named = fileIds.length ? await attachedNow(ctx, t.tenant_id, fileIds) : NONE_NAMED;
+  const named = fileIds.length ? await getAttached(ctx, t.tenant_id, fileIds) : NONE_NAMED;
   return {
     thread: toThreadVM(t),
     messages: rows.map((r) => toMessageVM(r, named)),

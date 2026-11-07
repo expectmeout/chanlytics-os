@@ -6,7 +6,7 @@
  */
 import type { Opening } from "../availability";
 import { visitRoute } from "../appointment-key";
-import { clockInZone, dayInZone, localToUtcMs } from "../zone-math";
+import { clockInZone, dayInZone, localToUtcMs } from "../../shared/zone/math";
 import { MIN_MS, dateFormat } from "../../shared/time";
 
 /** The two fields the receptionist writes beside its reply, empty when no time was picked. */
@@ -44,8 +44,12 @@ export const BOOKING_REQUEST_INSTRUCTION =
  * Whether a workspace takes booking requests on a text turn (decision 0061, point 2): its switch is on, and the team
  * confirms its own bookings: no booking link is offered in chat, or the booking row is set to Ask me first.
  */
-export function takesBookingRequests(o: { switchOn: boolean; linkInChat: boolean; bookingHeld: boolean }): boolean {
-  return o.switchOn && (!o.linkInChat || o.bookingHeld);
+export function takesBookingRequests(options: {
+  switchOn: boolean;
+  linkInChat: boolean;
+  bookingHeld: boolean;
+}): boolean {
+  return options.switchOn && (!options.linkInChat || options.bookingHeld);
 }
 
 /**
@@ -77,9 +81,9 @@ export function requestedBookingOf(
 ): RequestedBooking {
   const slot = (input.slot ?? "").trim();
   if (!slot) return { ok: false, why: "no_slot" };
-  const m = SLOT.exec(slot);
-  if (!m) return { ok: false, why: "unreadable" };
-  const [y = 0, mo = 0, d = 0, hh = 0, mm = 0] = m.slice(1).map(Number);
+  const match = SLOT.exec(slot);
+  if (!match) return { ok: false, why: "unreadable" };
+  const [y = 0, mo = 0, d = 0, hh = 0, mm = 0] = match.slice(1).map(Number);
   if (mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23 || mm > 59) return { ok: false, why: "unreadable" };
   const startMs = localToUtcMs(input.tz, y, mo, d, hh, mm);
   // A day or a clock time that does not exist (the 30th of February, a spring-forward gap) reads back as another: not a
@@ -153,8 +157,8 @@ export const BOOKING_REQUEST_WORDS = {
   gate: "confirm a booking",
   /** What a page says once a press is taken: booked, and the reply waiting in the thread; or theirs to answer. */
   said: {
-    booked: (who: string) => `Booked. Tell ${who} in the thread.`,
-    cant: (who: string) => `${who} is waiting on your reply`,
+    booked: (personName: string) => `Booked. Tell ${personName} in the thread.`,
+    cant: (personName: string) => `${personName} is waiting on your reply`,
   },
 } as const;
 
@@ -186,23 +190,23 @@ function requestHoursOf(startMs: number, endMs: number, tz: string): string {
 
 /** A request as the card draws it, from the row its hold carries (EscalationDto.request), on the business's clock. */
 export function bookingRequestCardOf(
-  r: { id: string; starts_at: string; ends_at: string; service: string | null; expires_at: string | null },
+  row: { id: string; starts_at: string; ends_at: string; service: string | null; expires_at: string | null },
   tz: string,
   nowMs: number,
 ): BookingRequestCardVM {
-  const startMs = Date.parse(r.starts_at);
-  const endMs = Date.parse(r.ends_at);
+  const startMs = Date.parse(row.starts_at);
+  const endMs = Date.parse(row.ends_at);
   const at = new Date(startMs);
   const key = dayInZone(tz, startMs).key;
   return {
-    id: r.id,
+    id: row.id,
     weekday: dateFormat("en-US", { timeZone: tz, weekday: "short" }).format(at).toUpperCase(),
     date: dateFormat("en-US", { timeZone: tz, day: "numeric" }).format(at),
     dayLong: dateFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(at),
     hours: requestHoursOf(startMs, endMs, tz),
-    service: r.service && r.service.trim() ? r.service.trim() : null,
-    holds: !r.expires_at || Date.parse(r.expires_at) > nowMs,
-    to: visitRoute(r.id, key),
+    service: row.service && row.service.trim() ? row.service.trim() : null,
+    holds: !row.expires_at || Date.parse(row.expires_at) > nowMs,
+    to: visitRoute(row.id, key),
   };
 }
 

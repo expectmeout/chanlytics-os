@@ -5,8 +5,9 @@
  * screen in the order shown. The server re-reads every id under the person's RLS, so a row another workspace holds is
  * a miss, and nothing the tab says about a row is believed.
  */
-import { ASK_SCOPE_KINDS, type AskMessageVM, type AskScope, type AskScopeKind, type AskSurface } from "./ask";
-import { answerFromV1 } from "./answer";
+import { ASK_SCOPE_KINDS, type AskScope, type AskScopeKind, type AskSurface } from "./ask";
+import type { AskMessageVM } from "./thread-words";
+import { answerFromV1 } from "./answer/shape";
 
 /** The rows a context may carry: what one screen shows, and what one turn's context can afford (the plan, D11). */
 export const ASK_CONTEXT_MAX_ROWS = 40;
@@ -73,10 +74,10 @@ const isRowFocus = (k: string): k is AskScopeKind => k !== "page" && (ASK_SCOPE_
  * fewer items: then the page's rows are asked. The tab's context and the eval's both read the words by it.
  */
 export function itemFocus(
-  m: Pick<AskMessageVM, "text" | "citations" | "navigate" | "followups" | "language" | "answer">,
-  n: number,
+  askMessage: Pick<AskMessageVM, "text" | "citations" | "navigate" | "followups" | "language" | "answer">,
+  count: number,
 ): AskScope | null | undefined {
-  const item = (m.answer ?? answerFromV1(m)).show.items[n - 1];
+  const item = (askMessage.answer ?? answerFromV1(askMessage)).show.items[count - 1];
   if (!item) return undefined;
   const { kind: cited, id, label } = item.source;
   const kind = cited === "broadcast" ? "run" : cited;

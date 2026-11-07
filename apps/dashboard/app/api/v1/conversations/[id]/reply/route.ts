@@ -4,7 +4,7 @@ import { beginConversation, replyToConversation } from "@chanlytics/core";
 import { write } from "@/server/shared/route";
 import { conversationScope, replyChannelOf } from "@/server/shared/verbs";
 import { beginPorts } from "@/server/new-conversation/ports";
-import { replyPorts } from "@/server/ports/core-ports";
+import { replyPorts } from "@/server/conversations/ports";
 import { draftUseOfReply } from "@/server/conversations/drafts";
 
 /**

@@ -1,10 +1,10 @@
 /**
- * The calendar's feed parsed once per fetch: the cache the board (calendar/week.ts), a profile (person-visits.ts), and
- * the People list and the report (people-visits.ts) read through, over the loader's own cache (ask/openings.ts).
+ * The calendar's feed parsed once per fetch: the cache the board (calendar/week/week.ts), a profile (person-visits.ts), and
+ * the People list and the report (people-visits.ts) read through, over the loader's own cache (calendar/openings.ts).
  */
 import "server-only";
 import { parseIcs, seasonHorizon, type FeedFailure, type ParsedFeed } from "@chanlytics/contracts";
-import { loadFeed } from "@/server/ask/openings";
+import { loadFeed } from "@/server/calendar/openings";
 
 /**
  * The feed parsed once per fetch. The board, a profile, the People list and
@@ -25,7 +25,7 @@ export interface ParsedRead {
 }
 
 /** `fresh`: the board's Refresh (C2). `stale`: a reader that may take the last good read while a new one is fetched (openings.ts). */
-export async function parsedFeedFor(
+export async function getParsedFeed(
   tenantId: string,
   url: string,
   tz: string,
