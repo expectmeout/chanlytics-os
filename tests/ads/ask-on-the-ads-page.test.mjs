@@ -30,17 +30,32 @@ const facts = {
 };
 
 test("on the Ads page the model is told it is a preview and what it may offer, and not to propose sequences for every offer", () => {
-  const words = turnWords({ ...facts, onAds: true });
+  const words = turnWords({ ...facts, pageView: "ads" });
   assert.match(words, /They are on Campaigns › Ads/);
   assert.match(words, /no account can be connected yet, no ad of theirs exists, nothing runs and nothing is spent/);
   assert.match(words, /no tool makes or changes an ad/);
-  assert.match(words, /never say one of its ads, numbers or people as theirs/);
   assert.match(words, /a sequence to the people they have, or a post/);
   assert.doesNotMatch(words, /They are on Campaigns, which lists/, "REGRESSION: it was told it was on Sequences");
 });
 
+test("what is on screen is said by what the page says it shows, and never in general", () => {
+  const today = turnWords({ ...facts, pageView: "ads" });
+  assert.match(today, /What the page shows now is theirs and true/);
+  assert.match(today, /No example is on screen, so never call any of it one/);
+  assert.doesNotMatch(
+    today,
+    /whatever the page shows/i,
+    "REGRESSION: a real turn called an owner's own counts an example",
+  );
+  assert.doesNotMatch(today, /made up/);
+  const example = turnWords({ ...facts, pageView: "ads:example" });
+  assert.match(example, /an example they chose from its menu, and it is made up/);
+  assert.match(example, /never say one of its ads, numbers or people as theirs/);
+  assert.doesNotMatch(example, /What the page shows now is theirs/);
+});
+
 test("what it counts is said as the product counts it: Meta naming the ad, on WhatsApp or Instagram", () => {
-  const words = turnWords({ ...facts, onAds: true });
+  const words = turnWords({ ...facts, pageView: "ads" });
   assert.match(words, /only when Meta names the ad in their first message on WhatsApp or Instagram/);
   assert.match(words, /an ad that rings a phone, or one elsewhere, is not counted/);
 });
@@ -53,7 +68,7 @@ test("anywhere else on Campaigns the line is Campaigns'", () => {
 
 test("an ad as the scope says it is an example with nothing to read; a row that has a read is still sent to it", () => {
   const scope = { kind: "ad", id: "2d8f4e67-1a93-4c05-b8e2-9a7d3c5f1e08", label: "Spring opening" };
-  const words = turnWords({ ...facts, onAds: true, scope });
+  const words = turnWords({ ...facts, pageView: "ads:example", scope });
   assert.match(words, /They are looking at/);
   assert.match(
     words,
@@ -112,7 +127,7 @@ async function pageBlock(view, people_series) {
 test("the page's data says what is true of a preview, and how new people came as Reports › People says it", async () => {
   const today = await pageBlock("ads", () => seriesOf({ whatsapp: 5, ad: 4, unknown: 3 }, 12));
   assert.match(today, /no ad account is connected, no ad of theirs exists, nothing runs and nothing is spent/);
-  assert.match(today, /on screen now is their own/);
+  assert.match(today, /on screen now is theirs and no example/);
   assert.match(today, /how new people first came, last 30 days: WhatsApp 5, An ad 4, Not recorded 3/);
   assert.doesNotMatch(today, /0 on screen/, "REGRESSION: it read as an empty list of sequences");
 });
