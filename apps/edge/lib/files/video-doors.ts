@@ -22,6 +22,7 @@ import {
   secondsOf,
   videoPreviewOf,
   type DoorRead,
+  type FileVideoMime,
   type FILE_LISTEN_DOOR,
   type FILE_PLAY_DOOR,
   type FILE_VIDEO_START_DOOR,
@@ -47,6 +48,24 @@ const QUESTION_MOST = 600;
 
 const isFingerprint = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
 
+/** What a start says, read and held: the row's id, a name, a video's type and size, its length if the browser read one, and its fingerprint. */
+function videoStartOf(body: DoorRead<typeof FILE_VIDEO_START_DOOR>): {
+  id: string;
+  name: string;
+  mime: FileVideoMime;
+  bytes: number;
+  seconds: number | null;
+  fingerprint: string;
+} | null {
+  const id = typeof body.id === "string" && UUID.test(body.id) ? body.id : null;
+  const name = typeof body.name === "string" ? body.name.trim().slice(0, 60) : "";
+  const bytes = typeof body.bytes === "number" && Number.isInteger(body.bytes) ? body.bytes : 0;
+  const seconds = body.seconds === null || body.seconds === undefined ? null : secondsOf(body.seconds);
+  if (!id || !name || !isVideoMime(body.mime) || !isFingerprint(body.fingerprint)) return null;
+  if (bytes < 1 || bytes > FILE_VIDEO_BYTES_MAX) return null;
+  return { id, name, mime: body.mime, bytes, seconds, fingerprint: body.fingerprint };
+}
+
 /** POST /api/admin/files/video-start: a reservation, and the row. */
 export async function startVideoUpload(
   auth: Admitted,
@@ -57,19 +76,9 @@ export async function startVideoUpload(
   const at = workspaceOf(ws.tenantId);
   if (!at.ok) return at.response;
   const { db, tenantId } = at;
-  const id = typeof body.id === "string" && UUID.test(body.id) ? body.id : null;
-  const name = typeof body.name === "string" ? body.name.trim().slice(0, 60) : "";
-  const bytes = typeof body.bytes === "number" && Number.isInteger(body.bytes) ? body.bytes : 0;
-  const seconds = body.seconds === null || body.seconds === undefined ? null : secondsOf(body.seconds);
-  if (
-    !id ||
-    !name ||
-    !isVideoMime(body.mime) ||
-    bytes < 1 ||
-    bytes > FILE_VIDEO_BYTES_MAX ||
-    !isFingerprint(body.fingerprint)
-  )
-    return refuse(400, "bad_request", "id, name, a video's mime, its bytes and its fingerprint are required");
+  const start = videoStartOf(body);
+  if (!start) return refuse(400, "bad_request", "id, name, a video's mime, its bytes and its fingerprint are required");
+  const { id, name, mime, bytes, seconds, fingerprint } = start;
   if (seconds !== null && seconds > FILE_VIDEO_SECONDS_MAX) return json(200, { ok: true, fate: "too_long" });
   // The switch (D11), read here: the workspace's config is the service role's to read, not a member's.
   const takesVideos = await findWorkspaceNameAndConfig(db, tenantId)
@@ -102,9 +111,9 @@ export async function startVideoUpload(
       id,
       mediaRef: reserved.mediaRef,
       name,
-      mime: body.mime,
+      mime,
       bytes,
-      fingerprint: body.fingerprint,
+      fingerprint,
       seconds,
       actor: auth.user,
     });

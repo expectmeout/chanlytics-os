@@ -18,14 +18,14 @@ import { errField, logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 
 /** A video's event is a few KB. */
-const MAX_BODY_BYTES = 64 * 1024;
+const STREAM_EVENT_BYTES_MAX = 64 * 1024;
 
 export async function receiveStreamWebhook(request: Request): Promise<Response> {
   const secret = env.CLOUDFLARE_STREAM_WEBHOOK_SECRET;
   if (!secret) return refuse(404, "no_provider_key");
   const log = logger({ door: "stream-webhook" });
   const raw = await request.text();
-  if (raw.length > MAX_BODY_BYTES) return refuse(413, "too_large");
+  if (raw.length > STREAM_EVENT_BYTES_MAX) return refuse(413, "too_large");
   if (!verifyStreamWebhook(secret, request.headers.get("webhook-signature"), raw)) {
     log.warn("stream_webhook_bad_signature");
     return refuse(401, "bad_signature");

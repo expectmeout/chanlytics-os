@@ -20,6 +20,7 @@ const look = await import(at("packages/contracts/src/files/look.ts"));
 const post = await import(at("packages/contracts/src/files/post.ts"));
 const postCheck = await import(at("apps/dashboard/src/server/files/post-check.ts"));
 const hearing = await import(at("packages/contracts/src/ai/hearing.ts"));
+const usage = await import(at("packages/contracts/src/ai/usage.ts"));
 const zoom = await import(at("packages/contracts/src/files/zoom.ts"));
 
 test("a short clip's sheet is a frame every half second, each in the middle of its stretch", () => {
@@ -411,7 +412,7 @@ test("hearing's prices: Gemini by its tokens, Scribe by the hour, an unknown mod
   assert.equal(hearing.hearingDollars("gemini-3.5-flash-lite", { input: 1_000_000, output: 100_000 }), 0.55);
   assert.equal(hearing.hearingDollars("scribe_v2", { input: 0, output: 0, seconds: 3600 }), 0.22);
   assert.equal(hearing.hearingDollars("gemini-9", { input: 1, output: 1 }), null);
-  const row = hearing.hearingUsageBodyOf({
+  const row = usage.hearingUsageBodyOf({
     tenantId: "t",
     purpose: "file_words",
     port: "google",

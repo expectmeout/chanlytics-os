@@ -182,6 +182,28 @@ function FileActs({
   );
 }
 
+/** What the sheet shows of the file: a new version being made, a post on its way to Google, a post's shapes, a video's player, or the picture. */
+function FileShown({
+  file,
+  said,
+  version,
+  going,
+  made,
+}: {
+  file: FileDto;
+  said: string;
+  version: ReturnType<typeof usePostVersion>;
+  going: ReturnType<typeof usePostGoogle>;
+  made: FileMade | null;
+}) {
+  if (version.open) return <PostVersion version={version} />;
+  if (going.open && made) return <PostGoogle google={going} plan={made.plan} />;
+  if (file.source === "made")
+    return <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />;
+  if (file.kind === "video") return <VideoOpened file={file} said={said} />;
+  return <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />;
+}
+
 export /** What a person says of one file. Each change is saved as it is made, and the door's refresh reads the list again. */
 function FileSheet({
   file,
@@ -254,17 +276,7 @@ function FileSheet({
         )
       }
     >
-      {version.open ? (
-        <PostVersion version={version} />
-      ) : going.open && made ? (
-        <PostGoogle google={going} plan={made.plan} />
-      ) : file.source === "made" ? (
-        <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />
-      ) : file.kind === "video" ? (
-        <VideoOpened file={file} said={said} />
-      ) : (
-        <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
-      )}
+      <FileShown file={file} said={said} version={version} going={going} made={made} />
       {!version.open && !going.open && (
         <>
           {says && <p className="files-says">{says}</p>}

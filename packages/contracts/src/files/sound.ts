@@ -162,6 +162,35 @@ function wordsFromCues(
   return { language, voices, text, cues: cuesInClip, events: events.slice(0, 120) };
 }
 
+/** One of Scribe's words as read: a sound (`audio_event`), a spoken word, or nothing worth keeping. */
+type ScribeItem =
+  | { kind: "event"; event: SoundEvent }
+  | { kind: "word"; start: number; end: number; speaker: unknown; text: string }
+  | null;
+
+function scribeItemOf(word: unknown): ScribeItem {
+  if (!isObjectRecord(word)) return null;
+  const start = typeof word.start === "number" ? word.start : null;
+  const end = typeof word.end === "number" ? word.end : start;
+  if (start === null || end === null) return null;
+  if (word.type === "audio_event") {
+    const label = textCut(word.text, 60).replace(/^\(|\)$/g, "");
+    return label ? { kind: "event", event: { at: Math.round(start * 100) / 100, what: label } } : null;
+  }
+  const text = word.type === "word" && typeof word.text === "string" ? word.text.trim() : "";
+  return text ? { kind: "word", start, end, speaker: word.speaker_id, text } : null;
+}
+
+/** A voice's number by the order its speaker first spoke: 1, 2, and on. */
+function voiceNumberer(): (id: unknown) => number | null {
+  const speakers = new Map<string, number>();
+  return (id) => {
+    if (typeof id !== "string" || !id) return null;
+    if (!speakers.has(id)) speakers.set(id, speakers.size + 1);
+    return speakers.get(id) ?? null;
+  };
+}
+
 /**
  * ElevenLabs Scribe's answer (speech-to-text, `words` with `start`, `end`, `type`, `speaker_id`) read into cues: the words of one
  * voice gathered into a stretch until the voice changes or a pause of over a second, its events kept apart. Null for an answer
@@ -170,35 +199,25 @@ function wordsFromCues(
 export function scribeWordsOf(answer: unknown, seconds: number | null): SoundWords | null {
   if (!isObjectRecord(answer) || !Array.isArray(answer.words)) return null;
   const language = languageCodeOf(answer.language_code);
-  const speakers = new Map<string, number>();
-  const voiceFor = (id: unknown): number | null => {
-    if (typeof id !== "string" || !id) return null;
-    if (!speakers.has(id)) speakers.set(id, speakers.size + 1);
-    return speakers.get(id) ?? null;
-  };
+  const voiceFor = voiceNumberer();
   const cues: SoundCue[] = [];
   const events: SoundEvent[] = [];
   let open: SoundCue | null = null;
-  for (const word of answer.words) {
-    if (!isObjectRecord(word)) continue;
-    const start = typeof word.start === "number" ? word.start : null;
-    const end = typeof word.end === "number" ? word.end : start;
-    if (start === null || end === null) continue;
-    if (word.type === "audio_event") {
-      const label = textCut(word.text, 60).replace(/^\(|\)$/g, "");
-      if (label) events.push({ at: Math.round(start * 100) / 100, what: label });
-      continue;
-    }
-    if (word.type !== "word") continue;
-    const text = typeof word.text === "string" ? word.text.trim() : "";
-    if (!text) continue;
-    const voice = voiceFor(word.speaker_id);
-    if (open && open.voice === voice && start - open.end <= 1 && open.text.length < CUE_CHARS) {
-      open.text = `${open.text} ${text}`;
-      open.end = end;
+  for (const item of answer.words.map(scribeItemOf)) {
+    if (item?.kind === "event") events.push(item.event);
+    if (item?.kind !== "word") continue;
+    const voice = voiceFor(item.speaker);
+    if (open && open.voice === voice && item.start - open.end <= 1 && open.text.length < CUE_CHARS) {
+      open.text = `${open.text} ${item.text}`;
+      open.end = item.end;
     } else {
       if (open) cues.push(open);
-      open = { start: Math.round(start * 100) / 100, end: Math.round(end * 100) / 100, voice, text };
+      open = {
+        start: Math.round(item.start * 100) / 100,
+        end: Math.round(item.end * 100) / 100,
+        voice,
+        text: item.text,
+      };
     }
   }
   if (open) cues.push(open);
@@ -256,45 +275,53 @@ export function soundNoteOf(answer: unknown): SoundNote | null {
   };
 }
 
+/** The words part as kept: none said, or its cues and sounds read again; undefined where it does not read. */
+function keptWordsOf(words: unknown): SoundWords | undefined {
+  if (!isObjectRecord(words)) return undefined;
+  if (words.none === true) return { none: true };
+  if (!Array.isArray(words.cues)) return undefined;
+  const cues = words.cues
+    .filter(isObjectRecord)
+    .map((c) => ({
+      start: typeof c.start === "number" ? c.start : 0,
+      end: typeof c.end === "number" ? c.end : 0,
+      voice: voiceOf(c.voice),
+      text: textCut(c.text, CUE_CHARS),
+    }))
+    .filter((c) => c.text);
+  const events = (Array.isArray(words.events) ? words.events : [])
+    .filter(isObjectRecord)
+    .map((e) => ({ at: typeof e.at === "number" ? e.at : 0, what: textCut(e.what, 60) }))
+    .filter((e) => e.what);
+  return wordsFromCues(cues, languageCodeOf(words.language), events, null);
+}
+
+/** Who heard a part, as kept: its model and when; undefined where it does not read. */
+const heardByOf = (value: unknown): HeardBy | undefined =>
+  isObjectRecord(value) && typeof value.model === "string" && typeof value.at === "string"
+    ? { model: value.model, at: value.at }
+    : undefined;
+
 /** The row's `sound` as stored, read part by part: a part that does not read is left out, never guessed. */
 export function fileSoundOf(raw: unknown): FileSound {
   if (!isObjectRecord(raw)) return {};
-  const out: FileSound = {};
-  if (raw.none === true) out.none = true;
-  const words = raw.words;
-  if (isObjectRecord(words)) {
-    if (words.none === true) out.words = { none: true };
-    else if (Array.isArray(words.cues)) {
-      const cues = words.cues
-        .filter(isObjectRecord)
-        .map((c) => ({
-          start: typeof c.start === "number" ? c.start : 0,
-          end: typeof c.end === "number" ? c.end : 0,
-          voice: voiceOf(c.voice),
-          text: textCut(c.text, CUE_CHARS),
-        }))
-        .filter((c) => c.text);
-      const events = (Array.isArray(words.events) ? words.events : [])
-        .filter(isObjectRecord)
-        .map((e) => ({ at: typeof e.at === "number" ? e.at : 0, what: textCut(e.what, 60) }))
-        .filter((e) => e.what);
-      out.words = wordsFromCues(cues, languageCodeOf(words.language), events, null);
-    }
-  }
+  const words = keptWordsOf(raw.words);
   const note = soundNoteOf(raw.note);
-  if (note) out.note = note;
   const by = isObjectRecord(raw.heard_by) ? raw.heard_by : {};
-  const heard = (v: unknown): HeardBy | undefined =>
-    isObjectRecord(v) && typeof v.model === "string" && typeof v.at === "string"
-      ? { model: v.model, at: v.at }
-      : undefined;
-  const heardBy = { words: heard(by.words), note: heard(by.note) };
-  if (heardBy.words || heardBy.note)
-    out.heard_by = {
-      ...(heardBy.words ? { words: heardBy.words } : {}),
-      ...(heardBy.note ? { note: heardBy.note } : {}),
-    };
-  return out;
+  const heardBy = { words: heardByOf(by.words), note: heardByOf(by.note) };
+  return {
+    ...(raw.none === true ? { none: true } : {}),
+    ...(words ? { words } : {}),
+    ...(note ? { note } : {}),
+    ...(heardBy.words || heardBy.note
+      ? {
+          heard_by: {
+            ...(heardBy.words ? { words: heardBy.words } : {}),
+            ...(heardBy.note ? { note: heardBy.note } : {}),
+          },
+        }
+      : {}),
+  };
 }
 
 /* ----------------------------------------------------------------------------------------------- what is said -- */

@@ -7,7 +7,13 @@
  * read. A budget that counted only input and output missed the writes (the scorecard, 29 September); the ledger keeps
  * all four and the dollars they came to.
  */
-import type { AiUsagePort, AiUsagePurpose } from "./hearing";
+import {
+  hearingDollars,
+  type AiUsagePort,
+  type AiUsagePurpose,
+  type HearingPort,
+  type HearingPurpose,
+} from "./hearing";
 import { MODELS, type ModelId, type ModelSpeed } from "./models/ids";
 import type { ModelPurpose } from "./models/routes";
 
@@ -206,6 +212,45 @@ export function aiUsageBodyOf(call: {
     prompt_hash: call.promptHash ?? null,
     user_id: call.userId ?? null,
     subject_id: call.subjectId ?? null,
+    ...(call.error
+      ? {
+          error_type: call.error.type.slice(0, 80) || null,
+          error_message: call.error.message.slice(0, AI_USAGE_ERROR_CHARS) || null,
+        }
+      : {}),
+  };
+}
+
+/** One hearing call's row of the ledger. */
+export function hearingUsageBodyOf(call: {
+  tenantId: string;
+  purpose: HearingPurpose;
+  port: HearingPort;
+  model: string;
+  outcome: ModelCallOutcome;
+  input: number;
+  output: number;
+  /** Seconds of audio heard, for a model priced by the hour. */
+  seconds?: number;
+  userId?: string | null;
+  subjectId?: string | null;
+  error?: { type: string; message: string } | null;
+}): AiUsageBody {
+  return {
+    tenant_id: call.tenantId,
+    purpose: call.purpose,
+    model_asked: call.model,
+    model: call.model,
+    outcome: call.outcome,
+    input_tokens: Math.max(0, Math.round(call.input)),
+    output_tokens: Math.max(0, Math.round(call.output)),
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    usd: hearingDollars(call.model, { input: call.input, output: call.output, seconds: call.seconds ?? 0 }),
+    prompt_hash: null,
+    user_id: call.userId ?? null,
+    subject_id: call.subjectId ?? null,
+    port: call.port,
     ...(call.error
       ? {
           error_type: call.error.type.slice(0, 80) || null,

@@ -81,40 +81,54 @@ const SEGMENTS: Readonly<Record<string, string>> = {
   "9": "abcdfg",
 };
 
+/** A figure's box: where it starts, how wide and tall a digit is, and how thick its strokes. */
+interface FigureBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  t: number;
+}
+
+/** Each segment as a rectangle of a digit's box: its left, top, width and height. */
+const SEGMENT_RECTS: Readonly<Record<string, (b: FigureBox) => [number, number, number, number]>> = {
+  a: (b) => [b.x, b.y, b.w, b.t],
+  b: (b) => [b.x + b.w - b.t, b.y, b.t, b.h / 2],
+  c: (b) => [b.x + b.w - b.t, b.y + b.h / 2, b.t, b.h / 2],
+  d: (b) => [b.x, b.y + b.h - b.t, b.w, b.t],
+  e: (b) => [b.x, b.y + b.h / 2, b.t, b.h / 2],
+  f: (b) => [b.x, b.y, b.t, b.h / 2],
+  g: (b) => [b.x, b.y + b.h / 2 - b.t / 2, b.w, b.t],
+};
+
+/** A colon's two dots and a point's one, each a stroke square: [their tops as a share of the digit's height]. */
+const MARKS: Readonly<Record<string, number[]>> = { ":": [0.25, 0.7], ".": [1] };
+
+/** One character's rectangles at its box, and how far the next one starts. */
+function clockCharacterOf(ch: string, box: FigureBox): { rects: [number, number, number, number][]; advance: number } {
+  const marks = MARKS[ch];
+  if (marks)
+    return {
+      rects: marks.map((top) => [box.x, top === 1 ? box.y + box.h - box.t : box.y + box.h * top, box.t, box.t]),
+      advance: box.t + box.t,
+    };
+  const rects = Array.from(SEGMENTS[ch] ?? "", (segment) => SEGMENT_RECTS[segment]?.(box)).filter(
+    (r): r is [number, number, number, number] => Boolean(r),
+  );
+  return { rects, advance: box.w + box.t + 1 };
+}
+
 /** A time's figures as rectangles, from (x, y), each digit `w` wide and `h` tall with strokes `t` thick: and the width drawn. */
-function segmentFiguresOf(
-  clock: string,
-  { x: x0, y, w, h, t }: { x: number; y: number; w: number; h: number; t: number },
-): { rects: string[]; width: number } {
+function segmentFiguresOf(clock: string, box: FigureBox): { rects: string[]; width: number } {
   const rects: string[] = [];
-  const half = h / 2;
-  const rect = (x: number, yy: number, rw: number, rh: number) =>
-    rects.push(`<rect x="${x}" y="${yy}" width="${rw}" height="${rh}"/>`);
-  let cursor = x0;
+  let cursor = box.x;
   for (const ch of clock) {
-    if (ch === ":") {
-      rect(cursor, y + h * 0.25, t, t);
-      rect(cursor, y + h * 0.7, t, t);
-      cursor += t + t;
-      continue;
-    }
-    if (ch === ".") {
-      rect(cursor, y + h - t, t, t);
-      cursor += t + t;
-      continue;
-    }
-    for (const s of SEGMENTS[ch] ?? "") {
-      if (s === "a") rect(cursor, y, w, t);
-      if (s === "b") rect(cursor + w - t, y, t, half);
-      if (s === "c") rect(cursor + w - t, y + half, t, half);
-      if (s === "d") rect(cursor, y + h - t, w, t);
-      if (s === "e") rect(cursor, y + half, t, half);
-      if (s === "f") rect(cursor, y, t, half);
-      if (s === "g") rect(cursor, y + half - t / 2, w, t);
-    }
-    cursor += w + t + 1;
+    const figure = clockCharacterOf(ch, { ...box, x: cursor });
+    for (const [left, top, width, height] of figure.rects)
+      rects.push(`<rect x="${left}" y="${top}" width="${width}" height="${height}"/>`);
+    cursor += figure.advance;
   }
-  return { rects, width: cursor - x0 };
+  return { rects, width: cursor - box.x };
 }
 
 /** A tile's time, on a dark band at its foot: an SVG sharp lays over the sheet. */

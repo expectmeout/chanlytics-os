@@ -9,7 +9,7 @@
  * at Stream's audio rate that is past the clip cap. Nothing here knows a row or a workspace.
  */
 import { isObjectRecord } from "@chanlytics/contracts";
-import { answerObject, fetchFromProvider } from "../shared/provider-fetch";
+import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 import type { ModelDeps } from "./anthropic";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -37,6 +37,33 @@ function geminiUsageOf(j: Record<string, unknown> | null): { input: number; outp
     j && typeof j.usageMetadata === "object" && j.usageMetadata ? (j.usageMetadata as Record<string, unknown>) : {};
   const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
   return { input: n(u.promptTokenCount), output: n(u.candidatesTokenCount) + n(u.thoughtsTokenCount) };
+}
+
+/** A call Gemini refused or never answered, in a line: its own words where it gave some, and whether asking again may help. */
+function refusedOf(
+  reply: ProviderReply,
+  answerJson: Record<string, unknown> | null,
+): { ok: false; error: string; retryable: boolean } {
+  const err = isObjectRecord(answerJson?.error) ? answerJson.error : null;
+  const detailText = typeof err?.message === "string" ? `: ${err.message.slice(0, 200)}` : "";
+  return {
+    ok: false,
+    error: reply.error ?? `status ${reply.status}${detailText}`,
+    retryable: reply.outcome === "retryable" || reply.outcome === "unknown",
+  };
+}
+
+/** The first candidate's words, its parts' text joined, and why it stopped. */
+function firstCandidateOf(answerJson: Record<string, unknown> | null): { text: string; finish: string | null } {
+  const candidates: unknown[] = answerJson && Array.isArray(answerJson.candidates) ? answerJson.candidates : [];
+  const first = isObjectRecord(candidates[0]) ? candidates[0] : null;
+  const rawParts = isObjectRecord(first?.content) ? first.content.parts : undefined;
+  const parts: unknown[] = Array.isArray(rawParts) ? rawParts : [];
+  const text = parts
+    .map((part) => (isObjectRecord(part) && typeof part.text === "string" ? part.text : ""))
+    .join("")
+    .trim();
+  return { text, finish: typeof first?.finishReason === "string" ? first.finishReason : null };
 }
 
 /** One question about a sound, answered once: a refusal, a block or an empty answer is said as one, never retried blind. */
@@ -72,34 +99,11 @@ export async function askGemini(key: string, request: GeminiAsked, deps: ModelDe
   );
   const answerJson = answerObject(reply);
   const used = geminiUsageOf(answerJson);
-  if (reply.outcome !== "ok") {
-    const err =
-      answerJson && typeof answerJson.error === "object" && answerJson.error
-        ? (answerJson.error as Record<string, unknown>)
-        : null;
-    const detailText = typeof err?.message === "string" ? `: ${err.message.slice(0, 200)}` : "";
-    return {
-      ok: false,
-      error: reply.error ?? `status ${reply.status}${detailText}`,
-      retryable: reply.outcome === "retryable" || reply.outcome === "unknown",
-      ...used,
-    };
-  }
+  if (reply.outcome !== "ok") return { ...refusedOf(reply, answerJson), ...used };
   const feedback = answerJson?.promptFeedback as { blockReason?: unknown } | undefined;
   if (typeof feedback?.blockReason === "string")
     return { ok: false, error: `blocked: ${feedback.blockReason}`, retryable: false, ...used };
-  const candidates: unknown[] = answerJson && Array.isArray(answerJson.candidates) ? answerJson.candidates : [];
-  const first = isObjectRecord(candidates[0]) ? candidates[0] : null;
-  const rawParts = isObjectRecord(first?.content) ? first.content.parts : undefined;
-  const finish = typeof first?.finishReason === "string" ? first.finishReason : null;
-  const parts: unknown[] = Array.isArray(rawParts) ? rawParts : [];
-  const text = parts
-    .map((p) => {
-      const t = p && typeof p === "object" ? (p as { text?: unknown }).text : null;
-      return typeof t === "string" ? t : "";
-    })
-    .join("")
-    .trim();
+  const { text, finish } = firstCandidateOf(answerJson);
   if (!text) {
     const reason = finish ?? "no answer";
     return { ok: false, error: `empty: ${reason}`, retryable: reason === "no answer", ...used };

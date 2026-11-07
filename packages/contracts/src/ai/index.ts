@@ -45,7 +45,6 @@ export {
   AI_USAGE_PURPOSES,
   HEARING_MODELS,
   hearingDollars,
-  hearingUsageBodyOf,
   videoEarModelOf,
   videoWordsShapeOf,
 } from "./hearing";
@@ -116,6 +115,7 @@ export {
   aiUsageBodyOf,
   creditRanOut,
   FAST_MODE_PRICES,
+  hearingUsageBodyOf,
   MODEL_CALL_OUTCOMES,
   MODEL_PRICES,
   NO_USAGE,

@@ -124,7 +124,7 @@ async function startVideo(ctx: RouteContext, member: Member, input: StartAsked):
   });
   // The account is full, or Stream did not answer: nothing the person can change but to wait.
   if (fate === "account_full") throw new AppError("validation", W.video.off);
-  throw new AppError("internal", W.video.notSaved, 503);
+  throw new AppError("internal", W.video.notSaved);
 }
 
 /** Its first bytes and its whole size, or null where nothing arrived. */

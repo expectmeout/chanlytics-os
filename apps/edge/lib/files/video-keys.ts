@@ -14,19 +14,16 @@ export function streamAccount(): StreamAccount | null {
   return accountId && token ? { accountId, token } : null;
 }
 
-/** What signs a video's tokens and names its playback host, or null where any of it is unset. */
-function streamSigning(): StreamSigning | null {
+/**
+ * Everything a video needs at Stream: the account (an upload, its sound) and what signs a video's tokens and names its playback
+ * host (its frames, its player); null where any of it is unset.
+ */
+export function streamKeys(): { account: StreamAccount; signing: StreamSigning } | null {
+  const account = streamAccount();
   const keyId = env.CLOUDFLARE_STREAM_KEY_ID;
   const jwk = env.CLOUDFLARE_STREAM_KEY_JWK;
   const customerCode = env.CLOUDFLARE_STREAM_CUSTOMER_CODE;
-  return keyId && jwk && customerCode ? { keyId, jwk, customerCode } : null;
-}
-
-/** Everything a video needs at Stream: an upload, its frames, its sound and its player. */
-export function streamKeys(): { account: StreamAccount; signing: StreamSigning } | null {
-  const account = streamAccount();
-  const signing = streamSigning();
-  return account && signing ? { account, signing } : null;
+  return account && keyId && jwk && customerCode ? { account, signing: { keyId, jwk, customerCode } } : null;
 }
 
 /** Who writes down what is said, and the ear's model, as the switches say. */

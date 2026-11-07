@@ -171,7 +171,7 @@ export async function playFile(
 ): Promise<{ player_url: string; expires_at: string }> {
   if (file.kind !== "video") throw new AppError("validation", W.video.notAVideo);
   if (file.media_status !== "ready") throw new AppError("validation", W.video.gettingReady);
-  if (!edgeConfigured()) throw new AppError("internal", W.video.cantPlay, 503);
+  if (!edgeConfigured()) throw new AppError("internal", W.video.cantPlay);
   const answer = await callEdge(
     "/api/admin/files/play",
     { tenant_id: file.tenant_id, id: file.id },
@@ -180,7 +180,7 @@ export async function playFile(
   const reply = recordOrNull(answer.body);
   if (answer.status !== 200 || typeof reply?.player_url !== "string" || typeof reply.expires_at !== "string") {
     log.warn("file_play_failed", { tenant_id: file.tenant_id, status: answer.status });
-    throw new AppError("internal", W.video.cantPlay, 503);
+    throw new AppError("internal", W.video.cantPlay);
   }
   return { player_url: reply.player_url, expires_at: reply.expires_at };
 }

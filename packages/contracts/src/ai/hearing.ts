@@ -8,7 +8,6 @@
  * change of code.
  */
 import { MODEL_PORTS, MODEL_PURPOSES } from "./models/routes";
-import type { AiUsageBody, ModelCallOutcome } from "./usage";
 
 /** Why a hearing model's key is spent: what a clip says, and how it sounds (at its digest, or on a question of Ask's). */
 const HEARING_PURPOSES = ["file_words", "file_hear"] as const;
@@ -71,43 +70,4 @@ export function hearingDollars(
   const p = GEMINI_PRICES[model];
   if (!p) return null;
   return Math.round(((used.input * p.input + used.output * p.output) / 1_000_000) * 1_000_000) / 1_000_000;
-}
-
-/** One hearing call's row of the ledger. */
-export function hearingUsageBodyOf(call: {
-  tenantId: string;
-  purpose: HearingPurpose;
-  port: HearingPort;
-  model: string;
-  outcome: ModelCallOutcome;
-  input: number;
-  output: number;
-  /** Seconds of audio heard, for a model priced by the hour. */
-  seconds?: number;
-  userId?: string | null;
-  subjectId?: string | null;
-  error?: { type: string; message: string } | null;
-}): AiUsageBody {
-  return {
-    tenant_id: call.tenantId,
-    purpose: call.purpose,
-    model_asked: call.model,
-    model: call.model,
-    outcome: call.outcome,
-    input_tokens: Math.max(0, Math.round(call.input)),
-    output_tokens: Math.max(0, Math.round(call.output)),
-    cache_read_tokens: 0,
-    cache_write_tokens: 0,
-    usd: hearingDollars(call.model, { input: call.input, output: call.output, seconds: call.seconds ?? 0 }),
-    prompt_hash: null,
-    user_id: call.userId ?? null,
-    subject_id: call.subjectId ?? null,
-    port: call.port,
-    ...(call.error
-      ? {
-          error_type: call.error.type.slice(0, 80) || null,
-          error_message: call.error.message.slice(0, 300) || null,
-        }
-      : {}),
-  };
 }
