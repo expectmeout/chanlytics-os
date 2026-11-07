@@ -23,7 +23,7 @@
  * their real view models and fails one that does.
  *
  * It names no page and reads no data: the states are decided where they always were (a channel's status, the tenant's).
- * It imports nothing, on purpose: shell/chrome.ts and workspace/billing.ts read it, and the phone app's program reaches
+ * It imports nothing, on purpose: shell/chrome/frame.ts and workspace/billing.ts read it, and the phone app's program reaches
  * both, so a type import of shell/tone.ts here would bring that module's whole graph into it. The tone is a local union,
  * held to the vocabulary by caller-gets.type-test.ts.
  */
@@ -40,8 +40,8 @@ export interface CallerGets {
 }
 
 /** The clause as a sentence of its own: capitalised, with its full stop. */
-export function callerSentence(g: CallerGets): string {
-  return `${g.gets.charAt(0).toUpperCase()}${g.gets.slice(1)}.`;
+export function callerSentence(callerGets: CallerGets): string {
+  return `${callerGets.gets.charAt(0).toUpperCase()}${callerGets.gets.slice(1)}.`;
 }
 
 /** A switched-off phone line: the call is picked up, without the business's facts, and nothing of it is kept. */

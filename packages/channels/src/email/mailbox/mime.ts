@@ -21,9 +21,9 @@ export function mailboxMessageId(rowId: string, host: string): string {
 const ASCII = /^[\x20-\x7e]*$/;
 
 /** A header value's words, as an encoded-word when they are not plain ASCII (RFC 2047, base64, UTF-8). */
-function encodedWord(s: string): string {
-  if (ASCII.test(s)) return s;
-  const bytes = new TextEncoder().encode(s);
+function encodedWord(text: string): string {
+  if (ASCII.test(text)) return text;
+  const bytes = new TextEncoder().encode(text);
   // An encoded-word is 75 characters at most: 45 bytes encode to 60, with the 12 around them.
   const words: string[] = [];
   for (let i = 0; i < bytes.length;) {
@@ -106,26 +106,29 @@ const CARRIED_HEADERS = ["In-Reply-To", "References", "List-Unsubscribe", "List-
  * The message, written out. `messageId` is the one it is sent under (mailboxMessageId); `boundary` is the
  * multipart's, given by the caller so the same request writes the same bytes.
  */
-export function buildMime(r: EmailRequest, p: { messageId: string; at: Date; boundary?: string }): string {
-  const id = messageIdHeader(p.messageId);
+export function buildMime(
+  emailRequest: EmailRequest,
+  params: { messageId: string; at: Date; boundary?: string },
+): string {
+  const id = messageIdHeader(params.messageId);
   if (!id) throw new Error("buildMime: a Message-ID is <local@host>");
   const head: string[] = [
-    headerLine("From", mailboxHeaderOf(r.from)),
-    headerLine("To", r.to.join(", ")),
-    headerLine("Subject", encodedWord(r.subject)),
-    headerLine("Date", mimeDate(p.at)),
+    headerLine("From", mailboxHeaderOf(emailRequest.from)),
+    headerLine("To", emailRequest.to.join(", ")),
+    headerLine("Subject", encodedWord(emailRequest.subject)),
+    headerLine("Date", mimeDate(params.at)),
     headerLine("Message-ID", id),
     "MIME-Version: 1.0",
   ];
   // A Reply-To that only says the From again is left out: a mailbox's own replies come back to it.
-  const replyTo = r.reply_to.filter((a) => !r.from.toLowerCase().includes(a.toLowerCase()));
+  const replyTo = emailRequest.reply_to.filter((a) => !emailRequest.from.toLowerCase().includes(a.toLowerCase()));
   if (replyTo.length) head.push(headerLine("Reply-To", replyTo.join(", ")));
   for (const name of CARRIED_HEADERS) {
-    const v = r.headers[name];
+    const v = emailRequest.headers[name];
     if (typeof v === "string" && v.trim()) head.push(headerLine(name, v.trim()));
   }
-  const text = quotedPrintable(r.text);
-  if (!r.html.trim())
+  const text = quotedPrintable(emailRequest.text);
+  if (!emailRequest.html.trim())
     return [
       ...head,
       "Content-Type: text/plain; charset=UTF-8",
@@ -133,22 +136,22 @@ export function buildMime(r: EmailRequest, p: { messageId: string; at: Date; bou
       "",
       text,
     ].join(CRLF);
-  const b = p.boundary ?? `cl-${id.replace(/[^0-9a-z]/gi, "").slice(0, 40)}`;
+  const boundary = params.boundary ?? `cl-${id.replace(/[^0-9a-z]/gi, "").slice(0, 40)}`;
   return [
     ...head,
-    `Content-Type: multipart/alternative; boundary="${b}"`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
     "",
-    `--${b}`,
+    `--${boundary}`,
     "Content-Type: text/plain; charset=UTF-8",
     "Content-Transfer-Encoding: quoted-printable",
     "",
     text,
-    `--${b}`,
+    `--${boundary}`,
     "Content-Type: text/html; charset=UTF-8",
     "Content-Transfer-Encoding: quoted-printable",
     "",
-    quotedPrintable(r.html),
-    `--${b}--`,
+    quotedPrintable(emailRequest.html),
+    `--${boundary}--`,
     "",
   ].join(CRLF);
 }

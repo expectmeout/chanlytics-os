@@ -6,13 +6,13 @@
  * The route is api/cron/calendar.ts: sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks
  * the sweep key, then hands this its tick, so nothing below runs for a knock without the key.
  *
- * The page is only what is due, judged in the database (00245 calendars_due, through calendarDue in
- * lib/ops/sweep-rotation.ts): CALENDAR_PER_TICK workspaces whose settings carry a feed address
+ * The page is only what is due, judged in the database (00245 calendars_due, through listCalendarsDue in
+ * lib/shared/sweep-rotation.ts): CALENDAR_PER_TICK workspaces whose settings carry a feed address
  * (config.calendar.ical_url) or a calendar read through a connected mailbox (config.calendar_grant, 00478, decision 0073
  * R20: contracts calendarFeedKeyOf, the grant first), the never-read first, then the least recently read, none read
- * again within calendarDue's minAgeMs. Each read that works is noted on the imports ledger as the calendar's (the visits
+ * again within listCalendarsDue's minAgeMs. Each read that works is noted on the imports ledger as the calendar's (the visits
  * before today and those coming, how far back), which the first run's Bringing it in, Today and Connections say; a
- * mailbox connected with its calendar asks for one read at once (readOneCalendar, through its history import). Each feed is read as the receptionists read it (feedItemsFor: one fetch per five minutes, parsed once) in
+ * mailbox connected with its calendar asks for one read at once (readOneCalendar, through its history import). Each feed is read as the receptionists read it (listFeedItems: one fetch per five minutes, parsed once) in
  * the workspace's own zone, and a pure extraction (peopleFromItems) picks the people. This sweep is the one path that adds
  * them on its own: opening the Calendar adds nobody (a read never writes, decision 0047 lane 6), and the board offers "Add
  * to People" for a visit it cannot match, through the door a hand uses, so a person is created once whichever path saw
@@ -20,7 +20,7 @@
  * gets or creates by phone: a name fills only an empty one, an address only where there is none, someone who asked to
  * be erased is not brought back by their own appointment, and each person made gets a `contact.added` event that says
  * where they came from. The owner hears it as a row on the bell (kind calendar_people), never as a mail. The same
- * appointments' addresses and numbers go to the booking door (bookedFromCalendar, reach_out_booked, 00227), which
+ * appointments' addresses and numbers go to the booking door (recordBookedFromCalendar, reach_out_booked, 00227), which
  * stops a reach-out to a business that booked after it was written to; if the door fails that is logged and counts
  * nothing, and People has been filled all the same.
  *
@@ -49,19 +49,19 @@
  */
 import { json } from "../shared/http.js";
 import {
-  calendarDue,
+  listCalendarsDue,
   markCalendarChecked,
   noteBacklog,
   CALENDAR_PER_TICK,
   CALENDAR_SWEEP_BUDGET_MS,
-} from "../ops/sweep-rotation.js";
-import { feedItemsFor } from "./availability.js";
+} from "../shared/sweep-rotation.js";
+import { listFeedItems } from "./availability.js";
 import { addPeopleFromCalendar } from "./people.js";
-import { markCalendarFeedKept } from "@chanlytics/db";
+import { markCalendarFeedKept } from "@chanlytics/db/workspace";
 import { keepAppointments } from "./appointments.js";
-import { bookedFromCalendar } from "./reach-out-booked.js";
-import { recordNotification } from "../ops/notify.js";
-import { readableAgain, tellUnreadable } from "./notice.js";
+import { recordBookedFromCalendar } from "./reach-out-booked.js";
+import { recordNotification } from "../shared/alerts/notify.js";
+import { makeReadableAgain, tellUnreadable } from "./notice.js";
 import {
   BOOKING_DEFAULTS,
   calendarFeedKeyOf,
@@ -71,7 +71,8 @@ import {
   type FeedItem,
   type TenantConfig,
 } from "@chanlytics/contracts";
-import { noteImport, type DueCalendar } from "@chanlytics/db";
+import { noteImport } from "@chanlytics/db/imports";
+import { type DueCalendar } from "@chanlytics/db/jobs";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** What the reads kept as appointments, for the tick's log line. */
@@ -91,15 +92,15 @@ async function keepTheRead(
 ): Promise<void> {
   const { tenantId, items, now, L } = read;
   const errorOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
-  let r;
+  let item;
   try {
-    r = await keepAppointments(db, tenantId, items, how);
+    item = await keepAppointments(db, tenantId, items, how);
   } catch (e) {
     L.error("calendar_appointments_failed", { tenant_id: tenantId, error: errorOf(e) });
     return;
   }
-  for (const k of Object.keys(kept) as (keyof Kept)[]) kept[k] += r[k];
-  if (!r.first) return;
+  for (const k of Object.keys(kept) as (keyof Kept)[]) kept[k] += item[k];
+  if (!item.first) return;
   await markCalendarFeedKept(db, tenantId, now).catch((e: unknown) =>
     L.error("calendar_first_read_stamp_failed", { tenant_id: tenantId, error: errorOf(e) }),
   );
@@ -113,14 +114,14 @@ async function keepTheRead(
  */
 async function noteTheRead(
   db: SweepTick["db"],
-  p: { tenantId: string; items: readonly FeedItem[]; cfg: TenantConfig | null; now: Date; L: SweepTick["L"] },
+  params: { tenantId: string; items: readonly FeedItem[]; cfg: TenantConfig | null; now: Date; L: SweepTick["L"] },
 ): Promise<void> {
-  const nowMs = p.now.getTime();
+  const nowMs = params.now.getTime();
   const seen = new Set<string>();
   let past = 0;
   let coming = 0;
   let oldest: number | null = null;
-  for (const it of p.items) {
+  for (const it of params.items) {
     const key = `${it.uid ?? it.title}|${it.start}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -129,14 +130,17 @@ async function noteTheRead(
     oldest = oldest === null ? it.start : Math.min(oldest, it.start);
   }
   await noteImport(db, {
-    tenantId: p.tenantId,
+    tenantId: params.tenantId,
     source: "calendar",
     state: "done",
     counts: { past, coming },
     oldest: oldest === null ? null : new Date(oldest).toISOString(),
-    via: p.cfg?.calendar_grant?.provider ?? "link",
+    via: params.cfg?.calendar_grant?.provider ?? "link",
   }).catch((e: unknown) =>
-    p.L.error("calendar_ledger_failed", { tenant_id: p.tenantId, error: e instanceof Error ? e.message : String(e) }),
+    params.L.error("calendar_ledger_failed", {
+      tenant_id: params.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    }),
   );
 }
 
@@ -163,7 +167,7 @@ export async function readOneCalendar(
   db: SweepTick["db"],
   row: DueCalendar,
   now: Date,
-  L: SweepTick["L"],
+  log: SweepTick["L"],
   kept: Kept,
 ): Promise<CalendarRead> {
   // Since when this link's reads have failed (00435): null while they work, undefined where the database keeps no
@@ -183,11 +187,11 @@ export async function readOneCalendar(
   // The zone comes with the page (00245): the workspace's own, UTC when that is a name nobody knows.
   const tz = row.timezone;
   const daysAhead = cfg?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
-  const items = await feedItemsFor(row.tenant_id, url, tz, now, daysAhead);
+  const items = await listFeedItems(row.tenant_id, url, tz, now, daysAhead);
   if (!items) {
     await tried(true);
     // The owner is told once the failures are old enough; the first failure has only just started the stamp.
-    if (failing) await tellUnreadable(db, row.tenant_id, failing, now, L);
+    if (failing) await tellUnreadable(db, row.tenant_id, failing, now, log);
     return { outcome: "failed", ...NOTHING_READ };
   }
   const people = peopleFromItems(
@@ -195,30 +199,37 @@ export async function readOneCalendar(
     (cfg?.brain?.profile?.services ?? []).map((s) => s.name),
     now.getTime(),
   );
-  const r = await addPeopleFromCalendar(db, row.tenant_id, people);
-  const booked = await bookedFromCalendar(db, row.tenant_id, items, ownAddressesOf(cfg));
+  const result = await addPeopleFromCalendar(db, row.tenant_id, people);
+  const booked = await recordBookedFromCalendar(db, row.tenant_id, items, ownAddressesOf(cfg));
   // After the people, so an appointment names the person this read just put in People.
-  await keepTheRead(db, { tenantId: row.tenant_id, items, now, L }, { timezone: tz, cfg, daysAhead, now }, kept);
-  await noteTheRead(db, { tenantId: row.tenant_id, items, cfg, now, L });
+  await keepTheRead(db, { tenantId: row.tenant_id, items, now, L: log }, { timezone: tz, cfg, daysAhead, now }, kept);
+  await noteTheRead(db, { tenantId: row.tenant_id, items, cfg, now, L: log });
   // A link that answers again: the stamp of its failures is cleared with the read's, and the notice closes.
   await markCalendarChecked(db, row.tenant_id, now, failing ? { failedSince: null } : {});
-  if (failing) await readableAgain(db, row.tenant_id);
-  await tellPeopleAdded(row.tenant_id, r, L);
-  return { outcome: "read", seen: r.seen, added: r.added, named: r.named, emailed: r.emailed, booked };
+  if (failing) await makeReadableAgain(db, row.tenant_id);
+  await tellPeopleAdded(row.tenant_id, result, log);
+  return {
+    outcome: "read",
+    seen: result.seen,
+    added: result.added,
+    named: result.named,
+    emailed: result.emailed,
+    booked,
+  };
 }
 
 /** The people a read put in People, logged, and the owner told on the bell: good news, never an email. */
 async function tellPeopleAdded(
   tenantId: string,
-  r: Awaited<ReturnType<typeof addPeopleFromCalendar>>,
-  L: SweepTick["L"],
+  item: Awaited<ReturnType<typeof addPeopleFromCalendar>>,
+  log: SweepTick["L"],
 ): Promise<void> {
-  if (r.added || r.named || r.emailed) L.info("calendar_people_added", { tenant_id: tenantId, ...r });
-  if (!r.added) return;
-  const one = r.added === 1;
+  if (item.added || item.named || item.emailed) log.info("calendar_people_added", { tenant_id: tenantId, ...item });
+  if (!item.added) return;
+  const one = item.added === 1;
   await recordNotification(tenantId, {
     kind: "calendar_people",
-    title: `${r.added} ${one ? "person" : "people"} added from your calendar`,
+    title: `${item.added} ${one ? "person" : "people"} added from your calendar`,
     body: `${one ? "An event" : "Events"} on your calendar carried a phone number nobody in People had. ${one ? "They are" : "They are all"} in People now, with consent unknown.`,
     route: "clients",
   });
@@ -236,7 +247,7 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
   // exactly the due feeds beyond the page, and nothing that is not a feed.
   let page;
   try {
-    page = await calendarDue(db, now, CALENDAR_PER_TICK);
+    page = await listCalendarsDue(db, now, CALENDAR_PER_TICK);
   } catch (e) {
     L.error("calendar_configs_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(500, { ok: false });
@@ -266,15 +277,15 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
     // hour (the page's own gap), behind the feeds that can be read. Unstamped it kept the first place every hour, and
     // forty dead feeds held the page for every workspace (readOneCalendar).
     try {
-      const r = await readOneCalendar(db, row, now, L, kept);
-      if (r.outcome === "none") continue;
+      const oneCalendar = await readOneCalendar(db, row, now, L, kept);
+      if (oneCalendar.outcome === "none") continue;
       out.tenants += 1;
-      if (r.outcome === "failed") out.failed += 1;
-      out.seen += r.seen;
-      out.added += r.added;
-      out.named += r.named;
-      out.emailed += r.emailed;
-      out.booked += r.booked;
+      if (oneCalendar.outcome === "failed") out.failed += 1;
+      out.seen += oneCalendar.seen;
+      out.added += oneCalendar.added;
+      out.named += oneCalendar.named;
+      out.emailed += oneCalendar.emailed;
+      out.booked += oneCalendar.booked;
     } catch (e) {
       out.tenants += 1;
       out.failed += 1;

@@ -10,7 +10,7 @@
  * sheet only merges it. No zod here, so a sheet reads these (decision 0024); what the route parses is say-it-schema.ts.
  */
 import { isRealDate } from "../../config/workspace-config/config-rules";
-import { DEAL_LOST_REASONS, DEAL_PERS, type DealLostReason, type DealPer } from "../../deals/deal-words";
+import { DEAL_LOST_REASONS, DEAL_PERS, type DealLostReason, type DealPer } from "../../deals/words";
 import { NOTE_MAX } from "../../notes/person-notes";
 import { NO_DAY, type StepDraft, type StepSheetVM } from "../../notes/step-sheet";
 import type { DealSheetDraft, DealSheetVM } from "../../deals/sheet/deal-sheet";
@@ -121,23 +121,29 @@ function amountOf(raw: string): string {
  * limits, an amount that reads as one, a per and a reason of their sets, a real day, and a link as given (the sheet's
  * Save judges it with the one normalizer, as it judges a typed one).
  */
-export function dealFill(a: SayItDealAnswer): SayItDealFill {
-  const day = a.valid_until.trim();
+export function dealFill(sayItDealAnswer: SayItDealAnswer): SayItDealFill {
+  const day = sayItDealAnswer.valid_until.trim();
   return {
-    service: a.service.trim().slice(0, 80),
-    value: amountOf(a.value),
-    per: DEAL_PER_SET.includes(a.per) ? (a.per as DealPer) : "",
-    link: a.link.trim().slice(0, 600),
+    service: sayItDealAnswer.service.trim().slice(0, 80),
+    value: amountOf(sayItDealAnswer.value),
+    per: DEAL_PER_SET.includes(sayItDealAnswer.per) ? (sayItDealAnswer.per as DealPer) : "",
+    link: sayItDealAnswer.link.trim().slice(0, 600),
     valid_until: isRealDate(day) ? day : "",
-    reason: DEAL_REASON_SET.includes(a.lost_reason) ? (a.lost_reason as DealLostReason) : "",
-    note: a.note.trim().slice(0, 200),
+    reason: DEAL_REASON_SET.includes(sayItDealAnswer.lost_reason)
+      ? (sayItDealAnswer.lost_reason as DealLostReason)
+      : "",
+    note: sayItDealAnswer.note.trim().slice(0, 200),
   };
 }
 
 /** What a note sheet keeps of an answer: its words within a note's limit, a real day or none, who reads it. */
-export function noteFill(a: SayItNoteAnswer): SayItNoteFill {
-  const day = a.day.trim();
-  return { what: a.body.trim().slice(0, NOTE_MAX), day: isRealDate(day) ? day : "", team_only: a.team_only };
+export function noteFill(sayItNoteAnswer: SayItNoteAnswer): SayItNoteFill {
+  const day = sayItNoteAnswer.day.trim();
+  return {
+    what: sayItNoteAnswer.body.trim().slice(0, NOTE_MAX),
+    day: isRealDate(day) ? day : "",
+    team_only: sayItNoteAnswer.team_only,
+  };
 }
 
 /** Whether an answer filled anything at all: a fill of nothing is said, never drawn as a sheet emptied. */

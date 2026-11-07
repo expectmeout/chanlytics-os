@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ingestInbound } from "@chanlytics/db";
+import { ingestInbound } from "@chanlytics/db/channels";
 import { fakeDb } from "../_fake-db.mjs";
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

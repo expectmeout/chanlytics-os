@@ -21,10 +21,10 @@
  * and this file adds only the cross-workspace judgement that nobody else needs.
  */
 import type { Tone } from "../shell/tone";
-import { agoWords, DAY_MS } from "../shared/time";
-import { textingWords, lineStuckProvisioning, type LineDto } from "../setup/setup";
+import { agoWords, DAY_MS, isoMs } from "../shared/time";
+import { textingWords, lineStuckProvisioning, type LineDto } from "../setup/lines";
 import { PAUSED_CALL } from "../lines/caller-gets";
-import { receptionistOn, maySpend, whyCannotSpend, type BillingMode, type BillingStatus } from "./billing";
+import { receptionistOn, maySpend, whyCannotSpend, type BillingMode, type BillingStatus } from "./billing/dtos";
 import { formatPhoneDisplay } from "../shared/phone";
 
 /** One workspace as `platform_overview()` returns it. Every field is a fact something else already recorded. */
@@ -126,12 +126,6 @@ export const PLATFORM_NEW_DAYS = 1;
 /** Answering, but nobody has reached them: long enough to be worth a call, short enough to still matter. */
 export const PLATFORM_QUIET_DAYS = 14;
 
-const at = (iso: string | null | undefined): number | null => {
-  if (!iso) return null;
-  const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? ms : null;
-};
-
 /** The states that mean a person at Chanlytics has it, not the customer. */
 const OURS_TO_FIX = ["failed"];
 /** The states that mean the next move is the owner's. */
@@ -163,32 +157,32 @@ function billingBites(mode: BillingMode, status: BillingStatus): boolean {
  * The order now runs most-urgent to least, and each check is written so the one
  * below it can assume the one above did not fire.
  */
-function verdictFor(r: PlatformTenantDto, nowMs: number): PlatformVerdict {
+function verdictFor(platformTenant: PlatformTenantDto, nowMs: number): PlatformVerdict {
   // Not a customer: nothing below means anything about it.
-  if (r.status === "test") return "test";
+  if (platformTenant.status === "test") return "test";
   // A lead's own receptionist, before they sign up (decision 0079): made theirs, it is a workspace like any other.
-  if (r.status === "preview") return "preview";
+  if (platformTenant.status === "preview") return "preview";
 
-  const mode = (r.billing_mode ?? "direct") as BillingMode;
-  const status = (r.billing_status ?? "none") as BillingStatus;
-  const answering = r.voice_active === true || r.whatsapp_active === true;
-  const age = nowMs - (at(r.created_at) ?? nowMs);
+  const mode = (platformTenant.billing_mode ?? "direct") as BillingMode;
+  const status = (platformTenant.billing_status ?? "none") as BillingStatus;
+  const answering = platformTenant.voice_active === true || platformTenant.whatsapp_active === true;
+  const age = nowMs - (isoMs(platformTenant.created_at) ?? nowMs);
 
   // Ours: a failed line or a suspended registration. A customer waiting on US
   // must never be filed under anything softer.
-  if (r.voice_state === "failed" || OURS_TO_FIX.includes(r.sms_state ?? "")) return "broken";
+  if (platformTenant.voice_state === "failed" || OURS_TO_FIX.includes(platformTenant.sms_state ?? "")) return "broken";
 
   // Money, where it can actually stop the receptionist -- and BEFORE `paused`,
   // because a billing pause arrives as exactly that status.
   if (billingBites(mode, status)) return "billing";
 
   // Paused for some other reason, then: deliberate, and nothing to chase.
-  if (r.status === "paused") return "paused";
+  if (platformTenant.status === "paused") return "paused";
 
   // A rehearsal filing reports itself approved and delivers nothing. It is the
   // state most likely to be mistaken for working, so it outranks everything
   // that merely looks unfinished.
-  if (r.reg_mock === true) return "rehearsal";
+  if (platformTenant.reg_mock === true) return "rehearsal";
 
   // Too young for "nothing is set up" to be a fact about anything. Held above
   // the owner-action states on purpose: `needs_record` is the ordinary state of
@@ -199,13 +193,13 @@ function verdictFor(r: PlatformTenantDto, nowMs: number): PlatformVerdict {
   // Theirs: a state the owner has to act on, whether or not anything answers
   // yet. A refused registration is the owner's next move even on a workspace
   // that never got its phone line up.
-  if (THEIRS_TO_FIX.includes(r.sms_state ?? "")) return "waiting_owner";
+  if (THEIRS_TO_FIX.includes(platformTenant.sms_state ?? "")) return "waiting_owner";
   // A free trial spends nothing on our account by design (maySpend): nothing the owner must do.
   if (mode === "stripe" && !maySpend(mode, status) && status !== "trialing") return "waiting_owner";
 
   if (!answering) return "stalled";
 
-  const heard = at(r.last_inbound_at);
+  const heard = isoMs(platformTenant.last_inbound_at);
   if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY_MS ? "quiet" : "new";
   if (nowMs - heard > PLATFORM_QUIET_DAYS * DAY_MS) return "quiet";
   return "live";
@@ -219,29 +213,29 @@ const NOT_A_CUSTOMER = {
 type CustomerVerdict = Exclude<PlatformVerdict, keyof typeof NOT_A_CUSTOMER>;
 const isCustomer = (v: PlatformVerdict): v is CustomerVerdict => !(v in NOT_A_CUSTOMER);
 
-function sentenceFor(r: PlatformTenantDto, verdict: CustomerVerdict, nowMs: number): string {
-  const heard = at(r.last_inbound_at);
+function sentenceFor(platformTenant: PlatformTenantDto, verdict: CustomerVerdict, nowMs: number): string {
+  const heard = isoMs(platformTenant.last_inbound_at);
   const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY_MS);
   switch (verdict) {
     case "broken":
-      return r.line_error
-        ? `${r.line_error}${r.reg_step ? ` (stopped at ${r.reg_step})` : ""}`
+      return platformTenant.line_error
+        ? `${platformTenant.line_error}${platformTenant.reg_step ? ` (stopped at ${platformTenant.reg_step})` : ""}`
         : "Their line stopped and said nothing. A person at Chanlytics has to look.";
     case "billing":
-      return r.billing_status === "past_due"
+      return platformTenant.billing_status === "past_due"
         ? "A payment failed. The receptionist still answers; once Stripe gives up, the workspace is paused."
-        : `Not subscribed (${r.billing_status ?? "no status"}) — the receptionist is paused for them.`;
+        : `Not subscribed (${platformTenant.billing_status ?? "no status"}) — the receptionist is paused for them.`;
     case "rehearsal":
       return "Texting is filed against the test registry: it reports itself approved, delivers nothing, and expires thirty days after filing.";
     case "stalled":
-      return `Set up ${agoWords(at(r.created_at) ?? nowMs, nowMs)} and nothing answers yet${r.members <= 1 ? ", with one person in the workspace" : ""}.`;
+      return `Set up ${agoWords(isoMs(platformTenant.created_at) ?? nowMs, nowMs)} and nothing answers yet${platformTenant.members <= 1 ? ", with one person in the workspace" : ""}.`;
     case "waiting_owner": {
       // TWO causes reach this verdict, and rendering one sentence for both told
       // a workspace with no card on file that its texting was fine. Each cause
       // gets the owner's own words for that cause.
-      const mode = (r.billing_mode ?? "direct") as BillingMode;
-      const status = (r.billing_status ?? "none") as BillingStatus;
-      if (!THEIRS_TO_FIX.includes(r.sms_state ?? "") && mode === "stripe") {
+      const mode = (platformTenant.billing_mode ?? "direct") as BillingMode;
+      const status = (platformTenant.billing_status ?? "none") as BillingStatus;
+      if (!THEIRS_TO_FIX.includes(platformTenant.sms_state ?? "") && mode === "stripe") {
         return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
       }
       // The customer's own sentence, plus the carriers' reason where there is
@@ -249,11 +243,11 @@ function sentenceFor(r: PlatformTenantDto, verdict: CustomerVerdict, nowMs: numb
       // it on their texting row -- but the reason is the entire content of a
       // support question, so here it travels with the state.
       const words = textingWords({
-        sms_state: r.sms_state ?? "none",
-        reg_mock: r.reg_mock ?? false,
-        reg_sole_prop: r.reg_sole_prop ?? false,
+        sms_state: platformTenant.sms_state ?? "none",
+        reg_mock: platformTenant.reg_mock ?? false,
+        reg_sole_prop: platformTenant.reg_sole_prop ?? false,
       }).sentence;
-      return r.line_error ? `${words} — ${r.line_error}` : words;
+      return platformTenant.line_error ? `${words} — ${platformTenant.line_error}` : words;
     }
     case "quiet":
       return quietFor === null
@@ -263,9 +257,9 @@ function sentenceFor(r: PlatformTenantDto, verdict: CustomerVerdict, nowMs: numb
       // `new` is reached two ways: nothing set up yet, or set up and answering
       // with nobody having reached them. "Still setting up" is a lie about the
       // second one.
-      return r.voice_active === true || r.whatsapp_active === true
-        ? `Answering since ${agoWords(at(r.created_at) ?? nowMs, nowMs)}; no customer has reached them yet.`
-        : `Signed up ${agoWords(at(r.created_at) ?? nowMs, nowMs)}, still setting up.`;
+      return platformTenant.voice_active === true || platformTenant.whatsapp_active === true
+        ? `Answering since ${agoWords(isoMs(platformTenant.created_at) ?? nowMs, nowMs)}; no customer has reached them yet.`
+        : `Signed up ${agoWords(isoMs(platformTenant.created_at) ?? nowMs, nowMs)}, still setting up.`;
     case "live":
       return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
     case "paused":
@@ -274,38 +268,40 @@ function sentenceFor(r: PlatformTenantDto, verdict: CustomerVerdict, nowMs: numb
 }
 
 /** The four facts, in words, so the page renders strings rather than deciding anything. */
-function factsFor(r: PlatformTenantDto, nowMs: number): PlatformRowVM["facts"] {
-  const mode = (r.billing_mode ?? null) as BillingMode | null;
-  const status = (r.billing_status ?? null) as BillingStatus | null;
+function factsFor(platformTenant: PlatformTenantDto, nowMs: number): PlatformRowVM["facts"] {
+  const mode = (platformTenant.billing_mode ?? null) as BillingMode | null;
+  const status = (platformTenant.billing_status ?? null) as BillingStatus | null;
   const paying =
     mode === null
       ? "No arrangement"
       : mode === "direct"
         ? "Invoiced"
-        : status === "trialing" && r.trial_end
-          ? `Trial to ${r.trial_end.slice(0, 10)}`
+        : status === "trialing" && platformTenant.trial_end
+          ? `Trial to ${platformTenant.trial_end.slice(0, 10)}`
           : (status ?? "unknown");
 
-  const on = [r.voice_active ? "phone" : null, r.whatsapp_active ? "WhatsApp" : null].filter(Boolean);
+  const on = [platformTenant.voice_active ? "phone" : null, platformTenant.whatsapp_active ? "WhatsApp" : null].filter(
+    Boolean,
+  );
   const answering = on.length
     ? on.join(" + ")
-    : r.voice_state === "provisioning"
+    : platformTenant.voice_state === "provisioning"
       ? "Getting a number"
-      : r.voice_state === "failed"
+      : platformTenant.voice_state === "failed"
         ? "Line failed"
         : "Nothing yet";
 
-  const texting = !r.line_e164
+  const texting = !platformTenant.line_e164
     ? "No line"
-    : r.sms_state === "active"
-      ? r.reg_sole_prop
+    : platformTenant.sms_state === "active"
+      ? platformTenant.reg_sole_prop
         ? "On (sole proprietor)"
         : "On"
-      : r.reg_mock
+      : platformTenant.reg_mock
         ? "Rehearsal"
-        : (r.sms_state ?? "none").replace(/_/g, " ");
+        : (platformTenant.sms_state ?? "none").replace(/_/g, " ");
 
-  const at_ = at(r.last_inbound_at);
+  const at_ = isoMs(platformTenant.last_inbound_at);
   return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
 }
 
@@ -318,17 +314,17 @@ function factsFor(r: PlatformTenantDto, nowMs: number): PlatformRowVM["facts"] {
  */
 export function platformRows(rows: readonly PlatformTenantDto[], nowMs = Date.now()): PlatformRowVM[] {
   return rows
-    .map((r) => {
-      const verdict = verdictFor(r, nowMs);
+    .map((row) => {
+      const verdict = verdictFor(row, nowMs);
       return {
-        tenantId: r.tenant_id,
-        slug: r.slug,
-        name: r.name,
+        tenantId: row.tenant_id,
+        slug: row.slug,
+        name: row.name,
         verdict,
-        sentence: isCustomer(verdict) ? sentenceFor(r, verdict, nowMs) : NOT_A_CUSTOMER[verdict],
-        facts: factsFor(r, nowMs),
-        age: agoWords(at(r.created_at) ?? nowMs, nowMs),
-        members: r.members,
+        sentence: isCustomer(verdict) ? sentenceFor(row, verdict, nowMs) : NOT_A_CUSTOMER[verdict],
+        facts: factsFor(row, nowMs),
+        age: agoWords(isoMs(row.created_at) ?? nowMs, nowMs),
+        members: row.members,
       };
     })
     .sort((a, b) => {
@@ -417,7 +413,7 @@ const CAMPAIGN_VETTING = "about $15 once";
  * buttons.
  */
 export function platformLineActions(
-  l: Pick<LineDto, "e164" | "voice_state" | "sms_state" | "reg_mock" | "state_since">,
+  line: Pick<LineDto, "e164" | "voice_state" | "sms_state" | "reg_mock" | "state_since">,
   nowMs: number = Date.now(),
 ): PlatformLineActionVM[] {
   const out: PlatformLineActionVM[] = [];
@@ -427,7 +423,7 @@ export function platformLineActions(
   // case is three times its own lambda ceiling), so no `catch` ever wrote
   // `failed`. This list offered nothing at all for that row, which is why the only
   // exit anyone had was handing the number back — permanently — and buying another.
-  if (l.voice_state === "failed" || lineStuckProvisioning(l, nowMs)) {
+  if (line.voice_state === "failed" || lineStuckProvisioning(line, nowMs)) {
     out.push({
       action: "retry",
       label: "Retry setting up",
@@ -440,7 +436,7 @@ export function platformLineActions(
     });
   }
 
-  if (l.sms_state === "rejected") {
+  if (line.sms_state === "rejected") {
     out.push({
       action: "refile",
       label: "Send the campaign back",
@@ -467,7 +463,7 @@ export function platformLineActions(
       cost: `${CAMPAIGN_VETTING}, charged to Chanlytics.`,
       permanent: true,
     });
-  } else if (l.reg_mock === true) {
+  } else if (line.reg_mock === true) {
     out.push({
       action: "refile",
       label: "File it for real",
@@ -478,7 +474,7 @@ export function platformLineActions(
     });
   }
 
-  if (l.e164) {
+  if (line.e164) {
     out.push({
       action: "release",
       label: "Give the number back",
@@ -552,18 +548,21 @@ export function platformHealthOf(
 }
 
 /** One sentence for the card: what is wrong, or that nothing is. */
-export function platformHealthWords(h: PlatformHealth): string {
-  if (h.backlog === null) return "The platform's health could not be read just now.";
-  const late = h.backlog > 0 ? `${h.backlog} job${h.backlog === 1 ? "" : "s"} late` : null;
-  const clocks = h.unhealthy.length
-    ? `${h.unhealthy.length} clock${h.unhealthy.length === 1 ? "" : "s"} not running`
+export function platformHealthWords(platformHealth: PlatformHealth): string {
+  if (platformHealth.backlog === null) return "The platform's health could not be read just now.";
+  const late =
+    platformHealth.backlog > 0 ? `${platformHealth.backlog} job${platformHealth.backlog === 1 ? "" : "s"} late` : null;
+  const clocks = platformHealth.unhealthy.length
+    ? `${platformHealth.unhealthy.length} clock${platformHealth.unhealthy.length === 1 ? "" : "s"} not running`
     : null;
   if (!late && !clocks) return "Every clock is running and nothing is waiting.";
   return [clocks, late].filter(Boolean).join(" · ");
 }
 
-export function platformActionWarning(a: PlatformLineActionVM): string {
-  const parts = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
+export function platformActionWarning(platformLineAction: PlatformLineActionVM): string {
+  const parts = [platformLineAction.cost, platformLineAction.permanent ? "This cannot be undone." : null].filter(
+    Boolean,
+  );
   return parts.length ? parts.join(" ") : "Nothing is spent, and it can be done again.";
 }
 
@@ -637,28 +636,29 @@ function waitingDetail(r: WaitingPersonDto): string | null {
 
 /** A referer is a URL; what is worth reading off it is the host and the path, and never the query. */
 function sourceWords(source: string): string | null {
-  const s = source.trim();
-  if (!s) return null;
+  const text = source.trim();
+  if (!text) return null;
   try {
-    const u = new URL(s);
+    const u = new URL(text);
     const path = u.pathname.replace(/\/+$/, "");
     return `from ${u.host}${path && path !== "/" ? path : ""}`;
   } catch {
-    return `from ${s.slice(0, 60)}`;
+    return `from ${text.slice(0, 60)}`;
   }
 }
 
-export function platformQueue(q: PlatformQueue, nowMs = Date.now()): PlatformQueueVM {
+export function platformQueue(otherPlatformQueue: PlatformQueue, nowMs = Date.now()): PlatformQueueVM {
   const note = QUEUE_SENDS_NOTHING;
-  if (!q.waiting) return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
-  const rows = q.waiting.map((r) => ({
+  if (!otherPlatformQueue.waiting)
+    return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
+  const rows = otherPlatformQueue.waiting.map((r) => ({
     id: r.id,
     email: r.email,
     detail: waitingDetail(r),
     waited: `asked ${agoWords(Date.parse(r.created_at), nowMs)}`,
   }));
-  const total = q.total ?? rows.length;
-  const oldest = q.waiting[0];
+  const total = otherPlatformQueue.total ?? rows.length;
+  const oldest = otherPlatformQueue.waiting[0];
   const sentence =
     total === 0
       ? "Nobody is waiting."

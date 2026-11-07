@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { waStoppedMarketing } from "@chanlytics/channels";
+import { waStoppedMarketing } from "@chanlytics/channels/whatsapp";
 import {
   consentChangeOf,
   consentChangeWords,

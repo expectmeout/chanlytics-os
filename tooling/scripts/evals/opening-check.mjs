@@ -36,7 +36,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { askModel, formatRejected } from "@chanlytics/channels";
+import { askModel, formatRejected } from "@chanlytics/channels/ai";
 import {
   MODELS,
   MODEL_ROUTES,

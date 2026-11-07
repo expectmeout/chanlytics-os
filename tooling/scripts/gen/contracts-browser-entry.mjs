@@ -30,47 +30,29 @@ import ts from "typescript";
 export const OUT = "packages/contracts/src/browser.generated.ts";
 const SRC = "packages/contracts/src";
 /**
- * The modules only a page-only entry reads (package.json's `./report-window`, `./report-lens`, `./ads-page`), relative to SRC: their
+ * The modules only a page-only entry reads (package.json's `./report-window`, `./report-lens`), relative to SRC: their
  * names stay in the barrels, so the server and the tests read them from the index, and are left out of the browser's
  * entry. The page that draws them imports them by that subpath. (The entry was one module every page's route loaded
  * until 17 October 2026, which is why the list began; a file per module now keeps a page's own modules on that page
  * either way, and the list keeps their names off the root entry, which the frame's code reads.) Ask's whole table of
- * cards (ask/proposals/proposals.ts) is the server's alone: a page reads the verbs it presses from page-specs.ts, and
+ * cards is the server's alone (server/ask/proposals.ts): a page reads the verbs it presses from page-specs.ts, and
  * Ask's bridge loads the cards only Ask proposes by their own subpath, `./ask-only`. A path that names no
  * file under SRC filters nothing, silently, so `generate` refuses it.
  */
 export const PAGE_ONLY = [
-  "reports/report-metrics.ts",
-  "reports/report-window.ts",
-  "reports/report-mix.ts",
+  "reports/metrics.ts",
+  "reports/window.ts",
+  "reports/mix.ts",
   "reports/receptionist/report.ts",
   "reports/receptionist/words.ts",
   "reports/people/report.ts",
-  "reports/people/words.ts",
+  "reports/people/words/lines.ts",
   "reports/campaigns/reach-out-lens.ts",
-  "reports/campaigns/campaign-words.ts",
-  "reports/campaigns/campaign-lens.ts",
-  "ads/rules.ts",
-  "ads/money.ts",
-  "ads/words.ts",
-  "ads/words-page.ts",
-  "ads/words-drawer.ts",
-  "ads/words-new.ts",
-  "ads/results/words-results.ts",
-  "ads/results/results.ts",
-  "ads/words-connect.ts",
-  "ads/vm-base.ts",
-  "ads/page.ts",
-  "ads/page-parts.ts",
-  "ads/drawer.ts",
-  "ads/drawer-parts.ts",
-  "ads/drawer-edit.ts",
-  "ads/new-ad.ts",
-  "ads/new-ad-parts.ts",
-  "ask/proposals/proposals.ts",
+  "reports/campaigns/words/tables.ts",
+  "reports/campaigns/lens.ts",
 ];
 /**
- * The entries a page imports by their own subpath (package.json's `./report-window`, `./report-lens`, `./ads-page`,
+ * The entries a page imports by their own subpath (package.json's `./report-window`, `./report-lens`,
  * `./alert-pane`, `./ask-only`), by the module each is. Each subpath names its module's source, so a page that loads one
  * shares every module it reaches with the rest of the page instead of carrying its own copy. None may reach classic zod.
  * `./page-specs` is the specs of the verbs the pages press, which the frame fetches when a press or Ask first needs
@@ -78,9 +60,8 @@ export const PAGE_ONLY = [
  * root's own (Ask's kinds join its table in place), and on the server and in the tests it is the index itself.
  */
 export const PAGE_ENTRIES = {
-  "report-window": "reports/report-window.ts",
-  "report-lens": "reports/report-lens.ts",
-  "ads-page": "ads/page-entry.ts",
+  "report-window": "reports/window.ts",
+  "report-lens": "reports/lens.ts",
   "page-specs": "ask/proposals/page-specs.ts",
 };
 /** The specifiers that load zod's classic API. zod/mini and zod/v4/core share its core and are cut by the bundler. */
@@ -209,7 +190,7 @@ function barrelValues(root, g) {
 }
 
 /**
- * Whether `rel` ("reports/report-metrics.ts") is a file under `dir`, each segment spelled exactly as the directory lists it:
+ * Whether `rel` ("reports/metrics.ts") is a file under `dir`, each segment spelled exactly as the directory lists it:
  * `existsSync` is true for a folder, and on Windows for a path in the wrong case, which `generate` then compares to a
  * module's path by string and would never match.
  */

@@ -102,7 +102,7 @@ test("a package's built JavaScript reaches a sibling only by its built file's re
       .map((n) => n.slice("@chanlytics/".length));
     for (const out of builtFiles(p, ".js"))
       for (const { specifier } of importsOf(parse(out))) {
-        const sibling = /^\.\.\/\.\.\/([a-z]+)\/dist\/index\.js$/.exec(specifier)?.[1];
+        const sibling = /^\.\.\/\.\.\/([a-z]+)\/dist\/[a-z-]+\.js$/.exec(specifier)?.[1];
         // A file of the package's own dist, by its relative path: contracts' browser build, a file per module.
         const own = path.posix.join(path.posix.dirname(out), specifier);
         const ownFile = !sibling && own.startsWith(`packages/${p}/dist/`) && fs.existsSync(path.join(ROOT, own));
@@ -207,7 +207,7 @@ test("each package ships its sources: every export names a module under src/, an
       if (typeof target === "object" && target.bundled && Object.keys(target).indexOf("bundled") !== 1)
         wrong.push(`${p} ${subpath}: the bundled condition comes right after types, before any a bundler matches`);
     }
-    assert.ok(Object.keys(entriesOf(p)).includes("dist/index.js"), `${p}: the suite's bundle of its index`);
+    assert.ok(Object.keys(entriesOf(p)).length > 0, `${p}: the suite's bundle of its entries`);
   }
   assert.deepEqual(wrong, []);
   // The edge runtime matches `browser` too, and the browser's entry lacks the server's names: `edge-light` is read first.

@@ -2,7 +2,7 @@
  * What every job handler is handed: the job as it was claimed, and the context its ports are built from. Moved whole
  * from handlers.ts (Reach out Part 2.5), which re-exports its public names.
  */
-import type { ReceivedEmail } from "@chanlytics/channels";
+import type { ReceivedEmail } from "@chanlytics/channels/email";
 import type { FeedNames, FreedTimeOffer, JobKind, JobNews, PushMessage, Unread } from "@chanlytics/contracts";
 import type {
   BookingNoticePorts,
@@ -13,7 +13,7 @@ import type {
   ReplyReadPorts,
   Wire,
 } from "@chanlytics/core";
-import type { Database, Json } from "@chanlytics/db";
+import type { Database, Json } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** What a thread's draft needs of the edge: the writer, and the reader of what a sender is. */
@@ -329,9 +329,9 @@ export interface ClaimedJob {
  * "we could not check" is not a yes.
  */
 /** An error as a log field's words: its message, or the value's own text. */
-export const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+export const errText = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-export function must<T>(what: string, r: { data: T; error: { message: string } | null }): T {
-  if (r.error) throw new Error(`${what}: ${r.error.message}`);
-  return r.data;
+export function must<T>(text: string, row: { data: T; error: { message: string } | null }): T {
+  if (row.error) throw new Error(`${text}: ${row.error.message}`);
+  return row.data;
 }

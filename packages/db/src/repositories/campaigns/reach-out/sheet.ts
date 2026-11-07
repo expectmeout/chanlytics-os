@@ -43,7 +43,7 @@ const STEP_COLUMNS =
   "id, name, state, trigger, lead_search_id, after_playbook_id:after_step_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, signs_with, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 
 /** Every reach-out step of a workspace, each chain's root among them (trigger lead_first). */
-export async function reachOutStepsOf(db: Db, tenantId: string): Promise<ReachOutStepRow[]> {
+export async function listReachOutSteps(db: Db, tenantId: string): Promise<ReachOutStepRow[]> {
   const { data, error } = await db
     .from("sequence_steps")
     .select(STEP_COLUMNS)
@@ -54,7 +54,7 @@ export async function reachOutStepsOf(db: Db, tenantId: string): Promise<ReachOu
 }
 
 /** A chain's root (its first step) by its id; null when there is none, or it is a later step. */
-export async function reachOutRootOf(
+export async function findReachOutRoot(
   db: Db,
   id: string,
 ): Promise<{
@@ -77,7 +77,7 @@ export async function reachOutRootOf(
 }
 
 /** One send of a run by its id: whose it is and where it stands; null when there is none. */
-export async function reachOutSendRefOf(
+export async function findReachOutSendRef(
   db: Db,
   id: string,
 ): Promise<{
@@ -112,7 +112,7 @@ export function emailWordsFrom(row: {
 }
 
 /** Many templates' words at once, by id: what a workspace's chains say. */
-export async function emailWordsByTemplate(
+export async function findEmailWordsByTemplate(
   db: Db,
   tenantId: string,
   ids: string[],
@@ -128,7 +128,7 @@ export async function emailWordsByTemplate(
 }
 
 /** The searches' names, by id. */
-export async function searchesByIds(
+export async function findSearchesByIds(
   db: Db,
   tenantId: string,
   ids: string[],
@@ -144,7 +144,7 @@ export async function searchesByIds(
 }
 
 /** The businesses' names, by lead id: what a hand step's words call each lead (Part 5, G20). */
-export async function leadNamesByIds(db: Db, tenantId: string, ids: string[]): Promise<Map<string, string>> {
+export async function getLeadNamesByIds(db: Db, tenantId: string, ids: string[]): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
   const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
   if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
@@ -166,18 +166,18 @@ export type HandItem = {
  */
 export async function handRun(
   db: Db,
-  p: { tenantId: string; stepId: string; runId: string; day: string; items: HandItem[] },
+  params: { tenantId: string; stepId: string; runId: string; day: string; items: HandItem[] },
 ): Promise<{ made: number; already: number }> {
   const { data, error } = await db.rpc("reach_out_hand_run", {
-    p_tenant_id: p.tenantId,
-    p_step_id: p.stepId,
-    p_run_id: p.runId,
-    p_day: p.day,
-    p_items: p.items,
+    p_tenant_id: params.tenantId,
+    p_step_id: params.stepId,
+    p_run_id: params.runId,
+    p_day: params.day,
+    p_items: params.items,
   });
   if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
-  const r = (data ?? {}) as { made?: number; already?: number };
-  return { made: r.made ?? 0, already: r.already ?? 0 };
+  const item = (data ?? {}) as { made?: number; already?: number };
+  return { made: item.made ?? 0, already: item.already ?? 0 };
 }
 
 /** What the save answers: the chain's root, its steps in order, how many sends went back to the check, and the start's line. */
@@ -200,7 +200,7 @@ export interface ReachOutSaved {
  */
 export async function saveReachOutChain(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     userId: string;
     chain: Record<string, unknown>;
@@ -208,25 +208,25 @@ export async function saveReachOutChain(
   },
 ): Promise<{ data: ReachOutSaved | null; error: { code?: string; message: string } | null }> {
   const { data, error } = await db.rpc("reach_out_save", {
-    p_tenant_id: p.tenantId,
-    p_user_id: p.userId,
-    p_chain: p.chain as Json,
-    p_decision: p.decision?.payload ?? null,
-    ...(p.decision?.via ? { p_via: p.decision.via } : {}),
-    ...(p.decision?.undoOf ? { p_undo_of: p.decision.undoOf } : {}),
+    p_tenant_id: params.tenantId,
+    p_user_id: params.userId,
+    p_chain: params.chain as Json,
+    p_decision: params.decision?.payload ?? null,
+    ...(params.decision?.via ? { p_via: params.decision.via } : {}),
+    ...(params.decision?.undoOf ? { p_undo_of: params.decision.undoOf } : {}),
   });
   if (error) return { data: null, error: { code: error.code, message: error.message } };
   // A door's jsonb answer, as the DTO its function builds (00211): the SQL is its shape, and its tests hold it.
   const saved = data as ReachOutSaved | null;
   if (!saved || typeof saved.root_id !== "string")
     return { data: null, error: { message: "reach_out_save: no chain" } };
-  if (p.decision && typeof saved.decision_id !== "string")
+  if (params.decision && typeof saved.decision_id !== "string")
     return { data: null, error: { message: "reach_out_save: the door answered without its decision" } };
   return { data: saved, error: null };
 }
 
 /** The runs waiting for their owner's approval, as their audiences say them (a reach-out's names its root). */
-export async function runsWaitingOf(db: Db, tenantId: string): Promise<{ id: string; audience: unknown }[]> {
+export async function listRunsWaiting(db: Db, tenantId: string): Promise<{ id: string; audience: unknown }[]> {
   const { data, error } = await db
     .from("sequence_batches")
     .select("id, audience")
@@ -263,7 +263,7 @@ export interface ReachOutRunSend {
   } | null;
 }
 
-export async function reachOutRunSendsOf(db: Db, tenantId: string, runId: string): Promise<ReachOutRunSend[]> {
+export async function listReachOutRunSends(db: Db, tenantId: string, runId: string): Promise<ReachOutRunSend[]> {
   const { data, error } = await db
     .from("sequence_sends")
     .select(
@@ -278,10 +278,10 @@ export async function reachOutRunSendsOf(db: Db, tenantId: string, runId: string
 }
 
 /** A step's day: tried now, and, when it ran, the day it ran for (the sweep and Start both stamp it). */
-export async function stampReachOutStep(db: Db, id: string, p: { at: Date; runFor?: string }): Promise<void> {
+export async function stampReachOutStep(db: Db, id: string, params: { at: Date; runFor?: string }): Promise<void> {
   const { error } = await db
     .from("sequence_steps")
-    .update({ last_run_at: p.at.toISOString(), ...(p.runFor ? { last_run_for: p.runFor } : {}) })
+    .update({ last_run_at: params.at.toISOString(), ...(params.runFor ? { last_run_for: params.runFor } : {}) })
     .eq("id", id);
   if (error) throw new Error(`cannot stamp the step's day: ${error.message}`);
 }
@@ -295,13 +295,13 @@ export async function stampReachOutStep(db: Db, id: string, p: { at: Date; runFo
  */
 export async function recheckSends(
   db: Db,
-  p: { tenantId: string; ids: string[]; fromState?: "planned" | "held" | "claimed" },
+  params: { tenantId: string; ids: string[]; fromState?: "planned" | "held" | "claimed" },
 ): Promise<number> {
-  if (p.ids.length === 0) return 0;
+  if (params.ids.length === 0) return 0;
   const { data, error } = await db.rpc("reach_out_recheck", {
-    p_send_ids: p.ids,
-    p_tenant_id: p.tenantId,
-    ...(p.fromState ? { p_from_state: p.fromState } : {}),
+    p_send_ids: params.ids,
+    p_tenant_id: params.tenantId,
+    ...(params.fromState ? { p_from_state: params.fromState } : {}),
   });
   if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
   return typeof data === "number" ? data : 0;
@@ -335,18 +335,18 @@ export interface HeldNoticeRun {
  * mark, or a claim older than `staleBefore` that never went (a tick that stopped, or a notice that failed). A read,
  * not a tick's memory, so a notice that failed is asked again. A read that fails throws.
  */
-export async function heldNoticeDue(
+export async function listHeldNoticeDue(
   db: Db,
-  p: { since: string; staleBefore: string; tenantId?: string; limit: number },
+  params: { since: string; staleBefore: string; tenantId?: string; limit: number },
 ): Promise<HeldNoticeRun[]> {
   let sends = db
     .from("sequence_sends")
     .select("tenant_id, broadcast_id:batch_id, reason")
     .not("lead_id", "is", null)
     .eq("state", "held")
-    .gte("updated_at", p.since)
-    .limit(p.limit);
-  if (p.tenantId) sends = sends.eq("tenant_id", p.tenantId);
+    .gte("updated_at", params.since)
+    .limit(params.limit);
+  if (params.tenantId) sends = sends.eq("tenant_id", params.tenantId);
   const held = await sends;
   if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
   const byRun = new Map<string, { held: number; reasons: Set<string> }>();
@@ -364,22 +364,22 @@ export async function heldNoticeDue(
     .in("id", [...byRun.keys()])
     .in("state", [...RUN_GOING_STATES]);
   if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
-  return (runs.data ?? []).flatMap((b) => {
+  return (runs.data ?? []).flatMap((row) => {
     const audience: JsonObject =
-      b.audience && typeof b.audience === "object" && !Array.isArray(b.audience) ? b.audience : {};
+      row.audience && typeof row.audience === "object" && !Array.isArray(row.audience) ? row.audience : {};
     if (audience.kind !== "reach_out") return [];
     const mark = markOf(audience.held_notice);
-    if (mark && (mark.sent_at || mark.claimed_at >= p.staleBefore)) return [];
-    const r = byRun.get(b.id)!;
+    if (mark && (mark.sent_at || mark.claimed_at >= params.staleBefore)) return [];
+    const found = byRun.get(row.id)!;
     return [
       {
-        id: b.id,
-        tenant_id: b.tenant_id,
-        name: b.name,
+        id: row.id,
+        tenant_id: row.tenant_id,
+        name: row.name,
         audience,
-        updated_at: b.updated_at,
-        held: r.held,
-        reasons: [...r.reasons],
+        updated_at: row.updated_at,
+        held: found.held,
+        reasons: [...found.reasons],
       },
     ];
   });
@@ -393,15 +393,15 @@ export async function heldNoticeDue(
  */
 export async function markHeldNotice(
   db: Db,
-  p: { tenantId: string; id: string; audience: JsonObject; mark: HeldNoticeMark; ifUpdatedAt?: string },
+  params: { tenantId: string; id: string; audience: JsonObject; mark: HeldNoticeMark; ifUpdatedAt?: string },
 ): Promise<boolean> {
-  let q = db
+  let query = db
     .from("sequence_batches")
-    .update({ audience: { ...p.audience, held_notice: { ...p.mark } } })
-    .eq("tenant_id", p.tenantId)
-    .eq("id", p.id);
-  if (p.ifUpdatedAt) q = q.eq("updated_at", p.ifUpdatedAt);
-  const { data, error } = await q.select("id");
+    .update({ audience: { ...params.audience, held_notice: { ...params.mark } } })
+    .eq("tenant_id", params.tenantId)
+    .eq("id", params.id);
+  if (params.ifUpdatedAt) query = query.eq("updated_at", params.ifUpdatedAt);
+  const { data, error } = await query.select("id");
   if (error) throw new Error(`cannot mark the run: ${error.message}`);
   return (data ?? []).length === 1;
 }
@@ -415,18 +415,18 @@ export async function markHeldNotice(
  */
 export async function runWaitingCounts(
   db: Db,
-  p: { tenantId: string; runIds: readonly string[] },
+  params: { tenantId: string; runIds: readonly string[] },
 ): Promise<Map<string, { held: number; drafted: number }>> {
   const out = new Map<string, { held: number; drafted: number }>();
-  if (p.runIds.length === 0) return out;
+  if (params.runIds.length === 0) return out;
   const rows = await readAllRows<{ broadcast_id: string | null; state: string }>(
     "cannot count the runs' waiting emails",
     (from, to) =>
       db
         .from("sequence_sends")
         .select("broadcast_id:batch_id, state")
-        .eq("tenant_id", p.tenantId)
-        .in("batch_id", [...p.runIds])
+        .eq("tenant_id", params.tenantId)
+        .in("batch_id", [...params.runIds])
         .in("state", ["held", "drafted"])
         .order("id")
         .range(from, to),

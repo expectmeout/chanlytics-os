@@ -479,7 +479,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   );
   const runner = readCode("apps/edge/lib/campaigns/playbooks/playbooks.ts");
   for (const s of [
-    /feedItemsFor\(tenantId, url, tz, now, daysAhead\)/,
+    /listFeedItems\(tenantId, url, tz, now, daysAhead\)/,
     // The pool's one reading (contracts audience-pool.ts): the visits, marked, and the rows over them.
     /visits = peopleVisitsOf\(\s*items,\s*rows,/,
     /poolRowsOf\(withVisitsOf\(rows, visits, \{ state: calendar,/,
@@ -487,9 +487,9 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
     assert.ok(s.test(runner), String(s));
   const handler = readCode("packages/jobs/src/handlers/broadcast-send.ts");
   assert.ok(
-    // The batch's read is packages/db queuedRecipients (step 3): the words and the channel their run picked for them,
+    // The batch's read is packages/db listQueuedRecipients (step 3): the words and the channel their run picked for them,
     // read again without the channel on a database 00298 has not reached, run in before-the-channel-columns.test.mjs.
-    handler.includes("queuedRecipients(db,"),
+    handler.includes("listQueuedRecipients(db,"),
     "the row's own words ride the batch; the slots are filled from them (run in core-broadcast.test.mjs)",
   );
   const sd = readCode("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");

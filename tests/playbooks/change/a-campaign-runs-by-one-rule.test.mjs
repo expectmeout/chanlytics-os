@@ -1,5 +1,5 @@
 /**
- * Whether a campaign runs is one rule (contracts playbook-schedule.ts campaignRunsOn; the wiring's second audit, S1-3).
+ * Whether a campaign runs is one rule (contracts playbooks/schedule.ts campaignRunsOn; the wiring's second audit, S1-3).
  *
  * A campaign past its last day (00416 `until`) was "Ended" on Campaigns' home and "On · daily 10:00 AM" with a run tomorrow to
  * Ask, drew its daily runs on Sent's week ahead, was listed as sending in the Library, offered Run now (which the server
@@ -20,9 +20,7 @@ import ts from "typescript";
 import { parse, repoFiles } from "../../_ast.mjs";
 import { importSrc } from "../../_source.mjs";
 
-const { campaignRunsOn, nextRunLabel } = await importSrc(
-  "packages/contracts/src/campaigns/playbooks/playbook-schedule.ts",
-);
+const { campaignRunsOn, nextRunLabel } = await importSrc("packages/contracts/src/campaigns/playbooks/schedule.ts");
 const { lifecyclePlaybooksOf } = await importSrc("packages/contracts/src/campaigns/playbooks/lifecycle/inputs.ts");
 
 /* ------------------------------------------------------------------------------------------------------------------------ *
@@ -104,7 +102,7 @@ test("the home's reading carries the rule's answer on each card, which Sent's we
 const SCOPE = ["packages/contracts/src", "apps/dashboard/src"];
 /** The rule's own module, and the lifecycle module that reads it for the home (its cards, ledger, tiles and words). */
 const RULE_HOMES = [
-  "packages/contracts/src/campaigns/playbooks/playbook-schedule.ts",
+  "packages/contracts/src/campaigns/playbooks/schedule.ts",
   "packages/contracts/src/campaigns/playbooks/lifecycle/",
 ];
 
@@ -117,7 +115,7 @@ const OTHER_STATES = {
     n: 2,
     why: "A pause or a resume a card asks for: the state it writes, and the toast that says which, not whether the campaign runs.",
   },
-  "packages/contracts/src/campaigns/playbooks/playbook-patch.ts": {
+  "packages/contracts/src/campaigns/playbooks/patch.ts": {
     n: 1,
     why: "The words of a change asked for (Pause, Resume): the state a patch writes, not whether the campaign runs.",
   },
@@ -137,15 +135,15 @@ const OTHER_STATES = {
     n: 2,
     why: "The Calendar's marks forecast each day apart, and judge each against the campaign's last day themselves (campaignEnded per day drawn), which the day's rule cannot.",
   },
-  "packages/contracts/src/campaigns/playbooks/playbook-reach.ts": {
+  "packages/contracts/src/campaigns/playbooks/reach.ts": {
     n: 1,
     why: "Who a card reaches says Paused for a campaign that is off; one past its last day says so by its state on the card (lifecycleStateOf, Ended), which wins.",
   },
-  "packages/contracts/src/campaigns/reach-out/leads.ts": {
+  "packages/contracts/src/campaigns/reach-out/leads/standing.ts": {
     n: 2,
     why: "A reach-out's chain, whose steps have no last day: on or paused is all there is to it.",
   },
-  "packages/contracts/src/campaigns/reach-out/sheet.ts": {
+  "packages/contracts/src/campaigns/reach-out/sheet/chain.ts": {
     n: 1,
     why: "A reach-out's chain, whose steps have no last day: on or paused is all there is to it.",
   },
@@ -153,7 +151,7 @@ const OTHER_STATES = {
     n: 1,
     why: "A reach-out's chain on the Campaigns lens, whose steps have no last day: on or paused is all there is to it.",
   },
-  "apps/dashboard/src/server/campaigns/reach-outs.ts": {
+  "apps/dashboard/src/server/campaigns/reach-outs/reach-outs.ts": {
     n: 2,
     why: "A reach-out's chain as its reader answers it: on where its first step and the step are, which has no last day.",
   },
@@ -173,7 +171,7 @@ const OTHER_STATES = {
     n: 1,
     why: "A mailbox's own history on its row in Connections (decision 0086): the imports ledger's run coming in, with Stop, not a campaign.",
   },
-  "packages/contracts/src/setup/rows.ts": {
+  "packages/contracts/src/setup/rows/steps.ts": {
     n: 3,
     why: "Setup's clients' file row: the imports ledger's run of the file, not a campaign.",
   },

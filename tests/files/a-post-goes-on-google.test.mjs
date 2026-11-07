@@ -1,5 +1,5 @@
 /**
- * A kept post on the business's Google profile, from its sheet (apps/dashboard/src/server/files/post/google.ts, decision 0099, step
+ * A kept post on the business's Google profile, from its sheet (apps/dashboard/src/server/posts/google.ts, decision 0099, step
  * 3), run through route(): the real route, the real composer, a database and a Storage in memory, and a fetch where the edge would be.
  * The picture is drawn for what Google shows and kept in the file's own folder, Google is sent to fetch it, and the person's words go as
  * they wrote them. A press only: nothing here runs by itself.
@@ -41,7 +41,7 @@ after(() => {
 });
 
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/files/[id]/google/route.ts"));
 const one = await import(at("apps/dashboard/app/api/v1/files/[id]/route.ts"));
 const preview = await import(at("apps/dashboard/app/api/v1/files/post/preview/route.ts"));
@@ -53,7 +53,7 @@ beforeEach(() => {
     body: { ok: true, name: NAME, search_url: "https://local.google.com/x", state: "PROCESSING" },
   });
 });
-after(() => setServiceClient(null));
+after(() => setUnsubscribeServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const PHOTO_ID = "ffffffff-0000-4000-8000-000000000001";
@@ -169,7 +169,7 @@ function world({
       },
     }),
   };
-  setServiceClient(service);
+  setUnsubscribeServiceClient(service);
   return { ctx, uploaded, signed };
 }
 const send = (method, body) => new Request(`http://localhost/api/v1/x${inA}`, { method, body: JSON.stringify(body) });

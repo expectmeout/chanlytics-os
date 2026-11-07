@@ -20,7 +20,7 @@
  * without a throw and left on the row for the owner to see; and what each op
  * leaves behind: the rows, the bell, the ledger, Vault, and the requests.
  *
- * ORDER OF SETUP MATTERS: lib/google/places.ts binds `const http = placesFetch()`
+ * ORDER OF SETUP MATTERS: lib/shared/google/places.ts binds `const http = placesFetch()`
  * at module scope, which captures `fetch` as it is at that moment, so the
  * wire is installed before the door is imported.
  */
@@ -28,14 +28,14 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import {
-  signEdgeToken,
   b64url,
   PLACES_SEARCH_MASK,
   PLACES_DETAILS_MASK,
   PLACES_SEARCH_LIMIT,
   GBP_REVIEWS_MAX_PAGES,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/google";
 import { REVIEW_HOLD_MS, localDate, reviewRoute } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { scripted, said } from "../ai/_model-world.mjs";

@@ -6,7 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { attentionRow, toPersonRowVM } from "@chanlytics/contracts";
+import { toPersonRowVM } from "@chanlytics/contracts";
+import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 
 // The name cell a People row draws its words in (surfaces/people/cells/columns.tsx), run rather than read.
@@ -226,9 +227,10 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
     "the grants are re-stated after the drop",
   );
   assert.ok(
-    readCode("packages/contracts/src/people/person-row.ts").includes(
-      "callSummary: r.last_inbound_call_summary?.trim() || null,",
-    ),
+    ["packages/contracts/src/people/person-row/row-facts.ts", "packages/contracts/src/people/person-row/row-vm.ts"]
+      .map((p) => readCode(p))
+      .join("\n")
+      .includes("callSummary: r.last_inbound_call_summary?.trim() || null,"),
   );
   // Run, not read: the surface's mapping (surface-map.ts, over the sample's people) carries each row's attention row.
   const surface = peopleSample(NOW);

@@ -160,16 +160,16 @@ const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
  * reads one only for a mark, in its spare time: its room covers those.
  */
 export function estimateRoundUsd(plan: LeadSearchPlan, purpose: LeadRoundPurpose, placesToAsk: number): number {
-  const c = cardOf(plan);
+  const card = cardOf(plan);
   const places = Math.max(0, Math.floor(placesToAsk));
   const perPlace =
-    c.costPerPlaceUsd +
-    c.contactsPerPlaceUsd +
-    c.judgePerPlaceUsd +
-    (plan.contact === "email" ? c.checkPerEmailUsd : 0) +
-    (planReadsSites(plan) ? c.sitePerPlaceUsd : 0);
+    card.costPerPlaceUsd +
+    card.contactsPerPlaceUsd +
+    card.judgePerPlaceUsd +
+    (plan.contact === "email" ? card.checkPerEmailUsd : 0) +
+    (planReadsSites(plan) ? card.sitePerPlaceUsd : 0);
   const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
-  return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
+  return round4((places * perPlace + starts * card.startUsd) * LEAD_ESTIMATE_MARGIN);
 }
 
 /** `total` spread over `n` terms, the remainder on the first ones. */
@@ -193,18 +193,18 @@ export function placesToAsk(
   remaining: number,
   yieldSoFar: number | null,
 ): { total: number; perTerm: number[] } {
-  const n = Math.max(1, plan.terms.length);
+  const highest = Math.max(1, plan.terms.length);
   const cap = cardOf(plan).maxPerTerm;
-  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
+  if (remaining <= 0) return { total: 0, perTerm: Array(highest).fill(0) };
   if (yieldSoFar === null) {
-    const perTerm = spread(LEAD_PROBE_PLACES, n, cap);
+    const perTerm = spread(LEAD_PROBE_PLACES, highest, cap);
     return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
   }
   const left = Math.max(1, Math.ceil(remaining));
   const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
   const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
-  const total = Math.min(LEAD_MAX_PLACES, cap * n, Math.ceil(clamped));
-  const perTerm = spread(total, n, cap);
+  const total = Math.min(LEAD_MAX_PLACES, cap * highest, Math.ceil(clamped));
+  const perTerm = spread(total, highest, cap);
   return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
 

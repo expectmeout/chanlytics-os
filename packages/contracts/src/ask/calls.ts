@@ -8,14 +8,14 @@ import { missedCall } from "../conversations/call-dto";
 import type { CallVM } from "../conversations/call-vm";
 
 /** The word under a call in the jump list: live, "missed", "didn't connect" for a dial the receptionist placed, else none. */
-export function callJumpSub(c: {
+export function callJumpSub(context: {
   live: boolean;
   missed: boolean;
   direction: "inbound" | "outbound" | null;
 }): string | undefined {
-  if (c.live) return "live";
-  if (!c.missed) return undefined;
-  return missedCall(c) ? "missed" : "didn't connect";
+  if (context.live) return "live";
+  if (!context.missed) return undefined;
+  return missedCall(context) ? "missed" : "didn't connect";
 }
 
 /**
@@ -24,7 +24,7 @@ export function callJumpSub(c: {
  * "not_connected".
  */
 export function askCallOutcome(
-  v: Pick<CallVM, "outcome" | "missed" | "direction">,
+  call: Pick<CallVM, "outcome" | "missed" | "direction">,
 ): CallVM["outcome"] | "not_connected" {
-  return v.outcome === "missed" && !missedCall(v) ? "not_connected" : v.outcome;
+  return call.outcome === "missed" && !missedCall(call) ? "not_connected" : call.outcome;
 }

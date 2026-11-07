@@ -27,8 +27,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { erasureKeys } = await import("@chanlytics/db");
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { erasureKeys } = await import("@chanlytics/db/erasure");
 const contacts = await import(at("apps/dashboard/app/api/v1/contacts/route.ts"));
 const receptionistMany = await import(at("apps/dashboard/app/api/v1/contacts/receptionist/route.ts"));
 const notesMany = await import(at("apps/dashboard/app/api/v1/contacts/notes/route.ts"));
@@ -460,11 +460,11 @@ test("an erasure hands the Ask scrub, the kept deliveries' scrub and the notes' 
       { id: P1 },
       rpcs,
     );
-    setServiceClient(ctx.supabase);
+    setUnsubscribeServiceClient(ctx.supabase);
     try {
       return { out: await person.DELETE.run(send("DELETE"), ctx), seen: ctx.supabase.seen };
     } finally {
-      setServiceClient(null);
+      setUnsubscribeServiceClient(null);
     }
   };
 
@@ -963,7 +963,7 @@ test("a page says where the next begins once its rows carry their place, and the
 });
 
 test("everyone is read a page at a time, each just past the last row's place, and nobody twice when someone writes between pages; by offset from a database before 00276", async () => {
-  const { everyone } = await import(at("apps/dashboard/src/server/people/people.ts"));
+  const { listEveryone } = await import(at("apps/dashboard/src/server/people/people.ts"));
   const world = kept(2500);
   const tables = { memberships: both("owner", "owner"), policies: [], contacts: world.contacts };
   let calls = 0;
@@ -972,7 +972,7 @@ test("everyone is read a page at a time, each just past the last row's place, an
     if (++calls === 2) world.move(world.idOf(2200));
     return world.people_list(a);
   };
-  const all = await everyone(ctxFor(tables, {}, { people_list }), A);
+  const all = await listEveryone(ctxFor(tables, {}, { people_list }), A);
   assert.equal(new Set(all.map((p) => p.id)).size, all.length, "nobody twice");
   assert.equal(all.length, 2499, "everyone but the one who moved above the cursor, whom the next pass reads first");
   assert.deepEqual(
@@ -985,7 +985,7 @@ test("everyone is read a page at a time, each just past the last row's place, an
   );
 
   const before = kept(2500, { places: false });
-  const old = await everyone(
+  const old = await listEveryone(
     ctxFor({ ...tables, contacts: before.contacts }, {}, { people_list: before.people_list }),
     A,
   );
@@ -998,7 +998,7 @@ test("everyone is read a page at a time, each just past the last row's place, an
 });
 
 test("each person's receptionist mode past a thousand people with one of their own, and the workspace's wherever its row was written: the policies are read a page at a time", async () => {
-  const { everyone } = await import(at("apps/dashboard/src/server/people/people.ts"));
+  const { listEveryone } = await import(at("apps/dashboard/src/server/people/people.ts"));
   const world = kept(1500);
   const polId = (i) => `99999999-0000-4000-8000-${String(i).padStart(12, "0")}`;
   // 1,100 people with a mode of their own, written before the workspace's own row: one select answers a thousand rows
@@ -1015,7 +1015,7 @@ test("each person's receptionist mode past a thousand people with one of their o
     contacts: world.contacts,
   };
   const modes = new Map(
-    (await everyone(ctxFor(tables, {}, { people_list: world.people_list }), A)).map((p) => [
+    (await listEveryone(ctxFor(tables, {}, { people_list: world.people_list }), A)).map((p) => [
       p.id,
       p.effective_reply_mode,
     ]),

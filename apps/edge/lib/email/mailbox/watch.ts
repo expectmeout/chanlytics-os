@@ -6,16 +6,17 @@
  * the five-minute sweep reads the mailbox all the same; a watch that could not be made is tried again next sweep.
  */
 import {
-  gmailProfile,
-  gmailStop,
-  gmailWatch,
-  graphDelta,
-  graphRenew,
-  graphSubscribe,
-  graphUnsubscribe,
-} from "@chanlytics/channels";
+  readGmailProfile,
+  stopGmailWatch,
+  watchGmail,
+  readGraphDelta,
+  renewGraph,
+  subscribeGraph,
+  unsubscribeGraph,
+} from "@chanlytics/channels/email";
 import { HOUR_MS } from "@chanlytics/contracts";
-import { keepMailboxWatch, type Database, type MailboxConnectionRow } from "@chanlytics/db";
+import { keepMailboxWatch, type MailboxConnectionRow } from "@chanlytics/db/email";
+import { type Database } from "@chanlytics/db/types";
 import { gmailPush, graphPush } from "./config.js";
 import type { Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -48,25 +49,25 @@ export async function keepWatch(
     const push = gmailPush();
     if (push) {
       if (late()) return false;
-      const w = await gmailWatch(token, push.topic);
-      if (!w.ok) {
-        log.warn("mailbox_watch_failed", { mailbox: row.id, provider: "google", status: w.reply.status });
+      const otherGmailWatch = await watchGmail(token, push.topic);
+      if (!otherGmailWatch.ok) {
+        log.warn("mailbox_watch_failed", { mailbox: row.id, provider: "google", status: otherGmailWatch.reply.status });
         return false;
       }
       // The cursor the watch hands back starts the history read only where there was none: a renewal keeps reading on.
       await keepMailboxWatch(db, {
         id: row.id,
         watchId: null,
-        expiresAt: new Date(w.expiresAt),
-        cursor: row.sync_cursor ? null : w.historyId,
+        expiresAt: new Date(otherGmailWatch.expiresAt),
+        cursor: row.sync_cursor ? null : otherGmailWatch.historyId,
       });
       return true;
     }
     if (row.sync_cursor) return true;
     if (late()) return false;
-    const p = await gmailProfile(token);
-    const historyId = (p.json as { historyId?: unknown } | null)?.historyId;
-    if (p.outcome !== "ok" || typeof historyId !== "string") return false;
+    const otherGmailProfile = await readGmailProfile(token);
+    const historyId = (otherGmailProfile.json as { historyId?: unknown } | null)?.historyId;
+    if (otherGmailProfile.outcome !== "ok" || typeof historyId !== "string") return false;
     // No push: a cursor alone, and a watch date a week on so it is not asked again every tick.
     await keepMailboxWatch(db, {
       id: row.id,
@@ -82,18 +83,18 @@ export async function keepWatch(
     let link: string | null = null;
     for (let page = 0; page < 20; page++) {
       if (late()) return false;
-      const d = await graphDelta(token, link, undefined, new Date(now).toISOString());
-      if (!d.ok) return false;
-      if (d.deltaLink) {
+      const otherGraphDelta = await readGraphDelta(token, link, undefined, new Date(now).toISOString());
+      if (!otherGraphDelta.ok) return false;
+      if (otherGraphDelta.deltaLink) {
         await keepMailboxWatch(db, {
           id: row.id,
           watchId: row.watch_id,
           expiresAt: row.watch_expires_at ? new Date(row.watch_expires_at) : new Date(now),
-          cursor: d.deltaLink,
+          cursor: otherGraphDelta.deltaLink,
         });
         break;
       }
-      link = d.nextLink;
+      link = otherGraphDelta.nextLink;
       if (!link) return false;
     }
   }
@@ -104,28 +105,32 @@ export async function keepWatch(
   }
   if (late()) return false;
   if (row.watch_id) {
-    const r = await graphRenew(token, row.watch_id, now);
-    if (r.ok) {
-      await keepMailboxWatch(db, { id: row.id, watchId: row.watch_id, expiresAt: new Date(r.expiresAt) });
+    const otherGraphRenew = await renewGraph(token, row.watch_id, now);
+    if (otherGraphRenew.ok) {
+      await keepMailboxWatch(db, { id: row.id, watchId: row.watch_id, expiresAt: new Date(otherGraphRenew.expiresAt) });
       return true;
     }
-    if (!r.gone) {
-      log.warn("mailbox_watch_failed", { mailbox: row.id, provider: "microsoft", status: r.reply.status });
+    if (!otherGraphRenew.gone) {
+      log.warn("mailbox_watch_failed", {
+        mailbox: row.id,
+        provider: "microsoft",
+        status: otherGraphRenew.reply.status,
+      });
       return false;
     }
   }
   if (late()) return false;
-  const s = await graphSubscribe(token, push.url, push.clientState, now);
-  if (!s.ok) {
-    log.warn("mailbox_watch_failed", { mailbox: row.id, provider: "microsoft", status: s.reply.status });
+  const result = await subscribeGraph(token, push.url, push.clientState, now);
+  if (!result.ok) {
+    log.warn("mailbox_watch_failed", { mailbox: row.id, provider: "microsoft", status: result.reply.status });
     return false;
   }
-  await keepMailboxWatch(db, { id: row.id, watchId: s.id, expiresAt: new Date(s.expiresAt) });
+  await keepMailboxWatch(db, { id: row.id, watchId: result.id, expiresAt: new Date(result.expiresAt) });
   return true;
 }
 
 /** The watch ended, when the mailbox is removed: best effort, since the grant goes with it. */
 export async function endWatch(row: MailboxConnectionRow, token: string): Promise<void> {
-  if (row.provider === "google") await gmailStop(token).catch(() => null);
-  else if (row.watch_id) await graphUnsubscribe(token, row.watch_id).catch(() => null);
+  if (row.provider === "google") await stopGmailWatch(token).catch(() => null);
+  else if (row.watch_id) await unsubscribeGraph(token, row.watch_id).catch(() => null);
 }

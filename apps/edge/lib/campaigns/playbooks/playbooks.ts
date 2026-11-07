@@ -7,30 +7,27 @@
  * come here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assembleBroadcast } from "@chanlytics/db/jobs";
 import {
-  assembleBroadcast,
-  campaignMonthSent,
-  dealOnFile,
-  emitEvent,
-  everyoneIn,
+  recordCampaignMonthSent,
   followUpsDue,
   holdRecipients,
   leaveSequence,
-  peopleHandRun,
-  sequenceReached,
-  mailboxOfTenant,
-  messageVersionRowsOf,
-  savedListsFor,
-  textLineFacts,
+  getPeopleHandRun,
+  wasSequenceReached,
+  listMessageVersionRows,
+  findTextLineFacts,
   touchIndex,
-  touchesSince,
-  recordOver,
-  runningStepsOn,
-  whatsappChannelFacts,
-  yesesSince,
-  type Database,
-  type Json,
-} from "@chanlytics/db";
+  listTouchesSince,
+  listRunningStepsOn,
+  findWhatsappChannelFacts,
+} from "@chanlytics/db/campaigns";
+import { getDealOnFile, listYesesSince } from "@chanlytics/db/deals";
+import { emitEvent } from "@chanlytics/db/events";
+import { listEveryoneIn, listSavedLists } from "@chanlytics/db/people";
+import { findMailboxOfTenant } from "@chanlytics/db/email";
+import { recordOver } from "@chanlytics/db/calendar";
+import { type Database, type Json } from "@chanlytics/db/types";
 import {
   runPlaybook as runOverPorts,
   type FreedTimeRun,
@@ -39,7 +36,7 @@ import {
   type RunContext,
   type RunOutcome,
 } from "@chanlytics/core";
-import { notify } from "../../ops/notify.js";
+import { notify } from "../../shared/alerts/notify.js";
 import { logger } from "../../shared/log.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import {
@@ -71,8 +68,8 @@ import {
   VISIT_TRIGGERS,
   runRoute,
 } from "@chanlytics/contracts";
-import { feedItemsFor } from "../../calendar/availability.js";
-import { campaignsDomainVerified } from "../../email/campaigns-domain.js";
+import { listFeedItems } from "../../calendar/availability.js";
+import { findCampaignsDomainVerified } from "../../email/campaigns-domain.js";
 import { emailCanSend } from "../../email/email.js";
 
 type Db = SupabaseClient<Database>;
@@ -86,13 +83,13 @@ export type { PlaybookRow };
  * page arguments are named only past the first page, so a database that has
  * not been given 00112 yet answers the first page as it always has.
  */
-export async function allPeople(
+export async function findAllPeople(
   db: Db,
   tenantId: string,
 ): Promise<{ data: PersonRowDto[] | null; error: { message: string } | null }> {
   // packages/db everyoneIn: the dashboard's pager too. A page it cannot read is this tenant's error, never a
   // thousand people counted as everyone.
-  return everyoneIn(db, tenantId).then(
+  return listEveryoneIn(db, tenantId).then(
     (data) => ({ data, error: null }),
     (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
   );
@@ -110,16 +107,16 @@ export const CONTEXT_PAUSED = "paused";
  * What a run's channels are judged by (contracts channelsReady), read once per tenant: the WhatsApp number's config as
  * Meta last said it, the texting line a text would leave on, and whether the workspace has a mailbox where this
  * deployment's email wire can send (a mail domain and the provider's key: emailCanSend) -- the rows the dashboard's
- * composers read (packages/db campaign-channels.ts). The WhatsApp number's read that fails is this tenant's error, never a
+ * composers read (packages/db campaigns/channels.ts). The WhatsApp number's read that fails is this tenant's error, never a
  * number that is not there: a run that held everyone as unreachable over a blip would be a day lost. A texting line's or
  * a mailbox's read that fails is that channel not ready, said in the log: the people who go by it are held that day, and
  * the playbooks that go by WhatsApp alone still run, as they did before the other two were read at all. The mailbox
  * carries the workspace's pause on offers by email (`offersPause`, 00299), which the same read answers.
  */
 async function channelFacts(db: Db, tenantId: string) {
-  let whatsapp: Awaited<ReturnType<typeof whatsappChannelFacts>>;
+  let whatsapp: Awaited<ReturnType<typeof findWhatsappChannelFacts>>;
   try {
-    whatsapp = await whatsappChannelFacts(db, tenantId);
+    whatsapp = await findWhatsappChannelFacts(db, tenantId);
   } catch (e) {
     return {
       whatsapp: null,
@@ -137,8 +134,8 @@ async function channelFacts(db: Db, tenantId: string) {
     return null;
   };
   const [textLine, mailbox] = await Promise.all([
-    textLineFacts(db, tenantId).catch(unread("sms")),
-    emailCanSend() ? mailboxOfTenant(db, tenantId).catch(unread("email")) : Promise.resolve(null),
+    findTextLineFacts(db, tenantId).catch(unread("sms")),
+    emailCanSend() ? findMailboxOfTenant(db, tenantId).catch(unread("email")) : Promise.resolve(null),
   ]);
   const offersPause = offerPauseOf(mailbox?.offers_paused_at, mailbox?.offers_paused_reason);
   return { whatsapp, textLine, mailbox: !!mailbox, offersPause, error: null };
@@ -158,7 +155,7 @@ async function channelsNow(
 ) {
   // Whether an offer by email can go: the deployment's campaigns domain (kept five minutes), the business's address, and
   // the mailbox's pause.
-  const campaigns = emailCanSend() ? await campaignsDomainVerified() : false;
+  const campaigns = emailCanSend() ? await findCampaignsDomainVerified() : false;
   return channelsReady({
     // With the number: offers on it are judged by Meta's pause on marketing messages to US numbers (contracts whatsapp-offers.ts).
     whatsapp: channels.whatsapp ? { ...health, number: channels.whatsapp.number } : null,
@@ -200,7 +197,7 @@ async function runVisits(
   if (!url) return { calendar: "none", visits: new Map() };
   const season = seasonHorizon(now, daysAhead);
   const [items, record] = await Promise.all([
-    feedItemsFor(tenantId, url, tz, now, daysAhead),
+    listFeedItems(tenantId, url, tz, now, daysAhead),
     recordOver(db, tenantId, new Date(season.from).toISOString(), new Date(season.to).toISOString()).then(
       (r) => ({ noted: r.noted, marks: feedMarksOf(r.feed) }),
       (e: unknown) => {
@@ -252,10 +249,10 @@ export async function loadTenantRunContext(
     // Its zone and whether it is paused. Every workspace has deals (0008, amended 18 Oct 2026): the proposal follow-up
     // runs wherever one is made (0006).
     db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
-    allPeople(db, tenantId),
+    findAllPeople(db, tenantId),
     channelFacts(db, tenantId),
     // Every run, not only the playbooks': a message sent by hand is a touch too, and the week's breath is one
-    // message per person across all of them (packages/db touchesSince, which the Playbooks page reads too).
+    // message per person across all of them (packages/db listTouchesSince, which the Playbooks page reads too).
     //
     // Bounded by TIME, not by luck: nothing older than the longest gap a playbook may set can hold anybody back.
     //
@@ -263,20 +260,20 @@ export async function loadTenantRunContext(
     // see; and returned as this tenant's error, never thrown. The hourly sweep reads `{ error }` to count one
     // workspace off and carry on (api/cron/playbooks.ts); a throw would end the tick for every workspace after it.
     // How far back: contracts PLAYBOOK_TOUCH_WINDOW_MS, which the Playbooks page's follow-up count reads by too.
-    touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS), now).then(
+    listTouchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS), now).then(
       (data) => ({ data, error: null as string | null }),
       (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
     ),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
     // Every list the workspace keeps: a playbook on one runs on who is on it now. Unreadable is this tenant's
     // error, never a list of nobody.
-    savedListsFor(db, tenantId).then(
+    listSavedLists(db, tenantId).then(
       (data) => ({ data, error: null as string | null }),
       (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
     ),
     // The workspace's last year of yeses, for its pace (contracts dealPaceFrom): when a proposal waits for the
     // follow-up. Unreadable is no pace -- a week's wait, as before one -- and said in the log, never this run's end.
-    yesesSince(db, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS)).catch((e: unknown) => {
+    listYesesSince(db, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS)).catch((e: unknown) => {
       logger({ tenant_id: tenantId }).warn("playbooks_pace_read_failed", {
         error: e instanceof Error ? e.message : String(e),
       });
@@ -284,13 +281,13 @@ export async function loadTenantRunContext(
     }),
     // What runs on each visit moment: a reminder a twin already sent for a visit is not sent again (core twinsOf). An
     // unreadable list is this tenant's error, as the touches' is: read as none, a twin would remind everyone twice.
-    runningStepsOn(db, tenantId, VISIT_TRIGGERS).then(
+    listRunningStepsOn(db, tenantId, VISIT_TRIGGERS).then(
       (data) => ({ data, error: null as string | null }),
       (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
     ),
-    // Whether a deal was ever recorded here (packages/db dealOnFile), the read the dashboard's lists take too: a list
+    // Whether a deal was ever recorded here (packages/db getDealOnFile), the read the dashboard's lists take too: a list
     // of a deal stage is counted only then. Unreadable is none, which leaves such a list uncounted, never a send.
-    dealOnFile(db, tenantId),
+    getDealOnFile(db, tenantId),
   ]);
   if (pErr) return { error: pErr.message };
   if (onMoments.error) return { error: `moments: ${onMoments.error}` };
@@ -368,19 +365,19 @@ interface RunRequest {
   runFor?: string;
   /** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
   by: RunBy;
-  /** The time a freed time's step offers (decision 0082, lib/calendar/freed-time-offer.ts): its batch has no day. */
+  /** The time a freed time's step offers (decision 0082, lib/campaigns/freed-time-offer.ts): its batch has no day. */
   freed?: FreedTimeRun;
 }
 
 /** The run over this runtime's ports: the rules are core's. */
-export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: RunRequest): Promise<RunOutcome> {
+export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, req: RunRequest): Promise<RunOutcome> {
   const { db, tenantId } = ctx;
   return runOverPorts(
     {
       // The message is its rows of that name and language on every channel: WhatsApp's as Meta has it, an email's and a
       // text's beside it. A read that fails throws: a message that could not be read is not one Meta withdrew, and the run
       // says it failed rather than skipping the day.
-      message: (name, language) => messageVersionRowsOf(db, tenantId, { name, language }),
+      message: (name, language) => listMessageVersionRows(db, tenantId, { name, language }),
       alreadyRan: async (playbookId, runFor) => {
         const { data } = await db
           .from("sequence_batches")
@@ -394,11 +391,11 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       // A customer's step after the first (decision 0060, D6): who it is due to, and the door that takes out those it
       // will not reach.
       followUpsDue: (stepId, runFor) => followUpsDue(db, stepId, runFor),
-      leave: (enrollmentIds, why) => leaveSequence(db, { tenantId, enrollmentIds, why }),
+      leave: (enrollmentIds, reason) => leaveSequence(db, { tenantId, enrollmentIds, why: reason }),
       // A customer's call or note step (00465): each person handed to the team, whole.
-      handRun: (h) => peopleHandRun(db, { tenantId, ...h }),
+      handRun: (h) => getPeopleHandRun(db, { tenantId, ...h }),
       // Who a list's sequence already reached: its run goes once to each person (the loop review's item 6).
-      reached: (sequenceId) => sequenceReached(db, tenantId, sequenceId),
+      reached: (sequenceId) => wasSequenceReached(db, tenantId, sequenceId),
       record: async (playbookId, runFor, at, data) => {
         await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
         await db
@@ -445,7 +442,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         }),
       // The month's allowance, counted before anyone is enrolled, and those past it held the moment the run exists (core
       // campaigns/allowance.ts): the send's own check at the wire stays as the backstop.
-      monthSent: (channel, at) => campaignMonthSent(db, tenantId, channel, at),
+      monthSent: (channel, at) => recordCampaignMonthSent(db, tenantId, channel, at),
       holdRecipients: (broadcastId, contactIds, reason) =>
         holdRecipients(db, { tenantId, broadcastId, contactIds, reason }),
       // The row opens the run it is about, as a reach-out's does (run-context.ts notifyWaiting): it opened Campaigns' home.
@@ -463,6 +460,6 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         );
       },
     },
-    { playbook: p, ctx, runFor: req.runFor, by: req.by, ...(req.freed ? { freed: req.freed } : {}) },
+    { playbook: playbook, ctx, runFor: req.runFor, by: req.by, ...(req.freed ? { freed: req.freed } : {}) },
   );
 }

@@ -41,7 +41,7 @@ import {
 } from "../../../packages/contracts/src/leads/search/cards.ts";
 import { endingOfRound, LEAD_ENDING_WORDS } from "../../../packages/contracts/src/leads/search/endings.ts";
 import { classify } from "../../../packages/contracts/src/leads/search/class.ts";
-import { questionAfterProbe } from "../../../packages/contracts/src/leads/search/question.ts";
+import { questionAfterProbe } from "../../../packages/core/src/leads/search-question.ts";
 import {
   cleanEmailCandidates,
   usPhone,
@@ -55,11 +55,11 @@ import * as searchSentence from "../../../packages/contracts/src/leads/search/se
 import * as searchCards from "../../../packages/contracts/src/leads/search/cards.ts";
 import * as searchEndings from "../../../packages/contracts/src/leads/search/endings.ts";
 import * as searchClass from "../../../packages/contracts/src/leads/search/class.ts";
-import * as searchQuestion from "../../../packages/contracts/src/leads/search/question.ts";
+import * as searchQuestion from "../../../packages/core/src/leads/search-question.ts";
 import * as searchClean from "../../../packages/contracts/src/leads/search/clean.ts";
-import * as judgeWords from "../../../packages/contracts/src/leads/lead-judge.ts";
+import * as judgeWords from "../../../packages/contracts/src/leads/judge.ts";
 
-/** Every export of the lead search: one module once (lead-search.ts), nine now (leads/search/). */
+/** Every export of the lead search: one module once (leads/search.ts), nine now (leads/search/). */
 const searchWords = {
   ...searchSets,
   ...searchCaps,

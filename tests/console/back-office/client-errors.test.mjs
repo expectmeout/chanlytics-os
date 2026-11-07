@@ -34,9 +34,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setBearerVerifier } = await import(at("apps/dashboard/src/server/auth/bearer.ts"));
+const { setBearerVerifier } = await import(at("apps/dashboard/src/server/shared/auth/bearer.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/client-errors/route.ts"));
 
 /** What the service role keeps of each report: Health's rows (client_errors, 00469). */
@@ -44,7 +44,7 @@ let kept;
 beforeEach(() => {
   setRateStore(memoryStore());
   kept = { client_errors: [] };
-  setServiceClient(fakeDb(kept));
+  setUnsubscribeServiceClient(fakeDb(kept));
 });
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -230,7 +230,9 @@ test("a report is kept for Health (00469): its fingerprint the id Get help sends
   );
 
   // A table that will not take the row costs the report nothing: the line is written, and the answer says so.
-  setServiceClient(fakeDb({ client_errors: [] }, { "client_errors.insert": { message: "down", code: "57P01" } }));
+  setUnsubscribeServiceClient(
+    fakeDb({ client_errors: [] }, { "client_errors.insert": { message: "down", code: "57P01" } }),
+  );
   const { result: unkept, lines } = await said(() => send(post(report({ message: "another" }))));
   assert.deepEqual((await unkept.json()).data, { logged: true, kept: false });
   assert.ok(lines.some((l) => l.event === "client_error") && lines.some((l) => l.event === "client_error_not_kept"));

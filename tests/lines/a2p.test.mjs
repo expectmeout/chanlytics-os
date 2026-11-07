@@ -34,7 +34,7 @@ import {
   encodeForm,
   keywordsFor,
   refusalWords,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/lines";
 import {
   BUSINESS_INDUSTRIES,
   DEFAULT_INDUSTRY,
@@ -722,7 +722,7 @@ test("the campaign's status is read from the list Twilio answers with, and a wai
 test("everything is filed as the workspace's own subaccount, with our primary profile referenced by sid", () => {
   const lib = readCode("apps/edge/lib/lines/a2p-register.ts");
   assert.ok(
-    lib.includes("const sub = await lineAccount(db, o.line)") &&
+    lib.includes("const sub = await findLineAccount(db, o.line)") &&
       lib.includes('if (!sub) return { ok: false, error: "no_line_credentials"'),
     "no subaccount, no filing",
   );
@@ -730,7 +730,7 @@ test("everything is filed as the workspace's own subaccount, with our primary pr
     lib.includes("accountSid: sub.sid,") && !lib.includes("accountSid: master.sid,"),
     "the address belongs to the same account as the profile",
   );
-  assert.ok(lib.includes("await twilioRequest(sub, req.method, req.url, {"), "one account for every call");
+  assert.ok(lib.includes("await requestTwilio(sub, req.method, req.url, {"), "one account for every call");
   const raw = readRaw("packages/channels/src/lines/a2p/wire.ts");
   assert.ok(
     raw.includes("WHOSE ACCOUNT.") && raw.includes("refused with 21717"),

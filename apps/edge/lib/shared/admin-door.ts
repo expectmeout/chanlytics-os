@@ -7,9 +7,10 @@
  * for one answer type, three spellings of an error's words -- and a fourth door would have written them again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
-import { UUID, type EdgeErrorCode } from "@chanlytics/contracts";
+import type { Database } from "@chanlytics/db/types";
+import { UUID, type DoorRead, type EdgeDoor, type EdgeErrorCode } from "@chanlytics/contracts";
 import { json, refuse } from "./http.js";
+import { logger } from "./log.js";
 import { pg } from "./pg.js";
 
 type Db = SupabaseClient<Database>;
@@ -23,12 +24,12 @@ export interface DoorAnswer {
 /** A refusal on the way to an op: the response the door answers with, the op never run. */
 export type Refused = { ok: false; response: Response };
 
-export const respond = (a: DoorAnswer): Response => json(a.status, a.body);
+export const respond = (doorAnswer: DoorAnswer): Response => json(doorAnswer.status, doorAnswer.body);
 
 export const stop = (response: Response): Refused => ({ ok: false, response });
 
 /** An error's words: an Error's message, anything else that was thrown as a string. */
-export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+export const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 /**
  * The body as sent when it is a JSON object; anything else -- not JSON, or JSON that is not an object (null, an array,
@@ -36,14 +37,26 @@ export const errorMessage = (e: unknown): string => (e instanceof Error ? e.mess
  * writes the workspace back onto the body, and both threw on null or a primitive: a 500 where its validation answers
  * 400. `source` is the request, or its body when a door has already read it as text (the model gateway measures it
  * first).
+ *
+ * `door` is the door as contracts declares it, the dashboard's side of the same shape (decision 0109). A body its schema
+ * does not hold is said, by field and never by value, and read as it always was: the op still refuses what it refuses, in
+ * its own words, until production has sent nothing the schema refuses and the door refuses at the schema.
  */
-export async function readBody<T extends object>(source: Request | string): Promise<Partial<T>> {
+export async function readBody<D extends EdgeDoor>(source: Request | string, door: D): Promise<DoorRead<D>> {
+  let body: object = {};
   try {
-    const body: unknown = JSON.parse(typeof source === "string" ? source : await source.text());
-    return typeof body === "object" && body !== null && !Array.isArray(body) ? body : {};
+    const sent: unknown = JSON.parse(typeof source === "string" ? source : await source.text());
+    if (typeof sent === "object" && sent !== null && !Array.isArray(sent)) body = sent;
   } catch {
-    return {};
+    // Not JSON: an empty body, as above.
   }
+  const held = door.body.safeParse(body);
+  if (!held.success)
+    logger().warn("door_body_unexpected", {
+      door: door.aud,
+      fields: [...new Set(held.error.issues.map((issue) => issue.path.join(".") || "(body)"))].slice(0, 10),
+    });
+  return body as DoorRead<D>;
 }
 
 /** The database and the workspace an op acts on: no database is a 503, an id that is not a workspace's a 400. */

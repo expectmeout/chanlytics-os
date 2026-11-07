@@ -20,17 +20,17 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { takeLock } from "../../_file-lock.mjs";
-import { ROLE_PERMS, leadMonth, legacyLeadSuppressionHash } from "@chanlytics/contracts";
+import { ROLE_PERMS, leadMonth, hashLegacyLeadSuppression } from "@chanlytics/contracts";
 import { at } from "../../_cron-doors-world.mjs";
 import { leadsClockTurn, sha256, siteReaderOver, webhookToken } from "../../_lead-world.mjs";
 import { fakeApify, fakeJudge, checkerItem, probeItems } from "../../_lead-fixtures.mjs";
 import { startRound } from "../../../packages/core/src/leads/runner/start.ts";
-import { collect } from "../../../packages/core/src/leads/runner/collect.ts";
+import { collect } from "../../../packages/core/src/leads/runner/collect/collect.ts";
 import { check } from "../../../packages/core/src/leads/runner/check.ts";
 import { OUT_OF_AREA_REASON } from "../../../packages/core/src/leads/runner/rules.ts";
 import { runIdFor } from "../../../packages/core/src/leads/ids.ts";
 import { scheduleJobOnce } from "../../../packages/jobs/src/runner/schedule.ts";
-import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -420,7 +420,7 @@ test("the suppression hash in SQL is contracts' keyed digest, byte for byte", { 
   // lead_suppression_hash is the service role's; the digest is compared through a door that uses it: none reads it back, so compare the function itself.
   const t = "11111111-1111-4111-8111-111111111111";
   const fromSql = ok(await db.rpc("lead_suppression_hash", { p_tenant_id: t, p_value: "+15125550100" }));
-  assert.equal(fromSql, await legacyLeadSuppressionHash(t, "+15125550100"));
+  assert.equal(fromSql, await hashLegacyLeadSuppression(t, "+15125550100"));
 });
 
 test(
@@ -868,8 +868,8 @@ test(
     const held = (await leadByPlace("ChIJfixture0101")).id;
     ok(
       await db.from("lead_suppressions").insert([
-        { tenant_id: A, kind: "place", hash: await legacyLeadSuppressionHash(A, "ChIJfixture0105"), what: "erased" },
-        { tenant_id: A, kind: "place", hash: await legacyLeadSuppressionHash(A, "ChIJfixture0106"), what: "customer" },
+        { tenant_id: A, kind: "place", hash: await hashLegacyLeadSuppression(A, "ChIJfixture0105"), what: "erased" },
+        { tenant_id: A, kind: "place", hash: await hashLegacyLeadSuppression(A, "ChIJfixture0106"), what: "customer" },
       ]),
     );
     const r = ok(
@@ -1027,7 +1027,7 @@ test(
       await db.from("lead_suppressions").insert({
         tenant_id: A,
         kind: "place",
-        hash: await legacyLeadSuppressionHash(A, "ChIJfixture0203"),
+        hash: await hashLegacyLeadSuppression(A, "ChIJfixture0203"),
         what: "customer",
       }),
     );
@@ -1581,8 +1581,8 @@ test(
       "erasing the person blanks the lead",
     );
     const hashes = ok(await db.from("lead_suppressions").select("kind, hash").eq("tenant_id", A).eq("what", "erased"));
-    const phoneHash = await legacyLeadSuppressionHash(A, lead.phone_e164);
-    const placeHash = await legacyLeadSuppressionHash(A, "ChIJfixture0003");
+    const phoneHash = await hashLegacyLeadSuppression(A, lead.phone_e164);
+    const placeHash = await hashLegacyLeadSuppression(A, "ChIJfixture0003");
     assert.ok(
       hashes.some((h) => h.kind === "phone" && h.hash === phoneHash),
       "the number is on the never-again list",
@@ -2399,7 +2399,7 @@ test(
         await db.from("lead_suppressions").insert({
           tenant_id: A,
           kind: "place",
-          hash: await legacyLeadSuppressionHash(A, erased.placeId),
+          hash: await hashLegacyLeadSuppression(A, erased.placeId),
           what: "erased",
         }),
       );

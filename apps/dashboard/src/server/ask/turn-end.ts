@@ -9,7 +9,6 @@ import "server-only";
 import {
   answerForCards,
   answerText,
-  cacheHitOf,
   claimsWrite,
   isAskMorningQuestion,
   messageLanguagesNext,
@@ -19,15 +18,15 @@ import {
   type AskModelProfile,
   type AskProposal,
   type AskReadSet,
-  type AskTurnShape,
   type ModelSpeed,
   type PlanLead,
 } from "@chanlytics/contracts";
+import { cacheHitOf, type AskTurnShape } from "./shape";
 import { calledName, cardsOf, type ProposalOutcome, type ToolRun } from "./tools";
 import type { BuiltContext, SearchResultBlock } from "./context";
 import { argsOf, type RoundBlock, type RoundResult } from "./round";
 import { chainEnd, rawTurn, type LastRound, type TurnEnd } from "./memory";
-import type { TurnInput, TurnResult } from "./loop";
+import type { TurnInput, TurnResult } from "./loop/turn-head";
 import { log } from "@/server/shared/log";
 
 /**
@@ -68,24 +67,24 @@ export function turnMeter(t0: number) {
       });
     },
     /** A round that came back, begun at `roundAt`: its time, and its stream's first byte and text from the turn's start. */
-    round(r: RoundResult, roundAt: number): void {
-      meter.roundsMs.push(r.timing?.totalMs ?? Date.now() - roundAt);
-      if (meter.messageIds.length === 0) meter.hopMs = r.timing?.hopMs ?? null;
-      meter.messageIds.push(r.usage?.messageId ?? null);
-      meter.answeredBy = r.usage?.model ?? meter.answeredBy;
-      meter.cacheMiss.push(r.usage?.cacheMiss ?? null);
-      meter.speeds.push(r.timing?.speed ?? null);
-      if (r.timing) {
-        if (meter.firstByteMs === null && r.timing.firstEventMs !== null)
-          meter.firstByteMs = roundAt - t0 + r.timing.firstEventMs;
-        if (meter.firstTextMs === null && r.timing.firstTextMs !== null)
-          meter.firstTextMs = roundAt - t0 + r.timing.firstTextMs;
+    round(round: RoundResult, roundAt: number): void {
+      meter.roundsMs.push(round.timing?.totalMs ?? Date.now() - roundAt);
+      if (meter.messageIds.length === 0) meter.hopMs = round.timing?.hopMs ?? null;
+      meter.messageIds.push(round.usage?.messageId ?? null);
+      meter.answeredBy = round.usage?.model ?? meter.answeredBy;
+      meter.cacheMiss.push(round.usage?.cacheMiss ?? null);
+      meter.speeds.push(round.timing?.speed ?? null);
+      if (round.timing) {
+        if (meter.firstByteMs === null && round.timing.firstEventMs !== null)
+          meter.firstByteMs = roundAt - t0 + round.timing.firstEventMs;
+        if (meter.firstTextMs === null && round.timing.firstTextMs !== null)
+          meter.firstTextMs = roundAt - t0 + round.timing.firstTextMs;
       }
-      if (r.usage) {
-        meter.tokens.input += r.usage.inputTokens;
-        meter.tokens.cache_read += r.usage.cacheReadTokens;
-        meter.tokens.cache_creation += r.usage.cacheCreationTokens;
-        meter.tokens.output += r.usage.outputTokens ?? 0;
+      if (round.usage) {
+        meter.tokens.input += round.usage.inputTokens;
+        meter.tokens.cache_read += round.usage.cacheReadTokens;
+        meter.tokens.cache_creation += round.usage.cacheCreationTokens;
+        meter.tokens.output += round.usage.outputTokens ?? 0;
       }
     },
     /** The API's id for the last round that came back; null before one did, or when its stream never said it. */
@@ -114,8 +113,8 @@ export function turnMeter(t0: number) {
  * when fast mode's limit slowed some. Standard where no round said one: an edge older than fast mode, which never sends
  * it, or a turn no round of which came back.
  */
-function speedOfTurn(said: ReadonlyArray<ModelSpeed | null>): AskTurnShape["speed"] {
-  const [first, ...rest] = said.filter((s): s is ModelSpeed => s !== null);
+function speedOfTurn(sentence: ReadonlyArray<ModelSpeed | null>): AskTurnShape["speed"] {
+  const [first, ...rest] = sentence.filter((s): s is ModelSpeed => s !== null);
   if (first === undefined) return "standard";
   return rest.every((s) => s === first) ? first : "mixed";
 }
@@ -150,8 +149,8 @@ interface TurnSoFar {
  * The turn as it returns: its end, with where the time went and what the model was fed (AskTurnShape), logged, and the
  * turn as the model was sent it (RawTurn), which no log line carries.
  */
-export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
-  const { lastRound, ...end } = r;
+export function finishTurn(turnEnd: TurnEnd, soFar: TurnSoFar): TurnResult {
+  const { lastRound, ...end } = turnEnd;
   const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan, format, toolsUsed, opened } =
     soFar;
   const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits } = soFar.meter;
@@ -181,7 +180,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     context_ms: contextMs,
     context_dropped: dataDropped && (pageBlocks.length > 0 || crossBlocks.length > 0),
     cross_page: plan.map((p) => calledName(p.name, p.input)),
-    rounds: r.rounds,
+    rounds: turnEnd.rounds,
     rounds_ms: roundsMs,
     tools_ms: toolsMs,
     first_byte_ms: firstByteMs,
@@ -196,10 +195,10 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     cap_hits: capHits,
     format,
     answer_tool: model.answerTool,
-    answer_in: r.failed ? null : soFar.answerIn,
-    failed: r.failed,
+    answer_in: turnEnd.failed ? null : soFar.answerIn,
+    failed: turnEnd.failed,
   };
-  log.info("ask_turn_shape", { tenant_id: input.tenantId, ...shape, tools: toolsUsed, form: r.answer.form });
+  log.info("ask_turn_shape", { tenant_id: input.tenantId, ...shape, tools: toolsUsed, form: turnEnd.answer.form });
   return {
     ungrounded: false,
     tools: toolsUsed,
@@ -207,7 +206,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     proposals,
     latencyMs: Date.now() - t0,
     ...end,
-    text: answerText(r.answer),
+    text: answerText(turnEnd.answer),
     model: model.id,
     shape,
     raw:
@@ -256,15 +255,15 @@ export function turnUnmade() {
      * they like answers is never the whole answer (the answer canvas, D, 16 Oct 2026: "Every time, two lines at most.
      * Who needs me today?" ended on the note's card, 3 times of 3, the question unanswered): it goes back too.
      */
-    alone(r: {
+    alone(row: {
       acts: number;
       calls: number;
       refused: boolean;
       made: readonly AskProposal[];
     }): "answer" | "owed" | null {
-      if (r.acts !== r.calls || r.refused || r.made.length === 0) return null;
-      styleAlone = r.made.every((p) => p.kind === "answer_style");
-      keptOne = r.made.some((p) => p.kind === "memory");
+      if (row.acts !== row.calls || row.refused || row.made.length === 0) return null;
+      styleAlone = row.made.every((p) => p.kind === "answer_style");
+      keptOne = row.made.some((p) => p.kind === "memory");
       return refused.size > 0 || noted.length > 0 || styleAlone || keptOne ? "owed" : "answer";
     },
     /** What the round after cards alone is told: each part no card carries, and that the answer says it. */
@@ -284,15 +283,19 @@ const sameChange = (a: AskProposal, b: AskProposal): boolean =>
   a.kind === b.kind && a.title === b.title && JSON.stringify(a.payload) === JSON.stringify(b.payload);
 
 /**
- * A call whose every card the thread already holds, waiting for the person's press (memory.ts threadForTurn), or this
+ * A call whose every card the thread already holds, waiting for the person's press (memory.ts findThreadForTurn), or this
  * turn already made (a plan's answer round asked as every round is, which may call a tool): nothing is made again, and
  * the model is told which are above, to name them (the evals, 16 Oct 2026: "set up my campaigns" asked
  * twice in one thread proposed its Win-back card a second time, 6 times in 8, on the rules before and after their
  * sections). A call with any card that is new keeps all of them: a plan's steps name each other, so none is taken out.
  */
-export function notAgain(o: ProposalOutcome, waiting: readonly AskProposal[] | undefined): ProposalOutcome {
-  const cards = cardsOf(o);
-  if (o.isError || !cards.length || !cards.every((c) => waiting?.some((w) => sameChange(c, w)))) return o;
+export function notAgain(
+  proposalOutcome: ProposalOutcome,
+  waiting: readonly AskProposal[] | undefined,
+): ProposalOutcome {
+  const cards = cardsOf(proposalOutcome);
+  if (proposalOutcome.isError || !cards.length || !cards.every((c) => waiting?.some((w) => sameChange(c, w))))
+    return proposalOutcome;
   const titles = cards.map((c) => `“${c.title}”`).join(", ");
   return {
     proposal: null,
@@ -310,20 +313,28 @@ export function notAgain(o: ProposalOutcome, waiting: readonly AskProposal[] | u
 function withoutClaimedWrite(
   answer: AskAnswer,
   input: Pick<TurnInput, "language" | "tenantId">,
-  made: readonly AskProposal[],
+  created: readonly AskProposal[],
 ): AskAnswer {
-  if (made.length === 0 || !claimsWrite(answer.say.headline)) return answer;
-  log.warn("ask_answer_claimed_write", { cards: made.length, tenant_id: input.tenantId });
-  return { ...answer, say: { ...answer.say, headline: answerForCards(made, input.language, null, null).say.headline } };
+  if (created.length === 0 || !claimsWrite(answer.say.headline)) return answer;
+  log.warn("ask_answer_claimed_write", { cards: created.length, tenant_id: input.tenantId });
+  return {
+    ...answer,
+    say: { ...answer.say, headline: answerForCards(created, input.language, null, null).say.headline },
+  };
 }
 
 /** A plan's words as its call said them (ProposalOutcome), and what a setup's answer leads with (PlanLead). */
 export type PlanSaid = { words: string; lead?: PlanLead };
 
 /** A round of cards alone, every one made, that made a plan: its words, its answer; a lone plan's lead leads it. */
-export const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, said: PlanSaid[]): PlanSaid | null =>
-  acts.length === calls.length && !refused && said.length > 0
-    ? { words: said.map((s) => s.words).join(" "), lead: said.length === 1 ? said.at(0)?.lead : undefined }
+export const roundPlan = (
+  calls: unknown[],
+  acts: unknown[],
+  refused: boolean,
+  sentence: PlanSaid[],
+): PlanSaid | null =>
+  acts.length === calls.length && !refused && sentence.length > 0
+    ? { words: sentence.map((s) => s.words).join(" "), lead: sentence.length === 1 ? sentence.at(0)?.lead : undefined }
     : null;
 
 /** The answer of cards alone: a plan's words and lead where it made one; messages alone ask for other languages. */
@@ -342,11 +353,11 @@ export function cardsAnswer(cards: readonly AskProposal[], input: TurnInput, pla
  */
 export function besideActs(
   written: string,
-  r: { refused: boolean; leftOut: boolean; looking?: boolean; planned: PlanSaid | null; unsay(): void; log(): void },
+  row: { refused: boolean; leftOut: boolean; looking?: boolean; planned: PlanSaid | null; unsay(): void; log(): void },
 ) {
-  if (!written || (!r.refused && !r.leftOut && !r.looking && r.planned === null)) return written;
-  if (r.refused) r.log();
-  r.unsay();
+  if (!written || (!row.refused && !row.leftOut && !row.looking && row.planned === null)) return written;
+  if (row.refused) row.log();
+  row.unsay();
   return "";
 }
 
@@ -360,8 +371,12 @@ export function besideActs(
 function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid) {
   const lead = plan.lead;
   const own = answer.do.open;
-  const asked = messageLanguagesNext(cards, input.facts.languages, input.language);
-  const next = asked.length ? asked : answer.do.next.length ? answer.do.next : (lead?.next ?? []);
+  const otherMessageLanguagesNext = messageLanguagesNext(cards, input.facts.languages, input.language);
+  const next = otherMessageLanguagesNext.length
+    ? otherMessageLanguagesNext
+    : answer.do.next.length
+      ? answer.do.next
+      : (lead?.next ?? []);
   if (!lead) return { ...answer, do: { open: own, next } };
   const label = own?.to === lead.open.to ? own.label : lead.open.label;
   return { ...answer, do: { open: { to: lead.open.to, label, now: false }, next } };

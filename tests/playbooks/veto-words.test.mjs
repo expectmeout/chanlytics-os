@@ -27,9 +27,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
 const { runTool, newToolContext, buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 
 /**
  * Says the veto's wait in the derived words, and no other length of time: each wait it names is that one (a sentence

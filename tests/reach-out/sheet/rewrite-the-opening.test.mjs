@@ -22,7 +22,7 @@ process.env.EDGE_URL = "https://edge.example";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const decide = await import(at("apps/dashboard/app/api/v1/reach-out-sends/[id]/decide/route.ts"));
 const check = await import(at("apps/dashboard/app/api/v1/reach-out-sends/check/route.ts"));
 const undo = await import(at("apps/dashboard/app/api/v1/reach-out-sends/[id]/undo-rewrite/route.ts"));
@@ -99,11 +99,11 @@ beforeEach(() => {
   edge.down = false;
   asked.length = 0;
   ledger.events = [];
-  setServiceClient(fakeDb(ledger));
+  setUnsubscribeServiceClient(fakeDb(ledger));
 });
 after(() => {
   globalThis.fetch = realFetch;
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });
 
 /** A streamed answer, line by line. */

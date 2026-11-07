@@ -159,7 +159,7 @@ before(async () => {
   jobs = await import(at("packages/jobs/src/index.ts"));
   ({ setPg } = await import(at("apps/edge/lib/shared/pg.ts")));
   door = await import(at("apps/edge/api/admin/lines.ts"));
-  ({ provisionLineJob } = await import(at("apps/edge/lib/lines/line-provision-job.ts")));
+  ({ provisionLineJob } = await import(at("apps/edge/lib/lines/provision-job.ts")));
   setPg(db);
   stubRetell();
   console.error = (...args) => {

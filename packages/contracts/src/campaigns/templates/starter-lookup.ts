@@ -2,8 +2,10 @@
  * A starter found by its name, its key or its moment, the set a workspace is offered, and a starter's text and the
  * draft the submit route takes, in a language. The set itself is starter-templates.ts.
  */
-import { triggerOf, triggerOffered, type PlaybookTrigger } from "../playbooks/playbook-triggers";
-import { STARTER_TEMPLATES, type StarterTemplate, type StarterText } from "./starter-templates";
+import { triggerOf, triggerOffered } from "../playbooks/triggers/notices";
+import { type PlaybookTrigger } from "../playbooks/triggers/kinds";
+import { STARTER_TEMPLATES } from "./starter-templates/table";
+import { type StarterTemplate, type StarterText } from "./starter-templates/shapes";
 
 export function starterByName(name: string | null | undefined): StarterTemplate | null {
   return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
@@ -58,32 +60,35 @@ export function startersForTrigger(trigger: string | null | undefined): StarterT
 }
 
 /** The text version in a language, English when the language is not written; null when the starter has none. */
-export function starterSmsText(s: StarterTemplate, language: string): { body: string } | null {
-  return s.sms?.[language] ?? s.sms?.en_US ?? null;
+export function starterSmsText(starterTemplate: StarterTemplate, language: string): { body: string } | null {
+  return starterTemplate.sms?.[language] ?? starterTemplate.sms?.en_US ?? null;
 }
 
 /** The email version in a language, English when the language is not written; null when the starter has none. */
-export function starterEmailText(s: StarterTemplate, language: string): { subject: string; body: string } | null {
-  return s.email?.[language] ?? s.email?.en_US ?? null;
+export function starterEmailText(
+  starterTemplate: StarterTemplate,
+  language: string,
+): { subject: string; body: string } | null {
+  return starterTemplate.email?.[language] ?? starterTemplate.email?.en_US ?? null;
 }
 
 /** The text in a language, English when the language is not written. */
-export function starterText(s: StarterTemplate, language: string): StarterText {
-  return s.texts[language] ?? s.texts.en_US;
+export function starterText(starterTemplate: StarterTemplate, language: string): StarterText {
+  return starterTemplate.texts[language] ?? starterTemplate.texts.en_US;
 }
 
 /** What the submit route takes: the same shape a template written by hand has. */
 export function starterDraft(
-  s: StarterTemplate,
+  starterTemplate: StarterTemplate,
   language: string,
 ): { name: string; language: string; category: string; body: string; footer: string | null; examples: string[] } {
-  const t = starterText(s, language);
+  const result = starterText(starterTemplate, language);
   return {
-    name: s.name,
+    name: starterTemplate.name,
     language,
-    category: s.category,
-    body: t.body,
-    footer: t.footer,
-    examples: t.slots.map((x) => x.example),
+    category: starterTemplate.category,
+    body: result.body,
+    footer: result.footer,
+    examples: result.slots.map((x) => x.example),
   };
 }

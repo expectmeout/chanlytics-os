@@ -5,15 +5,14 @@
  * (the team's only unless the receptionist should know; with a day, a step), and the lead's outcome through
  * `lead_set_stage` where their business is an open lead, so Leads' own call log and this one are one record.
  */
-import { stageArgs } from "../../leads/lead-plan";
+import { stageArgs } from "../../leads/plan";
 import {
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_CALL_OUTCOMES,
-  LEAD_CALL_QUESTION,
   LEAD_CLOSED_WORDS,
-  LEAD_NOTE_MAX,
   LEAD_STAGE_WORDS,
-} from "../../leads/lead-words";
+} from "../../leads/words/lists";
+import { LEAD_CALL_QUESTION, LEAD_NOTE_MAX } from "../../leads/words/notes";
 import { formatPhoneDisplay } from "../../shared/phone";
 import { mayRing } from "../../consent/consent";
 import { holdActOf } from "../../conversations/escalations";
@@ -60,7 +59,7 @@ export const PERSON_CALL_WORDS = {
   onLead: "logged on the lead",
   logged: "Logged as a team-only note",
   told: "Logged as a note the receptionist reads",
-  save: (what: string) => `Save as ${what}`,
+  save: (text: string) => `Save as ${text}`,
   /** Save before an outcome is picked, when it cannot be pressed yet. */
   saveBare: "Save",
   saved: "Call logged",
@@ -80,8 +79,8 @@ const REACHED: readonly PersonCallOutcome[] = ["spoke", "interested", "not_inter
  * Whether Save closes the call back they asked for, before the member says (X3-1): yes where the call reached them
  * (Spoke, Interested, Not interested), no where it went nowhere; the member's own answer stands over either.
  */
-export function personCallClosesBack(o: PersonCallOutcome | null): boolean {
-  return !!o && REACHED.includes(o);
+export function personCallClosesBack(personCallOutcome: PersonCallOutcome | null): boolean {
+  return !!personCallOutcome && REACHED.includes(personCallOutcome);
 }
 
 /**
@@ -140,10 +139,10 @@ function dialable(raw: string | null | undefined): string | null {
  * The call (decision 0052): their number, or, for someone at a business with none of their own, the listing's; nothing
  * where there is neither. A lead's own outcomes where the business is an open lead.
  */
-export function personCallOf(i: PersonCallInput): PersonCallVM | null {
-  const own = dialable(i.phone);
-  const b = i.business;
-  const onLead = !!b?.open;
+export function personCallOf(personCallInput: PersonCallInput): PersonCallVM | null {
+  const own = dialable(personCallInput.phone);
+  const business = personCallInput.business;
+  const onLead = !!business?.open;
   const outcomes = CALL_OUTCOME_ORDER.filter((o) => onLead || !LEADS_OWN.includes(o)).map((id) => ({
     id,
     label: PERSON_CALL_WORDS.outcomes[id],
@@ -158,52 +157,65 @@ export function personCallOf(i: PersonCallInput): PersonCallVM | null {
       outcomes,
       onLead,
       asksWho: false,
-      rings: mayRing({ dnc: i.dnc }),
+      rings: mayRing({ dnc: personCallInput.dnc }),
     };
   // No number of their own: the listing's, where their business has one; else nothing to ring.
-  const ph = b?.phone;
-  if (!b || !ph || !ph.tel) return null;
+  const ph = business?.phone;
+  if (!business || !ph || !ph.tel) return null;
   return {
     tel: ph.tel,
     number: ph.value,
-    heading: `${b.name} · ${ph.value}`,
+    heading: `${business.name} · ${ph.value}`,
     sub: [ph.hours, onLead ? PERSON_CALL_WORDS.onLead : null].filter(Boolean).join(" · "),
     listing: true,
     outcomes,
     onLead,
-    asksWho: i.standIn,
-    rings: mayRing({ dnc: i.dnc }),
+    asksWho: personCallInput.standIn,
+    rings: mayRing({ dnc: personCallInput.dnc }),
   };
 }
 
 /** Whether a call back is offered under this outcome (every one but Wrong number), and the day it starts on. */
-export function personCallDays(o: PersonCallOutcome | null): { offered: boolean; tomorrow: boolean } {
-  return { offered: !!o && o !== "wrong_number", tomorrow: o === "call_back" };
+export function personCallDays(personCallOutcome: PersonCallOutcome | null): { offered: boolean; tomorrow: boolean } {
+  return {
+    offered: !!personCallOutcome && personCallOutcome !== "wrong_number",
+    tomorrow: personCallOutcome === "call_back",
+  };
 }
 
 /** The note the call leaves on the person: "Call · Left a voicemail: asked her to ring after five". */
-export function personCallNote(o: PersonCallOutcome, said: string | null | undefined): string {
-  const words = String(said || "").trim();
-  return `Call · ${PERSON_CALL_WORDS.outcomes[o]}${words ? `: ${words}` : ""}`;
+export function personCallNote(personCallOutcome: PersonCallOutcome, sentence: string | null | undefined): string {
+  const words = String(sentence || "").trim();
+  return `Call · ${PERSON_CALL_WORDS.outcomes[personCallOutcome]}${words ? `: ${words}` : ""}`;
 }
 
 /** Save says what it saves: "Save as Call back Tomorrow", "Save as Spoke · call back Fri", "Save as No answer". */
-export function personCallSave(o: PersonCallOutcome, dayName: string | null): string {
-  const W = PERSON_CALL_WORDS;
-  if (o === "call_back") return W.save(dayName ? `${W.callBack} ${dayName}` : W.outcomes.call_back);
-  return W.save(dayName ? `${W.outcomes[o]} · ${W.callBack.toLowerCase()} ${dayName}` : W.outcomes[o]);
+export function personCallSave(personCallOutcome: PersonCallOutcome, dayName: string | null): string {
+  const words = PERSON_CALL_WORDS;
+  if (personCallOutcome === "call_back")
+    return words.save(dayName ? `${words.callBack} ${dayName}` : words.outcomes.call_back);
+  return words.save(
+    dayName
+      ? `${words.outcomes[personCallOutcome]} · ${words.callBack.toLowerCase()} ${dayName}`
+      : words.outcomes[personCallOutcome],
+  );
 }
 
 /** The line beside Save: what the lead becomes where the call moves it, else where the note goes. */
-export function personCallFoot(vm: PersonCallVM, o: PersonCallOutcome | null, tell: boolean): string {
-  const W = PERSON_CALL_WORDS;
-  if (vm.onLead && o && o !== "spoke" && (o !== "wrong_number" || vm.listing)) {
-    if (o === "interested") return `Moves the lead to ${LEAD_STAGE_WORDS.converted}`;
-    if (o === "not_interested") return `Closes the lead: ${LEAD_CLOSED_WORDS.said_no}`;
-    if (o === "wrong_number") return "Marks the listing's number wrong";
+export function personCallFoot(vm: PersonCallVM, personCallOutcome: PersonCallOutcome | null, tell: boolean): string {
+  const words = PERSON_CALL_WORDS;
+  if (
+    vm.onLead &&
+    personCallOutcome &&
+    personCallOutcome !== "spoke" &&
+    (personCallOutcome !== "wrong_number" || vm.listing)
+  ) {
+    if (personCallOutcome === "interested") return `Moves the lead to ${LEAD_STAGE_WORDS.converted}`;
+    if (personCallOutcome === "not_interested") return `Closes the lead: ${LEAD_CLOSED_WORDS.said_no}`;
+    if (personCallOutcome === "wrong_number") return "Marks the listing's number wrong";
     return "Logged on the lead";
   }
-  return tell ? W.told : W.logged;
+  return tell ? words.told : words.logged;
 }
 
 /**
@@ -212,8 +224,8 @@ export function personCallFoot(vm: PersonCallVM, o: PersonCallOutcome | null, te
  * Talking where a call went nowhere.
  */
 export function personCallLeadArgs(
-  o: PersonCallOutcome,
-  said: string | null | undefined,
+  personCallOutcome: PersonCallOutcome,
+  sentence: string | null | undefined,
   spokeWith: string | null | undefined,
 ): {
   p_lead_stage: string | null;
@@ -221,11 +233,11 @@ export function personCallLeadArgs(
   p_lead_note: string | null;
   p_spoke_with: string | null;
 } | null {
-  if (o === "spoke") return null;
+  if (personCallOutcome === "spoke") return null;
   const a = stageArgs({
     kind: "outcome",
-    outcome: o,
-    ...(said && said.trim() ? { note: said.trim() } : {}),
+    outcome: personCallOutcome,
+    ...(sentence && sentence.trim() ? { note: sentence.trim() } : {}),
     ...(spokeWith && spokeWith.trim() ? { spoke_with: spokeWith.trim() } : {}),
   });
   return { p_lead_stage: a.p_stage, p_lead_reason: a.p_reason, p_lead_note: a.p_note, p_spoke_with: a.p_spoke_with };

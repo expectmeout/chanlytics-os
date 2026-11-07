@@ -43,7 +43,7 @@ test("the code a member of the public meets, and the schema every workspace's ro
   const rules = ownerRules(read(".github/CODEOWNERS"));
   for (const file of [
     "apps/edge/api/diag.ts",
-    "packages/channels/src/index.ts",
+    "packages/channels/src/lines/index.ts",
     "supabase/migrations/00001_init.sql",
     "supabase/migrations-ledger.json",
   ])

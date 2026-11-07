@@ -11,16 +11,13 @@
  * job meets the door's wait rather than a failure.
  */
 import { mailboxSendsNow, DAY_MS } from "@chanlytics/contracts";
-import { sendFromMailbox, sendsAsConnected, type EmailRequest, type SendResult } from "@chanlytics/channels";
+import { sendFromMailbox, sendsAsConnected, type EmailRequest } from "@chanlytics/channels/email";
+import { type SendResult } from "@chanlytics/channels/whatsapp";
 import type { EmailRoute } from "@chanlytics/core";
-import {
-  emitEvent,
-  mailboxConnectionsOf,
-  patchMailboxConnection,
-  type Database,
-  type MailboxConnectionRow,
-} from "@chanlytics/db";
-import { tokenFor } from "./credentials.js";
+import { emitEvent } from "@chanlytics/db/events";
+import { listMailboxConnectionsOf, patchMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
+import { type Database } from "@chanlytics/db/types";
+import { getToken } from "./credentials.js";
 import { tellSignedOut } from "./notices.js";
 import { logger, errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -65,11 +62,11 @@ async function rest(db: Db, row: MailboxConnectionRow, now: number, until?: numb
 }
 
 /** A send that did not leave, as the outbox hears it: not taken, so it is handed to a fresh job and meets the door. */
-const notTaken = (status: number, why: string): SendResult => ({
+const notTaken = (status: number, reason: string): SendResult => ({
   ok: false,
   wamid: null,
   status,
-  errorBody: why,
+  errorBody: reason,
   outcome: "retryable",
 });
 
@@ -82,18 +79,18 @@ async function sendFrom(
   log: Logger,
 ): Promise<SendResult> {
   const now = Date.now();
-  const t = await tokenFor(db, row, now);
-  if (!t.ok) {
-    if (t.why === "signed_out")
+  const token = await getToken(db, row, now);
+  if (!token.ok) {
+    if (token.why === "signed_out")
       await markSignedOut(db, row, log, now).catch((e: unknown) =>
         log.error("mailbox_signed_out_unmarked", { mailbox: row.id, error: errField(e) }),
       );
-    log.warn("mailbox_send_no_token", { mailbox: row.id, why: t.why });
-    return notTaken(t.why === "signed_out" ? 401 : 503, `mailbox_${t.why}`);
+    log.warn("mailbox_send_no_token", { mailbox: row.id, why: token.why });
+    return notTaken(token.why === "signed_out" ? 401 : 503, `mailbox_${token.why}`);
   }
   const sent = await sendFromMailbox({
     provider: row.provider === "microsoft" ? "microsoft" : "google",
-    token: t.token,
+    token: token.token,
     mailbox: { id: row.id, host: row.host },
     request,
     deadlineMs: bound.deadlineMs,
@@ -118,12 +115,12 @@ async function sendFrom(
  * A workspace's connected mailboxes as its email wire's routes: one `own` route each for those that send now, and the
  * addresses of the rest. A read that fails throws: the caller binds the wire unavailable, and the send waits.
  */
-export async function ownRoutesFor(db: Db, tenantId: string): Promise<{ routes: EmailRoute[]; held: string[] }> {
+export async function getOwnRoutes(db: Db, tenantId: string): Promise<{ routes: EmailRoute[]; held: string[] }> {
   const log = logger({ tenant_id: tenantId });
   const now = Date.now();
   const routes: EmailRoute[] = [];
   const held: string[] = [];
-  for (const row of await mailboxConnectionsOf(db, tenantId)) {
+  for (const row of await listMailboxConnectionsOf(db, tenantId)) {
     const as = sendsAsConnected(row);
     if (mailboxSendsNow(row, now))
       routes.push({ lane: "own", as, send: (request, bound) => sendFrom(db, row, request, bound, log) });

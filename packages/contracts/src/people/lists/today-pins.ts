@@ -2,7 +2,7 @@
  * Today's pinned lists (decision 0009: any list is a door on Today): which a member keeps, their counts' answer and the
  * pins as Today draws them. Their own module, since the frame reads the tokens on every page (today/pins-surface.ts).
  */
-import { parseListToken } from "./list-token";
+import { parseListToken } from "./token";
 
 /** How many lists a member may pin to Today: a row of doors, not a second rail. */
 export const TODAY_PINS_MAX = 8;
@@ -54,9 +54,16 @@ export function todayPins(
       const l = people.lists.find((x) => x.id === ref.id);
       return l ? [{ token, label: l.label, count: counted(token, l.count), to: `clients/seg:${l.id}` }] : [];
     }
-    const s = people.saved.find((x) => x.id.toLowerCase() === ref.id);
-    return s
-      ? [{ token, label: s.name, count: counted(token, s.unknown ? null : s.count), to: `clients/list:${s.id}` }]
+    const found = people.saved.find((x) => x.id.toLowerCase() === ref.id);
+    return found
+      ? [
+          {
+            token,
+            label: found.name,
+            count: counted(token, found.unknown ? null : found.count),
+            to: `clients/list:${found.id}`,
+          },
+        ]
       : [];
   });
 }

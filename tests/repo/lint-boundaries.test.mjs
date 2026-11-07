@@ -421,7 +421,7 @@ test("the edge reads the environment through env.ts and logs through log.ts, now
   // The edge's log.ts is a typed door to the one logger, no longer the place a line reaches stdout: that is the
   // package's writer, and only it (and db's fallback, until an app hands db the logger) may call console.
   assert.deepEqual(await rulesFiredOn("apps/edge/lib/shared/log.ts", 'console.error("{}");\n'), ["no-console"]);
-  assert.deepEqual(await rulesFiredOn("packages/channels/src/log/logger.ts", 'console.error("{}");\n'), []);
+  assert.deepEqual(await rulesFiredOn("packages/log/src/logger.ts", 'console.error("{}");\n'), []);
   assert.deepEqual(await rulesFiredOn("packages/db/src/shared/observe.ts", 'console.error("{}");\n'), []);
 });
 

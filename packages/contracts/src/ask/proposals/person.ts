@@ -2,8 +2,8 @@
  * A person's cards: how the receptionist treats them, a deal recorded on them with its next step, a note on them, and
  * the name and the address their profile holds.
  */
-import type { AskProposal } from "../ask";
-import { DEAL_STAGE_WORDS } from "../../deals/deal-words";
+import type { AskProposal } from "../thread-words";
+import { DEAL_STAGE_WORDS } from "../../deals/words";
 import { PERSON_MODE_WORDS } from "../../people/person-receptionist";
 import { NOTE_WORDS } from "../../notes/person-notes";
 import { STEP_SHEET_WORDS } from "../../notes/step-sheet";
@@ -114,14 +114,14 @@ export const dealSpec: ProposalSpec = {
   // The step after the deal (0007, amended), naming the row the door wrote (a new proposal's card has no id to name):
   // the team's note, with its day. It answers as the door takes it, People read again behind it. An answer that names
   // no deal sends no step: a note tied to no deal is not the step the card said, so it is said as not saved.
-  then: (p, data) => {
-    if (!p.step) return null;
+  then: (item, data) => {
+    if (!item.step) return null;
     const dealId = idIn(rec(rec(data).deal), "id");
     if (!dealId) return refuseWith("the deal came back without its id; set it on their page");
     return {
       route: "POST contacts/[id]/notes",
-      params: { id: asText(p.payload.contact_id) },
-      body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: dealId },
+      params: { id: asText(item.payload.contact_id) },
+      body: { body: item.step.body, due_on: item.step.due_on, team_only: true, deal_id: dealId },
       refresh: "behind",
       events: [PEOPLE_CHANGED],
     };

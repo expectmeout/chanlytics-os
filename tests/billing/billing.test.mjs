@@ -16,7 +16,7 @@ import {
   trialWords,
   trialOffer,
   priceWords,
-  dayWords,
+  billingDayWords,
   moneyWords,
   billingAccountDto,
   setupSteps,
@@ -129,7 +129,7 @@ test("the words: the trial, the price as Stripe states it, a day, an amount", ()
     priceWords({ id: "price_1", currency: "usd", unit_amount: null, interval: "month", product_name: null }),
     "",
   );
-  assert.equal(dayWords("2026-09-21T15:00:00Z"), "Sep 21");
+  assert.equal(billingDayWords("2026-09-21T15:00:00Z"), "Sep 21");
   assert.equal(moneyWords(4900, "usd"), "$49.00");
 });
 
@@ -370,7 +370,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(ESCALATION_REASONS.includes("paused") && SERVER_NOTIFICATION_KINDS.includes("billing"));
   for (const k of ["billing.updated", "billing.paused", "billing.resumed"]) assert.ok(EVENT_KINDS.includes(k), k);
 
-  const hook = readCode("apps/edge/lib/billing/stripe-event.ts");
+  const hook = readCode("apps/edge/lib/intake/stripe-event.ts");
   assert.ok(hook.includes("s.webhooks.constructEvent(raw, sig, secret)"), "the signature, on the raw body");
   assert.ok(
     hook.indexOf("constructEvent(") < hook.indexOf("keepEvent(") &&
@@ -390,7 +390,9 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     '"invoice.payment_failed"',
   ])
     assert.ok(hook.includes(t), t);
-  const lib = readCode("apps/edge/lib/billing/billing.ts");
+  const lib = ["apps/edge/lib/billing/subscription.ts", "apps/edge/lib/billing/billing.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
     lib.includes("env.STRIPE_SECRET_KEY") &&
       lib.includes("env.STRIPE_PRICE_ID") &&
@@ -448,13 +450,13 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
   // listed kind is stored as itself is run in notify-transport.test.mjs.
   assert.ok(
-    readCode("apps/edge/lib/ops/notify.ts").includes("new Set(SERVER_NOTIFICATION_KINDS)") &&
+    readCode("apps/edge/lib/shared/alerts/notify.ts").includes("new Set(SERVER_NOTIFICATION_KINDS)") &&
       SERVER_NOTIFICATION_KINDS.includes("billing"),
     "the kind is kept, not folded into alert",
   );
 
   const get = readCode("apps/dashboard/app/api/v1/billing/route.ts");
-  assert.match(get, /billingFor\(ctx\.supabase, member\.tenantId\),\s*billingReadiness\(\)/);
+  assert.match(get, /findBilling\(ctx\.supabase, member\.tenantId\),\s*billingReadiness\(\)/);
   for (const [file, role] of [
     ["checkout", "owner"],
     ["portal", "owner"],
@@ -479,11 +481,13 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   );
   assert.ok(!server.includes("STRIPE_SECRET_KEY"), "the dashboard never holds the key");
   assert.ok(readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes("billing: {"));
-  // The assembly lives in src/server/workspace/setup.ts: the back office reads another
+  // The assembly lives in src/server/setup/setup.ts: the back office reads another
   // workspace's through the same function, so support sees what the customer sees.
-  const setup = readCode("apps/dashboard/src/server/workspace/setup.ts");
+  const setup = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
-    setup.includes("billingFor(supabase, tenantId),") &&
+    setup.includes("findBilling(supabase, tenantId),") &&
       setup.includes("billingReadiness(),") &&
       /trial_days: billingReady\.trial_days,\s*cancel_at: billingRow\.cancel_at/.test(setup),
   );
@@ -525,7 +529,12 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     EVERY_EVENT,
     "Stripe's answer, applied by the webhook, repaints Billing",
   );
-  const kinds = readCode("packages/contracts/src/today/notifications.ts");
+  const kinds = [
+    "packages/contracts/src/today/notifications/feed-input.ts",
+    "packages/contracts/src/today/notifications/feed.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
     kinds.includes('billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" }') &&
       kinds.includes('[/^admin\\/billing/, "Open Billing"]'),

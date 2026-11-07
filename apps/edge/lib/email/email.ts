@@ -19,16 +19,17 @@
  * owner's note, and emailWaitingMessage is that note's words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mailboxOfTenant, type Database } from "@chanlytics/db";
+import { findMailboxOfTenant } from "@chanlytics/db/email";
+import { type Database } from "@chanlytics/db/types";
 import { emailSender, wireUnavailable, type EmailRoute, type Sender, type WireUnavailable } from "@chanlytics/core";
-import { fetchReceivedEmail, sendsAs, sendsAsCampaigns } from "@chanlytics/channels";
+import { fetchReceivedEmail, sendsAs, sendsAsCampaigns } from "@chanlytics/channels/email";
 import { emailDomainOf } from "@chanlytics/contracts";
 import type { JobContext } from "@chanlytics/jobs";
-import { erasedBeforeEmail } from "../shared/erased.js";
-import { notify, type NotifyMessage } from "../ops/notify.js";
+import { wasErasedBeforeEmail } from "../shared/erased.js";
+import { notify, type NotifyMessage } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import type { CampaignsBinding, CampaignsLane } from "./campaigns-domain.js";
-import { ownRoutesFor } from "./mailbox/wire.js";
+import { getOwnRoutes } from "./mailbox/wire.js";
 import { logger, errField, type Logger } from "../shared/log.js";
 import { env } from "../shared/env.js";
 
@@ -61,7 +62,7 @@ export function emailCanSend(): boolean {
  * OFFERS, from the campaigns domain, on the platform's account; it is the only route an offer may take, and no other
  * send may take it.
  */
-export async function emailWireFor(
+export async function findEmailWire(
   db: Db,
   tenantId: string,
   campaigns: CampaignsLane | null = null,
@@ -70,7 +71,7 @@ export async function emailWireFor(
   const apiKey = env.RESEND_API_KEY;
   const routes: EmailRoute[] = [];
   if (domain && apiKey) {
-    const mailbox = await mailboxOfTenant(db, tenantId);
+    const mailbox = await findMailboxOfTenant(db, tenantId);
     if (mailbox) {
       routes.push({ lane: "hosted", cfg: { apiKey }, as: sendsAs(mailbox, domain) });
       if (campaigns)
@@ -82,9 +83,9 @@ export async function emailWireFor(
   // without the workspace's own routes: a reach-out's email frozen with its mailbox's address would be refused at such
   // a wire as leaving as another sender, and its lead's step lost although nothing left. The send waits instead. The
   // tick binds each channel's wire on its own (api/jobs/tick.ts), so a text's and a WhatsApp's are not held.
-  let own: Awaited<ReturnType<typeof ownRoutesFor>>;
+  let own: Awaited<ReturnType<typeof getOwnRoutes>>;
   try {
-    own = await ownRoutesFor(db, tenantId);
+    own = await getOwnRoutes(db, tenantId);
   } catch (e) {
     logger({ tenant_id: tenantId }).error("email_own_mailboxes_unread", { error: errField(e) });
     return wireUnavailable(errField(e));
@@ -103,17 +104,28 @@ type EmailWaiting = Parameters<NonNullable<JobContext["email"]>["tell"]>[1];
  * only to an address that is this workspace's; what the platform may be told
  * about a workspace it cannot address names nobody.
  */
-export function emailWaitingMessage(n: EmailWaiting): NotifyMessage {
-  const who = n.fromName?.trim() || n.from;
-  const kind = n.claim === "automated" ? "An automated email arrived" : `${who} wrote by email`;
+export const tellOfWaitingEmail =
+  (db: Parameters<typeof loadTenantNotifications>[0]) =>
+  async (tenantId: string, note: EmailWaiting): Promise<void> => {
+    try {
+      const addressing = await loadTenantNotifications(db, tenantId);
+      await notify({ tenantId, ...addressing }, emailWaitingMessage(note));
+    } catch (e) {
+      logger({ tenant_id: tenantId }).error("email_tell_failed", { error: errField(e) });
+    }
+  };
+
+export function emailWaitingMessage(emailWaiting: EmailWaiting): NotifyMessage {
+  const personName = emailWaiting.fromName?.trim() || emailWaiting.from;
+  const kind = emailWaiting.claim === "automated" ? "An automated email arrived" : `${personName} wrote by email`;
   return {
     kind: "handoff",
-    route: `inbox/th-${n.conversationId}`,
-    about: { type: "conversation", id: n.conversationId },
-    subject: n.subject?.trim() ? `${kind}: ${n.subject.trim()}` : kind,
+    route: `inbox/th-${emailWaiting.conversationId}`,
+    about: { type: "conversation", id: emailWaiting.conversationId },
+    subject: emailWaiting.subject?.trim() ? `${kind}: ${emailWaiting.subject.trim()}` : kind,
     body:
-      `${n.preview?.trim() ? `They wrote: “${n.preview.trim()}”\n\n` : ""}` +
-      `Email · ${n.from}\n` +
+      `${emailWaiting.preview?.trim() ? `They wrote: “${emailWaiting.preview.trim()}”\n\n` : ""}` +
+      `Email · ${emailWaiting.from}\n` +
       "Nothing was sent: it's yours to answer from the Inbox.",
     redactedBody: "An email arrived for a workspace and nobody could be told.",
   };
@@ -139,24 +151,17 @@ export function emailIntake(
     ...(closed ? { campaignsClosed: closed } : {}),
     ...(unread ? { campaignsUnread: unread } : {}),
     fetch: (receivedId) => fetchReceivedEmail({ apiKey }, receivedId),
-    erasedBefore: (tenantId, address, receivedAtIso) => erasedBeforeEmail(db, tenantId, address, receivedAtIso),
+    erasedBefore: (tenantId, address, receivedAtIso) => wasErasedBeforeEmail(db, tenantId, address, receivedAtIso),
     // Best-effort by contract: the thread is already flagged, which is the
     // durable half. A notification that could not be sent is logged, and the
     // deadman's sweep still names a thread nobody has opened.
-    tell: async (tenantId, note) => {
-      try {
-        const addressing = await loadTenantNotifications(db, tenantId);
-        await notify({ tenantId, ...addressing }, emailWaitingMessage(note));
-      } catch (e) {
-        logger({ tenant_id: tenantId }).error("email_tell_failed", { error: errField(e) });
-      }
-    },
+    tell: tellOfWaitingEmail(db),
   };
 }
 
 /**
  * The email wire one job is bound with, and what its intake is told of the campaigns domain (`campaigns`, `closed`: the
- * arguments of emailIntake), from what the domain came to for the job (campaigns-domain.ts campaignsBinding; `none` for
+ * arguments of emailIntake), from what the domain came to for the job (campaigns-domain.ts getCampaignsBinding; `none` for
  * every job that sends no offer). Open: the wire gains the campaigns route and the intake the lane. Closed: the deployment
  * names a domain the provider does not verify, so the intake says why and the run stops (core offersClosed). Unread: the
  * provider could not be asked about it, so the email wire is bound as ever (without the campaigns route) and the intake says
@@ -164,20 +169,20 @@ export function emailIntake(
  * Without a lane the batch held each of its offers as having no channel, a skip that is final; binding the whole wire
  * unavailable held every email of the batch, a visit reminder's too.
  */
-export async function emailBoundFor(
+export async function findEmailBound(
   db: Db,
   tenantId: string,
   offers: CampaignsBinding,
-  L: Logger,
+  log: Logger,
 ): Promise<{
-  email: Awaited<ReturnType<typeof emailWireFor>>;
+  email: Awaited<ReturnType<typeof findEmailWire>>;
   campaigns: CampaignsLane | null;
   closed: string | null;
   unread: string | null;
 }> {
   const campaigns = offers.state === "open" ? offers.lane : null;
-  const email = await emailWireFor(db, tenantId, campaigns).catch((e: unknown) => {
-    L.error("email_wire_unavailable", { tenant_id: tenantId, error: errField(e) });
+  const email = await findEmailWire(db, tenantId, campaigns).catch((e: unknown) => {
+    log.error("email_wire_unavailable", { tenant_id: tenantId, error: errField(e) });
     return wireUnavailable(errField(e));
   });
   return {

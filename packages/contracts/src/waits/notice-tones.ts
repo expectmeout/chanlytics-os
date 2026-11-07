@@ -1,7 +1,7 @@
 /**
  * Good news in its own tone, and a warning in a warning's (the wiring's second audit, R11 S6-9).
  *
- * A kept row's look is by its kind (today/notifications.ts SERVER_LOOK), and some kinds carry good news and bad alike:
+ * A kept row's look is by its kind (today/notifications/feed.ts SERVER_LOOK), and some kinds carry good news and bad alike:
  * `number` ("Texting is on", "Your phone line is ready" beside "WhatsApp quality rating flagged"), `billing` ("Your
  * receptionist is back", "Your trial has started" beside "A payment did not go through") and `sweep`. Each was drawn in
  * the warning's amber with its icon, and Today's While you were away sorts amber first, so good news outranked real
@@ -13,7 +13,7 @@
  * news by that fact, and the rest of the good news, and the two warnings kept as alerts, are listed. A row of a title
  * listed nowhere keeps its kind's look, and a row already kept takes its tone the next time the bell is drawn.
  */
-import type { ServerNotificationKind } from "../today/notifications";
+import type { ServerNotificationKind } from "../today/notifications/feed-input";
 import { NOTICE_MENDS } from "./notice-mends";
 
 /** A row's tone where its kind's look does not say it: good news, or a warning. */

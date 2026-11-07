@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LEAD_PREVIEW_WORDS as W, pageTitle } from "@chanlytics/contracts";
 import SignupScreen from "@/auth/SignupScreen";
-import { previewForSignup } from "@/server/previews/claim";
+import { findPreviewForSignup } from "@/server/previews/claim";
 
 /**
  * Make it mine (decision 0079, L4): a lead's own receptionist's sign-up, the page its preview's Make it mine opens. The
@@ -27,7 +27,7 @@ export const instant = false;
 
 export default async function MakeItMinePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const said = await previewForSignup(token);
+  const said = await findPreviewForSignup(token);
   if (!said) redirect(`/preview/${encodeURIComponent(token)}`);
   return <SignupScreen preview={{ token, ...said }} />;
 }

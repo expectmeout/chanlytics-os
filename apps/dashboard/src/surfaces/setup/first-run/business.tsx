@@ -5,7 +5,8 @@
  * workspace, building. The page (page.tsx) draws the step's frame; this draws what is inside it.
  */
 import type { ReactNode } from "react";
-import { businessNameOf, type FirstRunVM } from "@chanlytics/contracts";
+import { businessNameOf } from "@chanlytics/contracts";
+import { type FirstRunVM } from "./model/view";
 import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import { canDo, meNow, type FrameFlash } from "../../frame-verbs";
 import { SetupRows } from "../rows/rows";

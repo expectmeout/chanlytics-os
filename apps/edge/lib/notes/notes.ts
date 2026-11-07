@@ -2,7 +2,7 @@
  * The note sweep's work (docs/decisions/0007-person-notes.md, phase 2): read a batch of looks, ask the model about
  * the few that pass the first gate, check its answer in code, and suggest what passes.
  *
- * Every rule is contracts' (note-suggest.ts): whyNotLook before the model, the prompt, checkNoteSuggestion after it.
+ * Every rule is contracts' (notes/suggest.ts): whyNotLook before the model, the prompt, checkNoteSuggestion after it.
  * The transport is lib/ai/model.ts, the one the reach-out check asks through too. A look is taken once -- note_candidates stamps what it hands over -- so a failure
  * here costs that one look, never a retry storm. What is suggested waits on the person's page for Keep or Dismiss.
  *
@@ -38,35 +38,29 @@ import {
   noteSuggestUserContent,
   whyNotFactLook,
   whyNotLook,
-  JOURNAL_SCHEMA,
   activityLines,
   activityMemberWords,
   activityRowOfDecision,
   activityRowOfEvent,
-  checkJournal,
   clockTime,
   isActivityMoney,
   isActivityNoise,
-  journalSystemPrompt,
-  journalUserContent,
   zoneDayKey,
   type ActivityDecisionRow,
   type ActivityEventRow,
   type ActivityRowDto,
-  type JournalLine,
   type NoteTurn,
 } from "@chanlytics/contracts";
+import { JOURNAL_SCHEMA, checkJournal, journalSystemPrompt, journalUserContent, type JournalLine } from "./ask-journal";
+import { getActivitySubjects } from "@chanlytics/db/events";
 import {
-  activitySubjects,
   askJournalDayRows,
   askJournalDue,
-  factCorrectionsBatch,
-  journalMemberNames,
+  getJournalMemberNames,
   keepAskJournal,
-  suggestFact,
   type AskJournalDueRow,
-  type FactCorrectionRow,
-} from "@chanlytics/db";
+} from "@chanlytics/db/ask";
+import { listFactCorrectionsBatch, suggestFact, type FactCorrectionRow } from "@chanlytics/db/facts";
 import { askJson } from "../ai/model.js";
 import type { Logger } from "../shared/log.js";
 
@@ -128,8 +122,8 @@ export async function suggestNotes(deps: {
 }): Promise<NotesSweepOutcome> {
   const { db, L, ask, nowMs } = deps;
   const out: NotesSweepOutcome = { looked: 0, asked: 0, suggested: 0, ended: {} };
-  const end = (why: string) => {
-    out.ended[why] = (out.ended[why] ?? 0) + 1;
+  const end = (reason: string) => {
+    out.ended[reason] = (out.ended[reason] ?? 0) + 1;
   };
   const { data, error } = await db.rpc("note_candidates", { p_limit: NOTE_SUGGEST_LIMITS.perRun });
   if (error) {
@@ -138,19 +132,19 @@ export async function suggestNotes(deps: {
   }
   // The day's count per workspace, carried across this run's own suggestions so a busy batch keeps to the cap.
   const today = new Map<string, number>();
-  for (const c of (data ?? []) as NoteCandidate[]) {
+  for (const row of (data ?? []) as NoteCandidate[]) {
     out.looked += 1;
-    const turns = (Array.isArray(c.turns) ? c.turns : []).filter(
+    const turns = (Array.isArray(row.turns) ? row.turns : []).filter(
       (t): t is NoteTurn => !!t && (t.who === "customer" || t.who === "business") && typeof t.text === "string",
     );
-    const known = (Array.isArray(c.known) ? c.known : []).filter((k): k is string => typeof k === "string");
-    const workspaceToday = Math.max(c.workspace_today ?? 0, today.get(c.tenant_id) ?? 0);
+    const known = (Array.isArray(row.known) ? row.known : []).filter((k): k is string => typeof k === "string");
+    const workspaceToday = Math.max(row.workspace_today ?? 0, today.get(row.tenant_id) ?? 0);
     const early = whyNotLook({
-      source: c.source,
+      source: row.source,
       turns,
-      seconds: c.seconds,
-      dnc: c.dnc,
-      lastSuggestedAt: c.last_suggested,
+      seconds: row.seconds,
+      dnc: row.dnc,
+      lastSuggestedAt: row.last_suggested,
       workspaceToday,
       nowMs,
     });
@@ -158,33 +152,33 @@ export async function suggestNotes(deps: {
       end(early);
       continue;
     }
-    let asked;
+    let request;
     try {
-      asked = await ask(noteSuggestSystemPrompt("local business"), noteSuggestUserContent(turns, known), {
-        tenantId: c.tenant_id,
-        subjectId: c.contact_id,
+      request = await ask(noteSuggestSystemPrompt("local business"), noteSuggestUserContent(turns, known), {
+        tenantId: row.tenant_id,
+        subjectId: row.contact_id,
       });
     } catch (e) {
       L.warn("notes_model_failed", {
-        tenant_id: c.tenant_id,
-        source: c.source,
+        tenant_id: row.tenant_id,
+        source: row.source,
         error: e instanceof Error ? e.message.slice(0, 200) : String(e),
       });
       end("model_failed");
       continue;
     }
-    if (!asked) {
+    if (!request) {
       end("no_model");
       continue;
     }
     out.asked += 1;
-    const checked = checkNoteSuggestion(asked.answer, turns, known);
+    const checked = checkNoteSuggestion(request.answer, turns, known);
     L.info("notes_looked", {
-      tenant_id: c.tenant_id,
-      source: c.source,
+      tenant_id: row.tenant_id,
+      source: row.source,
       model: NOTE_SUGGEST_MODEL,
-      input_tokens: asked.tokens.input,
-      output_tokens: asked.tokens.output,
+      input_tokens: request.tokens.input,
+      output_tokens: request.tokens.output,
       outcome: checked.ok ? "suggest" : checked.why,
     });
     if (!checked.ok) {
@@ -192,20 +186,20 @@ export async function suggestNotes(deps: {
       continue;
     }
     const { data: door, error: doorErr } = await db.rpc("person_note_suggest", {
-      p_tenant_id: c.tenant_id,
-      p_contact_id: c.contact_id,
+      p_tenant_id: row.tenant_id,
+      p_contact_id: row.contact_id,
       p_body: checked.body,
-      p_source: c.source,
-      p_source_id: c.source_id,
+      p_source: row.source,
+      p_source_id: row.source_id,
     });
     const refused = (door as { error?: string } | null)?.error;
     if (doorErr || refused) {
       end(refused ?? "door_failed");
-      if (doorErr) L.error("notes_suggest_failed", { tenant_id: c.tenant_id, error: doorErr.message });
+      if (doorErr) L.error("notes_suggest_failed", { tenant_id: row.tenant_id, error: doorErr.message });
       continue;
     }
     out.suggested += 1;
-    today.set(c.tenant_id, workspaceToday + 1);
+    today.set(row.tenant_id, workspaceToday + 1);
   }
   return out;
 }
@@ -231,8 +225,8 @@ interface FactsDb {
 }
 
 /** The facts' step over a real database: the two doors of 00448, through packages/db. */
-export const factsDbOf = (db: Parameters<typeof factCorrectionsBatch>[0]): FactsDb => ({
-  batch: (limit) => factCorrectionsBatch(db, limit),
+export const factsDbOf = (db: Parameters<typeof listFactCorrectionsBatch>[0]): FactsDb => ({
+  batch: (limit) => listFactCorrectionsBatch(db, limit),
   suggest: (p) => suggestFact(db, p),
 });
 
@@ -243,8 +237,8 @@ export const factsDbOf = (db: Parameters<typeof factCorrectionsBatch>[0]): Facts
 export async function suggestFacts(deps: { db: FactsDb; L: Logger; ask: AskNote }): Promise<NotesSweepOutcome> {
   const { db, L, ask } = deps;
   const out: NotesSweepOutcome = { looked: 0, asked: 0, suggested: 0, ended: {} };
-  const end = (why: string) => {
-    out.ended[why] = (out.ended[why] ?? 0) + 1;
+  const end = (reason: string) => {
+    out.ended[reason] = (out.ended[reason] ?? 0) + 1;
   };
   let batch: FactCorrectionRow[];
   try {
@@ -255,42 +249,48 @@ export async function suggestFacts(deps: { db: FactsDb; L: Logger; ask: AskNote 
   }
   // The day's count per workspace, carried across this run's own suggestions so a busy batch keeps to the cap.
   const today = new Map<string, number>();
-  for (const c of batch) {
+  for (const row of batch) {
     out.looked += 1;
-    const workspaceToday = Math.max(c.workspace_today, today.get(c.tenant_id) ?? 0);
-    const early = whyNotFactLook({ words: c.words, notesCount: c.notes_count, workspaceToday });
+    const workspaceToday = Math.max(row.workspace_today, today.get(row.tenant_id) ?? 0);
+    const early = whyNotFactLook({ words: row.words, notesCount: row.notes_count, workspaceToday });
     if (early) {
       end(early);
       continue;
     }
-    let asked;
+    let request;
     try {
-      asked = await ask(
+      request = await ask(
         factSuggestSystemPrompt(),
-        factSuggestUserContent({ source: c.source, asked: c.asked, said: c.said, words: c.words, known: c.known }),
-        { tenantId: c.tenant_id, subjectId: c.conversation_id ?? c.id },
+        factSuggestUserContent({
+          source: row.source,
+          asked: row.asked,
+          said: row.said,
+          words: row.words,
+          known: row.known,
+        }),
+        { tenantId: row.tenant_id, subjectId: row.conversation_id ?? row.id },
       );
     } catch (e) {
       L.warn("facts_model_failed", {
-        tenant_id: c.tenant_id,
-        source: c.source,
+        tenant_id: row.tenant_id,
+        source: row.source,
         error: e instanceof Error ? e.message.slice(0, 200) : String(e),
       });
       end("model_failed");
       continue;
     }
-    if (!asked) {
+    if (!request) {
       end("no_model");
       continue;
     }
     out.asked += 1;
-    const checked = checkFactSuggestion(asked.answer, c.words, c.known);
+    const checked = checkFactSuggestion(request.answer, row.words, row.known);
     L.info("facts_looked", {
-      tenant_id: c.tenant_id,
-      source: c.source,
+      tenant_id: row.tenant_id,
+      source: row.source,
       model: FACT_SUGGEST_MODEL,
-      input_tokens: asked.tokens.input,
-      output_tokens: asked.tokens.output,
+      input_tokens: request.tokens.input,
+      output_tokens: request.tokens.output,
       outcome: checked.ok ? "suggest" : checked.why,
     });
     if (!checked.ok) {
@@ -299,10 +299,10 @@ export async function suggestFacts(deps: { db: FactsDb; L: Logger; ask: AskNote 
     }
     let refused: string | null;
     try {
-      ({ refused } = await db.suggest({ id: c.id, title: checked.title, body: checked.text, quote: checked.quote }));
+      ({ refused } = await db.suggest({ id: row.id, title: checked.title, body: checked.text, quote: checked.quote }));
     } catch (e) {
       L.error("facts_suggest_failed", {
-        tenant_id: c.tenant_id,
+        tenant_id: row.tenant_id,
         error: e instanceof Error ? e.message.slice(0, 200) : String(e),
       });
       end("door_failed");
@@ -313,7 +313,7 @@ export async function suggestFacts(deps: { db: FactsDb; L: Logger; ask: AskNote 
       continue;
     }
     out.suggested += 1;
-    today.set(c.tenant_id, workspaceToday + 1);
+    today.set(row.tenant_id, workspaceToday + 1);
   }
   return out;
 }
@@ -365,8 +365,8 @@ interface JournalDb {
 export const journalDbOf = (db: Parameters<typeof askJournalDue>[0]): JournalDb => ({
   due: async () => (await askJournalDue(db, 1))[0] ?? null,
   day: (p) => askJournalDayRows(db, { ...p, limit: ASK_JOURNAL_LIMITS.rowsRead }),
-  names: (ids) => journalMemberNames(db, ids),
-  subjects: async (tenantId, about) => (await activitySubjects(db, tenantId, about)).names,
+  names: (ids) => getJournalMemberNames(db, ids),
+  subjects: async (tenantId, about) => (await getActivitySubjects(db, tenantId, about)).names,
   keep: (p) => keepAskJournal(db, p),
 });
 
@@ -448,32 +448,41 @@ const errorWords = (e: unknown): string => (e instanceof Error ? e.message.slice
 /** One day handed over: read, asked and checked, ending in what its door keeps. Never thrown: a day that fails is failed. */
 async function journalEnd(
   db: JournalDb,
-  L: Logger,
+  log: Logger,
   ask: AskNote,
-  d: AskJournalDueRow,
+  askJournalDue: AskJournalDueRow,
 ): Promise<{ end: JournalEnd; read: number }> {
   let day: { lines: JournalLine[]; read: number };
   try {
-    day = await journalDayOf(db, d);
+    day = await journalDayOf(db, askJournalDue);
   } catch (e) {
-    L.error("journal_day_failed", { tenant_id: d.tenant_id, day: d.day, error: errorWords(e) });
+    log.error("journal_day_failed", {
+      tenant_id: askJournalDue.tenant_id,
+      day: askJournalDue.day,
+      error: errorWords(e),
+    });
     return { end: { text: null, outcome: "read_failed", failed: true }, read: 0 };
   }
   const { read } = day;
   if (!day.lines.length) return { end: { text: null, outcome: "nothing" }, read };
-  let asked: Awaited<ReturnType<AskNote>>;
+  let request: Awaited<ReturnType<AskNote>>;
   try {
-    asked = await ask(
+    request = await ask(
       journalSystemPrompt(),
-      journalUserContent({ day: d.day, weekday: journalWeekday(d.day), locale: d.locale, lines: day.lines }),
-      { tenantId: d.tenant_id, subjectId: d.tenant_id },
+      journalUserContent({
+        day: askJournalDue.day,
+        weekday: journalWeekday(askJournalDue.day),
+        locale: askJournalDue.locale,
+        lines: day.lines,
+      }),
+      { tenantId: askJournalDue.tenant_id, subjectId: askJournalDue.tenant_id },
     );
   } catch (e) {
-    L.warn("journal_model_failed", { tenant_id: d.tenant_id, error: errorWords(e) });
+    log.warn("journal_model_failed", { tenant_id: askJournalDue.tenant_id, error: errorWords(e) });
     return { end: { text: null, outcome: "model_failed", failed: true }, read };
   }
-  if (!asked) return { end: { text: null, outcome: "no_model", failed: true }, read };
-  const checked = checkJournal(asked.answer);
+  if (!request) return { end: { text: null, outcome: "no_model", failed: true }, read };
+  const checked = checkJournal(request.answer);
   if (checked.ok) return { end: { text: checked.text, outcome: "written" }, read };
   if (checked.why === "quiet") return { end: { text: null, outcome: "quiet" }, read };
   return { end: { text: null, outcome: "unreadable", failed: true }, read };
@@ -494,35 +503,45 @@ export async function writeJournal(deps: {
 }): Promise<JournalOutcome> {
   const { db, L, ask } = deps;
   const out: JournalOutcome = { looked: 0, written: 0, quiet: 0, failed: 0, stopped: null };
-  for (let i = 0; i < ASK_JOURNAL_LIMITS.perRun; i += 1) {
+  for (let index = 0; index < ASK_JOURNAL_LIMITS.perRun; index += 1) {
     if (deps.deadlineMs - deps.now() < JOURNAL_DAY_MS) {
       out.stopped = "time";
       break;
     }
-    let d: AskJournalDueRow | null;
+    let askJournalDue: AskJournalDueRow | null;
     try {
-      d = await db.due();
+      askJournalDue = await db.due();
     } catch (e) {
       L.error("journal_due_failed", { error: errorWords(e) });
       break;
     }
-    if (!d) break;
+    if (!askJournalDue) break;
     out.looked += 1;
-    const { end, read } = await journalEnd(db, L, ask, d);
+    const { end, read } = await journalEnd(db, L, ask, askJournalDue);
     if (end.outcome === "written") out.written += 1;
     else if ("failed" in end) out.failed += 1;
     else out.quiet += 1;
     try {
       const { refused } = await db.keep({
-        tenantId: d.tenant_id,
-        day: d.day,
+        tenantId: askJournalDue.tenant_id,
+        day: askJournalDue.day,
         text: end.text,
         rowsRead: read,
         ...("failed" in end ? { failed: true } : {}),
       });
-      L.info("journal_written", { tenant_id: d.tenant_id, day: d.day, rows: read, outcome: end.outcome, refused });
+      L.info("journal_written", {
+        tenant_id: askJournalDue.tenant_id,
+        day: askJournalDue.day,
+        rows: read,
+        outcome: end.outcome,
+        refused,
+      });
     } catch (e) {
-      L.error("journal_keep_failed", { tenant_id: d.tenant_id, day: d.day, error: errorWords(e) });
+      L.error("journal_keep_failed", {
+        tenant_id: askJournalDue.tenant_id,
+        day: askJournalDue.day,
+        error: errorWords(e),
+      });
     }
   }
   return out;

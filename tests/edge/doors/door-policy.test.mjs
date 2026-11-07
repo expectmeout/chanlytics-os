@@ -61,12 +61,12 @@ const CHANNELS = "@chanlytics/channels";
 const KNOCKS = {
   authorizeAdmin: { from: "apps/edge/lib/shared/admin-auth.ts" }, // a token minted for this door, or the platform's key where it allows
   authorizeCron: { from: "apps/edge/lib/shared/cron-auth.ts" }, // the sweep key held in Vault
-  voiceDoorAuth: { from: "apps/edge/lib/voice/door-auth.ts" }, // Retell's signature, or the shared secret while it is read
-  retellSigned: { from: "apps/edge/lib/voice/door-auth.ts" }, // the same module: Retell's signature alone
+  voiceDoorAuth: { from: "apps/edge/lib/shared/door-auth.ts" }, // Retell's signature, or the shared secret while it is read
+  retellSigned: { from: "apps/edge/lib/shared/door-auth.ts" }, // the same module: Retell's signature alone
   verifyTwilioSignature: { from: CHANNELS }, // Twilio's signature, with the token of the line's own account
   verifyGooglePushToken: { from: CHANNELS }, // the token Google signs on a Gmail push
   clientStateMatches: { from: CHANNELS }, // the secret a Graph subscription echoes on each notification
-  signedByMeta: { from: "apps/edge/lib/whatsapp/webhook.ts" }, // Meta's HMAC over the raw body
+  signedByMeta: { from: "apps/edge/lib/intake/whatsapp.ts" }, // Meta's HMAC over the raw body
   signedByInstagramApp: { from: "apps/edge/lib/instagram/webhook.ts" }, // the same HMAC, with the Instagram app's secret or the Meta app's
   askVoiceWebhookSigned: { from: "apps/edge/lib/voice/ask-voice.ts" }, // ElevenLabs' HMAC over the raw body
   verifyResendWebhook: { from: CHANNELS }, // svix's signature over Resend's event
@@ -231,7 +231,8 @@ function knockOf(file, call) {
   }
   if (!ts.isIdentifier(callee) || boundInside(callee)) return null;
   const o = originOf(file, callee.text);
-  return o && Object.hasOwn(KNOCKS, o.name) && KNOCKS[o.name].from === o.file ? o.name : null;
+  const file = o?.file?.startsWith(`${CHANNELS}/`) ? CHANNELS : o?.file;
+  return o && Object.hasOwn(KNOCKS, o.name) && KNOCKS[o.name].from === file ? o.name : null;
 }
 
 /**

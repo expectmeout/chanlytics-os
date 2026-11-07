@@ -12,7 +12,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 

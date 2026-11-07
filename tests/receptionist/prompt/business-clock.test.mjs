@@ -95,7 +95,7 @@ test("the timezone has ONE home, and it is not the business profile", () => {
 /* ----------------------------- the call sites ------------------------------ */
 
 test("the clock is sent as its OWN system block, uncached", () => {
-  const brainSrc = readCode("apps/edge/lib/receptionist/brain.ts");
+  const brainSrc = readCode("apps/edge/lib/ai/receptionist-brain.ts");
   const cached = brainSrc.indexOf("cache_control");
   const now = brainSrc.indexOf('nowNote ? [{ type: "text", text: nowNote }]');
   assert.ok(now > 0, "the now block must be sent");

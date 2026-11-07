@@ -19,11 +19,11 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { platformDays } = await import(at("apps/dashboard/src/server/console/day-counts.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { listPlatformDays } = await import(at("apps/dashboard/src/server/console/day-counts.ts"));
 const overview = await import(at("apps/dashboard/app/api/v1/platform/overview/route.ts"));
 
-after(() => setServiceClient(null));
+after(() => setUnsubscribeServiceClient(null));
 
 const raise = (code, message) => () => {
   throw Object.assign(new Error(message), { code });
@@ -59,7 +59,7 @@ const office = (rpc) => ({ db: fakeDb({}, {}, { platform_metrics_read: rpc }), s
 
 test("the back office's read asks for the bounded window and answers the wire's numbers: counts as numbers, tokens as one, anything else in a count dropped", async () => {
   const asked = [];
-  const read = await platformDays(
+  const read = await listPlatformDays(
     office((args) => {
       asked.push(args);
       return [
@@ -120,8 +120,8 @@ test("the back office's read asks for the bounded window and answers the wire's 
 });
 
 test("a read that fails is unread (null), and a database the migration has not reached has no days (none)", async () => {
-  assert.equal(await platformDays(office(raise("57014", "canceling statement due to statement timeout"))), null);
-  assert.deepEqual(await platformDays(office(raise("PGRST202", "Could not find the function"))), []);
+  assert.equal(await listPlatformDays(office(raise("57014", "canceling statement due to statement timeout"))), null);
+  assert.deepEqual(await listPlatformDays(office(raise("PGRST202", "Could not find the function"))), []);
 });
 
 test("the days ride on the overview beside the workspaces, and a read that fails takes nothing else with it", async () => {
@@ -138,13 +138,13 @@ test("the days ride on the overview beside the workspaces, and a read that fails
       {},
       { sweep_health: () => [], jobs_backlog: () => 0, page_vitals_p75: () => [], platform_metrics_read: days },
     );
-  setServiceClient(service(() => [stored(A, "Harbor Moving", "2026-09-28")]));
+  setUnsubscribeServiceClient(service(() => [stored(A, "Harbor Moving", "2026-09-28")]));
   const out = await overview.GET.run(new Request("http://localhost/api/v1/platform/overview"), ctx);
   assert.deepEqual(
     out.days.map((d) => [d.name, d.day, d.asks]),
     [["Harbor Moving", "2026-09-28", 11]],
   );
-  setServiceClient(service(raise("57014", "canceling statement due to statement timeout")));
+  setUnsubscribeServiceClient(service(raise("57014", "canceling statement due to statement timeout")));
   const down = await overview.GET.run(new Request("http://localhost/api/v1/platform/overview"), ctx);
   assert.equal(down.days, null, "unread, said as unread");
   assert.deepEqual(down.tenants, []);

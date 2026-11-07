@@ -27,7 +27,7 @@ process.env.EDGE_PROVIDERS = "live";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { signState, newNonce, STATE_TTL_MS } = await import("@chanlytics/channels");
+const { signState, newNonce, STATE_TTL_MS } = await import("@chanlytics/channels/google");
 const { movedAddress, routeOfAddress } = await import("@chanlytics/contracts");
 const { afterGoogle } = await import(at("apps/dashboard/src/server/connections/google.ts"));
 const callback = await import(at("apps/dashboard/app/api/v1/google/callback/route.ts"));

@@ -1,365 +1,29 @@
-/**
- * Google — a business's listing on Google Maps, as facts.
- *
- * Most businesses live on Google whether or not they asked to. The listing
- * is public: a name, an address, a rating, a count of reviews, and the five
- * reviews Google shows first. Setup finds it from the facts the workspace
- * already holds, the edge reads it once a day, and what changed reaches the
- * bell, Today and Reports. The owner's own Business Profile, connected once,
- * adds every review and the right to answer them.
- *
- * Two honesties shape every line: Google shows at most five reviews of the
- * public listing, sorted by relevance, so "new" is a review not on record
- * and written since the previous check, while the count of ratings is
- * exact; and fewer than two days of reading cannot say what a period
- * gained. Pure: the routes feed it rows, the tests feed it fixtures.
- */
-import type { SchemaSet } from "../shared/schema-sets";
+/** Google: google. */
+
 import { clockDate, zoneDayKey } from "../shared/clock";
-import { agoWords, isoMs, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
-import { plural, reviewsPhrase } from "../shared/words";
+import { agoWords, isoMs, WEEK_MS } from "../shared/time";
+import { plural } from "../shared/words";
 import { heldReviewReplyOf, reviewReplyWords, type HeldReviewReply, type ReviewReplyMode } from "./review-reply";
 import { reviewRoute } from "../reports/lenses";
-import { dayPointOf, fmtDay, rangeLabelOf, withinWords } from "../reports/reports";
-import { beforeWords, compareWords, type ReportTileVM } from "../reports/report-tiles";
-import type { Hours } from "../config/workspace-config/business-profile";
-import { DAYS, dayProblems } from "../config/workspace-config/config-rules";
-import { shiftKey } from "../calendar/day-keys";
-import { WEEKDAY_KEYS } from "../calendar/zone-math";
-import { normalizePhone } from "../shared/phone";
-
-/** A moment in Google's week: day 0 is Sunday. */
-export type GooglePoint = {
-  day: number;
-  hour: number;
-  minute: number;
-};
-
-/** One of Google's opening periods. No close means open around the clock. */
-export type GooglePeriod = {
-  open: GooglePoint;
-  close: GooglePoint | null;
-};
-
-/**
- * What the public listing says about the business beyond its name and address, as the edge last read it
- * (google_listings.facts): Google's own answers, kept so the first run can offer them for the owner to check.
- * Nothing here reaches a customer until the owner has confirmed it into the Business record.
- */
-export type GoogleListingFacts = {
-  /** Google's opening periods, as read; null when the listing gives none. */
-  hours: GooglePeriod[] | null;
-  /** E.164, when Google's international number reads as one. */
-  phone_e164: string | null;
-  /** The number the way Google prints it for its country, e.g. "(305) 555-0100". */
-  phone_display: string | null;
-  website: string | null;
-  /** Google's kind of place, e.g. "hair_salon", and its label, e.g. "Hair salon". */
-  primary_type: string | null;
-  primary_type_label: string | null;
-  /** A business that goes to its customers and shows no address. */
-  service_area_only: boolean;
-  /** IANA zone, e.g. "America/New_York". */
-  time_zone: string | null;
-};
-
-/** A moment of Google's week as stored, or null for anything else. */
-const pointOf = (v: unknown): GooglePoint | null => {
-  const p = v !== null && typeof v === "object" ? (v as Record<string, unknown>) : null;
-  return p && typeof p.day === "number" && typeof p.hour === "number" && typeof p.minute === "number"
-    ? { day: p.day, hour: p.hour, minute: p.minute }
-    : null;
-};
-
-/**
- * google_listings.facts as stored, read back. The edge writes GoogleListingFacts from each details read; a listing
- * linked before that read existed holds `{}`, which says nothing, and reads as null. The column is jsonb and nothing
- * but the edge checks what goes in, so each field is read for what it is: a period that is not one is dropped (one
- * with no close is Google's "around the clock", and kept), and a field of the wrong kind is none.
- */
-export function listingFactsOf(raw: unknown): GoogleListingFacts | null {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const r = raw as Record<string, unknown>;
-  if (!Object.keys(r).length) return null;
-  const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const hours = Array.isArray(r.hours)
-    ? r.hours.flatMap((p: unknown): GooglePeriod[] => {
-        const q = p !== null && typeof p === "object" ? (p as Record<string, unknown>) : null;
-        const open = q ? pointOf(q.open) : null;
-        if (!q || !open) return [];
-        if (q.close == null) return [{ open, close: null }];
-        const close = pointOf(q.close);
-        return close ? [{ open, close }] : [];
-      })
-    : null;
-  return {
-    hours,
-    phone_e164: text(r.phone_e164),
-    phone_display: text(r.phone_display),
-    website: text(r.website),
-    primary_type: text(r.primary_type),
-    primary_type_label: text(r.primary_type_label),
-    service_area_only: r.service_area_only === true,
-    time_zone: text(r.time_zone),
-  };
-}
-
-/**
- * The booking page the website's read found (business_reads, bookingPageRead), as Check offers it: only while the config
- * holds no booking link. A link the owner has is theirs, whatever the website says. The one test, for the setup read and
- * for the page, whose next save may hold a link the read has not seen yet.
- */
-export function bookingPageOffered(found: string | null | undefined, holdsLink: boolean): string | null {
-  return holdsLink ? null : (found ?? null);
-}
-
-type Day = (typeof DAYS)[number];
-const hhmm = (h: number, m: number): string => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-
-/**
- * Google's opening periods as the Business record's week (config.ts HoursSchema): a shift per period, a closed day
- * absent. What the record cannot hold is left out and NAMED in `unsure`, so the owner is asked about that day rather
- * than shown a week that quietly differs from the listing:
- *
- * - a period with no close, which is how Google says a place never closes -- every day is unsure;
- * - a shift that closes on another day, past midnight;
- * - a day the record's own rules refuse (config.ts dayProblems: a fifth shift, two that overlap, a close before
- *   its open), judged by the same rules the Business tab's save is.
- */
-export function hoursFromGoogle(periods: readonly GooglePeriod[] | null | undefined): {
-  hours: Partial<Record<Day, Hours>>;
-  unsure: Day[];
-} {
-  // Around the clock, as Google sends it: one period, Sunday at midnight, no close. The week has no hours to give.
-  if ((periods ?? []).some((p) => !p.close)) return { hours: {}, unsure: [...DAYS] };
-  const shifts = new Map<Day, Array<{ open: string; close: string }>>();
-  const unsure = new Set<Day>();
-  for (const p of periods ?? []) {
-    const day = WEEKDAY_KEYS[p.open.day];
-    if (!day) continue;
-    if (!p.close || p.close.day !== p.open.day) {
-      unsure.add(day);
-      continue;
-    }
-    const shift = { open: hhmm(p.open.hour, p.open.minute), close: hhmm(p.close.hour, p.close.minute) };
-    shifts.set(day, [...(shifts.get(day) ?? []), shift]);
-  }
-  const hours: Partial<Record<Day, Hours>> = {};
-  for (const day of DAYS) {
-    const list = (shifts.get(day) ?? []).sort((a, b) => a.open.localeCompare(b.open));
-    if (unsure.has(day) || !list.length) continue;
-    const made: Hours = list.length === 1 ? { open: list[0].open, close: list[0].close } : { intervals: list };
-    if (dayProblems(made, day).length) unsure.add(day);
-    else hours[day] = made;
-  }
-  return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
-}
-
-export interface GoogleListingDto {
-  place_id: string;
-  name: string;
-  address: string | null;
-  maps_uri: string | null;
-  business_status: string | null;
-  rating: number | null;
-  review_count: number | null;
-  linked_at: string;
-  /** The last successful read; null before the first. */
-  checked_at: string | null;
-  /** The words of the last failed read; null once a read succeeds again. */
-  check_error: string | null;
-}
-
-export interface GoogleReviewDto {
-  id: string;
-  review_id: string;
-  origin: SchemaSet<"google_reviews.origin">;
-  rating: number | null;
-  author: string | null;
-  author_uri: string | null;
-  author_photo_uri: string | null;
-  body: string | null;
-  language_code: string | null;
-  published_at: string | null;
-  reply_text: string | null;
-  replied_at: string | null;
-  /**
-   * The reply the receptionist wrote and holds (decision 0064, step 6): under Ask me for your OK, under Holds it until
-   * `posts_at`, when the hourly sync posts it unless it was stopped. Null where none is held; absent from a server before.
-   */
-  draft_text?: string | null;
-  posts_at?: string | null;
-  maps_uri: string | null;
-  first_seen_at: string;
-}
-
-/** The rating and the count on one local day, as the edge read them. */
-export interface GoogleDayDto {
-  day: string;
-  rating: number | null;
-  review_count: number;
-}
-
-/** The owner's Business Profile, connected: whose account, which location, when it last synced. Never a token. */
-export interface GoogleConnectionDto {
-  google_email: string | null;
-  account_title: string | null;
-  /** Null while the owner still has to choose among several locations. */
-  location_name: string | null;
-  location_title: string | null;
-  connected_at: string;
-  last_synced_at: string | null;
-  sync_error: string | null;
-}
-
-/** Google's consent-screen audience for our app, as the operator set it on the edge; null = nothing to say. */
-export type GoogleAudience = "testing" | "unverified" | "verified";
-
-/** What the database holds of Google for a workspace, as the dashboard reads it (the Google reader): everything `GET /api/v1/google` returns but what the deployment can do. */
-export interface GoogleReadDto {
-  listing: GoogleListingDto | null;
-  connection: GoogleConnectionDto | null;
-  /** The newest first; at most a screenful. */
-  reviews: GoogleReviewDto[];
-  /** Oldest first. */
-  days: GoogleDayDto[];
-  /** The Autonomy row for reviews: what the receptionist does under a new one. */
-  reply_mode: ReviewReplyMode;
-}
-
-/** What `GET /api/v1/google` returns. */
-export interface GoogleDto extends GoogleReadDto {
-  /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge), and which audience Google's consent screen has. */
-  ready: { places: boolean; profile: boolean; audience?: GoogleAudience | null };
-}
-
-/** What a search found: what the owner confirms with one tap. */
-/**
- * The owner's words as Google's search should read them: a phone number, written any way, goes whole and with its
- * country (E.164), which Google needs to match a listing by its number; anything with a letter in it goes as typed.
- */
-export function placesQueryOf(words: string): string {
-  const w = words.replace(/\s+/g, " ").trim();
-  return /^[\d\s().+-]+$/.test(w) ? (normalizePhone(w) ?? w) : w;
-}
-
-export interface GoogleCandidateDto {
-  place_id: string;
-  name: string;
-  address: string | null;
-  maps_uri: string | null;
-  /** Google's name for the kind of place ("Moving company"), when it gives one: it tells two listings of one name apart. */
-  category: string | null;
-}
-
-/** A location of the connected account, for the owner to choose. */
-export interface GoogleLocationDto {
-  account_name: string;
-  account_title: string;
-  location_name: string;
-  title: string;
-  address: string | null;
-  /** Null for a location not on Maps yet — it cannot be chosen until Google lists it. */
-  place_id: string | null;
-  maps_uri: string | null;
-}
-
-/** The facts Setup reads: can the listing be found here, is one linked, is the profile connected. */
-export interface SetupGoogleFacts {
-  /** Either door is open: listings can be found here, or profiles connected. */
-  ready: boolean;
-  /** Listings can be found here (a Places key); absent means yes. */
-  places?: boolean;
-  /** Business Profiles can be connected here (an OAuth client); absent means no (decision 0073, R17). */
-  profile?: boolean;
-  listing: {
-    name: string;
-    rating: number | null;
-    review_count: number | null;
-    checked_at: string | null;
-    check_error: string | null;
-  } | null;
-  connected?: boolean;
-  /**
-   * The Business Profile connection as Connections reads it (connectionWords): a sync that failed is said on Setup too, with
-   * the way back, where Setup called a lapsed authorisation "connected" and nothing else said it (the wiring's second
-   * audit, R11 S11-4). Absent reads as none.
-   */
-  connection?: Pick<GoogleConnectionDto, "google_email" | "location_name" | "last_synced_at" | "sync_error"> | null;
-  /**
-   * The days Google gives hours for in a way the record cannot hold (hoursFromGoogle's `unsure`: past midnight, around
-   * the clock) and the record does not state yet: the first run's Check asks about them. Absent reads as none.
-   */
-  unsure?: Day[];
-  /** Google's kind of place (the facts' primary_type, e.g. "moving_company"): what Check's service chips suggest by. */
-  type?: string | null;
-  /**
-   * The number on the listing, E.164 (the facts' phone_e164): the first run's phone step offers to keep it, and buys
-   * the receptionist's own number in its area code. Absent reads as none.
-   */
-  phone?: string | null;
-}
-
-/** Google shows this many reviews of a listing, the most relevant first. */
-export const GOOGLE_SHOWN_REVIEWS = 5;
-
-/**
- * What a notice of a new review begins with, on the bell and on Today's line (packages/channels google/sync.ts reviewBells says
- * it): the one way to tell a review that waits for an answer from the notice that the receptionist gave one ("Replied to …").
- */
-export const NEW_REVIEW_NEWS = "New on Google:";
-
-/** A review first seen this recently is news on Today. */
-export const REVIEW_NEWS_MS = 36 * HOUR_MS;
-/** …unless it was written long ago and merely resurfaced in the five Google shows. */
-export const REVIEW_NEWS_MAX_AGE_MS = 14 * DAY_MS;
-/** The first read after linking is history, not news. */
-const BOOTSTRAP_MS = HOUR_MS;
-
-/** "4.8 ★"; "no rating yet" when Google has none. */
-export function ratingWords(rating: number | null | undefined): string {
-  return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} ★` : "no rating yet";
-}
-
-/** "★★★★☆" for a review's stars; five hollow stars for none. */
-export function starsOf(rating: number | null | undefined): string {
-  const n = typeof rating === "number" && Number.isFinite(rating) ? Math.max(0, Math.min(5, Math.round(rating))) : 0;
-  return "★".repeat(n) + "☆".repeat(5 - n);
-}
-
-/** "213 reviews"; "reviews not counted yet" before the first read. */
-export function reviewsWords(count: number | null | undefined): string {
-  return typeof count === "number" ? reviewsPhrase(count) : "reviews not counted yet";
-}
-
-/** One line about the listing: "Northside Movers · 4.8 ★ · 213 reviews on Google". */
-export function listingLine(l: { name: string; rating: number | null; review_count: number | null }): string {
-  if (!l.review_count) return `${l.name} · no reviews on Google yet`;
-  return `${l.name} · ${ratingWords(l.rating)} · ${reviewsWords(l.review_count)} on Google`;
-}
-
-/** When the listing was read, in words — the fact the owner wants when a number looks stale. */
-export function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_error">, nowMs: number): string {
-  if (l.check_error && l.checked_at)
-    return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} — read again once a day`;
-  if (l.check_error) return "Google could not be read yet — read again once a day";
-  if (l.checked_at) return `Checked ${agoWords(Date.parse(l.checked_at), nowMs)}`;
-  return "Not read yet";
-}
-
-/** The connection in words: whose account, and when it last synced or why it could not. */
-export function connectionWords(
-  c: Pick<GoogleConnectionDto, "google_email" | "location_name" | "last_synced_at" | "sync_error">,
-  nowMs: number,
-): string {
-  const who = c.google_email ? `Connected as ${c.google_email}` : "Connected";
-  if (!c.location_name) return `${who} · choose the location to finish`;
-  if (c.sync_error && c.last_synced_at)
-    return `${who} · could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} — read again once a day`;
-  if (c.sync_error) return `${who} · could not sync yet — read again once a day`;
-  if (c.last_synced_at) return `${who} · synced ${agoWords(Date.parse(c.last_synced_at), nowMs)}`;
-  return `${who} · not synced yet`;
-}
+import { dayPointOf, fmtDay } from "../reports/dtos";
+import { rangeLabelOf, withinWords } from "../reports/reports";
+import { beforeWords, compareWords, type ReportTileVM } from "../reports/tiles";
+import { shiftKey } from "../shared/zone/day-keys";
+import {
+  BOOTSTRAP_MS,
+  NEW_REVIEW_NEWS,
+  REVIEW_NEWS_MAX_AGE_MS,
+  REVIEW_NEWS_MS,
+  checkedWords,
+  connectionWords,
+  ratingWords,
+  reviewsWords,
+  starsOf,
+  type GoogleConnectionDto,
+  type GoogleDayDto,
+  type GoogleReadDto,
+  type GoogleReviewDto,
+} from "./listing";
 
 /**
  * Whether the reviews on record are the owner's Business Profile's: a location is chosen and a sync has finished. A sync
@@ -367,9 +31,9 @@ export function connectionWords(
  * five Google shows, though the connection is there. The one test, for the source's words here and for the reviews report.
  */
 export function reviewsFromProfile(
-  c: Pick<GoogleConnectionDto, "location_name" | "last_synced_at"> | null | undefined,
+  googleConnection: Pick<GoogleConnectionDto, "location_name" | "last_synced_at"> | null | undefined,
 ): boolean {
-  return !!c && !!c.location_name && !!c.last_synced_at;
+  return !!googleConnection && !!googleConnection.location_name && !!googleConnection.last_synced_at;
 }
 
 /** A review's words, cut for a line: the first sentence or so. */
@@ -484,34 +148,39 @@ function whenWords(iso: string | null, tz: string, nowMs: number): string {
 
 /** Whether a review is news: first seen recently, written recently, and after the first read. */
 export function reviewIsNew(
-  r: Pick<GoogleReviewDto, "first_seen_at" | "published_at">,
+  googleReview: Pick<GoogleReviewDto, "first_seen_at" | "published_at">,
   linkedAt: string,
   nowMs: number,
 ): boolean {
-  const seen = isoMs(r.first_seen_at);
+  const seen = isoMs(googleReview.first_seen_at);
   if (seen === null || nowMs - seen > REVIEW_NEWS_MS) return false;
   const linked = isoMs(linkedAt);
   if (linked !== null && seen - linked < BOOTSTRAP_MS) return false;
-  const written = isoMs(r.published_at);
+  const written = isoMs(googleReview.published_at);
   return written !== null && nowMs - written <= REVIEW_NEWS_MAX_AGE_MS;
 }
 
 /** A review as a card draws it; "when" is in the workspace's zone (`tz`), never the runtime's. */
-export function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, tz: string, nowMs: number): GoogleReviewVM {
+export function toGoogleReviewVM(
+  googleReview: GoogleReviewDto,
+  linkedAt: string,
+  tz: string,
+  nowMs: number,
+): GoogleReviewVM {
   return {
-    id: r.id,
-    reviewId: r.review_id,
-    stars: starsOf(r.rating),
-    rating: r.rating,
-    author: r.author?.trim() || "A customer",
-    when: whenWords(r.published_at, tz, nowMs),
-    text: (r.body ?? "").replace(/\s+/g, " ").trim(),
-    replied: !!r.reply_text,
-    replyText: (r.reply_text ?? "").replace(/\s+/g, " ").trim(),
-    heldReply: heldReviewReplyOf(r, tz),
-    mapsUri: r.maps_uri,
-    isNew: reviewIsNew(r, linkedAt, nowMs),
-    fromProfile: r.origin === "profile",
+    id: googleReview.id,
+    reviewId: googleReview.review_id,
+    stars: starsOf(googleReview.rating),
+    rating: googleReview.rating,
+    author: googleReview.author?.trim() || "A customer",
+    when: whenWords(googleReview.published_at, tz, nowMs),
+    text: (googleReview.body ?? "").replace(/\s+/g, " ").trim(),
+    replied: !!googleReview.reply_text,
+    replyText: (googleReview.reply_text ?? "").replace(/\s+/g, " ").trim(),
+    heldReply: heldReviewReplyOf(googleReview, tz),
+    mapsUri: googleReview.maps_uri,
+    isNew: reviewIsNew(googleReview, linkedAt, nowMs),
+    fromProfile: googleReview.origin === "profile",
   };
 }
 
@@ -555,14 +224,19 @@ function gainedScope(g: GoogleGained, days: number, last: string, behind: boolea
  * head ends on, so the head's number is the figure's. A fall is said as one ("down 4"), never as a minus sign. `today` is
  * the workspace's day.
  */
-function gainedWords(g: GoogleGained, days: number, today: string, until: string | null): GoogleVM["gained"]["words"] {
-  const { total, sinceLabel } = g;
+function gainedWords(
+  googleGained: GoogleGained,
+  days: number,
+  today: string,
+  until: string | null,
+): GoogleVM["gained"]["words"] {
+  const { total, sinceLabel } = googleGained;
   if (total === null) return noGainYet();
-  const last = g.points.at(-1)?.day ?? today;
+  const last = googleGained.points.at(-1)?.day ?? today;
   // Behind the day: a read was missed, or the period itself ended before today (`until`, days a member picked on
   // Reports). Either way the count is of days up to `last`, and says so.
   const behind = until !== null || last < shiftKey(today, -1);
-  const scope = gainedScope(g, days, last, behind);
+  const scope = gainedScope(googleGained, days, last, behind);
   const head =
     total < 0
       ? `down ${plural(-total, "rating")} ${scope}`
@@ -629,20 +303,20 @@ interface GainWindow {
  */
 export function toGoogleVM(dto: GoogleReadDto, period: GainWindow, nowMs: number, tz: string): GoogleVM {
   const { days: periodDays, until } = period;
-  const l = dto.listing;
-  const c = dto.connection ?? null;
-  const connection: GoogleVM["connection"] = c
+  const listing = dto.listing;
+  const result = dto.connection ?? null;
+  const connection: GoogleVM["connection"] = result
     ? {
-        email: c.google_email,
-        location: c.location_title,
-        words: connectionWords(c, nowMs),
-        pending: !c.location_name,
-        trouble: !!c.sync_error,
+        email: result.google_email,
+        location: result.location_title,
+        words: connectionWords(result, nowMs),
+        pending: !result.location_name,
+        trouble: !!result.sync_error,
       }
     : null;
-  const canReply = !!c && !!c.location_name;
+  const canReply = !!result && !!result.location_name;
   const reply = { mode: dto.reply_mode, words: reviewReplyWords(dto.reply_mode, canReply) };
-  if (!l)
+  if (!listing)
     return {
       listing: null,
       connection,
@@ -658,8 +332,8 @@ export function toGoogleVM(dto: GoogleReadDto, period: GainWindow, nowMs: number
 
   const latest = [...dto.reviews]
     .sort((a, b) => (isoMs(b.published_at) ?? 0) - (isoMs(a.published_at) ?? 0))
-    .map((r) => toGoogleReviewVM(r, l.linked_at, tz, nowMs));
-  const source = reviewsFromProfile(c)
+    .map((r) => toGoogleReviewVM(r, listing.linked_at, tz, nowMs));
+  const source = reviewsFromProfile(result)
     ? "every review, from your Business Profile"
     : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
 
@@ -686,19 +360,19 @@ export function toGoogleVM(dto: GoogleReadDto, period: GainWindow, nowMs: number
   // The period before sits beside the figure in counts (compareWords): a percentage of a rating, or of counts this small, lies.
   const rangeLabel = rangeLabelOf(periodDays);
   const ratingCompare =
-    typeof l.rating === "number" && typeof baselineRating === "number"
-      ? ratingCompareWords(l.rating, baselineRating, rangeLabel)
+    typeof listing.rating === "number" && typeof baselineRating === "number"
+      ? ratingCompareWords(listing.rating, baselineRating, rangeLabel)
       : null;
   const newest = latest[0] ?? null;
-  const checked = checkedWords(l, nowMs);
+  const checked = checkedWords(listing, nowMs);
 
   const tiles: ReportTileVM[] = [
     {
       id: "rating",
       metric: "rating",
       label: "Rating on Google",
-      value: typeof l.rating === "number" ? l.rating.toFixed(1) : "—",
-      meta: `${reviewsWords(l.review_count)} · ${checked.toLowerCase()}`,
+      value: typeof listing.rating === "number" ? listing.rating.toFixed(1) : "—",
+      meta: `${reviewsWords(listing.review_count)} · ${checked.toLowerCase()}`,
       delta: null,
       spark: ratingSpark,
       compare: ratingCompare,
@@ -707,7 +381,7 @@ export function toGoogleVM(dto: GoogleReadDto, period: GainWindow, nowMs: number
       id: "reviews",
       metric: "reviews",
       label: "Reviews on Google",
-      value: typeof l.review_count === "number" ? String(l.review_count) : "—",
+      value: typeof listing.review_count === "number" ? String(listing.review_count) : "—",
       meta: "as Google counts them, with or without words",
       delta: null,
       spark: countSpark,
@@ -755,13 +429,13 @@ export function toGoogleVM(dto: GoogleReadDto, period: GainWindow, nowMs: number
 
   return {
     listing: {
-      name: l.name,
-      address: l.address,
-      ratingLabel: ratingWords(l.rating),
-      count: l.review_count,
+      name: listing.name,
+      address: listing.address,
+      ratingLabel: ratingWords(listing.rating),
+      count: listing.review_count,
       checked,
-      mapsUri: l.maps_uri,
-      trouble: !!l.check_error,
+      mapsUri: listing.maps_uri,
+      trouble: !!listing.check_error,
     },
     connection,
     canReply,

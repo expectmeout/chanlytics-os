@@ -13,7 +13,8 @@ import { ADS_ROUTE, ADS_SCOPE_ALL, adsScopeKey, adsScopeOfKey } from "../ads/add
 import type { AdsScope } from "../ads/address";
 import { roleAtLeast } from "../config/roles";
 import type { Role } from "../config/workspace-config/role-perms";
-import { reportRangeKey, reportRangeOfKey, type ReportDays } from "./report-periods";
+import { reportRangeKey, reportRangeOfKey, type ReportDays } from "./periods";
+import { UUID } from "../shared/identity";
 
 /** The period a lens's words are about: the report's own dates, as the page says them ("Aug 29" to "Sep 4"). */
 export interface LensRange {
@@ -191,9 +192,6 @@ export const adsReportRoute = (days: ReportDays | null, scope: AdsScope = ADS_SC
 export const campaignReportRoute = (days: ReportDays | null, scope: CampaignScope = CAMPAIGN_SCOPE_ALL): string =>
   lensRoute("campaigns", days, scope);
 
-/** A review's id as its address spells it: the row's uuid. Anything else after `reviews:` is no review's address. */
-const REVIEW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * Where one review opens: the Reviews lens with that review drawn first and its reply box open (`reports/reviews:<id>`). The id
  * is the review's own row (google_reviews.id), the one the reply door takes and the ledger files a reply under; every notice
@@ -201,8 +199,7 @@ const REVIEW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
  * (record-address.ts `addressOf`). It names no days: a link to a review opens on whatever period its reader keeps. A word that is
  * no review's row (Google's own id for it, which the first bell rows carried) opens the lens, never an address no page parses.
  */
-export const reviewRoute = (id: string): string =>
-  REVIEW_ID.test(id) ? `reports/reviews:${id}` : lensRoute("reviews");
+export const reviewRoute = (id: string): string => (UUID.test(id) ? `reports/reviews:${id}` : lensRoute("reviews"));
 
 /** Every lens's route, in the strip's order (Ask's page routes read them). */
 export const LENS_ROUTES: readonly string[] = REPORT_LENSES.map((l) => lensRoute(l.id));
@@ -264,7 +261,7 @@ export function reportsParamParts(param: string): ReportsParts | null {
     const scoped = scopedParts(rest, word === "ads" ? adsScopeOfKey : campaignScopeOfKey);
     return scoped ? { lens: word, ...scoped, review: null } : null;
   }
-  if (word === "reviews" && REVIEW_ID.test(rest)) return { lens: word, days: null, review: rest };
+  if (word === "reviews" && UUID.test(rest)) return { lens: word, days: null, review: rest };
   const days = daysOfKey(rest);
   return days ? { lens: word, days, review: null } : null;
 }
@@ -293,16 +290,16 @@ export interface LensWho {
 }
 
 /** Whether a lens's rule lets this workspace see it. */
-const shownTo = (l: LensRow, who: LensWho): boolean =>
-  l.shownWhen === "always" || (l.shownWhen === "ads_on" && who.adsOn);
+const shownTo = (l: LensRow, lensWho: LensWho): boolean =>
+  l.shownWhen === "always" || (l.shownWhen === "ads_on" && lensWho.adsOn);
 
 /** The lenses shown to this person in this workspace, in the strip's order. */
-export function lensesFor(who: LensWho): LensRow[] {
-  return REPORT_LENSES.filter((l) => shownTo(l, who) && roleAtLeast(who.role ?? "viewer", l.role));
+export function lensesFor(lensWho: LensWho): LensRow[] {
+  return REPORT_LENSES.filter((l) => shownTo(l, lensWho) && roleAtLeast(lensWho.role ?? "viewer", l.role));
 }
 
 /** Whether a lens is shown to this person here. */
-export const lensIsShown = (id: LensId, who: LensWho): boolean => lensesFor(who).some((l) => l.id === id);
+export const lensIsShown = (id: LensId, lensWho: LensWho): boolean => lensesFor(lensWho).some((l) => l.id === id);
 
 /** A lens's row (the frame's crumb names a lens by it). */
 export function lensOf(id: LensId): LensRow {

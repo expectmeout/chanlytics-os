@@ -2,7 +2,7 @@ import { z } from "zod";
 import { FILE_NAME_MAX, FILE_SHOWS } from "@chanlytics/contracts";
 import { read, write } from "@/server/shared/route";
 import { changeFile, fileScope, removeFile } from "@/server/files/file";
-import { fileRecord } from "@/server/files/post/record";
+import { readFileRecord } from "@/server/posts/record";
 
 /**
  * GET /api/v1/files/:id — one file, and for a post the photo it came from and what it was asked to be. Every member reads it.
@@ -17,7 +17,7 @@ import { fileRecord } from "@/server/files/post/record";
  */
 export const GET = read({
   scope: fileScope,
-  handle: ({ ctx, member, row }) => fileRecord(ctx, member, row),
+  handle: ({ ctx, member, row }) => readFileRecord(ctx, member, row),
 });
 
 export const PATCH = write({

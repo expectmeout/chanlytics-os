@@ -166,8 +166,8 @@ test("only the hold on her last words makes a thread Unanswered: not after an an
 /* ------------------------------------ the read ------------------------------------ */
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { readConversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 
 const convo = (id, contactId) => ({
   id,
@@ -222,7 +222,7 @@ test("the Inbox's read carries the newest closed hold of each thread whose custo
   };
   const supabase = fakeDb(tables);
   const ctx = { supabase, userId: "u1", email: "owner@example.com", params: {} };
-  const read = await kernel.load(kernel.readerContext(ctx, { tenantId: T, role: "viewer" }), conversations, {
+  const read = await kernel.load(kernel.readerContext(ctx, { tenantId: T, role: "viewer" }), readConversations, {
     ids: null,
   });
   const byId = new Map(read.data.conversations.map((c) => [c.id, c]));
@@ -251,9 +251,13 @@ test("the Inbox's read carries the newest closed hold of each thread whose custo
 
   // No threads, no read.
   const none = fakeDb({ conversations: [], messages: [], escalations: [] });
-  await kernel.load(kernel.readerContext({ ...ctx, supabase: none }, { tenantId: T, role: "viewer" }), conversations, {
-    ids: null,
-  });
+  await kernel.load(
+    kernel.readerContext({ ...ctx, supabase: none }, { tenantId: T, role: "viewer" }),
+    readConversations,
+    {
+      ids: null,
+    },
+  );
   assert.equal(none.seen.filter((q) => q.table === "escalations").length, 0);
 });
 

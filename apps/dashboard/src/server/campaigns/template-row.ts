@@ -8,10 +8,11 @@
  */
 import { z } from "zod";
 import { AppError, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
-import { deleteTemplate, templateEvent } from "@/server/campaigns/meta-templates";
+import { deleteTemplate, recordTemplateEvent } from "@/server/campaigns/meta-templates";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { templateScope } from "@/server/shared/verbs";
+import { WHATSAPP_ACCOUNT_MISSING, WHATSAPP_NO_TOKEN } from "@/server/campaigns/whatsapp-refusals";
 
 /** The template a templateScope route acts on, as the scope read it. */
 type TemplateRow = Awaited<ReturnType<typeof templateScope.load>>;
@@ -59,8 +60,8 @@ export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
   const SAID: Record<string, string> = {
     preview: "Deleting only works on the production dashboard.",
     not_found: "That template is not on file.",
-    no_waba: "This number's WhatsApp Business Account is not on file. Reconnect the number and try again.",
-    no_token: "Chanlytics has no access token for this number yet.",
+    no_waba: WHATSAPP_ACCOUNT_MISSING,
+    no_token: WHATSAPP_NO_TOKEN,
     meta_refused: "WhatsApp did not let the template be deleted. Try again in a moment.",
     write_failed: "The template could not be removed here. Sync from Meta and try again.",
   };
@@ -86,16 +87,16 @@ export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
   if (pErr) throw new Error(pErr.message);
   if (running?.length) throw new AppError("conflict", playbooksStillSending(running.map((p) => String(p.name))), 409);
 
-  const r = await deleteTemplate(tpl.tenant_id, id, ctx.userId);
-  if (!r.ok) {
-    const said = SAID[r.reason] ?? `The template could not be deleted (${r.reason}).`;
+  const result = await deleteTemplate(tpl.tenant_id, id, ctx.userId);
+  if (!result.ok) {
+    const sentence = SAID[result.reason] ?? `The template could not be deleted (${result.reason}).`;
     throw new AppError(
-      r.reason === "not_found" ? "not_found" : "upstream_meta",
-      said,
-      r.reason === "not_found" ? 404 : 502,
+      result.reason === "not_found" ? "not_found" : "upstream_meta",
+      sentence,
+      result.reason === "not_found" ? 404 : 502,
     );
   }
   // Its row is gone, so the ledger names it: a broadcast or a playbook that sent it still says the name.
-  await templateEvent(serviceDb(), tpl.tenant_id, "removed", tpl, ctx.userId);
-  return { deleted: true, id, name: tpl.name, language: tpl.language, at_meta: r.atMeta };
+  await recordTemplateEvent(serviceDb(), tpl.tenant_id, "removed", tpl, ctx.userId);
+  return { deleted: true, id, name: tpl.name, language: tpl.language, at_meta: result.atMeta };
 }

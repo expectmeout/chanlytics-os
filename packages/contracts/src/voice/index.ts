@@ -15,6 +15,17 @@ export {
 } from "./call-words";
 export type { CallNotes, CallOutcome } from "./call-words";
 export {
+  ERASE_CALLS_DOOR,
+  HAND_OVER_DOOR,
+  STOP_CALL_DOOR,
+  VOICE_CANARY_DOOR,
+  VOICE_CONVERGE_DOOR,
+  VOICE_PROVISION_DOOR,
+  VOICE_SESSION_DOOR,
+  VOICE_SPEECH_DOOR,
+  WHISPER_DOOR,
+} from "./edge-doors";
+export {
   CARRIER_WORDS,
   CARRIERS,
   divertedNumbers,

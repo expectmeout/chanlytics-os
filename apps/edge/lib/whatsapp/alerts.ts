@@ -10,7 +10,7 @@
  * off), sent at most once in fifteen minutes for each kind and number in a lambda instance, and only a delivered
  * notice earns the quiet.
  */
-import { notify, type NotifyTarget, type NotifyMessage } from "../ops/notify.js";
+import { notify, type NotifyTarget, type NotifyMessage } from "../shared/alerts/notify.js";
 import {
   HOLD_ACT_WORDS,
   formatPhoneDisplay,
@@ -141,7 +141,7 @@ export function handoffMessage({
   const onDm = ctx.channel === "instagram";
   const name =
     ctx.who?.trim() || (onDm ? "Someone on Instagram" : formatPhoneDisplay(`+${threadId}`) || `+${threadId}`);
-  const why = whyOf(reason);
+  const otherReason = whyOf(reason);
   // What to do, by the reason's act (a reply to write, a call to return, nothing that may be sent); the pause rides after it.
   const act = HOLD_ACT_WORDS[holdActOf(REASON_OF.get(reason))].notice;
   // The owner of a workspace with both wires connected opens the thread this
@@ -152,7 +152,7 @@ export function handoffMessage({
     kind: "handoff",
     route: ctx.route ?? "inbox",
     about: ctx.about ?? null,
-    subject: `${name} needs a person — ${why}`,
+    subject: `${name} needs a person — ${otherReason}`,
     body:
       `They wrote: “${userText}”\n` +
       `${botText}\n\n` +
@@ -160,7 +160,7 @@ export function handoffMessage({
       (ctx.pausedHours
         ? `${act.replace(/\.$/, "")} — the receptionist is paused on this thread for ${ctx.pausedHours}h.`
         : act),
-    redactedBody: `A ${where} conversation needed a person (${why}), and nobody could be told.`,
+    redactedBody: `A ${where} conversation needed a person (${otherReason}), and nobody could be told.`,
   };
 }
 
@@ -221,7 +221,7 @@ export async function alertUnroutable(
   kind: keyof typeof UNROUTABLE_WORDS,
   key: string | undefined,
   count: number,
-  why?: string,
+  reason?: string,
   /**
    * What the fifteen-minute window is keyed on, when that is not the number.
    *
@@ -234,10 +234,10 @@ export async function alertUnroutable(
    */
   suppressAs?: string,
 ): Promise<void> {
-  const k = `${kind}:${suppressAs || key || "unknown"}`;
-  const last = unroutableAlerted.get(k) ?? 0;
+  const text = `${kind}:${suppressAs || key || "unknown"}`;
+  const last = unroutableAlerted.get(text) ?? 0;
   if (Date.now() - last < UNROUTABLE_ALERT_MS) return;
-  unroutableAlerted.set(k, Date.now());
+  unroutableAlerted.set(text, Date.now());
   const words = UNROUTABLE_WORDS[kind];
   // Genuinely platform-level: by definition there is no tenant to address, so
   // this is the PLATFORM's own mailbox and carries no customer content — only
@@ -247,7 +247,7 @@ export async function alertUnroutable(
     {
       subject: words.subject,
       body:
-        `${words.what(key || "unknown", count)}${why ? ` Reason: ${why}.` : ""}\n\n` +
+        `${words.what(key || "unknown", count)}${reason ? ` Reason: ${reason}.` : ""}\n\n` +
         `Nobody is answering these customers and nothing is being recorded. ${words.fix}\n\n` +
         `Further notices for this number are suppressed for 15 minutes.`,
     },
@@ -255,5 +255,5 @@ export async function alertUnroutable(
   // The suppression window was claimed BEFORE the send, so a failed alert used
   // to buy 15 minutes of silence on the only warning that customers are being
   // dropped. Only a delivered notice earns the quiet.
-  if (!delivered) unroutableAlerted.delete(k);
+  if (!delivered) unroutableAlerted.delete(text);
 }

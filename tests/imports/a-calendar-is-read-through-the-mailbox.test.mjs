@@ -9,7 +9,7 @@
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { DAY_MS, HOUR_MS, IMPORT_STOPPED_WORDS, parseIcs } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
@@ -20,7 +20,7 @@ const SECRET = "edge-secret-for-this-file";
 const restore = withEnv({ ...MAILBOX_ENV, EDGE_CALL_SECRET: SECRET });
 after(restore);
 const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
-const { mailboxCalendarText } = await importSrc("apps/edge/lib/calendar/mailbox-calendar.ts");
+const { findMailboxCalendarText } = await importSrc("apps/edge/lib/calendar/mailbox-calendar.ts");
 const { forgetFeeds } = await importSrc("apps/edge/lib/calendar/availability.ts");
 const { historyImports } = await importSrc("apps/edge/lib/imports/history-import.ts");
 const door = await importSrc("apps/edge/api/admin/calendar/feed.ts");
@@ -189,7 +189,7 @@ test("a Google account's calendars: every one but the holidays, page by page, ea
   const net = providers(google());
   let text;
   try {
-    text = await mailboxCalendarText(w.db, T, w.mailbox.id, WINDOW);
+    text = await findMailboxCalendarText(w.db, T, w.mailbox.id, WINDOW);
   } finally {
     net.restore();
   }
@@ -298,7 +298,7 @@ test("a Microsoft 365 account's calendars: its calendar view in UTC, the next pa
   });
   let text;
   try {
-    text = await mailboxCalendarText(w.db, T, w.mailbox.id, WINDOW);
+    text = await findMailboxCalendarText(w.db, T, w.mailbox.id, WINDOW);
   } finally {
     net.restore();
   }
@@ -327,7 +327,7 @@ test("a calendar that cannot be read now is a feed that cannot be read: not gran
   const unticked = world({ box: { scopes: [SCOPES.google[0]] } });
   const none = providers(() => ({ status: 500 }));
   try {
-    assert.equal(await mailboxCalendarText(unticked.db, T, unticked.mailbox.id, WINDOW), null);
+    assert.equal(await findMailboxCalendarText(unticked.db, T, unticked.mailbox.id, WINDOW), null);
   } finally {
     none.restore();
   }
@@ -337,7 +337,7 @@ test("a calendar that cannot be read now is a feed that cannot be read: not gran
   const half = world();
   const refused = providers(google({ refuse: { "team@group.calendar.google.com": 403 } }));
   try {
-    assert.equal(await mailboxCalendarText(half.db, T, half.mailbox.id, WINDOW), null);
+    assert.equal(await findMailboxCalendarText(half.db, T, half.mailbox.id, WINDOW), null);
   } finally {
     refused.restore();
   }
@@ -350,7 +350,7 @@ test("a calendar that cannot be read now is a feed that cannot be read: not gran
       : { status: 500 },
   );
   try {
-    assert.equal(await mailboxCalendarText(out.db, T, out.mailbox.id, WINDOW), null);
+    assert.equal(await findMailboxCalendarText(out.db, T, out.mailbox.id, WINDOW), null);
   } finally {
     grantRefused.restore();
   }
@@ -358,7 +358,7 @@ test("a calendar that cannot be read now is a feed that cannot be read: not gran
   assert.ok(!grantRefused.calls.some((c) => c.url.includes("/calendar/")), "no calendar asked without a token");
 
   const removed = world({ box: { state: "removed" } });
-  assert.equal(await mailboxCalendarText(removed.db, T, removed.mailbox.id, WINDOW), null);
+  assert.equal(await findMailboxCalendarText(removed.db, T, removed.mailbox.id, WINDOW), null);
 });
 
 /* ------------------------------------------------------------------ the dashboard's door */

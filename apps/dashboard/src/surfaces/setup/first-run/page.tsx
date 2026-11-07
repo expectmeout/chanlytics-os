@@ -17,20 +17,19 @@
  */
 import { useRef, useState, type RefObject, type ReactNode } from "react";
 import {
-  FIRST_RUN_HELPERS,
   FIRST_RUN_ROUTE,
   firstRunStepOf,
   firstRunStepRoute,
   bookingToolOfLink,
   type FirstRunChannelsVM,
-  type FirstRunGoLiveVM,
   type FirstRunLiveVM,
   type FirstRunPhoneVM,
   type FirstRunStepKey,
-  type FirstRunTryVM,
-  type FirstRunVM,
-  type FirstRunWho,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "./model/helpers";
+import { type FirstRunGoLiveVM } from "./model/golive";
+import { type FirstRunTryVM } from "./model/try";
+import { type FirstRunVM, type FirstRunWho } from "./model/view";
 import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import { pageClock } from "@/bridge/zone";
 import type { LiveSurface } from "../../live/surface";

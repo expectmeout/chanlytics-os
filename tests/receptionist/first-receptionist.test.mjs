@@ -18,7 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const receptionist = await import(at("apps/dashboard/app/api/v1/settings/receptionist/route.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -28,7 +28,7 @@ const inT = `?workspace=${T}`;
 const post = () => new Request(`http://localhost/api/v1/x${inT}`, { method: "POST", body: "{}" });
 /** A session over these tables, and the service role over the same ones: settings.changed is the service role's write. */
 const ctxFor = (tables) => (
-  setServiceClient(fakeDb(tables)),
+  setUnsubscribeServiceClient(fakeDb(tables)),
   { supabase: fakeDb(tables), userId: USER, email: "ada@example.com", params: {} }
 );
 async function refused(p, code, status, words) {

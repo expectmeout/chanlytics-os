@@ -26,8 +26,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { turnWords } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { turnWords } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
 
 beforeEach(() => {
   readerCache.clear();

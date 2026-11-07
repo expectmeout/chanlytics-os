@@ -67,21 +67,22 @@ import {
 } from "@chanlytics/core";
 import {
   followUpOnFile,
-  messageVersionRowsOf,
+  listMessageVersionRows,
   reviewLinkOf,
-  templateStatusOf,
-  templatesNamed,
-  whatsappChannelFacts,
-} from "@chanlytics/db";
-import { templateValuePorts } from "@/server/ports/campaign-ports";
-import { jsonBody } from "@/server/shared/request-guards";
+  findTemplateStatus,
+  listTemplatesNamed,
+  findWhatsappChannelFacts,
+} from "@chanlytics/db/campaigns";
+import { templateValuePorts } from "@/server/campaigns/ports";
+import { readJsonBody } from "@/server/shared/request-guards";
 import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
 import { checkPlaybookMomentInput } from "@/server/campaigns/playbooks";
-import { fileStarterVersions, startersFiled, type StarterVersionResult } from "@/server/campaigns/template-versions";
+import { fileStarterVersions, getStartersFiled, type StarterVersionResult } from "@/server/campaigns/template-versions";
 import type { ZoneAndSettings } from "@/server/calendar/people-visits";
-import { appointmentWordRead } from "@/server/people/deals";
+import { getAppointmentWord } from "@/server/people/deals";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import { WHATSAPP_ACCOUNT_MISSING, WHATSAPP_NO_TOKEN } from "@/server/campaigns/whatsapp-refusals";
 
 type Outcome = "submitted" | "exists" | "synced" | "failed" | "skipped";
 
@@ -108,14 +109,14 @@ const ALREADY_AT_META = /already exist|already in use|duplicate|name.*exists/i;
  * The channels the set is written on: the request's, or every one when it names none. The number is read only where
  * WhatsApp is among them, for WhatsApp's version is made only where there is a number to make it for.
  */
-async function starterChannelsOf(ctx: RouteContext, tenantId: string, asked: unknown) {
-  const named = Array.isArray(asked)
-    ? asked.filter((c): c is ConsentChannel => CONSENT_CHANNELS.some((x) => x === c))
+async function starterChannelsOf(ctx: RouteContext, tenantId: string, value: unknown) {
+  const named = Array.isArray(value)
+    ? value.filter((c): c is ConsentChannel => CONSENT_CHANNELS.some((x) => x === c))
     : null;
   if (named && named.length === 0) throw new AppError("validation", LIBRARY_STARTER_WORDS.pickAChannel);
   const whatsapp = named ? named.includes("whatsapp") : true;
   const own: OwnVersionChannel[] = OWN_VERSION_CHANNELS.filter((c) => (named ? named.includes(c) : true));
-  const number = whatsapp && (await whatsappChannelFacts(ctx.supabase, tenantId)) !== null;
+  const number = whatsapp && (await findWhatsappChannelFacts(ctx.supabase, tenantId)) !== null;
   return { whatsapp, number, own };
 }
 
@@ -136,14 +137,14 @@ interface StartersAsked {
 async function startersHere(ctx: RouteContext, tenantId: string, keys: unknown): Promise<StarterTemplate[]> {
   const link = await reviewLinkOf(ctx.supabase, tenantId).catch(() => null);
   const offered = startersOffered({ reviewLink: link !== null });
-  const asked = Array.isArray(keys) ? keys : [];
-  if (startersOffered({ reviewLink: true }).some((s) => asked.includes(s.key) && !offered.includes(s)))
+  const request = Array.isArray(keys) ? keys : [];
+  if (startersOffered({ reviewLink: true }).some((s) => request.includes(s.key) && !offered.includes(s)))
     throw new AppError("conflict", TEMPLATE_VALUE_WORDS.noReviewLink, 409);
   return offered;
 }
 
 export async function addStarterTemplates(ctx: RouteContext, req: Request, member: Member) {
-  return fileStarters(ctx, member.tenantId, ((await jsonBody(req)) as StartersAsked | null) ?? {});
+  return fileStarters(ctx, member.tenantId, ((await readJsonBody(req)) as StartersAsked | null) ?? {});
 }
 
 /**
@@ -154,8 +155,8 @@ async function fileStarters(ctx: RouteContext, tenantId: string, body: StartersA
   const SAID: Record<string, string> = {
     preview: "Adding templates only works on the production dashboard.",
     no_channel: LIBRARY_WORDS.writeNeedsNumber,
-    no_waba: "This number's WhatsApp Business Account is not on file. Reconnect the number and try again.",
-    no_token: "Chanlytics has no access token for this number yet.",
+    no_waba: WHATSAPP_ACCOUNT_MISSING,
+    no_token: WHATSAPP_NO_TOKEN,
   };
   // The set this workspace is offered: a starter it is not offered is not filed, asked for or not.
   const offered = await startersHere(ctx, tenantId, body.keys);
@@ -172,12 +173,12 @@ async function fileStarters(ctx: RouteContext, tenantId: string, body: StartersA
     throw new AppError("validation", "Pick at least one starter template, in English or Spanish.");
   const { whatsapp, number, own } = await starterChannelsOf(ctx, tenantId, body.channels);
 
-  const rows = await templatesNamed(ctx.supabase, tenantId, [...new Set(wanted.map((w) => w.s.name))]);
+  const rows = await listTemplatesNamed(ctx.supabase, tenantId, [...new Set(wanted.map((w) => w.s.name))]);
   const onFile = (name: string, language: string) =>
     rows.find((r) => r.name === name && r.language === language) ?? null;
 
   // The email and text versions already here: a second click leaves each as it is.
-  const filed = await startersFiled(ctx, tenantId, [...new Set(wanted.map((w) => w.s.name))]);
+  const filed = await getStartersFiled(ctx, tenantId, [...new Set(wanted.map((w) => w.s.name))]);
   // The email and text versions asked for: beside a WhatsApp version where there is one, else the first begins the message.
   const versionsOf = (s: StarterTemplate, l: string) => fileStarterVersions(ctx, tenantId, s, l, filed, own);
 
@@ -207,35 +208,40 @@ async function fileStarters(ctx: RouteContext, tenantId: string, body: StartersA
       results.push({ ...base, status: "failed", meta_status: null, detail: check.error, versions: [] });
       continue;
     }
-    const v = check.value;
-    const r = await createTemplate(tenantId, ctx.userId, {
-      name: v.name,
-      language: v.language,
-      category: v.category,
-      components: templateComponents(v),
-      body: v.body,
-      examples: v.examples,
+    const value = check.value;
+    const template = await createTemplate(tenantId, ctx.userId, {
+      name: value.name,
+      language: value.language,
+      category: value.category,
+      components: templateComponents(value),
+      body: value.body,
+      examples: value.examples,
       labels: starterText(s, l).slots.map((x) => x.label),
     });
-    if (r.ok) {
-      results.push({ ...base, status: "submitted", meta_status: r.metaStatus, versions: await versionsOf(s, l) });
+    if (template.ok) {
+      results.push({
+        ...base,
+        status: "submitted",
+        meta_status: template.metaStatus,
+        versions: await versionsOf(s, l),
+      });
       continue;
     }
-    if (r.reason === "meta_refused" && ALREADY_AT_META.test(r.detail ?? "")) {
+    if (template.reason === "meta_refused" && ALREADY_AT_META.test(template.detail ?? "")) {
       // The number's account already holds it: bring it here instead of refusing.
       if (!synced) {
         await syncTemplates(tenantId, ctx.userId);
         synced = true;
       }
-      const now = await templateStatusOf(ctx.supabase, tenantId, s.name, l);
+      const now = await findTemplateStatus(ctx.supabase, tenantId, s.name, l);
       results.push(
         now
           ? { ...base, status: "synced", meta_status: now.meta_status, versions: await versionsOf(s, l) }
-          : { ...base, status: "failed", meta_status: null, detail: r.detail, versions: [] },
+          : { ...base, status: "failed", meta_status: null, detail: template.detail, versions: [] },
       );
       continue;
     }
-    if (r.reason === "no_channel") {
+    if (template.reason === "no_channel") {
       // The edge finds no number either: the same answer as having none.
       results.push({
         ...base,
@@ -246,7 +252,7 @@ async function fileStarters(ctx: RouteContext, tenantId: string, body: StartersA
       });
       continue;
     }
-    if (r.reason in SAID) {
+    if (template.reason in SAID) {
       // Nothing can be added at all: say so once, as the submit route does --
       // but only while nothing HAS been added. Past the first submission the
       // templates already at Meta are real and in review, and throwing here
@@ -255,15 +261,21 @@ async function fileStarters(ctx: RouteContext, tenantId: string, body: StartersA
       const done = results.some((x) => x.status === "submitted" || x.status === "synced");
       if (!done) {
         throw new AppError(
-          r.reason === "preview" || r.reason === "no_token" ? "upstream_meta" : "conflict",
-          SAID[r.reason],
-          r.reason === "preview" || r.reason === "no_token" ? 502 : 409,
+          template.reason === "preview" || template.reason === "no_token" ? "upstream_meta" : "conflict",
+          SAID[template.reason],
+          template.reason === "preview" || template.reason === "no_token" ? 502 : 409,
         );
       }
-      results.push({ ...base, status: "failed", meta_status: null, detail: SAID[r.reason], versions: [] });
+      results.push({ ...base, status: "failed", meta_status: null, detail: SAID[template.reason], versions: [] });
       break;
     }
-    results.push({ ...base, status: "failed", meta_status: null, detail: r.detail ?? r.reason, versions: [] });
+    results.push({
+      ...base,
+      status: "failed",
+      meta_status: null,
+      detail: template.detail ?? template.reason,
+      versions: [],
+    });
   }
   const count = (o: Outcome) => results.filter((x) => x.status === o).length;
   const versions = results.flatMap((x) => x.versions);
@@ -312,7 +324,7 @@ const NUMBERS = ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const
 
 /** A moment's name as a refusal says it: an appointment moment's in the workspace's own word (readers/facts.ts). */
 async function momentLabel(ctx: RouteContext, tenantId: string, trig: Trigger): Promise<string> {
-  return trig.kind === "visit" ? triggerWords(trig, await appointmentWordRead(ctx, tenantId)).label : trig.label;
+  return trig.kind === "visit" ? triggerWords(trig, await getAppointmentWord(ctx, tenantId)).label : trig.label;
 }
 
 /**
@@ -325,8 +337,8 @@ async function momentLabel(ctx: RouteContext, tenantId: string, trig: Trigger): 
  */
 async function heldAtOnce(ctx: RouteContext, tenantId: string, starter: StarterTemplate, purpose: AskedPurpose) {
   const [rows, line] = await Promise.all([
-    messageVersionRowsOf(ctx.supabase, tenantId, { name: starter.name, language: STARTER_LANGUAGE }),
-    whatsappChannelFacts(ctx.supabase, tenantId),
+    listMessageVersionRows(ctx.supabase, tenantId, { name: starter.name, language: STARTER_LANGUAGE }),
+    findWhatsappChannelFacts(ctx.supabase, tenantId),
   ]);
   const onFile = campaignMessageOf(rows, starter.name, STARTER_LANGUAGE);
   const held = onFile ? messageHolds(onFile) : null;
@@ -401,7 +413,7 @@ function starterChannels(
  * campaign on that alone is refused and nothing is filed. Named none, it goes by the channels held at once and by WhatsApp
  * where there is a number, its people there held until WhatsApp approves, as a run holds the people on any channel not
  * ready yet. POST playbooks runs it before it files (withStarterMessage), and Ask's starter card runs it at the card
- * (act/playbook.ts proposeOnStarter): one judgement, in one set of words.
+ * (act/playbook/playbook.ts proposeOnStarter): one judgement, in one set of words.
  */
 export async function checkStarterPlaybook(
   ctx: RouteContext,
@@ -456,21 +468,21 @@ export async function checkStarterPlaybook(
 export async function withStarterMessage(
   ctx: RouteContext,
   member: Member,
-  asked: Record<string, unknown> | null,
+  record: Record<string, unknown> | null,
 ): Promise<{ body: Record<string, unknown> | null; starter: StarterFiled | null }> {
-  const key = typeof asked?.starter_key === "string" ? asked.starter_key : "";
-  if (!asked || !key || (typeof asked.template_id === "string" && asked.template_id))
-    return { body: asked, starter: null };
-  const { starter_key: _key, ...rest } = asked;
+  const key = typeof record?.starter_key === "string" ? record.starter_key : "";
+  if (!record || !key || (typeof record.template_id === "string" && record.template_id))
+    return { body: record, starter: null };
+  const { starter_key: _key, ...rest } = record;
   // Every check that could refuse the card, before anything is filed: nothing reaches Meta for a card that is refused.
-  const judged = await checkStarterPlaybook(ctx, member.tenantId, asked);
+  const judged = await checkStarterPlaybook(ctx, member.tenantId, record);
   const filed = await fileStarters(ctx, member.tenantId, {
     keys: [key],
     languages: [STARTER_LANGUAGE],
     channels: judged.channels,
   });
   const result = filed.results.find((r) => r.key === key && r.language === STARTER_LANGUAGE) ?? null;
-  const rows = await messageVersionRowsOf(ctx.supabase, member.tenantId, {
+  const rows = await listMessageVersionRows(ctx.supabase, member.tenantId, {
     name: judged.starter.name,
     language: STARTER_LANGUAGE,
   });

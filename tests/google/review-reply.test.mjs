@@ -277,7 +277,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     lib.includes("business_name || t.data?.name") && lib.includes("phone: brain?.phone_display || null"),
     "the facts are the brain's profile",
   );
-  // The model, its bound, its retry and its cap are the registry's (contracts ai/models.ts), asked through the port.
+  // The model, its bound, its retry and its cap are the registry's (contracts ai/models/routes.ts), asked through the port.
   assert.deepEqual(
     [
       MODEL_ROUTES.review_reply.model,

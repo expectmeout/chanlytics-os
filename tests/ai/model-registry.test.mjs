@@ -1,5 +1,5 @@
 /**
- * One registry by purpose (contracts ai/models.ts; scorecard move 10, defect 54): every model id the platform names is
+ * One registry by purpose (contracts ai/models/routes.ts; scorecard move 10, defect 54): every model id the platform names is
  * written there and nowhere else in the source, every purpose has a whole route, every model has a list price, and
  * the dollars a call came to are the prices times its four kinds of tokens.
  */
@@ -33,7 +33,7 @@ import {
 } from "@chanlytics/contracts";
 import { repoFiles, parse } from "../_ast.mjs";
 
-const REGISTRY = "packages/contracts/src/ai/models.ts";
+const REGISTRY = "packages/contracts/src/ai/models/routes.ts";
 const MODEL_ID = /^(claude-[a-z0-9.-]+|gpt-[a-z0-9.-]+)$/;
 
 /** Every string literal (and template head) in a source file that reads as a model id, with its line. */

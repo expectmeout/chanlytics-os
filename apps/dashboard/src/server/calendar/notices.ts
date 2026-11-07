@@ -6,13 +6,14 @@
 import "server-only";
 import { AppError } from "@chanlytics/contracts";
 import { scheduleJobOnce } from "@chanlytics/jobs";
-import { appointmentNoticeById, dismissAppointmentNotice, mailboxOfTenant } from "@chanlytics/db";
+import { findAppointmentNoticeById, dismissAppointmentNotice } from "@chanlytics/db/calendar";
+import { findMailboxOfTenant } from "@chanlytics/db/email";
 import type { RouteContext } from "@/server/shared/with-route";
 import { serviceDb } from "@/server/shared/service-db";
 
 /** The held notice this workspace holds under `id`; refused when there is none, or it is not held any more. */
 async function heldNotice(ctx: RouteContext, tenantId: string, id: string) {
-  const notice = id ? await appointmentNoticeById(ctx.supabase, tenantId, id) : null;
+  const notice = id ? await findAppointmentNoticeById(ctx.supabase, tenantId, id) : null;
   if (!notice) throw new AppError("not_found", "No such booking email here.", 404);
   if (notice.outcome !== "held") throw new AppError("conflict", "That booking email was already read.", 409);
   return notice;
@@ -28,7 +29,7 @@ export async function readNoticeAgain(
   id: string,
 ): Promise<{ scheduled: "scheduled" | "already_scheduled" }> {
   const notice = await heldNotice(ctx, tenantId, id);
-  const mailbox = await mailboxOfTenant(ctx.supabase, tenantId);
+  const mailbox = await findMailboxOfTenant(ctx.supabase, tenantId);
   if (!mailbox) throw new AppError("conflict", "The workspace has no email address to read from.", 409);
   const scheduled = await scheduleJobOnce(serviceDb(), {
     tenantId,

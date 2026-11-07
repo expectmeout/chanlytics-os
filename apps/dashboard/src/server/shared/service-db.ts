@@ -1,6 +1,6 @@
 import "server-only";
-import { createServiceClient } from "@chanlytics/db";
-import type { Database } from "@chanlytics/db";
+import { createServiceClient } from "@chanlytics/db/shared";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "./env";
 

@@ -35,7 +35,7 @@ const saysNone = (page, value) =>
 
 test("Reports says none: the booking line and its metric's tip", async () => {
   const { toBookingReportVM } = await importSrc(`${K}/reports/booking-report.ts`);
-  const { metricWordsOf } = await importSrc(`${K}/reports/report-metrics.ts`);
+  const { metricWordsOf } = await importSrc(`${K}/reports/metrics.ts`);
   const line = (asked, booked) => toBookingReportVM({ calendar: "ok", days: 30, asked, booked });
   saysNone("Reports' booking line", [line(9, 4), line(5, 5), line(0, 0)]);
   saysNone("Reports' booked tip", metricWordsOf("booked"));
@@ -62,7 +62,7 @@ test("the Calendar and its setup say none: the booking rules, connecting a calen
 
 test("People's lists say none: each list's tip and its next step", async () => {
   const { PEOPLE_LISTS } = await importSrc(`${K}/people/lists/builtin-lists.ts`);
-  const { peopleListAction } = await importSrc(`${K}/people/lists/list-page.ts`);
+  const { peopleListAction } = await importSrc(`${K}/people/lists/actions.ts`);
   saysNone(
     "a list's label and tip",
     PEOPLE_LISTS.map((l) => [l.label, l.tip]),

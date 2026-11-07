@@ -16,7 +16,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { ACT_DEFS } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { PROPOSAL_SPECS, ASK_GUIDE_PAGES, ASK_PAGE_ONLY_VERBS } = await import("@chanlytics/contracts");
+const { PROPOSAL_SPECS } = await import("../../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { ASK_GUIDE_PAGES, ASK_PAGE_ONLY_VERBS } =
+  await import("../../../apps/dashboard/src/server/ask/proposals/guide.ts");
 
 const kinds = Object.keys(PROPOSAL_SPECS);
 const proposed = new Set(

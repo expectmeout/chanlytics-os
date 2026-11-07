@@ -13,7 +13,8 @@
  */
 import { reviewNoticeIsAbout } from "../google/google";
 import { HOUR_MS } from "../shared/time";
-import { conversationOfNeedsKey, callOfKey, kindListDoor, unreadCount } from "./notifications";
+import { conversationOfNeedsKey, callOfKey, kindListDoor } from "./notifications/feed";
+import { unreadCount } from "./notifications/feed-input";
 
 /* --------------------------- while you were away ------------------------- */
 
@@ -257,24 +258,24 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   // alone covered two of the queue's four kinds, so a closing window's thread
   // printed again and a call's row never could be covered.
   const door = (r: T) => r.to ?? (r.actions && r.actions[0] ? r.actions[0].to : undefined);
-  const aboutQueued = (r: T) => {
+  const aboutQueued = (item: T) => {
     // Ask's morning cards are rows of Need you, on this page (decisions 0070 and 0071); the bell's line about them says it again, and a
     // morning's cards lapse with its day, so an older line is about nothing left to press.
-    if (r.kind === "ask_cards") return true;
+    if (item.kind === "ask_cards") return true;
     // A run waiting for a word is a row of the queue; the bell's "is ready" about the same run says it again.
-    if (r.kind === "playbook" && runsQueued.some((title) => r.title.startsWith(title))) return true;
+    if (item.kind === "playbook" && runsQueued.some((title) => item.title.startsWith(title))) return true;
     // A search waiting on its answer is a row of the queue; the bell's question row about it opens the same pile (00163).
-    if (r.kind === "leads_question" && searchesQueued.has(door(r) ?? "")) return true;
+    if (item.kind === "leads_question" && searchesQueued.has(door(item) ?? "")) return true;
     // A new review is a line of the card above (GoogleVM.todayLine) for as long as it is news and unanswered; the bell's notice of
     // the same review is that news a second time, and opening either left the other and the badge as they were.
-    if (r.kind === "review" && reviewsDrawn.some((review) => reviewNoticeIsAbout(r.about, review))) return true;
-    if (r.about && r.about.type === "conversation" && convs.has(r.about.id)) return true;
-    if (r.about && r.about.type === "call" && callsQueued.has(r.about.id)) return true;
-    const cv = conversationOfNeedsKey(idOf(r));
+    if (item.kind === "review" && reviewsDrawn.some((review) => reviewNoticeIsAbout(item.about, review))) return true;
+    if (item.about && item.about.type === "conversation" && convs.has(item.about.id)) return true;
+    if (item.about && item.about.type === "call" && callsQueued.has(item.about.id)) return true;
+    const cv = conversationOfNeedsKey(idOf(item));
     if (cv !== null && convs.has(cv)) return true;
-    const call = callOfKey(idOf(r));
+    const call = callOfKey(idOf(item));
     if (call !== null && callsQueued.has(call)) return true;
-    const to = door(r);
+    const to = door(item);
     return !!to && to.startsWith("inbox/th-") && convs.has(to.slice("inbox/th-".length));
   };
   const fresh = rows.filter((r) => r.unread && !aboutQueued(r));
@@ -390,15 +391,15 @@ export function bellSections<T extends BellNoteLike>(rows: readonly T[], older =
       byKind.get(k)!.push(r);
     }
     const lines: Array<BellLineVM<T>> = [];
-    for (const k of order) {
-      const members = byKind.get(k) ?? [];
-      const noun = AWAY_NOUN[k];
+    for (const key of order) {
+      const members = byKind.get(key) ?? [];
+      const noun = AWAY_NOUN[key];
       if (!noun || members.length < AWAY_GROUP_MIN) {
         for (const r of members) lines.push({ key: idOf(r), row: r, count: 1, title: null, members: [r] });
         continue;
       }
       lines.push({
-        key: `${label}:${k}`,
+        key: `${label}:${key}`,
         row: members[0],
         count: members.length,
         title: groupTitle(members, noun, idOf),
@@ -556,13 +557,14 @@ export function todaySince(input: {
     const [first] = notes;
     if (!first) continue;
     // Counted by what the notes are about, as the bell counts them: twelve notes about eleven people say eleven.
-    const n = new Set(notes.map((x) => (x.about ? `${x.about.type}:${x.about.id}` : (x.id ?? `${x.at}:${x.title}`))))
-      .size;
-    bits.push(k.bit(n));
+    const items = new Set(
+      notes.map((x) => (x.about ? `${x.about.type}:${x.about.id}` : (x.id ?? `${x.at}:${x.title}`))),
+    ).size;
+    bits.push(k.bit(items));
     rows.push({
       key: kind,
       glyph: k.glyph,
-      title: k.title(n, first),
+      title: k.title(items, first),
       sub: sinceSub(kind, notes),
       at: at(first.at ?? seen),
       // One note opens its record; a run opens the list that holds every one of its kind.

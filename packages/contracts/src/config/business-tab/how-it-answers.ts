@@ -5,7 +5,7 @@
 import { INSTRUCTIONS_MAX } from "../workspace-config/config-rules";
 import { FALLBACK_DEFAULTS, isProductFallback } from "../workspace-config/fallbacks";
 import { notesInForce } from "../workspace-config/compose";
-import { closureDatesLabel } from "../../calendar/words";
+import { closureDatesLabel } from "../../calendar/words/labels";
 import { CHIPS_SHOWN, chipsMoreWords, count } from "./counts";
 
 /* ---- How it answers ---- */
@@ -122,11 +122,11 @@ export function notesWords(
   const titles = (Array.isArray(notes) ? notes : [])
     .map((n) => (n && typeof n.title === "string" ? n.title.trim() : ""))
     .filter((t) => t !== "");
-  const n = titles.length;
+  const length = titles.length;
   return {
-    count: n,
+    count: length,
     chips: titles.slice(0, NOTE_CHIPS),
-    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null,
+    more: length > NOTE_CHIPS ? chipsMoreWords(length - NOTE_CHIPS) : null,
   };
 }
 

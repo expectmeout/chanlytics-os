@@ -17,11 +17,10 @@ import {
   type HoldDoor,
   type LeadNotAFitWhy,
   type LeadRowVM,
-  type LeadSheetAct,
-  type LeadSheetSlotVM,
   type SequencePlaceDto,
   type SequenceTab,
 } from "@chanlytics/contracts";
+import { type LeadSheetAct, type LeadSheetSlotVM } from "./model/view";
 import { undoVerb } from "@/bridge/verbs/commit";
 import { holdTrip } from "../../campaigns/sequences/trip";
 import { pressed } from "../../campaigns/sequences/verbs";

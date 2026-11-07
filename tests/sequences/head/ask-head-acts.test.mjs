@@ -10,7 +10,8 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { PROPOSAL_SPECS, SEQUENCE_ACT_WHY, SEQUENCE_WORDS } from "@chanlytics/contracts";
+import { SEQUENCE_ACT_WHY, SEQUENCE_WORDS } from "@chanlytics/contracts";
+import { PROPOSAL_SPECS } from "../../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -18,7 +19,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 beforeEach(() => readerCache.clear());

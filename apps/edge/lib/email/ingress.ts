@@ -22,8 +22,8 @@
  * writes the count; this reads, and is proved against a database in memory.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
-import { mailboxFor } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
+import { findMailbox } from "@chanlytics/db/email";
 import {
   emailReceiptFrom,
   emailReceivedEventFrom,
@@ -31,7 +31,7 @@ import {
   verifyResendWebhook,
   type EmailReceipt,
   type SvixHeaders,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import type { LogEvent } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
@@ -58,15 +58,19 @@ type ResendVerdict =
   | { kind: "receipt"; receipt: EmailReceipt }
   | { kind: "intake"; receivedId: string; jobs: Array<{ tenantId: string; mailboxId: string }>; unroutable: number };
 
-export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerdict> {
+export async function planResendEvent(resendIngressInput: ResendIngressInput): Promise<ResendVerdict> {
   // Each secret on its own: one that is set wrong (a bare whsec_) refuses only what it would have proven.
   const proven = await Promise.all(
-    i.secrets.map((s) => verifyResendWebhook(s, i.headers, i.rawBody, i.nowMs).catch(() => false)),
+    resendIngressInput.secrets.map((s) =>
+      verifyResendWebhook(s, resendIngressInput.headers, resendIngressInput.rawBody, resendIngressInput.nowMs).catch(
+        () => false,
+      ),
+    ),
   );
   if (!proven.includes(true)) return { kind: "refuse", status: 401, log: "resend_webhook_bad_signature" };
   let payload: unknown;
   try {
-    payload = JSON.parse(i.rawBody);
+    payload = JSON.parse(resendIngressInput.rawBody);
   } catch {
     return { kind: "refuse", status: 400, log: "resend_webhook_not_json" };
   }
@@ -79,12 +83,12 @@ export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerd
   // Only addresses on the platform's own mail domain route anywhere; the rest are the other people an email was also
   // sent to.
   const ours = event.recipients
-    .map((r) => platformRecipient(r, i.domain))
+    .map((r) => platformRecipient(r, resendIngressInput.domain))
     .filter((r): r is NonNullable<typeof r> => r !== null);
   const jobs = new Map<string, { tenantId: string; mailboxId: string }>();
   let unroutable = 0;
   for (const to of ours) {
-    const mailbox = await mailboxFor(i.db, to);
+    const mailbox = await findMailbox(resendIngressInput.db, to);
     if (mailbox) jobs.set(mailbox.id, { tenantId: mailbox.tenant_id, mailboxId: mailbox.id });
     else unroutable += 1;
   }

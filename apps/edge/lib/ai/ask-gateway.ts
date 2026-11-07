@@ -41,8 +41,8 @@ import {
   type ModelSpeed,
   type ThinkingType,
 } from "@chanlytics/contracts";
-import type { Database } from "@chanlytics/db";
-import { emitEvent } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
+import { emitEvent } from "@chanlytics/db/events";
 import { logger, errField } from "../shared/log.js";
 
 export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
@@ -65,13 +65,13 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
  * spent (the scorecard, 29 September).
  */
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number | null> {
-  const L = logger({ tenant_id: tenantId });
+  const log = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await db.rpc("ask_tokens_day", { p_tenant: tenantId });
     if (error) throw new Error(`ask_tokens_day: ${error.message}`);
     return num(Number(data));
   } catch (e) {
-    L.error("ask_budget_read_failed", { error: errField(e) });
+    log.error("ask_budget_read_failed", { error: errField(e) });
     return null;
   }
 }
@@ -88,11 +88,11 @@ export async function recordAskUsage(
     purpose: AskUsagePurpose;
   },
 ): Promise<void> {
-  const L = logger({ tenant_id: tenantId });
+  const log = logger({ tenant_id: tenantId });
   try {
     await emitEvent(db, tenantId, ASK_USAGE_KIND, "user", userId, { ...data });
   } catch (e) {
-    L.error("ask_usage_write_failed", { error: errField(e) });
+    log.error("ask_usage_write_failed", { error: errField(e) });
   }
 }
 
@@ -270,7 +270,7 @@ export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 const isAsk = (purpose: GatewayPurpose): boolean => purpose === "ask" || purpose === "ask_warm";
 
 /**
- * The registry's purpose a gateway purpose is asked as (contracts ai/models.ts): Ask's turn is Ask's route (the template
+ * The registry's purpose a gateway purpose is asked as (contracts ai/models/routes.ts): Ask's turn is Ask's route (the template
  * drafter's rounds come as Ask's too), the ideas for a new search their own (00398), a customer message the skill writes
  * the template drafter's (a message's words, the ledger's word for them, so no new purpose for its CHECK), the lead and
  * list drafts the small JSON route. The route names the fallback and bounds the try.
@@ -359,32 +359,43 @@ export function validateGatewayRequest(
   raw: unknown,
   purpose: GatewayPurpose = "ask",
 ): { ok: true; request: GatewayRequest } | { ok: false; error: "bad_request"; detail: string } {
-  const r = raw as Partial<GatewayRequest> | null;
-  if (!r || typeof r !== "object") return badRequest("request required");
-  const model = typeof r.model === "string" ? r.model : GATEWAY_FALLBACK_MODEL;
+  const gatewayRequest = raw as Partial<GatewayRequest> | null;
+  if (!gatewayRequest || typeof gatewayRequest !== "object") return badRequest("request required");
+  const model = typeof gatewayRequest.model === "string" ? gatewayRequest.model : GATEWAY_FALLBACK_MODEL;
   if (!mayName(purpose, model)) return badRequest("unknown model");
-  if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {
+  if (
+    !Array.isArray(gatewayRequest.messages) ||
+    !gatewayRequest.messages.length ||
+    gatewayRequest.messages.length > GATEWAY_MAX_MESSAGES
+  ) {
     return badRequest(`messages: 1-${GATEWAY_MAX_MESSAGES} turns`);
   }
   // A system message says an effort (contracts ai/effort.ts) or the operator's words, text alone (ai/words-message.ts):
   // nothing else rides in the messages as an instruction.
   const system = (m: unknown) => (m as { role?: unknown } | null)?.role === "system";
-  if (r.messages.some((m) => system(m) && !isEffortMessage(m) && !isWordsMessage(m))) {
+  if (gatewayRequest.messages.some((m) => system(m) && !isEffortMessage(m) && !isWordsMessage(m))) {
     return badRequest("messages: a system message carries an effort or the operator's words alone");
   }
-  if (r.tools !== undefined && (!Array.isArray(r.tools) || r.tools.length > GATEWAY_MAX_TOOLS)) {
+  if (
+    gatewayRequest.tools !== undefined &&
+    (!Array.isArray(gatewayRequest.tools) || gatewayRequest.tools.length > GATEWAY_MAX_TOOLS)
+  ) {
     return badRequest(`tools: up to ${GATEWAY_MAX_TOOLS}`);
   }
-  if (r.system !== undefined && typeof r.system !== "string" && !Array.isArray(r.system)) {
+  if (
+    gatewayRequest.system !== undefined &&
+    typeof gatewayRequest.system !== "string" &&
+    !Array.isArray(gatewayRequest.system)
+  ) {
     return badRequest("system: a string or blocks");
   }
   const oc =
-    r.output_config && typeof r.output_config === "object"
-      ? (r.output_config as { effort?: unknown; format?: unknown })
+    gatewayRequest.output_config && typeof gatewayRequest.output_config === "object"
+      ? (gatewayRequest.output_config as { effort?: unknown; format?: unknown })
       : null;
   const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as ModelEffort) : null;
-  const ceiling = ceilingOf(purpose, effortInForce(r.messages, effort));
-  const maxTokens = Math.min(ceiling, Math.max(64, Math.round(num(r.max_tokens) || 800)));
+  const ceiling = ceilingOf(purpose, effortInForce(gatewayRequest.messages, effort));
+  const maxTokens = Math.min(ceiling, Math.max(64, Math.round(num(gatewayRequest.max_tokens) || 800)));
   // A format rides through for every purpose: the lead purposes answer as
   // records, and Ask's turn answers in its answer schema (the Line, D3).
   const format = formatOf(oc ? oc.format : undefined);
@@ -394,14 +405,16 @@ export function validateGatewayRequest(
     request: {
       model,
       max_tokens: maxTokens,
-      system: r.system,
-      messages: r.messages,
-      ...(r.tools ? { tools: r.tools } : {}),
-      ...(r.tool_choice ? { tool_choice: r.tool_choice } : {}),
-      ...(typeof r.temperature === "number" ? { temperature: Math.min(1, Math.max(0, r.temperature)) } : {}),
+      system: gatewayRequest.system,
+      messages: gatewayRequest.messages,
+      ...(gatewayRequest.tools ? { tools: gatewayRequest.tools } : {}),
+      ...(gatewayRequest.tool_choice ? { tool_choice: gatewayRequest.tool_choice } : {}),
+      ...(typeof gatewayRequest.temperature === "number"
+        ? { temperature: Math.min(1, Math.max(0, gatewayRequest.temperature)) }
+        : {}),
       ...(effort || format ? { output_config: { ...(effort ? { effort } : {}), ...(format ? { format } : {}) } } : {}),
-      ...diagnosticsOf(r.diagnostics),
-      ...extrasOf(r),
+      ...diagnosticsOf(gatewayRequest.diagnostics),
+      ...extrasOf(gatewayRequest),
     },
   };
 }

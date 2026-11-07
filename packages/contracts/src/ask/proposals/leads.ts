@@ -6,8 +6,8 @@
 import { leadQuestionRoute, leadsRoute } from "../../leads/leads";
 import type { LeadSearchPlan } from "../../leads/search/plan";
 import { planWho } from "../../leads/search/sentence";
-import { SEQUENCES_ROUTE, sequenceRoute } from "../../campaigns/sequences/sequence-address";
-import { asText, idIn, rec, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
+import { SEQUENCES_ROUTE, sequenceRoute } from "../../campaigns/sequences/address";
+import { asText, idIn, rec, type ProposalSpec, type ProposalSpecAboveOperator, LEAD_OPERATION_UNDO } from "./spec";
 
 /** The search a lead card answers (spec G4), when it answers one rather than starting its own. */
 const amendsOf = (pl: Record<string, unknown> | undefined): { search_id: string; name?: unknown } | null => {
@@ -38,9 +38,9 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
     if (am) return `Answered. ${asText(am.name) || "The search"} carries on with your answer; Leads shows it.`;
     const plan = (pl.plan ?? {}) as Partial<LeadSearchPlan>;
     // Who it finds as the card said them ("law firms"), not the first word it is searched with ("law firm").
-    const who =
+    const personName =
       plan.name && plan.area && plan.terms && plan.criteria ? planWho(plan as LeadSearchPlan) : plan.terms?.[0];
-    return `Finding ${plan.count ?? ""} ${who ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
+    return `Finding ${plan.count ?? ""} ${personName ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
       /\s+/g,
       " ",
     );
@@ -83,8 +83,8 @@ export const peopleSearchSpec: ProposalSpecAboveOperator = {
     const plan = (pl.plan ?? {}) as { count?: number; name?: string };
     const n = typeof plan.count === "number" ? plan.count : null;
     // The count is companies, as the card and the sheet say it.
-    const what = n === null ? "companies" : `${n} ${n === 1 ? "company" : "companies"}`;
-    return `Finding up to ${what}${plan.name ? `: ${plan.name}` : ""}. Each lands on Leads once its address checks out.`;
+    const subject = n === null ? "companies" : `${n} ${n === 1 ? "company" : "companies"}`;
+    return `Finding up to ${subject}${plan.name ? `: ${plan.name}` : ""}. Each lands on Leads once its address checks out.`;
   },
   undo: {
     label: () => "Stop the search",
@@ -121,17 +121,7 @@ export const reachOutAddSpec: ProposalSpec = {
   },
   undo: {
     label: () => "Take them back",
-    window: "ten_minutes",
-    record: (_p, data) => {
-      const d = rec(data);
-      return typeof d.op_id === "string" ? { op_id: d.op_id, version: Number(d.version ?? 1) } : null;
-    },
-    call: (u) => ({
-      route: "POST lead-operations/[id]/undo",
-      params: { id: asText(u.op_id) },
-      body: { version: Number(u.version ?? 1) },
-    }),
-    receipt: () => "Taken back off its list. Nothing had been written to them.",
+    ...LEAD_OPERATION_UNDO,
   },
   open: ({ payload }) => {
     const id = idIn(payload, "root_id");

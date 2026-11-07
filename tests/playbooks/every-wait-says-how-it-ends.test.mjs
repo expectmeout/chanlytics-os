@@ -1,6 +1,6 @@
 /**
  * Every wait says how it ends, the one way wherever it is shown (decision 0064, step 2): the wait rule and its words
- * (contracts wait-rules.ts), the notices that read them (a batch ready, held for a stop or skipped; a reach-out's; a reply
+ * (contracts waits/rules.ts), the notices that read them (a batch ready, held for a stop or skipped; a reach-out's; a reply
  * waiting to go in the owner's name), the bell's close of a held reply's row (notice-closes.ts, judged by the threads the
  * Inbox holds), and what goes on its own today in Today's day (waits/going-today.ts): soonest first, each with its Stop.
  */
@@ -313,7 +313,8 @@ test("the band's head says what each row does, and how many it did not draw", ()
 });
 
 test("a message sent once, pressed for now, goes ten minutes on with a Stop: every receipt says when it goes and that it can be stopped (decision 0064, step 3)", async () => {
-  const { SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, PROPOSAL_SPECS, whenItGoes } = await import("@chanlytics/contracts");
+  const { SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, whenItGoes } = await import("@chanlytics/contracts");
+  const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
   assert.equal(SEND_ONCE_STOP_MS, 10 * MIN);
   assert.equal(SEND_ONCE_STOP_WORDS, "10 minutes");
   const when = (ms) => `today ${clockTime(ms, TZ)}`;
@@ -347,7 +348,7 @@ test("each sequence shows its evidence: what its batches did over 90 days, said 
   const { evidenceWords, evidenceOf, classEvidenceLine } = await import("@chanlytics/contracts");
   // The Campaigns lens's words are its module's own (not the package's surface).
   const { approvalSkippedLine, approvalLine } = await importSrc(
-    "packages/contracts/src/reports/campaigns/campaign-words.ts",
+    "packages/contracts/src/reports/campaigns/words/tables.ts",
   );
   assert.equal(
     evidenceWords({ went: 12, approved: 11, stopped: 1, skipped: 2 }),
@@ -403,7 +404,7 @@ test("a review's reply waits like everything else: held for an OK, or posted aft
   assert.equal(heldReviewReplyOf({ reply_text: "Thanks!", draft_text: "Thanks!", posts_at: at }, TZ), null);
   assert.equal(heldReviewReplyOf({ reply_text: null, draft_text: null }, TZ), null);
   // Its Stop is the verbs' one door's (contracts reviewReplyStopSpec): the route, and a receipt for a stop and for none.
-  const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
+  const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
   const stop = PROPOSAL_SPECS.review_reply_stop;
   assert.deepEqual(stop.commit({ payload: { review_id: "rv1" } }), {
     route: "POST google/reviews/[id]/stop",

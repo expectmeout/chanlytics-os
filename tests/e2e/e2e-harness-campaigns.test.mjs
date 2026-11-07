@@ -239,7 +239,7 @@ const hasNumber = (record) => (record.known.channels ?? []).some((c) => c.kind =
 /* ---------------------------------- GET templates is the route's own ---------------------------------- */
 
 test("the harness answers GET templates as the route's own reader does, for the composers and for Settings, over the records' rows", async () => {
-  const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
+  const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
   const { templates: reader } = await import(at("apps/dashboard/src/server/readers/templates.ts"));
   const TENANT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   for (const [name, record] of WORKSPACES) {

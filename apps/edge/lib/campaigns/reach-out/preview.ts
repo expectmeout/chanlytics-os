@@ -17,15 +17,10 @@ import {
   type ReachOutSignsWith,
   type SlotLead,
 } from "@chanlytics/contracts";
-import {
-  leadCountriesOf,
-  leadPreviewOf,
-  leadSlotsOf,
-  mailboxConnectionOf,
-  reachOutAudience,
-  reachOutRecord,
-  type Database,
-} from "@chanlytics/db";
+import { findLeadCountries } from "@chanlytics/db/leads";
+import { findLeadPreview, findLeadSlots, listReachOutAudience, readReachOutRecord } from "@chanlytics/db/campaigns";
+import { findMailboxConnection } from "@chanlytics/db/email";
+import { type Database } from "@chanlytics/db/types";
 import {
   askReachOutModel,
   checkBudget,
@@ -36,7 +31,7 @@ import {
   type AskModel,
   type CheckBudget,
 } from "./check.js";
-import { reachOutRequest, type RequestRefusal } from "@chanlytics/channels";
+import { reachOutRequest, type RequestRefusal } from "@chanlytics/channels/email";
 import { dashboardOrigin } from "../../shared/dashboard-origin.js";
 
 type Db = SupabaseClient<Database>;
@@ -115,87 +110,99 @@ const slotLeadOf = (
 /** Their preview as the send would read it (decision 0079), never made by a look: one not made yet waits for it. */
 const previewSlotFor = async (db: Db, i: PreviewInput, leadId: string) =>
   slotCount(i.words.body, "their preview") > 0
-    ? previewSlotOf(await leadPreviewOf(db, i.tenantId, leadId), new Date(), dashboardOrigin())
+    ? previewSlotOf(await findLeadPreview(db, i.tenantId, leadId), new Date(), dashboardOrigin())
     : null;
 
 export async function previewOne(
   db: Db,
-  i: PreviewInput,
+  previewInput: PreviewInput,
   ask: AskModel = askReachOutModel,
   budget: CheckBudget = checkBudget(Date.now(), PREVIEW_LIMITS),
 ): Promise<Preview> {
   const none = NO_PREVIEW;
   // The door refuses any other (a 400): never a silent clamp to a business the owner did not ask for.
-  if (!Number.isInteger(i.index) || i.index < 0 || i.index > PREVIEW_INDEX_MAX)
+  if (!Number.isInteger(previewInput.index) || previewInput.index < 0 || previewInput.index > PREVIEW_INDEX_MAX)
     throw new RangeError(`a preview's index is a whole number from 0 to ${PREVIEW_INDEX_MAX}`);
-  const index = i.index;
-  const leads = await reachOutAudience(db, {
-    tenantId: i.tenantId,
-    searchId: i.searchId,
+  const index = previewInput.index;
+  const leads = await listReachOutAudience(db, {
+    tenantId: previewInput.tenantId,
+    searchId: previewInput.searchId,
     limit: index + 1,
-    includeUnconfirmed: i.includeUnconfirmed,
+    includeUnconfirmed: previewInput.includeUnconfirmed,
   });
   const lead = leads[index];
   if (!lead) return none;
   const [record, workspace, countries, slots, mailbox, preview] = await Promise.all([
-    reachOutRecord(db, { tenantId: i.tenantId, searchId: i.searchId, leadId: lead.lead_id }),
-    checkWorkspaceOf(db, i.tenantId),
-    leadCountriesOf(db, [lead.lead_id]),
+    readReachOutRecord(db, { tenantId: previewInput.tenantId, searchId: previewInput.searchId, leadId: lead.lead_id }),
+    checkWorkspaceOf(db, previewInput.tenantId),
+    findLeadCountries(db, [lead.lead_id]),
     // A company's addressee, as the send fills the person slots from it (00430).
-    leadSlotsOf(db, i.tenantId, lead.lead_id),
+    findLeadSlots(db, previewInput.tenantId, lead.lead_id),
     // The mailbox it would leave from, this workspace's and not removed: its signature is the one the email may end with.
-    i.mailboxId ? mailboxConnectionOf(db, i.tenantId, i.mailboxId) : Promise.resolve(null),
-    previewSlotFor(db, i, lead.lead_id),
+    previewInput.mailboxId
+      ? findMailboxConnection(db, previewInput.tenantId, previewInput.mailboxId)
+      : Promise.resolve(null),
+    previewSlotFor(db, previewInput, lead.lead_id),
   ]);
   if (!record) return none;
   const input = {
-    ...checkInputOf(record, i.words, workspace.opening, i.language, [], countries.get(lead.lead_id) ?? null),
+    ...checkInputOf(
+      record,
+      previewInput.words,
+      workspace.opening,
+      previewInput.language,
+      [],
+      countries.get(lead.lead_id) ?? null,
+    ),
     // Its website read as a send's is, so the preview's opening is the one the send would write.
     site: siteReaderOf(record.website_host),
   };
-  const c = await checkOne(input, ask, budget, {
-    tenantId: i.tenantId,
+  const result = await checkOne(input, ask, budget, {
+    tenantId: previewInput.tenantId,
     subjectId: lead.lead_id,
   });
-  const checked = c.kind === "checked" ? c : null;
+  const checked = result.kind === "checked" ? result : null;
   const opening = checked?.opening?.opening ?? null;
-  const r = reachOutRequest({
-    tenantId: i.tenantId,
+  const otherReachOutRequest = reachOutRequest({
+    tenantId: previewInput.tenantId,
     messageId: randomUUID(),
     contactId: randomUUID(),
     to: lead.email,
-    words: i.words,
+    words: previewInput.words,
     lead: { ...slotLeadOf(lead, slots), preview },
     workspace: {
       businessName: workspace.businessName,
       address: workspace.address,
-      yourName: i.signedBy,
+      yourName: previewInput.signedBy,
       bookingLink: workspace.bookingLink,
     },
     opening,
     from: mailbox && mailbox.state !== "removed" ? mailbox : STAND_IN.from,
-    signsWith: i.signsWith,
+    signsWith: previewInput.signsWith,
     unsubscribe: { secret: randomUUID(), origin: STAND_IN.origin },
     parent: null,
   });
   return {
     lead: { id: lead.lead_id, business_name: lead.business_name ?? "", email: lead.email },
-    subject: r.ok ? r.subject : null,
+    subject: otherReachOutRequest.ok ? otherReachOutRequest.subject : null,
     // The words as the business reads them, with the signature under them where the email ends with one (0077).
-    body: r.ok
-      ? r.signature
-        ? `${r.body}
+    body: otherReachOutRequest.ok
+      ? otherReachOutRequest.signature
+        ? `${otherReachOutRequest.body}
 
-${r.signature}`
-        : r.body
+${otherReachOutRequest.signature}`
+        : otherReachOutRequest.body
       : null,
     opening,
     angle: checked?.opening?.angle ?? null,
     hold: checked?.hold ?? null,
     detail: checked?.detail ?? null,
     // An opening the model could not write is said as unavailable, not as a refusal of the words.
-    refused: r.ok || (!checked && r.reason === "no_opening") ? null : r.reason,
+    refused:
+      otherReachOutRequest.ok || (!checked && otherReachOutRequest.reason === "no_opening")
+        ? null
+        : otherReachOutRequest.reason,
     unavailable: !checked,
-    tokens: { ...c.tokens },
+    tokens: { ...result.tokens },
   };
 }

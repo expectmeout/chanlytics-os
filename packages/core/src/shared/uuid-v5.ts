@@ -6,7 +6,7 @@
  */
 import { utf8Bytes, hexOf } from "@chanlytics/contracts";
 
-export async function uuidV5(name: string): Promise<string> {
+export async function makeUuidV5(name: string): Promise<string> {
   const h = hexOf(await crypto.subtle.digest("SHA-1", utf8Bytes(name)));
   const v = `${h.slice(0, 12)}5${h.slice(13, 16)}${((parseInt(h.slice(16, 17), 16) & 0x3) | 0x8).toString(16)}${h.slice(17, 32)}`;
   return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;

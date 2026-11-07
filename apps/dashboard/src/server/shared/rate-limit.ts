@@ -28,7 +28,7 @@
  * Cross-workspace: a limit counts per person or network, never per workspace; rate_hits holds no tenant_id.
  */
 import { AppError, MIN_MS, HOUR_MS, SECOND_MS, waitWords } from "@chanlytics/contracts";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isProduction } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
@@ -310,8 +310,12 @@ interface RateStore {
 }
 
 /** The refusal when a strict count cannot be given: the verb is not run on a ceiling nobody can hold. */
-function uncountable(why: string): AppError {
-  return new AppError("internal", `The shared count could not be read just now (${why}) — try again in a moment.`, 503);
+function uncountable(reason: string): AppError {
+  return new AppError(
+    "internal",
+    `The shared count could not be read just now (${reason}) — try again in a moment.`,
+    503,
+  );
 }
 
 /** Past this many live keys the map is swept; a long-lived instance must not grow forever. */
@@ -368,16 +372,16 @@ export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallbac
           p_window_ms: rule.windowMs,
         });
         if (error) throw new Error(error.message);
-        const v = (data ?? {}) as { allowed?: boolean; retry_after_s?: number };
-        if (v.allowed === true) return { allowed: true };
-        if (v.allowed === false)
-          return { allowed: false, retryAfterS: Math.max(1, Math.ceil(Number(v.retry_after_s ?? 1))) };
+        const value = (data ?? {}) as { allowed?: boolean; retry_after_s?: number };
+        if (value.allowed === true) return { allowed: true };
+        if (value.allowed === false)
+          return { allowed: false, retryAfterS: Math.max(1, Math.ceil(Number(value.retry_after_s ?? 1))) };
         throw new Error("take_rate answered without a verdict");
       } catch (e) {
-        const why = e instanceof Error ? e.message : String(e);
+        const reason = e instanceof Error ? e.message : String(e);
         if (now - warnedAt > WARN_EVERY_MS) {
           warnedAt = now;
-          log.error("rate_store_failed", { bucket, error: why });
+          log.error("rate_store_failed", { bucket, error: reason });
         }
         // Money is not spent on a count this instance alone would hold.
         if (strict) throw uncountable("the shared store did not answer");
@@ -398,11 +402,11 @@ let store: RateStore | null = null;
  * not spend on a ceiling it cannot hold.
  */
 export function memoryByConfiguration(fallback: RateStore, production = isProduction()): RateStore {
-  let said = false;
+  let sentence = false;
   return {
     async take(bucket, actor, rule, now, strict = false) {
-      if (!said) {
-        said = true;
+      if (!sentence) {
+        sentence = true;
         log.error("rate_store_memory_by_configuration", {
           production,
           bucket,
@@ -457,6 +461,6 @@ export function resetRates(): void {
 }
 
 /** Tests only: put a store behind takeRate (null = choose again from the env). */
-export function setRateStore(s: RateStore | null): void {
-  store = s;
+export function setRateStore(rateStore: RateStore | null): void {
+  store = rateStore;
 }

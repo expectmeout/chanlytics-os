@@ -13,6 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { PROPOSAL_SPECS } from "../../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -211,7 +212,7 @@ test("the silent steps commit together, in step order, each under its step's key
   });
   assert.deepEqual([run.done, run.undone], [[], []]);
   // Each step's own receipt and undo, as its card's own press would have them.
-  assert.equal(run.results[2].result.receipt, C.PROPOSAL_SPECS.playbook_change.receipt(pause, ANSWERS[keys(t)[2][0]]));
+  assert.equal(run.results[2].result.receipt, PROPOSAL_SPECS.playbook_change.receipt(pause, ANSWERS[keys(t)[2][0]]));
   assert.deepEqual(run.results[2].result.undo, { playbook_id: PB, was: { state: "running" }, decision_id: D(1) });
 });
 
@@ -439,7 +440,7 @@ test("a send names what earlier steps made: refused while a step it names has ma
   assert.deepEqual(keys(t), [["POST /api/v1/broadcasts", `plan:${PLAN}:4`]]);
   assert.deepEqual(t.sent[0].body.template_id, V(1));
   assert.deepEqual(t.sent[0].body.audience, { kind: "saved", id: L1 });
-  assert.equal(r.receipt, C.PROPOSAL_SPECS.broadcast.receipt(listed, ANSWERS["POST /api/v1/broadcasts"]));
+  assert.equal(r.receipt, PROPOSAL_SPECS.broadcast.receipt(listed, ANSWERS["POST /api/v1/broadcasts"]));
   assert.deepEqual(listed.payload.template_id, "@step:1", "the card itself is left as it was");
 });
 

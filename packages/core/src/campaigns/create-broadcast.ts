@@ -34,11 +34,11 @@ import {
   type ListRef,
   DAY_MS,
 } from "@chanlytics/contracts";
-import { errField, logger } from "@chanlytics/channels";
+import { errField, logger } from "@chanlytics/log";
 import { assembleRun } from "./assemble";
-import { allowanceRecord, pastTheMonth } from "./allowance";
+import { allowanceRecord, listPastTheMonth } from "./allowance";
 import { parseChannels, refuseTicks } from "./message-channels";
-import { templateValues } from "./template-values";
+import { getTemplateValues } from "./template-values";
 import type { CreateBroadcastCommand, CreateBroadcastPorts } from "./ports";
 
 /** An instant names its offset: "Z" or "±hh:mm". A date alone, or a wall-clock time without one, is read on the server's clock. */
@@ -179,7 +179,7 @@ function askedTime(scheduledFor: unknown, now: Date): { at: Date; pressedNow: bo
  * over them (contracts readyForMessage), WhatsApp's among them: a version WhatsApp has not approved is no
  * version to send. Refuses nothing: a playbook keeps a tick that cannot send yet, and Ask counts a proposal by it.
  */
-export async function campaignHow(
+export async function readCampaignHow(
   ports: Pick<CreateBroadcastPorts, "channels">,
   message: Pick<CampaignMessage, "versions">,
   channels: ConsentChannel[],
@@ -199,20 +199,20 @@ export async function campaignHow(
  * The one rule for a broadcast's ticks: the route asks it, and so does Ask before it proposes one, so a card the route
  * would refuse is never shown.
  */
-export async function campaignHowOf(
+export async function readCampaignHowOf(
   ports: Pick<CreateBroadcastPorts, "channels">,
   message: Pick<CampaignMessage, "versions">,
   channels: ConsentChannel[],
   purpose: AskedPurpose,
 ): Promise<{ how: CampaignHow; health: NumberHealth | null }> {
   // A broadcast is news the business chose to send, whatever its message's category (decision D1).
-  const made = await campaignHow(ports, message, channels, "ours");
+  const created = await readCampaignHow(ports, message, channels, "ours");
   // A paused workspace sends nothing: the door refuses every message of the run (deliver.ts `paused`), so a broadcast made
   // under one would be enrolled, scheduled, and stopped by the first batch. It is refused here, in the words the composers
   // say it in (their Send is not offered), before the people are read.
-  if (made.how.ready.paused) throw new AppError("payment_required", CAMPAIGNS_PAUSED_WORDS);
-  refuseTicks(made.how, purpose);
-  return made;
+  if (created.how.ready.paused) throw new AppError("payment_required", CAMPAIGNS_PAUSED_WORDS);
+  refuseTicks(created.how, purpose);
+  return created;
 }
 
 /**
@@ -298,7 +298,7 @@ export async function createBroadcast(
   const want = asked(cmd.body);
 
   // 1–2. The message, as the workspace holds it; the values, as its slots take them.
-  const { message, specs } = await templateValues(ports, {
+  const { message, specs } = await getTemplateValues(ports, {
     templateId: want.templateId,
     params: want.params,
     visits: false,
@@ -313,7 +313,7 @@ export async function createBroadcast(
   // WHICH yes this send needs, from the message's category: the send job derives the same purpose from the same
   // rows, so the audience enrolled here is the audience the wire will accept.
   const purpose = message.purpose;
-  const { how, health } = await campaignHowOf(ports, message, want.channels, purpose);
+  const { how, health } = await readCampaignHowOf(ports, message, want.channels, purpose);
 
   // 4. The audience, crossed with who said yes and a channel to reach them on.
   const { pool, label, kept } = await audienceOf(ports, want.ref, now);
@@ -351,7 +351,7 @@ export async function createBroadcast(
   // waits for one rather than enrol past a month nobody counted. A broadcast has no moment, so every email and text is held.
   // Counted in the month the run OPENS in, not the one it was made in: made on the 28th for the 1st, it sends in the new month.
   // Of who goes: a person left out is sent nothing, and counts against no month.
-  const past = await pastTheMonth(
+  const past = await listPastTheMonth(
     { monthSent: (channel) => ports.monthSent(channel, when) },
     goes.map((e) => ({ id: e.row.id, channel: e.channel })),
     null,
@@ -382,7 +382,7 @@ export async function createBroadcast(
   // Everyone is enrolled, who is left out and who the month holds among them, each skipped the moment the run exists; the
   // left out carry it on their row in this same write (LEFT_OUT_FACTS), so the wire holds them whatever the skip does.
   const out = new Set(leftOut.map((e) => e.row.id));
-  const made = await assembleRun(ports, {
+  const created = await assembleRun(ports, {
     broadcast: {
       name,
       // The message's anchor, whichever version's id was picked: the one id every version of it resolves to.
@@ -413,17 +413,17 @@ export async function createBroadcast(
       ),
     },
   });
-  if (!made.ok) {
+  if (!created.ok) {
     // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong". What the
     // database said is the log's.
-    createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
+    createLog.error("campaign_step_failed", { step: "assemble", error: created.error });
     throw new AppError("internal", "The send could not be created. Nothing was sent; try again.", 500);
   }
   // The door answers the decision's id with the run's; one was asked for, so an answer without it is refused where
   // the door is called (db assembleBroadcast), never read as a run made with none.
-  if (made.decisionId === null) throw new Error("createBroadcast: the run's door answered without its decision");
+  if (created.decisionId === null) throw new Error("createBroadcast: the run's door answered without its decision");
   return {
-    id: made.id,
+    id: created.id,
     name,
     state: "scheduled",
     recipient_count: enrolled.length,
@@ -431,13 +431,13 @@ export async function createBroadcast(
     moved_from: movedFrom,
     // What was actually held at enrolment: a hold that could not be written is queued and held at the wire (the backstop),
     // so it is not claimed here.
-    held_for_allowance: past.length - made.unheld,
+    held_for_allowance: past.length - created.unheld,
     // And who was written as left out: a skip the hold did not write is queued, held at the wire by the row's mark, and
     // is not claimed either.
-    left_out: out.size - made.leftOutUnwritten,
+    left_out: out.size - created.leftOutUnwritten,
     scheduled_ahead: ahead,
     pressed_now: timed.pressedNow,
-    decision_id: made.decisionId,
+    decision_id: created.decisionId,
   };
 }
 
@@ -448,7 +448,7 @@ export async function createBroadcast(
  * could not be made is logged there (assemble.ts) and counted on the receipt; the ledger's line says what was asked.
  */
 function decisionPayload(
-  s: {
+  state: {
     name: string;
     message: Pick<CampaignMessage, "name" | "language" | "category">;
     audience: Audience;
@@ -461,7 +461,7 @@ function decisionPayload(
   },
   skipped: { held: number; leftOut: number; breathe: boolean },
 ) {
-  const { name, message, audience, kept, how, specs, enrolled, when, movedFrom } = s;
+  const { name, message, audience, kept, how, specs, enrolled, when, movedFrom } = state;
   return {
     name,
     template: `${message.name}/${message.language}`,

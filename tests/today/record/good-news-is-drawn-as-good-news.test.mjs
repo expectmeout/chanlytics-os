@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { noticeTone, serverNotificationRows } from "@chanlytics/contracts";
-import { registrationVerdict } from "@chanlytics/channels";
+import { registrationVerdict } from "@chanlytics/channels/lines";
 
 const kept = (kind, title, i) => ({
   id: `n${i}`,

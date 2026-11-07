@@ -18,39 +18,39 @@ type Db = SupabaseClient<Database>;
 export type ClientErrorInsert = Database["public"]["Tables"]["client_errors"]["Insert"];
 
 /** Every registered clock, its schedule, and how many of its runs in the last `days` ran and failed. */
-export async function healthClocks(db: Db, days: number) {
+export async function getHealthClocks(db: Db, days: number) {
   return db.rpc("platform_clocks", { p_days: days });
 }
 
 /** The clocks as sweep_health() judges them: the pager's judgement, so Health and the pager never disagree. */
-export async function healthSweeps(db: Db) {
+export async function getHealthSweeps(db: Db) {
   return db.rpc("sweep_health");
 }
 
 /** Due jobs nobody has claimed for two minutes. */
-export async function healthBacklog(db: Db) {
+export async function getHealthBacklog(db: Db) {
   return db.rpc("jobs_backlog");
 }
 
 /** The jobs that failed for good since `sinceIso`, newest first, with their workspace. */
-export async function healthFailedJobs(db: Db, q: { sinceIso: string; limit: number }) {
+export async function getHealthFailedJobs(db: Db, input: { sinceIso: string; limit: number }) {
   return db
     .from("jobs")
     .select("id, tenant_id, kind, lane, attempts, last_error, created_at, updated_at")
     .eq("state", "failed")
-    .gte("updated_at", q.sinceIso)
+    .gte("updated_at", input.sinceIso)
     .order("updated_at", { ascending: false })
-    .limit(q.limit);
+    .limit(input.limit);
 }
 
 /** The ledger now (jobs_ledger_now, 00526): by lane and by kind, and when its canary last finished. */
-export async function healthLedgerNow(db: Db) {
+export async function getHealthLedger(db: Db) {
   return db.rpc("jobs_ledger_now");
 }
 
 /** A kind of job paused (job_kind_pause, 00526): no claim takes it until it is resumed. The door's answer as it gave it. */
-export async function pauseJobKind(db: Db, kind: string, why: string) {
-  return db.rpc("job_kind_pause", { p_kind: kind, p_why: why });
+export async function pauseJobKind(db: Db, kind: string, reason: string) {
+  return db.rpc("job_kind_pause", { p_kind: kind, p_why: reason });
 }
 
 /** A paused kind resumed (job_kind_resume, 00526), and the tick asked for what waited. */
@@ -59,7 +59,7 @@ export async function resumeJobKind(db: Db, kind: string) {
 }
 
 /** What paged us: each condition the pager remembers, the newest first. */
-export async function healthPages(db: Db, limit: number) {
+export async function getHealthPages(db: Db, limit: number) {
   return db
     .from("operator_pages")
     .select("key, first_at, last_at, count, alerted_at")
@@ -68,22 +68,22 @@ export async function healthPages(db: Db, limit: number) {
 }
 
 /** Every part's numbers over the last `days`, each keyed by whether its workspace is ours. */
-export async function healthParts(db: Db, days: number) {
+export async function getHealthParts(db: Db, days: number) {
   return db.rpc("platform_health_parts", { p_days: days });
 }
 
 /** What the replies sent over the last `days` did with the thread's draft (00539 reply_draft_uses). */
-export async function healthDraftUses(db: Db, days: number) {
+export async function getHealthDraftUses(db: Db, days: number) {
   return db.rpc("reply_draft_uses", { p_days: days });
 }
 
 /** Every workspace's name and address, and whether it is ours: Health names a row's workspace and splits by it. */
-export async function healthWorkspaces(db: Db, limit: number) {
+export async function getHealthWorkspaces(db: Db, limit: number) {
   return db.from("tenants").select("id, slug, name, status, ours").order("created_at").limit(limit);
 }
 
 /** Whether a workspace is ours: the pager leaves ours out. A workspace it cannot read is not ours. */
-export async function workspaceIsOurs(db: Db, tenantId: string): Promise<boolean> {
+export async function isWorkspaceOurs(db: Db, tenantId: string): Promise<boolean> {
   const { data, error } = await db.from("tenants").select("ours").eq("id", tenantId).maybeSingle();
   return !error && data?.ours === true;
 }
@@ -94,13 +94,13 @@ export async function keepClientError(db: Db, row: ClientErrorInsert) {
 }
 
 /** The errors pages hit since `sinceIso`, newest first: Health groups them by fingerprint. */
-export async function healthClientErrors(db: Db, q: { sinceIso: string; limit: number }) {
+export async function getHealthClientErrors(db: Db, input: { sinceIso: string; limit: number }) {
   return db
     .from("client_errors")
     .select("at, fingerprint, boundary, page, name, message, build, device, member_key")
-    .gte("at", q.sinceIso)
+    .gte("at", input.sinceIso)
     .order("at", { ascending: false })
-    .limit(q.limit);
+    .limit(input.limit);
 }
 
 /** Every failed or paused delivery of one subscriber scheduled again, each once: how many were. */

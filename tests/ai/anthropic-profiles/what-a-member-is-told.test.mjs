@@ -16,10 +16,10 @@ process.env.EDGE_PROVIDERS = "live";
 process.env.EDGE_URL = "https://edge.example.com";
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 
-const { streamModel, GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
+const { streamModel, GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
 const { refusalSaid } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { askForJson } = await import(at("apps/dashboard/src/server/shared/model-json.ts"));
-const { workspaceModelStanding } = await import(at("packages/db/src/repositories/ai/anthropic-profiles.ts"));
+const { findWorkspaceModelStanding } = await import(at("packages/db/src/repositories/ai/anthropic-profiles.ts"));
 
 const T = "aaaaaaaa-0000-4000-8000-000000000001";
 const said = (status, body) =>
@@ -96,13 +96,17 @@ test("a workspace's standing is read off its own row: none says nothing, and onl
     reference_id: `workspace:${tenant_id}`,
     enforcement_status,
   });
-  assert.equal(await workspaceModelStanding(fakeDb({ anthropic_profiles: [] }), T), null);
-  assert.equal(await workspaceModelStanding(fakeDb({ anthropic_profiles: [row(other, "banned")] }), T), null);
+  assert.equal(await findWorkspaceModelStanding(fakeDb({ anthropic_profiles: [] }), T), null);
+  assert.equal(await findWorkspaceModelStanding(fakeDb({ anthropic_profiles: [row(other, "banned")] }), T), null);
   for (const [status, standing] of [
     ["unrestricted", null],
     ["pending", "limited"],
     ["restricted", "limited"],
     ["banned", "paused"],
   ])
-    assert.equal(await workspaceModelStanding(fakeDb({ anthropic_profiles: [row(T, status)] }), T), standing, status);
+    assert.equal(
+      await findWorkspaceModelStanding(fakeDb({ anthropic_profiles: [row(T, status)] }), T),
+      standing,
+      status,
+    );
 });

@@ -7,7 +7,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { MODEL_ROUTES, DATA_NOT_INSTRUCTIONS } from "@chanlytics/contracts";
 import fs from "node:fs";
 import path from "node:path";

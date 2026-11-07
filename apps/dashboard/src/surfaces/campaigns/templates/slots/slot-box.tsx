@@ -17,8 +17,9 @@
  */
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { ClipboardEvent, ReactNode, Ref, RefObject } from "react";
-import { slotKnown, slotLabel, toSlotParts } from "@chanlytics/contracts";
-import type { SlotEdit, SlotKey, SlotSet } from "@chanlytics/contracts";
+import { slotKnown, slotLabel, toSlotParts } from "../message-version-slots";
+import type { SlotKey, SlotSet } from "@chanlytics/contracts";
+import type { SlotEdit } from "../message-version-slots";
 import { SlotName } from "../../parts/slot";
 import { TPL_VERSION_WORDS as WORDS } from "../words";
 import {

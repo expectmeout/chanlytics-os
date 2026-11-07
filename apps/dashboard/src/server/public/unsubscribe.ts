@@ -19,20 +19,20 @@ import "server-only";
  * from an email, and it must not depend on the app's bundle to say "you're unsubscribed".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { offerLanguageOf, setEmailUnsubscribed, stopAllMessages, type Database } from "@chanlytics/db";
-import { addressOf, verifyUnsubscribeToken } from "@chanlytics/channels";
+import { offerLanguageOf, setEmailUnsubscribed, stopAllMessages } from "@chanlytics/db/campaigns";
+import { type Database } from "@chanlytics/db/types";
+import { addressOf } from "@chanlytics/channels/email";
+import { verifyUnsubscribeToken } from "@chanlytics/channels/tokens";
 import {
   escapeHtml,
-  offerUnsubscribeWords,
   senderLanguage,
-  STOP_ALL_REFUSALS,
   UNSUBSCRIBE_PAGE_HEADER,
   unsubscribePageWords,
-  type OfferUnsubscribeView,
   type SenderLanguage,
   type UnsubscribeView,
   MIN_MS,
 } from "@chanlytics/contracts";
+import { offerUnsubscribeWords, STOP_ALL_REFUSALS, type OfferUnsubscribeView } from "./offers-unsubscribe";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
 import {
@@ -49,13 +49,13 @@ import {
 } from "./link-page";
 
 /** For tests: the database the page reads and writes through (link-page.ts holds it for both links' pages). */
-export const setServiceClient = setLinkPageClient;
+export const setUnsubscribeServiceClient = setLinkPageClient;
 
 /**
  * The secrets a link may be sealed under: the current one first, then the one before it while a rotation settles.
  * Null without the current one, whatever the previous says: the door is either set up or it is not.
  */
-function secrets(): string[] | null {
+export function secrets(): string[] | null {
   const current = env.UNSUBSCRIBE_SECRET;
   if (!current) return null;
   const previous = env.UNSUBSCRIBE_SECRET_PREVIOUS;
@@ -80,8 +80,8 @@ function sayOnceAMinute(
 }
 
 /** A door that cannot answer, said to the platform (never the link, which is the authority to stop). */
-function sayUnavailable(why: "no_secret" | "no_database"): void {
-  sayOnceAMinute("error", "unsubscribe_unavailable", { why });
+function sayUnavailable(reason: "no_secret" | "no_database"): void {
+  sayOnceAMinute("error", "unsubscribe_unavailable", { why: reason });
 }
 
 /** Links this instance refused since its last line said so. */
@@ -134,19 +134,19 @@ interface Paper {
  * The page every view is drawn on: the product's paper and ink, the business's mark and colour where it has them
  * (decision 0075), one card, no script, whatever the words, in the language of its `<html>`.
  */
-function draw(status: number, kind: string, w: PageWords, paper: Paper): Response {
-  const forms = w.buttons
+function draw(status: number, kind: string, pageWords: PageWords, paper: Paper): Response {
+  const forms = pageWords.buttons
     .map(
       (b) =>
         `<form method="post"><input type="hidden" name="${escapeHtml(b.name)}" value="${escapeHtml(b.value)}">` +
         `<button type="submit"${b.quiet ? ' class="quiet"' : ""}>${escapeHtml(b.label)}</button></form>`,
     )
     .join("");
-  const foot = w.foot ? `<p class="foot">${escapeHtml(w.foot)}</p>` : "";
+  const foot = pageWords.foot ? `<p class="foot">${escapeHtml(pageWords.foot)}</p>` : "";
   const html = `<!doctype html>
 <html lang="${paper.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${linkPageStyle(paper.look)}</style></head>
-<body><main>${linkPageMark(paper.look)}<div class="card"><h1>${escapeHtml(w.lead)}</h1><p>${escapeHtml(w.body)}</p>${forms}</div>${foot}</main></body></html>`;
+<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(pageWords.title)}</title><style>${linkPageStyle(paper.look)}</style></head>
+<body><main>${linkPageMark(paper.look)}<div class="card"><h1>${escapeHtml(pageWords.lead)}</h1><p>${escapeHtml(pageWords.body)}</p>${forms}</div>${foot}</main></body></html>`;
   // Which view this is, so the edge can tell the page answering from anything else answering at its address. The words
   // true of both kinds of email are the same view to the edge (its probe's link names no email, so it draws them): an
   // "ask" or a "done", whichever words the page says it in.
@@ -307,9 +307,9 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     return plainText(400, "An unsubscribe says List-Unsubscribe=One-Click.");
   if (stopAll) return stopAllMessagesPage(db, claims, stopAll === "yes");
 
-  let said: { business: string | null };
+  let sentence: { business: string | null };
   try {
-    said = await setEmailUnsubscribed(db, {
+    sentence = await setEmailUnsubscribed(db, {
       tenantId: claims.tenantId,
       contactId: claims.contactId,
       messageId: claims.messageId,
@@ -330,7 +330,7 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     emailOf(db, claims.tenantId, claims.messageId),
     linkPageLookOf(db, claims.tenantId),
   ]);
-  return pageFor(email, said.business, "done", look);
+  return pageFor(email, sentence.business, "done", look);
 }
 
 /**

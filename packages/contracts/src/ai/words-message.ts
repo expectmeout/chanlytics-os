@@ -39,9 +39,9 @@ const isWordsBlock = (b: unknown): boolean =>
   Object.keys(b).every((k) => k === "type" || k === "text" || k === "cache_control");
 
 /** Whether `m` is a words message: a system message, its content one text block or more, and nothing else. */
-export function isWordsMessage(m: unknown): m is WordsMessage {
-  if (!isPlainObject(m)) return false;
-  const { role, content, ...rest } = m;
+export function isWordsMessage(message: unknown): message is WordsMessage {
+  if (!isPlainObject(message)) return false;
+  const { role, content, ...rest } = message;
   return (
     role === "system" &&
     Object.keys(rest).length === 0 &&
@@ -60,9 +60,9 @@ export function foldWordsMessages(body: Record<string, unknown>): Record<string,
   const messages = Array.isArray(body.messages) ? (body.messages as unknown[]) : [];
   if (!messages.some(isWordsMessage)) return body;
   const out: unknown[] = [];
-  for (const m of messages) {
-    if (!isWordsMessage(m)) {
-      out.push(m);
+  for (const message of messages) {
+    if (!isWordsMessage(message)) {
+      out.push(message);
       continue;
     }
     let at = out.length - 1;
@@ -72,7 +72,7 @@ export function foldWordsMessages(body: Record<string, unknown>): Record<string,
     const content: unknown[] = Array.isArray(turn.content)
       ? turn.content
       : [{ type: "text", text: typeof turn.content === "string" ? turn.content : "" }];
-    out[at] = { ...turn, content: [...content.slice(0, -1), ...m.content, ...content.slice(-1)] };
+    out[at] = { ...turn, content: [...content.slice(0, -1), ...message.content, ...content.slice(-1)] };
   }
   return { ...body, messages: out };
 }

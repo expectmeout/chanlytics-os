@@ -1,4 +1,5 @@
-export { BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX, sendBroadcastBatch } from "./broadcast";
+export { sendBroadcastBatch } from "./broadcast/batch";
+export { BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX } from "./broadcast/stops";
 export { EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, ingestEmail } from "./email-ingest";
 export type { EmailClaim, EmailIngestOutcome, EmailIngestPorts, IncomingEmail } from "./email-ingest";
 export { raiseLateFailure } from "./late-failure";

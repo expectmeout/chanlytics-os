@@ -25,8 +25,8 @@ interface ProviderFailure {
  * Page the platform when the failure is the provider's limit or credentials; nothing for any other. `about` says whose
  * send it was ("Tenant t, message m", "Tenant t, broadcast b"), and is the first words of the body.
  */
-export async function pageTheProvider(pager: Pager, f: ProviderFailure, about: string): Promise<void> {
-  const { channel, purpose, out } = f;
+export async function pageTheProvider(pager: Pager, providerFailure: ProviderFailure, about: string): Promise<void> {
+  const { channel, purpose, out } = providerFailure;
   // A limit at the mail provider (named by the door, deliver.ts) is not this thread's fault either. A used-up day or
   // month stops every workspace's email on the key, so it is recorded for the platform (provider_quota:email, shown on
   // /api/diag); the page's own mail rides the same key and cannot leave until the quota resets. "Slow down" is one

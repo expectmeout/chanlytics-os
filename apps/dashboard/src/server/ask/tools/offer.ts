@@ -1,6 +1,7 @@
 import "server-only";
-import { MEMBERSHIP_ROLES, PROPOSAL_SPECS, type MembershipRole } from "@chanlytics/contracts";
-import { NO_ACTION, offeredTo, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context";
+import { MEMBERSHIP_ROLES, type MembershipRole } from "@chanlytics/contracts";
+import { PROPOSAL_SPECS } from "../proposals/proposals";
+import { NO_ACTION, offeredTo, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context/tool-defs";
 import { ACT_DEFS, CORE_TOOLS, READ_DEFS, inputOf, offeredActions, toolSchema } from "./registry";
 import { ANSWER_TOOL } from "./answer";
 
@@ -26,16 +27,18 @@ const examplesOf = (t: Tool<{ examples?: unknown[] }>, only?: readonly string[])
     );
 
 /** A tool as this role is offered it, from the actions it may use (D2). */
-function defFor(t: ReadTool | ActTool, actions: string[]): ToolDef {
-  const withAction = !(NO_ACTION in t.actions);
+function defFor(readTool: ReadTool | ActTool, actions: string[]): ToolDef {
+  const withAction = !(NO_ACTION in readTool.actions);
   const description = withAction
-    ? [t.description, ...actions.map((a) => t.actions[a].words), t.tail].filter((s) => !!s).join(" ")
-    : t.description;
-  const examples = examplesOf(t, actions);
+    ? [readTool.description, ...actions.map((a) => readTool.actions[a].words), readTool.tail]
+        .filter((s) => !!s)
+        .join(" ")
+    : readTool.description;
+  const examples = examplesOf(readTool, actions);
   return {
-    name: t.name,
+    name: readTool.name,
     description,
-    input_schema: toolSchema(inputOf(t, actions)),
+    input_schema: toolSchema(inputOf(readTool, actions)),
     // The examples as written, in their order: the same bytes every build, after the schema in the tool's keys.
     ...(examples.length ? { input_examples: examples } : {}),
   };
@@ -73,12 +76,12 @@ export function aboveRoleWords(role: MembershipRole): string | null {
       }
     }
   const said = (doings: Set<string>) => [...doings].join(", ");
-  const whose = [
+  const owner = [
     above.owner.size ? `only an owner can ${said(above.owner)}` : "",
     above.partner.size ? `only an owner or the workspace's partner can ${said(above.partner)}` : "",
   ].filter(Boolean);
-  if (!whose.length) return null;
-  return `Above their role, so no tool of yours proposes it: ${whose.join("; ")}. When they ask for one, say who can do it and that they can ask that person, never that a tool is not available; where something of theirs comes near it, propose that, and say in the answer beside its card who can do what they asked and how this differs (a thread taken over is that one thread, for now).`;
+  if (!owner.length) return null;
+  return `Above their role, so no tool of yours proposes it: ${owner.join("; ")}. When they ask for one, say who can do it and that they can ask that person, never that a tool is not available; where something of theirs comes near it, propose that, and say in the answer beside its card who can do what they asked and how this differs (a thread taken over is that one thread, for now).`;
 }
 
 /**

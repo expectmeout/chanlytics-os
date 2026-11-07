@@ -2,7 +2,8 @@
  * When a thread is owed a draft (decision 0093): the one question the hold's subscriber, the job, the sweep and the edge's
  * door all ask, and what the drafter checks of what it wrote. The server's alone: the pages read reply-drafts.ts.
  */
-import { replyWindow, windowClockOf } from "../config/policy";
+import { replyWindow } from "../config/policy/prices";
+import { windowClockOf } from "../config/policy/reply-limits";
 import { holdActOf } from "../conversations/escalations";
 import type { CallBrief } from "../new-conversation/person-draft";
 import type { ReplyDraftKind } from "./reply-drafts";
@@ -34,14 +35,18 @@ interface DraftOwedFacts {
  * to be sent, none. WhatsApp past its window and a DM past its own have the approved message or nothing to answer with,
  * so words written ahead would be words that cannot go.
  */
-export function replyDraftOwed(f: DraftOwedFacts): { kind: ReplyDraftKind; forMessageId: string | null } | null {
-  if (!f.holdReason || f.setAside || f.optedOut || f.reachOutReply) return null;
-  const act = holdActOf(f.holdReason);
-  if (act === "call_back") return { kind: "brief", forMessageId: f.forMessageId };
-  if (act !== "reply" || !f.forMessageId || !f.wire || f.queuedReply) return null;
-  const clock = windowClockOf(f.wire, f.clocks);
-  if (!replyWindow(f.wire, clock, f.now).open) return null;
-  return { kind: "reply", forMessageId: f.forMessageId };
+export function replyDraftOwed(
+  draftOwedFacts: DraftOwedFacts,
+): { kind: ReplyDraftKind; forMessageId: string | null } | null {
+  if (!draftOwedFacts.holdReason || draftOwedFacts.setAside || draftOwedFacts.optedOut || draftOwedFacts.reachOutReply)
+    return null;
+  const act = holdActOf(draftOwedFacts.holdReason);
+  if (act === "call_back") return { kind: "brief", forMessageId: draftOwedFacts.forMessageId };
+  if (act !== "reply" || !draftOwedFacts.forMessageId || !draftOwedFacts.wire || draftOwedFacts.queuedReply)
+    return null;
+  const clock = windowClockOf(draftOwedFacts.wire, draftOwedFacts.clocks);
+  if (!replyWindow(draftOwedFacts.wire, clock, draftOwedFacts.now).open) return null;
+  return { kind: "reply", forMessageId: draftOwedFacts.forMessageId };
 }
 
 /** The share of the day's tokens a draft written ahead may use up to: the rest is the receptionist's (decision 0093, D9). */
@@ -79,8 +84,8 @@ const OUR_FOLLOW_UP =
  * did not. The brain is told not to: this is what is checked of what it wrote.
  */
 export function promisesAFollowUpTime(text: string, given: string): boolean {
-  const said = text.toLowerCase().replace(/’/g, "'");
-  return OUR_FOLLOW_UP.test(said) && !OUR_FOLLOW_UP.test(given.toLowerCase().replace(/’/g, "'"));
+  const sentence = text.toLowerCase().replace(/’/g, "'");
+  return OUR_FOLLOW_UP.test(sentence) && !OUR_FOLLOW_UP.test(given.toLowerCase().replace(/’/g, "'"));
 }
 
 /** Told once more where a draft promised a time anyway. */
@@ -111,24 +116,24 @@ const tidyEnd = (s: string): string => s.replace(/[\s,;:—–-]+$/, "");
  * all ran to 20 words or more and two said "not a customer" after the page's own question. A sentence that is the verdict
  * alone keeps its words: that it is a pitch is worth more than how it is said.
  */
-export function pitchKept(said: string): string {
+export function pitchKept(otherSentence: string): string {
   // The split keeps each edge between its clauses (CLAUSE_EDGE captures it), so a clause kept is joined as it was written.
   let kept = "";
   let words = 0;
   let edge = "";
-  for (const [i, piece] of said.trim().split(CLAUSE_EDGE).entries()) {
+  for (const [i, piece] of otherSentence.trim().split(CLAUSE_EDGE).entries()) {
     if (i % 2) {
       edge = piece;
       continue;
     }
     const clause = piece.trim();
     if (!clause || SAYS_THE_VERDICT.some((r) => r.test(clause))) continue;
-    const n = clause.split(/\s+/).length;
-    if (kept && words + n >= PITCH_WORDS_UNDER) break;
+    const parts = clause.split(/\s+/).length;
+    if (kept && words + parts >= PITCH_WORDS_UNDER) break;
     kept = kept ? `${kept}${edge}${clause}` : clause;
-    words += n;
+    words += parts;
   }
-  const sentence = kept || said.trim();
+  const sentence = kept || otherSentence.trim();
   const all = sentence.split(/\s+/);
   const within =
     all.length >= PITCH_WORDS_UNDER ? `${tidyEnd(all.slice(0, PITCH_WORDS_UNDER - 1).join(" "))}…` : tidyEnd(sentence);

@@ -26,16 +26,14 @@ export {
   followUpsOf,
 } from "./follow-ups";
 export type { AskFollowUp, FollowUpWake, FollowUpWorld } from "./follow-ups";
-export { ASK_GUIDE_PAGES, ASK_PAGE_ONLY_VERBS } from "./guide";
-export type { GuidePage } from "./guide";
 export { ASK_THREAD_ROUTES } from "./inbox";
 export { addProposalSpecs, askUndoOpen, cardOpenRoute, PROPOSAL_GATE, proposalSpec, verbSpec } from "./page-specs";
+export { PAGE_SPECS } from "./page-specs";
 export type { VerbKind } from "./page-specs";
 export { answerSaidOf } from "./people-verbs";
 export { PERSON_DETAIL_WORDS } from "./person";
-export { ASK_SENDS, PROPOSAL_SPECS, proposalBelowNeeds } from "./proposals";
-export type { ProposalKindAboveOperator } from "./proposals";
 export { PROPOSAL_WORDS } from "./spec";
+export { ASK_SENDS } from "./spec";
 export type {
   ProposalCall,
   ProposalEvent,

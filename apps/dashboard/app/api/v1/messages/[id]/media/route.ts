@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/shared/route";
-import { messageMedia } from "@/server/conversations/message-media";
+import { findMessageMedia } from "@/server/conversations/message-media";
 
 /**
  * GET /api/v1/messages/:id/media — a redirect to a short-lived signed URL
@@ -7,10 +7,10 @@ import { messageMedia } from "@/server/conversations/message-media";
  * attachment the edge has actually stored; a redirect built by hand, because
  * Response.redirect()'s headers are immutable and the wrapper stamps its own.
  *
- * The handle is messageMedia in src/server/conversations/message-media.ts: the route is its declaration (who may, how
+ * The handle is findMessageMedia in src/server/conversations/message-media.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 export const GET = read({
   scope: workspace,
-  handle: ({ ctx, member }) => messageMedia(ctx, member),
+  handle: ({ ctx, member }) => findMessageMedia(ctx, member),
 });

@@ -1,7 +1,7 @@
 /**
  * What GET today reads beside the day (Today in three zones, 2 Nov 2026), executed over a database in memory on a fixed
- * clock: "N done today" by Need you's door (readers/today.ts doneToday over db todayDoneCount) and Since you looked
- * (sinceYouLooked over db bellSeenAt, answeredSince and contactNameOf). The 3 Nov audit's items 45, 46, 47, 51 and 56:
+ * clock: "N done today" by Need you's door (readers/today.ts doneToday over db getTodayDoneCount) and Since you looked
+ * (getSinceYouLooked over db findBellSeenAt, findAnsweredSince and findContactName). The 3 Nov audit's items 45, 46, 47, 51 and 56:
  *
  * - the business's day starts where metrics_summary says (its `window.since`), not at UTC's midnight: a decision at six
  *   in the evening in New York is today's;
@@ -17,8 +17,8 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { doneToday, sinceYouLooked } = await import(at("apps/dashboard/src/server/readers/today.ts"));
+const { readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { findDoneToday, getSinceYouLooked } = await import(at("apps/dashboard/src/server/readers/today.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -80,7 +80,7 @@ test("done today: the business's own day, each subject once, the members' counte
     decision("d9b", "hand_back", "c9", "2026-11-02T18:05:00.000Z"),
   ];
   assert.equal(
-    await doneToday(rcOver({ decisions })),
+    await findDoneToday(rcOver({ decisions })),
     4,
     "c2, c3, c4 and c9: REGRESSION, it counted c7's Mark all done its Undo had taken back, and c8's Undo itself",
   );
@@ -99,7 +99,7 @@ const message = (id, status, createdAt, over = {}) => ({
 });
 
 test("since you looked: nothing for a member who never looked; else what the receptionist answered since, its last words cut at a word, to whom", async () => {
-  assert.deepEqual(await sinceYouLooked(rcOver({ notification_reads: [] })), { seen_at: null, answered: null });
+  assert.deepEqual(await getSinceYouLooked(rcOver({ notification_reads: [] })), { seen_at: null, answered: null });
   const seen = "2026-11-03T01:00:00.000Z";
   const unbroken = "x".repeat(300);
   const tables = {
@@ -116,7 +116,7 @@ test("since you looked: nothing for a member who never looked; else what the rec
       message("m6", "sent", "2026-11-03T02:55:00.000Z", { sender: "user" }), // a member's own
     ],
   };
-  const since = await sinceYouLooked(rcOver(tables));
+  const since = await getSinceYouLooked(rcOver(tables));
   assert.equal(since.seen_at, seen);
   assert.equal(since.answered.count, 3);
   assert.equal(since.answered.last.at, "2026-11-03T02:40:00.000Z");
@@ -125,5 +125,5 @@ test("since you looked: nothing for a member who never looked; else what the rec
   assert.ok(text.endsWith("…") && text.length > 200, `REGRESSION: an unbroken reply was cut to one letter: ${text}`);
   // A short reply, whole.
   tables.messages.push(message("m7", "sent", "2026-11-03T03:00:00.000Z", { body: "Saturday at 10 works." }));
-  assert.equal((await sinceYouLooked(rcOver(tables))).answered.last.text, "Saturday at 10 works.");
+  assert.equal((await getSinceYouLooked(rcOver(tables))).answered.last.text, "Saturday at 10 works.");
 });

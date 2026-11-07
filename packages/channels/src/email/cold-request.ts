@@ -5,7 +5,7 @@
  * foot the law asks for, and the one-click unsubscribe sealed for this person and this email. Plain text, with no HTML
  * twin and no Auto-Submitted mark: one person's email from their own mailbox. A step after the first answers the email
  * before it: "Re:" and its Message-ID, so the nudge reads as the same thread (D19). Pure over its inputs; the edge's sender
- * and the sheet's preview read them, and so does a lead's own email (the dashboard's lead-send.ts), so a preview holds what a
+ * and the sheet's preview read them, and so does a lead's own email (the dashboard's leads/send.ts), so a preview holds what a
  * send holds.
  *
  * The slots (Part 4) are filled with their real values: the lead's name and city, the workspace's name, the name the
@@ -103,13 +103,13 @@ export function reachOutWords(
   const texts = subject === null ? [words.body] : [subject, words.body];
   if (texts.some(reachOutSlotFault)) return { ok: false, reason: "unknown_slot" };
   if (subject !== null && !subject.trim()) return { ok: false, reason: "no_subject" };
-  const said = texts.join("\n");
-  if (slotCount(said, "your name") > 0 && !workspace.yourName?.trim()) return { ok: false, reason: "no_signed_by" };
-  if (slotCount(said, "booking link") > 0 && !workspace.bookingLink?.trim())
+  const sentence = texts.join("\n");
+  if (slotCount(sentence, "your name") > 0 && !workspace.yourName?.trim()) return { ok: false, reason: "no_signed_by" };
+  if (slotCount(sentence, "booking link") > 0 && !workspace.bookingLink?.trim())
     return { ok: false, reason: "no_booking_link" };
   if (wordsNeedOpening({ subject, body: words.body }) && !opening?.trim()) return { ok: false, reason: "no_opening" };
   // Their preview (decision 0079), before the lead's own values: being made holds the send, gone skips it.
-  if (slotCount(said, "their preview") > 0 && lead.preview?.state !== "open")
+  if (slotCount(sentence, "their preview") > 0 && lead.preview?.state !== "open")
     return { ok: false, reason: lead.preview?.state === "gone" ? "no_preview" : "preview_building" };
   // Filled by the one fill every email takes (contracts reachOutEmailOf), the one the sheet's and the Templates page's
   // previews read: a value this lead lacks holds this email alone.
@@ -151,24 +151,30 @@ interface DraftInput {
  * sends it (contracts emailTextOf). Refused as reachOutRequest refuses, and where the email before has no subject.
  */
 export function reachOutDraft(
-  i: DraftInput,
+  draftInput: DraftInput,
 ): { ok: true; subject: string; body: string; text: string } | { ok: false; reason: RequestRefusal } {
-  const words = reachOutWords(i.words, i.lead, i.workspace, i.parent !== null, i.opening);
+  const words = reachOutWords(
+    draftInput.words,
+    draftInput.lead,
+    draftInput.workspace,
+    draftInput.parent !== null,
+    draftInput.opening,
+  );
   if (!words.ok) return words;
-  const business = i.workspace.businessName?.trim() ?? "";
-  const address = i.workspace.address?.trim() ?? "";
+  const business = draftInput.workspace.businessName?.trim() ?? "";
+  const address = draftInput.workspace.address?.trim() ?? "";
   if (!business || !address) return { ok: false, reason: "no_business_address" };
-  if (i.parent && !i.parent.subject?.trim()) return { ok: false, reason: "no_subject" };
+  if (draftInput.parent && !draftInput.parent.subject?.trim()) return { ok: false, reason: "no_subject" };
   // Never a mailbox's signature: the owner's own mail app adds theirs.
   const email = coldEmailOf({
     filled: words,
-    before: i.parent?.subject ?? null,
-    written: i.words.body,
-    source: i.lead.source,
+    before: draftInput.parent?.subject ?? null,
+    written: draftInput.words.body,
+    source: draftInput.lead.source,
     business,
     address,
-    signsWith: i.signsWith,
-    signedBy: i.workspace.yourName,
+    signsWith: draftInput.signsWith,
+    signedBy: draftInput.workspace.yourName,
     signature: null,
     unsubscribeUrl: null,
   });
@@ -176,43 +182,49 @@ export function reachOutDraft(
 }
 
 export function reachOutRequest(
-  i: RequestInput,
+  requestInput: RequestInput,
 ):
   | { ok: true; request: EmailRequest; subject: string; body: string; signature: string | null }
   | { ok: false; reason: RequestRefusal } {
-  const words = reachOutWords(i.words, i.lead, i.workspace, i.parent !== null, i.opening);
+  const words = reachOutWords(
+    requestInput.words,
+    requestInput.lead,
+    requestInput.workspace,
+    requestInput.parent !== null,
+    requestInput.opening,
+  );
   if (!words.ok) return words;
   // The foot names who and where (CAN-SPAM): without both there is no email to send, only a refusal to say.
-  const business = i.workspace.businessName?.trim() ?? "";
-  const address = i.workspace.address?.trim() ?? "";
+  const business = requestInput.workspace.businessName?.trim() ?? "";
+  const address = requestInput.workspace.address?.trim() ?? "";
   if (!business || !address) return { ok: false, reason: "no_business_address" };
-  const token = signUnsubscribeToken(i.unsubscribe.secret, {
-    tenantId: i.tenantId,
-    contactId: i.contactId,
-    messageId: i.messageId,
+  const token = signUnsubscribeToken(requestInput.unsubscribe.secret, {
+    tenantId: requestInput.tenantId,
+    contactId: requestInput.contactId,
+    messageId: requestInput.messageId,
   });
-  const url = unsubscribeUrl(i.unsubscribe.origin, token);
+  const url = unsubscribeUrl(requestInput.unsubscribe.origin, token);
   // Laid out as every cold email is (contracts coldEmailOf, which the owner's draft and Send me a test take too): its name
   // under the words, or the mailbox's signature where the sequence chose it, less its link lines in a first email and the
   // address the foot says; the foot says where the finder found the lead (its source, 00430).
   const email = coldEmailOf({
     filled: words,
-    before: i.parent?.subject ?? null,
-    written: i.words.body,
-    source: i.lead.source,
+    before: requestInput.parent?.subject ?? null,
+    written: requestInput.words.body,
+    source: requestInput.lead.source,
     business,
     address,
-    signsWith: i.signsWith,
-    signedBy: i.workspace.yourName,
-    signature: mailboxSignatureOf(i.from)?.text ?? null,
+    signsWith: requestInput.signsWith,
+    signedBy: requestInput.workspace.yourName,
+    signature: mailboxSignatureOf(requestInput.from)?.text ?? null,
     unsubscribeUrl: url,
   });
   let request: EmailRequest;
   try {
     request = buildEmailRequest({
-      identity: connectedIdentity(i.from),
-      to: i.to,
-      parent: i.parent,
+      identity: connectedIdentity(requestInput.from),
+      to: requestInput.to,
+      parent: requestInput.parent,
       ...(words.subject !== null ? { subject: email.subject } : {}),
       body: email.body,
       signature: email.signature,
@@ -221,8 +233,8 @@ export function reachOutRequest(
       plain: true,
       autoSubmitted: false,
       campaign: { unsubscribeUrl: url, footer: email.footer },
-      messageId: i.messageId,
-      tenantId: i.tenantId,
+      messageId: requestInput.messageId,
+      tenantId: requestInput.tenantId,
     });
   } catch {
     // Words no email may carry (a first email whose subject poses as a reply): the step's to fix, never this send's.

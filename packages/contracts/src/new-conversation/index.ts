@@ -19,7 +19,6 @@ export {
   writeWayWords,
   writeWireName,
 } from "./words";
-export { writeReachOf } from "./write-reach";
 export {
   defaultWriteWire,
   startsOn,

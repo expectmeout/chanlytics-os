@@ -10,15 +10,8 @@
  * that sort are the sorts `leads_page` takes, and the server sorts them (the table runs on the read's order); the filters'
  * columns hold the page's narrowings, which the read applies: the Excluded view's chip, the band's fit, the Filter's reach.
  */
-import {
-  LEAD_COLUMN_GROUPS,
-  LEAD_RATED_HINT,
-  LEAD_REVIEW_ACT_WORDS,
-  leadRowActOf,
-  leadStatusOf,
-  type LeadRowActKind,
-  type LeadRowVM,
-} from "@chanlytics/contracts";
+import { LEAD_COLUMN_GROUPS, LEAD_RATED_HINT, LEAD_REVIEW_ACT_WORDS, type LeadRowVM } from "@chanlytics/contracts";
+import { leadRowActOf, leadStatusOf, type LeadRowActKind } from "../row-status";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, gate, hasTouchSwipe, touchSwipe } from "../../frame-verbs";
@@ -443,7 +436,7 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
     face: { initials: l.tile.initials, image: l.tile.image, mark: l.tile.logo },
     pick,
     name: l.name,
-    // Ready is the silent default (lead-row.ts stateTag) and wears nothing here either: "Not contacted" on nearly every
+    // Ready is the silent default (leads/row.ts stateTag) and wears nothing here either: "Not contacted" on nearly every
     // row took a hundred pixels from the names (the phone pass, 3 Nov 2026).
     pill: ldClientOf(l, x) ? (
       <StatePill kind="deal" value="won" testid="lead-state" />

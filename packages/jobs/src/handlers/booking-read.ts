@@ -22,22 +22,23 @@ import {
   type NoticeOutcome,
   type StoredAppointment,
 } from "@chanlytics/core";
-import { emailPlainText, logger } from "@chanlytics/channels";
+import { emailPlainText } from "@chanlytics/channels/email";
+import { logger } from "@chanlytics/log";
 import {
-  appointmentByClientStart,
-  appointmentByKey,
-  appointmentNoticeOf,
+  findAppointmentByClientStart,
+  findAppointmentByKey,
+  findAppointmentNotice,
   insertAppointment,
   keepAppointmentNotice,
   updateAppointment,
-  workspaceZoneOf,
-  clearForwardingConfirmation,
-  emitEvent,
   type AppointmentInsert,
   type AppointmentNoticeRow,
   type AppointmentRow,
   type AppointmentUpdate,
-} from "@chanlytics/db";
+} from "@chanlytics/db/calendar";
+import { findWorkspaceZone } from "@chanlytics/db/workspace";
+import { clearForwardingConfirmation } from "@chanlytics/db/email";
+import { emitEvent } from "@chanlytics/db/events";
 import type { ClaimedJob, JobContext } from "../runner/context";
 import { MAX_ATTEMPTS } from "../runner/ledger";
 
@@ -54,28 +55,28 @@ const isOutcome = (v: string): v is NoticeOutcome => (OUTCOMES as readonly strin
  */
 async function sayBooking(
   db: JobContext["db"],
-  p: { tenantId: string; tool: string; outcome: NoticeOutcome; appointmentId: string | null },
+  params: { tenantId: string; tool: string; outcome: NoticeOutcome; appointmentId: string | null },
 ): Promise<void> {
-  if (!p.appointmentId) return;
-  const data = { source: "booking_email" as const, tool: p.tool };
-  if (p.outcome === "booked")
-    await emitEvent(db, p.tenantId, "appointment.booked", "appointment", p.appointmentId, data);
-  if (p.outcome === "changed")
-    await emitEvent(db, p.tenantId, "appointment.moved", "appointment", p.appointmentId, data);
-  if (p.outcome === "cancelled")
-    await emitEvent(db, p.tenantId, "appointment.cancelled", "appointment", p.appointmentId, data);
+  if (!params.appointmentId) return;
+  const data = { source: "booking_email" as const, tool: params.tool };
+  if (params.outcome === "booked")
+    await emitEvent(db, params.tenantId, "appointment.booked", "appointment", params.appointmentId, data);
+  if (params.outcome === "changed")
+    await emitEvent(db, params.tenantId, "appointment.moved", "appointment", params.appointmentId, data);
+  if (params.outcome === "cancelled")
+    await emitEvent(db, params.tenantId, "appointment.cancelled", "appointment", params.appointmentId, data);
 }
 
 /** The row as the verb reads it: its life and its key, nothing it does not move. */
-function stored(r: AppointmentRow): StoredAppointment {
-  if (!isStatus(r.status)) throw new Error(`booking_read: an appointment is ${r.status}`);
+function stored(appointment: AppointmentRow): StoredAppointment {
+  if (!isStatus(appointment.status)) throw new Error(`booking_read: an appointment is ${appointment.status}`);
   return {
-    id: r.id,
-    status: r.status,
-    starts_at: r.starts_at,
-    ends_at: r.ends_at,
-    external_id: r.external_id,
-    contact_id: r.contact_id,
+    id: appointment.id,
+    status: appointment.status,
+    starts_at: appointment.starts_at,
+    ends_at: appointment.ends_at,
+    external_id: appointment.external_id,
+    contact_id: appointment.contact_id,
   };
 }
 
@@ -85,7 +86,7 @@ function stored(r: AppointmentRow): StoredAppointment {
  */
 function byClientStartOf(db: JobContext["db"], tool: string): BookingNoticePorts["byClientStart"] {
   return async (tenantId, client, startMs, withinMs) => {
-    const r = await appointmentByClientStart(db, tenantId, {
+    const r = await findAppointmentByClientStart(db, tenantId, {
       source: "booking_email",
       tool,
       client,
@@ -105,46 +106,50 @@ function ledgerOf(row: AppointmentNoticeRow): NoticeLedgerEntry {
 }
 
 /** A new row as the table takes it (00342): the notice's source, under its key. */
-function appointmentRowOf(a: NewAppointment): AppointmentInsert {
+function appointmentRowOf(newAppointment: NewAppointment): AppointmentInsert {
   return {
-    tenant_id: a.tenantId,
+    tenant_id: newAppointment.tenantId,
     source: "booking_email",
-    tool: a.tool,
-    external_id: a.externalId,
-    status: a.status,
-    starts_at: a.startsAt,
-    ends_at: a.endsAt,
-    service: a.service,
-    staff: a.staff,
-    price: a.price,
-    note: a.note,
-    client_name: a.client.name,
-    client_phone: a.client.phone,
-    client_email: a.client.email,
-    contact_id: a.contactId,
-    timezone: a.timezone,
+    tool: newAppointment.tool,
+    external_id: newAppointment.externalId,
+    status: newAppointment.status,
+    starts_at: newAppointment.startsAt,
+    ends_at: newAppointment.endsAt,
+    service: newAppointment.service,
+    staff: newAppointment.staff,
+    price: newAppointment.price,
+    note: newAppointment.note,
+    client_name: newAppointment.client.name,
+    client_phone: newAppointment.client.phone,
+    client_email: newAppointment.client.email,
+    contact_id: newAppointment.contactId,
+    timezone: newAppointment.timezone,
   };
 }
 
 /** A patch as the table takes it: only what the notice moved or restated. */
-function patchOf(p: AppointmentPatch): AppointmentUpdate {
+function patchOf(appointmentPatch: AppointmentPatch): AppointmentUpdate {
   return {
-    ...(p.externalId !== undefined ? { external_id: p.externalId } : {}),
-    ...(p.status !== undefined ? { status: p.status } : {}),
-    ...(p.startsAt !== undefined ? { starts_at: p.startsAt } : {}),
-    ...(p.endsAt !== undefined ? { ends_at: p.endsAt } : {}),
-    ...(p.service !== undefined ? { service: p.service } : {}),
-    ...(p.staff !== undefined ? { staff: p.staff } : {}),
-    ...(p.price !== undefined ? { price: p.price } : {}),
-    ...(p.note !== undefined ? { note: p.note } : {}),
-    ...(p.client !== undefined
-      ? { client_name: p.client.name, client_phone: p.client.phone, client_email: p.client.email }
+    ...(appointmentPatch.externalId !== undefined ? { external_id: appointmentPatch.externalId } : {}),
+    ...(appointmentPatch.status !== undefined ? { status: appointmentPatch.status } : {}),
+    ...(appointmentPatch.startsAt !== undefined ? { starts_at: appointmentPatch.startsAt } : {}),
+    ...(appointmentPatch.endsAt !== undefined ? { ends_at: appointmentPatch.endsAt } : {}),
+    ...(appointmentPatch.service !== undefined ? { service: appointmentPatch.service } : {}),
+    ...(appointmentPatch.staff !== undefined ? { staff: appointmentPatch.staff } : {}),
+    ...(appointmentPatch.price !== undefined ? { price: appointmentPatch.price } : {}),
+    ...(appointmentPatch.note !== undefined ? { note: appointmentPatch.note } : {}),
+    ...(appointmentPatch.client !== undefined
+      ? {
+          client_name: appointmentPatch.client.name,
+          client_phone: appointmentPatch.client.phone,
+          client_email: appointmentPatch.client.email,
+        }
       : {}),
-    ...(p.contactId !== undefined ? { contact_id: p.contactId } : {}),
+    ...(appointmentPatch.contactId !== undefined ? { contact_id: appointmentPatch.contactId } : {}),
   };
 }
 
-export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
+export async function runBookingRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const bookings = ctx.bookings;
   if (!bookings) throw new Error("booking_read: this runtime holds no reader");
   const email = ctx.email;
@@ -154,8 +159,8 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
   const { db } = ctx;
   const log = logger({ tenant_id: job.tenant_id });
 
-  const e = await email.fetch(receivedId);
-  if (!e) {
+  const response = await email.fetch(receivedId);
+  if (!response) {
     // The provider no longer has it: nothing can be read, and the delivery stays on the ledger as held, under the tool
     // the intake recognised, so a person sees it was a booking email that went unread rather than nothing at all.
     const tool = typeof job.payload.tool === "string" ? job.payload.tool : null;
@@ -174,15 +179,15 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
     log.warn("booking_notice_held", { job: job.id, received_id: receivedId, tool, outcome: "gone" });
     return;
   }
-  const text = emailPlainText(e);
+  const text = emailPlainText(response);
   // Judged again here, from the email itself: the claim the intake made is not carried, and a delivery that is not a
   // tool's notice after all (the sender list changed between the two runs) is nothing to read.
-  const notice = bookingNoticeOf({ from: e.from, subject: e.subject, text });
+  const notice = bookingNoticeOf({ from: response.from, subject: response.subject, text });
   if (!notice) {
     log.warn("booking_notice_held", { job: job.id, received_id: receivedId, outcome: "not_a_notice" });
     return;
   }
-  const tz = (await workspaceZoneOf(db, job.tenant_id).catch(() => null)) ?? DEFAULT_TIMEZONE;
+  const tz = (await findWorkspaceZone(db, job.tenant_id).catch(() => null)) ?? DEFAULT_TIMEZONE;
   // Held after the reader tried on every try and failed, as against held before any try because it may not be asked; and
   // whether the reader answered this try, after which a throw is a write's, not the reader's.
   let triedAndFailed = false;
@@ -199,25 +204,25 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
         return answer;
       },
       noticeOf: async (tenantId, noticeId) => {
-        const row = await appointmentNoticeOf(db, tenantId, noticeId);
+        const row = await findAppointmentNotice(db, tenantId, noticeId);
         return row ? ledgerOf(row) : null;
       },
-      keepNotice: async (p) => {
+      keepNotice: async (context) => {
         await keepAppointmentNotice(db, {
-          tenant_id: p.tenantId,
-          notice_id: p.noticeId,
-          tool: p.tool,
-          from_address: p.fromAddress,
-          subject: p.subject,
-          received_at: p.receivedAt,
-          outcome: p.outcome,
-          hold_reason: p.holdReason,
-          appointment_id: p.appointmentId,
+          tenant_id: context.tenantId,
+          notice_id: context.noticeId,
+          tool: context.tool,
+          from_address: context.fromAddress,
+          subject: context.subject,
+          received_at: context.receivedAt,
+          outcome: context.outcome,
+          hold_reason: context.holdReason,
+          appointment_id: context.appointmentId,
         });
-        await sayBooking(db, p);
+        await sayBooking(db, context);
       },
       byKey: async (tenantId, key) => {
-        const r = await appointmentByKey(db, tenantId, "booking_email", key);
+        const r = await findAppointmentByKey(db, tenantId, "booking_email", key);
         return r ? stored(r) : null;
       },
       byClientStart: byClientStartOf(db, notice.tool),
@@ -230,7 +235,7 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
       tenantId: job.tenant_id,
       tz,
       tool: notice.tool,
-      email: { id: e.id, from: e.from, subject: e.subject, text, receivedAt: e.createdAt },
+      email: { id: response.id, from: response.from, subject: response.subject, text, receivedAt: response.createdAt },
     },
   ).catch(async (err: unknown) => {
     // A read that threw. A row the table refuses (a check, 23514) will be refused again, and the last try has no next:
@@ -246,9 +251,9 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
       tenant_id: job.tenant_id,
       notice_id: receivedId,
       tool: notice.tool,
-      from_address: e.from?.address ?? null,
-      subject: e.subject,
-      received_at: e.createdAt ?? new Date().toISOString(),
+      from_address: response.from?.address ?? null,
+      subject: response.subject,
+      received_at: response.createdAt ?? new Date().toISOString(),
       outcome: "held",
       hold_reason: reason,
       appointment_id: null,
@@ -280,7 +285,7 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
         noticeId: receivedId,
         // The tool as the product says it ("Booksy"), the words the bell shows.
         tool: bookingToolName(notice.tool) ?? notice.tool,
-        subject: e.subject,
+        subject: response.subject,
         reason: NOTICE_HOLD_WORDS[isNoticeHold(reason) ? reason : "unreadable"],
         hold: reason,
       });

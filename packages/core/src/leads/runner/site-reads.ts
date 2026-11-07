@@ -6,9 +6,10 @@
  * read is paid for when it is made, whether or not the page it served is ever committed (settleSiteReads).
  */
 import { LEAD_SITE_FACT_MAX, LEAD_SITE_READ_USD } from "@chanlytics/contracts";
-import { errField, logger, type SitePage } from "@chanlytics/channels";
+import { type SitePage } from "@chanlytics/channels/website";
+import { errField, logger } from "@chanlytics/log";
 import { bookingPageOfSite } from "../../website/booking-page";
-import { eachAtOnce } from "../../shared/each-at-once";
+import { runEachAtOnce } from "../../shared/each-at-once";
 import { siteWordsOf } from "../../website/site-words";
 import type { CleanPlace } from "../clean";
 import type { LeadPorts } from "../ports";
@@ -49,18 +50,18 @@ export interface SiteReads {
   count(): number;
 }
 
-export function siteReadsOf(p: Pick<LeadPorts, "readSite">): SiteReads {
+export function siteReadsOf(leadPorts: Pick<LeadPorts, "readSite">): SiteReads {
   const pages = new Map<string, Promise<SitePage | null>>();
   return {
     read(host, timeoutMs) {
       const held = pages.get(host);
       if (held) return held;
-      const page = p.readSite ? p.readSite(host, timeoutMs).catch(() => null) : Promise.resolve(null);
+      const page = leadPorts.readSite ? leadPorts.readSite(host, timeoutMs).catch(() => null) : Promise.resolve(null);
       pages.set(host, page);
       return page;
     },
     asked: (host) => pages.has(host),
-    count: () => (p.readSite ? pages.size : 0),
+    count: () => (leadPorts.readSite ? pages.size : 0),
   };
 }
 
@@ -71,15 +72,15 @@ export function siteReadsOf(p: Pick<LeadPorts, "readSite">): SiteReads {
  * nothing, and a whole search would go to review, and ask its owner why, for what is only our outage.
  */
 export async function readSitesBeforeJudge(
-  p: Pick<LeadPorts, "now" | "deadline">,
+  leadPorts: Pick<LeadPorts, "now" | "deadline">,
   sites: SiteReads,
   hosts: readonly string[],
   keep: number,
 ): Promise<void> {
-  const until = Math.min(p.now().getTime() + SITES_ALLOWANCE_MS, p.deadline - keep);
-  const left = () => until - p.now().getTime();
+  const until = Math.min(leadPorts.now().getTime() + SITES_ALLOWANCE_MS, leadPorts.deadline - keep);
+  const left = () => until - leadPorts.now().getTime();
   const answered: (SitePage | null)[] = [];
-  await eachAtOnce(
+  await runEachAtOnce(
     [...new Set(hosts)],
     SITES_AT_ONCE,
     () => left() >= SITE_READ_LEAST_MS,
@@ -97,7 +98,7 @@ export async function readSitesBeforeJudge(
  * and footers a Book button sits in, and stop at the fact's size (5 Nov 2026: a salon that books online read as one
  * that takes calls). A listing whose website is its booking page says so, with nothing read and no credit spent.
  */
-export async function siteFactOf(
+export async function findSiteFact(
   sites: SiteReads,
   { host, bookingPage }: Pick<CleanPlace, "host" | "bookingPage">,
 ): Promise<string | null> {
@@ -116,13 +117,15 @@ export async function siteFactOf(
  * the day it was read in. A write that fails is logged and costs the record, never the page.
  */
 export async function settleSiteReads(
-  p: Pick<LeadPorts, "db">,
+  leadPorts: Pick<LeadPorts, "db">,
   round: { id: string; tenant_id: string },
   sites: SiteReads,
 ): Promise<void> {
   const reads = sites.count();
   if (!reads) return;
-  await p.db.siteReadsSpent(round.tenant_id, round.id, reads, reads * LEAD_SITE_READ_USD).catch((e: unknown) => {
-    sitesLog.warn("lead_site_reads_unsettled", { tenant_id: round.tenant_id, reads, error: errField(e) });
-  });
+  await leadPorts.db
+    .siteReadsSpent(round.tenant_id, round.id, reads, reads * LEAD_SITE_READ_USD)
+    .catch((e: unknown) => {
+      sitesLog.warn("lead_site_reads_unsettled", { tenant_id: round.tenant_id, reads, error: errField(e) });
+    });
 }

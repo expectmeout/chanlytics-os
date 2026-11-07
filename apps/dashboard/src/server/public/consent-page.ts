@@ -12,27 +12,27 @@ import "server-only";
  * page; a paused one keeps it, and asks nobody for a yes (contracts takesSignUps).
  */
 import { publishesBusinessPage, type ConsentPageFacts } from "@chanlytics/contracts";
-import type { PublicWorkspaceRead } from "@chanlytics/db";
+import type { PublicWorkspaceRead } from "@chanlytics/db/workspace";
 import { activeNumberOf, publicFactsFor } from "./facts";
 
 type ConsentPageRow = Required<Pick<ConsentPageFacts, "slug" | "businessPage" | "open">> &
   Omit<ConsentPageFacts, "slug" | "businessPage" | "open">;
 
 /** The page's facts, from the one load. */
-function consentFactsOf(w: PublicWorkspaceRead): ConsentPageRow {
-  const r = w.record;
+function consentFactsOf(workspaceRead: PublicWorkspaceRead): ConsentPageRow {
+  const record = workspaceRead.record;
   return {
-    businessName: w.name,
-    slug: w.slug,
+    businessName: workspaceRead.name,
+    slug: workspaceRead.slug,
     // Whether `/b/<slug>` publishes, so the policy links beside the asks are the business's own.
-    businessPage: publishesBusinessPage(r),
-    whatsappE164: activeNumberOf(w, "whatsapp"),
-    smsE164: activeNumberOf(w, "sms"),
-    open: w.open,
+    businessPage: publishesBusinessPage(record),
+    whatsappE164: activeNumberOf(workspaceRead, "whatsapp"),
+    smsE164: activeNumberOf(workspaceRead, "sms"),
+    open: workspaceRead.open,
   };
 }
 
-export async function consentPageFor(slug: string): Promise<ConsentPageRow | null> {
+export async function findConsentPage(slug: string): Promise<ConsentPageRow | null> {
   const w = await publicFactsFor(slug);
   return w ? consentFactsOf(w) : null;
 }

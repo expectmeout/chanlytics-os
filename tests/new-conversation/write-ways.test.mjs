@@ -11,11 +11,11 @@ import {
   mayMessageFor,
   PURPOSE_REFUSALS,
   startsOn,
-  writeReachOf,
   writeWaysOf,
   WRITE_HOLDS,
   WRITE_HOLD_WORDS,
 } from "@chanlytics/contracts";
+import { writeReachOf } from "../../apps/dashboard/src/server/new-conversation/write-reach.ts";
 
 const NOW = new Date("2026-10-07T15:00:00Z");
 const hoursAgo = (h) => new Date(NOW.getTime() - h * 3_600_000).toISOString();

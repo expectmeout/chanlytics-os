@@ -26,7 +26,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { pgThread } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href);
+const { readPgThread } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href);
 const { isThreadUnknown } = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/thread.ts")).href);
 
 const T = "11111111-1111-1111-1111-111111111111";
@@ -71,7 +71,7 @@ const brokenDb = () => ({
 test("a first-time customer is BLANK, not unknown", async () => {
   // No rows in this conversation yet. Every first-time customer takes this
   // path, and answering it "unknown" refuses to greet any of them.
-  const t = await pgThread(fakeDb({ messages: [] }), T, ing());
+  const t = await readPgThread(fakeDb({ messages: [] }), T, ing());
   assert.equal(isThreadUnknown(t), false, "a first-time customer must not be state-unavailable");
   assert.equal(t.pausedUntil, 0, "a blank thread is not paused");
   assert.deepEqual(t.history, []);
@@ -93,7 +93,7 @@ test("a conversation with rows comes back as the memory the gates read", async (
       row({ id: "a1", created_at: at(29), body: "We open at 9" }),
     ],
   });
-  const t = await pgThread(db, T, ing({ paused_until: new Date(Date.parse(at(-60))).toISOString() }));
+  const t = await readPgThread(db, T, ing({ paused_until: new Date(Date.parse(at(-60))).toISOString() }));
   assert.equal(isThreadUnknown(t), false);
   assert.deepEqual(
     t.history.map((h) => h.role),
@@ -105,7 +105,7 @@ test("a conversation with rows comes back as the memory the gates read", async (
 });
 
 test("a text of ours that left is the only thing that says we have texted them: not a message on another wire, not one that never left, not theirs, and however far back it was", async () => {
-  const texted = async (messages) => (await pgThread(fakeDb({ messages }), T, ing())).textedBefore;
+  const texted = async (messages) => (await readPgThread(fakeDb({ messages }), T, ing())).textedBefore;
   assert.equal(
     await texted([
       row({ id: "w1", created_at: at(60) }),
@@ -140,7 +140,7 @@ test("a text of ours that left is the only thing that says we have texted them: 
 });
 
 test("a read that FAILED is unknown, and fails closed", async () => {
-  const t = await pgThread(brokenDb(), T, ing());
+  const t = await readPgThread(brokenDb(), T, ing());
   assert.equal(isThreadUnknown(t), true, "a database blip must never read as a new customer");
   assert.equal(t.pausedUntil, -1, "the second line of defence: a caller that forgets the check still fails closed");
   assert.deepEqual(t.history, []);
@@ -152,7 +152,7 @@ test("no database, no workspace and no ingest are each unknown too", async () =>
     ["no workspace", [fakeDb({ messages: [] }), null, ing()]],
     ["nothing ingested", [fakeDb({ messages: [] }), T, null]],
   ]) {
-    assert.equal(isThreadUnknown(await pgThread(...args)), true, what);
+    assert.equal(isThreadUnknown(await readPgThread(...args)), true, what);
   }
 });
 
@@ -161,8 +161,8 @@ test("each unknown is its OWN object — no shared sentinel", async () => {
   // identity. Callers mutate what they are handed (`t.pausedUntil = ...`), so
   // every mutation accumulated on the one shared object and leaked between
   // customers inside a warm lambda.
-  const a = await pgThread(null, T, ing());
-  const b = await pgThread(null, T, ing());
+  const a = await readPgThread(null, T, ing());
+  const b = await readPgThread(null, T, ing());
   assert.notEqual(a, b, "two reads returned the same object");
   a.history.push({ role: "user", content: "poison" });
   a.pausedUntil = 999;

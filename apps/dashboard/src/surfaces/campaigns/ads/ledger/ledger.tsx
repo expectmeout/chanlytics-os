@@ -10,8 +10,9 @@
  */
 import { useId } from "react";
 import { ADS_WORDS } from "@chanlytics/contracts";
-import { LEDGER } from "@chanlytics/contracts/ads-page";
-import type { AdRowVM, AdsGroupBy, CellVM, GroupByVM, GroupVM } from "@chanlytics/contracts/ads-page";
+import { LEDGER } from "../model/words-page";
+import type { AdRowVM, AdsGroupBy, GroupByVM, GroupVM } from "../model/page";
+import type { CellVM } from "../model/vm-base";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Panel } from "../../../kit/panel/panel";

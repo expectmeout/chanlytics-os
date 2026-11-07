@@ -19,16 +19,16 @@ import {
   type ReplyUndoRefusal,
 } from "@chanlytics/contracts";
 import {
-  reachOutStepsOf,
-  repliesFor,
+  listReachOutSteps,
+  listRepliesFor,
   replyUndoableOf,
   undoReplyReading,
-  type Json,
   type ReachOutStepRow,
   type ReplyListRow,
-} from "@chanlytics/db";
+} from "@chanlytics/db/campaigns";
+import { type Json } from "@chanlytics/db/types";
 import type { RouteContext } from "../shared/with-route";
-import { mailboxAddressOf, replyFromOf, replyIdentitiesOf } from "../connections/email";
+import { findMailboxAddress, replyFromOf, replyIdentitiesOf } from "../connections/email";
 
 /** A chain's name and the step's place in it, 1 for its first email, by walking back to the chain's first step. */
 function stepOf(
@@ -37,14 +37,14 @@ function stepOf(
 ): { chain: string | null; step: number | null } {
   let at = playbookId ? steps.get(playbookId) : undefined;
   if (!at) return { chain: null, step: null };
-  let n = 1;
-  while (at.after_playbook_id && n <= steps.size) {
+  let count = 1;
+  while (at.after_playbook_id && count <= steps.size) {
     const before = steps.get(at.after_playbook_id);
     if (!before) break;
     at = before;
-    n += 1;
+    count += 1;
   }
-  return { chain: at.name, step: n };
+  return { chain: at.name, step: count };
 }
 
 /** Where an answer on each thread goes out from, as the freeze will decide it (connections/email.ts replyIdentitiesOf). */
@@ -53,8 +53,8 @@ async function replyFromByThread(
   tenantId: string,
   conversations: string[],
 ): Promise<Map<string, ReplyFrom>> {
-  const who = await replyIdentitiesOf(ctx, tenantId, conversations);
-  return new Map([...who].map(([id, w]) => [id, replyFromOf(w)] as const));
+  const replyIdentities = await replyIdentitiesOf(ctx, tenantId, conversations);
+  return new Map([...replyIdentities].map(([id, w]) => [id, replyFromOf(w)] as const));
 }
 
 /**
@@ -90,59 +90,62 @@ function planFacts(plan: Json): Pick<ReachOutReplyDto, "said_no" | "step_day"> {
 export async function listReplies(
   ctx: RouteContext,
   tenantId: string,
-  q: ReachOutRepliesQuery,
+  repliesQuery: ReachOutRepliesQuery,
   now = Date.now(),
 ): Promise<ReachOutRepliesDto> {
   const floor = now - REACH_OUT_REPLY_DAYS * DAY_MS;
-  const since = q.since && Date.parse(q.since) > floor ? new Date(Date.parse(q.since)) : new Date(floor);
-  const rows = await repliesFor(ctx.supabase, {
+  const since =
+    repliesQuery.since && Date.parse(repliesQuery.since) > floor
+      ? new Date(Date.parse(repliesQuery.since))
+      : new Date(floor);
+  const rows = await listRepliesFor(ctx.supabase, {
     tenantId,
     since: since.toISOString(),
-    conversationId: q.conversation_id ?? null,
+    conversationId: repliesQuery.conversation_id ?? null,
     limit: REPLIES_PAGE,
   });
   const [steps, from, undoable, mailbox] = await Promise.all([
-    rows.length ? reachOutStepsOf(ctx.supabase, tenantId) : Promise.resolve([]),
+    rows.length ? listReachOutSteps(ctx.supabase, tenantId) : Promise.resolve([]),
     replyFromByThread(ctx, tenantId, [...new Set(rows.map((r) => r.conversation_id))]),
     undoableByMessage(ctx, rows),
-    mailboxAddressOf(ctx, tenantId),
+    findMailboxAddress(ctx, tenantId),
   ]);
   const byId = new Map(steps.map((s) => [s.id, s]));
-  const replies = rows.map((r): ReachOutReplyDto => {
-    const { chain, step } = stepOf(r.playbook_id, byId);
+  const replies = rows.map((row): ReachOutReplyDto => {
+    const { chain, step } = stepOf(row.playbook_id, byId);
     return {
-      message_id: r.message_id,
-      conversation_id: r.conversation_id,
-      read_at: r.read_at,
-      intent: r.intent as ReachOutReplyDto["intent"], // the table's check holds it to REPLY_INTENTS
-      claim: r.claim as ReachOutReplyDto["claim"], // and this to the three claims
-      summary: r.summary,
-      named_day: r.named_day,
-      refer_to: r.refer_to,
-      unread: isUnread(r.unread) ? r.unread : null,
-      reread: r.rereads > 0,
-      rereads: r.rereads,
-      undone: r.undone_at !== null,
-      can_undo: undoable.has(r.message_id),
-      draft: r.draft,
-      draft_state: DRAFT_STATES.has(r.draft_state) ? (r.draft_state as ReachOutReplyDto["draft_state"]) : "none",
-      draft_why: isDraftWhy(r.draft_why) ? r.draft_why : null,
-      business: r.business,
+      message_id: row.message_id,
+      conversation_id: row.conversation_id,
+      read_at: row.read_at,
+      intent: row.intent as ReachOutReplyDto["intent"], // the table's check holds it to REPLY_INTENTS
+      claim: row.claim as ReachOutReplyDto["claim"], // and this to the three claims
+      summary: row.summary,
+      named_day: row.named_day,
+      refer_to: row.refer_to,
+      unread: isUnread(row.unread) ? row.unread : null,
+      reread: row.rereads > 0,
+      rereads: row.rereads,
+      undone: row.undone_at !== null,
+      can_undo: undoable.has(row.message_id),
+      draft: row.draft,
+      draft_state: DRAFT_STATES.has(row.draft_state) ? (row.draft_state as ReachOutReplyDto["draft_state"]) : "none",
+      draft_why: isDraftWhy(row.draft_why) ? row.draft_why : null,
+      business: row.business,
       chain,
       step,
-      reply_from: from.get(r.conversation_id) ?? { from: "mailbox", because: null },
-      ...planFacts(r.plan),
-      until_at: r.until_at,
+      reply_from: from.get(row.conversation_id) ?? { from: "mailbox", because: null },
+      ...planFacts(row.plan),
+      until_at: row.until_at,
     };
   });
   return { replies, mailbox };
 }
 
 /** A refusal in the undo door's own words, as the status a caller reads it by. */
-function undoRefusal(why: ReplyUndoRefusal): AppError {
-  if (why === "not_found") return new AppError("not_found", REPLY_UNDO_REFUSALS.not_found, 404);
-  if (why === "role") return new AppError("forbidden", REPLY_UNDO_REFUSALS.role, 403);
-  return new AppError("conflict", REPLY_UNDO_REFUSALS[why], 409);
+function undoRefusal(reason: ReplyUndoRefusal): AppError {
+  if (reason === "not_found") return new AppError("not_found", REPLY_UNDO_REFUSALS.not_found, 404);
+  if (reason === "role") return new AppError("forbidden", REPLY_UNDO_REFUSALS.role, 403);
+  return new AppError("conflict", REPLY_UNDO_REFUSALS[reason], 409);
 }
 
 /**
@@ -150,8 +153,8 @@ function undoRefusal(why: ReplyUndoRefusal): AppError {
  * door refuses, so what the member is told is the reason that held when it refused, in contracts' words.
  */
 export async function undoReading(ctx: RouteContext, messageId: string): Promise<{ undone: true; result: Json }> {
-  const why = await replyUndoableOf(ctx.supabase, messageId);
-  if (why) throw undoRefusal(isReplyUndoRefusal(why) ? why : "not_found");
+  const reason = await replyUndoableOf(ctx.supabase, messageId);
+  if (reason) throw undoRefusal(isReplyUndoRefusal(reason) ? reason : "not_found");
   try {
     return { undone: true, result: await undoReplyReading(ctx.supabase, messageId) };
   } catch (e) {

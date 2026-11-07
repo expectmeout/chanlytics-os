@@ -28,50 +28,47 @@ import {
   type ConsentChannel,
   type ParamSpec,
   type PersonRowVM,
+  UUID,
 } from "@chanlytics/contracts";
-import { campaignHowOf } from "@chanlytics/core";
-import { monthSentOrNull } from "../../../campaigns/month-sent";
-import { archivedListWords, poolList } from "../../../people/audience";
-import { createBroadcastPorts } from "../../../ports/campaign-ports";
-import { load } from "../../../readers";
+import { readCampaignHowOf } from "@chanlytics/core";
+import { readMonthSentOrNull } from "../../../campaigns/month-sent";
+import { archivedListWords, findPoolList } from "../../../campaigns/audience";
+import { createBroadcastPorts } from "../../../campaigns/ports";
+import { load } from "../../../shared/reader";
 import { audiencePool } from "../../../readers/audience-pool";
 import { lists as listsReader } from "../../../readers/lists";
 import {
   AUDIENCES_CALL,
-  UUID,
-  actAction,
-  askedMessage,
+  getAskedMessage,
   namedChannels,
-  propose,
   proposedChannels,
-  refuse,
   stepMessage,
   stepNamed,
   str,
-  touchesThisWeek,
-  whatsappAloneRefusal,
-  whatsappHow,
+  findTouchesThisWeek,
+  findWhatsappAloneRefusal,
+  getWhatsappHow,
   type AskedMessage,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../context";
+} from "../context/tool-reads";
+import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
 import { cardSays, stepSays } from "./says";
 import { holdsOf, sheetWords } from "./playbook-card";
 
 /** The values a proposal fills the message's slots with: typed text once, or one the job fills per person; or the refusal. */
 function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: string } {
   const specs: ParamSpec[] = [];
-  for (const p of Array.isArray(params) ? (params as unknown[]) : []) {
-    const spec = parseParamSpec(p);
+  for (const item of Array.isArray(params) ? (params as unknown[]) : []) {
+    const spec = parseParamSpec(item);
     if (!spec) return { refusal: "each value is text, or @first_name, @business_name, @booking_link or @review_link" };
     if (spec.kind !== "text") {
       specs.push(spec);
       continue;
     }
-    const v = cleanParam(spec.value);
-    if (v === null)
+    const result = cleanParam(spec.value);
+    if (result === null)
       return { refusal: "every typed value must be plain text under 1024 characters, without line breaks" };
-    specs.push({ kind: "text", value: v });
+    specs.push({ kind: "text", value: result });
   }
   return { specs };
 }
@@ -80,30 +77,30 @@ function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: st
  * The channels a broadcast proposal goes by, and how the workspace can carry it by them, or the refusal. By WhatsApp when
  * it names no channel, and the workspace ready on it or not: with no number the route refuses, in these words, and a card
  * the route then refuses has wasted the operator's approval. By the channels it names, the route's own rule (core
- * campaignHowOf): a tick the workspace cannot send on, whose message has no version, or that the purpose never carries
+ * readCampaignHowOf): a tick the workspace cannot send on, whose message has no version, or that the purpose never carries
  * (texts carry no offers) is refused in the composers' words, before any count. `message` null is one an earlier step of
  * the plan writes, judged by the workspace's channels alone (context.ts stepMessage).
  */
 async function broadcastBy(
-  t: ToolContext,
+  toolContext: ToolContext,
   message: Pick<CampaignMessage, "versions"> | null,
   purpose: AskedPurpose,
-  asked: unknown,
+  value: unknown,
 ): Promise<{ how: CampaignHow; channels: ConsentChannel[]; named: boolean } | { refusal: string }> {
-  const given = proposedChannels(asked);
+  const given = proposedChannels(value);
   if ("refusal" in given) return given;
   const { channels, named } = given;
   if (!named) {
     // A broadcast is the business's news (contracts MessageAbout, decision D1).
-    const how = await whatsappHow(t, "ours");
+    const how = await getWhatsappHow(toolContext, "ours");
     return how.ready.whatsapp.ready
       ? { how, channels, named }
       : { refusal: `${how.ready.whatsapp.why ?? "WhatsApp is not ready"}` };
   }
   try {
-    const ports = createBroadcastPorts(t.ctx, t.tenantId, { fresh: false });
+    const ports = createBroadcastPorts(toolContext.ctx, toolContext.tenantId, { fresh: false });
     return {
-      how: (await campaignHowOf(ports, message ?? stepMessage(channels), channels, purpose)).how,
+      how: (await readCampaignHowOf(ports, message ?? stepMessage(channels), channels, purpose)).how,
       channels,
       named,
     };
@@ -114,20 +111,23 @@ async function broadcastBy(
 }
 
 /**
- * The message a broadcast proposal is made on, from the id the model gave: read as the route reads it (tools/context.ts
+ * The message a broadcast proposal is made on, from the id the model gave: read as the route reads it (tools/context/context.ts
  * askedMessage), and, where the proposal names no channel and the message has no WhatsApp version to go by, refused before
- * anyone is counted with what it can go by (whatsappAloneRefusal), or the refusal.
+ * anyone is counted with what it can go by (findWhatsappAloneRefusal), or the refusal.
  */
 async function broadcastMessage(
-  t: ToolContext,
+  toolContext: ToolContext,
   id: string,
   channels: unknown,
 ): Promise<AskedMessage | { refusal: string }> {
-  const asked = await askedMessage(t, id);
-  if ("refusal" in asked) return asked;
+  const otherAskedMessage = await getAskedMessage(toolContext, id);
+  if ("refusal" in otherAskedMessage) return otherAskedMessage;
   // A broadcast is the business's news (contracts MessageAbout, decision D1).
-  const no = channels === undefined || channels === null ? await whatsappAloneRefusal(t, asked.message, "ours") : null;
-  return no ? { refusal: no } : asked;
+  const no =
+    channels === undefined || channels === null
+      ? await findWhatsappAloneRefusal(toolContext, otherAskedMessage.message, "ours")
+      : null;
+  return no ? { refusal: no } : otherAskedMessage;
 }
 
 /**
@@ -166,25 +166,25 @@ function broadcastReach(
 /**
  * Who a broadcast card sends to (broadcastReach), with how many are left out in the composer's words and their separator
  * (" · 1 left out: they hear from you within a week of it"; none where nobody does), or why there is no card: who heard
- * unread (context.ts touchesThisWeek, logged there) is no card, since "nobody heard" would promise a send to people the
+ * unread (context.ts findTouchesThisWeek, logged there) is no card, since "nobody heard" would promise a send to people the
  * route then leaves out. Who is left out is judged for the time the card is set for (`sendsAt`, now where it goes at
  * once), either side, as the route judges it (contracts leftOutBy). Nobody it reaches is said in the route's words, which
  * say which cause it is (nobody said this yes, or the ones who did have no number); everyone it reaches being left out is
  * said as the composer says it, and sending to them too is a person's own switch there, never Ask's.
  */
 async function broadcastCount(
-  t: ToolContext,
+  toolContext: ToolContext,
   aud: { rows: PersonRowVM[]; label: string; purpose: AskedPurpose },
   by: { how: CampaignHow; channels: ConsentChannel[]; named: boolean },
   sendsAt: Date,
 ): Promise<(ReturnType<typeof broadcastReach> & { leftOutSaid: string }) | { refusal: string }> {
   const { rows, label, purpose } = aud;
-  const touches = await touchesThisWeek(t, "propose_sequence.once");
+  const touches = await findTouchesThisWeek(toolContext, "propose_sequence.once");
   if (!touches) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
-  const reach = broadcastReach(rows, purpose, by, leftOutBy(touches, sendsAt.getTime(), t.now.getTime()));
+  const reach = broadcastReach(rows, purpose, by, leftOutBy(touches, sendsAt.getTime(), toolContext.now.getTime()));
   if (reach.count > 0) {
-    const said = heardWords(reach.leftOut, true);
-    return { ...reach, leftOutSaid: said ? ` · ${said}` : "" };
+    const sentence = heardWords(reach.leftOut, true);
+    return { ...reach, leftOutSaid: sentence ? ` · ${sentence}` : "" };
   }
   if (reach.leftOut > 0)
     return {
@@ -204,14 +204,14 @@ async function broadcastCount(
  * counted.
  */
 async function broadcastHeld(
-  t: ToolContext,
+  toolContext: ToolContext,
   channels: readonly ConsentChannel[],
   byChannel: Record<ConsentChannel, number>,
   purpose: AskedPurpose,
   goesAt: Date,
 ): Promise<string> {
   if (!channels.some((c) => c !== "whatsapp")) return "";
-  const words = allowanceBeforeSend(byChannel, await monthSentOrNull(t.tenantId, goesAt), null, purpose);
+  const words = allowanceBeforeSend(byChannel, await readMonthSentOrNull(toolContext.tenantId, goesAt), null, purpose);
   return words ? ` · ${words}` : "";
 }
 
@@ -229,8 +229,8 @@ function goesWords(t: ToolContext, when: string | null, open: { at: Date; moved:
  * its offset: a bare date is midnight UTC, the evening before here, and the route refuses it after the person approved
  * the card.
  */
-function proposedWhen(asked: unknown): { when: string | null } | { refusal: string } {
-  const when = str(asked, 40) || null;
+function proposedWhen(value: unknown): { when: string | null } | { refusal: string } {
+  const when = str(value, 40) || null;
   if (when && (Number.isNaN(Date.parse(when)) || !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(when)))
     return { refusal: "scheduled_for must be an ISO time with its offset, like 2026-09-20T15:00:00-04:00" };
   return { when };
@@ -250,21 +250,21 @@ interface BroadcastProposed {
 /**
  * Who a broadcast goes to, counted the way the route will count it: the pool and the list the route will read, so the
  * count here is the count it enrols, once a turn, so a listing of the audiences before it read the same pool
- * (readers/audience-pool.ts). Any list is counted the way the send will count it (audience.ts poolList): a built-in or a
+ * (readers/audience-pool.ts). Any list is counted the way the send will count it (audience.ts findPoolList): a built-in or a
  * saved list alike, and one that can't be counted here refused with why. One of the workspace's own is counted from the
  * lists the turn holds (readers/lists.ts, as sequences.lists read them), never read again.
  */
 async function broadcastAudience(
-  t: ToolContext,
+  toolContext: ToolContext,
   kind: string,
   audienceId: string | null,
 ): Promise<{ rows: PersonRowVM[]; label: string } | { refusal: string }> {
-  const pool = (await load(t.rc, audiencePool, undefined)).data;
+  const pool = (await load(toolContext.rc, audiencePool, undefined)).data;
   if (kind === "everyone" || audienceId === null) return { rows: pool.rows, label: EVERYONE_LABEL };
-  const kept = kind === "saved" ? (await load(t.rc, listsReader, undefined)).data.lists : undefined;
-  const found = await poolList(
-    t.ctx,
-    t.tenantId,
+  const kept = kind === "saved" ? (await load(toolContext.rc, listsReader, undefined)).data.lists : undefined;
+  const found = await findPoolList(
+    toolContext.ctx,
+    toolContext.tenantId,
     pool,
     { kind: kind === "list" ? "builtin" : "saved", id: audienceId },
     kept,
@@ -282,7 +282,7 @@ async function broadcastAudience(
  * it needs is the offer's a plan's message is (context.ts stepMessage).
  */
 async function sentMessage(
-  t: ToolContext,
+  toolContext: ToolContext,
   named: { templateId: string; step: number | null; channels: unknown },
   params: readonly ParamSpec[],
 ): Promise<
@@ -293,14 +293,14 @@ async function sentMessage(
   const { templateId, step } = named;
   if (step !== null) return { asked: null, step, purpose: stepMessage([]).purpose };
   // The message the route will read, by any of its versions' ids: the same verb, so the same words.
-  const asked = await broadcastMessage(t, templateId, named.channels);
-  if ("refusal" in asked) return asked;
-  const { slots } = asked.message;
+  const otherBroadcastMessage = await broadcastMessage(toolContext, templateId, named.channels);
+  if ("refusal" in otherBroadcastMessage) return otherBroadcastMessage;
+  const { slots } = otherBroadcastMessage.message;
   if (params.length !== slots)
     return { refusal: `this template takes ${slots} value${slots === 1 ? "" : "s"}, in order` };
   // The same purpose the route will derive, from the same message this function already read. An assistant that proposes
   // a broadcast the route then refuses has wasted the operator's approval.
-  return { asked, purpose: asked.message.purpose };
+  return { asked: otherBroadcastMessage, purpose: otherBroadcastMessage.message.purpose };
 }
 
 /**
@@ -315,12 +315,12 @@ function messageSaid(
   return sent.asked ? cardSays(sent.asked, params, by, 160) : { says: stepSays(sent.step, params) };
 }
 
-async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promise<ProposalOutcome> {
+async function proposeBroadcast(toolContext: ToolContext, input: BroadcastProposed): Promise<ProposalOutcome> {
   const templateId = str(input.template_id, 40);
   const kind = str(input.audience_kind, 10);
   const audienceId = str(input.audience_id, 60) || null;
   // An earlier step of Ask's plan's message, named by its token (context.ts stepNamed), or an id the reads returned.
-  const step = stepNamed(t, templateId);
+  const step = stepNamed(toolContext, templateId);
   if (step === null && !UUID.test(templateId)) return refuse(`template_id must be an id ${AUDIENCES_CALL} returned`);
   if (!(AUDIENCE_KINDS as readonly string[]).includes(kind))
     return refuse("audience_kind must be everyone, list or saved");
@@ -331,45 +331,48 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   const given = proposedValues(input.params);
   if ("refusal" in given) return refuse(given.refusal);
   const params = given.specs;
-  const sent = await sentMessage(t, { templateId, step, channels: input.channels }, params);
+  const sent = await sentMessage(toolContext, { templateId, step, channels: input.channels }, params);
   if ("refusal" in sent) return refuse(sent.refusal);
   const { asked, purpose } = sent;
-  const audience = await broadcastAudience(t, kind, audienceId);
+  const audience = await broadcastAudience(toolContext, kind, audienceId);
   if ("refusal" in audience) return refuse(audience.refusal);
   const { rows, label } = audience;
-  const by = await broadcastBy(t, asked?.message ?? null, purpose, input.channels);
+  const by = await broadcastBy(toolContext, asked?.message ?? null, purpose, input.channels);
   if ("refusal" in by) return refuse(by.refusal);
   const asWhen = proposedWhen(input.scheduled_for);
   if ("refusal" in asWhen) return refuse(asWhen.refusal);
   const { when } = asWhen;
-  const sendsAt = when ? new Date(Date.parse(when)) : t.now;
+  const sendsAt = when ? new Date(Date.parse(when)) : toolContext.now;
   // Who is left out is judged for the time it is set for, as the route judges it: within a week of it, either side.
-  const reach = await broadcastCount(t, { rows, label, purpose }, by, sendsAt);
+  const reach = await broadcastCount(toolContext, { rows, label, purpose }, by, sendsAt);
   if ("refusal" in reach) return refuse(reach.refusal);
   const { count, says, kept, byChannel, leftOutSaid } = reach;
   // A step's message is not filed yet: the card says which step makes it, and quotes the offer its values type.
-  const said = messageSaid(sent, params, by);
-  if ("refusal" in said) return refuse(said.refusal);
+  const sentence = messageSaid(sent, params, by);
+  if ("refusal" in sentence) return refuse(sentence.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it; a step's message is
   // named by the route once it is filed.
-  const name = str(input.name, 80) || (asked ? broadcastName(asked.message.name, t.timezone, t.now) : null);
+  const name =
+    str(input.name, 80) || (asked ? broadcastName(asked.message.name, toolContext.timezone, toolContext.now) : null);
   // The moment it really goes, once: the month the allowance is counted in, and the time the card says.
-  const open = nextOpenMoment(t.timezone, sendsAt);
-  const whenWords = goesWords(t, when, open);
-  const held = await broadcastHeld(t, by.channels, byChannel, purpose, open.at);
-  const what = asked ? `“${asked.message.name}” · ${whenWords}: ${said.says}` : `${said.says} · ${whenWords}`;
+  const open = nextOpenMoment(toolContext.timezone, sendsAt);
+  const whenWords = goesWords(toolContext, when, open);
+  const held = await broadcastHeld(toolContext, by.channels, byChannel, purpose, open.at);
+  const subject = asked
+    ? `“${asked.message.name}” · ${whenWords}: ${sentence.says}`
+    : `${sentence.says} · ${whenWords}`;
   const reaches = `${count} ${count === 1 ? "person" : "people"} who said yes${says}`;
   return propose({
     kind: "broadcast",
     title: `Send to ${label}`,
-    summary: `${reaches}${held}${leftOutSaid} · ${what}`,
+    summary: `${reaches}${held}${leftOutSaid} · ${subject}`,
     // The same pieces as a sheet (playbook-card.ts): who it reaches, when it goes, what it says; what holds it apart.
     sheet: {
       holds: holdsOf(held, leftOutSaid),
       rows: [
         { label: "Reaches", value: sheetWords(reaches) },
         { label: "Goes", value: sheetWords(whenWords) },
-        { label: "Message", value: sheetWords(asked ? `“${asked.message.name}”: ${said.says}` : said.says) },
+        { label: "Message", value: sheetWords(asked ? `“${asked.message.name}”: ${sentence.says}` : sentence.says) },
       ],
     },
     payload: {

@@ -22,10 +22,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const versions = await import(at("apps/dashboard/app/api/v1/templates/versions/route.ts"));
 
-after(() => setServiceClient(null));
+after(() => setUnsubscribeServiceClient(null));
 beforeEach(() => setRateStore(memoryStore()));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -151,7 +151,7 @@ async function refused(p, code, status, words) {
 /** The service role's save, as the door answers it: what it was asked, recorded. */
 function serviceSave(answer = () => ({ root_id: ROOT_ID, step_ids: [ROOT_ID, STEP2], rechecked: 0 })) {
   const asked = [];
-  setServiceClient(
+  setUnsubscribeServiceClient(
     fakeDb(
       {},
       {},

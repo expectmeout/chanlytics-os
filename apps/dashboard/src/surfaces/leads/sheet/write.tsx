@@ -10,12 +10,12 @@
  */
 import {
   LEAD_OWN_EMAIL_WORDS as OW,
-  LEAD_SHEET_WORDS as W,
   LEAD_WORDS as LW,
   REACH_OUT_TO_SEND_LABELS as L,
   composeLinksOf,
   type LeadPeekVM,
 } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS as W } from "./model/view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";

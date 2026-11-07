@@ -4,10 +4,10 @@
  * (00430) starts its one run in people.ts.
  */
 
-import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
+import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels/leads";
 import { peoplePlanOf } from "@chanlytics/contracts";
 import { CARDS, MAPS_RUN_TIMEOUT_SECS } from "../cards";
-import { runIdFor, sha256Hex } from "../ids";
+import { runIdFor, hashSha256Hex } from "../ids";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
 import { mainAsk, probeAsk, probeYield, runCaps, runsRoom, type TermsAsk, type TermsTried } from "../sizing";
 import { claimOrRecover, startFailed } from "./claim";
@@ -48,7 +48,7 @@ type WantedRun = { id: string; term: string; hash: string; places: number; cap: 
  * provider.
  */
 async function runsToStart(
-  p: LeadPorts,
+  leadPorts: LeadPorts,
   roundId: string,
   phase: Phase,
   ask: TermsAsk,
@@ -65,7 +65,7 @@ async function runsToStart(
       continue;
     }
     const id = await runIdFor(roundId, phase, term);
-    wanted.push({ id, term, hash: await sha256Hex(await p.webhookToken(id)), places, cap });
+    wanted.push({ id, term, hash: await hashSha256Hex(await leadPorts.webhookToken(id)), places, cap });
   }
   for (const term of ask.waiting) untried.push({ term, kind: "no_room" });
   return { wanted, untried };
@@ -78,7 +78,7 @@ async function runsToStart(
  * every term it would ask has read all a term may: there is nothing new to pay for, and it says so.
  */
 async function nothingToStart(
-  p: LeadPorts,
+  leadPorts: LeadPorts,
   roundId: string,
   phase: Phase,
   untried: TermSaid[],
@@ -86,7 +86,7 @@ async function nothingToStart(
   begun: boolean,
 ): Promise<StartOutcome> {
   if (begun) return { kind: "started", phase, runs: untried };
-  await p.db.roundEnd(roundId, room > 0 ? "few_new_matches" : "budget_used");
+  await leadPorts.db.roundEnd(roundId, room > 0 ? "few_new_matches" : "budget_used");
   return { kind: "spent" };
 }
 
@@ -108,28 +108,33 @@ async function runningYield(p: LeadPorts, round: LeadRoundRow): Promise<number> 
  * what it read is what a new ask must go past. This round's probe says exactly, and the search's earlier rounds by the
  * places they kept of each term. A main run of this round is one this phase began.
  */
-async function termsTried(p: LeadPorts, round: LeadRoundRow, own: LeadMemberRow[]): Promise<TermsTried> {
+async function termsTried(leadPorts: LeadPorts, round: LeadRoundRow, own: LeadMemberRow[]): Promise<TermsTried> {
   const read = new Map<string, number>();
   const begun = new Set<string>();
-  for (const r of await p.db.runsOfRound(round.id)) {
+  for (const r of await leadPorts.db.runsOfRound(round.id)) {
     if (r.purpose !== "discover" || r.term === null) continue;
     if ((await runIdFor(round.id, "probe", r.term)) === r.id) read.set(r.term, r.items_seen);
     else begun.add(r.term);
   }
   const ours = new Set(own.map((m) => m.lead_id));
-  for (const m of await p.db.membersOfSearch(round.search_id))
+  for (const m of await leadPorts.db.membersOfSearch(round.search_id))
     if (!ours.has(m.lead_id) && m.term !== null) read.set(m.term, (read.get(m.term) ?? 0) + 1);
   return { read, begun };
 }
 
-export async function startRound(p: LeadPorts, roundId: string, owner: string, resume = false): Promise<StartOutcome> {
-  const round = await p.db.round(roundId);
+export async function startRound(
+  leadPorts: LeadPorts,
+  roundId: string,
+  owner: string,
+  resume = false,
+): Promise<StartOutcome> {
+  const round = await leadPorts.db.round(roundId);
   if (!round || round.state === "ended") return { kind: "not_open" };
   // Searching switched off for this workspace, or a workspace that may no longer spend (its plan lapsed or its card
   // failed since the door reserved): nothing new reaches the provider, and the round ends as a switched-off one does.
-  const held = await heldBack(p, round.tenant_id);
+  const held = await heldBack(leadPorts, round.tenant_id);
   if (held) {
-    await p.db.roundEnd(round.id, "paused");
+    await leadPorts.db.roundEnd(round.id, "paused");
     return { kind: held };
   }
   // What this round still has reserved. Nothing left starts nothing: the
@@ -137,12 +142,12 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
   // round never reserved (S6), so the round ends on the word for it instead.
   const leftUsd = round.cost_reserved_usd - round.cost_usd;
   if (leftUsd <= 0) {
-    await p.db.roundEnd(round.id, "budget_used");
+    await leadPorts.db.roundEnd(round.id, "budget_used");
     return { kind: "spent" };
   }
   // A people search (00430): one run for its filters, no probe and no terms.
   const people = peoplePlanOf(round.plan);
-  if (people) return startPeople(p, round, people, owner, leftUsd);
+  if (people) return startPeople(leadPorts, round, people, owner, leftUsd);
   const plan = round.plan;
   const card = CARDS[plan.card];
   const phase: Phase = round.purpose === "probe" && !resume && round.state !== "running" ? "probe" : "main";
@@ -155,65 +160,69 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
   } else {
     // An answer that changed the plan (Include, Change what I asked) re-judges the places the probe already judged
     // under it first: what it lets in comes back, what it now leaves out goes, and the rest is sized from that.
-    if (resume && round.answered === "include" && round.purpose === "probe") await rejudgeProbe(p, round);
-    const members = await p.db.membersOfRound(round.id);
+    if (resume && round.answered === "include" && round.purpose === "probe") await rejudgeProbe(leadPorts, round);
+    const members = await leadPorts.db.membersOfRound(round.id);
     const judged = members.filter(wasWeighed);
     const counted = members.filter((m) => m.counted).length;
     // Round 1 sizes from its probe; a top-up or a renewal from what the search found in every round before it.
-    const y = round.purpose === "probe" ? probeYield(judged) : await runningYield(p, round);
+    const other = round.purpose === "probe" ? probeYield(judged) : await runningYield(leadPorts, round);
     // The question said "I'm dropping X: it mostly returned those", and a yes accepted it. An answer that changed the
     // plan is a new plan, and its terms are the owner's: the dropped one finds the very kind they just included.
     const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;
-    const tried = await termsTried(p, round, members);
+    const tried = await termsTried(leadPorts, round, members);
     begun = tried.begun.size > 0;
-    ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm, room, tried);
+    ask = mainAsk(plan, targetOf(round) - counted, other, dropTerm, room, tried);
   }
-  const { wanted, untried } = await runsToStart(p, round.id, phase, ask, runCaps(plan, ask.perTerm, leftUsd));
-  if (!wanted.length) return nothingToStart(p, round.id, phase, untried, room, begun);
-  const rows = await p.db.runsEnsure(
-    wanted.map((w) => ({
-      id: w.id,
+  const { wanted, untried } = await runsToStart(leadPorts, round.id, phase, ask, runCaps(plan, ask.perTerm, leftUsd));
+  if (!wanted.length) return nothingToStart(leadPorts, round.id, phase, untried, room, begun);
+  const rows = await leadPorts.db.runsEnsure(
+    wanted.map((item) => ({
+      id: item.id,
       tenant_id: round.tenant_id,
       round_id: round.id,
       purpose: "discover",
-      term: w.term,
+      term: item.term,
       actor: card.actor,
       build: card.build,
-      webhook_token_hash: w.hash,
-      cap_usd: w.cap,
+      webhook_token_hash: item.hash,
+      cap_usd: item.cap,
     })),
   );
 
   const outcomes: TermSaid[] = [];
-  for (const w of wanted) {
-    const row = rows.find((r) => r.id === w.id);
-    if (!row) throw new Error(`lead_round_start: the run row for ${w.term} was not made`);
+  for (const item of wanted) {
+    const row = rows.find((r) => r.id === item.id);
+    if (!row) throw new Error(`lead_round_start: the run row for ${item.term} was not made`);
     if (row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner)) {
-      outcomes.push({ term: w.term, kind: "already" });
+      outcomes.push({ term: item.term, kind: "already" });
       continue;
     }
-    if (outOfTime(p)) throw new LeadRetry("out of time before a start: the ledger tries the rest again");
-    const claim = await claimOrRecover(p, card.actor, row, owner);
+    if (outOfTime(leadPorts)) throw new LeadRetry("out of time before a start: the ledger tries the rest again");
+    const claim = await claimOrRecover(leadPorts, card.actor, row, owner);
     if (claim !== "mine") {
-      outcomes.push({ term: w.term, kind: claim === "recovered" ? "reconciled" : "someone_elses" });
+      outcomes.push({ term: item.term, kind: claim === "recovered" ? "reconciled" : "someone_elses" });
       continue;
     }
-    const token = await p.webhookToken(row.id);
-    const input = { ...(card.buildInput(plan, w.term, w.places) as Record<string, unknown>), [INPUT_MARKER]: row.id };
+    const token = await leadPorts.webhookToken(row.id);
+    const input = {
+      ...(card.buildInput(plan, item.term, item.places) as Record<string, unknown>),
+      [INPUT_MARKER]: row.id,
+    };
     try {
-      const started = await p.apify.startRun(card.actor, input, {
+      const started = await leadPorts.apify.startRun(card.actor, input, {
         build: card.build,
         timeoutSecs: MAPS_RUN_TIMEOUT_SECS,
-        maxTotalChargeUsd: w.cap,
-        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }],
+        maxTotalChargeUsd: item.cap,
+        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(leadPorts, row.id, token) }],
       });
-      await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, w.cap);
-      await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
-      outcomes.push({ term: w.term, kind: "started" });
+      await leadPorts.db.runRecordStart(row.id, owner, started.id, started.datasetId, item.cap);
+      await leadPorts.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
+      outcomes.push({ term: item.term, kind: "started" });
     } catch (e) {
-      outcomes.push({ term: w.term, ...(await startFailed(p, row, owner, e)) });
+      outcomes.push({ term: item.term, ...(await startFailed(leadPorts, row, owner, e)) });
     }
   }
-  if (outcomes.length && outcomes.every((o) => o.kind === "refused")) await p.db.roundEnd(round.id, "source_failed");
+  if (outcomes.length && outcomes.every((o) => o.kind === "refused"))
+    await leadPorts.db.roundEnd(round.id, "source_failed");
   return { kind: "started", phase, runs: [...outcomes, ...untried] };
 }

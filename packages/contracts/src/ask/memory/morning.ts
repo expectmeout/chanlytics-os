@@ -7,7 +7,7 @@
  *
  * Pure: the route, the page and the tests read the same question, limits and words.
  */
-import type { AskProposal } from "../ask";
+import type { AskProposal } from "../thread-words";
 import type { AskRested } from "./findings";
 import type { AskLately } from "./lately";
 

@@ -1,5 +1,5 @@
 /**
- * What a sequence's head offers, judged once (decision 0072, contracts sequence-acts.ts), executed on records as GET
+ * What a sequence's head offers, judged once (decision 0072, contracts sequences/acts.ts), executed on records as GET
  * sequences/:id answers them: every act against every kind of sequence and every state, each offered or not, with why
  * and the act offered in its place; and Turn on asked first, in the words a campaign's Resume asks (decision 7), from the
  * record's first step and its reach (GET sequences/:id/reach): when and to about how many, and that it sends on its own

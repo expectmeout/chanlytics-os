@@ -15,7 +15,8 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { resetBreakers, signEdgeToken } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";

@@ -29,7 +29,7 @@ const TRAILING = / (?:please|pls|plz|por favor|porfa|porfavor|thanks|thank you|t
  * apostrophe, punctuation and emoji as spaces, and the courtesy at either end set aside.
  */
 function plain(words: string): string {
-  let s = words
+  let text = words
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
@@ -37,11 +37,11 @@ function plain(words: string): string {
     .replace(/[^a-z0-9' ]+/g, " ")
     .replace(/ +/g, " ")
     .trim();
-  for (let before = ""; before !== s;) {
-    before = s;
-    s = s.replace(LEADING, "").replace(TRAILING, "");
+  for (let before = ""; before !== text;) {
+    before = text;
+    text = text.replace(LEADING, "").replace(TRAILING, "");
   }
-  return s;
+  return text;
 }
 
 const NOT = "(?:do not|don't|dont)";

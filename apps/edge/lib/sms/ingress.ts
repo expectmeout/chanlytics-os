@@ -25,13 +25,19 @@
  * argument, so a test hands it one in memory and the real functions run.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
-import { resolveChannelDetailed } from "@chanlytics/db";
-import type { RoutedChannel } from "@chanlytics/db";
-import { verifyTwilioSignature, smsBody, oneTimeCodeOf, SMS_HELD_REASON, SMS_HELD_DETAILS } from "@chanlytics/channels";
-import type { ProviderAccount, SmsInbound } from "@chanlytics/channels";
-import { lineByNumber, lineAccount } from "./sms.js";
-import type { SmsLine, SmsSender } from "./sms.js";
+import type { Database } from "@chanlytics/db/types";
+import { resolveChannelDetailed } from "@chanlytics/db/channels";
+import type { RoutedChannel } from "@chanlytics/db/channels";
+import {
+  verifyTwilioSignature,
+  smsBody,
+  oneTimeCodeOf,
+  SMS_HELD_REASON,
+  SMS_HELD_DETAILS,
+} from "@chanlytics/channels/lines";
+import type { ProviderAccount, SmsInbound } from "@chanlytics/channels/lines";
+import { findLineByNumber, findLineAccount } from "../lines/sms.js";
+import type { SmsLine, SmsSender } from "../lines/sms.js";
 import type { InboundCarrier } from "@chanlytics/core";
 import type { LogEvent } from "../shared/log.js";
 
@@ -57,7 +63,7 @@ type Db = SupabaseClient<Database>;
  * A code is a text that proved to be a one-time code some other service sent to the line (oneTimeCodeOf, Meta's when the
  * owner connects the line's number to WhatsApp), whatever state the line is in: the line, the signature and the routing
  * were proven first, so it is a text to this workspace's line, and `from` is the name of the service when the text said
- * one. It is not answered and not kept; the owner reads it from the provider's own record (lib/lines/line-codes.ts).
+ * one. It is not answered and not kept; the owner reads it from the provider's own record (lib/lines/codes.ts).
  */
 type SmsVerdict =
   | {
@@ -76,7 +82,7 @@ type SmsVerdict =
 /** One suppression key for every text to a number no line carries, whatever the caller writes in `To`. */
 const UNKNOWN_LINE_ALERT_KEY = "unknown-line";
 
-export async function planSmsIngress(o: {
+export async function planSmsIngress(options: {
   inbound: SmsInbound;
   /** Twilio's POST fields, exactly as they arrived: the signature covers every one. */
   form: Record<string, string>;
@@ -85,7 +91,7 @@ export async function planSmsIngress(o: {
   signature: string | null;
   db: Db;
 }): Promise<SmsVerdict> {
-  const { inbound, form, url, signature, db } = o;
+  const { inbound, form, url, signature, db } = options;
 
   // The line and its account before anything is trusted. Twilio does not
   // retry an inbound text, so a read that throws was once a customer's words
@@ -93,8 +99,8 @@ export async function planSmsIngress(o: {
   let line: SmsLine | null;
   let acct: ProviderAccount | null;
   try {
-    line = await lineByNumber(db, inbound.to);
-    acct = line ? await lineAccount(db, line) : null;
+    line = await findLineByNumber(db, inbound.to);
+    acct = line ? await findLineAccount(db, line) : null;
   } catch {
     return {
       kind: "refuse",
@@ -175,12 +181,12 @@ export async function planSmsIngress(o: {
  * them could not be read, or the line or its channel is gone, so the ledger tries again and after that the deadman sweep
  * hands the text to a person.
  */
-export async function lineForAnswer(
+export async function getLineForAnswer(
   db: Db,
   inbound: SmsInbound,
 ): Promise<{ line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean }> {
-  const line = await lineByNumber(db, inbound.to);
-  const acct = line ? await lineAccount(db, line) : null;
+  const line = await findLineByNumber(db, inbound.to);
+  const acct = line ? await findLineAccount(db, line) : null;
   if (!line || !acct) throw new Error("inbound_answer: no line with its account carries the number texted");
   const { channel: routed } = await resolveChannelDetailed(db, "sms", inbound.to);
   if (!routed) throw new Error("inbound_answer: the number's sms channel could not be read, or is not active");

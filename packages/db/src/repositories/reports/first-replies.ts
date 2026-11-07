@@ -1,7 +1,7 @@
 /**
  * The receptionist's first replies (`first_replies`, 00303): the one rule for who answered and how fast, which `report_series` and
  * `metrics_summary` both read, asked for Today's day so its sentences about speed can say each reply against its hold. The one place
- * the function is called by name, in a module of its own beside the report functions (report-series.ts); the dashboard asks on the
+ * the function is called by name, in a module of its own beside the report functions (reports/series.ts); the dashboard asks on the
  * session client, so RLS decides what a member reads (SECURITY INVOKER). A read that fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -15,7 +15,7 @@ type Db = SupabaseClient<Database>;
  * Reports and on Today at the slack's edge. Only the ones the receptionist answered; each keeps the moment it was asked, so a
  * caller can keep a window's own.
  */
-export async function firstReplies(
+export async function listFirstReplies(
   db: Db,
   tenantId: string,
   since: Date,

@@ -40,10 +40,10 @@ export interface ConsentDecision {
   source: ConsentSource;
 }
 
-export function resolveConsent(i: ConsentInputs): ConsentDecision {
+export function resolveConsent(consentInputs: ConsentInputs): ConsentDecision {
   // 1. The message in hand outranks any record. Local knowledge, so it holds
   //    even with no database at all — and a STOP must never wait on a query.
-  if (i.optOutNow) return { optedOut: true, source: "this_message" };
+  if (consentInputs.optOutNow) return { optedOut: true, source: "this_message" };
 
   // 2. An explicit START is the documented way back, and it must work whatever
   //    the record says — the one state a customer cannot otherwise escape by
@@ -52,10 +52,10 @@ export function resolveConsent(i: ConsentInputs): ConsentDecision {
   //    person said since, so the record decides (3). A START, then a STOP,
   //    then the START's answer run late is held by the STOP: no confirmation
   //    the door would refuse, and no "the customer said yes" for a person.
-  if (i.optInNow && !i.takenAgain) return { optedOut: false, source: "this_message" };
+  if (consentInputs.optInNow && !consentInputs.takenAgain) return { optedOut: false, source: "this_message" };
 
   // 3. Postgres owns consent. When it answered, its answer is final.
-  if (i.recorded !== null) return { optedOut: i.recorded, source: "record" };
+  if (consentInputs.recorded !== null) return { optedOut: consentInputs.recorded, source: "record" };
 
   // 4. No record at all: there is nothing to go on and the reply proceeds,
   //    which is the pre-existing behaviour and is documented as the remaining

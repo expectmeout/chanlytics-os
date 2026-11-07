@@ -11,8 +11,8 @@ import {
   areaCodeOf,
   forwardingCarrierOf,
   FIRST_RUN_PHONE_WORDS as W,
-  FIRST_RUN_HELPERS,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/helpers.ts";
 
 const NOW = Date.parse("2026-09-24T15:00:00Z");
 const LISTED = "+13055550100";

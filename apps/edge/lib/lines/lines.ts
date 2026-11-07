@@ -8,24 +8,27 @@
  * Cross-workspace: a routing key is unique platform-wide; its row is read unfiltered to refuse another's claim.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tenantDb, type Database, type Json } from "@chanlytics/db";
+import { tenantDb } from "@chanlytics/db/shared";
+import { type Database, type Json } from "@chanlytics/db/types";
 import {
   chooseLineProvider,
   twilioProvider,
   dryProvider,
-  importPhoneNumber,
-  voiceEndpoints,
   smsInboundUrl,
-  withKey,
   type LinePorts,
   type LineRow,
   type LineProvider,
   type LineProviderName,
   type ProviderAccount,
+} from "@chanlytics/channels/lines";
+import {
+  importPhoneNumber,
+  voiceEndpoints,
+  withKey,
   type RetellConfig,
   type ProvisionSecrets,
-} from "@chanlytics/channels";
-import { ensureVoiceAgent } from "../voice/agent.js";
+} from "@chanlytics/channels/voice";
+import { ensureVoiceAgent } from "./voice-agent.js";
 import { lineDtoOf, type LineDto } from "@chanlytics/contracts";
 import { env } from "../shared/env.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
@@ -52,25 +55,25 @@ type Row = Database["public"]["Tables"]["lines"]["Row"];
 const facts = (j: Json): Record<string, unknown> => (j && typeof j === "object" && !Array.isArray(j) ? j : {});
 
 /** The row as the saga reads it. */
-export function rowToLine(r: Row): LineRow {
+export function rowToLine(row: Row): LineRow {
   return {
-    id: r.id,
-    tenant_id: r.tenant_id,
-    e164: r.e164,
-    provider: r.provider,
-    area_code: r.area_code,
-    subaccount_sid: r.subaccount_sid,
-    number_sid: r.number_sid,
-    trunk_sid: r.trunk_sid,
-    credential_list_sid: r.credential_list_sid,
-    termination_uri: r.termination_uri,
-    messaging_service_sid: r.messaging_service_sid,
-    retell_agent_id: r.retell_agent_id,
-    voice_state: r.voice_state as LineRow["voice_state"],
-    step: r.step as LineRow["step"],
-    last_error: r.last_error,
-    state_since: r.state_since,
-    facts: facts(r.facts),
+    id: row.id,
+    tenant_id: row.tenant_id,
+    e164: row.e164,
+    provider: row.provider,
+    area_code: row.area_code,
+    subaccount_sid: row.subaccount_sid,
+    number_sid: row.number_sid,
+    trunk_sid: row.trunk_sid,
+    credential_list_sid: row.credential_list_sid,
+    termination_uri: row.termination_uri,
+    messaging_service_sid: row.messaging_service_sid,
+    retell_agent_id: row.retell_agent_id,
+    voice_state: row.voice_state as LineRow["voice_state"],
+    step: row.step as LineRow["step"],
+    last_error: row.last_error,
+    state_since: row.state_since,
+    facts: facts(row.facts),
   };
 }
 
@@ -83,8 +86,8 @@ function isRegistered(r: Pick<Row, "brand_sid" | "campaign_sid">): boolean {
  * What the page may see of a line: never a SID that opens a door. The one builder the dashboard's read of the lines
  * uses too (contracts lineDtoOf), with `registered`, which only this side may say: it holds the brand and the campaign.
  */
-export function lineForClient(r: Row): LineDto {
-  return lineDtoOf(r, isRegistered(r));
+export function lineForClient(row: Row): LineDto {
+  return lineDtoOf(row, isRegistered(row));
 }
 
 export function linePorts(
@@ -293,7 +296,7 @@ export async function releaseRoutingRows(
     // Ordered, because with three lines on one agent row `limit(1)` unordered
     // picks whichever the planner happened to return -- and what is picked
     // becomes the number this workspace publishes. The oldest, which is the
-    // same line `ensureVoiceAgent`, `line_forwarding_set` and `businessPageFor`
+    // same line `ensureVoiceAgent`, `line_forwarding_set` and `findBusinessPage`
     // all settle on when a workspace has more than one.
     const shared = await db
       .from("lines")

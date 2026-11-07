@@ -6,7 +6,7 @@ reference; this page is the one place that says how the voice side fits together
 ## Two roads to a line, one agent
 
 - **A Chanlytics line**: a Twilio number over SIP, bought and set up by the lines saga (S-07), which makes the agent
-  through `apps/edge/lib/voice/agent.ts`.
+  through `apps/edge/lib/lines/voice-agent.ts`.
 - **A number the voice provider holds**: `POST /api/admin/voice-provision` (`tooling/scripts/ops/voice/voice-provision.mjs`
   is its thin client), dry run by default.
 
@@ -16,7 +16,7 @@ provider account answers every workspace's line: its limit on calls at once is e
 
 ## The shell
 
-`packages/channels/src/voice/shell.ts` defines everything the agent is told that is not a fact: the prompt and its
+`packages/channels/src/voice/shell/agent-plan.ts` defines everything the agent is told that is not a fact: the prompt and its
 placeholders (`{{business_facts}}`, `{{caller_context}}`, `{{greeting}}`, `{{handoff_number}}`), a spoken default for
 each, four tools (`check_availability`, `send_booking_link`, `transfer_to_staff`, `end_call`), the webhook events, the
 post-call analysis fields, the call's feel and the call's limits (`CALL_LIMITS`: twenty minutes a call, thirty seconds of

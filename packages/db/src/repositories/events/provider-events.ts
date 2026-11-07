@@ -36,18 +36,18 @@ export interface KeptDeliveryRow extends KeptDelivery {
  * Keeps one delivery; a redelivery under the same id keeps the first. Answers the write's error, never throws: a door
  * must not refuse a provider because the ledger could not take a copy.
  */
-export async function keepProviderEvent(db: Db, d: KeptDelivery): Promise<{ error: string | null }> {
+export async function keepProviderEvent(db: Db, keptDelivery: KeptDelivery): Promise<{ error: string | null }> {
   const { error } = await db
     .from("provider_events")
     .upsert(
-      { ...d, headers: d.headers as Json, verified: true },
+      { ...keptDelivery, headers: keptDelivery.headers as Json, verified: true },
       { onConflict: "provider,provider_event_id", ignoreDuplicates: true },
     );
   return { error: error?.message ?? null };
 }
 
 /** A kept delivery by its key; null when none, or when it has been purged. */
-export async function providerEventOf(
+export async function findProviderEvent(
   db: Db,
   provider: DeliveryProvider,
   providerEventId: string,

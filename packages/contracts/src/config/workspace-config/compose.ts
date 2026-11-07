@@ -20,8 +20,8 @@ import { bookingHeld, draftMoneyRule, policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 import { offersAnswerRule, offersAskRule } from "./offers-ask";
 import { CONVERSATION_UNDER_WAY } from "./assistant-disclosure";
-import { hoursLines, joinList } from "./prompt-hours";
-import { dayInZone } from "../../calendar/zone-math";
+import { promptHoursLines, joinList } from "./prompt-hours";
+import { dayInZone } from "../../shared/zone/math";
 import { dateFormat } from "../../shared/time";
 
 /**
@@ -121,8 +121,10 @@ export function notesInForce<N extends Pick<Note, "until">>(
  * A note as the receptionist is told it: "Parking: …", or with its last day, named as a single closed day is,
  * "Holiday hours (until Saturday, October 10, 2026): …". The prompt's line after its "- ", and Ask's facts' alike.
  */
-export function noteAsTold(n: Pick<Note, "title" | "text" | "until">): string {
-  return n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`;
+export function noteAsTold(note: Pick<Note, "title" | "text" | "until">): string {
+  return note.until
+    ? `${note.title} (until ${labelDate(note.until, true)}): ${note.text}`
+    : `${note.title}: ${note.text}`;
 }
 
 function closureLines(closures: Closure[]): string[] {
@@ -316,7 +318,7 @@ function composeSystemPromptWith(
   )
     ? link
     : null;
-  const hrs = hoursLines(profile.hours);
+  const hrs = promptHoursLines(profile.hours);
   // EVERY upcoming closure, not the first handful. A cap here and a larger cap
   // on the schema is a silent divergence between what an owner can store and
   // what the receptionist will ever say — and because the list is sorted
@@ -387,7 +389,7 @@ const PROMPT_SECTIONS: readonly PromptSection[] = [
 
 /** Who the receptionist is and where it answers, its tone, and the languages it speaks. */
 function identitySection({ base, profile, channel, wire, audience }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   // The wire it answers on, never one it does not: a text was told it answered over WhatsApp until 11 Oct 2026.
   const medium =
     wire === "voice"
@@ -401,18 +403,18 @@ function identitySection({ base, profile, channel, wire, audience }: SectionFact
             : "over WhatsApp";
   if (audience === "draft") {
     // A draft is written for the person who will send it (decision 0093): it has no name of its own to give.
-    s.push(`You write replies for ${base.business_name}, whose team answers customers ${medium}.`);
+    texts.push(`You write replies for ${base.business_name}, whose team answers customers ${medium}.`);
   } else {
-    s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
+    texts.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
     // The receptionist's own name (decision 0073): said in the greeting, and how it introduces itself; never a claim to
     // be a person (standingRules says it is the business's automated assistant, whatever its name).
     const named = (profile.assistant_name ?? "").trim();
-    if (named) s.push(`Your name is ${named}. Introduce yourself by it, as the business's automated assistant.`);
+    if (named) texts.push(`Your name is ${named}. Introduce yourself by it, as the business's automated assistant.`);
   }
-  if (profile.tone) s.push(`Tone: ${profile.tone}`);
+  if (profile.tone) texts.push(`Tone: ${profile.tone}`);
   if (profile.languages?.length) {
     const list = profile.languages.join(", ");
-    s.push(
+    texts.push(
       channel === "voice"
         ? // A call hears only these: the line listens for its workspace's languages (voice-converge's locales). A caller
           // picks the language by speaking it; nobody asks a phone agent to "reply in Spanish".
@@ -422,40 +424,40 @@ function identitySection({ base, profile, channel, wire, audience }: SectionFact
           `The business serves customers in: ${list}. Reply in the language the customer writes in, and switch if they do.`,
     );
   }
-  return s;
+  return texts;
 }
 
 /** How to reach the business: its address, phone number, booking link and website, each only when there is one. */
 function contactSection({ base, profile, link }: SectionFacts): string[] {
-  const s: string[] = [];
-  if (profile.address) s.push(`\nAddress: ${profile.address}`);
+  const texts: string[] = [];
+  if (profile.address) texts.push(`\nAddress: ${profile.address}`);
   // Omitted when there is none. A receptionist that has no number to give is
   // not improved by being told to say "undefined"; it answers, offers the
   // booking link, and does not invent a way to be phoned.
-  if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
-  if (link) s.push(`Booking link: ${link}`);
-  if (profile.website) s.push(`Website: ${profile.website}`);
-  return s;
+  if (base.phone_display) texts.push(`Phone: ${base.phone_display}`);
+  if (link) texts.push(`Booking link: ${link}`);
+  if (profile.website) texts.push(`Website: ${profile.website}`);
+  return texts;
 }
 
 /** The opening hours, a line for each run of days that share them, in the business's zone when it is known. */
 function hoursSection({ tz, hrs }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   if (hrs.length) {
     // "09:30–18:00" is not a fact until you say where. A customer calling from
     // another state gets a straight answer either way; the model needs the zone
     // to reconcile these with the clock it is given separately.
     const where = tz ? ` (all times ${tz})` : "";
-    s.push(`\n${PROMPT_OPENINGS.hours}${where}:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
+    texts.push(`\n${PROMPT_OPENINGS.hours}${where}:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
-  return s;
+  return texts;
 }
 
 /** The dates still ahead that the business is shut, whatever its hours say. */
 function closuresSection({ closed }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   if (closed.length) {
-    s.push(
+    texts.push(
       `\n${PROMPT_OPENINGS.closures}, whatever the opening hours above say:\n${closed
         .map((l) => `- ${l}`)
         .join(
@@ -463,12 +465,12 @@ function closuresSection({ closed }: SectionFacts): string[] {
         )}\nIf someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`,
     );
   }
-  return s;
+  return texts;
 }
 
 /** The services, each with how long it takes and its price note when it has them. */
 function servicesSection({ profile }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
       const bits = [sv.name];
@@ -476,9 +478,9 @@ function servicesSection({ profile }: SectionFacts): string[] {
       if (sv.price_note) bits.push(sv.price_note);
       return `- ${bits.join(" — ")}`;
     });
-    s.push(`\n${PROMPT_OPENINGS.services}\n${lines.join("\n")}`);
+    texts.push(`\n${PROMPT_OPENINGS.services}\n${lines.join("\n")}`);
   }
-  return s;
+  return texts;
 }
 
 /**
@@ -496,7 +498,7 @@ function notesSection({ notes }: SectionFacts): string[] {
  * the notes.
  */
 function bookingRulesSection({ profile }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   const br = profile.booking_rules;
   if (
     br &&
@@ -508,9 +510,9 @@ function bookingRulesSection({ profile }: SectionFacts): string[] {
       br.walk_ins)
   ) {
     const lines = bookingRuleLines(br);
-    s.push(`\n${PROMPT_OPENINGS.bookingRules}\n${lines.map((l) => `- ${l}`).join("\n")}`);
+    texts.push(`\n${PROMPT_OPENINGS.bookingRules}\n${lines.map((l) => `- ${l}`).join("\n")}`);
   }
-  return s;
+  return texts;
 }
 
 /** Walk-ins, in a line each answer says (booking_rules.walk_ins). */
@@ -552,7 +554,7 @@ function bookingRuleLines(br: BookingRules): string[] {
 /** How to hand the customer to a person, and when: in chat the [[HUMAN]] token, on a call the transfer or a message. Never in a draft: draft-audience.ts. */
 function handoffSection({ profile, channel, audience }: SectionFacts): string[] {
   if (audience === "draft") return [];
-  const s: string[] = [];
+  const texts: string[] = [];
   // HOW to hand off, not just when — and unconditionally, because the product
   // promise depends on it.
   //
@@ -574,7 +576,7 @@ function handoffSection({ profile, channel, audience }: SectionFacts): string[] 
     // Said around escalate, the record's own field, which every answer carries and the rules below name: it read
     // as though the token were the only way, a few lines above rules that say to set escalate (the engine review's
     // second pass, 11 Oct 2026). The token stays for the one reply read without its record (brain.ts legacyReply).
-    s.push(
+    texts.push(
       `\n${PROMPT_OPENINGS.handoffChat}\n` +
         `Set escalate to true: that is what tells a person and holds the conversation for ` +
         `them — saying you will fetch someone does nothing on its own. Write the reply you ` +
@@ -600,12 +602,12 @@ function handoffSection({ profile, channel, audience }: SectionFacts): string[] 
       ? "Use transfer_to_staff during opening hours — it rings the line a person answers, and you stay on until they pick up. " +
         "Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up."
       : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
-    s.push(
+    texts.push(
       `\n${PROMPT_OPENINGS.handoffCall}\n${staffed}\n` +
         `Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
     );
   }
-  return s;
+  return texts;
 }
 
 /**
@@ -613,20 +615,20 @@ function handoffSection({ profile, channel, audience }: SectionFacts): string[] 
  * take) and end_call.
  */
 function callToolsSection({ base, channel, link, handed }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   if (channel !== "whatsapp") {
-    s.push(
+    texts.push(
       `\n${PROMPT_OPENINGS.callTools} before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n` +
         `${handed ? callBookingLine(base) : link ? cannotSendLink(base.whatsapp_line) : noLinkBooking("voice")}\n` +
         "Ending: once the caller has said goodbye, use end_call.",
     );
   }
-  return s;
+  return texts;
 }
 
 /** The owner's own words, under a line saying which details above win and, on a call, where the words came from. */
 function ownWordsSection({ profile, channel, hrs, closed }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   if (profile.extra_instructions?.trim()) {
     // A business's own prose almost always restates the address, the hours or
     // the services. Once a form fills those in structurally there are two
@@ -659,18 +661,18 @@ function ownWordsSection({ profile, channel, hrs, closed }: SectionFacts): strin
     ]
       .filter(Boolean)
       .join(" ");
-    s.push(header ? `\n${header}\n${text}` : `\n${text}`);
+    texts.push(header ? `\n${header}\n${text}` : `\n${text}`);
   }
-  return s;
+  return texts;
 }
 
 /** How to speak on this medium: short, with no URL read out, on a call; the booking link (or what to take) in chat; a draft's own shape. */
 function mediumSection({ base, channel, wire, link, handed, audience }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   if (audience === "draft") {
     const shape = wire === "email" ? EMAIL_DRAFT_SHAPE : PROMPT_OPENINGS.chatMedium;
-    s.push(`\n${shape} ${link ? "Send the booking link rather than describing how to book." : noLinkDraft()}`);
-    return s;
+    texts.push(`\n${shape} ${link ? "Send the booking link rather than describing how to book." : noLinkDraft()}`);
+    return texts;
   }
   // Medium, not facts. A phone caller cannot re-read a paragraph. The link is offered the ways the call can send it.
   const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
@@ -683,23 +685,23 @@ function mediumSection({ base, channel, wire, link, handed, audience }: SectionF
     ? `Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link ${by} instead.`
     : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
-  s.push(
+  texts.push(
     channel === "voice"
       ? `\n${PROMPT_OPENINGS.callMedium} ${callMedium}`
       : `\n${PROMPT_OPENINGS.chatMedium} ${chatMedium}`,
   );
-  return s;
+  return texts;
 }
 
 /** What to do with the open times listed after these instructions: offer up to three, then the link or the details. */
 function openTimesSection({ handed, policy }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   // Open times, when the workspace has a calendar feed, arrive AFTER these
   // instructions (with the clock: they change by the minute and must not
   // evict the cached profile). The receptionist names them; it never books.
   // Under a booking hold a person confirms, as the openings block and the Autonomy rule say: never the link here. A
   // business with no link to hand over has nothing to hold back, as the openings block reads it (describeOpenings).
-  s.push(
+  texts.push(
     `\n${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` +
       (handed && bookingHeld(policy)
         ? "then say a member of the team will call or text them to confirm one, and take their name — the calendar decides, never you. If none are listed, do not guess at open times."
@@ -707,7 +709,7 @@ function openTimesSection({ handed, policy }: SectionFacts): string[] {
           ? "then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link."
           : `then take ${NO_LINK_DETAILS} so the team can confirm one — the calendar decides, never you. If none are listed, do not guess at open times.`),
   );
-  return s;
+  return texts;
 }
 
 /**
@@ -756,11 +758,11 @@ export function standingRules(
  * the ask for that yes (offers-ask.ts), and the standing rules (the Autonomy rows, the fence).
  */
 function rulesSection({ base, profile, channel, policy, link, handed, audience }: SectionFacts): string[] {
-  const s: string[] = [];
+  const texts: string[] = [];
   // LAST: the owner's switches, then the lines every prompt carries (standingRules).
-  const g = guardrailsInForce(profile.guardrails);
+  const result = guardrailsInForce(profile.guardrails);
   const rules: string[] = [];
-  if (g.never_quote_prices) {
+  if (result.never_quote_prices) {
     rules.push(
       `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`,
     );
@@ -772,7 +774,7 @@ function rulesSection({ base, profile, channel, policy, link, handed, audience }
       `Say a price only as the business wrote it in the details above, exactly as written and in digits; never work one out or estimate one. For any other price, say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`,
     );
   }
-  if (g.never_confirm_booking) {
+  if (result.never_confirm_booking) {
     rules.push(
       `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`,
     );
@@ -784,7 +786,7 @@ function rulesSection({ base, profile, channel, policy, link, handed, audience }
     rules.push(offersAnswerRule(!!base.whatsapp_line));
     if (base.whatsapp_line) rules.push(offersAskRule());
   }
-  if (g.no_health_advice) {
+  if (result.no_health_advice) {
     rules.push(
       `Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${handed ? " and offer the booking link" : ""}.`,
     );
@@ -793,6 +795,6 @@ function rulesSection({ base, profile, channel, policy, link, handed, audience }
   // on both channels' prompts, so a switch flipped once changes both — and the
   // one line every agent is given about someone else's words (ai/fence.ts).
   rules.push(...standingRules(policy, channel, audience));
-  if (rules.length) s.push(`\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`);
-  return s;
+  if (rules.length) texts.push(`\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`);
+  return texts;
 }

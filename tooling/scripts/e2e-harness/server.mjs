@@ -77,7 +77,7 @@ export function answer(method, pathname, params, record) {
   if (!read) return refused(pathname);
   // Every read the app makes names its workspace (surface-data.ts scoped()), by its id or, from a page at its
   // address, by its slug (bridge/workspace.ts getActiveWorkspace); one that did not would be refused in
-  // production by memberContext, and is refused here for the same reason.
+  // production by getMemberContext, and is refused here for the same reason.
   const named = params.get("workspace");
   if (pathname !== "/api/v1/workspaces" && named !== WORKSPACE.id && named !== WORKSPACE.slug) {
     return { status: 400, body: err("choose_workspace", "Which workspace do you mean?") };

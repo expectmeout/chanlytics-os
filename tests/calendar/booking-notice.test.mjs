@@ -31,7 +31,7 @@ const {
   personOfAppointment,
   withoutVisitsRowsDraw,
 } = await importSrc("packages/contracts/src/calendar/appointment-item.ts");
-const { visitsOf } = await importSrc("packages/contracts/src/calendar/people.ts");
+const { visitsOf } = await importSrc("packages/contracts/src/calendar/people/matching.ts");
 
 test("a row is taken time from its start to its end, the one rule every reader that names an open time subtracts by", () => {
   // The board, Ask, the prompt's preview and the receptionist each hand their rows here (00345), so none offers a

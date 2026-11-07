@@ -13,7 +13,7 @@ import { readWorkspaces, patchWorkspace } from "@/server/workspace/list";
  *
  * Declared on the account: this is the endpoint whose whole job is answering
  * "where am I", so it must answer for an account in no workspace yet, and it
- * chooses the active workspace itself, below, by memberContext's one rule
+ * chooses the active workspace itself, below, by getMemberContext's one rule
  * with the one degradation that keeps a stale preference from bricking the
  * app.
  *

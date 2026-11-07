@@ -8,7 +8,7 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { HOUR_MS, MIN_MS } from "@chanlytics/contracts";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 import { logLineOf, fieldsOf } from "../_log-lines.mjs";
 import { at, knock, answer, vault, wire } from "../_cron-doors-world.mjs";

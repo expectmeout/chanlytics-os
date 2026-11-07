@@ -1,6 +1,6 @@
 import { write } from "@/server/shared/route";
 import { broadcastScope } from "@/server/shared/verbs";
-import { recheckRun } from "@/server/campaigns/reach-outs";
+import { recheckRun } from "@/server/campaigns/reach-outs/chain-acts";
 
 /**
  * POST /api/v1/broadcasts/:id/recheck — a reach-out run's "Check the held again" (R18): every email the check could

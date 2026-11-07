@@ -48,15 +48,15 @@ export type ControlOutcome = "claimed" | "renewed" | "held" | "gone";
  */
 export async function claimControl(
   db: Db,
-  p: { tenantId: string; conversationId: string; holder: ControlHolder; seconds: number },
+  params: { tenantId: string; conversationId: string; holder: ControlHolder; seconds: number },
 ): Promise<ControlOutcome> {
   const { data, error } = await db.rpc("claim_conversation_control", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_kind: p.holder.kind,
-    p_by: p.holder.kind === "person" ? p.holder.userId : null,
-    p_ref: p.holder.kind === "call" ? p.holder.callId : null,
-    p_seconds: p.seconds,
+    p_tenant_id: params.tenantId,
+    p_conversation_id: params.conversationId,
+    p_kind: params.holder.kind,
+    p_by: params.holder.kind === "person" ? params.holder.userId : null,
+    p_ref: params.holder.kind === "call" ? params.holder.callId : null,
+    p_seconds: params.seconds,
   } as never);
   if (error) throw new Error(`claim_conversation_control: ${error.message}`);
   return data as unknown as ControlOutcome;
@@ -69,14 +69,14 @@ export async function claimControl(
  */
 export async function releaseControl(
   db: Db,
-  p: { tenantId: string; conversationId: string; holder: ControlHolder },
+  params: { tenantId: string; conversationId: string; holder: ControlHolder },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("release_conversation_control", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_kind: p.holder.kind,
-    p_by: p.holder.kind === "person" ? p.holder.userId : null,
-    p_ref: p.holder.kind === "call" ? p.holder.callId : null,
+    p_tenant_id: params.tenantId,
+    p_conversation_id: params.conversationId,
+    p_kind: params.holder.kind,
+    p_by: params.holder.kind === "person" ? params.holder.userId : null,
+    p_ref: params.holder.kind === "call" ? params.holder.callId : null,
   } as never);
   if (error) throw new Error(`release_conversation_control: ${error.message}`);
   return data === true;
@@ -113,7 +113,7 @@ export async function holdsReplyTurn(db: Db, conversationId: string, messageId: 
  * The thread's live hold as its row says it: who holds it, the call's own ref and until when, as columns; null when the
  * thread is not there. Read by the receptionist's memory (the edge's pgThread) beside the rest of the thread's state, so
  * the send door's question can be asked before the model is asked; the columns are read into a hold by one function,
- * core's liveHoldOf, off this row and off the wire's own (wireRowOf). A read that fails throws: a thread the database
+ * core's liveHoldOf, off this row and off the wire's own (findWireRow). A read that fails throws: a thread the database
  * could not produce is unknown, never one nobody holds.
  */
 export async function readLiveHold(
@@ -159,13 +159,16 @@ export interface TakenOver {
  * written. The door's refusals are thrown as they came (not a member who may act here: `Workspace not found.`), and
  * then nothing was written either.
  */
-export async function takeOverThread(db: Db, p: MemberMove & { pausedUntil: string }): Promise<TakenOver | null> {
+export async function takeOverThread(
+  db: Db,
+  memberMove: MemberMove & { pausedUntil: string },
+): Promise<TakenOver | null> {
   const { data, error } = await db.rpc("conversation_take_over", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_paused_until: p.pausedUntil,
-    ...(p.via ? { p_via: p.via } : {}),
-    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+    p_tenant_id: memberMove.tenantId,
+    p_conversation_id: memberMove.conversationId,
+    p_paused_until: memberMove.pausedUntil,
+    ...(memberMove.via ? { p_via: memberMove.via } : {}),
+    ...(memberMove.undoOf ? { p_undo_of: memberMove.undoOf } : {}),
   });
   if (error) throw error;
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
@@ -200,13 +203,16 @@ export interface HandedBack {
  * A thread set aside is not a customer's, or with `undo` is back on the list (00539 conversation_not_a_customer), on the
  * member's own session. The decision's id, or null where no row moved.
  */
-export async function notACustomerThread(db: Db, p: MemberMove & { undo: boolean }): Promise<string | null> {
+export async function markThreadNotACustomer(
+  db: Db,
+  memberMove: MemberMove & { undo: boolean },
+): Promise<string | null> {
   const { data, error } = await db.rpc("conversation_not_a_customer", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_undo: p.undo,
-    ...(p.via ? { p_via: p.via } : {}),
-    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+    p_tenant_id: memberMove.tenantId,
+    p_conversation_id: memberMove.conversationId,
+    p_undo: memberMove.undo,
+    ...(memberMove.via ? { p_via: memberMove.via } : {}),
+    ...(memberMove.undoOf ? { p_undo_of: memberMove.undoOf } : {}),
   });
   if (error) throw error;
   return decisionIdOf(data);
@@ -216,12 +222,12 @@ export async function notACustomerThread(db: Db, p: MemberMove & { undo: boolean
  * A thread set aside is a customer's after all (00539 conversation_reply_anyway), on the member's own session. The
  * decision's id, or null where no row moved.
  */
-export async function replyAnywayThread(db: Db, p: MemberMove): Promise<string | null> {
+export async function replyAnywayThread(db: Db, memberMove: MemberMove): Promise<string | null> {
   const { data, error } = await db.rpc("conversation_reply_anyway", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    ...(p.via ? { p_via: p.via } : {}),
-    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+    p_tenant_id: memberMove.tenantId,
+    p_conversation_id: memberMove.conversationId,
+    ...(memberMove.via ? { p_via: memberMove.via } : {}),
+    ...(memberMove.undoOf ? { p_undo_of: memberMove.undoOf } : {}),
   });
   if (error) throw error;
   return decisionIdOf(data);
@@ -234,12 +240,12 @@ function decisionIdOf(data: unknown): string | null {
   return typeof id === "string" ? id : null;
 }
 
-export async function handBackThread(db: Db, p: MemberMove): Promise<HandedBack | null> {
+export async function handBackThread(db: Db, memberMove: MemberMove): Promise<HandedBack | null> {
   const { data, error } = await db.rpc("conversation_hand_back", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    ...(p.via ? { p_via: p.via } : {}),
-    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+    p_tenant_id: memberMove.tenantId,
+    p_conversation_id: memberMove.conversationId,
+    ...(memberMove.via ? { p_via: memberMove.via } : {}),
+    ...(memberMove.undoOf ? { p_undo_of: memberMove.undoOf } : {}),
   });
   if (error) throw error;
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
@@ -265,12 +271,12 @@ export interface WithdrawReason {
  */
 export async function withdrawQueued(
   db: Db,
-  p: { tenantId: string; messageIds: string[]; reason: WithdrawReason | null },
+  params: { tenantId: string; messageIds: string[]; reason: WithdrawReason | null },
 ): Promise<string[]> {
   const { data, error } = await db.rpc("withdraw_queued", {
-    p_tenant_id: p.tenantId,
-    p_message_ids: p.messageIds,
-    ...(p.reason ? { p_reason: p.reason } : {}),
+    p_tenant_id: params.tenantId,
+    p_message_ids: params.messageIds,
+    ...(params.reason ? { p_reason: params.reason } : {}),
   });
   if (error) throw new Error(`withdraw_queued: ${error.message}`);
   return Array.isArray(data) ? data : [];
@@ -279,13 +285,13 @@ export async function withdrawQueued(
 /** The receptionist's queued drafts on a thread, all but `keepMessageId`, through the one door (00387 withdraw_ai_drafts). */
 export async function withdrawAiDrafts(
   db: Db,
-  p: { tenantId: string; conversationId: string; reason: WithdrawReason; keepMessageId: string | null },
+  params: { tenantId: string; conversationId: string; reason: WithdrawReason; keepMessageId: string | null },
 ): Promise<string[]> {
   const { data, error } = await db.rpc("withdraw_ai_drafts", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_reason: p.reason,
-    ...(p.keepMessageId ? { p_keep_message_id: p.keepMessageId } : {}),
+    p_tenant_id: params.tenantId,
+    p_conversation_id: params.conversationId,
+    p_reason: params.reason,
+    ...(params.keepMessageId ? { p_keep_message_id: params.keepMessageId } : {}),
   });
   if (error) throw new Error(`withdraw_ai_drafts: ${error.message}`);
   return Array.isArray(data) ? data : [];
@@ -295,24 +301,27 @@ export async function withdrawAiDrafts(
  * On a member's own session (00387 member_withdraw_drafts): the receptionist's queued drafts on a thread a reply
  * supersedes, withdrawn with their send jobs. How many. A refusal (not a member who may act here) throws as it came.
  */
-export async function memberWithdrawDrafts(db: Db, p: { tenantId: string; conversationId: string }): Promise<number> {
+export async function withdrawMemberDrafts(
+  db: Db,
+  params: { tenantId: string; conversationId: string },
+): Promise<number> {
   const { data, error } = await db.rpc("member_withdraw_drafts", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
+    p_tenant_id: params.tenantId,
+    p_conversation_id: params.conversationId,
   });
   if (error) throw error;
   return typeof data === "number" ? data : 0;
 }
 
 /** On a member's own session (00387 member_withdraw_message): one queued message withdrawn with its send job. */
-export async function memberWithdrawMessage(
+export async function withdrawMemberMessage(
   db: Db,
-  p: { tenantId: string; messageId: string; reason: WithdrawReason | null },
+  params: { tenantId: string; messageId: string; reason: WithdrawReason | null },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("member_withdraw_message", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    ...(p.reason ? { p_reason: p.reason } : {}),
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    ...(params.reason ? { p_reason: params.reason } : {}),
   });
   if (error) throw error;
   return data === true;
@@ -333,13 +342,13 @@ export interface CalledBack {
  */
 export async function callBackMessage(
   db: Db,
-  p: { tenantId: string; messageId: string; via: string | null; undoOf: string | null },
+  params: { tenantId: string; messageId: string; via: string | null; undoOf: string | null },
 ): Promise<CalledBack | null> {
   const { data, error } = await db.rpc("message_call_back", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    ...(p.via ? { p_via: p.via } : {}),
-    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    ...(params.via ? { p_via: params.via } : {}),
+    ...(params.undoOf ? { p_undo_of: params.undoOf } : {}),
   });
   if (error) throw error;
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
@@ -356,13 +365,13 @@ export async function callBackMessage(
  */
 export async function sendQueuedNow(
   db: Db,
-  p: { tenantId: string; messageId: string; via: string | null; undoOf: string | null },
+  params: { tenantId: string; messageId: string; via: string | null; undoOf: string | null },
 ): Promise<CalledBack | null> {
   const { data, error } = await db.rpc("message_send_now", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    ...(p.via ? { p_via: p.via } : {}),
-    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    ...(params.via ? { p_via: params.via } : {}),
+    ...(params.undoOf ? { p_undo_of: params.undoOf } : {}),
   });
   if (error) throw error;
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
@@ -380,13 +389,13 @@ export async function sendQueuedNow(
  */
 export async function openEscalation(
   db: Db,
-  p: { tenantId: string; conversationId: string; reason: string; details: string },
+  params: { tenantId: string; conversationId: string; reason: string; details: string },
 ): Promise<"opened" | "changed" | "refreshed"> {
   const { data, error } = await db.rpc("escalation_open", {
-    p_tenant_id: p.tenantId,
-    p_conversation_id: p.conversationId,
-    p_reason: p.reason,
-    p_details: p.details,
+    p_tenant_id: params.tenantId,
+    p_conversation_id: params.conversationId,
+    p_reason: params.reason,
+    p_details: params.details,
   });
   if (error) throw new Error(`escalation_open: ${error.message}`);
   if (data !== "opened" && data !== "changed" && data !== "refreshed")
@@ -403,15 +412,15 @@ export async function openEscalation(
  */
 export async function settleByEcho(
   db: Db,
-  p: { tenantId: string; externalId: string | null; settles: readonly string[] },
+  params: { tenantId: string; externalId: string | null; settles: readonly string[] },
 ): Promise<boolean> {
-  if (!p.externalId) return true;
+  if (!params.externalId) return true;
   const { error } = await db.rpc("conversation_echo_settles", {
-    p_tenant_id: p.tenantId,
-    p_external_id: p.externalId,
-    p_reasons: [...p.settles],
+    p_tenant_id: params.tenantId,
+    p_external_id: params.externalId,
+    p_reasons: [...params.settles],
   });
   if (!error) return true;
-  dbLog().error("record_echo_settle_failed", { tenant_id: p.tenantId, error: error.message });
+  dbLog().error("record_echo_settle_failed", { tenant_id: params.tenantId, error: error.message });
   return false;
 }

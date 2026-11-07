@@ -1,5 +1,5 @@
 /**
- * The report functions as packages/db calls them (repositories/reports/report-series.ts): by name, for the workspace and the days,
+ * The report functions as packages/db calls them (repositories/reports/series.ts): by name, for the workspace and the days,
  * over whatever client the caller holds (the session's, so RLS decides what a member reads). A read that fails throws;
  * the reach-outs' say the database's refusal with its code, for the door to word. The reviews' ledger (`reviews_ledger`)
  * is one of them: its counts, its window in the workspace's zone and who wrote each reply are SQL's, held by
@@ -18,19 +18,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ReportWindowNotReadable,
-  campaignLedger,
-  campaignSeries,
-  campaignStuck,
-  playbookTotals,
-  reachOutChainTotals,
-  peopleSeries,
-  reachOutReport,
-  receptionistSeries,
+  findCampaignLedger,
+  getCampaignSeries,
+  findCampaignStuck,
+  getPlaybookTotals,
+  getReachOutChainTotals,
+  findPeopleSeries,
+  readReachOutReport,
+  findReceptionistSeries,
   reportSeries,
-  reviewsLedger,
+  findReviewsLedger,
   runCounts,
-  templateSends,
-} from "@chanlytics/db";
+  getTemplateSends,
+} from "@chanlytics/db/reports";
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 /** A database that answers a function by name and keeps what it was asked. */
@@ -51,9 +51,9 @@ test("each function is asked for the workspace and the days, and answers what th
     reach_out_report: { data: { days: 90 }, error: null },
   });
   assert.deepEqual(await reportSeries(db, W, live(7)), { days: 7 });
-  assert.deepEqual(await campaignSeries(db, W, live(30)), { days: 30 });
-  assert.deepEqual(await reviewsLedger(db, W, live(30)), { days: 30, written: [] });
-  assert.deepEqual(await reachOutReport(db, W, live(90)), { ok: true, data: { days: 90 } });
+  assert.deepEqual(await getCampaignSeries(db, W, live(30)), { days: 30 });
+  assert.deepEqual(await findReviewsLedger(db, W, live(30)), { days: 30, written: [] });
+  assert.deepEqual(await readReachOutReport(db, W, live(90)), { ok: true, data: { days: 90 } });
   assert.deepEqual(
     asked,
     [
@@ -75,9 +75,9 @@ test("days that ended before today name their last day to every function, and no
   });
   const window = ended(20, "2026-09-20");
   assert.deepEqual(await reportSeries(db, W, window), { days: 20, end: "2026-09-20" });
-  assert.deepEqual(await campaignSeries(db, W, window), { days: 20 });
-  assert.deepEqual(await reviewsLedger(db, W, window), { days: 20, written: [] });
-  assert.deepEqual(await reachOutReport(db, W, window), { ok: true, data: { days: 20 } });
+  assert.deepEqual(await getCampaignSeries(db, W, window), { days: 20 });
+  assert.deepEqual(await findReviewsLedger(db, W, window), { days: 20, written: [] });
+  assert.deepEqual(await readReachOutReport(db, W, window), { ok: true, data: { days: 20 } });
   const args = { p_tenant_id: W, p_days: 20, p_end: "2026-09-20" };
   assert.deepEqual(asked, [
     ["report_series", args],
@@ -95,15 +95,15 @@ test("a read that fails throws, never nothing; the reach-outs' refusal keeps the
       /report_series.*connection refused/,
     );
     await assert.rejects(
-      campaignSeries(dbWith({ campaign_series: down }).db, W, window),
+      getCampaignSeries(dbWith({ campaign_series: down }).db, W, window),
       /campaign_series.*connection refused/,
     );
     await assert.rejects(
-      reviewsLedger(dbWith({ reviews_ledger: down }).db, W, window),
+      findReviewsLedger(dbWith({ reviews_ledger: down }).db, W, window),
       /reviews_ledger.*connection refused/,
     );
     const refused = { data: null, error: { message: "No workspace.", code: "P0002" } };
-    assert.deepEqual(await reachOutReport(dbWith({ reach_out_report: refused }).db, W, window), {
+    assert.deepEqual(await readReachOutReport(dbWith({ reach_out_report: refused }).db, W, window), {
       ok: false,
       code: "P0002",
       message: "No workspace.",
@@ -120,8 +120,8 @@ test("days that ended before today, on a database that cannot take a last day ye
     const world = dbWith({ report_series: refusal, campaign_series: refusal, reach_out_report: refusal });
     for (const [door, read] of [
       ["report_series", reportSeries],
-      ["campaign_series", campaignSeries],
-      ["reach_out_report", reachOutReport],
+      ["campaign_series", getCampaignSeries],
+      ["reach_out_report", readReachOutReport],
     ])
       await assert.rejects(
         read(world.db, W, window),
@@ -141,7 +141,7 @@ test("days that ended before today, on a database that cannot take a last day ye
     reportSeries(dbWith({ report_series: refusedWith("42501") }).db, W, window),
     (e) => !(e instanceof ReportWindowNotReadable) && /report_series: /.test(e.message),
   );
-  assert.deepEqual(await reachOutReport(dbWith({ reach_out_report: refusedWith("22023") }).db, W, window), {
+  assert.deepEqual(await readReachOutReport(dbWith({ reach_out_report: refusedWith("22023") }).db, W, window), {
     ok: false,
     code: "22023",
     message: gone,
@@ -152,16 +152,16 @@ test("a database that does not have the reviews' ledger yet (00350 not applied) 
   const gone = "Could not find the function public.reviews_ledger(p_days, p_tenant_id) in the schema cache";
   const refusedWith = (code) => ({ data: null, error: { message: gone, code } });
   for (const code of ["PGRST202", "42883"]) {
-    assert.equal(await reviewsLedger(dbWith({ reviews_ledger: refusedWith(code) }).db, W, live(30)), null, code);
+    assert.equal(await findReviewsLedger(dbWith({ reviews_ledger: refusedWith(code) }).db, W, live(30)), null, code);
     assert.equal(
-      await reviewsLedger(dbWith({ reviews_ledger: refusedWith(code) }).db, W, ended(20, "2026-09-20")),
+      await findReviewsLedger(dbWith({ reviews_ledger: refusedWith(code) }).db, W, ended(20, "2026-09-20")),
       null,
       `${code}: a database without 00359 has no ledger that takes a last day, and the lens draws the listing alone`,
     );
   }
   for (const code of ["42501", "08006", undefined])
     await assert.rejects(
-      reviewsLedger(dbWith({ reviews_ledger: refusedWith(code) }).db, W, live(30)),
+      findReviewsLedger(dbWith({ reviews_ledger: refusedWith(code) }).db, W, live(30)),
       /reviews_ledger: Could not find the function/,
       `${code}`,
     );
@@ -172,25 +172,25 @@ test("a database that does not have the reviews' ledger yet (00350 not applied) 
   );
 });
 
-test("receptionistSeries asks receptionist_series for the window, naming the last day only when it is not today", async () => {
+test("findReceptionistSeries asks receptionist_series for the window, naming the last day only when it is not today", async () => {
   const { db, asked } = dbWith({
     receptionist_series: { data: { days: 30 }, error: null },
   });
-  assert.deepEqual(await receptionistSeries(db, W, live(30)), { days: 30 });
-  await receptionistSeries(db, W, ended(20, "2026-09-20"));
+  assert.deepEqual(await findReceptionistSeries(db, W, live(30)), { days: 30 });
+  await findReceptionistSeries(db, W, ended(20, "2026-09-20"));
   assert.deepEqual(asked, [
     ["receptionist_series", { p_tenant_id: W, p_days: 30 }],
     ["receptionist_series", { p_tenant_id: W, p_days: 20, p_end: "2026-09-20" }],
   ]);
 });
 
-test("receptionistSeries is null where the database does not have the function yet (00380 not applied), and throws for any other failure", async () => {
+test("findReceptionistSeries is null where the database does not have the function yet (00380 not applied), and throws for any other failure", async () => {
   const gone = "Could not find the function public.receptionist_series(p_days, p_tenant_id) in the schema cache";
   for (const code of ["PGRST202", "42883"]) {
     const missing = dbWith({ receptionist_series: { data: null, error: { message: gone, code } } }).db;
-    assert.equal(await receptionistSeries(missing, W, live(30)), null, code);
+    assert.equal(await findReceptionistSeries(missing, W, live(30)), null, code);
     assert.equal(
-      await receptionistSeries(missing, W, ended(20, "2026-09-20")),
+      await findReceptionistSeries(missing, W, ended(20, "2026-09-20")),
       null,
       `${code}: a window that names a day too`,
     );
@@ -198,7 +198,7 @@ test("receptionistSeries is null where the database does not have the function y
   for (const code of ["XX000", "42501", "08006", undefined])
     for (const window of [live(30), ended(20, "2026-09-20")])
       await assert.rejects(
-        receptionistSeries(
+        findReceptionistSeries(
           dbWith({ receptionist_series: { data: null, error: { message: "boom", code } } }).db,
           W,
           window,
@@ -212,8 +212,8 @@ test("peopleSeries asks people_series for the window, naming the last day only w
   const { db, asked } = dbWith({
     people_series: { data: { days: 30 }, error: null },
   });
-  assert.deepEqual(await peopleSeries(db, W, live(30)), { days: 30 });
-  await peopleSeries(db, W, ended(20, "2026-09-20"));
+  assert.deepEqual(await findPeopleSeries(db, W, live(30)), { days: 30 });
+  await findPeopleSeries(db, W, ended(20, "2026-09-20"));
   assert.deepEqual(asked, [
     ["people_series", { p_tenant_id: W, p_days: 30 }],
     ["people_series", { p_tenant_id: W, p_days: 20, p_end: "2026-09-20" }],
@@ -224,9 +224,9 @@ test("peopleSeries is null where the database does not have the function yet (00
   const gone = "Could not find the function public.people_series(p_days, p_tenant_id) in the schema cache";
   for (const code of ["PGRST202", "42883"]) {
     const missing = dbWith({ people_series: { data: null, error: { message: gone, code } } }).db;
-    assert.equal(await peopleSeries(missing, W, live(30)), null, code);
+    assert.equal(await findPeopleSeries(missing, W, live(30)), null, code);
     assert.equal(
-      await peopleSeries(missing, W, ended(20, "2026-09-20")),
+      await findPeopleSeries(missing, W, ended(20, "2026-09-20")),
       null,
       `${code}: a window that names a day too`,
     );
@@ -234,31 +234,31 @@ test("peopleSeries is null where the database does not have the function yet (00
   for (const code of ["XX000", "42501", "08006", undefined])
     for (const window of [live(30), ended(20, "2026-09-20")])
       await assert.rejects(
-        peopleSeries(dbWith({ people_series: { data: null, error: { message: "boom", code } } }).db, W, window),
+        findPeopleSeries(dbWith({ people_series: { data: null, error: { message: "boom", code } } }).db, W, window),
         /^Error: people_series: boom$/,
         `${code}`,
       );
 });
 
-test("campaignLedger asks campaign_ledger for the window, naming the last day only when it is not today", async () => {
+test("findCampaignLedger asks campaign_ledger for the window, naming the last day only when it is not today", async () => {
   const { db, asked } = dbWith({
     campaign_ledger: { data: { days: 30 }, error: null },
   });
-  assert.deepEqual(await campaignLedger(db, W, live(30)), { days: 30 });
-  await campaignLedger(db, W, ended(20, "2026-09-20"));
+  assert.deepEqual(await findCampaignLedger(db, W, live(30)), { days: 30 });
+  await findCampaignLedger(db, W, ended(20, "2026-09-20"));
   assert.deepEqual(asked, [
     ["campaign_ledger", { p_tenant_id: W, p_days: 30 }],
     ["campaign_ledger", { p_tenant_id: W, p_days: 20, p_end: "2026-09-20" }],
   ]);
 });
 
-test("campaignLedger is null where the database does not have the function yet (00405 not applied), for a period and for picked days, and throws for any other failure", async () => {
+test("findCampaignLedger is null where the database does not have the function yet (00405 not applied), for a period and for picked days, and throws for any other failure", async () => {
   const gone = "Could not find the function public.campaign_ledger(p_days, p_tenant_id) in the schema cache";
   for (const code of ["PGRST202", "42883"]) {
     const missing = dbWith({ campaign_ledger: { data: null, error: { message: gone, code } } }).db;
-    assert.equal(await campaignLedger(missing, W, live(30)), null, code);
+    assert.equal(await findCampaignLedger(missing, W, live(30)), null, code);
     assert.equal(
-      await campaignLedger(missing, W, ended(20, "2026-09-20")),
+      await findCampaignLedger(missing, W, ended(20, "2026-09-20")),
       null,
       `${code}: a window that names a day too`,
     );
@@ -266,29 +266,29 @@ test("campaignLedger is null where the database does not have the function yet (
   for (const code of ["XX000", "42501", "08006", undefined])
     for (const window of [live(30), ended(20, "2026-09-20")])
       await assert.rejects(
-        campaignLedger(dbWith({ campaign_ledger: { data: null, error: { message: "boom", code } } }).db, W, window),
+        findCampaignLedger(dbWith({ campaign_ledger: { data: null, error: { message: "boom", code } } }).db, W, window),
         /^Error: campaign_ledger: boom$/,
         `${code}`,
       );
 });
 
-test("campaignStuck asks campaign_stuck for the workspace and nothing else", async () => {
+test("findCampaignStuck asks campaign_stuck for the workspace and nothing else", async () => {
   const { db, asked } = dbWith({
     campaign_stuck: { data: { waiting: [] }, error: null },
   });
-  assert.deepEqual(await campaignStuck(db, W), { waiting: [] });
+  assert.deepEqual(await findCampaignStuck(db, W), { waiting: [] });
   assert.deepEqual(asked, [["campaign_stuck", { p_tenant_id: W }]]);
 });
 
-test("campaignStuck is null where the database does not have the function yet (00406 not applied) and throws for any other failure", async () => {
+test("findCampaignStuck is null where the database does not have the function yet (00406 not applied) and throws for any other failure", async () => {
   const gone = "Could not find the function public.campaign_stuck(p_tenant_id) in the schema cache";
   for (const code of ["PGRST202", "42883"]) {
     const missing = dbWith({ campaign_stuck: { data: null, error: { message: gone, code } } }).db;
-    assert.equal(await campaignStuck(missing, W), null, code);
+    assert.equal(await findCampaignStuck(missing, W), null, code);
   }
   for (const code of ["XX000", "42501", "08006", undefined])
     await assert.rejects(
-      campaignStuck(dbWith({ campaign_stuck: { data: null, error: { message: "boom", code } } }).db, W),
+      findCampaignStuck(dbWith({ campaign_stuck: { data: null, error: { message: "boom", code } } }).db, W),
       /^Error: campaign_stuck: boom$/,
       `${code}`,
     );
@@ -301,12 +301,12 @@ test("the counts' doors (00374, 00375) ask by name for the workspace, answer wha
     template_sends: { data: {}, error: null },
     reach_out_chain_totals: { data: {}, error: null },
   });
-  assert.deepEqual(await playbookTotals(db, W, 10), { p1: {} });
+  assert.deepEqual(await getPlaybookTotals(db, W, 10), { p1: {} });
   assert.deepEqual(await runCounts(db, W, ["b1", "b2"]), {});
-  assert.deepEqual(await templateSends(db, W), {});
-  assert.deepEqual(await reachOutChainTotals(db, W, live(30)), {});
+  assert.deepEqual(await getTemplateSends(db, W), {});
+  assert.deepEqual(await getReachOutChainTotals(db, W, live(30)), {});
   // The chains read the report's window: its last day named only where it ended before today (00360).
-  assert.deepEqual(await reachOutChainTotals(db, W, ended(20, "2026-09-20")), {});
+  assert.deepEqual(await getReachOutChainTotals(db, W, ended(20, "2026-09-20")), {});
   assert.deepEqual(asked, [
     ["playbook_totals", { p_tenant_id: W, p_history: 10 }],
     ["run_counts", { p_tenant_id: W, p_run_ids: ["b1", "b2"] }],
@@ -322,11 +322,11 @@ test("the counts' doors (00374, 00375) ask by name for the workspace, answer wha
       template_sends: gone,
       reach_out_chain_totals: gone,
     }).db;
-    assert.equal(await playbookTotals(missing, W, 10), "missing", code);
+    assert.equal(await getPlaybookTotals(missing, W, 10), "missing", code);
     assert.equal(await runCounts(missing, W, []), "missing", code);
-    assert.equal(await templateSends(missing, W), "missing", code);
-    assert.equal(await reachOutChainTotals(missing, W, live(30)), "missing", code);
-    assert.equal(await reachOutChainTotals(missing, W, ended(20, "2026-09-20")), "missing", code);
+    assert.equal(await getTemplateSends(missing, W), "missing", code);
+    assert.equal(await getReachOutChainTotals(missing, W, live(30)), "missing", code);
+    assert.equal(await getReachOutChainTotals(missing, W, ended(20, "2026-09-20")), "missing", code);
   }
   const down = { data: null, error: { message: "canceling statement due to statement timeout", code: "57014" } };
   const slow = dbWith({
@@ -335,10 +335,10 @@ test("the counts' doors (00374, 00375) ask by name for the workspace, answer wha
     template_sends: down,
     reach_out_chain_totals: down,
   }).db;
-  await assert.rejects(playbookTotals(slow, W, 10), /playbook_totals: canceling statement/);
+  await assert.rejects(getPlaybookTotals(slow, W, 10), /playbook_totals: canceling statement/);
   await assert.rejects(runCounts(slow, W, []), /run_counts: canceling statement/);
-  await assert.rejects(templateSends(slow, W), /template_sends: canceling statement/);
-  await assert.rejects(reachOutChainTotals(slow, W, live(30)), /reach_out_chain_totals: canceling statement/);
+  await assert.rejects(getTemplateSends(slow, W), /template_sends: canceling statement/);
+  await assert.rejects(getReachOutChainTotals(slow, W, live(30)), /reach_out_chain_totals: canceling statement/);
   // Each function answers one object (an empty one when nothing is counted), so any other answer is a read that failed,
   // never a value "missing" could be mistaken for.
   for (const odd of [null, [], "missing", 3]) {

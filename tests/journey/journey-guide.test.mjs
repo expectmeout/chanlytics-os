@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
+import { journeyGuide } from "../../apps/dashboard/src/server/ask/journey/guide.ts";
 
 /** repo/trade-neutral.test.mjs's two predicates, as it writes them: one trade's words, and a visit where an appointment is. */
 const BANNED = /\b(salons?|stylists?|balayage|therapists?|chair rental|haircuts?|keratin|blowouts?|lash(?:es)?)\b/i;
@@ -23,7 +24,7 @@ const SHAPES = [
   { calendarOn: false, hasDeals: true, word: "appointment" },
 ];
 
-const rowsOf = (shape) => C.journeyGuide(shape).map((r) => [r.stage, r.moment]);
+const rowsOf = (shape) => journeyGuide(shape).map((r) => [r.stage, r.moment]);
 
 test("with a calendar, six rows in the journey's order, the day before and the day after among them, each on the moment that runs it here, a freed time and the month's offer last on no stage", () => {
   assert.deepEqual(rowsOf(SHAPES[1]), [
@@ -34,7 +35,7 @@ test("with a calendar, six rows in the journey's order, the day before and the d
     [null, "slot_opened"],
     [null, "everyone_monthly"],
   ]);
-  const guide = C.journeyGuide(SHAPES[1]);
+  const guide = journeyGuide(SHAPES[1]);
   const said = (stage) => guide.find((r) => r.stage === stage).sends;
   assert.equal(
     said("first_contact"),
@@ -79,20 +80,20 @@ test("the offers the guide says go as the send door's predicate lets them: on Wh
   assert.equal(offer({ ...dealt, marketing_consent: "opted_out" }, "email"), false, "they said no to offers");
   // A text never carries one, so the month's offer names WhatsApp and email alone.
   assert.ok(C.channelNeverCarries("sms", "marketing"));
-  const month = C.journeyGuide(SHAPES[0]).at(-1).sends;
+  const month = journeyGuide(SHAPES[0]).at(-1).sends;
   assert.ok(month.includes("on WhatsApp") && month.includes("by email") && !/\btext/.test(month), month);
-  assert.ok(!/every offer/.test(C.journeyGuide(SHAPES[0])[0].sends));
+  assert.ok(!/every offer/.test(journeyGuide(SHAPES[0])[0].sends));
 });
 
 test("the win-back's row says when it goes in its own moment's words, by silence without a calendar and by appointments with one, never a count of weeks of its own", () => {
   for (const shape of SHAPES) {
-    const row = C.journeyGuide(shape).find((r) => r.stage === "quiet");
+    const row = journeyGuide(shape).find((r) => r.stage === "quiet");
     const when = C.triggerWords(C.triggerOf(row.moment), shape.word).hint.toLowerCase();
     assert.equal(row.sends, `${when}: a win-back`, JSON.stringify(shape));
     assert.ok(!/weeks/.test(row.sends), `${row.sends}: the moment's days, never weeks`);
   }
   // Both win-backs are said, each by the moment that runs it: the hints differ, so the rows do.
-  const [none, cal] = [SHAPES[0], SHAPES[1]].map((s) => C.journeyGuide(s).find((r) => r.stage === "quiet").sends);
+  const [none, cal] = [SHAPES[0], SHAPES[1]].map((s) => journeyGuide(s).find((r) => r.stage === "quiet").sends);
   assert.notEqual(none, cal);
 });
 
@@ -127,12 +128,12 @@ test("a proposal's row only once a deal is on file, before quiet, on the follow-
     assert.deepEqual(rows[at], ["proposal", "proposal_waiting"], JSON.stringify(shape));
     assert.equal(rows[at + 1][0], "quiet", `${JSON.stringify(shape)}: before quiet`);
   }
-  assert.equal(C.journeyGuide(SHAPES[2]).length, 7);
+  assert.equal(journeyGuide(SHAPES[2]).length, 7);
 });
 
 test("every row's moment is a trigger a campaign starts from, offered here, and its stage the one that trigger stands on", () => {
   for (const shape of SHAPES)
-    for (const r of C.journeyGuide(shape)) {
+    for (const r of journeyGuide(shape)) {
       if (r.moment === null) {
         assert.equal(r.stage, "first_contact", "the receptionist's alone has no moment");
         continue;
@@ -145,7 +146,7 @@ test("every row's moment is a trigger a campaign starts from, offered here, and 
 });
 
 test("every sentence the guide says is any trade's: none of trade-neutral's banned words, and an appointment, never a visit", () => {
-  const said = SHAPES.flatMap((shape) => C.journeyGuide(shape).map((r) => r.sends));
+  const said = SHAPES.flatMap((shape) => journeyGuide(shape).map((r) => r.sends));
   assert.ok(said.length >= 3 * SHAPES.length, "every row says what it sends");
   for (const s of said) {
     assert.ok(s.trim().length > 0, "a sentence");
@@ -157,7 +158,7 @@ test("every sentence the guide says is any trade's: none of trade-neutral's bann
 });
 
 test("the guide says the workspace's own word for an appointment, and the day after names the review ask only where the listing keeps a review link, which the review starter takes", () => {
-  const guide = C.journeyGuide({ calendarOn: true, hasDeals: true, word: "meeting" });
+  const guide = journeyGuide({ calendarOn: true, hasDeals: true, word: "meeting" });
   const row = (stage) => guide.find((r) => r.stage === stage);
   assert.equal(row("before").sends, "the day before a meeting on the calendar: a reminder");
   assert.equal(

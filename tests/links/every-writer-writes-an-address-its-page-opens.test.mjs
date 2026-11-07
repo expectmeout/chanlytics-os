@@ -33,7 +33,6 @@ import {
   canonicalRoute,
   citationRoute,
   emptyReadSet,
-  holdNotice,
   movedAddress,
   noticeRoute,
   retiredRouteOf,
@@ -44,6 +43,7 @@ import {
   visitDoor,
   workspacePath,
 } from "@chanlytics/contracts";
+import { holdNotice } from "../../packages/core/src/deliver/hold-notice.ts";
 import { personDto } from "../consent/_person-row.mjs";
 
 const S = "../../apps/dashboard/src";

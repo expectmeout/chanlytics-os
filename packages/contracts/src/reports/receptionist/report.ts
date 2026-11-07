@@ -14,10 +14,11 @@
  * in both, so the two are never added together here or anywhere.
  */
 import { NEEDS_YOU_WORD } from "../../conversations/standing";
-import { rangeLabelOf, type ReportBarVM } from "../reports";
-import { closedOf, hoursUnsetOf, type ReportProfile } from "../report-closed";
-import { barsOf, mixOf, noMix, type MixPartVM } from "../report-mix";
-import { REPORT_MIN_N, beforeWords, fmtSeconds, type ReportStripTile } from "../report-tiles";
+import { rangeLabelOf } from "../reports";
+import { type ReportBarVM } from "../dtos";
+import { closedOf, hoursUnsetOf, type ReportProfile } from "../closed";
+import { barsOf, mixOf, noMix, type MixPartVM } from "../mix";
+import { REPORT_MIN_N, beforeWords, fmtSeconds, type ReportStripTile } from "../tiles";
 import type { ReceptionistDto } from "./record";
 import {
   CALLS_EMPTY,
@@ -35,7 +36,7 @@ import {
   heldBackEntries,
   heldBackMeta,
   holdEntries,
-  holdLine,
+  receptionistHoldLine,
   languageEntries,
   languagesLine,
   linkLine,
@@ -73,7 +74,7 @@ export interface ReceptionistReportVM {
 type Series = NonNullable<ReceptionistDto["series"]>;
 
 function holdPart({ hold }: Series): MixPartVM {
-  return hold.now.total === 0 ? noMix(HOLD_EMPTY) : mixOf(holdEntries(hold.now), holdLine(hold.now));
+  return hold.now.total === 0 ? noMix(HOLD_EMPTY) : mixOf(holdEntries(hold.now), receptionistHoldLine(hold.now));
 }
 
 function topicsPart({ topics }: Series): MixPartVM {
@@ -157,8 +158,8 @@ function closedFigure({ after_hours }: Series, profile: ReportProfile | null): R
     return { ...tile, value: "—", meta: CLOSED_UNSET, door: "admin/hours", unset: true };
   }
   if (profile === null) return null;
-  const came = closedOf(after_hours, profile) ?? 0;
-  if (came === 0) return { ...tile, value: "0", meta: CLOSED_NONE, unset: false };
+  const arrived = closedOf(after_hours, profile) ?? 0;
+  if (arrived === 0) return { ...tile, value: "0", meta: CLOSED_NONE, unset: false };
   const answered =
     closedOf(
       after_hours.map(({ d, q, a }) => ({ d, q, n: a })),
@@ -166,9 +167,9 @@ function closedFigure({ after_hours }: Series, profile: ReportProfile | null): R
     ) ?? 0;
   return {
     ...tile,
-    value: `${answered} of ${came}`,
-    meta: closedMeta(came, answered),
-    n: came,
+    value: `${answered} of ${arrived}`,
+    meta: closedMeta(arrived, answered),
+    n: arrived,
     minN: REPORT_MIN_N,
     unset: false,
   };

@@ -6,17 +6,14 @@
 import { REPLY_DRAFT_RULES, senderVerdictOf, setsAside } from "@chanlytics/contracts";
 import { askReplyDraft, writeReplyDraft, type AskReplyDraftOutcome, type ReplyDraftPorts } from "@chanlytics/core";
 import {
-  conversationDraftClaim,
-  conversationDraftDrop,
-  conversationDraftWrite,
-  conversationSetAside,
-  mailboxSenderVerdicts,
-  noteMailboxLeft,
+  claimConversationDraft,
+  dropConversationDraft,
+  writeConversationDraft,
+  setConversationAside,
   replyDraftThreadOf,
-  senderReadingOf,
-  talksWith,
-} from "@chanlytics/db";
-import { logger } from "@chanlytics/channels";
+} from "@chanlytics/db/ask";
+import { getMailboxSenderVerdicts, noteMailboxLeft, findSenderReading, getTalksWith } from "@chanlytics/db/email";
+import { logger } from "@chanlytics/log";
 import type { ClaimedJob, JobContext, ReplyDraftEdge } from "../runner/context";
 import type { Db } from "../runner/ledger";
 import { scheduleJobOnce } from "../runner/schedule";
@@ -25,7 +22,7 @@ import { scheduleJobOnce } from "../runner/schedule";
 function askPorts(db: Db): Pick<ReplyDraftPorts, "thread" | "claim" | "scheduleDraft"> {
   return {
     thread: (tenantId, conversationId) => replyDraftThreadOf(db, tenantId, conversationId),
-    claim: (d) => conversationDraftClaim(db, { ...d, rules: REPLY_DRAFT_RULES }),
+    claim: (d) => claimConversationDraft(db, { ...d, rules: REPLY_DRAFT_RULES }),
     scheduleDraft: (tenantId, payload) =>
       scheduleJobOnce(db, { tenantId, kind: "reply_draft", dueAt: new Date(), payload }),
   };
@@ -35,16 +32,16 @@ function askPorts(db: Db): Pick<ReplyDraftPorts, "thread" | "claim" | "scheduleD
 export function replyDraftPortsOf(db: Db, edge: ReplyDraftEdge): ReplyDraftPorts {
   return {
     ...askPorts(db),
-    keep: (d) => conversationDraftWrite(db, { ...d, rules: REPLY_DRAFT_RULES }),
-    letGo: (d) => conversationDraftDrop(db, d),
+    keep: (d) => writeConversationDraft(db, { ...d, rules: REPLY_DRAFT_RULES }),
+    letGo: (d) => dropConversationDraft(db, d),
     sender: {
-      said: async (tenantId, address) => senderVerdictOf(await mailboxSenderVerdicts(db, tenantId), address),
-      talks: (tenantId, address) => talksWith(db, tenantId, address),
-      reading: (tenantId, address) => senderReadingOf(db, tenantId, address),
+      said: async (tenantId, address) => senderVerdictOf(await getMailboxSenderVerdicts(db, tenantId), address),
+      talks: (tenantId, address) => getTalksWith(db, tenantId, address),
+      reading: (tenantId, address) => findSenderReading(db, tenantId, address),
       // The reader keeps what it read (edge mailbox/reader.ts), so a sender is read once.
       read: (tenantId, email, until) => edge.readSender(tenantId, email, until),
     },
-    setAside: (tenantId, conversationId, why) => conversationSetAside(db, { tenantId, conversationId, why }),
+    setAside: (tenantId, conversationId, reason) => setConversationAside(db, { tenantId, conversationId, why: reason }),
     write: edge.write,
   };
 }
@@ -60,9 +57,9 @@ export function senderLeftAt(db: Db, edge: ReplyDraftEdge, until: number) {
     email: { from: string; name: string | null; subject: string | null; words: string | null; answers: boolean },
   ): Promise<"pitch" | "notice" | null> => {
     try {
-      if (await talksWith(db, tenantId, email.from)) return null;
+      if (await getTalksWith(db, tenantId, email.from)) return null;
       const reading =
-        (await senderReadingOf(db, tenantId, email.from)) ?? (await edge.readSender(tenantId, email, until));
+        (await findSenderReading(db, tenantId, email.from)) ?? (await edge.readSender(tenantId, email, until));
       if (!reading || !setsAside(reading.kind)) return null;
       await noteMailboxLeft(db, {
         tenantId,

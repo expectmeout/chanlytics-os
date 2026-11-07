@@ -39,39 +39,54 @@ export interface TrialsResult {
 }
 
 /** The trials looked at, the near told, the plans started early, and what could not be read or started. */
-export async function sweepSpentTrials(p: TrialPorts, max = TRIALS_PER_TICK): Promise<TrialsResult> {
+export async function sweepSpentTrials(trialPorts: TrialPorts, max = TRIALS_PER_TICK): Promise<TrialsResult> {
   const out: TrialsResult = { looked: 0, near: 0, started: 0, failed: 0, unreadable: 0 };
-  const ids = (await p.ids()).slice(0, max);
+  const ids = (await trialPorts.ids()).slice(0, max);
   for (const tenantId of ids) {
     out.looked += 1;
     let use: TrialUse;
     try {
-      use = await p.useOf(tenantId);
+      use = await trialPorts.useOf(tenantId);
     } catch (e) {
       out.unreadable += 1;
-      p.log.error("trial_use_unreadable", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+      trialPorts.log.error("trial_use_unreadable", {
+        tenant_id: tenantId,
+        error: e instanceof Error ? e.message : String(e),
+      });
       continue;
     }
-    const s = trialSpentOf(use);
+    const trialSpent = trialSpentOf(use);
     const words = trialUseWords(use);
-    if (s.spent) {
-      const r = await p.startPlan(tenantId);
-      if (r.ok) {
+    if (trialSpent.spent) {
+      const startPlan = await trialPorts.startPlan(tenantId);
+      if (startPlan.ok) {
         out.started += 1;
-        await p.tell(tenantId, `trial_spent:${tenantId}`, TRIAL_SPENT_WORDS.title, TRIAL_SPENT_WORDS.detail(words));
-        p.log.info("trial_spent_plan_started", { tenant_id: tenantId, share: s.share });
+        await trialPorts.tell(
+          tenantId,
+          `trial_spent:${tenantId}`,
+          TRIAL_SPENT_WORDS.title,
+          TRIAL_SPENT_WORDS.detail(words),
+        );
+        trialPorts.log.info("trial_spent_plan_started", { tenant_id: tenantId, share: trialSpent.share });
       } else {
         out.failed += 1;
-        await p.tell(
+        await trialPorts.tell(
           tenantId,
           `trial_spent_failed:${tenantId}`,
           TRIAL_SPENT_WORDS.failedTitle,
           TRIAL_SPENT_WORDS.failed,
         );
-        p.log.error("trial_spent_plan_refused", { tenant_id: tenantId, detail: r.detail ?? null });
+        trialPorts.log.error("trial_spent_plan_refused", { tenant_id: tenantId, detail: startPlan.detail ?? null });
       }
-    } else if (s.near) {
-      if (await p.tell(tenantId, `trial_near:${tenantId}`, TRIAL_SPENT_WORDS.nearTitle, TRIAL_SPENT_WORDS.near(words)))
+    } else if (trialSpent.near) {
+      if (
+        await trialPorts.tell(
+          tenantId,
+          `trial_near:${tenantId}`,
+          TRIAL_SPENT_WORDS.nearTitle,
+          TRIAL_SPENT_WORDS.near(words),
+        )
+      )
         out.near += 1;
     }
   }

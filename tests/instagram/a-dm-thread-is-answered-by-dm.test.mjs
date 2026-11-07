@@ -14,7 +14,7 @@ import { importSrc } from "../_source.mjs";
 
 const { replyToConversation, DM_WINDOW_CLOSED_REFUSAL } = await importSrc("packages/core/src/conversations/reply.ts");
 const { DM_CLOSED } = await importSrc("packages/contracts/src/people/person-reach.ts");
-const { igClockOfRow, replyChannelOfRow } = await importSrc("packages/contracts/src/people/person-row.ts");
+const { igClockOfRow, replyChannelOfRow } = await importSrc("packages/contracts/src/people/person-row/row-facts.ts");
 const {
   windowClockOf,
   replyWindow,

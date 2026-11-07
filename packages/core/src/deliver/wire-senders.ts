@@ -6,20 +6,22 @@
 import {
   sendText,
   sendTemplate,
-  sendEmail,
   graphThrottled,
+  type SendResult,
+  type EmailLeftAsWhy,
+  type WaConfig,
+} from "@chanlytics/channels/whatsapp";
+import {
+  sendEmail,
   resendLimitOf,
   SEND_MIN_MS,
   requestLeavesAs,
   addressOf,
   type ResendLimit,
-  type SendResult,
-  type EmailLeftAsWhy,
-  type WaConfig,
   type EmailRequest,
   type EmailSendsAs,
   type ResendConfig,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import { isOfferByEmail } from "@chanlytics/contracts";
 import type { Channel, Delivery, Sender, Wire } from "./deliver";
 
@@ -48,8 +50,8 @@ export interface WireUnavailable {
   error: string;
 }
 export const wireUnavailable = (error: string): WireUnavailable => ({ unavailable: true, error });
-export function isWireUnavailable(w: unknown): w is WireUnavailable {
-  return typeof w === "object" && w !== null && "unavailable" in w && w.unavailable === true;
+export function isWireUnavailable(value: unknown): value is WireUnavailable {
+  return typeof value === "object" && value !== null && "unavailable" in value && value.unavailable === true;
 }
 
 /**
@@ -69,8 +71,8 @@ export class WireUnavailableError extends Error {
     this.channel = channel;
   }
 }
-export function isWireUnavailableError(e: unknown): e is WireUnavailableError {
-  return e instanceof Error && e.name === "WireUnavailableError";
+export function isWireUnavailableError(error: unknown): error is WireUnavailableError {
+  return error instanceof Error && error.name === "WireUnavailableError";
 }
 
 /**
@@ -91,8 +93,8 @@ export class NotTakenError extends Error {
     this.errorBody = sent.errorBody ?? null;
   }
 }
-export function isNotTakenError(e: unknown): e is NotTakenError {
-  return e instanceof Error && e.name === "NotTakenError";
+export function isNotTakenError(error: unknown): error is NotTakenError {
+  return error instanceof Error && error.name === "NotTakenError";
 }
 
 /**
@@ -155,19 +157,20 @@ export function emailSender(routes: EmailRoute[], held: readonly string[] = []):
   if (routes.length === 0) return null;
   const refuse = (errorBody: string): Promise<SendResult> =>
     Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
-  return async (to, p) => {
-    if (!p.email) return refuse("no_frozen_request");
-    if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
-    const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, held, to, p.ownEmail) : null;
+  return async (to, item) => {
+    if (!item.email) return refuse("no_frozen_request");
+    if (item.email.to.length !== 1 || item.email.to[0] !== to) return refuse("request_names_another_recipient");
+    const own =
+      item.reply && item.ownEmail && item.purpose !== "outreach" ? ownRouteOf(routes, held, to, item.ownEmail) : null;
     // The caller's own ceiling, when it has one (a batch's, Delivery.sendBy): the send never outlives it, but is never given
     // less than a request needs: a send started when none is left would only time out with the email possibly taken.
-    const bound = p.deadlineMs === undefined ? {} : { deadlineMs: Math.max(SEND_MIN_MS, p.deadlineMs) };
-    if (own && "route" in own) return { ...(await sendBy(own.route, p.ownEmail!, bound)), leftAs: "own" };
-    const from = addressOf(p.email.from)?.address;
-    const lane = p.purpose === "outreach" ? "own" : p.purpose === "marketing" ? "campaigns" : "hosted";
+    const bound = item.deadlineMs === undefined ? {} : { deadlineMs: Math.max(SEND_MIN_MS, item.deadlineMs) };
+    if (own && "route" in own) return { ...(await sendBy(own.route, item.ownEmail!, bound)), leftAs: "own" };
+    const from = addressOf(item.email.from)?.address;
+    const lane = item.purpose === "outreach" ? "own" : item.purpose === "marketing" ? "campaigns" : "hosted";
     const route = routes.find((r) => r.lane === lane && r.as.address === from);
-    if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
-    const sent = await sendBy(route, p.email, bound);
+    if (!route || !requestLeavesAs(item.email, route.as)) return refuse("request_leaves_as_another_sender");
+    const sent = await sendBy(route, item.email, bound);
     return own ? { ...sent, leftAs: "mailbox", leftAsWhy: own.why } : sent;
   };
 }
@@ -223,32 +226,38 @@ type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credenti
  */
 export async function putOnWire(
   wire: Wire,
-  d: Delivery,
+  delivery: Delivery,
   asReply: boolean,
   now: (() => number) | undefined,
 ): Promise<WireResult> {
-  const send = wire[d.channel];
-  if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
+  const send = wire[delivery.channel];
+  if (isWireUnavailable(send)) throw new WireUnavailableError(delivery.channel, send.error);
   if (send === undefined)
     return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
   if (send === null)
     return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
-  const reply = d.email && asReply ? { reply: true, ownEmail: d.ownEmail } : {};
+  const reply = delivery.email && asReply ? { reply: true, ownEmail: delivery.ownEmail } : {};
   // What is left of the caller's ceiling at this moment, not when the delivery was made: the door's reads came between.
-  const bound = d.email && d.sendBy !== undefined ? { deadlineMs: Math.max(0, d.sendBy - (now ?? Date.now)()) } : {};
-  const sent = await send(d.to, {
-    body: d.body,
-    template: d.template,
+  const bound =
+    delivery.email && delivery.sendBy !== undefined
+      ? { deadlineMs: Math.max(0, delivery.sendBy - (now ?? Date.now)()) }
+      : {};
+  const sent = await send(delivery.to, {
+    body: delivery.body,
+    template: delivery.template,
     // Which of a workspace's numbers this person wrote to is read by the thread, on a wire that holds two.
-    conversationId: d.conversationId,
+    conversationId: delivery.conversationId,
     // The lane an email takes is chosen by the purpose it is handed (emailSender): an offer by email leaves by the campaigns
     // domain, and the business's own news is one at the door (decision D2, contracts isOfferByEmail), so the wire is told it
     // is, whatever its template's category says. Anything else keeps the purpose it asked with.
-    ...(d.email ? { email: d.email, purpose: isOfferByEmail(d) ? "marketing" : d.purpose } : {}),
+    ...(delivery.email
+      ? { email: delivery.email, purpose: isOfferByEmail(delivery) ? "marketing" : delivery.purpose }
+      : {}),
     ...reply,
     ...bound,
   });
   // Not taken, for a caller that will try again (Delivery.holdIfNotTaken): nothing is written, the row stays queued.
-  if (!sent.ok && sent.outcome === "retryable" && d.holdIfNotTaken) throw new NotTakenError(d.channel, sent);
+  if (!sent.ok && sent.outcome === "retryable" && delivery.holdIfNotTaken)
+    throw new NotTakenError(delivery.channel, sent);
   return sent;
 }

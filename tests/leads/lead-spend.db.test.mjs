@@ -25,7 +25,7 @@ import {
   maySpend,
   whyCannotSpend,
 } from "@chanlytics/contracts";
-import { estimateForRound } from "../../apps/dashboard/src/server/leads/lead-answers.ts";
+import { estimateForRound } from "../../apps/dashboard/src/server/leads/answers.ts";
 import { showSecondFactor } from "../_second-factor.mjs";
 import { takeLock } from "../_file-lock.mjs";
 

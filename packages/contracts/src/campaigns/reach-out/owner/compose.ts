@@ -37,18 +37,18 @@ export interface ComposeLinks {
 }
 
 /** The three doors for one email: with its words in them while every link stays under COMPOSE_URL_MAX, else without. */
-export function composeLinksOf(e: { to: string; subject: string; text: string }): ComposeLinks {
+export function composeLinksOf(input: { to: string; subject: string; text: string }): ComposeLinks {
   const full = {
-    mailto: mailtoOf(e.to, e.subject, e.text),
-    gmail: gmailOf(e.to, e.subject, e.text),
-    outlook: outlookOf(e.to, e.subject, e.text),
+    mailto: mailtoOf(input.to, input.subject, input.text),
+    gmail: gmailOf(input.to, input.subject, input.text),
+    outlook: outlookOf(input.to, input.subject, input.text),
   };
   if (Math.max(full.mailto.length, full.gmail.length, full.outlook.length) <= COMPOSE_URL_MAX)
     return { ...full, bodyInLinks: true };
   return {
-    mailto: mailtoOf(e.to, e.subject, null),
-    gmail: gmailOf(e.to, e.subject, null),
-    outlook: outlookOf(e.to, e.subject, null),
+    mailto: mailtoOf(input.to, input.subject, null),
+    gmail: gmailOf(input.to, input.subject, null),
+    outlook: outlookOf(input.to, input.subject, null),
     bodyInLinks: false,
   };
 }

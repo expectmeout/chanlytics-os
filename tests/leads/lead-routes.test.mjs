@@ -34,7 +34,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const searches = await import(at("apps/dashboard/app/api/v1/lead-searches/route.ts"));
 const search = await import(at("apps/dashboard/app/api/v1/lead-searches/[id]/route.ts"));
 const answerRoute = await import(at("apps/dashboard/app/api/v1/lead-searches/[id]/answer/route.ts"));
@@ -56,17 +56,17 @@ const exportRoute = await import(at("apps/dashboard/app/api/v1/leads/export/rout
 const suggestions = await import(at("apps/dashboard/app/api/v1/lead-suggestions/route.ts"));
 const askIdea = await import(at("apps/dashboard/app/api/v1/ask/idea/route.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/shared/model-json.ts"));
-const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
+const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
 const { planFacts } = await import(at("apps/dashboard/src/server/leads/leads.ts"));
 // The lead's draft builds its mailto: with the reach-out's compose module (00429): one helper, not two.
 const { mailtoOf: leadMailto } = await import(at("packages/contracts/src/campaigns/reach-out/owner/compose.ts"));
-const { setSuggestionsWriter } = await import(at("apps/dashboard/src/server/leads/lead-suggestions.ts"));
-const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { lead: leadReader, leads: leadsReader } = await import(at("apps/dashboard/src/server/readers/leads.ts"));
+const { setSuggestionsWriter } = await import(at("apps/dashboard/src/server/leads/suggestions.ts"));
+const { load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { lead: leadReader, readLeads: leadsReader } = await import(at("apps/dashboard/src/server/readers/leads.ts"));
 const { search: searchReader, searches: searchesReader } = await import(
   at("apps/dashboard/src/server/readers/searches.ts")
 );
-const { toSearchDto } = await import(at("apps/dashboard/src/server/leads/lead-searches.ts"));
+const { toSearchDto } = await import(at("apps/dashboard/src/server/leads/searches.ts"));
 const { runTool, newToolContext, READ_DEFS } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -472,7 +472,7 @@ test("keep, exclude, put back and undo reach their doors with the ids and the ve
   const seen = [];
   // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
   const ledger = { events: [] };
-  setServiceClient(fakeDb(ledger));
+  setUnsubscribeServiceClient(fakeDb(ledger));
 
   const rpcs = {
     lead_member_keep: (a) => {
@@ -513,7 +513,7 @@ test("keep, exclude, put back and undo reach their doors with the ids and the ve
     ["undo", { p_op_id: O1, p_version: 3 }],
   ]);
   await refused(keep.POST.run(send({ search_id: S1 }), ctxFor("owner", rpcs, { id: "nope" })), "not_found", 404);
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
   assert.deepEqual(
     ledger.events.map((e) => [e.kind, e.subject_type, e.subject_id, e.data]),
     [
@@ -980,8 +980,8 @@ test("a viewer is refused every write; an operator may work leads but not erase,
 });
 
 test("a draft needs the business's address, its foot is code's, and the model is asked once with the lead's facts quoted", async (t) => {
-  setServiceClient(fakeDb({}, {}, { lead_addresses_suppressed: () => [] }));
-  t.after(() => setServiceClient(null));
+  setUnsubscribeServiceClient(fakeDb({}, {}, { lead_addresses_suppressed: () => [] }));
+  t.after(() => setUnsubscribeServiceClient(null));
   await assert.rejects(
     draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator", address: null }), { id: LEAD }, doors())),
     (e) => e.message === LEAD_NO_ADDRESS,
@@ -1018,10 +1018,10 @@ test("a draft needs the business's address, its foot is code's, and the model is
 });
 
 test("a draft to an address on the never-again list is refused before the model is asked, and a list that can't be read is no yes", async (t) => {
-  t.after(() => setServiceClient(null));
+  t.after(() => setUnsubscribeServiceClient(null));
   const before = modelCalls.length;
   const asked = [];
-  setServiceClient(
+  setUnsubscribeServiceClient(
     fakeDb(
       {},
       {},
@@ -1038,7 +1038,7 @@ test("a draft to an address on the never-again list is refused before the model 
     (e) => e.message === LEAD_ASKED_NOT_WRITTEN && e.status === 409,
   );
   assert.deepEqual(asked, [{ p_tenant_id: A, p_addresses: ["hello@travisheightscoaching.example"] }]);
-  setServiceClient({ rpc: async () => ({ data: null, error: { code: "XX000", message: "no answer" } }) });
+  setUnsubscribeServiceClient({ rpc: async () => ({ data: null, error: { code: "XX000", message: "no answer" } }) });
   await assert.rejects(draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator" }), { id: LEAD }, doors())));
   assert.equal(modelCalls.length, before, "not one model call, either way");
 });
@@ -1698,7 +1698,7 @@ test("a kept search is renamed, removed with the worked leads kept, or has its f
   const rpcs = doors();
   // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
   const ledger = { events: [] };
-  setServiceClient(fakeDb(ledger));
+  setUnsubscribeServiceClient(fakeDb(ledger));
 
   assert.deepEqual(
     await search.PATCH.run(
@@ -1719,7 +1719,7 @@ test("a kept search is renamed, removed with the worked leads kept, or has its f
     [gone.archived, gone.kept, gone.toast],
     [40, 2, "Removed. The 2 you contacted or are talking to are kept."],
   );
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
   assert.deepEqual(
     ledger.events.map((e) => [
       e.kind,

@@ -17,7 +17,7 @@
 import { json, refuse } from "../shared/http.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
-import { mail, reachesTenant } from "./notify.js";
+import { sendOpsMail, reachesTenant } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { logger, errField } from "../shared/log.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
@@ -27,17 +27,18 @@ import {
   parseTenantConfigResult,
   spokenDuration,
   youAreLiveEmail,
+  UUID,
 } from "@chanlytics/contracts";
-import { workspaceNamed } from "@chanlytics/db";
+import { findWorkspaceNamed } from "@chanlytics/db/workspace";
 
 export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
+  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
 
   const [tenant, voice, kept, cfg, call, whatsapp] = await Promise.all([
     db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle(),
@@ -88,7 +89,7 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
   const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };
   // Only the workspace's own people: without an address of theirs there is nobody to tell.
   if (!reachesTenant(target)) {
-    L.info("you_are_live_unaddressed", { tenant_id: tenantId });
+    log.info("you_are_live_unaddressed", { tenant_id: tenantId });
     return json(200, { ok: true, sent: false, why: "no_address" });
   }
   const parsed = parseTenantConfigResult(cfg.data?.config);
@@ -111,8 +112,8 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
     todayUrl: `${dashboardOrigin()}${appLink(tenant.data.slug, "today")}`,
     whatsapp: whatsapp.data?.number_e164 ?? null,
   });
-  const sent = await mail(target, message);
-  L.info("you_are_live_sent", { tenant_id: tenantId, sent });
+  const sent = await sendOpsMail(target, message);
+  log.info("you_are_live_sent", { tenant_id: tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, sent });
 }
 
@@ -127,23 +128,23 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
  * often a workspace may ask is the dashboard route's (three an hour).
  */
 export async function sendAlertTest(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
+  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
 
   const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };
   const to = target.notifications?.escalation_emails ?? [];
   // Only the workspace's own addresses: a test that would reach the platform's instead is not sent.
   if (!reachesTenant(target) || !to.length) {
-    L.info("alert_test_unaddressed", { tenant_id: tenantId });
+    log.info("alert_test_unaddressed", { tenant_id: tenantId });
     return json(200, { ok: true, sent: false, why: "no_address", to: 0 });
   }
-  const named = await workspaceNamed(db, tenantId).catch((e: unknown) => {
-    L.warn("notify_link_unavailable", { tenant_id: tenantId, error: errField(e) });
+  const named = await findWorkspaceNamed(db, tenantId).catch((e: unknown) => {
+    log.warn("notify_link_unavailable", { tenant_id: tenantId, error: errField(e) });
     return null;
   });
   const message = alertTestMail({
@@ -152,7 +153,7 @@ export async function sendAlertTest(auth: Admitted, body: Partial<{ tenant_id?: 
     // which the home carries to the workspace this browser used last. Never the origin and a path the app does not have.
     link: `${dashboardOrigin()}${appLink(named?.slug, "admin/notifications")}`,
   });
-  const sent = await mail(target, message);
-  L.info("alert_test_sent", { tenant_id: tenantId, sent, to: to.length });
+  const sent = await sendOpsMail(target, message);
+  log.info("alert_test_sent", { tenant_id: tenantId, sent, to: to.length });
   return json(sent ? 200 : 502, { ok: sent, sent, to: to.length });
 }

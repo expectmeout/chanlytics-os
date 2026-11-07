@@ -17,9 +17,9 @@ import {
   hasProfile,
   policyRules,
   NO_FIELDS_COMPOSED_WORDS,
-  RULES_WITHOUT_FIELDS_WORDS,
   DATA_NOT_INSTRUCTIONS,
 } from "@chanlytics/contracts";
+import { RULES_WITHOUT_FIELDS_WORDS } from "../../../apps/dashboard/src/surfaces/settings/business/model/rule-strengths.ts";
 import { ASSISTANT_LINES, RULES_WIN } from "../_prompt-rules.mjs";
 
 const brain = {

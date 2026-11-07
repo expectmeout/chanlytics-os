@@ -41,14 +41,14 @@ const {
   PEOPLE_LISTS,
   PERSON_STATE_LABELS,
   PLAYBOOK_TRIGGERS,
-  PROPOSAL_SPECS,
   SEQUENCE_MODE_WORDS,
   momentOffered,
   roleAtLeast,
   toReceptionistReportVM,
   toReviewsReportVM,
 } = await import("@chanlytics/contracts");
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 beforeEach(() => readerCache.clear());
 
 /** The twenty-six tools as PR 3.1 froze them, by name. */
@@ -589,7 +589,7 @@ function renamed(old, input) {
   return { name, input: action ? { action, ...own } : own };
 }
 
-/** Whose an action is, in the registry's refusal (tools/context.ts WHOSE). */
+/** Whose an action is, in the registry's refusal (tools/context/context.ts WHOSE). */
 const WHOSE = { owner: "an owner's", partner: "an owner's or a partner's" };
 
 /**
@@ -636,7 +636,7 @@ function withCampaigns(result) {
  * 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): the report reads the lens's ledger beside its sends, whether or not the
  * sends could be read (readers/campaign-report.ts campaignLedgerReport, once): the database's campaign_ledger and
  * campaign_stuck, and the connected number's row (the reader says its health from the channel's stored config, db
- * whatsappChannelFacts: its own read of tenant_channels, one). The bytes are unchanged: this world has no campaign_series,
+ * findWhatsappChannelFacts: its own read of tenant_channels, one). The bytes are unchanged: this world has no campaign_series,
  * so the lens still says error.
  */
 const withCampaignReads = (reads) => [...reads, "rpc:campaign_ledger", "rpc:campaign_stuck", "tenant_channels.select"];
@@ -1407,7 +1407,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       ? want.reads.map((r) => (r === "messages.select" ? "rpc:newest_messages" : r))
       : want.reads;
     // 7 Oct 2026 (lane 1, T6): Ask reads the message a proposal's template names through core's readCampaignMessage (db
-    // messageVersionRowsOf: the version, then every row of its message), where it read the one WhatsApp row: one `templates`
+    // listMessageVersionRows: the version, then every row of its message), where it read the one WhatsApp row: one `templates`
     // read more for a template this workspace holds. A template it does not hold answers at the version, one read as before.
     const readsRows =
       NAMES[old].startsWith("propose_sequence.") && input.template_id === TPL && reads00.includes("templates.select");
@@ -1418,7 +1418,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // A campaign proposed (a broadcast, a playbook) asks the same of WhatsApp alone, the one channel Ask names: whether
     // its number can send. One read more, in any order; a call refused before, at its template, never gets that far.
     const proposes = String(NAMES[old]).startsWith("propose_sequence.") && !want.isError;
-    // 7 Oct 2026 (lane 1, T5): a playbook's check reads the message the template's id names (db messageVersionRowsOf: the
+    // 7 Oct 2026 (lane 1, T5): a playbook's check reads the message the template's id names (db listMessageVersionRows: the
     // version, then every row of it, on any channel), where it read the one WhatsApp row: a playbook proposed on a
     // template, which reached the check after Ask's own read of the row, makes one `templates` read more.
     const readsMessage =
@@ -1441,7 +1441,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const reached = readsReach ? [...counted, "tenant_channels.select", "lines.select"] : counted;
     // 8 Oct 2026 (Ask names channels; the spec of that day, decision 5): a playbook proposed with no channel named goes
     // by what the composer would tick for it (contracts newCampaignChannels), so it asks what the workspace can send on
-    // before its check (act/playbook.ts unnamedChannels, over readers/facts.ts channelsReady: the number's row and the
+    // before its check (act/playbook/playbook.ts unnamedChannels, over readers/facts.ts channelsReady: the number's row and the
     // texting line's, the read the people's pool makes once a turn). A call that goes on to count its people makes no
     // read more; one the CHECK refuses never got that far, and makes those two. The one change to its reads; the bytes
     // are unchanged, this workspace's default being WhatsApp alone.
@@ -1449,7 +1449,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       old === "propose_playbook" && input.channels === undefined && want.result === '{"error":"List not found."}';
     const reachReads = refusedAtTheCheck ? [...reached, "tenant_channels.select", "lines.select"] : reached;
     // 6 Oct 2026 (#1431): a person's page reads the decisions recorded about them, not only those on their threads
-    // (packages/db personDecisions), so people.get reads `decisions` once even for a person with no thread, or none at all.
+    // (packages/db listPersonDecisions), so people.get reads `decisions` once even for a person with no thread, or none at all.
     // The one change to its reads; its bytes are unchanged.
     const withDecisions =
       NAMES[old] === "people.get" && !reachReads.includes("decisions.select")
@@ -1458,10 +1458,10 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 7 Oct 2026 (00344, decision 0034 step 4): a person's page reads the open doubts naming them (person_doubts) in the
     // same round, so people.get makes that one read more; its bytes are unchanged, the tool not saying them yet.
     const withDoubts0 = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
-    // 12 Oct 2026 (#1566, decision 0052): and the signers of their replies still offered or taken (db signersOf), in the
+    // 12 Oct 2026 (#1566, decision 0052): and the signers of their replies still offered or taken (db listSigners), in the
     // same round; its bytes are unchanged, the tool not saying them. This world's person names no lead, so the business
     // they work at reads nothing.
-    // 15 Oct 2026 (decision 0060, S5): and the sequences they are in now (db sequencesOfPerson); none here, so no names.
+    // 15 Oct 2026 (decision 0060, S5): and the sequences they are in now (db listSequencesOfPerson); none here, so no names.
     const withDoubts =
       NAMES[old] === "people.get"
         ? [...withDoubts0, "sequence_replies.select", "sequence_enrollments.select"]
@@ -1470,7 +1470,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
     // -- so calendar.week makes those reads more. Its bytes are unchanged: this workspace has no calendar and no
     // booking has arrived, and with no feed to read nothing of the record's taken time is asked. Since 00397 the span's
-    // record is two reads (db visitsOver: the bookings whole, and the feed's rows by key), so five more.
+    // record is two reads (db findVisitsOver: the bookings whole, and the feed's rows by key), so five more.
     const withCalendar =
       NAMES[old] === "calendar.week"
         ? [
@@ -1490,13 +1490,13 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const withSeen = readsSeen ? [...withCalendar, "rpc:contact_seen"] : withCalendar;
     // 7 Oct 2026 (Reports phase C, lens 1, T4): the report reads the Reviews lens too: six reads more (withReviewReads).
     // 8 Oct 2026 (a conversation begins from the Inbox): a thread nothing has come to from the person's side is answered
-    // where our own written words last went (server/shared/verbs.ts replyChannelOf, db ourLastWire), never on WhatsApp by default:
+    // where our own written words last went (server/shared/verbs.ts replyChannelOf, db findOurLastWire), never on WhatsApp by default:
     // one `messages` read more for a reply drafted on such a thread. This workspace's one inbound message names a sender
     // the reader does not count as the person's own, so the draft that reaches the read makes it. Its bytes are unchanged.
     const readsOurWire = NAMES[old] === "propose_reply.draft" && withSeen.includes("messages.select");
     const withOurWire = readsOurWire ? [...withSeen, "messages.select"] : withSeen;
     // 9 Oct 2026 (a moment holds many campaigns, lane 1, task 14): the playbooks reader asks the database what each
-    // playbook's runs earned (00374 playbook_totals, db playbookTotals: one call) and reads the playbooks' rows alone,
+    // playbook's runs earned (00374 playbook_totals, db getPlaybookTotals: one call) and reads the playbooks' rows alone,
     // where it read every run's row beside them to sum it in TypeScript: one `broadcasts` read fewer and one call to the
     // function more. Its bytes are unchanged (GET playbooks answers the same bytes, playbooks/totals/playbook-totals.test.mjs).
     const countsInTheDatabase = NAMES[old] === "sequences.moments" && withOurWire.includes("sequence_batches.select");
@@ -1504,17 +1504,17 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       ? [...withOurWire.toSpliced(withOurWire.indexOf("sequence_batches.select"), 1), "rpc:playbook_totals"]
       : withOurWire;
     // 9 Oct 2026 (the moment spec, D9): a playbook proposed is held to the running ones on its moment, list and message
-    // (packages/db runningTwins): one `playbooks` read more for a call that reaches its card.
+    // (packages/db listRunningTwins): one `playbooks` read more for a call that reaches its card.
     const readsTwins = NAMES[old] === "propose_sequence.moment" && !want.isError;
     const withTwins = readsTwins ? [...withTotals, "sequence_steps.select"] : withTotals;
     // 10 Oct 2026 (a moment holds many campaigns: the month's allowance, one rule): a playbook proposed is counted against
-    // the week's touches as the page's pools are (server/campaigns/playbooks.ts recentTouches, db touchesSince: the week's
+    // the week's touches as the page's pools are (server/campaigns/playbooks.ts getRecentTouches, db listTouchesSince: the week's
     // runs, and the workspace's zone a waiting run is judged by), where it was counted with nobody touched: two reads more
     // for a call that reaches its card, and no read of the runs' people where the week holds no run. Its bytes are
     // unchanged: nobody here heard from a campaign this week.
     const withWeek = readsTwins ? [...withTwins, "sequence_batches.select", "tenants.select"] : withTwins;
     // 11 Oct 2026 (a one-off send honours the breath): a broadcast proposed leaves out whoever heard this week, as the
-    // composer counts them and the route skips them (db recentTouches over touchesSince): the same two reads more for a
+    // composer counts them and the route skips them (db getRecentTouches over listTouchesSince): the same two reads more for a
     // call that reaches its card, and for the audiences listing, which counts as the card does. Their bytes are unchanged:
     // nobody here heard from a campaign this week.
     const readsBreath = (NAMES[old] === "propose_sequence.once" && !want.isError) || NAMES[old] === "sequences.lists";
@@ -1531,9 +1531,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         ? [...withBreath, "escalations.select"]
         : withBreath;
     // 13 Oct 2026 (Ruben: held emails count): and the going runs, whose check may hold emails for your say (db
-    // waitingRunsOf): one `broadcasts` read more. Nobody here has a going reach-out run, so no held count is asked.
-    // 19 Oct 2026 (decision 0064, step 2): and the runs set to go before the day ends (db runsGoingBetween), one more.
-    // 31 Oct 2026 (decision 0079, L5): and the leads who tried their own receptionist (db previewsTriedSince), one more.
+    // listWaitingRuns): one `broadcasts` read more. Nobody here has a going reach-out run, so no held count is asked.
+    // 19 Oct 2026 (decision 0064, step 2): and the runs set to go before the day ends (db listRunsGoingBetween), one more.
+    // 31 Oct 2026 (decision 0079, L5): and the leads who tried their own receptionist (db listPreviewsTriedSince), one more.
     // Its bytes are unchanged: nobody here tried one.
     const withRunsWaiting =
       old === "get_today"
@@ -1546,13 +1546,13 @@ test("every old tool's call, made by its new name and action, answers the bytes 
           ]
         : halves;
     // 13 Oct 2026 (the wiring's second audit, R3, S5-3): a person the workspace does not show is asked once more whether
-    // they were combined into another (db keptPersonOf), so their old address opens the person they became: one
+    // they were combined into another (db findKeptPerson), so their old address opens the person they became: one
     // `contacts` read more where the profile is refused. Its bytes are unchanged for nobody combined.
     const followsACombine =
       NAMES[old] === "people.get" && want.isError ? [...withRunsWaiting, "contacts.select"] : null;
     const withKept = followsACombine ?? withRunsWaiting;
     // 16 Oct 2026 (a question handed back unanswered still waits): the conversations reader asks each thread's newest
-    // closed hold beside its messages (db lastClosedHolds), so a thread whose customer wrote last can say nobody answered
+    // closed hold beside its messages (db listLastClosedHolds), so a thread whose customer wrote last can say nobody answered
     // them: one `escalations` read more for each read of the threads' messages. The bytes are unchanged: no tool says it yet.
     const withClosedHolds = [
       ...withKept,

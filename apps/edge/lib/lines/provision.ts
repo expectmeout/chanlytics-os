@@ -14,19 +14,19 @@
  * handing a line to a person after its automatic tries run out — so that too is told
  * in the same words.
  */
-import { notify, recordNotification } from "../ops/notify.js";
-import { emitEvent, recordActivation } from "@chanlytics/db";
+import { notify, recordNotification } from "../shared/alerts/notify.js";
+import { emitEvent, recordActivation } from "@chanlytics/db/events";
 import {
   FIRST_RUN_ROUTE,
   formatPhoneDisplay,
   lineCredentialFailure,
   LINE_CREDENTIALS_SENTENCE,
 } from "@chanlytics/contracts";
-import { runLineSaga, type LineRow } from "@chanlytics/channels";
+import { runLineSaga, type LineRow } from "@chanlytics/channels/lines";
 import { linePorts, LINE_STEP_WORDS, type LineProviderChoice } from "./lines.js";
-import type { ResumedBy } from "./line-resume.js";
+import type { ResumedBy } from "./resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import { logger } from "../shared/log.js";
 
 /**

@@ -1,10 +1,10 @@
 /**
- * Structured logging for the edge: the platform's one logger (packages/channels log/), typed by the edge's names.
+ * Structured logging for the edge: the platform's one logger (packages/log), typed by the edge's names.
  *
  * There were 75 console call sites across the edge and the packages it bundles, and FIVE of them mentioned a tenant.
  * The shapes were ad hoc too, so the log was not queryable even in principle, and "what happened to this business's
  * line yesterday?" could not be answered, which is the question every incident starts with. This module's first
- * version (21 September) gave every line one envelope; the implementation now lives in channels, so the dashboard's
+ * version (21 September) gave every line one envelope; the implementation now lives in packages/log, so the dashboard's
  * server and the packages write the same line (level, event, request_id, tenant_id, fields redacted by key).
  *
  * The design constraint that shaped this: EVENT NAMES DO NOT CHANGE. They are the stable identifier anything
@@ -17,18 +17,16 @@
  * with it, so a request can never lend its name to the next one the instance serves (edge/request-id-doors.test.mjs).
  * packages/db logs through the same logger: this module hands it in as it loads.
  */
+import { requestIdOf, verifyEdgeToken, REQUEST_ID_HEADER } from "@chanlytics/channels/tokens";
 import {
   logger as oneLogger,
   errField,
   withRequestId,
   requestId,
-  requestIdOf,
-  verifyEdgeToken,
-  REQUEST_ID_HEADER,
   type Logger as OneLogger,
   type LogFields,
-} from "@chanlytics/channels";
-import { observeDb } from "@chanlytics/db";
+} from "@chanlytics/log";
+import { observeDb } from "@chanlytics/db/shared";
 import { env } from "./env.js";
 import type { LogEvent } from "./log-events.js";
 

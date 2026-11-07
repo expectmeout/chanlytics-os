@@ -14,7 +14,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { DECISION_SUBJECTS, DECISION_VERBS, connectionRows, toChannelVM } from "@chanlytics/contracts";
+import { DECISION_SUBJECTS, DECISION_VERBS, toChannelVM } from "@chanlytics/contracts";
+import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { readCode, readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -88,7 +89,12 @@ test("the graph helpers: E.164 out of Meta's display form, a six-digit PIN, the 
 });
 
 test("the dashboard route: owner only, the settings rate bucket, the sign-up ids validated, the ledger keeps the connection in the owner's words", () => {
-  const r = readCode("apps/dashboard/app/api/v1/channels/whatsapp/connect/route.ts");
+  const r = [
+    "apps/dashboard/app/api/v1/channels/whatsapp/connect/route.ts",
+    "apps/dashboard/src/server/connections/whatsapp-connect-words.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(r.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
   assert.ok(r.includes('rate: "settings",'));
   assert.ok(

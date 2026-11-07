@@ -13,7 +13,7 @@ import {
   PURPOSE_REFUSALS,
   HELD_REASONS,
 } from "@chanlytics/contracts";
-import { outreachFactsOf } from "../../../packages/db/src/repositories/campaigns/reach-out/outreach.ts";
+import { getOutreachFacts } from "../../../packages/db/src/repositories/campaigns/reach-out/outreach.ts";
 
 const facts = (over = {}) => ({ leadStage: "ready", suppressed: false, wroteBack: false, away: false, ...over });
 
@@ -50,7 +50,7 @@ const answering = (data) => ({
     return { data, error: null };
   },
 });
-const ask = (db) => outreachFactsOf(db, { tenantId: "t1", contactId: "c1", to: "office@example.com", from: "" });
+const ask = (db) => getOutreachFacts(db, { tenantId: "t1", contactId: "c1", to: "office@example.com", from: "" });
 
 test("the facts read away as the database says it, and a database before 00226 as not away", async () => {
   const base = { lead_stage: "ready", suppressed: false, wrote_back: false, mailbox: null };

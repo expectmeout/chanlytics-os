@@ -22,12 +22,8 @@
  * a phone.
  */
 import { useState, type MouseEvent, type ReactNode } from "react";
-import {
-  MESSAGES_ROUTE,
-  type ConnectionKind,
-  type ConnectionLine as Row,
-  type ConnectionVerb,
-} from "@chanlytics/contracts";
+import { MESSAGES_ROUTE } from "@chanlytics/contracts";
+import { type ConnectionKind, type ConnectionLine as Row, type ConnectionVerb } from "./model/setup";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Face } from "../../kit/face/face";

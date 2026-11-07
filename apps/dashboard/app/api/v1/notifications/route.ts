@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { notifications } from "@/server/readers/notifications";
 import { dbRefusal } from "@/server/shared/with-route";
 

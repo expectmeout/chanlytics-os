@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { read, write, workspace } from "@/server/shared/route";
-import { morningLanguage, morningOf, startMorning } from "@/server/ask/companion/morning";
+import { morningLanguage, getMorning, startMorning } from "@/server/ask/companion/morning";
 
 /**
  * Ask's morning on Today (decision 0070; server/ask/companion/morning.ts).
@@ -21,7 +21,7 @@ export const maxDuration = 150;
 
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => ({ morning: await morningOf(ctx, member, Date.now()) }),
+  handle: async ({ ctx, member }) => ({ morning: await getMorning(ctx, member, Date.now()) }),
 });
 
 /** The platform waits for the morning after the response has gone; outside a request (a test) nobody is told. */

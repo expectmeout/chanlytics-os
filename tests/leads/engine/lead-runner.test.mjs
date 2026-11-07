@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { startRound } from "../../../packages/core/src/leads/runner/start.ts";
-import { collect } from "../../../packages/core/src/leads/runner/collect.ts";
+import { collect } from "../../../packages/core/src/leads/runner/collect/collect.ts";
 import { check } from "../../../packages/core/src/leads/runner/check.ts";
 import { giveUpRun, reconcileUnknownRuns } from "../../../packages/core/src/leads/runner/sweep.ts";
 import { rejudgeProbe } from "../../../packages/core/src/leads/runner/rejudge.ts";
@@ -20,16 +20,16 @@ import {
 } from "../../../packages/core/src/leads/runner/rules.ts";
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS } from "../../../packages/core/src/leads/judge.ts";
 import { runIdFor } from "../../../packages/core/src/leads/ids.ts";
-import { judgeBatchPlaces, judgeCallPlaces } from "../../../packages/contracts/src/leads/lead-judge.ts";
+import { judgeBatchPlaces, judgeCallPlaces } from "../../../packages/contracts/src/leads/judge.ts";
 import { LEAD_JUDGE_BATCH } from "../../../packages/contracts/src/leads/search/caps.ts";
 import { ApifyRefused, ApifyRetryable } from "../../../packages/channels/src/leads/apify.ts";
-import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 import { leadWorld, sha256, webhookToken, TENANT } from "../../_lead-world.mjs";
 import { PLAN, actorRun, mapsItem } from "../../_lead-fixtures.mjs";
 import { MARK_MAX_BYTES } from "../../../packages/core/src/leads/mark-image.ts";
 import { notAnImage, png } from "../_mark-images.mjs";
 import { MAPS_CAP_FLOOR_USD } from "../../../packages/core/src/leads/cards.ts";
-import { estimateForRound } from "../../../apps/dashboard/src/server/leads/lead-answers.ts";
+import { estimateForRound } from "../../../apps/dashboard/src/server/leads/answers.ts";
 
 const OWNER = "job-1";
 function world(over = {}) {

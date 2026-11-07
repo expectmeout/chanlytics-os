@@ -9,7 +9,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { buildEmailRequest, connectedIdentity, mailboxMessageId } from "@chanlytics/channels";
+import { buildEmailRequest, connectedIdentity, mailboxMessageId } from "@chanlytics/channels/email";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
@@ -217,7 +217,7 @@ const report = (
   });
 const bounce = report("failed", "5.1.1");
 
-/** Gmail's list of the reports the mailbox received since the last read (gmailReports): these ids, else none. */
+/** Gmail's list of the reports the mailbox received since the last read (listGmailReports): these ids, else none. */
 const reportsList = (c, ids = []) =>
   c.url.includes("/messages?q=from") ? { json: { messages: ids.map((id) => ({ id, threadId: `t-${id}` })) } } : null;
 
@@ -790,7 +790,7 @@ test("mail from the workspace's own domains is its own (the 27 Oct 2026 walk): i
 });
 
 test("an owner's alert that reaches their connected mailbox is left there, as the mail Chanlytics sent says it is, never taken in as a person's email and flagged again (27 Oct 2026)", async () => {
-  const { postMail } = await importSrc("apps/edge/lib/ops/notify.ts");
+  const { postMail } = await importSrc("apps/edge/lib/shared/alerts/notify.ts");
   // A sending address with no program's word in it (alerts@ is automated by its name): only the header tells it.
   const ALERTS = "hello@chanlytics.example";
   const resend = providers(() => ({ json: { id: "em_1" } }));

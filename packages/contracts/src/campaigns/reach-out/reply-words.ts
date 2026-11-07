@@ -4,14 +4,9 @@
  * refusals are the words its door says (00222 reach_out_reply_undo), named here once so the page and the route agree.
  */
 import { clockDate, wallClockAt } from "../../shared/clock";
-import {
-  REPLY_CHIP_WORDS,
-  REPLY_INTENT_WORDS,
-  REPLY_REREADS,
-  type ReplyClaim,
-  type ReplyIntent,
-  type Unread,
-} from "./replies";
+import { REPLY_CHIP_WORDS, REPLY_INTENT_WORDS, type ReplyIntent, type Unread } from "./replies/intents";
+import { REPLY_REREADS } from "./replies/words";
+import { type ReplyClaim } from "./replies/reading";
 import type { DraftWhy } from "./reply-draft";
 
 /** The most readings one page is told, and how far back it looks (the reading's own window, REACH_OUT_REPLY_DAYS). */
@@ -27,8 +22,8 @@ export const REPLY_UNDO_REFUSALS = {
   moved: "They unsubscribed since, and that stays.",
 } as const;
 export type ReplyUndoRefusal = keyof typeof REPLY_UNDO_REFUSALS;
-export const isReplyUndoRefusal = (v: unknown): v is ReplyUndoRefusal =>
-  typeof v === "string" && Object.prototype.hasOwnProperty.call(REPLY_UNDO_REFUSALS, v);
+export const isReplyUndoRefusal = (value: unknown): value is ReplyUndoRefusal =>
+  typeof value === "string" && Object.prototype.hasOwnProperty.call(REPLY_UNDO_REFUSALS, value);
 
 /**
  * Where a person's answer to a reach-out's reply goes out from (C15, N5; decision 0056): the connected mailbox the
@@ -134,24 +129,28 @@ function saidNoLine(r: ReachOutReplyDto): string {
 }
 
 /** What the reading did, by its intent: the line under their words. */
-function didLine(r: ReachOutReplyDto, now: number, tz: string): string | null {
-  const step = r.step_day ? `A step is on Today for ${replyDayWords(r.step_day, tz, now)}.` : "A step is on Today.";
-  switch (r.intent) {
+function didLine(reachOutReply: ReachOutReplyDto, now: number, tz: string): string | null {
+  const step = reachOutReply.step_day
+    ? `A step is on Today for ${replyDayWords(reachOutReply.step_day, tz, now)}.`
+    : "A step is on Today.";
+  switch (reachOutReply.intent) {
     case "interested":
     case "question":
-      return ["Talking now.", draftLine(r)].filter(Boolean).join(" ");
+      return ["Talking now.", draftLine(reachOutReply)].filter(Boolean).join(" ");
     case "not_now":
-      return [step, draftLine(r)].filter(Boolean).join(" ");
+      return [step, draftLine(reachOutReply)].filter(Boolean).join(" ");
     case "no":
-      return saidNoLine(r);
+      return saidNoLine(reachOutReply);
     case "wrong_person":
-      return `Not the right person. They said to write to ${r.refer_to ?? "someone else"}. A step is on Today.`;
+      return `Not the right person. They said to write to ${reachOutReply.refer_to ?? "someone else"}. A step is on Today.`;
     case "away":
-      if (r.claim === "auto_reply" && r.until_at) {
-        const back = clockDate(Date.parse(r.until_at), tz, now);
+      if (reachOutReply.claim === "auto_reply" && reachOutReply.until_at) {
+        const back = clockDate(Date.parse(reachOutReply.until_at), tz, now);
         return `Away until ${back} (an automatic reply). The sequence goes on after that.`;
       }
-      return r.named_day ? `Away until ${replyDayWords(r.named_day, tz, now)}. A step is on Today for that day.` : step;
+      return reachOutReply.named_day
+        ? `Away until ${replyDayWords(reachOutReply.named_day, tz, now)}. A step is on Today for that day.`
+        : step;
     default:
       return null;
   }
@@ -161,23 +160,23 @@ function didLine(r: ReachOutReplyDto, now: number, tz: string): string | null {
  * The strip a thread shows for its newest reading (the Inbox, PR 7): what was read and what was done, in the business's
  * calendar. An undone no says what stands now; a reply not read yet says it will be read again, until the last try.
  */
-export function replyStripOf(r: ReachOutReplyDto, now: number, tz: string): ReplyStrip {
-  const said = r.summary ? `“${r.summary}”` : null;
-  const answers = replyAnswersOf(r);
-  if (r.undone) {
+export function replyStripOf(reachOutReply: ReachOutReplyDto, now: number, tz: string): ReplyStrip {
+  const sentence = reachOutReply.summary ? `“${reachOutReply.summary}”` : null;
+  const answers = replyAnswersOf(reachOutReply);
+  if (reachOutReply.undone) {
     return {
       title: "Wrote back",
-      said,
+      said: sentence,
       answers,
       did:
-        r.claim === "auto_reply"
+        reachOutReply.claim === "auto_reply"
           ? "Read as no, then undone. It was an automatic reply, so the sequence goes on."
           : "Read as no, then undone. The sequence stays stopped: they wrote back.",
       doors: [],
     };
   }
-  if (r.unread) {
-    const last = r.rereads >= REPLY_REREADS;
+  if (reachOutReply.unread) {
+    const last = reachOutReply.rereads >= REPLY_REREADS;
     return {
       title: "Wrote back",
       said: null,
@@ -187,18 +186,18 @@ export function replyStripOf(r: ReachOutReplyDto, now: number, tz: string): Repl
     };
   }
   const doors: ReplyDoor[] = [];
-  if (r.draft_state === "written" && r.draft) doors.push("use_draft");
-  if (r.can_undo) doors.push("undo");
+  if (reachOutReply.draft_state === "written" && reachOutReply.draft) doors.push("use_draft");
+  if (reachOutReply.can_undo) doors.push("undo");
   return {
     title:
-      r.intent === "no"
+      reachOutReply.intent === "no"
         ? "Said no"
-        : r.intent === "other"
+        : reachOutReply.intent === "other"
           ? "Wrote back"
-          : `Wrote back · ${REPLY_INTENT_WORDS[r.intent]}`,
-    said,
+          : `Wrote back · ${REPLY_INTENT_WORDS[reachOutReply.intent]}`,
+    said: sentence,
     answers,
-    did: didLine(r, now, tz),
+    did: didLine(reachOutReply, now, tz),
     doors,
   };
 }
@@ -207,13 +206,13 @@ export function replyStripOf(r: ReachOutReplyDto, now: number, tz: string): Repl
  * The state the Inbox's chip is in -- the pill kind `reply`'s value (shell/tone.ts): what the reply was read as, or "other"
  * ("Wrote back") when it was not, or the reading was undone.
  */
-export function replyChipStateOf(r: Pick<ReachOutReplyDto, "intent" | "unread" | "undone">): ReplyIntent {
-  return r.unread || r.undone ? "other" : r.intent;
+export function replyChipStateOf(reachOutReply: Pick<ReachOutReplyDto, "intent" | "unread" | "undone">): ReplyIntent {
+  return reachOutReply.unread || reachOutReply.undone ? "other" : reachOutReply.intent;
 }
 
 /** The chip on the Inbox's row: what the reply was read as, or "Wrote back" when it was not, or was undone. */
-export function replyChipOf(r: Pick<ReachOutReplyDto, "intent" | "unread" | "undone">): string {
-  return REPLY_CHIP_WORDS[replyChipStateOf(r)];
+export function replyChipOf(reachOutReply: Pick<ReachOutReplyDto, "intent" | "unread" | "undone">): string {
+  return REPLY_CHIP_WORDS[replyChipStateOf(reachOutReply)];
 }
 
 /**
@@ -243,11 +242,11 @@ const bareAddress = (from: unknown): string | null => {
 export function replyLeftAsOf(meta: unknown): string | null {
   const email = (meta as { email?: Record<string, unknown> } | null)?.email;
   if (!email || email.left_as !== "mailbox") return null;
-  const went = bareAddress((email.request as { from?: unknown } | undefined)?.from);
+  const sent = bareAddress((email.request as { from?: unknown } | undefined)?.from);
   const own = bareAddress((email.own_request as { from?: unknown } | undefined)?.from);
-  if (!went) return null;
-  if (!own) return `Went from ${went}.`;
+  if (!sent) return null;
+  if (!own) return `Went from ${sent}.`;
   return email.left_as_why === "own_not_sending"
-    ? `Went from ${went}: ${own} isn't sending right now.`
-    : `Went from ${went}: ${own} could not send it.`;
+    ? `Went from ${sent}: ${own} isn't sending right now.`
+    : `Went from ${sent}: ${own} could not send it.`;
 }

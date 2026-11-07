@@ -12,7 +12,7 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { verifyEdgeToken } from "@chanlytics/channels";
+import { verifyEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -26,7 +26,7 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const partnerWorkspaces = await import(at("apps/dashboard/app/api/v1/partner/workspaces/route.ts"));
 const accept = await import(at("apps/dashboard/app/api/v1/handovers/[id]/accept/route.ts"));
 
@@ -49,7 +49,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   wire.restore();
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });
 
 const ctxFor = (who, email, tables, rpcs, params = {}) => ({
@@ -75,7 +75,7 @@ const configRow = (config, version = 1) => ({
 
 test("REGRESSION: a workspace a partner sets up is told to the platform, naming the owner it waits for -- the notice went only from the route an owner makes one through", async () => {
   // The invitation looks the address up with the service role; an account exists, so the edge writes to it.
-  setServiceClient({ rpc: async () => ({ data: "an-account", error: null }) });
+  setUnsubscribeServiceClient({ rpc: async () => ({ data: "an-account", error: null }) });
   const rpcs = { create_workspace_for_business: () => [{ ...LUNA, status: "active", timezone: "Europe/Madrid" }] };
   // The row create_workspace_for gives every workspace, empty, so a write to it as the partner would show.
   const tables = { tenant_config: [configRow({})] };
@@ -87,7 +87,7 @@ test("REGRESSION: a workspace a partner sets up is told to the platform, naming 
   assert.deepEqual(
     [tables.tenant_config[0].config, tables.tenant_config[0].version],
     [{ notifications: { escalation_emails: ["owner@example.com"] } }, 2],
-    "the owner it waits for is its alert address from the start (workspaceBegun), never the partner: a customer who " +
+    "the owner it waits for is its alert address from the start (recordWorkspaceBegun), never the partner: a customer who " +
       "needs someone before the hand-over reaches the business, and the accept finds the owner there already",
   );
 

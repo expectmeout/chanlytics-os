@@ -23,7 +23,8 @@ import {
   modelStandingOf,
   modelSubjectOf,
 } from "@chanlytics/contracts";
-import { askModel, resetBreakers, streamModel } from "@chanlytics/channels";
+import { askModel, streamModel } from "@chanlytics/channels/ai";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../../_fake-db.mjs";
 import { at, withEnv } from "../../_cron-doors-world.mjs";
 import { repoFiles, parse, importsOf } from "../../_ast.mjs";

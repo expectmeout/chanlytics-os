@@ -4,7 +4,7 @@ import { DEFAULT_TIMEZONE, dayPlusInZone } from "@chanlytics/contracts";
 /**
  * A calendar of fictional appointments for a workspace that carries tooling/scripts/ops/filler.mjs's people.
  *
- * The day on Today is read from `tenant_config.calendar.ical_url` (server/calendar/week.ts), and the filler
+ * The day on Today is read from `tenant_config.calendar.ical_url` (server/calendar/week/week.ts), and the filler
  * cannot write to a real calendar, so a filled workspace points that address at this feed.
  *
  * It is generated, never fetched. The route below serves it so the address is a real one a person can
@@ -79,22 +79,23 @@ export function fillerCalendar(nowMs: number, tz: string): string {
     `X-WR-TIMEZONE:${tz}`,
   ];
   for (let ahead = 0; ahead < DAYS_AHEAD; ahead++) {
-    const d = dayPlusInZone(tz, nowMs, ahead);
+    const result = dayPlusInZone(tz, nowMs, ahead);
     // dayPlusInZone spells the weekday one way for today (the formatter's "Sun") and another for the days
     // after (WEEKDAY_KEYS), so the day off is read by its first two letters.
-    if (String(d.weekday).slice(0, 2).toLowerCase() === "su") continue;
+    if (String(result.weekday).slice(0, 2).toLowerCase() === "su") continue;
     // Six a day, from a slot list that rotates with the day so no two days look alike.
-    const start = (d.d + ahead) % SLOTS.length;
-    for (let n = 0; n < 6; n++) {
-      const slot = SLOTS[(start + n) % SLOTS.length];
-      const [service, minutes] = SERVICES[(d.d + n) % SERVICES.length];
-      const [name, last2] = PEOPLE[(d.d * 3 + n) % PEOPLE.length];
+    const start = (result.d + ahead) % SLOTS.length;
+    for (let count = 0; count < 6; count++) {
+      const slot = SLOTS[(start + count) % SLOTS.length];
+      const [service, minutes] = SERVICES[(result.d + count) % SERVICES.length];
+      const [name, last2] = PEOPLE[(result.d * 3 + count) % PEOPLE.length];
       const end = slot + minutes;
-      const stamp = (mins: number) => `${d.y}${pad(d.m)}${pad(d.d)}T${pad(Math.floor(mins / 60))}${pad(mins % 60)}00`;
+      const stamp = (mins: number) =>
+        `${result.y}${pad(result.m)}${pad(result.d)}T${pad(Math.floor(mins / 60))}${pad(mins % 60)}00`;
       lines.push(
         "BEGIN:VEVENT",
-        `UID:filler-${d.key}-${n}@chanlytics`,
-        `DTSTAMP:${d.y}${pad(d.m)}${pad(d.d)}T000000Z`,
+        `UID:filler-${result.key}-${count}@chanlytics`,
+        `DTSTAMP:${result.y}${pad(result.m)}${pad(result.d)}T000000Z`,
         `DTSTART;TZID=${tz}:${stamp(slot)}`,
         `DTEND;TZID=${tz}:${stamp(end)}`,
         `SUMMARY:${ical(`${service} · ${name}`)}`,
@@ -113,13 +114,13 @@ export function fillerCalendar(nowMs: number, tz: string): string {
  * deployment cannot read falls back to the business's own.
  */
 export function fillerFeedFor(url: string, nowMs = Date.now()): string | null {
-  let u: URL;
+  let otherUrl: URL;
   try {
-    u = new URL(url);
+    otherUrl = new URL(url);
   } catch {
     return null;
   }
-  if (u.pathname !== FILLER_FEED_PATH) return null;
-  const asked = u.searchParams.get("tz") ?? "";
-  return fillerCalendar(nowMs, asked && zoneOk(asked) ? asked : DEFAULT_TIMEZONE);
+  if (otherUrl.pathname !== FILLER_FEED_PATH) return null;
+  const value = otherUrl.searchParams.get("tz") ?? "";
+  return fillerCalendar(nowMs, value && zoneOk(value) ? value : DEFAULT_TIMEZONE);
 }

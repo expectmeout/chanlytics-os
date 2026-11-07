@@ -4,7 +4,7 @@
  * today/vm.ts; the brief that reads this is today/brief.ts.
  */
 import type { EmailSetupDto } from "../email/mailbox";
-import { replySpeedOf, type ReplyHoldDto, type ReplySpeed } from "../reports/report-speed";
+import { replySpeedOf, type ReplyHoldDto, type ReplySpeed } from "../reports/speed";
 
 /**
  * One wire a workspace can be reached on.
@@ -29,7 +29,7 @@ export interface MetricsChannelDto {
  * The email wire, for that list.
  *
  * A workspace HAS email when this deployment has it and the owner has made the
- * mailbox (00129), the judgement `emailSetupFor` already makes for Setup and
+ * mailbox (00129), the judgement `getEmailSetup` already makes for Setup and
  * Connections. Nothing switches a mailbox off, so a mailbox that exists is a
  * wire that is connected: `last_error` is an intake that failed, which
  * Connections tells as "Waiting on us", and a failed intake is not a wire that
@@ -128,9 +128,9 @@ export interface MetricsSummaryDto {
 
 /**
  * How fast the receptionist replied over the window: its median, or, where most replies waited the owner's hold, against it
- * ("as your 1-minute hold ended", spec D14). One reading of one rule (reports/report-speed.ts) for every sentence Today says about
+ * ("as your 1-minute hold ended", spec D14). One reading of one rule (reports/speed.ts) for every sentence Today says about
  * speed, so the figure's clause, the recap's line, Ask's fact and the headline's detail never disagree. Null with no reply to speak of.
  */
-export function todayReplySpeed(m: MetricsSummaryDto): ReplySpeed | null {
-  return replySpeedOf(m.period.median_reply_seconds_ai, m.reply_hold ?? null);
+export function todayReplySpeed(metricsSummary: MetricsSummaryDto): ReplySpeed | null {
+  return replySpeedOf(metricsSummary.period.median_reply_seconds_ai, metricsSummary.reply_hold ?? null);
 }

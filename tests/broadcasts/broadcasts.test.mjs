@@ -345,15 +345,15 @@ test("the view model: delivered and read over sent, open while scheduled or send
 test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {
   // The job is broadcast-send.ts (Reach out Part 2.5); that the dispatch map names it is store-retired.test.mjs's.
   const h = readCode("packages/jobs/src/handlers/broadcast-send.ts");
-  // The batch is db's read now (campaign-channels.ts queuedRecipients, run against the database in memory by
+  // The batch is db's read now (campaigns/channels.ts listQueuedRecipients, run against the database in memory by
   // before-the-channel-columns.test.mjs), a page of the chunk's size.
-  assert.ok(h.includes("batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit })"));
+  assert.ok(h.includes("batch: (id, limit) => listQueuedRecipients(db, { tenantId, broadcastId: id, limit })"));
   assert.ok(BROADCAST_CHUNK === 25);
   assert.ok(
-    // The message is db's read too (templates.ts messageVersionRowsOf, run against the database in memory by
+    // The message is db's read too (templates.ts listMessageVersionRows, run against the database in memory by
     // message-version-rows.test.mjs): every row of its name and language, whatever its channel, with the category and the
     // components an email version keeps its subject in.
-    h.includes("message: (name, language) => messageVersionRowsOf(db, job.tenant_id, { name, language })"),
+    h.includes("message: (name, language) => listMessageVersionRows(db, job.tenant_id, { name, language })"),
     "the message is read whole: its category decides which yes the send needs",
   );
   assert.ok(
@@ -456,7 +456,7 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
   const w = world();
   await assert.rejects(
     dispatchJob(ctx(fakeDb(w, { "templates.select": blip })), job),
-    /messageVersionRowsOf: canceling statement due to statement timeout/,
+    /listMessageVersionRows: canceling statement due to statement timeout/,
   );
   assert.notEqual(w.broadcasts[0].state, "failed", "not failed over a read that did not happen");
   assert.deepEqual(sent, [], "and nobody is told WhatsApp rejected a template it did not reject");
@@ -540,7 +540,7 @@ test('the job carries WhatsApp\'s "not now" through: the person back in the queu
 
 test("a wire that could not be bound claims nobody: the run stays as it was, its people stay queued, nobody is told to reconnect, and the batch is tried again a while on", async () => {
   // The workspace's credentials could not be READ this heartbeat (the edge's
-  // waCredentialsForTenant: Vault or the database did not answer). That is not
+  // getWaCredentialsForTenant: Vault or the database did not answer). That is not
   // a number that is absent, and a claim settles only forward (00182), so the
   // batch asks before it claims and leaves the whole run for the next tick.
   const w = world();
@@ -571,7 +571,7 @@ test("a wire that could not be bound claims nobody: the run stays as it was, its
 });
 
 test("the job reads the stalls it carried, so a run that keeps stalling stops at the cap instead of waiting for ever, and the owner is told", async () => {
-  const { BROADCAST_STALLS_MAX } = await importSrc("packages/core/src/messages/broadcast.ts");
+  const { BROADCAST_STALLS_MAX } = await importSrc("packages/core/src/messages/broadcast/stops.ts");
   const w = world();
   const sent = [];
   const later = [];
@@ -628,7 +628,7 @@ test("the routes: a message, values its slots take, an audience crossed with who
   // The message, the values, the audience, the number, the assembly and the ledger are run: core-campaigns.test.mjs.
   // The route's read of the message is every row of it, on any channel, whichever version's id is picked, with the category
   // (or the purpose is always marketing) and no other workspace's.
-  const { templateValuePorts } = await importSrc("apps/dashboard/src/server/ports/campaign-ports.ts");
+  const { templateValuePorts } = await importSrc("apps/dashboard/src/server/campaigns/ports.ts");
   const WA = "77777777-7777-4777-8777-777777777771";
   const EMAIL = "77777777-7777-4777-8777-777777777772";
   const OTHER = "77777777-7777-4777-8777-777777777773";
@@ -671,7 +671,12 @@ test("the routes: a message, values its slots take, an audience crossed with who
       `picked by ${id}`,
     );
   assert.deepEqual(await ports.message(OTHER), [], "another workspace's version names nothing here");
-  const l = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
+  const l = [
+    "apps/dashboard/src/server/campaigns/broadcasts/replied.ts",
+    "apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
     l.includes('if (status === "delivered" || status === "read") c.delivered += 1;'),
     "delivered comes from the receipts, never from the send",
@@ -866,7 +871,12 @@ test("the number's health: what WhatsApp said decides what may be sent; nothing 
 
 test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", async () => {
   // The detail route answers getBroadcast's own answer: run through its reader in readers.test.mjs.
-  const s = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
+  const s = [
+    "apps/dashboard/src/server/campaigns/broadcasts/replied.ts",
+    "apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   // With the two columns that say whether the person stands (00403's rule, contracts answersToRuns): an erased person answers
   // nothing. And the two that say where the name came from (0052): a stand-in named for their business is greeted by no name.
   assert.ok(
@@ -1043,7 +1053,12 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
   // The card commits through the broadcast route, the same door the page uses, and its undo is the cancel route:
   // executed in ask-commit.test.mjs ("a broadcast and a playbook", "an undo names the decision it reverses"), over
   // the typed client, from the broadcast's spec (contracts ask/proposals/campaigns.ts).
-  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  const prompt = [
+    "apps/dashboard/src/server/ask/prompt/stable-system.ts",
+    "apps/dashboard/src/server/ask/prompt/prompt.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
     prompt.includes('"said yes":') && /\n\s+"?broadcast"?:\s*\n/.test(prompt) && prompt.includes('"held back":'),
   );

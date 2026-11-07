@@ -13,7 +13,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { toConversationVM, toInboxThreadVM } from "@chanlytics/contracts";
+import { toInboxThreadVM } from "@chanlytics/contracts";
+import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -21,9 +22,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
-const { seenOfPeople, markPersonSeen } = await import(at("apps/dashboard/src/server/people/person-seen.ts"));
+const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { readConversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { getSeenOfPeople, markPersonSeen } = await import(at("apps/dashboard/src/server/people/person-seen.ts"));
 
 const ZONE = "America/New_York";
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -91,7 +92,7 @@ test("the Inbox's read says, for the member asking, when they last saw each pers
       },
     ],
   });
-  const read = await kernel.load(turn(ctx), conversations, { ids: null });
+  const read = await kernel.load(turn(ctx), readConversations, { ids: null });
   const by = new Map(read.data.conversations.map((c) => [c.id, c]));
   assert.deepEqual(
     [by.get("c1").last_inbound_at, by.get("c1").seen_at, by.get("c1").marked_unread, by.get("c1").marked_at],
@@ -124,7 +125,7 @@ test("someone who wrote after the member last looked is new to them, by that sam
     contact_reads: [{ tenant_id: T, user_id: USER, seen_at: "2026-10-07T10:00:00Z" }],
     contact_marks: [],
   });
-  const read = await kernel.load(turn(ctx), conversations, { ids: null });
+  const read = await kernel.load(turn(ctx), readConversations, { ids: null });
   const [c] = read.data.conversations;
   assert.equal(toInboxThreadVM(c, null, ZONE, new Date("2026-10-07T12:30:00Z")).unread, true);
 });
@@ -141,18 +142,21 @@ test("either deploy order: before the migration, and with no member behind the c
     );
   for (const code of ["PGRST202", "42883", "28000"]) {
     const ctx = refusing(code);
-    assert.deepEqual((await seenOfPeople(ctx, T, [K1]))(K1), {}, code);
-    const read = await kernel.load(turn(ctx), conversations, { ids: null });
+    assert.deepEqual((await getSeenOfPeople(ctx, T, [K1]))(K1), {}, code);
+    const read = await kernel.load(turn(ctx), readConversations, { ids: null });
     const [c] = read.data.conversations;
     assert.deepEqual([c.seen_at, c.marked_unread], [undefined, undefined], `${code}: the list still reads`);
     assert.equal(toInboxThreadVM(c, null, ZONE, new Date("2026-10-07T12:30:00Z")).unread, false, code);
   }
-  await assert.rejects(() => seenOfPeople(refusing("P0002"), T, [K1]), "not their workspace is a refusal, not a blank");
-  await assert.rejects(() => seenOfPeople(refusing("57014"), T, [K1]), "a timeout is a read that failed");
+  await assert.rejects(
+    () => getSeenOfPeople(refusing("P0002"), T, [K1]),
+    "not their workspace is a refusal, not a blank",
+  );
+  await assert.rejects(() => getSeenOfPeople(refusing("57014"), T, [K1]), "a timeout is a read that failed");
 
   // Nobody asked about asks nothing.
   const quiet = refusing("57014");
-  assert.deepEqual((await seenOfPeople(quiet, T, []))(K1), {});
+  assert.deepEqual((await getSeenOfPeople(quiet, T, []))(K1), {});
   assert.equal(quiet.supabase.seen.filter((q) => q.rpc === "contact_seen").length, 0);
 });
 

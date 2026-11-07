@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { ESCALATION_STATES } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/shared/route";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { escalations } from "@/server/readers/escalations";
 
 const Query = z.object({
-  state: z.string().optional(),
+  state: z.enum(ESCALATION_STATES).optional(),
 });
 
 /** GET /api/v1/escalations?state=open — the workspace's escalations in one state (open by default), newest first. */

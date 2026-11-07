@@ -16,8 +16,59 @@
  * no token (apps/edge/lib/admin-auth.ts), so the two projects hold it together
  * or not at all.
  */
-import { REQUEST_ID_HEADER, signEdgeToken } from "@chanlytics/channels";
-import { MIN_MS, type EdgeAnswerBody, type EdgeAnswerCode } from "@chanlytics/contracts";
+import { REQUEST_ID_HEADER, signEdgeToken } from "@chanlytics/channels/tokens";
+import {
+  MIN_MS,
+  type LLM_DOOR,
+  type CALENDAR_FEED_DOOR,
+  type FREED_TIME_DOOR,
+  type PLAYBOOK_RUN_DOOR,
+  type REACH_OUT_PREVIEW_DOOR,
+  type REACH_OUT_CHECK_DOOR,
+  type WHATSAPP_TEMPLATES_CREATE_DOOR,
+  type WHATSAPP_TEMPLATES_DELETE_DOOR,
+  type WHATSAPP_TEMPLATES_SYNC_DOOR,
+  type SUPPORT_REPORT_DOOR,
+  type DRAFT_DOOR,
+  type STEER_DOOR,
+  type EMAIL_WIRE_DOOR,
+  type ALERT_TEST_DOOR,
+  type SIGNUP_CONFIRM_DOOR,
+  type TEST_TO_SELF_DOOR,
+  type MAILBOXES_DOOR,
+  type FILE_COPIES_DOOR,
+  type GOOGLE_DOOR,
+  type IMPORT_AGAIN_DOOR,
+  type LOGO_LOOKUP_DOOR,
+  type WEBSITE_READ_DOOR,
+  type LINES_DOOR,
+  type LINE_CODES_DOOR,
+  type PREVIEW_MAKE_DOOR,
+  type EVAL_DOOR,
+  type REHEARSAL_AGENT_DOOR,
+  type REHEARSAL_CALL_DOOR,
+  type REHEARSAL_FIX_DOOR,
+  type REHEARSAL_REVIEW_DOOR,
+  type WHATSAPP_CONNECT_DOOR,
+  type WHATSAPP_STANDING_DOOR,
+  type WHATSAPP_SIGNUP_CONFIG_DOOR,
+  type INSTAGRAM_ACCOUNT_DOOR,
+  type HAND_OVER_DOOR,
+  type STOP_CALL_DOOR,
+  type WHISPER_DOOR,
+  type VOICE_SESSION_DOOR,
+  type VOICE_SPEECH_DOOR,
+  type ERASE_CALLS_DOOR,
+  type BILLING_DOOR,
+  type HANDOVER_INVITE_DOOR,
+  type PARTNER_INVITE_DOOR,
+  type SIGNUP_NOTIFY_DOOR,
+  type SETUP_REQUEST_DOOR,
+  type YOU_ARE_LIVE_DOOR,
+  type DoorBody,
+  type EdgeAnswerBody,
+  type EdgeAnswerCode,
+} from "@chanlytics/contracts";
 import { env, isProduction } from "./env";
 import { requestId } from "./log";
 
@@ -40,6 +91,64 @@ export function edgeUrl(): string {
   if (isProduction()) throw new Error("env_invalid: EDGE_URL is required in production");
   return NOT_PRODUCTION_EDGE_URL;
 }
+
+/**
+ * Every door the dashboard knocks on, as contracts declares it (decision 0109): a call names a declared path and sends
+ * that door's body, or it does not compile. The path stays a string at each call, where the reads trace follows it.
+ */
+type EdgeDoors =
+  | typeof LLM_DOOR
+  | typeof CALENDAR_FEED_DOOR
+  | typeof FREED_TIME_DOOR
+  | typeof PLAYBOOK_RUN_DOOR
+  | typeof REACH_OUT_PREVIEW_DOOR
+  | typeof REACH_OUT_CHECK_DOOR
+  | typeof WHATSAPP_TEMPLATES_CREATE_DOOR
+  | typeof WHATSAPP_TEMPLATES_DELETE_DOOR
+  | typeof WHATSAPP_TEMPLATES_SYNC_DOOR
+  | typeof SUPPORT_REPORT_DOOR
+  | typeof DRAFT_DOOR
+  | typeof STEER_DOOR
+  | typeof EMAIL_WIRE_DOOR
+  | typeof ALERT_TEST_DOOR
+  | typeof SIGNUP_CONFIRM_DOOR
+  | typeof TEST_TO_SELF_DOOR
+  | typeof MAILBOXES_DOOR
+  | typeof FILE_COPIES_DOOR
+  | typeof GOOGLE_DOOR
+  | typeof IMPORT_AGAIN_DOOR
+  | typeof LOGO_LOOKUP_DOOR
+  | typeof WEBSITE_READ_DOOR
+  | typeof LINES_DOOR
+  | typeof LINE_CODES_DOOR
+  | typeof PREVIEW_MAKE_DOOR
+  | typeof EVAL_DOOR
+  | typeof REHEARSAL_AGENT_DOOR
+  | typeof REHEARSAL_CALL_DOOR
+  | typeof REHEARSAL_FIX_DOOR
+  | typeof REHEARSAL_REVIEW_DOOR
+  | typeof WHATSAPP_CONNECT_DOOR
+  | typeof WHATSAPP_STANDING_DOOR
+  | typeof WHATSAPP_SIGNUP_CONFIG_DOOR
+  | typeof INSTAGRAM_ACCOUNT_DOOR
+  | typeof HAND_OVER_DOOR
+  | typeof STOP_CALL_DOOR
+  | typeof WHISPER_DOOR
+  | typeof VOICE_SESSION_DOOR
+  | typeof VOICE_SPEECH_DOOR
+  | typeof ERASE_CALLS_DOOR
+  | typeof BILLING_DOOR
+  | typeof HANDOVER_INVITE_DOOR
+  | typeof PARTNER_INVITE_DOOR
+  | typeof SIGNUP_NOTIFY_DOOR
+  | typeof SETUP_REQUEST_DOOR
+  | typeof YOU_ARE_LIVE_DOOR;
+
+/** A declared door's path. */
+export type EdgeDoorPath = EdgeDoors["aud"];
+
+/** What the door at a path takes. */
+export type EdgeBody<A extends EdgeDoorPath> = DoorBody<Extract<EdgeDoors, { aud: A }>>;
 
 /** Whether this deployment holds any credential the edge would honour. */
 export function edgeConfigured(): boolean {
@@ -95,23 +204,23 @@ const EDGE_CALL_TIMEOUT_MS = 20_000;
 export type EdgeReason = EdgeAnswerCode | `edge ${number}`;
 
 /** The reason an answer carries: its code, else its status. */
-export function edgeReasonOf(a: EdgeAnswer): EdgeReason {
-  return typeof a.body?.error === "string" ? a.body.error : `edge ${a.status}`;
+export function edgeReasonOf(edgeAnswer: EdgeAnswer): EdgeReason {
+  return typeof edgeAnswer.body?.error === "string" ? edgeAnswer.body.error : `edge ${edgeAnswer.status}`;
 }
 
 /** Whether the door said yes on the wire: a 2xx. What it said inside is the caller's to read. */
-export const edgeAnswered = (a: EdgeAnswer): boolean => a.status >= 200 && a.status < 300;
+export const edgeAnswered = (edgeAnswer: EdgeAnswer): boolean => edgeAnswer.status >= 200 && edgeAnswer.status < 300;
 
 /**
  * One call to an edge door: the token for that door (`aud`, its path), a JSON body, and a bound on the wait. Every
- * JSON call the dashboard makes to the edge goes through here (Ask's streamed gateway aside, ask/gateway.ts), so none
+ * JSON call the dashboard makes to the edge goes through here (Ask's streamed gateway aside, shared/model/gateway.ts), so none
  * waits for ever: nine did, and one hung connection held a member's request until the platform killed it. Never
  * throws: a door that did not answer in time, or could not be reached, is a 503 as it always was, named
  * `edge_timeout` or `edge_unreachable`, with the network's words in `detail`, read by the caller like any refusal.
  */
-export async function callEdge(
-  aud: string,
-  body: unknown,
+export async function callEdge<A extends EdgeDoorPath>(
+  aud: A,
+  body: EdgeBody<A>,
   opts: {
     /** The workspace the call is for, or null said out loud for a call about none (a readiness probe, a search). */
     workspace: string | null;
@@ -125,26 +234,26 @@ export async function callEdge(
   const method = opts.method ?? "POST";
   const sent = method === "POST" ? JSON.stringify(body ?? {}) : undefined;
   try {
-    const r = await (opts.fetch ?? fetch)(`${edgeUrl()}${aud}`, {
+    const result = await (opts.fetch ?? fetch)(`${edgeUrl()}${aud}`, {
       method,
       headers: edgeHeaders(aud, { workspace: opts.workspace, user: opts.user, body: sent }),
       ...(sent === undefined ? {} : { body: sent }),
       cache: "no-store",
       signal: AbortSignal.timeout(opts.timeoutMs ?? EDGE_CALL_TIMEOUT_MS),
     });
-    const parsed: unknown = await r.json().catch(() => null);
+    const parsed: unknown = await result.json().catch(() => null);
     return {
-      status: r.status,
+      status: result.status,
       body: parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as EdgeAnswerBody) : null,
     };
-  } catch (e) {
-    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     return {
       status: 503,
       body: {
         ok: false,
         error: timedOut ? "edge_timeout" : "edge_unreachable",
-        detail: e instanceof Error ? e.message : String(e),
+        detail: error instanceof Error ? error.message : String(error),
       },
     };
   }

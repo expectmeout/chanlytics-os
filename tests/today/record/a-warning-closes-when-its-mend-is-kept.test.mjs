@@ -23,7 +23,7 @@ import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { recordNotification, mendWarnings } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href
 );
 
 const TENANT = "11111111-0000-4000-8000-000000000001";

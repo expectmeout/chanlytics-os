@@ -1,7 +1,7 @@
 import "server-only";
 import { scheduleJob, cancelJobsFor } from "@chanlytics/jobs";
 import type { JobKind } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 import { serviceDb } from "./service-db";
 
 export async function schedule(

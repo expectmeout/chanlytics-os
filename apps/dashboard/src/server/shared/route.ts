@@ -49,10 +49,10 @@ import {
   keepIdempotencyReceipt,
   releaseIdempotencyKey,
   takeIdempotencyKey,
-  type Json,
-} from "@chanlytics/db";
+} from "@chanlytics/db/conversations";
+import { type Json } from "@chanlytics/db/types";
 import {
-  memberContext,
+  getMemberContext,
   requireFreshSession,
   requireRole,
   requireSpend,
@@ -61,7 +61,7 @@ import {
   type RouteContext,
 } from "./with-route";
 import { takeRate, type RateBucket } from "./rate-limit";
-import { backOffice, type BackOffice } from "../console/platform";
+import { getBackOffice, type BackOffice } from "./back-office";
 import { log } from "./log";
 
 type Role = MemberContext["role"];
@@ -194,17 +194,17 @@ async function resolve(
   switch (scope.kind) {
     case "workspace": {
       // The tab names its workspace with ?workspace=; an account in two that
-      // named neither is refused here, read or write (memberContext, plan 3.4).
-      const m = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
+      // named neither is refused here, read or write (getMemberContext, plan 3.4).
+      const m = await getMemberContext(ctx, new URL(req.url).searchParams.get("workspace"));
       return { member: m, given: { member: mint(m) } };
     }
     case "row": {
       const found = await scope.load(ctx, ctx.params);
-      const m = await memberContext(ctx, found.tenant_id);
+      const m = await getMemberContext(ctx, found.tenant_id);
       return { member: m, given: { member: mint(m), row: found } };
     }
     case "platform":
-      return { member: null, given: { office: await backOffice(ctx) } };
+      return { member: null, given: { office: await getBackOffice(ctx) } };
     case "account":
       return { member: null, given: {} };
   }
@@ -224,11 +224,11 @@ function bodyAsJson(text: string): unknown {
 function parse<T>(schema: ZodType<T>, raw: unknown): T {
   const out = schema.safeParse(raw);
   if (out.success) return out.data;
-  const said = out.error.issues.slice(0, 3).map((i) => {
+  const sentence = out.error.issues.slice(0, 3).map((i) => {
     const field = i.path.filter((p) => typeof p === "string").join(".");
     return field ? `${field}: ${i.message}` : i.message;
   });
-  const more = out.error.issues.length - said.length;
+  const more = out.error.issues.length - sentence.length;
   // Every field it refuses, by name, with its first sentence: a form marks the box each belongs to.
   const fields: Record<string, string> = {};
   for (const i of out.error.issues) {
@@ -237,7 +237,7 @@ function parse<T>(schema: ZodType<T>, raw: unknown): T {
   }
   throw new AppError(
     "validation",
-    `${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`,
+    `${sentence.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`,
     400,
     Object.keys(fields).length ? { fields } : undefined,
   );
@@ -270,8 +270,8 @@ const HOLD_MS = 2 * MIN_MS;
 
 /** A request as its key holds it: its method, its path and its body, hashed, so one key is never two requests. */
 async function requestHashOf(req: Request, body: string): Promise<string> {
-  const said = new TextEncoder().encode(`${req.method} ${new URL(req.url).pathname}\n${body}`);
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", said));
+  const sentence = new TextEncoder().encode(`${req.method} ${new URL(req.url).pathname}\n${body}`);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", sentence));
   return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 

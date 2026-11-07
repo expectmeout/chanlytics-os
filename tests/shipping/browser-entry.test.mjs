@@ -165,16 +165,16 @@ test("a page entry names its module's source, which the rest of the page shares"
 
 test("a page-only module's names are in no page's entry, and in its own", () => {
   assert.deepEqual(PAGE_ONLY, [
-    "reports/report-metrics.ts",
-    "reports/report-window.ts",
-    "reports/report-mix.ts",
+    "reports/metrics.ts",
+    "reports/window.ts",
+    "reports/mix.ts",
     "reports/receptionist/report.ts",
     "reports/receptionist/words.ts",
     "reports/people/report.ts",
-    "reports/people/words.ts",
+    "reports/people/words/lines.ts",
     "reports/campaigns/reach-out-lens.ts",
-    "reports/campaigns/campaign-words.ts",
-    "reports/campaigns/campaign-lens.ts",
+    "reports/campaigns/words/tables.ts",
+    "reports/campaigns/lens.ts",
     "ads/rules.ts",
     "ads/money.ts",
     "ads/words.ts",
@@ -234,10 +234,8 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     /leadsBulkSpec|reviewReplySpec|followUpSpec/,
     "Ask's own cards are in no page's entry",
   );
-  const ads = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/ads-page.js"), "utf8");
-  assert.match(ads, /adsModel/);
-  assert.match(ads, /newAdModel/);
-  assert.match(ads, /moneyOf/);
+  // Ads' models and words are the page's own (surfaces/campaigns/ads): no entry of the package names them.
+  for (const name of ["adsModel", "newAdModel", "moneyOf"]) assert.ok(!current.names.includes(name), name);
   const lens = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/report-lens.js"), "utf8");
   assert.match(lens, /metricWordsOf/);
   assert.match(lens, /toReceptionistReportVM/);
@@ -258,8 +256,7 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     assert.ok(current.names.includes(name), `${name} stays in the root barrel for the server`);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
   const own = (from, out) => ({ types: from, bundled: `./dist/${out}.js`, import: from, default: from });
-  assert.deepEqual(pkg.exports["./report-lens"], own("./src/reports/report-lens.ts", "report-lens"));
-  assert.deepEqual(pkg.exports["./ads-page"], own("./src/ads/page-entry.ts", "ads-page"));
+  assert.deepEqual(pkg.exports["./report-lens"], own("./src/reports/lens.ts", "report-lens"));
   assert.deepEqual(pkg.exports["./ask-only"], own("./src/ask/proposals/ask-only.ts", "ask-only"));
   // The pages' verb specs: the root entry's own module in the browser, the index itself elsewhere, so the table Ask's
   // kinds join is one table however it was reached.
@@ -331,7 +328,7 @@ test("a page reads the verbs it presses at once, and the kinds only Ask's cards 
 });
 
 test("the page-only entry reaches no classic zod", () => {
-  for (const entry of ["report-lens", "ads-page", "ask-only"]) {
+  for (const entry of ["report-lens", "ask-only"]) {
     const built = fs.readFileSync(path.join(ROOT, `packages/contracts/dist/${entry}.js`), "utf8");
     const specs = [...built.matchAll(/^import\b[^"']*["']([^"']+)["']/gm)].map((m) => m[1]);
     assert.deepEqual(

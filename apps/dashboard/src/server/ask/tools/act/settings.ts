@@ -14,21 +14,19 @@ import {
   WALK_IN_WORDS,
   answerStyleOf,
   describeSettingsChange,
-  proposalBelowNeeds,
 } from "@chanlytics/contracts";
+import { proposalBelowNeeds } from "../../proposals/proposals";
 import {
   actAction,
-  approvalWords,
   defineActions,
   offeredTo,
-  propose,
-  refuse,
   type ActDef,
   type ProposalOutcome,
   type ToolContext,
-} from "../context";
+} from "../context/tool-defs";
+import { approvalWords, propose, refuse } from "../context/context";
 import { autonomyAction } from "./policy";
-import { load } from "../../../readers";
+import { load } from "../../../shared/reader";
 import { memberViews } from "../../../readers/notifications";
 
 /**
@@ -71,8 +69,8 @@ function knowsChangeOf(raw: Record<string, unknown>): Record<string, unknown> {
 }
 
 /** A voice as the model names it, by its id or its name ("Claudia"), as the list's id; another word as it came. */
-const voiceIdOf = (said: string): string =>
-  PHONE_VOICES.find((v) => v.id === said || v.name.toLowerCase() === said.trim().toLowerCase())?.id ?? said;
+const voiceIdOf = (sentence: string): string =>
+  PHONE_VOICES.find((v) => v.id === sentence || v.name.toLowerCase() === sentence.trim().toLowerCase())?.id ?? sentence;
 
 /**
  * What the model sent for a row of How it answers: the one field its op takes, an empty word kept, since it empties the
@@ -122,9 +120,12 @@ function answersChangeOf(raw: Record<string, unknown>): Record<string, unknown> 
 const noteCardTitle = (title: string): string =>
   /\bnote$/i.test(title.trim()) ? title.trim() : `${title.trim()} note`;
 
-async function proposeSettings(t: ToolContext, input: { change: Record<string, unknown> }): Promise<ProposalOutcome> {
+async function proposeSettings(
+  toolContext: ToolContext,
+  input: { change: Record<string, unknown> },
+): Promise<ProposalOutcome> {
   // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
-  if (!offeredTo(settingsAct, t.role)) return refuse(proposalBelowNeeds("settings"));
+  if (!offeredTo(settingsAct, toolContext.role)) return refuse(proposalBelowNeeds("settings"));
   const raw = input.change && typeof input.change === "object" ? (input.change as Record<string, unknown>) : null;
   if (!raw) return refuse("change is required");
   const answers = typeof raw.op === "string" && raw.op in ASK_ANSWERS_ROWS;
@@ -267,9 +268,9 @@ const answerStyleAction = actAction({
   examples: [{ words: "Short answers, the key numbers in bold" }],
   label: "Keeping how you like answers",
   words: `Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they want answers a way beyond this conversation ("always bullets", "every time in Spanish", "next time, shorter"); a shape asked for within one conversation is kept there without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.`,
-  build: async (t, input) => {
+  build: async (context, input) => {
     const words = input.words.trim().slice(0, ASK_STYLE_MAX);
-    const previous = t.ctx.userId ? answerStyleOf((await load(t.rc, memberViews, undefined)).data) : "";
+    const previous = context.ctx.userId ? answerStyleOf((await load(context.rc, memberViews, undefined)).data) : "";
     if (words === previous) return refuse(words ? "that is already their note" : "they keep no note to clear");
     return propose({
       kind: "answer_style",

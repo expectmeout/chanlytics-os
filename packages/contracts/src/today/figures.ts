@@ -6,7 +6,7 @@
  * as zeros. The words they are said in live here too; the list join and the seconds phrase are today/bands.ts's.
  */
 import { visitRoute } from "../calendar/appointment-key";
-import { visitDateKey, visitDay, visitStartTime, visitTime } from "../calendar/people";
+import { visitDateKey, visitDay, visitStartTime, visitTime } from "../calendar/people/visits";
 import { reachedVoicemail, type CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import { reasonWhy, type EscalationDto } from "../conversations/escalations";
@@ -83,26 +83,26 @@ const bookedLine = (v: TodayBookedDto, nowMs: number): string =>
  * by a calendar or a booking tool) says a calendar is to be linked, and where to: a zero is never "nobody booked" on a
  * workspace that could not have seen one.
  */
-function bookedFigure(b: TodayBookingsDto, now: Date): TodayFigureVM {
+function bookedFigure(todayBookings: TodayBookingsDto, now: Date): TodayFigureVM {
   const nowMs = now.getTime();
-  const first = b.visits[0];
-  if (!b.booked || !first)
+  const first = todayBookings.visits[0];
+  if (!todayBookings.booked || !first)
     return {
       id: "booked",
       label: "booked",
       value: 0,
-      meta: b.arrive ? "none yet today" : "no calendar linked",
-      receipt: b.arrive
+      meta: todayBookings.arrive ? "none yet today" : "no calendar linked",
+      receipt: todayBookings.arrive
         ? null
         : { text: BOOKED_NEEDS_A_LINK, door: { label: "Hours & booking", to: CALENDAR_SETTING_ROUTE } },
     };
-  const named = b.visits.slice(0, BOOKED_NAMED).map((v) => bookedLine(v, nowMs));
-  const rest = b.booked - named.length;
+  const named = todayBookings.visits.slice(0, BOOKED_NAMED).map((v) => bookedLine(v, nowMs));
+  const rest = todayBookings.booked - named.length;
   return {
     id: "booked",
     label: "booked",
-    value: b.booked,
-    meta: b.booked === 1 ? `for ${bookedStart(first, nowMs)}` : `the soonest ${bookedStart(first, nowMs)}`,
+    value: todayBookings.booked,
+    meta: todayBookings.booked === 1 ? `for ${bookedStart(first, nowMs)}` : `the soonest ${bookedStart(first, nowMs)}`,
     receipt: {
       text: `${andList(rest > 0 ? [...named, `${rest} more`] : named)}.`,
       door: { label: "Open the Calendar", to: visitRoute(first.id, visitDateKey(first.start, first.timezone)) },
@@ -160,7 +160,7 @@ const isCustomerMessage = (x: ConversationDto["messages"][number]): boolean =>
  * holds accounts for the figure's own total, and otherwise says what it is counting ("Of the 4 in the Inbox: ...").
  */
 export function figuresOf(
-  m: MetricsSummaryDto,
+  metricsSummary: MetricsSummaryDto,
   conversations: ConversationDto[],
   callsInWindow: CallDto[],
   /** The escalations read as it came (state=open): not `openEsc`, which drops the ones a person has taken over. */
@@ -168,9 +168,9 @@ export function figuresOf(
   tz: string,
   now: Date,
 ): TodayFigureVM[] {
-  const p = m.period;
-  if (nothingCounted(m)) return quietFigures(m.now, tz, now, m.bookings);
-  const windowMs = new Date(m.window.since).getTime();
+  const period = metricsSummary.period;
+  if (nothingCounted(metricsSummary)) return quietFigures(metricsSummary.now, tz, now, metricsSummary.bookings);
+  const windowMs = new Date(metricsSummary.window.since).getTime();
   const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) =>
     x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
 
@@ -190,7 +190,7 @@ export function figuresOf(
   // What the page holds, said once: never "Of the 4 in the Inbox: 4 by WhatsApp."
   const wireWords = !wires.length
     ? ""
-    : held !== p.messages_in
+    : held !== period.messages_in
       ? held === 1
         ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.`
         : wires.length === 1
@@ -208,19 +208,23 @@ export function figuresOf(
   // The raw read, not the queue's list: a handover a teammate has taken over is still open, not resolved.
   const todays = escalations.filter((e) => e.state === "open" && new Date(e.created_at).getTime() >= windowMs);
   const reasons = tally(todays.map((e) => e.reason));
-  const resolved = Math.max(0, p.escalations_new - todays.length);
+  const resolved = Math.max(0, period.escalations_new - todays.length);
   const answeredMeta =
     [
-      speedClause(todayReplySpeed(m)),
-      p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : "",
+      speedClause(todayReplySpeed(metricsSummary)),
+      period.escalations_new
+        ? `${period.escalations_new} handed over`
+        : period.answered_by_ai
+          ? "none handed over"
+          : "",
     ]
       .filter(Boolean)
-      .join(", ") || (p.messages_in ? "none answered yet" : "nothing to answer yet");
+      .join(", ") || (period.messages_in ? "none answered yet" : "nothing to answer yet");
   // The why as a person would say it: how many times it handed over, why each time, and that the rest it answered
   // itself. It was a ledger ("Asked for a person: once; sent something the receptionist can't read: once."); the
   // canvas wrote the same facts as a sentence, and a sentence is what an owner reads. Counts are words, so the
   // receipt can never repeat the figure's digit; the handovers are the SQL's count, the reasons are today's open ones.
-  const handedOver = p.escalations_new;
+  const handedOver = period.escalations_new;
   let handovers = "";
   if (handedOver) {
     const lead = `Handed over ${timesWords(handedOver)}`;
@@ -241,13 +245,15 @@ export function figuresOf(
     }
   }
   // answered_by_ai is the asks it answered on its own, so with a handover on the day those are "the rest".
-  const answeredItself = handedOver && p.answered_by_ai ? "The rest it answered itself." : "";
+  const answeredItself = handedOver && period.answered_by_ai ? "The rest it answered itself." : "";
   // answered_by_ai counts the asks it answered and messages_out_ai the messages it sent: more is more than one thing
   // said, worth a sentence; equal is one reply each, worth saying only when there is nothing else to say; fewer means
   // one reply answered several asks, which is not worth a sentence.
   const sentMore =
-    p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : "";
-  const sentEach = p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
+    period.messages_out_ai > period.answered_by_ai
+      ? `It sent ${plural(period.messages_out_ai, "message")} in all.`
+      : "";
+  const sentEach = period.messages_out_ai && period.messages_out_ai === period.answered_by_ai ? "One reply each." : "";
   const answeredWhy = [
     wireWords,
     ...(handedOver ? [handovers, answeredItself, sentMore] : [sentMore || sentEach]),
@@ -255,13 +261,13 @@ export function figuresOf(
   const answered: TodayFigureVM = {
     id: "answered",
     label: "answered by the receptionist",
-    value: p.answered_by_ai,
-    of: p.messages_in,
+    value: period.answered_by_ai,
+    of: period.messages_in,
     meta: answeredMeta,
     receipt: answeredWhy.length
       ? {
           text: answeredWhy.join(" "),
-          door: p.escalations_new
+          door: period.escalations_new
             ? { label: "See the handovers", to: "inbox" }
             : { label: "Open the Inbox", to: "inbox" },
         }
@@ -270,10 +276,10 @@ export function figuresOf(
 
   // Calls: the time and the voicemails as the clause; the moods and who reached voicemail as the why. A caller is
   // named once, by name or number; a withheld or unknown caller is in the clause's count and never in the sentence.
-  const moods = counted(p.call_sentiments);
+  const moods = counted(period.call_sentiments);
   const moodOf = ([mood, n]: [string, number]) =>
-    n === p.calls
-      ? p.calls === 1
+    n === period.calls
+      ? period.calls === 1
         ? `it as ${mood.toLowerCase()}`
         : `all of them as ${mood.toLowerCase()}`
       : `${n} as ${mood.toLowerCase()}`;
@@ -284,25 +290,25 @@ export function figuresOf(
         .filter((c) => reachedVoicemail(c))
         .map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who]),
     ).values(),
-  ].filter((who) => !UNNAMED_CALLER.has(who));
+  ].filter((person) => !UNNAMED_CALLER.has(person));
   const voicemailWords = voicemail.length
     ? `${andList(voicemail.length > 3 ? [...voicemail.slice(0, 3), `${voicemail.length - 3} more`] : voicemail)} reached voicemail.`
     : "";
   const callsMeta =
     [
-      p.call_seconds > 0
-        ? p.call_seconds < 60
+      period.call_seconds > 0
+        ? period.call_seconds < 60
           ? "under a minute on the phone"
-          : `${Math.round(p.call_seconds / 60)} min on the phone`
+          : `${Math.round(period.call_seconds / 60)} min on the phone`
         : "",
-      p.calls_voicemail ? `${p.calls_voicemail} to voicemail` : "",
+      period.calls_voicemail ? `${period.calls_voicemail} to voicemail` : "",
     ]
       .filter(Boolean)
-      .join(", ") || (p.calls ? "none connected" : "none yet");
+      .join(", ") || (period.calls ? "none connected" : "none yet");
   const calls: TodayFigureVM = {
     id: "calls",
     label: "calls",
-    value: p.calls,
+    value: period.calls,
     meta: callsMeta,
     receipt:
       moodWords || voicemailWords
@@ -323,38 +329,38 @@ export function figuresOf(
       .sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
     return !!first && first.sender === "customer" && fresh(first);
   });
-  const agree = p.new_contacts > 0 && newThreads.length === p.new_contacts;
+  const agree = period.new_contacts > 0 && newThreads.length === period.new_contacts;
   const newWires = tally(newThreads.map((c) => threadChannelWords(c.messages)));
   const names = agree ? newThreads.map((c) => contactName(c)) : [];
-  const said = names.slice(0, 3);
+  const sentence = names.slice(0, 3);
   const newPeople: TodayFigureVM = {
     id: "new",
     label: "new people",
-    value: p.new_contacts,
-    meta: !p.new_contacts
+    value: period.new_contacts,
+    meta: !period.new_contacts
       ? "nobody new yet"
       : !agree
         ? "first contact today"
         : newWires.length === 1
-          ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}`
+          ? `${period.new_contacts === 1 ? "on" : period.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}`
           : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
     // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS the answer
     // to what an owner is asking -- the count is everyone whose first message of their own, or first call to us, came
     // today (00394), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
     // card with nothing under it, so a hover that worked three times in a row did nothing on the fourth.
-    receipt: said.length
+    receipt: sentence.length
       ? {
-          text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`,
+          text: `${andList(names.length > 3 ? [...sentence, `${names.length - 3} more`] : sentence)} wrote for the first time today.`,
           door: { label: "Open People", to: "clients/seg:new_week" },
         }
-      : p.new_contacts > 0
+      : period.new_contacts > 0
         ? {
-            text: `Counted however they reached you — a message or a call${newThreads.length < p.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`,
+            text: `Counted however they reached you — a message or a call${newThreads.length < period.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`,
             door: { label: "Open People", to: "clients/seg:new_week" },
           }
         : null,
   };
-  return [bookedOf(m.bookings, now), answered, calls, newPeople];
+  return [bookedOf(metricsSummary.bookings, now), answered, calls, newPeople];
 }
 
 /** Nothing at all counted on the day: no message, call, new person or booking. */

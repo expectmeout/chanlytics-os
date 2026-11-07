@@ -5,11 +5,11 @@
  * An event's title names the person it is for ("Balayage · Maria Lopez", "Haircut with Maria Lopez"), and the calendar
  * matches an event to a person by phone, address or a name (calendar-people.ts). The receptionist says "Matched by name
  * only -- make sure it is them" and a person weighs it; a message that is sent on its own cannot, so a visit playbook
- * enrols a visit found by name alone only on a full saved name no one else holds (playbook-reach.ts), and says the service
+ * enrols a visit found by name alone only on a full saved name no one else holds (playbooks/reach.ts), and says the service
  * alone (playbooks.ts visitFactsFor).
  */
 import { isIdentifierName } from "../../conversations/thread-contact";
-import { escapeRe } from "../people";
+import { escapeRe } from "../people/matching";
 
 /**
  * A saved name that a match BY NAME may rest on when a message is going to be sent: two words or more, the first and

@@ -7,12 +7,12 @@ import type { EscalationDto, HoldAct } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { LeadSearchDto } from "../leads/leads";
-import type { PreviewTriedDto } from "../previews/preview-tried";
+import type { PreviewTriedDto } from "../previews/tried";
 import type { VisitWord } from "../shared/enums";
 import type { WaitingRun } from "../waits/waits";
 import type { MetricsSummaryDto } from "./metrics";
 import type { TodaySinceAnsweredDto } from "./away";
-import type { TodayBackVM } from "./day";
+import type { TodayBackVM } from "./day/zone";
 
 export interface TodayNeedsRowVM {
   id: string;
@@ -316,7 +316,7 @@ export interface TodayVM {
    * visit marked, a review answered, a run approved). Null where it was not read.
    */
   done_today: number | null;
-  /** Who comes back from Not now in the next day, soonest first (today/day.ts todayBackOf): the day draws today's. */
+  /** Who comes back from Not now in the next day, soonest first (today/day/zone.ts todayBackOf): the day draws today's. */
   back: TodayBackVM[];
   /**
    * Since the member last looked (Today in three zones, 2 Nov 2026): when they last opened the bell or marked it read, and

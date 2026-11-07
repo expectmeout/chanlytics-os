@@ -165,7 +165,10 @@ test("a file repeats its folder when its name starts with the folder's; a folder
   assert.equal(repeatsItsFolder("apps/x/src/surfaces/stamps/stamps-sheet.tsx"), true);
   assert.equal(repeatsItsFolder("packages/x/src/letters/sent.ts"), false);
   assert.equal(repeatsItsFolder("packages/x/src/letters/letters.ts"), false);
-  assert.equal(repeatsItsFolder("packages/x/src/letters/letter-dtos.ts"), false, "the singular is not counted");
+  assert.equal(repeatsItsFolder("packages/x/src/letters/letter-dtos.ts"), true, "the singular says it too");
+  assert.equal(repeatsItsFolder("packages/x/src/replies/reply-words.ts"), true);
+  assert.equal(repeatsItsFolder("packages/x/src/boxes/box-labels.ts"), true, "boxes is box");
+  assert.equal(repeatsItsFolder("packages/x/src/letters/lettering.ts"), false, "a word that only begins the same");
 });
 
 test("a stem that names no contents is generic; a role file and a domain's own word are not", () => {
@@ -192,7 +195,7 @@ test("what a module exports is read from its top level, a framework's own names 
     ).sort(),
     ["CallOutcome", "Row", "clip", "leadOf"],
   );
-  assert.equal(treeOf("packages/contracts/src/ads/vm-base.ts"), "packages/contracts");
+  assert.equal(treeOf("apps/dashboard/src/surfaces/campaigns/ads/model/vm-base.ts"), "packages/contracts");
   assert.equal(treeOf("apps/edge/lib/receptionist/steer.ts"), "apps/edge");
   assert.equal(treeOf("apps/dashboard/src/server/readers/today.ts"), "apps/dashboard");
 });

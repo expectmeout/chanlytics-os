@@ -19,7 +19,7 @@
  */
 import { z } from "zod";
 import { AppError, normalizeEmail, normalizeLink, whyNotALink, whyNotAnEmail } from "@chanlytics/contracts";
-import { personRow } from "@chanlytics/db";
+import { findPersonRow } from "@chanlytics/db/people";
 import type { contactScope } from "@/server/shared/verbs";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
@@ -85,7 +85,7 @@ export async function setPersonDetails(
   const out: PersonDetailsAnswer = { contact_id: id };
   if (name !== undefined || email !== undefined) {
     // As the People list reads them, once, before the first door runs.
-    const stood = await personRow(ctx.supabase, contact.tenant_id, id);
+    const stood = await findPersonRow(ctx.supabase, contact.tenant_id, id);
     if (stood)
       out.was = {
         ...(name !== undefined ? { name: stood.display_name ?? "" } : {}),

@@ -7,7 +7,7 @@
  * Never after every message. pg_cron asks every thirty minutes, and only when a call's analysis is in or a spell of
  * a customer's messages has been quiet for six hours (trigger_notes_sweep, 00159). Each call and each quiet spell is
  * looked at once -- note_candidates stamps what it hands over -- and most looks end with nothing: the gates are
- * contracts' (note-suggest.ts), the sweep lib/notes/notes.ts, the transport lib/ai/model.ts. A suggestion waits on the person's page for Keep
+ * contracts' (notes/suggest.ts), the sweep lib/notes/notes.ts, the transport lib/ai/model.ts. A suggestion waits on the person's page for Keep
  * or Dismiss, and the receptionist reads nothing it wrote until a member keeps it.
  *
  * Then the owner's corrections (decision 0063): a held draft rewritten to their instruction, or their own text after a

@@ -1,7 +1,7 @@
 import { ReachOutChainSchema } from "@chanlytics/contracts";
 import { read, write } from "@/server/shared/route";
 import { reachOutScope } from "@/server/shared/verbs";
-import { chainReportOf, reachOf, removeChain, saveChain } from "@/server/campaigns/reach-outs";
+import { getChainReport, getReach, removeChain, saveChain } from "@/server/campaigns/reach-outs/chain-acts";
 
 /**
  * One reach-out, by its first step (reachOutScope: read under RLS, so one the caller cannot see is a 404).
@@ -16,8 +16,8 @@ export const GET = read({
   scope: reachOutScope,
   handle: async ({ ctx, member, row }) => {
     const [report, reach] = await Promise.all([
-      chainReportOf(ctx, member.tenantId, row.id),
-      row.lead_search_id ? reachOf(ctx, member.tenantId, row.lead_search_id) : Promise.resolve(null),
+      getChainReport(ctx, member.tenantId, row.id),
+      row.lead_search_id ? getReach(ctx, member.tenantId, row.lead_search_id) : Promise.resolve(null),
     ]);
     return { report, reach };
   },

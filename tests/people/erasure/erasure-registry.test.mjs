@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RETENTION_DAYS, SCHEMA_SETS } from "@chanlytics/contracts";
-import { ERASURE_LEGS, ERASURE_STRATEGIES } from "@chanlytics/db";
+import { ERASURE_LEGS, ERASURE_STRATEGIES } from "@chanlytics/db/erasure";
 import { personalColumns } from "../../_measures.mjs";
 
 const entries = Object.entries(ERASURE_STRATEGIES).flatMap(([table, columns]) =>

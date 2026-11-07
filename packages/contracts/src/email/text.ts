@@ -13,6 +13,6 @@ interface EmailText {
   footer?: string | null;
 }
 
-export function emailTextOf(p: EmailText): string {
-  return [p.body.trim(), p.signature?.trim(), p.footer?.trim()].filter(Boolean).join("\n\n");
+export function emailTextOf(emailText: EmailText): string {
+  return [emailText.body.trim(), emailText.signature?.trim(), emailText.footer?.trim()].filter(Boolean).join("\n\n");
 }

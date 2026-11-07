@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inviteUserByEmail, type Database } from "@chanlytics/db";
+import { inviteUserByEmail } from "@chanlytics/db/auth";
+import { type Database } from "@chanlytics/db/types";
 import { AppError } from "@chanlytics/contracts";
 import { deployment } from "../shared/env";
 import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
@@ -27,9 +28,9 @@ const REFUSALS: Record<string, (message: string) => AppError> = {
 };
 
 /** A handover function's refusal, in its own words; anything else is a failure, not an answer. */
-export function handoverRefusal(r: { code: string; message: string }): Error {
-  const make = REFUSALS[r.code];
-  return make ? make(r.message) : new Error(r.message);
+export function handoverRefusal(row: { code: string; message: string }): Error {
+  const make = REFUSALS[row.code];
+  return make ? make(row.message) : new Error(row.message);
 }
 
 /** How the invitation is sent: injected by a test, the platform's own otherwise. */
@@ -65,14 +66,14 @@ export async function sendHandoverInvite(
       if (!/already (been )?registered|already exists/i.test(mailErr.message)) throw new Error(mailErr.message);
     }
     if (!(ports.live ?? deployment.providersLive) || !edgeConfigured()) return false;
-    const r = await callEdge(
+    const answer = await callEdge(
       "/api/admin/handover-invite",
       { tenant_id: tenantId },
       { workspace: tenantId, user: userId, timeoutMs: HANDOVER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
     );
-    if (!edgeAnswered(r))
-      log.error("handover_invite_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
-    return edgeAnswered(r);
+    if (!edgeAnswered(answer))
+      log.error("handover_invite_failed", { tenant_id: tenantId, status: answer.status, error: answer.body?.error });
+    return edgeAnswered(answer);
   } catch (e) {
     log.error("handover_invite_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return false;

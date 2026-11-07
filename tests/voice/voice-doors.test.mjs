@@ -25,8 +25,8 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import {
-  signEdgeToken,
   voiceLlmCreateBody,
   voiceAgentCreateBody,
   voiceNumberCreateBody,
@@ -45,7 +45,7 @@ import {
   CALL_FEEL,
   CALL_HANDBOOK,
   CALL_LIMITS,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 

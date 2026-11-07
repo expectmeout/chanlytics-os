@@ -11,14 +11,10 @@
  * Each is its own small write, so one that fails is logged and the others still land; the next tick tries again.
  */
 import { DAY_MS, HOUR_MS, mailboxHoldOf } from "@chanlytics/contracts";
-import {
-  emitEvent,
-  mailboxCapacityOf,
-  mailboxCountsOf,
-  patchMailboxConnection,
-  type Database,
-  type MailboxConnectionRow,
-} from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db/events";
+import { getMailboxCapacity } from "@chanlytics/db/campaigns";
+import { getMailboxCounts, patchMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
+import { type Database } from "@chanlytics/db/types";
 import { readMailboxDns } from "./dns.js";
 import { tellHeld } from "./notices.js";
 import { errField, type Logger } from "../../shared/log.js";
@@ -36,23 +32,23 @@ const older = (iso: string | null, everyMs: number, now: number) => !iso || Date
 /** Judge the mailbox's own mail, and hold it when it earned a hold. The row as it stands after. */
 async function judge(db: Db, row: MailboxConnectionRow, log: Logger, now: number): Promise<MailboxConnectionRow> {
   const at = new Date(now).toISOString();
-  const counts = await mailboxCountsOf(db, row.id, row.counted_since);
-  const why = row.state === "held" ? null : mailboxHoldOf(counts);
-  if (why) {
+  const counts = await getMailboxCounts(db, row.id, row.counted_since);
+  const reason = row.state === "held" ? null : mailboxHoldOf(counts);
+  if (reason) {
     const held = await patchMailboxConnection(db, {
       tenantId: row.tenant_id,
       id: row.id,
       from: ["connected", "paused"],
-      patch: { state: "held", held_why: why, held_at: at, judged_at: at },
+      patch: { state: "held", held_why: reason, held_at: at, judged_at: at },
     });
     if (held) {
       await emitEvent(db, row.tenant_id, "mailbox_connection.held", "mailbox_connection", row.id, {
         address: row.address,
-        why,
+        why: reason,
         ...counts,
       });
-      await tellHeld(db, held, why, at, log);
-      log.warn("mailbox_held", { mailbox: row.id, why, ...counts });
+      await tellHeld(db, held, reason, at, log);
+      log.warn("mailbox_held", { mailbox: row.id, why: reason, ...counts });
       return held;
     }
   }
@@ -87,7 +83,7 @@ export async function tendMailboxHealth(
     if (current.resting_until && Date.parse(current.resting_until) <= now) patch.resting_until = null;
     // The ramp's step moves at most once a day: its count is read with the hourly judgement.
     if (hourly && current.state !== "held") {
-      const day = await mailboxCapacityOf(db, current.id, new Date(now));
+      const day = await getMailboxCapacity(db, current.id, new Date(now));
       if (day.sent_days !== current.sent_days) patch.sent_days = day.sent_days;
     }
     if (Object.keys(patch).length === 0) return null;

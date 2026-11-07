@@ -1,5 +1,5 @@
 /**
- * How many cancellations came (decision 0082, packages/db cancellationsSince), the count Ask's signals notice the times
+ * How many cancellations came (decision 0082, packages/db getCancellationsSince), the count Ask's signals notice the times
  * nothing offered by: the service's cancels and the feed's vanished entries with a person, each appointment once, a
  * member's own cancel never; and a busy calendar's month is counted whole, its ids asked a page at a time, since one
  * `in` list carries no more than a request's address holds. Over a database in memory.
@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { fakeDb } from "../../_fake-db.mjs";
 import { importSrc } from "../../_source.mjs";
 
-const { cancellationsSince } = await importSrc("packages/db/src/repositories/campaigns/freed-times.ts");
+const { getCancellationsSince } = await importSrc("packages/db/src/repositories/campaigns/freed-times.ts");
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SINCE = "2026-09-01T00:00:00.000Z";
@@ -69,11 +69,11 @@ test("the service's cancels and the feed's vanished entries with a person count,
         ][i],
     ),
   );
-  assert.equal(await cancellationsSince(db, T, SINCE), 3);
+  assert.equal(await getCancellationsSince(db, T, SINCE), 3);
 });
 
 test("a busy calendar's month is counted whole, its ids asked no more than two hundred at a time", async () => {
   const { db, lists } = counted(world(450));
-  assert.equal(await cancellationsSince(db, T, SINCE), 450);
+  assert.equal(await getCancellationsSince(db, T, SINCE), 450);
   assert.deepEqual(lists, [200, 200, 50]);
 });

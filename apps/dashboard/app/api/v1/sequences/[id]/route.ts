@@ -1,6 +1,6 @@
 import { read, write } from "@/server/shared/route";
 import { sequenceScope } from "@/server/shared/verbs";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { sequence } from "@/server/readers/sequences";
 import { discardSequenceNow } from "@/server/campaigns/sequences/doors";
 

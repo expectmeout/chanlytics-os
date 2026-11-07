@@ -19,8 +19,8 @@
  * carriers say so.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
-import { emitEvent } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
+import { emitEvent } from "@chanlytics/db/events";
 import {
   FIRST_RUN_ROUTE,
   forwardingMatch,
@@ -28,7 +28,7 @@ import {
   formatPhoneDisplay,
   type ForwardingFacts,
 } from "@chanlytics/contracts";
-import { recordNotification } from "../ops/notify.js";
+import { recordNotification } from "../shared/alerts/notify.js";
 import { logger, errField } from "../shared/log.js";
 
 export interface ForwardingCall {
@@ -46,7 +46,7 @@ export async function markForwardingVerified(
   tenantId: string,
   call: ForwardingCall,
 ): Promise<boolean> {
-  const L = logger({ tenant_id: tenantId });
+  const log = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await db
       .from("lines")
@@ -62,7 +62,7 @@ export async function markForwardingVerified(
       ) as ForwardingFacts & Record<string, unknown>;
       if (!forwardingMatch(facts, call)) continue;
       const proof = forwardingProof(row.e164, call.diverted ?? null);
-      L.info("forwarding_evidence", {
+      log.info("forwarding_evidence", {
         line: row.id,
         call: call.callId,
         proof,
@@ -99,11 +99,11 @@ export async function markForwardingVerified(
         call_id: call.callId,
         proof,
       }).catch(() => {});
-      L.info("forwarding_verified", { line: row.id, call: call.callId });
+      log.info("forwarding_verified", { line: row.id, call: call.callId });
       return true;
     }
   } catch (e) {
-    L.error("forwarding_verify_failed", { error: errField(e) });
+    log.error("forwarding_verify_failed", { error: errField(e) });
   }
   return false;
 }

@@ -29,28 +29,29 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  closedRunSends,
-  draftsWaiting,
-  finishableRuns,
-  heldStale,
-  leadWritten,
+  listClosedRunSends,
+  listDraftsWaiting,
+  listFinishableRuns,
+  listHeldStale,
+  recordLeadWritten,
   moveSend,
   ofASequence,
-  queuedOutcomes,
+  listQueuedOutcomes,
   runHanded,
-  staleSends,
-  stuckClaims,
+  listStaleSends,
+  listStuckClaims,
   withdrawEmail,
-  writtenEmail,
-  writtenEmails,
-  type Database,
+  findWrittenEmail,
+  getWrittenEmails,
   type LeadSendRow,
   type ReachOutSendRow,
-} from "@chanlytics/db";
+} from "@chanlytics/db/campaigns";
+import { type Database } from "@chanlytics/db/types";
 import { sendMessageId } from "@chanlytics/core";
 import { draftRefusalOf, isWaitRefusal } from "@chanlytics/contracts";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
 import type { Logger } from "../../shared/log.js";
+import { UNKNOWN_OUTCOME_MS } from "../../shared/unknown-outcome.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -59,7 +60,6 @@ export const STALE_AFTER_MS = 15 * 60_000;
 /** A claim this old never became an email: its writer died mid-send. */
 export const CLAIM_STUCK_AFTER_MS = 10 * 60_000;
 /** How long an email of unknown outcome waits for its receipt before its send is failed. */
-export const UNKNOWN_OUTCOME_MS = 24 * 3_600_000;
 /** When the clock stops for the tick: its door has 60 s (vercel.json), and what is left is the next minute's. */
 export const CLOCK_YIELD_AT_MS = 40_000;
 const PAGE = 500;
@@ -112,7 +112,7 @@ async function closeRuns(
   late: () => boolean,
   tenantId?: string,
 ): Promise<void> {
-  const closed = await closedRunSends(db, new Date(now.getTime() - CLAIM_STUCK_AFTER_MS), PAGE, tenantId);
+  const closed = await listClosedRunSends(db, new Date(now.getTime() - CLAIM_STUCK_AFTER_MS), PAGE, tenantId);
   for (const { send: s, email_status } of closed) {
     if (s.state === "queued") {
       if (s.message_id && email_status === "queued") {
@@ -124,7 +124,7 @@ async function closeRuns(
     if (s.state === "claimed") {
       const id = await sendMessageId(s.id, s.attempts ?? 0);
       const withdrawn = await withdrawEmail(db, { tenantId: s.tenant_id, id, reason: "run_canceled" });
-      const was = withdrawn ? null : await writtenEmail(db, { tenantId: s.tenant_id, id });
+      const was = withdrawn ? null : await findWrittenEmail(db, { tenantId: s.tenant_id, id });
       if (was && was.status !== "canceled") {
         if (await move(db, s, { state: "queued", message_id: id })) out.adopted += 1;
         continue;
@@ -153,34 +153,39 @@ async function recheckDrafts(
 ): Promise<void> {
   // Every draft, a page at a time after the last read, while the tick has time: the drafts that may still go keep their
   // place at the head, so one page of the oldest would never reach a newer one refused since.
-  const all: Awaited<ReturnType<typeof draftsWaiting>> = [];
+  const all: Awaited<ReturnType<typeof listDraftsWaiting>> = [];
   let after: { drafted_at: string; id: string } | null = null;
   while (!late()) {
-    const page = await draftsWaiting(db, { limit: PAGE, tenantId, after });
+    const page = await listDraftsWaiting(db, { limit: PAGE, tenantId, after });
     all.push(...page);
     const last = page[page.length - 1];
     if (page.length < PAGE || !last) break;
     after = { drafted_at: last.drafted_at, id: last.id };
   }
-  for (const d of all) {
-    const reason = draftRefusalOf(d.facts);
+  for (const row of all) {
+    const reason = draftRefusalOf(row.facts);
     if (!reason) continue;
     if (
-      !(await moveSend(db, { tenantId: d.tenant_id, id: d.id, from: "drafted", patch: { state: "skipped", reason } }))
+      !(await moveSend(db, {
+        tenantId: row.tenant_id,
+        id: row.id,
+        from: "drafted",
+        patch: { state: "skipped", reason },
+      }))
     )
       continue;
     out.skipped += 1;
     // Its run's row, touched: the pages that count its drafts read them again.
-    await runHanded(db, { tenantId: d.tenant_id, id: d.broadcast_id, at: now }).catch((e: unknown) =>
+    await runHanded(db, { tenantId: row.tenant_id, id: row.broadcast_id, at: now }).catch((e: unknown) =>
       log.warn("reach_out_run_unstarted", {
-        broadcast_id: d.broadcast_id,
+        broadcast_id: row.broadcast_id,
         error: e instanceof Error ? e.message : String(e),
       }),
     );
   }
 }
 
-export async function reachOutClock(
+export async function runReachOutClock(
   db: Db,
   now: Date,
   log: Logger,
@@ -210,57 +215,58 @@ export async function reachOutClock(
   const again: Replan[] = [];
 
   /* reconcile */
-  for (const q of await queuedOutcomes(db, PAGE, tenantId)) {
-    const s = q.send;
-    const error = (q.error ?? null) as {
+  for (const query of await listQueuedOutcomes(db, PAGE, tenantId)) {
+    const send = query.send;
+    const error = (query.error ?? null) as {
       reason?: string;
       provider?: string;
       outcome?: string;
       http_status?: number;
     } | null;
-    if (q.status === "sent" || q.status === "delivered" || q.status === "read") {
-      const at = q.sent_at ?? q.written_at ?? now.toISOString();
-      if (await move(db, s, { state: "sent", sent_at: at })) {
+    if (query.status === "sent" || query.status === "delivered" || query.status === "read") {
+      const at = query.sent_at ?? query.written_at ?? now.toISOString();
+      if (await move(db, send, { state: "sent", sent_at: at })) {
         out.sent += 1;
         // The send is sent whatever the lead's bookkeeping does: a lead that could not be written is said, not undone.
-        await leadWritten(db, { tenantId: s.tenant_id, leadId: s.lead_id, at, sendId: s.id }).catch((e: unknown) =>
-          log.error("reach_out_lead_unwritten", {
-            send_id: s.id,
-            lead_id: s.lead_id,
-            error: e instanceof Error ? e.message : String(e),
-          }),
+        await recordLeadWritten(db, { tenantId: send.tenant_id, leadId: send.lead_id, at, sendId: send.id }).catch(
+          (e: unknown) =>
+            log.error("reach_out_lead_unwritten", {
+              send_id: send.id,
+              lead_id: send.lead_id,
+              error: e instanceof Error ? e.message : String(e),
+            }),
         );
       }
-    } else if (q.status === "failed" && error?.outcome === "unknown") {
+    } else if (query.status === "failed" && error?.outcome === "unknown") {
       // Its receipt settles it (00177's guard lets exactly this row move on). A day with none: it may have gone.
-      if (!q.written_at || now.getTime() - Date.parse(q.written_at) < UNKNOWN_OUTCOME_MS) continue;
-      if (await move(db, s, { state: "failed", reason: "outcome_unknown" })) out.failed += 1;
-    } else if (q.status === "failed" && goesAgain(s, neverLeft(error))) {
-      again.push({ send: s, wrote: true });
+      if (!query.written_at || now.getTime() - Date.parse(query.written_at) < UNKNOWN_OUTCOME_MS) continue;
+      if (await move(db, send, { state: "failed", reason: "outcome_unknown" })) out.failed += 1;
+    } else if (query.status === "failed" && goesAgain(send, neverLeft(error))) {
+      again.push({ send: send, wrote: true });
       continue; // counted where it is planned again
-    } else if (q.status === "failed") {
+    } else if (query.status === "failed") {
       const reason = error?.provider === "bounced" ? "bounced" : "send_failed";
-      if (await move(db, s, { state: "failed", reason })) out.failed += 1;
-    } else if (q.status === "canceled") {
+      if (await move(db, send, { state: "failed", reason })) out.failed += 1;
+    } else if (query.status === "canceled") {
       const reason = String(error?.reason ?? "canceled").slice(0, 60);
-      if (goesAgain(s, isWaitRefusal(reason))) {
-        again.push({ send: s, wrote: true });
+      if (goesAgain(send, isWaitRefusal(reason))) {
+        again.push({ send: send, wrote: true });
         continue;
       }
-      if (await move(db, s, { state: "skipped", reason })) out.skipped += 1;
-    } else if (q.status === null) {
+      if (await move(db, send, { state: "skipped", reason })) out.skipped += 1;
+    } else if (query.status === null) {
       // Its email row is gone: an erasure deletes the person's messages (erase_contact), and the send never goes.
-      if (await move(db, s, { state: "skipped", reason: "erased", message_id: null })) out.skipped += 1;
+      if (await move(db, send, { state: "skipped", reason: "erased", message_id: null })) out.skipped += 1;
     } else continue; // still queued: its job has not run yet
     out.reconciled += 1;
   }
 
   /* unstick */
   if (!late()) {
-    const stuck = await stuckClaims(db, new Date(now.getTime() - CLAIM_STUCK_AFTER_MS), STUCK_PAGE, tenantId);
+    const stuck = await listStuckClaims(db, new Date(now.getTime() - CLAIM_STUCK_AFTER_MS), STUCK_PAGE, tenantId);
     const expected = new Map<string, string>();
     for (const s of stuck) expected.set(s.id, await sendMessageId(s.id, s.attempts ?? 0));
-    const written = await writtenEmails(db, [...expected.values()]);
+    const written = await getWrittenEmails(db, [...expected.values()]);
     for (const s of stuck) {
       const id = expected.get(s.id)!;
       // Written and not queued: the writer died between its email and its move. The email is the send's; it goes on.
@@ -275,7 +281,7 @@ export async function reachOutClock(
 
   /* finish */
   if (!late())
-    for (const id of await finishableRuns(db, PAGE, tenantId)) {
+    for (const id of await listFinishableRuns(db, PAGE, tenantId)) {
       // Through the runs' own moves (broadcasts_guard): a scheduled run starts, then finishes.
       const { error: e1 } = await db
         .from("sequence_batches")
@@ -295,7 +301,7 @@ export async function reachOutClock(
 
   /* restale */
   if (!late())
-    for (const s of await staleSends(db, new Date(now.getTime() - STALE_AFTER_MS), PAGE, tenantId))
+    for (const s of await listStaleSends(db, new Date(now.getTime() - STALE_AFTER_MS), PAGE, tenantId))
       again.push({ send: s, wrote: false });
   if (again.length > 0) {
     const replanned = await replanSends(db, again, now, log);
@@ -306,7 +312,7 @@ export async function reachOutClock(
 
   /* give up what waits unanswered in its fortnight: held and never answered (F3, R10), or a draft never sent (00429) */
   if (!late())
-    for (const s of await heldStale(db, new Date(now.getTime() - REPLAN_GIVE_UP_MS), PAGE, tenantId))
+    for (const s of await listHeldStale(db, new Date(now.getTime() - REPLAN_GIVE_UP_MS), PAGE, tenantId))
       if (await move(db, s, { state: "skipped", reason: "kept_waiting" })) out.gave_up += 1;
   return out;
 }

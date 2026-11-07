@@ -6,7 +6,7 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { verifyConfirmToken } from "@chanlytics/channels";
+import { verifyConfirmToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../../_fake-db.mjs";
 import { at } from "../../_cron-doors-world.mjs";
 

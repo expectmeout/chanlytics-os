@@ -32,15 +32,24 @@
 import { json, refuse } from "../shared/http.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { respond, workspaceOf, workspaceRow, type Refused } from "../shared/admin-door.js";
-import { emitEvent, fileListingAside, linkedPlaceOf, type Database } from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db/events";
+import { setFileListingAside } from "@chanlytics/db/files";
+import { findLinkedPlace } from "@chanlytics/db/imports";
+import { type Database } from "@chanlytics/db/types";
 import { DEFAULT_TIMEZONE, UUID } from "@chanlytics/contracts";
-import type { PlaceDetails } from "@chanlytics/channels";
-import { googleReadiness, placesKey, profilePublic } from "./config.js";
-import { connectionForClient, connectionOf, listingForClient, type ConnectionRow, type ListingRow } from "./rows.js";
-import { findPlaces, readPlace } from "./places.js";
+import type { PlaceDetails } from "@chanlytics/channels/google";
+import { googleReadiness, placesKey, profilePublic } from "../shared/google/config.js";
+import {
+  connectionForClient,
+  connectionOf,
+  listingForClient,
+  type ConnectionRow,
+  type ListingRow,
+} from "../shared/google/rows.js";
+import { findPlaces, readPlace } from "../shared/google/places.js";
 import { checkListing } from "./listing-check.js";
 import { draftFor, holdReviewReply, replyOnProfile, reviewReplyMode } from "./review-answers.js";
-import { bindLocation, connectProfile, disconnectProfile, locationsFor } from "./profile-connection.js";
+import { bindLocation, connectProfile, disconnectProfile, getLocations } from "./profile-connection.js";
 import { syncProfile } from "./profile-sync.js";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { askForListingPhotos } from "../files/found.js";
@@ -165,8 +174,8 @@ async function search(body: GoogleBody): Promise<Response> {
 
 /* ------------------------------------------------------------------ link */
 
-async function link(c: GoogleCall): Promise<Response> {
-  const plan = planLink(placesKey(), c.body.place_id);
+async function link(googleCall: GoogleCall): Promise<Response> {
+  const plan = planLink(placesKey(), googleCall.body.place_id);
   if (plan.kind === "refuse") return respond(plan.answer);
   // Read it before writing anything: a wrong id is refused here, not kept as a row that never reads.
   let details: PlaceDetails;
@@ -175,39 +184,39 @@ async function link(c: GoogleCall): Promise<Response> {
   } catch (e) {
     return respond(unreadablePlaceAnswer(e));
   }
-  const before = await linkedPlaceOf(c.db, c.tenantId).catch(() => null);
-  const saved = await c.db
+  const before = await findLinkedPlace(googleCall.db, googleCall.tenantId).catch(() => null);
+  const saved = await googleCall.db
     .from("google_listings")
-    .upsert(linkRow(details, c.tenantId, c.userId, new Date()), { onConflict: "tenant_id" })
+    .upsert(linkRow(details, googleCall.tenantId, googleCall.userId, new Date()), { onConflict: "tenant_id" })
     .select("*")
     .single();
   if (saved.error || !saved.data) return refuse(500, "write_failed", saved.error?.message);
   // A new listing forgets the old one's reviews and days: they were another place's.
-  await c.db.from("google_reviews").delete().eq("tenant_id", c.tenantId);
-  await c.db.from("google_listing_days").delete().eq("tenant_id", c.tenantId);
+  await googleCall.db.from("google_reviews").delete().eq("tenant_id", googleCall.tenantId);
+  await googleCall.db.from("google_listing_days").delete().eq("tenant_id", googleCall.tenantId);
   // The link asks for the listing's website to be read too (website-read.ts), for Check and its booking page.
-  const read = await checkListing(c.db, saved.data, c.tz, { askWebsite: true });
+  const read = await checkListing(googleCall.db, saved.data, googleCall.tz, { askWebsite: true });
   // A place that changed: what the last one offered and nobody kept leaves the Inbox, as it may be another business's. The
   // photos the business put on this one come to the Inbox (decision 0099), unless its own profile brings better. Nothing
   // here undoes a link that stands.
   if (before !== details.place_id) {
-    await listingPhotosMoved(c, details).catch((e: unknown) =>
-      c.L.warn("file_fetch_failed", { source: "google_listing", error: errField(e) }),
+    await listingPhotosMoved(googleCall, details).catch((e: unknown) =>
+      googleCall.L.warn("file_fetch_failed", { source: "google_listing", error: errField(e) }),
     );
   }
-  await emitEvent(c.db, c.tenantId, "google.linked", "listing", null, {
+  await emitEvent(googleCall.db, googleCall.tenantId, "google.linked", "listing", null, {
     place_id: details.place_id,
     name: details.name,
-    by: c.userId,
+    by: googleCall.userId,
     read: read.ok,
   }).catch(() => {});
-  c.L.info("google_linked", { place_id: details.place_id, read: read.ok });
-  return respond(linkedAnswer(await listingNow(c), saved.data, read));
+  googleCall.L.info("google_linked", { place_id: details.place_id, read: read.ok });
+  return respond(linkedAnswer(await listingNow(googleCall), saved.data, read));
 }
 
 /** What a listing that changed does to Files: its old photos set aside, its new ones asked for where no profile is bound. */
 async function listingPhotosMoved(c: GoogleCall, details: PlaceDetails): Promise<void> {
-  await fileListingAside(c.db, c.tenantId);
+  await setFileListingAside(c.db, c.tenantId);
   const bound = await connectionOf(c.db, c.tenantId);
   if (!bound?.location_name) await askForListingPhotos(c.db, c.tenantId, details);
 }
@@ -225,15 +234,15 @@ async function connect(c: GoogleCall): Promise<Response> {
 
 /* ----------------------------------------------------------------- draft */
 
-async function draft(c: GoogleCall): Promise<Response> {
-  const id = reviewIdOf(c.body.id);
+async function draft(googleCall: GoogleCall): Promise<Response> {
+  const id = reviewIdOf(googleCall.body.id);
   if (!id) return respond(NO_REVIEW_ID);
   // The Autonomy row is read here, once, for the dashboard's draft and the sweep's replies alike.
-  const mode = await reviewReplyMode(c.db, c.tenantId);
+  const mode = await reviewReplyMode(googleCall.db, googleCall.tenantId);
   const never = draftRefusal(mode);
   if (never) return respond(never);
-  const { answer, log } = draftAnswer(id, mode, await draftFor(c.db, c.tenantId, id));
-  c.L.info(log.event, log.fields);
+  const { answer, log } = draftAnswer(id, mode, await draftFor(googleCall.db, googleCall.tenantId, id));
+  googleCall.L.info(log.event, log.fields);
   return respond(answer);
 }
 
@@ -255,13 +264,13 @@ async function hold(c: GoogleCall): Promise<Response> {
 
 async function locations(c: GoogleCall, conn: ConnectionRow | null): Promise<Response> {
   if (!conn) return respond(NOT_CONNECTED);
-  return respond(locationsAnswer(await locationsFor(c.db, c.tenantId)));
+  return respond(locationsAnswer(await getLocations(c.db, c.tenantId)));
 }
 
 async function choose(c: GoogleCall, conn: ConnectionRow | null): Promise<Response> {
   const plan = planChoose(conn, c.body.account_name, c.body.location_name);
   if (plan.kind === "refuse") return respond(plan.answer);
-  const chosen = chosenLocation(await locationsFor(c.db, c.tenantId), plan.accountName, plan.locationName);
+  const chosen = chosenLocation(await getLocations(c.db, c.tenantId), plan.accountName, plan.locationName);
   if (chosen.kind === "refuse") return respond(chosen.answer);
   const bound = await bindLocation(c.db, plan.conn, chosen.loc, c.userId, c.tz);
   if (!bound.ok) return respond(bindFailedAnswer(bound));
@@ -305,18 +314,18 @@ async function unpostOp(c: GoogleCall): Promise<Response> {
 /* ------------------------------------------------------- unlink, refresh */
 
 /** The listing, its reviews and its days, gone -- the profile disconnected first, the grant given back on the way. */
-async function unlink(c: GoogleCall, conn: ConnectionRow | null, row: ListingRow | null): Promise<Response> {
-  if (conn) await disconnectProfile(c.db, c.tenantId, c.userId);
+async function unlink(googleCall: GoogleCall, conn: ConnectionRow | null, row: ListingRow | null): Promise<Response> {
+  if (conn) await disconnectProfile(googleCall.db, googleCall.tenantId, googleCall.userId);
   if (!row) return json(200, { ok: true, removed: false });
-  const del = await c.db.from("google_listings").delete().eq("tenant_id", c.tenantId);
+  const del = await googleCall.db.from("google_listings").delete().eq("tenant_id", googleCall.tenantId);
   if (del.error) return refuse(500, "write_failed", del.error.message);
-  await emitEvent(c.db, c.tenantId, "google.unlinked", "listing", null, {
+  await emitEvent(googleCall.db, googleCall.tenantId, "google.unlinked", "listing", null, {
     place_id: row.place_id,
     name: row.name,
     had_profile: !!conn,
-    by: c.userId,
+    by: googleCall.userId,
   }).catch(() => {});
-  c.L.info("google_unlinked", { place_id: row.place_id });
+  googleCall.L.info("google_unlinked", { place_id: row.place_id });
   return json(200, { ok: true, removed: true });
 }
 
@@ -331,7 +340,7 @@ async function refreshOp(c: GoogleCall, conn: ConnectionRow | null, row: Listing
   return respond(refreshAnswer(read, await listingNow(c), null));
 }
 
-export async function googleOp(auth: Admitted, body: Partial<GoogleBody>): Promise<Response> {
+export async function runGoogleOp(auth: Admitted, body: Partial<GoogleBody>): Promise<Response> {
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -343,16 +352,16 @@ export async function googleOp(auth: Admitted, body: Partial<GoogleBody>): Promi
 
   const call = await workspaceCall(body);
   if (!call.ok) return call.response;
-  const c = call.value;
+  const value = call.value;
   const onWorkspace = pick(ON_WORKSPACE, op);
-  if (onWorkspace) return onWorkspace(c);
-  const conn = await c.db.from("google_connections").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  if (onWorkspace) return onWorkspace(value);
+  const conn = await value.db.from("google_connections").select("*").eq("tenant_id", value.tenantId).maybeSingle();
   if (conn.error) return refuse(503, "read_failed", conn.error.message);
   const onConnection = pick(ON_CONNECTION, op);
-  if (onConnection) return onConnection(c, conn.data);
-  const row = await c.db.from("google_listings").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  if (onConnection) return onConnection(value, conn.data);
+  const row = await value.db.from("google_listings").select("*").eq("tenant_id", value.tenantId).maybeSingle();
   if (row.error) return refuse(503, "read_failed", row.error.message);
   const onListing = pick(ON_LISTING, op);
-  if (onListing) return onListing(c, conn.data, row.data);
+  if (onListing) return onListing(value, conn.data, row.data);
   return respond(UNKNOWN_GOOGLE_OP);
 }

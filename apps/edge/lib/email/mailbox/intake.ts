@@ -8,15 +8,14 @@
  * gone is the mailbox's reconnect, said once.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { gmailEmailOf, gmailMessage, graphEmailOf, graphMessage } from "@chanlytics/channels";
-import { mailboxConnectionById, type Database } from "@chanlytics/db";
+import { gmailEmailOf, readGmailMessage, graphEmailOf, readGraphMessage } from "@chanlytics/channels/email";
+import { findMailboxConnectionById } from "@chanlytics/db/email";
+import { type Database } from "@chanlytics/db/types";
 import type { JobContext } from "@chanlytics/jobs";
-import { erasedBeforeEmail } from "../../shared/erased.js";
-import { notify } from "../../ops/notify.js";
-import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
-import { emailWaitingMessage } from "../email.js";
-import { errField, logger } from "../../shared/log.js";
-import { tokenFor } from "./credentials.js";
+import { wasErasedBeforeEmail } from "../../shared/erased.js";
+import { tellOfWaitingEmail } from "../email.js";
+import { logger } from "../../shared/log.js";
+import { getToken } from "./credentials.js";
 import { markSignedOut } from "./wire.js";
 
 type Db = SupabaseClient<Database>;
@@ -24,34 +23,27 @@ type Db = SupabaseClient<Database>;
 export function mailboxIntake(db: Db): NonNullable<JobContext["mailboxIntake"]> {
   return {
     fetch: async (connectionId, providerId) => {
-      const row = await mailboxConnectionById(db, connectionId);
+      const row = await findMailboxConnectionById(db, connectionId);
       if (!row || row.state === "removed") return null;
       const now = Date.now();
-      const t = await tokenFor(db, row, now);
-      if (!t.ok) {
-        if (t.why === "signed_out") await markSignedOut(db, row, logger({ tenant_id: row.tenant_id }), now);
-        throw new Error(`the mailbox cannot be read now: ${t.why}`);
+      const token = await getToken(db, row, now);
+      if (!token.ok) {
+        if (token.why === "signed_out") await markSignedOut(db, row, logger({ tenant_id: row.tenant_id }), now);
+        throw new Error(`the mailbox cannot be read now: ${token.why}`);
       }
-      const r =
+      const item =
         row.provider === "microsoft"
-          ? await graphMessage(t.token, providerId)
-          : await gmailMessage(t.token, providerId);
-      if (r.outcome !== "ok") {
+          ? await readGraphMessage(token.token, providerId)
+          : await readGmailMessage(token.token, providerId);
+      if (item.outcome !== "ok") {
         // The message is gone from the mailbox (deleted, moved out of reach): nothing to read, never a retry.
-        if (r.status === 404) return null;
-        throw new Error(`the mailbox's message could not be read: ${r.status}`);
+        if (item.status === 404) return null;
+        throw new Error(`the mailbox's message could not be read: ${item.status}`);
       }
-      return row.provider === "microsoft" ? graphEmailOf(r.json) : gmailEmailOf(r.json);
+      return row.provider === "microsoft" ? graphEmailOf(item.json) : gmailEmailOf(item.json);
     },
-    erasedBefore: (tenantId, address, receivedAtIso) => erasedBeforeEmail(db, tenantId, address, receivedAtIso),
+    erasedBefore: (tenantId, address, receivedAtIso) => wasErasedBeforeEmail(db, tenantId, address, receivedAtIso),
     // Best effort, as the hosted mailbox's note is: the thread is flagged already, which is the durable half.
-    tell: async (tenantId, note) => {
-      try {
-        const addressing = await loadTenantNotifications(db, tenantId);
-        await notify({ tenantId, ...addressing }, emailWaitingMessage(note));
-      } catch (e) {
-        logger({ tenant_id: tenantId }).error("email_tell_failed", { error: errField(e) });
-      }
-    },
+    tell: tellOfWaitingEmail(db),
   };
 }

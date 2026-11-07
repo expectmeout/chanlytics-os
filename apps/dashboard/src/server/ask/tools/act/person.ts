@@ -16,30 +16,20 @@ import {
   offersYesRefusal,
   ownMessageRefusal,
   personName,
-  proposalBelowNeeds,
   stepDayOf,
   STEP_SHEET_WORDS,
   whyNotAPhone,
   whyNotAnEmail,
   type WriteWay,
-} from "@chanlytics/contracts";
-import { load } from "../../../readers";
-import { openDealsOf } from "@chanlytics/db";
-import { personReach } from "../../../readers/person";
-import {
   UUID,
-  actAction,
-  unlessNotFound,
-  approvalWords,
-  defineActions,
-  noteRow,
-  offeredTo,
-  propose,
-  refuse,
-  str,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../context";
+} from "@chanlytics/contracts";
+import { proposalBelowNeeds } from "../../proposals/proposals";
+import { load } from "../../../shared/reader";
+import { openDealsOf } from "@chanlytics/db/deals";
+import { personReach } from "../../../readers/person";
+import { readUnlessNotFound, noteRow, str } from "../context/tool-reads";
+import { actAction, defineActions, offeredTo, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { approvalWords, propose, refuse } from "../context/context";
 
 /** The person a card names, as every action of this tool reads them: the name the card calls them, and the profile's. */
 interface CardPerson {
@@ -57,40 +47,40 @@ interface CardPerson {
  * the model's words. One read of the profile for every action of this tool, and the person into the turn's read set,
  * so an answer may cite them. This workspace's alone: RLS shows a member everyone in every workspace they belong to.
  */
-async function personOnCard(t: ToolContext, contactId: string): Promise<CardPerson | ProposalOutcome> {
+async function personOnCard(toolContext: ToolContext, contactId: string): Promise<CardPerson | ProposalOutcome> {
   const id = str(contactId, 40);
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
-  const { data: c, error } = await t.ctx.supabase
+  const { data: c, error } = await toolContext.ctx.supabase
     .from("contacts")
     .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
-    .eq("tenant_id", t.tenantId)
+    .eq("tenant_id", toolContext.tenantId)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
   // As People names them (personName). What the page shows in place of a name of their own is that, minus the typed name.
-  const who = personName(c);
+  const otherPersonName = personName(c);
   const shows = c.wa_profile_name || c.phone_e164 || c.email ? personName({ ...c, display_name: null }) : null;
-  noteRow(t, "person", id, who, addressOf({ kind: "person", id }));
-  return { id, who, name: c.display_name ?? null, email: c.email ?? null, shows };
+  noteRow(toolContext, "person", id, otherPersonName, addressOf({ kind: "person", id }));
+  return { id, who: otherPersonName, name: c.display_name ?? null, email: c.email ?? null, shows };
 }
 const refused = (p: CardPerson | ProposalOutcome): p is ProposalOutcome => "result" in p;
 
 async function proposePersonMode(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { contact_id: string; mode: string },
 ): Promise<ProposalOutcome> {
   // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
-  if (!offeredTo(modeAction, t.role)) return refuse(proposalBelowNeeds("person_mode"));
+  if (!offeredTo(modeAction, toolContext.role)) return refuse(proposalBelowNeeds("person_mode"));
   const mode = str(input.mode, 10);
   if (!(["inherit", ...PERSON_MODES] as string[]).includes(mode))
     return refuse("mode must be auto, ask, never or inherit");
-  const person = await personOnCard(t, input.contact_id);
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
-  const { data: pol } = await t.ctx.supabase
+  const { data: pol } = await toolContext.ctx.supabase
     .from("policies")
     .select("mode")
-    .eq("tenant_id", t.tenantId)
+    .eq("tenant_id", toolContext.tenantId)
     .eq("class", "reply")
     .eq("subject_type", "contact")
     .eq("subject_id", person.id)
@@ -120,13 +110,13 @@ type NoteFor = (typeof NOTE_FOR)[number];
  * alone is read before every answer to that person), or the team alone, in the person page's own words (NOTE_WORDS).
  */
 const NOTE_READERS: Record<NoteFor, (who: string) => string> = {
-  receptionist: (who) => `The receptionist reads it before it answers ${who}`,
+  receptionist: (person) => `The receptionist reads it before it answers ${person}`,
   team: () =>
     `${NOTE_WORDS.teamOnly}: ${NOTE_WORDS.teamOnlyHint.charAt(0).toLowerCase()}${NOTE_WORDS.teamOnlyHint.slice(1)}`,
 };
 
 async function proposePersonNote(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { contact_id: string; body: string; for: NoteFor },
 ): Promise<ProposalOutcome> {
   // As the route takes it: trimmed, something, and no longer than the table holds -- refused, never cut.
@@ -134,7 +124,7 @@ async function proposePersonNote(
   if (!body) return refuse("body must be the note's words");
   if (body.length > NOTE_MAX) return refuse(`body is ${body.length} characters; a note is at most ${NOTE_MAX}`);
   if (!(NOTE_FOR as readonly string[]).includes(input.for)) return refuse("for must be receptionist or team");
-  const person = await personOnCard(t, input.contact_id);
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
   return propose({
     kind: "note",
@@ -153,11 +143,11 @@ const STEP_FOR = ["anyone", "me"] as const;
  * of theirs is for is refused in words, never guessed.
  */
 async function stepDeal(
-  t: ToolContext,
+  toolContext: ToolContext,
   personId: string,
   service: string | null,
 ): Promise<{ id: string; service: string | null } | null | ProposalOutcome> {
-  const open = await openDealsOf(t.ctx.supabase, t.tenantId, personId);
+  const open = await openDealsOf(toolContext.ctx.supabase, toolContext.tenantId, personId);
   if (service) {
     const named = open.find((d) => foldName((d.service ?? "").trim()) === foldName(service));
     if (named) return { id: named.id, service: named.service };
@@ -178,43 +168,43 @@ async function stepDeal(
  * making it a step (noteSpec), so the door, the receipt and the undo are the note's.
  */
 async function proposePersonStep(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { contact_id: string; what: string; due_on: string; step_for?: (typeof STEP_FOR)[number]; service?: string },
 ): Promise<ProposalOutcome> {
   // As the notes door takes a step: its words, trimmed and refused past the table's length, and a real day from today on.
-  const what = typeof input.what === "string" ? input.what.trim() : "";
-  if (!what) return refuse("what must be the step's words");
-  if (what.length > NOTE_MAX) return refuse(`what is ${what.length} characters; a step is at most ${NOTE_MAX}`);
-  const day = stepDayOf(str(input.due_on, 10), t.timezone, t.now.getTime());
+  const subject = typeof input.what === "string" ? input.what.trim() : "";
+  if (!subject) return refuse("what must be the step's words");
+  if (subject.length > NOTE_MAX) return refuse(`what is ${subject.length} characters; a step is at most ${NOTE_MAX}`);
+  const day = stepDayOf(str(input.due_on, 10), toolContext.timezone, toolContext.now.getTime());
   if (!day) return refuse("due_on must be a day, like 2026-09-30");
   if (day.due === "past") return refuse("due_on must be today or later");
   const forMe = input.step_for === "me";
-  if (forMe && !t.ctx.userId) return refuse("for me needs the member asking; give anyone");
-  const person = await personOnCard(t, input.contact_id);
+  if (forMe && !toolContext.ctx.userId) return refuse("for me needs the member asking; give anyone");
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
-  const deal = await stepDeal(t, person.id, str(input.service, 80) || null);
+  const deal = await stepDeal(toolContext, person.id, str(input.service, 80) || null);
   if (deal && "result" in deal) return deal;
-  const W = STEP_SHEET_WORDS;
+  const words = STEP_SHEET_WORDS;
   return propose({
     kind: "note",
     title: `${NOTE_WORDS.next} for ${person.who}`,
-    summary: [clipAtWord(what, 80), day.words, deal?.service ?? null, forMe ? W.for.me : W.for.anyone]
+    summary: [clipAtWord(subject, 80), day.words, deal?.service ?? null, forMe ? words.for.me : words.for.anyone]
       .filter((x): x is string => !!x)
       .join(" · "),
     payload: {
       contact_id: person.id,
-      body: what,
+      body: subject,
       due_on: day.day,
       team_only: true,
       ...(deal ? { deal_id: deal.id } : {}),
-      ...(forMe ? { for_user_id: t.ctx.userId } : {}),
+      ...(forMe ? { for_user_id: toolContext.ctx.userId } : {}),
       who: person.who,
     },
   });
 }
 
 async function proposePersonDetails(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { contact_id: string; name?: string; email?: string },
 ): Promise<ProposalOutcome> {
   if (input.name === undefined && input.email === undefined) return refuse("details takes name, email or both");
@@ -225,17 +215,17 @@ async function proposePersonDetails(
   const typed = input.email?.trim();
   const email = typed === undefined ? undefined : normalizeEmail(typed);
   if (typed !== undefined && !email) return refuse(whyNotAnEmail(typed) ?? "That is not an email address.");
-  const person = await personOnCard(t, input.contact_id);
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
   // Only what would change: a field that already says it is left out, and a card that changes nothing is none.
-  const asked = { name, email: email ?? undefined };
-  const changed = (["name", "email"] as const).filter((k) => asked[k] !== undefined && asked[k] !== person[k]);
+  const fields = { name, email: email ?? undefined };
+  const changed = (["name", "email"] as const).filter((k) => fields[k] !== undefined && fields[k] !== person[k]);
   if (!changed.length)
-    return refuse(`already their ${(["name", "email"] as const).filter((k) => asked[k] !== undefined).join(" and ")}`);
-  const to = Object.fromEntries(changed.map((k) => [k, asked[k] as string]));
+    return refuse(`already their ${(["name", "email"] as const).filter((k) => fields[k] !== undefined).join(" and ")}`);
+  const to = Object.fromEntries(changed.map((k) => [k, fields[k] as string]));
   const previous = Object.fromEntries(changed.map((k) => [k, person[k]]));
   // A field asked that already says it is left off the card, and said beside it.
-  const same = (["name", "email"] as const).filter((k) => asked[k] !== undefined && !changed.includes(k));
+  const same = (["name", "email"] as const).filter((k) => fields[k] !== undefined && !changed.includes(k));
   return propose(
     {
       kind: "person_details",
@@ -266,7 +256,7 @@ const SOURCE_IDS = CONSENT_SOURCES.map((x) => x.id) as [string, ...string[]];
  * message), and an answer "in their own message" names that message.
  */
 async function proposeAnswer(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: {
     contact_id: string;
     question: keyof typeof QUESTIONS;
@@ -289,7 +279,7 @@ async function proposeAnswer(
     const own = ownMessageRefusal(source, messageId);
     if (own) return refuse(own);
   }
-  const person = await personOnCard(t, input.contact_id);
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
   const how = source ? (CONSENT_SOURCES.find((x) => x.id === source)?.label ?? source) : null;
   return propose({
@@ -318,22 +308,25 @@ function proposeAdd(_t: ToolContext, input: { phone?: string; email?: string; na
   const email = emailTyped ? normalizeEmail(emailTyped) : null;
   if (emailTyped && !email) return refuse(whyNotAnEmail(emailTyped) ?? "That is not an email address.");
   const name = input.name?.trim().slice(0, 80).replace(/\s+/g, " ") || undefined;
-  const who = name || phone || email || "them";
+  const personName = name || phone || email || "them";
   return propose({
     kind: "person_add",
-    title: `Add ${who} to People`,
+    title: `Add ${personName} to People`,
     summary: `${[name, phone, email].filter(Boolean).join(" · ")} — nobody is messaged by adding them, and their answers start as not asked.`,
     payload: { ...(phone ? { phone } : {}), ...(email ? { email } : {}), ...(name ? { name } : {}) },
   });
 }
 
 /** Two records of one person made one (POST contacts/:id/merge): the owner's, and it cannot be undone. */
-async function proposeMerge(t: ToolContext, input: { contact_id: string; other_id: string }): Promise<ProposalOutcome> {
-  if (!offeredTo(mergeAction, t.role)) return refuse(proposalBelowNeeds("person_merge"));
+async function proposeMerge(
+  toolContext: ToolContext,
+  input: { contact_id: string; other_id: string },
+): Promise<ProposalOutcome> {
+  if (!offeredTo(mergeAction, toolContext.role)) return refuse(proposalBelowNeeds("person_merge"));
   if (str(input.contact_id, 40) === str(input.other_id, 40)) return refuse("they are the same record");
-  const kept = await personOnCard(t, input.contact_id);
+  const kept = await personOnCard(toolContext, input.contact_id);
   if (refused(kept)) return kept;
-  const other = await personOnCard(t, input.other_id);
+  const other = await personOnCard(toolContext, input.other_id);
   if (refused(other)) return other;
   return propose({
     kind: "person_merge",
@@ -364,7 +357,7 @@ interface MessageAsk {
 function carried(
   input: MessageAsk,
   carries: WriteWay["carries"],
-  who: string,
+  personName: string,
 ): { text: string; template: { name: string; language: string } | null } | { refusal: string } {
   const text = input.text?.trim() ?? "";
   const name = input.template_name?.trim();
@@ -372,16 +365,16 @@ function carried(
   const template = name && language ? { name, language } : null;
   if (carries === "approved" && !template)
     return {
-      refusal: `only a message WhatsApp approved can go to ${who} on WhatsApp now: name it with template_name and template_language (sequences with action messages lists them)`,
+      refusal: `only a message WhatsApp approved can go to ${personName} on WhatsApp now: name it with template_name and template_language (sequences with action messages lists them)`,
     };
   if (carries === "words" && !text && !template) return { refusal: "text is required: the words to send" };
   return { text, template };
 }
 
-async function proposeMessage(t: ToolContext, input: MessageAsk): Promise<ProposalOutcome> {
-  const person = await personOnCard(t, input.contact_id);
+async function proposeMessage(toolContext: ToolContext, input: MessageAsk): Promise<ProposalOutcome> {
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
-  const read = await unlessNotFound(load(t.rc, personReach, { id: person.id }));
+  const read = await readUnlessNotFound(load(toolContext.rc, personReach, { id: person.id }));
   if (!read) return refuse("no such person in this workspace");
   const reach = read.data.reach;
   const wire = input.wire ?? reach.default_wire;

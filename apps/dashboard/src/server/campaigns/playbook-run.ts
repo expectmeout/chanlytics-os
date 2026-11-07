@@ -35,13 +35,14 @@ export async function runPlaybookNow(
 ): Promise<RunPlaybookOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   // An edge that cannot be reached is said as such: the hourly sweep runs what it would have (R14).
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/playbooks-run",
     { tenant_id: tenantId, playbook_id: playbookId, user_id: userId },
     { workspace: tenantId, user: userId, timeoutMs: RUN_TIMEOUT_MS },
   );
-  if (r.status === 503 && r.body?.error === "edge_unreachable") return { ok: false, reason: "edge_unreachable" };
-  const j = (r.body ?? {}) as {
+  if (answer.status === 503 && answer.body?.error === "edge_unreachable")
+    return { ok: false, reason: "edge_unreachable" };
+  const body = (answer.body ?? {}) as {
     ok?: boolean;
     outcome?: string;
     eligible?: number;
@@ -55,26 +56,26 @@ export async function runPlaybookNow(
     detail?: string;
   };
   if (
-    edgeAnswered(r) &&
-    j.ok &&
-    (j.outcome === "sent" || j.outcome === "held" || j.outcome === "empty" || j.outcome === "off")
+    edgeAnswered(answer) &&
+    body.ok &&
+    (body.outcome === "sent" || body.outcome === "held" || body.outcome === "empty" || body.outcome === "off")
   ) {
     // When a sent run really goes, and what was asked for when the hours moved it; an edge older than this gives neither.
     const at = (v: unknown) => (typeof v === "string" ? v : null);
     return {
       ok: true,
-      outcome: j.outcome,
-      eligible: j.eligible,
-      broadcastId: j.broadcast_id,
-      skipped: j.skipped,
-      scheduledFor: at(j.scheduled_for),
-      movedFrom: at(j.moved_from),
-      reason: at(j.reason),
-      planned: typeof j.planned === "number" ? j.planned : undefined,
-      runId: at(j.run_id),
+      outcome: body.outcome,
+      eligible: body.eligible,
+      broadcastId: body.broadcast_id,
+      skipped: body.skipped,
+      scheduledFor: at(body.scheduled_for),
+      movedFrom: at(body.moved_from),
+      reason: at(body.reason),
+      planned: typeof body.planned === "number" ? body.planned : undefined,
+      runId: at(body.run_id),
     };
   }
-  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
+  return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }
 
 /** What Offer it came to: offered, to how many and whether it waits for an OK, or not, and why. */
@@ -94,12 +95,12 @@ export async function offerFreedNow(
   appointmentId: string,
 ): Promise<OfferFreedOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/calendar/freed-time",
     { tenant_id: tenantId, user_id: userId, appointment_id: appointmentId },
     { workspace: tenantId, user: userId, timeoutMs: RUN_TIMEOUT_MS },
   );
-  const j = (r.body ?? {}) as {
+  const body = (answer.body ?? {}) as {
     ok?: boolean;
     offered?: boolean;
     people?: number;
@@ -107,9 +108,9 @@ export async function offerFreedNow(
     why?: string;
     detail?: string;
   };
-  if (edgeAnswered(r) && j.ok)
-    return j.offered
-      ? { ok: true, offered: true, people: j.people ?? 0, waits: j.waits === true }
-      : { ok: true, offered: false, why: j.why ?? "nobody", ...(j.detail ? { detail: j.detail } : {}) };
-  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
+  if (edgeAnswered(answer) && body.ok)
+    return body.offered
+      ? { ok: true, offered: true, people: body.people ?? 0, waits: body.waits === true }
+      : { ok: true, offered: false, why: body.why ?? "nobody", ...(body.detail ? { detail: body.detail } : {}) };
+  return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }

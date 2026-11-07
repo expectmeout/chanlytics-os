@@ -11,10 +11,8 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   toTodayVM,
-  todayPeriodLine,
   todayRunWords,
   todayRunApproved,
-  todayLeaks,
   unreadCount,
   zoneDayKey,
   clockTime,
@@ -25,6 +23,8 @@ import {
   LIFECYCLE_WORDS,
   CHANNELS_DOOR,
 } from "@chanlytics/contracts";
+import { todayPeriodLine } from "../../apps/dashboard/src/surfaces/today/period.ts";
+import { todayLeaks } from "../../apps/dashboard/src/surfaces/today/leaks.ts";
 import {
   installStubReact,
   fresh,

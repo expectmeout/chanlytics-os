@@ -7,13 +7,15 @@
 import { IMPORT_STOPPED_WORDS, IMPORT_WORDS, importLineOf, type ImportRowDto } from "../imports/ledger";
 import { clockDate } from "../shared/clock";
 import type { SchemaSet } from "../shared/schema-sets";
-import { MAILBOXES_PER_DOMAIN_MAX, MAILBOX_CONNECTIONS_MAX, type MailboxConnectionDto } from "./mailbox-connections";
+import {
+  MAILBOXES_PER_DOMAIN_MAX,
+  MAILBOX_CONNECTIONS_MAX,
+  type MailboxConnectionDto,
+} from "./mailbox-connections/states";
+import { TRY_AGAIN_IN_A_MINUTE } from "../shared/words";
 
 /** What its owner chose as it connected (0086, 00499): its last six months brought in, or only what comes after. */
 export type MailboxHistory = SchemaSet<"mailbox_connections.history">;
-
-/** Why a connect did not finish, by the code the edge answers with, as the owner reads it once back from the provider. */
-const CONNECT_FAILED = "That didn't go through. Try again in a minute.";
 export const MAILBOX_CONNECT_WORDS: Record<string, string> = {
   // Said whatever it brings: its row and the Brought in card say where its history stands (0086).
   connected: "Connected: email from people comes into your Inbox.",
@@ -40,7 +42,7 @@ export const MAILBOX_CONNECT_WORDS: Record<string, string> = {
   admin_consent:
     "Your organisation's Microsoft 365 admin approves Chanlytics once. Copy the link for them, then connect again when they have.",
   admin_approved: "Approved for your organisation. Connect the mailbox now.",
-  failed: CONNECT_FAILED,
+  failed: TRY_AGAIN_IN_A_MINUTE,
 };
 
 /** The outcomes that are good news, said in the note's calm tone. */
@@ -52,7 +54,7 @@ export function mailboxConnectOk(code: string | null | undefined): boolean {
 }
 
 export function mailboxConnectWords(code: string | null | undefined): string {
-  return (code && MAILBOX_CONNECT_WORDS[code]) || CONNECT_FAILED;
+  return (code && MAILBOX_CONNECT_WORDS[code]) || TRY_AGAIN_IN_A_MINUTE;
 }
 
 /**
@@ -111,21 +113,22 @@ export interface MailboxHistoryLine {
  * workspace's row).
  */
 export function mailboxHistoryLine(
-  m: Pick<MailboxConnectionDto, "id" | "history" | "connected_at" | "state">,
+  mailboxConnection: Pick<MailboxConnectionDto, "id" | "history" | "connected_at" | "state">,
   rows: readonly ImportRowDto[] | null | undefined,
   nowMs: number,
   tz: string,
 ): MailboxHistoryLine | null {
-  if (m.state === "removed") return null;
-  const row = (rows ?? []).find((r) => r.source === "mailbox" && r.connection_id === m.id) ?? null;
-  const W = MAILBOX_HISTORY_WORDS;
+  if (mailboxConnection.state === "removed") return null;
+  const row = (rows ?? []).find((r) => r.source === "mailbox" && r.connection_id === mailboxConnection.id) ?? null;
+  const words = MAILBOX_HISTORY_WORDS;
   if (!row) {
-    if (m.history !== "from_now") return null;
-    const at = Date.parse(m.connected_at);
-    return { says: Number.isFinite(at) ? W.fromNow(clockDate(at, tz, nowMs)) : W.line.from_now, act: "bring" };
+    if (mailboxConnection.history !== "from_now") return null;
+    const at = Date.parse(mailboxConnection.connected_at);
+    return { says: Number.isFinite(at) ? words.fromNow(clockDate(at, tz, nowMs)) : words.line.from_now, act: "bring" };
   }
-  const l = importLineOf(row, tz);
-  if (row.state === "running" || row.state === "queued") return { says: `${l.says} · ${l.stand}`, act: "stop" };
-  if (row.state !== "failed" || m.state === "reconnect") return null;
-  return { says: l.says, act: row.last_error === IMPORT_STOPPED_WORDS.byYou ? "resume" : "again" };
+  const importLine = importLineOf(row, tz);
+  if (row.state === "running" || row.state === "queued")
+    return { says: `${importLine.says} · ${importLine.stand}`, act: "stop" };
+  if (row.state !== "failed" || mailboxConnection.state === "reconnect") return null;
+  return { says: importLine.says, act: row.last_error === IMPORT_STOPPED_WORDS.byYou ? "resume" : "again" };
 }

@@ -20,7 +20,7 @@ process.env.GOOGLE_OAUTH_STATE_SECRET = SECRET;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { signState, newNonce, STATE_TTL_MS } = await import("@chanlytics/channels");
+const { signState, newNonce, STATE_TTL_MS } = await import("@chanlytics/channels/google");
 const callback = await import(at("apps/dashboard/app/api/v1/google/callback/route.ts"));
 const connect = await import(at("apps/dashboard/app/api/v1/google/connect/route.ts"));
 const connection = await import(at("apps/dashboard/app/api/v1/google/connection/route.ts"));

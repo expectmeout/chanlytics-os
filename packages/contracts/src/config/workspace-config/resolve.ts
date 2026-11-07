@@ -50,13 +50,13 @@ import {
 export function instructionsDraft(
   brain: { system_prompt?: string | null; profile?: { extra_instructions?: string | null } | null } | null | undefined,
 ): { text: string; carried: boolean } {
-  const whose = whoseWords(brain);
-  if (whose.kind === "own") return { text: whose.text, carried: false };
+  const owner = whoseWords(brain);
+  if (owner.kind === "own") return { text: owner.text, carried: false };
   // carried and prompt alike: words the owner did not write into their own field, shown so
   // nothing the receptionist follows is out of sight, and marked so the box can say where
   // they came from. baseline and none open empty -- the product's lines are never the owner's.
-  return whose.kind === "carried" || whose.kind === "prompt"
-    ? { text: whose.text, carried: true }
+  return owner.kind === "carried" || owner.kind === "prompt"
+    ? { text: owner.text, carried: true }
     : { text: "", carried: false };
 }
 
@@ -73,15 +73,17 @@ export function instructionsDraft(
 export const NO_FIELDS_COMPOSED_WORDS = "Your details aren't in what it reads yet.";
 
 /** True when a profile carries anything worth composing from. */
-export function hasProfile(p: BusinessProfile | undefined | null): boolean {
-  if (!p) return false;
+export function hasProfile(businessProfile: BusinessProfile | undefined | null): boolean {
+  if (!businessProfile) return false;
   // Seven days that are all closed is a SHAPE, not a fact. The editor writes
   // every day on save, so counting keys would let an owner who opened the form
   // and pressed Save with nothing filled in switch their receptionist onto a
   // composed prompt containing no hours, no services and no address — strictly
   // worse than the hand-written one it replaced. At least one real opening
   // time has to exist before this counts.
-  const statedHours = !!p.hours && Object.values(p.hours).some((h) => (h?.open && h?.close) || h?.intervals?.length);
+  const statedHours =
+    !!businessProfile.hours &&
+    Object.values(businessProfile.hours).some((h) => (h?.open && h?.close) || h?.intervals?.length);
   // NOT closures. Their contents EXPIRE: a profile whose only fact is a closure
   // would compose a real prompt while it was upcoming and, the day after it
   // passed, compose one with no hours, no address and no services — while this
@@ -89,15 +91,15 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
   // prompt either. A prompt that changes what it says because a date went by,
   // from a config nobody touched.
   return !!(
-    p.address ||
-    p.tone ||
-    p.extra_instructions ||
+    businessProfile.address ||
+    businessProfile.tone ||
+    businessProfile.extra_instructions ||
     statedHours ||
-    p.services?.length ||
-    p.languages?.length ||
-    p.escalate_when?.length ||
-    p.website ||
-    p.notes?.length
+    businessProfile.services?.length ||
+    businessProfile.languages?.length ||
+    businessProfile.escalate_when?.length ||
+    businessProfile.website ||
+    businessProfile.notes?.length
   );
 }
 

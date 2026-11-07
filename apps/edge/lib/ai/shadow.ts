@@ -24,7 +24,7 @@
  * error is logged in have been scrubbed of it. What is sent is the customer's own words or one lead's listing facts:
  * never the business's prompt, its facts or a person's name.
  */
-import { askSystemOne, type SystemOneReply } from "@chanlytics/channels";
+import { askSystemOne, type SystemOneReply } from "@chanlytics/channels/ai";
 import {
   NO_READS,
   SHADOW_GRACE_MS,
@@ -41,7 +41,7 @@ import {
   type ShadowRead,
   type ShadowReads,
 } from "@chanlytics/contracts";
-import { recordModelUsage } from "@chanlytics/db";
+import { recordModelUsage } from "@chanlytics/db/ai";
 import { env } from "../shared/env.js";
 import { modelDeps } from "./model.js";
 import { pg } from "../shared/pg.js";
@@ -136,25 +136,29 @@ async function runCalls(
  * calls are built by `build`, here and only when the shadow is on, so a text the primary would have coped with can
  * never fail the customer's turn through a shadow that is off.
  */
-export function startShadow(purpose: ModelPurpose, who: ShadowFor, build: () => ShadowCallSpec[]): ShadowRun | null {
-  const tenantId = who.tenantId;
+export function startShadow(
+  purpose: ModelPurpose,
+  shadowFor: ShadowFor,
+  build: () => ShadowCallSpec[],
+): ShadowRun | null {
+  const tenantId = shadowFor.tenantId;
   const port = shadowPortOf(purpose);
   if (!tenantId || !port) return null;
   const key = shadowKey(purpose, tenantId);
   if (!key) return null;
-  const L = logger({ tenant_id: tenantId });
+  const log = logger({ tenant_id: tenantId });
   let calls: ShadowCallSpec[];
   try {
     calls = build();
   } catch (e) {
-    L.error("shadow_failed", { purpose, error: errField(e) });
+    log.error("shadow_failed", { purpose, error: errField(e) });
     return null;
   }
   if (calls.length === 0) return null;
   const done: Array<Answered | undefined> = Array.from({ length: calls.length }, () => undefined);
   const stop = new AbortController();
   const started = runCalls(key, calls, stop.signal, done).catch((e: unknown) => {
-    L.error("shadow_failed", { purpose, error: errField(e) });
+    log.error("shadow_failed", { purpose, error: errField(e) });
   });
   return {
     secondKey: secondKeyOn(purpose, tenantId),
@@ -169,7 +173,7 @@ export function startShadow(purpose: ModelPurpose, who: ShadowFor, build: () => 
         // A shadow the primary has outrun is left behind: its calls end, what answered is kept, and the rest is a row that says so.
         if (finished === "late") {
           stop.abort();
-          L.warn("shadow_failed", {
+          log.warn("shadow_failed", {
             purpose,
             outcome: "left_behind",
             calls: done.filter((d) => d === undefined).length,
@@ -182,7 +186,7 @@ export function startShadow(purpose: ModelPurpose, who: ShadowFor, build: () => 
           const answered = done[at];
           if (answered && answered.reply.outcome !== "ok") {
             const { outcome, status, error } = answered.reply;
-            L.warn("shadow_failed", { purpose, outcome, status, error });
+            log.warn("shadow_failed", { purpose, outcome, status, error });
           }
           const labels = Object.fromEntries(Object.keys(spec.questions).map((q) => [q, primary(spec.ref, q)]));
           return shadowBodies(
@@ -190,7 +194,7 @@ export function startShadow(purpose: ModelPurpose, who: ShadowFor, build: () => 
               tenantId,
               purpose,
               port,
-              subjectId: who.subjectId ?? null,
+              subjectId: shadowFor.subjectId ?? null,
               questions: spec.questions,
               primary: labels,
             },
@@ -200,7 +204,7 @@ export function startShadow(purpose: ModelPurpose, who: ShadowFor, build: () => 
         if (rows.length === 0) return reads;
         // The write is bounded like the wait: a database that hangs costs the customer's caller no more than the grace.
         const write = recordModelUsage(db, rows).catch((e: unknown) => {
-          L.error("shadow_write_failed", { purpose, error: errField(e) });
+          log.error("shadow_write_failed", { purpose, error: errField(e) });
         });
         let writeTimer: ReturnType<typeof setTimeout> | undefined;
         const tooSlow = new Promise<void>((resolve) => {
@@ -209,7 +213,7 @@ export function startShadow(purpose: ModelPurpose, who: ShadowFor, build: () => 
         await Promise.race([write, tooSlow]);
         clearTimeout(writeTimer);
       } catch (e) {
-        L.error("shadow_write_failed", { purpose, error: errField(e) });
+        log.error("shadow_write_failed", { purpose, error: errField(e) });
       } finally {
         clearTimeout(timer);
       }

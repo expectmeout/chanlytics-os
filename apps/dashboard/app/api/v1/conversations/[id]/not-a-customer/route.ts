@@ -1,8 +1,8 @@
-import { notACustomer } from "@chanlytics/core";
+import { markNotACustomer } from "@chanlytics/core";
 import { z } from "zod";
 import { write } from "@/server/shared/route";
 import { conversationScope } from "@/server/shared/verbs";
-import { threadPorts } from "@/server/ports/core-ports";
+import { threadPorts } from "@/server/conversations/ports";
 
 /**
  * Not a customer, on a thread set aside (decision 0093): off the list, still archived, its sender's address automated, and
@@ -13,5 +13,5 @@ export const POST = write({
   role: "operator",
   rate: "thread_state",
   input: z.object({ undo: z.boolean().default(false) }),
-  handle: ({ ctx, row: conv, input }) => notACustomer(threadPorts(ctx), { conv, undo: input.undo }),
+  handle: ({ ctx, row: conv, input }) => markNotACustomer(threadPorts(ctx), { conv, undo: input.undo }),
 });

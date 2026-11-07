@@ -1,9 +1,9 @@
 import "server-only";
 import { calendarFeedKeyOf, parseTenantConfig, type AppointmentWord, MIN_MS } from "@chanlytics/contracts";
-import { connectionFor } from "../connections/google";
-import { emailLineFor } from "../connections/email";
-import { playbookRows } from "../campaigns/playbooks";
-import { load, stamp, type Reader } from "./index";
+import { findConnection } from "../connections/google";
+import { getEmailLine } from "../connections/email";
+import { listPlaybookRows } from "../campaigns/playbooks";
+import { load, readerStamp, type Reader } from "../shared/reader";
 import * as facts from "./facts";
 import { channels } from "./channels";
 import { lists } from "./lists";
@@ -48,11 +48,11 @@ export const shape: Reader<undefined, WorkspaceShape> = {
       load(rc, facts.businessShape, undefined).then((r) => r.data),
       load(rc, channels, undefined).then((r) => r.data.channels),
       // The line alone: the shape says whether there is a mailbox, and nothing of how the workspace sends.
-      emailLineFor(rc.ctx.supabase, rc.tenantId),
-      connectionFor(rc.ctx.supabase, rc.tenantId),
+      getEmailLine(rc.ctx.supabase, rc.tenantId),
+      findConnection(rc.ctx.supabase, rc.tenantId),
       load(rc, lists, undefined).then((r) => r.data.lists),
       // The rows alone (00374's split): the shape names each by its name and trigger, and runs nothing's count.
-      playbookRows(rc.ctx, rc.tenantId),
+      listPlaybookRows(rc.ctx, rc.tenantId),
     ]);
     const config = parseTenantConfig(cfg?.config ?? null);
     const data: WorkspaceShape = {
@@ -72,6 +72,6 @@ export const shape: Reader<undefined, WorkspaceShape> = {
         .map((p) => ({ id: p.id, name: p.name, trigger: String(p.trigger) }))
         .sort((a, b) => byText(a.name, b.name) || byText(a.id, b.id)),
     };
-    return { data, rows: [], stamp: stamp() };
+    return { data, rows: [], stamp: readerStamp() };
   },
 };

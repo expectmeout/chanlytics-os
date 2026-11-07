@@ -19,7 +19,7 @@ import { readCode, readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { isRetryableAuthError } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/auth/errors.ts")).href
+  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/shared/auth/errors.ts")).href
 );
 
 const route = (p) => readCode(p.startsWith("packages/") ? p : `apps/dashboard/app/api/v1/${p}/route.ts`);
@@ -28,7 +28,7 @@ test("every conversation verb counts the rows its UPDATE hit, in the one adapter
   // The verbs live in packages/core and core-thread-verbs.test.mjs runs each
   // 409; what is pinned here is that every port the adapter hands them is
   // row-counted through the one helper.
-  const ports = readCode("apps/dashboard/src/server/ports/core-ports.ts");
+  const ports = readCode("apps/dashboard/src/server/conversations/ports.ts");
   // The take-over, the hand-back (00386) and the call-back (00387) are doors that count their own rows.
   for (const port of ["snooze", "wake", "archive", "resolve"]) {
     assert.ok(
@@ -131,7 +131,7 @@ test("customer numbers stay out of edge logs", () => {
   // the mirror itself. The call-start door's lines carry the caller's tail,
   // the agent and the call, never the number: run in
   // retell-inbound-door.test.mjs.
-  const notify = readCode("apps/edge/lib/ops/notify.ts");
+  const notify = readCode("apps/edge/lib/shared/alerts/notify.ts");
   // Every log line that mentions a subject passes it through the redactor.
   const unredacted = notify
     .split("\n")

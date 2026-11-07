@@ -3,8 +3,9 @@
  * apart from either. Here, rather than in handlers.ts, so that settling a job that died does not load the core.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { openEscalation, type Database } from "@chanlytics/db";
-import { logger } from "@chanlytics/channels";
+import { openEscalation } from "@chanlytics/db/conversations";
+import { type Database } from "@chanlytics/db/types";
+import { logger } from "@chanlytics/log";
 
 /**
  * How an escalation landed.

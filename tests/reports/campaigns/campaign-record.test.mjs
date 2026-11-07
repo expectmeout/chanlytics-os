@@ -1,6 +1,6 @@
 /**
  * The Campaigns lens's record, EXECUTED: the shape the ledger route answers (contracts
- * reports/campaigns/campaign-record.ts) -- the databases' two answers (campaign_ledger, 00405, and campaign_stuck, 00406),
+ * reports/campaigns/record.ts) -- the databases' two answers (campaign_ledger, 00405, and campaign_stuck, 00406),
  * the guards that tell each from `{ error }` and from a body short of a part the fold reads, and the one builder that puts
  * them beside the number's health. What waits is judged here and not in SQL, by the product's own rules: a run's day has
  * passed by the verb's refusal (runApprovalRefusal), a reply waits on you by the one standing (standingOf), and the
@@ -774,7 +774,7 @@ test("sendFailureWords finds a word only in its own tables, not on the prototype
 
 /* ------------------------------------------------------------------ numberHealthOfConfig */
 
-/** What `whatsappHealthOf` derived inline before the lens: the oracle numberHealthOfConfig is held to. */
+/** What `findWhatsappHealth` derived inline before the lens: the oracle numberHealthOfConfig is held to. */
 function composerHealth(config) {
   const s = (k) => (typeof config[k] === "string" ? config[k] : null);
   const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });

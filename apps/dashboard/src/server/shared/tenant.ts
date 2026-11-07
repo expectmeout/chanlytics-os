@@ -1,13 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_TIMEZONE } from "@chanlytics/contracts";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 
 /**
  * The two facts every export header needs: what the business is called and
  * which clock it keeps. Read under the caller's RLS; a member can read their
  * own tenant's row and nobody else's.
  */
-export async function tenantFacts(
+export async function getTenantFacts(
   supabase: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<{ name: string; timezone: string }> {

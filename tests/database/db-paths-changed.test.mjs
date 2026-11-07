@@ -31,7 +31,7 @@ test("a migration, a SQL suite, the checks' inputs or the lockfile could change 
     "packages/jobs/src/handlers/broadcast-send.ts",
     "apps/edge/api/cron/calls.ts",
     "apps/edge/lib/billing/billing.ts",
-    "apps/edge/lib/campaigns/reach-out/sender.ts",
+    "apps/edge/lib/campaigns/reach-out/sender/sender.ts",
     "apps/dashboard/src/server/people/erasure/erasure.ts",
     "apps/dashboard/src/lib/supabase/server.ts",
     "apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts",
@@ -61,7 +61,7 @@ test("a change that leaves the database alone does not start a stack", () => {
     ["apps/dashboard/src/x.tsx"],
     ["apps/dashboard/mockup/pages/inbox.jsx", "docs/system-map.md", ".github/workflows/ci.yml"],
     ["tests/tenancy.test.mjs"],
-    ["packages/contracts/src/calendar/words.ts"],
+    ["packages/contracts/src/calendar/words/labels.ts"],
     ["packages/channels/src/lines/sms.ts"],
   ]) {
     assert.equal(couldTheDatabaseHaveChanged(files), false, files.join(", ") || "no files");

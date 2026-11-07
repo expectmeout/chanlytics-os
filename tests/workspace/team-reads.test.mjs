@@ -79,8 +79,8 @@ test("the roster no longer loops the admin API, or uses the service role", () =>
 
 test("the roster runs on the CALLER's client", () => {
   // The point is not speed — it is one fewer path holding the service role.
-  assert.match(service, /export async function teamRoster\(\s*db: SupabaseClient<Database>,/);
-  assert.ok(teamRoute.includes("teamRoster(ctx.supabase,"));
+  assert.match(service, /export async function getTeamRoster\(\s*db: SupabaseClient<Database>,/);
+  assert.ok(teamRoute.includes("getTeamRoster(ctx.supabase,"));
 });
 
 // The invite's email lookup moved to the platform's client in 00121, and which

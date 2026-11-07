@@ -5,14 +5,14 @@
  */
 import { addressOf } from "../activity/record-address";
 import { visitDoor } from "../calendar/appointment-key";
-import { VISIT_ASK_WORDS, VISIT_WORDS, visitLineOfBlock, type VisitLineVM } from "../calendar/words";
+import { VISIT_ASK_WORDS, VISIT_WORDS, visitLineOfBlock, type VisitLineVM } from "../calendar/words/visit";
 import { initialsOf } from "../conversations/thread-contact";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
-import type { PersonRowVM } from "../people/person-row";
+import type { PersonRowVM } from "../people/person-row/row-facts";
 import { NOTE_WORDS } from "../notes/person-notes";
 import { TODAY_STEPS_MAX, todayStepsDue, type StepDue } from "../notes/steps";
 import { plural } from "../shared/words";
-import type { CalendarLike, DayFrameLike } from "./day";
+import type { CalendarLike, DayFrameLike } from "./day/frame";
 import type { TodayQueueRowVM } from "./vm";
 
 /* ------------------------------------------------ the steps due (0007, amended) */
@@ -47,8 +47,8 @@ export interface TodayStepsVM {
 const STEPS_DUE_ROUTE = "clients/seg:steps_due";
 
 /** Steps due in a count, for To do's line: "6 steps due". */
-export function todayStepsSub(n: number): string {
-  return `${plural(n, "step")} due`;
+export function todayStepsSub(count: number): string {
+  return `${plural(count, "step")} due`;
 }
 
 /**
@@ -93,25 +93,30 @@ const STEP_ROW = {
 } as const;
 
 /** One step as a row: the person and the step's words, its day and whose it is, the person as the door and Done as the verb. */
-function stepRow(s: TodayStepVM): TodayQueueRowVM {
+function stepRow(todayStep: TodayStepVM): TodayQueueRowVM {
   return {
-    id: `q-step-${s.noteId}`,
+    id: `q-step-${todayStep.noteId}`,
     kind: "step",
     conversationId: null,
     callId: null,
-    person_id: s.personId,
-    who: s.name,
-    initials: initialsOf(s.name),
+    person_id: todayStep.personId,
+    who: todayStep.name,
+    initials: initialsOf(todayStep.name),
     channel: NOTE_WORDS.next,
     when: "",
-    sentence: s.words,
+    sentence: todayStep.words,
     quoted: false,
-    status: [s.when, ...(s.forWho ? [s.forWho] : [])],
+    status: [todayStep.when, ...(todayStep.forWho ? [todayStep.forWho] : [])],
     tone: "warn",
-    warn: s.due === "past",
-    cta: { label: NOTE_WORDS.done, to: addressOf({ kind: "step", personId: s.personId }) },
+    warn: todayStep.due === "past",
+    cta: { label: NOTE_WORDS.done, to: addressOf({ kind: "step", personId: todayStep.personId }) },
     also: null,
-    step: { person_id: s.personId, note_id: s.noteId, deal_id: s.dealId, for_user_id: s.forUserId },
+    step: {
+      person_id: todayStep.personId,
+      note_id: todayStep.noteId,
+      deal_id: todayStep.dealId,
+      for_user_id: todayStep.forUserId,
+    },
     waitedMs: Number.NEGATIVE_INFINITY,
   };
 }
@@ -183,16 +188,17 @@ export interface TodayVisitsAskedVM {
 
 /** What the rows say that a visit line's own words do not. */
 const VISITS_ASKED_WORDS = {
-  rest: (n: number, W: ReturnType<typeof appointmentWords>) => `${n} more ${n === 1 ? W.one : W.many} to mark`,
+  rest: (n: number, words: ReturnType<typeof appointmentWords>) =>
+    `${n} more ${n === 1 ? words.one : words.many} to mark`,
   restSentence: "Nobody has said whether they came, yesterday.",
   open: "Open",
   calendar: "on the Calendar",
 } as const;
 
 /** Visits to mark in a count, for To do's line: "3 appointments to mark". */
-export function todayVisitsSub(n: number, word: AppointmentWord): string {
-  const W = appointmentWords(word);
-  return `${n} ${n === 1 ? W.one : W.many} to mark`;
+export function todayVisitsSub(count: number, word: AppointmentWord): string {
+  const words = appointmentWords(word);
+  return `${count} ${count === 1 ? words.one : words.many} to mark`;
 }
 
 /**
@@ -213,50 +219,56 @@ export function todayVisitsAsked(
   const idx = cal.days.findIndex((d) => d.today);
   const yesterday = idx > 0 ? cal.days[idx - 1] : null;
   if (!yesterday) return null;
-  const asked = unmarkedVisitsOf(yesterday, nowMs, "Yesterday");
-  if (!asked.length) return null;
-  return { items: asked.slice(0, max), count: asked.length, word, to: `calendar/${yesterday.key}` };
+  const unmarkedVisits = unmarkedVisitsOf(yesterday, nowMs, "Yesterday");
+  if (!unmarkedVisits.length) return null;
+  return { items: unmarkedVisits.slice(0, max), count: unmarkedVisits.length, word, to: `calendar/${yesterday.key}` };
 }
 
 /**
  * A day's visits that have ended with nobody's word on whether they came, in the day's order: for a person the board
  * matched, on the record (so a word can be said), over by the clock, by the one visit line (visitLineOfBlock `unmarked`),
  * which `day` names ("Yesterday"). The one rule To do asks yesterday's by and the day's foot counts today's by, once the day
- * has turned (today/day.ts). A lunch on the owner's calendar, matched to nobody, is no visit to mark.
+ * has turned (today/day/zone.ts). A lunch on the owner's calendar, matched to nobody, is no visit to mark.
  */
 export function unmarkedVisitsOf(
   frame: Pick<DayFrameLike, "key" | "blocks">,
   nowMs: number,
   day: string,
 ): TodayVisitAskVM[] {
-  const asked: TodayVisitAskVM[] = [];
-  for (const b of [...frame.blocks].sort((x, y) => x.t - y.t)) {
-    if (!b.person || !b.visit || !b.visit.id || !b.start || !b.end) continue;
-    const to = visitDoor(frame.key, b.visit.id);
+  const todayVisitAsks: TodayVisitAskVM[] = [];
+  for (const second of [...frame.blocks].sort((x, y) => x.t - y.t)) {
+    if (!second.person || !second.visit || !second.visit.id || !second.start || !second.end) continue;
+    const to = visitDoor(frame.key, second.visit.id);
     const line = visitLineOfBlock(
       {
-        id: b.id,
-        title: b.title,
-        time: b.time,
-        start: b.start,
-        end: b.end,
-        visit: { id: b.visit.id, status: b.visit.status },
-        person: b.person,
+        id: second.id,
+        title: second.title,
+        time: second.time,
+        start: second.start,
+        end: second.end,
+        visit: { id: second.visit.id, status: second.visit.status },
+        person: second.person,
       },
       nowMs,
       day,
       to,
     );
-    if (line.unmarked) asked.push({ line, markId: b.visit.id, person: { id: b.person.id, name: b.person.name }, to });
+    if (line.unmarked)
+      todayVisitAsks.push({
+        line,
+        markId: second.visit.id,
+        person: { id: second.person.id, name: second.person.name },
+        to,
+      });
   }
-  return asked;
+  return todayVisitAsks;
 }
 
 /** One visit to mark as a row: the person and the question, the visit on the Calendar as the door and Kept and Missed as the verbs. */
-function visitRow(a: TodayVisitAskVM): TodayQueueRowVM {
-  const { line, person } = a;
+function visitRow(todayVisitAsk: TodayVisitAskVM): TodayQueueRowVM {
+  const { line, person } = todayVisitAsk;
   return {
-    id: `q-visit-${a.markId}`,
+    id: `q-visit-${todayVisitAsk.markId}`,
     kind: "visit",
     conversationId: null,
     callId: null,
@@ -270,24 +282,24 @@ function visitRow(a: TodayVisitAskVM): TodayQueueRowVM {
     status: [VISIT_ASK_WORDS.unmarked, line.title],
     tone: "warn",
     warn: false,
-    cta: { label: VISIT_WORDS.kept, to: a.to },
+    cta: { label: VISIT_WORDS.kept, to: todayVisitAsk.to },
     also: null,
-    visit: { id: a.markId, asks: line.asks },
+    visit: { id: todayVisitAsk.markId, asks: line.asks },
     waitedMs: Number.NEGATIVE_INFINITY,
   };
 }
 
 /** The row for the visits past the named ones: how many, and the door to the Calendar on yesterday. */
-function visitsRestRow(asked: TodayVisitsAskedVM): TodayQueueRowVM {
-  const rest = asked.count - asked.items.length;
-  const W = appointmentWords(asked.word);
+function visitsRestRow(todayVisitsAsked: TodayVisitsAskedVM): TodayQueueRowVM {
+  const rest = todayVisitsAsked.count - todayVisitsAsked.items.length;
+  const words = appointmentWords(todayVisitsAsked.word);
   return {
     id: "q-visits-more",
     kind: "visits",
     conversationId: null,
     callId: null,
     person_id: null,
-    who: VISITS_ASKED_WORDS.rest(rest, W),
+    who: VISITS_ASKED_WORDS.rest(rest, words),
     initials: `+${rest}`,
     channel: "Calendar",
     when: "",
@@ -296,7 +308,7 @@ function visitsRestRow(asked: TodayVisitsAskedVM): TodayQueueRowVM {
     status: [VISIT_ASK_WORDS.unmarked, VISITS_ASKED_WORDS.calendar],
     tone: "warn",
     warn: false,
-    cta: { label: VISITS_ASKED_WORDS.open, to: asked.to },
+    cta: { label: VISITS_ASKED_WORDS.open, to: todayVisitsAsked.to },
     also: null,
     waitedMs: Number.NEGATIVE_INFINITY,
   };
@@ -309,10 +321,13 @@ function visitsRestRow(asked: TodayVisitsAskedVM): TodayQueueRowVM {
  * they are not counted in the head's number (it is who needs you), and the queue the brief built, which Ask, the widget
  * and the away card read, is left as it was. With none to mark, the rows as they were.
  */
-export function withVisitsAsked(rows: TodayQueueRowVM[], asked: TodayVisitsAskedVM | null): TodayQueueRowVM[] {
-  if (!asked) return rows;
-  const mine = asked.items.map(visitRow);
-  if (asked.count > asked.items.length) mine.push(visitsRestRow(asked));
+export function withVisitsAsked(
+  rows: TodayQueueRowVM[],
+  todayVisitsAsked: TodayVisitsAskedVM | null,
+): TodayQueueRowVM[] {
+  if (!todayVisitsAsked) return rows;
+  const mine = todayVisitsAsked.items.map(visitRow);
+  if (todayVisitsAsked.count > todayVisitsAsked.items.length) mine.push(visitsRestRow(todayVisitsAsked));
   const firstCall = rows.findIndex((r) => r.kind === "call");
   const at = firstCall < 0 ? rows.length : firstCall;
   return [...rows.slice(0, at), ...mine, ...rows.slice(at)];

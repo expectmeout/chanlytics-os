@@ -11,13 +11,13 @@
  * so that I can quickly try different models"; until then the name was one of
  * two). The edge gateway lets Ask name any model that reads as one
  * (ask-gateway.ts), and a name the API does not know is asked of the route's
- * own model instead (ai/models.ts fallbackModel; the port's 404 rule), so a
+ * own model instead (ai/models/routes.ts fallbackModel; the port's 404 rule), so a
  * misspelt variable costs a round trip and a warning, never Ask. A request
  * that names no model gets the edge's own fallback (GATEWAY_FALLBACK_MODEL),
  * for a dashboard older than the profile, never this default.
  *
  * Fast mode is on by default (Ruben, 15 Oct 2026: "lets never focus on cost
- * rather then efficiency"): every round of a model that runs it (ai/models.ts
+ * rather then efficiency"): every round of a model that runs it (ai/models/routes.ts
  * hasFastMode: Opus 5.5 and Opus 5) is asked at `speed: "fast"`, typed and
  * spoken alike, at twice the price (ai/usage.ts FAST_MODE_PRICES). ASK_SPEED
  * =standard turns it off without a code change; a model without fast mode runs
@@ -67,16 +67,9 @@
  * never as that model's blocks (memory.ts replayFor).
  */
 import { effortAbove } from "../ai/effort";
-import {
-  MODEL_EFFORTS,
-  MODEL_ROUTES,
-  hasFastMode,
-  modelTakes,
-  readsAsModel,
-  type ModelEffort,
-  type ModelSpeed,
-} from "../ai/models";
-import { ASK_MAX_TOKENS } from "./ask";
+import { MODEL_EFFORTS, MODEL_ROUTES, readsAsModel, type ModelEffort } from "../ai/models/routes";
+import { hasFastMode, modelTakes, type ModelSpeed } from "../ai/models/ids";
+import { ASK_MAX_TOKENS } from "./thread-words";
 
 export interface AskModelProfile {
   /** The model's id as the API takes it: the registry's, or any other a deployment names. */
@@ -94,7 +87,7 @@ export interface AskModelProfile {
   answerTool: boolean;
 }
 
-/** The default model: the one a deployment runs when its environment names none (the registry's, ai/models.ts). */
+/** The default model: the one a deployment runs when its environment names none (the registry's, ai/models/routes.ts). */
 export const ASK_MODEL = MODEL_ROUTES.ask.model;
 /** The default effort: low, what the gate was run at and production has answered at since. */
 export const ASK_EFFORT: ModelEffort = "low";
@@ -121,8 +114,8 @@ export function askRoundCap(effort: ModelEffort | null): number {
 }
 
 const effortOf = (raw: string | null | undefined): ModelEffort | null => {
-  const asked = (raw ?? "").trim();
-  return (MODEL_EFFORTS as readonly string[]).includes(asked) ? (asked as ModelEffort) : null;
+  const request = (raw ?? "").trim();
+  return (MODEL_EFFORTS as readonly string[]).includes(request) ? (request as ModelEffort) : null;
 };
 
 /**

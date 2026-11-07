@@ -15,7 +15,7 @@
  *                (the 27 Oct 2026 walk). Not listed as a sender left: it is not a stranger's mail.
  *   claim        what the email claims to be (channels classifyReceived): anything but a person's is left.
  *   gmail_tab    Gmail filed it under Promotions, Social or Forums (channels filedAsBulk).
- *   talks        the business talks with the sender (db talksWith: it wrote them an email, they are on another wire,
+ *   talks        the business talks with the sender (db getTalksWith: it wrote them an email, they are on another wire,
  *                or a door the owner chose made them): in. A person a mailbox's own mail made is not one: the first
  *                notice from a program made its person, and every later one came from "someone known" (30 Oct 2026).
  *   reading      what Chanlytics read the sender to be, kept (00495): in for someone asking or writing as a person,
@@ -40,7 +40,7 @@ import {
   replyToElsewhere,
   sentByAService,
   type MailboxEmail,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import {
   isFreeMail,
   normalizeEmail,
@@ -51,15 +51,15 @@ import {
   type SenderReading,
 } from "@chanlytics/contracts";
 import {
-  domainSaidAutomated,
-  mailboxConnectionsOf,
-  mailboxSenderVerdicts,
+  recordDomainSaidAutomated,
+  listMailboxConnectionsOf,
+  getMailboxSenderVerdicts,
   noteMailboxLeft,
-  senderReadingOf,
-  talksWith,
-  type Database,
-} from "@chanlytics/db";
-import { platformFrom } from "../../ops/notify.js";
+  findSenderReading,
+  getTalksWith,
+} from "@chanlytics/db/email";
+import { type Database } from "@chanlytics/db/types";
+import { platformFrom } from "../../shared/alerts/notify.js";
 import type { Logger } from "../../shared/log.js";
 import { answersSomething, senderReaderFor, type SenderReader } from "./reader.js";
 
@@ -91,17 +91,17 @@ function memoBy<T>(ask: (key: string) => Promise<T>): {
   get: (key: string) => Promise<T>;
   put: (key: string, v: T) => void;
 } {
-  const asked = new Map<string, Promise<T>>();
+  const byKey = new Map<string, Promise<T>>();
   return {
     get: (key) => {
-      const had = asked.get(key);
+      const had = byKey.get(key);
       if (had) return had;
       const now = ask(key);
-      asked.set(key, now);
+      byKey.set(key, now);
       return now;
     },
     put: (key, v) => {
-      asked.set(key, Promise.resolve(v));
+      byKey.set(key, Promise.resolve(v));
     },
   };
 }
@@ -116,10 +116,13 @@ export async function mailSortingFor(
   log: Logger,
   reader: SenderReader = senderReaderFor(db, tenantId, log),
 ): Promise<MailSorting> {
-  const [said, boxes] = await Promise.all([mailboxSenderVerdicts(db, tenantId), mailboxConnectionsOf(db, tenantId)]);
-  const talks = memoBy((a) => talksWith(db, tenantId, a));
-  const readings = memoBy((a) => senderReadingOf(db, tenantId, a));
-  const others = memoBy((d) => domainSaidAutomated(db, tenantId, d));
+  const [said, boxes] = await Promise.all([
+    getMailboxSenderVerdicts(db, tenantId),
+    listMailboxConnectionsOf(db, tenantId),
+  ]);
+  const talks = memoBy((a) => getTalksWith(db, tenantId, a));
+  const readings = memoBy((a) => findSenderReading(db, tenantId, a));
+  const others = memoBy((d) => recordDomainSaidAutomated(db, tenantId, d));
   // One reading a sender a sorting: a second email from them while the first is read waits for it, and one nothing
   // answered for stays unanswered until the next sorting.
   const reads = new Map<string, Promise<SenderReading | null>>();
@@ -131,12 +134,12 @@ export async function mailSortingFor(
     talks: talks.get,
     reading: readings.get,
     othersSaid: others.get,
-    read: (e, until) => {
-      const from = normalizeEmail(e.from?.address) ?? "";
+    read: (error, until) => {
+      const from = normalizeEmail(error.from?.address) ?? "";
       const had = reads.get(from);
       if (had) return had;
       if (unread >= UNREAD_MAX) return Promise.resolve(null);
-      const now = reader(e, until).then((r) => {
+      const now = reader(error, until).then((r) => {
         if (r) readings.put(from, r);
         else unread++;
         return r;
@@ -157,15 +160,15 @@ export type RulesSay = SortedWhy | "in" | "stranger";
 const domainOf = (address: string): string => address.slice(address.lastIndexOf("@") + 1);
 
 /** What the workspace and the email's own headers settle, before anything is asked of the sender. */
-function settledBy(e: MailboxEmail, s: MailSorting, from: string | null): RulesSay | null {
-  if (from && from === s.ours) return s.own.has(domainOf(from)) ? "own" : "automated";
-  const said = from ? senderVerdictOf(s.said, from) : null;
-  if (said === "person") return "in";
-  if (said === "automated") return "said";
-  if (from && s.own.has(domainOf(from))) return "own";
-  const claim = classifyReceived(e);
+function settledBy(mailboxEmail: MailboxEmail, mailSorting: MailSorting, from: string | null): RulesSay | null {
+  if (from && from === mailSorting.ours) return mailSorting.own.has(domainOf(from)) ? "own" : "automated";
+  const sentence = from ? senderVerdictOf(mailSorting.said, from) : null;
+  if (sentence === "person") return "in";
+  if (sentence === "automated") return "said";
+  if (from && mailSorting.own.has(domainOf(from))) return "own";
+  const claim = classifyReceived(mailboxEmail);
   if (claim !== "person") return claim;
-  if (filedAsBulk(e)) return "gmail_tab";
+  if (filedAsBulk(mailboxEmail)) return "gmail_tab";
   return from ? null : "in";
 }
 
@@ -173,17 +176,17 @@ function settledBy(e: MailboxEmail, s: MailSorting, from: string | null): RulesS
  * What the rules say of an email, the model never asked: the order above to its last line. The six months ask it of a
  * message read by its headers alone (mail-history.ts), and read it whole only where it may come in.
  */
-export async function sortByRules(e: MailboxEmail, s: MailSorting): Promise<RulesSay> {
-  const from = normalizeEmail(e.from?.address);
-  const settled = settledBy(e, s, from);
+export async function sortByRules(mailboxEmail: MailboxEmail, mailSorting: MailSorting): Promise<RulesSay> {
+  const from = normalizeEmail(mailboxEmail.from?.address);
+  const settled = settledBy(mailboxEmail, mailSorting, from);
   if (settled || !from) return settled ?? "in";
-  if (await s.talks(from)) return "in";
-  const read = await s.reading(from);
+  if (await mailSorting.talks(from)) return "in";
+  const read = await mailSorting.reading(from);
   if (read) return senderLeftWhy(read.kind) ?? "in";
   const domain = domainOf(from);
-  if (!isFreeMail(domain) && (await s.othersSaid(domain))) return "others_said";
-  if (filedUnderUpdates(e) && !answersSomething(e)) return "updates";
-  if (sentByAService(e) && !replyToElsewhere(e)) return "service";
+  if (!isFreeMail(domain) && (await mailSorting.othersSaid(domain))) return "others_said";
+  if (filedUnderUpdates(mailboxEmail) && !answersSomething(mailboxEmail)) return "updates";
+  if (sentByAService(mailboxEmail) && !replyToElsewhere(mailboxEmail)) return "service";
   return "stranger";
 }
 
@@ -191,15 +194,15 @@ export async function sortByRules(e: MailboxEmail, s: MailSorting): Promise<Rule
  * Why the mailbox leaves this email where it is, or null when it comes in as a person's: the rules, then, for a
  * stranger, the model's reading of their email before `until` (epoch ms), the caller's own line.
  */
-export async function leftWhy(
-  e: MailboxEmail,
-  s: MailSorting,
+export async function findLeftWhy(
+  mailboxEmail: MailboxEmail,
+  mailSorting: MailSorting,
   until = Number.POSITIVE_INFINITY,
 ): Promise<SortedWhy | null> {
-  const say = await sortByRules(e, s);
+  const say = await sortByRules(mailboxEmail, mailSorting);
   if (say === "in") return null;
   if (say !== "stranger") return say;
-  const read = await s.read(e, until);
+  const read = await mailSorting.read(mailboxEmail, until);
   return read ? senderLeftWhy(read.kind) : null;
 }
 
@@ -207,14 +210,14 @@ export async function leftWhy(
  * The line about what was left, one a sender (00483): best effort, the email is left either way. The business's own
  * mail is no stranger's, and is not listed.
  */
-export async function noteLeft(db: Db, tenantId: string, e: MailboxEmail, why: SortedWhy): Promise<void> {
-  const address = normalizeEmail(e.from?.address);
-  if (!address || why === "own") return;
+export async function noteLeft(db: Db, tenantId: string, mailboxEmail: MailboxEmail, reason: SortedWhy): Promise<void> {
+  const address = normalizeEmail(mailboxEmail.from?.address);
+  if (!address || reason === "own") return;
   await noteMailboxLeft(db, {
     tenantId,
     address,
-    name: e.from?.name ?? null,
-    why,
-    at: e.createdAt ?? new Date().toISOString(),
+    name: mailboxEmail.from?.name ?? null,
+    why: reason,
+    at: mailboxEmail.createdAt ?? new Date().toISOString(),
   });
 }

@@ -133,7 +133,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
       bell.includes("dismissed: false }"),
     "seen, read, dismiss and restore reach the server for kept rows",
   );
-  const notify = readCode("apps/edge/lib/ops/notify.ts");
+  const notify = readCode("apps/edge/lib/shared/alerts/notify.ts");
   assert.ok(
     notify.includes("export async function recordNotification(") &&
       /const kept = await recordNotification\(\s*target\.tenantId,\s*\{\s*kind: msg\.kind,\s*title: msg\.subject,\s*body: msg\.body,\s*route: msg\.route,\s*about: msg\.about,\s*sourceEvent: msg\.sourceEvent,?\s*\},\s*db,?\s*\);/.test(

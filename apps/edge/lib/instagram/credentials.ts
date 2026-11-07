@@ -7,7 +7,7 @@
  *
  *   instagramCarrier       the DM carrier a message routed to the account is answered through (the webhook's job,
  *                          dm-answer.ts): its sender on the account's token, its words as written, nothing held.
- *   instagramWireForTenant the job runner's DM wire (lib/ops/jobs-tick.ts): a member's reply and a held draft, sent from
+ *   findInstagramWireForTenant the job runner's DM wire (lib/ops/jobs-tick.ts): a member's reply and a held draft, sent from
  *                          the account the thread's person last wrote to, since a person's Instagram-scoped id is that
  *                          account's alone; the oldest account when nothing says.
  *
@@ -15,14 +15,15 @@
  * or a read that failed (nothing sent and nothing failed: the job waits for a heartbeat that can read the Vault).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendInstagramText, type InstagramConfig, type SendResult } from "@chanlytics/channels";
+import { sendInstagramText, type InstagramConfig } from "@chanlytics/channels/instagram";
+import { type SendResult } from "@chanlytics/channels/whatsapp";
 import {
-  activeChannelRows,
-  lineWrittenTo,
+  listActiveChannelRows,
+  findLineWrittenTo,
   readChannelSecret,
-  type Database,
   type WhatsappNumberRow,
-} from "@chanlytics/db";
+} from "@chanlytics/db/channels";
+import { type Database } from "@chanlytics/db/types";
 import {
   wireUnavailable,
   WireUnavailableError,
@@ -46,7 +47,7 @@ export interface InstagramSecret {
 }
 
 /** The account's token as a send needs it, from its row's Vault reference; a row with no reference holds none. */
-export async function instagramCredentials(
+export async function getInstagramCredentials(
   db: Db,
   row: Pick<WhatsappNumberRow, "id" | "credentials_ref">,
 ): Promise<CredentialsRead<InstagramConfig>> {
@@ -96,10 +97,10 @@ export function instagramCarrier(
  * their newest DM came in on), the oldest account when nothing says or the send names no thread. Null with no active
  * account; a read that failed is a wire that could not be bound (core WireUnavailable), never a refusal.
  */
-export async function instagramWireForTenant(db: Db, tenantId: string): Promise<Sender | null | WireUnavailable> {
+export async function findInstagramWireForTenant(db: Db, tenantId: string): Promise<Sender | null | WireUnavailable> {
   let accounts: WhatsappNumberRow[];
   try {
-    accounts = await activeChannelRows(db, tenantId, "instagram");
+    accounts = await listActiveChannelRows(db, tenantId, "instagram");
   } catch (e) {
     logger().error("ig_credentials_unreadable", { tenant_id: tenantId, error: errField(e) });
     return wireUnavailable(errField(e));
@@ -108,7 +109,7 @@ export async function instagramWireForTenant(db: Db, tenantId: string): Promise<
   if (!oldest) return null;
   const reads = new Map<string, Promise<CredentialsRead<InstagramConfig>>>();
   const credentialsOf = (row: WhatsappNumberRow) => {
-    const read = reads.get(row.id) ?? instagramCredentials(db, row);
+    const read = reads.get(row.id) ?? getInstagramCredentials(db, row);
     reads.set(row.id, read);
     return read;
   };
@@ -131,7 +132,7 @@ export async function instagramWireForTenant(db: Db, tenantId: string): Promise<
 async function lineOfThread(db: Db, tenantId: string, conversationId: string | undefined): Promise<string | null> {
   if (!conversationId) return null;
   try {
-    return await lineWrittenTo(db, tenantId, conversationId, "instagram");
+    return await findLineWrittenTo(db, tenantId, conversationId, "instagram");
   } catch (e) {
     throw new WireUnavailableError("instagram", errField(e));
   }

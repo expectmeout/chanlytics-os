@@ -162,9 +162,9 @@ before(async () => {
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   runner = {
     ...(await import(at("packages/core/src/leads/runner/start.ts"))),
-    ...(await import(at("packages/core/src/leads/runner/collect.ts"))),
+    ...(await import(at("packages/core/src/leads/runner/collect/collect.ts"))),
   };
-  ({ leadDb } = await import(at("apps/edge/lib/leads/lead-db.ts")));
+  ({ leadDb } = await import(at("apps/edge/lib/leads/db.ts")));
   ({ scheduleJobOnce } = await import(at("packages/jobs/src/runner/schedule.ts")));
   A = ok(
     await db

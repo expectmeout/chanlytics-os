@@ -13,7 +13,7 @@ export type MailboxConnectionRow = Database["public"]["Tables"]["mailbox_connect
 type Patch = Database["public"]["Tables"]["mailbox_connections"]["Update"];
 
 /** A workspace's mailboxes, removed ones aside, oldest first. */
-export async function mailboxConnectionsOf(db: Db, tenantId: string): Promise<MailboxConnectionRow[]> {
+export async function listMailboxConnectionsOf(db: Db, tenantId: string): Promise<MailboxConnectionRow[]> {
   const { data, error } = await db
     .from("mailbox_connections")
     .select("*")
@@ -25,7 +25,11 @@ export async function mailboxConnectionsOf(db: Db, tenantId: string): Promise<Ma
 }
 
 /** One of a workspace's mailboxes, removed or not; null when it is not this workspace's. */
-export async function mailboxConnectionOf(db: Db, tenantId: string, id: string): Promise<MailboxConnectionRow | null> {
+export async function findMailboxConnection(
+  db: Db,
+  tenantId: string,
+  id: string,
+): Promise<MailboxConnectionRow | null> {
   const { data, error } = await db
     .from("mailbox_connections")
     .select("*")
@@ -37,7 +41,7 @@ export async function mailboxConnectionOf(db: Db, tenantId: string, id: string):
 }
 
 /** The live mailbox at this address, whichever workspace's: a provider's push names an address, not a workspace. */
-export async function liveMailboxByAddress(db: Db, address: string): Promise<MailboxConnectionRow | null> {
+export async function findLiveMailboxByAddress(db: Db, address: string): Promise<MailboxConnectionRow | null> {
   const { data, error } = await db
     .from("mailbox_connections")
     .select("*")
@@ -52,20 +56,20 @@ export async function liveMailboxByAddress(db: Db, address: string): Promise<Mai
  * The mailboxes the clock looks after (connected, paused, held: a signed-out one cannot be read, a removed one is
  * gone), least lately synced first, past the ones it is done with.
  */
-export async function mailboxesToTend(
+export async function listMailboxesToTend(
   db: Db,
   limit: number,
   skip: Iterable<string> = [],
 ): Promise<MailboxConnectionRow[]> {
-  let q = db
+  let query = db
     .from("mailbox_connections")
     .select("*")
     .in("state", ["connected", "paused", "held"])
     .order("synced_at", { ascending: true, nullsFirst: true })
     .limit(limit);
   const done = [...skip];
-  if (done.length) q = q.not("id", "in", `(${done.join(",")})`);
-  const { data, error } = await q;
+  if (done.length) query = query.not("id", "in", `(${done.join(",")})`);
+  const { data, error } = await query;
   if (error) throw new Error(`cannot read the mailboxes to tend: ${error.message}`);
   return data ?? [];
 }
@@ -79,7 +83,7 @@ export type ConnectRefusal = "taken" | "too_many" | "too_many_on_domain";
  */
 export async function connectMailbox(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     userId: string | null;
     provider: "google" | "microsoft";
@@ -91,23 +95,23 @@ export async function connectMailbox(
   },
 ): Promise<{ ok: true; id: string; made: boolean; state: string } | { ok: false; refused: ConnectRefusal }> {
   const { data, error } = await db.rpc("mailbox_connection_connect", {
-    p_tenant_id: p.tenantId,
-    p_user_id: p.userId as string,
-    p_provider: p.provider,
-    p_account: p.account,
-    p_address: p.address,
-    p_from_name: p.fromName,
-    p_scopes: p.scopes,
-    p_customer_domain: p.customerDomain,
+    p_tenant_id: params.tenantId,
+    p_user_id: params.userId as string,
+    p_provider: params.provider,
+    p_account: params.account,
+    p_address: params.address,
+    p_from_name: params.fromName,
+    p_scopes: params.scopes,
+    p_customer_domain: params.customerDomain,
   });
   if (error) {
     const hint = (error as { hint?: string }).hint ?? "";
     if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
     throw new Error(`cannot connect the mailbox: ${error.message}`);
   }
-  const r = (data ?? {}) as { id?: string; made?: boolean; state?: string };
-  if (!r.id) throw new Error("cannot connect the mailbox: no row came back");
-  return { ok: true, id: r.id, made: r.made === true, state: String(r.state ?? "connected") };
+  const item = (data ?? {}) as { id?: string; made?: boolean; state?: string };
+  if (!item.id) throw new Error("cannot connect the mailbox: no row came back");
+  return { ok: true, id: item.id, made: item.made === true, state: String(item.state ?? "connected") };
 }
 
 /**
@@ -116,10 +120,10 @@ export async function connectMailbox(
  */
 export async function patchMailboxConnection(
   db: Db,
-  p: { tenantId: string; id: string; from?: readonly string[]; patch: Patch },
+  params: { tenantId: string; id: string; from?: readonly string[]; patch: Patch },
 ): Promise<MailboxConnectionRow | null> {
-  let q = db.from("mailbox_connections").update(p.patch).eq("tenant_id", p.tenantId).eq("id", p.id);
-  if (p.from?.length) q = q.in("state", [...p.from]);
+  let q = db.from("mailbox_connections").update(params.patch).eq("tenant_id", params.tenantId).eq("id", params.id);
+  if (params.from?.length) q = q.in("state", [...params.from]);
   const { data, error } = await q.select("*");
   if (error) throw new Error(`cannot change the mailbox: ${error.message}`);
   return data?.[0] ?? null;
@@ -130,12 +134,12 @@ export async function patchMailboxConnection(
 /** The token, in Vault: a connect writes whatever is there; a refresh names the refresh token it read (00423). */
 export async function putMailboxCredentials(
   db: Db,
-  p: { id: string; secret: Json; ifRefreshToken?: string | null },
+  params: { id: string; secret: Json; ifRefreshToken?: string | null },
 ): Promise<"stored" | "changed"> {
   const { error } = await db.rpc("put_mailbox_credentials", {
-    p_connection_id: p.id,
-    p_secret: p.secret,
-    ...(p.ifRefreshToken ? { p_if_refresh_token: p.ifRefreshToken } : {}),
+    p_connection_id: params.id,
+    p_secret: params.secret,
+    ...(params.ifRefreshToken ? { p_if_refresh_token: params.ifRefreshToken } : {}),
   });
   if (error) {
     // The token changed since it was read (a reconnect stored meanwhile): that one is kept.
@@ -164,7 +168,7 @@ export async function dropMailboxCredentials(db: Db, id: string): Promise<boolea
  * mailboxes clock judges its health by them (contracts mailboxHoldOf). A count a database before 00466 does not answer
  * (blocked, said no) reads as none.
  */
-export async function mailboxCountsOf(
+export async function getMailboxCounts(
   db: Db,
   id: string,
   since: string,
@@ -178,9 +182,10 @@ export async function mailboxCountsOf(
 }> {
   const { data, error } = await db.rpc("mailbox_connection_counts", { p_mailbox_id: id, p_since: since });
   if (error) throw new Error(`cannot count the mailbox's emails: ${error.message}`);
-  const c = (data ?? {}) as Record<string, unknown>;
-  const n = (k: string): number => Math.max(0, Number(c[k] ?? 0) || 0);
-  if (typeof c.sent !== "number") throw new Error("cannot count the mailbox's emails: the database answered no count");
+  const item = (data ?? {}) as Record<string, unknown>;
+  const n = (k: string): number => Math.max(0, Number(item[k] ?? 0) || 0);
+  if (typeof item.sent !== "number")
+    throw new Error("cannot count the mailbox's emails: the database answered no count");
   return {
     sent: n("sent"),
     bounced: n("bounced"),
@@ -197,7 +202,7 @@ export async function mailboxCountsOf(
  */
 export async function stampEmailFromMailbox(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     messageId: string;
     providerId: string | null;
@@ -207,12 +212,12 @@ export async function stampEmailFromMailbox(
   },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("stamp_email_from_mailbox", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_provider_id: p.providerId as string,
-    p_rfc_message_id: p.rfcMessageId as string,
-    p_thread_id: p.threadId as string,
-    p_mailbox_id: p.mailboxId,
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_provider_id: params.providerId as string,
+    p_rfc_message_id: params.rfcMessageId as string,
+    p_thread_id: params.threadId as string,
+    p_mailbox_id: params.mailboxId,
   });
   if (error) throw new Error(`cannot stamp the email the mailbox sent: ${error.message}`);
   return data === true;
@@ -224,14 +229,14 @@ export async function stampEmailFromMailbox(
  */
 export async function noteCalendarGrant(
   db: Db,
-  p: { tenantId: string; mailboxId: string; provider: "google" | "microsoft"; on: boolean; by: string | null },
+  params: { tenantId: string; mailboxId: string; provider: "google" | "microsoft"; on: boolean; by: string | null },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("calendar_grant_note", {
-    p_tenant_id: p.tenantId,
-    p_mailbox_id: p.mailboxId,
-    p_provider: p.provider,
-    p_on: p.on,
-    ...(p.by ? { p_by: p.by } : {}),
+    p_tenant_id: params.tenantId,
+    p_mailbox_id: params.mailboxId,
+    p_provider: params.provider,
+    p_on: params.on,
+    ...(params.by ? { p_by: params.by } : {}),
   });
   if (error) throw new Error(`calendar_grant_note: ${error.message}`);
   return data === true;

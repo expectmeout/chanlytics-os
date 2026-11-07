@@ -11,7 +11,9 @@
  * puts the wait off for this member (REHEARSE_SKIPPED).
  */
 import { useState, type ReactNode } from "react";
-import { FIRST_RUN_HELPERS, type FirstRunVM, type ReceptionistCardVM } from "@chanlytics/contracts";
+import { type ReceptionistCardVM } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "./model/helpers";
+import { type FirstRunVM } from "./model/view";
 import { refusalToast, type FrameFlash } from "../../frame-verbs";
 import { BtHowItDid, BtTyped, historyOf, useRehearsal } from "../../settings/business/rehearse/rehearse";
 import { BtTalk } from "../../settings/business/rehearse/talk";

@@ -8,8 +8,9 @@
  * Chanlytics cannot support yet.
  */
 import type { AdPlatform } from "@chanlytics/contracts";
-import { GATE, V0 } from "@chanlytics/contracts/ads-page";
-import type { ChooseVM, NoAdsVM, V0VM } from "@chanlytics/contracts/ads-page";
+import { GATE } from "./model/words";
+import { V0 } from "./model/words-page";
+import type { ChooseVM, NoAdsVM, V0VM } from "./model/page-parts";
 import { Button } from "../../kit/button/button";
 import { BarList } from "../../kit/charts/bar";
 import { EmptyState } from "../../kit/empty/empty";

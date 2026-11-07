@@ -25,8 +25,8 @@ const CRAFT_MAX_MS = MODEL_ROUTES.template_draft.timeoutMs;
  * (ToolContext.endsAt: a typed turn's budget or a spoken one's), less what a last round needs. A tool run outside a turn
  * has none, and is given a typed turn's from its clock.
  */
-export const turnDeadline = (t: { now: Date; endsAt?: number | undefined }): number =>
-  (t.endsAt ?? t.now.getTime() + ASK_TURN_BUDGET_MS) - TURN_RESERVE_MS;
+export const turnDeadline = (target: { now: Date; endsAt?: number | undefined }): number =>
+  (target.endsAt ?? target.now.getTime() + ASK_TURN_BUDGET_MS) - TURN_RESERVE_MS;
 
 /** Why a craft call's words were not used: each a reason the card keeps its first draft. */
 export type CraftKept = "late" | "budget" | "paused" | "unavailable" | "refused" | "unreadable" | "unread" | "checks";

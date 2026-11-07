@@ -8,25 +8,24 @@
 import { createHash } from "node:crypto";
 import { json } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
-import { migrationsLine } from "./migration-head.js";
-import { brainSummary } from "../receptionist/budget.js";
+import { getMigrationsLine } from "./migration-head.js";
+import { getBrainSummary } from "../ai/budget.js";
 import { securitySwitchesHere } from "../shared/security-switches.js";
 import type { SweepHealthRow } from "./sweep-health.js";
-import { pageStates, untoldPages, type PageRow } from "./page-operator.js";
+import { pageStates, untoldPages, type PageRow } from "../shared/alerts/page-operator.js";
+import { breakerStates, fetchFromProvider } from "@chanlytics/channels/shared";
 import {
-  breakerStates,
   getAgent,
   getRetellLlm,
-  providerFetch,
   voiceShellDrift,
   agentSettingsDrift,
   type RetellAgentConfig,
   type RetellLlmConfig,
-} from "@chanlytics/channels";
-import { metaAppId } from "../whatsapp/meta-graph.js";
+} from "@chanlytics/channels/voice";
+import { metaAppId, GRAPH_VERSION } from "../whatsapp/meta-graph.js";
 import { DAY_MS } from "@chanlytics/contracts";
-import { voiceDoorKnocks } from "@chanlytics/db";
-import { signatureOnly } from "../voice/door-auth.js";
+import { listVoiceDoorKnocks } from "@chanlytics/db/voice";
+import { signatureOnly } from "../shared/door-auth.js";
 import { env } from "../shared/env.js";
 import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../shared/dashboard-origin.js";
 
@@ -200,24 +199,29 @@ async function numberDrift(): Promise<Section> {
 async function waTokenPermanence(): Promise<Section> {
   if (!env.WHATSAPP_ACCESS_TOKEN || !env.META_APP_SECRET) return { waTokenCheck: null };
   try {
-    const q = new URLSearchParams({
+    const query = new URLSearchParams({
       input_token: env.WHATSAPP_ACCESS_TOKEN,
       access_token: `${META_APP_ID}|${env.META_APP_SECRET}`,
     });
-    const r = await providerFetch("meta", `https://graph.facebook.com/v25.0/debug_token?${q}`, {
-      timeoutMs: DIAG_READ_TIMEOUT_MS,
-      idempotent: true,
-      tries: 2,
-    });
+    const response = await fetchFromProvider(
+      "meta",
+      `https://graph.facebook.com/${GRAPH_VERSION}/debug_token?${query}`,
+      {
+        timeoutMs: DIAG_READ_TIMEOUT_MS,
+        idempotent: true,
+        tries: 2,
+      },
+    );
     // No answer at all is said as a failed check, as the bare fetch's throw was.
-    if (r.status === 0) throw new Error(r.error ?? "no answer");
-    const d = ((r.json ?? {}) as { data?: { is_valid?: boolean; expires_at?: number; type?: string } }).data || {};
+    if (response.status === 0) throw new Error(response.error ?? "no answer");
+    const json =
+      ((response.json ?? {}) as { data?: { is_valid?: boolean; expires_at?: number; type?: string } }).data || {};
     return {
       waTokenCheck: {
-        valid: !!d.is_valid,
-        expiresAt: d.expires_at,
-        type: d.type,
-        permanent: !!d.is_valid && d.expires_at === 0,
+        valid: !!json.is_valid,
+        expiresAt: json.expires_at,
+        type: json.type,
+        permanent: !!json.is_valid && json.expires_at === 0,
       },
     };
   } catch (e) {
@@ -256,32 +260,32 @@ async function voiceAgentSettings(): Promise<Section> {
 
 /** One voice line as the report shows it: its agent's settings with the drift on both, or the agent named unreadable. */
 function voiceAgentEntry(
-  r: { external_id: string; status: string },
-  a: RetellAgentConfig | null,
+  row: { external_id: string; status: string },
+  retellAgentConfig: RetellAgentConfig | null,
   llm: RetellLlmConfig | null,
 ): Section {
-  return a
+  return retellAgentConfig
     ? {
-        ...a,
-        channel_status: r.status,
-        live_transcript: (a.webhook_events ?? []).includes("transcript_updated"),
+        ...retellAgentConfig,
+        channel_status: row.status,
+        live_transcript: (retellAgentConfig.webhook_events ?? []).includes("transcript_updated"),
         // Which text model the line runs — provisioning parity, in one word.
         model: llm?.model ?? null,
         shell: llm
           ? voiceShellDrift(llm, edgeFnUrl(), signatureOnly())
-          : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
+          : { error: retellAgentConfig.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
         // The agent-level settings the pipeline needs: the live
         // transcript event, a webhook budget the recording copy fits
         // in, signed recording links.
-        agent: agentSettingsDrift(a),
+        agent: agentSettingsDrift(retellAgentConfig),
       }
-    : { agent_id: r.external_id, channel_status: r.status, error: "unreadable" };
+    : { agent_id: row.external_id, channel_status: row.status, error: "unreadable" };
 }
 
-/** Each voice door's knocks of the last seven days (webhook.auth rows, packages/db voiceDoorKnocks), or why not. */
+/** Each voice door's knocks of the last seven days (webhook.auth rows, packages/db listVoiceDoorKnocks), or why not. */
 async function doorEvidence(db: NonNullable<ReturnType<typeof pg>>): Promise<Section> {
   try {
-    return await voiceDoorKnocks(db, new Date(Date.now() - 7 * DAY_MS).toISOString());
+    return await listVoiceDoorKnocks(db, new Date(Date.now() - 7 * DAY_MS).toISOString());
   } catch (e) {
     return { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
   }
@@ -349,7 +353,7 @@ function whatsappGates(): Section {
 async function receptionistDay(): Promise<Section> {
   try {
     const db = pg();
-    return { brain: db ? await brainSummary(db) : null };
+    return { brain: db ? await getBrainSummary(db) : null };
   } catch (e) {
     return { brain: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
   }
@@ -366,13 +370,13 @@ async function migrationHead(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { migrations: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    return { migrations: await migrationsLine(db) };
+    return { migrations: await getMigrationsLine(db) };
   } catch (e) {
     return { migrations: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
   }
 }
 
-export async function diagnosticReport(): Promise<Response> {
+export async function readDiagnosticReport(): Promise<Response> {
   const out: Report = {};
   for (const part of REPORT) Object.assign(out, await part());
   return json(200, out);

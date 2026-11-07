@@ -35,7 +35,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= URL_;
 
 const { joinWaitlist } = skip
   ? { joinWaitlist: null }
-  : await import("../../apps/dashboard/src/server/console/signup.ts");
+  : await import("../../apps/dashboard/src/server/workspace/signup.ts");
 const { platformWaitlist } = skip
   ? { platformWaitlist: null }
   : await import("../../apps/dashboard/src/server/console/platform.ts");

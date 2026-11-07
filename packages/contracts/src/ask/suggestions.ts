@@ -2,7 +2,7 @@
  * The questions and the acts the palette offers for where the person is (buildAskSuggestions): built from the
  * workspace's data, in English or Spanish, never from a seed. The pages it knows are ask.ts's (ASK_SURFACES).
  */
-import { isWinBack } from "../campaigns/playbooks/playbook-triggers";
+import { isWinBack } from "../campaigns/playbooks/triggers/notices";
 import type { AskScope, AskSurface } from "./ask";
 import type { AskLanguage } from "./language";
 
@@ -214,7 +214,7 @@ function clipWords(s: string, cap: number): string {
  */
 function pageChips(
   input: SuggestionInput,
-  t: (typeof T)[keyof typeof T],
+  item: (typeof T)[keyof typeof T],
   add: (q: string, kind: AskSuggestion["kind"], icon: string, fast?: boolean, label?: string) => void,
 ): boolean {
   if (input.surface === "leads") {
@@ -225,25 +225,31 @@ function pageChips(
     // A search's own words can run long; the chip shows them clipped, the question sent keeps them whole.
     if (!ideas.length)
       for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
-        add(t.moreLike.replace("{asked}", a), "ask", "search", false, t.moreLike.replace("{asked}", clipWords(a, 40)));
+        add(
+          item.moreLike.replace("{asked}", a),
+          "ask",
+          "search",
+          false,
+          item.moreLike.replace("{asked}", clipWords(a, 40)),
+        );
     return false;
   }
   if (input.onAds) {
-    add(t.adsFinding, "ask", "trending-up");
-    add(t.adsReady, "ask", "bolt");
+    add(item.adsFinding, "ask", "trending-up");
+    add(item.adsReady, "ask", "bolt");
     return true;
   }
   const rows = input.surface === "campaigns" ? (input.campaigns?.rows ?? null) : null;
   if (!rows) return false;
   if (rows.length === 0) {
-    for (const k of ["setUp", "winBackIdea", "offerIdea"] as const) add(t[k], "ask", "bolt");
+    for (const k of ["setUp", "winBackIdea", "offerIdea"] as const) add(item[k], "ask", "bolt");
     return true;
   }
   const waiting = rows.find((r) => r.waiting);
-  if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
-  add(t.working, "ask", "trending-up");
+  if (waiting) add(item.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
+  add(item.working, "ask", "trending-up");
   // A win-back is offered where none runs (on, and not past its last day: S1-3), and then as the page's own chip alone.
-  if (!rows.some((r) => isWinBack(r.trigger) && r.runs)) add(t.winBackIdea, "ask", "bolt");
+  if (!rows.some((r) => isWinBack(r.trigger) && r.runs)) add(item.winBackIdea, "ask", "bolt");
   return true;
 }
 
@@ -254,39 +260,39 @@ function pageChips(
  */
 function askChips(
   input: SuggestionInput,
-  t: (typeof T)[keyof typeof T],
+  item: (typeof T)[keyof typeof T],
   at: AskSurface,
 ): { asks: AskSuggestion[]; winBackSaid: boolean } {
   const out: AskSuggestion[] = [];
   const add = (q: string, kind: AskSuggestion["kind"], icon: string, fast = false, label?: string) => {
     if (!out.some((s) => s.q === q)) out.push({ q, kind, icon, fast, ...(label ? { label } : {}) });
   };
-  const s = input.scope;
-  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
-    add(t.said.replace("{name}", s.label), "ask", "chat");
-    if (s.kind === "thread") add(t.why, "ask", "sparkle");
+  const scope = input.scope;
+  if (scope && (scope.kind === "thread" || scope.kind === "conversation" || scope.kind === "person")) {
+    add(item.said.replace("{name}", scope.label), "ask", "chat");
+    if (scope.kind === "thread") add(item.why, "ask", "sparkle");
   }
-  if (s && s.kind === "call") add(t.live, "ask", "phone");
-  if (s && s.kind === "file") {
+  if (scope && scope.kind === "call") add(item.live, "ask", "phone");
+  if (scope && scope.kind === "file") {
     // Asked at once, as a lead search is: it proposes a card, and nothing is done until that is pressed. Whoever may act is offered it.
-    if (input.canAct) add(t.makePost, "ask", "edit");
-    add(t.photoFor, "ask", "sparkle");
+    if (input.canAct) add(item.makePost, "ask", "edit");
+    add(item.photoFor, "ask", "sparkle");
   }
   // A page's own chips come first (Leads', Campaigns'), and whether they leave a win-back no act to offer.
-  const winBackSaid = pageChips(input, t, add);
-  if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
-  if (input.heldDrafts > 0) add(t.held, "ask", "clock");
-  if (input.liveNow > 0) add(t.live, "ask", "phone");
-  if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
-  if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
-  for (const [key, icon] of PAGE_QUESTIONS[at] ?? []) add(t[key], "ask", icon);
+  const winBackSaid = pageChips(input, item, add);
+  if (input.needsYou > 0) add(item.needs, "ask", "inbox", true);
+  if (input.heldDrafts > 0) add(item.held, "ask", "clock");
+  if (input.liveNow > 0) add(item.live, "ask", "phone");
+  if (input.missedToday > 0) add(item.calls, "ask", "phone", true);
+  if (input.hasCalendar) add(input.surface === "today" ? item.openTomorrow : item.openSat, "ask", "calendar", true);
+  for (const [key, icon] of PAGE_QUESTIONS[at] ?? []) add(item[key], "ask", icon);
   // Conversations and Live ask about today's calls, answered without a model when one was missed.
-  if (at === "live" || at === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
+  if (at === "live" || at === "conversations") add(item.calls, "ask", "phone", input.missedToday > 0);
   // Deals are in use here (a deal on file): who has a proposal out, where people are looked at.
-  if (input.hasDeals && (at === "people" || at === "other")) add(t.proposals, "ask", "trending-up");
-  if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
-  add(t.week, "ask", "trending-up");
-  add(t.rules, "ask", "shield");
+  if (input.hasDeals && (at === "people" || at === "other")) add(item.proposals, "ask", "trending-up");
+  if (input.needsYou === 0) add(item.needs, "ask", "inbox", true);
+  add(item.week, "ask", "trending-up");
+  add(item.rules, "ask", "shield");
   return { asks: out.slice(0, 7), winBackSaid };
 }
 
@@ -297,25 +303,25 @@ function askChips(
  */
 function actChips(
   input: SuggestionInput,
-  t: (typeof T)[keyof typeof T],
+  item: (typeof T)[keyof typeof T],
   at: AskSurface,
   winBackSaid: boolean,
 ): AskSuggestion[] {
-  const s = input.scope;
+  const scope = input.scope;
   const acts: AskSuggestion[] = [];
   const act = (label: string, q: string, icon: string, compose = false) => {
     if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
   };
-  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
-    act(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
-    act(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
+  if (scope && (scope.kind === "thread" || scope.kind === "conversation" || scope.kind === "person")) {
+    act(item.actLate.replace("{name}", scope.label), item.actLateQ.replace("{name}", scope.label), "chat");
+    act(item.actDraft.replace("{name}", scope.label), item.actDraftQ.replace("{name}", scope.label), "edit", true);
   }
-  act(t.actRemember, t.actRememberQ, "sparkle", true);
-  if (input.surface === "settings" || input.surface === "today") act(t.actClose, t.actCloseQ, "calendar", true);
-  if (input.surface === "settings") act(t.actHours, t.actHoursQ, "clock", true);
-  if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
-  if (at === "people" || at === "other") act(t.actOffer, t.actOfferQ, "wave", true);
-  if ((at === "people" || at === "other") && !winBackSaid) act(t.actPlaybook, t.actPlaybookQ, "bolt");
+  act(item.actRemember, item.actRememberQ, "sparkle", true);
+  if (input.surface === "settings" || input.surface === "today") act(item.actClose, item.actCloseQ, "calendar", true);
+  if (input.surface === "settings") act(item.actHours, item.actHoursQ, "clock", true);
+  if (input.surface === "inbox" || input.heldDrafts > 0) act(item.actHold, item.actHoldQ, "shield");
+  if (at === "people" || at === "other") act(item.actOffer, item.actOfferQ, "wave", true);
+  if ((at === "people" || at === "other") && !winBackSaid) act(item.actPlaybook, item.actPlaybookQ, "bolt");
   return acts.slice(0, 4);
 }
 

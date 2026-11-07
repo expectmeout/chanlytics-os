@@ -541,7 +541,7 @@ test(
   { skip },
   async () => {
     const { REACH_OUT_REFUSALS } = await import("@chanlytics/contracts");
-    const { sequenceRow } = await import("@chanlytics/db");
+    const { findSequenceRow } = await import("@chanlytics/db/campaigns");
     const { discardSequenceNow } = await importSrc("apps/dashboard/src/server/campaigns/sequences/doors.ts");
     const userId = (await operator.auth.getUser()).data.user.id;
     // The member's own session, as DELETE sequences/:id hands its handler one, and the row its scope reads.
@@ -557,7 +557,7 @@ test(
         `the sequence to leads ${name}`,
       );
       assert.equal(made.state, "draft");
-      const row = await sequenceRow(operator, made.id);
+      const row = await findSequenceRow(operator, made.id);
       assert.equal(row.starts, "leads");
       return row;
     };
@@ -619,8 +619,8 @@ test(
   "what its record says a sequence has done is what its doors count: a batch made, a cancelled one too, and an email to a lead written (0072)",
   { skip },
   async () => {
-    const { sequenceRecordFacts } = await import("@chanlytics/db");
-    const done = async (id) => (await sequenceRecordFacts(operator, tenantId, id)).history;
+    const { findSequenceRecordFacts } = await import("@chanlytics/db/campaigns");
+    const done = async (id) => (await findSequenceRecordFacts(operator, tenantId, id)).history;
     const first = {
       name: "Quiet clients",
       trigger: "quiet_30",

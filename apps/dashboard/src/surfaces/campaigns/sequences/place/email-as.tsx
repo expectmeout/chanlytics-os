@@ -4,10 +4,11 @@
  * listing, a value they lack, which holds the email), with who it is from and to and its subject where it is drawn whole.
  * The lead sheet's Sequence section, the rail's step opened, the draft's preview and the step sheet draw it so.
  *
- * Hookless. Every word is contracts' (lead-card.ts).
+ * Hookless. Every word is contracts' (leads/card.ts).
  */
 import type { ReactNode } from "react";
-import { LEAD_CARD_WORDS, LEAD_SHEET_WORDS as W, type LeadCardEmailVM, type LeadCardPart } from "@chanlytics/contracts";
+import { LEAD_CARD_WORDS, type LeadCardEmailVM, type LeadCardPart } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS as W } from "@/surfaces/leads/sheet/model/view";
 import { cx } from "../../../kit/variants";
 import "./place.css";
 

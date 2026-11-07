@@ -74,7 +74,7 @@ export interface BroadcastsSurface {
    */
   month_sent: MonthSent | null;
   /**
-   * The month after it and the instant it begins (server/campaigns/month-sent.ts monthSentNext), which a send scheduled
+   * The month after it and the instant it begins (server/campaigns/month-sent.ts readMonthSentNext), which a send scheduled
    * past the month's end counts against: the composer reads the month at the time it is set to go (contracts monthSentAt).
    * Null where the workspace's clock could not be read, and on a server from before it was carried.
    */

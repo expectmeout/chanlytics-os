@@ -1,11 +1,5 @@
-import {
-  holdNotice,
-  isCampaignEmail,
-  jittered,
-  MIN_MS,
-  PURPOSE_REFUSALS,
-  type SendPurpose,
-} from "@chanlytics/contracts";
+import { isCampaignEmail, jittered, MIN_MS, PURPOSE_REFUSALS, type SendPurpose } from "@chanlytics/contracts";
+import { holdNotice } from "../deliver/hold-notice";
 import type { Channel, Delivered } from "../deliver/deliver";
 import {
   isNotTakenError,
@@ -45,15 +39,15 @@ export const SEND_RETRY_WAITS_MS: readonly number[] = [MIN_MS, 3 * MIN_MS, 10 * 
  * carry it.
  */
 export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand): Promise<void> {
-  const p = cmd.payload;
+  const payload = cmd.payload;
   let msg: Awaited<ReturnType<SendQueuedPorts["queued"]>>;
   try {
-    msg = await ports.queued(p.message_id);
+    msg = await ports.queued(payload.message_id);
   } catch (e) {
     // Throw: the tick fails the job, settles the message and tells the tenant,
     // so it is visibly stuck rather than invisibly lost.
     throw new Error(
-      `outbound_send: cannot read message ${p.message_id}: ${e instanceof Error ? e.message : String(e)}`,
+      `outbound_send: cannot read message ${payload.message_id}: ${e instanceof Error ? e.message : String(e)}`,
       { cause: e },
     );
   }
@@ -62,30 +56,30 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // A payload is our own code's word, and our own code is not the authority on a template's category, so it can only
   // tighten. Proactive likewise: only a job that says so starts a conversation; everything else on this queue answers
   // a thread that exists.
-  const fromTemplate = await ports.purposeOf(p.template);
+  const fromTemplate = await ports.purposeOf(payload.template);
   // Outreach is its own lane (a cold email to a business the finder found): it loosens nothing, because the door
   // refuses it anywhere outside its own rules (email only, a lead, an unsubscribe, an own verified domain).
   const purpose: SendPurpose =
-    p.purpose === "outreach" ? "outreach" : p.purpose === "marketing" ? "marketing" : fromTemplate;
+    payload.purpose === "outreach" ? "outreach" : payload.purpose === "marketing" ? "marketing" : fromTemplate;
   // A channel this runtime has no wire for finds none at the door and fails
   // loudly, leaving the customer un-messaged rather than reached over the
   // wrong wire.
   const channel = (msg.channel ?? "whatsapp") as Channel;
-  const to = whereItGoes(msg.to, channel, p);
-  const resumes = resumesOf(p);
-  const staleAfter = staleAfterOf(p);
+  const to = whereItGoes(msg.to, channel, payload);
+  const resumes = resumesOf(payload);
+  const staleAfter = staleAfterOf(payload);
   // A person's own message that begins a conversation (payload.starts, core conversations/begin.ts): a start at the
   // door, and theirs. Only a row a person wrote may say so: the receptionist's own reply travels this path too.
-  const starts = p.starts === true && (msg.sender ?? "human") === "human";
+  const starts = payload.starts === true && (msg.sender ?? "human") === "human";
   // The row is this run's before anything reaches a wire. A second job naming the same message (a schedule made
   // twice, a writer that checked and then wrote beside another) finds it claimed and sends nothing: this job is done,
   // and the row is the claiming run's to finish, or the ledger's to settle when that run died.
-  if (!(await ports.claim(p.message_id))) return;
+  if (!(await ports.claim(payload.message_id))) return;
   let out: Delivered;
   try {
     out = await ports.deliver({
       tenantId: cmd.tenantId,
-      conversationId: p.conversation_id,
+      conversationId: payload.conversation_id,
       contactId: null,
       to,
       channel,
@@ -94,34 +88,34 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       // the metrics report a bot's words as a person's.
       sender: (msg.sender ?? "human") as "ai" | "human" | "system",
       purpose,
-      proactive: p.proactive === true || starts,
+      proactive: payload.proactive === true || starts,
       // One message to one person in their own thread (a reply, the receptionist's, a person's written one): theirs.
       // A campaign's news goes by the broadcast's batch, which says ours (contracts MessageAbout, decision D1).
       about: "theirs",
       // No moment's: a reply is no playbook's run, so there is nothing for the door to pass the handover pause for.
       trigger: null,
-      body: p.body ?? msg.body ?? "",
-      template: p.template,
+      body: payload.body ?? msg.body ?? "",
+      template: payload.template,
       // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
       ...(msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {}),
       ...(msg.leadId ? { leadId: msg.leadId } : {}),
-      messageId: p.message_id,
+      messageId: payload.message_id,
       // Held as the person's own words: the thread's pause is the one their own message took (deliver kindOf).
       ...(starts ? { kind: "reply" as const } : {}),
       holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length,
       ...(staleAfter !== null ? { staleAfter } : {}),
     });
-  } catch (e) {
+  } catch (error) {
     // The wire could not be BOUND: the workspace's credentials could not be read. Not a refusal, and not "no
     // credentials" -- the number may well be connected -- so nothing is flagged and nobody is told to reconnect it.
     // Nothing left and the row is still queued, so the same send is handed to a fresh job a while on, a bounded
     // number of times; the platform is paged, because a credentials store that does not answer is its condition.
     // A send the provider did not take is handed on the same way, and pages nobody. Any other throw is the door's
     // own, and stays as loud as it was.
-    if (!isWireUnavailableError(e) && !isNotTakenError(e)) throw e;
+    if (!isWireUnavailableError(error) && !isNotTakenError(error)) throw error;
     // Nothing left, so the claim is given back before the fresh job is asked for: it is that job's to take.
-    await ports.release(p.message_id);
-    await resendLater(ports, cmd, channel, e);
+    await ports.release(payload.message_id);
+    await resendLater(ports, cmd, channel, error);
     return;
   }
   if (out.outcome === "refused" && out.reason === "too_late") return handItOver(ports, cmd, { channel, to });
@@ -139,7 +133,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
 async function handItOver(
   ports: SendQueuedPorts,
   cmd: SendQueuedCommand,
-  f: { channel: Channel; to: string },
+  fields: { channel: Channel; to: string },
 ): Promise<void> {
   const conversationId = cmd.payload.conversation_id;
   // A thread already held keeps its hold: its reason, its act and its one notice. The receptionist's own escalation
@@ -156,8 +150,8 @@ async function handItOver(
       reason: "stale",
       details,
       who: null,
-      address: f.to,
-      channel: f.channel,
+      address: fields.to,
+      channel: fields.channel,
       // Not read again on a path the database just failed: the thread, one tap away, has their words. Nor the
       // draft's: the hold's own notice names only words that reached them (db holdFactsOf), and these never did.
       customerWords: null,
@@ -183,8 +177,8 @@ function staleAfterOf(p: SendQueuedCommand["payload"]): number | null {
 function whereItGoes(frozen: string | null | undefined, channel: Channel, p: SendQueuedCommand["payload"]): string {
   const to = frozen || (channel === "email" ? p.to_email : channel === "instagram" ? p.to_instagram : p.to_phone);
   if (to) return to;
-  const what = channel === "email" ? "address" : channel === "instagram" ? "Instagram id" : "number";
-  throw new Error(`outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${what}`);
+  const subject = channel === "email" ? "address" : channel === "instagram" ? "Instagram id" : "number";
+  throw new Error(`outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${subject}`);
 }
 
 /** How many fresh jobs this send already is the result of (payload.resumes). */
@@ -202,14 +196,14 @@ function resumesOf(p: SendQueuedCommand["payload"]): number {
 export class CertainFailure extends Error {
   /** Why nothing left, in the words the row and the thread's flag carry. */
   readonly why: string;
-  constructor(message: string, why: string, options?: ErrorOptions) {
+  constructor(message: string, reason: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "CertainFailure";
-    this.why = why;
+    this.why = reason;
   }
 }
-export function isCertainFailure(e: unknown): e is CertainFailure {
-  return e instanceof Error && e.name === "CertainFailure";
+export function isCertainFailure(error: unknown): error is CertainFailure {
+  return error instanceof Error && error.name === "CertainFailure";
 }
 
 /**
@@ -222,12 +216,12 @@ async function resendLater(
   ports: SendQueuedPorts,
   cmd: SendQueuedCommand,
   channel: Channel,
-  e: WireUnavailableError | NotTakenError,
+  unavailableError: WireUnavailableError | NotTakenError,
 ): Promise<void> {
-  const p = cmd.payload;
-  const resumes = resumesOf(p);
+  const payload = cmd.payload;
+  const resumes = resumesOf(payload);
   const table = SEND_RETRY_WAITS_MS[resumes];
-  const unbound = isWireUnavailableError(e);
+  const unbound = isWireUnavailableError(unavailableError);
   if (table === undefined) {
     // Nothing left, every time: the door threw before anything was written on each try. The platform hears the unbound
     // wire once more, under the same condition's key (the pager sends once per condition per window), now as a reply
@@ -239,28 +233,28 @@ async function resendLater(
         .page?.(
           `wire_unavailable:${channel}`,
           `${channel}: a workspace's credentials could not be read`,
-          `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply has failed for good after ${tries} tries; its thread is flagged for a person.`,
+          `Tenant ${cmd.tenantId}, message ${payload.message_id}: ${unavailableError.message}. The reply has failed for good after ${tries} tries; its thread is flagged for a person.`,
         )
         ?.catch(() => undefined);
     throw new CertainFailure(
-      `outbound_send: the ${channel} ${unbound ? "wire could not be bound" : "provider did not take it"} for ${resumes} fresh jobs in a row (${e.message})`,
+      `outbound_send: the ${channel} ${unbound ? "wire could not be bound" : "provider did not take it"} for ${resumes} fresh jobs in a row (${unavailableError.message})`,
       unbound
         ? `the ${channel} wire's credentials could not be read, ${tries} tries in a row`
         : `the ${channel} provider did not take it, ${tries} tries in a row`,
-      { cause: e },
+      { cause: unavailableError },
     );
   }
   // Drawn a little longer at random, so the replies one outage held are not all tried again in the same heartbeat.
   const wait = jittered(table, ports.random);
   // The fresh job first: it is what keeps the reply. The page is the platform's news, and a pager that throws must
   // not turn a reply that is waiting into one that failed.
-  await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+  await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...payload, resumes: resumes + 1 });
   if (!unbound) return;
   await ports
     .page?.(
       `wire_unavailable:${channel}`,
       `${channel}: a workspace's credentials could not be read`,
-      `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`,
+      `Tenant ${cmd.tenantId}, message ${payload.message_id}: ${unavailableError.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`,
     )
     ?.catch(() => undefined);
 }
@@ -275,11 +269,11 @@ interface FailedSend {
 }
 
 /** The wire could not carry it. */
-async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: FailedSend): Promise<void> {
-  const p = cmd.payload;
-  const { msg, channel, to, out } = f;
+async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, failedSend: FailedSend): Promise<void> {
+  const payload = cmd.payload;
+  const { msg, channel, to, out } = failedSend;
   // A provider's limit or a refused key is the platform's to hear, never one thread's (provider-page.ts, as a broadcast's).
-  await pageTheProvider(ports, f, `Tenant ${cmd.tenantId}, message ${p.message_id}`);
+  await pageTheProvider(ports, failedSend, `Tenant ${cmd.tenantId}, message ${payload.message_id}`);
   // A campaign's email that failed (a reach-out, a broadcast) is its run's to report, once, and its row already says
   // it: never a flag on a thread nobody there wrote on, or an owner alert per email of a run. The one predicate the
   // receipt and a job that died ask too (contracts isCampaignEmail).
@@ -291,7 +285,7 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: Fa
   const cause = causeOf(out, channel);
   const receptionist = msg.sender === "ai";
   const flagged = await raiseSendFailed(ports, {
-    conversationId: p.conversation_id,
+    conversationId: payload.conversation_id,
     details: `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
   });
   // A flag written is told from its event (decision 0043). One that could not be is told here: the job completes, and
@@ -299,8 +293,8 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: Fa
   if (toldFromItsEvent(flagged)) return;
   await ports.alert({
     kind: "handoff",
-    route: `inbox/th-${p.conversation_id}`,
-    about: { type: "conversation", id: p.conversation_id },
+    route: `inbox/th-${payload.conversation_id}`,
+    about: { type: "conversation", id: payload.conversation_id },
     subject: `Reply delivery failed: ${to}`,
     body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`,
   });
@@ -322,9 +316,9 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: Fa
  */
 export function raiseSendFailed(
   ports: Pick<SendQueuedPorts, "escalate">,
-  f: { conversationId: string; details: string },
+  fields: { conversationId: string; details: string },
 ): Promise<"opened" | "changed" | "refreshed" | "failed"> {
-  return ports.escalate(f.conversationId, "send_failed", f.details);
+  return ports.escalate(fields.conversationId, "send_failed", fields.details);
 }
 
 /** Why it did not leave, in words for the owner: a number with no credentials is not "HTTP 503". */

@@ -1,6 +1,6 @@
 import { read } from "@/server/shared/route";
 import { sequenceScope } from "@/server/shared/verbs";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { sequencePeople } from "@/server/readers/sequences";
 
 /**

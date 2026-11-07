@@ -15,6 +15,12 @@
  * Provider ids (e.g. Meta wa_id) are stored verbatim in contact_identities --
  * this normalizer is for the display/dial identity only.
  */
+
+/** E.164: a plus, then 7–15 digits, no leading zero. No `g` flag, so one shared pattern keeps no state between two tests. */
+export const E164 = /^\+[1-9]\d{6,14}$/;
+
+/** What a US area code looks like, as a person asks for one when getting a line. */
+export const US_AREA_CODE = /^\d{3}$/;
 export function normalizePhone(raw: string | null | undefined): string | null {
   if (raw == null) return null;
   const typed = String(raw).trim();
@@ -26,9 +32,9 @@ export function normalizePhone(raw: string | null | undefined): string | null {
 }
 
 /** Two ways of writing one number. `(646) 555-0175` and `+16465550175` are the same fact; nothing is never a match. */
-export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
-  const x = normalizePhone(a);
-  const y = normalizePhone(b);
+export function samePhone(first: string | null | undefined, second: string | null | undefined): boolean {
+  const x = normalizePhone(first);
+  const y = normalizePhone(second);
   return !!x && !!y && x === y;
 }
 
@@ -117,7 +123,7 @@ export function whyNotAHandoff(
   const typed = String(raw ?? "").trim();
   if (!typed) return null; // Empty is a choice: take a message instead.
   const norm = "+" + typed.replace(/[^0-9]/g, "");
-  if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm))) {
+  if (!(/^\+/.test(typed) && E164.test(norm))) {
     return "The transfer number needs the country code, like +1 212 555 0143.";
   }
   if (samePhone(norm, ownLine)) {

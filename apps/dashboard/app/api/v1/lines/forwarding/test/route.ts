@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
 import { AppError, isUuid } from "@chanlytics/contracts";
 import { dbRefusal } from "@/server/shared/with-route";
@@ -12,9 +13,9 @@ export const POST = write({
   scope: workspace,
   role: "partner",
   rate: "lines_forwarding",
-  handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => ({}))) as { line_id?: unknown };
-    const lineId = typeof body.line_id === "string" ? body.line_id.trim() : "";
+  input: z.object({ line_id: z.string().nullish() }),
+  handle: async ({ ctx, input, member }) => {
+    const lineId = (input.line_id ?? "").trim();
     if (!isUuid(lineId)) throw new AppError("validation", "Which line?", 400);
     const { data, error } = await ctx.supabase.rpc("line_forwarding_test", {
       p_tenant_id: member.tenantId,

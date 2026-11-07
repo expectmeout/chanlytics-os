@@ -19,18 +19,18 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const sharp = createRequire(path.join(ROOT, "apps/dashboard/package.json"))("sharp");
 
 const { POST_SIZES, SCRIM_UNDER_WORDS, postCrop, postLayout, postPhotoBox, wordsOverPhoto } = await import(
-  at("apps/dashboard/src/server/files/post/layout.ts")
+  at("apps/dashboard/src/server/posts/layout.ts")
 );
-const { composePost } = await import(at("apps/dashboard/src/server/files/post/compose.ts"));
+const { composePost } = await import(at("apps/dashboard/src/server/posts/compose.ts"));
 const { MAKE_POST_ASK, buildAskSuggestions } = await import(at("packages/contracts/src/ask/suggestions.ts"));
 const { postPathOf, postPhotoProblem, postPlanProblem, postUndrawable, postWordsProblem } = await import(
-  at("packages/contracts/src/files/post-check.ts")
+  at("apps/dashboard/src/server/files/post-check.ts")
 );
 const { POST_LAYOUTS, POST_LIMITS, POST_SHAPES, POST_WORDS, postPhotoWont, postPlanOf, postPlanTidied, postWordsIn } =
   await import(at("packages/contracts/src/files/post.ts"));
 const { postSpec } = await import(at("packages/contracts/src/files/post-spec.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { shelfOf } = await import(at("packages/contracts/src/files/files.ts"));
 
@@ -548,7 +548,7 @@ globalThis.fetch = async (input, init) => {
 };
 after(() => {
   globalThis.fetch = realFetch;
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });
 
 /** A photo in Storage, as the service reads it to draw: made when first asked for, never by a top-level await after the tests. */
@@ -557,7 +557,7 @@ const storedOf = () => (stored ??= busyPhoto(1600, 1200));
 function photoInStorage() {
   const service = fakeDb({ files: [] }, {}, {});
   service.storage = { from: () => ({ download: async () => ({ data: new Blob([await storedOf()]), error: null }) }) };
-  setServiceClient(service);
+  setUnsubscribeServiceClient(service);
 }
 
 /** The act as a turn runs it: the first call draws the post for a look, and the second, with the look's key, makes the card. */

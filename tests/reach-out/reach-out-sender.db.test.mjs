@@ -155,7 +155,7 @@ async function planned(tenant, runId, root, mailboxId, leadIds, sendAt, check = 
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  ({ claimAndWrite } = await import(at("apps/edge/lib/campaigns/reach-out/sender.ts")));
+  ({ claimAndWrite } = await import(at("apps/edge/lib/campaigns/reach-out/sender/sender.ts")));
   ({ checkedWordsOf } = await import("@chanlytics/channels"));
   ({ sendMessageId } = await import(at("packages/core/src/campaigns/reach-out-ids.ts")));
   ({ logger: log } = await import(at("apps/edge/lib/shared/log.ts")));
@@ -361,7 +361,7 @@ test(
   "a claim a dead tick left after writing its email, in a run canceled since: withdrawn, adopted, then skipped, through the guards",
   { skip },
   async () => {
-    const { reachOutClock } = await import(at("apps/edge/lib/campaigns/reach-out/clock.ts"));
+    const { runReachOutClock } = await import(at("apps/edge/lib/campaigns/reach-out/clock.ts"));
     const root = await chain(A);
     // One of the mailboxes the cases above connected.
     const [{ id: dom }] = ok(
@@ -414,7 +414,7 @@ test(
     const jobs = ok(await db.from("jobs").select("id").eq("tenant_id", A).eq("payload->>message_id", id));
     assert.equal(jobs.length, 0, "no job for a withdrawn email");
 
-    await reachOutClock(db, new Date(), L, Date.now(), A);
+    await runReachOutClock(db, new Date(), L, Date.now(), A);
     const done = ok(await db.from("sequence_sends").select("state, reason").eq("id", sendId).single());
     assert.deepEqual([done.state, done.reason], ["skipped", "run_canceled"]);
   },

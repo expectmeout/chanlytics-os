@@ -116,7 +116,7 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
   for (const [file, s] of [
     // A thread's columns reach standingOf through standingOfThread (standing.ts), a People row's through personStanding.
     ["packages/contracts/src/conversations/standing.ts", /standingOf\(\s*\{/],
-    ["packages/contracts/src/conversations/inbox-thread.ts", /standingOfThread\(/],
+    ["packages/contracts/src/conversations/inbox-thread/thread-vm.ts", /standingOfThread\(/],
     ["packages/contracts/src/people/person-state.ts", /standingOf\(\s*\{/],
     ["packages/contracts/src/today/facts.ts", /standingOfThread\(/],
   ])

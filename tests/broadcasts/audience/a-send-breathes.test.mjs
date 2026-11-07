@@ -4,7 +4,7 @@
  * marked in the run's own transaction (LEFT_OUT_FACTS, which the send's check at the wire skips them for), and skipped the
  * moment the run exists with RECIPIENT_REASON_HEARD, so the run's page says who was left out and why; a person sending it
  * may switch that off on the composer (`breathe: false`), and Ask never does. Who heard is ONE read, the composer's own:
- * packages/db recentTouches over touchesSince, so the number on the page, on Ask's card and in the skips the send writes is
+ * packages/db getRecentTouches over listTouchesSince, so the number on the page, on Ask's card and in the skips the send writes is
  * one number for one moment.
  *
  * Run over the core verb (createBroadcast) with its ports faked, over packages/db's hold and read on a database in memory,
@@ -32,7 +32,7 @@ import {
   leftOutByFacts,
   numberHealth,
 } from "@chanlytics/contracts";
-import { holdRecipients, recentTouches } from "@chanlytics/db";
+import { holdRecipients, getRecentTouches } from "@chanlytics/db/campaigns";
 import { fakeDb } from "../../_fake-db.mjs";
 import { importSrc } from "../../_source.mjs";
 
@@ -42,15 +42,15 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { createBroadcast } = await importSrc("packages/core/src/campaigns/create-broadcast.ts");
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"));
-after(() => setServiceClient(null));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/campaigns/ports.ts"));
+after(() => setUnsubscribeServiceClient(null));
 
 const TENANT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = new Date("2026-09-06T14:00:00Z");
 const DAY = 86_400_000;
 const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
-/** Who heard, as db recentTouches answers it (contact id -> the times of their messages): each two days ago. */
+/** Who heard, as db getRecentTouches answers it (contact id -> the times of their messages): each two days ago. */
 const heard = (...ids) => Object.fromEntries(ids.map((id) => [id, [ago(2 * DAY)]]));
 /** An instant `days` after NOW with its offset, as the route takes a scheduled send (10:00 in New York). */
 const ahead = (days) => new Date(NOW.getTime() + days * DAY).toISOString();
@@ -61,7 +61,7 @@ const ANA = "99999999-9999-4999-8999-999999999991";
 const BEA = "99999999-9999-4999-8999-999999999992";
 const CY = "99999999-9999-4999-8999-999999999993";
 
-/** The message as the port answers it (db messageVersionRowsOf): WhatsApp's approved row, and an email version where asked. */
+/** The message as the port answers it (db listMessageVersionRows): WhatsApp's approved row, and an email version where asked. */
 const row = (over = {}) => ({
   id: T1,
   channel: "whatsapp",
@@ -141,7 +141,7 @@ function fakes(over = {}) {
     monthSent: 0,
     // The hold skips everyone it was handed, unless a case says it found fewer still queued, or failed part-way.
     holdRecipients: (_id, ids) => ({ skipped: ids, error: null }),
-    // Who heard from a campaign or a broadcast within the week before now, and when last (db recentTouches): nobody,
+    // Who heard from a campaign or a broadcast within the week before now, and when last (db getRecentTouches): nobody,
     // unless a case says who.
     touches: {},
     ...over,
@@ -474,9 +474,9 @@ test("the hold answers who it skipped: a person still queued is skipped with the
   );
 });
 
-test("the window is the breath's constant: who heard is db recentTouches, two days ago in and eight out, and the dashboard's port is it", async () => {
+test("the window is the breath's constant: who heard is db getRecentTouches, two days ago in and eight out, and the dashboard's port is it", async () => {
   assert.equal(PLAYBOOK_BREATH_MS, 7 * DAY, "a week");
-  assert.deepEqual(Object.keys(await recentTouches(world(), TENANT, NOW)), [BEA]);
+  assert.deepEqual(Object.keys(await getRecentTouches(world(), TENANT, NOW)), [BEA]);
   const ports = createBroadcastPorts({ supabase: world(), userId: "u1" }, TENANT, { fresh: false });
   assert.deepEqual(await ports.touches(NOW), { [BEA]: [ago(2 * DAY)] }, "who heard, and when");
   // The verb over that port: Bea is left out, Cy (eight days ago) goes with Ana.
@@ -503,13 +503,13 @@ test("a run is read by when its touches count, not only by when it was made: mad
       broadcasts: [made(OLD_DUE, ago(2 * DAY), "sent"), made(OLD_LATER, ahead(3), "scheduled")],
       broadcast_recipients: [sentTo(OLD_DUE, ANA, 2), sentTo(OLD_LATER, CY, 0, { state: "queued", sent_at: null })],
     });
-  const touches = await recentTouches(db(), TENANT, NOW);
+  const touches = await getRecentTouches(db(), TENANT, NOW);
   assert.deepEqual(touches, { [ANA]: [ago(2 * DAY)], [CY]: [ahead(3)] }, "each dated when it counts: sent, or due");
   assert.deepEqual([...leftOutBy(touches, NOW.getTime(), NOW.getTime())].sort(), [ANA, CY].sort(), "a send now");
   assert.ok(leftOutBy(touches, NOW.getTime() + 3 * DAY, NOW.getTime()).has(CY), "a send in three days");
   // The playbooks sweep reads the same: a run made long ago that went, or goes, within its window is a touch.
-  const { touchesSince } = await import("@chanlytics/db");
-  const seen = await touchesSince(db(), TENANT, new Date(NOW.getTime() - PLAYBOOK_BREATH_MS), NOW);
+  const { listTouchesSince } = await import("@chanlytics/db/campaigns");
+  const seen = await listTouchesSince(db(), TENANT, new Date(NOW.getTime() - PLAYBOOK_BREATH_MS), NOW);
   assert.deepEqual(
     seen.map((t) => [t.contact_id, t.at, t.sent]).sort(),
     [
@@ -545,7 +545,7 @@ test("who hears from you is read as the time of every message, so one far ahead 
         sentTo(FAR, CY, 0, { state: "queued", sent_at: null }),
       ],
     });
-  const touches = await recentTouches(db(), TENANT, NOW);
+  const touches = await getRecentTouches(db(), TENANT, NOW);
   assert.deepEqual(touches, { [ANA]: [ago(2 * DAY), ahead(25)], [CY]: [ahead(25)] }, "every message, in order");
   assert.deepEqual(
     [...leftOutBy(touches, NOW.getTime(), NOW.getTime())],
@@ -553,8 +553,11 @@ test("who hears from you is read as the time of every message, so one far ahead 
     "Ana's message two days ago holds her",
   );
   // The sweep's breath: the message within a week of the run, by any playbook or by hand; the far one is none.
-  const { touchesSince, touchIndex } = await import("@chanlytics/db");
-  const index = touchIndex(await touchesSince(db(), TENANT, new Date(NOW.getTime() - PLAYBOOK_BREATH_MS), NOW), NOW);
+  const { listTouchesSince, touchIndex } = await import("@chanlytics/db/campaigns");
+  const index = touchIndex(
+    await listTouchesSince(db(), TENANT, new Date(NOW.getTime() - PLAYBOOK_BREATH_MS), NOW),
+    NOW,
+  );
   assert.deepEqual([...index.byAny], [[ANA, NOW.getTime() - 2 * DAY]]);
   // And a send now over the dashboard's port: Ana is left out, Bea and Cy go.
   const ports = createBroadcastPorts({ supabase: db(), userId: "u1" }, TENANT, { fresh: false });

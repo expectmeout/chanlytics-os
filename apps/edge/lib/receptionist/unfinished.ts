@@ -34,12 +34,17 @@
  * Cross-workspace: the deadman sweep visits every workspace; each write carries the row's own tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import { isAutomatedSend, isCampaignEmail, MIN_MS, HOUR_MS } from "@chanlytics/contracts";
 import type { EscalationOutcome } from "@chanlytics/jobs";
 import { toldFromItsEvent } from "@chanlytics/core";
 import type { logger } from "../shared/log.js";
-import type { notify as notifyFn, reachesTenant as reachesFn, NotifyTarget, NotifyMessage } from "../ops/notify.js";
+import type {
+  notify as notifyFn,
+  reachesTenant as reachesFn,
+  NotifyTarget,
+  NotifyMessage,
+} from "../shared/alerts/notify.js";
 import type { loadTenantNotifications as loadFn } from "../shared/tenant-runtime.js";
 
 type Db = SupabaseClient<Database>;
@@ -150,14 +155,14 @@ async function liveJobsNaming(
   dueSince?: string,
 ): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
-  let q = db
+  let query = db
     .from("jobs")
     .select("payload")
     .eq("kind", kind)
     .in("state", ["scheduled", "fired"])
     .in("payload->>message_id", ids);
-  if (dueSince) q = q.gt("due_at", dueSince);
-  const { data, error } = await q;
+  if (dueSince) query = query.gt("due_at", dueSince);
+  const { data, error } = await query;
   if (error) throw new Error(`unfinished: cannot read the jobs: ${error.message}`);
   const named = (data ?? []).map((j) => {
     const p = j.payload;
@@ -219,18 +224,19 @@ interface Tick {
   late: () => boolean;
 }
 
-export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSummary> {
-  const now = p.now ? p.now() : Date.now();
+export async function sweepUnfinished(unfinishedPorts: UnfinishedPorts): Promise<UnfinishedSummary> {
+  const now = unfinishedPorts.now ? unfinishedPorts.now() : Date.now();
   const out: UnfinishedSummary = { unanswered: 0, orphaned: 0, told: 0 };
   const addressing = new Map<string, Awaited<ReturnType<typeof loadFn>>>();
   const tell = async (tenantId: string, n: NotifyMessage): Promise<boolean> => {
-    if (!addressing.has(tenantId)) addressing.set(tenantId, await p.loadTenantNotifications(p.db, tenantId));
+    if (!addressing.has(tenantId))
+      addressing.set(tenantId, await unfinishedPorts.loadTenantNotifications(unfinishedPorts.db, tenantId));
     const target: NotifyTarget = { tenantId, ...addressing.get(tenantId)! };
-    if (!p.reachesTenant(target)) return false;
-    return p.notify(target, n);
+    if (!unfinishedPorts.reachesTenant(target)) return false;
+    return unfinishedPorts.notify(target, n);
   };
-  const late = () => (p.now ? p.now() : Date.now()) > p.deadline;
-  const tick: Tick = { p, now, out, tell, late };
+  const late = () => (unfinishedPorts.now ? unfinishedPorts.now() : Date.now()) > unfinishedPorts.deadline;
+  const tick: Tick = { p: unfinishedPorts, now, out, tell, late };
   await raiseUnanswered(tick);
   await failOrphans(tick);
   return out;
@@ -278,7 +284,7 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
         );
         out.unanswered += 1;
         // A flag written is told from its event (decision 0043, owner_notice); a flag that could not be is told here.
-        const told =
+        const notice =
           !toldFromItsEvent(flagged) &&
           (await tell(r.tenant_id, {
             kind: "deadman",
@@ -291,12 +297,12 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
               `The thread is flagged for you in the Inbox. Reply there; nothing will be sent on its own.`,
             redactedBody: `A customer in this workspace wrote ${waitedMin} minutes ago and nothing answered; the thread is flagged.`,
           }));
-        if (told) out.told += 1;
+        if (notice) out.told += 1;
         p.L.warn("unfinished_inbound_flagged", {
           tenant_id: r.tenant_id,
           message: r.id,
           waited_min: waitedMin,
-          told,
+          told: notice,
         });
       }
       // Handled now, one way or the other: raised once, or a reply was there all along.
@@ -349,26 +355,26 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
       // A campaign's email (a reach-out's) is its run's to count: the clock plans it again (orphaned never left), and
       // no thread nobody wrote on is flagged, nor its owner told (Reach out D4, contracts isCampaignEmail).
       if (s.conversation_id && !isCampaignEmail(s.meta?.email?.request)) {
-        const who = s.sender === "ai" ? "The receptionist's reply" : "A reply";
+        const person = s.sender === "ai" ? "The receptionist's reply" : "A reply";
         const flagged = await p.upsertEscalation(
           p.db,
           s.tenant_id,
           s.conversation_id,
           "send_failed",
-          `${who} never left: ${ORPHAN_NOTE}. Check the conversation before sending it again.`,
+          `${person} never left: ${ORPHAN_NOTE}. Check the conversation before sending it again.`,
         );
         // Told from its event when written (decision 0043); here only when it could not be.
-        const told =
+        const notice =
           !toldFromItsEvent(flagged) &&
           (await tell(s.tenant_id, {
             kind: "deadman",
             route: `inbox/th-${s.conversation_id}`,
             about: { type: "conversation", id: s.conversation_id },
             subject: "A reply never left",
-            body: `${who} was queued and ${ORPHAN_NOTE}, so it never reached the customer. The thread is flagged for you in the Inbox; check it before sending again.`,
+            body: `${person} was queued and ${ORPHAN_NOTE}, so it never reached the customer. The thread is flagged for you in the Inbox; check it before sending again.`,
             redactedBody: "A queued reply in this workspace never left; the thread is flagged.",
           }));
-        if (told) out.told += 1;
+        if (notice) out.told += 1;
       }
       p.L.warn("unfinished_queued_failed", { tenant_id: s.tenant_id, message: s.id });
     } catch (e) {

@@ -8,7 +8,7 @@ export type Rgb = [number, number, number];
 
 /** The one shape the row keeps: lower-case, six hex digits. */
 const ACCENT_HEX = /^#[0-9a-f]{6}$/;
-export const accentOk = (s: unknown): s is string => typeof s === "string" && ACCENT_HEX.test(s);
+export const accentOk = (text: unknown): text is string => typeof text === "string" && ACCENT_HEX.test(text);
 
 const byte = (n: number): number => Math.max(0, Math.min(255, Math.round(n)));
 const part = (s: string): number | null => {
@@ -19,9 +19,9 @@ const part = (s: string): number | null => {
 };
 
 /** `#abc`, `#aabbcc`, `#aabbccdd`, `rgb(…)`, `rgba(…)` with commas, spaces or a slash; anything else is null. */
-export function parseCssColour(s: string): Rgb | null {
-  const v = s.trim().toLowerCase();
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(v)?.[1];
+export function parseCssColour(text: string): Rgb | null {
+  const result = text.trim().toLowerCase();
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(result)?.[1];
   if (hex) {
     const h =
       hex.length === 3
@@ -32,7 +32,7 @@ export function parseCssColour(s: string): Rgb | null {
         : hex.slice(0, 6);
     return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
   }
-  const fn = /^rgba?\(\s*([^)]*)\)$/.exec(v)?.[1];
+  const fn = /^rgba?\(\s*([^)]*)\)$/.exec(result)?.[1];
   if (fn === undefined) return null;
   const parts = (fn.split("/")[0] ?? "")
     .split(/[\s,]+/)

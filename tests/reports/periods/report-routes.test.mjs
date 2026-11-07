@@ -16,7 +16,7 @@ import { QUIET as LEDGER_QUIET } from "../campaigns/_campaign-world.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const { readerContext } = await importSrc("apps/dashboard/src/server/readers/index.ts");
+const { readerContext } = await importSrc("apps/dashboard/src/server/shared/reader.ts");
 const { reportWindowFor } = await importSrc("apps/dashboard/src/server/readers/report.ts");
 const { fakeDb } = await import("../../_fake-db.mjs");
 const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");

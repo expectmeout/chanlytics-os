@@ -8,16 +8,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  connectionRows,
   googleAudienceWords,
-  smsStateRow,
-  CONNECTION_KINDS,
-  CONNECTION_GROUP_WORDS,
   LINE_STEP_WORDS,
   LINE_CREDENTIALS_SENTENCE,
   PROVISIONING_DEADLINE_MS,
   toChannelVM,
 } from "@chanlytics/contracts";
+import {
+  connectionRows,
+  smsStateRow,
+  CONNECTION_KINDS,
+  CONNECTION_GROUP_WORDS,
+} from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { readCode, readRaw } from "../_source.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -503,7 +505,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     "the pane imports contracts' rows and group words",
   );
   assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installConnections"));
-  const edge = readCode("apps/edge/lib/google/config.ts");
+  const edge = readCode("apps/edge/lib/shared/google/config.ts");
   assert.ok(
     edge.includes("export function googleAudience(): GoogleAudience | null {") &&
       edge.includes('return a === "testing" || a === "unverified" || a === "verified" ? a : null;'),
@@ -519,7 +521,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   // The DTO's `ready` is made in GET google's handle (google-actions.ts), beside the Google reader's read.
   const route = readCode(
     "apps/dashboard/app/api/v1/google/route.ts",
-    "apps/dashboard/src/server/connections/google-actions.ts",
+    "apps/dashboard/src/server/settings/google-actions.ts",
     "apps/dashboard/src/server/connections/google.ts",
   );
   assert.ok(route.includes("ready: { places: ready.places, profile: ready.profile, audience: ready.audience }"));
@@ -537,7 +539,7 @@ test("every verb a row can offer is a verb the page runs", () => {
   //
   // This is that missing type. Anything the contract can put on a row has to be
   // answered by the page that renders it, or by a route the shell knows.
-  const rows = readRaw("packages/contracts/src/setup/connections.ts");
+  const rows = readRaw("apps/dashboard/src/surfaces/settings/connections/model/setup.ts");
   const offered = [...rows.matchAll(/to:\s*"verb:([a-z-]+)"/g)].map((m) => m[1]);
   assert.ok(offered.length >= 5, "the verbs were found at all");
   const page = readCode("apps/dashboard/src/surfaces/settings/connections/pane.tsx");
@@ -583,7 +585,7 @@ test("a WhatsApp number Meta flagged needs attention on Connections, in the word
 });
 
 test("the mailboxes sequences write from are a row of their own: Later and greyed until a provider is offered, then Connect, then each one's state", async () => {
-  const { connectionRows } = await import("@chanlytics/contracts");
+  const { connectionRows } = await import("../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts");
   const mailbox = {
     id: "mb1",
     address: "harbor@mail.chanlytics.com",

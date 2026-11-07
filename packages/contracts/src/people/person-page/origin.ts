@@ -16,7 +16,7 @@ import type { PersonBeforeDto, PersonDetailDto } from "../person-dto";
 import { viaWords } from "../../imports/csv";
 import type { PersonCameFrom } from "../person-words";
 import { clockDate } from "../../shared/clock";
-import { formatterOnUse } from "../../shared/time";
+import { formatterOnUse, isoMs } from "../../shared/time";
 import { samePhone } from "../../shared/phone";
 import { BEFORE_WORDS, ORIGIN_WORDS, REACH_SOURCE_WORDS } from "./words";
 
@@ -37,31 +37,28 @@ interface ContactEvidence {
 }
 
 /** The evidence, from the person read and People's first contact for them (the row's own, made exact by the read). */
-export function contactEvidenceOf(d: PersonDetailDto, first: ContactEvidence["first"]): ContactEvidence {
-  const reachOut = d.lead?.reach_out ?? null;
+export function contactEvidenceOf(personDetail: PersonDetailDto, first: ContactEvidence["first"]): ContactEvidence {
+  const reachOut = personDetail.lead?.reach_out ?? null;
   return {
-    phone: d.row.phone_e164,
-    email: d.row.email,
+    phone: personDetail.row.phone_e164,
+    email: personDetail.row.email,
     first,
-    calls: d.calls,
-    messages: d.conversations.flatMap((c) => c.messages),
-    added: d.added ? { source: d.added.source, ms: moment(d.added.at) } : null,
-    listing: d.business ? { phone: d.business.lead.phone, email: d.business.lead.email } : null,
-    lead: d.lead
+    calls: personDetail.calls,
+    messages: personDetail.conversations.flatMap((c) => c.messages),
+    added: personDetail.added ? { source: personDetail.added.source, ms: isoMs(personDetail.added.at) } : null,
+    listing: personDetail.business
+      ? { phone: personDetail.business.lead.phone, email: personDetail.business.lead.email }
+      : null,
+    lead: personDetail.lead
       ? {
-          foundMs: moment(d.lead.found_at),
+          foundMs: isoMs(personDetail.lead.found_at),
           // A list of the owner's own (00242), never a company the people card found, which no listing named either.
           ownList: reachOut?.source ? reachOut.source === "import" : reachOut?.found_on_listing === false,
-          firstSendMs: earliest((reachOut?.sends ?? []).map((x) => moment(x.sent_at))),
+          firstSendMs: earliest((reachOut?.sends ?? []).map((x) => isoMs(x.sent_at))),
         }
       : null,
   };
 }
-
-const moment = (iso: string | null | undefined): number | null => {
-  const t = iso ? Date.parse(iso) : NaN;
-  return Number.isFinite(t) ? t : null;
-};
 
 const earliest = (xs: readonly (number | null)[]): number | null => {
   const ok = xs.filter((x): x is number => x !== null);
@@ -76,7 +73,7 @@ function firstWrote(messages: readonly MessageDto[], wires: readonly string[]): 
   return earliest(
     messages
       .filter((m) => isTheirOwnWords(m) && wires.includes(writtenChannelOf(m.channel)) && !undated(m))
-      .map((m) => moment(messageAt(m))),
+      .map((m) => isoMs(messageAt(m))),
   );
 }
 
@@ -85,7 +82,7 @@ function firstCalled(e: ContactEvidence): number | null {
   return earliest(
     e.calls
       .filter((k) => k.direction === "inbound" && !neverConnected(k) && samePhone(k.from_e164, e.phone))
-      .map((k) => moment(k.started_at)),
+      .map((k) => isoMs(k.started_at)),
   );
 }
 
@@ -97,39 +94,46 @@ function exactFirst(e: ContactEvidence, wires: readonly PersonCameFrom[]): numbe
 }
 
 /** The line under their number and under their address (REACH_SOURCE_WORDS), each by its evidence. */
-export function reachRowsOf(e: ContactEvidence, tz: string, nowMs: number): { phone: string; email: string } {
+export function reachRowsOf(
+  contactEvidence: ContactEvidence,
+  tz: string,
+  nowMs: number,
+): { phone: string; email: string } {
   const day = (t: number) => clockDate(t, tz, nowMs);
-  const P = REACH_SOURCE_WORDS.phone;
-  const E = REACH_SOURCE_WORDS.email;
-  const called = earliest([firstCalled(e), exactFirst(e, ["call"])]);
-  const wrote = earliest([firstWrote(e.messages, ["whatsapp", "sms"]), exactFirst(e, ["whatsapp", "sms"])]);
+  const otherPhone = REACH_SOURCE_WORDS.phone;
+  const otherEmail = REACH_SOURCE_WORDS.email;
+  const called = earliest([firstCalled(contactEvidence), exactFirst(contactEvidence, ["call"])]);
+  const wrote = earliest([
+    firstWrote(contactEvidence.messages, ["whatsapp", "sms"]),
+    exactFirst(contactEvidence, ["whatsapp", "sms"]),
+  ]);
   const phone =
     called !== null && (wrote === null || called <= wrote)
-      ? P.called(day(called))
+      ? otherPhone.called(day(called))
       : wrote !== null
-        ? P.wrote(day(wrote))
-        : e.added?.source === "calendar"
-          ? P.booking
-          : e.listing && samePhone(e.listing.phone, e.phone)
-            ? P.listing
-            : P.none;
-  const address = e.email?.trim().toLowerCase() ?? "";
-  const emailed = earliest([firstWrote(e.messages, ["email"]), exactFirst(e, ["email"])]);
-  const gave = address
+        ? otherPhone.wrote(day(wrote))
+        : contactEvidence.added?.source === "calendar"
+          ? otherPhone.booking
+          : contactEvidence.listing && samePhone(contactEvidence.listing.phone, contactEvidence.phone)
+            ? otherPhone.listing
+            : otherPhone.none;
+  const address = contactEvidence.email?.trim().toLowerCase() ?? "";
+  const emailed = earliest([firstWrote(contactEvidence.messages, ["email"]), exactFirst(contactEvidence, ["email"])]);
+  const given = address
     ? earliest(
-        e.calls
+        contactEvidence.calls
           .filter((k) => k.direction === "inbound" && k.caller_email?.trim().toLowerCase() === address)
-          .map((k) => moment(k.started_at)),
+          .map((k) => isoMs(k.started_at)),
       )
     : null;
   const email =
     emailed !== null
-      ? E.wrote(day(emailed))
-      : gave !== null
-        ? E.gaveOnCall(day(gave))
-        : address && e.listing?.email?.trim().toLowerCase() === address
-          ? E.listing
-          : E.none;
+      ? otherEmail.wrote(day(emailed))
+      : given !== null
+        ? otherEmail.gaveOnCall(day(given))
+        : address && contactEvidence.listing?.email?.trim().toLowerCase() === address
+          ? otherEmail.listing
+          : otherEmail.none;
   return { phone, email };
 }
 
@@ -137,9 +141,9 @@ export function reachRowsOf(e: ContactEvidence, tz: string, nowMs: number): { ph
 function oursFirst(e: ContactEvidence): { call: true } | { on: string } | null {
   const at = e.first.ts;
   if (at === null || e.first.estimate) return null;
-  const call = e.calls.find((k) => moment(k.started_at) === at);
+  const call = e.calls.find((k) => isoMs(k.started_at) === at);
   if (call) return call.direction === "outbound" ? { call: true } : null;
-  const m = e.messages.find((x) => moment(messageAt(x)) === at);
+  const m = e.messages.find((x) => isoMs(messageAt(x)) === at);
   return m && m.direction === "outbound" ? { on: FIRST_WRITTEN_ON[writtenChannelOf(m.channel)] } : null;
 }
 
@@ -152,27 +156,29 @@ const firstLowered = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
  * Where they came from, in one line (ORIGIN_WORDS), or null where nothing says: the wire they first reached you on and
  * its day (People's own first contact); a door's name and the day it added them; a lead's finding and our first email.
  */
-export function personOriginOf(e: ContactEvidence, tz: string, nowMs: number): string | null {
-  const from = e.first.cameFrom;
+export function personOriginOf(contactEvidence: ContactEvidence, tz: string, nowMs: number): string | null {
+  const from = contactEvidence.first.cameFrom;
   if (!from) return null;
   const day = (t: number | null) => (t !== null ? clockDate(t, tz, nowMs) : null);
-  const W = ORIGIN_WORDS;
+  const words = ORIGIN_WORDS;
   if (from === "call" || from === "whatsapp" || from === "sms" || from === "email") {
-    if (e.first.ts === null) return null;
-    const when = firstLowered(e.first.label);
-    const ours = oursFirst(e);
-    if (ours) return "call" in ours ? W.weCalledFirst(when) : W.weWroteFirstOn(ours.on, when);
-    return W[from](when);
+    if (contactEvidence.first.ts === null) return null;
+    const when = firstLowered(contactEvidence.first.label);
+    const ours = oursFirst(contactEvidence);
+    if (ours) return "call" in ours ? words.weCalledFirst(when) : words.weWroteFirstOn(ours.on, when);
+    return words[from](when);
   }
   if (from === "lead") {
-    const found = day(e.lead?.foundMs ?? e.added?.ms ?? null);
+    const found = day(contactEvidence.lead?.foundMs ?? contactEvidence.added?.ms ?? null);
     if (!found) return null;
-    const said = e.lead?.ownList ? W.ownList(found) : W.lead(found);
-    const wrote = day(e.lead?.firstSendMs ?? null);
-    return wrote ? `${said} · ${W.weWroteFirst(wrote)}` : said;
+    const sentence = contactEvidence.lead?.ownList ? words.ownList(found) : words.lead(found);
+    const wrote = day(contactEvidence.lead?.firstSendMs ?? null);
+    return wrote ? `${sentence} · ${words.weWroteFirst(wrote)}` : sentence;
   }
-  const added = day(e.added?.ms ?? null) ?? (e.first.ts !== null ? firstLowered(e.first.label) : null);
-  return added ? W[from](added) : null;
+  const added =
+    day(contactEvidence.added?.ms ?? null) ??
+    (contactEvidence.first.ts !== null ? firstLowered(contactEvidence.first.label) : null);
+  return added ? words[from](added) : null;
 }
 
 /** A birthday as its month and day ("Mar 14"): the year, where a file had one, is not the page's to say. */
@@ -185,13 +191,13 @@ const MONTH_DAY = formatterOnUse("en-US", { month: "short", day: "numeric", time
  */
 export function personBeforeOf(before: PersonBeforeDto | null | undefined, nowMs: number): string | null {
   if (!before) return null;
-  const W = BEFORE_WORDS;
+  const words = BEFORE_WORDS;
   const [, mm, dd] = (before.birthday ? /(\d{2})-(\d{2})$/.exec(before.birthday) : null) ?? [];
   const parts = [
-    before.visits !== undefined && before.visits > 0 ? W.visits(before.visits) : null,
-    before.last_visit ? W.last(clockDate(Date.parse(`${before.last_visit}T12:00:00Z`), "UTC", nowMs)) : null,
-    mm && dd ? W.birthday(MONTH_DAY.format(new Date(Date.UTC(2000, +mm - 1, +dd)))) : null,
+    before.visits !== undefined && before.visits > 0 ? words.visits(before.visits) : null,
+    before.last_visit ? words.last(clockDate(Date.parse(`${before.last_visit}T12:00:00Z`), "UTC", nowMs)) : null,
+    mm && dd ? words.birthday(MONTH_DAY.format(new Date(Date.UTC(2000, +mm - 1, +dd)))) : null,
   ].filter((x): x is string => !!x);
   if (!parts.length) return null;
-  return [W.label, ...parts, W.from(viaWords(before.via ?? null))].join(" · ");
+  return [words.label, ...parts, words.from(viaWords(before.via ?? null))].join(" · ");
 }

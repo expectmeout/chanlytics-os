@@ -22,10 +22,7 @@ import {
   DEAL_STAGE_WORDS,
   DEAL_LOST_REASON_WORDS,
   DEAL_REFUSALS,
-  PIPELINE_BOARD_CAP,
-  PIPELINE_PASS_MAX,
   PIPELINE_GROUPS,
-  PIPELINE_SORTS,
   PIPELINE_WORDS,
   clockNear,
   clockNearWhen,
@@ -38,18 +35,11 @@ import {
   offersYesRefusal,
   isPipelineView,
   parsePipelineRoute,
-  pipelineBoardMore,
-  pipelineMove,
   pipelinePersonOf,
   pipelineRowNow,
   pipelineOf,
-  pipelinePassDone,
-  pipelinePassMany,
-  pipelinePeekOf,
-  pipelineSheetOf,
   pipelineRail,
   pipelineRoute,
-  pipelineSorted,
   pipelineViewLabel,
   PIPELINE_RAIL_SERVICES,
   repliesWords,
@@ -59,6 +49,17 @@ import {
   stepDayOf,
   zoneDayKey,
 } from "@chanlytics/contracts";
+import {
+  PIPELINE_BOARD_CAP,
+  PIPELINE_PASS_MAX,
+  PIPELINE_SORTS,
+  pipelineBoardMore,
+  pipelineMove,
+  pipelinePassDone,
+  pipelinePassMany,
+  pipelineSorted,
+} from "../../apps/dashboard/src/surfaces/people/pipeline/board-view.ts";
+import { pipelinePeekOf, pipelineSheetOf } from "../../apps/dashboard/src/surfaces/people/pipeline/peek-view.ts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { EVERY_EVENT, changesOf, toldFor } from "../_live-feed.mjs";
 import { lineBox } from "../shared/_line.mjs";

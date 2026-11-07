@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { bearerOf, setBearerVerifier } = await import(at("apps/dashboard/src/server/auth/bearer.ts"));
+const { bearerOf, setBearerVerifier } = await import(at("apps/dashboard/src/server/shared/auth/bearer.ts"));
 const { withRoute } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
 
 // Built here, not written down: a token-shaped literal in the tree is what the secret scan is for.

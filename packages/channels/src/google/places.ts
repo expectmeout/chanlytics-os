@@ -23,7 +23,7 @@
  * Place reference's own, checked on 24 Sep 2026; one wrong name and Google
  * refuses the whole read, so the test pins them name by name.
  */
-import { providerFetch } from "../shared/provider-fetch";
+import { fetchFromProvider } from "../shared/provider-fetch";
 import {
   E164,
   type GoogleListingFacts,
@@ -169,17 +169,17 @@ const localized = (v: unknown): { text: string | null; languageCode: string | nu
   return { text: nonBlankOrNull(o?.text), languageCode: nonBlankOrNull(o?.languageCode) };
 };
 
-function candidateOf(p: Obj): PlaceCandidate | null {
-  const id = nonBlankOrNull(p.id);
-  const name = localized(p.displayName).text;
+function candidateOf(obj: Obj): PlaceCandidate | null {
+  const id = nonBlankOrNull(obj.id);
+  const name = localized(obj.displayName).text;
   if (!id || !name) return null;
   return {
     place_id: id,
     name,
-    address: nonBlankOrNull(p.formattedAddress),
-    maps_uri: nonBlankOrNull(p.googleMapsUri),
-    business_status: nonBlankOrNull(p.businessStatus),
-    category: localized(p.primaryTypeDisplayName).text,
+    address: nonBlankOrNull(obj.formattedAddress),
+    maps_uri: nonBlankOrNull(obj.googleMapsUri),
+    business_status: nonBlankOrNull(obj.businessStatus),
+    category: localized(obj.primaryTypeDisplayName).text,
   };
 }
 
@@ -191,21 +191,21 @@ export function reviewIdOf(name: unknown): string | null {
   return last && last.length > 0 ? last : null;
 }
 
-function reviewOf(r: Obj): PlaceReview | null {
-  const id = reviewIdOf(r.name);
+function reviewOf(obj: Obj): PlaceReview | null {
+  const id = reviewIdOf(obj.name);
   if (!id) return null;
-  const author = recordOrNull(r.authorAttribution);
-  const text = localized(r.text);
+  const author = recordOrNull(obj.authorAttribution);
+  const text = localized(obj.text);
   return {
     review_id: id,
-    rating: finiteOrNull(r.rating),
+    rating: finiteOrNull(obj.rating),
     author: nonBlankOrNull(author?.displayName),
     author_uri: nonBlankOrNull(author?.uri),
     author_photo_uri: nonBlankOrNull(author?.photoUri),
     text: text.text,
     language_code: text.languageCode,
-    published_at: nonBlankOrNull(r.publishTime),
-    maps_uri: nonBlankOrNull(r.googleMapsUri),
+    published_at: nonBlankOrNull(obj.publishTime),
+    maps_uri: nonBlankOrNull(obj.googleMapsUri),
   };
 }
 
@@ -241,17 +241,17 @@ function e164Of(international: string | null): string | null {
 }
 
 /** What the listing says beyond its name and address, as Google says it; nothing invented where it says nothing. */
-function listingFactsOf(p: Obj): GoogleListingFacts {
-  const periods = recordOrNull(p.regularOpeningHours)?.periods;
+function listingFactsOf(obj: Obj): GoogleListingFacts {
+  const periods = recordOrNull(obj.regularOpeningHours)?.periods;
   return {
     hours: Array.isArray(periods) ? periods.map(periodOf).filter((x): x is GooglePeriod => x !== null) : null,
-    phone_e164: e164Of(nonBlankOrNull(p.internationalPhoneNumber)),
-    phone_display: nonBlankOrNull(p.nationalPhoneNumber),
-    website: nonBlankOrNull(p.websiteUri),
-    primary_type: nonBlankOrNull(p.primaryType),
-    primary_type_label: localized(p.primaryTypeDisplayName).text,
-    service_area_only: p.pureServiceAreaBusiness === true,
-    time_zone: nonBlankOrNull(recordOrNull(p.timeZone)?.id),
+    phone_e164: e164Of(nonBlankOrNull(obj.internationalPhoneNumber)),
+    phone_display: nonBlankOrNull(obj.nationalPhoneNumber),
+    website: nonBlankOrNull(obj.websiteUri),
+    primary_type: nonBlankOrNull(obj.primaryType),
+    primary_type_label: localized(obj.primaryTypeDisplayName).text,
+    service_area_only: obj.pureServiceAreaBusiness === true,
+    time_zone: nonBlankOrNull(recordOrNull(obj.timeZone)?.id),
   };
 }
 
@@ -264,26 +264,26 @@ export function parsePlacesSearch(json: unknown): PlaceCandidate[] {
 }
 
 export function parsePlaceDetails(json: unknown): PlaceDetails {
-  const p = recordOrNull(json);
-  const id = nonBlankOrNull(p?.id);
-  const name = localized(p?.displayName).text;
-  if (!p || !id || !name) throw new PlacesError(502, "Google answered without a place");
-  const reviews = Array.isArray(p.reviews)
-    ? p.reviews
+  const record = recordOrNull(json);
+  const id = nonBlankOrNull(record?.id);
+  const name = localized(record?.displayName).text;
+  if (!record || !id || !name) throw new PlacesError(502, "Google answered without a place");
+  const reviews = Array.isArray(record.reviews)
+    ? record.reviews
         .map((r) => (recordOrNull(r) ? reviewOf(recordOrNull(r)!) : null))
         .filter((r): r is PlaceReview => r !== null)
     : [];
   return {
     place_id: id,
     name,
-    address: nonBlankOrNull(p.formattedAddress),
-    maps_uri: nonBlankOrNull(p.googleMapsUri),
-    business_status: nonBlankOrNull(p.businessStatus),
-    rating: finiteOrNull(p.rating),
-    review_count: finiteOrNull(p.userRatingCount),
+    address: nonBlankOrNull(record.formattedAddress),
+    maps_uri: nonBlankOrNull(record.googleMapsUri),
+    business_status: nonBlankOrNull(record.businessStatus),
+    rating: finiteOrNull(record.rating),
+    review_count: finiteOrNull(record.userRatingCount),
     reviews,
-    facts: listingFactsOf(p),
-    photos: placePhotosOf(p.photos),
+    facts: listingFactsOf(record),
+    photos: placePhotosOf(record.photos),
   };
 }
 
@@ -334,13 +334,13 @@ export async function getPlace(
  * the network's words, as the bare fetch it replaces did; a read (a GET) is asked twice first.
  */
 /** Where one of a place's photos can be read now; null where Google names nowhere. */
-export async function placePhotoUri(http: PlacesHttp, key: string, name: string): Promise<string | null> {
+export async function findPlacePhotoUri(http: PlacesHttp, key: string, name: string): Promise<string | null> {
   return nonBlankOrNull(recordOrNull(await call(http, placePhotoRequest(key, name)))?.photoUri);
 }
 
 export function placesFetch(fetchImpl: typeof fetch = fetch, timeoutMs = PLACES_TIMEOUT_MS): PlacesHttp {
   return async (req) => {
-    const a = await providerFetch(
+    const first = await fetchFromProvider(
       "google",
       req.url,
       {
@@ -352,8 +352,8 @@ export function placesFetch(fetchImpl: typeof fetch = fetch, timeoutMs = PLACES_
       },
       { fetch: fetchImpl },
     );
-    if (a.status === 0) throw new Error(`google: ${a.error ?? "no answer"}`);
-    return { status: a.status, body: a.text };
+    if (first.status === 0) throw new Error(`google: ${first.error ?? "no answer"}`);
+    return { status: first.status, body: first.text };
   };
 }
 

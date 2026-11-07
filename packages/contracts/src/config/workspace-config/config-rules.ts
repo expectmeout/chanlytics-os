@@ -9,6 +9,7 @@
  * that says a limit or judges a day loads none of it.
  */
 import type { Hours } from "./business-profile";
+import { E164 } from "../../shared/phone";
 
 /* ------------------------------------------------------------------ the week */
 
@@ -42,11 +43,11 @@ export const MAX_CLOSURES = 60;
  * day check (config-schema.ts checkDay) and anything that builds a day from elsewhere (google.ts hoursFromGoogle) ask
  * this, so a day is judged by one set of rules wherever it comes from. Empty when the day is one the record holds.
  */
-export function dayProblems(h: Hours, day: string): Array<{ path: Array<string | number>; message: string }> {
+export function dayProblems(hours: Hours, day: string): Array<{ path: Array<string | number>; message: string }> {
   const name = DAY_NAME[day] ?? day;
   const out: Array<{ path: Array<string | number>; message: string }> = [];
-  const open = h.open ?? undefined;
-  const close = h.close ?? undefined;
+  const open = hours.open ?? undefined;
+  const close = hours.close ?? undefined;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
@@ -56,7 +57,7 @@ export function dayProblems(h: Hours, day: string): Array<{ path: Array<string |
   if (open && close && close <= open) {
     out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
-  const iv = h.intervals ?? [];
+  const iv = hours.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
     out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
@@ -80,11 +81,8 @@ export function dayProblems(h: Hours, day: string): Array<{ path: Array<string |
 
 /* ------------------------------------------------------------- the numbers */
 
-/** E.164: a plus, then 7–15 digits, no leading zero. */
-export const E164 = /^\+[1-9]\d{6,14}$/;
-
 /** Whether a value is a number written in E.164, by that pattern. */
-export const isE164 = (s: unknown): s is string => typeof s === "string" && E164.test(s);
+export const isE164 = (text: unknown): text is string => typeof text === "string" && E164.test(text);
 
 /**
  * The most either set of the receptionist's instructions holds: the prompt a
@@ -216,9 +214,9 @@ export type StoredGuardrails = { [K in GuardrailKey]?: boolean | undefined };
  */
 export type GuardrailsInForce = Record<GuardrailKey, boolean>;
 
-export function guardrailsInForce(g: StoredGuardrails | null | undefined): GuardrailsInForce {
+export function guardrailsInForce(storedGuardrails: StoredGuardrails | null | undefined): GuardrailsInForce {
   return {
-    never_quote_prices: g?.never_quote_prices !== false,
+    never_quote_prices: storedGuardrails?.never_quote_prices !== false,
     // Always (the Settings wiring review, 18 Oct 2026): nothing in the product books, so no choice of the owner's lets the
     // receptionist confirm one; what happens instead is the booking choice on Hours & booking. A stored false is read as
     // on, and the key stays in the schema so an older tab's rules save is not refused by name.
@@ -226,6 +224,6 @@ export function guardrailsInForce(g: StoredGuardrails | null | undefined): Guard
     // Always: the receptionist says it is an automated assistant whatever a row stores (decision 0051). The key stays
     // in the schema so an open tab's rules save, which writes all four, is never refused by name.
     disclose_ai: true,
-    no_health_advice: g?.no_health_advice === true,
+    no_health_advice: storedGuardrails?.no_health_advice === true,
   };
 }

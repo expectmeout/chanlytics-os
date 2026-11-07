@@ -106,19 +106,19 @@ export type SignupAskRefusal =
  * address they do not have on their page is not theirs to be asked at: resolve_person fills and never overwrites),
  * then the workspace's mailbox, then the limits.
  */
-export function signupAskRefusal(typed: string, f: SignupAskFacts): SignupAskRefusal | null {
+export function signupAskRefusal(typed: string, signupAskFacts: SignupAskFacts): SignupAskRefusal | null {
   if (looksMadeUp(typed)) return "made_up";
-  const p = f.person;
-  if (!p) return "gone";
-  if (!p.email || p.email !== typed.trim().toLowerCase()) return "not_their_address";
-  if (p.emailOffers === "opted_in") return "already";
-  if (p.stopped) return "stopped";
-  if (p.suppressed) return "suppressed";
-  if (!f.mailbox) return "no_mailbox";
-  if (f.open) return "open";
-  if (f.addressAsks >= SIGNUP_ASK_LIMITS.perAddress) return "address_limit";
-  if (f.workspaceToday >= SIGNUP_ASK_LIMITS.perWorkspaceDay) return "workspace_limit";
-  if (f.failedToday >= SIGNUP_ASK_LIMITS.failedStop) return "failing";
+  const person = signupAskFacts.person;
+  if (!person) return "gone";
+  if (!person.email || person.email !== typed.trim().toLowerCase()) return "not_their_address";
+  if (person.emailOffers === "opted_in") return "already";
+  if (person.stopped) return "stopped";
+  if (person.suppressed) return "suppressed";
+  if (!signupAskFacts.mailbox) return "no_mailbox";
+  if (signupAskFacts.open) return "open";
+  if (signupAskFacts.addressAsks >= SIGNUP_ASK_LIMITS.perAddress) return "address_limit";
+  if (signupAskFacts.workspaceToday >= SIGNUP_ASK_LIMITS.perWorkspaceDay) return "workspace_limit";
+  if (signupAskFacts.failedToday >= SIGNUP_ASK_LIMITS.failedStop) return "failing";
   return null;
 }
 
@@ -160,13 +160,13 @@ export function signupAskLine(outcome: SignupAskRefusal | "asked" | null): strin
 }
 
 /** The confirmation email's words: the business's name and the link, nothing that sells. */
-export function signupConfirmEmail(p: { business: string; link: string }): { subject: string; body: string } {
-  const business = p.business.trim() || "us";
+export function signupConfirmEmail(params: { business: string; link: string }): { subject: string; body: string } {
+  const business = params.business.trim() || "us";
   return {
     subject: `Confirm your sign-up with ${business}`.slice(0, 200),
     body: [
       `You signed up on ${business}'s website for offers and news.`,
-      `To get them by email, confirm here:\n${p.link}`,
+      `To get them by email, confirm here:\n${params.link}`,
       "If this wasn't you, ignore this email. Without your yes, no offers are sent.",
     ].join("\n\n"),
   };
@@ -177,17 +177,17 @@ export function signupConfirmEmail(p: { business: string; link: string }): { sub
  * words on the link, so the email and the page it opens say one thing. The text part (signupConfirmEmail) is what a
  * text-only reader gets.
  */
-export function signupConfirmEmailHtml(p: { business: string; link: string; look: WorkspaceLook }): string {
-  const business = p.business.trim() || "us";
+export function signupConfirmEmailHtml(params: { business: string; link: string; look: WorkspaceLook }): string {
+  const business = params.business.trim() || "us";
   const signedUp = `You signed up on ${business}'s website for offers and news.`;
   return letterHtml({
-    look: { ...p.look, business: p.look.business.trim() || business },
-    subject: signupConfirmEmail(p).subject,
+    look: { ...params.look, business: params.look.business.trim() || business },
+    subject: signupConfirmEmail(params).subject,
     preview: signedUp,
     lines: [signedUp, "If this wasn't you, ignore this email. Without your yes, no offers are sent."],
     button: {
       words: confirmPageWords("ask", { business, address: null }).button ?? "Yes, send me offers",
-      href: p.link,
+      href: params.link,
     },
     foot: [],
   });
@@ -206,10 +206,10 @@ export type ConfirmPageView = "ask" | "done" | "expired" | "address_changed" | "
 /** The page's words for one view: its heading, its lines, and its button where it asks. */
 export function confirmPageWords(
   view: ConfirmPageView,
-  p: { business: string | null; address: string | null },
+  params: { business: string | null; address: string | null },
 ): { title: string; lines: string[]; button: string | null } {
-  const business = p.business?.trim() || "This business";
-  const at = p.address ? maskAddress(p.address) : "your address";
+  const business = params.business?.trim() || "This business";
+  const at = params.address ? maskAddress(params.address) : "your address";
   switch (view) {
     case "ask":
       return {
@@ -291,7 +291,7 @@ interface AskedWho {
  */
 export function signupAskOf(
   messages: readonly HeldMessage[],
-  who: AskedWho,
+  askedWho: AskedWho,
   tz: string,
   nowMs: number,
 ): {
@@ -299,9 +299,9 @@ export function signupAskOf(
   sub: string | null;
   act: SignupAskAct | null;
 } | null {
-  if (who.emailOffers === "opted_in" || who.stopped) return null;
+  if (askedWho.emailOffers === "opted_in" || askedWho.stopped) return null;
   let newest: { m: HeldMessage; at: number } | null = null;
-  let signedUp = who.fromWebsite;
+  let signedUp = askedWho.fromWebsite;
   for (const m of messages) {
     if (!isSignupAsk(m)) continue;
     signedUp = true;
@@ -309,12 +309,12 @@ export function signupAskOf(
     const at = Date.parse(m.created_at);
     if (Number.isFinite(at) && (!newest || at > newest.at)) newest = { m, at };
   }
-  const canAsk = signedUp && !!who.email && !who.suppressed;
+  const canAsk = signedUp && !!askedWho.email && !askedWho.suppressed;
   if (!newest) return canAsk ? { label: null, sub: null, act: "Ask to confirm" } : null;
-  const asked = `asked ${fmtDate(newest.at, tz, nowMs)}`;
+  const text = `asked ${fmtDate(newest.at, tz, nowMs)}`;
   const again = canAsk ? "Ask again" : null;
-  if (newest.m.status === "failed") return { label: "Confirmation not delivered", sub: asked, act: again };
+  if (newest.m.status === "failed") return { label: "Confirmation not delivered", sub: text, act: again };
   const until = newest.at + SIGNUP_CONFIRM_MS;
-  if (nowMs >= until) return { label: "Did not confirm", sub: asked, act: again };
-  return { label: "Asked to confirm", sub: `${asked} · the link works until ${fmtDate(until, tz, nowMs)}`, act: null };
+  if (nowMs >= until) return { label: "Did not confirm", sub: text, act: again };
+  return { label: "Asked to confirm", sub: `${text} · the link works until ${fmtDate(until, tz, nowMs)}`, act: null };
 }

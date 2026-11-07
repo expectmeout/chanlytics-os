@@ -1,5 +1,12 @@
 /** A rehearsal (decision 0069): the free minutes, how it did, and the fix routed to its field. */
 export {
+  EVAL_DOOR,
+  REHEARSAL_AGENT_DOOR,
+  REHEARSAL_CALL_DOOR,
+  REHEARSAL_FIX_DOOR,
+  REHEARSAL_REVIEW_DOOR,
+} from "./edge-doors";
+export {
   checkFixRoute,
   datesIn,
   daysIn,

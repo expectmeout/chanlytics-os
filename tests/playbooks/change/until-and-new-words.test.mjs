@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
+import { campaignsHomeOf } from "../../../apps/dashboard/src/server/campaigns/lifecycle/stages.ts";
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
 const { batchModeOf, LIFECYCLE_WORDS, PLAYBOOK_VETO_DELAY_MS, channelsReady, numberHealth, vetoRunNotice } = C;
@@ -100,7 +101,7 @@ const cmd = (over = {}) => ({
   by: { kind: "system" },
   ...over,
 });
-/** Meta's approved row of the message, as db messageVersionRowsOf answers it. */
+/** Meta's approved row of the message, as db listMessageVersionRows answers it. */
 const approved = (name, language) => [
   {
     id: "tpl-1",
@@ -283,7 +284,7 @@ const card = (over = {}) => ({
 });
 /** The home over these cards, each with its sequence's own mode (GET playbooks' rows, decision 0064). */
 const homeOf = (rows) =>
-  C.campaignsHomeOf({
+  campaignsHomeOf({
     nowMs: HOME_NOW.getTime(),
     tz: TZ,
     playbooks: {

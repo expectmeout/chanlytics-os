@@ -51,9 +51,9 @@ export function parseBrainOutput(raw: string): { ok: true; value: BrainOutput } 
   } catch (e) {
     return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
   }
-  const r = BrainOutputSchema.safeParse(json);
-  if (!r.success)
-    return { ok: false, error: r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
-  if (!r.data.reply.trim()) return { ok: false, error: "empty reply" };
-  return { ok: true, value: r.data };
+  const parsed = BrainOutputSchema.safeParse(json);
+  if (!parsed.success)
+    return { ok: false, error: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
+  if (!parsed.data.reply.trim()) return { ok: false, error: "empty reply" };
+  return { ok: true, value: parsed.data };
 }

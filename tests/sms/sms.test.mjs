@@ -25,16 +25,16 @@ import {
   SMS_HELD_REASON,
   smsInboundUrl,
   twilioSignedString,
-  twilioSignature,
+  signTwilio,
   verifyTwilioSignature,
   sameSignature,
-  normalizeInbound,
   runLineSaga,
   nextLineStep,
   dryProvider,
   twilioProvider,
   twilioUrls,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/lines";
+import { normalizeInbound } from "@chanlytics/channels/whatsapp";
 import { ESCALATION_REASONS, LINE_STEP_WORDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
@@ -151,7 +151,7 @@ test("the signature: Twilio's exact rule, and a tampered field fails", async () 
     "URL, then every field sorted by name with its value appended",
   );
   const expected = crypto.createHmac("sha1", token).update(signed).digest("base64");
-  assert.equal(await twilioSignature(token, url, FORM), expected);
+  assert.equal(await signTwilio(token, url, FORM), expected);
   assert.equal(await verifyTwilioSignature(token, url, FORM, expected), true);
   assert.equal(await verifyTwilioSignature(token, url, { ...FORM, Body: "Are you open Sunday?" }, expected), false);
   assert.equal(
@@ -401,7 +401,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
     "and names the purpose the caller gave it, a reply by default",
   );
   assert.ok(
-    readCode("packages/db/src/repositories/conversations/ingest.ts").includes('channel: p.channel ?? "whatsapp",'),
+    readCode("packages/db/src/repositories/channels/ingest.ts").includes('channel: p.channel ?? "whatsapp",'),
     "an outbound row says its wire",
   );
   const reply = readCode("packages/core/src/conversations/reply.ts");

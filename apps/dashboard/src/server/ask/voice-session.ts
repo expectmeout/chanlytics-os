@@ -13,11 +13,10 @@ import {
   insertVoiceSession,
   moveVoiceSessionContext,
   readVoiceSession as readRow,
-  type Database,
-  type Json,
   type VoiceEndReason,
   type VoiceSessionRow,
-} from "@chanlytics/db";
+} from "@chanlytics/db/ask";
+import { type Database, type Json } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";

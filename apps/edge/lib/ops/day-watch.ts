@@ -14,8 +14,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS, pastTarget, pastTargetPage } from "@chanlytics/contracts";
-import { platformDay, type Database } from "@chanlytics/db";
-import { pageOperator, type PagePorts } from "./page-operator.js";
+import { listPlatformDay } from "@chanlytics/db/console";
+import { type Database } from "@chanlytics/db/types";
+import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
 import { logger } from "../shared/log.js";
 
 /** The page goes out only in the first hours after the rollup: once per day, not once per suppression window. */
@@ -96,7 +97,7 @@ export async function watchTargets(
   const day = rolledDay(nowMs);
   let rows;
   try {
-    rows = await platformDay(db, day);
+    rows = await listPlatformDay(db, day);
   } catch (e) {
     logger({ sweep: "health" }).error("targets_unreadable", { error: e instanceof Error ? e.message : String(e) });
     return 0;

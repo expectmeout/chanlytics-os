@@ -17,7 +17,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { ASK_MEMORY_LIMITS } from "@chanlytics/contracts";
-import { askFirstAnswer } from "@chanlytics/db";
+import { askFirstAnswer } from "@chanlytics/db/ask";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

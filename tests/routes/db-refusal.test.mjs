@@ -18,10 +18,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setBearerVerifier } = await import(at("apps/dashboard/src/server/auth/bearer.ts"));
+const { setBearerVerifier } = await import(at("apps/dashboard/src/server/shared/auth/bearer.ts"));
 const { withRoute, dbRefusal } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const notifications = await import(at("apps/dashboard/app/api/v1/notifications/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -115,7 +115,7 @@ test("REGRESSION: one of the fifteen, whole: marking notifications seen through 
     throw Object.assign(new Error(RAW), { code: "57014" });
   };
   const supabase = fakeDb(tables, {}, { notifications_seen: timeout });
-  setServiceClient(fakeDb(tables));
+  setUnsubscribeServiceClient(fakeDb(tables));
   const seen = () =>
     new Request(`http://localhost/api/v1/notifications?workspace=${A}`, {
       method: "PUT",

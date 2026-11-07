@@ -1,7 +1,7 @@
 import "server-only";
-import { openingsFor, type OpeningsResult } from "../ask/openings";
+import { getOpenings, type OpeningsResult } from "../calendar/openings";
 import { recordBusy } from "../calendar/record-busy";
-import { load, stamp, type Reader } from "./index";
+import { load, readerStamp, type Reader } from "../shared/reader";
 import * as facts from "./facts";
 
 /**
@@ -17,11 +17,11 @@ export const openings: Reader<{ day: string | null; service: string | null }, { 
   async read(rc, { day, service }) {
     const { timezone } = (await load(rc, facts.facts, undefined)).data;
     const settings = (await load(rc, facts.config, undefined)).data;
-    const result = await openingsFor(rc.tenantId, { day, service }, rc.now, {
+    const result = await getOpenings(rc.tenantId, { day, service }, rc.now, {
       timezone,
       config: settings?.config ?? null,
       taken: (daysAhead) => recordBusy(rc.ctx, rc.tenantId, rc.now, daysAhead),
     });
-    return { data: { openings: result }, rows: [], stamp: stamp() };
+    return { data: { openings: result }, rows: [], stamp: readerStamp() };
   },
 };

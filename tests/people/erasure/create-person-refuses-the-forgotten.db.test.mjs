@@ -12,7 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { legacyErasedPhoneHash } from "@chanlytics/contracts";
+import { hashLegacyErasedPhone } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -72,7 +72,7 @@ test(
         tenant_id: tenantId,
         phone_e164: null,
         erased_at: new Date().toISOString(),
-        erased_phone_hash: await legacyErasedPhoneHash(tenantId, phone),
+        erased_phone_hash: await hashLegacyErasedPhone(tenantId, phone),
       })
       .select("id")
       .single();

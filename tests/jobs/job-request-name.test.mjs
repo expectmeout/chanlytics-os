@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { requestId, withRequestId } from "@chanlytics/channels";
+import { requestId, withRequestId } from "@chanlytics/log";
 import { fakeDb } from "../_fake-db.mjs";
 import { dispatchJob } from "../../packages/jobs/src/handlers/handlers.ts";
 import { scheduleJob, scheduleJobOnce } from "../../packages/jobs/src/runner/schedule.ts";

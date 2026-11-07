@@ -5,7 +5,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toReportVM, toCampaignReportVM, reportFacts } from "@chanlytics/contracts";
+import { toReportVM, toCampaignReportVM } from "@chanlytics/contracts";
+import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 
 const day = (d, over = {}) => ({
   day: d,

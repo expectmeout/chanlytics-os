@@ -2,7 +2,7 @@
  * A campaign says where it goes (the spec of 8 October 2026): the channel facts Campaigns' home draws, EXECUTED over the
  * surfaces' own shapes. The head says where the workspace stands on its channels (channels-standing.ts); a moment's card
  * and a line under the rail carry a mark per channel, from the one reading of a playbook's channels that its drawer and
- * its composer read too (playbook-channels.ts playbookChannelsRead); the ladder's "Can get your messages" rung is cut by
+ * its composer read too (playbooks/channels.ts playbookChannelsRead); the ladder's "Can get your messages" rung is cut by
  * channel, each person once, on the channel a send would reach them by (reach-any.ts reachedOn, counted by
  * reachCountsOf); What came back says what each channel sent where more than one did (0030). Every word is one the
  * product already says of a channel.
@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
+import { campaignsHomeOf } from "../../../apps/dashboard/src/server/campaigns/lifecycle/stages.ts";
 
 const WA = { canSend: true, refusal: null };
 const LINE = { sms_state: "active", reg_mock: false };
@@ -202,7 +203,7 @@ const report = (over = {}) => ({
   ...over,
 });
 const home = (over = {}) =>
-  C.campaignsHomeOf({
+  campaignsHomeOf({
     nowMs: NOW,
     tz: ZONE,
     playbooks: playbooks(),

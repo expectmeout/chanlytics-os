@@ -22,7 +22,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 beforeEach(() => readerCache.clear());
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

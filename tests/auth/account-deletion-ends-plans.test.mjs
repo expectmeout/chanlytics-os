@@ -85,7 +85,7 @@ test("an edge that cannot end a plan never fails the deletion, which already hap
 });
 
 test("each workspace the person sat in is told a member left: read before the account goes, said after, on that workspace's ledger, and never who they were", async () => {
-  const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+  const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
   setRateStore(memoryStore());
   const seats = [
     { id: "m1", user_id: "u1", tenant_id: A, role: "operator" },
@@ -106,7 +106,7 @@ test("each workspace the person sat in is told a member left: read before the ac
   );
   supabase.auth = { signOut: async () => ({ error: null }) };
   const ledger = { events: [] };
-  setServiceClient(fakeDb(ledger));
+  setUnsubscribeServiceClient(fakeDb(ledger));
   try {
     const out = await me.DELETE.run(new Request("http://localhost/api/v1/me", { method: "DELETE" }), {
       supabase,
@@ -116,7 +116,7 @@ test("each workspace the person sat in is told a member left: read before the ac
     });
     assert.deepEqual(out, { deleted: true, workspaces_left_empty: 0 });
   } finally {
-    setServiceClient(null);
+    setUnsubscribeServiceClient(null);
   }
   assert.deepEqual(
     ledger.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.data]),

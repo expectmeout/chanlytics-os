@@ -1,7 +1,7 @@
 /**
  * Who listened to a call's recording is on the ledger (00277 recording_opened), on a real Postgres with real sessions.
  *
- * A recording is a customer's voice. The route that signs it (GET calls/:id/recording, media.ts recordingOpened) asks
+ * A recording is a customer's voice. The route that signs it (GET calls/:id/recording, media.ts recordOpeningOfRecording) asks
  * this function first; it writes an `open_recording` decision as the member, once per member per call per hour, since
  * the thread's player asks again at every seek. Any member of the call's workspace may listen (an owner, an operator
  * and a viewer alike), and a viewer may not write decisions under RLS, so the function is the definer's and checks

@@ -38,7 +38,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const versions = await import(at("apps/dashboard/app/api/v1/templates/versions/route.ts"));
 const version = await import(at("apps/dashboard/app/api/v1/templates/versions/[id]/route.ts"));
 const starter = await import(at("apps/dashboard/app/api/v1/templates/starter/route.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -174,7 +174,7 @@ function world(tables) {
       return { id: row.id, channel: row.channel, name: row.name, language: row.language };
     },
   };
-  setServiceClient(fakeDb(tables, {}, { create_message_version: rpcs.create_message_version }));
+  setUnsubscribeServiceClient(fakeDb(tables, {}, { create_message_version: rpcs.create_message_version }));
   const ctx = (params = {}) => ({
     supabase: fakeDb(
       tables,

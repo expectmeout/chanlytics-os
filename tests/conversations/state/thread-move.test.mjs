@@ -9,9 +9,9 @@ import {
   stateOf,
   threadMoveNow,
   threadMoveOf,
-  toConversationVM,
   toInboxThreadVM,
 } from "@chanlytics/contracts";
+import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 
 const NOW = Date.parse("2026-11-05T20:00:00Z");
 const MIN = 60_000;

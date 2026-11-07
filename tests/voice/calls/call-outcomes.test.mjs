@@ -17,9 +17,9 @@ import {
   callOutcomeWords,
   tidyCallSummary,
   toCallVM,
-  attentionRow,
   toPersonRowVM,
 } from "@chanlytics/contracts";
+import { attentionRow } from "../../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 import {
   normalizeCall,
   callSummaryLine,
@@ -30,7 +30,7 @@ import {
   CALL_FEEL,
   CALL_HANDBOOK,
   CALL_LIMITS,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import { readCode, readRaw } from "../../_source.mjs";
 import { toCallDto } from "../../../apps/dashboard/src/server/conversations/dto.ts";
 

@@ -8,13 +8,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  NEW_CONVERSATION_WORDS as W,
-  PLAN_NOTE_MAX,
-  channelsReady,
-  inboxTemplates,
-  writeReachOf,
-} from "@chanlytics/contracts";
+import { NEW_CONVERSATION_WORDS as W, PLAN_NOTE_MAX, channelsReady, inboxTemplates } from "@chanlytics/contracts";
+import { writeReachOf } from "../../apps/dashboard/src/server/new-conversation/write-reach.ts";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../_stub-react.mjs";
 
 installStubReact({ __DEMO_MODE: false });

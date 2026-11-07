@@ -59,14 +59,14 @@ type ThreadClockWords = Pick<InboxThreadVM, "lastAt" | "lastAtFull" | "waitingMi
  * moments the thread keeps: a refresh painted the tab's cached words, "9:00 AM" on yesterday's thread and "waiting 2h" on
  * a wait of 22, until the read landed a beat later and moved the rows (Ruben, 21 Oct 2026).
  */
-export function inboxThreadClock(t: ThreadMoments, tz: string, nowMs: number): ThreadClockWords {
-  const lastAt = t.lastAtMs > 0 ? clockShort(t.lastAtMs, tz, nowMs) : "";
+export function inboxThreadClock(threadMoments: ThreadMoments, tz: string, nowMs: number): ThreadClockWords {
+  const lastAt = threadMoments.lastAtMs > 0 ? clockShort(threadMoments.lastAtMs, tz, nowMs) : "";
   const words: ThreadClockWords = { lastAt, lastAtFull: lastAt };
-  if (t.escalatedAtMs !== undefined) {
+  if (threadMoments.escalatedAtMs !== undefined) {
     // A minute at the least: a hold opened this minute has waited, where "0m" would say it has not.
-    words.waitingMin = Math.max(1, Math.round((nowMs - t.escalatedAtMs) / MIN_MS));
+    words.waitingMin = Math.max(1, Math.round((nowMs - threadMoments.escalatedAtMs) / MIN_MS));
     if (words.waitingMin) words.waited = formatWaited(words.waitingMin * MIN_MS);
   }
-  if (t.wakeAtMs !== undefined) words.wake = clockShort(t.wakeAtMs, tz, nowMs);
+  if (threadMoments.wakeAtMs !== undefined) words.wake = clockShort(threadMoments.wakeAtMs, tz, nowMs);
   return words;
 }

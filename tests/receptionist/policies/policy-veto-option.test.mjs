@@ -33,7 +33,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const policies = await import(at("apps/dashboard/app/api/v1/policies/route.ts"));
 const { uiRows, installPolicyStore, UI_ROWS } = await import(at("apps/dashboard/src/bridge/policy-store.ts"));
 beforeEach(() => setRateStore(memoryStore()));
@@ -111,7 +111,7 @@ test("the route takes a mode where the rule offers it and refuses it, in the rul
       // Thirty-six changes in a row would meet the settings rate, which is not the rule under test.
       setRateStore(memoryStore());
       const t = tables();
-      setServiceClient(fakeDb(t, {}, {}));
+      setUnsubscribeServiceClient(fakeDb(t, {}, {}));
       if (policyModeOffered(cls, mode)) {
         const r = await put(t, { class: cls, mode });
         assert.equal(r.policy.mode, mode, `${cls} ${mode}`);
@@ -121,12 +121,12 @@ test("the route takes a mode where the rule offers it and refuses it, in the rul
         assert.equal(t.policies.find((p) => p.class === cls).mode, cls === "money" ? "never" : "ask", "nothing moved");
       }
     }
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });
 
 test("Re-engage and Standing offers can hold a run for thirty minutes: set, stored, and recorded in the ledger", async () => {
   const t = tables();
-  setServiceClient(fakeDb(t, {}, {}));
+  setUnsubscribeServiceClient(fakeDb(t, {}, {}));
   try {
     for (const cls of ["reengage", "campaign"]) {
       const r = await put(t, { class: cls, mode: "veto" });
@@ -140,13 +140,13 @@ test("Re-engage and Standing offers can hold a run for thirty minutes: set, stor
       ],
     );
   } finally {
-    setServiceClient(null);
+    setUnsubscribeServiceClient(null);
   }
 });
 
 test("the reply's own dials stay the reply's: a delay on a playbook row is refused, the mode it keeps untouched", async () => {
   const t = tables();
-  setServiceClient(fakeDb(t, {}, {}));
+  setUnsubscribeServiceClient(fakeDb(t, {}, {}));
   try {
     await refusedWith(
       put(t, { class: "reengage", reply_delay_ms: 60_000 }),
@@ -162,7 +162,7 @@ test("the reply's own dials stay the reply's: a delay on a playbook row is refus
     const r = await put(t, { class: "reply", reply_delay_ms: 60_000 });
     assert.deepEqual([r.policy.mode, r.policy.limits], ["ask", { max_replies_day: 20, reply_delay_ms: 60_000 }]);
   } finally {
-    setServiceClient(null);
+    setUnsubscribeServiceClient(null);
   }
   // The bounds the route checks are the ones the reader clamps to: two ranges would mean a value the runtime changes.
   assert.equal(REPLY_DELAY_MIN_MS, 5_000);

@@ -3,11 +3,11 @@
  * never-again list and a reply's reading, with the rows they name (reach_out_replies is typed here; lead_suppressions
  * and reach_out_sends are read here). Groups, top to bottom:
  *
- *   the send door's facts   outreachFactsOf (outreach_mailbox_facts): the lead's stage, whether the address is
+ *   the send door's facts   getOutreachFacts (outreach_mailbox_facts): the lead's stage, whether the address is
  *                           suppressed, whether the person wrote back, an out-of-office or a stop in force, and the
  *                           connected mailbox the From is, with its day (00424), in one answer. core's deliver() asks it for a reach-out email
  *                           alone, on the service role.
- *   the never-again list    addressesSuppressed (lead_addresses_suppressed): an address's own row, or its business's
+ *   the never-again list    getAddressesSuppressed (lead_addresses_suppressed): an address's own row, or its business's
  *                           own domain after a no. The finder (apps/edge/lib/leads/lead-db.ts) asks it through this
  *                           function; the door's facts and the audience ask the same predicate in SQL.
  *   a reply and its         reachOutReplyOf says whose reply a received email is (the email intake job asks it to
@@ -22,24 +22,25 @@
  *   what a member sees      repliesFor, replyReadingRefOf, replyUndoableOf and undoReplyReading, on the member's own
  *                           client (RLS decides), for apps/dashboard/src/server/campaigns/reach-out-replies.ts and
  *                           apps/dashboard/src/server/shared/verbs.ts.
- *   the day's numbers       reachOutDayDue: the workspaces whose 6 PM it is, asked by the edge's hourly playbooks sweep
+ *   the day's numbers       listReachOutDayDue: the workspaces whose 6 PM it is, asked by the edge's hourly playbooks sweep
  *                           (apps/edge/lib/campaigns/reach-out/day-numbers.ts).
  *
  * Two rules hold throughout. A read or door that fails throws: "could not check" is neither yes nor no, and a reply
  * taken for nobody's is a no that is never read. And the edge may deploy before the database, so a newer door's absence
- * reads as it did before: addressesSuppressed falls back to the address's own row when lead_addresses_suppressed is
+ * reads as it did before: getAddressesSuppressed falls back to the address's own row when lead_addresses_suppressed is
  * missing (00220), reachOutReplyOf answers null when reach_out_reply_of is (00222), the lead argument is sent only when
  * there is a lead (a database before 00184 knows five arguments), and away and stopped read false where the facts lack
  * them (00226, 00241). A database that does not say whether the person wrote back (00181) is a failed read, not a
  * never: a business that asked to be left alone would be written to cold.
  *
- * Cross-workspace: only reachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
+ * Cross-workspace: only listReachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conversationPatch, type SchemaSet } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../database.types";
-import { mailboxCapacityFrom, type MailboxCapacity } from "../../email/day";
-import { erasureDigests } from "../../people/people";
+import { mailboxCapacityFrom, type MailboxCapacity } from "./email-day";
+import { getErasureDigests } from "../../people/pages";
+import { isMissingFunction } from "../../../shared/missing-door";
 
 type Db = SupabaseClient<Database>;
 
@@ -64,9 +65,9 @@ export interface OutreachFactsRow {
   mailbox: ({ id: string; address: string } & MailboxCapacity) | null;
 }
 
-export async function outreachFactsOf(
+export async function getOutreachFacts(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     contactId: string;
     to: string;
@@ -77,36 +78,38 @@ export async function outreachFactsOf(
   },
 ): Promise<OutreachFactsRow> {
   const { data, error } = await db.rpc("outreach_mailbox_facts", {
-    p_tenant_id: p.tenantId,
-    p_contact_id: p.contactId,
-    p_to: p.to,
-    p_from: p.from,
-    ...(p.leadId ? { p_lead_id: p.leadId } : {}),
+    p_tenant_id: params.tenantId,
+    p_contact_id: params.contactId,
+    p_to: params.to,
+    p_from: params.from,
+    ...(params.leadId ? { p_lead_id: params.leadId } : {}),
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
-  const f = (data ?? {}) as Partial<OutreachFactsRow>;
+  const outreachFacts = (data ?? {}) as Partial<OutreachFactsRow>;
   // A database without 00181 answers without it. Read as "never wrote", a business that asked to be left alone would be
   // written to cold: not knowing is a failed read.
-  if (typeof f.wrote_back !== "boolean")
+  if (typeof outreachFacts.wrote_back !== "boolean")
     throw new Error("cannot read the outreach facts: the database did not say whether this person wrote back");
   return {
-    lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
-    suppressed: f.suppressed === true,
-    wrote_back: f.wrote_back,
+    lead_stage: typeof outreachFacts.lead_stage === "string" ? outreachFacts.lead_stage : null,
+    suppressed: outreachFacts.suppressed === true,
+    wrote_back: outreachFacts.wrote_back,
     // Absent before 00226: not away, as it was.
-    away: f.away === true,
+    away: outreachFacts.away === true,
     // Absent before 00241: not stopped. The stop still holds without it: its planned and held sends are skipped, and
     // the followers leave the lead out, both in SQL.
-    stopped: f.stopped === true,
+    stopped: outreachFacts.stopped === true,
     mailbox:
-      f.mailbox && typeof f.mailbox === "object" && typeof (f.mailbox as { id?: unknown }).id === "string"
+      outreachFacts.mailbox &&
+      typeof outreachFacts.mailbox === "object" &&
+      typeof (outreachFacts.mailbox as { id?: unknown }).id === "string"
         ? {
-            id: (f.mailbox as { id: string }).id,
+            id: (outreachFacts.mailbox as { id: string }).id,
             address:
-              typeof (f.mailbox as { address?: unknown }).address === "string"
-                ? (f.mailbox as { address: string }).address
+              typeof (outreachFacts.mailbox as { address?: unknown }).address === "string"
+                ? (outreachFacts.mailbox as { address: string }).address
                 : "",
-            ...mailboxCapacityFrom(f.mailbox),
+            ...mailboxCapacityFrom(outreachFacts.mailbox),
           }
         : null,
   };
@@ -122,21 +125,18 @@ export async function outreachFactsOf(
  * read as the finder read it before (the keyed digest 00140's lead_suppression_hash writes), so the edge may deploy
  * first.
  */
-export async function addressesSuppressed(db: Db, tenantId: string, addresses: string[]): Promise<Set<string>> {
-  const asked = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter((a) => a !== ""))];
-  if (!asked.length) return new Set();
-  const { data, error } = await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenantId, p_addresses: asked });
-  if (error && missingDoor(error)) return addressesHeldBefore00220(db, tenantId, asked);
+export async function getAddressesSuppressed(db: Db, tenantId: string, addresses: string[]): Promise<Set<string>> {
+  const items = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter((a) => a !== ""))];
+  if (!items.length) return new Set();
+  const { data, error } = await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenantId, p_addresses: items });
+  if (error && isMissingFunction(error)) return addressesHeldBefore00220(db, tenantId, items);
   if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
   return new Set((data ?? []).filter((a): a is string => typeof a === "string"));
 }
 
-const missingDoor = (e: { code?: string | null; message: string }): boolean =>
-  e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
-
 /** The list as a database before 00220 holds it for addresses: each one's own email row. */
-async function addressesHeldBefore00220(db: Db, tenantId: string, asked: string[]): Promise<Set<string>> {
-  const byHash = new Map([...(await erasureDigests(db, tenantId, asked))].map(([a, h]) => [h, a]));
+async function addressesHeldBefore00220(db: Db, tenantId: string, texts: string[]): Promise<Set<string>> {
+  const byHash = new Map([...(await getErasureDigests(db, tenantId, texts))].map(([a, h]) => [h, a]));
   const { data, error } = await db
     .from("lead_suppressions")
     .select("hash")
@@ -195,47 +195,47 @@ const textOf = (v: unknown): string | null => (typeof v === "string" && v !== ""
  * A database before 00222 has no such door, and no reading either: there a reply is nobody's, exactly as before, so
  * the edge may deploy first.
  */
-export async function reachOutReplyOf(
+export async function findReachOutReply(
   db: Db,
-  p: { tenantId: string; messageId: string; days: number },
+  params: { tenantId: string; messageId: string; days: number },
 ): Promise<ReachOutReplyOf | null> {
   const { data, error } = await db.rpc("reach_out_reply_of", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_days: p.days,
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_days: params.days,
   });
-  if (error && missingDoor(error)) return null;
+  if (error && isMissingFunction(error)) return null;
   if (error) throw new Error(`cannot read whose reply this is: ${error.message}`);
-  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
-  const sendId = textOf(o?.send_id);
-  const leadId = textOf(o?.lead_id);
-  const conversationId = textOf(o?.conversation_id);
-  const receivedAt = textOf(o?.received_at);
-  if (!o || !sendId || !leadId || !conversationId || !receivedAt) return null;
-  const claim = o.claim === "auto_reply" || o.claim === "automated" ? o.claim : "person";
+  const value = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  const sendId = textOf(value?.send_id);
+  const leadId = textOf(value?.lead_id);
+  const conversationId = textOf(value?.conversation_id);
+  const receivedAt = textOf(value?.received_at);
+  if (!value || !sendId || !leadId || !conversationId || !receivedAt) return null;
+  const claim = value.claim === "auto_reply" || value.claim === "automated" ? value.claim : "person";
   return {
     send_id: sendId,
     lead_id: leadId,
-    lead_contact_id: textOf(o.lead_contact_id),
-    lead_email: textOf(o.lead_email),
-    lead_website: textOf(o.lead_website),
-    lead_website_root: typeof o.lead_website_root === "boolean" ? o.lead_website_root : null,
-    answered_message_id: textOf(o.answered_message_id),
-    answered_text: textOf(o.answered_text),
-    business: textOf(o.business) ?? "",
-    chain: textOf(o.chain),
-    signed_by: textOf(o.signed_by),
-    tz: textOf(o.tz),
+    lead_contact_id: textOf(value.lead_contact_id),
+    lead_email: textOf(value.lead_email),
+    lead_website: textOf(value.lead_website),
+    lead_website_root: typeof value.lead_website_root === "boolean" ? value.lead_website_root : null,
+    answered_message_id: textOf(value.answered_message_id),
+    answered_text: textOf(value.answered_text),
+    business: textOf(value.business) ?? "",
+    chain: textOf(value.chain),
+    signed_by: textOf(value.signed_by),
+    tz: textOf(value.tz),
     conversation_id: conversationId,
-    contact_id: textOf(o.contact_id),
+    contact_id: textOf(value.contact_id),
     claim,
-    from: textOf(o.from),
-    subject: textOf(o.subject),
-    text: textOf(o.text),
+    from: textOf(value.from),
+    subject: textOf(value.subject),
+    text: textOf(value.text),
     received_at: receivedAt,
-    cited: o.cited === true,
-    from_name: textOf(o.from_name),
-    not_names: [textOf(o.workspace), ...(Array.isArray(o.team) ? o.team.map(textOf) : [])].filter(
+    cited: value.cited === true,
+    from_name: textOf(value.from_name),
+    not_names: [textOf(value.workspace), ...(Array.isArray(value.team) ? value.team.map(textOf) : [])].filter(
       (x): x is string => !!x,
     ),
   };
@@ -263,15 +263,15 @@ export interface ReplyReadingRow {
 /** The reading kept for this message, if any. A read that fails throws. */
 export async function replyReadingOf(
   db: Db,
-  p: { tenantId: string; messageId: string },
+  params: { tenantId: string; messageId: string },
 ): Promise<ReplyReadingRow | null> {
   const { data, error } = await db
     .from("sequence_replies")
     .select(
       "intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why, signer_name, signer_state",
     )
-    .eq("tenant_id", p.tenantId)
-    .eq("message_id", p.messageId)
+    .eq("tenant_id", params.tenantId)
+    .eq("message_id", params.messageId)
     .maybeSingle();
   if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
   return data ?? null;
@@ -283,7 +283,7 @@ export async function replyReadingOf(
  */
 export async function markReplyDraft(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     messageId: string;
     state: "waiting" | "written" | "not_written";
@@ -293,22 +293,22 @@ export async function markReplyDraft(
 ): Promise<boolean> {
   // The door takes a null draft and a null why (its own left(), case); the generated Args say string for both.
   const { data, error } = await db.rpc("reach_out_reply_draft", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_state: p.state,
-    p_draft: p.draft,
-    p_why: p.why,
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_state: params.state,
+    p_draft: params.draft,
+    p_why: params.why,
   } as never);
   if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
   return data === true;
 }
 
 /** One read of the workspace's UTC day, taken if it is under `cap` (00222 reach_out_read_take): true when taken. */
-export async function takeReplyRead(db: Db, p: { tenantId: string; cap: number; at: Date }): Promise<boolean> {
+export async function takeReplyRead(db: Db, params: { tenantId: string; cap: number; at: Date }): Promise<boolean> {
   const { data, error } = await db.rpc("reach_out_read_take", {
-    p_tenant_id: p.tenantId,
-    p_cap: p.cap,
-    p_at: p.at.toISOString(),
+    p_tenant_id: params.tenantId,
+    p_cap: params.cap,
+    p_at: params.at.toISOString(),
   });
   if (error) throw new Error(`cannot take the day's read: ${error.message}`);
   return data === true;
@@ -320,19 +320,19 @@ export async function takeReplyRead(db: Db, p: { tenantId: string; cap: number; 
  */
 export async function applyReplyReading(
   db: Db,
-  p: { tenantId: string; messageId: string; reading: Json; plan: Json; reread: number; days: number },
+  params: { tenantId: string; messageId: string; reading: Json; plan: Json; reread: number; days: number },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("reach_out_reply_apply", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_reading: p.reading,
-    p_plan: p.plan,
-    p_reread: p.reread,
-    p_days: p.days,
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_reading: params.reading,
+    p_plan: params.plan,
+    p_reread: params.reread,
+    p_days: params.days,
   });
   if (error) throw new Error(`cannot apply the reply's reading: ${error.message}`);
-  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
-  return o.applied === true;
+  const value = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  return value.applied === true;
 }
 
 /**
@@ -341,12 +341,12 @@ export async function applyReplyReading(
  */
 export async function claimReplyTell(
   db: Db,
-  p: { tenantId: string; messageId: string; staleBefore: Date },
+  params: { tenantId: string; messageId: string; staleBefore: Date },
 ): Promise<string | null> {
   const { data, error } = await db.rpc("reach_out_reply_tell_claim", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_stale_before: p.staleBefore.toISOString(),
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_stale_before: params.staleBefore.toISOString(),
   });
   if (error) throw new Error(`cannot claim the reply's notice: ${error.message}`);
   return typeof data === "string" && data !== "" ? data : null;
@@ -356,11 +356,14 @@ export async function claimReplyTell(
  * The notice's second phase: marked told, only once the owner was told and only while `claim` still holds it (a re-read
  * that made the reading due a notice again took it back). A write that fails throws.
  */
-export async function markReplyTold(db: Db, p: { tenantId: string; messageId: string; claim: string }): Promise<void> {
+export async function markReplyTold(
+  db: Db,
+  params: { tenantId: string; messageId: string; claim: string },
+): Promise<void> {
   const { error } = await db.rpc("reach_out_reply_told", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_claimed_at: p.claim,
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_claimed_at: params.claim,
   });
   if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
 }
@@ -377,14 +380,14 @@ export async function markReplyTold(db: Db, p: { tenantId: string; messageId: st
  */
 export async function resolveEscalationByReason(
   db: Db,
-  p: { tenantId: string; conversationId: string; reason: SchemaSet<"escalations.reason"> },
+  params: { tenantId: string; conversationId: string; reason: SchemaSet<"escalations.reason"> },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("escalations")
     .update({ state: "resolved" })
-    .eq("tenant_id", p.tenantId)
-    .eq("conversation_id", p.conversationId)
-    .eq("reason", p.reason)
+    .eq("tenant_id", params.tenantId)
+    .eq("conversation_id", params.conversationId)
+    .eq("reason", params.reason)
     .eq("state", "open")
     .select("id");
   if (error) throw new Error(`cannot resolve the thread's flag: ${error.message}`);
@@ -396,12 +399,15 @@ export async function resolveEscalationByReason(
  * cleared), on a thread not archived already, so a second call changes nothing and says so. Their next message
  * reopens it (ingest's reopen move). Counted as above; a write that fails throws.
  */
-export async function archiveConversation(db: Db, p: { tenantId: string; conversationId: string }): Promise<boolean> {
+export async function archiveConversation(
+  db: Db,
+  params: { tenantId: string; conversationId: string },
+): Promise<boolean> {
   const { data, error } = await db
     .from("conversations")
     .update(conversationPatch("archive"))
-    .eq("tenant_id", p.tenantId)
-    .eq("id", p.conversationId)
+    .eq("tenant_id", params.tenantId)
+    .eq("id", params.conversationId)
     .neq("state", "archived")
     .select("id");
   if (error) throw new Error(`cannot archive the thread: ${error.message}`);
@@ -440,25 +446,29 @@ const REPLY_LIST_COLUMNS =
  * A workspace's readings since a moment, newest first and at most `limit`, on the caller's client (RLS decides): with
  * the business each answers and the step its reach-out email was, read in one batch each.
  */
-export async function repliesFor(
+export async function listRepliesFor(
   db: Db,
-  p: { tenantId: string; since: string; conversationId?: string | null; limit: number },
+  params: { tenantId: string; since: string; conversationId?: string | null; limit: number },
 ): Promise<ReplyListRow[]> {
-  let q = db.from("sequence_replies").select(REPLY_LIST_COLUMNS).eq("tenant_id", p.tenantId).gte("read_at", p.since);
-  if (p.conversationId) q = q.eq("conversation_id", p.conversationId);
-  const { data, error } = await q.order("read_at", { ascending: false }).limit(p.limit);
+  let query = db
+    .from("sequence_replies")
+    .select(REPLY_LIST_COLUMNS)
+    .eq("tenant_id", params.tenantId)
+    .gte("read_at", params.since);
+  if (params.conversationId) query = query.eq("conversation_id", params.conversationId);
+  const { data, error } = await query.order("read_at", { ascending: false }).limit(params.limit);
   if (error) throw new Error(`cannot read the replies: ${error.message}`);
   const rows = data ?? [];
   const ids = (k: "lead_id" | "send_id") => [...new Set(rows.map((r) => r[k]).filter((v): v is string => !!v))];
   const [leads, sends] = await Promise.all([
     ids("lead_id").length
-      ? db.from("leads").select("id, business_name").eq("tenant_id", p.tenantId).in("id", ids("lead_id"))
+      ? db.from("leads").select("id, business_name").eq("tenant_id", params.tenantId).in("id", ids("lead_id"))
       : Promise.resolve({ data: [], error: null }),
     ids("send_id").length
       ? db
           .from("sequence_sends")
           .select("id, playbook_id:step_id, root_id:sequence_id")
-          .eq("tenant_id", p.tenantId)
+          .eq("tenant_id", params.tenantId)
           .in("id", ids("send_id"))
       : Promise.resolve({ data: [], error: null }),
   ]);
@@ -511,15 +521,15 @@ export interface ReachOutDayDue {
  * The workspaces with a reach-out whose local hour at `now` is 18, not told that day, with a number above zero, at most
  * `limit` (Reach out Part 6, H12). The service role asks it, from the hourly playbooks sweep; a read that fails throws.
  */
-export async function reachOutDayDue(db: Db, now: Date, limit: number): Promise<ReachOutDayDue[]> {
+export async function listReachOutDayDue(db: Db, now: Date, limit: number): Promise<ReachOutDayDue[]> {
   const { data, error } = await db.rpc("reach_out_day_due", { p_now: now.toISOString(), p_limit: limit });
   if (error) throw new Error(`cannot read the day's reach-out numbers: ${error.message}`);
-  return (data ?? []).map((r) => {
-    const n = (r.numbers && typeof r.numbers === "object" ? r.numbers : {}) as Record<string, unknown>;
-    const num = (k: string) => Number(n[k] ?? 0) || 0;
+  return (data ?? []).map((row) => {
+    const count = (row.numbers && typeof row.numbers === "object" ? row.numbers : {}) as Record<string, unknown>;
+    const num = (k: string) => Number(count[k] ?? 0) || 0;
     return {
-      tenant_id: r.tenant_id,
-      day: r.day,
+      tenant_id: row.tenant_id,
+      day: row.day,
       numbers: {
         written: num("written"),
         wrote_back: num("wrote_back"),

@@ -15,7 +15,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { createPageSpeed, waitOf, readKeyOf, notACustomer } =
   await import("../../../apps/dashboard/src/client/page-speed-rules.ts");
 const { reportOf, detailOf } = await import("../../../apps/dashboard/src/client/field-data-reporter.ts");
-const { platformSpeed } = await import("../../../apps/dashboard/src/server/console/vitals.ts");
+const { findPlatformSpeed } = await import("../../../apps/dashboard/src/server/console/vitals.ts");
 
 /** The rules over a clock set by hand and frames painted when the test says: each report, and each measure's name. */
 function speedRig(waits = () => undefined) {
@@ -400,7 +400,7 @@ test("the back office reads where the time goes and the elements together; unrea
   const spot = { metric: "INP", page: "inbox", el: "inbox-approve", samples: 12, p75: 340, phase: "processing" };
   const asked = [];
   const office = (rpcs) => ({ db: fakeDb({}, {}, rpcs), session: null });
-  const read = await platformSpeed(
+  const read = await findPlatformSpeed(
     office({
       page_speed: (args) => (
         asked.push(["page_speed", args]),
@@ -435,12 +435,12 @@ test("the back office reads where the time goes and the elements together; unrea
   const refuse = (code) => () => {
     throw Object.assign(new Error(code), { code });
   };
-  assert.equal(await platformSpeed(office({ page_speed: refuse("57014"), page_spots: () => [] })), null);
-  assert.deepEqual(await platformSpeed(office({ page_speed: refuse("PGRST202"), page_spots: () => [] })), {
+  assert.equal(await findPlatformSpeed(office({ page_speed: refuse("57014"), page_spots: () => [] })), null);
+  assert.deepEqual(await findPlatformSpeed(office({ page_speed: refuse("PGRST202"), page_spots: () => [] })), {
     rows: [],
     spots: [],
   });
-  assert.equal(await platformSpeed(office({})), null, "a call that throws before it answers is unread too");
+  assert.equal(await findPlatformSpeed(office({})), null, "a call that throws before it answers is unread too");
 });
 
 test("the card: each page by its moves and loads, slowest first; the parts drawn last; the taps that waited longest", () => {

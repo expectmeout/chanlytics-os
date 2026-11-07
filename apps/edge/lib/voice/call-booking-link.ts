@@ -38,17 +38,17 @@
  */
 import { json } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
-import { isRehearsalCall, rehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
+import { isRehearsalCall, findRehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
 import { loadTenantRuntime, waCfgFor } from "../shared/tenant-runtime.js";
 import { effectiveReplyMode, deliver, whatsappSender, type Delivered } from "@chanlytics/core";
 import {
   linkSentOnCall,
-  messageByExternalId,
+  findMessageByExternalId,
   resolveChannelDetailed,
   resolveOutboundTarget,
-  personReplyMode,
-  templatesToSend,
-} from "@chanlytics/db";
+} from "@chanlytics/db/channels";
+import { findPersonReplyMode } from "@chanlytics/db/workspace";
+import { listTemplatesToSend } from "@chanlytics/db/campaigns";
 import {
   bookingHeld,
   bookingTemplate,
@@ -64,12 +64,12 @@ import {
   SECOND_MS,
 } from "@chanlytics/contracts";
 import { refusalScript } from "@chanlytics/core";
-import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./door-auth.js";
+import { refusedOutLoud, keepKnock, voiceDoorAuth } from "../shared/door-auth.js";
 import {
-  gateOnTheCall,
+  runGateOnTheCall,
   linkByText,
   onTheCall,
-  refusedOnTheCall,
+  refuseOnTheCall,
   saidOfTheWire,
   VOICE_SEND_SOURCE,
   type LinkLeg,
@@ -131,7 +131,7 @@ async function sendReceiptOf(db: Db, tenantId: string, wamid: string): Promise<R
   const until = Date.now() + RECEIPT_WAIT_MS;
   while (Date.now() < until) {
     await new Promise((r) => setTimeout(r, RECEIPT_LOOK_MS));
-    const m = await messageByExternalId(db, tenantId, wamid).catch(() => null);
+    const m = await findMessageByExternalId(db, tenantId, wamid).catch(() => null);
     if (m?.status === "failed") return "failed";
     if (m?.status === "delivered" || m?.status === "read") return "delivered";
   }
@@ -215,18 +215,18 @@ function toolCallOf(raw: string): {
  */
 async function rehearsalBookingLink(
   call: { call_id?: string; call_type?: string },
-  L: ReturnType<typeof logger>,
+  log: ReturnType<typeof logger>,
 ): Promise<Response> {
   const db = pg();
-  const r = db ? await rehearsalOfToolCall(db, call) : null;
-  if (!db || !r) {
-    L.info("retell_fn_rehearsal", { shown: false });
+  const row = db ? await findRehearsalOfToolCall(db, call) : null;
+  if (!db || !row) {
+    log.info("retell_fn_rehearsal", { shown: false });
     return json(200, { result: CANNOT_SEND });
   }
-  const rt = await loadTenantRuntime(db, rehearsalRouting(r.tenant_id));
+  const rt = await loadTenantRuntime(db, rehearsalRouting(row.tenant_id));
   if (!rt.brain) return json(200, { result: CANNOT_SEND });
   if (!offersBookingLink(rt.brain)) return json(200, { result: NO_LINK });
-  L.info("retell_fn_rehearsal", { tenant_id: r.tenant_id, shown: true });
+  log.info("retell_fn_rehearsal", { tenant_id: row.tenant_id, shown: true });
   return json(200, { result: REHEARSAL_TOOL_WORDS.bookingLink });
 }
 
@@ -241,7 +241,7 @@ async function withoutWhatsapp(leg: LinkLeg, after: "caller_asked" | "no_templat
   // Unless it holds its bookings. Under the hold the link would not go whichever template there was, so the hold is
   // the reason given, and recorded as the gate records it. Answered first, the missing template told a caller of a
   // workspace holding its bookings that they "can book online", the one thing the workspace chose not to have said.
-  if (leg.held) return refusedOnTheCall(leg.db, leg.L, "booking_needs_a_person", leg.at, "whatsapp");
+  if (leg.held) return refuseOnTheCall(leg.db, leg.L, "booking_needs_a_person", leg.at, "whatsapp");
   if (after === "caller_asked") {
     leg.L.info("retell_fn_no_texting_line", { tenant_id: leg.at.tenantId });
     return json(200, { result: NO_TEXT_LINE });
@@ -258,7 +258,7 @@ async function withoutWhatsapp(leg: LinkLeg, after: "caller_asked" | "no_templat
  */
 async function byWhatsapp(
   leg: LinkLeg,
-  booking: Awaited<ReturnType<typeof templatesToSend>>[number],
+  booking: Awaited<ReturnType<typeof listTemplatesToSend>>[number],
   wa: ReturnType<typeof waCfgFor>,
 ): Promise<Response> {
   const { db, L, at } = leg;
@@ -267,8 +267,8 @@ async function byWhatsapp(
   // promotion and the offers answer is required -- which is the safe way to
   // be wrong about somebody else's label.
   const purpose = purposeOfTemplate(booking.category);
-  const gate = await gateOnTheCall(leg, "whatsapp", purpose);
-  if (!gate.allowed) return refusedOnTheCall(db, L, gate.refusal ?? "policy_hold", at, "whatsapp");
+  const gate = await runGateOnTheCall(leg, "whatsapp", purpose);
+  if (!gate.allowed) return refuseOnTheCall(db, L, gate.refusal ?? "policy_hold", at, "whatsapp");
 
   // The template's OWN slots, filled from the workspace's facts the way the
   // Inbox and broadcasts fill them (I6): the business's name and its booking
@@ -354,7 +354,7 @@ async function alreadySentOnThisCall(leg: LinkLeg, callId: string | undefined): 
 export async function sendBookingLinkOnCall(request: Request): Promise<Response> {
   const raw = await request.text();
   // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
-  // custom-function calls is what the log answers (voice/door-auth.ts); this file used to say it did not.
+  // custom-function calls is what the log answers (shared/door-auth.ts); this file used to say it did not.
   const knock = voiceDoorAuth("fn", request, raw);
   await keepKnock("fn", knock);
   if (!knock.ok) return refusedOutLoud("fn", KNOCK_REFUSED);
@@ -370,21 +370,21 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
   // code. The repo has owned this normalizer since Slice 1 and, until now, no
   // code anywhere called it.
   const caller = normalizePhone(call.from_number);
-  const asked = normalizePhone(args.phone_number);
+  const phone = normalizePhone(args.phone_number);
   // The agent may collect a different number, but a caller must not be able to
   // talk it into texting an arbitrary third party: a number we were GIVEN only
   // qualifies if that person is already a contact of this business.
-  const target = asked ?? caller;
+  const target = phone ?? caller;
   const isCaller = !!target && target === caller;
 
-  const L = logger({ call_id: call.call_id, agent_id: call.agent_id });
+  const log = logger({ call_id: call.call_id, agent_id: call.agent_id });
 
-  if (isRehearsalCall(call)) return rehearsalBookingLink(call, L);
+  if (isRehearsalCall(call)) return rehearsalBookingLink(call, log);
 
   if (!target) {
     // normalizePhone already rejects anything that cannot be a phone number,
     // which is a better test than a hand-written length check.
-    L.info("retell_fn_no_number");
+    log.info("retell_fn_no_number");
     return json(200, {
       result:
         "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call.",
@@ -395,7 +395,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
   if (!db || !call.agent_id) {
     // No routing key means no tenant, and no tenant means we do not know whose
     // business this is or whose number to send from. Silence beats guessing.
-    L.error("retell_fn_unroutable", { has_db: !!db, agent_id: call.agent_id ?? null });
+    log.error("retell_fn_unroutable", { has_db: !!db, agent_id: call.agent_id ?? null });
     return json(200, { result: CANNOT_SEND });
   }
 
@@ -404,7 +404,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
   const lookup = await resolveChannelDetailed(db, "voice", call.agent_id);
   const routed = lookup.channel;
   if (!routed) {
-    L.error("retell_fn_unknown_agent", { agent_id: call.agent_id, lookup_failed: lookup.lookupFailed });
+    log.error("retell_fn_unknown_agent", { agent_id: call.agent_id, lookup_failed: lookup.lookupFailed });
     return json(200, { result: CANNOT_SEND });
   }
 
@@ -418,11 +418,11 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
   if (!brain) {
     // Same rule the receptionist follows: a business with no configured profile
     // does not speak in a voice we invented for it.
-    L.info("retell_fn_no_persona", { tenant_id: routed.tenantId });
+    log.info("retell_fn_no_persona", { tenant_id: routed.tenantId });
     return json(200, { result: CANNOT_SEND });
   }
   if (!offersBookingLink(brain)) {
-    L.info("retell_fn_no_link", { tenant_id: routed.tenantId });
+    log.info("retell_fn_no_link", { tenant_id: routed.tenantId });
     return json(200, { result: NO_LINK });
   }
 
@@ -436,7 +436,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
     });
 
     if (!contact) {
-      L.info("retell_fn_refused_third_party", { tenant_id: routed.tenantId });
+      log.info("retell_fn_refused_third_party", { tenant_id: routed.tenantId });
       return json(200, {
         result:
           "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.",
@@ -448,8 +448,8 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
     // WhatsApp, and when they phone and ask for a text. Looked up per call,
     // never cached; a failed lookup keeps the workspace mode.
     const workspaceMode = rt.policy?.reply?.mode ?? "ask";
-    const personMode = await personReplyMode(db, routed.tenantId, contact.contactId).catch((e: unknown) => {
-      L.error("retell_fn_person_mode_failed", { error: errField(e) });
+    const personMode = await findPersonReplyMode(db, routed.tenantId, contact.contactId).catch((e: unknown) => {
+      log.error("retell_fn_person_mode_failed", { error: errField(e) });
       return null;
     });
     const replyMode = effectiveReplyMode({ replyMode: workspaceMode }, personMode);
@@ -473,10 +473,10 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
     // workspace that genuinely has none is told THAT, or sent the link by text,
     // which is a different and equally true thing, and the difference is what a
     // business needs to hear to fix it.
-    const booking = bookingTemplate(await templatesToSend(db, routed.tenantId));
+    const booking = bookingTemplate(await listTemplatesToSend(db, routed.tenantId));
     const leg: LinkLeg = {
       db,
-      L,
+      L: log,
       contact,
       target,
       isCaller,
@@ -497,7 +497,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
   } catch (e) {
     // A thrown repository call must not become a 500: the voice agent would go
     // silent mid-sentence with a customer on the line.
-    L.error("retell_fn_failed", { error: errField(e) });
+    log.error("retell_fn_failed", { error: errField(e) });
     return json(200, { result: CANNOT_SEND });
   }
 }

@@ -17,7 +17,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const logo = await import(at("apps/dashboard/app/api/v1/workspaces/logo/route.ts"));
 const lookup = await import(at("apps/dashboard/app/api/v1/workspaces/logo/lookup/route.ts"));
 const workspaces = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
@@ -116,7 +116,7 @@ async function refused(p, code, status, words) {
 
 beforeEach(() => setRateStore(memoryStore()));
 afterEach(() => {
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });
 
 test("the three declare their policy: whoever may change the workspace's settings, each counted in a bucket of its own", () => {
@@ -128,7 +128,7 @@ test("the three declare their policy: whoever may change the workspace's setting
 
 test("a save stores the picture remade, in the workspace's own folder under a new name, sets it through the door, and removes the one before", async () => {
   const s = storage();
-  setServiceClient(s.client);
+  setUnsubscribeServiceClient(s.client);
   const d = door(OLD_A);
   const out = await logo.PUT.run(
     send("PUT", { image: canvasPng().toString("base64") }),
@@ -154,7 +154,7 @@ test("a save stores the picture remade, in the workspace's own folder under a ne
 test("a picture the door answers as another workspace's, or none, is never removed", async () => {
   for (const before of [OF_B, null, "not/a/path.png"]) {
     const s = storage();
-    setServiceClient(s.client);
+    setUnsubscribeServiceClient(s.client);
     await logo.PUT.run(
       send("PUT", { image: canvasPng(128).toString("base64") }),
       ctxFor({ memberships: membership() }, door(before).rpcs),
@@ -169,7 +169,7 @@ test("a picture the door answers as another workspace's, or none, is never remov
 
 test("a save the door refuses removes the picture it stored at once, and says the door's words", async () => {
   const s = storage();
-  setServiceClient(s.client);
+  setUnsubscribeServiceClient(s.client);
   const no = Object.assign(new Error("Only someone who may change this workspace's settings can change its logo."), {
     code: "42501",
   });
@@ -192,7 +192,7 @@ test("a save the door refuses removes the picture it stored at once, and says th
 
 test("anything but a PNG of the kept shape is refused in the owner's words, before anything is stored or asked", async () => {
   const s = storage();
-  setServiceClient(s.client);
+  setUnsubscribeServiceClient(s.client);
   const d = door(null);
   const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, ...Buffer.alloc(64)]).toString("base64");
   // A 512 square is shrunk to the circle now (core logo-png.ts); past LOGO_FOUND_SIDE_MAX is still no logo.
@@ -210,7 +210,7 @@ test("anything but a PNG of the kept shape is refused in the owner's words, befo
 
 test("a member who may not change the workspace's settings is refused before a byte is read", async () => {
   const s = storage();
-  setServiceClient(s.client);
+  setUnsubscribeServiceClient(s.client);
   for (const role of ["viewer", "operator"])
     await refused(
       logo.PUT.run(
@@ -224,7 +224,7 @@ test("a member who may not change the workspace's settings is refused before a b
 });
 
 test("storage that refuses the picture is said in the owner's words, and the door is not asked", async () => {
-  setServiceClient(storage({ uploadError: { message: "the bucket is full" } }).client);
+  setUnsubscribeServiceClient(storage({ uploadError: { message: "the bucket is full" } }).client);
   const d = door(null);
   await refused(
     logo.PUT.run(send("PUT", { image: canvasPng().toString("base64") }), ctxFor({ memberships: membership() }, d.rpcs)),
@@ -237,7 +237,7 @@ test("storage that refuses the picture is said in the owner's words, and the doo
 
 test("taking the logo away clears it through the door and removes the picture it wore", async () => {
   const s = storage();
-  setServiceClient(s.client);
+  setUnsubscribeServiceClient(s.client);
   const d = door(OLD_A);
   const out = await logo.DELETE.run(send("DELETE"), ctxFor({ memberships: membership() }, d.rpcs));
   assert.deepEqual(d.asked, [{ p_tenant_id: A, p_logo_path: "" }]);

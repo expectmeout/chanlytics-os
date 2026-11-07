@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM, toCallVM } from "@chanlytics/contracts";
 import { readCode, readRaw, stripComments } from "../_source.mjs";
-import { repoFiles, parse, importsOf } from "../_ast.mjs";
+import { repoFiles, parse, importsOf, packageOf } from "../_ast.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -50,8 +50,8 @@ test("F44: the session role updates exactly the columns the verbs set, and nothi
     escalations: ["state", "resolved_by_user_id", "decision_id"],
   };
   const files = [
-    "apps/dashboard/src/server/ports/core-ports.ts",
-    "apps/dashboard/src/server/ports/campaign-ports.ts",
+    "apps/dashboard/src/server/conversations/ports.ts",
+    "apps/dashboard/src/server/campaigns/ports.ts",
     "apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts",
     "apps/dashboard/src/server/shared/verbs.ts",
   ];
@@ -246,25 +246,18 @@ const CORE_WALL_EXCEPTIONS = {
 };
 
 /**
- * The one value a verb may take from channels: the platform's own logger (packages/channels/src/log). What it could
- * not write is a line in the request's log, not a provider.
+ * Whether core may import this: its own modules, contracts, the platform's own logger (a line in the request's log, not a provider), and the types (never a value) of db and channels.
  */
-const LOG_NAMES = new Set(["errField", "logger"]);
-
-/**
- * Whether core may import this: its own modules, contracts, the types (never a value) of db and channels, and
- * channels' logger.
- */
-const coreMayImport = ({ specifier, typeOnly, names = [] }) =>
+const coreMayImport = ({ specifier, typeOnly }) =>
   specifier.startsWith(".") ||
   specifier === "@chanlytics/contracts" ||
+  specifier === "@chanlytics/log" ||
   // The normalised inbound message is the channels package's shape and the inbound verb speaks it, so the TYPE
   // crosses. A VALUE from channels would be a provider inside a verb, which is a port, not a widening.
-  (typeOnly && (specifier === "@chanlytics/db" || specifier === "@chanlytics/channels")) ||
-  (specifier === "@chanlytics/channels" && names.length > 0 && names.every((name) => LOG_NAMES.has(name)));
+  (typeOnly && (packageOf(specifier) === "@chanlytics/db" || packageOf(specifier) === "@chanlytics/channels"));
 
 test("a core verb knows no database, framework, provider or environment", () => {
-  // A verb takes the world through its ports; the adapter in apps/dashboard/src/server/ports/core-ports.ts is where
+  // A verb takes the world through its ports; the adapter in apps/dashboard/src/server/conversations/ports.ts is where
   // the tables are. The wall is all of packages/core/src, but the files named above.
   const offenders = [];
   const walled = [];
@@ -276,7 +269,7 @@ test("a core verb knows no database, framework, provider or environment", () => 
     if (exception) {
       excepted.push(rel);
       if (bad.length === 0) offenders.push(`${rel}: keeps the wall now; take it off CORE_WALL_EXCEPTIONS`);
-      for (const i of bad.filter((b) => !exception.may.includes(b.specifier)))
+      for (const i of bad.filter((b) => !exception.may.includes(packageOf(b.specifier) ?? b.specifier)))
         offenders.push(
           `${rel}: ${i.typeOnly ? "type" : "value"} from ${i.specifier}, which its exception (${exception.reason}) does not cover`,
         );

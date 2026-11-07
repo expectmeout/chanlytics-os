@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildEmailRequest } from "@chanlytics/channels";
+import { buildEmailRequest } from "@chanlytics/channels/email";
 
 const first = (over = {}) =>
   buildEmailRequest({

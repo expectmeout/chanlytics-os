@@ -12,7 +12,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isUnseen, noteWhose, seenBy, toConversationVM, toInboxThreadVM, toPersonRowVM } from "@chanlytics/contracts";
+import { isUnseen, noteWhose, seenBy, toInboxThreadVM, toPersonRowVM } from "@chanlytics/contracts";
+import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact } from "../../_stub-react.mjs";
 
 const ZONE = "America/New_York";

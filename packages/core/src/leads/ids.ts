@@ -4,14 +4,14 @@
  * phase, the term), so two starters of one round make the same row and the
  * second insert meets the first (E1: the row is made once, then claimed once).
  */
-import { uuidV5 } from "../shared/uuid-v5";
+import { makeUuidV5 } from "../shared/uuid-v5";
 import { utf8Bytes, hexOf } from "@chanlytics/contracts";
 
-export async function sha256Hex(s: string): Promise<string> {
-  return hexOf(await crypto.subtle.digest("SHA-256", utf8Bytes(s)));
+export async function hashSha256Hex(text: string): Promise<string> {
+  return hexOf(await crypto.subtle.digest("SHA-256", utf8Bytes(text)));
 }
 
 /** A uuid, version 5-shaped, from its parts (uuid-v5.ts): stable across invocations, unique across rounds. */
 export async function runIdFor(roundId: string, phase: "probe" | "main" | "check", term: string): Promise<string> {
-  return uuidV5(`lead_run:${roundId}:${phase}:${term}`);
+  return makeUuidV5(`lead_run:${roundId}:${phase}:${term}`);
 }

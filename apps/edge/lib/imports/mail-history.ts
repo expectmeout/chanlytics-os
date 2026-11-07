@@ -28,14 +28,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   emailPlainText,
-  gmailListSince,
+  listGmailSince,
   gmailSignedOut,
-  graphListSince,
+  listGraphSince,
   graphSignedOut,
   type MailboxEmail,
   type MailWindow,
   type ReadVerdict,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import {
   DAY_MS,
   HISTORY_BACK_DAYS,
@@ -46,17 +46,10 @@ import {
   senderLeftWhy,
 } from "@chanlytics/contracts";
 import { EMAIL_BODY_MAX } from "@chanlytics/core";
-import {
-  importCursorOf,
-  keepBefore,
-  knownThreads,
-  mailboxConnectionOf,
-  noteImport,
-  type Database,
-  type Json,
-  type MailboxConnectionRow,
-} from "@chanlytics/db";
-import { tokenFor } from "../email/mailbox/credentials.js";
+import { importCursorOf, keepBefore, noteImport } from "@chanlytics/db/imports";
+import { getKnownThreads, findMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
+import { type Database, type Json } from "@chanlytics/db/types";
+import { getToken } from "../email/mailbox/credentials.js";
 import { markSignedOut } from "../email/mailbox/wire.js";
 import { mailboxEmailMeta, readEmail } from "../email/mailbox/sync.js";
 import {
@@ -101,14 +94,14 @@ interface MailCursor extends MailPlace {
 }
 
 function cursorOf(raw: Json | null): MailCursor | null {
-  const c = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
-  const w = c?.window as Record<string, unknown> | undefined;
-  if (!w || typeof w.from !== "string" || typeof w.to !== "string") return null;
+  const items = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  const item = items?.window as Record<string, unknown> | undefined;
+  if (!item || typeof item.from !== "string" || typeof item.to !== "string") return null;
   return {
-    window: { from: w.from, to: w.to },
-    phase: c?.phase === "sent" || c?.phase === "received" ? c.phase : "all",
-    page: typeof c?.page === "string" ? c.page : null,
-    at: typeof c?.at === "number" && c.at >= 0 ? c.at : 0,
+    window: { from: item.from, to: item.to },
+    phase: items?.phase === "sent" || items?.phase === "received" ? items.phase : "all",
+    page: typeof items?.page === "string" ? items.page : null,
+    at: typeof items?.at === "number" && items.at >= 0 ? items.at : 0,
   };
 }
 
@@ -127,17 +120,24 @@ const listedIn = (window: MailWindow, phase: MailPhase): MailWindow =>
   phase === "all" ? window : { ...window, only: phase };
 
 /** Who a message is with: the person who wrote it, or the one person the owner wrote to; null for anything else. */
-function mailPersonOf(e: MailboxEmail, own: string): { address: string; name: string | null; out: boolean } | null {
-  const from = normalizeEmail(e.from?.address);
+function mailPersonOf(
+  mailboxEmail: MailboxEmail,
+  own: string,
+): { address: string; name: string | null; out: boolean } | null {
+  const from = normalizeEmail(mailboxEmail.from?.address);
   if (!from) return null;
   if (from === own) {
     const to = [
-      ...new Set([...e.to, ...e.cc].map((a) => normalizeEmail(a)).filter((a): a is string => !!a && a !== own)),
+      ...new Set(
+        [...mailboxEmail.to, ...mailboxEmail.cc]
+          .map((a) => normalizeEmail(a))
+          .filter((a): a is string => !!a && a !== own),
+      ),
     ];
     const [only] = to;
     return to.length === 1 && only ? { address: only, name: null, out: true } : null;
   }
-  return { address: from, name: e.from?.name ?? null, out: false };
+  return { address: from, name: mailboxEmail.from?.name ?? null, out: false };
 }
 
 /**
@@ -197,30 +197,30 @@ interface MailTally {
  * part or try reads on from here.
  */
 function noteMail(
-  r: MailRead,
+  mailRead: MailRead,
   tally: MailTally,
   where: MailPlace,
   end: { state: "running" | "done"; partsDone?: number },
 ): Promise<void> {
-  return noteImport(r.db, {
-    tenantId: r.part.tenantId,
+  return noteImport(mailRead.db, {
+    tenantId: mailRead.part.tenantId,
     source: "mailbox",
-    connectionId: r.row.id,
-    run: r.part.run,
+    connectionId: mailRead.row.id,
+    run: mailRead.part.run,
     state: end.state,
     counts: tally.counts,
     add: true,
     ...(end.partsDone ? { partsDone: end.partsDone } : {}),
     oldest: tally.oldest === null ? null : new Date(tally.oldest).toISOString(),
-    via: r.row.provider,
-    cursor: { connection: r.row.id, window: { from: r.window.from, to: r.window.to }, ...where },
+    via: mailRead.row.provider,
+    cursor: { connection: mailRead.row.id, window: { from: mailRead.window.from, to: mailRead.window.to }, ...where },
   });
 }
 
 /** A provider that could not be asked now: what came in is noted, and the job ledger tries the part again. */
-async function askAgain(r: MailRead, tally: MailTally, where: MailPlace, why: string): Promise<never> {
+async function askAgain(r: MailRead, tally: MailTally, where: MailPlace, reason: string): Promise<never> {
   await noteMail(r, tally, where, { state: "running" });
-  throw new Error(why);
+  throw new Error(reason);
 }
 
 /**
@@ -242,7 +242,7 @@ async function inAReachOut(r: MailRead, e: MailboxEmail): Promise<boolean> {
   if (!t) return false;
   const had = r.reached.get(t);
   if (had !== undefined) return had;
-  const yes = (await knownThreads(r.db, r.part.tenantId, [t])).has(t);
+  const yes = (await getKnownThreads(r.db, r.part.tenantId, [t])).has(t);
   r.reached.set(t, yes);
   return yes;
 }
@@ -282,12 +282,12 @@ const unsent = (e: MailboxEmail): boolean => e.labels.includes("DRAFT");
 /** One message read, as a part goes on: the email, or what the part does with it (gone, refused, the provider's pace). */
 type Listed = { email: MailboxEmail } | { done: "taken" | "refused" | ReadVerdict };
 
-async function readListed(r: MailRead, id: string, how: "whole" | "head"): Promise<Listed> {
-  const read = await readEmail(r.row, r.token, id, how);
+async function readListed(mailRead: MailRead, id: string, how: "whole" | "head"): Promise<Listed> {
+  const read = await readEmail(mailRead.row, mailRead.token, id, how);
   if ("gone" in read) return { done: "taken" };
   if ("refused" in read) {
-    r.part.log.warn("mailbox_message_unreadable", {
-      mailbox: r.row.id,
+    mailRead.part.log.warn("mailbox_message_unreadable", {
+      mailbox: mailRead.row.id,
       message: id,
       stage: "history",
       ...read.refused,
@@ -303,40 +303,40 @@ async function readListed(r: MailRead, id: string, how: "whole" | "head"): Promi
  * wrote that the rules leave. What the owner wrote to one person, and what may come in, is read whole.
  */
 async function leftOnItsHead(r: MailRead, tally: MailTally, head: MailboxEmail): Promise<boolean> {
-  const who = mailPersonOf(head, r.row.address.toLowerCase());
-  if (who?.out) return false;
-  const say = who ? await rulesOfImport(r, head) : null;
-  if (who && (say === "in" || say === "stranger")) return false;
+  const mailPerson = mailPersonOf(head, r.row.address.toLowerCase());
+  if (mailPerson?.out) return false;
+  const say = mailPerson ? await rulesOfImport(r, head) : null;
+  if (mailPerson && (say === "in" || say === "stranger")) return false;
   if (say && say !== "in" && say !== "stranger") await noteLeft(r.db, r.part.tenantId, head, say);
   tally.counts.dropped++;
   return true;
 }
 
 /** A message read whole: kept in its person's thread as before Chanlytics, or left and counted. */
-async function keepOrLeave(r: MailRead, tally: MailTally, e: MailboxEmail): Promise<"taken"> {
+async function keepOrLeave(mailRead: MailRead, tally: MailTally, mailboxEmail: MailboxEmail): Promise<"taken"> {
   const { counts } = tally;
-  const who = mailPersonOf(e, r.row.address.toLowerCase());
-  const why = who && !who.out ? await leftByImport(r, tally, e) : null;
-  if (why) await noteLeft(r.db, r.part.tenantId, e, why);
-  if (!who || why) {
+  const mailPerson = mailPersonOf(mailboxEmail, mailRead.row.address.toLowerCase());
+  const reason = mailPerson && !mailPerson.out ? await leftByImport(mailRead, tally, mailboxEmail) : null;
+  if (reason) await noteLeft(mailRead.db, mailRead.part.tenantId, mailboxEmail, reason);
+  if (!mailPerson || reason) {
     counts.dropped++;
     return "taken";
   }
-  const when = e.createdAt ?? r.window.to;
-  const kept = await keepBefore(r.db, {
-    tenantId: r.part.tenantId,
+  const when = mailboxEmail.createdAt ?? mailRead.window.to;
+  const kept = await keepBefore(mailRead.db, {
+    tenantId: mailRead.part.tenantId,
     channel: "email",
-    external: who.address,
+    external: mailPerson.address,
     phone: null,
-    email: who.address,
-    name: who.name,
-    messageId: e.id,
-    direction: who.out ? "outbound" : "inbound",
+    email: mailPerson.address,
+    name: mailPerson.name,
+    messageId: mailboxEmail.id,
+    direction: mailPerson.out ? "outbound" : "inbound",
     // Its words as the live read keeps them: an email with only HTML (a bank's alert, a form) is made plain text. It had
     // been kept with none, and its person read "Not heard from" beside "They wrote" (27 Oct 2026).
-    body: emailPlainText(e)?.slice(0, EMAIL_BODY_MAX) ?? null,
+    body: emailPlainText(mailboxEmail)?.slice(0, EMAIL_BODY_MAX) ?? null,
     at: when,
-    meta: mailboxEmailMeta(e, r.row.id),
+    meta: mailboxEmailMeta(mailboxEmail, mailRead.row.id),
   });
   if (kept.erased) return "taken";
   if (kept.kept) counts.messages++;
@@ -353,23 +353,23 @@ async function keepOrLeave(r: MailRead, tally: MailTally, e: MailboxEmail): Prom
  * could not be asked now.
  */
 async function takeListed(
-  r: MailRead,
+  mailRead: MailRead,
   tally: MailTally,
-  l: { id: string; from?: string | null },
+  input: { id: string; from?: string | null },
 ): Promise<"taken" | "refused" | ReadVerdict> {
   // Graph names the sender before the message is read: a delivery report or the mailbox's own bulk is not read.
-  if (l.from && /^(mailer-daemon|postmaster)@/.test(l.from)) {
+  if (input.from && /^(mailer-daemon|postmaster)@/.test(input.from)) {
     tally.counts.dropped++;
     return "taken";
   }
-  if (r.phase !== "all") {
-    const head = await readListed(r, l.id, "head");
+  if (mailRead.phase !== "all") {
+    const head = await readListed(mailRead, input.id, "head");
     if ("done" in head) return head.done;
-    if (unsent(head.email) || (await leftOnItsHead(r, tally, head.email))) return "taken";
+    if (unsent(head.email) || (await leftOnItsHead(mailRead, tally, head.email))) return "taken";
   }
-  const read = await readListed(r, l.id, "whole");
+  const read = await readListed(mailRead, input.id, "whole");
   if ("done" in read) return read.done;
-  return unsent(read.email) ? "taken" : keepOrLeave(r, tally, read.email);
+  return unsent(read.email) ? "taken" : keepOrLeave(mailRead, tally, read.email);
 }
 
 /** How many of a sender's emails one bring-in reads: a press's worth, inside one request. */
@@ -382,57 +382,61 @@ const BRING_IN_MS = 40 * SECOND_MS;
  * one press, each kept as before Chanlytics in their thread. Answers how many were kept; throws when the mailbox could
  * not be listed. The provider's pace ends it early: what came in stands.
  */
-export async function bringInSender(p: {
+export async function bringInSender(params: {
   db: Db;
   row: MailboxConnectionRow;
   token: string;
   address: string;
   log: Logger;
 }): Promise<number> {
-  const connected = Date.parse(p.row.connected_at);
+  const connected = Date.parse(params.row.connected_at);
   const back = (Number.isFinite(connected) ? connected : Date.now()) - HISTORY_BACK_DAYS * DAY_MS;
-  const window: MailWindow = { from: new Date(back).toISOString(), to: new Date().toISOString(), sender: p.address };
+  const window: MailWindow = {
+    from: new Date(back).toISOString(),
+    to: new Date().toISOString(),
+    sender: params.address,
+  };
   const listed =
-    p.row.provider === "microsoft"
-      ? await graphListSince(p.token, window, null)
-      : await gmailListSince(p.token, window, null);
+    params.row.provider === "microsoft"
+      ? await listGraphSince(params.token, window, null)
+      : await listGmailSince(params.token, window, null);
   if (!listed.ok) throw new Error(`the sender's mail could not be listed: ${listed.reply.status}`);
   const part: Part = {
-    tenantId: p.row.tenant_id,
-    connectionId: p.row.id,
+    tenantId: params.row.tenant_id,
+    connectionId: params.row.id,
     // A sender brought in writes no row of the ledger: it is no run's.
     run: "sender",
     n: 0,
     until: Date.now() + BRING_IN_MS,
-    log: p.log,
+    log: params.log,
   };
-  const r: MailRead = {
-    db: p.db,
+  const mailRead: MailRead = {
+    db: params.db,
     part,
-    row: p.row,
-    token: p.token,
+    row: params.row,
+    token: params.token,
     window,
     phase: "all",
     began: { phase: "all", page: null, at: 0 },
-    sorting: await mailSortingFor(p.db, p.row.tenant_id, p.log),
+    sorting: await mailSortingFor(params.db, params.row.tenant_id, params.log),
     reached: new Map(),
   };
   const tally: MailTally = { counts: { messages: 0, people: 0, dropped: 0 }, oldest: null };
   for (const l of listed.listed.slice(0, BRING_IN_MAX)) {
     if (Date.now() >= part.until) break;
-    if (typeof (await takeListed(r, tally, l)) === "object") break;
+    if (typeof (await takeListed(mailRead, tally, l)) === "object") break;
   }
   return tally.counts.messages;
 }
 
 export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> {
   if (!part.connectionId) return mailStopped(db, part, IMPORT_STOPPED_WORDS.removed);
-  const row = await mailboxConnectionOf(db, part.tenantId, part.connectionId);
+  const row = await findMailboxConnection(db, part.tenantId, part.connectionId);
   if (!row || row.state === "removed") return mailStopped(db, part, IMPORT_STOPPED_WORDS.removed);
   const now = Date.now();
-  const t = await tokenFor(db, row, now);
-  if (!t.ok) {
-    if (t.why === "signed_out") await markSignedOut(db, row, part.log, now);
+  const token = await getToken(db, row, now);
+  if (!token.ok) {
+    if (token.why === "signed_out") await markSignedOut(db, row, part.log, now);
     return mailStopped(db, part, IMPORT_STOPPED_WORDS.signedOut);
   }
   const cur = cursorOf(await importCursorOf(db, part.tenantId, "mailbox", row.id)) ?? {
@@ -451,11 +455,11 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
     add: true,
   });
 
-  const r: MailRead = {
+  const mailRead: MailRead = {
     db,
     part,
     row,
-    token: t.token,
+    token: token.token,
     window: cur.window,
     phase: cur.phase,
     began: { phase: cur.phase, page: cur.page, at: cur.at },
@@ -468,8 +472,8 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
   pages: while (Date.now() < part.until) {
     const listed =
       row.provider === "microsoft"
-        ? await graphListSince(t.token, cur.window, page)
-        : await gmailListSince(t.token, listedIn(cur.window, r.phase), page);
+        ? await listGraphSince(token.token, cur.window, page)
+        : await listGmailSince(token.token, listedIn(cur.window, mailRead.phase), page);
     if (!listed.ok) {
       const out = row.provider === "microsoft" ? graphSignedOut(listed.reply) : gmailSignedOut(listed.reply);
       if (out) {
@@ -477,24 +481,29 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
         return mailStopped(db, part, IMPORT_STOPPED_WORDS.signedOut);
       }
       return askAgain(
-        r,
+        mailRead,
         tally,
-        { phase: r.phase, page, at },
+        { phase: mailRead.phase, page, at },
         `the mailbox's past could not be listed: ${listed.reply.status}`,
       );
     }
     let refusedInARow = 0;
     for (; at < listed.listed.length; at++) {
       if (Date.now() >= part.until) break pages;
-      const l = listed.listed[at];
-      if (!l) continue;
+      const line = listed.listed[at];
+      if (!line) continue;
       let took: "taken" | "refused" | ReadVerdict;
       try {
-        took = await takeListed(r, tally, l);
+        took = await takeListed(mailRead, tally, line);
       } catch (err) {
-        return askAgain(r, tally, { phase: r.phase, page, at }, err instanceof Error ? err.message : String(err));
+        return askAgain(
+          mailRead,
+          tally,
+          { phase: mailRead.phase, page, at },
+          err instanceof Error ? err.message : String(err),
+        );
       }
-      if (typeof took === "object") return restAfterPace(r, tally, { phase: r.phase, page, at }, took);
+      if (typeof took === "object") return restAfterPace(mailRead, tally, { phase: mailRead.phase, page, at }, took);
       if (took === "taken") {
         refusedInARow = 0;
         continue;
@@ -507,9 +516,9 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
       tally.counts.unreadable = (tally.counts.unreadable ?? 0) - (refusedInARow - 1);
       if (!tally.counts.unreadable) delete tally.counts.unreadable;
       return askAgain(
-        r,
+        mailRead,
         tally,
-        { phase: r.phase, page, at: at - (refusedInARow - 1) },
+        { phase: mailRead.phase, page, at: at - (refusedInARow - 1) },
         `the mailbox refused ${refusedInARow} messages in a row`,
       );
     }
@@ -517,13 +526,18 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
     at = 0;
     if (page) continue;
     // What the owner sent is read: the rest of the window now, whom they write to known.
-    if (r.phase === "sent") {
-      r.phase = "received";
+    if (mailRead.phase === "sent") {
+      mailRead.phase = "received";
       continue;
     }
     done = true;
     break;
   }
-  await noteMail(r, tally, { phase: r.phase, page, at }, { state: done ? "done" : "running", partsDone: part.n });
+  await noteMail(
+    mailRead,
+    tally,
+    { phase: mailRead.phase, page, at },
+    { state: done ? "done" : "running", partsDone: part.n },
+  );
   return { more: !done };
 }

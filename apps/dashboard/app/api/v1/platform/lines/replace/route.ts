@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/shared/route";
 import { LINE_ACTS, LineActSchema } from "@chanlytics/contracts";
-import { platformLineAct } from "@/server/console/platform";
+import { runPlatformLineAct } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/lines/replace -- delete a refused campaign and file a new one.
@@ -31,7 +31,7 @@ export const POST = write({
   act: LINE_ACTS.replace,
   input: LineActSchema,
   handle: async ({ office, input }) => {
-    const r = await platformLineAct(office, "replace", input.tenant_id, input.line_id, input.why);
+    const r = await runPlatformLineAct(office, "replace", input.tenant_id, input.line_id, input.why);
     return { ok: r.ok, status: r.status, result: r.body };
   },
 });

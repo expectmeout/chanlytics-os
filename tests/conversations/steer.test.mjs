@@ -42,7 +42,7 @@ test("the frame quotes the owner, asks for a rewrite that keeps what was right, 
 });
 
 test("the brain takes the instruction as one more system block and stops showing the model its last message twice", () => {
-  const b = readCode("apps/edge/lib/receptionist/brain.ts");
+  const b = readCode("apps/edge/lib/ai/receptionist-brain.ts");
   assert.ok(b.includes("steer?: string,"));
   assert.ok(b.includes('...(steer ? [{ type: "text", text: steer }] : []),'));
   assert.ok(
@@ -54,7 +54,7 @@ test("the brain takes the instruction as one more system block and stops showing
 });
 
 test("one writer for a held draft, used by the handler and the steer", () => {
-  const q = readCode("apps/edge/lib/receptionist/draft-queue.ts");
+  const q = readCode("apps/edge/lib/ai/draft-queue.ts");
   assert.ok(q.includes('export type DraftSource = "veto_window" | "low_confidence" | "steered";'));
   assert.ok(
     q.includes("queueSend("),

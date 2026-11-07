@@ -118,13 +118,8 @@ installFrameGlobals();
 const box = await import("../../../apps/dashboard/src/surfaces/leads/sheet/email-box.tsx");
 const { GRAB_AT } = await import("../../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 const { Menu } = await import("../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
-const {
-  LEAD_CARD_WORDS,
-  LEAD_SHEET_WORDS,
-  LEAD_WORDS_BOX: B,
-  leadWordsPieces,
-  placeLineWriting,
-} = await import("@chanlytics/contracts");
+const { LEAD_CARD_WORDS, LEAD_WORDS_BOX: B, leadWordsPieces, placeLineWriting } = await import("@chanlytics/contracts");
+const { LEAD_SHEET_WORDS } = await import("../../../apps/dashboard/src/surfaces/leads/sheet/model/view.ts");
 
 const inTree = (node, test_) => {
   if (!node || typeof node !== "object") return null;

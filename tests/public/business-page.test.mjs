@@ -176,16 +176,16 @@ test("a business with no website of its own files the page we publish", () => {
 
 test("the wiring: public, indexed, reads by slug, writes nothing", () => {
   const page = readCode("apps/dashboard/app/b/[slug]/page.tsx");
-  assert.ok(page.includes("const facts = await businessPageFor(slug);") && page.includes("if (!facts) notFound();"));
+  assert.ok(page.includes("const facts = await findBusinessPage(slug);") && page.includes("if (!facts) notFound();"));
   // INDEXED, unlike the opt-in page: a business a reviewer cannot look up is
   // exactly what 30919 was complaining about.
   assert.ok(
-    page.includes("return businessPageMetadata(await businessPageFor(slug));"),
+    page.includes("return businessPageMetadata(await findBusinessPage(slug));"),
     "indexed by contracts' rule, which public-page-titles.test.mjs runs",
   );
   assert.ok(
     readCode("apps/dashboard/app/yes/[slug]/page.tsx").includes(
-      "return consentPageMetadata(await consentPageFor(slug));",
+      "return consentPageMetadata(await findConsentPage(slug));",
     ),
     "and the opt-in page still is not",
   );
@@ -339,12 +339,12 @@ test("nothing is filed until they are answered, and the words reach the row", ()
   // nothing. a2p-refile.test.mjs now slices each sender and asks of each.
   assert.match(
     edge,
-    /export async function filingProblems\(/,
+    /export async function listFilingProblems\(/,
     "one decider, so both senders can ask the same question",
   );
   const inRegister = edge.slice(edge.indexOf("export async function registerLine("));
   assert.ok(
-    inRegister.indexOf("filingProblems(") < inRegister.indexOf("const send = async"),
+    inRegister.indexOf("listFilingProblems(") < inRegister.indexOf("const send = async"),
     "before a single call is made",
   );
   assert.match(

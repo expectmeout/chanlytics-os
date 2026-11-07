@@ -6,30 +6,33 @@
  * them (business_reads, source google_profile), each kept only on the owner's tap, a price with its service. Its
  * website is read too (website-read.ts). A read that fails is logged and costs only these offers: the connection stands.
  */
-import { readLocationDetails, type GbpLocationDetails, type PlacesHttp } from "@chanlytics/channels";
+import { readLocationDetails, type GbpLocationDetails, type PlacesHttp } from "@chanlytics/channels/google";
 import { listingFactsOf, normalizePhone } from "@chanlytics/contracts";
-import { keepBusinessRead, listingFactsStored, patchListing, type Json } from "@chanlytics/db";
+import { keepBusinessRead, findListingFactsStored, patchListing } from "@chanlytics/db/imports";
+import { type Json } from "@chanlytics/db/types";
 import { errField, logger } from "../shared/log.js";
-import { http } from "./places.js";
-import { tokenFor } from "./profile-credentials.js";
-import type { ConnectionRow, Db } from "./rows.js";
+import { http } from "../shared/google/places.js";
+import { tokenFor } from "../shared/google/credentials.js";
+import type { ConnectionRow, Db } from "../shared/google/rows.js";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
 
 /** The listing's facts with what the owner's own listing says, where it says it; everything else as it was. */
-function factsWith(stored: unknown, d: GbpLocationDetails): Json {
+function factsWith(stored: unknown, gbpLocationDetails: GbpLocationDetails): Json {
   const was = listingFactsOf(stored);
-  const phone = d.phone ? normalizePhone(d.phone) : null;
-  const website = d.website ?? was?.website ?? null;
+  const phone = gbpLocationDetails.phone ? normalizePhone(gbpLocationDetails.phone) : null;
+  const website = gbpLocationDetails.website ?? was?.website ?? null;
   // Google's week as the listing keeps it: each period written out, a plain object the column takes.
-  const week = d.hours ? d.hours.map((h) => ({ open: { ...h.open }, close: h.close ? { ...h.close } : null })) : null;
+  const week = gbpLocationDetails.hours
+    ? gbpLocationDetails.hours.map((h) => ({ open: { ...h.open }, close: h.close ? { ...h.close } : null }))
+    : null;
   return {
     ...(was ?? {}),
     hours: week ?? was?.hours ?? null,
     phone_e164: phone ?? was?.phone_e164 ?? null,
-    phone_display: d.phone ?? was?.phone_display ?? null,
+    phone_display: gbpLocationDetails.phone ?? was?.phone_display ?? null,
     website,
     primary_type: was?.primary_type ?? null,
-    primary_type_label: d.category ?? was?.primary_type_label ?? null,
+    primary_type_label: gbpLocationDetails.category ?? was?.primary_type_label ?? null,
     service_area_only: was?.service_area_only ?? false,
     time_zone: was?.time_zone ?? null,
   };
@@ -41,30 +44,30 @@ export async function readProfileDetails(
   now = new Date(),
   net: PlacesHttp = http,
 ): Promise<void> {
-  const L = logger({ tenant_id: conn.tenant_id });
+  const log = logger({ tenant_id: conn.tenant_id });
   if (!conn.location_name) return;
   try {
-    const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
-    if (!t.ok) return;
-    const d = await readLocationDetails(net, t.token, conn.location_name);
-    const stored = await listingFactsStored(db, conn.tenant_id);
-    if (stored !== null) await patchListing(db, conn.tenant_id, { facts: factsWith(stored, d) });
+    const token = await tokenFor(db, conn.tenant_id, now.getTime(), net);
+    if (!token.ok) return;
+    const locationDetails = await readLocationDetails(net, token.token, conn.location_name);
+    const stored = await findListingFactsStored(db, conn.tenant_id);
+    if (stored !== null) await patchListing(db, conn.tenant_id, { facts: factsWith(stored, locationDetails) });
     await keepBusinessRead(db, {
       tenantId: conn.tenant_id,
       source: "google_profile",
       facts: {
-        services: d.services.map((s) => ({ name: s.name, price_note: s.price_note, duration_min: null })),
-        closed: d.closed,
+        services: locationDetails.services.map((s) => ({ name: s.name, price_note: s.price_note, duration_min: null })),
+        closed: locationDetails.closed,
         rules: [],
         answers: [],
-        description: d.description,
-        categories: d.categories,
+        description: locationDetails.description,
+        categories: locationDetails.categories,
       },
       readFrom: conn.location_name,
       error: null,
     });
-    await scheduleWebsiteRead(db, conn.tenant_id, d.website);
+    await scheduleWebsiteRead(db, conn.tenant_id, locationDetails.website);
   } catch (e) {
-    L.warn("google_profile_details_failed", { error: errField(e) });
+    log.warn("google_profile_details_failed", { error: errField(e) });
   }
 }

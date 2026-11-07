@@ -7,7 +7,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SCHEMA_SETS } from "@chanlytics/contracts";
-import { providerEventOf, type Database, type DeliveryProvider } from "@chanlytics/db";
+import { findProviderEvent, type DeliveryProvider } from "@chanlytics/db/events";
+import { type Database } from "@chanlytics/db/types";
 import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 
@@ -23,17 +24,17 @@ export async function replayProviderEvent(
   body: Partial<{ provider: string; provider_event_id: string }>,
   doors: Doors,
 ): Promise<Response> {
-  const L = logger({ door: "intake-replay" });
+  const log = logger({ door: "intake-replay" });
   const provider = typeof body.provider === "string" && KEPT_PROVIDERS.includes(body.provider) ? body.provider : null;
   const id = typeof body.provider_event_id === "string" ? body.provider_event_id.trim() : "";
   if (!provider || !id) return refuse(400, "bad_request", "provider and provider_event_id");
   if (!db) return refuse(503, "no_database");
-  const kept = await providerEventOf(db, provider as DeliveryProvider, id);
+  const kept = await findProviderEvent(db, provider as DeliveryProvider, id);
   if (!kept) return refuse(404, "not_found", "no such delivery is kept");
   const door = doors[kept.door];
   if (!door) return refuse(400, "bad_request", `no door at ${kept.door}`);
   const answered = await door(new Request(kept.url, { method: "POST", headers: kept.headers, body: kept.body }));
-  L.info("provider_event_replayed", {
+  log.info("provider_event_replayed", {
     provider,
     door: kept.door,
     tenant_id: kept.tenant_id ?? undefined,

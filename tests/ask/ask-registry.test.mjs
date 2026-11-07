@@ -49,8 +49,9 @@ const {
   calledName,
   newToolContext,
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { MOMENT_TRIGGERS, MOMENTS_RETIRED, PROPOSAL_SPECS, REPORT_PERIOD_IDS, roleAtLeast, startersForTrigger } =
+const { MOMENT_TRIGGERS, MOMENTS_RETIRED, REPORT_PERIOD_IDS, roleAtLeast, startersForTrigger } =
   await import("@chanlytics/contracts");
+const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
 /**
  * 2 Oct 2026: the two moments no longer offered for a new playbook (contracts MOMENTS_RETIRED) leave the playbook's
  * trigger enum; 11 Oct 2026 (D2 of the marketing manager's spec): the two appointment moments join it, the reminder the
@@ -552,7 +553,7 @@ test("every description is at least three sentences, says what each of its actio
     for (const old of gone) assert.ok(!new RegExp(`\\b${old}\\b`).test(t.description), `${t.name} names ${old}`);
   }
   assert.equal(new Set(all.map((t) => t.description)).size, all.length, "no two descriptions are equal");
-  // The whole clause, head and tail, per `needs`: one derivation in the registry (tools/context.ts approvalWords),
+  // The whole clause, head and tail, per `needs`: one derivation in the registry (tools/context/context.ts approvalWords),
   // said per action in the actions' own words (D2), so an action a role is not offered takes its clause with it.
   const CLAUSE = {
     partner: "Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",

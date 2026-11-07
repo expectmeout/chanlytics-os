@@ -31,21 +31,18 @@ import {
   starterByName,
   starterForTrigger,
   startersForTrigger,
-  starterPreview,
-  starterPreviewValues,
   starterText,
   startersOffered,
   sendableTemplates,
   slotChoices,
   templateFooter,
-  templatePreview,
-  templatePreviewValues,
   templateSlots,
   templateTitle,
   templateUntranslatable,
   type OwnVersionChannel,
   type StarterTemplate,
 } from "@chanlytics/contracts";
+import { starterPreview, starterPreviewValues, templatePreview, templatePreviewValues } from "./preview";
 import { surfaceValue } from "../../surface-values";
 
 /**

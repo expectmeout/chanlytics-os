@@ -4,7 +4,7 @@
  *
  * The browser's entry (browser.generated.ts) is one module that every page's route loads, so a value any page imports
  * from it is on every page. Only the Notifications pane draws these, so they load with that pane, as Reports' date
- * control's words do (reports/report-window.ts). The server, the edge and the tests read the same values from the index.
+ * control's words do (reports/window.ts). The server, the edge and the tests read the same values from the index.
  */
 export {
   ALERT_PANE_WORDS,

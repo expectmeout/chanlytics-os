@@ -28,12 +28,13 @@
  * number (Meta's own words often name the number asked about, so they are not logged either).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { keepChannelQuality, whatsappNumbersToRead, type Database, type WhatsappNumber } from "@chanlytics/db";
+import { keepChannelQuality, listWhatsappNumbersToRead, type WhatsappNumber } from "@chanlytics/db/jobs";
+import { type Database } from "@chanlytics/db/types";
 import { HOUR_MS } from "@chanlytics/contracts";
 import { errField, type Logger } from "../shared/log.js";
-import type { notify } from "../ops/notify.js";
-import { waCredentialsForTenant } from "../shared/tenant-runtime.js";
-import { phoneNumber, type numberStanding } from "./meta-graph.js";
+import type { notify } from "../shared/alerts/notify.js";
+import { getWaCredentialsForTenant } from "../shared/tenant-runtime.js";
+import { getPhoneNumber, type getNumberStanding } from "./meta-graph.js";
 import { mapNumberQuality } from "./meta-templates.js";
 import { readAndKeepStanding, type StandingOutcome } from "./number-standing.js";
 
@@ -77,10 +78,10 @@ interface QualityPorts {
   started: number;
   yieldAtMs: number;
   /** Meta's reads of one number, the owner's notice, and a workspace's token: the real ones unless a test hands others. */
-  read?: (token: string, phoneNumberId: string) => ReturnType<typeof phoneNumber>;
-  standing?: typeof numberStanding;
+  read?: (token: string, phoneNumberId: string) => ReturnType<typeof getPhoneNumber>;
+  standing?: typeof getNumberStanding;
   tell?: typeof notify;
-  credentialsOf?: typeof waCredentialsForTenant;
+  credentialsOf?: typeof getWaCredentialsForTenant;
 }
 
 /** What one number's rating came to: the door's own answer when its word was kept, else the way the read came to nothing. */
@@ -101,40 +102,44 @@ function isDue(n: WhatsappNumber, now: number): boolean {
 }
 
 /** One number's token, or the visit that ends there: no credentials, or a credential read that failed. */
-async function tokenOf(p: QualityPorts, n: WhatsappNumber): Promise<string | Visit> {
-  const credentialsOf = p.credentialsOf ?? waCredentialsForTenant;
+async function tokenOf(qualityPorts: QualityPorts, whatsappNumber: WhatsappNumber): Promise<string | Visit> {
+  const credentialsOf = qualityPorts.credentialsOf ?? getWaCredentialsForTenant;
   try {
-    const held = await credentialsOf(p.db, n.tenant_id);
+    const held = await credentialsOf(qualityPorts.db, whatsappNumber.tenant_id);
     if (held.outcome === "absent") return { quality: "no_token", standing: null, told: false };
     if (held.outcome === "unavailable") return { quality: "unreadable", standing: null, told: false };
     return held.credentials.accessToken;
   } catch (e) {
-    p.log.error("channel_quality_row_failed", { tenant_id: n.tenant_id, channel_id: n.channel_id, error: errField(e) });
+    qualityPorts.log.error("channel_quality_row_failed", {
+      tenant_id: whatsappNumber.tenant_id,
+      channel_id: whatsappNumber.channel_id,
+      error: errField(e),
+    });
     return { quality: "unreadable", standing: null, told: false };
   }
 }
 
 /** One number's rating: Meta's word, the door. Every failure is an outcome and a line, never a throw. */
-async function ratingOf(p: QualityPorts, n: WhatsappNumber, token: string): Promise<Outcome> {
-  const read = p.read ?? phoneNumber;
+async function ratingOf(qualityPorts: QualityPorts, whatsappNumber: WhatsappNumber, token: string): Promise<Outcome> {
+  const read = qualityPorts.read ?? getPhoneNumber;
   try {
-    const got = await read(token, n.phone_number_id);
-    if (!got.ok) {
-      p.log.warn("channel_quality_read_failed", {
-        tenant_id: n.tenant_id,
-        channel_id: n.channel_id,
-        status: got.status,
-        code: got.code,
+    const result = await read(token, whatsappNumber.phone_number_id);
+    if (!result.ok) {
+      qualityPorts.log.warn("channel_quality_read_failed", {
+        tenant_id: whatsappNumber.tenant_id,
+        channel_id: whatsappNumber.channel_id,
+        status: result.status,
+        code: result.code,
       });
       return "unreadable";
     }
-    const word = mapNumberQuality(got.data.quality_rating);
+    const word = mapNumberQuality(result.data.quality_rating);
     if (word === null) return "not_a_rating";
-    return await keepChannelQuality(p.db, n.tenant_id, n.channel_id, word);
+    return await keepChannelQuality(qualityPorts.db, whatsappNumber.tenant_id, whatsappNumber.channel_id, word);
   } catch (e) {
-    p.log.error("channel_quality_row_failed", {
-      tenant_id: n.tenant_id,
-      channel_id: n.channel_id,
+    qualityPorts.log.error("channel_quality_row_failed", {
+      tenant_id: whatsappNumber.tenant_id,
+      channel_id: whatsappNumber.channel_id,
       error: errField(e),
     });
     return "unreadable";
@@ -156,10 +161,10 @@ async function visit(p: QualityPorts, n: WhatsappNumber): Promise<Visit> {
  * One tick of the sweep: the due numbers read AT_ONCE at a time until the tick is out of time. Throws only when the
  * channels cannot be read.
  */
-export async function readNumberQualities(p: QualityPorts): Promise<QualityTick> {
-  const listed = await whatsappNumbersToRead(p.db, MAX_DUE);
-  const asked = p.now();
-  const due = listed.filter((n) => isDue(n, asked));
+export async function readNumberQualities(qualityPorts: QualityPorts): Promise<QualityTick> {
+  const listed = await listWhatsappNumbersToRead(qualityPorts.db, MAX_DUE);
+  const request = qualityPorts.now();
+  const due = listed.filter((n) => isDue(n, request));
   const tick: QualityTick = {
     due: due.length,
     read: 0,
@@ -178,12 +183,12 @@ export async function readNumberQualities(p: QualityPorts): Promise<QualityTick>
     standing_unreadable: 0,
     standing_told: 0,
   };
-  for (let i = 0; i < due.length; i += AT_ONCE) {
-    if (p.now() - p.started > p.yieldAtMs) {
-      tick.left = due.length - i;
+  for (let index = 0; index < due.length; index += AT_ONCE) {
+    if (qualityPorts.now() - qualityPorts.started > qualityPorts.yieldAtMs) {
+      tick.left = due.length - index;
       break;
     }
-    const visits = await Promise.all(due.slice(i, i + AT_ONCE).map((n) => visit(p, n)));
+    const visits = await Promise.all(due.slice(index, index + AT_ONCE).map((n) => visit(qualityPorts, n)));
     for (const v of visits) {
       tick[v.quality] += 1;
       if (v.standing) tick[`standing_${v.standing}`] += 1;

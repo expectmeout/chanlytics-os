@@ -32,15 +32,15 @@ after(() => {
   globalThis.fetch = realFetch;
 });
 
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
 const { readThread, modelTurnOf, toMessageVM } = await import(at("apps/dashboard/src/server/ask/store.ts"));
 const { attachedIdsOf } = await import(at("apps/dashboard/src/server/files/attached.ts"));
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
 const { prepareAskTurn } = await import(at("apps/dashboard/src/server/ask/turn.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
 const { buildProposal, runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { withFilesAttached } = await import(at("packages/contracts/src/files/line.ts"));
+const { withFilesAttached } = await import(at("apps/dashboard/src/server/files/line.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

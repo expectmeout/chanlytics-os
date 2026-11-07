@@ -11,7 +11,8 @@
  * business.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { erasureDigests, type Database } from "@chanlytics/db";
+import { getErasureDigests } from "@chanlytics/db/people";
+import { type Database } from "@chanlytics/db/types";
 
 type Db = SupabaseClient<Database>;
 
@@ -25,7 +26,7 @@ async function erasedTombstones(db: Db, tenantId: string, phones: string[]): Pro
   const out = new Map<string, Tombstone>();
   const unique = [...new Set(phones.filter(Boolean))];
   if (!unique.length) return out;
-  const byHash = new Map([...(await erasureDigests(db, tenantId, unique))].map(([p, h]) => [h, p]));
+  const byHash = new Map([...(await getErasureDigests(db, tenantId, unique))].map(([p, h]) => [h, p]));
   const hashes = [...byHash.keys()];
   const { data, error } = await db
     .from("contacts")
@@ -50,7 +51,7 @@ async function erasedTombstones(db: Db, tenantId: string, phones: string[]): Pro
  * not make the person again. A call begun after the request is the person
  * calling back, and is not erased.
  */
-export async function erasedBeforeCall(
+export async function wasErasedBeforeCall(
   db: Db,
   tenantId: string,
   phoneE164: string,
@@ -69,13 +70,13 @@ export async function erasedBeforeCall(
  * must not make the person again from an email they sent before they asked to
  * be forgotten; one they send afterwards is them coming back.
  */
-export async function erasedBeforeEmail(
+export async function wasErasedBeforeEmail(
   db: Db,
   tenantId: string,
   address: string,
   receivedAtIso: string,
 ): Promise<boolean> {
-  const digest = (await erasureDigests(db, tenantId, [address])).get(address);
+  const digest = (await getErasureDigests(db, tenantId, [address])).get(address);
   if (!digest) throw new Error("erased_tombstones: the database made no digest of the address");
   const { data, error } = await db
     .from("contacts")

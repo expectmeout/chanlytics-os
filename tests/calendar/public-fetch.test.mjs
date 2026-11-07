@@ -22,7 +22,7 @@ import {
   NotPublicError,
   setPublicFetch,
   publicFetcher,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/shared";
 
 test("an address is public only when it is the internet's: private, loopback, link-local, shared, test, multicast and reserved are not", () => {
   for (const ok of [

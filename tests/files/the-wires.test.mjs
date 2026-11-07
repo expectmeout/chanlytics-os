@@ -7,9 +7,9 @@ import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const { deleteClaudeFile, uploadClaudeFile } = await importSrc("packages/channels/src/ai/anthropic-files.ts");
-const { FINGERPRINT_BYTES, fileFingerprintOf } = await importSrc("packages/channels/src/files/file-fingerprint.ts");
-const { listMedia } = await importSrc("packages/channels/src/google/profile.ts");
-const { PLACES_DETAILS_MASK, parsePlaceDetails, placePhotoUri } = await importSrc(
+const { FINGERPRINT_BYTES, fileFingerprintOf } = await importSrc("packages/channels/src/files/fingerprint.ts");
+const { listMedia } = await importSrc("packages/channels/src/google/profile/profile.ts");
+const { PLACES_DETAILS_MASK, parsePlaceDetails, findPlacePhotoUri } = await importSrc(
   "packages/channels/src/google/places.ts",
 );
 
@@ -130,12 +130,12 @@ test("a listing's photo is asked for its address now, with the key in a header a
     asked.push(req);
     return { status: 200, body: JSON.stringify({ photoUri: "https://lh3.example/x" }) };
   };
-  assert.equal(await placePhotoUri(http, "secret", "places/p1/photos/a"), "https://lh3.example/x");
+  assert.equal(await findPlacePhotoUri(http, "secret", "places/p1/photos/a"), "https://lh3.example/x");
   assert.equal(
     asked[0].url,
     "https://places.googleapis.com/v1/places/p1/photos/a/media?maxWidthPx=2400&skipHttpRedirect=true",
   );
   assert.equal(asked[0].headers["X-Goog-Api-Key"], "secret");
   const none = async () => ({ status: 200, body: "{}" });
-  assert.equal(await placePhotoUri(none, "secret", "places/p1/photos/a"), null);
+  assert.equal(await findPlacePhotoUri(none, "secret", "places/p1/photos/a"), null);
 });

@@ -20,9 +20,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { CAMPAIGN_MONTH_ALLOWANCE, SENDING_HOURS_WORDS, sendsWaitWords } = await import("@chanlytics/contracts");
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -182,7 +182,7 @@ const real = globalThis.fetch;
 /** The edge answers `answer` from now on, and the dashboard's kept answer is the one it gives. */
 const edgeSays = async (answer) => {
   edge = answer;
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
 };
 beforeEach(async () => {
   readerCache.clear();
@@ -198,7 +198,7 @@ beforeEach(async () => {
   await edgeSays(OPEN_EDGE);
 });
 after(() => (globalThis.fetch = real));
-afterEach(() => setServiceClient(null));
+afterEach(() => setUnsubscribeServiceClient(null));
 
 const OFFER_PB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5";
 /** A win-back by silence that runs on the month's offer message. */
@@ -239,7 +239,7 @@ const asSequence = (input) =>
 const propose = (input, db = {}, monthSent = { email: 0, sms: 0 }, people = PEOPLE, now = NOW) => {
   const rows = tables(db);
   const count = typeof monthSent === "function" ? monthSent : (a) => monthSent[a.p_channel] ?? 0;
-  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: count }));
+  setUnsubscribeServiceClient(fakeDb(rows, {}, { campaign_month_sent: count }));
   const supabase = fakeDb(rows, {}, { people_list: () => people });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, now);
   return buildProposal(t, ...asSequence(input));

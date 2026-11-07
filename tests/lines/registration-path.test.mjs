@@ -40,17 +40,17 @@ import {
   RECORD_REVIEW_CONFIRM,
   BUSINESS_PAGE_NOTE,
   SOLE_PROP_CEILING_SENTENCE,
-  smsStateRow,
   textingWords,
   businessRecordLine,
 } from "@chanlytics/contracts";
+import { smsStateRow } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import {
   brandTypeFor,
   starterEndUserRequest,
   soleProprietorEndUserRequest,
   businessEndUserRequest,
   addressRequest,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/lines";
 import { registerLine } from "../../apps/edge/lib/lines/a2p-register.ts";
 import { installStubReact, fresh, again, all, walk, byTestId, textOf, settle } from "../_stub-react.mjs";
 

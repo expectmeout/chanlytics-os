@@ -16,7 +16,9 @@
  * today that is the cost of one page of People an hour, and the season's bookings one read beside it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { everyoneIn, notedOver, syncFeedAppointments, type AppointmentSync, type Database } from "@chanlytics/db";
+import { listEveryoneIn } from "@chanlytics/db/people";
+import { listNotedOver, syncFeedAppointments, type AppointmentSync } from "@chanlytics/db/calendar";
+import { type Database } from "@chanlytics/db/types";
 import {
   feedAppointmentRows,
   ownAddressesOf,
@@ -31,17 +33,17 @@ export async function keepAppointments(
   db: SupabaseClient<Database>,
   tenantId: string,
   items: readonly FeedItem[],
-  o: { timezone: string; cfg: TenantConfig | null; daysAhead: number; now: Date },
+  options: { timezone: string; cfg: TenantConfig | null; daysAhead: number; now: Date },
 ): Promise<AppointmentSync> {
-  const window = seasonHorizon(o.now, o.daysAhead);
+  const window = seasonHorizon(options.now, options.daysAhead);
   const [everyone, bookings] = await Promise.all([
-    everyoneIn(db, tenantId),
-    notedOver(db, tenantId, new Date(window.from).toISOString(), new Date(window.to).toISOString()),
+    listEveryoneIn(db, tenantId),
+    listNotedOver(db, tenantId, new Date(window.from).toISOString(), new Date(window.to).toISOString()),
   ]);
-  const profile = o.cfg?.brain?.profile;
+  const profile = options.cfg?.brain?.profile;
   const rows = feedAppointmentRows(items, {
     people: everyone.map(personLikeOf),
-    own: ownAddressesOf(o.cfg),
+    own: ownAddressesOf(options.cfg),
     services: profile?.services ?? [],
     rules: profile?.booking_rules ?? null,
     window,
@@ -51,9 +53,9 @@ export async function keepAppointments(
   });
   return syncFeedAppointments(db, {
     tenantId,
-    timezone: o.timezone,
+    timezone: options.timezone,
     rows,
     window: { from: new Date(window.from), to: new Date(window.to) },
-    now: o.now,
+    now: options.now,
   });
 }

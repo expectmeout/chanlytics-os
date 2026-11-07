@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { signUnsubscribeToken } from "@chanlytics/channels";
+import { signUnsubscribeToken } from "@chanlytics/channels/tokens";
 import { asText } from "../_log-lines.mjs";
 
 const SECRET = "the-unsubscribe-secret-for-this-file";
@@ -23,8 +23,8 @@ after(() => {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const route = await import(at("apps/dashboard/app/u/[token]/route.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/public/unsubscribe.ts"));
-after(() => setServiceClient(null));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/public/unsubscribe.ts"));
+after(() => setUnsubscribeServiceClient(null));
 
 const A = "22222222-2222-4222-8222-222222222222";
 const P = "33333333-3333-4333-8333-333333333333";
@@ -49,7 +49,7 @@ function world({ name = "Best Movers", fails = false } = {}) {
       },
     },
   );
-  setServiceClient(db);
+  setUnsubscribeServiceClient(db);
   return { db, pressed };
 }
 
@@ -302,7 +302,7 @@ test("the page names the address the email came from; a press the database could
       },
     },
   );
-  setServiceClient(withSender);
+  setUnsubscribeServiceClient(withSender);
   const asked = await (await get()).text();
   assert.match(asked, /emails like the one from sam@harbor-mail\.com again/);
   const press = await post("unsubscribe=yes");
@@ -314,7 +314,7 @@ test("the page names the address the email came from; a press the database could
 
 test("a link names only its own workspace's email: a message of another workspace is never read for its sender", async () => {
   const other = "44444444-4444-4444-8444-444444444444";
-  setServiceClient(
+  setUnsubscribeServiceClient(
     fakeDb({
       tenants: [{ id: A, name: "Best Movers" }],
       // The token names M in workspace A; the only M here belongs to another workspace.

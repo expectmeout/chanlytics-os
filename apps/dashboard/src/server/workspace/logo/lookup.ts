@@ -21,14 +21,14 @@ const LOOKUP_MS = 28_000;
 
 /** POST workspaces/logo/lookup. */
 export async function lookupLogo(ctx: RouteContext, member: Member): Promise<LogoLookupAnswer> {
-  const a = await callEdge(
+  const result = await callEdge(
     LOOKUP_DOOR,
     { tenant_id: member.tenantId },
     { workspace: member.tenantId, user: ctx.userId, timeoutMs: LOOKUP_MS },
   );
-  const answer = edgeAnswered(a) ? logoLookupAnswerOf(a.body) : null;
+  const answer = edgeAnswered(result) ? logoLookupAnswerOf(result.body) : null;
   if (!answer) {
-    log.warn("workspace_logo_lookup", { tenant_id: member.tenantId, outcome: "failed", status: a.status });
+    log.warn("workspace_logo_lookup", { tenant_id: member.tenantId, outcome: "failed", status: result.status });
     throw new AppError("internal", LOGO_WORDS.lookFailed, 502);
   }
   log.info("workspace_logo_lookup", { tenant_id: member.tenantId, outcome: answer.outcome });

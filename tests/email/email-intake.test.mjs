@@ -23,7 +23,7 @@ import {
   senderAuthenticated,
   verifyResendWebhook,
   WEBHOOK_TOLERANCE_S,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 
 const DOMAIN = "mail.chanlytics.com";
 const SECRET = `whsec_${Buffer.from("a-webhook-signing-secret-of-32b!").toString("base64")}`;

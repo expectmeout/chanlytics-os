@@ -3,14 +3,14 @@
  * the signature-validated event receiver.
  *
  * The door names the request (log.ts `door`: the platform's id for the invocation, never the caller's) and calls
- * receiveWhatsappEvent in lib/whatsapp/webhook.ts, which holds everything the request does, in the order the door had
+ * receiveWhatsappEvent in lib/intake/whatsapp.ts, which holds everything the request does, in the order the door had
  * it: the signature is checked against the app secret (fail-closed), each change routed by its phone number id or its
  * WABA, and the message path run process-then-200.
  */
 import { text } from "../lib/shared/http.js";
 import { env } from "../lib/shared/env.js";
 import { door } from "../lib/shared/log.js";
-import { receiveWhatsappEvent } from "../lib/whatsapp/webhook.js";
+import { receiveWhatsappEvent } from "../lib/intake/whatsapp.js";
 
 export const GET = door(async function GET(request: Request): Promise<Response> {
   const q = new URL(request.url).searchParams;

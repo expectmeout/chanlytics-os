@@ -2,7 +2,7 @@
  * What a card's spec is (Ask Rewired, Phase 3, D6), and the few helpers every family of specs shares. The specs
  * themselves are one file per family beside this one; index.ts puts them together and derives the readings.
  */
-import type { AskProposal, AskProposalOutcome } from "../ask";
+import type { AskProposal, AskProposalOutcome } from "../thread-words";
 import type { ApiRouteKey } from "../../route-keys.generated";
 
 /**
@@ -143,11 +143,11 @@ export const PROPOSAL_WORDS = {
    * A card of several requests stopped by a refusal after some went (`done` of `of`): what went stands, the rest did not
    * go, and the refusal says why in its own words.
    */
-  batchStopped: (done: number, of: number, why: string): string =>
-    `${done} of ${of} parts went, then: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The rest did not go.`,
+  batchStopped: (done: number, of: number, reason: string): string =>
+    `${done} of ${of} parts went, then: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} The rest did not go.`,
   /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
-  planStopped: (n: number, why: string): string =>
-    `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`,
+  planStopped: (n: number, reason: string): string =>
+    `Stopped at step ${n}: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} The steps after it were not done.`,
 } as const;
 
 /**
@@ -180,10 +180,10 @@ export const ASK_SENDS: ReadonlySet<AskProposal["kind"]> = /* @__PURE__ */ (() =
 /* ------------------------------------------------------------ shared by the families */
 
 /** A payload field as the route's string param: the proposal carries ids as JSON, the route takes them as text. */
-export const asText = (v: unknown): string => (v == null ? "" : String(v));
+export const asText = (value: unknown): string => (value == null ? "" : String(value));
 /** A route's answer as a record to read fields from. */
-export const rec = (v: unknown): Record<string, unknown> =>
-  v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+export const rec = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 /** A ledger row id the route answered with, or null when it answered none. */
 export const decisionOf = (data: unknown): string | null => {
   const id = rec(data).decision_id;
@@ -195,17 +195,32 @@ export const decisionOf = (data: unknown): string | null => {
  * teammate's edit between the two was overwritten by an undo of a card that never saw it. Undefined is an older
  * route's answer, and the card's own reading stands in for it.
  */
-export const wasIn = (data: unknown, k: string): unknown => {
+export const wasIn = (data: unknown, key: string): unknown => {
   const was = rec(rec(data).was);
-  return Object.prototype.hasOwnProperty.call(was, k) ? was[k] : undefined;
+  return Object.prototype.hasOwnProperty.call(was, key) ? was[key] : undefined;
 };
 /** A payload id that names something, or null: a route with a hole in it is no route. */
-export const idIn = (pl: Record<string, unknown> | undefined, k: string): string | null =>
-  typeof pl?.[k] === "string" && pl[k] ? (pl[k] as string) : null;
+export const idIn = (pl: Record<string, unknown> | undefined, key: string): string | null =>
+  typeof pl?.[key] === "string" && pl[key] ? (pl[key] as string) : null;
 export const refuseWith = (words: string): ProposalRefusal => ({ refused: words });
 /** The ids a payload names, as text, each once. */
-export const uniqueIds = (v: unknown): string[] =>
-  Array.isArray(v) ? [...new Set(v.map(asText).filter(Boolean))] : [];
+export const uniqueIds = (value: unknown): string[] =>
+  Array.isArray(value) ? [...new Set(value.map(asText).filter(Boolean))] : [];
+
+/** Leads taken back off a list: what a card that added them keeps and calls, whatever its button says. */
+export const LEAD_OPERATION_UNDO = {
+  window: "ten_minutes",
+  record: (_p, data) => {
+    const d = rec(data);
+    return typeof d.op_id === "string" ? { op_id: d.op_id, version: Number(d.version ?? 1) } : null;
+  },
+  call: (u) => ({
+    route: "POST lead-operations/[id]/undo",
+    params: { id: asText(u.op_id) },
+    body: { version: Number(u.version ?? 1) },
+  }),
+  receipt: () => "Taken back off its list. Nothing had been written to them.",
+} satisfies Omit<ProposalUndo, "label">;
 
 /** A batch's calls as a spec commits them: the one call where it is one part, else its parts in order. */
 export function oneOrMany<C extends ProposalCall>(calls: readonly C[]): C | readonly C[] {
@@ -238,8 +253,8 @@ export function gatherCounts(answers: readonly unknown[]): Record<string, unknow
   return out;
 }
 /** A map's own entry, never one its prototype lends ("constructor"). */
-export const ownEntry = <T>(m: Partial<Record<string, T>>, k: string): T | undefined =>
-  Object.prototype.hasOwnProperty.call(m, k) ? m[k] : undefined;
+export const ownEntry = <T>(record: Partial<Record<string, T>>, key: string): T | undefined =>
+  Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined;
 /**
  * People repaint (the People surface, a person's page) once a person's card lands. The one event a card says (0047): a note's
  * card said `note:saved` too, which only the person's page and the Pipeline's peek heard and now follow this one. For a call

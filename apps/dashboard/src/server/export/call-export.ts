@@ -5,8 +5,8 @@
 import { AppError } from "@chanlytics/contracts";
 import { CALL_COLUMNS, toCallDto } from "@/server/conversations/dto";
 import { requireUuid } from "@/server/shared/request-guards";
-import { tenantFacts } from "@/server/shared/tenant";
-import { attachment, callText, dateTag, personLabel, safeName } from "@/server/export/export";
+import { getTenantFacts } from "@/server/shared/tenant";
+import { attachment, callText, dateTag, personLabel, safeName } from "@/server/shared/export-file";
 import { recordDecision } from "@/server/shared/verbs";
 import { log } from "@/server/shared/log";
 import type { Member, Params } from "@/server/shared/route";
@@ -24,10 +24,10 @@ export async function exportCall(ctx: RouteContext & { params: Params }, member:
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Call not found.");
   const call = toCallDto(data);
-  const { name, timezone } = await tenantFacts(supabase, member.tenantId);
+  const { name, timezone } = await getTenantFacts(supabase, member.tenantId);
   const now = new Date();
   const text = callText(call, { business: name, tz: timezone, exportedAt: now });
-  const who = personLabel(call.contact) !== "Unknown" ? personLabel(call.contact) : (call.from_e164 ?? "caller");
+  const person = personLabel(call.contact) !== "Unknown" ? personLabel(call.contact) : (call.from_e164 ?? "caller");
   log.info("export.call", {
     user: userId,
     tenant_id: member.tenantId,
@@ -38,5 +38,5 @@ export async function exportCall(ctx: RouteContext & { params: Params }, member:
     what: "call",
     turns: call.transcript_object?.length ?? 0,
   });
-  return attachment(`call-${safeName(who)}-${dateTag(now, timezone)}.txt`, text, "text/plain");
+  return attachment(`call-${safeName(person)}-${dateTag(now, timezone)}.txt`, text, "text/plain");
 }

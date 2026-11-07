@@ -18,7 +18,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { stopCall, updateLiveCall, signEdgeToken } from "@chanlytics/channels";
+import { stopCall, updateLiveCall } from "@chanlytics/channels/voice";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import {
   frameHandOver,
   frameGuardrail,

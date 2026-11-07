@@ -13,7 +13,7 @@ import {
   signUnsubscribeToken,
   verifyConfirmToken,
   verifyUnsubscribeToken,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/tokens";
 import {
   confirmPageWords,
   looksMadeUp,

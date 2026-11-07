@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { E164, isE164 } from "@chanlytics/contracts";
-import { normalizeCall, signEdgeToken } from "@chanlytics/channels";
+import { normalizeCall } from "@chanlytics/channels/voice";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";

@@ -22,19 +22,13 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const {
-  FIX_CARD_WORDS,
-  PLAYBOOK_CARD_REFUSALS,
-  PLAYBOOK_CARD_WORDS,
-  PROPOSAL_SPECS,
-  appointmentWordOf,
-  campaignBlockWords,
-  campaignLine,
-  campaignReachable,
-  readyOrWhatsApp,
-} = await import("@chanlytics/contracts");
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { FIX_CARD_WORDS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, appointmentWordOf, readyOrWhatsApp } =
+  await import("@chanlytics/contracts");
+const { PROPOSAL_SPECS } = await import("../../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { campaignBlockWords, campaignLine, campaignReachable } =
+  await import("../../../apps/dashboard/src/server/ask/new-campaign-plan.ts");
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -196,7 +190,7 @@ beforeEach(async () => {
   readerCache.clear();
   globalThis.fetch = async () =>
     new Response(JSON.stringify(OPEN_EDGE.body), { status: 200, headers: { "content-type": "application/json" } });
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
 });
 after(() => (globalThis.fetch = real));
 

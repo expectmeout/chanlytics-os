@@ -22,9 +22,9 @@ const path = await import("node:path");
 const { fileURLToPath, pathToFileURL } = await import("node:url");
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { withRequestId, noteTiming, requestTimings } = await import("@chanlytics/channels");
-const { namedFetch, observeDb } = await import("@chanlytics/db");
-const { readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { withRequestId, noteTiming, requestTimings } = await import("@chanlytics/log");
+const { namedFetch, observeDb } = await import("@chanlytics/db/shared");
+const { readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 
 test("the handler's shares follow its two parts: the longest first, each with how many, at most eight, as tokens", () => {
   const shares = new Map([
@@ -108,8 +108,8 @@ test("each reader a request reads through is timed under its name, once for the 
 
 /* -------------------- what its database calls touched (decision 0058, lane R7) -------------------- */
 
-const { noteTouch, requestTouches } = await import("@chanlytics/channels");
-const { touchOfCall } = await import("@chanlytics/db");
+const { noteTouch, requestTouches } = await import("@chanlytics/log");
+const { touchOfCall } = await import("@chanlytics/db/shared");
 const { touchedLine } = await importSrc("apps/dashboard/src/server/shared/server-timing.ts");
 
 test("a call of the database client is the table it touches and how, or the function it calls; nothing else is a touch", () => {

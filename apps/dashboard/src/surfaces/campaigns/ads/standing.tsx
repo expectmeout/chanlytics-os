@@ -7,8 +7,11 @@
  * last read failed (ReadNotes), with its "Try again". On a touch screen a standing and Accounts are 44px to reach (ads.css).
  */
 import type { AdPlatform } from "@chanlytics/contracts";
-import { ADS_DOORS, ADS_EXAMPLES, EXAMPLE, HEAD } from "@chanlytics/contracts/ads-page";
-import type { AdsExample, FailedVM, StandRowVM, StandingVM } from "@chanlytics/contracts/ads-page";
+import { ADS_DOORS, ADS_EXAMPLES, EXAMPLE } from "./model/words";
+import { HEAD } from "./model/words-page";
+import type { AdsExample } from "./model/words";
+import type { FailedVM } from "./model/page";
+import type { StandRowVM, StandingVM } from "./model/vm-base";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";

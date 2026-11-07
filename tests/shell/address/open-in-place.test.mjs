@@ -12,16 +12,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  canonicalRoute,
-  messageRoute,
-  runRoute,
-  seeHomeOf,
-  seeRefOf,
-  seeRefOfRoute,
-  seeValueOf,
-  sequenceRoute,
-} from "@chanlytics/contracts";
+import { canonicalRoute, messageRoute, runRoute, sequenceRoute } from "@chanlytics/contracts";
+import { seeHomeOf, seeRefOf, seeRefOfRoute, seeValueOf } from "../../../apps/dashboard/src/surfaces/see/over.ts";
 import { importSrc } from "../../_source.mjs";
 
 /* ---------------------------- a browser, kept small ---------------------------- */

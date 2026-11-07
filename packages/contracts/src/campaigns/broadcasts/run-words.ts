@@ -1,6 +1,6 @@
 import type { DeliveryRefusal } from "../../consent/consent";
 import type { ConsentChannel } from "../../consent/channels";
-import { PLAYBOOK_BREATH_MS } from "../playbooks/playbook-time";
+import { PLAYBOOK_BREATH_MS } from "../playbooks/time";
 import { HOUR_MS } from "../../shared/time";
 import type { ReachSplit } from "./reach-for";
 /**
@@ -66,7 +66,7 @@ export const RECIPIENT_REASON_HEARD = "heard_this_week";
 
 /**
  * What the row of a person a send leaves out keeps (`broadcast_recipients.facts`), written with the run in its own
- * transaction (00381 assemble_broadcast): the send's check at the wire skips them for it (core messages/broadcast.ts),
+ * transaction (00381 assemble_broadcast): the send's check at the wire skips them for it (core messages/broadcast/batch.ts),
  * whatever the hold after the run did. Its one word is the reason.
  */
 export const LEFT_OUT_FACTS: Readonly<Record<string, string>> = { breath: RECIPIENT_REASON_HEARD };
@@ -101,10 +101,10 @@ export function breathTouchOf(times: readonly string[], sendsAt: number, now: nu
 
 /**
  * Who a send leaves out, the one rule wherever the breath is applied: everyone with a message (contact id -> the times of
- * their messages, as packages/db recentTouches answers it at the press) within a week of the send, either side
+ * their messages, as packages/db getRecentTouches answers it at the press) within a week of the send, either side
  * (heardWithin). A send that goes now leaves out who heard within the last week or is due another within the next; one
  * three days ahead, who heard within the last four days or is due another within ten; one queued for a month ahead holds
- * nobody out of a send now. recentTouches answers every message dated at or after now less the week, whenever its run was
+ * nobody out of a send now. getRecentTouches answers every message dated at or after now less the week, whenever its run was
  * made, and a send never goes before now, so the read holds every message any send time needs. Core createBroadcast and
  * Ask's card apply it to the touches; the composer applies heardFor, the same rule, to a preview's.
  */
@@ -180,7 +180,7 @@ export function reachAfterBreath(
 /**
  * Why the breath leaves a person out, in one phrasing whichever side of the send their other message falls and whenever
  * it goes: they hear from you within a week of it. `n` people: the verb's one plural rule ("hears" for one, "hear" for more).
- * A run waiting on approval says it too, in its reasons and its rules (playbook-approval.ts reachLines, toApprovalVM).
+ * A run waiting on approval says it too, in its reasons and its rules (playbooks/approval.ts reachLines, toApprovalVM).
  */
 export const BREATH_WHY = "from you within a week of it";
 const hearsOrHear = (n: number): string => (n === 1 ? "hears" : "hear");
@@ -191,8 +191,8 @@ const hearsOrHear = (n: number): string => (n === 1 ? "hears" : "hear");
  * people more" on the moment's own line); `n` is how many, for the verbs. The one spelling of it: Campaigns' tiles
  * (lifecycle/tiles.ts) say it through here.
  */
-export function breathWaitWords(n: number, who: string): string {
-  return `${who} ${hearsOrHear(n)} from you within a week of today and ${n === 1 ? "waits" : "wait"}`;
+export function breathWaitWords(count: number, personName: string): string {
+  return `${personName} ${hearsOrHear(count)} from you within a week of today and ${count === 1 ? "waits" : "wait"}`;
 }
 
 /**
@@ -200,23 +200,23 @@ export function breathWaitWords(n: number, who: string): string {
  * breathes they are left out ("3 left out: they hear from you within a week of it"); sent to them too, who they are. Null
  * when none do.
  */
-export function heardWords(n: number, breathe: boolean): string | null {
-  if (!(n > 0)) return null;
-  if (breathe) return `${n} left out: they hear ${BREATH_WHY}`;
-  return `${n === 1 ? "One" : n} of them ${hearsOrHear(n)} ${BREATH_WHY}.`;
+export function heardWords(count: number, breathe: boolean): string | null {
+  if (!(count > 0)) return null;
+  if (breathe) return `${count} left out: they hear ${BREATH_WHY}`;
+  return `${count === 1 ? "One" : count} of them ${hearsOrHear(count)} ${BREATH_WHY}.`;
 }
 
 /** The composer's switch that sends to them too, off by default, in the words beside it. Ask never offers it. */
-export function heardTooWords(n: number): string {
-  return `Also send to the ${n === 1 ? "one" : n} who ${hearsOrHear(n)} ${BREATH_WHY}`;
+export function heardTooWords(count: number): string {
+  return `Also send to the ${count === 1 ? "one" : count} who ${hearsOrHear(count)} ${BREATH_WHY}`;
 }
 
 /**
  * Why a send that breathes reaches nobody: everyone it would reach hears from you within a week of it. The composer's
  * foot, the route's refusal and Ask's.
  */
-export function allLeftOutWords(label: string, n: number): string {
-  return `Everyone it reaches on “${label}” hears ${BREATH_WHY}, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
+export function allLeftOutWords(label: string, count: number): string {
+  return `Everyone it reaches on “${label}” hears ${BREATH_WHY}, so ${count === 1 ? "the one person is" : `all ${count} are`} left out.`;
 }
 
 /**
@@ -339,12 +339,12 @@ export const HELD_WHEN_COUNTED = [
  * page gives (HELD_REASONS), and then each reason of HELD_WHEN_COUNTED that `counted` says this run skipped someone for.
  */
 export function finishedRunHeldWhy(counted: readonly string[]): string {
-  const why = [
+  const reason = [
     HELD_REASONS.not_opted_in,
     HELD_REASONS.opted_out,
     HELD_REASONS.no_phone,
     HELD_REASONS.human_has_it,
     ...HELD_WHEN_COUNTED.filter((r) => counted.includes(r)).map((r) => HELD_REASONS[r]),
   ];
-  return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
+  return `${reason.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
 }

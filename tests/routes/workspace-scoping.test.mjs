@@ -49,7 +49,7 @@ const runner = read("apps/dashboard/src/bridge/surface-runner.ts");
 
 /* ------------------------ one resolver, one rule -------------------------- */
 
-test("memberContext is the only place a default workspace is chosen", () => {
+test("getMemberContext is the only place a default workspace is chosen", () => {
   // Each of these was a route resolving the tenant for itself, by its own rule.
   const offenders = [];
   for (const f of ["metrics/route.ts", "workspaces/route.ts"]) {
@@ -166,8 +166,8 @@ test("a request refuses to act on a workspace nobody named, read or write", () =
   // Reads used to fall back to the oldest membership, so a member of two
   // workspaces saw one business under another's name until the workspace
   // surface answered. Since plan 3.4 the resolver refuses before it picks:
-  // one rule, in memberContext, for every route, read or write.
-  const fn = withRoute.slice(withRoute.indexOf("export async function memberContext"));
+  // one rule, in getMemberContext, for every route, read or write.
+  const fn = withRoute.slice(withRoute.indexOf("export async function getMemberContext"));
   assert.match(
     fn,
     /if \(!wanted && rows\.length > 1 && !opts\.defaultAllowed\) throw new AppError\("choose_workspace", AMBIGUOUS\);/,
@@ -181,7 +181,7 @@ test("a request refuses to act on a workspace nobody named, read or write", () =
 
 test("only /workspaces may take the default: answering where am I is its job", () => {
   const ws = read("apps/dashboard/src/server/workspace/list.ts");
-  assert.match(ws, /memberContext\(ctx, preferred, \{ defaultAllowed: true \}\)/);
+  assert.match(ws, /getMemberContext\(ctx, preferred, \{ defaultAllowed: true \}\)/);
   assert.ok(
     !read("apps/dashboard/src/server/shared/route.ts").includes("defaultAllowed"),
     "route() never takes the default",

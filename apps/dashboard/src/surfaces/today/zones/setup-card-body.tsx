@@ -7,15 +7,14 @@
  * card's (SkipMenu), so the first run's own page never loads the kit's Menu.
  */
 import { useLayoutEffect, useState, type ReactNode } from "react";
+import { restEndsDay, type SetupPutOffWhy } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "@/surfaces/setup/first-run/model/helpers";
 import {
-  FIRST_RUN_HELPERS,
   SETUP_CARD_WORDS,
-  restEndsDay,
   type SetupCardPutOff,
   type SetupCardVM,
   type SetupCardWho,
-  type SetupPutOffWhy,
-} from "@chanlytics/contracts";
+} from "@/surfaces/setup/first-run/model/card";
 import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";

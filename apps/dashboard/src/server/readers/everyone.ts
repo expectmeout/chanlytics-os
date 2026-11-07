@@ -1,7 +1,7 @@
 import "server-only";
 import type { PersonRowDto } from "@chanlytics/contracts";
-import { everyone as everyoneIn } from "../people/people";
-import { stamp, type Reader } from "./index";
+import { listEveryone as everyoneIn } from "../people/people";
+import { readerStamp, type Reader } from "../shared/reader";
 
 /**
  * Everyone in People, every page of them, each with the reply mode in force (server/people/people.ts everyone): what the
@@ -11,6 +11,6 @@ import { stamp, type Reader } from "./index";
 export const everyone: Reader<undefined, PersonRowDto[]> = {
   name: "everyone",
   async read(rc) {
-    return { data: await everyoneIn(rc.ctx, rc.tenantId), rows: [], stamp: stamp() };
+    return { data: await everyoneIn(rc.ctx, rc.tenantId), rows: [], stamp: readerStamp() };
   },
 };

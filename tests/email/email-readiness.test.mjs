@@ -10,7 +10,7 @@
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
-import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels";
+import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels/tokens";
 import { CHANNEL_WORDS, OFFERS_BY_EMAIL_WORDS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { importSrc } from "../_source.mjs";
@@ -21,10 +21,10 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL", "EMAIL_DOMAIN"]) delete p
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const { emailWire } = await importSrc("apps/dashboard/src/server/connections/email-readiness.ts");
+const { getEmailWire } = await importSrc("apps/dashboard/src/server/connections/email-readiness.ts");
 /** Whether the edge says the wire can send a campaign at all: the first half of its one answer. */
-const emailWireReady = async (o) => (await emailWire(o)).ready;
-const { channelsReadyOf } = await importSrc("apps/dashboard/src/server/campaigns/channels-ready.ts");
+const emailWireReady = async (o) => (await getEmailWire(o)).ready;
+const { getChannelsReady } = await importSrc("apps/dashboard/src/server/campaigns/channels-ready.ts");
 const { READY_TTL_MS } = await importSrc("apps/dashboard/src/server/shared/edge.ts");
 
 const MIN = 60_000;
@@ -160,7 +160,7 @@ const edgeSays = async (answer) => {
   edge = answer;
   await emailWireReady({ fresh: true });
 };
-const ready = (supabase) => channelsReadyOf({ supabase }, A, { fresh: false });
+const ready = (supabase) => getChannelsReady({ supabase }, A, { fresh: false });
 
 test("the page counts email ready only when the edge says it can send AND the workspace has a mailbox; its answer, not the domain's", async () => {
   await edgeSays(() => ({ status: 200, body: { ok: true, ready: true } }));
@@ -216,10 +216,10 @@ test("an edge that could not be asked leaves email 'This could not be checked ju
 test("the edge's answer about offers is read with the other, and kept as long: true, false, or null where the provider could not be asked; an older edge says none", async () => {
   const t = scenario();
   edge = () => ({ status: 200, body: { ok: true, ready: true, offers: true } });
-  assert.deepEqual(await emailWire({ now: t, fresh: true }), { ready: true, offers: true });
+  assert.deepEqual(await getEmailWire({ now: t, fresh: true }), { ready: true, offers: true });
   assert.equal(calls.length, 1);
   assert.deepEqual(
-    await emailWire({ now: t + READY_TTL_MS - 1 }),
+    await getEmailWire({ now: t + READY_TTL_MS - 1 }),
     { ready: true, offers: true },
     "kept the five minutes",
   );
@@ -227,26 +227,26 @@ test("the edge's answer about offers is read with the other, and kept as long: t
   const u = scenario();
   edge = () => ({ status: 200, body: { ok: true, ready: true, offers: null } });
   assert.deepEqual(
-    await emailWire({ now: u, fresh: true }),
+    await getEmailWire({ now: u, fresh: true }),
     { ready: true, offers: null },
     "the provider could not be asked: no answer",
   );
   edge = () => ({ status: 200, body: { ok: true, ready: true, offers: true } });
   assert.deepEqual(
-    await emailWire({ now: u + 31_000 }),
+    await getEmailWire({ now: u + 31_000 }),
     { ready: true, offers: true },
     "asked again soon, not kept five minutes",
   );
   const v = scenario();
   edge = () => ({ status: 200, body: { ok: true, ready: true } });
   assert.deepEqual(
-    await emailWire({ now: v, fresh: true }),
+    await getEmailWire({ now: v, fresh: true }),
     { ready: true, offers: false },
     "an edge deployed before offers: they are not on",
   );
   edge = () => ({ status: 200, body: { ok: true, ready: false, offers: "yes" } });
   assert.deepEqual(
-    await emailWire({ now: v + 31_000, fresh: true }),
+    await getEmailWire({ now: v + 31_000, fresh: true }),
     { ready: false, offers: false },
     "anything but true or null is a no",
   );
@@ -255,36 +255,36 @@ test("the edge's answer about offers is read with the other, and kept as long: t
 test("only a yes to everything is kept five minutes: a no to offers, whatever the wire says, is kept thirty seconds, so a campaigns domain published a minute ago does not hide offers for five", async () => {
   const t = scenario();
   edge = () => ({ status: 200, body: { ok: true, ready: true, offers: false } });
-  assert.deepEqual(await emailWire({ now: t, fresh: true }), { ready: true, offers: false });
+  assert.deepEqual(await getEmailWire({ now: t, fresh: true }), { ready: true, offers: false });
   assert.equal(calls.length, 1);
   edge = () => ({ status: 200, body: { ok: true, ready: true, offers: true } });
   assert.deepEqual(
-    await emailWire({ now: t + 29_000 }),
+    await getEmailWire({ now: t + 29_000 }),
     { ready: true, offers: false },
     "kept briefly: the wire can send, but offers are not on",
   );
   assert.equal(calls.length, 1);
   assert.deepEqual(
-    await emailWire({ now: t + 31_000 }),
+    await getEmailWire({ now: t + 31_000 }),
     { ready: true, offers: true },
     "asked again after thirty seconds, not five minutes: the domain verified in between is seen",
   );
   assert.equal(calls.length, 2);
   // And a yes to both is kept the five minutes, as it was.
-  assert.deepEqual(await emailWire({ now: t + 31_000 + READY_TTL_MS - 1 }), { ready: true, offers: true });
+  assert.deepEqual(await getEmailWire({ now: t + 31_000 + READY_TTL_MS - 1 }), { ready: true, offers: true });
   assert.equal(calls.length, 2);
   // A send about to be committed does not read what is kept: fresh asks the edge now, whatever it holds.
   edge = () => ({ status: 200, body: { ok: true, ready: true, offers: false } });
-  assert.deepEqual(await emailWire({ now: t + 32_000, fresh: true }), { ready: true, offers: false });
+  assert.deepEqual(await getEmailWire({ now: t + 32_000, fresh: true }), { ready: true, offers: false });
   assert.equal(calls.length, 3);
   assert.deepEqual(
-    (await channelsReadyOf({ supabase: world() }, A, { fresh: true })).email.offers.ok,
+    (await getChannelsReady({ supabase: world() }, A, { fresh: true })).email.offers.ok,
     false,
     "channelsReadyOf passes it on: the readiness a commit reads is the edge's word now",
   );
   assert.equal(calls.length, 4, "the commit's own ask, not the kept one");
   const before = calls.length;
-  await channelsReadyOf({ supabase: world() }, A, { fresh: false });
+  await getChannelsReady({ supabase: world() }, A, { fresh: false });
   assert.equal(calls.length, before, "a page that only draws it reads what is kept (the no, thirty seconds)");
 });
 

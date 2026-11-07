@@ -1,7 +1,7 @@
 import "server-only";
 
 import { PLATFORM_DAYS_READ, type PlatformDayRowDto } from "@chanlytics/contracts";
-import type { BackOffice } from "./platform";
+import type { BackOffice } from "../shared/back-office";
 
 /**
  * Each workspace's day, counted (00277 platform_metrics, rolled up nightly): the back office's read of the last days.
@@ -10,16 +10,16 @@ import type { BackOffice } from "./platform";
  * loudly: a read that fails leaves the back office's other cards standing and says it could not be read (null), and
  * a database 00277 has not reached has no days to show (none).
  */
-export async function platformDays(
+export async function listPlatformDays(
   office: BackOffice,
   days: number = PLATFORM_DAYS_READ.days,
 ): Promise<PlatformDayRowDto[] | null> {
-  const r = await office.db.rpc("platform_metrics_read", { p_days: days }).then(
+  const result = await office.db.rpc("platform_metrics_read", { p_days: days }).then(
     (x) => x,
     () => ({ data: null, error: { code: "unreachable", message: "unreadable" } }),
   );
-  if (r.error) return r.error.code === "PGRST202" ? [] : null;
-  return (r.data ?? []).map((row) => ({
+  if (result.error) return result.error.code === "PGRST202" ? [] : null;
+  return (result.data ?? []).map((row) => ({
     tenant_id: row.tenant_id,
     name: row.name,
     day: row.day,

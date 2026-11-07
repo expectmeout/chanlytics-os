@@ -70,6 +70,9 @@ const thirdPartyExternal = {
   },
 };
 
+/** The packages reached by their domains (decision 0106). */
+const SPLIT_PACKAGES = new Set(["channels", "db"]);
+
 /** The esbuild options of one package's build: what the shipping test holds. */
 export function buildOptions(name) {
   const dir = path.join(PACKAGES_DIR, name);
@@ -79,7 +82,9 @@ export function buildOptions(name) {
     entryPoints: Object.fromEntries(Object.entries(entries).map(([out, from]) => [out.replace(/\.js$/, ""), from])),
     outdir: ".",
     bundle: true,
-    splitting: false,
+    // Entries by domain share their modules, so one breaker, one logger context and one port stand however many of a package's entries a process loads.
+    splitting: SPLIT_PACKAGES.has(name),
+    chunkNames: "chunk-[hash]",
     platform: "node",
     format: "esm",
     target: "node24",
@@ -135,7 +140,8 @@ export async function buildPackages(names = packageNames(), { force = false } = 
       await esbuild.build(buildOptions(name));
       const kept = new Set([...Object.keys(entriesOf(name)).map((out) => path.basename(out)), path.basename(STAMP)]);
       for (const f of fs.readdirSync(path.join(dir, "dist"))) {
-        if (!kept.has(f)) fs.rmSync(path.join(dir, "dist", f), { recursive: true, force: true });
+        if (!kept.has(f) && !(SPLIT_PACKAGES.has(name) && f.startsWith("chunk-")))
+          fs.rmSync(path.join(dir, "dist", f), { recursive: true, force: true });
       }
       fs.writeFileSync(path.join(dir, STAMP), stamp);
       built.push(name);

@@ -16,7 +16,7 @@ import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/shared/adm
 import { readBody } from "../../../lib/shared/admin-door.js";
 import { mayUseModelFor } from "../../../lib/ai/model.js";
 import { askVoiceConfigured, mintAskVoiceSession } from "../../../lib/voice/ask-voice.js";
-import { UUID } from "@chanlytics/contracts";
+import { UUID, VOICE_IS_OFF, VOICE_SESSION_DOOR } from "@chanlytics/contracts";
 import { logger, adminDoor } from "../../../lib/shared/log.js";
 
 const L = logger();
@@ -28,7 +28,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!auth.ok) return auth.response;
   if (!askVoiceConfigured()) return refuse(503, "no_provider_key");
 
-  const body = await readBody<{ tenant_id?: string; user_id?: string }>(request);
+  const body = await readBody(request, VOICE_SESSION_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -37,7 +37,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
 
   if (!(await mayUseModelFor("ask", tenantId))) {
     L.warn("voice_session_refused", { tenant_id: tenantId, why: "may_not_spend" });
-    return refuse(402, "payment_required", "Voice is off while this workspace is paused or its plan has ended.");
+    return refuse(402, "payment_required", VOICE_IS_OFF);
   }
 
   const minted = await mintAskVoiceSession();

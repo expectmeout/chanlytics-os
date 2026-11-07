@@ -21,7 +21,7 @@ export interface InstagramAccountRow {
 }
 
 /** Every active Instagram account on the platform, oldest first: the token sweep's round. */
-export async function activeInstagramAccounts(db: Db): Promise<InstagramAccountRow[]> {
+export async function listActiveInstagramAccounts(db: Db): Promise<InstagramAccountRow[]> {
   const { data, error } = await db
     .from("tenant_channels")
     .select("id, tenant_id, external_id, credentials_ref, config")
@@ -46,7 +46,7 @@ export async function putChannelSecret(db: Db, channelId: string, secret: Json):
 }
 
 /** Which workspace holds an Instagram account's row, if any: the connect door refuses one another workspace holds. */
-export async function instagramAccountHolder(
+export async function findInstagramAccountHolder(
   db: Db,
   accountId: string,
 ): Promise<{ id: string; tenant_id: string } | null> {
@@ -87,17 +87,17 @@ export async function writeInstagramAccount(
     .maybeSingle();
   if (mine.error) return { failed: mine.error.message };
   if (mine.data) return mine.data;
-  const made = await db
+  const created = await db
     .from("tenant_channels")
     .insert({ ...row, status: "disabled" })
     .select("id")
     .single();
-  if (made.error?.code === "23505") {
-    const holder = await instagramAccountHolder(db, fields.accountId).catch(() => null);
+  if (created.error?.code === "23505") {
+    const holder = await findInstagramAccountHolder(db, fields.accountId).catch(() => null);
     return holder?.tenant_id === fields.tenantId ? { id: holder.id } : "taken";
   }
-  if (made.error || !made.data) return { failed: made.error?.message ?? "no row" };
-  return made.data;
+  if (created.error || !created.data) return { failed: created.error?.message ?? "no row" };
+  return created.data;
 }
 
 /**
@@ -147,7 +147,7 @@ export async function noteInstagramToken(
  * longer kept, never answered after. `forgot` with the stored attachment's path for the caller to remove, or `none` for a
  * DM not kept here. A write that fails THROWS, so the door has the delivery sent again.
  */
-export async function messageUnsent(
+export async function markMessageUnsent(
   db: Db,
   tenantId: string,
   externalId: string,
@@ -164,7 +164,7 @@ export async function messageUnsent(
  * Their newest, where a merge left them two; null for a person who never wrote by DM. A read that fails THROWS: "we could
  * not read it" is never "they have none".
  */
-export async function instagramIdOf(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+export async function findInstagramId(db: Db, tenantId: string, contactId: string): Promise<string | null> {
   const { data, error } = await db
     .from("contact_identities")
     .select("external_id")
@@ -183,7 +183,7 @@ export async function instagramIdOf(db: Db, tenantId: string, contactId: string)
  * holds: an echo of the business's own DM is kept on that person's thread, and on no one's when nobody holds it. An id a
  * merge moved points at the kept person (00326: one hop is every hop). A read that fails THROWS.
  */
-export async function personOfInstagramId(db: Db, tenantId: string, igsid: string): Promise<string | null> {
+export async function findPersonOfInstagramId(db: Db, tenantId: string, igsid: string): Promise<string | null> {
   const { data, error } = await db
     .from("contact_identities")
     .select("contact_id, contacts (merged_into_contact_id, erased_at)")
@@ -202,7 +202,7 @@ export async function personOfInstagramId(db: Db, tenantId: string, igsid: strin
  * too long for one DM leaves as several, each with its own id at Instagram, and its row keeps the first part's id alone,
  * so a later part's echo is told from a message the team typed in the app by its words. A read that fails THROWS.
  */
-export async function lastDmsSentTo(db: Db, tenantId: string, contactId: string): Promise<string[]> {
+export async function listLastDmsSentTo(db: Db, tenantId: string, contactId: string): Promise<string[]> {
   const threads = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId);
   if (threads.error) throw new Error(`lastDmsSentTo: ${threads.error.message}`);
   const ids = (threads.data ?? []).map((c) => c.id);
@@ -227,7 +227,7 @@ const DMS_TO_COMPARE = 5;
  * nobody has: what a channel's row says of its last message (Settings › Connections, the channels read). Under the
  * caller's row security. A read that fails THROWS.
  */
-export async function lastInboundOn(
+export async function findLastInboundOn(
   db: Db,
   tenantId: string,
   channel: "whatsapp" | "instagram",

@@ -4,10 +4,11 @@
  * from billing.ts, which applies the readings and rings them through here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
-import { emitEvent, workspaceZoneOf } from "@chanlytics/db";
-import { DEFAULT_TIMEZONE, dayWords } from "@chanlytics/contracts";
-import { keepOnce, notifyOnceAs } from "../ops/notify.js";
+import type { Database } from "@chanlytics/db/types";
+import { emitEvent } from "@chanlytics/db/events";
+import { findWorkspaceZone } from "@chanlytics/db/workspace";
+import { DEFAULT_TIMEZONE, billingDayWords } from "@chanlytics/contracts";
+import { keepOnce, notifyOnceAs } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 
 type Db = SupabaseClient<Database>;
@@ -48,14 +49,14 @@ export async function tellOnce(
   key: string,
 ): Promise<{ mailOwed: boolean }> {
   const addressing = await loadTenantNotifications(db, tenantId);
-  const told = await notifyOnceAs(
+  const notice = await notifyOnceAs(
     { tenantId, ...addressing },
     { kind: "billing", subject: bell.title, body: bell.body, route: "admin/billing", about: null, onceKey: key },
     { db },
   );
-  if (told === "not_kept")
+  if (notice === "not_kept")
     throw new Error(`the billing notice "${bell.title}" could not be kept; it is told on the retry`);
-  return { mailOwed: told === "mail_owed" };
+  return { mailOwed: notice === "mail_owed" };
 }
 
 /**
@@ -71,7 +72,7 @@ export async function noteTrialEnding(
   // The day is the workspace's, as Billing says it: by the server's clock, an end at 03:00 UTC was the next day's
   // date to an owner in New York. A zone that cannot be read leaves the bell its words, by the default zone.
   const on = trialEnd
-    ? dayWords(trialEnd, (await workspaceZoneOf(db, row.tenant_id).catch(() => null)) || DEFAULT_TIMEZONE)
+    ? billingDayWords(trialEnd, (await findWorkspaceZone(db, row.tenant_id).catch(() => null)) || DEFAULT_TIMEZONE)
     : "";
   await ringOnce(
     db,

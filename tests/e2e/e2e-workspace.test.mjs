@@ -74,13 +74,13 @@ globalThis.fetch = async (url, init) => {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseAddressing, reachesTenant } = await import(
-  pathToFileURL(path.join(here, "../../apps/edge/lib/ops/notify.ts")).href
+  pathToFileURL(path.join(here, "../../apps/edge/lib/shared/alerts/notify.ts")).href
 );
 const { planLeadSweep, QUESTION_WAIT_MS } = await import(
-  pathToFileURL(path.join(here, "../../apps/edge/lib/leads/lead-sweep.ts")).href
+  pathToFileURL(path.join(here, "../../apps/edge/lib/leads/sweep-plan.ts")).href
 );
 const { sweepGoogle } = await import(pathToFileURL(path.join(here, "../../apps/edge/lib/google/sweep.ts")).href);
-const { listingsDue, connectionsDue } = await import(
+const { listListingsDue, listConnectionsDue } = await import(
   pathToFileURL(path.join(here, "../../apps/edge/lib/google/listing-check.ts")).href
 );
 const { sweepUnfinished } = await import(
@@ -937,10 +937,10 @@ test("the Google sweep reaches the seed only a day on, and then writes its failu
   const seededAt = Date.now() - 21 * hour;
   const { tenantId: T } = await run(w, { now: seededAt });
   const stamp = new Date(seededAt).toISOString();
-  assert.deepEqual(await listingsDue(w.db, new Date(seededAt + 19 * hour), 40), [], "not due at nineteen hours");
-  assert.deepEqual(await connectionsDue(w.db, new Date(seededAt + 19 * hour), 40), []);
-  assert.equal((await listingsDue(w.db, new Date(), 40)).length, 1, "due at twenty-one");
-  assert.equal((await connectionsDue(w.db, new Date(), 40)).length, 1);
+  assert.deepEqual(await listListingsDue(w.db, new Date(seededAt + 19 * hour), 40), [], "not due at nineteen hours");
+  assert.deepEqual(await listConnectionsDue(w.db, new Date(seededAt + 19 * hour), 40), []);
+  assert.equal((await listListingsDue(w.db, new Date(), 40)).length, 1, "due at twenty-one");
+  assert.equal((await listConnectionsDue(w.db, new Date(), 40)).length, 1);
 
   const kept = () =>
     JSON.stringify([of(w.t, "google_reviews", T), of(w.t, "google_listing_days", T), of(w.t, "events", T)]);

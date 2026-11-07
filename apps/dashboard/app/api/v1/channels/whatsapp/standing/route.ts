@@ -11,7 +11,7 @@ import { checkWhatsAppStanding } from "@/server/connections/whatsapp";
  * minutes ago, so a payment method added a minute ago shows as fixed without waiting for the six-hourly read. Answers what was
  * kept and Meta's word for the number, never Meta's words.
  */
-const SAID: Record<string, string> = {
+const REASON_WORDS: Record<string, string> = {
   preview: "Checking only works on the production dashboard.",
   no_channel: "This workspace has no WhatsApp number connected.",
   no_token: "Chanlytics could not read this number's WhatsApp credentials. Connect the number again and try again.",
@@ -26,8 +26,10 @@ export const POST = write({
   handle: async ({ ctx, member }) => {
     const r = await checkWhatsAppStanding(member.tenantId, ctx.userId);
     if (!r.ok) {
-      const said = SAID[r.reason] ?? `Meta's answer about the number could not be read (${r.reason}).`;
-      throw r.reason === "no_channel" ? new AppError("conflict", said, 409) : new AppError("upstream_meta", said, 502);
+      const sentence = REASON_WORDS[r.reason] ?? `Meta's answer about the number could not be read (${r.reason}).`;
+      throw r.reason === "no_channel"
+        ? new AppError("conflict", sentence, 409)
+        : new AppError("upstream_meta", sentence, 502);
     }
     return { kept: r.kept, can_send: r.canSend };
   },

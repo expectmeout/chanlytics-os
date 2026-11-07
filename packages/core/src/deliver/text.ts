@@ -12,7 +12,7 @@ import type { DeliveryRefusal, SendPurpose } from "@chanlytics/contracts";
  * not, whoever asks. Offers and news go by WhatsApp. And a text leaves only on a line the carriers have approved
  * (`sms_state` active) and that is no test filing (`reg_mock`), as the inbound door holds the same
  * (sms/ingress.ts); contracts channelsReady judges the line by the same two facts, so the composer's tick and the door
- * agree. `line` is the workspace's texting line (db textLineFacts), null with none.
+ * agree. `line` is the workspace's texting line (db findTextLineFacts), null with none.
  */
 export function textRefusal(
   purpose: SendPurpose,

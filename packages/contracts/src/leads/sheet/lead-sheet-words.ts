@@ -5,7 +5,7 @@
  *
  * The box shows the email as it reads: real values, and what is not known yet as a mark in brackets. What is kept is the
  * words as a step writes them: a value the words named goes back to its slot where that changes no character, so a sign-off
- * still names {{your name}} (coldEndingOf), a preview still starts its thirty days (previewSent) and a name put right
+ * still names {{your name}} (coldEndingOf), a preview still starts its thirty days (recordPreviewSent) and a name put right
  * still reaches the email. The line written for them is kept as it was typed: it is the member's now.
  *
  *   leadWordsPieces    the same email as the sheet reads it at rest, each piece at its place in the box's words
@@ -15,20 +15,16 @@
  */
 import { slotMentions, slotValueOf, slotWritten } from "../../campaigns/templates/slot-sets";
 import { capitalize } from "../../shared/words";
-import { leadAddresseeOf } from "../lead-kind";
+import { leadAddresseeOf } from "../kind";
 import {
   reachOutCardEmailOf,
   reachOutValues,
   type SlotLead,
   type SlotWorkspace,
 } from "../../campaigns/reach-out/rules";
-import {
-  chainIssueWords,
-  firstEmailLinkProblem,
-  REACH_OUT_SLOT_SET as SLOTS,
-  validateReachOutWords,
-  wordsIssueWords,
-} from "../../campaigns/reach-out/words";
+import { chainIssueWords, firstEmailLinkProblem } from "../../campaigns/reach-out/words/opening";
+import { REACH_OUT_SLOT_SET as SLOTS } from "../../campaigns/reach-out/words/slots";
+import { validateReachOutWords, wordsIssueWords } from "../../campaigns/reach-out/words/limits";
 
 /** An email's words: a later step answers the one before, and has no subject (null). */
 export interface LeadEmailText {
@@ -58,8 +54,8 @@ export const LEAD_WORDS_BOX = {
   /** What stands for the line while it is still to be written: left alone, the check writes it. */
   line: "[A line about them, written before it goes]",
   edit: "Edit",
-  editOf: (who: string) => `Edit the email to ${who}`,
-  bodyOf: (who: string) => `The email to ${who}`,
+  editOf: (personName: string) => `Edit the email to ${personName}`,
+  bodyOf: (personName: string) => `The email to ${personName}`,
   subject: "Subject",
   done: "Done",
   back: "Use the sequence's words",
@@ -67,11 +63,11 @@ export const LEAD_WORDS_BOX = {
   everyone: "Change it for everyone",
   test: "Send me a test",
   /** Under an email whose words are this lead's. */
-  only: (who: string) => `Only for ${who}`,
-  saved: (who: string) => `Saved for ${who}`,
+  only: (personName: string) => `Only for ${personName}`,
+  saved: (personName: string) => `Saved for ${personName}`,
   undo: "Undo",
-  undone: (who: string) => `${who} gets the words you had before`,
-  backAgain: (who: string) => `${who} gets the sequence's words`,
+  undone: (personName: string) => `${personName} gets the words you had before`,
+  backAgain: (personName: string) => `${personName} gets the sequence's words`,
   fill: (labels: readonly string[]) => `Fill in ${labels.join(" and ")}, or take it out.`,
   /** Under the box while it is typed in: what goes under the words that is not theirs to change. */
   foot: "Your footer is added when it goes.",
@@ -111,8 +107,8 @@ interface WordsFor {
 }
 
 /** The email as the sheet reads it at rest: the box's words in pieces, the line and what is not known yet apart. */
-export function leadWordsPieces(p: WordsFor & { body: string; opening: string | null }): LeadEmailPiece[] {
-  const values = reachOutValues(p.lead, p.workspace, p.opening);
+export function leadWordsPieces(wordsFor: WordsFor & { body: string; opening: string | null }): LeadEmailPiece[] {
+  const values = reachOutValues(wordsFor.lead, wordsFor.workspace, wordsFor.opening);
   const out: LeadEmailPiece[] = [];
   let at = 0;
   const put = (kind: LeadEmailPiece["kind"], text: string, slot?: string) => {
@@ -123,23 +119,23 @@ export function leadWordsPieces(p: WordsFor & { body: string; opening: string | 
     at += text.length;
   };
   let from = 0;
-  for (const m of slotMentions(SLOTS, p.body)) {
-    put("words", p.body.slice(from, m.index));
+  for (const m of slotMentions(SLOTS, wordsFor.body)) {
+    put("words", wordsFor.body.slice(from, m.index));
     const value = slotValueOf(SLOTS, m.key, values);
     if (value) put(m.key === "opening" ? "line" : "words", value);
     else put("mark", markOf(m.key), m.key);
     from = m.index + m.written.length;
   }
-  put("words", p.body.slice(from));
+  put("words", wordsFor.body.slice(from));
   return out;
 }
 
 /** The email as the box opens with it: `words` for this lead, with the line written for them where there is one. */
-export function leadWordsInBox(p: WordsFor & { words: LeadEmailText; opening: string | null }): LeadEmailText {
-  const values = reachOutValues(p.lead, p.workspace, p.opening);
+export function leadWordsInBox(wordsFor: WordsFor & { words: LeadEmailText; opening: string | null }): LeadEmailText {
+  const values = reachOutValues(wordsFor.lead, wordsFor.workspace, wordsFor.opening);
   return {
-    subject: p.words.subject === null ? null : inBox(p.words.subject, values),
-    body: inBox(p.words.body, values),
+    subject: wordsFor.words.subject === null ? null : inBox(wordsFor.words.subject, values),
+    body: inBox(wordsFor.words.body, values),
   };
 }
 
@@ -158,17 +154,19 @@ function swapStandingAlone(text: string, from: string, to: string): string {
 }
 
 /** Each mark and value of the slots `base` names, longest first, and the slot it goes back to. */
-function swapsOf(p: WordsFor & { base: LeadEmailText }): Array<{ from: string; to: string; value: boolean }> {
-  const values = reachOutValues(p.lead, p.workspace, null);
-  const named = [...new Set(slotMentions(SLOTS, `${p.base.subject ?? ""}\n${p.base.body}`).map((m) => m.key))];
-  const greetsAnyone = !leadAddresseeOf(p.lead)?.first_name;
+function swapsOf(wordsFor: WordsFor & { base: LeadEmailText }): Array<{ from: string; to: string; value: boolean }> {
+  const values = reachOutValues(wordsFor.lead, wordsFor.workspace, null);
+  const named = [
+    ...new Set(slotMentions(SLOTS, `${wordsFor.base.subject ?? ""}\n${wordsFor.base.body}`).map((m) => m.key)),
+  ];
+  const greetsAnyone = !leadAddresseeOf(wordsFor.lead)?.first_name;
   return named
     .flatMap((key) => {
       const to = slotWritten(key);
       const value = slotValueOf(SLOTS, key, values);
       // "there" is a word as well as the fallback: "over there" never becomes a slot.
-      const said = value && !(key === "first name" && greetsAnyone) ? [{ from: value, to, value: true }] : [];
-      return [{ from: markOf(key), to, value: false }, ...said];
+      const sentence = value && !(key === "first name" && greetsAnyone) ? [{ from: value, to, value: true }] : [];
+      return [{ from: markOf(key), to, value: false }, ...sentence];
     })
     .sort((a, b) => b.from.length - a.from.length);
 }
@@ -186,10 +184,10 @@ function fromBox(typed: string, p: WordsFor & { base: LeadEmailText }): string {
  * What the box says, as the words to keep. `base` is what the box opened from, whose slots are the ones its values go
  * back to. A step after the first keeps no subject.
  */
-export function leadWordsFromBox(p: WordsFor & { typed: LeadEmailText; base: LeadEmailText }): LeadEmailText {
-  const body = fromBox(p.typed.body.replace(/\r\n?/g, "\n").trimEnd(), p);
-  if (p.base.subject === null) return { subject: null, body };
-  return { subject: fromBox((p.typed.subject ?? "").trim(), p), body };
+export function leadWordsFromBox(wordsFor: WordsFor & { typed: LeadEmailText; base: LeadEmailText }): LeadEmailText {
+  const body = fromBox(wordsFor.typed.body.replace(/\r\n?/g, "\n").trimEnd(), wordsFor);
+  if (wordsFor.base.subject === null) return { subject: null, body };
+  return { subject: fromBox((wordsFor.typed.subject ?? "").trim(), wordsFor), body };
 }
 
 /**
@@ -197,11 +195,11 @@ export function leadWordsFromBox(p: WordsFor & { typed: LeadEmailText; base: Lea
  * then a value this lead still lacks, which would hold the email. Null where they may go. The model reads none of it: the
  * check keeps the model honest, and these are the member's words.
  */
-export function leadWordsProblem(p: WordsFor & { words: LeadEmailText; first: boolean }): string | null {
-  const issue = validateReachOutWords(p.words, p.first)[0];
+export function leadWordsProblem(wordsFor: WordsFor & { words: LeadEmailText; first: boolean }): string | null {
+  const issue = validateReachOutWords(wordsFor.words, wordsFor.first)[0];
   if (issue) return wordsIssueWords(issue);
-  const link = p.first ? firstEmailLinkProblem(p.words) : null;
+  const link = wordsFor.first ? firstEmailLinkProblem(wordsFor.words) : null;
   if (link) return chainIssueWords({ step: 0, field: "body", problem: link });
-  const { holes } = reachOutCardEmailOf(p.words, p.lead, p.workspace);
+  const { holes } = reachOutCardEmailOf(wordsFor.words, wordsFor.lead, wordsFor.workspace);
   return holes.length ? W.fill(holes.map(labelOf)) : null;
 }

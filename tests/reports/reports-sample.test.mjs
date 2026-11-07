@@ -6,7 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixedDaysOf, reportFacts, reportRangeKey } from "@chanlytics/contracts";
+import { fixedDaysOf, reportRangeKey } from "@chanlytics/contracts";
+import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 import { toCampaignLensVM, toPeopleReportVM, toReceptionistReportVM } from "@chanlytics/contracts/report-lens";
 import { campaignsSample } from "../../apps/dashboard/src/surfaces/reports/campaigns-sample.ts";
 import {

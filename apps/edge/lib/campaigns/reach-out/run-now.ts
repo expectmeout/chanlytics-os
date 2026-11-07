@@ -27,7 +27,8 @@ import { pg } from "../../shared/pg.js";
 import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks/playbooks.js";
 import { logger } from "../../shared/log.js";
 import { runReachOutStep } from "./run-step.js";
-import { sequenceModesOf, workspaceZoneOf } from "@chanlytics/db";
+import { getSequenceModes } from "@chanlytics/db/campaigns";
+import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { ReachOutRow } from "./run-context.js";
 import { UUID, CAMPAIGNS_PAUSED_WORDS, DEFAULT_TIMEZONE } from "@chanlytics/contracts";
 
@@ -39,7 +40,7 @@ export async function runPlaybookNow(
     user_id?: unknown;
   }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -64,25 +65,25 @@ export async function runPlaybookNow(
   if ((p as { kind?: string }).kind === "reach_out") {
     const row = p as ReachOutRow;
     if (row.trigger !== "lead_first") return refuse(409, "reach_out_step");
-    const tz = (await workspaceZoneOf(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
-    const r = await runReachOutStep(db, row, new Date(), tz, L);
-    L.info("reach_out_run_now", {
+    const tz = (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
+    const otherRunReachOutStep = await runReachOutStep(db, row, new Date(), tz, log);
+    log.info("reach_out_run_now", {
       tenant_id: tenantId,
       playbook_id: playbookId,
       user_id: userId,
-      outcome: r.outcome,
-      reason: r.reason,
-      planned: r.planned,
-      run_id: r.runId,
+      outcome: otherRunReachOutStep.outcome,
+      reason: otherRunReachOutStep.reason,
+      planned: otherRunReachOutStep.planned,
+      run_id: otherRunReachOutStep.runId,
     });
-    if (r.outcome === "failed") return refuse(500, "run_failed", r.reason);
+    if (otherRunReachOutStep.outcome === "failed") return refuse(500, "run_failed", otherRunReachOutStep.reason);
     return json(200, {
       ok: true,
-      outcome: r.outcome,
-      reason: r.reason ?? null,
-      planned: r.planned,
-      run_id: r.runId,
-      run_for: r.runFor,
+      outcome: otherRunReachOutStep.outcome,
+      reason: otherRunReachOutStep.reason ?? null,
+      planned: otherRunReachOutStep.planned,
+      run_id: otherRunReachOutStep.runId,
+      run_for: otherRunReachOutStep.runFor,
     });
   }
 
@@ -91,7 +92,7 @@ export async function runPlaybookNow(
   const step = p as PlaybookRow & { sequence_id: string };
   let mode: string | undefined;
   try {
-    mode = (await sequenceModesOf(db, tenantId, [step.sequence_id])).get(step.sequence_id);
+    mode = (await getSequenceModes(db, tenantId, [step.sequence_id])).get(step.sequence_id);
   } catch (e) {
     return refuse(500, "read_failed", e instanceof Error ? e.message : String(e));
   }
@@ -100,8 +101,8 @@ export async function runPlaybookNow(
   // the voice doors answer a paused one.
   if ("error" in ctx && ctx.error === CONTEXT_PAUSED) return refuse(402, "payment_required", CAMPAIGNS_PAUSED_WORDS);
   if ("error" in ctx) return refuse(500, "context_failed", ctx.error);
-  const r = await runPlaybook(ctx, { ...step, mode }, { by: { kind: "user", userId } });
-  if (r.outcome === "failed") return refuse(500, "run_failed", r.error);
-  L.info("playbook_run_now", { tenant_id: tenantId, playbook_id: playbookId, outcome: r.outcome });
-  return json(200, { ok: true, ...r });
+  const result = await runPlaybook(ctx, { ...step, mode }, { by: { kind: "user", userId } });
+  if (result.outcome === "failed") return refuse(500, "run_failed", result.error);
+  log.info("playbook_run_now", { tenant_id: tenantId, playbook_id: playbookId, outcome: result.outcome });
+  return json(200, { ok: true, ...result });
 }

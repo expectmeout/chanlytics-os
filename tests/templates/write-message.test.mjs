@@ -15,13 +15,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import {
-  CAMPAIGN_ROOMS,
-  LIBRARY_WORDS,
-  MESSAGE_BEGIN_WORDS,
-  PROPOSAL_SPECS,
-  channelNeverCarries,
-} from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, LIBRARY_WORDS, MESSAGE_BEGIN_WORDS, channelNeverCarries } from "@chanlytics/contracts";
+import { PROPOSAL_SPECS } from "../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -34,7 +29,7 @@ delete process.env.DIAG_KEY;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/templates/message/route.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -175,7 +170,7 @@ let meta;
 beforeEach(() => setRateStore(memoryStore()));
 afterEach(() => {
   meta?.restore();
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });
 
 /** A world: B, where the member is an operator with a WhatsApp number; A, where they only look. */
@@ -202,7 +197,7 @@ function open({ templates = [], edge = null, status = "pending" } = {}) {
   const faults = {};
   const after = {};
   const d = doors(tables, order, after);
-  setServiceClient(fakeDb(tables, {}, d.service));
+  setUnsubscribeServiceClient(fakeDb(tables, {}, d.service));
   meta = stubMeta(tables, order, edge, status);
   const ctx = { supabase: fakeDb(tables, faults, d.session), userId: USER, email: "ada@example.com", params: {} };
   const post = (body, workspace = B) =>

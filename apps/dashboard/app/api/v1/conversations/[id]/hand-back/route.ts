@@ -1,7 +1,7 @@
 import { handBack } from "@chanlytics/core";
 import { write } from "@/server/shared/route";
 import { conversationScope } from "@/server/shared/verbs";
-import { threadPorts } from "@/server/ports/core-ports";
+import { threadPorts } from "@/server/conversations/ports";
 
 /** Hand back: the receptionist resumes; the open escalation resolves (§4). */
 export const POST = write({

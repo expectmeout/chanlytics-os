@@ -13,12 +13,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ASK_MORNING_EDITED_QUESTION,
   ASK_MORNING_QUESTION,
-  PROPOSAL_SPECS,
   SEQUENCE_ACT_WHY,
   SEQUENCE_FLOW_WORDS,
   localDate,
   runDayPassed,
 } from "@chanlytics/contracts";
+import { PROPOSAL_SPECS } from "../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -26,12 +26,12 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const approveRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/approve/route.ts"));
 const cancelRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/cancel/route.ts"));
 
@@ -39,7 +39,7 @@ beforeEach(() => {
   readerCache.clear();
   setRateStore(memoryStore());
 });
-afterEach(() => setServiceClient(null));
+afterEach(() => setUnsubscribeServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -541,7 +541,7 @@ function tabOver(tables) {
   const sent = [];
   const events = [];
   const supabase = fakeDb(tables, {}, approvalDoor(tables));
-  setServiceClient(supabase);
+  setUnsubscribeServiceClient(supabase);
   const client = createApi({
     fetch: async (url, init) => {
       const u = new URL(String(url), "http://localhost");

@@ -157,7 +157,7 @@ before(async () => {
           region: r.state,
           postal_code: r.postal_code,
           phone_e164: r.phone,
-          // A number the listing and the site agree on is on two sources (lead-page.ts: phone_agrees).
+          // A number the listing and the site agree on is on two sources (leads/page-read.ts: phone_agrees).
           phone_sources: r.phone ? (r.phone_agrees ? 2 : 1) : 0,
           phone_wrong: r.phone_wrong,
           email: r.email ? `${r.id}@fixture-filters.example` : null,

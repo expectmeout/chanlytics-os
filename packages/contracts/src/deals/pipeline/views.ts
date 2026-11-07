@@ -4,7 +4,7 @@
  * Pipeline they are views of is pipeline.ts's.
  */
 import { stepIsDue } from "../../notes/steps";
-import { waitingOnProposal, type DealPaceVM } from "../deal-waits";
+import { waitingOnProposal, type DealPaceVM } from "../waits";
 import {
   PIPELINE_GROUPS,
   type PipelineGroupKey,
@@ -32,8 +32,10 @@ const VIEW_KINDS: readonly string[] = /* @__PURE__ */ (() => [
   "steps",
 ])();
 
-export function isPipelineView(s: unknown): s is PipelineView {
-  return typeof s === "string" && (VIEW_KINDS.includes(s) || (s.startsWith("svc:") && s.slice(4).trim() !== ""));
+export function isPipelineView(text: unknown): text is PipelineView {
+  return (
+    typeof text === "string" && (VIEW_KINDS.includes(text) || (text.startsWith("svc:") && text.slice(4).trim() !== ""))
+  );
 }
 
 /** The service a view is of; null for any other view. */
@@ -65,13 +67,13 @@ const PEEK_ID = /^[A-Za-z0-9_-]{1,80}$/;
  * (`v-proposals`, or a service as `v-s.<its name, encoded>`), then the person open over it (`p-<id>`). The shell reads
  * the hash as it stands, so an encoded name keeps its colons and slashes out of the separators.
  */
-export function pipelineRoute(v: { view?: PipelineView | null; peek?: string | null } = {}): string {
+export function pipelineRoute(values: { view?: PipelineView | null; peek?: string | null } = {}): string {
   const parts = ["clients/pipeline"];
-  const view = v.view && isPipelineView(v.view) ? v.view : "all";
+  const view = values.view && isPipelineView(values.view) ? values.view : "all";
   const svc = serviceOf(view);
   if (svc !== null) parts.push(`v-s.${encodeURIComponent(svc)}`);
   else if (view !== "all") parts.push(`v-${view}`);
-  if (v.peek && PEEK_ID.test(v.peek)) parts.push(`p-${v.peek}`);
+  if (values.peek && PEEK_ID.test(values.peek)) parts.push(`p-${values.peek}`);
   return parts.join(":");
 }
 
@@ -83,25 +85,25 @@ export function parsePipelineRoute(
   if (head !== "clients/pipeline" && head !== "pipeline") return null;
   let view: PipelineView = "all";
   let peek: string | null = null;
-  for (const s of segs) {
-    if (s.startsWith("v-s.")) {
+  for (const seg of segs) {
+    if (seg.startsWith("v-s.")) {
       let name: string;
       try {
-        name = decodeURIComponent(s.slice(4));
+        name = decodeURIComponent(seg.slice(4));
       } catch {
         continue;
       }
       if (name.trim()) view = `svc:${name}`;
-    } else if (s.startsWith("v-")) {
-      const k = s.slice(2);
+    } else if (seg.startsWith("v-")) {
+      const k = seg.slice(2);
       if (VIEW_KINDS.includes(k)) view = k as PipelineView;
-    } else if (s.startsWith("p-") && PEEK_ID.test(s.slice(2))) peek = s.slice(2);
+    } else if (seg.startsWith("p-") && PEEK_ID.test(seg.slice(2))) peek = seg.slice(2);
   }
   return { view, peek };
 }
 
 /** A row whose next step's day has come: today, or before it. */
-export const stepDue = (r: { next: PipelineNextVM | null }): boolean => stepIsDue(r.next);
+export const stepDue = (row: { next: PipelineNextVM | null }): boolean => stepIsDue(row.next);
 
 /** One row of the Pipeline's rail: the view it picks, its words, how many, and warn where it counts what waits. */
 export interface PipelineRailRow {

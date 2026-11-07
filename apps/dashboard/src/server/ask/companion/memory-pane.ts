@@ -11,7 +11,7 @@ import {
   type AskMemoryPageDto,
   type AskMemorySource,
 } from "@chanlytics/contracts";
-import { askJournalDays, askMemoryLines, changeAskMemory, forgetAskMemory, keepAskMemory } from "@chanlytics/db";
+import { askJournalDays, askMemoryLines, changeAskMemory, forgetAskMemory, keepAskMemory } from "@chanlytics/db/ask";
 import { dbRefusal, type RouteContext } from "../../shared/with-route";
 import type { Member } from "../../shared/route";
 import { requireUuid } from "../../shared/request-guards";
@@ -25,7 +25,7 @@ import { requireUuid } from "../../shared/request-guards";
  */
 
 /** The pane's read: the live lines, newest first, the journal's newest days, and whether the caller may change a line. */
-export async function memoryPage(ctx: RouteContext, member: Member): Promise<AskMemoryPageDto> {
+export async function getMemoryPage(ctx: RouteContext, member: Member): Promise<AskMemoryPageDto> {
   const [lines, journal] = await Promise.all([
     askMemoryLines(ctx.supabase, member.tenantId, ASK_MEMORY_LIMITS.liveMax),
     askJournalDays(ctx.supabase, member.tenantId, ASK_JOURNAL_LIMITS.shown),

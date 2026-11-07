@@ -1,6 +1,8 @@
 import "server-only";
 import { z } from "zod";
-import { actAction, defineActions, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
+import { str } from "../context/tool-reads";
 
 /** The longest reply Google keeps on a review, in characters. */
 const REPLY_MAX = 4096;
@@ -10,20 +12,20 @@ const REPLY_MAX = 4096;
  * turn read (report with lens reviews names the ones waiting, each a row an answer may cite), so a card never answers a
  * review nobody read. Public once it lands, so it is approved on its own.
  */
-function proposeReply(t: ToolContext, input: { review_id: string; comment: string }): ProposalOutcome {
+function proposeReply(toolContext: ToolContext, input: { review_id: string; comment: string }): ProposalOutcome {
   const id = str(input.review_id, 120);
   if (!id) return refuse("review_id is a review's id from report with lens reviews");
-  if (!t.read.review.has(id))
+  if (!toolContext.read.review.has(id))
     return refuse("read the review first (report with lens reviews names the ones waiting), then propose the reply");
   const comment = input.comment.trim();
   if (!comment) return refuse("comment is the reply's words");
   if (comment.length > REPLY_MAX) return refuse(`a reply is at most ${REPLY_MAX} characters`);
-  const who = t.read.review.get(id)?.label ?? "the review";
+  const value = toolContext.read.review.get(id)?.label ?? "the review";
   return propose({
     kind: "review_reply",
-    title: `Reply to ${who}`,
+    title: `Reply to ${value}`,
     summary: `“${comment}” · posted on Google under the review, for everyone to read; a new reply replaces the last.`,
-    payload: { review_id: id, comment, who },
+    payload: { review_id: id, comment, who: value },
   });
 }
 

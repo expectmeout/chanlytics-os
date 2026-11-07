@@ -12,30 +12,32 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   REACH_OUT_SLOT_SET,
-  clampWords,
-  eraseSlot,
   fillSlots,
-  fromSlotParts,
-  insertSlot,
-  namedProblem,
   numberedSlots,
   playbookName,
-  partWritten,
   placeholdersOf,
   reachOutRules,
-  slotKnown,
   slotChoices,
-  slotLabel,
   slotWritten,
   smsVersionSegments,
   starterByKey,
   starterText,
   templateSlots,
-  toSlotParts,
   validateEmailVersion,
   validateOwnVersion,
   validateSmsVersion,
 } from "@chanlytics/contracts";
+import {
+  clampWords,
+  eraseSlot,
+  fromSlotParts,
+  insertSlot,
+  namedProblem,
+  partWritten,
+  slotKnown,
+  slotLabel,
+  toSlotParts,
+} from "../../apps/dashboard/src/surfaces/campaigns/templates/message-version-slots.ts";
 
 const text = (t) => ({ kind: "text", text: t });
 // A slot is its key (a number's digits here); the numbered set is what words are read over unless one is named.

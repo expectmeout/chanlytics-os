@@ -3,7 +3,7 @@
  * the card's one line (describeSettingsChange). The workspace's cards propose it (ask/proposals/workspace.ts); its
  * schema is ask/schemas.ts's.
  */
-// The whole-word cut the thread's lines use; Ask's own `clip` (ask/answer.ts) reaches this module through the
+// The whole-word cut the thread's lines use; Ask's own `clip` (ask/answer/normalize.ts) reaches this module through the
 // proposals, so importing it here would close a cycle.
 import { clipAtWord } from "../conversations/message-words";
 import { VISION_SWITCH_WORDS } from "../config/business-tab/abilities";
@@ -358,13 +358,13 @@ function describeAnswersChange(change: AskAnswersChange): string {
 }
 
 /** A service's minutes and price, as its line says them after its name: " · $180 · about 3 h". */
-export function serviceTail(s: { duration_min?: number; price_note?: string }): string {
-  const minutes = s.duration_min
-    ? s.duration_min >= 60 && s.duration_min % 30 === 0
-      ? `about ${s.duration_min / 60} h`
-      : `${s.duration_min} min`
+export function serviceTail(state: { duration_min?: number; price_note?: string }): string {
+  const minutes = state.duration_min
+    ? state.duration_min >= 60 && state.duration_min % 30 === 0
+      ? `about ${state.duration_min / 60} h`
+      : `${state.duration_min} min`
     : null;
-  return [s.price_note?.trim() || null, minutes]
+  return [state.price_note?.trim() || null, minutes]
     .filter(Boolean)
     .map((p) => ` · ${p}`)
     .join("");

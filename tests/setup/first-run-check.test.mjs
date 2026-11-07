@@ -6,13 +6,9 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import {
-  businessReadFactsOf,
-  FIRST_RUN_HELPERS,
-  setupSteps,
-  PROFILE_LIMITS,
-  profileRefusal,
-} from "@chanlytics/contracts";
+import { businessReadFactsOf, setupSteps, PROFILE_LIMITS } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/helpers.ts";
+import { profileRefusal } from "../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
 import { again, unmount, settle, all, byTestId, textOf, press } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { W, saving, settings, facts, typeInto, saveRow } from "../_business-tab-harness.mjs";

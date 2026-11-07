@@ -11,12 +11,10 @@ import { customerEmailFoot } from "../templates/email-foot";
 import {
   OWN_VERSION_CHANNELS,
   noVersionWords,
-  renderOwnVersion,
   smsStopLine,
-  versionWords,
   type OwnVersionChannel,
-  type VersionWords,
-} from "../templates/message-versions";
+} from "../templates/message-versions/channels";
+import { renderOwnVersion, versionWords, type VersionWords } from "../templates/message-versions/email-rules";
 import { OFFERS_BY_EMAIL_WORDS } from "./email-offers";
 import type { ReachSplit } from "./reach-for";
 
@@ -100,7 +98,7 @@ export interface PreviewOn {
  */
 export function previewOn(
   channel: ConsentChannel,
-  o: {
+  options: {
     versions: PreviewVersions;
     language: string;
     business: string;
@@ -116,22 +114,22 @@ export function previewOn(
 ): PreviewOn {
   const label = PREVIEW_CHANNEL_WORDS[channel];
   if (channel === "whatsapp") return { channel, label, version: null, foot: null, missing: null };
-  const version = o.versions[channel] ?? null;
+  const version = options.versions[channel] ?? null;
   if (!version) return { channel, label, version: null, foot: null, missing: noVersionWords(channel) };
   // An offer's foot owes the business's postal address (emailFoot refuses to be built without it), and the send holds
   // everyone on it: the preview says so rather than draw a foot the send would never carry.
-  if (channel === "email" && o.offer && !o.address?.trim())
+  if (channel === "email" && options.offer && !options.address?.trim())
     return { channel, label, version: null, foot: null, missing: OFFERS_BY_EMAIL_WORDS.noAddress };
   // The send's own choice of foot (templates customerEmailFoot), with a stand-in where their own unsubscribe link goes.
   const foot =
     channel === "sms"
-      ? smsStopLine(o.language)
+      ? smsStopLine(options.language)
       : customerEmailFoot({
-          business: o.business,
-          address: o.address,
-          language: o.language,
-          offer: o.offer ? { why: o.offer, unsubscribeUrl: PREVIEW_WORDS.unsubscribeLink } : null,
-          facts: o.facts ?? {},
+          business: options.business,
+          address: options.address,
+          language: options.language,
+          offer: options.offer ? { why: options.offer, unsubscribeUrl: PREVIEW_WORDS.unsubscribeLink } : null,
+          facts: options.facts ?? {},
         }).footer;
   return { channel, label, version, foot, missing: null };
 }
@@ -158,18 +156,18 @@ export interface PreviewPart {
  */
 export function previewParts(
   channels: readonly ConsentChannel[],
-  o: { whatsapp: string; versions: PreviewVersions; values: readonly string[]; language: string },
+  options: { whatsapp: string; versions: PreviewVersions; values: readonly string[]; language: string },
 ): { parts: PreviewPart[] } | { missing: ConsentChannel; why: string } {
   const parts: PreviewPart[] = [];
   for (const channel of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
     const label = PREVIEW_CHANNEL_WORDS[channel];
     if (channel === "whatsapp") {
-      parts.push({ channel, label, subject: null, body: o.whatsapp });
+      parts.push({ channel, label, subject: null, body: options.whatsapp });
       continue;
     }
-    const words = o.versions[channel];
+    const words = options.versions[channel];
     if (!words) return { missing: channel, why: noVersionWords(channel) };
-    const sent = renderOwnVersion(channel, words, o.values, o.language);
+    const sent = renderOwnVersion(channel, words, options.values, options.language);
     parts.push({ channel, label, subject: sent.subject, body: sent.body });
   }
   return { parts };
@@ -184,11 +182,11 @@ export function previewParts(
  */
 export function previewSays(
   channels: readonly ConsentChannel[],
-  o: { whatsapp: string; versions: PreviewVersions; values: readonly string[]; language: string; limit: number },
+  options: { whatsapp: string; versions: PreviewVersions; values: readonly string[]; language: string; limit: number },
 ): { says: string } | { missing: ConsentChannel; why: string } {
-  const drawn = previewParts(channels, o);
+  const drawn = previewParts(channels, options);
   if ("missing" in drawn) return drawn;
-  const room = Math.max(SAID_MIN, Math.floor(o.limit / Math.max(1, drawn.parts.length)));
+  const room = Math.max(SAID_MIN, Math.floor(options.limit / Math.max(1, drawn.parts.length)));
   const clip = (words: string): string => {
     const one = words.replace(/\s+/g, " ").trim();
     return one.length > room ? `${one.slice(0, room).trimEnd()}…` : one;

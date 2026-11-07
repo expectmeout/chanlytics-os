@@ -34,7 +34,7 @@ process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/business-record/route.ts"));
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -193,7 +193,7 @@ const ownerCtx = () => {
     ],
     lines: [],
   };
-  setServiceClient(fakeDb(tables));
+  setUnsubscribeServiceClient(fakeDb(tables));
   return { supabase: fakeDb(tables), userId: "u1", email: "ada@example.com", aal: "aal2", params: {} };
 };
 const put = (body) =>

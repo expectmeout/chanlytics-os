@@ -28,8 +28,8 @@ export const POST = write({
   rate: "setup_request",
   input: Body,
   handle: async ({ ctx, member, input }) => {
-    const what = input.what;
-    const { data, error } = await ctx.supabase.rpc("setup_request", { p_tenant_id: member.tenantId, p_what: what });
+    const subject = input.what;
+    const { data, error } = await ctx.supabase.rpc("setup_request", { p_tenant_id: member.tenantId, p_what: subject });
     if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
     const already = !!(
       data &&
@@ -37,9 +37,9 @@ export const POST = write({
       !Array.isArray(data) &&
       (data as { already?: unknown }).already === true
     );
-    const told = already
+    const notice = already
       ? false
-      : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null, ctx.userId);
-    return { request: data, told };
+      : await tellPlatformOfSetupRequest(member.tenantId, subject, ctx.email ?? null, ctx.userId);
+    return { request: data, told: notice };
   },
 });

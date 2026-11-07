@@ -21,7 +21,7 @@ const T1 = "77777777-7777-4777-8777-777777777771";
 /** Tuesday 8 September, 3:00 to 4:00 PM in New York: the time an appointment's cancellation freed. */
 const FREED = { from: "appt-1", start: Date.parse("2026-09-08T19:00:00Z"), end: Date.parse("2026-09-08T20:00:00Z") };
 
-/** WhatsApp's row of a message, as Meta holds it (db messageVersionRowsOf). */
+/** WhatsApp's row of a message, as Meta holds it (db listMessageVersionRows). */
 const template = (over = {}) => ({
   id: T1,
   channel: "whatsapp",

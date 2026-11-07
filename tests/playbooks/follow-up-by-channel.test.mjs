@@ -5,7 +5,7 @@
  * stops, and never says nothing of one that goes. Before, the facts passed no `byOthers`: a follow-up that also went by
  * email or text was read as stopped by a WhatsApp template Meta had not approved, though its run went on for them.
  *
- * A message needs no WhatsApp row (lane 1): the facts read the message's rows once (db messageVersionRowsOf, contracts
+ * A message needs no WhatsApp row (lane 1): the facts read the message's rows once (db listMessageVersionRows, contracts
  * campaignMessageOf), so a follow-up on a message that has only an email or a text version has its facts, its purpose is
  * the message's, and a workspace with no number reads as the edge's run reads it: numberHealth of nothing, which can send.
  *

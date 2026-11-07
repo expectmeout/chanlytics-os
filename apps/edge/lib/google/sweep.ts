@@ -17,8 +17,8 @@
  */
 import { DEFAULT_TIMEZONE } from "@chanlytics/contracts";
 import { json } from "../shared/http.js";
-import { placesKey, profileClient } from "./config.js";
-import { checkListing, connectionsDue, listingsDue } from "./listing-check.js";
+import { placesKey, profileClient } from "../shared/google/config.js";
+import { checkListing, listConnectionsDue, listListingsDue } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
@@ -59,16 +59,16 @@ export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Respon
   /** What the budget left of the pages, for the next hour. */
   let remaining = 0;
   // Out of time: the rest of this page is remaining, not read, and not stamped.
-  const overBudget = (what: "listings" | "profiles", unread: number): boolean => {
+  const overBudget = (kind: "listings" | "profiles", unread: number): boolean => {
     if (Date.now() - started <= GOOGLE_SWEEP_BUDGET_MS) return false;
     remaining += unread;
-    L.warn("google_sweep_over_budget", { what, unread });
+    L.warn("google_sweep_over_budget", { what: kind, unread });
     return true;
   };
   if (places) {
     let due;
     try {
-      due = await listingsDue(db, now, GOOGLE_PER_TICK);
+      due = await listListingsDue(db, now, GOOGLE_PER_TICK);
     } catch (e) {
       L.error("google_due_read_failed", { error: e instanceof Error ? e.message : String(e) });
       return json(500, { ok: false });
@@ -93,7 +93,7 @@ export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Respon
   if (profile) {
     let due;
     try {
-      due = await connectionsDue(db, now, GOOGLE_PER_TICK);
+      due = await listConnectionsDue(db, now, GOOGLE_PER_TICK);
     } catch (e) {
       L.error("google_profiles_due_read_failed", { error: e instanceof Error ? e.message : String(e) });
       return json(500, { ok: false, ...out });

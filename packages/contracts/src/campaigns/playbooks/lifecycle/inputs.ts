@@ -11,10 +11,11 @@
  */
 import { appointmentWordOf, type AppointmentWord } from "../../../journey/appointment-word";
 import { PEOPLE_LISTS } from "../../../people/lists/builtin-lists";
-import { campaignDayWords, campaignEnded, campaignRunsOn, localDate, nextRunLabel } from "../playbook-schedule";
-import { PLAYBOOK_TRIGGERS, momentOffered, triggerOf, triggerOffered, triggerWords } from "../playbook-triggers";
+import { campaignDayWords, campaignEnded, campaignRunsOn, localDate, nextRunLabel } from "../schedule";
+import { PLAYBOOK_TRIGGERS } from "../triggers/kinds";
+import { momentOffered, triggerOf, triggerOffered, triggerWords } from "../triggers/notices";
 import type { PlaybookDto } from "../playbooks";
-import type { LifecycleShape } from "./types";
+import type { LifecycleShape } from "./types/reads";
 import { LIFECYCLE_WORDS } from "./words";
 import { DEFAULT_TIMEZONE } from "../../../workspace/workspace";
 
@@ -109,23 +110,25 @@ function triggerLabelOf(p: AnswerPlaybook, pb: LifecycleAnswer, word: Appointmen
 
 /** What the answer says of one card (see LifecycleCardRead), by the business's clock and its shape. */
 function cardReadOf(
-  p: AnswerPlaybook,
+  answerPlaybook: AnswerPlaybook,
   pb: LifecycleAnswer,
   at: { tz: string; now: Date; shape: LifecycleShape },
 ): LifecycleCardRead {
   // A campaign past its last day runs nothing, by the business's today (00416).
-  const last = campaignEnded(p, localDate(at.tz, at.now));
+  const last = campaignEnded(answerPlaybook, localDate(at.tz, at.now));
   const ended = last ? campaignDayWords(last, at.tz, at.now) : null;
   return {
     // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
-    listArchived: p.trigger === "saved_list" && !!(pb.lists ?? []).find((l) => l.id === p.list_id)?.archived,
-    triggerLabel: triggerLabelOf(p, pb, at.shape.word),
+    listArchived:
+      answerPlaybook.trigger === "saved_list" &&
+      !!(pb.lists ?? []).find((l) => l.id === answerPlaybook.list_id)?.archived,
+    triggerLabel: triggerLabelOf(answerPlaybook, pb, at.shape.word),
     // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
-    next: nextRunLabel(p, at.tz, at.now, pb.ready?.paused === true),
+    next: nextRunLabel(answerPlaybook, at.tz, at.now, pb.ready?.paused === true),
     // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
     off: ended ? LIFECYCLE_WORDS.ended(ended) : null,
     ended,
-    runs: campaignRunsOn(p, { tz: at.tz, now: at.now }),
+    runs: campaignRunsOn(answerPlaybook, { tz: at.tz, now: at.now }),
   };
 }
 

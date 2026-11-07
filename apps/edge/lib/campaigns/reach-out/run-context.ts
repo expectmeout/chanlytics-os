@@ -5,23 +5,22 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  chainDraftLoad,
-  emitEvent,
+  loadChainDraft,
   handRun,
-  leadNamesByIds,
-  leadsLeaveSequence,
-  reachOutAudience,
-  reachOutFedByOf,
-  reachOutFollowers,
-  sequenceModesOf,
-  workspaceMaySpend,
-  type Database,
-  type Json,
-} from "@chanlytics/db";
+  getLeadNamesByIds,
+  leaveSequenceForLeads,
+  listReachOutAudience,
+  getReachOutFedBy,
+  listReachOutFollowers,
+  getSequenceModes,
+  mayWorkspaceSpend,
+} from "@chanlytics/db/campaigns";
+import { emitEvent } from "@chanlytics/db/events";
+import { type Database, type Json } from "@chanlytics/db/types";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "@chanlytics/core";
 import { DEFAULT_TIMEZONE, handOf, waitEndsWords, runRoute } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
-import { notify } from "../../ops/notify.js";
+import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { logger } from "../../shared/log.js";
 
@@ -54,7 +53,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
     root = data;
   }
   if (root.after_step_id) return null;
-  const fedBy = await reachOutFedByOf(db, row.tenant_id, root.lead_search_id);
+  const fedBy = await getReachOutFedBy(db, row.tenant_id, root.lead_search_id);
   const common: Omit<HandStep, "hand"> = {
     id: row.id,
     root_id: root.id,
@@ -87,24 +86,24 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
  */
 const laterStepPorts = (db: Db, tenantId: string): HandStepPorts => ({
   followers: (s) =>
-    reachOutFollowers(db, {
+    listReachOutFollowers(db, {
       tenantId,
       stepId: s.id,
       parentId: s.after_playbook_id ?? "",
       afterDays: s.after_days ?? 0,
       limit: s.cap_per_run,
     }),
-  businessNames: (leadIds) => leadNamesByIds(db, tenantId, leadIds),
+  businessNames: (leadIds) => getLeadNamesByIds(db, tenantId, leadIds),
   handRun: (p) => handRun(db, { tenantId, ...p }),
   // The leads it refuses for good, passed over: their places end with why (00455).
-  passOver: (rootId, leads) => leadsLeaveSequence(db, { tenantId, sequenceId: rootId, leads }),
+  passOver: (rootId, leads) => leaveSequenceForLeads(db, { tenantId, sequenceId: rootId, leads }),
 });
 
 /**
  * Everything one step's run reads once: the workspace's zone, its sequence's mode, whether it may spend. A read that
  * fails is this step's error for the tick (the sweep counts it failed and carries on), never a guess that sends.
  */
-export async function reachOutRunContext(
+export async function getReachOutRunContext(
   db: Db,
   row: ReachOutRow,
   now: Date,
@@ -112,13 +111,13 @@ export async function reachOutRunContext(
   const [tenant, billing, policies, step] = await Promise.all([
     db.from("tenants").select("timezone, status").eq("id", row.tenant_id).maybeSingle(),
     // The one reading of "may this workspace spend on reach-out" (the check asks it too).
-    workspaceMaySpend(db, row.tenant_id).then(
+    mayWorkspaceSpend(db, row.tenant_id).then(
       (spend) => ({ spend, error: null as string | null }),
       (e: unknown) => ({ spend: false, error: e instanceof Error ? e.message : String(e) }),
     ),
     // Its sequence's mode (decision 0064), the one reading the dashboard's chains take too. Cold email never sends on
     // its own, so a mode it cannot take reads as ask.
-    sequenceModesOf(db, row.tenant_id, [row.sequence_id]).then(
+    getSequenceModes(db, row.tenant_id, [row.sequence_id]).then(
       (modes) => ({ mode: modes.get(row.sequence_id) === "veto" ? ("veto" as const) : ("ask" as const), error: null }),
       (e: unknown) => ({ mode: "ask" as const, error: e instanceof Error ? e.message : String(e) }),
     ),
@@ -171,7 +170,7 @@ export async function reachOutRunContext(
     },
     // Twice the step's share: a lead the run skips (no open hour all week) leaves room for the next, not a short day.
     audience: (s) =>
-      reachOutAudience(db, {
+      listReachOutAudience(db, {
         tenantId,
         searchId: s.lead_search_id ?? "",
         limit: s.cap_per_run * 2,
@@ -181,17 +180,17 @@ export async function reachOutRunContext(
     // The step's mailboxes and those its later leads keep, with their days (senders.ts, as the replan reads them).
     mailboxes: (s, also) => stepSenders(db, { tenantId, named: s.mailbox_ids, also, at: now }),
     // What a reach-out its owner sends holds, of the day and in all: its day's share and its owner's pile.
-    draftLoad: (rootId, runFor) => chainDraftLoad(db, { tenantId, rootId, runFor }),
+    draftLoad: (rootId, runFor) => loadChainDraft(db, { tenantId, rootId, runFor }),
     planRun: async (run, sends) => {
       const { data, error } = await db.rpc("reach_out_plan_run", {
         p_run: run as unknown as Json,
         p_sends: sends as unknown as Json,
       });
       if (error) throw new Error(`cannot plan the step's run: ${error.message}`);
-      const r = (data ?? {}) as { id?: string; exists?: boolean };
-      if (r.exists) return "exists";
-      if (!r.id) throw new Error("cannot plan the step's run: no run came back");
-      return { id: r.id };
+      const item = (data ?? {}) as { id?: string; exists?: boolean };
+      if (item.exists) return "exists";
+      if (!item.id) throw new Error("cannot plan the step's run: no run came back");
+      return { id: item.id };
     },
     recordRun: async (run, counts) => {
       const data = { run_for: run.run_for, broadcast_id: run.id, state: run.state, ...counts, reach_out: true };

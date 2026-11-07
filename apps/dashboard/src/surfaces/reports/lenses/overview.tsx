@@ -3,7 +3,7 @@
  * wrote or called in says so under the strip. Worth knowing is the page's (reports-page.tsx), made once from the report and the
  * Campaigns lens's own read; the lens draws the facts it is handed.
  */
-import type { ReportFactVM } from "@chanlytics/contracts";
+import type { ReportFactVM } from "../model/facts";
 import { RptFacts, RptHero, RptTiles } from "../blocks";
 import { nothingCameIn, type LensProps } from "./shared";
 

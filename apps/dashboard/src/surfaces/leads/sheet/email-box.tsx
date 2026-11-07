@@ -23,7 +23,6 @@ import {
 } from "react";
 import {
   LEAD_CARD_WORDS,
-  LEAD_SHEET_WORDS as W,
   LEAD_WORDS_BOX as B,
   REWRITE_WORDS,
   leadWordsFromBox,
@@ -33,6 +32,7 @@ import {
   type LeadEmailText,
   type LeadStepWordsDto,
 } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS as W } from "./model/view";
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { undoRewrite, type RewriteUndo } from "../../campaigns/reach-out/rewrite-ask";
 import { pressed, sequenceVerbs } from "../../campaigns/sequences/verbs";

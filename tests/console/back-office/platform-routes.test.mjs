@@ -18,7 +18,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const overview = await import(at("apps/dashboard/app/api/v1/platform/overview/route.ts"));
 const tenant = await import(at("apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts"));
 const refile = await import(at("apps/dashboard/app/api/v1/platform/lines/refile/route.ts"));
@@ -32,7 +32,7 @@ const payout = await import(at("apps/dashboard/app/api/v1/platform/partners/payo
 const partnerStatus = await import(at("apps/dashboard/app/api/v1/platform/partners/status/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
-afterEach(() => setServiceClient(null));
+afterEach(() => setUnsubscribeServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -81,7 +81,7 @@ const why = (note = "Checked by hand.") => ({ kind: "call", ticket: null, note }
 /** The service role's tables an act writes its log row to, kept to read back (decision 0066). */
 function serviceWorld() {
   const tables = { platform_acts: [] };
-  setServiceClient(fakeDb(tables));
+  setUnsubscribeServiceClient(fakeDb(tables));
   return tables;
 }
 
@@ -321,7 +321,7 @@ test("partners: a decision names a workspace, a standing and why, and the functi
   );
   assert.equal(service.platform_acts[1].outcome, "refused", "a refusal is the act's outcome too");
   assert.equal(service.platform_acts[1].outcome_note, "No partner brought that workspace.");
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });
 
 test("partners: a payout names the partner, the currency and the reference; the function settles it, or says why not", async () => {
@@ -385,7 +385,7 @@ test("partners: a payout names the partner, the currency and the reference; the 
     400,
     "Unknown currency",
   );
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });
 
 test("partners ride on the overview, and a partner list that cannot be read never takes the workspaces down", async () => {
@@ -495,5 +495,5 @@ test("partners: a pause names the partner, a status and why; a customer is refus
     service.platform_acts.map((r) => [r.act, r.target_kind, r.target_id, r.outcome]),
     [["partner_status", "partner", P1, "done"]],
   );
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });

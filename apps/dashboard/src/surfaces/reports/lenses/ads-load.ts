@@ -7,8 +7,9 @@
  */
 import { useEffect, useState } from "react";
 import { ADS_SCOPE_ALL, adsReportRoute, isAdsScope } from "@chanlytics/contracts";
-import type { AdsScope, LensId, ReportFactVM, ReportsParts } from "@chanlytics/contracts";
-import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
+import type { AdsScope, LensId, ReportsParts } from "@chanlytics/contracts";
+import type { ReportFactVM } from "../model/facts";
+import type { AdsResultsVM } from "@/surfaces/campaigns/ads/results/view";
 import { adsInPreview } from "../../campaigns/ads/shown";
 import { navigate } from "../../frame-verbs";
 import { adsAreOn } from "../chrome";

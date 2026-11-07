@@ -14,14 +14,14 @@ import {
   type PersonRowVM,
   type PipelineVM,
 } from "@chanlytics/contracts";
-import { PEOPLE_PAGE, countPeople, listPeople, nextPeopleParam, onePerson } from "../people/people";
-import type { PeopleCursor } from "@chanlytics/db";
+import { PEOPLE_PAGE, countPeople, listPeople, nextPeopleParam, findOnePerson } from "../people/people";
+import type { PeopleCursor } from "@chanlytics/db/people";
 import { withVisits, type PeopleVisits } from "../calendar/people-visits";
-import { dealPaceRead } from "../people/deals";
-import { stepNamer } from "../people/person-notes";
-import { seenOfPeople } from "../people/person-seen";
+import { findDealPace } from "../people/deals";
+import { readStepNamer } from "../people/person-notes";
+import { getSeenOfPeople } from "../people/person-seen";
 import { followUpFacts } from "../campaigns/playbooks";
-import { load, stamp, type Reader, type RowRef } from "./index";
+import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
 import { everyone } from "./everyone";
 import * as facts from "./facts";
 import { log } from "@/server/shared/log";
@@ -93,7 +93,7 @@ export const people: Reader<
     // the rows land is the answer's to weigh, never an unhandled rejection.
     const dealt = early(load(rc, facts.hasDeals, undefined).then((r) => r.data));
     const word = early(load(rc, facts.appointmentWord, undefined).then((r) => r.data));
-    const pace = early(firstPage ? dealPaceRead(ctx, tenantId, rc.now) : Promise.resolve(null));
+    const pace = early(firstPage ? findDealPace(ctx, tenantId, rc.now) : Promise.resolve(null));
     const followUp = early(
       dealt.then((any) =>
         any && firstPage
@@ -118,7 +118,7 @@ export const people: Reader<
     );
     const zone = early(facts.zoneAndSettings(rc)());
     // The thread's person alone, in place of a page.
-    const theirs = thread ? await onePerson(ctx, tenantId, { thread }).then((one) => (one ? [one] : [])) : null;
+    const theirs = thread ? await findOnePerson(ctx, tenantId, { thread }).then((one) => (one ? [one] : [])) : null;
     const [rows, total] = theirs
       ? [theirs, theirs.length]
       : await Promise.all([
@@ -136,8 +136,8 @@ export const people: Reader<
       withVisits(ctx, tenantId, rows, rc.now, () => zone, { stale: true }),
       dealt,
       word,
-      stepNamer(ctx, tenantId, rows),
-      seenOfPeople(
+      readStepNamer(ctx, tenantId, rows),
+      getSeenOfPeople(
         ctx,
         tenantId,
         rows.map((r) => r.id),
@@ -176,7 +176,7 @@ export const people: Reader<
         route: addressOf({ kind: "person", id: r.id }),
         label: personName(r),
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -214,8 +214,8 @@ export const dealBoard: Reader<undefined, DealBoard> = {
     const board = pipelineOf(rowsVm, nowMs, tz, pace);
     // Each row cites the person it is and the deal it stands for (0029: a further deal of theirs is a row of its own,
     // whose id is not theirs).
-    const rows: RowRef[] = board.groups.flatMap((g) =>
-      g.rows.flatMap((row): RowRef[] => {
+    const rows: RowRef[] = board.groups.flatMap((group) =>
+      group.rows.flatMap((row): RowRef[] => {
         const route = `clients/${row.person.id}`;
         const deal = row.deal?.id;
         return [
@@ -226,6 +226,6 @@ export const dealBoard: Reader<undefined, DealBoard> = {
         ];
       }),
     );
-    return { data: { timezone: tz, board }, rows, stamp: stamp() };
+    return { data: { timezone: tz, board }, rows, stamp: readerStamp() };
   },
 };

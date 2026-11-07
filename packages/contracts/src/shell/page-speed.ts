@@ -192,22 +192,22 @@ const DEFERRED_SAID = "A speed step put off until its number passes its line: ea
 
 /** Each step put off: its page's moves three in four against its line, warn once past it, and not yet where too few. */
 function deferredLines(at: Lookup): PageSpeedPartVM[] {
-  return DEFERRED_STEPS.map((s) => {
-    const move = at("READY", s.page, "", "move");
-    const taken = `Taken when ${pageSpeedLabel(s.page)}'s moves pass ${msWords(s.line)}, three in four, ${s.also}`;
+  return DEFERRED_STEPS.map((dEFERREDSTEPS) => {
+    const move = at("READY", dEFERREDSTEPS.page, "", "move");
+    const taken = `Taken when ${pageSpeedLabel(dEFERREDSTEPS.page)}'s moves pass ${msWords(dEFERREDSTEPS.line)}, three in four, ${dEFERREDSTEPS.also}`;
     if (!move)
       return {
-        key: s.key,
-        label: s.label,
+        key: dEFERREDSTEPS.key,
+        label: dEFERREDSTEPS.label,
         value: "too few moves",
         tone: "ok",
         hint: `${taken}. Too few moves to say yet.`,
       };
-    const past = move.p75 > s.line;
+    const past = move.p75 > dEFERREDSTEPS.line;
     return {
-      key: s.key,
-      label: s.label,
-      value: `${msWords(move.p75)} of ${msWords(s.line)}`,
+      key: dEFERREDSTEPS.key,
+      label: dEFERREDSTEPS.label,
+      value: `${msWords(move.p75)} of ${msWords(dEFERREDSTEPS.line)}`,
       tone: past ? "warn" : "ok",
       hint: past ? `${taken}. Past its line: take it.` : `${taken}.`,
     };
@@ -249,7 +249,7 @@ function pageLine(at: Lookup, page: string): PageSpeedPageVM | null {
   const settled = at("SETTLED", page, "", "load");
   const phone = at("READY", page, "", how, "phone");
   const waits = read?.waits_on ?? load?.waits_on ?? null;
-  const said = [
+  const sentence = [
     load ? `opened ${msWords(load.p75)}` : null,
     move ? `moved to ${msWords(move.p75)}${held ? `, ${share(held.samples, move.samples)} from held rows` : ""}` : null,
     read ? `${msWords(read.p75)} when it had to read` : null,
@@ -257,7 +257,7 @@ function pageLine(at: Lookup, page: string): PageSpeedPageVM | null {
     waits ? `waits on ${waits}` : null,
     phone ? `on a phone ${msWords(phone.p75)}` : null,
   ].filter(Boolean);
-  const text = said.join(" · ");
+  const text = sentence.join(" · ");
   const verdict = speedVerdict(how, lead.p75);
   return {
     page,
@@ -284,15 +284,15 @@ function partLines(rows: readonly PageSpeedRowDto[], shown: number): PageSpeedPa
     )
     .sort((a, b) => b.p75 - a.p75 || `${a.page}.${a.part}`.localeCompare(`${b.page}.${b.part}`))
     .slice(0, shown)
-    .map((r) => {
-      const page = r.page ?? "";
-      const verdict = speedVerdict(r.part === "thread" || r.part === "call" ? "within" : "move", r.p75);
+    .map((item) => {
+      const page = item.page ?? "";
+      const verdict = speedVerdict(item.part === "thread" || item.part === "call" ? "within" : "move", item.p75);
       return {
-        key: `${page}.${r.part}`,
-        label: `${pageSpeedLabel(page)} · ${partLabel(r.part)}`,
-        value: msWords(r.p75),
+        key: `${page}.${item.part}`,
+        label: `${pageSpeedLabel(page)} · ${partLabel(item.part)}`,
+        value: msWords(item.p75),
         tone: VERDICT_TONES[verdict],
-        hint: `${msWords(r.p75)} · ${countWords(r.samples, "time")} drawn${r.waits_on ? ` · waits on ${r.waits_on}` : ""}`,
+        hint: `${msWords(item.p75)} · ${countWords(item.samples, "time")} drawn${item.waits_on ? ` · waits on ${item.waits_on}` : ""}`,
       };
     });
 }
@@ -315,8 +315,8 @@ const END_WORDS: Readonly<Record<Exclude<FirstRowsEnd, "page">, string>> = {
 };
 
 /** "styles changed 6, none kept 2": what each word's reports came to, the most first, those with none left out. */
-function saidMostFirst(said: readonly (readonly [words: string, samples: number])[]): string {
-  return said
+function saidMostFirst(sentence: readonly (readonly [words: string, samples: number])[]): string {
+  return sentence
     .filter(([, samples]) => samples > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([words, samples]) => `${words} ${samples.toLocaleString("en-US")}`)
@@ -337,7 +337,7 @@ function firstRowsLine(rows: readonly PageSpeedRowDto[], page: string): PageSpee
     );
   const samplesOf = (part: string): number => ofPart(part)?.samples ?? 0;
   const drawn = samplesOf(FIRST_ROWS_PART);
-  const missed = FIRST_ROWS_MISSES.map((why) => [MISS_WORDS[why], samplesOf(firstRowsMissPart(why))] as const);
+  const missed = FIRST_ROWS_MISSES.map((reason) => [MISS_WORDS[reason], samplesOf(firstRowsMissPart(reason))] as const);
   const opens = missed.reduce((sum, [, samples]) => sum + samples, drawn);
   if (opens < PAGE_SPEED_MIN) return null;
   const painted = drawn > 0 ? ofPart(FIRST_ROWS_PART) : undefined;
@@ -389,16 +389,16 @@ function spotLines(
     .filter((s) => s.metric === metric && s.samples >= SPOT_MIN && (metric !== "CLS" || s.p75 > band[0] / 2))
     .sort((a, b) => b.p75 - a.p75 || `${a.page}.${a.el}`.localeCompare(`${b.page}.${b.el}`))
     .slice(0, shown)
-    .map((s) => {
-      const value = vitalValueWords(metric, s.p75);
-      const verdict: PageVitalVerdict = s.p75 <= band[0] ? "good" : s.p75 <= band[1] ? "needs work" : "poor";
-      const phase = s.phase ? PHASE_WORDS[s.phase] : undefined;
+    .map((text) => {
+      const value = vitalValueWords(metric, text.p75);
+      const verdict: PageVitalVerdict = text.p75 <= band[0] ? "good" : text.p75 <= band[1] ? "needs work" : "poor";
+      const phase = text.phase ? PHASE_WORDS[text.phase] : undefined;
       return {
-        key: `${metric}.${s.page}.${s.el}`,
-        label: `${s.el} on ${pageSpeedLabel(s.page)}`,
+        key: `${metric}.${text.page}.${text.el}`,
+        label: `${text.el} on ${pageSpeedLabel(text.page)}`,
         value,
         tone: VERDICT_TONES[verdict],
-        hint: `${value} · ${countWords(s.samples, noun)}${phase ? ` · mostly ${phase}` : ""}`,
+        hint: `${value} · ${countWords(text.samples, noun)}${phase ? ` · mostly ${phase}` : ""}`,
       };
     });
 }

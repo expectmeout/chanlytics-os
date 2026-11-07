@@ -55,7 +55,7 @@ const FORWARDED = {
   "apps/edge/lib/shared/http.ts": ["code", "code"], // refuse(), the envelope itself
   "apps/edge/lib/lines/a2p-sync.ts": ["fresh.error"], // refreshLineToken's (sms.ts)
   // releaseLine's (line-release.ts), and the refile steps' (a2p-refile.ts) behind this door's own fallbacks
-  "apps/edge/lib/lines/line-ops.ts": [
+  "apps/edge/lib/lines/ops/filing.ts": [
     "r.error",
     'again.error ?? "record_incomplete"',
     'again.error ?? "resubmit_failed"',
@@ -64,9 +64,9 @@ const FORWARDED = {
   ],
   // The database's words, or the count's own (a line that is not there to count against), for a log and the job
   // ledger (a resume's count) or for `detail` (a release's routing rows).
-  "apps/edge/lib/lines/line-resume.ts": ["error.message", "NOT_THERE_TO_COUNT"],
+  "apps/edge/lib/lines/resume.ts": ["error.message", "NOT_THERE_TO_COUNT"],
   "apps/edge/lib/lines/lines.ts": ["error"],
-  // templatesSynced's (the Sync door's body, callable since the verdict's row waits on it: R11 S11-6), typed EdgeErrorCode.
+  // syncTemplates's (the Sync door's body, callable since the verdict's row waits on it: R11 S11-6), typed EdgeErrorCode.
   "apps/edge/lib/whatsapp/template-admin.ts": ["synced.code"],
   // Meta's own answers, in Meta's words: a door answers its code with them in `detail`.
   "apps/edge/lib/whatsapp/meta-graph.ts": [
@@ -90,7 +90,7 @@ const FORWARDED = {
  */
 const NOT_ANSWERS = {
   // The provision job's outcome, the job ledger's alone: packages/jobs writes a stopped run's `error` into its message.
-  "apps/edge/lib/lines/line-provision-job.ts": [
+  "apps/edge/lib/lines/provision-job.ts": [
     '"no_line_provider"',
     '!apiKey ? "no_provider_key" : "no_fn_secret"',
     '"no such workspace"',

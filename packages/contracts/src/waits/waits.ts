@@ -24,8 +24,8 @@
  * Pure: a page hands in the threads and the runs it holds, the business's days and the clock.
  */
 import { replyWaitsOnYou } from "../conversations/standing";
-import { runApprovalRefusal } from "../campaigns/playbooks/playbook-approval";
-import { RUN_GOING_STATES } from "../campaigns/broadcasts/broadcasts";
+import { runApprovalRefusal } from "../campaigns/playbooks/approval";
+import { RUN_GOING_STATES } from "../campaigns/broadcasts/states";
 
 /** One thread as the count reads it, however the page holds the thread: a view model, or a conversation off the wire. */
 export interface WaitingThread {
@@ -130,9 +130,12 @@ const runAsked = (run: WaitingRun) => ({
  * How a thread waits on the owner now, or not at all: a hold nobody has taken, else a reply that can still be stopped. A
  * reply this tab has held is stopped, so it does not wait; a reply past its deadline is going out in the owner's name.
  */
-export function threadWait(t: WaitingThread, nowMs: number): "hold" | "send" | null {
-  if (t.needsYou) return "hold";
-  return t.send && replyWaitsOnYou({ endsAtMs: t.send.endsAtMs, held: t.send.held }, nowMs) ? "send" : null;
+export function threadWait(waitingThread: WaitingThread, nowMs: number): "hold" | "send" | null {
+  if (waitingThread.needsYou) return "hold";
+  return waitingThread.send &&
+    replyWaitsOnYou({ endsAtMs: waitingThread.send.endsAtMs, held: waitingThread.send.held }, nowMs)
+    ? "send"
+    : null;
 }
 
 /**

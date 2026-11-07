@@ -8,15 +8,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  todayLeaks as todayLeaksV2,
   todayAwayGrouped,
-  todayPeriodLine,
   todayRunWords,
   todayRunsSub,
   todayRunApproved,
   toBroadcastVM,
   unreadCount,
-  TODAY_LEAK_MAX,
   SERVER_NOTIFICATION_KINDS,
   serverNotificationRows,
   toPersonRowVM,
@@ -29,6 +26,8 @@ import {
   consultsHeldWords,
   pipelineOf,
 } from "@chanlytics/contracts";
+import { todayLeaks as todayLeaksV2, TODAY_LEAK_MAX } from "../../apps/dashboard/src/surfaces/today/leaks.ts";
+import { todayPeriodLine } from "../../apps/dashboard/src/surfaces/today/period.ts";
 import { headline } from "./_headline.mjs";
 
 // v2 returns { rows, more } and takes who is waiting before the cap; the rules pinned below are about the rows, so

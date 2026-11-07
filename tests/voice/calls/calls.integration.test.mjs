@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { ingestCall } from "@chanlytics/db";
+import { ingestCall } from "@chanlytics/db/voice";
 import { RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;

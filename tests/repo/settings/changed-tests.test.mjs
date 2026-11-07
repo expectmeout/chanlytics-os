@@ -219,7 +219,7 @@ test("the composer, the answer verb, the campaign runner, a list rule, Ask's eff
     for (const folder of folders) assert.ok(reachedIn(file, folder) > 0, `${file}: tests/${folder}`);
   const ONE = {
     // #1612 reworded a list field's line, and nothing ran the freeze of Ask's tools (16 Oct 2026).
-    "packages/contracts/src/people/lists/list-fields.ts": "ask/ask-registry.test.mjs",
+    "packages/contracts/src/people/lists/fields.ts": "ask/ask-registry.test.mjs",
     "apps/dashboard/src/server/ask/effort.ts": "ai/ask-effort.test.mjs",
     // #1675's change to the gateway never ran the lead drafts' rules (17 Oct 2026).
     "apps/edge/lib/ai/ask-gateway.ts": "leads/engine/lead-gateway.test.mjs",
@@ -310,7 +310,10 @@ test("a change to contracts' sources runs the browser entry's test, which no suc
   const entry = "tests/shipping/browser-entry.test.mjs";
   for (const f of ["packages/contracts/src/ask/index.ts", "packages/contracts/src/browser.generated.ts"])
     assert.ok(run(f).includes(entry), f);
-  assert.ok(!run("apps/dashboard/src/server/ask/loop.ts").includes(entry), "a dashboard file reads no barrel of it");
+  assert.ok(
+    !run("apps/dashboard/src/server/ask/loop/loop.ts").includes(entry),
+    "a dashboard file reads no barrel of it",
+  );
 });
 
 test("a changed test runs itself; a folder already asked for covers it; a helper of a folder runs the folder", () => {
@@ -363,7 +366,7 @@ test("--db runs the database suites that lie where the change names, and nothing
     migration.every((f) => [...ALWAYS, "tests/database"].some((t) => f.startsWith(`${t}/`))),
     "nothing outside what the change names",
   );
-  const reports = databaseSuitesOf(run("packages/db/src/repositories/reports/report-series.ts"), suites);
+  const reports = databaseSuitesOf(run("packages/db/src/repositories/reports/series.ts"), suites);
   assert.ok(
     reports.some((f) => f.startsWith("tests/reports/")),
     "the domain's own suites",

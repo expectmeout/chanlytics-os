@@ -13,6 +13,7 @@ import { phoneVoiceOf } from "../voice/phone-voices";
 import { PHONE_PACES } from "../voice/phone-pace";
 import { WALK_INS_CHOICES } from "../config/business-tab/choices";
 import { GUARDRAIL_RULES } from "./settings-change";
+import { DAY_KEY } from "../shared/zone/day-keys";
 
 const Id = z.string().min(1).max(120);
 
@@ -48,7 +49,7 @@ export const AskProposalOutcomeSchema = z.object({
 });
 
 /** A calendar day, YYYY-MM-DD: a closure's first and last, and a note's last. Its shape alone; the save judges the rest. */
-const CalendarDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const CalendarDay = z.string().regex(DAY_KEY);
 
 export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
   z.object({
@@ -105,8 +106,8 @@ export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
       .string()
       .max(40)
       .superRefine((v, ctx) => {
-        const why = whyNotAHandoff(v);
-        if (why) ctx.addIssue({ code: "custom", message: why });
+        const reason = whyNotAHandoff(v);
+        if (reason) ctx.addIssue({ code: "custom", message: reason });
       }),
   }),
   z.object({ op: z.literal("add_own_words"), text: z.string().trim().min(1).max(PROFILE_LIMITS.instructions) }),

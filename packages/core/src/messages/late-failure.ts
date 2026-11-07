@@ -67,23 +67,28 @@ export type LateFailureOutcome = "raised" | "not_ours" | "not_a_reply" | "alread
  * as it was and the receipt comes again.
  */
 export async function raiseLateFailure(ports: LateFailurePorts, cmd: LateFailureCommand): Promise<LateFailureOutcome> {
-  const m = await ports.message(cmd.externalId);
-  if (!m) return "not_ours";
-  if (m.direction !== "outbound" || (m.sender !== "ai" && m.sender !== "human") || isAutomatedSend(m.meta))
+  const message = await ports.message(cmd.externalId);
+  if (!message) return "not_ours";
+  if (
+    message.direction !== "outbound" ||
+    (message.sender !== "ai" && message.sender !== "human") ||
+    isAutomatedSend(message.meta)
+  )
     return "not_a_reply";
-  if (m.status === "failed" || m.status === "canceled") return "already_over";
+  if (message.status === "failed" || message.status === "canceled") return "already_over";
 
-  const why = sendFailureWords(cmd.error, cmd.channel) ?? "The provider reported it as not delivered.";
-  const who = m.sender === "ai" ? "The receptionist's reply" : "A reply from your team";
+  const reason = sendFailureWords(cmd.error, cmd.channel) ?? "The provider reported it as not delivered.";
+  const person = message.sender === "ai" ? "The receptionist's reply" : "A reply from your team";
   // The hold is the one thing that must not be lost: written, its event tells the owner, once, after the commit and out
   // of the provider's request (decision 0043); a flag that could not be written throws, and the receipt's redelivery
   // says it again.
   const flagged = await raiseSendFailed(ports, {
-    conversationId: m.conversationId,
-    details: `${who} was accepted for sending but did not reach them. ${why}`,
+    conversationId: message.conversationId,
+    details: `${person} was accepted for sending but did not reach them. ${reason}`,
   });
-  if (!toldFromItsEvent(flagged)) throw new Error(`send failed: its thread ${m.conversationId} could not be flagged`);
-  await ports.noteFailed(m.messageId, {
+  if (!toldFromItsEvent(flagged))
+    throw new Error(`send failed: its thread ${message.conversationId} could not be flagged`);
+  await ports.noteFailed(message.messageId, {
     reason: "receipt",
     outcome: "refused",
     body: JSON.stringify(cmd.error).slice(0, 500),

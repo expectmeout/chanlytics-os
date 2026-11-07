@@ -13,6 +13,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { PROPOSAL_SPECS } from "../../../apps/dashboard/src/server/ask/proposals/proposals.ts";
+import { CUSTOMER_MESSAGE_SKILL } from "../../../apps/dashboard/src/server/ask/skills/customer-message/skill.ts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -25,9 +27,9 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { messageAction } = await import(at("apps/dashboard/src/server/ask/tools/act/message.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/shared/model-json.ts"));
-const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 const C = await import("@chanlytics/contracts");
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -126,7 +128,7 @@ beforeEach(async () => {
       headers: { "content-type": "application/json" },
     });
   };
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
 });
 after(() => {
   globalThis.fetch = real;
@@ -176,7 +178,7 @@ test("the skill writes the card's words: one craft call at high effort, and the 
   );
   assert.ok(p.payload.said.some((row) => row.words.includes("Pick a time that suits you")));
   // What its Approve sends: the skill's words, through the door the card always used.
-  const commit = C.PROPOSAL_SPECS.message.commit(p);
+  const commit = PROPOSAL_SPECS.message.commit(p);
   assert.equal(commit.route, "POST templates/message");
   assert.deepEqual(commit.body.versions, p.payload.versions);
 
@@ -185,10 +187,10 @@ test("the skill writes the card's words: one craft call at high effort, and the 
   assert.equal(call.purpose, "message_draft");
   assert.equal(call.effort, "high");
   assert.equal(call.request.model, C.MODEL_ROUTES.ask.model, "the writer is the model Ask's route asks");
-  assert.equal(call.request.max_tokens, C.CUSTOMER_MESSAGE_SKILL.craft.maxTokens);
+  assert.equal(call.request.max_tokens, CUSTOMER_MESSAGE_SKILL.craft.maxTokens);
   assert.equal(call.request.output_config.effort, "high");
   assert.deepEqual(call.request.output_config.format.schema, C.MESSAGE_CRAFT_JSON_SCHEMA);
-  assert.equal(call.request.system, C.craftSystem(C.CUSTOMER_MESSAGE_SKILL));
+  assert.equal(call.request.system, C.craftSystem(CUSTOMER_MESSAGE_SKILL));
   const brief = call.request.messages[0].content;
   assert.match(brief, /^The business: Harbor Studio\./, "the business's own name, from its settings");
   assert.match(brief, /Its tone, in its own words: Warm and brief\./);

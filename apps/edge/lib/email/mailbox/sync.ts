@@ -27,43 +27,42 @@ import {
   deliveryReportOf,
   emailPlainText,
   gmailEmailOf,
-  gmailHead,
+  readGmailHead,
   gmailHeadOf,
-  gmailHistory,
-  gmailMessage,
-  gmailProfile,
+  readGmailHistory,
+  readGmailMessage,
+  readGmailProfile,
   gmailReadVerdict,
-  gmailReports,
-  graphDelta,
+  listGmailReports,
+  readGraphDelta,
   graphEmailOf,
-  graphJunkSince,
-  graphMessage,
+  listGraphJunkSince,
+  readGraphMessage,
   graphReadVerdict,
   messageIdsIn,
   type EmailReceipt,
   type MailboxEmail,
   type ReadVerdict,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import { MIN_MS, DAY_MS, normalizeEmail, WAITING_REASONS } from "@chanlytics/contracts";
 import { EMAIL_BODY_MAX } from "@chanlytics/core";
 import {
   endMailboxSync,
   keepOwnerEmail,
-  knownThreads,
+  getKnownThreads,
   patchMailboxConnection,
-  sentEmailIdByMessageId,
-  sentEmailOf,
-  sentEmailWithMessageId,
+  findSentEmailIdByMessageId,
+  findSentEmail,
+  getSentEmailWithMessageId,
   takeMailboxSync,
-  type Database,
-  type Json,
   type MailboxConnectionRow,
-} from "@chanlytics/db";
+} from "@chanlytics/db/email";
+import { type Database, type Json } from "@chanlytics/db/types";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { applyEmailReceipt } from "../receipts.js";
-import { tokenFor } from "./credentials.js";
+import { getToken } from "./credentials.js";
 import { markSignedOut } from "./wire.js";
-import { leftWhy, mailSortingFor, noteLeft, type MailSorting } from "./sorting.js";
+import { findLeftWhy, mailSortingFor, noteLeft, type MailSorting } from "./sorting.js";
 import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -122,10 +121,10 @@ async function withSideArrivals(
   const last = Number.isFinite(parsed) ? Math.min(parsed, now) : now - DAY_MS;
   const have = new Set(arrived.map((a) => a.id));
   if (row.provider === "microsoft") {
-    const junk = await graphJunkSince(token, new Date(last - SIDE_OVERLAP_MS).toISOString());
+    const junk = await listGraphJunkSince(token, new Date(last - SIDE_OVERLAP_MS).toISOString());
     return [...arrived, ...junk.filter((j) => !have.has(j.id)).map((j) => ({ ...j, junk: true }))];
   }
-  const reports = new Set((await gmailReports(token, (last - REPORTS_OVERLAP_MS) / 1000)).map((r) => r.id));
+  const reports = new Set((await listGmailReports(token, (last - REPORTS_OVERLAP_MS) / 1000)).map((r) => r.id));
   const marked = arrived.map((a) => (reports.has(a.id) ? { ...a, report: true } : a));
   const before = started ? [...reports].filter((id) => !have.has(id)) : [];
   return [...marked, ...before.map((id) => ({ id, threadId: null, from: null, report: true }))];
@@ -177,7 +176,7 @@ async function gmailChanges(
   until: number,
 ): Promise<Changes> {
   const fromNow = async (): Promise<Changes> => {
-    const p = await gmailProfile(token);
+    const p = await readGmailProfile(token);
     const historyId = (p.json as { historyId?: unknown } | null)?.historyId;
     if (p.outcome !== "ok" || typeof historyId !== "string") return { ok: false, status: p.status, why: "profile" };
     return { ok: true, arrived: [], cursor: historyId, started: true };
@@ -186,16 +185,16 @@ async function gmailChanges(
   const arrived: Arrived[] = [];
   let page: string | null = null;
   let next = cursor;
-  for (let i = 0; i < PAGES_MAX && (i === 0 || Date.now() < until); i++) {
-    const h = await gmailHistory(token, cursor, page);
-    if (!h.ok) {
-      if (!h.expired) return { ok: false, status: h.reply.status, why: "history" };
+  for (let index = 0; index < PAGES_MAX && (index === 0 || Date.now() < until); index++) {
+    const result = await readGmailHistory(token, cursor, page);
+    if (!result.ok) {
+      if (!result.expired) return { ok: false, status: result.reply.status, why: "history" };
       log.warn("mailbox_sync_restarted", { mailbox: id, provider: "google" });
       // Past the line, the profile waits for the next sync: its cursor is where it was, and expires again then.
       return Date.now() < until ? fromNow() : { ok: true, arrived, cursor, started: false };
     }
     arrived.push(
-      ...h.added.map((a) => ({
+      ...result.added.map((a) => ({
         id: a.id,
         threadId: a.threadId,
         from: null,
@@ -204,8 +203,8 @@ async function gmailChanges(
         sent: a.labels.includes(GMAIL_SENT),
       })),
     );
-    if (h.next) next = h.next;
-    page = h.nextPage;
+    if (result.next) next = result.next;
+    page = result.nextPage;
     if (!page) break;
   }
   // Pages left unread: what was read is applied, and the cursor stays, since Gmail's history id is the mailbox's newest
@@ -230,10 +229,10 @@ async function graphChanges(
   // A link Graph no longer keeps: from the last sync (a day back at most), so what arrived meanwhile is still read.
   let since = new Date(now).toISOString();
   let started = !cursor;
-  for (let i = 0; i < PAGES_MAX && (i === 0 || Date.now() < until); i++) {
-    const d = await graphDelta(token, link, undefined, since);
-    if (!d.ok) {
-      if (!d.expired || !link || started) return { ok: false, status: d.reply.status, why: "delta" };
+  for (let index = 0; index < PAGES_MAX && (index === 0 || Date.now() < until); index++) {
+    const result = await readGraphDelta(token, link, undefined, since);
+    if (!result.ok) {
+      if (!result.expired || !link || started) return { ok: false, status: result.reply.status, why: "delta" };
       log.warn("mailbox_sync_restarted", { mailbox: row.id, provider: "microsoft" });
       const last = row.synced_at ? Date.parse(row.synced_at) : now;
       since = new Date(Math.max(last - 5 * MIN_MS, now - DAY_MS)).toISOString();
@@ -241,10 +240,10 @@ async function graphChanges(
       started = true;
       continue;
     }
-    arrived.push(...d.added);
-    if (d.deltaLink) return { ok: true, arrived, cursor: d.deltaLink, started };
-    if (!d.nextLink) return { ok: false, status: 502, why: "delta_without_link" };
-    link = d.nextLink;
+    arrived.push(...result.added);
+    if (result.deltaLink) return { ok: true, arrived, cursor: result.deltaLink, started };
+    if (!result.nextLink) return { ok: false, status: 502, why: "delta_without_link" };
+    link = result.nextLink;
   }
   // More pages than one sync reads: the link to the next page is the cursor, and the next sync reads on from it.
   log.warn("mailbox_sync_truncated", { mailbox: row.id, provider: "microsoft", read: arrived.length });
@@ -270,21 +269,21 @@ export async function readEmail(
   // By its headers alone (Gmail's metadata, its first words its snippet): what the six months judge most mail by before
   // reading it whole (decision 0080). Graph's road reads every message whole, as it did.
   const head = how === "head" && !microsoft;
-  const r = microsoft
-    ? await graphMessage(token, id)
+  const item = microsoft
+    ? await readGraphMessage(token, id)
     : head
-      ? await gmailHead(token, id)
-      : await gmailMessage(token, id);
-  if (r.outcome === "ok") {
-    const email = microsoft ? graphEmailOf(r.json) : head ? gmailHeadOf(r.json) : gmailEmailOf(r.json);
+      ? await readGmailHead(token, id)
+      : await readGmailMessage(token, id);
+  if (item.outcome === "ok") {
+    const email = microsoft ? graphEmailOf(item.json) : head ? gmailHeadOf(item.json) : gmailEmailOf(item.json);
     return email ? { email } : { gone: true };
   }
-  if (r.status === 404) return { gone: true };
-  const v = microsoft ? graphReadVerdict(r) : gmailReadVerdict(r);
-  if (v.verdict === "refused") return { refused: v };
-  if (v.verdict === "paced") return { paced: v };
-  const why = v.reason ?? r.error;
-  throw new Error(`cannot read message ${id}: ${r.status}${why ? ` (${why})` : ""}`);
+  if (item.status === 404) return { gone: true };
+  const value = microsoft ? graphReadVerdict(item) : gmailReadVerdict(item);
+  if (value.verdict === "refused") return { refused: value };
+  if (value.verdict === "paced") return { paced: value };
+  const reason = value.reason ?? item.error;
+  throw new Error(`cannot read message ${id}: ${item.status}${reason ? ` (${reason})` : ""}`);
 }
 
 /** How long a mailbox rests when a report says its own provider refused it for its quota: the provider's rolling day. */
@@ -314,17 +313,17 @@ function fromItsProvider(row: MailboxConnectionRow, e: MailboxEmail): boolean {
 async function reportReceipt(
   db: Db,
   row: MailboxConnectionRow,
-  e: MailboxEmail,
+  mailboxEmail: MailboxEmail,
   now: number,
 ): Promise<EmailReceipt | "none" | null> {
-  const report = deliveryReportOf(e);
+  const report = deliveryReportOf(mailboxEmail);
   if (!report) return null;
   if (report.delayed) return "none";
   const rowId =
     report.rowId ??
-    (report.originalMessageId ? await sentEmailIdByMessageId(db, row.tenant_id, report.originalMessageId) : null);
+    (report.originalMessageId ? await findSentEmailIdByMessageId(db, row.tenant_id, report.originalMessageId) : null);
   if (!rowId) return "none";
-  const sent = await sentEmailOf(db, { tenantId: row.tenant_id, messageId: rowId });
+  const sent = await findSentEmail(db, { tenantId: row.tenant_id, messageId: rowId });
   if (!sent) return "none";
   const wrote = (sent.request as { to?: unknown } | null)?.to;
   const ours = (Array.isArray(wrote) ? wrote : []).filter((a): a is string => typeof a === "string");
@@ -333,7 +332,7 @@ async function reportReceipt(
   // stands: a forged "you hit your limit" from a recipient's own domain stops nothing.
   if (
     report.bounce === "sender_limit" &&
-    fromItsProvider(row, e) &&
+    fromItsProvider(row, mailboxEmail) &&
     !(row.resting_until && Date.parse(row.resting_until) > now)
   )
     await patchMailboxConnection(db, {
@@ -345,7 +344,7 @@ async function reportReceipt(
     report.bounce === "hard" && !elsewhere ? "Permanent" : report.bounce === "blocked" ? "Blocked" : "Transient";
   return {
     type: "bounced",
-    providerId: e.id,
+    providerId: mailboxEmail.id,
     rfcMessageId: report.originalMessageId,
     to: ours,
     messageId: rowId,
@@ -373,25 +372,25 @@ const COUNTED: Partial<Record<ArrivalTaken, "bounced" | "dropped" | "replies" | 
  * What a thread's row keeps of an email read from a mailbox beside its words, as the intake keeps one: enough to thread
  * under it and say who. The six months' (mail-history.ts) and the owner's sends from now on (ownerWrote) alike.
  */
-export function mailboxEmailMeta(e: MailboxEmail, mailboxId: string) {
+export function mailboxEmailMeta(mailboxEmail: MailboxEmail, mailboxId: string) {
   return {
     email: {
-      subject: e.subject,
-      message_id: e.messageId,
-      in_reply_to: e.headers["in-reply-to"] ?? null,
-      references: messageIdsIn(e.headers.references).slice(-20),
-      from: e.from?.address ?? null,
-      from_name: e.from?.name ?? null,
-      to: e.to,
-      cc: e.cc,
+      subject: mailboxEmail.subject,
+      message_id: mailboxEmail.messageId,
+      in_reply_to: mailboxEmail.headers["in-reply-to"] ?? null,
+      references: messageIdsIn(mailboxEmail.headers.references).slice(-20),
+      from: mailboxEmail.from?.address ?? null,
+      from_name: mailboxEmail.from?.name ?? null,
+      to: mailboxEmail.to,
+      cc: mailboxEmail.cc,
       claim: "person",
-      attachments: e.attachments.slice(0, 5),
-      more_attachments: Math.max(0, e.attachments.length - 5),
-      truncated: (e.text?.length ?? 0) > EMAIL_BODY_MAX,
+      attachments: mailboxEmail.attachments.slice(0, 5),
+      more_attachments: Math.max(0, mailboxEmail.attachments.length - 5),
+      truncated: (mailboxEmail.text?.length ?? 0) > EMAIL_BODY_MAX,
     },
     source: "mailbox",
     mailbox_id: mailboxId,
-    thread_id: e.threadId,
+    thread_id: mailboxEmail.threadId,
   } satisfies Json;
 }
 
@@ -403,21 +402,31 @@ export function mailboxEmailMeta(e: MailboxEmail, mailboxId: string) {
  * the mailbox, an automatic one (a mail merge, a responder), or to someone the workspace does not know is the owner's
  * own, and is left.
  */
-async function ownerWrote(db: Db, row: MailboxConnectionRow, own: string, e: MailboxEmail): Promise<ArrivalTaken> {
-  if (classifyReceived(e) !== "person") return "left";
-  if (e.messageId && (await sentEmailWithMessageId(db, row.tenant_id, e.messageId))) return "left";
+async function ownerWrote(
+  db: Db,
+  row: MailboxConnectionRow,
+  own: string,
+  mailboxEmail: MailboxEmail,
+): Promise<ArrivalTaken> {
+  if (classifyReceived(mailboxEmail) !== "person") return "left";
+  if (mailboxEmail.messageId && (await getSentEmailWithMessageId(db, row.tenant_id, mailboxEmail.messageId)))
+    return "left";
   const to = [
-    ...new Set([...e.to, ...e.cc].map((a) => normalizeEmail(a)).filter((a): a is string => !!a && a !== own)),
+    ...new Set(
+      [...mailboxEmail.to, ...mailboxEmail.cc]
+        .map((a) => normalizeEmail(a))
+        .filter((a): a is string => !!a && a !== own),
+    ),
   ];
   const [only] = to;
   if (to.length !== 1 || !only) return "left";
   const kept = await keepOwnerEmail(db, {
     tenantId: row.tenant_id,
     address: only,
-    externalId: e.id,
-    body: emailPlainText(e)?.slice(0, EMAIL_BODY_MAX) ?? null,
-    channelTs: e.createdAt ?? new Date().toISOString(),
-    meta: { ...mailboxEmailMeta(e, row.id), owner_wrote: true },
+    externalId: mailboxEmail.id,
+    body: emailPlainText(mailboxEmail)?.slice(0, EMAIL_BODY_MAX) ?? null,
+    channelTs: mailboxEmail.createdAt ?? new Date().toISOString(),
+    meta: { ...mailboxEmailMeta(mailboxEmail, row.id), owner_wrote: true },
     settles: WAITING_REASONS,
   });
   return kept.kept ? "owner" : "left";
@@ -432,7 +441,7 @@ async function ownerWrote(db: Db, row: MailboxConnectionRow, own: string, e: Mai
  */
 async function takeArrival(
   db: Db,
-  p: {
+  params: {
     row: MailboxConnectionRow;
     token: string;
     ours: Set<string>;
@@ -444,40 +453,45 @@ async function takeArrival(
     /** The sync's line: a stranger's reading never runs past it (mailbox/reader.ts). */
     until: number;
   },
-  a: Arrived,
+  arrived: Arrived,
 ): Promise<ArrivalTaken> {
-  const { row, ours, own, at } = p;
-  const read = await readEmail(row, p.token, a.id);
+  const { row, ours, own, at } = params;
+  const read = await readEmail(row, params.token, arrived.id);
   if ("gone" in read) return "gone";
   if ("refused" in read) {
-    p.log.warn("mailbox_message_unreadable", { mailbox: row.id, message: a.id, stage: "sync", ...read.refused });
+    params.log.warn("mailbox_message_unreadable", {
+      mailbox: row.id,
+      message: arrived.id,
+      stage: "sync",
+      ...read.refused,
+    });
     return "unreadable";
   }
   if ("paced" in read) {
     const { status, reason } = read.paced;
-    p.log.warn("mailbox_sync_failed", { mailbox: row.id, stage: "paced", message: a.id, status, reason });
+    params.log.warn("mailbox_sync_failed", { mailbox: row.id, stage: "paced", message: arrived.id, status, reason });
     return "paced";
   }
-  const e = read.email;
-  if (e.from?.address.toLowerCase() === own) return ownerWrote(db, row, own, e);
-  const receipt = await reportReceipt(db, row, e, p.now);
+  const email = read.email;
+  if (email.from?.address.toLowerCase() === own) return ownerWrote(db, row, own, email);
+  const receipt = await reportReceipt(db, row, email, params.now);
   if (receipt === "none") return "left";
   if (receipt) {
     await applyEmailReceipt(db, receipt, at.toISOString());
     return "bounced";
   }
-  const inOurs = (!!a.threadId && ours.has(a.threadId)) || (!!e.threadId && ours.has(e.threadId));
-  if (!inOurs && (a.report || (a.from !== null && REPORTER.test(a.from)))) return "dropped";
-  const why = inOurs ? null : await leftWhy(e, p.sorting, p.until);
-  if (why) {
-    await noteLeft(db, row.tenant_id, e, why);
+  const inOurs = (!!arrived.threadId && ours.has(arrived.threadId)) || (!!email.threadId && ours.has(email.threadId));
+  if (!inOurs && (arrived.report || (arrived.from !== null && REPORTER.test(arrived.from)))) return "dropped";
+  const otherReason = inOurs ? null : await findLeftWhy(email, params.sorting, params.until);
+  if (otherReason) {
+    await noteLeft(db, row.tenant_id, email, otherReason);
     return "dropped";
   }
   await scheduleJobOnce(db, {
     tenantId: row.tenant_id,
     kind: "email_ingest",
     dueAt: at,
-    payload: { source: "mailbox", mailbox_id: row.id, received_id: e.id },
+    payload: { source: "mailbox", mailbox_id: row.id, received_id: email.id },
   });
   return inOurs ? "reply" : "person";
 }
@@ -501,9 +515,9 @@ export async function syncMailbox(
       log.error("mailbox_sync_failed", { mailbox: row.id, stage: "end", error: errField(e) }),
     );
   try {
-    const t = await tokenFor(db, row, now);
-    if (!t.ok) {
-      if (t.why === "signed_out") await markSignedOut(db, row, log, now);
+    const token = await getToken(db, row, now);
+    if (!token.ok) {
+      if (token.why === "signed_out") await markSignedOut(db, row, log, now);
       await end(null, null);
       return none("no_token");
     }
@@ -514,8 +528,8 @@ export async function syncMailbox(
     }
     const changes =
       row.provider === "microsoft"
-        ? await graphChanges(t.token, row.sync_cursor, log, row, now, until)
-        : await gmailChanges(t.token, row.sync_cursor, log, row.id, until);
+        ? await graphChanges(token.token, row.sync_cursor, log, row, now, until)
+        : await gmailChanges(token.token, row.sync_cursor, log, row.id, until);
     if (!changes.ok) {
       log.warn("mailbox_sync_failed", { mailbox: row.id, stage: changes.why, status: changes.status });
       await end(null, `Could not read the mailbox (${changes.status}).`);
@@ -527,7 +541,7 @@ export async function syncMailbox(
     let behind = Date.now() >= until;
     const arrived = behind
       ? changes.arrived
-      : await withSideArrivals(row, t.token, changes.arrived, changes.started, now).catch((err: unknown) => {
+      : await withSideArrivals(row, token.token, changes.arrived, changes.started, now).catch((err: unknown) => {
           behind = true;
           log.warn("mailbox_sync_failed", { mailbox: row.id, stage: "side", error: errField(err) });
           return changes.arrived;
@@ -535,7 +549,7 @@ export async function syncMailbox(
     // Every arrival is read but the mailbox's drafts, what Graph names as its own sender up front, and spam outside a
     // thread of ours: what the mailbox sent, for what the owner wrote from it (Gmail labels it SENT); a thread of ours
     // whatever it is; a report however it is threaded; and anything else, sorted (R13).
-    const ours = await knownThreads(
+    const ours = await getKnownThreads(
       db,
       row.tenant_id,
       arrived.map((a) => a.threadId).filter((t): t is string => !!t),
@@ -549,27 +563,36 @@ export async function syncMailbox(
     const result: SyncOutcome = {
       ...none(changes.started ? (row.sync_cursor ? "restarted" : "started") : "synced"),
     };
-    for (const a of wanted) {
+    for (const first of wanted) {
       if (Date.now() >= until) {
         behind = true;
         break;
       }
-      if (seen.has(a.id)) continue;
-      seen.add(a.id);
+      if (seen.has(first.id)) continue;
+      seen.add(first.id);
       try {
-        const got = await takeArrival(db, { row, token: t.token, ours, own, at, now, log, sorting, until }, a);
-        if (got === "paced") {
+        const otherResult = await takeArrival(
+          db,
+          { row, token: token.token, ours, own, at, now, log, sorting, until },
+          first,
+        );
+        if (otherResult === "paced") {
           // The provider's pace: what is left waits for the next sync, from the cursor where it was.
           behind = true;
           break;
         }
-        if (got === "unreadable") result.unreadable++;
-        else if (got !== "gone") result.read++;
-        const counted = COUNTED[got];
+        if (otherResult === "unreadable") result.unreadable++;
+        else if (otherResult !== "gone") result.read++;
+        const counted = COUNTED[otherResult];
         if (counted) result[counted]++;
       } catch (err) {
         behind = true;
-        log.error("mailbox_sync_failed", { mailbox: row.id, stage: "message", message: a.id, error: errField(err) });
+        log.error("mailbox_sync_failed", {
+          mailbox: row.id,
+          stage: "message",
+          message: first.id,
+          error: errField(err),
+        });
       }
     }
     // Everything read and applied moves the cursor on; a message left behind keeps it, and the next sync reads again.

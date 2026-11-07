@@ -24,7 +24,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { CAMPAIGNS_PAUSED_WORDS, localDate } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
@@ -772,7 +772,7 @@ test("the message is read from its rows by the edge's own port, with or without 
   w = set([version("sms")], ["sms"], { "templates.select": { message: "templates down" } });
   assert.deepEqual(await answer(await knock(press)), [
     500,
-    { ok: false, error: "run_failed", detail: "template: messageVersionRowsOf: templates down" },
+    { ok: false, error: "run_failed", detail: "template: listMessageVersionRows: templates down" },
   ]);
   nothingMade(w.tables);
   assert.deepEqual(w.tables.events, []);

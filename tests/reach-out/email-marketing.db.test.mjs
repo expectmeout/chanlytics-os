@@ -10,7 +10,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { legacyLeadSuppressionHash } from "@chanlytics/contracts";
+import { hashLegacyLeadSuppression } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -209,9 +209,9 @@ test(
       message_id: "11111111-1111-4111-8111-111111111111",
     });
 
-    // The hash the finder checks every found address against (edge lead-db.ts suppressed()).
+    // The hash the finder checks every found address against (edge leads/db.ts suppressed()).
     const supp = ok(await db.from("lead_suppressions").select("kind, hash, what").eq("tenant_id", A));
-    assert.deepEqual(supp, [{ kind: "email", hash: await legacyLeadSuppressionHash(A, EMAIL), what: "email_opt_out" }]);
+    assert.deepEqual(supp, [{ kind: "email", hash: await hashLegacyLeadSuppression(A, EMAIL), what: "email_opt_out" }]);
 
     const now = ok(await db.from("leads").select("id, stage, closed_reason, version").eq("tenant_id", A));
     const byId = new Map(now.map((l) => [l.id, l]));
@@ -336,16 +336,16 @@ test(
 
     ok(await press({ p_contact_id: p, p_message_id: mine }));
     const now = await hashes();
-    assert.ok(now.has(await legacyLeadSuppressionHash(A, "new@fixture-unsubscribe.example")), "the address on file");
+    assert.ok(now.has(await hashLegacyLeadSuppression(A, "new@fixture-unsubscribe.example")), "the address on file");
     assert.ok(
-      now.has(await legacyLeadSuppressionHash(A, "old@fixture-unsubscribe.example")),
+      now.has(await hashLegacyLeadSuppression(A, "old@fixture-unsubscribe.example")),
       "and the one the email reached",
     );
 
     // Another person's email named with this person is not this person's stop.
     const p2 = await personOf("third@fixture-unsubscribe.example");
     ok(await press({ p_contact_id: p2, p_message_id: theirs }));
-    assert.ok(!(await hashes()).has(await legacyLeadSuppressionHash(A, "theirs@fixture-unsubscribe.example")));
+    assert.ok(!(await hashes()).has(await hashLegacyLeadSuppression(A, "theirs@fixture-unsubscribe.example")));
   },
 );
 
@@ -501,7 +501,7 @@ test(
     assert.equal(r.changed, true);
     const row = ok(await db.from("contacts").select("email_marketing, email_marketing_source").eq("id", p).single());
     assert.deepEqual([row.email_marketing, row.email_marketing_source], ["opted_out", "complaint"]);
-    assert.ok((await hashes()).has(await legacyLeadSuppressionHash(A, "complained@fixture-unsubscribe.example")));
+    assert.ok((await hashes()).has(await hashLegacyLeadSuppression(A, "complained@fixture-unsubscribe.example")));
     const closed = ok(await db.from("leads").select("stage, closed_reason").eq("id", l.id).single());
     assert.deepEqual([closed.stage, closed.closed_reason], ["archived", "said_no"]);
     const ev = ok(
@@ -527,7 +527,7 @@ test(
         .select("what")
         .eq("tenant_id", A)
         .eq("kind", "email")
-        .eq("hash", await legacyLeadSuppressionHash(A, address))
+        .eq("hash", await hashLegacyLeadSuppression(A, address))
         .single(),
     );
     assert.equal(before_.what, "email_opt_out");
@@ -543,7 +543,7 @@ test(
         .select("what")
         .eq("tenant_id", A)
         .eq("kind", "email")
-        .eq("hash", await legacyLeadSuppressionHash(A, address))
+        .eq("hash", await hashLegacyLeadSuppression(A, address))
         .single(),
     );
     assert.equal(after_.what, "erased", "the earlier opt-out row now says erased");

@@ -21,7 +21,7 @@ import { fakeDb } from "../../_fake-db.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const person = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -102,7 +102,7 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {}, tab
       },
     }),
   };
-  setServiceClient(db);
+  setUnsubscribeServiceClient(db);
   const ctx = { supabase: db, userId: "u1", email: "owner@example.com", metadata: {}, params: { id: P1 } };
   try {
     const out = await person.DELETE.run(new Request("http://localhost/api/v1/x", { method: "DELETE" }), ctx).then(
@@ -115,7 +115,7 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {}, tab
       .map((s) => (s.rpc ? `rpc:${s.rpc}` : `${s.table}.${s.op}`));
     return { ...out, steps, seen: db.seen, removed, tables };
   } finally {
-    setServiceClient(null);
+    setUnsubscribeServiceClient(null);
   }
 }
 

@@ -4,7 +4,8 @@
 // uses them. Pure, and no JSX.
 
 import { BUSINESS_TAB } from "@/bridge/business-tab";
-import type { BookingRuleKey, ProfileLimitKey, ProfileRefusalKey } from "@chanlytics/contracts";
+import type { BookingRuleKey, ProfileLimitKey } from "@chanlytics/contracts";
+import type { ProfileRefusalKey } from "./model/fold-limits";
 import { BOOKS_BY_HAND, booksWithOf, isBookingTool } from "@chanlytics/contracts";
 import { trimmed, type Config, type StoredNote } from "./save";
 

@@ -26,7 +26,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { askModel } from "@chanlytics/channels";
+import { askModel } from "@chanlytics/channels/ai";
 import {
   BRAIN_OUTPUT_JSON_SCHEMA,
   brainMetaOf,
@@ -116,12 +116,12 @@ export function loadWorkspace(file = WORKSPACE) {
 
 /**
  * Who a case is speaking with, as the receptionist hears it: the person's lines as the database writes them
- * (packages/db describeLead), under the heading the edge's brain gives them (apps/edge/lib/receptionist/brain.ts whoNote).
+ * (packages/db describeLead), under the heading the edge's brain gives them (apps/edge/lib/ai/receptionist-brain.ts whoNote).
  * None for a case that names nobody, which is asked as a first message from a stranger.
  */
 export async function whoOf(workspace, c) {
   if (!c.who) return null;
-  const { describeLead } = await import("@chanlytics/db");
+  const { describeLead } = await import("@chanlytics/db/conversations");
   const lead = {
     contactId: "eval-person",
     conversationId: null,

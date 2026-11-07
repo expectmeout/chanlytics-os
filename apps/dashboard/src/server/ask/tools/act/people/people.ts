@@ -12,27 +12,18 @@ import {
   offersYesRefusal,
   parseListToken,
   plural,
-  proposalBelowNeeds,
+  UUID,
 } from "@chanlytics/contracts";
-import { personReplyModes } from "@chanlytics/db";
-import { poolList } from "../../../../people/audience";
-import { load } from "../../../../readers";
+import { proposalBelowNeeds } from "../../../proposals/proposals";
+import { getPersonReplyModes } from "@chanlytics/db/workspace";
+import { findPoolList } from "../../../../campaigns/audience";
+import { load } from "../../../../shared/reader";
 import { audiencePool } from "../../../../readers/audience-pool";
 import { lists as listsReader } from "../../../../readers/lists";
-import { notOnRecordOf, ruleMembers } from "../../read/people";
-import {
-  AUDIENCES_CALL,
-  UUID,
-  actAction,
-  approvalWords,
-  defineActions,
-  offeredTo,
-  propose,
-  refuse,
-  str,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../../context";
+import { notOnRecordOf, getRuleMembers } from "../../read/people/rule-members";
+import { AUDIENCES_CALL, str } from "../../context/tool-reads";
+import { actAction, defineActions, offeredTo, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
+import { approvalWords, propose, refuse } from "../../context/context";
 
 /**
  * Many people at once (the operator, 15 Oct 2026, D5): the same act People's bulk bar does for a selection -- their
@@ -57,45 +48,48 @@ type Selection = { all?: unknown[]; list?: string; ids?: string[] };
  * The people a selection names, each once, in People's order; or the refusal, in words the model says. A new list kept
  * by hand takes its people by their ids too (act/people/list.ts).
  */
-export async function selected(
-  t: ToolContext,
-  s: Selection,
+export async function readSelected(
+  toolContext: ToolContext,
+  selection: Selection,
 ): Promise<{ ids: string[]; said: string } | { refusal: string }> {
-  const named = [s.all?.length ? 1 : 0, s.list ? 1 : 0, s.ids?.length ? 1 : 0].reduce((a, b) => a + b, 0);
+  const named = [selection.all?.length ? 1 : 0, selection.list ? 1 : 0, selection.ids?.length ? 1 : 0].reduce(
+    (a, b) => a + b,
+    0,
+  );
   if (named !== 1) return { refusal: "name who by exactly one of all (conditions), list (a token) or ids" };
-  const pool = (await load(t.rc, audiencePool, undefined)).data;
+  const pool = (await load(toolContext.rc, audiencePool, undefined)).data;
   const inPool = new Set(pool.people.map((r) => r.id));
   let ids: string[];
-  let said: string;
+  let sentence: string;
   // Whom the conditions leave out for want of a date, said beside a selection of nobody (people.search's not_on_record).
   let unrecorded: ReturnType<typeof notOnRecordOf> = null;
-  if (s.all?.length) {
-    const held = await ruleMembers(t, s.all);
+  if (selection.all?.length) {
+    const held = await getRuleMembers(toolContext, selection.all);
     if ("error" in held) return { refusal: held.error };
     ids = pool.people.filter((r) => held.ids.has(r.id)).map((r) => r.id);
     // The conditions as People's chips say them, so the card says who: a selection of the 76 never heard from read
     // "who the conditions hold today", and nothing on it said they had never written (the operator stress run).
-    said = `everyone matching ${listRuleParts(held.rule)
+    sentence = `everyone matching ${listRuleParts(held.rule)
       .map((c) => `“${c}”`)
       .join(" and ")}`;
     unrecorded = notOnRecordOf(held.notOnRecord);
-  } else if (s.list) {
-    const token = str(s.list, 60);
+  } else if (selection.list) {
+    const token = str(selection.list, 60);
     const ref = parseListToken(token) ?? parseListToken(`list:${token}`) ?? parseListToken(`seg:${token}`);
     if (!ref) return { refusal: `list must be a list token from ${AUDIENCES_CALL}, or a People list's id` };
-    const kept = ref.kind === "saved" ? (await load(t.rc, listsReader, undefined)).data.lists : undefined;
-    const found = await poolList(t.ctx, t.tenantId, pool, ref, kept);
+    const kept = ref.kind === "saved" ? (await load(toolContext.rc, listsReader, undefined)).data.lists : undefined;
+    const found = await findPoolList(toolContext.ctx, toolContext.tenantId, pool, ref, kept);
     if (!found) return { refusal: `no such list; ${AUDIENCES_CALL} names them` };
     if ("unknown" in found) return { refusal: `${found.label}: ${found.unknown}` };
     const on = new Set(found.memberIds);
     ids = pool.people.filter((r) => on.has(r.id)).map((r) => r.id);
-    said = `everyone on ${found.label}`;
+    sentence = `everyone on ${found.label}`;
   } else {
-    const asked = [...new Set((s.ids ?? []).map((x) => str(x, 40)))];
-    const bad = asked.filter((x) => !UUID.test(x) || !inPool.has(x));
+    const items = [...new Set((selection.ids ?? []).map((x) => str(x, 40)))];
+    const bad = items.filter((x) => !UUID.test(x) || !inPool.has(x));
     if (bad.length) return { refusal: `${plural(bad.length, "id is", "ids are")} not people in this workspace` };
-    ids = asked;
-    said = plural(ids.length, "person", "people");
+    ids = items;
+    sentence = plural(ids.length, "person", "people");
   }
   if (!ids.length && unrecorded)
     return {
@@ -106,7 +100,7 @@ export async function selected(
     return {
       refusal: `${ids.length} people is more than one card acts on (${ASK_SELECTION_MAX}): narrow it, or split it by a condition`,
     };
-  return { ids, said };
+  return { ids, said: sentence };
 }
 
 /**
@@ -142,7 +136,7 @@ const MANY_SOURCES = CONSENT_SOURCES.map((x) => x.id).filter((id) => id !== "cus
 ];
 
 async function proposeAnswers(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: Selection & {
     question: keyof typeof QUESTIONS;
     answer: keyof typeof ANSWERS;
@@ -159,34 +153,34 @@ async function proposeAnswers(
     const no = offersYesRefusal(source);
     if (no) return refuse(no);
   }
-  const who = await selected(t, input);
-  if ("refusal" in who) return refuse(who.refusal);
+  const otherSelected = await readSelected(toolContext, input);
+  if ("refusal" in otherSelected) return refuse(otherSelected.refusal);
   // Who already has this answer on record (their People row's answer to that question), left as they are and said.
-  const rows = new Map((await load(t.rc, audiencePool, undefined)).data.people.map((r) => [r.id, r]));
+  const rows = new Map((await load(toolContext.rc, audiencePool, undefined)).data.people.map((r) => [r.id, r]));
   const answerOf = (id: string) => {
     const r = rows.get(id);
     return (purpose === "marketing" ? r?.marketing_consent : r?.consent) ?? "unknown";
   };
   const acts = notAlready(
-    who.ids,
+    otherSelected.ids,
     (id) => answerOf(id) === consent,
     (n) => `${n === 1 ? "has" : "have"} that answer on record`,
   );
   if ("refusal" in acts) return refuse(acts.refusal);
   const how = source ? (CONSENT_SOURCES.find((x) => x.id === source)?.label ?? source) : null;
-  const n = acts.ids.length;
+  const length = acts.ids.length;
   return propose(
     {
       kind: "answer_many",
-      title: `${plural(n, "person's answer", "people's answers")}`,
-      summary: `${plural(n, "person", "people")} (${who.said}) ${answerSaidOf(purpose, consent)}${how ? ` · ${how}` : ""}`,
+      title: `${plural(length, "person's answer", "people's answers")}`,
+      summary: `${plural(length, "person", "people")} (${otherSelected.said}) ${answerSaidOf(purpose, consent)}${how ? ` · ${how}` : ""}`,
       payload: {
         ids: acts.ids,
         purpose,
         consent,
         ...(source ? { source } : {}),
         ...(input.note?.trim() ? { note: input.note.trim().slice(0, 280) } : {}),
-        count: n,
+        count: length,
       },
     },
     acts.noted,
@@ -194,17 +188,17 @@ async function proposeAnswers(
 }
 
 async function proposeModes(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: Selection & { mode: "auto" | "ask" | "never" | "inherit" },
 ): Promise<ProposalOutcome> {
-  if (!offeredTo(modesAction, t.role)) return refuse(proposalBelowNeeds("person_mode_many"));
-  const who = await selected(t, input);
-  if ("refusal" in who) return refuse(who.refusal);
+  if (!offeredTo(modesAction, toolContext.role)) return refuse(proposalBelowNeeds("person_mode_many"));
+  const otherSelected = await readSelected(toolContext, input);
+  if ("refusal" in otherSelected) return refuse(otherSelected.refusal);
   // Each one's own mode, as the person page's control reads it (none follows the workspace): who has it already is left.
-  const modes = await personReplyModes(t.ctx.supabase, t.tenantId, who.ids);
+  const modes = await getPersonReplyModes(toolContext.ctx.supabase, toolContext.tenantId, otherSelected.ids);
   const words = PERSON_MODE_WORDS[input.mode] ?? input.mode;
   const acts = notAlready(
-    who.ids,
+    otherSelected.ids,
     (id) => (modes.get(id) ?? "inherit") === input.mode,
     (n) => `${n === 1 ? "has" : "have"} “${words}”`,
   );
@@ -213,61 +207,61 @@ async function proposeModes(
     {
       kind: "person_mode_many",
       title: `Receptionist for ${plural(acts.ids.length, "person", "people")}`,
-      summary: `${words} · ${who.said}`,
+      summary: `${words} · ${otherSelected.said}`,
       payload: { ids: acts.ids, mode: input.mode, count: acts.ids.length },
     },
     acts.noted,
   );
 }
 
-async function proposeNotes(t: ToolContext, input: Selection & { text: string }): Promise<ProposalOutcome> {
+async function proposeNotes(toolContext: ToolContext, input: Selection & { text: string }): Promise<ProposalOutcome> {
   const text = input.text.trim();
   if (!text) return refuse("text is the note line's words");
   if (text.length > NOTE_LINE_MAX) return refuse(`a note line is at most ${NOTE_LINE_MAX} characters`);
-  const who = await selected(t, input);
-  if ("refusal" in who) return refuse(who.refusal);
+  const otherSelected = await readSelected(toolContext, input);
+  if ("refusal" in otherSelected) return refuse(otherSelected.refusal);
   return propose({
     kind: "note_many",
-    title: `A note for ${plural(who.ids.length, "person", "people")}`,
-    summary: `“${text}” under each one's notes · ${who.said}`,
-    payload: { ids: who.ids, append: text, count: who.ids.length },
+    title: `A note for ${plural(otherSelected.ids.length, "person", "people")}`,
+    summary: `“${text}” under each one's notes · ${otherSelected.said}`,
+    payload: { ids: otherSelected.ids, append: text, count: otherSelected.ids.length },
   });
 }
 
 async function proposeOnList(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: Selection & { list_id: string; put: "on" | "off" },
 ): Promise<ProposalOutcome> {
   const listId = str(input.list_id, 40);
-  const kept = (await load(t.rc, listsReader, undefined)).data.lists;
+  const kept = (await load(toolContext.rc, listsReader, undefined)).data.lists;
   const target = kept.find((l) => l.id === listId && !l.archived_at);
   if (!target) return refuse("list_id must be one of the workspace's own lists (people with action lists)");
   if (target.rule != null)
     return refuse(`${target.name} keeps itself by its rule: nobody is put on it by hand; change its rule instead`);
-  const who = await selected(t, input);
-  if ("refusal" in who) return refuse(who.refusal);
+  const otherSelected = await readSelected(toolContext, input);
+  if ("refusal" in otherSelected) return refuse(otherSelected.refusal);
   const on = input.put === "on";
   // Who is on it already (putting on) or not on it (taking off) is left as they are, and said.
   const members = new Set(target.ids);
   const acts = notAlready(
-    who.ids,
+    otherSelected.ids,
     (id) => members.has(id) === on,
     (n) => `${n === 1 ? "is" : "are"} ${on ? "on" : "off"} ${target.name}`,
   );
   if ("refusal" in acts) return refuse(acts.refusal);
-  const n = acts.ids.length;
+  const length = acts.ids.length;
   return propose(
     {
       kind: "list_member",
-      title: `${on ? "Put" : "Take"} ${plural(n, "person", "people")} ${on ? "on" : "off"} ${target.name}`,
+      title: `${on ? "Put" : "Take"} ${plural(length, "person", "people")} ${on ? "on" : "off"} ${target.name}`,
       summary: acts.noted
-        ? `${plural(n, "person", "people")} ${n === 1 ? (on ? "joins" : "leaves") : on ? "join" : "leave"} ${target.name}`
-        : `${who.said} ${on ? "joins" : "leaves"} ${target.name}`,
+        ? `${plural(length, "person", "people")} ${length === 1 ? (on ? "joins" : "leaves") : on ? "join" : "leave"} ${target.name}`
+        : `${otherSelected.said} ${on ? "joins" : "leaves"} ${target.name}`,
       payload: {
         list_id: target.id,
         name: target.name,
         ...(on ? { add: acts.ids } : { remove: acts.ids }),
-        count: n,
+        count: length,
       },
     },
     acts.noted,

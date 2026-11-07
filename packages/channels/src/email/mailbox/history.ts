@@ -1,11 +1,11 @@
 /**
  * A connected mailbox's past, listed through its own grant (decision 0073, R19): the messages newer than a moment, a page
  * at a time, under every folder but spam and the bin, as ids with their threads (and, from Graph, who wrote each before it
- * is read). The edge reads each one (gmailMessage, graphMessage), sorts it as the intake sorts any email (intake.ts
+ * is read). The edge reads each one (gmailMessage, readGraphMessage), sorts it as the intake sorts any email (intake.ts
  * classifyReceived) and keeps mail from people and booking notices as before Chanlytics. Every call returns what it came
  * to and never throws (provider-fetch.ts); a token is the caller's to hold.
  */
-import { providerFetch, type ProviderReply } from "../../shared/provider-fetch";
+import { fetchFromProvider, type ProviderReply } from "../../shared/provider-fetch";
 import { MAILBOX_READ_MS } from "./read";
 import { GRAPH_API } from "./graph";
 
@@ -14,7 +14,7 @@ const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 const GMAIL_PAGE = "200";
 const MAIL_PAGE = 50;
 
-type Deps = Parameters<typeof providerFetch>[3];
+type Deps = Parameters<typeof fetchFromProvider>[3];
 
 /** One message of the past, as the list names it: its id and thread, and (Graph's) its sender and when it came. */
 export interface ListedMail {
@@ -52,33 +52,36 @@ const seconds = (iso: string): number => Math.max(0, Math.floor(Date.parse(iso) 
  * Gmail's messages received inside the window, newest first, every label but spam and the bin (the list's default),
  * mail sent from the mailbox among them: the owner's replies are half of a thread with a person.
  */
-export async function gmailListSince(
+export async function listGmailSince(
   token: string,
   window: MailWindow,
   pageToken: string | null,
   deps?: Deps,
 ): Promise<MailPage> {
-  const q = new URLSearchParams({
+  const byKey = new URLSearchParams({
     q: `after:${seconds(window.from)} before:${seconds(window.to)}${window.sender ? ` from:${window.sender}` : ""}${window.only ? ONLY_WORDS[window.only] : ""}`,
     maxResults: GMAIL_PAGE,
   });
-  if (pageToken) q.set("pageToken", pageToken);
-  const r = await providerFetch(
+  if (pageToken) byKey.set("pageToken", pageToken);
+  const response = await fetchFromProvider(
     "google",
-    `${GMAIL_API}/messages?${q.toString()}`,
+    `${GMAIL_API}/messages?${byKey.toString()}`,
     { headers: { Authorization: `Bearer ${token}` }, timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
     deps,
   );
-  if (r.outcome !== "ok") return { ok: false, reply: r };
-  const j = r.json as { messages?: Array<{ id?: unknown; threadId?: unknown }>; nextPageToken?: unknown } | null;
+  if (response.outcome !== "ok") return { ok: false, reply: response };
+  const json = response.json as {
+    messages?: Array<{ id?: unknown; threadId?: unknown }>;
+    nextPageToken?: unknown;
+  } | null;
   return {
     ok: true,
-    listed: (j?.messages ?? []).flatMap((m) =>
+    listed: (json?.messages ?? []).flatMap((m) =>
       typeof m.id === "string"
         ? [{ id: m.id, threadId: typeof m.threadId === "string" ? m.threadId : null, from: null }]
         : [],
     ),
-    next: typeof j?.nextPageToken === "string" ? j.nextPageToken : null,
+    next: typeof json?.nextPageToken === "string" ? json.nextPageToken : null,
   };
 }
 
@@ -87,7 +90,7 @@ export async function gmailListSince(
  * Items alike), drafts left out; `link` is the page Graph named next. Junk and Deleted Items are listed too, and the
  * sorting keeps what a person wrote.
  */
-export async function graphListSince(
+export async function listGraphSince(
   token: string,
   window: MailWindow,
   link: string | null,
@@ -100,31 +103,33 @@ export async function graphListSince(
   const url =
     link ??
     `${GRAPH_API}/me/messages?$filter=${filter}&$select=id,conversationId,from,receivedDateTime&$orderby=receivedDateTime desc&$top=${MAIL_PAGE}`;
-  const r = await providerFetch(
+  const response = await fetchFromProvider(
     "microsoft",
     url,
     { headers: { Authorization: `Bearer ${token}` }, timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
     deps,
   );
-  if (r.outcome !== "ok") return { ok: false, reply: r };
-  const j = r.json as {
+  if (response.outcome !== "ok") return { ok: false, reply: response };
+  const json = response.json as {
     value?: Array<{ id?: unknown; conversationId?: unknown; from?: { emailAddress?: { address?: unknown } } }>;
     "@odata.nextLink"?: unknown;
   } | null;
   return {
     ok: true,
-    listed: (j?.value ?? []).flatMap((v) =>
-      typeof v.id === "string"
+    listed: (json?.value ?? []).flatMap((value) =>
+      typeof value.id === "string"
         ? [
             {
-              id: v.id,
-              threadId: typeof v.conversationId === "string" ? v.conversationId : null,
+              id: value.id,
+              threadId: typeof value.conversationId === "string" ? value.conversationId : null,
               from:
-                typeof v.from?.emailAddress?.address === "string" ? v.from.emailAddress.address.toLowerCase() : null,
+                typeof value.from?.emailAddress?.address === "string"
+                  ? value.from.emailAddress.address.toLowerCase()
+                  : null,
             },
           ]
         : [],
     ),
-    next: typeof j?.["@odata.nextLink"] === "string" ? j["@odata.nextLink"] : null,
+    next: typeof json?.["@odata.nextLink"] === "string" ? json["@odata.nextLink"] : null,
   };
 }

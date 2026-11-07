@@ -5,10 +5,12 @@ import "server-only";
  * as the check and the sender mark it (channels checkedWordsOf), so a checked email goes with these words without being
  * checked again, and a held one stays held. The event says who and for whom, never the words.
  */
-import { checkedWordsOf } from "@chanlytics/channels";
+import { checkedWordsOf } from "@chanlytics/channels/email";
 import { AppError, leadWordsProblem, wordsNeedOpening, type LeadEmailText } from "@chanlytics/contracts";
-import { emailWordsOf, emitEvent, leadSlotsOf, setLeadWords, type LeadWordsAnswer } from "@chanlytics/db";
-import { businessOf, chainsOf, reachOutRefusal } from "../reach-outs";
+import { findEmailWords, findLeadSlots, setLeadWords, type LeadWordsAnswer } from "@chanlytics/db/campaigns";
+import { emitEvent } from "@chanlytics/db/events";
+import { findBusiness, reachOutRefusal } from "../reach-outs/chain-acts";
+import { listChains } from "../reach-outs/reach-outs";
 import { requireUuid } from "../../shared/request-guards";
 import { serviceDb } from "../../shared/service-db";
 import type { RouteContext } from "../../shared/with-route";
@@ -25,9 +27,9 @@ export async function saveLeadWords(
   const leadId = requireUuid(input.lead_id, "lead");
   const [step, chains, business, lead] = await Promise.all([
     stepOfSequence(ctx, seq, stepId),
-    chainsOf(ctx, seq.tenant_id),
-    businessOf(ctx, seq.tenant_id),
-    leadSlotsOf(ctx.supabase, seq.tenant_id, leadId),
+    listChains(ctx, seq.tenant_id),
+    findBusiness(ctx, seq.tenant_id),
+    findLeadSlots(ctx.supabase, seq.tenant_id, leadId),
   ]);
   const chain = chains.find((c) => c.root_id === seq.id);
   const at = chain?.steps.find((s) => s.id === step.id);
@@ -42,20 +44,20 @@ export async function saveLeadWords(
     const problem = leadWordsProblem({ words, first, lead, workspace });
     if (problem) throw new AppError("validation", problem, 422);
   }
-  const standing = words ?? (await emailWordsOf(ctx.supabase, seq.tenant_id, step.template_id));
+  const standing = words ?? (await findEmailWords(ctx.supabase, seq.tenant_id, step.template_id));
   if (!standing) throw new AppError("validation", "Only an email takes words.", 422);
-  const r = await setLeadWords(ctx.supabase, {
+  const result = await setLeadWords(ctx.supabase, {
     stepId: step.id,
     leadId,
     words,
     checkedWords: checkedWordsOf(standing, chain.signed_by, business.bookingLink !== null),
     needsLine: wordsNeedOpening(standing),
   });
-  if (r.error) throw reachOutRefusal(r.error);
+  if (result.error) throw reachOutRefusal(result.error);
   await emitEvent(serviceDb(), seq.tenant_id, "reach_out.lead_words_changed", "lead", leadId, {
     step_id: step.id,
     kept: words !== null,
     by: ctx.userId,
   });
-  return r.data;
+  return result.data;
 }

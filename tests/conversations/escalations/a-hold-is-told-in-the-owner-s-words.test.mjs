@@ -15,8 +15,8 @@ import {
   ESCALATION_REASON_SHORT,
   HOLD_ACT_WORDS,
   holdActOf,
-  holdNotice,
 } from "@chanlytics/contracts";
+import { holdNotice } from "../../../packages/core/src/deliver/hold-notice.ts";
 
 const facts = (over = {}) => ({
   conversationId: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0",

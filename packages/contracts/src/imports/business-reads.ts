@@ -8,6 +8,7 @@
 import { DATA_NOT_INSTRUCTIONS } from "../ai/fence";
 import { sameListed } from "../calendar/service-offer";
 import { bookingPageOf } from "../google/booking-page";
+import { DAY_KEY } from "../shared/zone/day-keys";
 
 export const BUSINESS_READ_SOURCES = ["google_profile", "website"] as const;
 export type BusinessReadSource = (typeof BUSINESS_READ_SOURCES)[number];
@@ -58,7 +59,7 @@ export interface BusinessReadDto {
 
 const cleanText = (v: unknown, max: number): string | null =>
   typeof v === "string" && v.trim() ? v.replace(/\s+/g, " ").trim().slice(0, max) : null;
-const day = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+const day = (v: unknown): string | null => (typeof v === "string" && DAY_KEY.test(v) ? v : null);
 
 /** The look a row keeps, read for what each part is; null unless the read kept one. */
 function lookReadOf(v: unknown): LookRead | null {
@@ -74,38 +75,38 @@ function lookReadOf(v: unknown): LookRead | null {
 
 /** A row's facts, read for what each is: a field of the wrong kind is none, a list of things that are not is empty. */
 export function businessReadFactsOf(raw: unknown): BusinessReadFacts {
-  const r = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const item = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
   const obj = (v: unknown): Record<string, unknown> =>
     v && typeof v === "object" ? (v as Record<string, unknown>) : {};
   return {
-    services: list(r.services).flatMap((s) => {
+    services: list(item.services).flatMap((s) => {
       const o = obj(s);
       const name = cleanText(o.name, 80);
       if (!name) return [];
       const minutes = typeof o.duration_min === "number" && o.duration_min > 0 ? Math.round(o.duration_min) : null;
       return [{ name, price_note: cleanText(o.price_note, 60), duration_min: minutes }];
     }),
-    closed: list(r.closed).flatMap((c) => {
+    closed: list(item.closed).flatMap((c) => {
       const o = obj(c);
       const date = day(o.date);
       return date ? [{ date, until: day(o.until) }] : [];
     }),
-    rules: list(r.rules).flatMap((x) => {
+    rules: list(item.rules).flatMap((x) => {
       const t = cleanText(x, 200);
       return t ? [t] : [];
     }),
-    answers: list(r.answers).flatMap((x) => {
+    answers: list(item.answers).flatMap((x) => {
       const o = obj(x);
       const q = cleanText(o.q, 200);
       const a = cleanText(o.a, 600);
       return q && a ? [{ q, a }] : [];
     }),
-    description: cleanText(r.description, 750),
-    look: lookReadOf(r.look),
-    booking_page: bookingPageOf(cleanText(r.booking_page, 400)),
+    description: cleanText(item.description, 750),
+    look: lookReadOf(item.look),
+    booking_page: bookingPageOf(cleanText(item.booking_page, 400)),
     // A row kept before the two were told apart named a page only where it had read one.
-    booking_read: r.booking_read === undefined ? !!r.booking_page : r.booking_read === true,
+    booking_read: item.booking_read === undefined ? !!item.booking_page : item.booking_read === true,
   };
 }
 
@@ -136,14 +137,15 @@ export const FOUND_WORDS = {
   fromWithBooking: "your website and booking page",
   add: "Add",
   addAll: (n: number) => `Add all ${n}`,
-  added: (what: string) => `${what} added.`,
+  added: (text: string) => `${text} added.`,
   service: (name: string, price: string | null, minutes: number | null) =>
     [name, price, minutes ? `${minutes} min` : null].filter(Boolean).join(" · "),
   closed: (date: string, until: string | null) => (until ? `Closed ${date} to ${until}` : `Closed ${date}`),
   rulesTitle: "Booking rule",
   /** The words of itself, kept as a thing it should know. */
   aboutTitle: "About the business",
-  unread: (where: string, why: string) => `${where.charAt(0).toUpperCase()}${where.slice(1)} couldn't be read: ${why}`,
+  unread: (where: string, reason: string) =>
+    `${where.charAt(0).toUpperCase()}${where.slice(1)} couldn't be read: ${reason}`,
   reading: "Reading your website…",
 } as const;
 
@@ -167,27 +169,29 @@ export function foundOf(
   const closedDays = new Set((record.closures ?? []).map((c) => c?.date).filter(Boolean));
   const noted = (record.notes ?? []).map((n) => `${n?.title ?? ""} ${n?.text ?? ""}`.toLowerCase());
   const out: FoundVM = { services: [], closed: [], notes: [], description: null, unread: null, any: false };
-  for (const r of ordered) {
+  for (const item of ordered) {
     const from =
-      r.source === "website" && r.facts.booking_read ? FOUND_WORDS.fromWithBooking : FOUND_WORDS.from[r.source];
-    if (r.error && !out.unread) out.unread = FOUND_WORDS.unread(from, r.error);
-    for (const s of r.facts.services) {
+      item.source === "website" && item.facts.booking_read
+        ? FOUND_WORDS.fromWithBooking
+        : FOUND_WORDS.from[item.source];
+    if (item.error && !out.unread) out.unread = FOUND_WORDS.unread(from, item.error);
+    for (const s of item.facts.services) {
       if (listed.some((n) => sameListed(n, s.name)) || out.services.some((x) => sameListed(x.name, s.name))) continue;
       out.services.push({ ...s, from });
     }
-    for (const c of r.facts.closed) {
+    for (const c of item.facts.closed) {
       if (closedDays.has(c.date) || out.closed.some((x) => x.date === c.date)) continue;
       out.closed.push({ ...c, from });
     }
-    for (const rule of r.facts.rules) {
+    for (const rule of item.facts.rules) {
       if (noted.some((n) => n.includes(rule.toLowerCase()))) continue;
       out.notes.push({ title: FOUND_WORDS.rulesTitle, text: rule, from });
     }
-    for (const qa of r.facts.answers) {
+    for (const qa of item.facts.answers) {
       if (noted.some((n) => n.includes(qa.a.toLowerCase()))) continue;
       out.notes.push({ title: qa.q.slice(0, 80), text: qa.a, from });
     }
-    const about = r.facts.description;
+    const about = item.facts.description;
     if (
       !out.description &&
       about &&

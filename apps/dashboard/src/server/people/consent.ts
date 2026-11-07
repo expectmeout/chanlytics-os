@@ -23,7 +23,7 @@ import {
   type AskedPurpose,
   type SignupAskRefusal,
 } from "@chanlytics/contracts";
-import { recordConsent } from "@chanlytics/db";
+import { recordConsent } from "@chanlytics/db/people";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
@@ -58,23 +58,23 @@ function consentSourceOf(
   purpose: AskedPurpose,
   named: { messageId: string | null } | "many",
 ): string {
-  const s = input.consent === "unknown" ? CONSENT_RESET_SOURCE : input.source;
-  if (typeof s !== "string" || (input.consent !== "unknown" && !CONSENT_SOURCES.some((k) => k.id === s))) {
+  const text = input.consent === "unknown" ? CONSENT_RESET_SOURCE : input.source;
+  if (typeof text !== "string" || (input.consent !== "unknown" && !CONSENT_SOURCES.some((k) => k.id === text))) {
     throw new AppError(
       "validation",
       "Say how they told you: in person, on the phone, on a form, or in their own message.",
     );
   }
-  if (named === "many" && s === "customer_message") throw new AppError("validation", OWN_MESSAGE_REFUSALS.batch);
+  if (named === "many" && text === "customer_message") throw new AppError("validation", OWN_MESSAGE_REFUSALS.batch);
   if (purpose === "marketing" && input.consent === "opted_in") {
-    const refusal = offersYesRefusal(s);
+    const refusal = offersYesRefusal(text);
     if (refusal) throw new AppError("validation", refusal);
   }
   if (named !== "many") {
-    const ownMessage = ownMessageRefusal(s, named.messageId);
+    const ownMessage = ownMessageRefusal(text, named.messageId);
     if (ownMessage) throw new AppError("validation", ownMessage);
   }
-  return s;
+  return text;
 }
 
 /** The note, trimmed to what the door takes, or nothing. */
@@ -103,8 +103,8 @@ async function recordOne(ctx: RouteContext, contact: ContactRow, purpose: AskedP
     undoOf: ctx.undoOf ?? null,
   });
   if (error) throw dbRefusal(error);
-  const r = whatTheDoorAnswered(data);
-  return { r, source, decisionId: textOrNull(r.decision_id) };
+  const result = whatTheDoorAnswered(data);
+  return { r: result, source, decisionId: textOrNull(result.decision_id) };
 }
 
 /**
@@ -170,9 +170,9 @@ export async function recordConsentMany(
   const skipped = ids.filter((id) => !ours.some((c) => c.id === id));
   const failed: ManyOutcome["failed"] = [];
   let done = 0;
-  for (const c of ours) {
+  for (const our of ours) {
     const door = await recordConsent(ctx.supabase, {
-      contactId: c.id,
+      contactId: our.id,
       purpose,
       consent: input.consent,
       source,
@@ -182,7 +182,7 @@ export async function recordConsentMany(
       via: ctx.via ?? null,
       undoOf: null,
     });
-    if (door.error) failed.push({ id: c.id, message: dbRefusal(door.error).message });
+    if (door.error) failed.push({ id: our.id, message: dbRefusal(door.error).message });
     else done += 1;
   }
   return { done, failed, skipped };
@@ -213,17 +213,17 @@ export async function askToConfirmSignup(
   contactId: string,
 ): Promise<SignupAskAnswer> {
   if (!edgeConfigured()) throw new AppError("conflict", "Asking them to confirm is not available right now.", 503);
-  const a = await callEdge(
+  const answer = await callEdge(
     "/api/admin/email/signup-confirm",
     { tenant_id: tenantId, user_id: userId, contact_id: contactId },
     { workspace: tenantId, user: userId, timeoutMs: ASK_TIMEOUT_MS },
   );
-  const b = a.body as { ok?: unknown; asked?: unknown; why?: unknown } | null;
-  if (a.status === 200 && b?.ok === true) {
-    const asked = b.asked === true;
-    const why = typeof b.why === "string" ? (b.why as SignupAskRefusal) : null;
-    return { asked, said: signupAskLine(asked ? "asked" : why) ?? NOBODY_TO_ASK };
+  const second = answer.body as { ok?: unknown; asked?: unknown; why?: unknown } | null;
+  if (answer.status === 200 && second?.ok === true) {
+    const request = second.asked === true;
+    const reason = typeof second.why === "string" ? (second.why as SignupAskRefusal) : null;
+    return { asked: request, said: signupAskLine(request ? "asked" : reason) ?? NOBODY_TO_ASK };
   }
-  log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: a.status, reason: b?.why ?? null });
+  log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: answer.status, reason: second?.why ?? null });
   throw new AppError("conflict", "The email asking them to confirm could not be sent. Try again in a minute.", 502);
 }

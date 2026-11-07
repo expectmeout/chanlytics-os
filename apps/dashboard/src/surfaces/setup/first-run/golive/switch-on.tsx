@@ -10,17 +10,16 @@
  */
 import { useState, type ReactNode } from "react";
 import {
-  FIRST_RUN_HELPERS,
   IMPORT_WORDS,
   KEEP_ROW,
   WHATSAPP_PART_WORDS,
-  type FirstRunGoLiveVM,
   type FirstRunPhoneVM,
-  type FirstRunTryVM,
-  type GoLiveItemVM,
   type WhatsappChoice,
   type WhatsappPartVM,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../model/helpers";
+import { type FirstRunGoLiveVM, type GoLiveItemVM } from "../model/golive";
+import { type FirstRunTryVM } from "../model/try";
 import { WhatsappSteps } from "./whatsapp";
 import { Icon } from "../../../kit/icon/icon";
 import { refusalToast, type FrameFlash } from "../../../frame-verbs";

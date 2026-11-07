@@ -21,15 +21,15 @@ import {
   CONFIDENCE_STEPS,
   PolicyLimitsSchema,
   toInboxThreadVM,
-  toConversationVM,
 } from "@chanlytics/contracts";
+import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { readCode, readRaw } from "../_source.mjs";
 import { at } from "../_cron-doors-world.mjs";
 import { scripted, said, json } from "../ai/_model-world.mjs";
 
 process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
-const { generateReply } = await import(at("apps/edge/lib/receptionist/brain.ts"));
+const { generateReply } = await import(at("apps/edge/lib/ai/receptionist-brain.ts"));
 const { setModelFetch } = await import(at("apps/edge/lib/ai/model.ts"));
 after(() => setModelFetch(null));
 
@@ -283,7 +283,7 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
   assert.ok(wa.includes("let brainMeta: BrainMeta | undefined;"));
   assert.ok(wa.includes("brainMeta = r.meta;"));
   assert.ok(
-    readCode("apps/edge/lib/receptionist/draft-queue.ts").includes(
+    readCode("apps/edge/lib/ai/draft-queue.ts").includes(
       "meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}), to },",
     ),
     "the draft row remembers",

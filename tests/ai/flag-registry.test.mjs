@@ -9,7 +9,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { FLAGS, FLAG_MECHANISMS, FeaturesConfigSchema, daysToSunset } from "@chanlytics/contracts";
+import { FeaturesConfigSchema } from "@chanlytics/contracts";
+import { FLAGS, FLAG_MECHANISMS, daysToSunset } from "../../apps/edge/lib/shared/ai-flags.ts";
 import { ROOT, readRaw, importSrc } from "../_source.mjs";
 
 const envSource = readRaw("apps/edge/lib/shared/env.ts");

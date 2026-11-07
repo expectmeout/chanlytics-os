@@ -20,6 +20,7 @@
  */
 
 import { ROLE_PERMS, ROLES, type Role } from "../config/workspace-config/role-perms";
+import { UUID } from "../shared/identity";
 
 /** The title of a no, by the least role the door wanted: the gate says it before the press (roleGate), the refusal after it. */
 export const NEEDS_TITLE: Readonly<Record<"owner" | "operator", string>> = {
@@ -92,7 +93,7 @@ const TITLES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** Ours, for a refusal whose envelope carried no sentence. */
-const SAID: ReadonlyMap<string, string> = new Map([
+const REASON_WORDS: ReadonlyMap<string, string> = new Map([
   ["forbidden", "Your role can't do this."],
   ["not_found", "That isn't here any more."],
   ["validation", "Something in this form wasn't accepted."],
@@ -135,13 +136,13 @@ function retryAfterOf(details: unknown, header: string | null | undefined, nowMs
   const counted =
     details && typeof details === "object" ? (details as { retry_after_s?: unknown }).retry_after_s : undefined;
   if (typeof counted === "number" && Number.isFinite(counted) && counted >= 0) return Math.max(1, Math.ceil(counted));
-  const h = typeof header === "string" ? header.trim() : "";
-  if (!h) return null;
-  if (/^[0-9]+$/.test(h)) return Math.max(1, Number(h));
-  const at = Date.parse(h);
+  const item = typeof header === "string" ? header.trim() : "";
+  if (!item) return null;
+  if (/^[0-9]+$/.test(item)) return Math.max(1, Number(item));
+  const at = Date.parse(item);
   if (!Number.isFinite(at)) return null;
-  const s = Math.ceil((at - nowMs) / 1000);
-  return s > 0 ? s : null;
+  const ceiled = Math.ceil((at - nowMs) / 1000);
+  return ceiled > 0 ? ceiled : null;
 }
 
 /** A form's fields: named, each with a sentence; anything else is not a field map. */
@@ -182,7 +183,7 @@ export function combinedInto(keptId: string): Readonly<{ moved_to: string }> {
 /** The record a refusal's details name as the one its person became (combinedInto); null on any other. */
 function movedToOf(details: unknown): string | null {
   const to = details && typeof details === "object" ? (details as { moved_to?: unknown }).moved_to : undefined;
-  return typeof to === "string" && /^[0-9a-f-]{36}$/i.test(to) ? to : null;
+  return typeof to === "string" && UUID.test(to) ? to : null;
 }
 
 /** What one refusal alone says beside its words: the address a held reply goes to, the record a person became. */
@@ -199,7 +200,7 @@ export function sessionEnded(details: unknown): boolean {
 
 export function refusalOf(input: RefusalInput): Refusal {
   const status = Number.isFinite(input.status) ? input.status : 0;
-  const said = typeof input.message === "string" ? input.message.trim() : "";
+  const sentence = typeof input.message === "string" ? input.message.trim() : "";
   const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
   const fields = fieldsOf(input.details);
   const code = typeof input.code === "string" && input.code ? input.code : null;
@@ -234,13 +235,13 @@ export function refusalOf(input: RefusalInput): Refusal {
       return refusal(
         code,
         "Something went wrong",
-        said && said !== SERVER_CATCH_ALL ? said : input.write ? UNCONFIRMED_WRITE : READ_AGAIN,
+        sentence && sentence !== SERVER_CATCH_ALL ? sentence : input.write ? UNCONFIRMED_WRITE : READ_AGAIN,
       );
     case "rate_limited":
       return refusal(
         code,
         "Too many at once",
-        said || `Too many at once — try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`,
+        sentence || `Too many at once — try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`,
       );
     case "forbidden": {
       const needs =
@@ -248,11 +249,15 @@ export function refusalOf(input: RefusalInput): Refusal {
       return refusal(
         code,
         needs === "owner" || needs === "operator" ? NEEDS_TITLE[needs] : "Not allowed",
-        said || (SAID.get(code) as string),
+        sentence || (REASON_WORDS.get(code) as string),
       );
     }
     default:
-      return refusal(code, TITLES.get(code) ?? "Not done", said || SAID.get(code) || "That didn't go through.");
+      return refusal(
+        code,
+        TITLES.get(code) ?? "Not done",
+        sentence || REASON_WORDS.get(code) || "That didn't go through.",
+      );
   }
 }
 
@@ -288,13 +293,13 @@ export function roleGate(
   perm: RolePerm,
   doing?: string | null,
 ): { needs: "owner" | "operator"; title: string; reason: string } | null {
-  const who: Role = (ROLES as readonly string[]).includes(role ?? "") ? (role as Role) : "viewer";
-  if (ROLE_PERMS[who]?.[perm]) return null;
+  const otherRole: Role = (ROLES as readonly string[]).includes(role ?? "") ? (role as Role) : "viewer";
+  if (ROLE_PERMS[otherRole]?.[perm]) return null;
   const needs = ROLE_PERMS.operator?.[perm] ? "operator" : "owner";
-  const what = doing?.trim() || PERM_DOING[perm] || "do this";
+  const text = doing?.trim() || PERM_DOING[perm] || "do this";
   return {
     needs,
     title: NEEDS_TITLE[needs],
-    reason: needs === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.`,
+    reason: needs === "owner" ? `Only an owner can ${text}.` : `Only an owner or operator can ${text}.`,
   };
 }

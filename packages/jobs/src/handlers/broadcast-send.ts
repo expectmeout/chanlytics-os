@@ -2,16 +2,9 @@
  * The broadcast_send job: one chunk of a run's recipients, counted and sent. Moved whole from handlers.ts (Reach out
  * Part 2.5), which re-exports its public names.
  */
-import {
-  buildEmailRequest,
-  campaignsIdentity,
-  errField,
-  hostedIdentity,
-  logger,
-  signUnsubscribeToken,
-  unsubscribeUrl,
-  type EmailRequest,
-} from "@chanlytics/channels";
+import { buildEmailRequest, campaignsIdentity, hostedIdentity, type EmailRequest } from "@chanlytics/channels/email";
+import { signUnsubscribeToken, unsubscribeUrl } from "@chanlytics/channels/tokens";
+import { errField, logger } from "@chanlytics/log";
 import { CAMPAIGN_EMAIL_TAG, HELD_WHEN_COUNTED, OUTCOME_UNKNOWN, parseTenantConfig } from "@chanlytics/contracts";
 import {
   deliver,
@@ -21,29 +14,27 @@ import {
   type BroadcastBatchPorts,
   type Channel,
 } from "@chanlytics/core";
+import { carriedBy, nextBatch } from "../runner/batch-carry";
+import { type Database } from "@chanlytics/db/types";
+import { getAppointmentStates } from "@chanlytics/db/calendar";
 import {
-  type Database,
-  appointmentStates,
-  campaignMonthSent,
+  recordCampaignMonthSent,
   cancelBroadcastFrom,
-  claimQueuedSend,
-  emitEvent,
-  finishBroadcast,
-  freedTimeFactsOf,
+  findFreedTimeFacts,
   insertQueuedEmail,
-  mailboxOfTenant,
-  messageVersionRowsOf,
-  queuedRecipients,
+  listMessageVersionRows,
+  listQueuedRecipients,
   recordSystemDecision,
-  releaseQueuedSend,
-  resolveOutboundTarget,
-  resolveOutboundTargetForContact,
   reviewLinkOf,
   runGoesByOthers,
   withdrawEmail,
-  workspacePaused,
-  writtenEmail,
-} from "@chanlytics/db";
+  isWorkspacePaused,
+  findWrittenEmail,
+} from "@chanlytics/db/campaigns";
+import { claimQueuedSend, releaseQueuedSend } from "@chanlytics/db/jobs";
+import { emitEvent, finishBroadcast } from "@chanlytics/db/events";
+import { findMailboxOfTenant } from "@chanlytics/db/email";
+import { resolveOutboundTarget, resolveOutboundTargetForContact } from "@chanlytics/db/channels";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "../runner/context";
 import { sendByAt, startByAt } from "../runner/ledger";
@@ -66,14 +57,14 @@ async function countRecipients(
   state?: string,
   reason?: string,
 ): Promise<number> {
-  let q = db
+  let query = db
     .from("sequence_sends")
     .select("contact_id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
     .eq("batch_id", broadcastId);
-  if (state) q = q.eq("state", state);
-  if (reason) q = q.eq("reason", reason);
-  const { count, error } = await q;
+  if (state) query = query.eq("state", state);
+  if (reason) query = query.eq("reason", reason);
+  const { count, error } = await query;
   if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
   return count ?? 0;
 }
@@ -124,43 +115,55 @@ function wirePorts(
  * bound to this runtime it is null, and the person is held, never sent from the domain replies use.
  */
 function emailRequestPort(ctx: JobContext, tenantId: string): BroadcastBatchPorts["emailRequest"] {
-  let mailbox: Awaited<ReturnType<typeof mailboxOfTenant>> | undefined;
+  let mailbox: Awaited<ReturnType<typeof findMailboxOfTenant>> | undefined;
   // The same words fail every person of a batch alike: said once for the batch, with the error, so the hold has its reason.
-  let said = false;
-  return async (i) => {
+  let sentence = false;
+  return async (index) => {
     const domain = ctx.email?.domain;
     if (!domain) return null;
     const campaigns = ctx.email?.campaigns;
-    if (i.offer && !campaigns) return null;
-    mailbox ??= await mailboxOfTenant(ctx.db, tenantId);
+    if (index.offer && !campaigns) return null;
+    mailbox ??= await findMailboxOfTenant(ctx.db, tenantId);
     if (!mailbox) return null;
     try {
       const request = buildEmailRequest({
         identity:
-          i.offer && campaigns ? campaignsIdentity(mailbox, campaigns.domain, domain) : hostedIdentity(mailbox, domain),
-        to: i.to,
+          index.offer && campaigns
+            ? campaignsIdentity(mailbox, campaigns.domain, domain)
+            : hostedIdentity(mailbox, domain),
+        to: index.to,
         parent: null,
-        subject: i.subject,
-        body: i.body,
+        subject: index.subject,
+        body: index.body,
         // The foot, where a signature goes: after the words, in the text and in the HTML. An offer's is a campaign's:
         // the one-click unsubscribe rides in its headers and its link in the foot (never the same words twice).
-        signature: i.offer ? null : i.footer,
-        ...(i.offer
-          ? { campaign: { unsubscribeUrl: i.offer.unsubscribeUrl, footer: i.footer, footerHtml: i.offer.footerHtml } }
+        signature: index.offer ? null : index.footer,
+        ...(index.offer
+          ? {
+              campaign: {
+                unsubscribeUrl: index.offer.unsubscribeUrl,
+                footer: index.footer,
+                footerHtml: index.offer.footerHtml,
+              },
+            }
           : {}),
         // A program's email, sent on its own schedule: marked auto-generated, so an out-of-office does not answer it.
         actor: "ai",
-        messageId: i.messageId,
+        messageId: index.messageId,
         tenantId,
       });
       // A campaign's email, whether or not it carries an unsubscribe: its bounce or a run that died is the campaign's to
       // count, never a reply that failed (contracts isCampaignEmail).
       return { ...request, tags: [...request.tags, { name: CAMPAIGN_EMAIL_TAG, value: "broadcast" }] };
-    } catch (e) {
+    } catch (error) {
       // Words no email may carry, or a request the builder refused: the person is held (no_channel), and the log says why.
-      if (!said) {
-        said = true;
-        sendLog.error("broadcast_email_request_failed", { tenant_id: tenantId, offer: !!i.offer, error: errField(e) });
+      if (!sentence) {
+        sentence = true;
+        sendLog.error("broadcast_email_request_failed", {
+          tenant_id: tenantId,
+          offer: !!index.offer,
+          error: errField(error),
+        });
       }
       return null;
     }
@@ -173,18 +176,18 @@ function emailRequestPort(ctx: JobContext, tenantId: string): BroadcastBatchPort
  * carry, made the way a reach-out's is. Null where this runtime holds none.
  */
 function unsubscribeUrlPort(ctx: JobContext, tenantId: string): BroadcastBatchPorts["unsubscribeUrl"] {
-  let said = false;
+  let sentence = false;
   return ({ messageId, contactId }) => {
-    const c = ctx.email?.campaigns;
-    if (!c) return Promise.resolve(null);
+    const campaigns = ctx.email?.campaigns;
+    if (!campaigns) return Promise.resolve(null);
     try {
-      const token = signUnsubscribeToken(c.unsubscribeSecret, { tenantId, contactId, messageId });
-      return Promise.resolve(unsubscribeUrl(c.unsubscribeOrigin, token));
+      const token = signUnsubscribeToken(campaigns.unsubscribeSecret, { tenantId, contactId, messageId });
+      return Promise.resolve(unsubscribeUrl(campaigns.unsubscribeOrigin, token));
     } catch (e) {
       // An offer with no link out is never sent, so the person is held (no_channel): said once for the batch, with the
       // error, never hidden (a secret the edge cannot seal with is the first suspect).
-      if (!said) {
-        said = true;
+      if (!sentence) {
+        sentence = true;
         sendLog.error("broadcast_unsubscribe_unsigned", { tenant_id: tenantId, error: errField(e) });
       }
       return Promise.resolve(null);
@@ -235,8 +238,8 @@ function peoplePorts(
   const calendar = ctx.calendar;
   return {
     // On a database 00298 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
-    // (packages/db queuedRecipients): code that ships before its migration must keep its broadcasts going.
-    batch: (id, limit) => queuedRecipients(db, { tenantId, broadcastId: id, limit }),
+    // (packages/db listQueuedRecipients): code that ships before its migration must keep its broadcasts going.
+    batch: (id, limit) => listQueuedRecipients(db, { tenantId, broadcastId: id, limit }),
     // The batch's people in one read, not one read per person.
     contacts: async (ids) => {
       const { data, error } = await db
@@ -250,7 +253,7 @@ function peoplePorts(
       return new Map((data ?? []).map((c) => [c.id, c]));
     },
     // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
-    appointments: (keys) => appointmentStates(db, tenantId, keys),
+    appointments: (keys) => getAppointmentStates(db, tenantId, keys),
     // And the owner's calendar feed beside it, which is newer than the record by up to the hourly sweep (S1-05): the edge
     // reads it (kept five minutes); a runtime without one sends on the record alone.
     ...(calendar ? { feed: () => calendar.feedNames(tenantId, new Date()) } : {}),
@@ -290,7 +293,7 @@ function peoplePorts(
       });
       if (wrote === "written") return { status: "queued" };
       await claimQueuedSend(db, tenantId, row.id);
-      const there = await writtenEmail(db, { tenantId: tenantId, id: row.id });
+      const there = await findWrittenEmail(db, { tenantId: tenantId, id: row.id });
       if (!there) throw new Error(`broadcast_send: the email ${row.id} is taken and cannot be read`);
       return { status: there.status };
     },
@@ -300,7 +303,7 @@ function peoplePorts(
       await releaseQueuedSend(db, tenantId, messageId);
       await withdrawEmail(db, { tenantId: tenantId, id: messageId, reason: "not_taken" });
     },
-    monthSent: (channel) => campaignMonthSent(db, tenantId, channel),
+    monthSent: (channel) => recordCampaignMonthSent(db, tenantId, channel),
     // The messages a dying run left these people: written by deliver after the
     // wire accepted them, with this broadcast's id in their meta, read once for
     // the batch. It is the one check standing between a resumed run and a
@@ -363,7 +366,7 @@ function markPort(db: SupabaseClient<Database>, tenantId: string): BroadcastBatc
 /** broadcast_send: core's sendBroadcastBatch, over this runtime's ports. payload: { broadcast_id } */
 
 export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  const p = job.payload as { broadcast_id: string; waits?: unknown; stalls?: unknown };
+  const item = job.payload as { broadcast_id: string; waits?: unknown; stalls?: unknown };
   const db = ctx.db;
   await sendBroadcastBatch(
     {
@@ -382,7 +385,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read
       // is not a workspace that is paying. The one reading of it (packages/db workspacePaused), as the composers and the
       // approval ask.
-      workspacePaused: () => workspacePaused(db, job.tenant_id),
+      workspacePaused: () => isWorkspacePaused(db, job.tenant_id),
       fail: async (id, failure) => {
         // Not over a run already failed: two chains of one run (settle.ts names the case) each meeting a stop would write
         // its reason twice and its event twice. The first stop is the run's.
@@ -417,7 +420,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       },
       // A freed time's batch asks the record before its first send (decision 0082): the appointment that freed it and what
       // stands now; a time booked since is taken, and the batch is cancelled as the system and told once.
-      freedTimeFacts: (appointmentId) => freedTimeFactsOf(db, job.tenant_id, appointmentId, Date.now()),
+      freedTimeFacts: (appointmentId) => findFreedTimeFacts(db, job.tenant_id, appointmentId, Date.now()),
       cancelFrom: (id, from) => cancelBroadcastFrom(db, { tenantId: job.tenant_id, id, from }),
       recordDecision: (subjectType, subjectId, verb, payload) =>
         recordSystemDecision(db, { tenantId: job.tenant_id, subjectType, subjectId, verb, payload }),
@@ -425,7 +428,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       // what kind of message this is, and it decides which consent the send needs. A message that cannot be READ is not
       // one Meta withdrew: the read throws, where none would fail the whole broadcast and email the owner that WhatsApp
       // no longer approves it, which would be a lie about their Meta account told over a statement timeout.
-      message: (name, language) => messageVersionRowsOf(db, job.tenant_id, { name, language }),
+      message: (name, language) => listMessageVersionRows(db, job.tenant_id, { name, language }),
       facts: () => workspaceFacts(db, job.tenant_id),
       // Asked only of a batch whose message has a review slot (core sendBroadcastBatch): a send without one never reads
       // the Google listing, so a failure on that table never stops it.
@@ -479,28 +482,12 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
     // inside the function (ledger startByAt); the people after it are the next batch's.
     {
       tenantId: job.tenant_id,
-      broadcastId: p.broadcast_id,
+      broadcastId: item.broadcast_id,
       deadline: ctx.deadline,
       startBy: startByAt(ctx.deadline),
-      ...carriedBy(p),
+      ...carriedBy(item),
     },
   );
-}
-
-/** What the run has waited through rides in the payload to the next batch, and only while it is running. */
-export function nextBatch(id: string, carry: BatchCarry | undefined): Record<string, string | number> {
-  return {
-    broadcast_id: id,
-    ...(carry?.waits ? { waits: carry.waits } : {}),
-    ...(carry?.stalls ? { stalls: carry.stalls } : {}),
-  };
-}
-
-/** What this batch's job carries of the run so far: how many waits, how many stalls; anything but a count is none. */
-export function carriedBy(payload: unknown): Required<BatchCarry> {
-  const p: { waits?: unknown; stalls?: unknown } = payload !== null && typeof payload === "object" ? payload : {};
-  const count = (n: unknown) => (typeof n === "number" && Number.isInteger(n) && n > 0 ? n : 0);
-  return { waits: count(p.waits), stalls: count(p.stalls) };
 }
 
 /**

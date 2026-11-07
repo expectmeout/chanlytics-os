@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
-import { activityWords } from "../../packages/contracts/src/workspace/activity.ts";
+import { activityWords } from "../../packages/contracts/src/workspace/activity/words.ts";
 import { broadcastSend } from "../../packages/jobs/src/handlers/broadcast-send.ts";
 import { settleJob } from "../../packages/jobs/src/runner/settle.ts";
 import { MAX_RESUMES } from "../../packages/jobs/src/runner/ledger.ts";

@@ -1338,7 +1338,7 @@
 .cl-prof-deal-step[data-at="done"] .cl-prof-deal-bar,
 .cl-prof-deal-step[data-at="current"] .cl-prof-deal-bar { background: var(--ink-dim); }
 .cl-prof-deal-step[data-tone="info"] .cl-prof-deal-bar { background: var(--info); }
-/* A proposal that waits on the owner (contracts deal-waits.ts proposalTone, the Pipeline row's own rule). */
+/* A proposal that waits on the owner (contracts deals/waits.ts proposalTone, the Pipeline row's own rule). */
 .cl-prof-deal-step[data-tone="warn"] .cl-prof-deal-bar { background: var(--warn); }
 .cl-prof-deal-step[data-tone="ok"] .cl-prof-deal-bar { background: var(--ok); }
 .cl-prof-deal-step-label { font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

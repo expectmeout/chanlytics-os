@@ -21,7 +21,7 @@ const sweep = await import(at("apps/edge/api/cron/leads.ts"));
 after(() => setPg(null));
 
 const EMAIL_PLAN = { ...PLAN, contact: "email", count: 20 };
-const { leadPipelineOver } = await import(at("apps/edge/lib/leads/lead-pipeline.ts"));
+const { leadPipelineOver } = await import(at("apps/edge/lib/leads/pipeline.ts"));
 const ctxFor = (w) => ctxOver(w, leadPipelineOver(w.wires));
 
 test("ACCEPTANCE: a search runs end to end: create, probe, the question, Keep going, the main phase, the checks, an ending; every judge call one it can answer in time; nothing failed", async () => {

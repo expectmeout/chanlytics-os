@@ -2,7 +2,7 @@
  * Provisioning a workspace's phone receptionist — the first converge.
  *
  * A new workspace's line is three provider objects and one row: the Retell
- * LLM that IS the shell (voice/shell.ts: the placeholders, the four tools,
+ * LLM that IS the shell (voice/shell/agent-plan.ts: the placeholders, the four tools,
  * the spoken defaults), the agent over it (the product's voice, the webhook
  * with its events, the analysis fields, retention), and a number bound to
  * the agent with the inbound webhook that fills the facts per call. The row
@@ -24,11 +24,8 @@ import {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
-  SILENCE_REMINDER_MS,
-  SILENCE_REMINDERS,
-  CALL_FEEL,
-  CALL_HANDBOOK,
-} from "./shell";
+} from "./shell/tools";
+import { SILENCE_REMINDER_MS, SILENCE_REMINDERS, CALL_FEEL, CALL_HANDBOOK } from "./shell/agent-plan";
 import { E164, PHONE_VOICE_DEFAULT, RETELL_MODELS } from "@chanlytics/contracts";
 
 /** The model behind the shell, in Retell's name for it (contracts RETELL_MODELS). Temperature 0: the facts are read, not improvised. */
@@ -54,11 +51,11 @@ export const VOICE_AGENT_DEFAULTS = {
   voice_id: PHONE_VOICE_DEFAULT,
   language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
   end_call_after_silence_ms: CALL_LIMITS.end_call_after_silence_ms,
-  // A silent caller is reminded after four seconds, twice (voice/shell.ts SILENCE_REMINDER_MS): the converger holds
+  // A silent caller is reminded after four seconds, twice (voice/shell/agent-plan.ts SILENCE_REMINDER_MS): the converger holds
   // every live agent to the same. The ten locales stay until a line is converged to its workspace's (retellLocalesOf).
   reminder_trigger_ms: SILENCE_REMINDER_MS,
   reminder_max_count: SILENCE_REMINDERS,
-  // How a call sounds and takes turns (voice/shell.ts CALL_FEEL, CALL_HANDBOOK): a new line sounds as every live one is
+  // How a call sounds and takes turns (voice/shell/agent-plan.ts CALL_FEEL, CALL_HANDBOOK): a new line sounds as every live one is
   // converged to, so the converger plans nothing against what this creates.
   ...CALL_FEEL,
   handbook_config: CALL_HANDBOOK,
@@ -116,22 +113,25 @@ export function stripKey(url: string | null | undefined): string | null {
 }
 
 /** POST /create-retell-llm: the shell, with the secret on its tools while the doors still read one. */
-export function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl: string): Record<string, unknown> {
-  return { ...VOICE_LLM_DEFAULTS, ...desiredVoiceShell(fnUrl, s.fnSecret ? { "x-fn-secret": s.fnSecret } : null) };
+export function voiceLlmCreateBody(provisionSecrets: ProvisionSecrets, fnUrl: string): Record<string, unknown> {
+  return {
+    ...VOICE_LLM_DEFAULTS,
+    ...desiredVoiceShell(fnUrl, provisionSecrets.fnSecret ? { "x-fn-secret": provisionSecrets.fnSecret } : null),
+  };
 }
 
 /** POST /create-agent: the voice, the webhook and its events, the analysis fields, retention. */
 export function voiceAgentCreateBody(
-  o: { llmId: string; llmVersion: number | null; agentName: string },
-  s: ProvisionSecrets,
+  options: { llmId: string; llmVersion: number | null; agentName: string },
+  provisionSecrets: ProvisionSecrets,
   fnUrl: string,
 ): Record<string, unknown> {
   return {
-    agent_name: o.agentName,
+    agent_name: options.agentName,
     response_engine: {
       type: "retell-llm",
-      llm_id: o.llmId,
-      ...(o.llmVersion === null ? {} : { version: o.llmVersion }),
+      llm_id: options.llmId,
+      ...(options.llmVersion === null ? {} : { version: options.llmVersion }),
     },
     ...VOICE_AGENT_DEFAULTS,
     language: [...VOICE_AGENT_DEFAULTS.language],
@@ -144,35 +144,35 @@ export function voiceAgentCreateBody(
 }
 
 /** The agent on the number. Pinned to latest_published, a saved draft cannot go live by itself. */
-export function voiceNumberBinding(o: { agentId: string; pinned: boolean }): Array<Record<string, unknown>> {
-  return [{ agent_id: o.agentId, ...(o.pinned ? { agent_version: "latest_published" } : {}), weight: 1 }];
+export function voiceNumberBinding(options: { agentId: string; pinned: boolean }): Array<Record<string, unknown>> {
+  return [{ agent_id: options.agentId, ...(options.pinned ? { agent_version: "latest_published" } : {}), weight: 1 }];
 }
 
 /** POST /create-phone-number: a local number in the area code, bound and answering with the facts. */
 export function voiceNumberCreateBody(
-  o: { areaCode: number; agentId: string; pinned: boolean; nickname: string },
-  s: ProvisionSecrets,
+  options: { areaCode: number; agentId: string; pinned: boolean; nickname: string },
+  provisionSecrets: ProvisionSecrets,
   fnUrl: string,
 ): Record<string, unknown> {
   return {
     ...VOICE_NUMBER_DEFAULTS,
-    area_code: o.areaCode,
-    nickname: o.nickname,
-    inbound_agents: voiceNumberBinding(o),
-    inbound_webhook_url: withKey(voiceEndpoints(fnUrl).inbound, s.fnSecret),
+    area_code: options.areaCode,
+    nickname: options.nickname,
+    inbound_agents: voiceNumberBinding(options),
+    inbound_webhook_url: withKey(voiceEndpoints(fnUrl).inbound, provisionSecrets.fnSecret),
   };
 }
 
 /** PATCH /update-phone-number: an existing Retell number, bound the same way. */
 export function voiceNumberBindBody(
-  o: { agentId: string; pinned: boolean; nickname: string },
-  s: ProvisionSecrets,
+  options: { agentId: string; pinned: boolean; nickname: string },
+  provisionSecrets: ProvisionSecrets,
   fnUrl: string,
 ): Record<string, unknown> {
   return {
-    nickname: o.nickname,
-    inbound_agents: voiceNumberBinding(o),
-    inbound_webhook_url: withKey(voiceEndpoints(fnUrl).inbound, s.fnSecret),
+    nickname: options.nickname,
+    inbound_agents: voiceNumberBinding(options),
+    inbound_webhook_url: withKey(voiceEndpoints(fnUrl).inbound, provisionSecrets.fnSecret),
   };
 }
 
@@ -218,15 +218,17 @@ export interface VoiceProvisionPlan {
 /** What the endpoint will do, in order. Pure: the dry run prints this; the apply follows it. */
 export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan {
   const errors: string[] = [];
-  const r = st.request;
-  const number = r.number ?? null;
-  const area = r.areaCode ?? null;
+  const request = st.request;
+  const number = request.number ?? null;
+  const area = request.areaCode ?? null;
   if (number !== null && !E164.test(number)) errors.push("number must be E.164, like +13055550100");
   if (area !== null && !(Number.isInteger(area) && area >= 200 && area <= 999))
     errors.push("area_code must be three digits, like 305");
   if (number !== null && area !== null) errors.push("give a number to bind or an area code to buy in, not both");
-  if (r.llmId && !/^llm_[a-z0-9]+$/i.test(r.llmId)) errors.push("llm_id does not look like a Retell LLM id");
-  if (r.agentId && !/^agent_[a-z0-9]+$/i.test(r.agentId)) errors.push("agent_id does not look like a Retell agent id");
+  if (request.llmId && !/^llm_[a-z0-9]+$/i.test(request.llmId))
+    errors.push("llm_id does not look like a Retell LLM id");
+  if (request.agentId && !/^agent_[a-z0-9]+$/i.test(request.agentId))
+    errors.push("agent_id does not look like a Retell agent id");
   const names = { agent: `${st.tenant.name} front desk`, nickname: `${st.tenant.name} · Chanlytics` };
   if (errors.length) return { ok: false, errors, nothing: true, reason: null, steps: [], names };
 
@@ -245,13 +247,13 @@ export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan 
   }
 
   const steps: ProvisionStep[] = [];
-  if (r.agentId) {
+  if (request.agentId) {
     steps.push({ id: "llm", action: "skip", detail: "the adopted agent brings its own LLM" });
-    steps.push({ id: "agent", action: "adopt", detail: `${r.agentId}, read from the provider first` });
+    steps.push({ id: "agent", action: "adopt", detail: `${request.agentId}, read from the provider first` });
   } else {
     steps.push(
-      r.llmId
-        ? { id: "llm", action: "reuse", detail: `${r.llmId}, read from the provider first` }
+      request.llmId
+        ? { id: "llm", action: "reuse", detail: `${request.llmId}, read from the provider first` }
         : {
             id: "llm",
             action: "create",

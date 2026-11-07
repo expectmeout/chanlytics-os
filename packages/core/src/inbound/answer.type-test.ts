@@ -11,7 +11,8 @@
  * package's `tsc --noEmit` fails. Nothing imports this file, so no build reaches it.
  */
 import type { Holds, Within } from "@chanlytics/contracts";
-import type { InboundMessage, NormalizedInbound } from "@chanlytics/channels";
+import type { InboundMessage } from "@chanlytics/channels/inbound";
+import type { NormalizedInbound } from "@chanlytics/channels/whatsapp";
 import type { InboundCarrier, InboundInput } from "./answer";
 
 type At = { tenantId: string; routed: null; isEnvDefault: false };

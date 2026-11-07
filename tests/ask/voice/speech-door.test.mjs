@@ -9,7 +9,8 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { signEdgeToken, resetBreakers } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { ASK_VOICE_ID, ASK_VOICE_MODEL } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 

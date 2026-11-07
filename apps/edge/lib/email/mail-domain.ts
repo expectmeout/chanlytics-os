@@ -19,7 +19,7 @@
  * broken decides whether the only alarm channel is flooded or silent, and
  * `judgeMailDomain` is a function over the provider's own words.
  */
-import { fetchMailDomains, type MailCapability, type MailDomainFacts } from "@chanlytics/channels";
+import { fetchMailDomains, type MailCapability, type MailDomainFacts } from "@chanlytics/channels/email";
 
 /** The one status that means the DNS is in place. Everything else is judged by what it costs, never assumed benign. */
 const VERIFIED = "verified";
@@ -65,22 +65,24 @@ type MailDomainTrouble =
 export function judgeMailDomain(
   domains: MailDomainFacts[],
   wanted: string,
-  o: { sendOnly?: boolean } = {},
+  options: { sendOnly?: boolean } = {},
 ): MailDomainTrouble | null {
   const name = wanted.trim().toLowerCase();
-  const d = domains.find((x) => x.name === name);
-  if (!d) return { kind: "absent" };
-  if (d.status !== VERIFIED) {
-    if (d.status.startsWith("partially_")) return { kind: "half", status: d.status };
-    if (d.status === "failed") return { kind: "given_up", status: d.status };
-    return WAS_VERIFIED.has(d.status)
-      ? { kind: "stopped", status: d.status }
-      : { kind: "never_verified", status: d.status };
+  const found = domains.find((x) => x.name === name);
+  if (!found) return { kind: "absent" };
+  if (found.status !== VERIFIED) {
+    if (found.status.startsWith("partially_")) return { kind: "half", status: found.status };
+    if (found.status === "failed") return { kind: "given_up", status: found.status };
+    return WAS_VERIFIED.has(found.status)
+      ? { kind: "stopped", status: found.status }
+      : { kind: "never_verified", status: found.status };
   }
   // A domain that only sends (the campaigns domain, where offers leave from) may receive nothing, and is off only when
   // it cannot send.
-  const off = o.sendOnly ? d.sending === "disabled" : d.sending === "disabled" || d.receiving === "disabled";
-  if (off) return { kind: "off", sending: d.sending, receiving: d.receiving };
+  const off = options.sendOnly
+    ? found.sending === "disabled"
+    : found.sending === "disabled" || found.receiving === "disabled";
+  if (off) return { kind: "off", sending: found.sending, receiving: found.receiving };
   return null;
 }
 
@@ -90,19 +92,19 @@ export function judgeMailDomain(
  * and the composers offer no tick. Replies and visit messages, which leave from the mail domain, are not touched.
  */
 export function describeCampaignsDomainTrouble(
-  t: MailDomainTrouble,
+  mailDomainTrouble: MailDomainTrouble,
   domain: string,
 ): { subject: string; body: string } {
-  const said =
-    t.kind === "absent"
+  const sentence =
+    mailDomainTrouble.kind === "absent"
       ? "the provider has no domain by that name"
-      : t.kind === "off"
-        ? `verified, sending ${t.sending}`
-        : `status "${t.status}"`;
+      : mailDomainTrouble.kind === "off"
+        ? `verified, sending ${mailDomainTrouble.sending}`
+        : `status "${mailDomainTrouble.status}"`;
   return {
-    subject: `The campaigns domain ${domain} is not sending: ${said}`,
+    subject: `The campaigns domain ${domain} is not sending: ${sentence}`,
     body:
-      `Offers by email leave from ${domain} (EMAIL_CAMPAIGNS_DOMAIN), and the provider reports ${said}.\n\n` +
+      `Offers by email leave from ${domain} (EMAIL_CAMPAIGNS_DOMAIN), and the provider reports ${sentence}.\n\n` +
       `While this lasts every offer by email is refused, and the composers draw no Email tick for offers: nothing is sent from ` +
       `another domain instead. Reminders and replies by email are not affected.\n\n` +
       `Check the domain's DNS records in the platform's Resend account (SPF, DKIM and the return path), and unset ` +
@@ -111,8 +113,8 @@ export function describeCampaignsDomainTrouble(
 }
 
 /** What each kind of trouble COSTS, in the terms the person woken by it cares about. */
-function consequence(t: MailDomainTrouble): string {
-  switch (t.kind) {
+function consequence(mailDomainTrouble: MailDomainTrouble): string {
+  switch (mailDomainTrouble.kind) {
     case "absent":
       return "no workspace can be written to or reply: every address on this domain is one the provider does not know.";
     case "never_verified":
@@ -124,25 +126,28 @@ function consequence(t: MailDomainTrouble): string {
     case "half":
       return "one of sending and receiving is verified and the other is not. If it is receiving, customers' emails are being lost silently.";
     case "off":
-      return t.receiving === "disabled"
+      return mailDomainTrouble.receiving === "disabled"
         ? "the domain is verified but receiving is switched off, so every address we published accepts nothing."
         : "the domain is verified but sending is switched off, so no reply can leave.";
   }
 }
 
 /** The page: what the provider said, what it costs, and the one place to go and look. */
-export function describeMailDomainTrouble(t: MailDomainTrouble, domain: string): { subject: string; body: string } {
-  const said =
-    t.kind === "absent"
+export function describeMailDomainTrouble(
+  mailDomainTrouble: MailDomainTrouble,
+  domain: string,
+): { subject: string; body: string } {
+  const sentence =
+    mailDomainTrouble.kind === "absent"
       ? "the provider has no domain by that name"
-      : t.kind === "off"
-        ? `verified, sending ${t.sending}, receiving ${t.receiving}`
-        : `status "${t.status}"`;
+      : mailDomainTrouble.kind === "off"
+        ? `verified, sending ${mailDomainTrouble.sending}, receiving ${mailDomainTrouble.receiving}`
+        : `status "${mailDomainTrouble.status}"`;
   return {
-    subject: `The mail domain ${domain} is not working: ${said}`,
+    subject: `The mail domain ${domain} is not working: ${sentence}`,
     body:
-      `Every workspace's email address on this deployment is on ${domain}, and the provider reports ${said}.\n\n` +
-      `While this lasts: ${consequence(t)}\n\n` +
+      `Every workspace's email address on this deployment is on ${domain}, and the provider reports ${sentence}.\n\n` +
+      `While this lasts: ${consequence(mailDomainTrouble)}\n\n` +
       `Nothing in our own rows shows this — a mailbox that receives nothing looks the same as one nobody wrote to — ` +
       `so this mail is the only place it appears.\n\n` +
       `Check the domain's DNS records in the Resend dashboard. GET /api/diag with the x-diag-key header shows ` +
@@ -167,14 +172,16 @@ interface MailDomainPorts {
  * the provider must not page as an outage of ours, and the next tick asks again.
  */
 export async function checkMailDomain(
-  p: MailDomainPorts,
+  mailDomainPorts: MailDomainPorts,
 ): Promise<{ trouble: MailDomainTrouble | null; error?: string; skipped?: "email_off" | "no_key" }> {
-  if (!p.domain) return { trouble: null, skipped: "email_off" };
-  if (!p.apiKey) return { trouble: null, skipped: "no_key" };
-  const ask = p.domains ?? fetchMailDomains;
+  if (!mailDomainPorts.domain) return { trouble: null, skipped: "email_off" };
+  if (!mailDomainPorts.apiKey) return { trouble: null, skipped: "no_key" };
+  const ask = mailDomainPorts.domains ?? fetchMailDomains;
   try {
     return {
-      trouble: judgeMailDomain(await ask({ apiKey: p.apiKey }), p.domain, { sendOnly: p.sendOnly }),
+      trouble: judgeMailDomain(await ask({ apiKey: mailDomainPorts.apiKey }), mailDomainPorts.domain, {
+        sendOnly: mailDomainPorts.sendOnly,
+      }),
     };
   } catch (e) {
     return { trouble: null, error: e instanceof Error ? e.message : String(e) };

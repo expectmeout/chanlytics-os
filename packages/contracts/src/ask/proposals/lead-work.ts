@@ -6,8 +6,8 @@
  * own bodies), so a card and a press make the same call; a lead door answers its own sentence (`toast`), which the
  * receipt says, and an operation id and version, which its undo takes back (`lead_undo`).
  */
-import { leadsRoute } from "../../leads/lead-plan";
-import { SEQUENCES_ROUTE, sequenceRoute } from "../../campaigns/sequences/sequence-address";
+import { leadsRoute } from "../../leads/plan";
+import { SEQUENCES_ROUTE, sequenceRoute } from "../../campaigns/sequences/address";
 import {
   PROPOSAL_WORDS,
   asText,
@@ -99,8 +99,8 @@ export const leadMarkSpec: ProposalSpecAboveOperator = {
   gather: (answers) => ({ done: answers.length }),
   receipt: ({ payload: pl }, data) => {
     const n = Number(rec(data).done) || 1;
-    const said = isLeadMark(pl.mark) ? LEAD_MARK_SAID[pl.mark] : "marked";
-    return n === 1 && asText(pl.who) ? `${asText(pl.who)} ${said}` : `${n} leads ${said}`;
+    const sentence = isLeadMark(pl.mark) ? LEAD_MARK_SAID[pl.mark] : "marked";
+    return n === 1 && asText(pl.who) ? `${asText(pl.who)} ${sentence}` : `${n} leads ${sentence}`;
   },
   open: openLead,
 };

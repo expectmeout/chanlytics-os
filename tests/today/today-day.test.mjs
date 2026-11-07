@@ -9,21 +9,21 @@ import {
   batchFactsOf,
   batchHeldEmails,
   todayDay,
-  todayBriefWords,
   TODAY_DAY_MAX,
   toTodayVM,
-  todayPeriodLine,
   todayRunWords,
   todayRunsSub,
   todayLateRunsSub,
   todayDraftsSub,
   todayRunApproved,
-  todayLeaks,
   todaySteps,
   todayStepsSub,
   withSteps,
-  withReplies,
 } from "@chanlytics/contracts";
+import { todayBriefWords } from "../../apps/dashboard/src/surfaces/today/brief-words.ts";
+import { todayPeriodLine } from "../../apps/dashboard/src/surfaces/today/period.ts";
+import { todayLeaks } from "../../apps/dashboard/src/surfaces/today/leaks.ts";
+import { withReplies } from "../../apps/dashboard/src/surfaces/campaigns/reach-out/reply-today.ts";
 import { readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, all, byTestId, find, textOf } from "../_stub-react.mjs";
 

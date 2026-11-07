@@ -1,8 +1,8 @@
 import { createBroadcast } from "@chanlytics/core";
 import { read, write, workspace } from "@/server/shared/route";
-import { jsonBody } from "@/server/shared/request-guards";
-import { createBroadcastPorts } from "@/server/ports/campaign-ports";
-import { load, readerContext } from "@/server/readers";
+import { readJsonBody } from "@/server/shared/request-guards";
+import { createBroadcastPorts } from "@/server/campaigns/ports";
+import { load, readerContext } from "@/server/shared/reader";
 import { broadcasts } from "@/server/readers/broadcasts";
 
 /**
@@ -53,7 +53,7 @@ export const POST = write({
     // Committed on the edge's word as it is now: a "ready" kept from a few minutes ago is not enough to enrol people on.
     createBroadcast(createBroadcastPorts(ctx, member.tenantId, { fresh: true }), {
       userId: ctx.userId,
-      body: await jsonBody(req),
+      body: await readJsonBody(req),
       now: new Date(),
     }),
 });

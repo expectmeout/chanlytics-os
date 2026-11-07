@@ -5,7 +5,8 @@
  * sheet's own door into a record carries its way back, which opens it again.
  */
 import { useEffect, useState, type MouseEvent } from "react";
-import { UUID, seeHomeOf } from "@chanlytics/contracts";
+import { UUID } from "@chanlytics/contracts";
+import { seeHomeOf } from "@/surfaces/see/over";
 import { goToRoute } from "@/bridge/workspace";
 import { overQuery } from "../../see/over-query";
 import { seeOverNow } from "../../see/see-over";

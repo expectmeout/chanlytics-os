@@ -245,7 +245,7 @@ test("the database records the two answers apart, and neither writer reaches acr
   // The hot path is NOT recreated to add a column. ingest_inbound handles every
   // inbound message in the product; the marketing answer is a second call.
   assert.ok(!/create or replace function public\.ingest_inbound/.test(m), "REGRESSION: surgery on the hot path");
-  const repo = readCode("packages/db/src/repositories/conversations/ingest.ts");
+  const repo = readCode("packages/db/src/repositories/channels/ingest.ts");
   assert.match(repo, /rpc\("set_marketing_consent"/);
   assert.ok(
     repo.indexOf('rpc("ingest_inbound"') < repo.indexOf('rpc("set_marketing_consent"'),
@@ -551,7 +551,7 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
 
   // The resolver has to project the column, or the gate above reads undefined and
   // fails closed on every promotional send it is ever asked about.
-  const repo = readCode("packages/db/src/repositories/conversations/ingest.ts");
+  const repo = readCode("packages/db/src/repositories/channels/ingest.ts");
   // And the channels each yes covers (step 2), or every yes reads as WhatsApp alone.
   assert.match(repo, /\.select\("id, consent, dnc, marketing_consent, consent_channels, marketing_channels"\)/);
 });
@@ -561,7 +561,7 @@ test("the fact has a WRITE path: two callers, which is what 00095 designed for",
   // desk recording a form the customer signed." Only the first existed, so a salon
   // holding thirty signed consent slips had no way to record any of them -- and
   // both controls that looked like they did wrote the conversational column.
-  const ingest = readCode("packages/db/src/repositories/conversations/ingest.ts");
+  const ingest = readCode("packages/db/src/repositories/channels/ingest.ts");
   assert.match(ingest, /rpc\("set_marketing_consent"/, "the customer's own message");
   // A person at the desk: the member's one call (00356 record_consent), which hands the offers door the workspace it
   // read the person from (the edge calls that door with no session, so it takes the workspace as a parameter), and
@@ -611,9 +611,17 @@ test('every read of "said yes to offers" points at the offers column', () => {
   );
   assert.equal(peopleListAction("lapsed", [noNumber, talkOnly]).enabled, false, "and nobody reachable means no button");
 
-  const setup = readCode("packages/contracts/src/setup/rows.ts");
+  const setup = [
+    "packages/contracts/src/setup/rows/business.ts",
+    "packages/contracts/src/setup/rows/channels.ts",
+    "packages/contracts/src/setup/rows/steps.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.match(setup, /const offers = i\.consent\.offers;/, "the Setup row reads the offers count");
-  const server = readCode("apps/dashboard/src/server/workspace/setup.ts");
+  const server = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.match(
     server,
     /\.eq\("marketing_consent", "opted_in"\)\s*\.eq\("dnc", false\)/,
@@ -654,7 +662,7 @@ test('every read of "said yes to offers" points at the offers column', () => {
   // above is exactly as told, whichever way it is asked.
   assert.equal(firstDirOf(PL_COLUMNS, "offers"), "asc", "a first press on Offers lists the yeses first");
 
-  const exp = readCode("apps/dashboard/src/server/export/export.ts");
+  const exp = readCode("apps/dashboard/src/server/shared/export-file.ts");
   assert.match(exp, /\["offers_consent", \(r\) => r\.marketing_consent \?\? "unknown"\]/);
 });
 

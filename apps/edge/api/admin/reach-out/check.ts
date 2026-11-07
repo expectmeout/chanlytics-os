@@ -9,9 +9,10 @@ import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { readBody } from "../../../lib/shared/admin-door.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { checkPressedSends } from "../../../lib/campaigns/reach-out/check-sweep.js";
+import { REACH_OUT_CHECK_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/reach-out/check");
   if (!auth.ok) return auth.response;
-  return checkPressedSends(auth, await readBody(request));
+  return checkPressedSends(auth, await readBody(request, REACH_OUT_CHECK_DOOR));
 });

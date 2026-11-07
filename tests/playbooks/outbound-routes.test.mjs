@@ -32,12 +32,12 @@ const sync = await import(at("apps/dashboard/app/api/v1/templates/sync/route.ts"
 const playbooks = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 const playbook = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));
 const run = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/run/route.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 // The ledger is written as the service role (a session may not insert into events): a test that reads it stands one in.
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-afterEach(() => setServiceClient(null));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+afterEach(() => setUnsubscribeServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -1143,7 +1143,7 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     broadcasts: [],
     broadcast_recipients: [],
   };
-  setServiceClient(fakeDb(tables));
+  setUnsubscribeServiceClient(fakeDb(tables));
   await refused(playbook.PUT.run(send("PUT", { state: "paused" }), ctxFor(tables, { id: K1 })), "forbidden", 403);
   await refused(
     playbook.PUT.run(send("PUT", { state: "sleeping" }), ctxFor(tables, { id: K2 })),
@@ -1387,7 +1387,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
       if (answer instanceof Error) throw answer;
       return new Response(JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } });
     };
-    await emailWire({ fresh: true });
+    await getEmailWire({ fresh: true });
   };
   const tablesFor = (over = {}) => ({
     memberships: both("viewer", "operator"),
@@ -1527,7 +1527,7 @@ test("a broadcast ticks channels at the door: a tick the workspace is not ready 
     if (beforeSecret === undefined) delete process.env.EDGE_CALL_SECRET;
     else process.env.EDGE_CALL_SECRET = beforeSecret;
     // What the next test reads is the answer of a deployment that cannot ask the edge, as it was before this one.
-    await emailWire({ fresh: true });
+    await getEmailWire({ fresh: true });
   }
 });
 
@@ -1567,7 +1567,7 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
     decisions: [],
     events: [],
   };
-  setServiceClient(fakeDb(tables));
+  setUnsubscribeServiceClient(fakeDb(tables));
   const rowOf = (id) => tables.playbooks.find((p) => p.id === id);
   const before = { ...rowOf(K1) };
   let ctx = ctxFor(tables, { id: K1 });

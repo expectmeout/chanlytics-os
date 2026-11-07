@@ -4,13 +4,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  firstRunLiveOf,
-  youAreLiveEmail,
-  greetingFor,
-  FIRST_RUN_LIVE_WORDS as W,
-  FIRST_RUN_HELPERS,
-} from "@chanlytics/contracts";
+import { firstRunLiveOf, youAreLiveEmail, greetingFor, FIRST_RUN_LIVE_WORDS as W } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/helpers.ts";
 
 const dtoOf = (over = {}) => ({
   business: {

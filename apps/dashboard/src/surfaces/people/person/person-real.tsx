@@ -17,12 +17,13 @@ import {
   NOTE_WORDS,
   PERSON_PEEK_WORDS,
   isIdentifierName,
-  newSinceOf,
   personTabRoute,
   shortName,
   stateOf,
 } from "@chanlytics/contracts";
-import type { LookedAt, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
+import { newSinceOf } from "./model/new-since";
+import type { PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
+import type { LookedAt } from "./model/new-since";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
 import { tabMemory } from "../../kit/record/shell-verbs";

@@ -506,7 +506,7 @@ test("a deal is open while it is a proposal out or a client; the current deal an
   assert.equal(consultsHeldWords(1), "1 ended in the last week, nothing since");
 });
 
-/** A report as the route answers it (dealReport, 0008), the least one can be: a deal on file, none sent, nothing open. */
+/** A report as the route answers it (readDealReport, 0008), the least one can be: a deal on file, none sent, nothing open. */
 const report = (over = {}) => ({
   any: true,
   sent: 0,

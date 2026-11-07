@@ -19,7 +19,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const report = await import(at("apps/dashboard/app/api/v1/reports/reach-outs/route.ts"));
 const leads = await import(at("apps/dashboard/app/api/v1/reach-outs/leads/route.ts"));
 const stop = await import(at("apps/dashboard/app/api/v1/reach-outs/leads/[id]/stop/route.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -183,7 +183,7 @@ test("GET reports/reach-outs reads the report and every chain's totals over one 
 });
 
 test("GET reports/reach-outs answers its reader's payload; where the chains' totals cannot be read the report's own chains stand in, as not every chain: a database without the function quietly, a read that fails said in the log; only the report's own failure is the route's", async () => {
-  const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+  const { load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
   const { reachOutReport } = await import(at("apps/dashboard/src/server/readers/campaign-report.ts"));
   const d = doors({
     reach_out_report: () => ONE_CHAIN,
@@ -324,7 +324,7 @@ test("POST stop: an operator stops a lead; a viewer may not; another workspace's
   const d = doors();
   // The ledger is written as the service role (a session may not insert into events): stood in, and read below.
   const ledger = { events: [] };
-  setServiceClient(fakeDb(ledger));
+  setUnsubscribeServiceClient(fakeDb(ledger));
 
   const out = await stop.POST.run(post(), ctxFor(tables("operator"), { id: LEAD }, d.rpcs));
   assert.deepEqual(out, { stopped: true, already: false, skipped: 2, leaving: 0 });
@@ -335,7 +335,7 @@ test("POST stop: an operator stops a lead; a viewer may not; another workspace's
   const stranger = doors();
   await refused(stop.POST.run(post(), ctxFor(tables("operator"), { id: THEIRS }, stranger.rpcs)), "not_found", 404);
   assert.deepEqual(stranger.asked, []);
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
   assert.deepEqual(
     ledger.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
     [[A, "reach_out.lead_stopped", "lead", LEAD, { by: USER }]],

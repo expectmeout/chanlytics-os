@@ -11,9 +11,25 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import {
+  moneyOf,
+  perDayOf,
+  leftOfMoney,
+  sumMoney,
+  currencySymbol,
+} from "../../apps/dashboard/src/surfaces/campaigns/ads/model/money.ts";
+import {
+  BUDGET_RULES,
+  SCHEDULE_NEEDS_TOTAL,
+  countedDoor,
+  DOOR_NEEDS,
+} from "../../apps/dashboard/src/surfaces/campaigns/ads/model/rules.ts";
+import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
+import { adModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/drawer/view.ts";
+import { newAdModel, newAdDefaults, newAdFrom } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/new-ad.ts";
+import { ADS_EXAMPLES, REFUSED } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 
 const ads = await import("@chanlytics/contracts");
-const page = await import("@chanlytics/contracts/ads-page");
 const { EXAMPLE_READS } = await import("../../apps/dashboard/src/surfaces/campaigns/ads/examples.ts");
 const { CONFIG, SPRING, NEAR_ME, SATURDAY, OLD_BOOST, connected } =
   await import("../../apps/dashboard/src/surfaces/campaigns/ads/sample.ts");
@@ -56,23 +72,23 @@ test("an Ads address says the page, an ad open, the composer on a door or from a
 });
 
 test("money is minor units in the account's currency: whole from 10, cents under, two currencies side by side", () => {
-  assert.equal(page.moneyOf(1400, "USD"), "$14");
-  assert.equal(page.moneyOf(72000, "USD"), "$720");
-  assert.equal(page.moneyOf(128400, "USD"), "$1,284");
-  assert.equal(page.moneyOf(500, "USD"), "$5", "a whole number is whole");
-  assert.equal(page.moneyOf(550, "USD"), "$5.50", "cents under 10 where there are some");
-  assert.equal(page.moneyOf(23000, "GBP"), "£230");
-  assert.equal(page.perDayOf(1500, "USD"), "$15 a day");
-  assert.equal(page.leftOfMoney(30800, 72000, "USD"), "$308 left of $720");
+  assert.equal(moneyOf(1400, "USD"), "$14");
+  assert.equal(moneyOf(72000, "USD"), "$720");
+  assert.equal(moneyOf(128400, "USD"), "$1,284");
+  assert.equal(moneyOf(500, "USD"), "$5", "a whole number is whole");
+  assert.equal(moneyOf(550, "USD"), "$5.50", "cents under 10 where there are some");
+  assert.equal(moneyOf(23000, "GBP"), "£230");
+  assert.equal(perDayOf(1500, "USD"), "$15 a day");
+  assert.equal(leftOfMoney(30800, 72000, "USD"), "$308 left of $720");
   assert.equal(
-    page.sumMoney([
+    sumMoney([
       { minor: 41200, currency: "USD" },
       { minor: 28700, currency: "USD" },
     ]),
     "$699",
   );
   assert.equal(
-    page.sumMoney([
+    sumMoney([
       { minor: 84700, currency: "USD" },
       { minor: 23000, currency: "GBP" },
       { minor: 100, currency: "USD" },
@@ -80,7 +96,7 @@ test("money is minor units in the account's currency: whole from 10, cents under
     "$848 + £230",
     "never converted",
   );
-  assert.equal(page.currencySymbol("GBP"), "£");
+  assert.equal(currencySymbol("GBP"), "£");
   assert.equal(
     ads.aboutADayAfter({
       ad: EXAMPLE_READS.running().ads[0],
@@ -93,19 +109,19 @@ test("money is minor units in the account's currency: whole from 10, cents under
 });
 
 test("the rules are data: a daily amount's limits per platform, the schedule, and what a door needs", () => {
-  assert.deepEqual(page.BUDGET_RULES.tiktok, {
+  assert.deepEqual(BUDGET_RULES.tiktok, {
     maxStep: 0.3,
     waitDays: 2,
     totalMaxDays: null,
     dailyIsAverage: false,
     changeRelearns: true,
   });
-  assert.equal(page.BUDGET_RULES.google.totalMaxDays, 90);
-  assert.deepEqual(page.SCHEDULE_NEEDS_TOTAL, { meta: true, google: false, tiktok: false });
-  assert.equal(page.countedDoor("call"), false, "a Google call is Google's count");
-  assert.equal(page.countedDoor("form") && page.countedDoor("whatsapp"), true);
+  assert.equal(BUDGET_RULES.google.totalMaxDays, 90);
+  assert.deepEqual(SCHEDULE_NEEDS_TOTAL, { meta: true, google: false, tiktok: false });
+  assert.equal(countedDoor("call"), false, "a Google call is Google's count");
+  assert.equal(countedDoor("form") && countedDoor("whatsapp"), true);
   // A connected account lists every check a door asks of it: nothing a door needs is missing from a read.
-  for (const [door, byPlatform] of Object.entries(page.DOOR_NEEDS)) {
+  for (const [door, byPlatform] of Object.entries(DOOR_NEEDS)) {
     for (const [platform, ids] of Object.entries(byPlatform)) {
       const listed = connected(platform).checks.map((c) => c.id);
       for (const id of ids) assert.ok(listed.includes(id), `${door} on ${platform} needs ${id}`);
@@ -117,25 +133,25 @@ test("every example is an AdsRead the one model draws, and the default's figures
   const modes = {};
   for (const [id, make] of Object.entries(EXAMPLE_READS)) {
     const read = make();
-    const vm = page.adsModel(read, CONFIG);
+    const vm = adsModel(read, CONFIG);
     modes[id] = vm.mode;
     assert.ok(vm.head.rest.length > 0, id);
     assert.equal(vm.standing.length, 3, id);
-    for (const ad of read.ads) page.adModel(ad, read, CONFIG);
-    page.newAdModel(page.newAdDefaults(read, CONFIG), read, CONFIG);
+    for (const ad of read.ads) adModel(ad, read, CONFIG);
+    newAdModel(newAdDefaults(read, CONFIG), read, CONFIG);
   }
-  assert.deepEqual(Object.keys(modes).sort(), [...page.ADS_EXAMPLES].sort(), "an example for each id the menu lists");
+  assert.deepEqual(Object.keys(modes).sort(), [...ADS_EXAMPLES].sort(), "an example for each id the menu lists");
   assert.equal(modes.v0, "v0");
   assert.equal(modes["no-ads"], "none");
   assert.equal(modes.choose, "none");
   assert.equal(modes.running, "ads");
 
   const read = EXAMPLE_READS.running();
-  const vm = page.adsModel(read, CONFIG);
+  const vm = adsModel(read, CONFIG);
   const sum = (xs) => xs.reduce((a, b) => a + b, 0);
   const inWindow = (ad) => ad.days.filter((d) => d.day >= read.window.from && d.day <= read.window.to);
   const spent = sum(read.ads.flatMap((ad) => inWindow(ad).map((d) => d.spendMinor)));
-  assert.equal(vm.figures[0].value, page.moneyOf(spent, "USD"), "Spent is the sum of every ad's daily rows");
+  assert.equal(vm.figures[0].value, moneyOf(spent, "USD"), "Spent is the sum of every ad's daily rows");
   assert.equal(vm.figures[1].value, "114");
   assert.equal(vm.figures[2].value, "26");
   assert.equal(vm.head.strong, "26 of 114");
@@ -149,12 +165,12 @@ test("every example is an AdsRead the one model draws, and the default's figures
 test("an ad's reach line says when the last number arrived from the person who arrived, not from typed text", () => {
   const read = EXAMPLE_READS.running();
   const saturday = read.ads.find((ad) => ad.id === SATURDAY);
-  const drawer = page.adModel(saturday, read, CONFIG);
+  const drawer = adModel(saturday, read, CONFIG);
   assert.deepEqual(drawer.reach.parts.at(-1), "last number arrived 9:02 AM today");
   const arrived = read.people.find((p) => p.adId === SATURDAY && p.day === read.today);
   assert.ok(arrived && arrived.at && saturday.todaySoFar === 1, "someone did arrive today, and the bar says one");
   // Without the arrival the line falls back to what the ad stands on.
-  const quiet = page.adModel({ ...saturday, lastArrivalAt: null }, read, CONFIG);
+  const quiet = adModel({ ...saturday, lastArrivalAt: null }, read, CONFIG);
   assert.deepEqual(quiet.reach.parts.at(-1), "TikTok account linked");
 });
 
@@ -168,16 +184,16 @@ test("a verb carries the version it was drawn from; a stale press and an ad made
   assert.equal(spring().state, "paused");
   assert.equal(spring().version, v1 + 1, "every change bumps the version");
   const stale = verbs.resume(SPRING, v1);
-  assert.deepEqual(stale, { ok: false, why: page.REFUSED.stale });
+  assert.deepEqual(stale, { ok: false, why: REFUSED.stale });
   paused.undo();
   assert.equal(spring().state, "on", "Undo puts the ad back");
   assert.ok(spring().version > v1 + 1, "and is a change of its own");
-  assert.deepEqual(verbs.pause("nope", 1), { ok: false, why: page.REFUSED.gone });
+  assert.deepEqual(verbs.pause("nope", 1), { ok: false, why: REFUSED.gone });
   // An ad the owner made on the platform itself: only Pause and Resume are here.
   const boost = () => w.read.ads.find((ad) => ad.id === OLD_BOOST);
   assert.equal(boost().madeHere, false);
-  assert.deepEqual(verbs.end(OLD_BOOST, boost().version), { ok: false, why: page.REFUSED.adopted });
-  assert.deepEqual(verbs.rename(OLD_BOOST, boost().version, "Mine"), { ok: false, why: page.REFUSED.adopted });
+  assert.deepEqual(verbs.end(OLD_BOOST, boost().version), { ok: false, why: REFUSED.adopted });
+  assert.deepEqual(verbs.rename(OLD_BOOST, boost().version, "Mine"), { ok: false, why: REFUSED.adopted });
   assert.equal(verbs.resume(OLD_BOOST, boost().version).ok, true);
   assert.equal(boost().state, "on");
   // A raise of the total moves what is spent a day with it; a change of the area sends the ad back to be checked.
@@ -194,8 +210,8 @@ test("a verb carries the version it was drawn from; a stale press and an ad made
 
 test("Turn on is stopped while the account is not ready, and lands a Google ad in review sent to Google", () => {
   const blockedRead = EXAMPLE_READS["no-ads"]();
-  const draft = page.newAdDefaults(blockedRead, CONFIG);
-  const vm = page.newAdModel(draft, blockedRead, CONFIG);
+  const draft = newAdDefaults(blockedRead, CONFIG);
+  const vm = newAdModel(draft, blockedRead, CONFIG);
   assert.ok(vm.blocked, "no payment method blocks Turn on");
   assert.match(vm.blocked.text, /Add a payment method in Meta/);
   assert.equal(vm.blocked.door.to, "admin/integrations");
@@ -206,13 +222,13 @@ test("Turn on is stopped while the account is not ready, and lands a Google ad i
   const w = world(EXAMPLE_READS.running());
   const verbs = makeVerbs(w, CONFIG);
   const google = {
-    ...page.newAdDefaults(w.read, CONFIG),
+    ...newAdDefaults(w.read, CONFIG),
     door: "call",
     platform: "google",
     mode: "daily",
     presetId: "own",
   };
-  const gvm = page.newAdModel(google, w.read, CONFIG);
+  const gvm = newAdModel(google, w.read, CONFIG);
   assert.equal(gvm.blocked, null);
   assert.deepEqual(verbs.turnOn(google, 1).ok, false, "the maximum it can spend is the owner's to have read");
   const out = verbs.turnOn(google, gvm.totalMinor);
@@ -220,8 +236,7 @@ test("Turn on is stopped while the account is not ready, and lands a Google ad i
   const landed = w.read.ads.find((ad) => ad.id === out.id);
   assert.equal(landed.state, "review");
   assert.equal(landed.platform, "google");
-  const row = page
-    .adsModel(w.read, CONFIG)
+  const row = adsModel(w.read, CONFIG)
     .groups.flatMap((g) => g.rows)
     .find((r) => r.id === out.id);
   assert.match(row.hint, /sent to Google today$/, "never a hard-coded Meta");
@@ -232,14 +247,14 @@ test("Turn on is stopped while the account is not ready, and lands a Google ad i
 test("New ad starts from an ad: a copy keeps its door and platform, Google keeps its offer on the Call door", () => {
   const read = EXAMPLE_READS.running();
   const spring = read.ads.find((ad) => ad.id === SPRING);
-  const copy = page.newAdFrom(spring, "copy", read);
+  const copy = newAdFrom(spring, "copy", read);
   assert.equal(copy.door, "whatsapp");
   assert.equal(copy.platform, "meta");
   assert.equal(copy.serviceId, spring.serviceId);
-  const google = page.newAdFrom(spring, "google", read);
+  const google = newAdFrom(spring, "google", read);
   assert.deepEqual([google.door, google.platform, google.serviceId], ["call", "google", spring.serviceId]);
   const near = read.ads.find((ad) => ad.id === NEAR_ME);
-  assert.equal(page.newAdFrom(near, "again", read).door, "call");
+  assert.equal(newAdFrom(near, "again", read).door, "call");
 });
 
 test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequences'", () => {

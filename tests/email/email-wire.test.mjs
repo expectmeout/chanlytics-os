@@ -23,8 +23,8 @@ import {
   replySubject,
   resendLimitOf,
   sendEmail,
-  resetBreakers,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
+import { resetBreakers } from "@chanlytics/channels/shared";
 
 // Each case starts with the provider's breaker closed: the timeouts one case stages are not the next case's outage.
 beforeEach(() => resetBreakers());

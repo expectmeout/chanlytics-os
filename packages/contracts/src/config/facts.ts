@@ -160,11 +160,11 @@ export function knownForwarding(
  * a disagreement would train people to ignore the warning, which costs more
  * than the warning is worth.
  */
-export function sameAddress(a: string | null | undefined, b: string | null | undefined): boolean {
-  const x = textKey(a)
+export function sameAddress(first: string | null | undefined, second: string | null | undefined): boolean {
+  const x = textKey(first)
     .replace(/\b(usa|us|united states)\b/g, "")
     .trim();
-  const y = textKey(b)
+  const y = textKey(second)
     .replace(/\b(usa|us|united states)\b/g, "")
     .trim();
   if (!x || !y) return false;
@@ -172,9 +172,9 @@ export function sameAddress(a: string | null | undefined, b: string | null | und
 }
 
 /** Same business, allowing for punctuation and case. */
-export function sameName(a: string | null | undefined, b: string | null | undefined): boolean {
-  const x = textKey(a);
-  const y = textKey(b);
+export function sameName(first: string | null | undefined, second: string | null | undefined): boolean {
+  const x = textKey(first);
+  const y = textKey(second);
   return !!x && !!y && x === y;
 }
 
@@ -216,7 +216,7 @@ function typedOverKnown<T extends string>(
  * and whatever disagrees with it.
  */
 export function resolveFacts(typed: TypedFacts | null | undefined, known?: KnownFacts | null): ResolvedFacts {
-  const p = typed?.profile ?? null;
+  const profile = typed?.profile ?? null;
   const voice = activeChannel(known, "voice");
   const whatsapp = activeChannel(known, "whatsapp");
   const kept = keptReaching(known, voice);
@@ -244,11 +244,11 @@ export function resolveFacts(typed: TypedFacts | null | undefined, known?: Known
         ? { value: published, source: "typed" }
         : typedOverKnown(published, voice ? formatPhoneDisplay(voice) : null, "provisioned", samePhone),
     booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
-    address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
-    website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
+    address: typedOverKnown(trimmed(profile?.address), trimmed(known?.listing?.address), "verified", sameAddress),
+    website: typedOverKnown(trimmed(profile?.website), null, "absent", strEq),
     // Human-only by nature: nothing provisions "the person to put a caller through to".
-    handoff_number: p?.handoff_number
-      ? { value: p.handoff_number, source: "typed" }
+    handoff_number: profile?.handoff_number
+      ? { value: profile.handoff_number, source: "typed" }
       : { value: null, source: "absent" },
     voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
     whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
@@ -280,14 +280,14 @@ export interface FactConflict {
  * is not the line being answered sends real people to the wrong place; an
  * address that differs from Google's by a country suffix does not.
  */
-export function factConflicts(f: ResolvedFacts): FactConflict[] {
+export function factConflicts(resolvedFacts: ResolvedFacts): FactConflict[] {
   const out: FactConflict[] = [];
 
-  const phone = f.phone_display;
+  const phone = resolvedFacts.phone_display;
   if (phone.disputed && phone.value) {
     // Is the published number at least the transfer number? Then it is probably
     // deliberate, and saying so makes the warning worth reading.
-    const isHandoff = samePhone(phone.value, f.handoff_number.value);
+    const isHandoff = samePhone(phone.value, resolvedFacts.handoff_number.value);
     out.push({
       fact: "phone_display",
       severity: "serious",
@@ -304,42 +304,46 @@ export function factConflicts(f: ResolvedFacts): FactConflict[] {
   // The transfer number is the number the business keeps and forwards back to the receptionist: nobody picked up
   // there -- that is why the receptionist answered -- so a caller put through to it rings out and comes straight
   // back. The transfer row refuses this number now (phone.ts whyNotAHandoff); this says so of one stored before.
-  if (f.handoff_number.value && f.kept_line.value && samePhone(f.handoff_number.value, f.kept_line.value)) {
-    const kept = formatPhoneDisplay(f.kept_line.value) ?? f.kept_line.value;
+  if (
+    resolvedFacts.handoff_number.value &&
+    resolvedFacts.kept_line.value &&
+    samePhone(resolvedFacts.handoff_number.value, resolvedFacts.kept_line.value)
+  ) {
+    const kept = formatPhoneDisplay(resolvedFacts.kept_line.value) ?? resolvedFacts.kept_line.value;
     out.push({
       fact: "handoff_number",
       severity: "serious",
-      used: f.handoff_number.value,
+      used: resolvedFacts.handoff_number.value,
       known: kept,
-      knownSource: f.kept_line.source,
+      knownSource: resolvedFacts.kept_line.source,
       sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it — they would come straight back. Give a mobile or another line a person answers.`,
       // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
       to: "admin/workspace/handoff_number",
     });
   }
 
-  if (f.address.disputed && f.address.value) {
+  if (resolvedFacts.address.disputed && resolvedFacts.address.value) {
     out.push({
       fact: "address",
       severity: "minor",
-      used: f.address.value,
-      known: f.address.disputed.value,
-      knownSource: f.address.disputed.source,
-      sentence: `Your receptionist gives ${f.address.value}; Google has you at ${f.address.disputed.value}.`,
+      used: resolvedFacts.address.value,
+      known: resolvedFacts.address.disputed.value,
+      knownSource: resolvedFacts.address.disputed.source,
+      sentence: `Your receptionist gives ${resolvedFacts.address.value}; Google has you at ${resolvedFacts.address.disputed.value}.`,
       to: "admin/workspace",
     });
   }
 
-  if (f.business_name.disputed && f.business_name.value) {
+  if (resolvedFacts.business_name.disputed && resolvedFacts.business_name.value) {
     out.push({
       fact: "business_name",
       severity: "minor",
-      used: f.business_name.value,
-      known: f.business_name.disputed.value,
-      knownSource: f.business_name.disputed.source,
-      sentence: `Your receptionist introduces the business as ${f.business_name.value}; ${
-        f.business_name.disputed.source === "verified" ? "Google lists it" : "this workspace is named"
-      } ${f.business_name.disputed.value}.`,
+      used: resolvedFacts.business_name.value,
+      known: resolvedFacts.business_name.disputed.value,
+      knownSource: resolvedFacts.business_name.disputed.source,
+      sentence: `Your receptionist introduces the business as ${resolvedFacts.business_name.value}; ${
+        resolvedFacts.business_name.disputed.source === "verified" ? "Google lists it" : "this workspace is named"
+      } ${resolvedFacts.business_name.disputed.value}.`,
       to: "admin/workspace",
     });
   }
@@ -366,8 +370,8 @@ export const SOURCE_WORDS: Record<FactSource, string> = {
  * what changed, and who by — without copying the contents into a second place.
  */
 export function changedConfigFields(before: unknown, after: unknown): string[] {
-  const top = (v: unknown): Record<string, unknown> => {
-    const cfg = (v ?? {}) as {
+  const top = (value: unknown): Record<string, unknown> => {
+    const cfg = (value ?? {}) as {
       brain?: Record<string, unknown>;
       calendar?: unknown;
       bookings?: unknown;
@@ -390,8 +394,8 @@ export function changedConfigFields(before: unknown, after: unknown): string[] {
       features: cfg.features ?? null,
     };
   };
-  const a = top(before);
-  const b = top(after);
-  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
-  return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+  const result = top(before);
+  const otherTop = top(after);
+  const keys = [...new Set([...Object.keys(result), ...Object.keys(otherTop)])].sort();
+  return keys.filter((k) => JSON.stringify(result[k] ?? null) !== JSON.stringify(otherTop[k] ?? null));
 }

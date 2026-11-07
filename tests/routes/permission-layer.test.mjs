@@ -1,7 +1,7 @@
 /**
  * The permission layer, EXECUTED.
  *
- * memberContext and requireRole decide which workspace a request acts on and
+ * getMemberContext and requireRole decide which workspace a request acts on and
  * whether the caller may change anything — and until now every assertion about
  * them was a regex over their source. That is the weaker guarantee: a rewrite
  * that keeps the words and loses the behaviour passes. These call the real
@@ -17,14 +17,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../..");
-const { memberContext, requireRole } = await import(
+const { getMemberContext, requireRole } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/shared/with-route.ts")).href
 );
-const { isSameOrigin, requireUuid, jsonBody } = await import(
+const { isSameOrigin, requireUuid, readJsonBody } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/shared/request-guards.ts")).href
 );
 
-/** A Supabase stub that answers the one query memberContext makes. */
+/** A Supabase stub that answers the one query getMemberContext makes. */
 function ctxWith(rows, error = null) {
   return {
     userId: "u1",
@@ -47,7 +47,7 @@ const OPERATOR = { tenant_id: "t-new", role: "operator", tenants: { slug: "new-s
 /* --------------------------- which workspace ----------------------------- */
 
 test("with one membership, that is the workspace, named or not", async () => {
-  const m = await memberContext(ctxWith([OWNER]));
+  const m = await getMemberContext(ctxWith([OWNER]));
   assert.equal(m.tenantId, "t-old");
   assert.equal(m.role, "owner");
 });
@@ -57,12 +57,12 @@ test("the default is the OLDEST membership, not the alphabetical one", async () 
   // here, and one sorted by name — so a member of two workspaces could see the
   // role chip of one business over the data of another.
   // Only the door whose job is "which workspace should this tab open" may take it.
-  const m = await memberContext(ctxWith([OWNER, OPERATOR]), null, { defaultAllowed: true });
+  const m = await getMemberContext(ctxWith([OWNER, OPERATOR]), null, { defaultAllowed: true });
   assert.equal(m.tenantId, "t-old");
 });
 
 test("two memberships and no named workspace is refused, read or write", async () => {
-  await assert.rejects(memberContext(ctxWith([OWNER, OPERATOR])), (e) => {
+  await assert.rejects(getMemberContext(ctxWith([OWNER, OPERATOR])), (e) => {
     assert.equal(e.code, "choose_workspace");
     assert.match(e.message, /more than one workspace/);
     return true;
@@ -70,12 +70,12 @@ test("two memberships and no named workspace is refused, read or write", async (
 });
 
 test("naming a workspace resolves it and clears the ambiguity", async () => {
-  const byId = await memberContext(ctxWith([OWNER, OPERATOR]), "t-new");
+  const byId = await getMemberContext(ctxWith([OWNER, OPERATOR]), "t-new");
   assert.equal(byId.tenantId, "t-new");
   assert.equal(byId.role, "operator");
 
   // /metrics accepted slugs before anything else did, so both forms work.
-  const bySlug = await memberContext(ctxWith([OWNER, OPERATOR]), "new-shop");
+  const bySlug = await getMemberContext(ctxWith([OWNER, OPERATOR]), "new-shop");
   assert.equal(bySlug.tenantId, "t-new");
 });
 
@@ -83,20 +83,20 @@ test("a workspace the caller does not belong to is a 404, never someone else's",
   // RLS means the query can only see this caller's own rows, so a foreign id
   // matches nothing — it must not fall back to the default workspace.
   await assert.rejects(
-    () => memberContext(ctxWith([OWNER]), "t-someone-else"),
+    () => getMemberContext(ctxWith([OWNER]), "t-someone-else"),
     (e) => e.code === "not_found" && e.status === 404,
   );
 });
 
 test("no memberships at all is a 404, not a crash", async () => {
   await assert.rejects(
-    () => memberContext(ctxWith([])),
+    () => getMemberContext(ctxWith([])),
     (e) => e.code === "not_found",
   );
 });
 
 test("a failed membership read throws rather than resolving to nothing", async () => {
-  await assert.rejects(() => memberContext(ctxWith(null, { message: "connection reset" })), /connection reset/);
+  await assert.rejects(() => getMemberContext(ctxWith(null, { message: "connection reset" })), /connection reset/);
 });
 
 /* ------------------------------ may they act ----------------------------- */
@@ -199,9 +199,9 @@ test("a malformed id is a 404, and a real one passes through", () => {
 test("a body that is not JSON says so, rather than reporting a missing field", async () => {
   const withBody = (b) =>
     new Request("https://app.example/x", { method: "POST", body: b, headers: { "content-type": "application/json" } });
-  assert.deepEqual(await jsonBody(withBody('{"a":1}')), { a: 1 });
+  assert.deepEqual(await readJsonBody(withBody('{"a":1}')), { a: 1 });
   await assert.rejects(
-    () => jsonBody(withBody("not json")),
+    () => readJsonBody(withBody("not json")),
     (e) => e.code === "validation",
   );
 });

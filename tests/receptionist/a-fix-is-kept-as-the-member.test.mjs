@@ -17,7 +17,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const keep = await import(at("apps/dashboard/app/api/v1/receptionist/keep/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -79,7 +79,7 @@ const tables = () => ({
 function world(door) {
   const t = tables();
   const service = fakeDb(t);
-  setServiceClient(service);
+  setUnsubscribeServiceClient(service);
   const ctx = {
     supabase: fakeDb(t, {}, { rehearsal_fix_keep: door }),
     userId: USER,

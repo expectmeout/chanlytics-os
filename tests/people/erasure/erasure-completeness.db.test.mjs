@@ -19,7 +19,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { ERASURE_STRATEGIES } from "@chanlytics/db";
+import { ERASURE_STRATEGIES } from "@chanlytics/db/erasure";
 import { dispatchJob } from "@chanlytics/jobs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");

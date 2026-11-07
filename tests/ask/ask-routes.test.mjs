@@ -23,7 +23,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const ask = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
-const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
 const proposals = await import(at("apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts"));
 const openings = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
 const quick = await import(at("apps/dashboard/app/api/v1/ask/quick/route.ts"));
@@ -38,7 +38,7 @@ const reviews = await import(at("apps/dashboard/app/api/v1/reports/reviews/route
 const receptionist = await import(at("apps/dashboard/app/api/v1/reports/receptionist/route.ts"));
 const people = await import(at("apps/dashboard/app/api/v1/reports/people/route.ts"));
 const campaignsLedger = await import(at("apps/dashboard/app/api/v1/reports/campaigns/ledger/route.ts"));
-const { readerCache, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const warm = await import(at("apps/dashboard/app/api/v1/ask/warm/route.ts"));
 const { buildContext, clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
 
@@ -1700,7 +1700,7 @@ test("the scope is each turn's (the Phase 5 plan, D9): a follow-up asked on anot
 
 /* ------------------------------------ the turn as the model was sent it, kept on its row (Phase 5, 5.3) -- */
 
-const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
+const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
 /**
  * The prefix a request says (the Phase 5 plan, D2): the sha256 of what it sent besides its messages -- system and tools
  * as sent, the tool choice, and the output config.
@@ -2271,7 +2271,7 @@ function readByPath(ctx) {
 
 test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET ask/threads/[id] and the history a follow-up is asked with read each key of a turn they read by its JSON path, never the whole content, and answer what the whole rows give, byte for byte; a card's outcome recorded later writes the row back whole, the raw turn beside it", async () => {
   const { toMessageVM, modelTurnOf } = await import(at("apps/dashboard/src/server/ask/store.ts"));
-  const { answerLine } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { answerLine } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
   const raw = {
     at: Date.parse("2026-09-10T00:00:01Z"),
     model: ASK_MODEL,

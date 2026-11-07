@@ -7,24 +7,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   PROFILE_LIMITS,
-  profileRefusal,
-  writtenOutDetail,
   BrainConfigSchema,
   ClosureSchema,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   stateOf,
   SOURCE_WORDS,
-  ruleStrength,
   VISION_SWITCH_WORDS,
   GUARDRAIL_KEYS,
-  ALWAYS_TOLD,
-  ALWAYS_ON,
   guardrailsInForce,
-  rulesKept,
-  RULES_AT_REST_WORDS,
   businessGap,
-  ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotRows,
   POLICY_MODES,
@@ -44,9 +36,6 @@ import {
   promptTotalWords,
   PROMPT_READERS,
   PROMPT_NOW,
-  bookingRulesWords,
-  BOOKING_RULE_HINTS,
-  bookingRuleRefusal,
   needsConsultation,
   BookingRulesSchema,
   BOOKING_DEFAULTS,
@@ -61,8 +50,6 @@ import {
   composeSystemPrompt,
   instructionsWords,
   fallbacksWords,
-  RULES_WITHOUT_FIELDS_WORDS,
-  rulesWithoutFieldsWords,
   NO_FIELDS_COMPOSED_WORDS,
   BusinessProfileSchema,
   FALLBACK_DEFAULTS,
@@ -70,6 +57,25 @@ import {
   promptBlocks,
   resolveSystemPrompt,
 } from "@chanlytics/contracts";
+import {
+  profileRefusal,
+  writtenOutDetail,
+} from "../../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
+import {
+  ruleStrength,
+  ALWAYS_TOLD,
+  ALWAYS_ON,
+  rulesKept,
+  RULES_AT_REST_WORDS,
+  ABILITY_CHANNEL_WORDS,
+  RULES_WITHOUT_FIELDS_WORDS,
+  rulesWithoutFieldsWords,
+} from "../../../apps/dashboard/src/surfaces/settings/business/model/rule-strengths.ts";
+import {
+  bookingRulesWords,
+  BOOKING_RULE_HINTS,
+  bookingRuleRefusal,
+} from "../../../apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts";
 
 /* ---- A fact says where it came from ---- */
 

@@ -26,15 +26,10 @@
  * conversational words at all.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  smsRefusalOf,
-  addressOf,
-  logger,
-  errField,
-  type SendResult,
-  type EmailRequest,
-  type ResendLimit,
-} from "@chanlytics/channels";
+import { smsRefusalOf } from "@chanlytics/channels/lines";
+import { addressOf, type EmailRequest, type ResendLimit } from "@chanlytics/channels/email";
+import { type SendResult } from "@chanlytics/channels/whatsapp";
+import { logger, errField } from "@chanlytics/log";
 import {
   CARRIER_CONSENT_SOURCE,
   mailboxDailyCap,
@@ -50,20 +45,16 @@ import {
   type SendPurpose,
 } from "@chanlytics/contracts";
 import {
-  emailOffersPause,
-  emitEvent,
-  outreachFactsOf,
-  stampEmailFromMailbox,
-  stampEmailLeftAs,
+  pauseEmailOffersFor,
+  getOutreachFacts,
   recordCarrierOptOut,
-  recordOutbound,
-  replyAnswersAt,
-  textLineFacts,
-  wireRowOf,
-  type Database,
-  type EventData,
-  type Json,
-} from "@chanlytics/db";
+  findTextLineFacts,
+} from "@chanlytics/db/campaigns";
+import { emitEvent, type EventData } from "@chanlytics/db/events";
+import { stampEmailFromMailbox, stampEmailLeftAs } from "@chanlytics/db/email";
+import { recordOutbound, findWireRow } from "@chanlytics/db/channels";
+import { replyAnswersAt } from "@chanlytics/db/conversations";
+import { type Database, type Json } from "@chanlytics/db/types";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./email";
 import { heldByThread, lateDraft, liveHoldOf } from "./hold";
 import { textRefusal } from "./text";
@@ -273,7 +264,7 @@ interface WireFacts {
     marketing_consent: string | null;
     /**
      * The channels each yes covers (consent/channels.ts; the database keeps them by each consent event). Null, or absent
-     * from the answer of a database 00297 has not reached (wireRowOf): WhatsApp alone.
+     * from the answer of a database 00297 has not reached (findWireRow): WhatsApp alone.
      */
     consent_channels?: string[] | null;
     marketing_channels?: string[] | null;
@@ -287,8 +278,8 @@ interface WireFacts {
     email_suppressed_at: string | null;
   };
   tenantStatus: string | null;
-  /** The texting line a text leaves on (db textLineFacts); read for a text alone, null for every other send. */
-  smsLine: Awaited<ReturnType<typeof textLineFacts>>;
+  /** The texting line a text leaves on (db findTextLineFacts); read for a text alone, null for every other send. */
+  smsLine: Awaited<ReturnType<typeof findTextLineFacts>>;
   offers: OfferFacts; // what an offer by email asks of the deployment and the workspace (deliver/email.ts)
 }
 
@@ -298,16 +289,17 @@ interface WireFacts {
  * "we could not check" is not "yes" -- the outbox retries, the broadcast
  * leaves the person queued, and the voice agent says it could not send.
  */
-async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promise<WireFacts> {
-  // Read again without the channel arrays on a database 00297 has not reached (wireRowOf): a yes then covers WhatsApp alone.
+async function wireFacts({ db, emailOffers }: DeliverPorts, delivery: Delivery): Promise<WireFacts> {
+  // Read again without the channel arrays on a database 00297 has not reached (findWireRow): a yes then covers WhatsApp alone.
   // The sends that may rest on a relationship with the business: an offer by email, which is also the business's news (D1, D2).
-  const { data, error } = await wireRowOf(db, {
-    tenantId: d.tenantId,
-    conversationId: d.conversationId,
-    relationship: isOfferByEmail(d),
+  const { data, error } = await findWireRow(db, {
+    tenantId: delivery.tenantId,
+    conversationId: delivery.conversationId,
+    relationship: isOfferByEmail(delivery),
   });
-  if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
-  if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
+  if (error)
+    throw new Error(`deliver: cannot read the wire for conversation ${delivery.conversationId}: ${error.message}`);
+  if (!data) throw new Error(`deliver: no conversation ${delivery.conversationId} in workspace ${delivery.tenantId}`);
   const row = data as unknown as {
     paused_until: string | null;
     control_kind?: string | null;
@@ -335,8 +327,8 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promis
       email_suppressed_at: null,
     },
     tenantStatus: row.tenants?.status ?? null,
-    smsLine: d.channel === "sms" ? await textLineFacts(db, d.tenantId) : null,
-    offers: await offerFacts(d, emailOffers, () => emailOffersPause(db, d.tenantId)),
+    smsLine: delivery.channel === "sms" ? await findTextLineFacts(db, delivery.tenantId) : null,
+    offers: await offerFacts(delivery, emailOffers, () => pauseEmailOffersFor(db, delivery.tenantId)),
   };
 }
 
@@ -377,12 +369,12 @@ interface OutreachFacts {
  * email: a conversational send never pays for it. A read that fails throws, as wireFacts does: "we could not check" is
  * not "yes".
  */
-async function outreachFacts(db: Db, d: Delivery, f: WireFacts): Promise<OutreachFacts> {
-  const headers = d.email?.headers ?? {};
+async function outreachFacts(db: Db, delivery: Delivery, wireFacts: WireFacts): Promise<OutreachFacts> {
+  const headers = delivery.email?.headers ?? {};
   const unsubscribable =
     !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
-  const from = addressOf(d.email?.from)?.address ?? null;
-  if (!f.contactId)
+  const from = addressOf(delivery.email?.from)?.address ?? null;
+  if (!wireFacts.contactId)
     return {
       leadStage: null,
       suppressed: false,
@@ -394,18 +386,21 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts): Promise<Outreac
     };
   let facts;
   try {
-    facts = await outreachFactsOf(db, {
-      tenantId: d.tenantId,
-      contactId: f.contactId,
-      to: d.to,
+    facts = await getOutreachFacts(db, {
+      tenantId: delivery.tenantId,
+      contactId: wireFacts.contactId,
+      to: delivery.to,
       // A From that cannot be read names no mailbox: the lead is still asked, and the door refuses the mailbox.
       from: from ?? "",
-      leadId: d.leadId ?? null,
+      leadId: delivery.leadId ?? null,
     });
   } catch (e) {
-    throw new Error(`deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${d.conversationId})`, {
-      cause: e,
-    });
+    throw new Error(
+      `deliver: ${e instanceof Error ? e.message : String(e)} (conversation ${delivery.conversationId})`,
+      {
+        cause: e,
+      },
+    );
   }
   // The whole address, as the wire will hold it (emailSender): the database found the mailbox by it.
   const own = facts.mailbox && facts.mailbox.address === from ? facts.mailbox : null;
@@ -421,64 +416,70 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts): Promise<Outreac
 }
 
 /** Why the door is shut for this send, or null when it may go. */
-function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts | null): DeliveryRefusal | null {
+function refusalFor(
+  delivery: Delivery,
+  wireFacts: WireFacts,
+  nowMs: number,
+  outreachFacts: OutreachFacts | null,
+): DeliveryRefusal | null {
   // A person who asked to be forgotten is never messaged, whatever the row
   // that survived says -- from the moment they asked (erasing_since, written
   // before anything is destroyed), not only once the erasure finished.
-  if (f.contact.erased_at || f.contact.erasing_since) return "erased";
+  if (wireFacts.contact.erased_at || wireFacts.contact.erasing_since) return "erased";
   // A cold message goes by email and nothing else: a phone's lines are registered, and consented, for people who
   // wrote to the business, never for businesses it found.
-  if (d.purpose === "outreach" && d.channel !== "email") return "outreach_is_email_only";
+  if (delivery.purpose === "outreach" && delivery.channel !== "email") return "outreach_is_email_only";
   // What a text carries and leaves on: no promotion, and only a line the carriers approved (deliver/text.ts).
-  const text = d.channel === "sms" ? textRefusal(d.purpose, f.smsLine) : null;
+  const text = delivery.channel === "sms" ? textRefusal(delivery.purpose, wireFacts.smsLine) : null;
   if (text) return text;
-  if (d.channel === "email") {
+  if (delivery.channel === "email") {
     // An offer by email goes only where the deployment, the workspace and the email allow it (deliver/email.ts).
-    const offer = offerRefusal(d, f.offers);
+    const offer = offerRefusal(delivery, wireFacts.offers);
     if (offer) return offer;
     // A permanent bounce, a complaint or the provider's own list: a fact about
     // the address, kept apart from any one message's delivery (00126).
-    if (isEmailStopped(f.contact)) return "email_suppressed";
+    if (isEmailStopped(wireFacts.contact)) return "email_suppressed";
     // The request was frozen for one address. If the person's address on file
     // is no longer that one -- corrected, removed -- these words were approved
     // for somewhere they should no longer go: canceled, and written again.
-    if (f.contact.email !== d.to) return "recipient_changed";
+    if (wireFacts.contact.email !== delivery.to) return "recipient_changed";
   }
   // Consent outranks everything, asked with this message's own purpose.
   // A yes covers the channels it was given for: asked on the channel this message goes out on (consent/channels.ts).
-  const begins = d.kind === "reply" && d.proactive; // a person's own message that is a start (messages/send.ts)
-  const asked = { proactive: d.proactive, channel: d.channel, about: d.about, begins };
-  const may = mayMessageFor(f.contact, d.purpose, asked);
+  const begins = delivery.kind === "reply" && delivery.proactive; // a person's own message that is a start (messages/send.ts)
+  const fields = { proactive: delivery.proactive, channel: delivery.channel, about: delivery.about, begins };
+  const may = mayMessageFor(wireFacts.contact, delivery.purpose, fields);
   if (!may.ok) return may.reason;
   // Outreach's own rules, after the person's no and before any pause: only to a business the finder found, only with
   // the one-click unsubscribe the large mailbox providers require, only from a mailbox the business connected and
   // that sends now (decision 0056), never from the hosted address every workspace's replies share.
-  if (d.purpose === "outreach") {
-    if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
+  if (delivery.purpose === "outreach") {
+    if (!outreachFacts)
+      throw new Error(`deliver: an outreach email is judged with its facts (conversation ${delivery.conversationId})`);
     // The lead's own facts, in the one mapping the reach-out clock also asks before it claims a send.
     const lead = outreachRefusalOf({
-      leadStage: o.leadStage,
-      suppressed: o.suppressed,
-      wroteBack: o.wroteBack,
-      away: o.away,
-      stopped: o.stopped,
+      leadStage: outreachFacts.leadStage,
+      suppressed: outreachFacts.suppressed,
+      wroteBack: outreachFacts.wroteBack,
+      away: outreachFacts.away,
+      stopped: outreachFacts.stopped,
     });
     if (lead) return lead;
-    if (!o.unsubscribable) return "outreach_without_unsubscribe";
-    if (!o.mailbox) return "outreach_needs_own_mailbox";
-    if (!mailboxSendsNow(o.mailbox, nowMs)) return "sending_mailbox_not_ready";
+    if (!outreachFacts.unsubscribable) return "outreach_without_unsubscribe";
+    if (!outreachFacts.mailbox) return "outreach_needs_own_mailbox";
+    if (!mailboxSendsNow(outreachFacts.mailbox, nowMs)) return "sending_mailbox_not_ready";
     // The day's share is the mailbox's (contracts mailboxDailyCap). The writer claims within it; this is the backstop,
     // so a run that miscounts cannot spend a mailbox's reputation past its share.
-    if (o.mailbox.sent_today >= mailboxDailyCap(o.mailbox)) return "sending_mailbox_at_cap";
+    if (outreachFacts.mailbox.sent_today >= mailboxDailyCap(outreachFacts.mailbox)) return "sending_mailbox_at_cap";
   }
-  const kind = kindOf(d);
+  const kind = kindOf(delivery);
   // A person's own reply goes out even when the machine is told to stop: the
   // pause exists for them, and a paused workspace may still answer by hand.
   // A broadcast is a person's words too, but it is proactive and automated,
   // and it respects the pause like the machine it is.
   if (kind === "reply") return null;
-  if (f.tenantStatus === "paused") return "paused";
-  return heldByThread(d, f, nowMs, kind);
+  if (wireFacts.tenantStatus === "paused") return "paused";
+  return heldByThread(delivery, wireFacts, nowMs, kind);
 }
 
 /**
@@ -489,26 +490,26 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
  * broadcast's row is a person's words too, but not a person speaking on this
  * thread: it retires nothing.
  */
-async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
+async function overtakenByHuman(db: Db, delivery: Delivery): Promise<string | null> {
   const { data: mine, error: mineErr } = await db
     .from("messages")
     .select("created_at")
-    .eq("id", d.messageId!)
-    .eq("tenant_id", d.tenantId)
+    .eq("id", delivery.messageId!)
+    .eq("tenant_id", delivery.tenantId)
     .maybeSingle();
-  if (mineErr) throw new Error(`deliver: cannot read message ${d.messageId}: ${mineErr.message}`);
+  if (mineErr) throw new Error(`deliver: cannot read message ${delivery.messageId}: ${mineErr.message}`);
   if (!mine) return null;
   const { data: newer, error } = await db
     .from("messages")
     .select("id, meta")
-    .eq("conversation_id", d.conversationId)
-    .eq("tenant_id", d.tenantId)
+    .eq("conversation_id", delivery.conversationId)
+    .eq("tenant_id", delivery.tenantId)
     .eq("direction", "outbound")
     .eq("sender", "human")
     .gt("created_at", mine.created_at)
     .order("created_at", { ascending: true })
     .limit(10);
-  if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
+  if (error) throw new Error(`deliver: cannot read the thread for ${delivery.messageId}: ${error.message}`);
   // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
   // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
   // Which sends those are is said once (contracts isAutomatedSend, with its SQL twin).
@@ -537,16 +538,16 @@ function event<K extends MessageKind>(
 }
 
 /** The thread stamped with the send, as recordOutbound stamps it on the row it writes. */
-async function stampThread(db: Db, d: Delivery, nowMs: number): Promise<void> {
+async function stampThread(db: Db, delivery: Delivery, nowMs: number): Promise<void> {
   const { error } = await db
     .from("conversations")
     .update({ last_message_at: new Date(nowMs).toISOString() })
-    .eq("id", d.conversationId)
-    .eq("tenant_id", d.tenantId);
+    .eq("id", delivery.conversationId)
+    .eq("tenant_id", delivery.tenantId);
   if (error)
     deliverLog.error("deliver_stamp_failed", {
-      tenant_id: d.tenantId,
-      conversation_id: d.conversationId,
+      tenant_id: delivery.tenantId,
+      conversation_id: delivery.conversationId,
       error: error.message,
     });
 }
@@ -562,19 +563,19 @@ async function stampThread(db: Db, d: Delivery, nowMs: number): Promise<void> {
  * the sync reads by, which no receipt brings later. The words already left, so a write that fails is logged, never
  * thrown.
  */
-async function fromMailbox(db: Db, d: Delivery, sent: SendResult): Promise<void> {
-  if (!sent.email || !d.messageId) return;
+async function fromMailbox(db: Db, delivery: Delivery, sent: SendResult): Promise<void> {
+  if (!sent.email || !delivery.messageId) return;
   await stampEmailFromMailbox(db, {
-    tenantId: d.tenantId,
-    messageId: d.messageId,
+    tenantId: delivery.tenantId,
+    messageId: delivery.messageId,
     providerId: sent.wamid,
     rfcMessageId: sent.email.messageId,
     threadId: sent.email.threadId,
     mailboxId: sent.email.mailboxId,
   }).catch((e: unknown) => {
     deliverLog.error("deliver_mailbox_stamp_failed", {
-      tenant_id: d.tenantId,
-      message_id: d.messageId,
+      tenant_id: delivery.tenantId,
+      message_id: delivery.messageId,
       error: errField(e),
     });
   });
@@ -584,18 +585,21 @@ async function fromMailbox(db: Db, d: Delivery, sent: SendResult): Promise<void>
  * How a person's reply left (G15, N5), on its row: the words already left, so a write that fails is logged, never
  * thrown, the way a failed finalize is.
  */
-async function leftAs(db: Db, d: Delivery, sent: SendResult): Promise<void> {
+async function leftAs(db: Db, delivery: Delivery, sent: SendResult): Promise<void> {
   if (!sent.leftAs) return;
-  const why = sent.leftAsWhy ?? null;
-  await stampEmailLeftAs(db, { tenantId: d.tenantId, messageId: d.messageId!, leftAs: sent.leftAs, why }).catch(
-    (e: unknown) => {
-      deliverLog.error("deliver_left_as_failed", {
-        tenant_id: d.tenantId,
-        message_id: d.messageId,
-        error: errField(e),
-      });
-    },
-  );
+  const reason = sent.leftAsWhy ?? null;
+  await stampEmailLeftAs(db, {
+    tenantId: delivery.tenantId,
+    messageId: delivery.messageId!,
+    leftAs: sent.leftAs,
+    why: reason,
+  }).catch((e: unknown) => {
+    deliverLog.error("deliver_left_as_failed", {
+      tenant_id: delivery.tenantId,
+      message_id: delivery.messageId,
+      error: errField(e),
+    });
+  });
 }
 
 async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise<boolean> {
@@ -609,44 +613,49 @@ async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise
   return !!data && data.length > 0;
 }
 
-export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
-  assertFrozenFor(d);
+export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<Delivered> {
+  assertFrozenFor(delivery);
   const nowMs = (ports.now ?? Date.now)();
-  const facts = await wireFacts(ports, d);
-  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts) : null;
+  const facts = await wireFacts(ports, delivery);
+  const outreach =
+    delivery.purpose === "outreach" && delivery.channel === "email"
+      ? await outreachFacts(ports.db, delivery, facts)
+      : null;
 
-  const refusal = refusalFor(d, facts, nowMs, outreach);
-  const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
-  const reason = refusal ?? (overtakenBy ? "superseded_by_human" : await draftTooLate(ports.db, d, nowMs));
+  const refusal = refusalFor(delivery, facts, nowMs, outreach);
+  const overtakenBy = !refusal && kindOf(delivery) === "draft" ? await overtakenByHuman(ports.db, delivery) : null;
+  const reason = refusal ?? (overtakenBy ? "superseded_by_human" : await draftTooLate(ports.db, delivery, nowMs));
   // A queued row is canceled with its reason, so the thread shows why the
   // words never left; a send with no row yet leaves none, and the caller
   // records the refusal where it lives (a recipient's row, a spoken reply).
   // The event says the person's consent as the door read it -- or, for a
   // refusal that changed it (the carrier's, below), as it is now.
   const refuse = async (
-    why: DeliveryRefusal,
+    reason: DeliveryRefusal,
     now: Partial<WireFacts["contact"]> = {},
-    said: Record<string, Json> = {},
+    sentence: Record<string, Json> = {},
   ): Promise<Delivered> => {
-    if (d.messageId) {
+    if (delivery.messageId) {
       const contact = { ...facts.contact, ...now };
-      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason: why } });
-      await event(ports.db, d, "message.send_blocked", d.messageId, {
-        reason: why,
-        purpose: d.purpose,
+      await finalizeQueued(ports.db, delivery, { status: "canceled", error: { reason: reason } });
+      await event(ports.db, delivery, "message.send_blocked", delivery.messageId, {
+        reason: reason,
+        purpose: delivery.purpose,
         consent: contact.consent,
         dnc: contact.dnc,
         marketing_consent: contact.marketing_consent,
-        ...(d.purpose === "outreach" || d.purpose === "marketing" ? { email_marketing: contact.email_marketing } : {}),
+        ...(delivery.purpose === "outreach" || delivery.purpose === "marketing"
+          ? { email_marketing: contact.email_marketing }
+          : {}),
         ...(overtakenBy ? { after: overtakenBy } : {}),
-        ...said,
+        ...sentence,
       });
     }
-    return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
+    return { outcome: "refused", reason: reason, messageId: delivery.messageId ?? null };
   };
   if (reason) return refuse(reason);
 
-  const sent = await putOnWire(ports.wire, d, kindOf(d) === "reply", ports.now);
+  const sent = await putOnWire(ports.wire, delivery, kindOf(delivery) === "reply", ports.now);
 
   // The carrier's own no, on the person's behalf (channels smsRefusalOf:
   // Twilio 21610, the recipient replied STOP to this number before we heard --
@@ -658,25 +667,29 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   // the predicate before the provider is asked. It used to be a failure like
   // any other: the owner told a delivery failed, nothing recorded, and every
   // later send to that person failing and telling them again.
-  if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
+  if (!sent.ok && delivery.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
-      await recordCarrierOptOut(ports.db, { tenantId: d.tenantId, contactId: facts.contactId, channel: d.channel });
+      await recordCarrierOptOut(ports.db, {
+        tenantId: delivery.tenantId,
+        contactId: facts.contactId,
+        channel: delivery.channel,
+      });
     return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
   }
 
   if (sent.ok) {
-    if (d.messageId) {
+    if (delivery.messageId) {
       // The text is already gone, so the row must say `sent` -- but a cancel
       // that won the row between the send and this write is the signal, not
       // something to overwrite silently. A write that failed is neither: the
       // words left, so it is logged with the wamid and the send still reported.
-      const marked = await finalizeQueued(ports.db, d, {
+      const marked = await finalizeQueued(ports.db, delivery, {
         status: "sent",
         ...(sent.wamid ? { external_id: sent.wamid } : {}),
       }).catch((e: unknown) => {
         deliverLog.error("deliver_finalize_failed", {
-          tenant_id: d.tenantId,
-          message_id: d.messageId,
+          tenant_id: delivery.tenantId,
+          message_id: delivery.messageId,
           wamid: sent.wamid,
           error: errField(e),
         });
@@ -684,36 +697,36 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
       });
       await Promise.all([
         marked === false
-          ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid })
+          ? event(ports.db, delivery, "message.send_raced_cancel", delivery.messageId, { wamid: sent.wamid })
           : Promise.resolve(),
         // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
         // sends would push every customer off it. The thread rises when the business writes back.
-        d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
-        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
-        leftAs(ports.db, d, sent),
-        fromMailbox(ports.db, d, sent),
+        delivery.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, delivery, nowMs),
+        event(ports.db, delivery, "message.sent", delivery.messageId, { sender: delivery.sender }),
+        leftAs(ports.db, delivery, sent),
+        fromMailbox(ports.db, delivery, sent),
       ]);
-      return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
+      return { outcome: "sent", messageId: delivery.messageId, externalId: sent.wamid };
     }
     // recordOutbound stamps the thread and writes message.sent itself. The
     // words are already gone, so a row that cannot be written is logged and
     // the send still reported: a caller that took "not recorded" for "not
     // sent" would send them again.
     const messageId = await recordOutbound(ports.db, {
-      tenantId: d.tenantId,
-      conversationId: d.conversationId,
-      contactId: d.contactId,
-      sender: d.sender,
-      type: d.template ? "template" : "text",
-      body: d.body,
-      channel: d.channel,
+      tenantId: delivery.tenantId,
+      conversationId: delivery.conversationId,
+      contactId: delivery.contactId,
+      sender: delivery.sender,
+      type: delivery.template ? "template" : "text",
+      body: delivery.body,
+      channel: delivery.channel,
       externalId: sent.wamid,
       status: "sent",
-      meta: d.meta ?? {},
+      meta: delivery.meta ?? {},
     }).catch((e: unknown) => {
       deliverLog.error("deliver_record_failed", {
-        tenant_id: d.tenantId,
-        conversation_id: d.conversationId,
+        tenant_id: delivery.tenantId,
+        conversation_id: delivery.conversationId,
         wamid: sent.wamid,
         error: errField(e),
       });
@@ -729,33 +742,33 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     body: sent.errorBody ?? null,
     ...(sent.outcome === "unknown" ? { outcome: "unknown" } : {}),
   };
-  let messageId: string | null = d.messageId ?? null;
-  if (d.messageId) {
-    await finalizeQueued(ports.db, d, { status: "failed", error: failure });
+  let messageId: string | null = delivery.messageId ?? null;
+  if (delivery.messageId) {
+    await finalizeQueued(ports.db, delivery, { status: "failed", error: failure });
   } else {
     // Recorded as a failed row rather than dropped: the business should see
     // that it tried and could not reach them.
     messageId = await recordOutbound(ports.db, {
-      tenantId: d.tenantId,
-      conversationId: d.conversationId,
-      contactId: d.contactId,
-      sender: d.sender,
-      type: d.template ? "template" : "text",
-      body: d.body,
-      channel: d.channel,
+      tenantId: delivery.tenantId,
+      conversationId: delivery.conversationId,
+      contactId: delivery.contactId,
+      sender: delivery.sender,
+      type: delivery.template ? "template" : "text",
+      body: delivery.body,
+      channel: delivery.channel,
       externalId: null,
       status: "failed",
-      meta: { ...(d.meta ?? {}), ...failure },
+      meta: { ...(delivery.meta ?? {}), ...failure },
     });
   }
-  await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
+  await event(ports.db, delivery, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
   return {
     outcome: "failed",
     reason: sent.reason ?? "provider",
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
-    ...namedFailure(d.channel, sent),
+    ...namedFailure(delivery.channel, sent),
   };
 }
 
@@ -765,7 +778,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
  * a template whose category we do not have reads as marketing. A read that
  * fails throws: a purpose that cannot be read is not "utility".
  */
-export async function templatePurpose(
+export async function getTemplatePurpose(
   db: Db,
   tenantId: string,
   template: { name: string; language: string } | undefined | null,
@@ -789,12 +802,22 @@ export async function templatePurpose(
  * with nobody told. A wire that cannot be read is a failure with its own
  * name, and the caller alerts a person the way it does for a provider's no.
  */
-export async function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
+export async function deliverSafely(ports: DeliverPorts, delivery: Delivery): Promise<Delivered> {
   try {
-    return await deliver(ports, d);
-  } catch (e) {
-    const errorBody = e instanceof Error ? e.message : String(e);
-    deliverLog.error("deliver_threw", { tenant_id: d.tenantId, conversation_id: d.conversationId, error: errorBody });
-    return { outcome: "failed", reason: "wire_unreadable", status: 0, errorBody, messageId: d.messageId ?? null };
+    return await deliver(ports, delivery);
+  } catch (error) {
+    const errorBody = error instanceof Error ? error.message : String(error);
+    deliverLog.error("deliver_threw", {
+      tenant_id: delivery.tenantId,
+      conversation_id: delivery.conversationId,
+      error: errorBody,
+    });
+    return {
+      outcome: "failed",
+      reason: "wire_unreadable",
+      status: 0,
+      errorBody,
+      messageId: delivery.messageId ?? null,
+    };
   }
 }

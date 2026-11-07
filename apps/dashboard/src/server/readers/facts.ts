@@ -1,10 +1,10 @@
 import "server-only";
-import { listPolicies } from "@chanlytics/db";
-import { configRowOf } from "../workspace/config-row";
-import { tenantFacts } from "../shared/tenant";
-import { appointmentWordRead, hasDealsRead } from "../people/deals";
-import { channelsReadyOrNull } from "../campaigns/channels-ready";
-import { FACTS_READER, load, stamp, type Reader, type ReaderContext } from "./index";
+import { listPolicies } from "@chanlytics/db/workspace";
+import { findConfigRow } from "../workspace/config-row";
+import { getTenantFacts } from "../shared/tenant";
+import { getAppointmentWord, hasDealsRead } from "../people/deals";
+import { findChannelsReadyOrNull } from "../campaigns/channels-ready";
+import { FACTS_READER, load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { parseTenantConfig, type AppointmentWord, type ChannelsReady, MIN_MS } from "@chanlytics/contracts";
 
 /**
@@ -22,30 +22,30 @@ export const facts: Reader<undefined, { name: string; timezone: string }> = {
   name: FACTS_READER,
   ttlMs: 5 * MIN_MS,
   async read(rc) {
-    return { data: await tenantFacts(rc.ctx.supabase, rc.tenantId), rows: [], stamp: stamp() };
+    return { data: await getTenantFacts(rc.ctx.supabase, rc.tenantId), rows: [], stamp: readerStamp() };
   },
 };
 
 /**
- * What the workspace calls an appointment (tenants.appointment_word, 00458; people/deals.ts appointmentWordRead): the
+ * What the workspace calls an appointment (tenants.appointment_word, 00458; people/deals.ts getAppointmentWord): the
  * one word every page, GET answer and Ask turn says (0041: one page, one word).
  */
 export const appointmentWord: Reader<undefined, AppointmentWord> = {
   name: "appointmentWord",
   async read(rc) {
-    return { data: await appointmentWordRead(rc.ctx, rc.tenantId), rows: [], stamp: stamp() };
+    return { data: await getAppointmentWord(rc.ctx, rc.tenantId), rows: [], stamp: readerStamp() };
   },
 };
 
 /**
- * Whether a deal was ever recorded here (packages/db dealOnFile). Every workspace has deals (0008, amended 18 Oct
+ * Whether a deal was ever recorded here (packages/db getDealOnFile). Every workspace has deals (0008, amended 18 Oct
  * 2026); what presumes a business sends proposals waits for its first: a whole setup's proposal follow-up, Ask's
  * question about proposals, the journey's proposal stage and People's deal lists. Never a page or a door.
  */
 export const hasDeals: Reader<undefined, boolean> = {
   name: "hasDeals",
   async read(rc) {
-    return { data: await hasDealsRead(rc.ctx, rc.tenantId), rows: [], stamp: stamp() };
+    return { data: await hasDealsRead(rc.ctx, rc.tenantId), rows: [], stamp: readerStamp() };
   },
 };
 
@@ -58,14 +58,18 @@ export const channelsReady: Reader<undefined, ChannelsReady | null> = {
   name: "channelsReady",
   async read(rc) {
     // Who can be reached, which a pause does not change: the pause is the composers' to read, not People's.
-    return { data: await channelsReadyOrNull(rc.ctx, rc.tenantId, { withPause: false }), rows: [], stamp: stamp() };
+    return {
+      data: await findChannelsReadyOrNull(rc.ctx, rc.tenantId, { withPause: false }),
+      rows: [],
+      stamp: readerStamp(),
+    };
   },
 };
 
 export const policies: Reader<undefined, Awaited<ReturnType<typeof listPolicies>>> = {
   name: "policies",
   async read(rc) {
-    return { data: await listPolicies(rc.ctx.supabase, rc.tenantId), rows: [], stamp: stamp() };
+    return { data: await listPolicies(rc.ctx.supabase, rc.tenantId), rows: [], stamp: readerStamp() };
   },
 };
 
@@ -80,7 +84,7 @@ export const config: Reader<
 > = {
   name: "config",
   async read(rc) {
-    const row = await configRowOf(rc.ctx.supabase, rc.tenantId);
+    const row = await findConfigRow(rc.ctx.supabase, rc.tenantId);
     return {
       data: row
         ? {
@@ -91,7 +95,7 @@ export const config: Reader<
           }
         : null,
       rows: [],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -133,7 +137,7 @@ export const businessShape: Reader<undefined, BusinessShape> = {
         bookingsByEmail: !!parsed?.bookings?.tool,
       },
       rows: [],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

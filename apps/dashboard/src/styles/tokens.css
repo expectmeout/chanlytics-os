@@ -256,7 +256,7 @@
 /* ============================================================
    GLASS -- the look the six Liquid Glass canvases draw (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
    §3.1 and Appendix B, its values in oklch). Not offered to members yet: a page wears it only where a stored look asks
-   for it (contracts' shell/chrome.ts, LOOK_OFFERED), and Classic, above, is untouched.
+   for it (contracts' shell/chrome/frame.ts, LOOK_OFFERED), and Classic, above, is untouched.
    A material more than a palette: a cool ground lit by three soft pools of light, which the glass takes its colour
    from; the control layer (the sidebar, the top bar's capsules, the tab bar, a segmented capsule) in deep glass with a
    rim lit from the top left; panes clear; inside a pane everything an inset, a plain fill with a hairline and no blur

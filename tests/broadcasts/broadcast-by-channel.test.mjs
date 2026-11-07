@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { sendsAs, sendsAsCampaigns } from "@chanlytics/channels";
+import { sendsAs, sendsAsCampaigns } from "@chanlytics/channels/email";
 import { HELD_REASONS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { middayZone } from "../shared/_midday-zone.mjs";

@@ -11,26 +11,20 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  googleContacts,
-  graphContacts,
+  listGoogleContacts,
+  listGraphContacts,
   gmailSignedOut,
   graphSignedOut,
   grantHolds,
   type KnownPerson,
   type MailboxReach,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import { IMPORT_STOPPED_WORDS, normalizeEmail, normalizePhone } from "@chanlytics/contracts";
-import {
-  PERSON_FORGOTTEN,
-  importCursorOf,
-  mailboxConnectionOf,
-  noteImport,
-  resolvePerson,
-  type Database,
-  type Json,
-  type MailboxConnectionRow,
-} from "@chanlytics/db";
-import { tokenFor } from "../email/mailbox/credentials.js";
+import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
+import { importCursorOf, noteImport } from "@chanlytics/db/imports";
+import { findMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
+import { type Database, type Json } from "@chanlytics/db/types";
+import { getToken } from "../email/mailbox/credentials.js";
 import { markSignedOut } from "../email/mailbox/wire.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
@@ -63,30 +57,34 @@ const listsOf = (row: MailboxConnectionRow): ContactList[] =>
   LISTS[providerOf(row)].filter((l) => grantHolds(providerOf(row), row.scopes ?? [], l));
 
 async function contactsPageOf(row: MailboxConnectionRow, token: string, page: string | null) {
-  if (row.provider === "microsoft") return graphContacts(token, page);
-  return googleContacts(token, page);
+  if (row.provider === "microsoft") return listGraphContacts(token, page);
+  return listGoogleContacts(token, page);
 }
 
 /**
  * One person into People: their first number and address that are ones, never the mailbox's own (`box.own`, the address
  * of the mailbox `box.via` reads). True when new.
  */
-async function bring(db: Db, box: { tenantId: string; own: string; via: string }, p: KnownPerson): Promise<boolean> {
+async function bring(
+  db: Db,
+  box: { tenantId: string; own: string; via: string },
+  knownPerson: KnownPerson,
+): Promise<boolean> {
   const { tenantId, own, via } = box;
-  const email = p.emails.map((e) => normalizeEmail(e)).find((e): e is string => !!e && e !== own) ?? null;
-  const phone = p.phones.map((n) => normalizePhone(n)).find((n): n is string => !!n) ?? null;
+  const email = knownPerson.emails.map((e) => normalizeEmail(e)).find((e): e is string => !!e && e !== own) ?? null;
+  const phone = knownPerson.phones.map((n) => normalizePhone(n)).find((n): n is string => !!n) ?? null;
   if (!email && !phone) return false;
   try {
-    const r = await resolvePerson(db, {
+    const person = await resolvePerson(db, {
       tenantId,
       phone,
       email,
-      name: p.name,
+      name: knownPerson.name,
       assurance: "asserted",
       source: "import",
       detail: { via, from: "contacts" },
     });
-    return r.outcome === "new";
+    return person.outcome === "new";
   } catch (e) {
     if ((e as { code?: unknown }).code === PERSON_FORGOTTEN) return false;
     throw e;
@@ -106,17 +104,17 @@ async function contactsStopped(db: Db, part: Part, error: string): Promise<PartO
   return { more: false };
 }
 
-export async function contactsPart(db: Db, part: Part): Promise<PartOutcome> {
+export async function getContactsPart(db: Db, part: Part): Promise<PartOutcome> {
   if (!part.connectionId) return contactsStopped(db, part, IMPORT_STOPPED_WORDS.removed);
-  const row = await mailboxConnectionOf(db, part.tenantId, part.connectionId);
+  const row = await findMailboxConnection(db, part.tenantId, part.connectionId);
   if (!row || row.state === "removed") return contactsStopped(db, part, IMPORT_STOPPED_WORDS.removed);
   const lists = listsOf(row);
   const first = lists[0];
   if (!first) return contactsStopped(db, part, IMPORT_STOPPED_WORDS.notTicked("Your contacts"));
   const now = Date.now();
-  const t = await tokenFor(db, row, now);
-  if (!t.ok) {
-    if (t.why === "signed_out") await markSignedOut(db, row, part.log, now);
+  const token = await getToken(db, row, now);
+  if (!token.ok) {
+    if (token.why === "signed_out") await markSignedOut(db, row, part.log, now);
     return contactsStopped(db, part, IMPORT_STOPPED_WORDS.signedOut);
   }
   const was = cursorOf(await importCursorOf(db, part.tenantId, "contacts", row.id));
@@ -135,19 +133,19 @@ export async function contactsPart(db: Db, part: Part): Promise<PartOutcome> {
   let added = 0;
   let done = false;
   while (Date.now() < part.until) {
-    const got = await contactsPageOf(row, t.token, cur.page);
-    if (!got.ok) {
-      if (row.provider === "microsoft" ? graphSignedOut(got.reply) : gmailSignedOut(got.reply)) {
+    const result = await contactsPageOf(row, token.token, cur.page);
+    if (!result.ok) {
+      if (row.provider === "microsoft" ? graphSignedOut(result.reply) : gmailSignedOut(result.reply)) {
         await markSignedOut(db, row, part.log, Date.now());
         return contactsStopped(db, part, IMPORT_STOPPED_WORDS.signedOut);
       }
-      throw new Error(`the mailbox's contacts could not be read: ${got.reply.status}`);
+      throw new Error(`the mailbox's contacts could not be read: ${result.reply.status}`);
     }
     // A page is brought whole before the cursor moves past it: run again, a person already in People is matched.
     const box = { tenantId: part.tenantId, own, via: row.provider };
-    for (const p of got.people) if (await bring(db, box, p)) added++;
-    if (got.next) {
-      cur = { list: cur.list, page: got.next };
+    for (const p of result.people) if (await bring(db, box, p)) added++;
+    if (result.next) {
+      cur = { list: cur.list, page: result.next };
       continue;
     }
     const next = lists[lists.indexOf(cur.list) + 1];

@@ -14,9 +14,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
+import { connectModel, CONNECT } from "../../apps/dashboard/src/surfaces/settings/connections/model/ads-words.ts";
+import { checkWords, EXAMPLE, PLATFORM_WORD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
+import { STANDING_CHECKS } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/rules.ts";
 
 const root = await import("@chanlytics/contracts");
-const page = await import("@chanlytics/contracts/ads-page");
 const { EXAMPLE_READS } = await importSrc("apps/dashboard/src/surfaces/campaigns/ads/examples.ts");
 const { SPRING, SATURDAY, WEEKEND, NEAR_ME, OLD_BOOST, notConnected } = await importSrc(
   "apps/dashboard/src/surfaces/campaigns/ads/sample.ts",
@@ -27,12 +29,12 @@ const { addedBy } = await importSrc("packages/contracts/src/people/person-helper
 const rowsOf = (example) => {
   const read = EXAMPLE_READS[example]();
   return Object.fromEntries(
-    page.connectModel({ accounts: read.accounts, ads: read.ads, today: read.today }).map((r) => [r.id, r]),
+    connectModel({ accounts: read.accounts, ads: read.ads, today: read.today }).map((r) => [r.id, r]),
   );
 };
 
 test("a row for each platform, in the Ads page's order, with the account's own name, currency, time zone and read", () => {
-  const rows = page.connectModel({
+  const rows = connectModel({
     accounts: EXAMPLE_READS.running().accounts,
     ads: EXAMPLE_READS.running().ads,
     today: "2026-10-11",
@@ -61,19 +63,19 @@ test("what is ready is Ads' standing in Ads' words; Google's manager link is Cha
   assert.deepEqual(
     rows.meta.ready.map((x) => x.text),
     [
-      page.checkWords("account-active", "meta"),
-      page.checkWords("payment", "meta"),
-      page.checkWords("page-linked", "meta"),
-      page.checkWords("whatsapp-linked", "meta"),
-      page.checkWords("instagram-linked", "meta"),
-      page.checkWords("chanlytics-whatsapp", "meta"),
+      checkWords("account-active", "meta"),
+      checkWords("payment", "meta"),
+      checkWords("page-linked", "meta"),
+      checkWords("whatsapp-linked", "meta"),
+      checkWords("instagram-linked", "meta"),
+      checkWords("chanlytics-whatsapp", "meta"),
     ],
     "the same words the Ads page's standing popover uses, in its order",
   );
   assert.equal(rows.google.ready[0].text, "Chanlytics' access: accepted", "the manager link comes first");
   assert.deepEqual(
     rows.google.ready.slice(1).map((x) => x.id),
-    page.STANDING_CHECKS.google,
+    STANDING_CHECKS.google,
   );
   const permission = rows.tiktok.ready.at(-1);
   assert.deepEqual([permission.text, permission.tone, permission.fix], ["Post permission until Wed 4 Nov", "ok", null]);
@@ -102,7 +104,7 @@ test("a check that is not met is amber with the step that mends it; the card say
     ...google,
     checks: google.checks.map((c) => (c.id === "manager-link" ? { ...c, ok: false } : c)),
   };
-  const [, g] = page.connectModel({
+  const [, g] = connectModel({
     accounts: [read.accounts[0], unaccepted, read.accounts[2]],
     ads: read.ads,
     today: read.today,
@@ -129,11 +131,11 @@ test("not connected says what connecting does and who bills; nothing is ready on
     "Chanlytics reads your ads and can make new ones. Google bills you; Chanlytics never holds your ad money.",
   );
   assert.match(tiktok.line, /^Chanlytics reads your ads and can make new ones\. TikTok bills you;/);
-  assert.equal(page.CONNECT.line("meta").split(". ")[1], "Meta bills you; Chanlytics never holds your ad money.");
+  assert.equal(CONNECT.line("meta").split(". ")[1], "Meta bills you; Chanlytics never holds your ad money.");
   for (const r of Object.values(rowsOf("v0")))
     assert.deepEqual([r.status, r.running, r.ready], ["not-connected", 0, []]);
   assert.equal(
-    page.CONNECT.signIn("meta"),
+    CONNECT.signIn("meta"),
     "This opens Meta's sign-in in the real app. Nothing was connected.",
     "Connect never claims a connection",
   );
@@ -161,8 +163,8 @@ test("several accounts to choose among show their currency; a read that failed o
 test("ads that are on, in review or being made are running, and Disconnect is refused while there are any", () => {
   const running = rowsOf("running");
   assert.deepEqual([running.meta.running, running.google.running, running.tiktok.running], [2, 1, 1]);
-  assert.equal(page.CONNECT.refused(2), "Pause or end your ads first: 2 are on.");
-  assert.equal(page.CONNECT.refused(1), "Pause or end your ads first: 1 is on.");
+  assert.equal(CONNECT.refused(2), "Pause or end your ads first: 2 are on.");
+  assert.equal(CONNECT.refused(1), "Pause or end your ads first: 1 is on.");
   // An ad that needs you, is paused, ended or finished is not running: with none left the card asks first.
   const needs = rowsOf("needs-you");
   assert.deepEqual([needs.meta.running, needs.google.running, needs.tiktok.running], [0, 1, 0]);
@@ -176,8 +178,8 @@ test("ads that are on, in review or being made are running, and Disconnect is re
 test("ads made on the platform itself are shown in Ads, read-only, and the card says how many", () => {
   assert.equal(rowsOf("running").meta.adopted, "1 ad made in Meta Ads Manager is shown in Ads, read-only.");
   assert.equal(rowsOf("running").google.adopted, null);
-  assert.equal(page.CONNECT.adopted("google", 2), "2 ads made in Google Ads are shown in Ads, read-only.");
-  assert.equal(page.CONNECT.adopted("tiktok", 1), "1 ad made in TikTok Ads Manager is shown in Ads, read-only.");
+  assert.equal(CONNECT.adopted("google", 2), "2 ads made in Google Ads are shown in Ads, read-only.");
+  assert.equal(CONNECT.adopted("tiktok", 1), "1 ad made in TikTok Ads Manager is shown in Ads, read-only.");
   const read = EXAMPLE_READS.running();
   assert.equal(
     read.ads.find((a) => a.id === OLD_BOOST).madeHere,
@@ -187,12 +189,12 @@ test("ads made on the platform itself are shown in Ads, read-only, and the card 
 });
 
 test("the owner's setting is off unless chosen, in the words the decision gave", () => {
-  assert.equal(page.CONNECT.pause.label, "Pause my ads when the way in closes");
+  assert.equal(CONNECT.pause.label, "Pause my ads when the way in closes");
   assert.equal(
-    page.CONNECT.pause.line,
+    CONNECT.pause.line,
     "If WhatsApp or your line stops working, Chanlytics pauses your ads instead of only telling you.",
   );
-  assert.equal(page.CONNECT.sub, page.EXAMPLE.note, "the card says its data is an example");
+  assert.equal(CONNECT.sub, EXAMPLE.note, "the card says its data is an example");
 });
 
 test("the demo's Change account offers the owner's other Meta accounts; using one changes a copy and keeps the fixture", () => {
@@ -237,7 +239,7 @@ test("an ad is a way in: the words, a person added by one by name with a door to
   assert.deepEqual(root.cameFromOf({ came_from: "ad" }), { key: "ad", label: "An ad" });
   assert.equal(root.cameFromOf({ came_from: "fax" }), null, "a value this build does not know is still nothing");
   // People's three platform words are the Ads page's, said once there; this holds the copy equal.
-  for (const p of ["meta", "google", "tiktok"]) assert.equal(root.PERSON_AD_ON[p], page.PLATFORM_WORD[p], p);
+  for (const p of ["meta", "google", "tiktok"]) assert.equal(root.PERSON_AD_ON[p], PLATFORM_WORD[p], p);
   assert.equal(root.fromAdWords("Spring offer"), "From an ad · Spring offer");
   assert.equal(root.fromAdWords(null), "From an ad");
   const ad = { id: SPRING, name: "Spring offer", platform: "meta" };

@@ -19,7 +19,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const {
   deliver,
   deliverSafely,
-  templatePurpose,
+  getTemplatePurpose,
   whatsappSender,
   whatsappWire,
   wireUnavailable,
@@ -795,16 +795,16 @@ test("which yes a queued template needs: Meta's category, failing closed, and a 
       { tenant_id: T, channel: "whatsapp", name: "visit_reminder", language: "en_US", category: "utility" },
     ],
   };
-  assert.equal(await templatePurpose(fakeDb(t), T, undefined), "conversational");
-  assert.equal(await templatePurpose(fakeDb(t), T, { name: "visit_reminder", language: "en_US" }), "conversational");
-  assert.equal(await templatePurpose(fakeDb(t), T, { name: "month_offer", language: "en_US" }), "marketing");
+  assert.equal(await getTemplatePurpose(fakeDb(t), T, undefined), "conversational");
+  assert.equal(await getTemplatePurpose(fakeDb(t), T, { name: "visit_reminder", language: "en_US" }), "conversational");
+  assert.equal(await getTemplatePurpose(fakeDb(t), T, { name: "month_offer", language: "en_US" }), "marketing");
   assert.equal(
-    await templatePurpose(fakeDb(t), T, { name: "seeded_by_hand", language: "en_US" }),
+    await getTemplatePurpose(fakeDb(t), T, { name: "seeded_by_hand", language: "en_US" }),
     "marketing",
     "unknown to us is marketing until Meta says otherwise",
   );
   await assert.rejects(
-    templatePurpose(fakeDb(t, { "templates.select": { message: "reset" } }), T, {
+    getTemplatePurpose(fakeDb(t, { "templates.select": { message: "reset" } }), T, {
       name: "month_offer",
       language: "en_US",
     }),

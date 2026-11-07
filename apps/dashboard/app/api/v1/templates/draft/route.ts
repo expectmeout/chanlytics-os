@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { AppError, TEMPLATE_CATEGORIES, TEMPLATE_LANGUAGES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
-import { draftTemplate, translateTemplate, translationSource, type SourceRef } from "@/server/campaigns/templates";
+import { draftTemplate } from "@/server/drafts/template/draft";
+import { translateTemplate, getTranslationSource, type SourceRef } from "@/server/drafts/template/translate";
 
 /**
  * Two drafts, one door. A brief: what to tell customers, written fresh. Or
@@ -24,28 +25,28 @@ const Body = z
       .strict()
       .optional(),
   })
-  .superRefine((b, ctx) => {
-    if (b.language !== undefined && !TEMPLATE_LANGUAGES.some((x) => x.id === b.language)) {
+  .superRefine((second, ctx) => {
+    if (second.language !== undefined && !TEMPLATE_LANGUAGES.some((x) => x.id === second.language)) {
       ctx.addIssue({ code: "custom", path: ["language"], message: "Pick a language from the list." });
     }
-    if (b.translate) {
-      if (!b.translate.id === !b.translate.starter)
+    if (second.translate) {
+      if (!second.translate.id === !second.translate.starter)
         ctx.addIssue({
           code: "custom",
           path: ["translate"],
           message: "Say which template to write in another language.",
         });
-      if (b.language === undefined)
+      if (second.language === undefined)
         ctx.addIssue({ code: "custom", path: ["language"], message: "Pick a language from the list." });
       return;
     }
-    if (!b.brief || b.brief.length < 4)
+    if (!second.brief || second.brief.length < 4)
       ctx.addIssue({
         code: "custom",
         path: ["brief"],
         message: "Say what you want to tell customers — one line is enough.",
       });
-    if (!(TEMPLATE_CATEGORIES as readonly (string | undefined)[]).includes(b.category))
+    if (!(TEMPLATE_CATEGORIES as readonly (string | undefined)[]).includes(second.category))
       ctx.addIssue({ code: "custom", path: ["category"], message: "A template is marketing or utility." });
   });
 
@@ -71,29 +72,29 @@ export const POST = write({
       const ref: SourceRef = input.translate.id
         ? { id: input.translate.id }
         : { starter: input.translate.starter as string, from: input.translate.from ?? null };
-      const src = await translationSource(ctx, member.tenantId, ref, language);
+      const src = await getTranslationSource(ctx, member.tenantId, ref, language);
       if (!src.ok) throw new AppError(src.code, src.message);
-      const t = await translateTemplate(ctx, member.tenantId, { source: src.source, language });
-      if (!t.ok)
+      const otherTranslateTemplate = await translateTemplate(ctx, member.tenantId, { source: src.source, language });
+      if (!otherTranslateTemplate.ok)
         throw new AppError(
-          t.reason === "refused" ? "upstream_anthropic" : "validation",
-          t.message,
-          t.reason === "refused" ? 502 : 422,
+          otherTranslateTemplate.reason === "refused" ? "upstream_anthropic" : "validation",
+          otherTranslateTemplate.message,
+          otherTranslateTemplate.reason === "refused" ? 502 : 422,
         );
-      return { draft: t.draft };
+      return { draft: otherTranslateTemplate.draft };
     }
     const language = input.language ?? "en_US";
-    const r = await draftTemplate(ctx, member.tenantId, {
+    const result = await draftTemplate(ctx, member.tenantId, {
       brief: input.brief as string,
       category: input.category as "marketing" | "utility",
       language,
     });
-    if (!r.ok)
+    if (!result.ok)
       throw new AppError(
-        r.reason === "refused" ? "upstream_anthropic" : "validation",
-        r.message,
-        r.reason === "refused" ? 502 : 422,
+        result.reason === "refused" ? "upstream_anthropic" : "validation",
+        result.message,
+        result.reason === "refused" ? 502 : 422,
       );
-    return { draft: r.draft };
+    return { draft: result.draft };
   },
 });

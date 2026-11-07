@@ -34,7 +34,7 @@ export function authorizeUrl(
   state: string,
   loginHint?: string | null,
 ): string {
-  const q = new URLSearchParams({
+  const query = new URLSearchParams({
     client_id: cfg.clientId,
     redirect_uri: cfg.redirectUri,
     response_type: "code",
@@ -46,8 +46,8 @@ export function authorizeUrl(
     include_granted_scopes: "false",
     state,
   });
-  if (loginHint) q.set("login_hint", loginHint);
-  return `${GOOGLE_AUTH_URL}?${q.toString()}`;
+  if (loginHint) query.set("login_hint", loginHint);
+  return `${GOOGLE_AUTH_URL}?${query.toString()}`;
 }
 
 const form = (params: Record<string, string>): PlacesRequest["body"] => new URLSearchParams(params).toString();
@@ -100,20 +100,20 @@ export interface TokenGrant {
 }
 
 export function parseTokenResponse(json: unknown): TokenGrant {
-  const o = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
-  const access = typeof o.access_token === "string" ? o.access_token : "";
+  const value = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+  const access = typeof value.access_token === "string" ? value.access_token : "";
   if (!access)
     throw new Error(
-      typeof o.error === "string"
-        ? `${o.error}${typeof o.error_description === "string" ? `: ${o.error_description}` : ""}`
+      typeof value.error === "string"
+        ? `${value.error}${typeof value.error_description === "string" ? `: ${value.error_description}` : ""}`
         : "Google answered without a token",
     );
   return {
     access_token: access,
-    refresh_token: typeof o.refresh_token === "string" && o.refresh_token ? o.refresh_token : null,
-    expires_in: typeof o.expires_in === "number" ? o.expires_in : 3600,
-    scope: typeof o.scope === "string" ? o.scope : "",
-    id_token: typeof o.id_token === "string" ? o.id_token : null,
+    refresh_token: typeof value.refresh_token === "string" && value.refresh_token ? value.refresh_token : null,
+    expires_in: typeof value.expires_in === "number" ? value.expires_in : 3600,
+    scope: typeof value.scope === "string" ? value.scope : "",
+    id_token: typeof value.id_token === "string" ? value.id_token : null,
   };
 }
 
@@ -133,9 +133,9 @@ export function b64url(bytes: Uint8Array | string): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export function unb64url(s: string): Uint8Array {
-  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
-  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
+export function unb64url(text: string): Uint8Array {
+  const pad = text.length % 4 === 0 ? "" : "=".repeat(4 - (text.length % 4));
+  const bin = atob(text.replace(/-/g, "+").replace(/_/g, "/") + pad);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
@@ -194,8 +194,8 @@ async function hmac(secret: string, data: string): Promise<string> {
   return b64url(new Uint8Array(sig));
 }
 
-export async function signState(secret: string, s: OAuthState): Promise<string> {
-  const payload = b64url(JSON.stringify(s));
+export async function signState(secret: string, oAuthState: OAuthState): Promise<string> {
+  const payload = b64url(JSON.stringify(oAuthState));
   return `${payload}.${await hmac(secret, payload)}`;
 }
 
@@ -210,16 +210,21 @@ export async function verifyState(
   if (!payload || !sig || rest.length) return { ok: false, reason: "malformed" };
   const expected = await hmac(secret, payload);
   if (expected.length !== sig.length || !timingSafeEqualStr(expected, sig)) return { ok: false, reason: "signature" };
-  let s: OAuthState;
+  let oAuthState: OAuthState;
   try {
-    s = JSON.parse(dec.decode(unb64url(payload))) as OAuthState;
+    oAuthState = JSON.parse(dec.decode(unb64url(payload))) as OAuthState;
   } catch {
     return { ok: false, reason: "malformed" };
   }
-  if (typeof s.t !== "string" || typeof s.u !== "string" || typeof s.n !== "string" || typeof s.exp !== "number")
+  if (
+    typeof oAuthState.t !== "string" ||
+    typeof oAuthState.u !== "string" ||
+    typeof oAuthState.n !== "string" ||
+    typeof oAuthState.exp !== "number"
+  )
     return { ok: false, reason: "malformed" };
-  if (s.exp < nowMs) return { ok: false, reason: "expired" };
-  return { ok: true, state: s };
+  if (oAuthState.exp < nowMs) return { ok: false, reason: "expired" };
+  return { ok: true, state: oAuthState };
 }
 
 function timingSafeEqualStr(a: string, b: string): boolean {

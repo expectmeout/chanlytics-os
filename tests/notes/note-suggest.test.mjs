@@ -1,5 +1,5 @@
 /**
- * When the receptionist suggests a note, and what earns one (0007 phase 2, contracts note-suggest.ts).
+ * When the receptionist suggests a note, and what earns one (0007 phase 2, contracts notes/suggest.ts).
  *
  * The three gates, run without a model: whether a conversation is worth a look at all, what the model is told, and
  * the code that checks its answer. Most conversations must end with nothing; a caller must not be able to write a

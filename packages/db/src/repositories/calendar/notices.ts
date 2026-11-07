@@ -2,9 +2,9 @@
  * The notices ledger (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md): every booking tool's notice the
  * workspace's address took in, what it became or why it is held. Groups:
  *
- *   one delivery      appointmentNoticeOf (what it became, or null), keepAppointmentNotice (once per delivery: the same
+ *   one delivery      findAppointmentNotice (what it became, or null), keepAppointmentNotice (once per delivery: the same
  *                     delivery kept again replaces the row, appointment_notices_delivery_uq).
- *   the health line   appointmentNoticesOf: the latest notice (its tool and when) and how many are held for a person,
+ *   the health line   findAppointmentNotices: the latest notice (its tool and when) and how many are held for a person,
  *                     read one after the other so a turn's reads are in one order (ask/readers.test.mjs pins them).
  *
  * Written by the booking_read job on the service role; read by the dashboard on the member's client, where RLS decides.
@@ -17,7 +17,7 @@ type Db = SupabaseClient<Database>;
 export type AppointmentNoticeRow = Database["public"]["Tables"]["appointment_notices"]["Row"];
 export type AppointmentNoticeInsert = Database["public"]["Tables"]["appointment_notices"]["Insert"];
 
-export async function appointmentNoticeOf(
+export async function findAppointmentNotice(
   db: Db,
   tenantId: string,
   noticeId: string,
@@ -62,7 +62,7 @@ export async function holdNoticeIfUnkept(db: Db, row: AppointmentNoticeInsert): 
  * how many are held for a person. A tool's receipt set aside, a notice held and one dismissed are none of them "the
  * last booking email": a workspace whose only mail was those is not working yet.
  */
-export async function appointmentNoticesOf(
+export async function findAppointmentNotices(
   db: Db,
   tenantId: string,
 ): Promise<{ tool: string | null; last_at: string | null; held: number }> {
@@ -95,7 +95,7 @@ export async function appointmentNoticesOf(
  * forwarded by hand. Service role only; a failed ask throws, so the intake's retry meets it rather than booking on a
  * stranger's word.
  */
-export async function memberHasAddress(db: Db, tenantId: string, address: string): Promise<boolean> {
+export async function hasMemberAddress(db: Db, tenantId: string, address: string): Promise<boolean> {
   const { data, error } = await db.rpc("member_has_address", { p_tenant_id: tenantId, p_address: address });
   if (error) throw new Error(`member_has_address: ${error.message}`);
   return data === true;
@@ -107,7 +107,7 @@ export async function memberHasAddress(db: Db, tenantId: string, address: string
 const HELD_MAX = 20;
 
 /** The notices held for a person, latest first, as the card lists them. */
-export async function heldNoticesOf(db: Db, tenantId: string): Promise<AppointmentNoticeRow[]> {
+export async function listHeldNotices(db: Db, tenantId: string): Promise<AppointmentNoticeRow[]> {
   const { data, error } = await db
     .from("appointment_notices")
     .select("*")
@@ -128,7 +128,7 @@ const HELD_KEYS_CAP = 1000;
  * list (the wiring's second audit, R13 X5-1). Null where the read is not the whole of them, which settles nothing. Throws when
  * it cannot be read.
  */
-export async function heldNoticeKeys(db: Db, tenantId: string): Promise<ReadonlySet<string> | null> {
+export async function findHeldNoticeKeys(db: Db, tenantId: string): Promise<ReadonlySet<string> | null> {
   const { data, error } = await db
     .from("appointment_notices")
     .select("id, notice_id")
@@ -144,7 +144,7 @@ export async function heldNoticeKeys(db: Db, tenantId: string): Promise<Readonly
 }
 
 /** One notice of the workspace by its row id, or null. */
-export async function appointmentNoticeById(
+export async function findAppointmentNoticeById(
   db: Db,
   tenantId: string,
   id: string,

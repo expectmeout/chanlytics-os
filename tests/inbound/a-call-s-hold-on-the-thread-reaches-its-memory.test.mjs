@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { pgThread } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href);
+const { readPgThread } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href);
 
 const T = "11111111-1111-1111-1111-111111111111";
 const conversation = (id, over = {}) => ({
@@ -45,14 +45,14 @@ test("a call's hold on the thread rides with its memory, as the wire reads it; a
     ],
     messages: [],
   });
-  const holdOn = async (id) => (await pgThread(db, T, ingested(id))).control;
+  const holdOn = async (id) => (await readPgThread(db, T, ingested(id))).control;
   assert.deepEqual(await holdOn("c-call"), { kind: "call", ref: "call_1", until });
   assert.equal(await holdOn("c-free"), null);
   assert.equal(await holdOn("c-open"), null);
   // The rest of the memory is as it was.
-  const whole = await pgThread(db, T, ingested("c-call"));
+  const whole = await readPgThread(db, T, ingested("c-call"));
   assert.deepEqual([whole.history, whole.replies, whole.pausedUntil, whole.textedBefore], [[], [], 0, false]);
   // A thread the database could not produce is unknown, and says no hold it cannot know of.
-  const unknown = await pgThread(db, T, null);
+  const unknown = await readPgThread(db, T, null);
   assert.deepEqual([unknown.unknown, unknown.control], [true, null]);
 });

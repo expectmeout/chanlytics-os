@@ -14,7 +14,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -37,7 +37,7 @@ for (const k of [
 
 const { readBody } = await importSrc("apps/edge/lib/shared/admin-door.ts");
 const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
-const { UNKNOWN_LINE_OP } = await importSrc("apps/edge/lib/lines/line-ops.ts");
+const { UNKNOWN_LINE_OP } = await importSrc("apps/edge/lib/lines/ops/search-buy.ts");
 const { UNKNOWN_GOOGLE_OP } = await importSrc("apps/edge/lib/google/ops.ts");
 const { UNKNOWN_BILLING_OP } = await importSrc("apps/edge/lib/billing/ops.ts");
 after(() => setPg(null));

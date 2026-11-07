@@ -29,16 +29,15 @@ import {
   REPORT_LENSES,
   REPORT_PERIOD_DEFAULT,
   lensRoute,
-  reportFacts,
   reportRangeKey,
   reportsRouteParts,
   routeOfPath,
   type LensId,
-  type ReportFactVM,
   type ReportRange,
   type ReportsParts,
   type ReportVM,
 } from "@chanlytics/contracts";
+import { reportFacts, type ReportFactVM } from "./model/facts";
 import type { CampaignLensVM, PeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
 import { navigate } from "../frame-verbs";

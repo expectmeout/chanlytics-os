@@ -92,10 +92,10 @@ const REASON_WORDS: Record<EnforcementReason, string> = {
 
 /** What Anthropic said of a profile it acted on, as the platform reads it (Health, and the page): never a customer's words. */
 export function enforcementWords(status: AnthropicEnforcementStatus, actions: EnforcementAction[]): string {
-  const said = status === "banned" ? "Banned" : status === "pending" ? "Identity check under review" : "Restricted";
-  const why = [...new Set(actions.map((a) => REASON_WORDS[a.reason]))].join(", ") || REASON_WORDS.unspecified;
+  const sentence = status === "banned" ? "Banned" : status === "pending" ? "Identity check under review" : "Restricted";
+  const reason = [...new Set(actions.map((a) => REASON_WORDS[a.reason]))].join(", ") || REASON_WORDS.unspecified;
   const next = actions.some((a) => a.action === "verify") ? " They can clear it with an identity check." : "";
-  return `${said}: ${why}.${next}`;
+  return `${sentence}: ${reason}.${next}`;
 }
 
 /** What a member reads while a banned profile's calls are held. Plain, and no reason: the reason is the platform's to say. */
@@ -104,7 +104,7 @@ export const MODEL_PAUSED_WORDS = {
     en: "Ask is paused on your account. Your pages still work. Write to support and we'll sort it out.",
     es: "Ask está en pausa en tu cuenta. Tus páginas siguen funcionando. Escribe a soporte y lo resolvemos.",
   },
-  draft: (what: string) => `The ${what} waits while Ask is paused on your account.`,
+  draft: (text: string) => `The ${text} waits while Ask is paused on your account.`,
   edge: "The model is paused for this account.",
   reviewReply: "The model is paused for this workspace.",
 } as const;

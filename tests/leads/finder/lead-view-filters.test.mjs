@@ -11,7 +11,7 @@ import {
   LeadExportQuerySchema,
   LeadsBulkSchema,
   LeadsQuerySchema,
-} from "../../../packages/contracts/src/leads/lead-plan-schema.ts";
+} from "../../../packages/contracts/src/leads/plan-schema.ts";
 
 const SEARCH = "5e000000-0000-4000-8000-000000000001";
 const LEAD = "1ead0000-0000-4000-8000-000000000009";

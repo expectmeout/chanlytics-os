@@ -6,7 +6,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { parseTenantConfigResult, REPLY_DRAFT_RULES } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
@@ -14,9 +14,9 @@ import { at, withEnv } from "../_cron-doors-world.mjs";
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
 
-const { draftWriter } = await import(at("apps/edge/lib/drafts/draft-writer.ts"));
-const { draftAtTheDoor } = await import(at("apps/edge/lib/drafts/draft-door.ts"));
-const { sweepDrafts } = await import(at("apps/edge/lib/drafts/draft-sweep.ts"));
+const { draftWriter } = await import(at("apps/edge/lib/drafts/writer.ts"));
+const { draftAtTheDoor } = await import(at("apps/edge/lib/drafts/door.ts"));
+const { sweepDrafts } = await import(at("apps/edge/lib/drafts/sweep.ts"));
 const { POST: draftDoor } = await import(at("apps/edge/api/admin/draft.ts"));
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 after(() => setPg(null));

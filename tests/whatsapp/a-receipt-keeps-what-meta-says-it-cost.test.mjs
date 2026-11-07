@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { waPricingOf } from "@chanlytics/channels";
+import { waPricingOf } from "@chanlytics/channels/whatsapp";
 import { fakeDb } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
 import { logLineOf } from "../_log-lines.mjs";

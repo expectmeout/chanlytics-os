@@ -1,5 +1,5 @@
 /**
- * A thread's state moves by one table (contracts conversation-moves.ts); three of its moves are SQL's own, and the
+ * A thread's state moves by one table (contracts conversations/moves.ts); three of its moves are SQL's own, and the
  * table is the only thing that says they agree. Run on a real database: `expire_stale_pauses` (pause_expired),
  * `wake_stale_snoozes` (snooze_expired) and `ingest_inbound`'s reopening (reopen) each write, to a thread in each state
  * they touch, the columns the table says and leave alone the states it does not start from. The member's own two

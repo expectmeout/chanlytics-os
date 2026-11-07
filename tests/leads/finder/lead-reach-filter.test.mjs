@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { leadViewCounts } from "@chanlytics/db";
+import { getLeadViewCounts } from "@chanlytics/db/leads";
 import {
   LEAD_REACH_WORDS,
   LEAD_STATUS_GROUP_WORDS,
@@ -17,7 +17,7 @@ import {
   leadReachWord,
   leadStatusGroupsOf,
 } from "../../../packages/contracts/src/leads/leads.ts";
-import { LeadExportQuerySchema, LeadsQuerySchema } from "../../../packages/contracts/src/leads/lead-plan-schema.ts";
+import { LeadExportQuerySchema, LeadsQuerySchema } from "../../../packages/contracts/src/leads/plan-schema.ts";
 
 test("a kept or flipped filter is read back in one order, each once, and nothing else", () => {
   assert.deepEqual(leadReachOf(["phone", "email", "phone"]), ["email", "phone"]);
@@ -64,12 +64,12 @@ test("what a view holds reads its status groups, and a database before 00552 cos
   const asked = { tenantId: "t", searchId: null, cls: null, list: "all", filters: null };
   const answering = (data) => ({ rpc: async () => ({ data, error: null }) });
   const plain = { view: 9, matching: 8, excluded_by: { chains: 1 } };
-  assert.deepEqual(await leadViewCounts(answering(plain), asked), plain);
+  assert.deepEqual(await getLeadViewCounts(answering(plain), asked), plain);
   const told = { ...plain, status_groups: { needs: 2, in: 3, none: 4 }, with_email: 7, with_phone: 5 };
-  assert.deepEqual(await leadViewCounts(answering(told), asked), told);
+  assert.deepEqual(await getLeadViewCounts(answering(told), asked), told);
   const odd = { ...plain, status_groups: { needs: "two" }, with_email: -1, with_phone: 1.5 };
   assert.deepEqual(
-    await leadViewCounts(answering(odd), asked),
+    await getLeadViewCounts(answering(odd), asked),
     { ...plain, status_groups: { needs: 0, in: 0, none: 0 }, with_email: 0, with_phone: 0 },
     "a count that is no whole number of rows is none",
   );

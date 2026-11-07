@@ -33,13 +33,13 @@ const C = await import("@chanlytics/contracts");
 const { PLAN_WORDS: W, PLAYBOOK_PATCH_WORDS, PROPOSAL_SPECS, planOf, stepToken } = C;
 /** What an offer's plan says to the person, in English (a Spanish question's words are its own rows). */
 const EN = C.OFFER_PLAN_WORDS.en;
-const { readerCache, stableJson } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
-const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
-const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+const { readerCache, stableJson } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -278,13 +278,13 @@ beforeEach(async () => {
       });
     throw new Error(`nothing else is reachable: ${u}`);
   };
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
   // The month's emails and texts so far, which the service client counts (campaigns/month-sent.ts): none yet.
-  setServiceClient(fakeDb({}, {}, { campaign_month_sent: () => 0 }));
+  setUnsubscribeServiceClient(fakeDb({}, {}, { campaign_month_sent: () => 0 }));
 });
 after(() => {
   globalThis.fetch = real;
-  setServiceClient(null);
+  setUnsubscribeServiceClient(null);
 });
 
 /** A request over `rows`, People being `people`, and `faults` failing a read the way PostgREST fails one. */
@@ -719,7 +719,7 @@ const refusedFor = (r, words) => {
 };
 
 test("which channels can send, unread: the plan refuses in its own words, never planning on a guess of WhatsApp alone, in words a setup's plan is true of too (fix round 1)", async () => {
-  // The mailbox's read fails, so the channels' readiness is none (campaigns/channels-ready.ts channelsReadyOrNull).
+  // The mailbox's read fails, so the channels' readiness is none (campaigns/channels-ready.ts findChannelsReadyOrNull).
   const r = await call({ action: "plan", ...offer() }, tables(), "owner", PEOPLE, { "mailboxes.select": BOOM });
   refusedFor(r, W.channelsUnread);
   assert.ok(!r.result.includes("It goes without email"), "never says email is left out when it could not be read");
@@ -1204,7 +1204,7 @@ test("a setup with no calendar, asked in Spanish by a business that books a call
   assert.equal(r.answer.language, "es");
 });
 
-test("an offer's journey and Library read before round 1 are the plan's own reads, answered from the turn's cache (readers/index.ts TurnCache): the plan's call after them asks the database for nothing more than the same call with nothing read ahead, and makes the same cards", async () => {
+test("an offer's journey and Library read before round 1 are the plan's own reads, answered from the turn's cache (shared/reader.ts TurnCache): the plan's call after them asks the database for nothing more than the same call with nothing read ahead, and makes the same cards", async () => {
   /** Each request the workspace's database was asked, counted by table and verb or by door. */
   const asked = (ctx) => {
     const n = {};

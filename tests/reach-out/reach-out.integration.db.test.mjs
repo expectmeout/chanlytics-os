@@ -47,7 +47,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { verifyUnsubscribeToken } from "@chanlytics/channels";
+import { verifyUnsubscribeToken } from "@chanlytics/channels/tokens";
 import { REACH_OUT_REFUSALS, ReachOutChainSchema, holdWords, validateReachOutChain } from "@chanlytics/contracts";
 import { MAILBOX_ENV, gmailFake, gmailReceived, liveCredentials, withEnv } from "../email/mailboxes/_mailbox-world.mjs";
 
@@ -175,18 +175,18 @@ before(async () => {
     ...(await import(at("apps/edge/lib/campaigns/reach-out/run-step.ts"))),
     ...(await import(at("apps/edge/lib/campaigns/reach-out/clock.ts"))),
     ...(await import(at("apps/edge/lib/campaigns/reach-out/check.ts"))),
-    ...(await import(at("apps/edge/lib/campaigns/reach-out/sender.ts"))),
+    ...(await import(at("apps/edge/lib/campaigns/reach-out/sender/sender.ts"))),
     ...(await import("@chanlytics/channels")),
     ...(await import(at("apps/edge/lib/email/email.ts"))),
     ...(await import(at("apps/edge/lib/email/receipts.ts"))),
     ...(await import(at("apps/edge/lib/email/mailbox/sync.ts"))),
-    ...(await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"))),
+    ...(await import(at("apps/dashboard/src/server/campaigns/ports.ts"))),
     ...(await import(at("packages/core/dist/index.js"))),
     ...(await import(at("packages/jobs/dist/index.js"))),
     ...(await import(at("packages/db/dist/index.js"))),
   };
   // The dashboard's own reads behind the approval sheet (GET broadcasts/[id]'s reach_out block).
-  dash = await import(at("apps/dashboard/src/server/campaigns/reach-outs.ts"));
+  dash = await import(at("apps/dashboard/src/server/campaigns/reach-outs/reach-outs.ts"));
   L = (await import(at("apps/edge/lib/shared/log.ts"))).logger({ suite: "reach_out_e2e" });
 
   A = await one(

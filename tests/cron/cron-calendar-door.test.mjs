@@ -33,7 +33,7 @@ for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/calendar.ts"));
 const { forgetFeeds } = await import(at("apps/edge/lib/calendar/availability.ts"));
-const { CALENDAR_PER_TICK, CALENDAR_SWEEP_BUDGET_MS } = await import(at("apps/edge/lib/ops/sweep-rotation.ts"));
+const { CALENDAR_PER_TICK, CALENDAR_SWEEP_BUDGET_MS } = await import(at("apps/edge/lib/shared/sweep-rotation.ts"));
 after(() => setPg(null));
 
 const D = 86_400_000;

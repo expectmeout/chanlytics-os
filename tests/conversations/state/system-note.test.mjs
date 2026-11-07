@@ -7,7 +7,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isChatMessage, toConversationVM, toInboxThreadVM } from "@chanlytics/contracts";
+import { isChatMessage, toInboxThreadVM } from "@chanlytics/contracts";
+import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-10-02T18:00:00Z");

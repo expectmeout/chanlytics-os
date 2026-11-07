@@ -1,27 +1,18 @@
-import {
-  AppError,
-  ASK_MAX_CHARS,
-  ASK_SCOPE_KINDS,
-  ASK_SURFACES,
-  PageContextSchema,
-  askColumnOf,
-  type AskLanguage,
-  type AskScope,
-  type LeadSearchPlan,
-  type PageContext,
-  HOUR_MS,
-} from "@chanlytics/contracts";
-import { after } from "next/server";
-import { write, workspace, type Member } from "@/server/shared/route";
-import { log } from "@/server/shared/log";
+import { AppError, ASK_MAX_CHARS, askColumnOf, HOUR_MS } from "@chanlytics/contracts";
+import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
-import { readerContext } from "@/server/readers";
-import type { RouteContext } from "@/server/shared/with-route";
 import { attachedIdsOf } from "@/server/files/attached";
-import { clearFollowUp } from "@/server/ask/tools/act/follow-up";
-import type { SearchAnswering } from "@/server/ask/prompt";
-import { finishAskTurn, prepareAskTurn, type AskTurnLine } from "@/server/ask/turn";
-import { searchRow } from "@/server/leads/leads";
+import { prepareAskTurn } from "@/server/ask/turn";
+import {
+  answeringOf,
+  cameBackTo,
+  contextAsked,
+  languageAsked,
+  questionOf,
+  scopeAsked,
+  SURFACES,
+  turnStream,
+} from "@/server/ask/doors/turn-request";
 
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
@@ -78,147 +69,6 @@ import { searchRow } from "@/server/leads/leads";
 // A typed turn's budget (contracts ASK_TURN_BUDGET_MS, two minutes since the operator, 15 Oct 2026) and the time to
 // store its answer after it.
 export const maxDuration = 150;
-
-// The lists are contracts' own: a surface the palette sent that a hand-written list here had not caught up with was
-// dropped in silence, and the prompt never learnt the page.
-const SCOPE_KINDS = new Set<string>(ASK_SCOPE_KINDS);
-const SURFACES = new Set<string>(ASK_SURFACES);
-
-function line(ev: AskTurnLine): string {
-  return `${JSON.stringify(ev)}\n`;
-}
-
-/**
- * The platform waits for the turn after the response has gone (next/server's `after`): a Stop lets go of the stream
- * while the turn it stopped is still to be saved. Outside a request (a test calling the route) there is no one to tell.
- */
-function waitFor(turn: Promise<unknown>): void {
-  try {
-    after(turn);
-  } catch {
-    /* no request scope */
-  }
-}
-
-/**
- * The question as the turn takes it: its lines kept (a pasted message, a draft the Line's field took over several
- * lines), runs of spaces within a line made one. Anything but words is no question.
- */
-function questionOf(raw: unknown): string {
-  return typeof raw === "string"
-    ? raw
-        .replace(/\r\n?/g, "\n")
-        .replace(/[^\S\n]+/g, " ")
-        .trim()
-    : "";
-}
-
-/**
- * The turn run and stored, each line as it comes: the thread first, the reads, the Say, then the answer (the turn's
- * second half). The voice door runs the same two halves and speaks the Say instead. The person's Stop lets go of the
- * stream, which cancels it, or the request goes before the stream opened (a tab closed, a network gone): either stops
- * the turn where it is, and it is kept as stopped (turn.ts).
- */
-function turnStream(prepared: Parameters<typeof finishAskTurn>[0], gone: AbortSignal): ReadableStream<Uint8Array> {
-  const stop = new AbortController();
-  gone.addEventListener("abort", () => stop.abort(), { once: true });
-  const encoder = new TextEncoder();
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (s: string) => {
-        try {
-          controller.enqueue(encoder.encode(s));
-        } catch {
-          /* the reader went away */
-        }
-      };
-      const turn = finishAskTurn(prepared, (ev) => send(line(ev)), stop.signal);
-      waitFor(turn);
-      await turn;
-      try {
-        controller.close();
-      } catch {
-        /* already closed */
-      }
-    },
-    cancel() {
-      stop.abort();
-    },
-  });
-}
-
-/**
- * The scope the question is asked with (the Phase 5 plan, D9), three ways: one in the palette's shape is this turn's;
- * `null` is none, and clears the thread's; absent is no opinion (undefined), and the thread keeps its own. Anything
- * else is absent: ignored rather than refused.
- */
-function scopeAsked(raw: unknown): AskScope | null | undefined {
-  if (raw === null) return null;
-  if (!raw || typeof raw !== "object") return undefined;
-  const s = raw as Partial<AskScope>;
-  if (
-    typeof s.kind !== "string" ||
-    !SCOPE_KINDS.has(s.kind) ||
-    typeof s.id !== "string" ||
-    !s.id ||
-    typeof s.label !== "string"
-  )
-    return undefined;
-  return { kind: s.kind, id: s.id.slice(0, 120), label: s.label.slice(0, 80) };
-}
-
-/**
- * The page the question was asked on (contracts PageContext): identities and words, read by its one schema. One the schema
- * refuses is no context, said once in the log, and never a refused question: an older tab sends none, and a context is a help
- * to the answer, not a condition of it. The turn reads the page again from these identities.
- */
-function contextAsked(raw: unknown, tenantId: string): PageContext | null {
-  if (raw === undefined || raw === null) return null;
-  const read = PageContextSchema.safeParse(raw);
-  if (read.success) return read.data;
-  const issue = read.error.issues[0];
-  log.error("ask_context_refused", {
-    tenant_id: tenantId,
-    path: issue?.path.join(".") ?? "",
-    issue: issue?.message ?? "unreadable",
-  });
-  return null;
-}
-
-/** Words say their own language; only a question with none is told it. */
-const languageAsked = (text: string, raw: unknown): { language?: AskLanguage } =>
-  !text && (raw === "es" || raw === "en") ? { language: raw } : {};
-
-/**
- * The search a Leads answer row's text answers (`answering: { search_id }`), read under RLS in this workspace: what it
- * asked rides beside the owner's words (askTurnText). None where the body names none; one not this workspace's is a 404.
- */
-async function answeringOf(ctx: RouteContext, tenantId: string, raw: unknown): Promise<SearchAnswering | null> {
-  const id = raw && typeof raw === "object" ? (raw as { search_id?: unknown }).search_id : undefined;
-  if (id === undefined) return null;
-  const row = await searchRow(ctx, tenantId, requireUuid(id, "search"));
-  const q = row.question as { sentence?: unknown } | null;
-  return {
-    search_id: row.id,
-    name: row.name,
-    question: q && typeof q === "object" && typeof q.sentence === "string" ? q.sentence : "",
-    asked: row.asked,
-    leaving_out: ((row.plan as LeadSearchPlan | null)?.exclusions ?? []).map((x) => x.text),
-  };
-}
-
-/**
- * The follow-up a question comes back to (Ask's home's row, `following: { id }`), cleared from the caller's views now that
- * the question is kept. One the body does not name in that shape is none; a clear that fails is logged, never a refused
- * question.
- */
-async function cameBackTo(ctx: RouteContext, member: Member, following: unknown): Promise<void> {
-  const id = following && typeof following === "object" ? (following as { id?: unknown }).id : undefined;
-  if (typeof id !== "string" || !id || id.length > 40) return;
-  await clearFollowUp(readerContext(ctx, member), id).catch((e: unknown) =>
-    log.error("ask_follow_up_clear_failed", { tenant_id: member.tenantId, error: e }),
-  );
-}
 
 export const POST = write({
   scope: workspace,

@@ -1,7 +1,7 @@
 /**
  * A business's page, read for the edge's own reading of it: the website read (lib/imports/website-read.ts) and the
  * booking platform's page it names, the Logo row's look (lib/imports/logo-lookup.ts), a lead's home page for its mark and
- * for what the judge may read (lib/leads/lead-marks.ts), and what a cold email's opening may say
+ * for what the judge may read (lib/leads/marks.ts), and what a cold email's opening may say
  * (lib/campaigns/reach-out/check-one.ts). The page is the platform's one reader's (channels sitePageReader: Firecrawl's scrape,
  * drawn as a browser draws it, on the provider's network and never ours). The address is judged first (contracts
  * feedUrlOk), so one inside a private network is never asked for; past that the provider follows the site's own redirects.
@@ -9,7 +9,7 @@
  * It answers null rather than throwing: a page that cannot be read says nothing, and nothing is wrong.
  */
 import { feedUrlOk, SECOND_MS } from "@chanlytics/contracts";
-import { siteMapper, sitePageReader, type SiteLink, type SitePage } from "@chanlytics/channels";
+import { siteMapper, sitePageReader, type SiteLink, type SitePage } from "@chanlytics/channels/website";
 import { env } from "./env.js";
 
 /** One kind of read: how long the page may take, how much of it is held, and what it asks of the reader. */
@@ -48,7 +48,7 @@ export const sitePagesReadable = (): boolean => !!sitePageReader(env.FIRECRAWL_A
  * (the one asked, or the one the site's redirects ended at), a page that answered an error or nothing, or no answer in
  * time.
  */
-export async function sitePage(url: string | null, read: PageRead): Promise<SitePage | null> {
+export async function findSitePage(url: string | null, read: PageRead): Promise<SitePage | null> {
   const at = feedUrlOk(url);
   const reader = sitePageReader(env.FIRECRAWL_API_KEY);
   if (!at || !reader) return null;
@@ -82,26 +82,26 @@ function otherSpelling(url: string): string | null {
  * spelling (www. or not) in what is left of the read's time, never past it. A lead keeps its website's host without the
  * www., and a website a person typed is as they typed it.
  */
-export async function homePage(url: string, read: PageRead): Promise<SitePage | null> {
+export async function findHomePage(url: string, read: PageRead): Promise<SitePage | null> {
   const until = Date.now() + read.timeoutMs;
-  const page = await sitePage(url, read);
+  const page = await findSitePage(url, read);
   if (page) return page;
   const left = until - Date.now();
   const other = left >= OTHER_SPELLING_LEAST_MS ? otherSpelling(url) : null;
-  return other ? sitePage(other, { ...read, timeoutMs: left }) : null;
+  return other ? findSitePage(other, { ...read, timeoutMs: left }) : null;
 }
 
 /**
  * The pages of a site its reader's map knows of for a few words, the likeliest first, each a public address: what a home
  * page that links to none of them leaves to ask. None with no key set, or on anything the map could not say.
  */
-export async function siteLinks(
+export async function listSiteLinks(
   url: string,
-  o: { search: string; limit: number; timeoutMs: number },
+  options: { search: string; limit: number; timeoutMs: number },
 ): Promise<SiteLink[]> {
   const at = feedUrlOk(url);
   const map = siteMapper(env.FIRECRAWL_API_KEY);
   if (!at || !map) return [];
-  const links = await map(at, o).catch(() => []);
+  const links = await map(at, options).catch(() => []);
   return links.filter((l) => !!feedUrlOk(l.url));
 }

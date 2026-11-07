@@ -1332,7 +1332,7 @@ test("team_notice tells the workspace that a teammate left, once, on the bell, o
     data: { by: LEAVER, how: "left", had_role: "operator" },
   });
   const asked = [];
-  // The identity store, as the service role reads it (packages/db memberEmailOf).
+  // The identity store, as the service role reads it (packages/db findMemberEmail).
   left.ctx.db.auth = {
     admin: {
       getUserById: async (id) => {

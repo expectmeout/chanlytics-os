@@ -111,7 +111,7 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * changed nothing (each project typechecks after it), and what it still reports is either in a file another lane was
  * rewriting that day (Ask's server, routes, bridge and contracts, the kit's components, the Retell availability door,
  * the policies route, the edge-token doors, the jobs handlers), left for that lane, or an assertion the rule misreads
- * as doing nothing. One gives a generic its type: `(await jsonBody(req)) as T` infers `jsonBody`'s T from the
+ * as doing nothing. One gives a generic its type: `(await readJsonBody(req)) as T` infers `readJsonBody`'s T from the
  * assertion, and without it the body is `unknown`; those leave as the routes declare their `input`. The other keeps
  * a literal's type in an object a map builds (`role: (…) as ThreadTurn["role"]`), which widens to string without it.
  * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error. no-misused-promises holds one, a route context's params
@@ -205,6 +205,8 @@ const BROWSER_MAY_NOT_IMPORT = [
       "@chanlytics/core/**",
       "@chanlytics/jobs",
       "@chanlytics/jobs/**",
+      "@chanlytics/log",
+      "@chanlytics/log/**",
       "@chanlytics/channels",
       "@chanlytics/channels/**",
       "server-only",
@@ -360,10 +362,13 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/metrics",
   "apps/dashboard/src/server/new-conversation",
   "apps/dashboard/src/server/console",
-  "apps/dashboard/src/server/ports",
+  "apps/dashboard/src/server/drafts",
+  "apps/dashboard/src/server/posts",
   "apps/dashboard/src/server/previews",
   "apps/dashboard/src/server/public",
   "apps/dashboard/src/server/receptionist",
+  "apps/dashboard/src/server/settings",
+  "apps/dashboard/src/server/setup",
   "apps/dashboard/src/server/shared",
   "apps/dashboard/src/server/campaigns/sequences",
   "apps/dashboard/src/server/workspace",
@@ -376,6 +381,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/ai",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
+  "apps/edge/lib/connections",
   "apps/edge/lib/drafts",
   "apps/edge/lib/email",
   "apps/edge/lib/files",
@@ -433,6 +439,7 @@ export const LIMITED_TREES = [
   "packages/core/src/messages",
   "packages/db/src",
   "packages/jobs/src",
+  "packages/log/src",
 ];
 
 /**
@@ -459,7 +466,6 @@ export const WIDE_PARAMS = [
   "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/calendar",
   "apps/dashboard/src/server/console",
-  "apps/dashboard/src/server/ports",
   "apps/dashboard/src/server/receptionist",
   "apps/dashboard/src/server/shared",
   "apps/dashboard/src/server/workspace",
@@ -575,7 +581,7 @@ export default [
     },
   },
   // The one module that is allowed to do what the block above forbids: the edge reads its environment here. Logging is
-  // not its own: the logger is packages/channels/src/log/logger.ts, the one place a line reaches stdout.
+  // not its own: the logger is packages/log/src/logger.ts, the one place a line reaches stdout.
   {
     files: ["apps/edge/lib/shared/env.ts"],
     rules: { "no-restricted-syntax": "off" },
@@ -592,11 +598,7 @@ export default [
       "apps/dashboard/app/auth/**/*.ts",
       "packages/*/src/**/*.ts",
     ],
-    ignores: [
-      "packages/channels/src/log/logger.ts",
-      "packages/db/src/shared/observe.ts",
-      "packages/db/src/realtime.ts",
-    ],
+    ignores: ["packages/log/src/logger.ts", "packages/db/src/shared/observe.ts", "packages/db/src/realtime.ts"],
     rules: { "no-console": "error" },
   },
 

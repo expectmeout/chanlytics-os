@@ -1,7 +1,7 @@
 /**
  * The session's workspaces (app/api/v1/workspaces): the tenants RLS shows the caller, plus who is actually signed in,
  * on the payload the seam already fetches at boot (the platform-admin flag, the partner account, an open handover, the
- * sign-up posture for an account in no workspace yet), and the active workspace chosen by memberContext's one rule with
+ * sign-up posture for an account in no workspace yet), and the active workspace chosen by getMemberContext's one rule with
  * the one degradation that keeps a stale preference from bricking the app, every read asked at once and weighed in the
  * order it depends; and the two fields of the tenant row a business owns, its zone and its word for a booking (0041 J4,
  * 00458). On a database a migration has not reached, the read is asked again without the newer column: either deploy
@@ -11,7 +11,12 @@
  * the list. The PATCH is its owner's: a forbidden UPDATE answers success with no rows in this stack, so the row count
  * is the permission check. The routes declare who may and how often.
  */
-import { memberContext, requireSecondFactor, type MemberContext, type RouteContext } from "@/server/shared/with-route";
+import {
+  getMemberContext,
+  requireSecondFactor,
+  type MemberContext,
+  type RouteContext,
+} from "@/server/shared/with-route";
 import {
   APPOINTMENT_WORD_REFUSAL,
   AppError,
@@ -24,13 +29,16 @@ import {
   workspaceLogoSrc,
   type AppointmentWord,
 } from "@chanlytics/contracts";
-import { emitEvent, getOpenHandovers, getOwnPartner, workspaceNamed } from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db/events";
+import { getOpenHandovers, getOwnPartner } from "@chanlytics/db/partners";
+import { findWorkspaceNamed } from "@chanlytics/db/workspace";
 import { serviceDb } from "@/server/shared/service-db";
-import { isPlatformAdmin } from "@/server/console/platform";
+import { isPlatformAdmin } from "@/server/shared/back-office";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
-import { settled } from "@/server/shared/lazy";
+import { readSettled } from "@/server/shared/lazy";
 import type { Member } from "@/server/shared/route";
+import { saysMissing } from "@chanlytics/db/shared";
 
 /** A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one. */
 interface WorkspaceRow {
@@ -68,7 +76,7 @@ const WORD_ANSWER = "id, slug, name, status, timezone, appointment_word";
 
 /** The error a read that names a newer column gets from a database the migration adding it has not reached. */
 const lacksNewer = (message: string): boolean =>
-  /\b(appointment_word|logo_path|accent)\b/.test(message) && /does not exist|could not find/i.test(message);
+  /\b(appointment_word|logo_path|accent)\b/.test(message) && saysMissing(message);
 
 /** A tenant row as any of the reads gives it. */
 interface TenantRead {
@@ -156,7 +164,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
     // logged and reads as none, because the boot must not fail for it.
     getOpenHandovers(supabase),
     rolesOf(supabase, userId),
-    settled(memberContext(ctx, preferred, { defaultAllowed: true })),
+    readSettled(getMemberContext(ctx, preferred, { defaultAllowed: true })),
   ]);
   if (tenants.error) throw new Error(tenants.error.message);
   const { data } = tenants;
@@ -166,7 +174,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   const partner = partnerRow ? { code: partnerRow.code, status: partnerRow.status } : null;
   // A partner account opens the app on a session that showed its second factor (0013, M3, no grace): the refusal
   // sends the tab to the second step, where an account with no authenticator sets one up. Their seats are refused
-  // on their own (memberContext) and hidden by the database (00218); this is the one place that says so at boot.
+  // on their own (getMemberContext) and hidden by the database (00218); this is the one place that says so at boot.
   if (partner) requireSecondFactor(ctx);
   if (open.error) log.error("handovers_unread", { error: open.error.slice(0, 200) });
   const handovers = open.handovers;
@@ -176,7 +184,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   // to report the role for `data[0]`, the name-sorted first tenant, while the
   // rest of the app defaulted to the oldest membership: for anyone in two
   // workspaces the chips could describe one business and the data another.
-  // memberContext owns that choice now, so there is one answer.
+  // getMemberContext owns that choice now, so there is one answer.
   //
   // A stale preference must not brick the app: the client remembers the last
   // workspace it was in, and someone removed from that workspace would send an
@@ -215,7 +223,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   const roleOf = new Map((mine.data ?? []).map((m) => [m.tenant_id, m.role]));
   const listed = data.map((w) => ({ ...w, role: roleOf.get(w.id) ?? null }));
 
-  // A STALE PREFERENCE, and nothing else. memberContext throws two things:
+  // A STALE PREFERENCE, and nothing else. getMemberContext throws two things:
   // an AppError("not_found") when the named workspace is not one of this
   // account's -- someone was removed from the workspace their tab remembers,
   // which is the degradation this fallback is for -- and a plain Error when
@@ -230,7 +238,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   else {
     const e = active.error;
     if (!preferred || !(e instanceof AppError) || e.code !== "not_found") throw e;
-    member = await memberContext(ctx, null, { defaultAllowed: true });
+    member = await getMemberContext(ctx, null, { defaultAllowed: true });
   }
   return {
     workspaces: listed,
@@ -276,8 +284,8 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
   // the row count IS the permission check. Without this an owner whose policy
   // or grant went missing would be told the zone was saved and see the old one
   // on the next read.
-  const what = zone ? "That workspace's timezone" : "What that workspace calls a booking";
-  if (!data?.length) throw new AppError("forbidden", `${what} could not be changed.`, 403);
+  const subject = zone ? "That workspace's timezone" : "What that workspace calls a booking";
+  if (!data?.length) throw new AppError("forbidden", `${subject} could not be changed.`, 403);
   // On the ledger as every other setting is (settings-write.ts): which of the two moved and who by, never the value.
   // They live on the tenant's row, not in its config, so a save of them left no trace. As the service role: a session
   // may not insert into events.
@@ -322,7 +330,7 @@ export async function renameWorkspace(
 ): Promise<{ from: string; to: string } | null> {
   const cleaned = cleanWorkspaceName(raw);
   if (!cleaned.ok) return null;
-  const was = await workspaceNamed(ctx.supabase, member.tenantId);
+  const was = await findWorkspaceNamed(ctx.supabase, member.tenantId);
   if (!was || was.name === cleaned.name) return null;
   const { data, error } = await writeOwnFields(ctx, member.tenantId, { name: cleaned.name });
   if (error) throw new Error(error.message);

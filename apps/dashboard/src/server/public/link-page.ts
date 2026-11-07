@@ -8,7 +8,8 @@ import "server-only";
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { accentOf, escapeHtml, workspaceLogoSrc } from "@chanlytics/contracts";
-import { workspaceLookOf, type Database } from "@chanlytics/db";
+import { findWorkspaceLook } from "@chanlytics/db/look";
+import { type Database } from "@chanlytics/db/types";
 import { env } from "@/server/shared/env";
 import { serviceDbIfConfigured } from "@/server/shared/service-db";
 
@@ -74,7 +75,7 @@ export const NO_LOOK: LinkPageLook = { business: null, logo_url: null, accent: n
  */
 export async function linkPageLookOf(db: SupabaseClient<Database>, tenantId: string): Promise<LinkPageLook> {
   try {
-    const row = await workspaceLookOf(db, tenantId);
+    const row = await findWorkspaceLook(db, tenantId);
     if (!row) return NO_LOOK;
     return {
       business: row.name,

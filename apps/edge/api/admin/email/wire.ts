@@ -17,9 +17,10 @@
 import { json, refuse } from "../../../lib/shared/http.js";
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { readBody } from "../../../lib/shared/admin-door.js";
-import { campaignsDomainVerified } from "../../../lib/email/campaigns-domain.js";
+import { findCampaignsDomainVerified } from "../../../lib/email/campaigns-domain.js";
 import { emailCanSend } from "../../../lib/email/email.js";
 import { adminDoor } from "../../../lib/shared/log.js";
+import { EMAIL_WIRE_DOOR } from "@chanlytics/contracts";
 
 interface EmailBody {
   op?: unknown;
@@ -28,8 +29,8 @@ interface EmailBody {
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/email/wire");
   if (!auth.ok) return auth.response;
-  const body = await readBody<EmailBody>(request);
+  const body = await readBody(request, EMAIL_WIRE_DOOR);
   if (body.op === "status")
-    return json(200, { ok: true, ready: emailCanSend(), offers: await campaignsDomainVerified() });
+    return json(200, { ok: true, ready: emailCanSend(), offers: await findCampaignsDomainVerified() });
   return refuse(400, "unknown_op");
 });

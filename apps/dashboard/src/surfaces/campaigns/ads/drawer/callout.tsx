@@ -7,7 +7,7 @@
  * under it. A press that asks the platform for something says so once it is pressed and cannot be pressed twice. The sentence
  * under it never changes shape.
  */
-import type { CalloutActId, CalloutVM } from "@chanlytics/contracts/ads-page";
+import type { CalloutActId, CalloutVM } from "../model/drawer/view";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";

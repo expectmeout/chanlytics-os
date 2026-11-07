@@ -3,7 +3,7 @@
  * playbook take an optional `channels` (whatsapp, sms, email; WhatsApp alone when none is named, as a campaign goes by
  * default), held to the same rules the composers' routes hold them to, never a second one:
  *
- *   a broadcast  core campaignHowOf (the route's own check): a channel the workspace cannot send on, whose message has no
+ *   a broadcast  core readCampaignHowOf (the route's own check): a channel the workspace cannot send on, whose message has no
  *                version, or that the purpose never carries is refused in the composers' words, before any count;
  *   a playbook   checkPlaybook (the route's own check): a channel its purpose never carries is refused; one the workspace
  *                cannot send on yet is kept, its runs holding those people until it can, and the card says so.
@@ -33,16 +33,11 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext, runTool, toApiTools } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
-const {
-  PROPOSAL_SPECS,
-  CHANNEL_WORDS,
-  NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
-  newCampaignChannels,
-  noVersionWords,
-  playbookChannelsRead,
-} = await import("@chanlytics/contracts");
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { CHANNEL_WORDS, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, newCampaignChannels, noVersionWords, playbookChannelsRead } =
+  await import("@chanlytics/contracts");
+const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 // The route a channels card's Approve and Undo call, run here as the app runs it: the card's own call is sent to it.
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const playbookRoute = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));
@@ -208,7 +203,7 @@ const real = globalThis.fetch;
 /** The edge answers `answer` from now on, and the dashboard's kept answer is the one it gives. */
 const edgeSays = async (answer) => {
   edge = answer;
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
 };
 beforeEach(async () => {
   readerCache.clear();
@@ -843,7 +838,7 @@ test("REGRESSION: a broadcast card quotes each channel's own words, named for th
 });
 
 test("a card whose version is not in hand is refused, never drawn as another channel's words", async () => {
-  // The route's own rule refuses it first (core campaignHowOf); the card holds the words as well: with the email row gone
+  // The route's own rule refuses it first (core readCampaignHowOf); the card holds the words as well: with the email row gone
   // from the rows the composers read, nothing is quoted under email's name.
   const gone = { templates: SAYING.templates.filter((r) => r.channel !== "email") };
   assert.equal(said(await propose({ ...SAY, channels: ["email"] }, gone)), "This message has no email version yet.");
@@ -1163,7 +1158,7 @@ test("a WhatsApp version in review is no longer lost to Ask: its message is list
 });
 
 test("Ask is told what a message is: a name with a version on each channel it is written for, sent on the channels it holds; its tools say to propose by the `channels` the listing gives, and none says one approved WhatsApp template", async () => {
-  const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
   const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
   assert.ok(ASK_DEFINITIONS.broadcast.startsWith("One message sent to the people on a list who said yes"));
   assert.ok(
@@ -1208,7 +1203,7 @@ test("Ask is told what a message is: a name with a version on each channel it is
 /* ---- The week's breath (spec §5.6): a broadcast card leaves out whoever heard this week, as the route does ---- */
 
 const HEARD_RUN = "88888888-8888-4888-8888-888888888881";
-/** A run sent two days ago to these people: who heard from a campaign or a broadcast this week (packages/db touchesSince). */
+/** A run sent two days ago to these people: who heard from a campaign or a broadcast this week (packages/db listTouchesSince). */
 const heardBy = (...people) => ({
   broadcasts: [
     {
@@ -1390,7 +1385,7 @@ test("a card leaves out nobody for a message due weeks ahead, and one due within
 test("a card scheduled ahead leaves out who hears from you within a week of it, and agrees with the route's own verb over the same world", async () => {
   const { allLeftOutWords, RECIPIENT_REASON_HEARD } = await import("@chanlytics/contracts");
   const { createBroadcast } = await import(at("packages/core/src/campaigns/create-broadcast.ts"));
-  const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"));
+  const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/campaigns/ports.ts"));
   // The first heard two days ago, the third five days ago: each its own run, made when it was sent.
   const run = (id, days, p) => ({
     broadcasts: [

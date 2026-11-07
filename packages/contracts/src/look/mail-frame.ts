@@ -3,7 +3,7 @@
  * head and its one dark rule, the line an inbox's list shows, the 560 px column, the white card and its one button are
  * this module's; the row above the card, the card's words and the row under it are the sender's. A business writes
  * to its customer on the letter (letter.ts, decision 0075), its logo and colour; Chanlytics writes to an owner on the
- * alert (notices/notice-mail.ts), its mark and coral. Table-built with inline styles, as inboxes draw mail; a dark
+ * alert (notices/mail.ts), its mark and coral. Table-built with inline styles, as inboxes draw mail; a dark
  * inbox reads the palette's dark side from the head's media rule. Every word and address given as words is escaped
  * here; the rows and the card come as HTML, escaped by the mail that drew them.
  */
@@ -42,19 +42,19 @@ interface FramedMail {
 }
 
 /** A designed email's HTML: the sender's rows and card in the one frame. */
-export function mailFrameHtml(f: FramedMail): string {
+export function mailFrameHtml(framedMail: FramedMail): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
-<title>${escapeHtml(f.subject)}</title><style>${darkRule(f.dark)}</style></head>
+<title>${escapeHtml(framedMail.subject)}</title><style>${darkRule(framedMail.dark)}</style></head>
 <body class="bg" style="margin:0;padding:0;background:#f6f7fa">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(f.preview)}</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(framedMail.preview)}</div>
 <table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7fa;font-family:${FONT}"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" class="wrap" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px">
-${f.top}
+${framedMail.top}
 <tr><td class="card pad" style="background:#ffffff;border:1px solid ${LINE};border-radius:14px;padding:26px 28px">
-${f.card}
+${framedMail.card}
 </td></tr>
-${f.foot}
+${framedMail.foot}
 </table></td></tr></table></body></html>`;
 }

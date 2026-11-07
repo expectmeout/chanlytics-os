@@ -13,7 +13,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { REFERRAL_ID_MAX } from "@chanlytics/contracts";
+import { REFERRAL_ID_MAX } from "../../packages/channels/src/whatsapp/first-touch.ts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

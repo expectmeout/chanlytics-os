@@ -2,7 +2,7 @@ import { z } from "zod";
 import { FILE_GOOGLE_WORDS_MAX } from "@chanlytics/contracts";
 import { write } from "@/server/shared/route";
 import { fileScope } from "@/server/files/file";
-import { postFileToGoogle, takeFileOffGoogle } from "@/server/files/post/google";
+import { postFileToGoogle, takeFileOffGoogle } from "@/server/posts/google";
 
 /**
  * POST /api/v1/files/:id/google — `{ summary }`: a kept post goes on the business's Google profile, in the business's name, with those
@@ -11,7 +11,7 @@ import { postFileToGoogle, takeFileOffGoogle } from "@/server/files/post/google"
  *
  * DELETE — `{ name }`: that post comes off the profile. It stays in Files.
  *
- * The handles are in src/server/files/post/google.ts.
+ * The handles are in src/server/posts/google.ts.
  */
 export const POST = write({
   scope: fileScope,

@@ -11,8 +11,8 @@
  * Texting is deliberately the honest one: until the carriers approve a real
  * registration it is not sold, and this says so rather than "not yet".
  */
-import type { SetupDto } from "./setup";
-import { lineCredentialFailure } from "../lines/line-failure";
+import type { SetupDto } from "./lines";
+import { lineCredentialFailure } from "../lines/failure";
 import { agoWords } from "../shared/time";
 
 export const CAPABILITY_KINDS = ["voice", "whatsapp", "sms"] as const;
@@ -66,17 +66,21 @@ const factsMissing = (i: CapabilityInputs): CapabilityBlocker | null =>
       }
     : null;
 
-export function capabilityStatus(kind: CapabilityKind, i: CapabilityInputs, nowMs = Date.now()): CapabilityStatus {
+export function capabilityStatus(
+  kind: CapabilityKind,
+  capabilityInputs: CapabilityInputs,
+  nowMs = Date.now(),
+): CapabilityStatus {
   const blockers: CapabilityBlocker[] = [];
   let tested: CapabilityStatus["tested"] = null;
 
   if (kind === "voice") {
-    const v = i.channels.voice;
-    const own = i.lines?.rows.find((l) => l.provider !== "carrier") ?? null;
-    if (v.present && v.active) {
-      const f = factsMissing(i);
+    const voice = capabilityInputs.channels.voice;
+    const own = capabilityInputs.lines?.rows.find((l) => l.provider !== "carrier") ?? null;
+    if (voice.present && voice.active) {
+      const f = factsMissing(capabilityInputs);
       if (f) blockers.push(f);
-    } else if (v.present) {
+    } else if (voice.present) {
       blockers.push({ code: "channel_off", words: "Your line is switched off." });
     } else if (own && own.voice_state === "provisioning") {
       blockers.push({ code: "line_provisioning", words: "Your line is being set up; it answers the moment it is." });
@@ -94,23 +98,23 @@ export function capabilityStatus(kind: CapabilityKind, i: CapabilityInputs, nowM
     } else {
       blockers.push({ code: "no_line", words: "No line yet: get a number, or keep the one you have." });
     }
-    if (v.lastInboundAt) tested = { at: v.lastInboundAt, what: "a call was answered" };
+    if (voice.lastInboundAt) tested = { at: voice.lastInboundAt, what: "a call was answered" };
   } else if (kind === "whatsapp") {
-    const w = i.channels.whatsapp;
-    if (w.present && w.active) {
-      const t = i.templates;
+    const whatsapp = capabilityInputs.channels.whatsapp;
+    if (whatsapp.present && whatsapp.active) {
+      const t = capabilityInputs.templates;
       if (t.approved === 0 && t.pending > 0)
         blockers.push({ code: "meta_waiting", words: "Your first messages are with Meta for approval." });
-      const f = factsMissing(i);
+      const f = factsMissing(capabilityInputs);
       if (f) blockers.push(f);
-    } else if (w.present) {
+    } else if (whatsapp.present) {
       blockers.push({ code: "channel_off", words: "Your WhatsApp number is connected but switched off." });
     } else {
       blockers.push({ code: "not_connected", words: "Connect the WhatsApp number customers write to." });
     }
-    if (w.lastInboundAt) tested = { at: w.lastInboundAt, what: "a message was answered" };
+    if (whatsapp.lastInboundAt) tested = { at: whatsapp.lastInboundAt, what: "a message was answered" };
   } else {
-    const line = i.lines?.rows.find((l) => l.sms_state === "active" && !l.reg_mock) ?? null;
+    const line = capabilityInputs.lines?.rows.find((l) => l.sms_state === "active" && !l.reg_mock) ?? null;
     if (!line)
       blockers.push({
         code: "texting_not_sold",
@@ -119,7 +123,7 @@ export function capabilityStatus(kind: CapabilityKind, i: CapabilityInputs, nowM
   }
 
   const ready = blockers.length === 0;
-  const activated = activationOf(i, kind);
+  const activated = activationOf(capabilityInputs, kind);
   const live = ready && !!tested && !!activated;
   const words = live
     ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.`

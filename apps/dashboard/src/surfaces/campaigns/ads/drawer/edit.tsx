@@ -5,7 +5,8 @@
  * what a change of the form or of a Google ad in review does. Nothing here is sent: Save keeps the draft in the browser.
  */
 import type { AdCopy, AdRead } from "@chanlytics/contracts";
-import { CHIPS, DRAWER, EDIT, NEW_AD } from "@chanlytics/contracts/ads-page";
+import { CHIPS, DRAWER, EDIT } from "../model/drawer/words";
+import { NEW_AD } from "../model/words-new";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";

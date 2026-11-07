@@ -11,7 +11,7 @@ import "server-only";
  *
  * Cross-workspace: the Console's own log; written and read through the service role backOffice(ctx) hands out.
  */
-import { finishAct, listActs, startAct } from "@chanlytics/db";
+import { finishAct, listActs, startAct } from "@chanlytics/db/console";
 import {
   ACT_LOG_PAGE,
   ACT_OUTCOMES,
@@ -28,8 +28,9 @@ import {
   type ConsoleWhy,
   type PlatformActDto,
 } from "@chanlytics/contracts";
-import type { BackOffice } from "./platform";
+import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
+import { NOT_RECORDED } from "@/server/console/words";
 
 /** What an act is taken on, and why. */
 interface ActOn {
@@ -53,8 +54,6 @@ interface ActVerdict {
 function requireStaff(office: BackOffice, act: ConsoleAct): void {
   if (!staffMay(office.role, act)) throw new AppError("forbidden", staffCannotWords(office.role, act), 403);
 }
-
-const NOT_RECORDED = "That could not be recorded, so it was not done. Try again in a moment.";
 
 /**
  * What the log keeps of a throw: our own words when it is ours (an AppError), else a line that points to the server's
@@ -113,38 +112,38 @@ export async function takeAct<T>(
 /** How many rows the CSV holds: more than a page, for the record. */
 const LOG_CSV = 2000;
 
-const inSet = <T extends string>(set: readonly T[], v: unknown, fallback: T): T =>
+export const inSet = <T extends string>(set: readonly T[], v: unknown, fallback: T): T =>
   (set as readonly unknown[]).includes(v) ? (v as T) : fallback;
 
 /** A page of the log, as the contracts read it: one person's or everyone's, one workspace's or all, older than `before`. */
-export async function consoleActs(
+export async function listConsoleActs(
   office: BackOffice,
-  q: { who?: string; tenantId?: string; before?: string; csv?: boolean },
+  input: { who?: string; tenantId?: string; before?: string; csv?: boolean },
 ): Promise<PlatformActDto[]> {
   const { data, error } = await listActs(office.db, {
-    ...(q.who ? { who: q.who } : {}),
-    ...(q.tenantId ? { tenantId: q.tenantId } : {}),
-    ...(q.before ? { before: q.before } : {}),
-    limit: q.csv ? LOG_CSV : ACT_LOG_PAGE,
+    ...(input.who ? { who: input.who } : {}),
+    ...(input.tenantId ? { tenantId: input.tenantId } : {}),
+    ...(input.before ? { before: input.before } : {}),
+    limit: input.csv ? LOG_CSV : ACT_LOG_PAGE,
   });
   if (error) throw new AppError("internal", "The log could not be read just now. Try again in a moment.", 503);
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    at: r.at,
-    actor_id: r.actor_id,
-    actor_email: r.actor_email,
-    actor_role: inSet(STAFF_ROLES, r.actor_role, "support"),
-    act: inSet(CONSOLE_ACT_KEYS, r.act, r.act as ConsoleAct),
-    tenant_id: r.tenant_id,
-    slug: r.tenant?.slug ?? null,
-    name: r.tenant?.name ?? null,
-    target_kind: inSet(ACT_TARGETS, r.target_kind, "platform"),
-    target_id: r.target_id,
-    reason_kind: inSet(REASON_KINDS, r.reason_kind, "found"),
-    ticket: r.ticket,
-    note: r.note,
-    outcome: inSet(ACT_OUTCOMES, r.outcome, "failed"),
-    outcome_note: r.outcome_note,
-    finished_at: r.finished_at,
+  return (data ?? []).map((items) => ({
+    id: items.id,
+    at: items.at,
+    actor_id: items.actor_id,
+    actor_email: items.actor_email,
+    actor_role: inSet(STAFF_ROLES, items.actor_role, "support"),
+    act: inSet(CONSOLE_ACT_KEYS, items.act, items.act as ConsoleAct),
+    tenant_id: items.tenant_id,
+    slug: items.tenant?.slug ?? null,
+    name: items.tenant?.name ?? null,
+    target_kind: inSet(ACT_TARGETS, items.target_kind, "platform"),
+    target_id: items.target_id,
+    reason_kind: inSet(REASON_KINDS, items.reason_kind, "found"),
+    ticket: items.ticket,
+    note: items.note,
+    outcome: inSet(ACT_OUTCOMES, items.outcome, "failed"),
+    outcome_note: items.outcome_note,
+    finished_at: items.finished_at,
   }));
 }

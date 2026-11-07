@@ -8,7 +8,7 @@
  * a tool's input: it is read from the row of the workspace asking. Nothing here knows a row. It runs on the Messages
  * API's own version, which the run proved. Upload and delete are free; a file costs its tokens where it is read.
  */
-import { answerObject, providerFetch, type ProviderReply } from "../shared/provider-fetch";
+import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 import type { ModelDeps } from "./anthropic";
 
 const FILES_URL = "https://api.anthropic.com/v1/files";
@@ -31,22 +31,22 @@ export async function uploadClaudeFile(
   const form = new FormData();
   form.append("file", new Blob([file.bytes.slice()], { type: file.mime }), file.name);
   form.append("expires_in_seconds", String(file.expiresInSeconds));
-  const a = await providerFetch(
+  const response = await fetchFromProvider(
     "anthropic",
     FILES_URL,
     { method: "POST", headers: fileHeaders(key), body: form, timeoutMs: FILE_TRY_MS },
     deps,
   );
-  if (a.outcome !== "ok") return { ok: false, error: failureWords(a) };
-  const j = answerObject(a);
-  if (!j || typeof j.id !== "string" || !j.id.startsWith("file_"))
+  if (response.outcome !== "ok") return { ok: false, error: failureWords(response) };
+  const result = answerObject(response);
+  if (!result || typeof result.id !== "string" || !result.id.startsWith("file_"))
     return { ok: false, error: "the answer named no file" };
-  return { ok: true, id: j.id, expiresAt: typeof j.expires_at === "string" ? j.expires_at : null };
+  return { ok: true, id: result.id, expiresAt: typeof result.expires_at === "string" ? result.expires_at : null };
 }
 
 /** Whether the copy is gone: deleted now, or already (a 404, or past its expiry). */
 export async function deleteClaudeFile(key: string, id: string, deps: ModelDeps = {}): Promise<boolean> {
-  const a = await providerFetch(
+  const a = await fetchFromProvider(
     "anthropic",
     `${FILES_URL}/${encodeURIComponent(id)}`,
     { method: "DELETE", headers: fileHeaders(key), timeoutMs: FILE_TRY_MS, idempotent: true, tries: 2 },

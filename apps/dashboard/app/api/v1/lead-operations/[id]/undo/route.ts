@@ -22,13 +22,15 @@ export const POST = write({
     const opId = requireUuid(ctx.params.id, "operation");
     const { data, error } = await ctx.supabase.rpc("lead_undo", { p_op_id: opId, p_version: input.version });
     if (error) throw new Error(`lead_undo: ${error.message}`);
-    const a = answerOf(data);
-    const refused = refusalOf(a);
+    const answer = answerOf(data);
+    const refused = refusalOf(answer);
     if (refused) throw refused;
     return {
       op_id: opId,
       undone: true,
-      ...(typeof a.taken === "number" ? { taken: a.taken, leaving: a.leaving ?? 0, sent: a.sent ?? 0 } : {}),
+      ...(typeof answer.taken === "number"
+        ? { taken: answer.taken, leaving: answer.leaving ?? 0, sent: answer.sent ?? 0 }
+        : {}),
     };
   },
 });

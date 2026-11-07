@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/shared/route";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { leadEmails } from "@/server/readers/leads";
 import { requireUuid } from "@/server/shared/request-guards";
 

@@ -17,15 +17,18 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
+import { moneyOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/money.ts";
+import { FIGURES, PHONE } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
+import { dayWord } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 
-const page = await import("@chanlytics/contracts/ads-page");
 const { EXAMPLE_READS, withAccount } = await import("../../apps/dashboard/src/surfaces/campaigns/ads/examples.ts");
 const { CONFIG, SPRING, NEAR_ME, SATURDAY, WEEKEND, OLD_BOOST, dailyRows, NEAR_ME_ROWS } =
   await import("../../apps/dashboard/src/surfaces/campaigns/ads/sample.ts");
 const { makeVerbs } = await import("../../apps/dashboard/src/surfaces/campaigns/ads/store.ts");
 const keys = await import("../../apps/dashboard/src/surfaces/campaigns/parts/ledger-keys.ts");
 
-const model = (example, by) => page.adsModel(EXAMPLE_READS[example](), CONFIG, by);
+const model = (example, by) => adsModel(EXAMPLE_READS[example](), CONFIG, by);
 const rowsOf = (vm) => vm.groups.flatMap((g) => g.rows);
 const rowOf = (vm, id) => rowsOf(vm).find((r) => r.id === id);
 const world = (read) => {
@@ -67,7 +70,7 @@ test("finished: ended and finished rows keep their second lines, and the figures
   const spent = read.ads
     .flatMap((ad) => ad.days.filter((d) => d.day >= read.window.from && d.day <= read.window.to))
     .reduce((all, d) => all + d.spendMinor, 0);
-  assert.equal(vm.figures[0].value, page.moneyOf(spent, "USD"), "Spent counts the ended ads' days");
+  assert.equal(vm.figures[0].value, moneyOf(spent, "USD"), "Spent counts the ended ads' days");
   // They come last in their group, after what is on.
   const whatsapp = vm.groups.find((g) => g.key === "whatsapp");
   assert.equal(whatsapp?.rows.at(-1)?.state.word === "Paused" || whatsapp?.rows.at(-1)?.state.word === "Ended", true);
@@ -77,16 +80,16 @@ test("no-calendar: Booked is a dash that says why, with a door to where the link
   const vm = model("no-calendar");
   const booked = vm.figures.find((f) => f.id === "booked");
   assert.equal(booked?.value, "—");
-  assert.equal(booked?.meta, page.FIGURES.needsLink);
+  assert.equal(booked?.meta, FIGURES.needsLink);
   assert.deepEqual(vm.link, { words: "Open Settings › Hours & booking", to: "admin/workspace/calendar" });
   assert.equal(vm.figures.find((f) => f.id === "each")?.label, "For each person in touch");
   const spring = rowOf(vm, SPRING);
   assert.deepEqual([spring.booked.value, spring.each.value], ["—", "—"]);
-  assert.equal(spring.booked.why, page.FIGURES.needsLink);
+  assert.equal(spring.booked.why, FIGURES.needsLink);
   assert.equal(model("running").link, null, "a linked calendar needs no door");
   // What came back says the same, and draws no zero: it is not a count where no calendar can say who booked.
   assert.deepEqual([vm.tiles?.cameBack.linked, vm.tiles?.cameBack.rows, vm.tiles?.cameBack.line], [false, [], null]);
-  assert.equal(vm.tiles?.cameBack.nudge, page.FIGURES.needsLink);
+  assert.equal(vm.tiles?.cameBack.nudge, FIGURES.needsLink);
   assert.equal(model("running").tiles?.cameBack.linked, true);
 });
 
@@ -150,7 +153,7 @@ test("no-ads: the first ad's card waits on the payment need, with the door that 
 
 test("choose: the card lists the choices with their currency, and choosing makes the account the connected one", () => {
   const w = world(EXAMPLE_READS.choose());
-  const before = page.adsModel(w.read, CONFIG);
+  const before = adsModel(w.read, CONFIG);
   assert.equal(before.noAds?.choose.length, 1);
   const card = before.noAds?.choose[0];
   assert.equal(card?.title, "Choose your Meta ad account");
@@ -167,7 +170,7 @@ test("choose: the card lists the choices with their currency, and choosing makes
   const meta = w.read.accounts.find((a) => a.platform === "meta");
   assert.deepEqual([meta?.status, meta?.name, meta?.currency], ["connected", "Harbor Studio UK", "GBP"]);
   // The page moves on to the first ad's card, in the account's currency, stopped by the payment method.
-  const after = page.adsModel(w.read, CONFIG);
+  const after = adsModel(w.read, CONFIG);
   assert.deepEqual(after.noAds?.choose, []);
   assert.match(after.noAds?.line ?? "", /£10 a day for 7 days · up to £70$/);
   assert.match(after.noAds?.blocked?.text ?? "", /Add a payment method in Meta/);
@@ -219,7 +222,7 @@ test("failed: a line says it could not be read and as of when; that platform's r
   assert.match(vm.figures[0].meta ?? "", /^across 4 ads · Meta as of Sat 6 PM$/);
   // Read again: the failed line goes with the failure.
   const read = withAccount(EXAMPLE_READS.failed(), "meta", { read: "ok" });
-  assert.deepEqual(page.adsModel(read, CONFIG).failed, []);
+  assert.deepEqual(adsModel(read, CONFIG).failed, []);
   assert.deepEqual(model("running").failed, []);
 });
 
@@ -234,7 +237,7 @@ test("doors: a waiting person opens their conversation, else their page; the pho
     [vm.phone?.needs, vm.phone?.names, vm.phone?.since],
     ["2 people from your ads are waiting on you", "Jordan P. · Amy G.", "6 days"],
   );
-  assert.equal(page.PHONE.names(["A", "B", "C", "D"]), "A · B · 2 more");
+  assert.equal(PHONE.names(["A", "B", "C", "D"]), "A · B · 2 more");
 });
 
 test("the counted popover says how long it is kept, and calls are Google's count", () => {
@@ -259,7 +262,7 @@ test("ask: a TikTok total changes by at most 30% at a time, Google's covers at m
     ]),
   };
   const withTikTok = { ...read, ads: [tiktok] };
-  const ask = page.adsModel(withTikTok, CONFIG).ask;
+  const ask = adsModel(withTikTok, CONFIG).ask;
   assert.equal(ask?.kind, "extend");
   const total = tiktok.budget.amountMinor;
   assert.equal(ask?.apply?.kind, "extend");
@@ -269,17 +272,16 @@ test("ask: a TikTok total changes by at most 30% at a time, Google's covers at m
   // Google: a 30-day total may be extended by 30 days (60 of the 90), but not past the 90.
   const near = read.ads.find((ad) => ad.id === NEAR_ME);
   const long = { ...near, startDay: "2026-07-20", days: dailyRows("2026-09-13", NEAR_ME_ROWS) };
-  const longAsk = page.adsModel({ ...read, ads: [long] }, CONFIG).ask;
+  const longAsk = adsModel({ ...read, ads: [long] }, CONFIG).ask;
   assert.equal(longAsk?.kind, "extend");
   const end = longAsk?.apply?.kind === "extend" ? longAsk.apply.endDay : "";
   assert.ok(
-    page.dayWord(end) &&
-      (Date.parse(`${end}T12:00:00Z`) - Date.parse(`${long.startDay}T12:00:00Z`)) / 86_400_000 + 1 <= 90,
+    dayWord(end) && (Date.parse(`${end}T12:00:00Z`) - Date.parse(`${long.startDay}T12:00:00Z`)) / 86_400_000 + 1 <= 90,
     "Google's total covers at most 90 days",
   );
   // A Google ad already at 90 days is not offered more.
   const full = { ...long, startDay: "2026-07-14" };
-  assert.equal(page.adsModel({ ...read, ads: [full] }, CONFIG).ask, null);
+  assert.equal(adsModel({ ...read, ads: [full] }, CONFIG).ask, null);
 });
 
 test("ask: a move changes both ads by the step, says nothing it did not do, and Undo puts both back", () => {
@@ -292,7 +294,7 @@ test("ask: a move changes both ads by the step, says nothing it did not do, and 
     days: spring.days.map((d) => ({ ...d, spendMinor: d.spendMinor * 2 })),
   };
   const w = world({ ...read, ads: [spring, dear] });
-  const ask = page.adsModel(w.read, CONFIG).ask;
+  const ask = adsModel(w.read, CONFIG).ask;
   assert.equal(ask?.kind, "move");
   assert.equal(ask?.apply?.kind, "move");
   const verbs = makeVerbs(w, CONFIG);
@@ -316,7 +318,7 @@ test("ask: a move changes both ads by the step, says nothing it did not do, and 
   );
   // TikTok's rule: a step of $5 is more than 30% of a $10 day, so no move is proposed on it.
   const small = { ...dear, platform: "tiktok", aboutADayMinor: 1000 };
-  assert.equal(page.adsModel({ ...read, ads: [spring, small] }, CONFIG).ask, null);
+  assert.equal(adsModel({ ...read, ads: [spring, small] }, CONFIG).ask, null);
 });
 
 test("an amount that changes keeps the day it did; a change of anything else does not", () => {

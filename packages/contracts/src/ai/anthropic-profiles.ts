@@ -10,13 +10,13 @@
  *              other workspace that person runs. A business's customer has no profile: no sign-up, nothing to erase.
  *   ours       no workspace at all: the platform's own, and the one way a request goes with no profile by decision.
  *
- * Each purpose's route says which it is (ai/models.ts `attributed`), so a purpose cannot be added without the decision.
+ * Each purpose's route says which it is (ai/models/routes.ts `attributed`), so a purpose cannot be added without the decision.
  *
  * A profile that is anything but unrestricted pauses its subject's calls here, before they leave: a paused person or
  * workspace is never sent on with no profile, or under another's, which would hand their traffic to the whole organization.
  */
 import type { AnthropicProfileKind } from "./anthropic-enforcement";
-import { modelRoute, type ModelPurpose } from "./models";
+import { modelRoute, type ModelPurpose } from "./models/routes";
 
 /** Whom a call is for. */
 export type ModelSubject =
@@ -28,11 +28,11 @@ export type ModelSubject =
  */
 export function modelSubjectOf(
   purpose: ModelPurpose,
-  who: { tenantId: string | null; userId?: string | null },
+  personName: { tenantId: string | null; userId?: string | null },
 ): ModelSubject {
-  const person = who.userId ? ({ kind: "person", userId: who.userId } as const) : null;
+  const person = personName.userId ? ({ kind: "person", userId: personName.userId } as const) : null;
   if (person && modelRoute(purpose).attributed === "person") return person;
-  if (who.tenantId) return { kind: "workspace", tenantId: who.tenantId };
+  if (personName.tenantId) return { kind: "workspace", tenantId: personName.tenantId };
   return person ?? { kind: "ours" };
 }
 
@@ -40,10 +40,12 @@ export function modelSubjectOf(
 export type ProfiledSubject = Exclude<ModelSubject, { kind: "ours" }>;
 
 /** The subject's id, whichever kind it is. */
-export const subjectIdOf = (s: ProfiledSubject): string => (s.kind === "person" ? s.userId : s.tenantId);
+export const subjectIdOf = (profiledSubject: ProfiledSubject): string =>
+  profiledSubject.kind === "person" ? profiledSubject.userId : profiledSubject.tenantId;
 
 /** How a profile names its subject (reference_id): stable, ours, and what finds a create whose answer was lost. */
-export const profileReferenceOf = (s: ProfiledSubject): string => `${s.kind}:${subjectIdOf(s)}`;
+export const profileReferenceOf = (profiledSubject: ProfiledSubject): string =>
+  `${profiledSubject.kind}:${subjectIdOf(profiledSubject)}`;
 
 /**
  * What a create is told, and nothing more: no name, no address and no hash of one, no words, nothing we would have to keep

@@ -102,6 +102,9 @@ importers:
       '@chanlytics/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@chanlytics/log':
+        specifier: workspace:*
+        version: link:../../packages/log
       '@elevenlabs/client':
         specifier: 1.30.0
         version: 1.30.0(@types/dom-mediacapture-record@1.0.22)
@@ -196,6 +199,9 @@ importers:
       '@chanlytics/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@chanlytics/log':
+        specifier: workspace:*
+        version: link:../../packages/log
       '@supabase/supabase-js':
         specifier: ^2.118.0
         version: 2.118.0
@@ -345,6 +351,9 @@ importers:
       '@chanlytics/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@chanlytics/log':
+        specifier: workspace:*
+        version: link:../log
       html-to-text:
         specifier: ^9.0.5
         version: 9.0.5
@@ -380,6 +389,9 @@ importers:
       '@chanlytics/db':
         specifier: workspace:*
         version: link:../db
+      '@chanlytics/log':
+        specifier: workspace:*
+        version: link:../log
       '@supabase/supabase-js':
         specifier: ^2.118.0
         version: 2.118.0
@@ -421,9 +433,17 @@ importers:
       '@chanlytics/db':
         specifier: workspace:*
         version: link:../db
+      '@chanlytics/log':
+        specifier: workspace:*
+        version: link:../log
       '@supabase/supabase-js':
         specifier: ^2.118.0
         version: 2.118.0
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+  packages/log:
     devDependencies:
       typescript:
         specifier: 'catalog:'

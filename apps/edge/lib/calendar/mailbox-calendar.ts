@@ -1,6 +1,6 @@
 /**
  * The calendar a connected mailbox's grant reads (decision 0073, R20), as the workspace's calendar feed: every calendar
- * of the account (channels googleCalendarIds, graphCalendarIds) over the window a read asks for, each occurrence apart,
+ * of the account (channels listGoogleCalendarIds, listGraphCalendarIds) over the window a read asks for, each occurrence apart,
  * written out as iCal (channels calendarIcs) so the openings, a caller's visits and the hourly sweep read it as they read
  * a link (availability.ts fetchFeed hands this text where the feed's key is a grant's: contracts mailboxCalendarOf).
  *
@@ -13,20 +13,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   calendarIcs,
-  googleCalendarIds,
-  googleEvents,
+  listGoogleCalendarIds,
+  listGoogleEvents,
   grantHolds,
-  graphCalendarIds,
-  graphEvents,
+  listGraphCalendarIds,
+  listGraphEvents,
   type CalendarEvent,
   type EventsPage,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import { DAY_MS, UUID, parseTenantConfig, seasonHorizon, type FeedHorizon } from "@chanlytics/contracts";
-import { getTenantConfig, mailboxConnectionOf, type Database } from "@chanlytics/db";
+import { getTenantConfig } from "@chanlytics/db/workspace";
+import { findMailboxConnection } from "@chanlytics/db/email";
+import { type Database } from "@chanlytics/db/types";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
-import { tokenFor } from "../email/mailbox/credentials.js";
+import { getToken } from "../email/mailbox/credentials.js";
 import { markSignedOut } from "../email/mailbox/wire.js";
 import { logger } from "../shared/log.js";
 
@@ -40,49 +42,50 @@ const PAGES_PER_CALENDAR = 20;
  * are asked page by page; one calendar that cannot be read leaves the feed unread rather than half, since a feed missing
  * a calendar would offer its taken times as open.
  */
-export async function mailboxCalendarText(
+export async function findMailboxCalendarText(
   db: Db,
   tenantId: string,
   mailboxId: string,
   window: FeedHorizon,
 ): Promise<string | null> {
-  const L = logger({ tenant_id: tenantId });
-  const row = await mailboxConnectionOf(db, tenantId, mailboxId);
+  const log = logger({ tenant_id: tenantId });
+  const row = await findMailboxConnection(db, tenantId, mailboxId);
   if (!row || row.state === "removed" || row.state === "reconnect") return null;
   const provider = row.provider === "microsoft" ? "microsoft" : "google";
   if (!grantHolds(provider, row.scopes ?? [], "calendar")) {
-    L.warn("mailbox_calendar_unreadable", { mailbox: row.id, why: "not_granted" });
+    log.warn("mailbox_calendar_unreadable", { mailbox: row.id, why: "not_granted" });
     return null;
   }
-  const t = await tokenFor(db, row, Date.now());
-  if (!t.ok) {
-    if (t.why === "signed_out") await markSignedOut(db, row, L, Date.now());
-    L.warn("mailbox_calendar_unreadable", { mailbox: row.id, why: t.why });
+  const token = await getToken(db, row, Date.now());
+  if (!token.ok) {
+    if (token.why === "signed_out") await markSignedOut(db, row, log, Date.now());
+    log.warn("mailbox_calendar_unreadable", { mailbox: row.id, why: token.why });
     return null;
   }
-  const ids = provider === "microsoft" ? await graphCalendarIds(t.token) : await googleCalendarIds(t.token);
+  const ids =
+    provider === "microsoft" ? await listGraphCalendarIds(token.token) : await listGoogleCalendarIds(token.token);
   if (!ids.ok) {
-    L.warn("mailbox_calendar_unreadable", { mailbox: row.id, why: "calendars", status: ids.reply.status });
+    log.warn("mailbox_calendar_unreadable", { mailbox: row.id, why: "calendars", status: ids.reply.status });
     return null;
   }
   const span = { from: new Date(window.from).toISOString(), to: new Date(window.to).toISOString() };
   const events: CalendarEvent[] = [];
   for (const id of ids.ids) {
     let page: string | null = null;
-    for (let i = 0; i < PAGES_PER_CALENDAR; i++) {
-      const got: EventsPage =
+    for (let index = 0; index < PAGES_PER_CALENDAR; index++) {
+      const result: EventsPage =
         provider === "microsoft"
-          ? await graphEvents(t.token, id, span, page)
-          : await googleEvents(t.token, id, span, page);
-      if (!got.ok) {
-        L.warn("mailbox_calendar_unreadable", { mailbox: row.id, why: "events", status: got.reply.status });
+          ? await listGraphEvents(token.token, id, span, page)
+          : await listGoogleEvents(token.token, id, span, page);
+      if (!result.ok) {
+        log.warn("mailbox_calendar_unreadable", { mailbox: row.id, why: "events", status: result.reply.status });
         return null;
       }
-      events.push(...got.events);
-      page = got.next;
+      events.push(...result.events);
+      page = result.next;
       if (!page) break;
-      if (i === PAGES_PER_CALENDAR - 1)
-        L.warn("mailbox_calendar_truncated", { mailbox: row.id, events: events.length });
+      if (index === PAGES_PER_CALENDAR - 1)
+        log.warn("mailbox_calendar_truncated", { mailbox: row.id, events: events.length });
     }
   }
   return calendarIcs(events);
@@ -93,7 +96,7 @@ const FEED_SPAN_MAX_MS = 550 * DAY_MS;
 
 /**
  * POST /api/admin/calendar/feed: the calendar a workspace reads through its mailbox's grant, as iCal, for the dashboard,
- * which holds no grant (the Calendar, a person's visits, Ask's openings: server/ask/openings.ts loadFeed). The window is
+ * which holds no grant (the Calendar, a person's visits, Ask's openings: server/calendar/openings.ts loadFeed). The window is
  * the caller's (a season's, clamped), else the season; only the grant the workspace's settings name is read.
  */
 export async function grantFeedFor(
@@ -112,7 +115,10 @@ export async function grantFeedFor(
   const season = seasonHorizon(new Date(), cfg?.brain?.profile?.booking_rules?.max_days_ahead ?? 0);
   const from = typeof body.from === "number" && Number.isFinite(body.from) ? body.from : season.from;
   const to = typeof body.to === "number" && Number.isFinite(body.to) && body.to > from ? body.to : season.to;
-  const text = await mailboxCalendarText(db, tenantId, mailboxId, { from, to: Math.min(to, from + FEED_SPAN_MAX_MS) });
+  const text = await findMailboxCalendarText(db, tenantId, mailboxId, {
+    from,
+    to: Math.min(to, from + FEED_SPAN_MAX_MS),
+  });
   if (text === null) return refuse(502, "unreadable", "the calendar could not be read through the mailbox now");
   return json(200, { ok: true, text });
 }

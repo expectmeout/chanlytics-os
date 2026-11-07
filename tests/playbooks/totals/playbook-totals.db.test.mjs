@@ -1,7 +1,7 @@
 /**
  * A playbook's totals, a run's counts and a message's sends, counted where they are (00374), proved against seeded
  * truth on a real Postgres -- never against the fold they replace, which is wrong past its caps and for a thread two
- * people on one run share (apps/dashboard/src/server/campaigns/broadcasts.ts countRecipients):
+ * people on one run share (apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts countRecipients):
  *
  *   1. A salon (A) whose numbers the fold counts right: three moment playbooks and a reach-out chain; forty runs of
  *      Win-back across every state, one waiting; skipped and failed people, a failed one with a message; replies inside
@@ -32,7 +32,8 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { REPLY_WINDOW_MS, isPlaybookTotalsDto, isReplyTo, runCountsOf, templateSendsOf } from "@chanlytics/contracts";
+import { REPLY_WINDOW_MS, isReplyTo, runCountsOf, templateSendsOf } from "@chanlytics/contracts";
+import { isPlaybookTotalsDto } from "../../../apps/dashboard/src/server/campaigns/lifecycle/totals.ts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -55,7 +56,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= URL_ ?? "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const P = await import(at("apps/dashboard/src/server/campaigns/playbooks.ts"));
-const Bc = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
+const Bc = await import(at("apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts"));
 
 /**
  * The session client as a database before 00374 answers it: the named functions are not there (PostgREST's PGRST202),

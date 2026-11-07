@@ -3,8 +3,8 @@
  * the figures, the days, the platform and door tables and what came of the bookings are drawn by the parts the Results sheet
  * draws too (campaigns/ads/results/results-parts.tsx). Every row, cell and sentence is the fold's (contracts `adsResultsOf`).
  */
-import { RESULTS } from "@chanlytics/contracts/ads-page";
-import type { AdsResultsVM, ResultsStepVM, ResultsTheirsVM } from "@chanlytics/contracts/ads-page";
+import { RESULTS } from "@/surfaces/campaigns/ads/results/words";
+import type { AdsResultsVM, ResultsStepVM, ResultsTheirsVM } from "@/surfaces/campaigns/ads/results/view";
 import { ResNum } from "../../campaigns/ads/results/results-parts";
 import { BarList } from "../../kit/charts/bar";
 import { ChartCard } from "../../kit/charts/card";

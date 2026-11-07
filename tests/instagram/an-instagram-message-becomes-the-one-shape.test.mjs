@@ -11,7 +11,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import * as channels from "@chanlytics/channels";
 
 const { inboundFromInstagram, instagramEventsOf, metaSignatureValid } = channels;
 

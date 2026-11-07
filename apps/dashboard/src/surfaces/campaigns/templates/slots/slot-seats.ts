@@ -8,8 +8,9 @@
  * (slot-history.ts), one for each box, over the words it first had.
  */
 import { useRef, useState } from "react";
-import { insertSlot } from "@chanlytics/contracts";
-import type { SlotEdit, SlotKey } from "@chanlytics/contracts";
+import { insertSlot } from "../message-version-slots";
+import type { SlotKey } from "@chanlytics/contracts";
+import type { SlotEdit } from "../message-version-slots";
 import { keeperOf } from "./slot-history";
 import type { HistoryKeeper } from "./slot-history";
 

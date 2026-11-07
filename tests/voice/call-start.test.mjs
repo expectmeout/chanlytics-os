@@ -38,7 +38,7 @@ import {
   GREETING_DEFAULT,
   greetingFor,
   desiredVoiceShell,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import { fakeDb } from "../_fake-db.mjs";
 
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */

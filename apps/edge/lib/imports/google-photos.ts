@@ -6,12 +6,13 @@
  * listing alone offered and nobody kept goes aside when the profile has come in.
  */
 import { IMPORT_STOPPED_WORDS, recordOrNull, type FileShows } from "@chanlytics/contracts";
-import { listMedia, reviewParent, type GbpPhoto } from "@chanlytics/channels";
-import { fileListingAside, importCursorOf, noteImport } from "@chanlytics/db";
+import { listMedia, reviewParent, type GbpPhoto } from "@chanlytics/channels/google";
+import { setFileListingAside } from "@chanlytics/db/files";
+import { importCursorOf, noteImport } from "@chanlytics/db/imports";
 import { keepFoundFile, type FoundFile } from "../files/found.js";
-import { connectionOf, type Db } from "../google/rows.js";
-import { tokenFor } from "../google/profile-credentials.js";
-import { http } from "../google/places.js";
+import { connectionOf, type Db } from "../shared/google/rows.js";
+import { tokenFor } from "../shared/google/credentials.js";
+import { http } from "../shared/google/places.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
 /** The most a profile brings. Google documents no order, so this is a bound on the work and no judgement of the photos. */
@@ -66,11 +67,11 @@ async function stopped(db: Db, part: Part, error: string, photos = 0): Promise<P
   return { more: false };
 }
 
-export async function googlePhotosPart(db: Db, part: Part): Promise<PartOutcome> {
+export async function getGooglePhotosPart(db: Db, part: Part): Promise<PartOutcome> {
   const conn = await connectionOf(db, part.tenantId);
   if (!conn?.account_name || !conn.location_name) return stopped(db, part, IMPORT_STOPPED_WORDS.googleGone);
-  const t = await tokenFor(db, part.tenantId, Date.now());
-  if (!t.ok) return stopped(db, part, IMPORT_STOPPED_WORDS.googleSignedOut);
+  const token = await tokenFor(db, part.tenantId, Date.now());
+  if (!token.ok) return stopped(db, part, IMPORT_STOPPED_WORDS.googleSignedOut);
   await noteImport(db, {
     tenantId: part.tenantId,
     source: "google_photos",
@@ -86,16 +87,16 @@ export async function googlePhotosPart(db: Db, part: Part): Promise<PartOutcome>
   let brought = 0;
   let done = false;
   while (Date.now() < part.until) {
-    const got = await listMedia(http, t.token, parent, place.page);
+    const result = await listMedia(http, token.token, parent, place.page);
     // A page is brought whole before the cursor moves past it: run again, a photo already kept is passed over. A bad address
     // is only passed over (keepFoundFile); Storage or the database failing throws, so the ledger tries the part again and a
     // run that cannot finish ends stopped, with Try again, rather than done with photos missing.
     let at = 0;
     let onPage = 0;
     let full = false;
-    for (; at < got.photos.length && Date.now() < part.until && !full; at += PHOTOS_AT_ONCE) {
+    for (; at < result.photos.length && Date.now() < part.until && !full; at += PHOTOS_AT_ONCE) {
       const fates = await Promise.all(
-        got.photos
+        result.photos
           .slice(at, at + PHOTOS_AT_ONCE)
           .map((p) =>
             keepFoundFile(db, part.tenantId, { source: "google_profile", status: "filed", file: foundOf(p) }),
@@ -106,15 +107,15 @@ export async function googlePhotosPart(db: Db, part: Part): Promise<PartOutcome>
     }
     // No room: what came is kept, and it stops in words, not on a count that says more came than did.
     if (full) return stopped(db, part, IMPORT_STOPPED_WORDS.filesFull, brought + onPage);
-    if (at < got.photos.length) break;
+    if (at < result.photos.length) break;
     brought += onPage;
-    place = { page: got.next_page_token, read: place.read + got.photos.length };
+    place = { page: result.next_page_token, read: place.read + result.photos.length };
     if (!place.page || place.read >= PHOTOS_MAX) {
       done = true;
       break;
     }
   }
-  if (done && place.read > 0) await fileListingAside(db, part.tenantId);
+  if (done && place.read > 0) await setFileListingAside(db, part.tenantId);
   await noteImport(db, {
     tenantId: part.tenantId,
     source: "google_photos",

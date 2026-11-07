@@ -1,5 +1,5 @@
 /**
- * The lead sources' prices, watched once a day (apps/edge/lib/leads/lead-sources.ts watchLeadPrices, 00506). The cards'
+ * The lead sources' prices, watched once a day (apps/edge/lib/leads/sources.ts watchLeadPrices, 00506). The cards'
  * prices and the SQL ceiling are written by hand, and the provider's price reader existed with nothing calling it (PRD
  * §0.3 says the prices are checked): a rise would only have shown as searches finding fewer leads than asked. Executed
  * over the in-memory database (lead_platform and the pager's memory) and a provider whose prices the test moves.
@@ -13,7 +13,7 @@ import { leadPins } from "../../../packages/core/src/leads/cards.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { watchLeadPrices, PRICE_RISE_PAGED } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/leads/lead-sources.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/leads/sources.ts")).href
 );
 
 process.env.LEAD_TO = "ops@example.test";

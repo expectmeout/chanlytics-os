@@ -8,27 +8,27 @@ import {
   wordsIssueWords,
   type ParamSpec,
 } from "@chanlytics/contracts";
-import { templateValues } from "@chanlytics/core";
+import { getTemplateValues } from "@chanlytics/core";
 import {
   discardSequence,
   makeSequence,
   moveToSequence,
   removeSequenceStep,
   saveSequenceStep,
-  sequenceOverview,
-  sequenceStepsOf,
+  listSequenceOverview,
+  listSequenceSteps,
   setSequenceStepWords,
   takeOutOfSequence,
   putBackInSequence,
   type DoorResult,
-  type Json,
   type SequenceDoorAnswer,
-} from "@chanlytics/db";
+} from "@chanlytics/db/campaigns";
+import { type Json } from "@chanlytics/db/types";
 import { checkPlaybookInput } from "@/server/campaigns/playbooks";
-import { visitTwinRefusal } from "@/server/campaigns/playbook-row";
-import { removeChain } from "@/server/campaigns/reach-outs";
+import { findVisitTwinRefusal } from "@/server/campaigns/playbook-row";
+import { removeChain } from "@/server/campaigns/reach-outs/chain-acts";
 import { requireUuid } from "@/server/shared/request-guards";
-import { templateValuePorts } from "@/server/ports/campaign-ports";
+import { templateValuePorts } from "@/server/campaigns/ports";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import {
   LEAD_FIRST_BODY,
@@ -44,7 +44,7 @@ import {
  * A sequence's doors (decision 0060, 00442), as the routes under sequences press them: a new sequence made whole and one
  * that never sent let go, a customer's step after the first added, changed or taken away, a step given another message,
  * and people taken out. A step's values are judged
- * against its message here (core templateValues, the one judgement a playbook's values meet); each door judges the
+ * against its message here (core getTemplateValues, the one judgement a playbook's values meet); each door judges the
  * member and writes its decision in its own transaction, and its refusal is said in its own words.
  */
 
@@ -67,7 +67,7 @@ const decided = (ctx: RouteContext, decision: { [key: string]: Json }) => ({
 });
 
 /**
- * The values a step's message takes, judged as a playbook's are (core templateValues): as many as its slots, each typed
+ * The values a step's message takes, judged as a playbook's are (core getTemplateValues): as many as its slots, each typed
  * words or a value a run can fill. A step after the first knows no visit, no proposal and no freed time (0082) of the
  * person it reaches.
  */
@@ -78,7 +78,7 @@ async function valuesOf(
   params: unknown,
 ): Promise<ParamSpec[]> {
   const ports = templateValuePorts(ctx, tenantId);
-  const { specs } = await templateValues(ports, {
+  const { specs } = await getTemplateValues(ports, {
     templateId,
     params: params ?? [],
     visits: false,
@@ -91,7 +91,7 @@ async function valuesOf(
 /** A step of this sequence, as its reader says it, or 404: a step of another sequence is not one of this. */
 export async function stepOfSequence(ctx: RouteContext, seq: Sequence, stepId: string) {
   const id = requireUuid(stepId, "step");
-  const step = (await sequenceStepsOf(ctx.supabase, seq.tenant_id, seq.id)).find((s) => s.id === id);
+  const step = (await listSequenceSteps(ctx.supabase, seq.tenant_id, seq.id)).find((s) => s.id === id);
   if (!step) throw new AppError("not_found", "Step not found.", 404);
   return step;
 }
@@ -110,9 +110,9 @@ async function laterStepOf(ctx: RouteContext, seq: Sequence, stepId: string) {
  */
 export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input: NewSequenceBody) {
   if (input.first.starts === "leads") return makeLeadSequenceNow(ctx, tenantId, input);
-  const v = await checkPlaybookInput(ctx, tenantId, input.first, null);
+  const result = await checkPlaybookInput(ctx, tenantId, input.first, null);
   // Started on a visit moment another sequence already runs on: refused (a draft is kept; its start meets this again).
-  const twin = input.start ? await visitTwinRefusal(ctx, tenantId, { trigger: v.trigger }) : null;
+  const twin = input.start ? await findVisitTwinRefusal(ctx, tenantId, { trigger: result.trigger }) : null;
   if (twin) throw new AppError("conflict", twin, 409);
   // A message step's values judged against its message; a call or a note (decision 0065) hands them over, the last step.
   const then = await Promise.all(
@@ -132,24 +132,24 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input
     await makeSequence(ctx.supabase, {
       tenantId,
       first: {
-        name: v.name,
-        trigger: v.trigger,
-        list_id: v.list_id,
-        list_key: v.list_key,
-        template_id: v.template_id,
-        params: v.params,
-        policy_class: v.policy_class,
-        run_hour: v.run_hour,
-        cap_per_run: v.cap_per_run,
-        gap_days: v.gap_days,
-        cadence_days: v.cadence_days,
-        channels: v.channels,
+        name: result.name,
+        trigger: result.trigger,
+        list_id: result.list_id,
+        list_key: result.list_key,
+        template_id: result.template_id,
+        params: result.params,
+        policy_class: result.policy_class,
+        run_hour: result.run_hour,
+        cap_per_run: result.cap_per_run,
+        gap_days: result.gap_days,
+        cadence_days: result.cadence_days,
+        channels: result.channels,
         // How its batches are decided, where New chose (decision 0064's modes; the door holds a leads sequence off auto).
         ...(isSequenceMode(input.first.mode) ? { mode: input.first.mode } : {}),
       },
       then,
       start: input.start,
-      ...decided(ctx, { name: v.name, trigger: v.trigger, steps: then.length + 1 }),
+      ...decided(ctx, { name: result.name, trigger: result.trigger, steps: then.length + 1 }),
     }),
   );
 }
@@ -187,15 +187,15 @@ async function makeLeadSequenceNow(ctx: RouteContext, tenantId: string, input: N
 
 /** A lead out of the sequence it stands in and into this one, while nothing was sent to it (00459 sequence_move). */
 export async function moveToSequenceNow(ctx: RouteContext, seq: Sequence, input: MoveBody) {
-  const r = await moveToSequence(ctx.supabase, {
+  const result = await moveToSequence(ctx.supabase, {
     tenantId: seq.tenant_id,
     leadId: input.lead_id,
     toRoot: seq.id,
     decision: { lead_id: input.lead_id },
     via: ctx.via ?? null,
   });
-  if (r.error) throw dbRefusal(r.error);
-  return { ...r.data, sequence_id: r.data.from };
+  if (result.error) throw dbRefusal(result.error);
+  return { ...result.data, sequence_id: result.data.from };
 }
 
 /**
@@ -227,13 +227,13 @@ export async function discardBySequenceDoor(ctx: RouteContext, seq: Sequence): P
  * its values judged against it, or a call or a note for the team (decision 0065 step 6), which the door keeps last.
  */
 export async function addSequenceStep(ctx: RouteContext, seq: Sequence, input: NewStepBody) {
-  const [row] = await sequenceOverview(ctx.supabase, seq.tenant_id, seq.id);
+  const [row] = await listSequenceOverview(ctx.supabase, seq.tenant_id, seq.id);
   // A customer's sequence that takes none is a reminder; any other kind is the door's own to refuse, in its words.
   const customers = row?.starts === "moment" || row?.starts === "list";
   if (row && customers && !takesFollowUps(row))
     throw new AppError("validation", SEQUENCE_FLOW_WORDS.noFollowUpOnReminder, 422);
   // A call or a note closes it (00465): said here in the page's words, before the database refuses it in its own.
-  const steps = await sequenceStepsOf(ctx.supabase, seq.tenant_id, seq.id);
+  const steps = await listSequenceSteps(ctx.supabase, seq.tenant_id, seq.id);
   const last = steps.reduce<(typeof steps)[number] | null>((a, s) => (!a || s.place > a.place ? s : a), null);
   if (last?.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.nothingAfterHand, 422);
   const does = input.hand

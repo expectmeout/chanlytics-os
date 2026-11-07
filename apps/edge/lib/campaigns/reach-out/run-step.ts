@@ -8,10 +8,11 @@
  * run-now door (api/admin/playbooks-run.ts) both call it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { stampReachOutStep, type Database } from "@chanlytics/db";
-import { reachOutRunIdFor, runHandStep, runReachOut } from "@chanlytics/core";
+import { stampReachOutStep } from "@chanlytics/db/campaigns";
+import { type Database } from "@chanlytics/db/types";
+import { getReachOutRunId, runHandStep, runReachOut } from "@chanlytics/core";
 import { localDate } from "@chanlytics/contracts";
-import { reachOutRunContext, type ReachOutRow } from "./run-context.js";
+import { getReachOutRunContext, type ReachOutRow } from "./run-context.js";
 import type { Logger } from "../../shared/log.js";
 
 type Db = SupabaseClient<Database>;
@@ -37,7 +38,7 @@ export async function runReachOutStep(
   const runFor = localDate(tz, now);
   // A stamp that fails leaves the day open: the next hour tries the step again, and its run is made once (alreadyRan).
   const tried = () => stampReachOutStep(db, row.id, { at: now }).catch(() => undefined);
-  const ctx = await reachOutRunContext(db, row, now);
+  const ctx = await getReachOutRunContext(db, row, now);
   if ("error" in ctx) {
     await tried();
     // A paused workspace is said as the workspace's, never as the chain's own pause (core's "paused").
@@ -46,14 +47,14 @@ export async function runReachOutStep(
       : { outcome: "failed", reason: ctx.error, planned: 0, runFor, runId: null };
   }
   // A hand step hands its leads to the team (Part 5, G20); every other step plans its emails.
-  const r =
+  const item =
     "hand" in ctx.step
       ? await runHandStep(ctx.ports, ctx.step, { runFor })
       : await runReachOut(ctx.ports, ctx.step, { runFor });
-  log.info("reach_out_ran", { tenant_id: row.tenant_id, playbook_id: row.id, ...r });
-  const reason = "reason" in r ? r.reason : undefined;
-  const settled = r.planned > 0 || reason === "already_ran" || r.outcome === "off";
+  log.info("reach_out_ran", { tenant_id: row.tenant_id, playbook_id: row.id, ...item });
+  const reason = "reason" in item ? item.reason : undefined;
+  const settled = item.planned > 0 || reason === "already_ran" || item.outcome === "off";
   await stampReachOutStep(db, row.id, settled ? { at: now, runFor } : { at: now }).catch(() => undefined);
-  const runId = r.planned > 0 || reason === "already_ran" ? await reachOutRunIdFor(row.id, runFor) : null;
-  return { outcome: r.outcome, reason, planned: r.planned, runFor, runId };
+  const runId = item.planned > 0 || reason === "already_ran" ? await getReachOutRunId(row.id, runFor) : null;
+  return { outcome: item.outcome, reason, planned: item.planned, runFor, runId };
 }

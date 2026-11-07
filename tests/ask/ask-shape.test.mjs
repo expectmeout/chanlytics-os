@@ -18,7 +18,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const sse = await import(at("apps/dashboard/src/server/ask/sse.ts"));
+const sse = await import(at("apps/dashboard/src/server/shared/model/stream.ts"));
 
 test("the parser: message_start is the usage (the input side, the cache counts, the message id); message_delta's stop carries the output side; a start without usage is nothing", () => {
   assert.deepEqual(
@@ -141,15 +141,15 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
 });
 
 test("the cache hit ratio: cache reads over everything the model was fed; nothing fed is null, not zero", async () => {
-  const { cacheHitOf } = await import("@chanlytics/contracts");
+  const { cacheHitOf } = await import("../../apps/dashboard/src/server/ask/shape.ts");
   assert.equal(cacheHitOf({ input: 100, cache_read: 900, cache_creation: 0, output: 40 }), 0.9);
   assert.equal(cacheHitOf({ input: 0, cache_read: 0, cache_creation: 0, output: 0 }), null);
   assert.equal(cacheHitOf({ input: 100, cache_read: 0, cache_creation: 900, output: 40 }), 0, "a write is not a hit");
 });
 
-const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
 const { buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
 
 const NONE = { kind: "none", id: "", label: "" };
 const answerJson = (headline) =>
@@ -311,9 +311,9 @@ test("the morning's turn says so on its shape, asked either way: it runs with no
 });
 
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
 const askRoute = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { runTool } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 beforeEach(() => setRateStore(memoryStore()));
 // The workspace's facts are kept across turns in the module: each test starts with none kept.

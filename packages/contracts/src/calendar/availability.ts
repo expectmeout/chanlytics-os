@@ -21,8 +21,8 @@ import type { Closure, Hours } from "../config/workspace-config/business-profile
 import { DAYS } from "../config/workspace-config/config-rules";
 import { NO_LINK_DETAILS } from "../config/no-booking-link";
 import { BOOKING_REQUEST_INSTRUCTION } from "./visit/booking-request";
-import { keyParts, weekdayNamed } from "./day-keys";
-import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "./zone-math";
+import { keyParts, weekdayNamed, DAY_KEY } from "../shared/zone/day-keys";
+import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "../shared/zone/math";
 import type { BusyBlock } from "./feed";
 import { dateFormat } from "../shared/time";
 
@@ -71,10 +71,10 @@ function hhmm(s: string): [number, number] | null {
  * unioned the two, this one let intervals win -- so a row holding both could
  * be described two ways, and "are you open at nine?" had two answers.
  */
-export function dayIntervals(h: Hours | undefined): Array<[string, string]> {
+export function dayIntervals(hours: Hours | undefined): Array<[string, string]> {
   const raw: Array<[string, string]> = [];
-  if (h?.open && h?.close) raw.push([h.open, h.close]);
-  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
+  if (hours?.open && hours?.close) raw.push([hours.open, hours.close]);
+  for (const iv of hours?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
   const usable = raw.filter(([o, c]) => c > o).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   const merged: Array<[string, string]> = [];
   for (const [o, c] of usable) {
@@ -158,11 +158,11 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
     const ranges = dayIntervals(input.hours?.[day.weekday]);
     const windows: Array<{ start: number; end: number }> = [];
     for (const [open, close] of ranges) {
-      const o = hhmm(open),
-        c = hhmm(close);
-      if (!o || !c) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest);
-      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
+      const result = hhmm(open),
+        otherHhmm = hhmm(close);
+      if (!result || !otherHhmm) continue;
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, result[0], result[1]), earliest);
+      const end = localToUtcMs(input.tz, day.y, day.m, day.d, otherHhmm[0], otherHhmm[1]);
       for (const b of busy) {
         if (b.end <= start) continue;
         if (b.start >= end) break;
@@ -202,7 +202,7 @@ export function filterOpenings(
 ): Opening[] {
   const day = (by.day ?? "").trim().toLowerCase();
   const weekday = weekdayNamed(day) ?? undefined;
-  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined;
+  const key = DAY_KEY.test(day) ? day : undefined;
   const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 60_000 : 0;
   const picked = openings.filter((o) => (key ? o.key === key : weekday ? o.weekday === weekday : true));
   const first = weekday && !key ? picked.slice(0, 1) : picked; // "Tuesday" means the next one

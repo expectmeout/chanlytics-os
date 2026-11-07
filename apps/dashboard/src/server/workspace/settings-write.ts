@@ -5,7 +5,7 @@ import "server-only";
  * the first receptionist's (first-receptionist.ts), which write the one config row the same versioned way.
  */
 import { changedConfigFields } from "@chanlytics/contracts";
-import { recordEvent } from "@chanlytics/db";
+import { recordEvent } from "@chanlytics/db/events";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import { serviceDb } from "@/server/shared/service-db";

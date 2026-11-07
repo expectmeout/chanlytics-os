@@ -23,10 +23,10 @@ import {
   WHATSAPP_CONSENT_SOURCE,
 } from "../../packages/contracts/src/people/person-consent.ts";
 import {
-  offersAnswerOf,
+  findOffersAnswer,
   recordWhatsAppOffersStop,
 } from "../../packages/db/src/repositories/campaigns/offers-answer.ts";
-import { ingestInbound } from "../../packages/db/src/repositories/conversations/ingest.ts";
+import { ingestInbound } from "../../packages/db/src/repositories/channels/ingest.ts";
 import { recordCarrierOptOut } from "../../packages/db/src/repositories/campaigns/offers-answer.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -1248,11 +1248,11 @@ test(
       "nothing was written under the stop",
     );
     // What the START gate reads to say so (contracts offersAfterStart), by the person's id.
-    assert.deepEqual(await offersAnswerOf(db, tenantId, id), {
+    assert.deepEqual(await findOffersAnswer(db, tenantId, id), {
       marketingConsent: "unknown",
       marketingConsentSource: STOP_ENDED_OFFERS_SOURCE,
     });
-    assert.equal(await offersAnswerOf(db, tenantId, "00000000-0000-4000-8000-000000000000"), null);
+    assert.equal(await findOffersAnswer(db, tenantId, "00000000-0000-4000-8000-000000000000"), null);
 
     // After START, their YES OFFERS is their yes again.
     await ingestInbound(db, {

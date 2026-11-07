@@ -138,52 +138,52 @@ function scanlinesOf(header: Header, idat: Uint8Array[]): Uint8Array | null {
 }
 
 /** The pixels, the filters undone: what each row's bytes are, not how they were predicted (PNG's five filters). */
-function unfiltered(raw: Uint8Array, h: Header): Uint8Array {
-  const stride = h.side * h.bytesPerPixel;
-  const out = new Uint8Array(stride * h.side);
-  const bpp = h.bytesPerPixel;
-  for (let y = 0; y < h.side; y++) {
-    const filter = raw[y * (stride + 1)] ?? 0;
-    const src = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
-    const row = out.subarray(y * stride, (y + 1) * stride);
-    const prev = y ? out.subarray((y - 1) * stride, y * stride) : null;
-    for (let x = 0; x < stride; x++) {
-      const a = x >= bpp ? (row[x - bpp] ?? 0) : 0;
-      const b = prev ? (prev[x] ?? 0) : 0;
-      const c = prev && x >= bpp ? (prev[x - bpp] ?? 0) : 0;
-      let v = src[x] ?? 0;
-      if (filter === 1) v += a;
-      else if (filter === 2) v += b;
-      else if (filter === 3) v += (a + b) >> 1;
+function unfiltered(raw: Uint8Array, header: Header): Uint8Array {
+  const stride = header.side * header.bytesPerPixel;
+  const out = new Uint8Array(stride * header.side);
+  const bpp = header.bytesPerPixel;
+  for (let count = 0; count < header.side; count++) {
+    const filter = raw[count * (stride + 1)] ?? 0;
+    const src = raw.subarray(count * (stride + 1) + 1, (count + 1) * (stride + 1));
+    const row = out.subarray(count * stride, (count + 1) * stride);
+    const prev = count ? out.subarray((count - 1) * stride, count * stride) : null;
+    for (let result = 0; result < stride; result++) {
+      const first = result >= bpp ? (row[result - bpp] ?? 0) : 0;
+      const second = prev ? (prev[result] ?? 0) : 0;
+      const item = prev && result >= bpp ? (prev[result - bpp] ?? 0) : 0;
+      let value = src[result] ?? 0;
+      if (filter === 1) value += first;
+      else if (filter === 2) value += second;
+      else if (filter === 3) value += (first + second) >> 1;
       else if (filter === 4) {
-        const p = a + b - c;
-        const pa = Math.abs(p - a);
-        const pb = Math.abs(p - b);
-        const pc = Math.abs(p - c);
-        v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        const p = first + second - item;
+        const pa = Math.abs(p - first);
+        const pb = Math.abs(p - second);
+        const pc = Math.abs(p - item);
+        value += pa <= pb && pa <= pc ? first : pb <= pc ? second : item;
       }
-      row[x] = v & 0xff;
+      row[result] = value & 0xff;
     }
   }
   return out;
 }
 
 /** A square of pixels made `to` a side by averaging each block it covers; rows written unfiltered (filter 0). */
-function shrunk(pixels: Uint8Array, h: Header, to: number): Uint8Array {
-  const bpp = h.bytesPerPixel;
+function shrunk(pixels: Uint8Array, header: Header, to: number): Uint8Array {
+  const bpp = header.bytesPerPixel;
   const out = new Uint8Array((1 + to * bpp) * to);
-  const f = h.side / to;
-  for (let y = 0; y < to; y++) {
-    const y0 = Math.floor(y * f);
-    const y1 = Math.max(y0 + 1, Math.floor((y + 1) * f));
+  const item = header.side / to;
+  for (let count = 0; count < to; count++) {
+    const y0 = Math.floor(count * item);
+    const y1 = Math.max(y0 + 1, Math.floor((count + 1) * item));
     for (let x = 0; x < to; x++) {
-      const x0 = Math.floor(x * f);
-      const x1 = Math.max(x0 + 1, Math.floor((x + 1) * f));
+      const x0 = Math.floor(x * item);
+      const x1 = Math.max(x0 + 1, Math.floor((x + 1) * item));
       for (let ch = 0; ch < bpp; ch++) {
         let sum = 0;
         for (let yy = y0; yy < y1; yy++)
-          for (let xx = x0; xx < x1; xx++) sum += pixels[(yy * h.side + xx) * bpp + ch] ?? 0;
-        out[y * (1 + to * bpp) + 1 + x * bpp + ch] = Math.round(sum / ((y1 - y0) * (x1 - x0)));
+          for (let xx = x0; xx < x1; xx++) sum += pixels[(yy * header.side + xx) * bpp + ch] ?? 0;
+        out[count * (1 + to * bpp) + 1 + x * bpp + ch] = Math.round(sum / ((y1 - y0) * (x1 - x0)));
       }
     }
   }

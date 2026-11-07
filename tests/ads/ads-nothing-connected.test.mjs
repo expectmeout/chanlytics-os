@@ -8,11 +8,14 @@ import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, find, redrawWanted, textOf, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import { SERIES, dtoWith } from "../reports/people/_people-world.mjs";
+import { firstTouchOf, v0Of } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-parts.ts";
+import { V0, HEAD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
+import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
+import { EXAMPLE } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 
 installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-const page = await import("@chanlytics/contracts/ads-page");
 const { toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
 const { api } = await import(`${S}/bridge/api.ts`);
 const { CONFIG } = await import(`${S}/surfaces/campaigns/ads/sample.ts`);
@@ -27,9 +30,9 @@ const KEPT = "ads-mock-scenario";
 const NOTE = "ads-preview-note";
 
 const seriesOf = (byVia, over = {}) => ({ first_came: { by_via: byVia }, today: "2031-03-15", days: 30, ...over });
-const rowsOf = (byVia) => page.firstTouchOf(seriesOf(byVia)).rows;
+const rowsOf = (byVia) => firstTouchOf(seriesOf(byVia)).rows;
 const readOf = (firstTouch) => ({ ...exampleAt("v0", NOW, null), firstTouch });
-const v0Of = (byVia) => page.v0Of(readOf(page.firstTouchOf(seriesOf(byVia))));
+const v0Of = (byVia) => v0Of(readOf(firstTouchOf(seriesOf(byVia))));
 
 /** A business that has imported its book, found some leads and been written to: nobody by an ad. */
 const NO_AD = { import: 330, lead: 27, email: 2, call: 1 };
@@ -38,7 +41,7 @@ const NO_AD = { import: 330, lead: 27, email: 2, call: 1 };
 // The counts
 
 test("the counts are People's, ranked with their words, their window ending the day the read is of", () => {
-  const touch = page.firstTouchOf(seriesOf(NO_AD));
+  const touch = firstTouchOf(seriesOf(NO_AD));
   assert.equal(touch.since, "2031-02-14", "30 days, today among them");
   assert.deepEqual(
     touch.rows.map((r) => [r.label, r.n]),
@@ -49,14 +52,14 @@ test("the counts are People's, ranked with their words, their window ending the 
       ["Phone", 1],
     ],
   );
-  assert.equal(page.firstTouchOf(seriesOf(NO_AD, { end: "2031-03-01" })).since, "2031-01-31");
+  assert.equal(firstTouchOf(seriesOf(NO_AD, { end: "2031-03-01" })).since, "2031-01-31");
 });
 
 test("the rows say what Reports › People says of the same read", () => {
   const report = toPeopleReportVM(dtoWith());
   assert.deepEqual(
     report.firstCame.rows.map((r) => [r.label, r.value]),
-    page.firstTouchOf(SERIES).rows.map((r) => [r.label, r.n]),
+    firstTouchOf(SERIES).rows.map((r) => [r.label, r.n]),
   );
 });
 
@@ -75,20 +78,20 @@ test("the way in that is an ad is the one in ink, and those with no way in kept 
 test("nobody from an ad still says how new people came: it was the whole of a real workspace's page, hidden", () => {
   const v0 = v0Of(NO_AD);
   assert.equal(v0.lead, null);
-  assert.equal(v0.empty.lead, page.V0.emptyLead);
+  assert.equal(v0.empty.lead, V0.emptyLead);
   assert.equal(v0.rows.length, 4, "REGRESSION: every real count was dropped when no ad had brought anyone");
-  assert.deepEqual(v0.notes, page.V0.emptyNotes);
+  assert.deepEqual(v0.notes, V0.emptyNotes);
 });
 
 test("read, and nobody new at all: it says so in People's own terms, and its door promises nobody", () => {
   const v0 = v0Of({});
   assert.deepEqual(v0.rows, []);
-  assert.equal(v0.nobodyNew, page.V0.nobodyNew);
-  assert.equal(v0.door.words, page.V0.doorNobody);
+  assert.equal(v0.nobodyNew, V0.nobodyNew);
+  assert.equal(v0.door.words, V0.doorNobody);
   assert.equal(v0Of(NO_AD).nobodyNew, null);
-  assert.equal(v0Of(NO_AD).door.words, page.V0.door);
+  assert.equal(v0Of(NO_AD).door.words, V0.door);
   assert.equal(
-    page.v0Of(readOf(null)).nobodyNew,
+    v0Of(readOf(null)).nobodyNew,
     null,
     "not while the counts are unread: that would be a claim about nobody",
   );
@@ -97,23 +100,23 @@ test("read, and nobody new at all: it says so in People's own terms, and its doo
 test("the lead counts those with a way in kept, whichever row comes last", () => {
   assert.deepEqual(
     v0Of({ ad: 2, whatsapp: 3, sms: 1 }).lead,
-    page.V0.lead(2, 6),
+    V0.lead(2, 6),
     "REGRESSION: the last row was taken for Not recorded",
   );
   assert.equal(v0Of({ ad: 2, whatsapp: 3, sms: 1 }).muted, null);
   const some = v0Of({ ad: 2, whatsapp: 3, unknown: 4 });
-  assert.deepEqual(some.lead, page.V0.lead(2, 5));
-  assert.equal(some.muted, page.V0.more(4));
+  assert.deepEqual(some.lead, V0.lead(2, 5));
+  assert.equal(some.muted, V0.more(4));
 });
 
 test("the lead does not name one wire, since an ad on Instagram stamps the same way in", () => {
-  assert.doesNotMatch(page.V0.lead(1, 2).rest, /WhatsApp/);
+  assert.doesNotMatch(V0.lead(1, 2).rest, /WhatsApp/);
 });
 
 test("the line above the page gives the counts' first day once read, and no time it cannot back", () => {
-  const counted = page.adsModel(readOf(page.firstTouchOf(seriesOf(NO_AD))), CONFIG);
-  assert.equal(counted.pane, page.HEAD.v0Read("14 Feb"));
-  assert.equal(page.adsModel(readOf(null), CONFIG).pane, "Last 30 days");
+  const counted = adsModel(readOf(firstTouchOf(seriesOf(NO_AD))), CONFIG);
+  assert.equal(counted.pane, HEAD.v0Read("14 Feb"));
+  assert.equal(adsModel(readOf(null), CONFIG).pane, "Last 30 days");
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -201,7 +204,7 @@ const barLabels = (tree) => textOf(byTestId(tree, "ads-v0"));
 
 test("the page reads its own counts once, says it is counting, then says them, in a note that calls them its own", async () => {
   const p = previewPage(() => ({ series: seriesOf(NO_AD), now: null }));
-  assert.equal(textOf(byTestId(p.tree, "ads-v0-reading")), page.V0.reading, "no flash of nobody while it reads");
+  assert.equal(textOf(byTestId(p.tree, "ads-v0-reading")), V0.reading, "no flash of nobody while it reads");
   assert.equal(byTestId(p.tree, "ads-v0-lead"), null);
   await landed("the counts");
   assert.equal(route.asked.length, 1);
@@ -211,10 +214,10 @@ test("the page reads its own counts once, says it is counting, then says them, i
   assert.equal(byTestId(tree, "ads-v0-reading"), null);
   assert.match(barLabels(tree), /Imported/);
   assert.match(barLabels(tree), /330/);
-  assert.match(barLabels(tree), new RegExp(page.V0.emptyLead));
+  assert.match(barLabels(tree), new RegExp(V0.emptyLead));
   assert.equal(
     textOf(byTestId(tree, NOTE)),
-    `${page.EXAMPLE.preview.word} ${page.EXAMPLE.preview.today}`,
+    `${EXAMPLE.preview.word} ${EXAMPLE.preview.today}`,
     "the sample's words are false over its own counts",
   );
   assert.equal(route.asked.length, 1, "and it is not asked again by drawing");
@@ -224,8 +227,8 @@ test("a workspace nobody new reached says that, as it has no rows to draw", asyn
   const p = previewPage(() => ({ series: seriesOf({}), now: null }));
   await landed("the counts");
   const tree = p.draw();
-  assert.equal(textOf(byTestId(tree, "ads-v0-nobody")), page.V0.nobodyNew);
-  assert.match(textOf(byTestId(tree, "ads-v0-door")), new RegExp(page.V0.doorNobody));
+  assert.equal(textOf(byTestId(tree, "ads-v0-nobody")), V0.nobodyNew);
+  assert.match(textOf(byTestId(tree, "ads-v0-door")), new RegExp(V0.doorNobody));
 });
 
 test("a read that fails says so and offers again, and never says nobody came", async () => {
@@ -233,8 +236,8 @@ test("a read that fails says so and offers again, and never says nobody came", a
   await landed("the refusal");
   const tree = p.draw();
   const failed = byTestId(tree, "ads-v0-failed");
-  assert.match(textOf(failed), new RegExp(page.V0.notRead));
-  assert.doesNotMatch(textOf(byTestId(tree, "ads-v0")), new RegExp(page.V0.emptyLead));
+  assert.match(textOf(failed), new RegExp(V0.notRead));
+  assert.doesNotMatch(textOf(byTestId(tree, "ads-v0")), new RegExp(V0.emptyLead));
   assert.equal(byTestId(tree, "ads-v0-nobody"), null);
   route.answer = () => ({ series: seriesOf({ ad: 1, whatsapp: 1 }), now: null });
   press(byTestId(tree, "ads-v0-again"));
@@ -303,7 +306,7 @@ test("Connections says no account is connected, which is true, and asks nothing 
     assert.equal(byTestId(tree, `ad-account-${platform}`).props["data-state"], "none");
     assert.ok(byTestId(tree, `ad-connect-${platform}`), "with its Connect press");
   }
-  assert.equal(textOf(byTestId(tree, NOTE)), `${page.EXAMPLE.preview.word} ${page.EXAMPLE.preview.connectLater}`);
+  assert.equal(textOf(byTestId(tree, NOTE)), `${EXAMPLE.preview.word} ${EXAMPLE.preview.connectLater}`);
   assert.equal(route.asked.length, 0);
 });
 
@@ -325,10 +328,10 @@ test("the pill asks to see an example on what is true, and is the Example pill o
   const pillIn = (tree) =>
     textOf(find(tree, (n) => n.props?.trigger?.props?.["data-testid"] === "ads-example").props.trigger);
   const today = previewPage(() => ({ series: seriesOf(NO_AD), now: null })).tree;
-  assert.match(pillIn(today), new RegExp(page.EXAMPLE.preview.pill));
+  assert.match(pillIn(today), new RegExp(EXAMPLE.preview.pill));
   const running = underSession(false, "running", () => {
     fresh();
     return AdsPage({ param: "ads" });
   });
-  assert.match(pillIn(running), new RegExp(page.EXAMPLE.pill));
+  assert.match(pillIn(running), new RegExp(EXAMPLE.pill));
 });

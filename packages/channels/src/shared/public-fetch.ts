@@ -46,8 +46,8 @@ function octetsOf(address: string): [number, number, number, number] | null {
   return o.every((n) => n <= 255) ? o : null;
 }
 
-function v4IsPublic(o: readonly [number, number, number, number]): boolean {
-  const [a, b, c] = o;
+function v4IsPublic(value: readonly [number, number, number, number]): boolean {
+  const [a, b, c] = value;
   if (a === 0 || a === 10 || a === 127) return false; // this network, private, loopback
   if (a === 100 && b >= 64 && b <= 127) return false; // 100.64.0.0/10, carrier-grade NAT
   if (a === 169 && b === 254) return false; // link-local, and the metadata service
@@ -74,11 +74,11 @@ function bytesOfV6(address: string): number[] | null {
   }
   const [left = "", right] = head.split("::");
   const groups = (s: string) => (s ? s.split(":").filter((x) => x !== "") : []);
-  const l = groups(left);
-  const r = right === undefined ? [] : groups(right);
-  const zeros = right === undefined ? 0 : 8 - l.length - r.length;
-  if (zeros < 0 || (right === undefined && l.length !== 8)) return null;
-  const all = [...l, ...Array<string>(zeros).fill("0"), ...r];
+  const result = groups(left);
+  const items = right === undefined ? [] : groups(right);
+  const zeros = right === undefined ? 0 : 8 - result.length - items.length;
+  if (zeros < 0 || (right === undefined && result.length !== 8)) return null;
+  const all = [...result, ...Array<string>(zeros).fill("0"), ...items];
   const bytes: number[] = [];
   for (const g of all) {
     const n = parseInt(g, 16);
@@ -96,20 +96,27 @@ function carriedV4(b: readonly number[]): [number, number, number, number] {
 /** Whether bytes `from` up to `to` of an IPv6 address are all zero. */
 const zeroBetween = (b: readonly number[], from: number, to: number) => b.slice(from, to).every((x) => x === 0);
 
-function v6IsPublic(b: readonly number[]): boolean {
-  if (zeroBetween(b, 0, 15) && (b[15] === 0 || b[15] === 1)) return false; // :: and ::1
+function v6IsPublic(numbers: readonly number[]): boolean {
+  if (zeroBetween(numbers, 0, 15) && (numbers[15] === 0 || numbers[15] === 1)) return false; // :: and ::1
   // An IPv4 address carried in an IPv6 one (::ffff:a.b.c.d, and the deprecated ::a.b.c.d) reaches whatever that IPv4 does.
-  if (zeroBetween(b, 0, 10) && b[10] === 0xff && b[11] === 0xff) return v4IsPublic(carriedV4(b));
-  if (zeroBetween(b, 0, 12)) return v4IsPublic(carriedV4(b));
+  if (zeroBetween(numbers, 0, 10) && numbers[10] === 0xff && numbers[11] === 0xff)
+    return v4IsPublic(carriedV4(numbers));
+  if (zeroBetween(numbers, 0, 12)) return v4IsPublic(carriedV4(numbers));
   // NAT64 (64:ff9b::/96) carries an IPv4 address: the one it carries is the one that is reached.
-  if (b[0] === 0x00 && b[1] === 0x64 && b[2] === 0xff && b[3] === 0x9b && zeroBetween(b, 4, 12))
-    return v4IsPublic(carriedV4(b));
-  const first = b[0] ?? 0;
-  const second = b[1] ?? 0;
+  if (
+    numbers[0] === 0x00 &&
+    numbers[1] === 0x64 &&
+    numbers[2] === 0xff &&
+    numbers[3] === 0x9b &&
+    zeroBetween(numbers, 4, 12)
+  )
+    return v4IsPublic(carriedV4(numbers));
+  const first = numbers[0] ?? 0;
+  const second = numbers[1] ?? 0;
   if ((first & 0xfe) === 0xfc) return false; // unique local, fc00::/7
   if (first === 0xfe && (second & 0xc0) === 0x80) return false; // link-local, fe80::/10
   if (first === 0xff) return false; // multicast
-  if (first === 0x20 && second === 0x01 && b[2] === 0x0d && b[3] === 0xb8) return false; // documentation, 2001:db8::/32
+  if (first === 0x20 && second === 0x01 && numbers[2] === 0x0d && numbers[3] === 0xb8) return false; // documentation, 2001:db8::/32
   return true;
 }
 
@@ -294,9 +301,9 @@ export function publicFetcher(): typeof fetch {
 }
 
 /** For tests only: stand in for the network. Returns the one before, to put back; null restores the guarded one. */
-export function setPublicFetch(f: typeof fetch | null): typeof fetch | null {
+export function setPublicFetch(item: typeof fetch | null): typeof fetch | null {
   const holder = globalThis as Holder;
   const before = holder[STAND_IN] ?? null;
-  holder[STAND_IN] = f;
+  holder[STAND_IN] = item;
   return before;
 }

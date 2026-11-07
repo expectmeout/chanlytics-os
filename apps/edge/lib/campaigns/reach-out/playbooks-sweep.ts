@@ -12,15 +12,15 @@
  *
  * It works from two pages, each a bounded page (PLAYBOOKS_PER_TICK) of only what is DUE, judged in the database by each
  * workspace's own clock and least recently run first, with the zone each was judged in (00245 playbooks_due, through
- * lib/ops/sweep-rotation.ts; the history of why it is a page is there). A paused workspace's playbooks are not on it.
- *   - Moments (playbooksDue). Each runs through runPlaybook (lib/campaigns/playbooks/playbooks.ts, shared with "Run now" on the page; the
+ * lib/shared/sweep-rotation.ts; the history of why it is a page is there). A paused workspace's playbooks are not on it.
+ *   - Moments (listPlaybooksDue). Each runs through runPlaybook (lib/campaigns/playbooks/playbooks.ts, shared with "Run now" on the page; the
  *     rules are core's campaigns/run-playbook.ts): a broadcast for the people who said yes, its send scheduled, held
  *     for a person or refused as the class's autonomy mode says (auto, veto, ask, never), recorded as a
  *     `playbook.run` event, the day remembered on the row so the next tick runs nothing. What the database calls due
  *     is asked again of runDueNow at the moment each runs, as "Run now" does. The tick stops starting them at
  *     MOMENTS_YIELD_AT_MS and counts what is left as remaining. A run or a context that failed pages the platform, and
- *     tells the owner once at the day's last chance (playbook-failed.ts).
- *   - Reach-out steps (reachOutsDue). Each runs through runReachOutStep (lib/campaigns/reach-out/run-step.ts, which the run-now
+ *     tells the owner once at the day's last chance (playbooks/failed.ts).
+ *   - Reach-out steps (listReachOutsDue). Each runs through runReachOutStep (lib/campaigns/reach-out/run-step.ts, which the run-now
  *     door calls too). The tick stops starting them at REACH_OUT_YIELD_AT_MS and counts what is left as remaining.
  * A moment or step that could not run (its workspace paused since the page was read, its context unreadable, its run
  * failed, or a zone the page and the edge read apart) keeps its day open, so the next hour tries it again, but is
@@ -50,13 +50,13 @@ import { json } from "../../shared/http.js";
 import type { pg } from "../../shared/pg.js";
 import type { Logger } from "../../shared/log.js";
 import {
-  playbooksDue,
-  reachOutsDue,
+  listPlaybooksDue,
+  listReachOutsDue,
   noteBacklog,
   PLAYBOOKS_PER_TICK,
   type DuePage,
   type DueStep,
-} from "../../ops/sweep-rotation.js";
+} from "../../shared/sweep-rotation.js";
 import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks/playbooks.js";
 import { tellPlaybookFailed } from "./playbook-failed.js";
 import { runReachOutStep } from "./run-step.js";
@@ -64,10 +64,10 @@ import { tellReachOutDays } from "./day-numbers.js";
 import {
   cancelBroadcastFrom,
   recordSystemDecision,
-  stampPlaybooksTried,
   stampReachOutStep,
-  waitingPlaybookRuns,
-} from "@chanlytics/db";
+  listWaitingPlaybookRuns,
+} from "@chanlytics/db/campaigns";
+import { stampPlaybooksTried } from "@chanlytics/db/jobs";
 import { cancelBroadcast } from "@chanlytics/core";
 import {
   AppError,
@@ -81,7 +81,7 @@ import {
   skippedRunNotice,
   type PlaybookDto,
 } from "@chanlytics/contracts";
-import { notify } from "../../ops/notify.js";
+import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
 
@@ -126,41 +126,44 @@ interface Tick {
  */
 async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
   const { db, now, L, out } = tick;
-  let runs: Awaited<ReturnType<typeof waitingPlaybookRuns>>;
+  let runs: Awaited<ReturnType<typeof listWaitingPlaybookRuns>>;
   try {
-    runs = await waitingPlaybookRuns(db, { limit: DAY_PASSED_BATCH });
+    runs = await listWaitingPlaybookRuns(db, { limit: DAY_PASSED_BATCH });
   } catch (e) {
     L.error("runs_day_passed_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return;
   }
-  for (const r of runs) {
+  for (const run of runs) {
     if (Date.now() - tick.started > DAY_PASSED_UNTIL_MS) return;
-    if (!runTooLate(r, runDaysAt(r.timezone, now))) continue;
+    if (!runTooLate(run, runDaysAt(run.timezone, now))) continue;
     try {
       await cancelBroadcast(
         {
           // A run waiting for approval never had a send job: nothing to withdraw.
           withdraw: () => Promise.resolve(0),
-          cancel: (id, from) => cancelBroadcastFrom(db, { tenantId: r.tenant_id, id, from }),
+          cancel: (id, from) => cancelBroadcastFrom(db, { tenantId: run.tenant_id, id, from }),
           record: (subjectType, subjectId, verb, payload) =>
-            recordSystemDecision(db, { tenantId: r.tenant_id, subjectType, subjectId, verb, payload }),
+            recordSystemDecision(db, { tenantId: run.tenant_id, subjectType, subjectId, verb, payload }),
         },
         // A freed time's batch ends when its time comes (0082); every other run when its day passes.
-        { row: { id: r.id, state: r.state, name: r.name }, reason: r.offered_start ? "time_passed" : "day_passed" },
+        {
+          row: { id: run.id, state: run.state, name: run.name },
+          reason: run.offered_start ? "time_passed" : "day_passed",
+        },
       );
       out.ended += 1;
       L.info("run_day_passed_skipped", {
-        tenant_id: r.tenant_id,
-        broadcast_id: r.id,
-        run_for: r.run_for,
-        ...(r.offered_start ? { offered_start: r.offered_start } : {}),
+        tenant_id: run.tenant_id,
+        broadcast_id: run.id,
+        run_for: run.run_for,
+        ...(run.offered_start ? { offered_start: run.offered_start } : {}),
       });
-      await tellSkipped(db, r, L, now);
+      await tellSkipped(db, run, L, now);
     } catch (e) {
       if (e instanceof AppError && e.code === "conflict") continue;
       L.error("run_day_passed_failed", {
-        tenant_id: r.tenant_id,
-        broadcast_id: r.id,
+        tenant_id: run.tenant_id,
+        broadcast_id: run.id,
         error: e instanceof Error ? e.message : String(e),
       });
     }
@@ -173,35 +176,35 @@ async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
  */
 async function tellSkipped(
   db: Tick["db"],
-  r: Awaited<ReturnType<typeof waitingPlaybookRuns>>[number],
-  L: Logger,
+  row: Awaited<ReturnType<typeof listWaitingPlaybookRuns>>[number],
+  log: Logger,
   now: Date,
 ) {
-  const about = r.audience && typeof r.audience === "object" ? (r.audience as { label?: unknown }).label : null;
+  const about = row.audience && typeof row.audience === "object" ? (row.audience as { label?: unknown }).label : null;
   // Its moment, as the run kept it: a visit's people are not in line for a later batch, and the notice says so; a freed
   // time's says the time it offered.
-  const told = skippedRunNotice(
-    typeof about === "string" && about ? about : r.name,
-    r.recipient_count,
-    audienceTrigger(r.audience),
-    r.offered_start ? clockNearWhen(Date.parse(r.offered_start), r.timezone, now.getTime()) : null,
+  const notice = skippedRunNotice(
+    typeof about === "string" && about ? about : row.name,
+    row.recipient_count,
+    audienceTrigger(row.audience),
+    row.offered_start ? clockNearWhen(Date.parse(row.offered_start), row.timezone, now.getTime()) : null,
   );
   try {
-    const target = await loadTenantNotifications(db, r.tenant_id);
+    const target = await loadTenantNotifications(db, row.tenant_id);
     await notify(
-      { tenantId: r.tenant_id, ...target },
+      { tenantId: row.tenant_id, ...target },
       {
         kind: "playbook",
-        route: addressOf({ kind: "send", id: r.id }),
-        about: { type: "broadcast", id: r.id },
-        subject: told.subject,
-        body: told.body,
+        route: addressOf({ kind: "send", id: row.id }),
+        about: { type: "broadcast", id: row.id },
+        subject: notice.subject,
+        body: notice.body,
       },
     );
   } catch (e) {
-    L.error("run_day_passed_untold", {
-      tenant_id: r.tenant_id,
-      broadcast_id: r.id,
+    log.error("run_day_passed_untold", {
+      tenant_id: row.tenant_id,
+      broadcast_id: row.id,
       error: e instanceof Error ? e.message : String(e),
     });
   }
@@ -215,7 +218,7 @@ async function tellSkipped(
  * place a moment that can run is waiting for. So does one the page called due and the edge's clock does not (a zone
  * the two read apart): nothing that is not run may keep the first places.
  *
- * A context that could not be read and a run that failed are told (playbook-failed.ts): the platform is paged, and the
+ * A context that could not be read and a run that failed are told (playbooks/failed.ts): the platform is paged, and the
  * owner is told once, in the last hour the day's run is asked for. A workspace's playbooks run against one read of it,
  * and each run adds its people to that read's touches (core runPlaybook), so a second moment in the same hour keeps the
  * week's breath with the first one's people in it.
@@ -277,14 +280,14 @@ async function runMoments(tick: Tick, page: DuePage<DueStep>) {
     }
     for (const [j, p] of due.entries()) {
       if (outOfTime(i, due.length - j)) return;
-      const r = await runPlaybook(ctx, p, { runFor, by: { kind: "system" } });
-      if (r.outcome === "failed") {
+      const result = await runPlaybook(ctx, p, { runFor, by: { kind: "system" } });
+      if (result.outcome === "failed") {
         // A failed run records nothing on the row, so untouched it would stand first again next hour.
-        L.error("playbook_run_failed", { playbook_id: p.id, error: r.error });
+        L.error("playbook_run_failed", { playbook_id: p.id, error: result.error });
         await tried(tenantId, [p]);
-        await told([p], r.error);
+        await told([p], result.error);
       }
-      out[r.outcome] += 1;
+      out[result.outcome] += 1;
     }
   }
 }
@@ -340,7 +343,7 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
   // only what is due, and `remaining` only what is due beyond it.
   let page: DuePage<DueStep>;
   try {
-    page = await playbooksDue(db, now, PLAYBOOKS_PER_TICK);
+    page = await listPlaybooksDue(db, now, PLAYBOOKS_PER_TICK);
   } catch (e) {
     L.error("playbooks_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(500, { ok: false });
@@ -361,7 +364,7 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
   await endRunsWhoseDayPassed(tick);
   await runMoments(tick, page);
 
-  const reach = await reachOutsDue(db, now, PLAYBOOKS_PER_TICK).catch((e: unknown): DuePage<DueStep> => {
+  const reach = await listReachOutsDue(db, now, PLAYBOOKS_PER_TICK).catch((e: unknown): DuePage<DueStep> => {
     L.error("reach_outs_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return { rows: [], remaining: 0 };
   });

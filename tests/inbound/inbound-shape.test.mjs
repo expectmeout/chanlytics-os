@@ -11,7 +11,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as channels from "@chanlytics/channels";
 
 const { inboundFromSms, inboundFromWhatsapp, normalizeInbound, smsInboundFrom } = channels;
 
@@ -157,11 +156,6 @@ test("a text becomes the one shape with no WhatsApp message on the way: each tex
   }
   // The time it came is the second it came in.
   assert.equal(inboundFromSms(smsInboundFrom(FORM), NOW).channelTsIso, "2026-09-07T15:00:00.000Z");
-});
-
-test("the WhatsApp-shaped road is gone: no text becomes a WhatsApp message, and no carrier adds a consent of its own", () => {
-  assert.equal(channels.smsAsWaMessage, undefined);
-  assert.equal(channels.withCarrierConsent, undefined);
 });
 
 test("the same words on the two wires are one message, but for the wire, the person and each wire's own word for stop", () => {

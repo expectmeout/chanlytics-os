@@ -18,10 +18,10 @@
  * The fixtures stay as they are written, dated 11 Oct 2026 and of a made-up studio, so a test reads them so; a page draws one as of
  * now, and in a workspace's preview as that business's (`exampleAt`).
  */
-import { addDays, appointmentWords, daysBetween, zoneDayKey } from "@chanlytics/contracts";
+import { addDays, appointmentWords, daysBetween, zoneDayKey, DAY_KEY } from "@chanlytics/contracts";
 import type { AdAccountRead, AdPersonRead, AdRead, AdsRead } from "@chanlytics/contracts";
-import { EXAMPLE, dayShort } from "@chanlytics/contracts/ads-page";
-import type { AdsExample } from "@chanlytics/contracts/ads-page";
+import { EXAMPLE, dayShort } from "./model/words";
+import type { AdsExample } from "./model/words";
 import { DEMO_ZONE } from "../../demo-zone";
 import type { AdsOwn } from "./own";
 import {
@@ -273,9 +273,7 @@ function ownedBy(read: AdsRead, own: AdsOwn): AdsRead {
     services: own.services.length > 0 ? own.services : owned.services,
   };
 }
-
-/** A day and a moment as a read writes them (ads.ts): `2026-10-11`, `2026-10-11T09:19:00-04:00`. */
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** A moment as a read writes it (ads.ts): `2026-10-11T09:19:00-04:00`. */
 const ISO_MOMENT = /^\d{4}-\d{2}-\d{2}T/;
 
 /**
@@ -288,7 +286,7 @@ function movedTo(read: AdsRead, today: string, now: number): AdsRead {
   const days = daysBetween(read.today, today);
   const since = now - Date.parse(read.readAt);
   const moved = everyWord(read, (word) => {
-    if (ISO_DAY.test(word)) return addDays(word, days);
+    if (DAY_KEY.test(word)) return addDays(word, days);
     return ISO_MOMENT.test(word) ? new Date(Date.parse(word) + since).toISOString() : word;
   });
   const named = (ad: AdRead): AdRead => ({

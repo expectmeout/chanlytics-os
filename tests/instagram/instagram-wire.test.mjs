@@ -7,7 +7,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as channels from "@chanlytics/channels";
 
 const {
   instagramAuthorizeUrl,

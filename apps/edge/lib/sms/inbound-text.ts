@@ -24,7 +24,7 @@
  *
  * A text that is a one-time code another service sent (planSmsIngress's `code`) takes none of it: nothing is answered, kept,
  * handed to a person or paged, and the line says which service it read and never the code (`sms_code_skipped`). Twilio keeps
- * the text; the owner reads it from there (lib/lines/line-codes.ts), so a code is neither lost nor stored here: not as a
+ * the text; the owner reads it from there (lib/lines/codes.ts), so a code is neither lost nor stored here: not as a
  * message, and not as a kept delivery either (a code's delivery is the one the intake ledger never keeps).
  *
  * An accepted text is made into the one inbound shape (inboundFromSms, decision 0001 step 3), in the door and in its job
@@ -53,12 +53,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { text } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
-import { keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { oneTimeCodeOf, smsInboundFrom, inboundFromSms, type SmsInbound } from "@chanlytics/channels";
-import type { Database, IngestResult, Json } from "@chanlytics/db";
+import { keepDelivery, signatureHeaders } from "../shared/keep-event.js";
+import { oneTimeCodeOf, smsInboundFrom, inboundFromSms, type SmsInbound } from "@chanlytics/channels/lines";
+import type { Database, Json } from "@chanlytics/db/types";
+import type { IngestResult } from "@chanlytics/db/channels";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
-import { smsSenderFor, type SmsSender } from "./sms.js";
-import { planSmsIngress, carrierFor, smsAfterThrow, lineForAnswer } from "./ingress.js";
+import { smsSenderFor, type SmsSender } from "../lines/sms.js";
+import { planSmsIngress, carrierFor, smsAfterThrow, getLineForAnswer } from "./ingress.js";
 import { recordInboundMessage, resumeInbound } from "../whatsapp/inbound.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { IngestFailed } from "../whatsapp/persist.js";
@@ -78,7 +79,7 @@ export async function receiveInboundText(request: Request): Promise<Response> {
   const inbound = smsInboundFrom(form);
   if (!inbound) return twiml(400);
   // Tails, never numbers: enough to follow one text through the log, not enough to dial.
-  const L = logger({ sid: inbound.messageSid, from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to) });
+  const log = logger({ sid: inbound.messageSid, from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to) });
 
   const db = pg();
   if (!db) return twiml(503);
@@ -93,7 +94,7 @@ export async function receiveInboundText(request: Request): Promise<Response> {
   // Kept under Twilio's id once its signature held, before any verdict is acted on (decision 0032, 00336). Twilio never
   // sends a text again, so one refused for a routing that could not be read, or a channel switched off, is the one a
   // fix takes in by replay. A one-time code another service texted to the line is never kept, whatever its verdict: a
-  // replay of it would answer nothing, and Twilio already keeps it for the owner (lib/lines/line-codes.ts), so a code is
+  // replay of it would answer nothing, and Twilio already keeps it for the owner (lib/lines/codes.ts), so a code is
   // a secret that is not ours to hold for a week.
   const proven = oneTimeCodeOf(inbound.body)
     ? null
@@ -113,8 +114,8 @@ export async function receiveInboundText(request: Request): Promise<Response> {
       body: raw,
     });
   if (verdict.kind === "refuse") {
-    if (verdict.level === "error") L.error(verdict.log);
-    else L.warn(verdict.log);
+    if (verdict.level === "error") log.error(verdict.log);
+    else log.warn(verdict.log);
     // Suppressed for fifteen minutes inside alertUnroutable. The alert always
     // NAMES the number -- an operator cannot act on "a text arrived for
     // unknown-line" -- but a refusal that happens before the signature can be
@@ -126,28 +127,28 @@ export async function receiveInboundText(request: Request): Promise<Response> {
   }
 
   if (verdict.kind === "code") {
-    L.info("sms_code_skipped", { service: verdict.from });
+    log.info("sms_code_skipped", { service: verdict.from });
     return twiml(200);
   }
 
   const { line, acct, routed, held } = verdict;
   const carrier = carrierFor(held, held ? null : smsSenderFor(line, acct));
-  L.info("sms_inbound", { held, opt: inbound.optOutType, media: inbound.numMedia });
+  log.info("sms_inbound", { held, opt: inbound.optOutType, media: inbound.numMedia });
   const receivedAt = Date.now();
   const message = inboundFromSms(inbound, receivedAt);
   try {
     // Recorded, then answered by its job; answered here only when the database refused the job's kind.
     const ing = await recordInboundMessage(message, routed.tenantId, routed, carrier);
-    if (ing && (await answerLater(db, routed.tenantId, answerPayload(form, receivedAt, ing), L)) === "refused")
+    if (ing && (await answerLater(db, routed.tenantId, answerPayload(form, receivedAt, ing), log)) === "refused")
       await resumeInbound(message, routed.tenantId, routed, carrier);
-  } catch (e) {
-    L.error("sms_inbound_failed", { error: e instanceof Error ? e.message : String(e) });
+  } catch (error) {
+    log.error("sms_inbound_failed", { error: error instanceof Error ? error.message : String(error) });
     // Twilio retries nothing on its own: a text the database did not accept is
     // refused so the provider redelivers, and the platform is told now.
     // A text the database KEPT, whose yes did not land (kept: only the door's own answer, taken when the job's kind was
     // refused), is not one it refused: Twilio sends nothing again, so the 503 and the alert that it was not recorded would
     // be wrong. The failure is in the line above, by name.
-    const after = smsAfterThrow(e instanceof IngestFailed && !e.kept);
+    const after = smsAfterThrow(error instanceof IngestFailed && !error.kept);
     if (after.alert) await alertUnroutable("sms", inbound.to, 1, after.alert);
     return twiml(after.status);
   }
@@ -188,14 +189,14 @@ async function answerLater(
   db: Db,
   tenantId: string,
   payload: Json,
-  L: ReturnType<typeof logger>,
+  log: ReturnType<typeof logger>,
 ): Promise<"scheduled" | "refused" | "unknown"> {
   try {
     await scheduleJobOnce(db, { tenantId, kind: "inbound_answer", dueAt: new Date(), payload });
     return "scheduled";
   } catch (e) {
     const refused = (e as { code?: unknown }).code === CHECK_REFUSED;
-    L.warn("sms_answer_unscheduled", { refused, error: errField(e) });
+    log.warn("sms_answer_unscheduled", { refused, error: errField(e) });
     return refused ? "refused" : "unknown";
   }
 }
@@ -220,7 +221,7 @@ function speakingOnce(db: Db, job: ClaimedJob, sender: SmsSender): SmsSender {
 
 /**
  * The job's half (inbound_answer, bound by lib/ops/jobs-tick.ts): the text its door recorded, answered. The line and
- * its routing are read again (lineForAnswer), the text is the one Twilio sent, with the time it came for the staleness
+ * its routing are read again (getLineForAnswer), the text is the one Twilio sent, with the time it came for the staleness
  * check, and the whole inbound phase runs with `resume`: answered while the message is unprocessed and no reply names
  * it. Throws when the payload names no text, the number is another workspace's now, or a read failed: the ledger tries
  * again, and after that the deadman sweep hands the message to a person. Tried again only until it speaks: the line's
@@ -233,12 +234,12 @@ export async function answerText(db: Db, job: ClaimedJob): Promise<void> {
     fields !== null && typeof fields === "object" ? smsInboundFrom(fields as Record<string, string>) : null;
   if (!inbound) throw new Error("inbound_answer: the payload names no text");
   const receivedAt = typeof job.payload.received_at === "number" ? job.payload.received_at : Date.now();
-  const { line, acct, routed, held } = await lineForAnswer(db, inbound);
+  const { line, acct, routed, held } = await getLineForAnswer(db, inbound);
   if (routed.tenantId !== job.tenant_id)
     throw new Error("inbound_answer: the number texted is another workspace's now");
   const sender = held ? null : smsSenderFor(line, acct);
   const carrier = carrierFor(held, sender && speakingOnce(db, job, sender));
-  const L = logger({ tenant_id: job.tenant_id, sid: inbound.messageSid, to_tail: phoneTail(inbound.to) });
-  L.info("sms_answer_taken_up", { held });
+  const log = logger({ tenant_id: job.tenant_id, sid: inbound.messageSid, to_tail: phoneTail(inbound.to) });
+  log.info("sms_answer_taken_up", { held });
   await resumeInbound(inboundFromSms(inbound, receivedAt), routed.tenantId, routed, carrier);
 }

@@ -16,13 +16,11 @@ import {
   DEFAULT_TIMEZONE,
   describeNow,
   freeWindows,
-  journeyGuide,
   newReceptionistDefaults,
   numberHealthOfConfig,
   PLAYBOOK_CARD_WORDS,
   peopleNowOf,
   personName,
-  reportFacts,
   toCallVM,
   toPeopleReportVM,
   toPersonVM,
@@ -30,6 +28,8 @@ import {
   toReportVM,
   toReviewsReportVM,
 } from "@chanlytics/contracts";
+import { journeyGuide } from "../../apps/dashboard/src/server/ask/journey/guide.ts";
+import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 import * as contracts from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
@@ -43,7 +43,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const {
   facts,
   appointmentWord,
@@ -54,12 +54,12 @@ const {
   channelsReady: channelsReadyReader,
 } = await import(at("apps/dashboard/src/server/readers/facts.ts"));
 const { metrics } = await import(at("apps/dashboard/src/server/readers/metrics.ts"));
-const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { readConversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
 const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"));
 const { searches } = await import(at("apps/dashboard/src/server/readers/searches.ts"));
-const { inbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
-const { today } = await import(at("apps/dashboard/src/server/readers/today.ts"));
+const { readInbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
+const { readToday } = await import(at("apps/dashboard/src/server/readers/today.ts"));
 // Named apart from the fixtures below that build a conversation's and a message's rows.
 const { conversation: oneThread, messagesOf } = await import(at("apps/dashboard/src/server/readers/conversation.ts"));
 const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/call.ts"));
@@ -73,7 +73,7 @@ const {
   peopleReport,
 } = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { campaignReport, campaignLedgerReport } = await import(
   at("apps/dashboard/src/server/readers/campaign-report.ts")
 );
@@ -85,15 +85,15 @@ const receptionistRoute = await import(at("apps/dashboard/app/api/v1/reports/rec
 const peopleRoute = await import(at("apps/dashboard/app/api/v1/reports/people/route.ts"));
 const googleRoute = await import(at("apps/dashboard/app/api/v1/google/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/week.ts"));
-const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+const { getCalendarWeek } = await import(at("apps/dashboard/src/server/calendar/week/week.ts"));
+const { forgetFeeds, getOpenings } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 const { openings: openingsReader } = await import(at("apps/dashboard/src/server/readers/openings.ts"));
 const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
-const { calendar: calendarReader, sources: calendarSources } = await import(
+const { readCalendar: calendarReader, sources: calendarSources } = await import(
   at("apps/dashboard/src/server/readers/calendar.ts")
 );
 const calendarRoute = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
-const { people: peopleReader } = await import(at("apps/dashboard/src/server/readers/people.ts"));
+const { readPeople: peopleReader } = await import(at("apps/dashboard/src/server/readers/people.ts"));
 const { lists: listsReader } = await import(at("apps/dashboard/src/server/readers/lists.ts"));
 const {
   broadcasts: broadcastsReader,
@@ -111,17 +111,19 @@ const touchesRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/touch
  * readers reach it through the service client, here a double that counts 1,240 emails and 12 texts.
  */
 const MONTH_SENT = { email: 1240, sms: 12 };
-setServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
+setUnsubscribeServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
 const broadcastRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts"));
-const { everyone } = await import(at("apps/dashboard/src/server/people/people.ts"));
-const { audiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
-const { audiencePool: audiencePoolOf, poolList } = await import(at("apps/dashboard/src/server/people/audience.ts"));
-const { channelsReadyOrNull } = await import(at("apps/dashboard/src/server/campaigns/channels-ready.ts"));
-const { everyone: everyoneReader } = await import(at("apps/dashboard/src/server/readers/everyone.ts"));
+const { listEveryone } = await import(at("apps/dashboard/src/server/people/people.ts"));
+const { getAudiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
+const { getAudiencePool: audiencePoolOf, findPoolList } = await import(
+  at("apps/dashboard/src/server/campaigns/audience.ts")
+);
+const { findChannelsReadyOrNull } = await import(at("apps/dashboard/src/server/campaigns/channels-ready.ts"));
+const { listEveryone: everyoneReader } = await import(at("apps/dashboard/src/server/readers/everyone.ts"));
 const { playbooks: playbooksReader } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
 const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
-const { getBroadcast } = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
-const { settings: settingsReader } = await import(at("apps/dashboard/src/server/readers/settings.ts"));
+const { getBroadcast } = await import(at("apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts"));
+const { readSettingsContext: settingsReader } = await import(at("apps/dashboard/src/server/readers/settings.ts"));
 const { connections } = await import(at("apps/dashboard/src/server/readers/connections.ts"));
 const { notifications: notificationsReader } = await import(at("apps/dashboard/src/server/readers/notifications.ts"));
 const { activity: activityReader } = await import(at("apps/dashboard/src/server/readers/activity.ts"));
@@ -133,7 +135,7 @@ const notificationsRoute = await import(at("apps/dashboard/app/api/v1/notificati
 const activityRoute = await import(at("apps/dashboard/app/api/v1/activity/route.ts"));
 const channelsRoute = await import(at("apps/dashboard/app/api/v1/channels/route.ts"));
 const policiesRoute = await import(at("apps/dashboard/app/api/v1/policies/route.ts"));
-const { setupDtoFor } = await import(at("apps/dashboard/src/server/workspace/setup.ts"));
+const { setupDtoFor } = await import(at("apps/dashboard/src/server/setup/setup.ts"));
 const { templates: templatesReader } = await import(at("apps/dashboard/src/server/readers/templates.ts"));
 const templatesRoute = await import(at("apps/dashboard/app/api/v1/templates/route.ts"));
 
@@ -299,7 +301,7 @@ test("the facts readers: the tenant's name and zone are read once and kept for t
   assert.deepEqual(
     (await kernel.load(none, facts, undefined)).data,
     { name: "Workspace", timezone: "America/New_York" },
-    "tenantFacts' own defaults",
+    "getTenantFacts' own defaults",
   );
   assert.equal((await kernel.load(none, config, undefined)).data, null);
 });
@@ -359,7 +361,7 @@ const dayCtx = (tbls, { rpcs = {}, faults = {}, opts = {} } = {}) => ({
 /** The context a route builds from the membership it resolved. */
 const turnIn = (ctx, tenantId = A) => kernel.readerContext(ctx, { tenantId, role: "viewer" });
 const selects = (ctx, table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select");
-/** A read of the holds that have closed (db lastClosedHolds), which the threads' read asks beside their messages. */
+/** A read of the holds that have closed (db listLastClosedHolds), which the threads' read asks beside their messages. */
 const closedHolds = (q) => q.filters.some(([op, col, v]) => op === "eq" && col === "state" && v === "resolved");
 /** The reads of the open escalations, apart from the closed holds the threads' read asks. */
 const openHolds = (ctx) => selects(ctx, "escalations").filter((q) => !closedHolds(q));
@@ -494,7 +496,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
     ],
     messages: [],
   };
-  const inBayside = await kernel.load(turnIn(dayCtx(two), B), conversations, { ids: null });
+  const inBayside = await kernel.load(turnIn(dayCtx(two), B), readConversations, { ids: null });
   assert.deepEqual(
     inBayside.data.conversations.map((c) => c.id),
     ["c-b"],
@@ -510,7 +512,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
     ),
   );
   const ctx = dayCtx({ conversations: threads, messages: said }, { opts: { maxRows: 100 } });
-  const newest = await kernel.load(turnIn(ctx), conversations, { ids: null });
+  const newest = await kernel.load(turnIn(ctx), readConversations, { ids: null });
   assert.equal(
     newest.data.conversations.filter((c) => c.messages.length === 0).length,
     0,
@@ -549,7 +551,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
     ],
     messages: [message("m1", C1, A), message("m2", C2, A), message("m9", uuid(9), B)],
   };
-  const byIds = await kernel.load(turnIn(dayCtx(tbls)), conversations, { ids: [C2, uuid(9)] });
+  const byIds = await kernel.load(turnIn(dayCtx(tbls)), readConversations, { ids: [C2, uuid(9)] });
   assert.deepEqual(
     byIds.data.conversations.map((c) => c.id),
     [C2],
@@ -809,7 +811,7 @@ const dayDoors = { metrics_summary: () => SUMMARY, lead_list_counts: () => COUNT
 
 test("the Inbox as the page composes it: the newest hundred and the open escalations at once, then every escalated thread outside the hundred in one read by id, first; one the extra read cannot bring is counted in the log", async () => {
   const ctx = dayCtx(dayTables());
-  const r = await kernel.load(turnIn(ctx), inbox, undefined);
+  const r = await kernel.load(turnIn(ctx), readInbox, undefined);
   assert.deepEqual(
     r.data.conversations.map((c) => c.id),
     [OUTSIDE, ...Array.from({ length: 100 }, (_, i) => uuid(i))],
@@ -847,7 +849,7 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
   assert.equal(
     selects(ctx, "escalations").filter(closedHolds).length,
     2,
-    "and each read of threads asks their newest closed hold beside their messages (db lastClosedHolds)",
+    "and each read of threads asks their newest closed hold beside their messages (db listLastClosedHolds)",
   );
   assert.deepEqual(
     r.rows.map((x) => x.id),
@@ -864,7 +866,7 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
     },
   };
   const { result: short, lines } = await logged("inbox_escalated_fetch_failed", () =>
-    kernel.load(turnIn(dayCtx(dayTables(), { faults })), inbox, undefined),
+    kernel.load(turnIn(dayCtx(dayTables(), { faults })), readInbox, undefined),
   );
   assert.deepEqual(
     short.data.conversations.map((c) => c.id),
@@ -877,7 +879,7 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
 test("Today for Ask as the page composes it: the day's metrics, the newest hundred, the open escalations, the calls, the searches and the runs waiting at once, then the threads of the holds past the hundred by id -- each read once in the turn and shared with the Inbox; a failed calls or searches read is null and the rest stands", async () => {
   const ctx = dayCtx(dayTables(), { rpcs: dayDoors });
   const rc = turnIn(ctx);
-  const r = await kernel.load(rc, today, undefined);
+  const r = await kernel.load(rc, readToday, undefined);
   assert.deepEqual(Object.keys(r.data), [
     "metrics",
     "conversations",
@@ -915,7 +917,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     r.data.searches.map((s) => s.id),
     [S1],
   );
-  const hundred = await kernel.load(rc, conversations, { ids: null });
+  const hundred = await kernel.load(rc, readConversations, { ids: null });
   assert.equal(r.data.conversations, hundred.data.conversations, "the hundred's own read, shared through the turn");
   assert.deepEqual(r.rows, [
     ...hundred.rows,
@@ -940,7 +942,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "the day's metrics",
   );
   // inbox.list and calls.list beside it in the turn: the Inbox reads only the ids the hundred did not hold.
-  const theInbox = await kernel.load(rc, inbox, undefined);
+  const theInbox = await kernel.load(rc, readInbox, undefined);
   await kernel.load(rc, calls, {});
   assert.equal(theInbox.data.conversations[0].id, OUTSIDE);
   assert.deepEqual(
@@ -952,7 +954,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   const { result: noCalls, lines: callLines } = await logged("today_calls_fetch_failed", () =>
     kernel.load(
       turnIn(dayCtx(dayTables(), { rpcs: dayDoors, faults: { "calls.select": { message: "permission denied" } } })),
-      today,
+      readToday,
       undefined,
     ),
   );
@@ -964,7 +966,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   const { result: noSearches, lines: searchLines } = await logged("today_searches_fetch_failed", () =>
     kernel.load(
       turnIn(dayCtx(dayTables(), { rpcs: dayDoors, faults: { "lead_searches_view.select": { message: "down" } } })),
-      today,
+      readToday,
       undefined,
     ),
   );
@@ -1114,7 +1116,7 @@ test("the one thread for Ask is what GET conversations/:id answers for it, key f
       conversation(C1, B, { contacts: contact({ display_name: null, phone_e164: null, email: "ada@example.com" }) }),
     ],
   };
-  const listed = await kernel.load(turnIn(dayCtx(byEmail), B), conversations, { ids: [C1] });
+  const listed = await kernel.load(turnIn(dayCtx(byEmail), B), readConversations, { ids: [C1] });
   const one = await kernel.load(turnIn(dayCtx(byEmail), B), oneThread, { id: C1, before: null });
   assert.deepEqual(
     one.rows.map((x) => x.label),
@@ -1162,7 +1164,7 @@ test("what a message cost to send is never Ask's to read: the thread reader, the
   const route = await threadRoute.GET.run(req(), routeCtx(tbls, C1));
   assert.deepEqual(route, one.data, "and the route is the reader");
 
-  const listed = await kernel.load(turnIn(dayCtx(tbls), B), conversations, { ids: [C1] });
+  const listed = await kernel.load(turnIn(dayCtx(tbls), B), readConversations, { ids: [C1] });
   assert.deepEqual(
     metas(listed.data.conversations[0].messages),
     [null, { source: "ai", handled: "ai" }],
@@ -1439,7 +1441,7 @@ const PERSON_READS = {
   "sequence_enrollments.select": 1,
   "person_doubts.select": 1,
   "person_notes.select": 1,
-  // The signers of their replies (db signersOf, decision 0052, #1566).
+  // The signers of their replies (db listSigners, decision 0052, #1566).
   "sequence_replies.select": 1,
   "messages.select": 1,
   "escalations.select": 1,
@@ -2482,9 +2484,9 @@ const WEEK = { from: "2026-09-07", days: 7 };
 const ANA = { id: "k-ana", display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: "+19175550100", email: null };
 const tuesday = (week) => week.days.find((d) => d.key === "2026-09-08");
 
-test("the calendar, for Ask: the board's week exactly as calendarWeek assembles it (a read puts nobody in People) -- over calendar-feed's fixture with no calendar, a calendar that cannot be read, and its one appointment -- and each person its days name is a row, once, by the board's name for them", async () => {
+test("the calendar, for Ask: the board's week exactly as getCalendarWeek assembles it (a read puts nobody in People) -- over calendar-feed's fixture with no calendar, a calendar that cannot be read, and its one appointment -- and each person its days name is a row, once, by the board's name for them", async () => {
   const none = calTables(null);
-  const quiet = await calendarWeek(calCtx(none), A, WEEK, CAL_NOW);
+  const quiet = await getCalendarWeek(calCtx(none), A, WEEK, CAL_NOW);
   const noFeed = await kernel.load(calIn(calCtx(none)), calendarReader, WEEK);
   assert.deepEqual(noFeed.data, { calendar: quiet });
   assert.equal(quiet.feed.state, "none");
@@ -2493,7 +2495,7 @@ test("the calendar, for Ask: the board's week exactly as calendarWeek assembles 
   await logged("ask_feed_fetch_failed", () =>
     withFeed({ body: "nope", status: 503 }, async () => {
       const t = calTables("https://cal.example/down.ics");
-      const want = await calendarWeek(calCtx(t), A, WEEK, CAL_NOW);
+      const want = await getCalendarWeek(calCtx(t), A, WEEK, CAL_NOW);
       const r = await kernel.load(calIn(calCtx(t)), calendarReader, WEEK);
       assert.deepEqual(r.data, { calendar: want });
       assert.deepEqual([want.feed.state, want.feed.reason, want.feed.status], ["unavailable", "http", 503]);
@@ -2502,14 +2504,14 @@ test("the calendar, for Ask: the board's week exactly as calendarWeek assembles 
 
   await withFeed({ body: ONE_ICS }, async (fetched) => {
     const t = calTables("https://cal.example/ok.ics");
-    const want = await calendarWeek(
+    const want = await getCalendarWeek(
       calCtx(t, () => [ANA]),
       A,
       WEEK,
       CAL_NOW,
     );
     const r = await kernel.load(calIn(calCtx(t, () => [ANA])), calendarReader, WEEK);
-    assert.deepEqual(r.data, { calendar: want }, "the week calendarWeek answers");
+    assert.deepEqual(r.data, { calendar: want }, "the week getCalendarWeek answers");
     assert.equal(JSON.stringify(r.data.calendar), JSON.stringify(want), "byte for byte");
     assert.equal(fetched.length, 1, "the calendar asked once: the second read took the loader's cache");
     assert.deepEqual(
@@ -2547,7 +2549,7 @@ test("the calendar, for Ask: the board's week exactly as calendarWeek assembles 
 /**
  * The record's five reads (its rows over the span, in two since 00397: the bookings whole and the feed's rows by key;
  * the notices' latest and their held count; the mailbox) are asked for together and waited for together
- * (calendar/week.ts recordOverSpan, 9 Oct 2026: one after the other they were round trips the board stood behind). Which
+ * (calendar/week/week.ts recordOverSpan, 9 Oct 2026: one after the other they were round trips the board stood behind). Which
  * is heard first is the database stand-in's to say, not the route's, so the five are put in one order before what was
  * asked is compared: every read is still there, once, with its columns, and everything before and after them is still
  * in its own order. `at` is where the five begin.
@@ -2575,7 +2577,7 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
       // The record's rows over the span and the notices' health line (00345) are read beside the feed, then everyone.
       // Last, once the feed has read, the record's taken time over the days on offer (record-busy.ts): this week does
       // not cover a fortnight's offer, so the board's open times ask for it rather than reuse the span's rows.
-      // The span's record is two reads since a member's word on a visit (00397, visitsOver): the bookings, and the feed's
+      // The span's record is two reads since a member's word on a visit (00397, findVisitsOver): the bookings, and the feed's
       // rows by key. The season's record beside everyone is two more (3 Nov 2026: each person's last visit).
       recordTogether(
         [
@@ -2675,7 +2677,7 @@ const CALENDAR_ASKED_AT_MAIN = [
   ["tenant_config.select", "config"],
   // Since 00345: the record's rows over the span and the notices' health line (the latest, and the held count), read
   // beside the feed before everyone is (docs/plans/2026-10-07-bookings-arrive-by-email.md); since 00397 the span's
-  // record is two reads (visitsOver): the bookings whole, and the feed's rows as ids and statuses by key, with the lead
+  // record is two reads (findVisitsOver): the bookings whole, and the feed's rows as ids and statuses by key, with the lead
   // each one's person was found as (00426), whose origin the sheet says. No visit here names a lead, so none is read.
   ["appointments.select", "*"],
   ["appointments.select", "id, status, external_id, starts_at, lead_id"],
@@ -2686,7 +2688,7 @@ const CALENDAR_ASKED_AT_MAIN = [
   ["rpc:people_list", null],
   ["policies.select", "subject_type, subject_id, mode"],
   // Since 3 Nov 2026, so Today's day can say when each person was last in: the record over the season, which each
-  // person's visits join (people-visits.ts poolRecordOf, boardVisits): a booking's rows whole, and the feed's rows a
+  // person's visits join (people-visits.ts findPoolRecord, getBoardVisits): a booking's rows whole, and the feed's rows a
   // member said a word of. Nobody here is in People, so nobody comes for a first visit and the record before the season
   // is not asked.
   ["appointments.select", "*"],
@@ -2739,7 +2741,7 @@ test("GET calendar through its reader asks what it asked at origin/main, in the 
 
 test("a route's turn takes the workspace's name and zone from its membership: GET calendar no longer asks for them, and says the membership row's zone; a turn handed none reads them as it did", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
-    // The membership's row as the real select embeds it (with-route.ts memberContext): its slug, name and zone. The
+    // The membership's row as the real select embeds it (with-route.ts getMemberContext): its slug, name and zone. The
     // tenants table says another zone, so an answer in it would show the zone was read again.
     const t = calTables("https://cal.example/route.ics");
     t.memberships[0].tenants = { slug: "harbor", name: "Harbor", timezone: "Asia/Tokyo" };
@@ -3244,7 +3246,7 @@ test("the People lens carries the series as the database gave it and the book as
   assert.deepEqual(r.data.series, peopleSeriesAnswer({ p_days: 30 }, BUSY), "the series, as the database gave it");
 
   const held = (await kernel.load(calIn(worldCtx(w)), everyoneReader, undefined)).data;
-  const ready = await channelsReadyOrNull(worldCtx(w), A, { withPause: false });
+  const ready = await findChannelsReadyOrNull(worldCtx(w), A, { withPause: false });
   assert.notEqual(ready, null, "the channels are read, WhatsApp among them");
   const nowMs = CAL_NOW.getTime();
   assert.deepEqual(r.data.now, peopleNowOf(held, { tz: "America/New_York", nowMs, ready }));
@@ -3773,10 +3775,10 @@ test("the Campaigns lens' ledger asks the database what it was asked: campaign_l
   const live = await kernel.load(ledgerIn(worldCtx(ledgerWorld())), campaignLedgerReport, LENS);
   assert.deepEqual(ended.data.stuck, live.data.stuck, "what is stuck is the same as of now, whichever days are asked");
 
-  const today = worldCtx(ledgerWorld());
-  await kernel.load(ledgerIn(today), campaignLedgerReport, LENS);
+  const readToday = worldCtx(ledgerWorld());
+  await kernel.load(ledgerIn(readToday), campaignLedgerReport, LENS);
   assert.deepEqual(
-    today.supabase.seen.filter((q) => q.rpc),
+    readToday.supabase.seen.filter((q) => q.rpc),
     [
       { rpc: "campaign_ledger", args: { p_tenant_id: A, p_days: 30 } },
       { rpc: "campaign_stuck", args: { p_tenant_id: A } },
@@ -3841,7 +3843,7 @@ const WEDNESDAY_TAKEN = [
   "END:VCALENDAR",
 ].join("\r\n");
 
-test("the openings, for Ask and for the palette: GET ask/openings answers its reader's payload over ask-routes' fixture, with no calendar connected, and over a calendar that cannot be read; over calendar-counts' feed the reader answers what openingsFor answers on the same clock -- the morning taken, the afternoon open; no row a citation names", async () => {
+test("the openings, for Ask and for the palette: GET ask/openings answers its reader's payload over ask-routes' fixture, with no calendar connected, and over a calendar that cannot be read; over calendar-counts' feed the reader answers what findOpenings answers on the same clock -- the morning taken, the afternoon open; no row a citation names", async () => {
   const bare = { memberships: reportMembers(), tenants: [], tenant_config: [] };
   const page = await openingsRoute.GET.run(req(`?day=saturday&workspace=${A}`), dayCtx(bare));
   const r = await kernel.load(turnIn(dayCtx(bare)), openingsReader, { day: "saturday", service: null });
@@ -3865,8 +3867,8 @@ test("the openings, for Ask and for the palette: GET ask/openings answers its re
 
   await withFeed({ body: WEDNESDAY_TAKEN }, async () => {
     const t = calTables("https://cal.example/open.ics");
-    // openingsFor handed the fixture's own zone and settings, as the reader hands it the turn's.
-    const want = await openingsFor(A, { day: "2026-09-09", service: "Balayage" }, CAL_NOW, {
+    // findOpenings handed the fixture's own zone and settings, as the reader hands it the turn's.
+    const want = await getOpenings(A, { day: "2026-09-09", service: "Balayage" }, CAL_NOW, {
       timezone: t.tenants[0].timezone,
       config: t.tenant_config[0].config,
       // The record holds nothing for this workspace: the feed's taken time alone.
@@ -4103,7 +4105,7 @@ test("the people list, for Ask and for the page: GET contacts answers its reader
   );
   // The same reading of who exists as the CSV export (everyone(), server/people/people.ts): the door's rows under the member's
   // RLS, each with the reply mode in force, a page at a time.
-  const all = await everyone(worldCtx(listWorld()), A);
+  const all = await listEveryone(worldCtx(listWorld()), A);
   assert.deepEqual(
     harbor.data.people.map((p) => [p.id, p.effective_reply_mode]),
     all.map((p) => [p.id, p.effective_reply_mode]),
@@ -4195,7 +4197,7 @@ const peopleWorld = () => {
   };
 };
 /**
- * 7 Oct 2026: the follow-up's template is read as its message, whatever its channels (db messageVersionRowsOf: the rows of its
+ * 7 Oct 2026: the follow-up's template is read as its message, whatever its channels (db listMessageVersionRows: the rows of its
  * name and language, which contracts campaignMessageOf picks the versions out of), where it was Meta's row alone.
  */
 const MESSAGE_ROWS_ASKED =
@@ -4236,11 +4238,11 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
   ["deals.select", "id, contact_id, proposed_at"],
-  // 3 Oct 2026: the channels the follow-up ticks (db playbookChannels), beside its template: the number and Meta's
+  // 3 Oct 2026: the channels the follow-up ticks (db listPlaybookChannels), beside its template: the number and Meta's
   // approval stop only a follow-up that goes by WhatsApp.
   ["sequence_steps.select", "channels"],
   // 11 Oct 2026 (0002's readers): the record over the feed's season, joined to it: a booking's rows whole, and the
-  // feed's rows as ids and statuses by key (db visitsOver).
+  // feed's rows as ids and statuses by key (db findVisitsOver).
   ["appointments.select", "*"],
   ["appointments.select", "id, status, external_id, starts_at"],
   ["templates.select", MESSAGE_ROWS_ASKED],
@@ -4288,7 +4290,7 @@ const PEOPLE_ASKED_NOW = [
   ["rpc:team_roster", null],
   ["sequence_steps.select", "channels"],
   // 11 Oct 2026 (0002's readers): the record over the feed's season, joined to it: a booking's rows whole, and the
-  // feed's rows as ids and statuses by key (db visitsOver).
+  // feed's rows as ids and statuses by key (db findVisitsOver).
   ["appointments.select", "*"],
   ["appointments.select", "id, status, external_id, starts_at"],
   ["templates.select", MESSAGE_ROWS_ASKED],
@@ -4617,7 +4619,7 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
 });
 
 test("the month a page says is null where it could not be counted, said in the log, and never a month of nothing: both pages still answer", async () => {
-  setServiceClient(
+  setUnsubscribeServiceClient(
     fakeDb(
       {},
       {},
@@ -4639,7 +4641,7 @@ test("the month a page says is null where it could not be counted, said in the l
     assert.equal(lines.length, 2, "one line for each of the two months' reads");
     assert.match(String(lines[0].error), /cannot count the month's email campaign messages: the database is down/);
   } finally {
-    setServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
+    setUnsubscribeServiceClient(fakeDb({}, {}, { campaign_month_sent: ({ p_channel }) => MONTH_SENT[p_channel] }));
   }
 });
 
@@ -4775,14 +4777,14 @@ test("one broadcast, for Ask and for the page: GET broadcasts/:id answers its re
 
 /* --------------------------------------------------------------------------- the audience pool (PR 1.6) */
 
-test("the audience pool, for Ask: everyone with their appointments for the member asking, exactly as server/people/audience.ts reads it for the same zone and clock -- over a calendar that names one of them -- read once a turn; the zone, the settings and a deal on file are the turn's, so the pool's calendar lookup reads neither and the deals are not read again; settings that cannot be read cost the visits, never the pool; a workspace-wide read, with no row of its own", async () => {
+test("the audience pool, for Ask: everyone with their appointments for the member asking, exactly as server/campaigns/audience.ts reads it for the same zone and clock -- over a calendar that names one of them -- read once a turn; the zone, the settings and a deal on file are the turn's, so the pool's calendar lookup reads neither and the deals are not read again; settings that cannot be read cost the visits, never the pool; a workspace-wide read, with no row of its own", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
     const w = peopleWorld();
     // The rows say who can be sent what against what the workspace sends on (3 Oct 2026), read as the reader reads it.
-    const ready = await channelsReadyOrNull(worldCtx(w), A);
+    const ready = await findChannelsReadyOrNull(worldCtx(w), A);
     const want = await audiencePoolOf(worldCtx(w), A, "America/New_York", CAL_NOW, ready);
     const r = await kernel.load(calIn(worldCtx(w)), audiencePoolReader, undefined);
-    assert.deepEqual(r.data, want, "the pool server/people/audience.ts reads");
+    assert.deepEqual(r.data, want, "the pool server/campaigns/audience.ts reads");
     assert.deepEqual(r.rows, []);
     // Ana's appointment is on the turn's own day, ahead of its clock; Luis's proposal is his, as in every workspace.
     const [ana, luis] = r.data.rows;
@@ -4800,7 +4802,7 @@ test("the audience pool, for Ask: everyone with their appointments for the membe
       ["appointments.select", "appointments.select"],
     ]);
     // The settings are read only where the pool's calendar lookup would read them: one that fails costs the visits,
-    // said once in the log, as server/people/audience.ts's own lookup costs them -- never the pool.
+    // said once in the log, as server/campaigns/audience.ts's own lookup costs them -- never the pool.
     const down = { "tenant_config.select": { message: "config down" } };
     const { result: blind, lines } = await logged("people_visits_failed", () =>
       kernel.load(calIn(worldCtx(w, down)), audiencePoolReader, undefined),
@@ -5136,7 +5138,7 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
   // 11 Oct 2026 (0002's readers): the record over the feed's season, beside it: a booking's rows whole, and the feed's
-  // rows as ids and statuses by key (db visitsOver).
+  // rows as ids and statuses by key (db findVisitsOver).
   ["appointments.select", "*"],
   ["appointments.select", "id, status, external_id, starts_at"],
   ["deals.select", "id, contact_id, proposed_at"],
@@ -5324,7 +5326,7 @@ test("everyone, for Ask: every page of People with the reply mode in force for e
   const all = Array.from({ length: 1003 }, (_, i) => poolPerson(i + 1));
   const w = countsWorld(pagedPeople(all));
   const r = await kernel.load(turnIn(worldCtx(w)), everyoneReader, undefined);
-  assert.deepEqual(r.data, await everyone(worldCtx(w), A), "server/people/people.ts everyone()");
+  assert.deepEqual(r.data, await listEveryone(worldCtx(w), A), "server/people/people.ts everyone()");
   assert.deepEqual([r.data.length, r.rows], [1003, []]);
   const ctx = worldCtx(w);
   const turn = turnIn(ctx);
@@ -5681,13 +5683,13 @@ const notificationsWorld = (now = Date.now(), { mine = [], rows } = {}) => {
 };
 
 test("the notifications, for the page: GET notifications answers its reader's payload over reads-routes' fixture in both workspaces -- the month's rows newest first, each with this person's own marks, and when they last opened the bell -- the thirty days counted back from the turn's clock; the marks read only for the rows listed, and only this person's: another person's mark is not mine, my own dismissal is", async () => {
-  const today = Date.now();
+  const readToday = Date.now();
   for (const [tenant, ids, seen] of [
     [A, [N1, N2], "2026-09-10T12:00:00Z"],
     [B, [N4], null],
   ]) {
-    const page = await notificationsRoute.GET.run(req(`?workspace=${tenant}`), dayCtx(notificationsWorld(today)));
-    const r = await kernel.load(turnIn(dayCtx(notificationsWorld(today)), tenant), notificationsReader, undefined);
+    const page = await notificationsRoute.GET.run(req(`?workspace=${tenant}`), dayCtx(notificationsWorld(readToday)));
+    const r = await kernel.load(turnIn(dayCtx(notificationsWorld(readToday)), tenant), notificationsReader, undefined);
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
     assert.deepEqual([r.data.notifications.map((n) => n.id), r.data.seen_at], [ids, seen]);
@@ -6517,7 +6519,7 @@ const listsPoolWorld = () =>
     ],
   });
 
-test("poolList takes the turn's lists: handed the workspace's lists as the lists reader holds them -- archived and members included -- it answers what it answers reading them itself, for a list kept by hand, a rule list, a rule that names another list, an archived list and one that is not there, and reads no list; without them it reads its own, as the send does", async () => {
+test("findPoolList takes the turn's lists: handed the workspace's lists as the lists reader holds them -- archived and members included -- it answers what it answers reading them itself, for a list kept by hand, a rule list, a rule that names another list, an archived list and one that is not there, and reads no list; without them it reads its own, as the send does", async () => {
   const w = listsPoolWorld();
   // Counted by WhatsApp alone, as before the channels were: none of these lists reads who can be sent what.
   const pool = await audiencePoolOf(worldCtx(w), A, "America/New_York", new Date(), null);
@@ -6531,11 +6533,11 @@ test("poolList takes the turn's lists: handed the workspace's lists as the lists
   for (const id of [LIST_HAND, LIST_RULE, LIST_NAMING, LIST_ARCHIVED, LIST_GONE]) {
     const ref = { kind: "saved", id };
     const reading = worldCtx(w);
-    const itself = await poolList(reading, A, pool, ref);
+    const itself = await findPoolList(reading, A, pool, ref);
     const handed = worldCtx(w);
     const lists = (await kernel.load(turnIn(handed), listsReader, undefined)).data.lists;
     const held = handed.supabase.seen.length;
-    const got = await poolList(handed, A, pool, ref, lists);
+    const got = await findPoolList(handed, A, pool, ref, lists);
     assert.deepEqual(got, itself, `the same answer, handed or read: ${id}`);
     assert.equal(handed.supabase.seen.length, held, `handed the lists, it reads none: ${id}`);
     assert.ok(asked(reading).includes("segments.select"), `without them, it reads its own: ${id}`);
@@ -6546,8 +6548,8 @@ test("poolList takes the turn's lists: handed the workspace's lists as the lists
   // A People list reads no saved list either way.
   const builtin = worldCtx(w);
   assert.deepEqual(
-    await poolList(builtin, A, pool, { kind: "builtin", id: "phoned_only" }, []),
-    await poolList(worldCtx(w), A, pool, { kind: "builtin", id: "phoned_only" }),
+    await findPoolList(builtin, A, pool, { kind: "builtin", id: "phoned_only" }, []),
+    await findPoolList(worldCtx(w), A, pool, { kind: "builtin", id: "phoned_only" }),
   );
   assert.deepEqual(asked(builtin), []);
 });

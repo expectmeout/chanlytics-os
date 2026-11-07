@@ -43,41 +43,67 @@ const FIGURES = 4;
  * The figures, most telling first, four at most: when they were last in touch; the business's stage for a person who works
  * at a lead; their open deals; a step that is due; the reach-out's emails; their calls; their visits.
  */
-export function personFiguresOf(f: PersonFigureFacts): PersonFigureVM[] {
-  if (f.thin) return [];
+export function personFiguresOf(personFigureFacts: PersonFigureFacts): PersonFigureVM[] {
+  if (personFigureFacts.thin) return [];
   const out: PersonFigureVM[] = [];
-  if (f.last) out.push({ id: "last", label: "Last contact", value: f.last.value, sub: f.last.sub, to: "history" });
-  if (f.lead) out.push({ id: "lead", label: "Lead", value: f.lead.stage, sub: f.lead.since, to: "business" });
-  if (f.deals.count > 0)
+  if (personFigureFacts.last)
+    out.push({
+      id: "last",
+      label: "Last contact",
+      value: personFigureFacts.last.value,
+      sub: personFigureFacts.last.sub,
+      to: "history",
+    });
+  if (personFigureFacts.lead)
+    out.push({
+      id: "lead",
+      label: "Lead",
+      value: personFigureFacts.lead.stage,
+      sub: personFigureFacts.lead.since,
+      to: "business",
+    });
+  if (personFigureFacts.deals.count > 0)
     out.push({
       id: "deals",
       label: "Open deals",
-      value: String(f.deals.count),
-      sub: f.deals.recorded ?? plural(f.deals.count, "proposal"),
+      value: String(personFigureFacts.deals.count),
+      sub: personFigureFacts.deals.recorded ?? plural(personFigureFacts.deals.count, "proposal"),
       to: "deals",
     });
-  if (f.step)
-    out.push({ id: "step", label: "Step due", value: capitalize(f.step.day), sub: f.step.words, to: "overview" });
-  if (f.emails && f.emails.out > 0)
+  if (personFigureFacts.step)
+    out.push({
+      id: "step",
+      label: "Step due",
+      value: capitalize(personFigureFacts.step.day),
+      sub: personFigureFacts.step.words,
+      to: "overview",
+    });
+  if (personFigureFacts.emails && personFigureFacts.emails.out > 0)
     out.push({
       id: "emails",
       label: "Emails",
-      value: `${f.emails.out} out`,
-      sub: `${f.emails.back} back`,
+      value: `${personFigureFacts.emails.out} out`,
+      sub: `${personFigureFacts.emails.back} back`,
       to: "history",
     });
-  if (f.calls.count > 0)
-    out.push({ id: "calls", label: "Calls", value: String(f.calls.count), sub: f.calls.minutes, to: "history" });
-  if (f.visits.any)
+  if (personFigureFacts.calls.count > 0)
+    out.push({
+      id: "calls",
+      label: "Calls",
+      value: String(personFigureFacts.calls.count),
+      sub: personFigureFacts.calls.minutes,
+      to: "history",
+    });
+  if (personFigureFacts.visits.any)
     out.push({
       id: "visits",
-      label: personTabWord("visits", f.word),
-      value: f.visits.ahead > 0 ? `${f.visits.ahead} ahead` : "None ahead",
+      label: personTabWord("visits", personFigureFacts.word),
+      value: personFigureFacts.visits.ahead > 0 ? `${personFigureFacts.visits.ahead} ahead` : "None ahead",
       sub:
-        f.visits.toMark > 0
-          ? `${f.visits.toMark} to mark`
-          : f.visits.kept > 0
-            ? `${f.visits.kept} kept`
+        personFigureFacts.visits.toMark > 0
+          ? `${personFigureFacts.visits.toMark} to mark`
+          : personFigureFacts.visits.kept > 0
+            ? `${personFigureFacts.visits.kept} kept`
             : "none marked yet",
       to: "visits",
     });

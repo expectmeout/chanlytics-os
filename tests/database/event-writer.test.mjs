@@ -6,8 +6,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DB_REQUEST_HEADER, emitEvent, namedFetch, observeDb, recordEvent } from "@chanlytics/db";
-import { logger, requestId, withRequestId } from "@chanlytics/channels";
+import { DB_REQUEST_HEADER, namedFetch, observeDb } from "@chanlytics/db/shared";
+import { emitEvent, recordEvent } from "@chanlytics/db/events";
+import { logger, requestId, withRequestId } from "@chanlytics/log";
 import { SHARED_EVENT_SHAPES, SHARED_EVENT_VERSIONS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { createBearerClient } from "../../apps/dashboard/src/lib/supabase/server.ts";

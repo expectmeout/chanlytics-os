@@ -19,17 +19,11 @@ import {
   type TenantId,
   pauseMsOf,
 } from "@chanlytics/contracts";
-import {
-  listRow,
-  memberWithdrawDrafts,
-  ourLastWire,
-  reachOutRootOf,
-  reachOutSendRefOf,
-  replyReadingRefOf,
-  sequenceRow,
-  type Json,
-  appointmentWorkspace,
-} from "@chanlytics/db";
+import { listRow } from "@chanlytics/db/people";
+import { withdrawMemberDrafts, findOurLastWire } from "@chanlytics/db/conversations";
+import { findReachOutRoot, findReachOutSendRef, replyReadingRefOf, findSequenceRow } from "@chanlytics/db/campaigns";
+import { type Json } from "@chanlytics/db/types";
+import { findAppointmentWorkspace } from "@chanlytics/db/calendar";
 import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
@@ -171,7 +165,7 @@ export const contactScope = row((ctx, params) => loadContact(ctx, String(params.
  * cannot see is a 404, and judged in its own workspace.
  */
 async function loadAppointment(ctx: RouteContext, id: string): Promise<{ id: string; tenant_id: string }> {
-  const found = await appointmentWorkspace(ctx.supabase, requireUuid(id, "appointment"));
+  const found = await findAppointmentWorkspace(ctx.supabase, requireUuid(id, "appointment"));
   if (!found) throw new AppError("not_found", "Appointment not found.", 404);
   return found;
 }
@@ -257,7 +251,7 @@ export async function replyChannelOf(
   if (wrote) return writtenChannelOf(wrote.channel);
   // Nothing from their side: the wire our own written words last went by, so a conversation the business began is
   // carried on where it began (contracts answerWireOf, which the Inbox's box asks); WhatsApp with none.
-  return writtenChannelOf(await ourLastWire(ctx.supabase, conv.tenant_id, conv.id));
+  return writtenChannelOf(await findOurLastWire(ctx.supabase, conv.tenant_id, conv.id));
 }
 
 /**
@@ -376,7 +370,7 @@ export async function cancelPendingAiReply(
   conv: { id: string; tenant_id: string },
 ): Promise<number> {
   try {
-    return await memberWithdrawDrafts(ctx.supabase, { tenantId: conv.tenant_id, conversationId: conv.id });
+    return await withdrawMemberDrafts(ctx.supabase, { tenantId: conv.tenant_id, conversationId: conv.id });
   } catch (e) {
     // Not fatal to the operator's own action — but it means a draft may still
     // fire, so it must be visible rather than swallowed.
@@ -452,7 +446,7 @@ export const broadcastScope = row((ctx, params) => loadBroadcast(ctx, String(par
 
 /** The sequence a verb or a read acts on (decision 0060), read under RLS: one the caller cannot see is a 404. */
 async function loadSequence(ctx: RouteContext, id: string) {
-  const found = await sequenceRow(ctx.supabase, requireUuid(id, "sequence"));
+  const found = await findSequenceRow(ctx.supabase, requireUuid(id, "sequence"));
   if (!found) throw new AppError("not_found", "Sequence not found.", 404);
   return { ...found, tenant_id: asTenantId(found.tenant_id) };
 }
@@ -490,7 +484,7 @@ export const playbookScope = row((ctx, params) => loadPlaybook(ctx, String(param
 
 /** A reach-out, by its root (its first step), read under RLS: a step that is not a chain's first is not one. */
 async function loadReachOut(ctx: RouteContext, id: string) {
-  const data = await reachOutRootOf(ctx.supabase, requireUuid(id, "reach-out"));
+  const data = await findReachOutRoot(ctx.supabase, requireUuid(id, "reach-out"));
   if (!data) throw new AppError("not_found", REACH_OUT_REFUSALS.notFound, 404);
   return data;
 }
@@ -498,7 +492,7 @@ export const reachOutScope = row((ctx, params) => loadReachOut(ctx, String(param
 
 /** One email of a reach-out run, read under RLS (R18): the decide door acts where it lives. */
 async function loadReachOutSend(ctx: RouteContext, id: string) {
-  const data = await reachOutSendRefOf(ctx.supabase, requireUuid(id, "email"));
+  const data = await findReachOutSendRef(ctx.supabase, requireUuid(id, "email"));
   if (!data) throw new AppError("not_found", REACH_OUT_REFUSALS.sendNotFound, 404);
   return data;
 }

@@ -5,13 +5,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { HANDOFF_FORWARDS_BACK } from "@chanlytics/contracts";
 import {
   firstRunTryOf,
   FIRST_RUN_TRY_WORDS as W,
   TRY_QUIET_AFTER_MS,
-  FIRST_RUN_HELPERS,
-  HANDOFF_FORWARDS_BACK,
-} from "@chanlytics/contracts";
+} from "../../apps/dashboard/src/surfaces/setup/first-run/model/try.ts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/helpers.ts";
 
 const NOW = Date.parse("2026-09-24T15:00:00Z");
 const SINCE = NOW - 60_000;

@@ -20,9 +20,9 @@ const PEEK_ID = /^[A-Za-z0-9_-]{1,80}$/;
 const VIEW_TOKEN = /^(seg|list|state):[^:/]+$/;
 
 /** People's address for a view and, where one is open over it, the person peeked at. */
-export function peopleRoute(v: { view?: string | null; peek?: string | null } = {}): string {
-  const view = v.view && v.view !== "state:all" && VIEW_TOKEN.test(v.view) ? v.view : null;
-  const peek = v.peek && PEEK_ID.test(v.peek) ? v.peek : null;
+export function peopleRoute(values: { view?: string | null; peek?: string | null } = {}): string {
+  const view = values.view && values.view !== "state:all" && VIEW_TOKEN.test(values.view) ? values.view : null;
+  const peek = values.peek && PEEK_ID.test(values.peek) ? values.peek : null;
   if (!peek) return view ? `clients/${view}` : "clients";
   return `clients/${view ?? "state:all"}:p-${peek}`;
 }
@@ -34,11 +34,11 @@ export function peopleRoute(v: { view?: string | null; peek?: string | null } = 
 export function parsePeopleRoute(
   route: string | null | undefined,
 ): { view: string | null; peek: string | null } | null {
-  const r = String(route ?? "");
-  const slash = r.indexOf("/");
-  const head = slash < 0 ? r : r.slice(0, slash);
+  const text = String(route ?? "");
+  const slash = text.indexOf("/");
+  const head = slash < 0 ? text : text.slice(0, slash);
   if (head !== "clients" && head !== "people") return null;
-  const param = slash < 0 ? "" : r.slice(slash + 1);
+  const param = slash < 0 ? "" : text.slice(slash + 1);
   if (!param) return { view: null, peek: null };
   const [kind, id, ...rest] = param.split(":");
   const view = `${kind}:${id ?? ""}`;

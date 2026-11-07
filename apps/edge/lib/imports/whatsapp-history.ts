@@ -25,22 +25,15 @@ import {
   type WaChangeValue,
   type WaHistoryRead,
   type WaSyncedContact,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/whatsapp";
 import { DAY_MS, HOUR_MS, IMPORT_STOPPED_WORDS, normalizePhone, type ImportSource } from "@chanlytics/contracts";
-import {
-  PERSON_FORGOTTEN,
-  importCursorOf,
-  importsOf,
-  keepBefore,
-  noteImport,
-  providerEventOf,
-  resolveChannelDetailed,
-  resolvePerson,
-  type Database,
-  type Json,
-} from "@chanlytics/db";
-import { waCredentialsForChannel } from "../shared/tenant-runtime.js";
-import { graphRetryable, smbAppData } from "../whatsapp/meta-graph.js";
+import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
+import { importCursorOf, listImports, keepBefore, noteImport } from "@chanlytics/db/imports";
+import { findProviderEvent } from "@chanlytics/db/events";
+import { resolveChannelDetailed } from "@chanlytics/db/channels";
+import { type Database, type Json } from "@chanlytics/db/types";
+import { getWaCredentialsForChannel } from "../shared/tenant-runtime.js";
+import { graphRetryable, getSmbAppData } from "../whatsapp/meta-graph.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
 type Db = SupabaseClient<Database>;
@@ -63,7 +56,7 @@ export const HISTORY_PARTS = 3;
 const MESSAGES_A_PART = 80;
 const CONTACTS_A_PART = 120;
 
-/** A delivery's key in the intake ledger, as the webhook hands it on (intake/keep.ts digestId). */
+/** A delivery's key in the intake ledger, as the webhook hands it on (shared/keep-event.ts digestId). */
 const isDelivery = (connectionId: string | null): connectionId is string => !!connectionId?.startsWith("sha256:");
 
 /** Where an ask stands, on its row: the number connected, when, and Meta's request id once it was asked. */
@@ -91,14 +84,14 @@ async function askMeta(db: Db, part: Part, source: WhatsappSource, channelId: st
   const since = was.connectedAt ? Date.parse(was.connectedAt) : NaN;
   if (Number.isFinite(since) && Date.now() - since > SYNC_WINDOW_MS)
     return stopped(db, part, source, IMPORT_STOPPED_WORDS.offeredOnce);
-  const creds = await waCredentialsForChannel(db, part.tenantId, channelId);
+  const creds = await getWaCredentialsForChannel(db, part.tenantId, channelId);
   if (creds.outcome === "unavailable") throw new Error(`the number's credentials could not be read: ${creds.error}`);
   if (creds.outcome === "absent") return stopped(db, part, source, IMPORT_STOPPED_WORDS.numberGone);
-  const r = await smbAppData(creds.credentials.accessToken, creds.credentials.phoneId, SYNC_TYPE[source]);
-  if (!r.ok) {
+  const result = await getSmbAppData(creds.credentials.accessToken, creds.credentials.phoneId, SYNC_TYPE[source]);
+  if (!result.ok) {
     // Meta down or busy: the job ledger asks again, inside the window. Anything else is Meta's no, said on the row.
-    if (graphRetryable(r)) throw new Error(`smb_app_data ${SYNC_TYPE[source]}: ${r.error}`);
-    part.log.warn("wa_history_ask_refused", { source, status: r.status, code: r.code, error: r.error });
+    if (graphRetryable(result)) throw new Error(`smb_app_data ${SYNC_TYPE[source]}: ${result.error}`);
+    part.log.warn("wa_history_ask_refused", { source, status: result.status, code: result.code, error: result.error });
     return stopped(db, part, source, IMPORT_STOPPED_WORDS.offeredOnce);
   }
   await noteImport(db, {
@@ -110,17 +103,17 @@ async function askMeta(db: Db, part: Part, source: WhatsappSource, channelId: st
     cursor: {
       channel: channelId,
       connected_at: was.connectedAt,
-      request_id: r.data.request_id ?? "asked",
+      request_id: result.data.request_id ?? "asked",
       asked_at: new Date().toISOString(),
     },
   });
-  part.log.info("wa_history_asked", { source, request_id: r.data.request_id ?? null });
+  part.log.info("wa_history_asked", { source, request_id: result.data.request_id ?? null });
   return { more: false };
 }
 
 /** A day and a little after the ask: a run still coming in is done with what came; one never asked is said so. */
 async function settleRun(db: Db, part: Part, source: WhatsappSource): Promise<PartOutcome> {
-  const row = (await importsOf(db, part.tenantId)).find((r) => r.source === source);
+  const row = (await listImports(db, part.tenantId)).find((r) => r.source === source);
   if (!row || row.state === "done" || row.state === "failed") return { more: false };
   if (row.state === "queued") return stopped(db, part, source, IMPORT_STOPPED_WORDS.offeredOnce);
   await noteImport(db, {
@@ -139,7 +132,7 @@ async function settleRun(db: Db, part: Part, source: WhatsappSource): Promise<Pa
  * ledger no longer holds (purged after a week) is none.
  */
 async function changesOf(db: Db, part: Part, source: WhatsappSource, key: string): Promise<WaChangeValue[] | null> {
-  const kept = await providerEventOf(db, "meta", key);
+  const kept = await findProviderEvent(db, "meta", key);
   if (!kept) return null;
   let body: { entry?: Array<{ changes?: Array<{ field?: string; value?: WaChangeValue }> }> } = {};
   try {
@@ -151,34 +144,34 @@ async function changesOf(db: Db, part: Part, source: WhatsappSource, key: string
   const out: WaChangeValue[] = [];
   for (const entry of body.entry ?? [])
     for (const change of entry.changes ?? []) {
-      const v = change.value;
-      const number = v?.metadata?.phone_number_id;
-      if (change.field !== SYNC_TYPE[source] || !v || !number) continue;
+      const value = change.value;
+      const number = value?.metadata?.phone_number_id;
+      if (change.field !== SYNC_TYPE[source] || !value || !number) continue;
       if (!ours.has(number)) {
         const r = await resolveChannelDetailed(db, "whatsapp", number);
         if (r.lookupFailed) throw new Error("the number's workspace could not be read");
         ours.set(number, r.channel?.tenantId === part.tenantId);
       }
-      if (ours.get(number)) out.push(v);
+      if (ours.get(number)) out.push(value);
     }
   return out;
 }
 
 /** One message of the history into its person's thread, as before Chanlytics: kept, new, and whether its person is. */
-async function keepMessage(db: Db, tenantId: string, m: WaHistoryRead, phase: number | null) {
+async function keepMessage(db: Db, tenantId: string, waHistoryRead: WaHistoryRead, phase: number | null) {
   return keepBefore(db, {
     tenantId,
     channel: "whatsapp",
-    external: m.thread,
-    phone: normalizePhone(`+${m.thread}`),
+    external: waHistoryRead.thread,
+    phone: normalizePhone(`+${waHistoryRead.thread}`),
     email: null,
     name: null,
-    messageId: m.messageId,
-    direction: m.direction,
-    type: m.type,
-    body: m.body,
-    at: m.at,
-    meta: { wa_type: m.rawType, history_status: m.status, history_phase: phase },
+    messageId: waHistoryRead.messageId,
+    direction: waHistoryRead.direction,
+    type: waHistoryRead.type,
+    body: waHistoryRead.body,
+    at: waHistoryRead.at,
+    meta: { wa_type: waHistoryRead.rawType, history_status: waHistoryRead.status, history_phase: phase },
   });
 }
 
@@ -210,42 +203,42 @@ async function bringHistory(db: Db, part: Part, values: WaChangeValue[]): Promis
       partsTotal: HISTORY_PARTS,
       oldest,
     });
-  const row = (await importsOf(db, part.tenantId)).find((r) => r.source === "whatsapp_history");
+  const row = (await listImports(db, part.tenantId)).find((r) => r.source === "whatsapp_history");
   const more = from + MESSAGES_A_PART < messages.length;
   const complete = !more && (progress ?? 0) >= 100;
   // Phase n arriving says the n before it are in; all of it says the three are. Never fewer than the row says.
   const partsDone = Math.max(row?.parts_done ?? 0, complete ? HISTORY_PARTS : (phase ?? 0));
   const state = complete || row?.state === "done" ? "done" : "running";
-  for (const m of slice) {
+  for (const items of slice) {
     if (Date.now() >= part.until) {
       // Out of time: what was kept is counted now, and the part is tried again (what it kept is matched, not kept again).
       await note("running", partsDone);
       throw new Error("a history part ran out of time");
     }
-    const r = await keepMessage(db, part.tenantId, m, phase);
-    if (r.kept) kept++;
-    if (r.newPerson) people++;
-    if (!oldest || m.at < oldest) oldest = m.at;
+    const result = await keepMessage(db, part.tenantId, items, phase);
+    if (result.kept) kept++;
+    if (result.newPerson) people++;
+    if (!oldest || items.at < oldest) oldest = items.at;
   }
   await note(state, partsDone);
   return { more };
 }
 
 /** One contact into People, as a client list's: asserted, an import, never a yes; a forgotten person stays forgotten. */
-async function bringContact(db: Db, tenantId: string, c: WaSyncedContact): Promise<boolean> {
-  const phone = normalizePhone(c.phone);
+async function bringContact(db: Db, tenantId: string, waSyncedContact: WaSyncedContact): Promise<boolean> {
+  const phone = normalizePhone(waSyncedContact.phone);
   if (!phone) return false;
   try {
-    const r = await resolvePerson(db, {
+    const person = await resolvePerson(db, {
       tenantId,
       phone,
       email: null,
-      name: c.name,
+      name: waSyncedContact.name,
       assurance: "asserted",
       source: "import",
       detail: { via: "whatsapp", from: "contacts" },
     });
-    return r.outcome === "new";
+    return person.outcome === "new";
   } catch (e) {
     if ((e as { code?: unknown }).code === PERSON_FORGOTTEN) return false;
     throw e;
@@ -259,7 +252,7 @@ async function bringContacts(db: Db, part: Part, values: WaChangeValue[]): Promi
   const slice = contacts.slice(from, from + CONTACTS_A_PART);
   let added = 0;
   const more = from + CONTACTS_A_PART < contacts.length;
-  for (const c of slice) {
+  for (const item of slice) {
     if (Date.now() >= part.until) {
       await noteImport(db, {
         tenantId: part.tenantId,
@@ -270,7 +263,7 @@ async function bringContacts(db: Db, part: Part, values: WaChangeValue[]): Promi
       });
       throw new Error("a contacts part ran out of time");
     }
-    if (await bringContact(db, part.tenantId, c)) added++;
+    if (await bringContact(db, part.tenantId, item)) added++;
   }
   await noteImport(db, {
     tenantId: part.tenantId,

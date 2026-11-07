@@ -38,8 +38,8 @@ export type EmailFoot =
 export type LinkedFoot = Exclude<EmailFoot, { kind: "visit" }>;
 
 /** Why a customer gets an offer, in the words of the language it is sent in. */
-const offerWhy = (w: SenderWords, who: string, why: "customer" | "asked"): string =>
-  why === "asked" ? w.offerAsked(who) : w.offerCustomer(who);
+const offerWhy = (w: SenderWords, personName: string, reason: "customer" | "asked"): string =>
+  reason === "asked" ? w.offerAsked(personName) : w.offerCustomer(personName);
 
 /**
  * An offer's address and link, trimmed, or the refusal: an offer's foot owes the business's postal address and the way out
@@ -61,14 +61,14 @@ function offerParts(address: string | null | undefined, f: { unsubscribeUrl: str
 function coldParts(
   business: string,
   address: string | null | undefined,
-  f: { why: string; unsubscribeUrl: string | null },
+  fields: { why: string; unsubscribeUrl: string | null },
   link: boolean,
 ) {
   const parts = {
-    why: f.why.trim(),
+    why: fields.why.trim(),
     business: business.trim(),
     address: address?.trim() ?? "",
-    url: f.unsubscribeUrl?.trim() ?? "",
+    url: fields.unsubscribeUrl?.trim() ?? "",
   };
   if (!parts.why || !parts.business || !parts.address || (link && !parts.url))
     throw new Error("emailFoot: a cold foot names why, who, where and how to stop");
@@ -91,25 +91,25 @@ export function emailFoot(
   foot: EmailFoot,
   language: string | null,
 ): string {
-  const w = senderWords(language);
+  const result = senderWords(language);
   if (foot.kind === "cold") {
     const p = coldParts(business, address, foot, false);
-    return [p.why, w.marketing, `${p.business} · ${p.address}`, `${w.noThanks}.`].join("\n");
+    return [p.why, result.marketing, `${p.business} · ${p.address}`, `${result.noThanks}.`].join("\n");
   }
-  const who = business.trim() || w.us;
+  const text = business.trim() || result.us;
   if (foot.kind === "offer") {
     const p = offerParts(address, foot);
-    return [offerWhy(w, who, foot.why), `${who} · ${p.address}`, `${w.unsubscribe}: ${p.url}`].join("\n");
+    return [offerWhy(result, text, foot.why), `${text} · ${p.address}`, `${result.unsubscribe}: ${p.url}`].join("\n");
   }
   const where = address?.trim();
   const facts = foot.facts;
-  const why =
+  const reason =
     typeof facts.proposal_link === "string"
-      ? w.visitProposal(who)
+      ? result.visitProposal(text)
       : typeof facts.visit_when === "string"
-        ? w.visitBooked(who)
-        : w.visitInTouch(who);
-  return where ? `${why}\n${w.emailStop}\n${who} · ${where}` : `${why}\n${w.emailStop}`;
+        ? result.visitBooked(text)
+        : result.visitInTouch(text);
+  return where ? `${reason}\n${result.emailStop}\n${text} · ${where}` : `${reason}\n${result.emailStop}`;
 }
 
 /**
@@ -124,21 +124,21 @@ export function emailFootHtml(
   foot: LinkedFoot,
   language: string | null,
 ): string {
-  const w = senderWords(language);
+  const result = senderWords(language);
   if (foot.kind === "cold") {
     const p = coldParts(business, address, foot, true);
     return (
-      `<p>${escapeHtml(p.why)}<br>${escapeHtml(w.marketing)}<br>` +
+      `<p>${escapeHtml(p.why)}<br>${escapeHtml(result.marketing)}<br>` +
       `${escapeHtml(p.business)} · ${escapeHtml(p.address)}<br>` +
-      `${escapeHtml(w.noThanks)} · <a href="${escapeHtml(p.url)}">${escapeHtml(w.unsubscribe)}</a></p>`
+      `${escapeHtml(result.noThanks)} · <a href="${escapeHtml(p.url)}">${escapeHtml(result.unsubscribe)}</a></p>`
     );
   }
-  const who = business.trim() || w.us;
-  const p = offerParts(address, foot);
+  const text = business.trim() || result.us;
+  const otherOfferParts = offerParts(address, foot);
   return (
-    `<p>${escapeHtml(offerWhy(w, who, foot.why))}<br>` +
-    `${escapeHtml(`${who} · ${p.address}`)}<br>` +
-    `<a href="${escapeHtml(p.url)}">${escapeHtml(w.unsubscribe)}</a></p>`
+    `<p>${escapeHtml(offerWhy(result, text, foot.why))}<br>` +
+    `${escapeHtml(`${text} · ${otherOfferParts.address}`)}<br>` +
+    `<a href="${escapeHtml(otherOfferParts.url)}">${escapeHtml(result.unsubscribe)}</a></p>`
   );
 }
 
@@ -149,20 +149,23 @@ export function emailFootHtml(
  * its reason from what their row kept (`facts`), in text alone. Throws where an offer's foot lacks its address or link
  * (emailFoot): the send holds the person first.
  */
-export function customerEmailFoot(o: {
+export function customerEmailFoot(options: {
   business: string;
   address: string | null | undefined;
   language: string | null;
   offer: { why: "customer" | "asked"; unsubscribeUrl: string } | null;
   facts: Record<string, unknown>;
 }): { footer: string; offer?: { unsubscribeUrl: string; footerHtml: string } } {
-  if (!o.offer) return { footer: emailFoot(o.business, o.address, { kind: "visit", facts: o.facts }, o.language) };
-  const offer = { kind: "offer" as const, ...o.offer };
+  if (!options.offer)
+    return {
+      footer: emailFoot(options.business, options.address, { kind: "visit", facts: options.facts }, options.language),
+    };
+  const offer = { kind: "offer" as const, ...options.offer };
   return {
-    footer: emailFoot(o.business, o.address, offer, o.language),
+    footer: emailFoot(options.business, options.address, offer, options.language),
     offer: {
-      unsubscribeUrl: o.offer.unsubscribeUrl,
-      footerHtml: emailFootHtml(o.business, o.address, offer, o.language),
+      unsubscribeUrl: options.offer.unsubscribeUrl,
+      footerHtml: emailFootHtml(options.business, options.address, offer, options.language),
     },
   };
 }

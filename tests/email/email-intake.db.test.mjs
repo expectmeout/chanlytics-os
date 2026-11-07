@@ -24,7 +24,7 @@ const skip =
       : false;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { ingestInboundEmail, mailboxFor, sentEmailWithMessageId } = await import(
+const { ingestInboundEmail, findMailbox, getSentEmailWithMessageId } = await import(
   pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href
 );
 const { scheduleJobOnce } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
@@ -376,15 +376,15 @@ test(
       .select("id")
       .single();
     assert.equal(error, null, error?.message);
-    assert.equal((await mailboxFor(db, { kind: "mailbox", localPart: `intake-${stamp}` }))?.id, mb.id);
-    assert.equal((await mailboxFor(db, { kind: "reply", token: live }))?.id, mb.id);
+    assert.equal((await findMailbox(db, { kind: "mailbox", localPart: `intake-${stamp}` }))?.id, mb.id);
+    assert.equal((await findMailbox(db, { kind: "reply", token: live }))?.id, mb.id);
     assert.equal(
-      (await mailboxFor(db, { kind: "reply", token: prev }))?.id,
+      (await findMailbox(db, { kind: "reply", token: prev }))?.id,
       mb.id,
       "a rotation keeps the old token routing",
     );
-    assert.equal(await mailboxFor(db, { kind: "reply", token: token() }), null);
-    assert.equal(await mailboxFor(db, { kind: "mailbox", localPart: "nobody-here" }), null);
+    assert.equal(await findMailbox(db, { kind: "reply", token: token() }), null);
+    assert.equal(await findMailbox(db, { kind: "mailbox", localPart: "nobody-here" }), null);
 
     const { data: conv } = await db
       .from("conversations")
@@ -404,14 +404,14 @@ test(
       status: "sent",
       meta: { email: { message_id: "<ours-1@mail.chanlytics.com>" } },
     });
-    assert.equal(await sentEmailWithMessageId(db, tenantId, "<ours-1@mail.chanlytics.com>"), true);
+    assert.equal(await getSentEmailWithMessageId(db, tenantId, "<ours-1@mail.chanlytics.com>"), true);
     assert.equal(
-      await sentEmailWithMessageId(db, otherId, "<ours-1@mail.chanlytics.com>"),
+      await getSentEmailWithMessageId(db, otherId, "<ours-1@mail.chanlytics.com>"),
       false,
       "another workspace's ledger is not ours",
     );
     assert.equal(
-      await sentEmailWithMessageId(db, tenantId, "<q1@customer.example>"),
+      await getSentEmailWithMessageId(db, tenantId, "<q1@customer.example>"),
       false,
       "an inbound email's id is not something we sent",
     );

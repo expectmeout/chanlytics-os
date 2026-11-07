@@ -16,7 +16,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const me = await import(at("apps/dashboard/app/api/v1/me/route.ts"));
 const workspaces = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
 const create = await import(at("apps/dashboard/app/api/v1/workspaces/create/route.ts"));
@@ -24,7 +24,7 @@ const team = await import(at("apps/dashboard/app/api/v1/team/route.ts"));
 const devices = await import(at("apps/dashboard/app/api/v1/me/devices/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
-afterEach(() => setServiceClient(null));
+afterEach(() => setUnsubscribeServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -129,7 +129,7 @@ test("your name: yours alone to set, judged by the contracts' rule before the da
   );
 });
 
-test("where you are: every workspace with who is signed in; the active one by memberContext's rule, a stale preference degrading to the default rather than a 404; nowhere yet a real answer", async () => {
+test("where you are: every workspace with who is signed in; the active one by getMemberContext's rule, a stale preference degrading to the default rather than a 404; nowhere yet a real answer", async () => {
   const tables = {
     memberships: both("viewer", "owner"),
     tenants: tenants(),
@@ -206,7 +206,7 @@ test("where you are: every workspace with who is signed in; the active one by me
 test("the zone: the owner's, the workspace named, checked against Intl, and a change that landed on no row is a refusal rather than a success", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants() };
   // The save is recorded as the service role (settings.changed): a ledger for it to land in.
-  setServiceClient(fakeDb({ events: [] }));
+  setUnsubscribeServiceClient(fakeDb({ events: [] }));
   await refused(
     workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }), ctxFor(tables)),
     "choose_workspace",
@@ -251,7 +251,7 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
 test("what a workspace calls a booking: the owner's, one of the five, only what was sent written and read back, and a change that landed on no row is a refusal (0041 J4, 00458)", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants() };
   // The save is recorded as the service role (settings.changed): a ledger for it to land in.
-  setServiceClient(fakeDb({ events: [] }));
+  setUnsubscribeServiceClient(fakeDb({ events: [] }));
   const ctx = () => ctxFor(tables);
   const NOTHING = "Send the workspace's timezone, or what it calls a booking.";
   await refused(
@@ -726,7 +726,7 @@ test("a phone is registered on the account through the definer door, and forgott
 test("REGRESSION: the zone and the word for a booking are settings, and a save of either is on the ledger with who made it -- they live on the tenant's row, and left no trace", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants(), events: [] };
   // The ledger is written as the service role: a session may not insert into events.
-  setServiceClient(fakeDb(tables));
+  setUnsubscribeServiceClient(fakeDb(tables));
   try {
     await workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), ctxFor(tables));
     await workspaces.PATCH.run(
@@ -744,6 +744,6 @@ test("REGRESSION: the zone and the word for a booking are settings, and a save o
     await assert.rejects(workspaces.PATCH.run(send("PATCH", { timezone: "Mars/Olympus" }, inB), ctxFor(tables)));
     assert.equal(tables.events.length, 2, "a refused save says nothing");
   } finally {
-    setServiceClient(null);
+    setUnsubscribeServiceClient(null);
   }
 });

@@ -1,6 +1,6 @@
 /**
  * Which wire a thread's words travelled, and who answers on it: the channel of a message and of a thread, and
- * that channel in the words a row shows. The Inbox (inbox-thread.ts) and Conversations (conversation-vm.ts)
+ * that channel in the words a row shows. The Inbox (inbox-thread.ts) and Conversations (conversations/vm.ts)
  * both read it here.
  */
 import { isPersonsWords } from "./message-author";
@@ -68,13 +68,13 @@ export function lastWroteOn(messages: ReadonlyArray<ChannelRow>): WrittenChannel
  * which read as "by WhatsApp Receptionist · Delivered" and flipped the row's pill. The thread's last word, its channels,
  * where they last wrote and Conversations' preview all ask this one question.
  */
-export function isChatMessage(m: Pick<MessageDto, "type">): boolean {
-  return m.type !== "call_summary" && m.type !== "note";
+export function isChatMessage(message: Pick<MessageDto, "type">): boolean {
+  return message.type !== "call_summary" && message.type !== "note";
 }
 
 /** A message that came from the customer's side in writing, whoever or whatever wrote it. */
-export function isFromTheirSide(m: ChannelRow): boolean {
-  return m.sender === "customer" && m.direction !== "outbound" && isChatMessage(m);
+export function isFromTheirSide(channel: ChannelRow): boolean {
+  return channel.sender === "customer" && channel.direction !== "outbound" && isChatMessage(channel);
 }
 
 /**
@@ -83,8 +83,8 @@ export function isFromTheirSide(m: ChannelRow): boolean {
  * query) share. people_list's lateral (00320) is its twin, and also leaves out a row moved in with no time of its own,
  * which it could not order.
  */
-export function isTheirOwnWords(m: ChannelRow): boolean {
-  return isFromTheirSide(m) && isPersonsWords(m.meta);
+export function isTheirOwnWords(channel: ChannelRow): boolean {
+  return isFromTheirSide(channel) && isPersonsWords(channel.meta);
 }
 
 /**

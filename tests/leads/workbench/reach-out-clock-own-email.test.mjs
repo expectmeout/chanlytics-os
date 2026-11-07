@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { reachOutClock } = await import(
+const { runReachOutClock } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/campaigns/reach-out/clock.ts")).href
 );
 
@@ -64,7 +64,7 @@ function worldOf(send, outcome) {
   );
   return { db, tables };
 }
-const clockOf = (db) => reachOutClock(db, NOW, log, NOW.getTime(), T);
+const clockOf = (db) => runReachOutClock(db, NOW, log, NOW.getTime(), T);
 
 test("gone: its row is sent and the lead is written, ready to nurture, as a sequence's email writes it", async () => {
   const { db, tables } = worldOf(own(), { status: "sent", sent_at: "2026-11-05T14:30:00Z" });

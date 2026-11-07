@@ -3,10 +3,11 @@
  * canonical events and performs sends. No persistence, no decisions — the edge
  * wires this to the repositories. Config is passed in; env is never read here.
  */
-import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, REFERRAL_ID_MAX } from "@chanlytics/contracts";
+import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN } from "@chanlytics/contracts";
+import { REFERRAL_ID_MAX } from "./first-touch";
 import { asksToStop } from "../inbound/stop-request";
-import { answerObject, providerFetch, type SendOutcome } from "../shared/provider-fetch";
-import { errField, logger } from "../log/logger";
+import { answerObject, fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
+import { errField, logger } from "@chanlytics/log";
 import type { InboundMessage } from "../inbound/inbound";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
@@ -139,19 +140,19 @@ function historyWordsOf(m: WaHistoryMessage): string | null {
 }
 
 /** One message of a chat, or null for one with no id or no time (nothing to keep it once by, or to place it). */
-function historyMessageOf(m: WaHistoryMessage, thread: string, business: string): WaHistoryRead | null {
-  const secs = Number(m.timestamp);
-  if (!m.id || !Number.isFinite(secs) || secs <= 0) return null;
-  const outbound = !!m.to || (!!business && digitsOf(m.from) === business);
+function historyMessageOf(waHistoryMessage: WaHistoryMessage, thread: string, business: string): WaHistoryRead | null {
+  const secs = Number(waHistoryMessage.timestamp);
+  if (!waHistoryMessage.id || !Number.isFinite(secs) || secs <= 0) return null;
+  const outbound = !!waHistoryMessage.to || (!!business && digitsOf(waHistoryMessage.from) === business);
   return {
     thread,
-    messageId: m.id,
+    messageId: waHistoryMessage.id,
     direction: outbound ? "outbound" : "inbound",
-    type: m.type === "text" ? "text" : "media",
-    body: historyWordsOf(m),
+    type: waHistoryMessage.type === "text" ? "text" : "media",
+    body: historyWordsOf(waHistoryMessage),
     at: new Date(secs * 1000).toISOString(),
-    rawType: m.type ?? "unknown",
-    status: m.history_context?.status ?? null,
+    rawType: waHistoryMessage.type ?? "unknown",
+    status: waHistoryMessage.history_context?.status ?? null,
   };
 }
 
@@ -162,13 +163,13 @@ const noticesOf = (v: unknown): WaGraphNotice[] => (Array.isArray(v) ? (v as WaG
  * the furthest phase and progress any chunk says, and whether the business declined to share (code 2593109, on the
  * value or on a chunk). Group chats are never in it; what has no id or no time is left out.
  */
-export function sharedHistoryOf(v: WaChangeValue): WaHistoryOf {
-  const business = digitsOf(v.metadata?.display_phone_number);
+export function sharedHistoryOf(waChange: WaChangeValue): WaHistoryOf {
+  const business = digitsOf(waChange.metadata?.display_phone_number);
   let phase: number | null = null;
   let progress: number | null = null;
-  let declined = noticesOf(v.errors).some((e) => e.code === WA_HISTORY_NOT_SHARED);
+  let declined = noticesOf(waChange.errors).some((e) => e.code === WA_HISTORY_NOT_SHARED);
   const messages: WaHistoryRead[] = [];
-  for (const chunk of v.history ?? []) {
+  for (const chunk of waChange.history ?? []) {
     if (noticesOf(chunk.errors).some((e) => e.code === WA_HISTORY_NOT_SHARED)) declined = true;
     const md = chunk.metadata ?? {};
     if (typeof md.phase === "number") phase = Math.max(phase ?? 0, md.phase);
@@ -192,9 +193,9 @@ export interface WaSyncedContact {
 }
 
 /** The contacts a `smb_app_state_sync` change adds; a removal is the app's own business and changes nothing here. */
-export function contactsSyncedOf(v: WaChangeValue): WaSyncedContact[] {
+export function contactsSyncedOf(waChange: WaChangeValue): WaSyncedContact[] {
   const out: WaSyncedContact[] = [];
-  for (const s of v.state_sync ?? []) {
+  for (const s of waChange.state_sync ?? []) {
     if ((s.type && s.type !== "contact") || s.action === "remove") continue;
     const digits = digitsOf(s.contact?.phone_number);
     if (digits.length < 7) continue;
@@ -301,18 +302,18 @@ export function storableReferral(rawId: unknown, rawKind: unknown): NormalizedIn
  * its id is "stop". Meta's own webhook reference uses "Unsubscribe" as the
  * example button payload — a word already in OPT_OUT_PATTERN.
  */
-function chosenReply(m: WaRawMessage): { label: string; id: string } | null {
-  if (m.button) {
+function chosenReply(waRawMessage: WaRawMessage): { label: string; id: string } | null {
+  if (waRawMessage.button) {
     // payload and text both carry the label; payload is the one a tenant can
     // set independently when building the template.
-    const label = m.button.text ?? m.button.payload ?? "";
-    const id = m.button.payload ?? "";
+    const label = waRawMessage.button.text ?? waRawMessage.button.payload ?? "";
+    const id = waRawMessage.button.payload ?? "";
     return label || id ? { label, id } : null;
   }
-  const r = m.interactive?.button_reply ?? m.interactive?.list_reply;
-  if (r) {
-    const label = r.title ?? "";
-    const id = r.id ?? "";
+  const buttonReply = waRawMessage.interactive?.button_reply ?? waRawMessage.interactive?.list_reply;
+  if (buttonReply) {
+    const label = buttonReply.title ?? "";
+    const id = buttonReply.id ?? "";
     return label || id ? { label, id } : null;
   }
   return null;
@@ -332,36 +333,42 @@ function mediaRefOf(
   };
 }
 
-export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): NormalizedInbound {
+export function normalizeInbound(waRawMessage: WaRawMessage, value: WaChangeValue): NormalizedInbound {
   // Never guess identity: contacts[0] can belong to a DIFFERENT sender in a
   // batched webhook, and contact_identities.external_id is a permanent mapping.
   const list = value.contacts || [];
-  const contact = list.find((c) => c.wa_id === m.from) ?? (list.length === 1 ? list[0] : undefined);
-  const mediaSrc = m.image || m.audio || m.video || m.document || m.sticker || null;
+  const contact = list.find((c) => c.wa_id === waRawMessage.from) ?? (list.length === 1 ? list[0] : undefined);
+  const mediaSrc =
+    waRawMessage.image ||
+    waRawMessage.audio ||
+    waRawMessage.video ||
+    waRawMessage.document ||
+    waRawMessage.sticker ||
+    null;
 
   // A tap IS text the customer sent — they just picked it instead of typing it.
   // Treating button and list replies as unreadable was two bugs in one: the
   // consent gate never saw a "Stop" button (so pressing it changed nothing),
   // and the message fell through to the non-text branch, which answered a
   // customer trying to unsubscribe with "sorry, I can't read that".
-  const chosen = chosenReply(m);
-  const typed = m.type === "text" && !!m.text?.body;
+  const chosen = chosenReply(waRawMessage);
+  const typed = waRawMessage.type === "text" && !!waRawMessage.text?.body;
   const isText = typed || !!chosen;
 
   // Everything that is neither typed text nor an attachment, named rather than
   // lumped together. Location and contacts get a body a person can read, so
   // they reach the operator as a fact rather than as "[location message]".
-  const loc = m.location;
-  const cards = m.contacts?.length ? m.contacts : null;
+  const loc = waRawMessage.location;
+  const cards = waRawMessage.contacts?.length ? waRawMessage.contacts : null;
   const kind: NormalizedInbound["kind"] = isText
     ? "text"
-    : m.type === "reaction" && m.reaction
+    : waRawMessage.type === "reaction" && waRawMessage.reaction
       ? "reaction"
       : loc && (loc.latitude != null || loc.address || loc.name)
         ? "location"
         : cards
           ? "contacts"
-          : m.type === "system"
+          : waRawMessage.type === "system"
             ? "system"
             : mediaSrc?.id
               ? "media"
@@ -378,17 +385,17 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
   };
 
   const body = typed
-    ? m.text!.body!
+    ? waRawMessage.text!.body!
     : chosen
       ? chosen.label || chosen.id
       : kind === "reaction"
-        ? (m.reaction?.emoji ?? null)
+        ? (waRawMessage.reaction?.emoji ?? null)
         : kind === "location"
           ? describeLocation()
           : kind === "contacts"
             ? describeCards()
             : kind === "system"
-              ? (m.system?.body ?? null)
+              ? (waRawMessage.system?.body ?? null)
               : null;
 
   // Consent is tested against the label AND the developer-set id, so a tenant
@@ -396,18 +403,18 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
   const consentText = [body, chosen?.id].filter((s): s is string => !!s);
   const matches = (re: RegExp) => consentText.some((s) => re.test(s));
   return {
-    waId: contact?.wa_id || m.from,
-    phoneDigits: m.from,
+    waId: contact?.wa_id || waRawMessage.from,
+    phoneDigits: waRawMessage.from,
     profileName: contact?.profile?.name || null,
-    messageId: m.id,
+    messageId: waRawMessage.id,
     // Reactions, locations, contact cards and system notices all carry words
     // rather than bytes, so they are stored as text — messages.type has no
     // column for them and needs none. `kind` is what routing consults.
     type: isText || (body !== null && kind !== "media") ? "text" : "media",
     kind,
-    rawType: m.type,
+    rawType: waRawMessage.type,
     body,
-    channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : null,
+    channelTsIso: waRawMessage.timestamp ? new Date(Number(waRawMessage.timestamp) * 1000).toISOString() : null,
     media: mediaRefOf(mediaSrc),
     optOut: isText && consentText.some((s) => asksToStop(s, "whatsapp")),
     // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
@@ -419,7 +426,7 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
     // is START, as the carriers' own reply to a STOP says.
     optIn: isText && matches(CONVERSATION_OPT_IN_PATTERN),
     optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN),
-    referral: adReferralOf(m.referral),
+    referral: adReferralOf(waRawMessage.referral),
   };
 }
 
@@ -427,21 +434,28 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
  * A WhatsApp message as the one inbound shape (inbound.ts, decision 0001): the normaliser's reading of it, on its wire,
  * by its person. The sender's id is their identity on WhatsApp, and the digits Meta sent it from their number.
  */
-export function inboundFromWhatsapp(m: WaRawMessage, value: WaChangeValue): InboundMessage & { channel: "whatsapp" } {
-  const n = normalizeInbound(m, value);
+export function inboundFromWhatsapp(
+  waRawMessage: WaRawMessage,
+  value: WaChangeValue,
+): InboundMessage & { channel: "whatsapp" } {
+  const inbound = normalizeInbound(waRawMessage, value);
   return {
     channel: "whatsapp",
-    externalId: n.messageId,
-    identity: { externalId: n.waId, phoneE164: n.phoneDigits ? `+${n.phoneDigits}` : null, email: null },
-    profileName: n.profileName,
-    type: n.type,
-    kind: n.kind,
-    rawType: n.rawType,
-    body: n.body,
-    channelTsIso: n.channelTsIso,
-    media: n.media,
-    consent: { optOut: n.optOut, optIn: n.optIn, optInMarketing: n.optInMarketing },
-    referral: n.referral,
+    externalId: inbound.messageId,
+    identity: {
+      externalId: inbound.waId,
+      phoneE164: inbound.phoneDigits ? `+${inbound.phoneDigits}` : null,
+      email: null,
+    },
+    profileName: inbound.profileName,
+    type: inbound.type,
+    kind: inbound.kind,
+    rawType: inbound.rawType,
+    body: inbound.body,
+    channelTsIso: inbound.channelTsIso,
+    media: inbound.media,
+    consent: { optOut: inbound.optOut, optIn: inbound.optIn, optInMarketing: inbound.optInMarketing },
+    referral: inbound.referral,
   };
 }
 
@@ -468,11 +482,11 @@ const PRICING_WORD = /^[A-Za-z0-9_-]{1,40}$/;
  */
 export function waPricingOf(raw: unknown): WaPricing | null {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const r = raw as Record<string, unknown>;
+  const item = raw as Record<string, unknown>;
   const out: WaPricing = {};
-  if (typeof r.billable === "boolean") out.billable = r.billable;
+  if (typeof item.billable === "boolean") out.billable = item.billable;
   for (const key of ["pricing_model", "category", "type"] as const) {
-    const word = r[key];
+    const word = item[key];
     if (typeof word === "string" && PRICING_WORD.test(word)) out[key] = word;
   }
   return out.category ? out : null;
@@ -553,7 +567,7 @@ export type EmailLeftAsWhy =
 export const WHATSAPP_SEND_TIMEOUT_MS = 15_000;
 
 async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
-  const a = await providerFetch("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
+  const response = await fetchFromProvider("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -561,19 +575,19 @@ async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
     // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
     breaker: "count",
   });
-  if (a.status === 0)
-    return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
-  const out = (answerObject(a) ?? {}) as { messages?: Array<{ id?: string }>; error?: { code?: unknown } };
-  const ok = a.outcome === "ok";
+  if (response.status === 0)
+    return { ok: false, wamid: null, status: 0, errorBody: response.error ?? "no answer", outcome: response.outcome };
+  const out = (answerObject(response) ?? {}) as { messages?: Array<{ id?: string }>; error?: { code?: unknown } };
+  const ok = response.outcome === "ok";
   const sent: SendResult = {
     ok,
     wamid: out.messages?.[0]?.id ?? null,
-    status: a.status,
+    status: response.status,
     errorBody: ok ? undefined : JSON.stringify(out).slice(0, 200),
     // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
     code: !ok && typeof out.error?.code === "number" ? out.error.code : null,
   };
-  return { ...sent, outcome: graphThrottled(sent) ? "retryable" : a.outcome };
+  return { ...sent, outcome: graphThrottled(sent) ? "retryable" : response.outcome };
 }
 
 /**
@@ -594,9 +608,9 @@ async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
 const GRAPH_THROTTLE_CODES: readonly number[] = [4, 80007, 130429, 131048, 131056];
 
 /** Whether Graph refused a send as too many, too fast: HTTP 429, or one of GRAPH_THROTTLE_CODES. */
-export function graphThrottled(r: { ok: boolean; status: number; code?: number | null }): boolean {
-  if (r.ok) return false;
-  return r.status === 429 || (typeof r.code === "number" && GRAPH_THROTTLE_CODES.includes(r.code));
+export function graphThrottled(row: { ok: boolean; status: number; code?: number | null }): boolean {
+  if (row.ok) return false;
+  return row.status === 429 || (typeof row.code === "number" && GRAPH_THROTTLE_CODES.includes(row.code));
 }
 
 export async function sendText(cfg: WaConfig, to: string, body: string): Promise<SendResult> {
@@ -649,7 +663,7 @@ export async function fetchMediaBytes(
 ): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
   try {
     // The media's address is Graph's JSON, asked through providerFetch; its bytes are a download, fetched below.
-    const metaRes = await providerFetch("meta", `${GRAPH}/${providerMediaId}`, {
+    const metaRes = await fetchFromProvider("meta", `${GRAPH}/${providerMediaId}`, {
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
       timeoutMs: MEDIA_META_TIMEOUT_MS,
       idempotent: true,

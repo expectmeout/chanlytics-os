@@ -9,13 +9,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   setupSteps,
-  firstRunOf,
   withWorkspaceChoices,
   callsNotByPhone,
   CHANNELS_SEEN,
   RECEPTIONIST_MET,
   REHEARSE_SKIPPED,
 } from "@chanlytics/contracts";
+import { firstRunOf } from "../../apps/dashboard/src/surfaces/setup/first-run/model/view.ts";
 
 const NOW = Date.parse("2026-11-03T15:00:00Z");
 const KEPT = "+15555550142";

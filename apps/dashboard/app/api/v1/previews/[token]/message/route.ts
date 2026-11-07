@@ -1,4 +1,4 @@
-import { previewMessage } from "@/server/previews/preview-doors";
+import { previewMessage } from "@/server/previews/doors";
 import { previewRoute } from "@/server/previews/public-route";
 
 /**

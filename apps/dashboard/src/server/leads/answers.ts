@@ -1,0 +1,178 @@
+/**
+ * How a Leads door answers: its refusals, the member's now, and a round's estimate. Moved whole from leads.ts (Reach out Part 2.5), which
+ * re-exports it.
+ */
+import {
+  AppError,
+  REACH_OUT_ADD_WORDS,
+  estimateRoundUsd,
+  LEAD_ASSUMED_YIELD,
+  LEAD_PROBE_PLACES,
+  type LeadRoundPurpose,
+  type LeadSearchPlan,
+  placesToAsk,
+} from "@chanlytics/contracts";
+import { MAPS_CAP_FLOOR_USD } from "@chanlytics/core";
+import { log } from "@/server/shared/log";
+
+export interface DoorAnswer {
+  error?: string;
+  /** lead_set_stage: what the lead is now, and whether this act made a person. */
+  stage?: string;
+  closed_reason?: string | null;
+  contact_id?: string | null;
+  existed?: boolean;
+  converted?: boolean;
+  /** lead_bulk: how many leads the act reached. lead_search_remove: how many memberships it blanked. */
+  done?: number;
+  /** lead_bulk keep/exclude: how many of the named leads were not in Needs review. lead_check_again: how many were not asked. */
+  skipped?: number;
+  /** lead_check_again: how many addresses are being checked again. */
+  scheduled?: number;
+  blanked?: number;
+  /** lead_search_undo: how many left the search, and how many went back to a month. */
+  removed?: number;
+  credited?: number;
+  /** lead_erase: final, and answered again rather than re-executed. */
+  erased?: boolean;
+  already?: boolean;
+  /** lead_search_rename: the name as the door cleaned it. */
+  name?: string;
+  /** The door's own sentence for its refusal (00140): said as it is when present. */
+  sentence?: string;
+  state?: string;
+  /** A member door's own word for "not in that state": the class the member is in now (lead_member_move). */
+  class?: string;
+  left?: number;
+  left_usd?: number;
+  counted?: number;
+  search_id?: string;
+  round_id?: string;
+  op_id?: string;
+  version?: number;
+  /** lead_undo of an add (00426): leads taken back off the list, and those whose email is on its way or gone. */
+  taken?: number;
+  leaving?: number;
+  sent?: number;
+}
+
+/** The jsonb a door answers, as an object; anything else is an empty answer. */
+export function answerOf(data: unknown): DoorAnswer {
+  return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+}
+
+/** What a member's class is called on the screen, for the sentence a member door's `state` refusal says. */
+const MEMBER_NOW: Record<string, string> = {
+  qualified: "already counted",
+  review: "in Needs review",
+  excluded: "left out",
+};
+
+/** An add taken back too late (lead_undo, 00426): its email is on its way, or gone; Stop writing is the correction. */
+const TOO_LATE = { on_its_way: REACH_OUT_ADD_WORDS.onItsWay, sent: REACH_OUT_ADD_WORDS.sent } as const;
+
+/** A door's refusal, in a sentence the owner can act on; null when the door did not refuse. */
+export function refusalOf(doorAnswer: DoorAnswer): AppError | null {
+  // A workspace that may not spend (00364's lead_spend_refusal, the door asking what requireSpend asked): a 402 in
+  // whyCannotSpend's words, as the route's own refusal is.
+  if (doorAnswer.error === "payment_required" && doorAnswer.sentence)
+    return new AppError("payment_required", doorAnswer.sentence, 402);
+  if (doorAnswer.error && doorAnswer.sentence) return new AppError("conflict", doorAnswer.sentence, 409);
+  switch (doorAnswer.error) {
+    case undefined:
+      return null;
+    case "state":
+      // Two doors say `state`. A round says which state it is in; a member
+      // door says which class the place is in now (lead_member_move), and
+      // "this search is not waiting for an answer" is not what happened to it.
+      return typeof doorAnswer.class === "string"
+        ? new AppError(
+            "conflict",
+            `This place is ${MEMBER_NOW[doorAnswer.class] ?? doorAnswer.class} now. Reload and try again.`,
+            409,
+          )
+        : new AppError("conflict", "This search is not waiting for an answer.", 409);
+    case "no_card":
+      return new AppError("conflict", doorAnswer.sentence ?? "I can find local businesses for now.", 409);
+    case "paused":
+      return new AppError("conflict", "Searching is paused for now. Nothing was started.", 409);
+    case "month_leads_used":
+      return new AppError(
+        "conflict",
+        doorAnswer.left && doorAnswer.left > 0
+          ? `This month covers ${doorAnswer.left} more leads. Ask for ${doorAnswer.left} or fewer, or wait for next month.`
+          : "This month's leads are used up. Nothing more counts until next month.",
+        409,
+      );
+    case "budget_used":
+      return new AppError(
+        "conflict",
+        "This month's searching budget is used. A smaller search, or a phone standard, may still fit.",
+        409,
+      );
+    case "day_cap":
+      return new AppError("conflict", "Today's searching is at its cap. Try again tomorrow.", 409);
+    case "hidden":
+      return new AppError("conflict", "This place is hidden: it is already a customer, or was erased.", 409);
+    case "out_of_area":
+      return new AppError("conflict", "This place is outside the area the search covers.", 409);
+    case "changed":
+      return new AppError("conflict", "Someone changed this since you saw it. Reload and try again.", 409);
+    case "not_found":
+      return new AppError("not_found", "That place is not in this search.", 404);
+    case "removed":
+      return new AppError("conflict", "This search was removed, so nothing more counts against it.", 409);
+    case "live":
+      return new AppError("conflict", "This search is still running. Let it finish, then ask for more.", 409);
+    case "running":
+      // The Done strip's Undo, asked of a round that has not finished: a
+      // different act from "ask for more", so a sentence of its own.
+      return new AppError("conflict", "This search is still running, so there is nothing to take back yet.", 409);
+    case "too_late":
+      return new AppError("conflict", "That was more than a day ago, so these leads stay yours and stay counted.", 409);
+    case "nothing_to_add":
+      return new AppError(
+        "conflict",
+        doorAnswer.counted
+          ? `This search already found the ${doorAnswer.counted} you asked for. Ask for more than that to add any.`
+          : "This search already found what you asked for.",
+        409,
+      );
+    case "undone":
+      return new AppError("conflict", "That change was already undone.", 409);
+    case "kind":
+      return new AppError("conflict", "That change cannot be undone.", 409);
+    default:
+      if (doorAnswer.error in TOO_LATE)
+        return new AppError("conflict", TOO_LATE[doorAnswer.error as keyof typeof TOO_LATE], 409);
+      // A door said something this build has no sentence for. The owner gets
+      // one plain sentence rather than a de-underscored word out of the
+      // database; the code goes to the log, where it can be looked up.
+      log.warn("lead_door_refusal_unknown", { error: String(doorAnswer.error).slice(0, 80) });
+      return new AppError(
+        "conflict",
+        "Something about this search stopped that from going through. Reload and try again.",
+        409,
+      );
+  }
+}
+
+/** The yield assumed before a probe has measured one: half the places qualify (contracts' LEAD_ASSUMED_YIELD, which the plan card's minutes read too). */
+const ASSUMED_YIELD = LEAD_ASSUMED_YIELD;
+
+/**
+ * What a round is expected to cost, from the card's brief prices: the probe and
+ * its main phase for a first round, the main phase alone after. A top-up runs
+ * to the count minus what already counted (00140's lead_search_more sets that
+ * as its target), so that is what it is priced for -- pricing the whole count
+ * reserves money the round will never be allowed to spend. Never under one
+ * run's floor (core MAPS_CAP_FLOOR_USD), the least a run may be started with:
+ * a round reserved under it starts nothing (29 Oct 2026, five leads at $0.33),
+ * and lead_estimate_ceiling already holds a floor for every term.
+ */
+export function estimateForRound(plan: LeadSearchPlan, purpose: LeadRoundPurpose, counted = 0): number {
+  const wanted = purpose === "topup" ? Math.max(1, plan.count - counted) : plan.count;
+  const main = estimateRoundUsd(plan, "main", placesToAsk(plan, wanted, ASSUMED_YIELD).total);
+  const usd = purpose === "probe" ? estimateRoundUsd(plan, "probe", LEAD_PROBE_PLACES) + main : main;
+  return Math.max(MAPS_CAP_FLOOR_USD, Math.round(usd * 100) / 100);
+}

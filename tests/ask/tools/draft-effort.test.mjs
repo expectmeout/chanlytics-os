@@ -16,7 +16,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { turnEffort } = await import(at("apps/dashboard/src/server/ask/effort.ts"));
 const { ACT_DEFS } = await import(at("apps/dashboard/src/server/ask/tools/registry.ts"));
-const { NO_ACTION } = await import(at("apps/dashboard/src/server/ask/tools/context.ts"));
+const { NO_ACTION } = await import(at("apps/dashboard/src/server/ask/tools/context/context.ts"));
 
 /** Whether a round at the turn's own effort that made this one call is set aside and asked again at the draft's. */
 const raises = (name, input) =>

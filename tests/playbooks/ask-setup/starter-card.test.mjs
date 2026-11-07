@@ -30,7 +30,6 @@ const {
   PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_CARD_WORDS,
   PLAYBOOK_CLASS_LABEL,
-  PROPOSAL_SPECS,
   SEQUENCE_MODE_WORDS,
   appointmentWordOf,
   appointmentWords,
@@ -39,8 +38,9 @@ const {
   startersForTrigger,
   winBackWords,
 } = await import("@chanlytics/contracts");
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { PROPOSAL_SPECS } = await import("../../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -202,7 +202,7 @@ const real = globalThis.fetch;
 /** The edge answers `answer` from now on, and the dashboard's kept answer is the one it gives. */
 const edgeSays = async (answer) => {
   edge = answer;
-  await emailWire({ fresh: true });
+  await getEmailWire({ fresh: true });
 };
 beforeEach(async () => {
   readerCache.clear();

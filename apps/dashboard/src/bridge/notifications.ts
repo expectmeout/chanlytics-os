@@ -28,9 +28,7 @@ import {
   ALERT_KINDS,
   EMPTY_READ_STATE,
   agoLabel,
-  bellActionOf,
   bellCalls,
-  bellFeed,
   bellSections,
   type BellSectionVM,
   buildNotificationFeed,
@@ -44,15 +42,15 @@ import {
   type ReachOutRepliesDto,
   SERVER_KEY_PREFIX,
   type WhatWaits,
-  holdMarksOf,
   keptUnreadOf,
   nameKnownCustomers,
-  bellOlderOf,
   serverNotificationRows,
   settledNoticeIds,
   unreadCount,
   type RunDays,
 } from "@chanlytics/contracts";
+import { bellActionOf } from "@/surfaces/campaigns/reach-out/reply-today";
+import { bellFeed, holdMarksOf, bellOlderOf } from "@/bridge/surfaces/hold-rows";
 import { surfaceValue } from "../surfaces/surface-values";
 import { approvalDaysNow } from "../surfaces/campaigns/broadcasts/when-words";
 import { api as client, serversClockOf } from "./api";

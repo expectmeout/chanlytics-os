@@ -16,13 +16,13 @@
  * the provider gave stays kept, a yes still stands in for a refresh that failed for half an hour (a provider that stopped
  * answering the domains read has not unverified the domain), and a no does not (a run waits, never stops, on a guess).
  *
- * What a broadcast's batch is told of it (campaignsBinding) is three things, not one. Open: the lane the offers leave by.
+ * What a broadcast's batch is told of it (getCampaignsBinding) is three things, not one. Open: the lane the offers leave by.
  * Closed: a domain this deployment names that the provider does NOT verify, so the run stops and says so. Unread: the
  * provider could not be asked, so the email wire is bound unavailable and the run waits (core wireIsUnbound), as it does
  * when the workspace's own domains cannot be read. Never "no lane": that was the unread domain's old answer, and it held
  * each offer's person as having no channel, a skip that is final, for as long as a provider was slow.
  */
-import { fetchMailDomains, type MailDomainFacts } from "@chanlytics/channels";
+import { fetchMailDomains, type MailDomainFacts } from "@chanlytics/channels/email";
 import { emailDomainOf, MIN_MS } from "@chanlytics/contracts";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
@@ -95,26 +95,26 @@ interface Asking {
  * deployment names none, or lacks the mail domain, the key or the secret an offer needs); null when it could not be
  * asked, which is not an answer. A `fresh` ask is the provider's word or null, never a kept answer in its place.
  */
-export async function campaignsDomainVerified(o: Asking = {}): Promise<boolean | null> {
+export async function findCampaignsDomainVerified(asking: Asking = {}): Promise<boolean | null> {
   const domain = campaignsDomain();
   const apiKey = env.RESEND_API_KEY;
   if (domain && !env.UNSUBSCRIBE_SECRET) saySecretMissing(domain);
   if (!domain || !apiKey || !emailDomainOf(env.EMAIL_DOMAIN) || !env.UNSUBSCRIBE_SECRET) return false;
-  const now = o.now ?? Date.now();
+  const now = asking.now ?? Date.now();
   const kept = keptAnswer && keptAnswer.domain === domain ? keptAnswer : null;
-  if (!o.fresh) {
+  if (!asking.fresh) {
     if (kept && now - kept.at < (kept.verified ? VERIFIED_TTL_MS : UNVERIFIED_TTL_MS)) return kept.verified;
     if (unreadAt && unreadAt.domain === domain && now - unreadAt.at < UNREAD_TTL_MS) return standingIn(kept, now);
   }
   try {
-    const domains = await (o.domains ?? fetchMailDomains)({ apiKey });
+    const domains = await (asking.domains ?? fetchMailDomains)({ apiKey });
     const verified = judgeMailDomain(domains, domain, { sendOnly: true }) === null;
     remember(domain, now, verified);
     return verified;
   } catch (e) {
     logger().warn("campaigns_domain_unchecked", { domain, error: errField(e) });
     unreadAt = { domain, at: now };
-    return o.fresh ? null : standingIn(kept, now);
+    return asking.fresh ? null : standingIn(kept, now);
   }
 }
 
@@ -131,10 +131,10 @@ export type CampaignsBinding =
   | { state: "closed"; why: string }
   | { state: "unread"; why: string };
 
-export async function campaignsBinding(o: Asking = {}): Promise<CampaignsBinding> {
+export async function getCampaignsBinding(asking: Asking = {}): Promise<CampaignsBinding> {
   const domain = campaignsDomain();
   if (!domain) return { state: "none" };
-  const verified = await campaignsDomainVerified(o);
+  const verified = await findCampaignsDomainVerified(asking);
   if (verified === null)
     return {
       state: "unread",

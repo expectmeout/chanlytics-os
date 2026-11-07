@@ -7,10 +7,10 @@
  */
 import { createHash, timingSafeEqual } from "node:crypto";
 import { HOUR_MS } from "@chanlytics/contracts";
-import { providerFetch } from "../../shared/provider-fetch";
+import { fetchFromProvider } from "../../shared/provider-fetch";
 import { unb64url } from "../../google/oauth";
 
-type Deps = Parameters<typeof providerFetch>[3];
+type Deps = Parameters<typeof fetchFromProvider>[3];
 
 const GOOGLE_CERTS = "https://www.googleapis.com/oauth2/v3/certs";
 const GOOGLE_ISSUERS = new Set(["https://accounts.google.com", "accounts.google.com"]);
@@ -29,10 +29,15 @@ const enc = new TextEncoder();
 
 async function googleKeys(now: number, deps?: Deps, fresh = false): Promise<Map<string, Jwk> | null> {
   if (!fresh && keys && keys.until > now) return keys.byKid;
-  const r = await providerFetch("google", GOOGLE_CERTS, { timeoutMs: CERTS_READ_MS, idempotent: true, tries: 2 }, deps);
-  const list = (r.json as { keys?: Jwk[] } | null)?.keys;
-  if (r.outcome !== "ok" || !Array.isArray(list)) return keys?.byKid ?? null;
-  const maxAge = Number(/max-age=(\d+)/.exec(r.headers?.get("cache-control") ?? "")?.[1]);
+  const fromProvider = await fetchFromProvider(
+    "google",
+    GOOGLE_CERTS,
+    { timeoutMs: CERTS_READ_MS, idempotent: true, tries: 2 },
+    deps,
+  );
+  const list = (fromProvider.json as { keys?: Jwk[] } | null)?.keys;
+  if (fromProvider.outcome !== "ok" || !Array.isArray(list)) return keys?.byKid ?? null;
+  const maxAge = Number(/max-age=(\d+)/.exec(fromProvider.headers?.get("cache-control") ?? "")?.[1]);
   const byKid = new Map(list.filter((k) => typeof k.kid === "string").map((k) => [k.kid as string, k]));
   keys = { at: now, until: now + (Number.isFinite(maxAge) && maxAge > 0 ? maxAge * 1000 : KEYS_KEPT_MS), byKid };
   return byKid;
@@ -49,9 +54,9 @@ export type PushTokenRefusal =
 export async function verifyGooglePushToken(
   authorization: string | null,
   audience: string,
-  p: { now?: number; deps?: Deps } = {},
+  params: { now?: number; deps?: Deps } = {},
 ): Promise<{ ok: true; email: string | null } | { ok: false; why: PushTokenRefusal }> {
-  const now = p.now ?? Date.now();
+  const now = params.now ?? Date.now();
   const jwt = /^Bearer\s+(.+)$/i.exec(authorization ?? "")?.[1]?.trim();
   if (!jwt) return { ok: false, why: "no_token" };
   const parts = jwt.split(".");
@@ -66,9 +71,9 @@ export async function verifyGooglePushToken(
     return { ok: false, why: "malformed" };
   }
   if (header.alg !== "RS256" || typeof header.kid !== "string") return { ok: false, why: "malformed" };
-  let jwk = (await googleKeys(now, p.deps))?.get(header.kid);
+  let jwk = (await googleKeys(now, params.deps))?.get(header.kid);
   // A key Google rotated in since the keys were read: read them once more.
-  if (!jwk) jwk = (await googleKeys(now, p.deps, true))?.get(header.kid);
+  if (!jwk) jwk = (await googleKeys(now, params.deps, true))?.get(header.kid);
   if (!jwk) return { ok: false, why: "unknown_key" };
   const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, [
     "verify",
@@ -83,9 +88,9 @@ export async function verifyGooglePushToken(
   if (typeof claims.iss !== "string" || !GOOGLE_ISSUERS.has(claims.iss)) return { ok: false, why: "wrong_issuer" };
   const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   if (!aud.includes(audience)) return { ok: false, why: "wrong_audience" };
-  const s = Math.floor(now / 1000);
-  if (typeof claims.exp !== "number" || claims.exp + SKEW_S < s) return { ok: false, why: "expired" };
-  if (typeof claims.iat === "number" && claims.iat - SKEW_S > s) return { ok: false, why: "expired" };
+  const floored = Math.floor(now / 1000);
+  if (typeof claims.exp !== "number" || claims.exp + SKEW_S < floored) return { ok: false, why: "expired" };
+  if (typeof claims.iat === "number" && claims.iat - SKEW_S > floored) return { ok: false, why: "expired" };
   const email = typeof claims.email === "string" && claims.email_verified === true ? claims.email.toLowerCase() : null;
   return { ok: true, email };
 }
@@ -122,8 +127,8 @@ export function graphNotificationsOf(body: unknown): Array<{ subscriptionId: str
 }
 
 /** A notification's clientState against the one the subscriptions were made with, in constant time (as hashes). */
-export function clientStateMatches(a: string | null, b: string): boolean {
-  if (a === null) return false;
+export function clientStateMatches(first: string | null, second: string): boolean {
+  if (first === null) return false;
   const digest = (v: string) => createHash("sha256").update(v).digest();
-  return timingSafeEqual(digest(a), digest(b));
+  return timingSafeEqual(digest(first), digest(second));
 }

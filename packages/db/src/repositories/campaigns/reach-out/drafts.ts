@@ -16,14 +16,14 @@ type Db = SupabaseClient<Database>;
 /** Up to `limit` due sends of reach-outs their owners send, claimed to be drafted: a step after the first before a first email. */
 export async function claimDrafts(
   db: Db,
-  p: { at: Date; limit: number; tenantId: string | null },
+  params: { at: Date; limit: number; tenantId: string | null },
 ): Promise<ReachOutSendRow[]> {
-  if (!Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
-    throw new Error(`cannot claim the drafts due: a limit is a whole number (${p.limit})`);
+  if (!Number.isInteger(params.limit) || Number.isNaN(params.at.getTime()))
+    throw new Error(`cannot claim the drafts due: a limit is a whole number (${params.limit})`);
   const { data, error } = await db.rpc("sequence_claim_drafts", {
-    p_at: p.at.toISOString(),
-    p_limit: p.limit,
-    ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
+    p_at: params.at.toISOString(),
+    p_limit: params.limit,
+    ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
   if (error) throw new Error(`cannot claim the drafts due: ${error.message}`);
   return leadSends(data);
@@ -42,23 +42,23 @@ export interface DraftLoad {
  * steps after the first, planned first, leave the rest of the day to new leads, and nothing new is handed to an owner
  * whose pile is full.
  */
-export async function chainDraftLoad(
+export async function loadChainDraft(
   db: Db,
-  p: { tenantId: string; rootId: string; runFor: string },
+  params: { tenantId: string; rootId: string; runFor: string },
 ): Promise<DraftLoad> {
   const [runs, open] = await Promise.all([
     db
       .from("sequence_batches")
       .select("id")
-      .eq("tenant_id", p.tenantId)
+      .eq("tenant_id", params.tenantId)
       .eq("audience->>kind", "reach_out")
-      .eq("audience->>root_id", p.rootId)
-      .eq("run_for", p.runFor),
+      .eq("audience->>root_id", params.rootId)
+      .eq("run_for", params.runFor),
     db
       .from("sequence_sends")
       .select("id", { count: "exact", head: true })
-      .eq("tenant_id", p.tenantId)
-      .eq("sequence_id", p.rootId)
+      .eq("tenant_id", params.tenantId)
+      .eq("sequence_id", params.rootId)
       .not("lead_id", "is", null)
       .in("state", ["planned", "held", "claimed", "drafted"]),
   ]);
@@ -69,7 +69,7 @@ export async function chainDraftLoad(
   const { count, error } = await db
     .from("sequence_sends")
     .select("id", { count: "exact", head: true })
-    .eq("tenant_id", p.tenantId)
+    .eq("tenant_id", params.tenantId)
     .in("batch_id", ids)
     .neq("state", "skipped");
   if (error) throw new Error(`cannot count the reach-out's emails of the day: ${error.message}`);
@@ -100,9 +100,9 @@ export interface DraftWaitingRow {
  * The drafts waiting for their owners, oldest first, with their leads' facts (00429 reach_out_drafts_waiting), on the
  * service role: one run's (its To send list) or every workspace's (the clock, which skips one the door would refuse).
  */
-export async function draftsWaiting(
+export async function listDraftsWaiting(
   db: Db,
-  p: {
+  params: {
     limit: number;
     tenantId?: string | null;
     runId?: string | null;
@@ -111,10 +111,10 @@ export async function draftsWaiting(
   },
 ): Promise<DraftWaitingRow[]> {
   const { data, error } = await db.rpc("reach_out_drafts_waiting", {
-    p_limit: p.limit,
-    ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
-    ...(p.runId ? { p_run_id: p.runId } : {}),
-    ...(p.after ? { p_after_at: p.after.drafted_at, p_after_id: p.after.id } : {}),
+    p_limit: params.limit,
+    ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
+    ...(params.runId ? { p_run_id: params.runId } : {}),
+    ...(params.after ? { p_after_at: params.after.drafted_at, p_after_id: params.after.id } : {}),
   });
   if (error) throw new Error(`cannot read the drafts waiting: ${error.message}`);
   return (data ?? []).map((r) => ({ ...r, facts: (r.facts as DraftLeadFacts | null) ?? null }));
@@ -127,16 +127,16 @@ export interface OwnerSendFacts {
 }
 
 /** For each send named, its owner's facts: the run it waits in while drafted, and whether it was sent on their word. */
-export async function ownerSendFactsOf(
+export async function getOwnerSendFacts(
   db: Db,
-  p: { tenantId: string; sendIds: readonly string[] },
+  params: { tenantId: string; sendIds: readonly string[] },
 ): Promise<Map<string, OwnerSendFacts>> {
-  if (p.sendIds.length === 0) return new Map();
+  if (params.sendIds.length === 0) return new Map();
   const { data, error } = await db
     .from("sequence_sends")
     .select("id, batch_id, state, said_at")
-    .eq("tenant_id", p.tenantId)
-    .in("id", [...p.sendIds]);
+    .eq("tenant_id", params.tenantId)
+    .in("id", [...params.sendIds]);
   if (error) throw new Error(`cannot read the owner's sends: ${error.message}`);
   return new Map(
     (data ?? []).map((r) => [
@@ -164,12 +164,12 @@ export interface SendSaidAnswer {
  */
 export async function sendSaid(
   db: Db,
-  p: { sendId: string; outcome: "sent" | "not_sent"; reason: string | null },
+  params: { sendId: string; outcome: "sent" | "not_sent"; reason: string | null },
 ): Promise<DoorResult<SendSaidAnswer>> {
   const { data, error } = await db.rpc("reach_out_send_said", {
-    p_send_id: p.sendId,
-    p_outcome: p.outcome,
-    ...(p.reason ? { p_reason: p.reason } : {}),
+    p_send_id: params.sendId,
+    p_outcome: params.outcome,
+    ...(params.reason ? { p_reason: params.reason } : {}),
   });
   return answer<SendSaidAnswer>(data, error);
 }
@@ -191,15 +191,15 @@ export interface ReplySaidAnswer {
  */
 export async function replySaid(
   db: Db,
-  p: { tenantId: string; userId: string; leadId: string; reading: Json; plan: Json; note: string },
+  params: { tenantId: string; userId: string; leadId: string; reading: Json; plan: Json; note: string },
 ): Promise<DoorResult<ReplySaidAnswer>> {
   const { data, error } = await db.rpc("reach_out_reply_said", {
-    p_tenant_id: p.tenantId,
-    p_user_id: p.userId,
-    p_lead_id: p.leadId,
-    p_reading: p.reading,
-    p_plan: p.plan,
-    p_note: p.note,
+    p_tenant_id: params.tenantId,
+    p_user_id: params.userId,
+    p_lead_id: params.leadId,
+    p_reading: params.reading,
+    p_plan: params.plan,
+    p_note: params.note,
   });
   return answer<ReplySaidAnswer>(data, error);
 }
@@ -213,15 +213,15 @@ export interface LeadReplyFacts {
 }
 
 /** A lead's reply facts, on the member's own session (RLS decides); null for a lead the workspace does not hold. */
-export async function leadReplyFactsOf(
+export async function findLeadReplyFacts(
   db: Db,
-  p: { tenantId: string; leadId: string },
+  params: { tenantId: string; leadId: string },
 ): Promise<LeadReplyFacts | null> {
   const { data, error } = await db
     .from("leads")
     .select("business_name, email, website_host, website_root")
-    .eq("tenant_id", p.tenantId)
-    .eq("id", p.leadId)
+    .eq("tenant_id", params.tenantId)
+    .eq("id", params.leadId)
     .maybeSingle();
   if (error) throw new Error(`cannot read the lead: ${error.message}`);
   return data ? { ...data, business_name: data.business_name ?? "" } : null;

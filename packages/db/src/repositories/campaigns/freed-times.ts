@@ -18,7 +18,7 @@ import {
   type SequenceMode,
 } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
-import { sequenceModesOf } from "./sequences";
+import { getSequenceModes } from "./sequences/reads";
 
 type Db = SupabaseClient<Database>;
 type StepRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -36,7 +36,7 @@ const SPAN_MAX = 2000;
  * zone is the workspace's, as every run reads it (DEFAULT_TIMEZONE where it keeps none); the hours, closures and rules
  * its profile's, none where it keeps none (the rule then offers nothing: no_hours).
  */
-export async function freedTimeFactsOf(
+export async function findFreedTimeFacts(
   db: Db,
   tenantId: string,
   appointmentId: string,
@@ -99,7 +99,7 @@ export async function freedTimeFactsOf(
  * The workspace's step on `slot_opened`: the running one, with its sequence's mode as a run reads it (the oldest,
  * should two sequences hold one: a freed time is offered once), else whether one stands paused, else none.
  */
-export async function freedTimeStepOf(
+export async function findFreedTimeStep(
   db: Db,
   tenantId: string,
 ): Promise<{ state: "running"; step: StepRow & { mode: SequenceMode | undefined } } | { state: "paused" | "none" }> {
@@ -113,7 +113,7 @@ export async function freedTimeStepOf(
   const steps = data ?? [];
   const running = steps.find((s) => s.state === "running");
   if (!running) return { state: steps.length ? "paused" : "none" };
-  const modes = await sequenceModesOf(db, tenantId, [running.sequence_id]);
+  const modes = await getSequenceModes(db, tenantId, [running.sequence_id]);
   return { state: "running", step: { ...running, mode: modes.get(running.sequence_id) } };
 }
 
@@ -121,7 +121,7 @@ export async function freedTimeStepOf(
  * The batch a step made for an appointment's freed time: how many people it offers the time to, and whether it waits
  * for the owner's OK; null when it made none.
  */
-export async function freedTimeBatchOf(
+export async function findFreedTimeBatch(
   db: Db,
   tenantId: string,
   stepId: string,
@@ -149,7 +149,7 @@ const CANCELLATIONS_IN_CHUNK = 200;
  * the service, 00436, or vanished from the feed). Ask's signals count them where nothing offers them. Under the caller's
  * row security; a read that fails throws.
  */
-export async function cancellationsSince(db: Db, tenantId: string, sinceIso: string): Promise<number> {
+export async function getCancellationsSince(db: Db, tenantId: string, sinceIso: string): Promise<number> {
   const { data, error } = await db
     .from("events")
     .select("subject_id, data")

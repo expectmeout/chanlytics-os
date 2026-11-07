@@ -8,15 +8,10 @@
 import { useEffect, useState } from "react";
 import { MINOR_PER_UNIT } from "@chanlytics/contracts";
 import type { AdDoor, AdPlatform, AdsAddress, AdsConfig, AdsRead } from "@chanlytics/contracts";
-import {
-  ADS_SPECIAL_MILES,
-  newAdDefaults,
-  newAdFrom,
-  newestPostFor,
-  platformsFor,
-  smallestPreset,
-} from "@chanlytics/contracts/ads-page";
-import type { AdDraft } from "@chanlytics/contracts/ads-page";
+import { ADS_SPECIAL_MILES } from "../model/rules";
+import { newAdDefaults, newAdFrom, newestPostFor } from "../model/new-ad";
+import { platformsFor, smallestPreset } from "../model/vm-base";
+import type { AdDraft } from "../model/new-ad";
 import { mayAtLeast, onRolesChanged } from "../../../frame-verbs";
 import type { FrameKind } from "../drawer/preview";
 

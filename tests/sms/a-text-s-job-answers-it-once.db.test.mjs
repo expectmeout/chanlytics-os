@@ -4,7 +4,7 @@
  * The door records the text (ingest_inbound) and leaves its answer to an inbound_answer job; the job's own ingest is a
  * redelivery, and it goes on only while the message is unprocessed and no reply names it. What the job reads is proved
  * here against the schema the replay builds: the redelivery answers is_new false with the message's processed state;
- * repliedTo finds a reply by the message it names (meta.reply_to), whatever became of it (waiting, withdrawn, refused or
+ * wasRepliedTo finds a reply by the message it names (meta.reply_to), whatever became of it (waiting, withdrawn, refused or
  * sent), and nothing of another message or workspace; the job is held once per message while it lives, in the reply
  * lane. Skipped without a local database; never production.
  */
@@ -25,7 +25,7 @@ const skip =
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { ingestInbound, markProcessed, repliedTo } = await import(at("packages/db/dist/index.js"));
+const { ingestInbound, markProcessed, wasRepliedTo } = await import(at("packages/db/dist/index.js"));
 const { scheduleJobOnce } = await import(at("packages/jobs/dist/index.js"));
 
 const ok = (res, what = "") => {
@@ -121,7 +121,7 @@ test(
   "a reply is found by the message it names, whatever became of it: waiting, withdrawn, refused or sent; and never another message's or another workspace's",
   { skip },
   async () => {
-    const asked = (tenant, ing) => repliedTo(db, tenant, ing.conversation_id, ing.message_id);
+    const asked = (tenant, ing) => wasRepliedTo(db, tenant, ing.conversation_id, ing.message_id);
     for (const status of ["queued", "canceled", "failed", "sent"]) {
       const { ing } = await textIn(A);
       assert.equal(await asked(A, ing), false, `${status}: nothing has answered it yet`);

@@ -23,7 +23,8 @@ import { pg } from "../shared/pg.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { emailCanSend, emailDomain } from "../email/email.js";
-import { buildEmailRequest, confirmUrl, hostedIdentity, signConfirmToken } from "@chanlytics/channels";
+import { buildEmailRequest, hostedIdentity } from "@chanlytics/channels/email";
+import { confirmUrl, signConfirmToken } from "@chanlytics/channels/tokens";
 import {
   SIGNUP_CONFIRM_MS,
   SIGNUP_CONFIRM_SOURCE,
@@ -37,18 +38,14 @@ import {
   type SignupAskRefusal,
   type WebsiteFormInput,
 } from "@chanlytics/contracts";
-import {
-  contactEmailOf,
-  insertQueuedEmail,
-  mailboxOfTenant,
-  resolveOutboundTargetForContact,
-  signupAskFacts,
-  workspaceLookOf,
-  type Json,
-} from "@chanlytics/db";
+import { findContactEmail, insertQueuedEmail, findSignupAskFacts } from "@chanlytics/db/campaigns";
+import { findMailboxOfTenant } from "@chanlytics/db/email";
+import { resolveOutboundTargetForContact } from "@chanlytics/db/channels";
+import { findWorkspaceLook } from "@chanlytics/db/look";
+import { type Json } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import { errField, logger, type Logger } from "../shared/log.js";
-import { onceKeyId } from "../ops/notify.js";
+import { onceKeyId } from "../shared/alerts/notify.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -73,7 +70,7 @@ const signedUpOn = (f: Pick<WebsiteFormInput, "form" | "page" | "about" | "lang"
  */
 async function askToConfirm(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     contactId: string;
     typed: string;
@@ -81,36 +78,42 @@ async function askToConfirm(
     from: { form: WebsiteFormInput } | { member: string | null };
   },
 ): Promise<SignupAsked> {
-  const typed = p.typed.trim().toLowerCase();
+  const typed = params.typed.trim().toLowerCase();
   const key = signupAddressKey(typed);
   const domain = emailDomain();
   const secret = env.UNSUBSCRIBE_SECRET;
   const [facts, mailbox, row] = await Promise.all([
-    signupAskFacts(db, { tenantId: p.tenantId, contactId: p.contactId, addressKey: key, nowMs: p.nowMs }),
-    mailboxOfTenant(db, p.tenantId),
-    workspaceLookOf(db, p.tenantId),
+    findSignupAskFacts(db, {
+      tenantId: params.tenantId,
+      contactId: params.contactId,
+      addressKey: key,
+      nowMs: params.nowMs,
+    }),
+    findMailboxOfTenant(db, params.tenantId),
+    findWorkspaceLook(db, params.tenantId),
   ]);
   // A deployment that cannot send email, or seal the link, has no mailbox to ask from as surely as a workspace without one.
   const sendsAs = mailbox && domain && emailCanSend() && secret ? { mailbox, domain, secret } : null;
   // A member asks only someone the website brought: the email says they signed up there.
-  if ("member" in p.from && facts.person && !facts.person.fromWebsite) return { asked: false, why: "not_from_website" };
-  const why = signupAskRefusal(typed, { ...facts, mailbox: !!sendsAs });
-  if (why || !sendsAs) return { asked: false, why: why ?? "no_mailbox" };
+  if ("member" in params.from && facts.person && !facts.person.fromWebsite)
+    return { asked: false, why: "not_from_website" };
+  const reason = signupAskRefusal(typed, { ...facts, mailbox: !!sendsAs });
+  if (reason || !sendsAs) return { asked: false, why: reason ?? "no_mailbox" };
 
   const thread = await resolveOutboundTargetForContact(db, {
-    tenantId: p.tenantId,
-    contactId: p.contactId,
+    tenantId: params.tenantId,
+    contactId: params.contactId,
     touch: false,
   });
   if (!thread) return { asked: false, why: "gone" };
   // One ask per person and address in a link's span of days, by its id: two posts of one form at once (a double press,
   // a site that sends again) both pass the open ask's read, and the second insert finds the first's row.
   const messageId = onceKeyId(
-    `signup_confirm:${p.tenantId}:${p.contactId}:${key}:${Math.floor(p.nowMs / SIGNUP_CONFIRM_MS)}`,
+    `signup_confirm:${params.tenantId}:${params.contactId}:${key}:${Math.floor(params.nowMs / SIGNUP_CONFIRM_MS)}`,
   );
   const link = confirmUrl(
     dashboardOrigin(),
-    signConfirmToken(sendsAs.secret, { tenantId: p.tenantId, contactId: p.contactId, messageId }),
+    signConfirmToken(sendsAs.secret, { tenantId: params.tenantId, contactId: params.contactId, messageId }),
   );
   const words = signupConfirmEmail({ business: sendsAs.mailbox.from_name, link });
   // The same words as a letter in the business's own look (decision 0075): its logo where it wears one, its colour.
@@ -134,22 +137,22 @@ async function askToConfirm(
     // A program's first email: Auto-Submitted, so an auto-responder does not answer it.
     actor: "ai",
     messageId,
-    tenantId: p.tenantId,
+    tenantId: params.tenantId,
   });
   // The request spread whole, so the row's JSON is its fields as frozen (an interface is no JSON object to the compiler).
   const meta: Json = {
     source: SIGNUP_CONFIRM_SOURCE,
     email: { subject: request.subject, to: [typed], request: { ...request } },
     signup_confirm:
-      "member" in p.from
-        ? { key, form: facts.lastForm ?? signedUpOn({ form: "signup" }), by: p.from.member }
-        : { key, form: signedUpOn(p.from.form) },
+      "member" in params.from
+        ? { key, form: facts.lastForm ?? signedUpOn({ form: "signup" }), by: params.from.member }
+        : { key, form: signedUpOn(params.from.form) },
   };
   const wrote = await insertQueuedEmail(db, {
     id: messageId,
-    tenant_id: p.tenantId,
+    tenant_id: params.tenantId,
     conversation_id: thread.conversationId,
-    contact_id: p.contactId,
+    contact_id: params.contactId,
     channel: "email",
     direction: "outbound",
     sender: "system",
@@ -160,9 +163,9 @@ async function askToConfirm(
   });
   if (wrote === "exists") return { asked: false, why: "open" };
   await scheduleJob(db, {
-    tenantId: p.tenantId,
+    tenantId: params.tenantId,
     kind: "outbound_send",
-    dueAt: new Date(p.nowMs),
+    dueAt: new Date(params.nowMs),
     payload: { message_id: messageId, conversation_id: thread.conversationId, to_email: typed, proactive: true },
   });
   return { asked: true, messageId };
@@ -176,21 +179,21 @@ async function askToConfirm(
  */
 export async function askIfSignup(
   db: Db,
-  L: Logger,
-  p: { tenantId: string; contactId: string; form: WebsiteFormInput; email: string | null; nowMs: number },
+  log: Logger,
+  params: { tenantId: string; contactId: string; form: WebsiteFormInput; email: string | null; nowMs: number },
 ): Promise<SignupAskRefusal | "asked" | null> {
-  if (p.form.form !== "signup" || !p.email || websiteFormLate(p.form, p.nowMs)) return null;
+  if (params.form.form !== "signup" || !params.email || websiteFormLate(params.form, params.nowMs)) return null;
   try {
     const r = await askToConfirm(db, {
-      tenantId: p.tenantId,
-      contactId: p.contactId,
-      typed: p.email,
-      nowMs: p.nowMs,
-      from: { form: p.form },
+      tenantId: params.tenantId,
+      contactId: params.contactId,
+      typed: params.email,
+      nowMs: params.nowMs,
+      from: { form: params.form },
     });
     return r.asked ? "asked" : r.why;
   } catch (e) {
-    L.error("website_form_failed", { tenant_id: p.tenantId, step: "ask", error: errField(e) });
+    log.error("website_form_failed", { tenant_id: params.tenantId, step: "ask", error: errField(e) });
     return null;
   }
 }
@@ -214,16 +217,16 @@ export async function askAgain(
   const db = pg();
   if (!db) return refuse(503, "no_database");
   try {
-    const email = await contactEmailOf(db, tenantId, contactId);
+    const email = await findContactEmail(db, tenantId, contactId);
     if (!email) return json(200, { ok: true, asked: false, why: "no_email" });
-    const r = await askToConfirm(db, {
+    const result = await askToConfirm(db, {
       tenantId,
       contactId,
       typed: email,
       nowMs: Date.now(),
       from: { member: personFor(auth, body.user_id) },
     });
-    return json(200, { ok: true, asked: r.asked, why: r.asked ? null : r.why });
+    return json(200, { ok: true, asked: result.asked, why: result.asked ? null : result.why });
   } catch (e) {
     logger({ tenant_id: tenantId }).error("signup_confirm_failed", { step: "ask_again", error: errField(e) });
     return refuse(502, "could_not_queue", "the confirmation could not be written");

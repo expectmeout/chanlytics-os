@@ -20,10 +20,11 @@ import {
   type BillingStatus,
   type SetupPhoneWant,
 } from "@chanlytics/contracts";
-import { setupChoicesOf, type Database } from "@chanlytics/db";
+import { setupChoicesOf } from "@chanlytics/db/workspace";
+import { type Database } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import { lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
-import { liveLineOf, planBuy, provisionJob } from "./line-ops.js";
+import { liveLineOf, planBuy, provisionJob } from "./ops/search-buy.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -44,7 +45,7 @@ type ChosenLinePlan =
   | { kind: "stands" }
   | { kind: "none"; why: "no_choice" | "no_calls" | "moving" | "may_not_spend" | "no_number" };
 
-export function planChosenLine(f: {
+export function planChosenLine(fields: {
   want: SetupPhoneWant | null;
   /** The business chose Not by phone (callsNotByPhone). */
   noCalls: boolean;
@@ -53,14 +54,15 @@ export function planChosenLine(f: {
   /** A person was asked for a line or a move: theirs, not this. */
   asked: boolean;
 }): ChosenLinePlan {
-  if (liveLineOf([...f.lines]) || f.lines.some((l) => l.voice_state === "failed")) return { kind: "stands" };
-  if (f.noCalls) return { kind: "none", why: "no_calls" };
-  if (!f.want) return { kind: "none", why: "no_choice" };
-  if (f.want.way === "move" || f.asked) return { kind: "none", why: "moving" };
-  if (!f.billing || !maySpend(f.billing.mode, f.billing.status, "number"))
+  if (liveLineOf([...fields.lines]) || fields.lines.some((l) => l.voice_state === "failed")) return { kind: "stands" };
+  if (fields.noCalls) return { kind: "none", why: "no_calls" };
+  if (!fields.want) return { kind: "none", why: "no_choice" };
+  if (fields.want.way === "move" || fields.asked) return { kind: "none", why: "moving" };
+  if (!fields.billing || !maySpend(fields.billing.mode, fields.billing.status, "number"))
     return { kind: "none", why: "may_not_spend" };
-  const area = areaCodeOf(f.want.number);
-  if (f.want.way === "new") return { kind: "buy", number: f.want.number, areaCode: area ? Number(area) : null };
+  const area = areaCodeOf(fields.want.number);
+  if (fields.want.way === "new")
+    return { kind: "buy", number: fields.want.number, areaCode: area ? Number(area) : null };
   return area ? { kind: "search", areaCode: Number(area) } : { kind: "none", why: "no_number" };
 }
 
@@ -168,13 +170,13 @@ export async function startOwedLines(
   const out: OwedLinesResult = { looked: 0, started: 0, failed: 0 };
   for (const tenantId of ids.slice(0, max)) {
     out.looked += 1;
-    const r = await startChosenLine(db, tenantId, ports);
-    if (r.kind === "started") out.started += 1;
-    if (r.kind === "none" && (r.why === "failed" || r.why === "no_number")) {
+    const result = await startChosenLine(db, tenantId, ports);
+    if (result.kind === "started") out.started += 1;
+    if (result.kind === "none" && (result.why === "failed" || result.why === "no_number")) {
       out.failed += 1;
       await ports.alert(
         "A paid workspace's number did not start",
-        `Workspace ${tenantId} pays and chose a number, and starting it failed: ${r.detail ?? r.why}. The lines sweep asks again within the quarter hour.`,
+        `Workspace ${tenantId} pays and chose a number, and starting it failed: ${result.detail ?? result.why}. The lines sweep asks again within the quarter hour.`,
       );
     }
   }

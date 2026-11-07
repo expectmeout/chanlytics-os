@@ -91,9 +91,12 @@ test("the thread's line above an attachment names it, and the attachment itself 
     messageText(msg({ media: { mime_type: null, fetch_state: "pending" }, meta: { raw_type: "document" } })),
     "Document",
   );
-  // The view models carry it through: the Inbox's (inbox-thread.ts) and Conversations' (conversation-vm.ts).
-  const vm = ["inbox-thread", "conversation-vm"]
-    .map((m) => readCode(`packages/contracts/src/conversations/${m}.ts`))
+  // The view models carry it through: the Inbox's (inbox-thread.ts) and Conversations' (surfaces/inbox/thread-vm.ts).
+  const vm = [
+    "packages/contracts/src/conversations/inbox-thread/thread-vm.ts",
+    "apps/dashboard/src/surfaces/inbox/thread-vm.ts",
+  ]
+    .map((p) => readCode(p))
     .join("\n");
   assert.ok(vm.includes("...(media ? { media } : {}),"), "the Inbox timeline entry");
   assert.ok(vm.includes("...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),"), "the Conversations message");
@@ -142,7 +145,7 @@ test("the media route: member of the named workspace, stored only, a redirect th
   assert.ok(route.includes('.eq("tenant_id", member.tenantId)'));
   assert.ok(route.includes('media.fetch_state !== "stored"'));
   assert.ok(
-    route.includes("signedMediaUrl(member.tenantId, media.storage_path, 300)"),
+    route.includes("findSignedMediaUrl(member.tenantId, media.storage_path, 300)"),
     "signed only as this workspace's",
   );
   assert.ok(
@@ -235,7 +238,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
   );
   assert.ok(/photo \?\? undefined,\s*undefined,/.test(wa), "the image reaches the brain");
   assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("return got;"), "sink.media hands the bytes back");
-  const brain = readCode("apps/edge/lib/receptionist/brain.ts");
+  const brain = readCode("apps/edge/lib/ai/receptionist-brain.ts");
   assert.ok(
     brain.includes('{ type: "image", source: { type: "base64", media_type: image.mime, data: image.base64 } },'),
   );

@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setBearerVerifier } = await import(at("apps/dashboard/src/server/auth/bearer.ts"));
+const { setBearerVerifier } = await import(at("apps/dashboard/src/server/shared/auth/bearer.ts"));
 const { withRoute } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
 const core = await import(at("packages/core/dist/index.js"));
 const contracts = await import(at("packages/contracts/dist/index.js"));

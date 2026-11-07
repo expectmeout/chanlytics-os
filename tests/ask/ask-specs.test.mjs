@@ -28,7 +28,6 @@ import {
   PROPOSAL_GATE,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
-  PROPOSAL_SPECS,
   PROPOSAL_WORDS,
   ROLE_PERMS,
   ROUTE_KEYS,
@@ -36,6 +35,7 @@ import {
   cardOpenRoute,
   canonicalRoute,
 } from "@chanlytics/contracts";
+import { PROPOSAL_SPECS } from "../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tests/route-policy.json"), "utf8")).routes;

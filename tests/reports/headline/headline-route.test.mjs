@@ -13,7 +13,7 @@ import { reportDto } from "../_report-world.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const kernel = await importSrc("apps/dashboard/src/server/readers/index.ts");
+const kernel = await importSrc("apps/dashboard/src/server/shared/reader.ts");
 const { reportHeadline, reportPeriodAsked } = await importSrc("apps/dashboard/src/server/readers/report.ts");
 const headlineRoute = await importSrc("apps/dashboard/app/api/v1/reports/headline/route.ts");
 const reportsRoute = await importSrc("apps/dashboard/app/api/v1/reports/route.ts");

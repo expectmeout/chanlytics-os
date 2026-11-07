@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { isEmailRequest } from "@chanlytics/channels";
+import { isEmailRequest } from "@chanlytics/channels/email";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -24,8 +24,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const mailboxes = await import(at("apps/dashboard/app/api/v1/mailboxes/route.ts"));
 const mailbox = await import(at("apps/dashboard/app/api/v1/mailboxes/[id]/route.ts"));
-const { emailSetupFor, freezeReply } = await import(at("apps/dashboard/src/server/connections/email.ts"));
-const { metricsSummaryFor } = await import(at("apps/dashboard/src/server/metrics/metrics.ts"));
+const { getEmailSetup, freezeReply } = await import(at("apps/dashboard/src/server/connections/email.ts"));
+const { findMetricsSummary } = await import(at("apps/dashboard/src/server/metrics/metrics.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -177,7 +177,7 @@ test("where the deployment names no mail domain, hosted email is off: nothing ca
     );
     const db = fakeDb({ mailboxes: [row(A)] });
     // The mailboxes a reach-out writes from are the business's own (decision 0056): read whatever the hosted line.
-    assert.deepEqual(await emailSetupFor(db, A), {
+    assert.deepEqual(await getEmailSetup(db, A), {
       ready: false,
       domain: null,
       mailbox: null,
@@ -192,7 +192,7 @@ test("where the deployment names no mail domain, hosted email is off: nothing ca
     process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
   }
   const db = fakeDb({ mailboxes: [row(A, { last_received_at: "2026-09-17T12:00:00Z" })] });
-  assert.deepEqual(await emailSetupFor(db, A), {
+  assert.deepEqual(await getEmailSetup(db, A), {
     ready: true,
     domain: "mail.chanlytics.com",
     mailbox: {
@@ -206,7 +206,7 @@ test("where the deployment names no mail domain, hosted email is off: nothing ca
     sending: { providers: [], mailboxes: [], google_audience: null, left_today: null },
   });
   assert.deepEqual(
-    (await emailSetupFor(db, B)).mailbox,
+    (await getEmailSetup(db, B)).mailbox,
     null,
     "a workspace is told about its own mailbox and nobody else's",
   );
@@ -285,7 +285,7 @@ test("Today counts the workspace's email line beside the routing rows, and only 
   };
   const rpcs = { metrics_summary: () => summary };
   const withBox = fakeDb({ memberships: [membership(A, "owner", "a")], mailboxes: [row(A)] }, {}, rpcs);
-  const m = await metricsSummaryFor(withBox, A, 1);
+  const m = await findMetricsSummary(withBox, A, 1);
   assert.deepEqual(
     m.channels,
     [
@@ -306,12 +306,12 @@ test("Today counts the workspace's email line beside the routing rows, and only 
 
   // A workspace that has not made its mailbox has no email line...
   const noBox = fakeDb({ memberships: [membership(A, "owner", "a")], mailboxes: [] }, {}, rpcs);
-  assert.deepEqual((await metricsSummaryFor(noBox, A, 1)).channels, summary.channels);
+  assert.deepEqual((await findMetricsSummary(noBox, A, 1)).channels, summary.channels);
 
   // ...and neither has one on a deployment without the channel at all.
   delete process.env.EMAIL_DOMAIN;
   try {
-    assert.deepEqual((await metricsSummaryFor(withBox, A, 1)).channels, summary.channels);
+    assert.deepEqual((await findMetricsSummary(withBox, A, 1)).channels, summary.channels);
   } finally {
     process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
   }
@@ -322,7 +322,7 @@ test("Today counts the workspace's email line beside the routing rows, and only 
     { "mailboxes.select": { message: "permission denied" } },
     rpcs,
   );
-  const short = await metricsSummaryFor(broken, A, 1);
+  const short = await findMetricsSummary(broken, A, 1);
   assert.deepEqual(short.channels, summary.channels, "what WAS read still stands");
   assert.equal(short.linesRead, false, "never a blank Today, never '1 of 1' on a workspace with two");
 });

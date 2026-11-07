@@ -3,7 +3,7 @@
  * choices; on a phone the first, and the rest folded under "How this works", where four lines of fine print stood under
  * five choices (Ruben, 14 Oct 2026, the fitted sheets: two lines, then a fold).
  */
-import { LIST } from "@chanlytics/contracts/ads-page";
+import { LIST } from "../model/drawer/words";
 import { RecordDisclosure } from "../../../kit/record/disclosure";
 
 export function AdsNotes({ notes, phone, id }: { notes: readonly string[]; phone: boolean; id: string }) {

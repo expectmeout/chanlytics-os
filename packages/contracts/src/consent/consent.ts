@@ -26,8 +26,8 @@ export interface ConsentBearing {
   dnc?: boolean | null;
 }
 
-export function isOptedOutContact(c: ConsentBearing | null | undefined): boolean {
-  return !!c && (c.consent === "opted_out" || c.dnc === true);
+export function isOptedOutContact(consentBearing: ConsentBearing | null | undefined): boolean {
+  return !!consentBearing && (consentBearing.consent === "opted_out" || consentBearing.dnc === true);
 }
 
 /**
@@ -36,8 +36,8 @@ export function isOptedOutContact(c: ConsentBearing | null | undefined): boolean
  * R11 S9-6): the person page offered Call to someone on do-not-contact that the Pipeline and the acts refused, and the
  * Inbox and Live, which knew only "stopped or do-not-contact" in one flag, could not tell the two apart.
  */
-export function mayRing(c: ConsentBearing | null | undefined): boolean {
-  return !c || c.dnc !== true;
+export function mayRing(consentBearing: ConsentBearing | null | undefined): boolean {
+  return !consentBearing || consentBearing.dnc !== true;
 }
 
 /** What an opt-out is, in the words the refusal below says it and a second reader is asked it (stopRequestQuestion). */
@@ -64,8 +64,8 @@ export const STOP_WORDS = {
   line: ASKED_TO_STOP,
   tone: "plain",
   /** The clause after a name ("Dana asked to stop receiving messages"), or on its own with a capital when none is given. */
-  said: (who?: string | null): string =>
-    who ? `${who} ${ASKED_TO_STOP}` : `${ASKED_TO_STOP.charAt(0).toUpperCase()}${ASKED_TO_STOP.slice(1)}`,
+  said: (personName?: string | null): string =>
+    personName ? `${personName} ${ASKED_TO_STOP}` : `${ASKED_TO_STOP.charAt(0).toUpperCase()}${ASKED_TO_STOP.slice(1)}`,
 } as const;
 
 /** The customer-facing reason, used wherever a refusal is explained. */
@@ -76,8 +76,8 @@ export const OPT_OUT_REFUSAL = `This customer ${STOP_WORDS.line}. They can text 
  * say it in these words, and nowhere else. The person page said "Replies · Any time, by text" over a person who
  * had texted STOP (the 2 Oct 2026 audit).
  */
-export function optOutWords(who: string): string {
-  return `${STOP_WORDS.said(who)}. Nothing can be sent — they can text START to opt back in.`;
+export function optOutWords(personName: string): string {
+  return `${STOP_WORDS.said(personName)}. Nothing can be sent — they can text START to opt back in.`;
 }
 
 /**
@@ -138,15 +138,16 @@ export type MessageAbout = "theirs" | "ours";
  * their own foot and the mailbox. THE one statement of it, so the door, the batch and the pages never disagree about
  * which email is which.
  */
-export function isOfferByEmail(m: {
+export function isOfferByEmail(message: {
   channel: string;
   purpose: SendPurpose;
   proactive: boolean;
   about: MessageAbout;
 }): boolean {
   return (
-    m.channel === "email" &&
-    (m.purpose === "marketing" || (m.purpose === "conversational" && m.proactive && m.about === "ours"))
+    message.channel === "email" &&
+    (message.purpose === "marketing" ||
+      (message.purpose === "conversational" && message.proactive && message.about === "ours"))
   );
 }
 
@@ -182,12 +183,12 @@ export interface PurposeBearing extends ConsentBearing {
  * of the claim, and people_list's last_wrote_at leaves them out): a program writing from their address is not them dealing
  * with the business. A lead the finder found is nobody's customer yet and has none.
  */
-export function relationshipOnRecord(f: {
+export function relationshipOnRecord(fields: {
   lastWroteAt?: string | null;
   lastInboundCallAt?: string | null;
   hasDeal?: boolean | null;
 }): boolean {
-  return !!f.lastWroteAt || !!f.lastInboundCallAt || f.hasDeal === true;
+  return !!fields.lastWroteAt || !!fields.lastInboundCallAt || fields.hasDeal === true;
 }
 
 /**
@@ -208,16 +209,18 @@ export function relationshipOnRecord(f: {
 export type PurposeRefusal = "opted_out" | "no_marketing_consent" | "not_opted_in" | "unsubscribed";
 
 export function mayMessageFor(
-  c: PurposeBearing,
+  purposeBearing: PurposeBearing,
   purpose: SendPurpose,
   opts: { proactive?: boolean; channel: string; about: MessageAbout; begins?: boolean },
 ): { ok: true; reason: null } | { ok: false; reason: PurposeRefusal } {
-  if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
+  if (isOptedOutContact(purposeBearing)) return { ok: false, reason: "opted_out" };
   // Cold email to a business: US law lets a business write until it is told to stop (CAN-SPAM), so no recorded yes
   // is asked for. What is asked: that they did not stop everything, and did not unsubscribe from this business's
   // email. The wire's own rules (email only, a lead, a mailbox it connected, the unsubscribe) are the door's.
   if (purpose === "outreach")
-    return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
+    return purposeBearing.email_marketing === "opted_out"
+      ? { ok: false, reason: "unsubscribed" }
+      : { ok: true, reason: null };
   // THE CHANNEL IS REQUIRED: a yes covers the channels it was given for (consent/channels.ts). A yes to offers covers
   // the channels in marketing_channels; a yes to hear about a visit, the ones in consent_channels, which only a message
   // that starts a conversation asks about: a reply answers someone who wrote, on whatever channel they wrote on.
@@ -232,40 +235,43 @@ export function mayMessageFor(
       // A person's own first email (`begins`: a conversation a member begins, new-conversation/write-ways.ts) is no
       // reply and no message about a visit, whoever it is to: someone who pressed Unsubscribe on this business's email
       // does not get it. PURPOSE_REFUSALS.unsubscribed has always said so: "No offers or first emails".
-      if (opts.begins && c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
+      if (opts.begins && purposeBearing.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
       // A reply, or a message about something of theirs (a visit they booked, their proposal, the call they are on):
       // no yes asked, as decision 11 says.
       if (!opts.proactive || opts.about === "theirs") return { ok: true, reason: null };
       // DECISION D1 (4 Oct 2026): news the business chose to send is not a visit reminder because its WhatsApp twin is
       // a utility template. It goes by email as an offer would: not to someone who pressed Unsubscribe, and only to
       // someone whose yes covers email or who has dealt with the business. An address alone is not enough.
-      if (c.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
+      if (purposeBearing.email_marketing === "opted_out") return { ok: false, reason: "unsubscribed" };
       // A recorded no to offers and news (the yes the consent page asks is to both) bars the business's news by email too,
       // as it bars an offer below: the conservative reading of 3 Oct, and the promotional-under-a-utility-twin case D1 closes.
-      if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
-      const saidYes = c.consent === "opted_in" && yesCovers(c.consent_channels, "email");
-      return saidYes || c.has_relationship === true
+      if (purposeBearing.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
+      const saidYes = purposeBearing.consent === "opted_in" && yesCovers(purposeBearing.consent_channels, "email");
+      return saidYes || purposeBearing.has_relationship === true
         ? { ok: true, reason: null }
         : { ok: false, reason: "not_opted_in" };
     }
-    const answer = c.email_marketing;
+    const answer = purposeBearing.email_marketing;
     if (answer === "opted_out") return { ok: false, reason: "unsubscribed" };
     // DECISION (3 Oct 2026, the conservative reading): a recorded no to offers elsewhere bars an offer by email too. Someone
     // who declined offers on WhatsApp ("no more offers") must not hear about them by email because email keeps its own answer
     // and they never pressed Unsubscribe. It holds even over a yes to offers by email: with one answer older than the other
     // and no way to tell which, the no wins until a person resets the offers answer (a reset is "unknown").
-    if (c.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
+    if (purposeBearing.marketing_consent === "opted_out") return { ok: false, reason: "no_marketing_consent" };
     if (answer === "opted_in") return { ok: true, reason: null };
-    return answer === "unknown" && c.has_relationship === true
+    return answer === "unknown" && purposeBearing.has_relationship === true
       ? { ok: true, reason: null }
       : { ok: false, reason: "no_marketing_consent" };
   }
   if (purpose === "marketing") {
-    return c.marketing_consent === "opted_in" && yesCovers(c.marketing_channels, opts.channel)
+    return purposeBearing.marketing_consent === "opted_in" && yesCovers(purposeBearing.marketing_channels, opts.channel)
       ? { ok: true, reason: null }
       : { ok: false, reason: "no_marketing_consent" };
   }
-  if (opts.proactive && (c.consent !== "opted_in" || !yesCovers(c.consent_channels, opts.channel)))
+  if (
+    opts.proactive &&
+    (purposeBearing.consent !== "opted_in" || !yesCovers(purposeBearing.consent_channels, opts.channel))
+  )
     return { ok: false, reason: "not_opted_in" };
   return { ok: true, reason: null };
 }
@@ -390,21 +396,25 @@ export interface ConsentChange {
 }
 
 /** An events row of kind contact.consent_changed, as the doors write it (00043, 00013, 00095, 00110). */
-export function consentChangeOf(e: {
+export function consentChangeOf(input: {
   id: string;
   subject_id: string | null;
   created_at: string;
   data: unknown;
 }): ConsentChange {
-  const d = (e.data ?? {}) as Record<string, unknown>;
-  const str = (k: string): string | null => (typeof d[k] === "string" && d[k] !== "" ? d[k] : null);
+  const data = (input.data ?? {}) as Record<string, unknown>;
+  const str = (k: string): string | null => (typeof data[k] === "string" && data[k] !== "" ? data[k] : null);
   return {
-    id: e.id,
-    contact_id: e.subject_id,
-    at: e.created_at,
+    id: input.id,
+    contact_id: input.subject_id,
+    at: input.created_at,
     // Email's answer is its own (00174): read as the conversational one, an unsubscribe said "nothing goes out".
     purpose:
-      d.purpose === "marketing" ? "marketing" : d.purpose === "email_marketing" ? "email_marketing" : "conversational",
+      data.purpose === "marketing"
+        ? "marketing"
+        : data.purpose === "email_marketing"
+          ? "email_marketing"
+          : "conversational",
     consent: str("consent"),
     previous: str("previous"),
     source: str("source"),

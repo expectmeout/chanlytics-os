@@ -14,17 +14,14 @@
 import { useEffect, useRef, useState } from "react";
 import { adWith, daysBetween, patchRestarts } from "@chanlytics/contracts";
 import type { AdAccountRead, AdArea, AdPatch, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
-import {
-  ADS_EXAMPLES,
-  ADS_SOFT_NEEDS,
-  CHOOSE,
-  REFUSED,
-  adServiceOf,
-  draftAd,
-  newAdModel,
-  starterCopy,
-} from "@chanlytics/contracts/ads-page";
-import type { AdDraft, AdsExample, AskApply, AskVM } from "@chanlytics/contracts/ads-page";
+import { ADS_EXAMPLES, REFUSED } from "./model/words";
+import { ADS_SOFT_NEEDS } from "./model/rules";
+import { CHOOSE } from "./model/words-page";
+import { adServiceOf } from "./model/vm-base";
+import { draftAd, newAdModel, starterCopy } from "./model/new-ad";
+import type { AdDraft } from "./model/new-ad";
+import type { AdsExample } from "./model/words";
+import type { AskApply, AskVM } from "./model/page";
 import type { FrameFlash } from "../../frame-verbs";
 import { rememberAdNames } from "./crumb-names";
 import { exampleAt, withAccount } from "./examples";

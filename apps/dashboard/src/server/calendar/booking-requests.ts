@@ -13,7 +13,7 @@ import {
   slotLong,
   slotShort,
 } from "@chanlytics/contracts";
-import { answerBookingRequest, openRequestOfThread } from "@chanlytics/db";
+import { answerBookingRequest, openRequestOfThread } from "@chanlytics/db/calendar";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
 
@@ -42,24 +42,24 @@ export async function answerRequestOf(
     replyWords: booked ? null : BOOKING_REQUEST_WORDS.cant(slotShort(startMs, row.timezone), row.service),
   });
   if (error) throw dbRefusal(error);
-  const r = (data ?? {}) as {
+  const item = (data ?? {}) as {
     error?: string;
     appointment?: { id: string; status: string };
     hold?: "resolved" | "reply" | null;
     decision_id?: string;
   };
-  if (r.error || !r.appointment) {
+  if (item.error || !item.appointment) {
     // A refusal the sentences lack, or no row and no error: logged raw before the generic sentence.
-    const said = bookingRequestRefusalOf(r.error);
-    if (!said) log.error("booking_request_unknown_answer", { appointment: row.id, error: r.error ?? null });
-    throw new AppError("validation", said ?? "Could not answer this.");
+    const sentence = bookingRequestRefusalOf(item.error);
+    if (!sentence) log.error("booking_request_unknown_answer", { appointment: row.id, error: item.error ?? null });
+    throw new AppError("validation", sentence ?? "Could not answer this.");
   }
-  if (typeof r.decision_id !== "string")
+  if (typeof item.decision_id !== "string")
     throw new Error("booking_request_answer: the door answered without its decision");
   return {
-    appointment: r.appointment,
-    hold: r.hold ?? null,
-    decision_id: r.decision_id,
+    appointment: item.appointment,
+    hold: item.hold ?? null,
+    decision_id: item.decision_id,
     reply: booked ? BOOKING_REQUEST_WORDS.booked(slotLong(startMs, row.timezone), row.service) : null,
   };
 }

@@ -24,7 +24,7 @@ const REPORT_COLUMNS =
 export type ReportSide = "support" | "health" | "all";
 
 /** A report kept: its id and its number, which the inbox's subject says. */
-export async function fileReport(db: Db, row: SupportReportInsert) {
+export async function reportFile(db: Db, row: SupportReportInsert) {
   return db.from("support_reports").insert(row).select("id, number").single();
 }
 
@@ -39,17 +39,17 @@ export async function markReportMailed(db: Db, id: string, outcome: { at: string
 /** Reports since `sinceIso` (or all), newest first, with their workspace's name: Support's, Health's, or all. */
 export async function listReports(
   db: Db,
-  q: { sinceIso?: string; tenantId?: string; side?: ReportSide; limit: number },
+  input: { sinceIso?: string; tenantId?: string; side?: ReportSide; limit: number },
 ) {
   let query = db
     .from("support_reports")
     .select(REPORT_COLUMNS)
     .order("created_at", { ascending: false })
-    .limit(q.limit);
-  if (q.sinceIso) query = query.gte("created_at", q.sinceIso);
-  if (q.tenantId) query = query.eq("tenant_id", q.tenantId);
-  if (q.side === "support") query = query.neq("kind", "wrong");
-  if (q.side === "health") query = query.eq("kind", "wrong");
+    .limit(input.limit);
+  if (input.sinceIso) query = query.gte("created_at", input.sinceIso);
+  if (input.tenantId) query = query.eq("tenant_id", input.tenantId);
+  if (input.side === "support") query = query.neq("kind", "wrong");
+  if (input.side === "health") query = query.eq("kind", "wrong");
   return query;
 }
 
@@ -78,15 +78,15 @@ export async function reportToMail(db: Db, id: string, userId: string) {
 }
 
 /** The setup asks since `sinceIso`, newest first: the event, which workspace, what, when, and who asked. */
-export async function setupAsks(db: Db, q: { sinceIso: string; tenantId?: string; limit: number }) {
+export async function setupAsks(db: Db, input: { sinceIso: string; tenantId?: string; limit: number }) {
   let query = db
     .from("events")
     .select("id, tenant_id, data, created_at")
     .eq("kind", "setup.requested")
-    .gte("created_at", q.sinceIso)
+    .gte("created_at", input.sinceIso)
     .order("created_at", { ascending: false })
-    .limit(q.limit);
-  if (q.tenantId) query = query.eq("tenant_id", q.tenantId);
+    .limit(input.limit);
+  if (input.tenantId) query = query.eq("tenant_id", input.tenantId);
   return query;
 }
 
@@ -101,7 +101,7 @@ export async function setupAskById(db: Db, id: string) {
 }
 
 /** Who these people are in their workspaces: each membership's role and since when, and the name each gave. */
-export async function supportPeople(db: Db, userIds: readonly string[]) {
+export async function getSupportPeople(db: Db, userIds: readonly string[]) {
   const [members, profiles] = await Promise.all([
     db
       .from("memberships")
@@ -116,25 +116,25 @@ export async function supportPeople(db: Db, userIds: readonly string[]) {
 }
 
 /** A person's sign-in address, from the platform's identity store: an ask names who asked by their id alone. */
-export async function personEmail(db: Db, userId: string): Promise<string | null> {
+export async function findPersonEmail(db: Db, userId: string): Promise<string | null> {
   const { data, error } = await db.auth.admin.getUserById(userId);
   return error ? null : (data.user?.email ?? null);
 }
 
 /** The team's marks on questions and asks since `sinceIso`: the acts that ran to their end, newest first. */
-export async function supportMarks(db: Db, q: { sinceIso: string; limit: number }) {
+export async function getSupportMarks(db: Db, input: { sinceIso: string; limit: number }) {
   return db
     .from("platform_acts")
     .select("act, target_kind, target_id, at, actor_email")
     .in("target_kind", ["report", "ask"])
     .eq("outcome", "done")
-    .gte("at", q.sinceIso)
+    .gte("at", input.sinceIso)
     .order("at", { ascending: false })
-    .limit(q.limit);
+    .limit(input.limit);
 }
 
 /** The forwarded numbers that passed their test call, of these workspaces, and since when. */
-export async function forwardingVerified(db: Db, tenantIds: readonly string[]) {
+export async function isForwardingVerified(db: Db, tenantIds: readonly string[]) {
   return db
     .from("lines")
     .select("tenant_id, state_since")

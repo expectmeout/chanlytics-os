@@ -50,11 +50,11 @@ export const BOOKING_PLATFORM_TOOLS: readonly BookingTool[] = /* @__PURE__ */ ((
  * own booking page; this one reads an address the owner already said is theirs, so a platform's host is enough.
  */
 export function bookingToolOfLink(raw: string | null | undefined): BookingTool | null {
-  const s = String(raw ?? "").trim();
-  if (!s) return null;
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
   let host: string;
   try {
-    host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `https://${s}`).hostname
+    host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`).hostname
       .toLowerCase()
       .replace(/^www\./, "");
   } catch {
@@ -88,25 +88,25 @@ const PLATFORM_OWN = new Set([
  * fragment is the page's own, and is dropped.
  */
 export function bookingPageOf(raw: string | null | undefined): string | null {
-  const s = String(raw ?? "").trim();
-  if (!s) return null;
-  let u: URL;
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+  let url: URL;
   try {
-    u = new URL(s);
+    url = new URL(text);
   } catch {
     return null;
   }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const host = u.hostname.toLowerCase().replace(/^www\./, "");
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
   const platform = BOOKING_PLATFORMS.find((p) => onDomain(host, p.host));
   if (!platform) return null;
   const sub = host === platform.host ? null : host.slice(0, -platform.host.length - 1);
   if (sub !== null && PLATFORM_OWN.has(sub.slice(sub.lastIndexOf(".") + 1))) return null;
-  if (platform.path && !platform.path.test(u.pathname)) return null;
-  if (sub === null && !u.pathname.split("/").some(Boolean)) return null;
-  u.protocol = "https:";
-  u.hash = "";
-  const page = u.toString();
+  if (platform.path && !platform.path.test(url.pathname)) return null;
+  if (sub === null && !url.pathname.split("/").some(Boolean)) return null;
+  url.protocol = "https:";
+  url.hash = "";
+  const page = url.toString();
   // The longest booking page the config keeps is its booking link's own cap.
   return page.length <= BOOKING_LINK_MAX ? page : null;
 }

@@ -4,17 +4,17 @@
  * windows per weekday in minutes after the business's local midnight. A window past midnight runs on (6 PM to 2 AM is
  * 1080 to 1560). Hours that cannot be read are the default week, Monday to Friday, nine to five, and `read` says so.
  * One day whose words do not read is that day of the default week, never a day closed; a day this cannot name leaves the
- * whole week unread. The display readers (lead-facts.ts) are left as they are: they read one range for a line of text.
+ * whole week unread. The display readers (leads/facts.ts) are left as they are: they read one range for a line of text.
  *
  * The same reading says a cold email's opening where the week reads whole (leadFactOf, decision 0078): "is open until
  * 5 PM on weekdays and until 1 PM on Saturdays", or the listing's rating where its hours say nothing whole.
  */
-import { weekdayNamed, type WeekdayKey } from "../../calendar/day-keys";
-import { WEEKDAY_KEYS } from "../../calendar/zone-math";
+import { weekdayNamed, type WeekdayKey } from "../../shared/zone/day-keys";
+import { WEEKDAY_KEYS } from "../../shared/zone/math";
 import { DAYS } from "../../config/workspace-config/config-rules";
-import type { GooglePeriod } from "../../google/google";
+import type { GooglePeriod } from "../../google/listing";
 import { leadCalledByOf } from "../../leads/search/called-by";
-import type { WrittenOpening } from "./words";
+import type { WrittenOpening } from "./words/opening";
 
 export interface OpenWindow {
   from: number;
@@ -59,32 +59,32 @@ const dayNameOf = (raw: unknown): WeekdayKey | null => {
  * was said or is certain. Noon is twelve PM and midnight twelve AM, as on the clock; an hour of zero is the morning.
  * Null for anything else.
  */
-function timeOf(s: string): { min: number; meridiem: "am" | "pm" | null } | null {
-  const t = s.trim().toLowerCase().replace(/\./g, "");
-  if (t === "noon") return { min: 0, meridiem: "pm" };
-  if (t === "midnight") return { min: 0, meridiem: "am" };
-  const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/.exec(t);
-  if (!m) return null;
-  const hh = Number(m[1]);
-  const mm = Number(m[2] ?? 0);
+function timeOf(text: string): { min: number; meridiem: "am" | "pm" | null } | null {
+  const result = text.trim().toLowerCase().replace(/\./g, "");
+  if (result === "noon") return { min: 0, meridiem: "pm" };
+  if (result === "midnight") return { min: 0, meridiem: "am" };
+  const match = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/.exec(result);
+  if (!match) return null;
+  const hh = Number(match[1]);
+  const mm = Number(match[2] ?? 0);
   if (mm > 59) return null;
-  if (hh === 0) return m[3] ? null : { min: mm, meridiem: "am" };
+  if (hh === 0) return match[3] ? null : { min: mm, meridiem: "am" };
   if (hh > 12) return null;
-  return { min: (hh % 12) * 60 + mm, meridiem: (m[3] as "am" | "pm" | undefined) ?? null };
+  return { min: (hh % 12) * 60 + mm, meridiem: (match[3] as "am" | "pm" | undefined) ?? null };
 }
 const withMeridiem = (min: number, meridiem: "am" | "pm") => (meridiem === "pm" ? min + 12 * 60 : min);
 
 /** One range: "9 AM to 6 PM", "8 to 11 AM", "6 PM–2 AM". Null when it is not one. */
-function rangeOf(s: string): OpenWindow | null {
-  const parts = s.split(/\s*(?:to|–|—|-)\s*/i);
+function rangeOf(text: string): OpenWindow | null {
+  const parts = text.split(/\s*(?:to|–|—|-)\s*/i);
   if (parts.length !== 2) return null;
-  const a = timeOf(parts[0]);
-  const b = timeOf(parts[1]);
-  if (!a || !b || !b.meridiem) return null;
-  const to0 = withMeridiem(b.min, b.meridiem);
+  const time = timeOf(parts[0]);
+  const result = timeOf(parts[1]);
+  if (!time || !result || !result.meridiem) return null;
+  const to0 = withMeridiem(result.min, result.meridiem);
   // A start with no meridiem borrows its end's, unless that puts it after the end ("11 to 2 PM" is 11 AM).
-  let from = a.meridiem ? withMeridiem(a.min, a.meridiem) : withMeridiem(a.min, b.meridiem);
-  if (!a.meridiem && from > to0) from = a.min;
+  let from = time.meridiem ? withMeridiem(time.min, time.meridiem) : withMeridiem(time.min, result.meridiem);
+  if (!time.meridiem && from > to0) from = time.min;
   // Midnight at the end is the day's end; an end before the start runs past midnight.
   const to = to0 === 0 ? 24 * 60 : to0 <= from ? to0 + 24 * 60 : to0;
   return { from, to };
@@ -110,8 +110,8 @@ export function weekHoursOf(hours: unknown): { week: WeekHours; read: boolean } 
     // A day this cannot name could be any of the seven: the week is not read.
     const day = e && typeof e === "object" ? dayNameOf((e as { day?: unknown }).day) : null;
     if (!day) return { week: DEFAULT_WEEK, read: false };
-    const said = (e as { hours?: unknown }).hours;
-    const windows = typeof said === "string" ? dayOf(said) : null;
+    const sentence = (e as { hours?: unknown }).hours;
+    const windows = typeof sentence === "string" ? dayOf(sentence) : null;
     // A day whose words do not read keeps the default week's hours for it: a guess of nine to five, never a day closed.
     week[day] = windows ?? DEFAULT_WEEK[day];
     if (windows !== null) readAny = true;
@@ -198,15 +198,15 @@ function saidWeekOf(hours: unknown): SaidDay[] | null {
     if (!e || typeof e !== "object") return null;
     const day = dayNameOf((e as { day?: unknown }).day);
     const words = (e as { hours?: unknown }).hours;
-    const said = day && typeof words === "string" ? saidDayOf(dayOf(words)) : null;
-    if (!day || !said) return null;
-    byDay.set(day, said);
+    const sentence = day && typeof words === "string" ? saidDayOf(dayOf(words)) : null;
+    if (!day || !sentence) return null;
+    byDay.set(day, sentence);
   }
   const week: SaidDay[] = [];
   for (const d of DAYS) {
-    const said = byDay.get(d);
-    if (!said) return null;
-    week.push(said);
+    const sentence = byDay.get(d);
+    if (!sentence) return null;
+    week.push(sentence);
   }
   return week;
 }
@@ -253,19 +253,24 @@ function weekendSaid(close: string, sat: SaidDay | undefined, sun: SaidDay | und
  * not asked for it; the check's reader still reads it, as it reads every opening, for the business's language and
  * against the record. The business is named as every email names it (leadCalledByOf).
  */
-export function leadFactOf(l: FactListing): WrittenOpening | null {
+export function leadFactOf(factListing: FactListing): WrittenOpening | null {
   const name = (
-    leadCalledByOf({ business_name: l.business_name, city: l.city ?? null }) ??
-    l.business_name ??
+    leadCalledByOf({ business_name: factListing.business_name, city: factListing.city ?? null }) ??
+    factListing.business_name ??
     ""
   ).trim();
   if (!name) return null;
-  const week = saidWeekOf(l.hours);
+  const week = saidWeekOf(factListing.hours);
   const hours = week ? hoursSaid(week) : null;
   if (hours) return { opening: `${name} ${hours.said}.`, angle: hours.angle, facts_used: ["hours"] };
-  if (l.rating !== null && l.reviews !== null && l.rating >= RATING_MIN && l.reviews >= REVIEWS_MIN)
+  if (
+    factListing.rating !== null &&
+    factListing.reviews !== null &&
+    factListing.rating >= RATING_MIN &&
+    factListing.reviews >= REVIEWS_MIN
+  )
     return {
-      opening: `${name} has a ${l.rating.toFixed(1)} rating across ${l.reviews} reviews.`,
+      opening: `${name} has a ${factListing.rating.toFixed(1)} rating across ${factListing.reviews} reviews.`,
       angle: "their rating",
       facts_used: ["rating", "reviews"],
     };

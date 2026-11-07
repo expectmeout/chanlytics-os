@@ -7,8 +7,9 @@
 import { z } from "zod";
 import { fenced } from "../../../ai/fence";
 import type { AppointmentWord } from "../../../journey/appointment-word";
-import { smsStopLine } from "../../../campaigns/templates/message-versions";
-import { PARAM_SOURCE_LABELS, type ParamSourceKind } from "../../../campaigns/templates/templates";
+import { smsStopLine } from "../../../campaigns/templates/message-versions/channels";
+import { PARAM_SOURCE_LABELS, type ParamSourceKind } from "../../../campaigns/templates/params";
+import { NUMBERED_SLOT } from "../../../shared/words";
 
 /** The channels a message has versions on, in the order a card quotes them. */
 export const CRAFT_CHANNELS = ["whatsapp", "email", "sms"] as const;
@@ -60,7 +61,8 @@ export interface MessageBrief {
 const ASKED_CHARS = 1_200;
 
 /** The owner's words as a brief holds them: trimmed, at most ASKED_CHARS; "" where none were given. */
-export const ownerWords = (b: MessageBrief): string => (b.message.asked ?? "").trim().slice(0, ASKED_CHARS);
+export const ownerWords = (messageBrief: MessageBrief): string =>
+  (messageBrief.message.asked ?? "").trim().slice(0, ASKED_CHARS);
 
 /** The channels the draft has a version on: the ones the writer writes, in the card's order. */
 const draftChannels = (b: MessageBrief): CraftChannel[] => CRAFT_CHANNELS.filter((c) => !!b.message.draft[c]);
@@ -92,9 +94,12 @@ const CRAFT_PART_CHARS = { plain: 160, unicode: 70, unicodeTwo: 134 } as const;
  * part in plain characters, one in the larger alphabet an accent such as á or an emoji moves it to, and two parts there.
  * Never below zero.
  */
-export function textRoom(b: MessageBrief): { plain: number; unicode: number; unicodeTwo: number } {
-  const stop = 1 + smsStopLine(b.message.language).length;
-  const values = b.message.values.reduce((n, v) => n + craftValueLength(v.kind, b.business.name), 0);
+export function textRoom(messageBrief: MessageBrief): { plain: number; unicode: number; unicodeTwo: number } {
+  const stop = 1 + smsStopLine(messageBrief.message.language).length;
+  const values = messageBrief.message.values.reduce(
+    (n, v) => n + craftValueLength(v.kind, messageBrief.business.name),
+    0,
+  );
   const left = (part: number) => Math.max(0, part - stop - values);
   return {
     plain: left(CRAFT_PART_CHARS.plain),
@@ -104,12 +109,12 @@ export function textRoom(b: MessageBrief): { plain: number; unicode: number; uni
 }
 
 /** A text filled as a carrier counts it: each value at its typical length, in plain characters, then the STOP line. */
-export function textAsSent(body: string, b: MessageBrief): string {
-  const filled = body.replace(/\{\{(\d+)\}\}/g, (slot, n: string) => {
-    const v = b.message.values.find((x) => x.position === Number(n));
-    return "x".repeat(v ? craftValueLength(v.kind, b.business.name) : slot.length);
+export function textAsSent(body: string, messageBrief: MessageBrief): string {
+  const filled = body.replace(NUMBERED_SLOT, (slot, n: string) => {
+    const v = messageBrief.message.values.find((x) => x.position === Number(n));
+    return "x".repeat(v ? craftValueLength(v.kind, messageBrief.business.name) : slot.length);
   });
-  return `${filled}\n${smsStopLine(b.message.language)}`;
+  return `${filled}\n${smsStopLine(messageBrief.message.language)}`;
 }
 
 /** The parts a text may take: one in English; in Spanish two, since an accent such as á halves a part. */
@@ -124,11 +129,11 @@ const CRAFT_CATEGORY_WORDS: Record<MessageBrief["message"]["category"], string> 
 
 /** A value as the writer is told it: its number, what fills it, and a typed value's own name. */
 function craftValueLine(v: BriefValue): string {
-  const what =
+  const subject =
     v.kind === "text"
       ? `typed for each send, "${v.label}"`
       : PARAM_SOURCE_LABELS[v.kind].replace(/^\w/, (c) => c.toLowerCase());
-  return `- {{${v.position}}}: ${what}`;
+  return `- {{${v.position}}}: ${subject}`;
 }
 
 /** The draft's versions, as the writer reads them: each channel's words under its name. */
@@ -160,9 +165,9 @@ function craftRoomLine(b: MessageBrief): string {
  * may not add to the message), the message (its kind, language, values, the opt-out line and a text's room where they
  * apply, and whether later offers reuse it), and the first draft, fenced, since it may quote what someone else wrote.
  */
-export function messageBriefText(b: MessageBrief): string {
-  const { business: biz, message: m } = b;
-  const channels = draftChannels(b);
+export function messageBriefText(messageBrief: MessageBrief): string {
+  const { business: biz, message: m } = messageBrief;
+  const channels = draftChannels(messageBrief);
   const es = m.language === "es";
   const business = [
     `The business: ${biz.name}.`,
@@ -184,9 +189,9 @@ export function messageBriefText(b: MessageBrief): string {
         ]
       : []),
     ...(m.category === "marketing" && m.draft.whatsapp ? [`The opt-out line: ${smsStopLine(m.language)}`] : []),
-    ...(m.draft.sms ? [craftRoomLine(b)] : []),
+    ...(m.draft.sms ? [craftRoomLine(messageBrief)] : []),
   ];
-  const owner = ownerWords(b);
+  const owner = ownerWords(messageBrief);
   return [
     business.join("\n"),
     message.join("\n"),
@@ -239,22 +244,22 @@ const craftClean = (s: string): string => s.replace(/\r\n/g, "\n").trim();
  * empty that the draft has (a version missing is the writer's failure, never a channel dropped).
  */
 export function craftedVersions(
-  a: MessageCraftAnswer,
-  b: MessageBrief,
+  messageCraftAnswer: MessageCraftAnswer,
+  messageBrief: MessageBrief,
 ): { versions: CraftVersions; missing: CraftChannel[]; couldNot: string | null } {
   const versions: CraftVersions = {};
   const missing: CraftChannel[] = [];
-  for (const c of draftChannels(b)) {
-    if (c === "email") {
-      const subject = craftClean(a.email.subject).replace(/\s+/g, " ");
-      const body = craftClean(a.email.body);
+  for (const item of draftChannels(messageBrief)) {
+    if (item === "email") {
+      const subject = craftClean(messageCraftAnswer.email.subject).replace(/\s+/g, " ");
+      const body = craftClean(messageCraftAnswer.email.body);
       if (subject && body) versions.email = { subject, body };
-      else missing.push(c);
+      else missing.push(item);
     } else {
-      const body = craftClean(a[c].body);
-      if (body) versions[c] = { body };
-      else missing.push(c);
+      const body = craftClean(messageCraftAnswer[item].body);
+      if (body) versions[item] = { body };
+      else missing.push(item);
     }
   }
-  return { versions, missing, couldNot: craftClean(a.could_not) || null };
+  return { versions, missing, couldNot: craftClean(messageCraftAnswer.could_not) || null };
 }

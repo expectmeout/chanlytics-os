@@ -119,7 +119,7 @@ test("a payload without the ids its kind runs on that reaches the claim fails ce
     page: async (key, subject) => {
       pages.push([key, subject]);
     },
-    // The handler's first act is a read of the database (erasure.ts erasableContact): any reach for it is a run.
+    // The handler's first act is a read of the database (erasure.ts findErasableContact): any reach for it is a run.
     db: new Proxy(
       {},
       {

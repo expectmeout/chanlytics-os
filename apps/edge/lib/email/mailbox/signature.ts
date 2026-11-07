@@ -5,9 +5,10 @@
  * read that fails changes nothing and is said; what the mailbox signs with is contracts' rule (mailboxSignsOf).
  */
 import { DAY_MS } from "@chanlytics/contracts";
-import { cleanGmailSignature, gmailSignature } from "@chanlytics/channels";
-import { patchMailboxConnection, type Database, type MailboxConnectionRow } from "@chanlytics/db";
-import { tokenFor } from "./credentials.js";
+import { cleanGmailSignature, readGmailSignature } from "@chanlytics/channels/email";
+import { patchMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
+import { type Database } from "@chanlytics/db/types";
+import { getToken } from "./credentials.js";
 import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -29,7 +30,7 @@ export async function keepGmailSignature(
   now: number,
 ): Promise<MailboxConnectionRow> {
   if (row.provider !== "google") return row;
-  const read = await gmailSignature(token, row.address);
+  const read = await readGmailSignature(token, row.address);
   if (!read.ok) {
     log.warn("mailbox_signature_unread", { mailbox: row.id, status: read.reply.status });
     return row;
@@ -51,7 +52,7 @@ export async function readGmailSignatureNow(
 ): Promise<MailboxConnectionRow> {
   if (row.provider !== "google") return row;
   try {
-    const t = await tokenFor(db, row, now);
+    const t = await getToken(db, row, now);
     return t.ok ? await keepGmailSignature(db, row, t.token, log, now) : row;
   } catch (e) {
     log.warn("mailbox_signature_unread", { mailbox: row.id, error: errField(e) });

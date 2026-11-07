@@ -8,7 +8,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ASK_ANSWER_CAPS,
-  ASK_ANSWER_FORMAT,
   ASK_CAPS,
   ASK_CITATION_KINDS,
   answerCopy,
@@ -40,6 +39,7 @@ import {
   answerBlocks,
   answerPlain,
 } from "@chanlytics/contracts";
+import { ASK_ANSWER_FORMAT } from "../../apps/dashboard/src/server/ask/answer-format.ts";
 
 const ID = "11111111-1111-4111-8111-111111111111";
 const ID2 = "22222222-2222-4222-8222-222222222222";

@@ -262,7 +262,10 @@ test("export * is written nowhere in a package's or an app's source but a root's
 const BACKEND_TREES = ["apps/dashboard/src/server", "apps/edge/lib"];
 const PACKAGE_SRC = /^packages\/[^/]+\/src(?=\/)/;
 /** What a backend root holds beside its folders. Contracts' own is PLUMBING, above. */
-const ROOT_ENTRIES = { "packages/db/src": ["index.ts", "realtime.ts", "database.types.ts"] };
+const ROOT_ENTRIES = {
+  "packages/db/src": ["realtime.ts", "database.types.ts"],
+  "packages/log/src": ["index.ts", "logger.ts", "redact.ts", "request.ts"],
+};
 const isRootEntry = (tree, name) =>
   tree === SRC
     ? PLUMBING.test(name)

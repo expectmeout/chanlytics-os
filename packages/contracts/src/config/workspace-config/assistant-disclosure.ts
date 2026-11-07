@@ -32,7 +32,7 @@ export const CONVERSATION_GAP_MS = DAY_MS;
  * answered is less than a day old. Never on a call, which the greeting opens.
  */
 export function disclosureFacts(
-  p: {
+  params: {
     /** They have said anything at all before (LeadContext.returning). */
     returning: boolean;
     /** The newest message before the one being answered, as describeLead reads it (LeadContext.lastSeenAt). */
@@ -41,7 +41,7 @@ export function disclosureFacts(
   channel: LeadChannel | undefined,
   now: Date,
 ): string[] {
-  if (channel === "voice" || !p.returning || !p.lastTurnAt) return [];
-  const at = Date.parse(p.lastTurnAt);
+  if (channel === "voice" || !params.returning || !params.lastTurnAt) return [];
+  const at = Date.parse(params.lastTurnAt);
   return Number.isFinite(at) && now.getTime() - at < CONVERSATION_GAP_MS ? [CONVERSATION_UNDER_WAY] : [];
 }

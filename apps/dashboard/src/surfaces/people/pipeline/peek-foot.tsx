@@ -12,7 +12,8 @@
  */
 import type { ReactElement } from "react";
 import { NEW_CONVERSATION_WORDS, shortName } from "@chanlytics/contracts";
-import type { DealActId, PipelineSheetAct } from "@chanlytics/contracts";
+import type { DealActId } from "@chanlytics/contracts";
+import type { PipelineSheetAct } from "./peek-view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuItem } from "../../kit/menu/menu";

@@ -9,8 +9,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { check } from "../../../packages/core/src/leads/runner/check.ts";
-import { collect } from "../../../packages/core/src/leads/runner/collect.ts";
-import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
+import { collect } from "../../../packages/core/src/leads/runner/collect/collect.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
 
 const OWNER = "job-1";

@@ -13,7 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels";
+import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels/tokens";
 
 const SCRIPT = fileURLToPath(new URL("../../tooling/scripts/ops/voice/voice-provision.mjs", import.meta.url));
 const DOOR = "/api/admin/voice-provision";

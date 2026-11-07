@@ -803,7 +803,7 @@ test("REGRESSION: right now says a thread the owner answered is theirs, as the R
   assert.equal(answered.rightNow.tone, "paused");
   assert.doesNotMatch(answered.rightNow.detail, /nobody has taken/);
 
-  // Both read one row; the card is receptionistOf's answer in more words.
+  // Both read one row; the card is personReceptionistOf's answer in more words.
   let n = 0;
   for (const assignee of [null, "u1"])
     for (const paused of [null, iso(-H)])

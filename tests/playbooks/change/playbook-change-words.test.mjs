@@ -2,7 +2,7 @@
  * A campaign's words, its end and its sequence's mode, changed in place (00416 `params`, `until`; 00462 `mode`, decision
  * 0064): the three keys a change may name beside its six, the words a card and the ledger say for each, and core
  * checkPlaybookPatch, the one judgement Ask's change card and PUT playbooks/:id both run, EXECUTED over ports in memory.
- * Its words are held to its message's slots as a new campaign's are (core templateValues: as many values as the message
+ * Its words are held to its message's slots as a new campaign's are (core getTemplateValues: as many values as the message
  * takes, each one a value the run can fill), its end is a day on the business's clock, today or later, which null clears,
  * and its mode one of the three a sequence takes, never Send it to leads. Only what differs from the row is set, and what
  * the row held is kept for the undo; a change card's PUT carries the three as it carries the six (contracts
@@ -14,10 +14,10 @@ import {
   FOLLOW_UP_NEEDS_LINK,
   PLAYBOOK_PATCH_KEYS,
   PLAYBOOK_PATCH_WORDS,
-  PROPOSAL_SPECS,
   REACH_OUT_IS_NOT_A_MOMENT,
   campaignDayWords,
 } from "@chanlytics/contracts";
+import { PROPOSAL_SPECS } from "../../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 import { importSrc } from "../../_source.mjs";
 
 const { checkPlaybookPatch } = await importSrc("packages/core/src/campaigns/check-playbook.ts");
@@ -29,7 +29,7 @@ const ZONE = "America/New_York";
 const NOW = new Date("2026-10-12T02:00:00Z");
 const T1 = "77777777-7777-4777-8777-777777777771";
 
-/** The message the campaign sends, as db messageVersionRowsOf answers it: WhatsApp's approved version, two values. */
+/** The message the campaign sends, as db listMessageVersionRows answers it: WhatsApp's approved version, two values. */
 const template = (over = {}) => ({
   id: T1,
   channel: "whatsapp",

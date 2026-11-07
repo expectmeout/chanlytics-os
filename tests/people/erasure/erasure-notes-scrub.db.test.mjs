@@ -13,7 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
-const { erasureKeys } = await import("@chanlytics/db");
+const { erasureKeys } = await import("@chanlytics/db/erasure");
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

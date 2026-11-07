@@ -35,21 +35,21 @@ after(() => {
   globalThis.fetch = realFetch;
 });
 
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+const { setUnsubscribeServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { resultBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
-const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
-const { fileIndexLineOf, fileWhoSaid, filesLineOf } = await import(at("packages/contracts/src/files/line.ts"));
+const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { fileIndexLineOf, fileWhoSaid, filesLineOf } = await import(at("apps/dashboard/src/server/files/line.ts"));
 const { boxShown, zoomSizeOf } = await import(at("apps/dashboard/src/server/files/zoom.ts"));
 
 beforeEach(() => {
   readerCache.clear();
   asked.length = 0;
-  setServiceClient(fakeDb({ files: [] }, {}, {}));
+  setUnsubscribeServiceClient(fakeDb({ files: [] }, {}, {}));
 });
-after(() => setServiceClient(null));
+after(() => setUnsubscribeServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -253,7 +253,7 @@ test("a picture opened says how their newest post looks, so the next keeps what 
     made: { from: ID(1), plan },
     ...over,
   });
-  setServiceClient(
+  setUnsubscribeServiceClient(
     fakeDb({
       files: [
         made(1, { voice: "classic", layout: "over", book: false }),
@@ -274,7 +274,7 @@ test("a read of how their last post looks that fails costs the turn nothing", as
   db.from = () => {
     throw new Error("no database");
   };
-  setServiceClient(db);
+  setUnsubscribeServiceClient(db);
   const out = await tool([row(1, { name: "good" })], { action: "view", names: ["good"] });
   assert.equal(out.isError, false);
   assert.equal(JSON.parse(out.result).last_post, undefined);
@@ -358,7 +358,7 @@ function withPhotoInStorage() {
       },
     }),
   };
-  setServiceClient(service);
+  setUnsubscribeServiceClient(service);
   return downloaded;
 }
 

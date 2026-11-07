@@ -15,14 +15,20 @@ import {
   templateBodyTooLong,
   whatsappLineOf,
 } from "@chanlytics/contracts";
-import { channelsReadyOf } from "../../../campaigns/channels-ready";
+import { getChannelsReady } from "../../../campaigns/channels-ready";
 import { refuseWrittenUtility } from "../../../campaigns/template-versions";
-import { checkMessage, heldValues, messageOnFile, type WriteMessageBody } from "../../../campaigns/write-message";
+import {
+  checkMessage,
+  findHeldValues,
+  getMessageOnFile,
+  type WriteMessageBody,
+} from "../../../campaigns/write-message";
 import { log } from "@/server/shared/log";
-import { load } from "../../../readers";
+import { load } from "../../../shared/reader";
 import { channels as channelsReader } from "../../../readers/channels";
 import { writeCustomerMessage } from "../../skills/customer-message";
-import { actAction, propose, refuse, type ProposalOutcome, type ToolContext } from "../context";
+import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
 import { slotExample, writtenSays } from "./says";
 
 /** The room a card's summary has for its versions' words, shared between them (each a line's worth at the least). */
@@ -82,18 +88,20 @@ function wordsRefusal(body: WriteMessageBody): string | null {
  * (its `unchecked`), a moment's wait, never a message without its email; and the Library may hold neither the message
  * (a twin, in MESSAGE_WORDS) nor a language of it said otherwise (the door's words). Null where all pass.
  */
-async function workspaceRefusal(t: ToolContext, body: WriteMessageBody): Promise<string | null> {
+async function workspaceRefusal(toolContext: ToolContext, body: WriteMessageBody): Promise<string | null> {
   const [chans, ready, twin] = await Promise.all([
-    body.versions.whatsapp ? load(t.rc, channelsReader, undefined).then((r) => r.data.channels) : null,
-    body.versions.email ? channelsReadyOf(t.ctx, t.tenantId, { fresh: false, withPause: false }) : null,
-    messageOnFile(t.ctx, t.tenantId, body),
+    body.versions.whatsapp ? load(toolContext.rc, channelsReader, undefined).then((r) => r.data.channels) : null,
+    body.versions.email
+      ? getChannelsReady(toolContext.ctx, toolContext.tenantId, { fresh: false, withPause: false })
+      : null,
+    getMessageOnFile(toolContext.ctx, toolContext.tenantId, body),
   ]);
   if (body.versions.whatsapp && !whatsappLineOf(chans)) return MESSAGE_WORDS.noNumber;
   // Not known (the edge did not answer) is no "no": the email stays in the message, and the card is asked for again.
   if (ready && !ready.email.ready)
     return ready.email.unchecked ? MESSAGE_WORDS.emailUnchecked : MESSAGE_WORDS.noMailbox(ready.email.why);
   if (twin) return MESSAGE_WORDS.twin(body.name);
-  return doorSaysAfter(() => heldValues(t.ctx, t.tenantId, body));
+  return doorSaysAfter(() => findHeldValues(toolContext.ctx, toolContext.tenantId, body));
 }
 
 /**
@@ -105,7 +113,7 @@ async function workspaceRefusal(t: ToolContext, body: WriteMessageBody): Promise
  * fills it with (slotExample), which WhatsApp's reviewers read too. Ask's versions are the first draft: the words quoted
  * and filed are the customer message writer's where it wrote them in time (writtenBody).
  */
-async function proposeMessage(t: ToolContext, input: MessageAsked): Promise<ProposalOutcome> {
+async function proposeMessage(toolContext: ToolContext, input: MessageAsked): Promise<ProposalOutcome> {
   const slots = [...(input.slots ?? [])]
     .sort((a, b) => a.position - b.position)
     .map((s) => ({ position: s.position, label: s.label.trim(), example: slotExample(s), kind: s.kind }));
@@ -118,11 +126,11 @@ async function proposeMessage(t: ToolContext, input: MessageAsked): Promise<Prop
     versions: input.versions,
     slots,
   };
-  const refused = wordsRefusal(body) ?? (await workspaceRefusal(t, body));
+  const refused = wordsRefusal(body) ?? (await workspaceRefusal(toolContext, body));
   if (refused) return refuse(refused);
   // The words the card quotes and files: the skill's, else the draft's, on the same channels, values and name.
-  const written = await writtenBody(t, input.language, body);
-  const said = writtenSays(written, SAID_ROOM);
+  const written = await writtenBody(toolContext, input.language, body);
+  const sentence = writtenSays(written, SAID_ROOM);
   const channels = CONSENT_CHANNELS.filter((c) => body.versions[c]);
   const purpose = purposeOfTemplate(body.category);
   // An offer is the business's news; a message about their appointment or proposal is theirs (contracts MessageAbout).
@@ -137,8 +145,8 @@ async function proposeMessage(t: ToolContext, input: MessageAsked): Promise<Prop
   return propose({
     kind: "message",
     title: MESSAGE_WORDS.title(body.name, body.language),
-    summary: `${said.says} · ${follows}`,
-    payload: { ...written, said: said.rows, follows },
+    summary: `${sentence.says} · ${follows}`,
+    payload: { ...written, said: sentence.rows, follows },
   });
 }
 
@@ -148,20 +156,20 @@ async function proposeMessage(t: ToolContext, input: MessageAsked): Promise<Prop
  * the words, as the draft was; else the draft, as before the skill. Same name, kind, language and values either way, so
  * nothing the workspace's checks read changes. A plan's message step comes here too (act/plan.ts builds it by this action).
  */
-async function writtenBody(t: ToolContext, language: MessageAsked["language"], body: WriteMessageBody) {
-  const w = await writeCustomerMessage(t, {
+async function writtenBody(toolContext: ToolContext, language: MessageAsked["language"], body: WriteMessageBody) {
+  const result = await writeCustomerMessage(toolContext, {
     name: body.name,
     category: body.category,
     language,
     values: body.slots.map(({ position, label, kind }) => ({ position, label, kind })),
     draft: body.versions,
   });
-  if (!w.wrote) return body;
-  const crafted: WriteMessageBody = { ...body, versions: w.versions };
+  if (!result.wrote) return body;
+  const crafted: WriteMessageBody = { ...body, versions: result.versions };
   const door = wordsRefusal(crafted);
   if (door === null) return crafted;
   log.warn("ask_skill_crafted", {
-    tenant_id: t.tenantId,
+    tenant_id: toolContext.tenantId,
     skill: "customer_message",
     outcome: "kept",
     why: "door",

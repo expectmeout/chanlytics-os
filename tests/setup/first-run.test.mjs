@@ -10,14 +10,10 @@ import {
   pausedGreetingFor,
   GREETING_DEFAULT,
   setupSteps,
-  firstRunOf,
   firstRunStepOf,
   firstRunStepRoute,
-  firstRunKicker,
-  FIRST_RUN_WORDS,
   FIRST_RUN_FIND_ROUTE,
   businessNameOf,
-  setupCardOf,
   TRY_SKIPPED,
   REMIND_SKIPPED,
   RECEPTIONIST_MET,
@@ -30,7 +26,6 @@ import {
   setupPutOffNext,
   putOffEnds,
   restEndsDay,
-  SETUP_CARD_WORDS,
   keptNumberRowOf,
   SETUP_REST_MS,
   setupPhoneWantOf,
@@ -38,7 +33,6 @@ import {
   KEEP_ROW,
   openWeekWords,
   servicesWords,
-  FIRST_RUN_STEPS,
   pendingCodeOf,
   pendingWorkspaceOf,
   PENDING_WORKSPACE_KEY,
@@ -47,14 +41,21 @@ import {
   firstReceptionistOf,
   newReceptionistDefaults,
   TenantConfigWriteSchema,
-  unsureHoursWords,
   googleFillsOf,
   soundsWords,
   TONE_PRESETS,
   PHONE_VOICES_NATIVE_TO,
   businessReadFactsOf,
 } from "@chanlytics/contracts";
-import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from "@chanlytics/channels";
+import {
+  firstRunOf,
+  firstRunKicker,
+  FIRST_RUN_WORDS,
+  FIRST_RUN_STEPS,
+  unsureHoursWords,
+} from "../../apps/dashboard/src/surfaces/setup/first-run/model/view.ts";
+import { setupCardOf, SETUP_CARD_WORDS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/card.ts";
+import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from "@chanlytics/channels/voice";
 
 test("the phone greeting is one sentence, composed once: contracts', and the voice shell says the same", () => {
   assert.equal(
@@ -1291,7 +1292,8 @@ test("the number kept or moved is read from the member's saved view: a way, a nu
 });
 
 test("(D) the question before a move while typing is unsaved, and the other one while a save is out", async () => {
-  const { FIRST_RUN_WORDS, zoneSearchWords } = await import("@chanlytics/contracts");
+  const { zoneSearchWords } = await import("@chanlytics/contracts");
+  const { FIRST_RUN_WORDS } = await import("../../apps/dashboard/src/surfaces/setup/first-run/model/view.ts");
   const L = FIRST_RUN_WORDS.leave;
   assert.deepEqual([L.question, L.yes, L.no], ["Leave without saving?", "Yes, leave", "Stay"]);
   assert.match(L.detail, /not been saved/);
