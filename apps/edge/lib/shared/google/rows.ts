@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { lensRoute, reviewRoute } from "@chanlytics/contracts";
 import { reviewRowsByGoogleId } from "@chanlytics/db/notices";
 import type { Database } from "@chanlytics/db/types";
+import { findGoogleConnection } from "@chanlytics/db/google";
 
 export type ListingRow = Database["public"]["Tables"]["google_listings"]["Row"];
 export type ConnectionRow = Database["public"]["Tables"]["google_connections"]["Row"];
@@ -43,7 +44,7 @@ export function connectionForClient(connection: ConnectionRow) {
 }
 
 async function connectionOf(db: Db, tenantId: string): Promise<ConnectionRow | null> {
-  const { data, error } = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await findGoogleConnection(db, tenantId);
   if (error) throw new Error(error.message);
   return data;
 }

@@ -6,7 +6,6 @@
  */
 import { emitEvent } from "@chanlytics/db/events";
 import { patchListing } from "@chanlytics/db/imports";
-import { platformWide, tenantDb } from "@chanlytics/db/shared";
 import { planListingCheck, type PlaceDetails } from "@chanlytics/channels/google";
 import { localDate, HOUR_MS } from "@chanlytics/contracts";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
@@ -23,6 +22,13 @@ import {
   type Db,
   type ListingRow,
 } from "../shared/google/rows.js";
+import {
+  listGoogleConnectionsDue,
+  listGoogleListingsDue,
+  pageGoogleReviewIds,
+  saveGoogleListingDay,
+  saveGoogleReviews,
+} from "@chanlytics/db/google";
 
 export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
@@ -79,7 +85,7 @@ export async function checkListing(
   // more than a thousand reviews announced old reviews as new, every hour, for
   // ever.
   const known = await readAllRows<{ review_id: string }>("google_reviews", (from, to) =>
-    db.from("google_reviews").select("review_id").eq("tenant_id", row.tenant_id).order("review_id").range(from, to),
+    pageGoogleReviewIds(db, row.tenant_id, from, to),
   );
   const plan = planListingCheck(
     { rating: row.rating, review_count: row.review_count, checked_at: row.checked_at },
@@ -91,31 +97,28 @@ export async function checkListing(
   );
 
   await patchListing(db, row.tenant_id, plan.listing);
-  const day = await db
-    .from("google_listing_days")
-    .upsert({ tenant_id: row.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });
+  const day = await saveGoogleListingDay(db, row.tenant_id, plan.day);
   if (day.error) throw new Error(day.error.message);
   if (plan.reviews.length) {
     // first_seen_at is not in the payload: an existing row keeps its own.
-    const reviews = await tenantDb(db, row.tenant_id)
-      .from("google_reviews")
-      .upsert(
-        plan.reviews.map((review) => ({
-          tenant_id: row.tenant_id,
-          review_id: review.review_id,
-          origin: "places",
-          rating: review.rating,
-          author: review.author,
-          author_uri: review.author_uri,
-          author_photo_uri: review.author_photo_uri,
-          body: review.text,
-          language_code: review.language_code,
-          published_at: review.published_at,
-          maps_uri: review.maps_uri,
-          last_seen_at: review.last_seen_at,
-        })),
-        { onConflict: "tenant_id,review_id" },
-      );
+    const reviews = await saveGoogleReviews(
+      db,
+      row.tenant_id,
+      plan.reviews.map((review) => ({
+        tenant_id: row.tenant_id,
+        review_id: review.review_id,
+        origin: "places",
+        rating: review.rating,
+        author: review.author,
+        author_uri: review.author_uri,
+        author_photo_uri: review.author_photo_uri,
+        body: review.text,
+        language_code: review.language_code,
+        published_at: review.published_at,
+        maps_uri: review.maps_uri,
+        last_seen_at: review.last_seen_at,
+      })),
+    );
     if (reviews.error) throw new Error(reviews.error.message);
   }
   // A new review reaches the phones too (decision 0040), about the review's row and opening it (contracts reviewRoute).
@@ -159,12 +162,7 @@ const CHECK_EVERY_MS = 20 * HOUR_MS;
 export async function listListingsDue(db: Db, now: Date, limit: number): Promise<ListingRow[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
   // The sweep's page: every workspace's listing that is due, by design.
-  const { data, error } = await platformWide(db)
-    .from("google_listings")
-    .select("*")
-    .or(`checked_at.is.null,checked_at.lt.${before}`)
-    .order("checked_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
+  const { data, error } = await listGoogleListingsDue(db, before, limit);
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -173,13 +171,7 @@ export async function listListingsDue(db: Db, now: Date, limit: number): Promise
 export async function listConnectionsDue(db: Db, now: Date, limit: number): Promise<ConnectionRow[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
   // The sweep's page: every workspace's profile that is due, by design.
-  const { data, error } = await platformWide(db)
-    .from("google_connections")
-    .select("*")
-    .not("location_name", "is", null)
-    .or(`last_synced_at.is.null,last_synced_at.lt.${before}`)
-    .order("last_synced_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
+  const { data, error } = await listGoogleConnectionsDue(db, before, limit);
   if (error) throw new Error(error.message);
   return data ?? [];
 }

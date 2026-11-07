@@ -94,6 +94,12 @@
       "import": "./src/repositories/files/index.ts",
       "default": "./src/repositories/files/index.ts"
     },
+    "./google": {
+      "types": "./src/repositories/google/index.ts",
+      "bundled": "./dist/google.js",
+      "import": "./src/repositories/google/index.ts",
+      "default": "./src/repositories/google/index.ts"
+    },
     "./imports": {
       "types": "./src/repositories/imports/index.ts",
       "bundled": "./dist/imports.js",

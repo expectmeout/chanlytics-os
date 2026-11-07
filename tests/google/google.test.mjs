@@ -947,8 +947,12 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // window all at once.
   assert.ok(!lib.includes("check_error: error, checked_at:"), "a failure must not read as a read");
   assert.ok(!lib.includes("sync_error: error.slice(0, 300), last_synced_at:"), "nor a failed sync as a sync");
+  // The write itself is packages/db's (decision 0111).
+  const reviews = readCode("packages/db/src/repositories/google/reviews.ts");
   assert.ok(
-    lib.includes('onConflict: "tenant_id,review_id"') && !lib.includes("first_seen_at"),
+    reviews.includes('onConflict: "tenant_id,review_id"') &&
+      !reviews.includes("first_seen_at") &&
+      !lib.includes("first_seen_at"),
     "an existing review keeps its first_seen_at",
   );
   assert.ok(lib.includes('"google.reviews"'));

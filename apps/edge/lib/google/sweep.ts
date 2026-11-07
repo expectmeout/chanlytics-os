@@ -21,6 +21,7 @@ import { placesKey, profileClient } from "../shared/google/config.js";
 import { checkListing, listConnectionsDue, listListingsDue } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import { listWorkspaceZones } from "@chanlytics/db/workspace";
 
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const GOOGLE_PER_TICK = 40;
@@ -43,7 +44,7 @@ export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Respon
   const tzOf = async (ids: string[]) => {
     const missing = ids.filter((id) => !zones.has(id));
     if (!missing.length) return;
-    const { data: tenants, error } = await db.from("tenants").select("id, timezone").in("id", missing);
+    const { data: tenants, error } = await listWorkspaceZones(db, missing);
     // A zone that cannot be read is said; the day falls back to the default zone, as a workspace with none does.
     if (error) L.warn("google_due_read_failed", { what: "zones", error: error.message });
     for (const t of tenants ?? []) zones.set(t.id, t.timezone || DEFAULT_TIMEZONE);

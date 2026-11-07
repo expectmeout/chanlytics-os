@@ -42,3 +42,7 @@ export const findConfigRow = (db: Db, tenantId: string) =>
 /** The workspace's id, name and address in the app: what an admin door answers about. */
 export const findWorkspaceCard = (db: Db, tenantId: string) =>
   db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle();
+
+/** The workspace's row with its time zone, as the database answered it (findWorkspaceZone reads the zone alone). */
+export const findWorkspaceZoneRow = (db: Db, tenantId: string) =>
+  db.from("tenants").select("id, timezone").eq("id", tenantId).maybeSingle();

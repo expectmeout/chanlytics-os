@@ -62,6 +62,7 @@ export {
   findWorkspaceNameSlug,
   findWorkspaceNameZone,
   findWorkspaceSlug,
+  findWorkspaceZoneRow,
   findWorkspaceZoneStatus,
   listWorkspaceStandings,
   listWorkspaceZones,
