@@ -640,10 +640,10 @@
 }
 
 /* ---- The month: one pane ---- */
-/* It fills the room the page leaves at every width, its six rows sharing it, as the phone's does (below, where a month
-   of dots keeps its own height): a desk's stood 160px short of the window's foot. */
+/* It fills the room the page leaves, its six rows sharing it (a desk's stood 160px short of the window's foot), and never
+   shrinks under them, so a short window scrolls to the last week: it clipped its sixth row to a sliver at 1280x720. */
 .main-scroll > .calendar .cal-body > .cal-month {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
 }
 .main-scroll > .calendar .cal-month-row {
   flex: 1 1 0;
