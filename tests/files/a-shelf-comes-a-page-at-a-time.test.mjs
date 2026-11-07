@@ -125,6 +125,7 @@ test("the tally counts every file by what it says of itself, and the page says w
   assert.deepEqual(tally, {
     total: 5,
     kept: 3,
+    videos: 0,
     waiting: 1,
     looking: 1,
     shelves: { place: 1, work: 1, made: 1, inbox: 1, set_aside: 1 },

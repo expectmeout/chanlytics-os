@@ -119,6 +119,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "file_look",
       "file_fetch",
       "file_purge",
+      "video_digest",
       "canary",
     ],
   );

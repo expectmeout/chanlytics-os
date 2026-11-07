@@ -33,26 +33,26 @@ interface Who {
 
 /** One knock on the edge's door, with what it answered as a record, or null where it did not answer. */
 async function copiesDoor(
-  who: Who,
+  member: Who,
   body: Record<string, unknown>,
   leftMs: number,
 ): Promise<Record<string, unknown> | null> {
   if (!edgeConfigured()) return null;
   const answer = await callEdge(
     "/api/admin/files/copies",
-    { tenant_id: who.tenantId, ...body },
-    { workspace: who.tenantId, user: who.userId, timeoutMs: Math.min(COPIES_MS, Math.max(SECOND_MS, leftMs)) },
+    { tenant_id: member.tenantId, ...body },
+    { workspace: member.tenantId, user: member.userId, timeoutMs: Math.min(COPIES_MS, Math.max(SECOND_MS, leftMs)) },
   );
-  const said = recordOrNull(answer.body);
-  if (answer.status !== 200 || !said) {
+  const reply = recordOrNull(answer.body);
+  if (answer.status !== 200 || !reply) {
     log.warn("ask_file_copies_failed", {
-      tenant_id: who.tenantId,
+      tenant_id: member.tenantId,
       status: answer.status,
-      ...(typeof said?.detail === "string" ? { detail: said.detail.slice(0, 200) } : {}),
+      ...(typeof reply?.detail === "string" ? { detail: reply.detail.slice(0, 200) } : {}),
     });
     return null;
   }
-  return said;
+  return reply;
 }
 
 const sizeOf = (row: Record<string, unknown>) => ({
@@ -62,14 +62,14 @@ const sizeOf = (row: Record<string, unknown>) => ({
 
 /** What a request sends a picture by, by the file it is of. A file left out has no copy to send. */
 export async function fileCopiesOf(
-  who: Who,
+  member: Who,
   ids: readonly string[],
   leftMs: number = COPIES_MS,
 ): Promise<ReadonlyMap<string, FileCopy>> {
   const out = new Map<string, FileCopy>();
   if (ids.length === 0) return out;
-  const said = await copiesDoor(who, { ids }, leftMs);
-  const copies = said?.copies;
+  const reply = await copiesDoor(member, { ids }, leftMs);
+  const copies = reply?.copies;
   if (!Array.isArray(copies)) return out;
   for (const c of copies) {
     const row = recordOrNull(c);
@@ -79,14 +79,70 @@ export async function fileCopiesOf(
   return out;
 }
 
+/** A video's moment as Ask asks for it: one moment, a box of one (in the pixels that moment was shown at), or a stretch. */
+type MomentAsked =
+  | { id: string; at: number; box?: readonly [number, number, number, number]; of?: readonly [number, number] }
+  | { id: string; from: number; to: number };
+
+/** A moment drawn by the edge and held for the turn: its copy, and what it was drawn as; or the words that say why not. */
+type MomentDrawn =
+  | (FileCopy & {
+      box: readonly [number, number, number, number] | null;
+      of: readonly [number, number] | null;
+      from: number | null;
+      to: number | null;
+      step: number | null;
+      frames: number | null;
+    })
+  | { wont: string };
+
+const numberOr = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+/** `n` numbers, or null. */
+const numbersOr = (v: unknown, n: number): number[] | null =>
+  Array.isArray(v) && v.length === n && v.every((x): x is number => typeof x === "number") ? v : null;
+const pairOr = (v: unknown): readonly [number, number] | null => {
+  const n = numbersOr(v, 2);
+  return n ? [n[0] ?? 0, n[1] ?? 0] : null;
+};
+const boxOr = (v: unknown): readonly [number, number, number, number] | null => {
+  const n = numbersOr(v, 4);
+  return n ? [n[0] ?? 0, n[1] ?? 0, n[2] ?? 0, n[3] ?? 0] : null;
+};
+
+/**
+ * A video's moment, drawn on the edge (where Stream's keys are) and held at Anthropic for a day, as a zoom of a photo is. Never a
+ * failed turn: what could not be drawn is said in words.
+ */
+export async function drawVideoMoment(
+  member: Who,
+  moment: MomentAsked,
+  leftMs: number = COPIES_MS,
+): Promise<MomentDrawn> {
+  const reply = await copiesDoor(member, { moments: [{ key: "one", ...moment }] }, leftMs);
+  const row = Array.isArray(reply?.moments) ? recordOrNull(reply.moments[0]) : null;
+  if (!row) return { wont: "it could not be drawn just now" };
+  if (typeof row.file_id !== "string")
+    return { wont: typeof row.wont === "string" ? row.wont : "it could not be drawn just now" };
+  return {
+    fileId: row.file_id,
+    ...sizeOf(row),
+    box: boxOr(row.box),
+    of: pairOr(row.of),
+    from: numberOr(row.from),
+    to: numberOr(row.to),
+    step: numberOr(row.step),
+    frames: numberOr(row.frames),
+  };
+}
+
 /** A picture made here, held at Anthropic for a day, or null where it could not be: said in words then, never a failed turn. */
 export async function pictureCopyOf(
-  who: Who,
+  member: Who,
   picture: PictureMade,
   leftMs: number = COPIES_MS,
 ): Promise<FileCopy | null> {
-  const said = await copiesDoor(
-    who,
+  const reply = await copiesDoor(
+    member,
     {
       pictures: [
         { key: "one", bytes: Buffer.from(picture.bytes).toString("base64"), mime: picture.mime, name: picture.name },
@@ -94,7 +150,7 @@ export async function pictureCopyOf(
     },
     leftMs,
   );
-  const row = Array.isArray(said?.pictures) ? recordOrNull(said.pictures[0]) : null;
+  const row = Array.isArray(reply?.pictures) ? recordOrNull(reply.pictures[0]) : null;
   if (typeof row?.file_id !== "string") return null;
   return { fileId: row.file_id, ...sizeOf(row) };
 }

@@ -81,6 +81,30 @@
         "aud": "/api/admin/files/copies"
       }
     },
+    "POST /api/admin/files/listen": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/files/listen.ts",
+      "knock_args": {
+        "aud": "/api/admin/files/listen"
+      }
+    },
+    "POST /api/admin/files/play": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/files/play.ts",
+      "knock_args": {
+        "aud": "/api/admin/files/play"
+      }
+    },
+    "POST /api/admin/files/video-start": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/files/video-start.ts",
+      "knock_args": {
+        "aud": "/api/admin/files/video-start"
+      }
+    },
     "POST /api/admin/google": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",
@@ -665,6 +689,12 @@
       "verb": "receiveSmsStatus in apps/edge/lib/sms/status.ts",
       "knock": "verifyTwilioSignature",
       "knock_in": "receiveSmsStatus in apps/edge/lib/sms/status.ts"
+    },
+    "POST /api/stream-webhook": {
+      "wrapper": "door",
+      "verb": "receiveStreamWebhook in apps/edge/lib/files/video-webhook.ts",
+      "knock": "verifyStreamWebhook",
+      "knock_in": "receiveStreamWebhook in apps/edge/lib/files/video-webhook.ts"
     },
     "POST /api/stripe-webhook": {
       "wrapper": "door",

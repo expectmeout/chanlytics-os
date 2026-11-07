@@ -43,6 +43,16 @@ export type { FenceTag } from "./fence";
 export { daysToSunset, FLAG_MECHANISMS, FLAGS } from "./flags";
 export type { Flag, FlagMechanism, WeakerMode } from "./flags";
 export {
+  AI_USAGE_PORTS,
+  AI_USAGE_PURPOSES,
+  HEARING_MODELS,
+  hearingDollars,
+  hearingUsageBodyOf,
+  videoEarModelOf,
+  videoWordsShapeOf,
+} from "./hearing";
+export type { AiUsagePort, AiUsagePurpose, HearingPort, HearingPurpose, VideoWordsShape } from "./hearing";
+export {
   fallbackModel,
   FAST_MODE_BETA,
   hasFastMode,

@@ -825,6 +825,13 @@
       "rate": null,
       "spend": false
     },
+    "GET files/[id]/play": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST files/keep": {
       "kind": "write",
       "scope": "workspace",

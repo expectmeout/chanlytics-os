@@ -1,7 +1,7 @@
 {
   ".": "broadcasts inbox settings today workspace",
   "ask": "inbox live settings",
-  "ask/line": "",
+  "ask/line": "settings",
   "calendar": "calendar calendar_runs",
   "calendar/visit": "",
   "campaigns": "audiences broadcasts channels playbooks reach_outs sequences settings",
@@ -16,7 +16,7 @@
   "channels": "channels",
   "console": "",
   "console/health": "",
-  "files": "files",
+  "files": "files settings",
   "frame": "calendar live settings workspace",
   "frame/sidebar": "workspace",
   "frame/topbar": "calendar live",

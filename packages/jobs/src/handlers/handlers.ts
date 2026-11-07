@@ -618,6 +618,12 @@ async function filePurge(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await ctx.files.purge(job);
 }
 
+/** video_digest: one step of a video made ready (00556), through what the edge injects. payload: { file_id, step, edition } */
+async function videoDigest(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.files) throw new Error("video_digest: this runtime holds no file reader");
+  await ctx.files.digest(job, ctx.deadline);
+}
+
 /** website_read: the business's website read for Check (00479, decision 0073), through what the edge injects. payload: { url }. */
 async function websiteRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.website) throw new Error("website_read: this runtime holds no website reader");
@@ -667,6 +673,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   file_look: fileLook,
   file_fetch: fileFetch,
   file_purge: filePurge,
+  video_digest: videoDigest,
   canary,
 };
 

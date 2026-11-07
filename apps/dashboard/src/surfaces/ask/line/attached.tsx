@@ -2,24 +2,44 @@
  * The photos a question goes with (decision 0099, step 2): picked with the +, pasted into the field, or dropped on the panel.
  * Each goes up the moment it is chosen, by the same door as Settings › Files, so it lands in the library and Ask sees it in
  * that turn. Send waits for them: a question never leaves saying it has a picture that has not arrived.
+ *
+ * A video (stage B, D10), where the workspace takes them, goes up the same way, and Send waits while it is made ready, saying
+ * so; past two minutes the question goes all the same, with the video named as still being prepared, and Ask says it will open
+ * it once it is.
  */
 import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
-import { ASK_ATTACHED_MAX, type AskAttached } from "@chanlytics/contracts";
+import { ASK_ATTACHED_MAX, MIN_MS, SECOND_MS, videoPreviewOf, type AskAttached } from "@chanlytics/contracts";
 import { refreshSurface } from "../../frame-verbs";
 import { holdsFiles, imagesIn } from "../../kit/drop/drop";
 import { Icon } from "../../kit/icon/icon";
 import { LineFiles, LinePress } from "../../kit/line/line";
-import { FILE_PICKS, fileVerbs, type AddSaid } from "../../files/verbs";
+import { isVideoFile } from "../../files/sending";
+import { FILE_PICKS, FILE_PICKS_WITH_VIDEO, fileVerbs, type AddSaid } from "../../files/verbs";
+import { surfaceValue } from "../../surface-values";
 import type { LineWords } from "../words";
 import type { Line } from "./types";
 
-/** One photo beside the field: on its way, there, or refused with its words. */
+/** How long a question waits for a video to be made ready, and how often it asks. */
+const VIDEO_READY_WAIT_MS = 2 * MIN_MS;
+const VIDEO_READY_ASK_MS = 3 * SECOND_MS;
+
+/** Whether a video it was sent is ready, or past waiting for: the question may go either way. */
+async function videoMadeReady(id: string): Promise<void> {
+  for (const until = Date.now() + VIDEO_READY_WAIT_MS; Date.now() < until;) {
+    const r = await fileVerbs.record(id).catch(() => null);
+    const status = r?.ok ? r.data.file.media_status : null;
+    if (status === "ready" || status === "failed") return;
+    await new Promise((resolve) => setTimeout(resolve, VIDEO_READY_ASK_MS));
+  }
+}
+
+/** One photo or video beside the field: on its way, being made ready (a video), there, or refused with its words. */
 export interface AttachedPhoto {
   key: number;
   file: File;
   /** A picture of it to draw, held only while it stands beside the field. */
   picture: string | null;
-  state: "sending" | "ready" | "failed";
+  state: "sending" | "preparing" | "ready" | "failed";
   /** The file it became, once it is there. */
   id: string | null;
   message: string | null;
@@ -33,7 +53,7 @@ export const photosAsked = (photos: readonly AttachedPhoto[]): AskAttached[] =>
   photos.flatMap((p) => (p.id ? [{ id: p.id, name: p.file.name }] : []));
 
 const heldPictureOf = (file: File): string | null =>
-  typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : null;
+  typeof URL.createObjectURL === "function" && !isVideoFile(file) ? URL.createObjectURL(file) : null;
 
 const letPictureGo = (p: AttachedPhoto): void => {
   if (p.picture) URL.revokeObjectURL(p.picture);
@@ -43,21 +63,21 @@ let nextKey = 1;
 
 /** What the Line does with the photos beside its field. Made each draw; a send under way finishes by the state's own updater. */
 export const arAttach = ({ attached, setAttached, flash, t }: Line) => {
+  const swap = (key: number, change: Partial<AttachedPhoto>) =>
+    setAttached((now) => now.map((p) => (p.key === key ? { ...p, ...change } : p)));
   const send = (key: number, file: File) =>
     void fileVerbs
       .add(file)
       .catch((): AddSaid => ({ kept: false, message: t.attachFailed }))
-      .then((said) => {
-        setAttached((now) =>
-          now.map((p) =>
-            p.key !== key
-              ? p
-              : said.kept
-                ? { ...p, state: "ready", id: said.id, message: null }
-                : { ...p, state: "failed", message: said.message },
-          ),
-        );
-        if (said.kept) void refreshSurface("files");
+      .then(async (said) => {
+        if (!said.kept) return swap(key, { state: "failed", message: said.message });
+        void refreshSurface("files");
+        // A video already here, or still being made ready: Send waits for it, two minutes at most.
+        if (said.video) {
+          swap(key, { state: "preparing", id: said.id, message: null });
+          await videoMadeReady(said.id);
+        }
+        swap(key, { state: "ready", id: said.id, message: null });
       });
   const attach = (files: readonly File[]) => {
     const room = ASK_ATTACHED_MAX - attached.length;
@@ -142,7 +162,14 @@ export function AskAttachPress({ t, attach }: { t: LineWords; attach: (files: re
       >
         <Icon name="plus" size={15} />
       </LinePress>
-      <LineFiles ref={picker} accept={FILE_PICKS} multiple onChange={chosen} data-testid="ask-picker" />
+      <LineFiles
+        ref={picker}
+        // Videos, where the workspace takes them: read off the settings surface where it has landed, photos alone before.
+        accept={videoPreviewOf(surfaceValue("settings")?.settings?.config) ? FILE_PICKS_WITH_VIDEO : FILE_PICKS}
+        multiple
+        onChange={chosen}
+        data-testid="ask-picker"
+      />
     </>
   );
 }
@@ -166,7 +193,11 @@ function AttachedTile({ photo, t, detach }: { photo: AttachedPhoto; t: LineWords
           onError={() => setUnseen(true)}
         />
       )}
-      {photo.state === "sending" ? <span className="ask-said">{t.attachSending}</span> : null}
+      {photo.state === "sending" ? (
+        <span className="ask-said">{isVideoFile(photo.file) ? t.attachSendingVideo : t.attachSending}</span>
+      ) : photo.state === "preparing" ? (
+        <span className="ask-said">{t.attachPreparing}</span>
+      ) : null}
       <LinePress
         kind="clear"
         className="ask-attached-away"

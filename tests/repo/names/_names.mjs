@@ -90,9 +90,8 @@ export const VERBS = new Set(
   leave pause link unlink report review decline withdraw hold ingest scrub fail follow rewrite resend provision suggest queue
   dismiss refuse discard archive patch append decide recheck submit freeze whisper steer choose sweep assign bulk deploy install
   enable disable revoke grant consume rotate charge confirm activate deactivate retrieve persist reconcile rollback remember
-  attach detach purge paginate broadcast exchange renew authenticate authorize login logout redirect respond ping poll batch`.split(
-    /\s+/,
-  ),
+  attach detach purge paginate broadcast exchange renew authenticate authorize login logout redirect respond ping poll batch
+  hear listen transcribe digest reserve play`.split(/\s+/),
 );
 
 /** A name's words, in either casing. */

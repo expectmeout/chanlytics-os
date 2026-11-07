@@ -66,6 +66,7 @@ export const ROUTE_KEYS = [
   "GET export",
   "GET files",
   "GET files/[id]",
+  "GET files/[id]/play",
   "GET files/[id]/view",
   "GET google",
   "GET google/callback",

@@ -4,8 +4,8 @@
  * service role reads it, and only after the caller's own read of the row said it is theirs to see, or for their own workspace.
  */
 import "server-only";
-import { postPlanOf, recordOrNull, type FileRecordDto, type PostPlan } from "@chanlytics/contracts";
-import { fileMadeOf, fileOf, filePostedOf, newestMadeOf, type FileMemberRow } from "@chanlytics/db";
+import { fileSoundOf, postPlanOf, recordOrNull, type FileRecordDto, type PostPlan } from "@chanlytics/contracts";
+import { fileMadeOf, fileOf, filePostedOf, readFileSound, newestMadeOf, type FileMemberRow } from "@chanlytics/db";
 import { connectionFor } from "@/server/connections/google";
 import { log } from "@/server/shared/log";
 import { fileDtoOf } from "@/server/readers/files";
@@ -13,9 +13,14 @@ import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 
-/** GET files/[id]: one file, and for a post what it came from and what it was asked to be. */
+/**
+ * GET files/[id]: one file, and for a post what it came from and what it was asked to be. A video's is what was heard of it
+ * besides (stage B): its words and how it sounds, read by id under the caller's RLS, never by the list.
+ */
 export async function fileRecord(ctx: RouteContext, member: Member, row: FileMemberRow): Promise<FileRecordDto> {
   const file = fileDtoOf(row);
+  if (row.kind === "video")
+    return { file, made: null, google: null, sound: fileSoundOf(await readFileSound(ctx.supabase, row.id)) };
   if (row.source !== "made") return { file, made: null, google: null };
   const [kept, connection, posted] = await Promise.all([
     fileMadeOf(serviceDb(), member.tenantId, row.id),

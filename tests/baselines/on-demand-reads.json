@@ -24,6 +24,11 @@
     "fresh": "Read as a post's sheet opens, for the photo it came from and what it was asked to be; nothing of it is kept once the sheet goes.",
     "why": "What a post was made from is written once, as it is kept, and never changes. The photo's name it says is read again each time a sheet opens."
   },
+  "apps/dashboard/src/surfaces/files/verbs.ts GET files/[id]/play": {
+    "kind": "on-open",
+    "fresh": "Read as a video's sheet opens to play it, for a token the edge signs for that one video; nothing of it is kept once the sheet goes.",
+    "why": "A token is good for an hour and only for the video it names, so it is asked for at the moment of playing and never held. Whether the video is ready, and its frame, come from the Files page's own surface, which hears the feed."
+  },
   "apps/dashboard/src/bridge/activity.ts GET activity": {
     "kind": "on-open",
     "fresh": "Read as Settings > Activity opens and as a filter changes, a page at a time; while it is open, its first page is read again each minute and as the tab comes back, and what is newer is offered above the lines (settings/activity/newer.ts).",

@@ -13,11 +13,11 @@
  * screen is held awake while there is work, where the browser lets it. Nothing here is on any server until it arrives.
  */
 import { useSyncExternalStore } from "react";
-import { FILE_UPLOADS_AT_ONCE, FILE_WORDS as W, FILES_PAGE } from "@chanlytics/contracts";
+import { FILE_UPLOADS_AT_ONCE, FILE_WORDS as W, FILES_PAGE, isVideoMime } from "@chanlytics/contracts";
 import { refreshSurface, type FrameFlash } from "../frame-verbs";
 import { surfaceValue } from "../surface-values";
 import { readFilesUpTo } from "./surface";
-import { fileVerbs, type AddSaid } from "./verbs";
+import { fileVerbs, mimeOf, type AddSaid } from "./verbs";
 
 /** How many photos go up at once. */
 const SENT_AT_ONCE = 3;
@@ -52,8 +52,9 @@ const sendingListeners = new Set<() => void>();
 let nextKey = 1;
 let senders = 0;
 let flashing: (f: FrameFlash) => void = () => {};
-// What this run of work came to, told once at its end. A photo that failed in an earlier run is not this run's to count.
-let run = { kept: 0, twins: 0, failed: 0 };
+// What this run of work came to, told once at its end. A photo that failed in an earlier run is not this run's to count. Of what
+// was kept, how many were videos: they are said apart, since they are still being made ready.
+let run = { kept: 0, videos: 0, twins: 0, failed: 0 };
 // The photos added on this visit, as they were drawn (see inLandedOrder).
 let landed: readonly string[] = [];
 
@@ -74,8 +75,14 @@ export const useSending = (): Sending =>
     () => now,
   );
 
+/** A picture of it from this device. A video has none: an <img> cannot draw one, and its poster is the server's to make. */
+export const isVideoFile = (file: File): boolean => {
+  const mime = mimeOf(file);
+  return mime !== null && isVideoMime(mime);
+};
+
 const pictureOf = (file: File): string | null =>
-  typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : null;
+  typeof URL.createObjectURL === "function" && !isVideoFile(file) ? URL.createObjectURL(file) : null;
 
 function letGoOf(p: SendingPhoto): void {
   if (p.picture) URL.revokeObjectURL(p.picture);
@@ -155,6 +162,7 @@ async function sender(): Promise<void> {
       continue;
     }
     run.kept++;
+    if (said.video) run.videos++;
     swap(key, { state: "arrived", id: said.id, sent: 1 });
   }
 }
@@ -185,13 +193,14 @@ function readThenHandOver(arrived: readonly SendingPhoto[], tries = READS_AT_THE
 
 /** The end of a run: the list read, and how it came out said in a toast that outlives this tab. */
 function ended(): void {
-  const { kept, twins, failed } = run;
-  run = { kept: 0, twins: 0, failed: 0 };
+  const { kept, videos, twins, failed } = run;
+  run = { kept: 0, videos: 0, twins: 0, failed: 0 };
   sleepAgain();
   set({ finished: 0 });
   readThenHandOver(now.photos.filter((p) => p.state === "arrived"));
   const words = [
-    kept > 0 ? W.added(kept) : "",
+    kept - videos > 0 ? W.added(kept - videos) : "",
+    videos > 0 ? W.video.added(videos) : "",
     twins > 0 ? W.alreadyHere(twins) : "",
     failed > 0 ? W.notAdded(failed) : "",
   ].filter(Boolean);

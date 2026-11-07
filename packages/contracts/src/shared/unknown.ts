@@ -19,6 +19,10 @@ export const trimmedOrNull = (v: unknown): string | null => (typeof v === "strin
 /** A string with words in it, exactly as it came; null for anything else, a blank string included. */
 export const nonBlankOrNull = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 
+/** A plain object (never an array), as a type guard: what a provider's JSON is read from, field by field. */
+export const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 /** A plain object (never an array), or null. */
 export const recordOrNull = (v: unknown): Record<string, unknown> | null =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;

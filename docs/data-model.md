@@ -1240,6 +1240,14 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `made` | jsonb | yes |  | How Ask made it (00553): {from, plan}. Empty on everything a person or an import brought. Read by the service role. |
+| `kind` | text | no | `'image'::text` | image or video (00556). A video is kept by the video platform; its folder holds only what is made of it. |
+| `media_ref` | text | yes |  | A video's id at the video platform (00556): what its webhook names it by. Service role only, never shown to a member or the model. |
+| `media_status` | text | yes |  | Where a video stands (00556): uploading (no page or Ask counts it yet), processing, ready, failed. Null for a picture. |
+| `media_error` | text | yes |  | Why the video platform could not prepare it, in its own code. Service role only. |
+| `ready_at` | timestamp with time zone | yes |  | When the video became playable. |
+| `seconds` | numeric(8,2) | yes |  | A video's length in seconds: the browser's word until the platform says its own. |
+| `sound` | jsonb | yes |  | What was heard of a video (contracts files/sound.ts FileSound): its words, the note on how it sounds, or that it has none, each part naming the model that heard it. Written only by file_sound_keep. |
+| `sound_said` | text | yes |  | A video's sound in a few words, for the list (contracts soundSaidOf). Written only by file_sound_keep. |
 
 Foreign keys:
 

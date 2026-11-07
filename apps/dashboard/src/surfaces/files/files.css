@@ -301,6 +301,69 @@ span.files-big {
   overflow-wrap: anywhere;
 }
 
+/* A video's player, in the picture's place at the picture's size: Stream's own frame, no border of its own. */
+.files-player {
+  border: 0;
+  background: var(--surface-page-fill);
+}
+
+/* What was heard of a video, under its player: what is said, a stretch a line with its moment, and how it sounds. */
+.files-heard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.files-heard-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.files-cues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.files-cue {
+  display: flex;
+  gap: 8px;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.files-cue-at {
+  flex: none;
+  min-width: 4ch;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.files-cue-voice {
+  color: var(--ink-dim);
+}
+
+/* A video's length in a corner of its poster, as a camera roll writes it: light figures on a dark wash, whatever the theme. */
+.files-length {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  color: var(--media-ink);
+  background: var(--media-wash);
+  pointer-events: none;
+}
+
 /* On its way: a blank tile until its turn, then its picture clearing as it goes, a touch small until it lands. One that hasn't arrived isn't one to press. */
 .files-going {
   cursor: default;
@@ -479,6 +542,11 @@ span.files-big {
     right: 4px;
     width: 14px;
     height: 14px;
+  }
+
+  .files-length {
+    bottom: 4px;
+    left: 4px;
   }
 
   /* A row of its own, its picture small: eight that failed should not be eight screens. */

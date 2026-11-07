@@ -4,6 +4,7 @@
  * the connections that are not healthy. From one read (platform_health_parts, 00469), every row keyed by whether its
  * workspace is ours. Pure.
  */
+import type { HearingPurpose } from "../ai/hearing";
 import type { ModelPurpose } from "../ai/models";
 import { creditRanOut } from "../ai/usage";
 import { capitalize } from "../shared/words";
@@ -302,7 +303,7 @@ export function webhooksOf(parts: HealthPartsDto | null, scope: HealthScope, _no
 
 // ----------------------------------------------------------------------------------------------- model calls
 
-const PURPOSE_WORDS: Record<ModelPurpose | "ask_warm", string> = {
+const PURPOSE_WORDS: Record<ModelPurpose | HearingPurpose | "ask_warm", string> = {
   receptionist: "The receptionist",
   reply_draft: "Reply drafts",
   ask: "Ask",
@@ -322,6 +323,8 @@ const PURPOSE_WORDS: Record<ModelPurpose | "ask_warm", string> = {
   website_read: "Reading websites",
   sender_read: "Sorting mailbox senders",
   file_look: "Looking at files",
+  file_words: "Writing down what videos say",
+  file_hear: "Listening to videos",
 };
 
 function purposeWords(purpose: string): string {

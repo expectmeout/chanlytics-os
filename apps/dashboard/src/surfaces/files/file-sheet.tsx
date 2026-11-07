@@ -1,7 +1,7 @@
 /**
- * One file, opened (decision 0099): the picture, or a post in the shape chosen; what the look saw; what a person says of it; and its
- * foot. Settings loads no Base UI popup, so the sheet is the house's (kit/record/sheet). Each change is saved as it is made, and the
- * door's refresh reads the list again.
+ * One file, opened (decision 0099): the picture, or a post in the shape chosen, or a video's player (stage B); what the look saw,
+ * and for a video what was heard of it; what a person says of it; and its foot. Settings loads no Base UI popup, so the sheet is
+ * the house's (kit/record/sheet). Each change is saved as it is made, and the door's refresh reads the list again.
  */
 import { useEffect, useState } from "react";
 import {
@@ -15,6 +15,7 @@ import {
   type FileDto,
   type FileMade,
   type FilePosted,
+  type FileSound,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
@@ -29,35 +30,45 @@ import { PostGoogle, PostGoogleActs, PostOnGoogle, usePostGoogle } from "./post-
 import { PostShapes } from "./post-shapes";
 import { PostVersion, PostVersionActs, usePostVersion } from "./post-version";
 import { fileVerbs, type FileChange } from "./verbs";
+import { VideoHeard, VideoOpened } from "./video-player";
 
 /** What the sheet says the look saw, or how it stands. A refused picture a person has since kept waits for no one. */
 function lookSaysOf(file: FileDto): string | null {
+  // A video not yet ready says so where its player stands: the look has nothing to read before.
+  if (file.kind === "video" && file.media_status !== "ready") return null;
   if (file.look_status === "waiting") return W.looking;
   if (file.look_status === "refused") return file.status === "inbox" ? W.refused : W.notRead;
   if (file.look_status === "failed") return W.notRead;
   return file.line;
 }
 
-/** How a post was made and where it is up, read as its sheet opens: neither is on the list a page reads. Nothing is said until it comes. */
+/**
+ * How a post was made and where it is up, or what was heard of a video, read as its sheet opens: none of it is on the list a page
+ * reads. Nothing is said until it comes. A video's is read again as what it is heard changes (its list's `sound_said`).
+ */
 function usePostRecord(file: FileDto) {
   const [made, setMade] = useState<FileMade | null>(null);
   const [connected, setConnected] = useState(false);
   const [posted, setPosted] = useState<FilePosted | null>(null);
+  const [sound, setSound] = useState<FileSound | null>(null);
   const isPost = file.source === "made";
+  const isVideo = file.kind === "video";
+  const heard = isVideo ? `${file.media_status}|${file.sound_said ?? ""}` : "";
   useEffect(() => {
-    if (!isPost) return undefined;
+    if (!isPost && !isVideo) return undefined;
     let live = true;
     void fileVerbs.record(file.id).then((r) => {
       if (!live || !r.ok) return;
       setMade(r.data.made);
       setConnected(r.data.google?.connected ?? false);
       setPosted(r.data.google?.posted ?? null);
+      setSound(r.data.sound ?? null);
     });
     return () => {
       live = false;
     };
-  }, [file.id, isPost]);
-  return { made, connected, posted, setPosted };
+  }, [file.id, isPost, isVideo, heard]);
+  return { made, connected, posted, setPosted, sound };
 }
 
 /** Where a post came from, a door to that photo while it is here; anything else says the road that brought it. */
@@ -94,10 +105,11 @@ function FileActs({
   toGoogle: (() => void) | null;
 }) {
   const [asking, setAsking] = useState(false);
+  const video = file.kind === "video";
   if (asking)
     return (
       <Confirm
-        question={W.removeAsk}
+        question={video ? W.video.removeAsk : W.removeAsk}
         detail={W.removeNote}
         yes={W.remove}
         no={W.dontDelete}
@@ -108,9 +120,9 @@ function FileActs({
         testid="fl-remove-ask"
       />
     );
-  // A post Ask made says its own, by the shape it shows; anything else is the one picture.
+  // A post Ask made says its own, by the shape it shows; a video's own file stays with whoever sent it; anything else is the one picture.
   const download =
-    file.source === "made" ? null : (
+    file.source === "made" || video ? null : (
       <Button variant="quiet" href={`${fileViewOf(file.id)}?download`} data-testid="fl-download">
         {W.download}
       </Button>
@@ -118,7 +130,7 @@ function FileActs({
   const askAboutIt = (
     <Button variant="quiet" onClick={ask} data-testid="fl-ask">
       <Icon name="three" size={13} />
-      {W.askAbout}
+      {video ? W.video.askAbout : W.askAbout}
     </Button>
   );
   if (!may)
@@ -185,7 +197,7 @@ function FileSheet({
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const may = canDo("settings");
-  const { made, connected, posted, setPosted } = usePostRecord(file);
+  const { made, connected, posted, setPosted, sound } = usePostRecord(file);
   const version = usePostVersion((id, words) => {
     flash({ msg: <>{words}</> });
     open(id);
@@ -205,7 +217,7 @@ function FileSheet({
     const r = await fileVerbs.remove(file.id);
     setBusy(false);
     if (!r.ok) return setProblem(r.message);
-    flash({ msg: <>{W.removed}</> });
+    flash({ msg: <>{file.kind === "video" ? W.video.removed : W.removed}</> });
     onClose();
   };
   const press: SheetPress = { file, may, busy, say };
@@ -248,12 +260,15 @@ function FileSheet({
         <PostGoogle google={going} plan={made.plan} />
       ) : file.source === "made" ? (
         <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />
+      ) : file.kind === "video" ? (
+        <VideoOpened file={file} said={said} />
       ) : (
         <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />
       )}
       {!version.open && !going.open && (
         <>
           {says && <p className="files-says">{says}</p>}
+          {file.kind === "video" && <VideoHeard sound={sound} />}
           {file.looks_like_stock && file.status === "inbox" && <Notice label={W.stock} fact={W.stock} line />}
           {file.issues.length > 0 && <p className="files-says files-issues">{file.issues.join(" ")}</p>}
           <div className="files-fields">

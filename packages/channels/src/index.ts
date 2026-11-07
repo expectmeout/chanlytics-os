@@ -14,6 +14,8 @@ export { deleteClaudeFile, uploadClaudeFile } from "./ai/anthropic-files";
 export type { ClaudeFileUploaded } from "./ai/anthropic-files";
 export { createUserProfile, deleteUserProfile, listUserProfiles } from "./ai/anthropic-profiles";
 export type { AnthropicProfile, ProfileCreated, ProfilesPage } from "./ai/anthropic-profiles";
+export { askGemini, GEMINI_INLINE_BYTES } from "./ai/gemini";
+export type { GeminiAnswer, GeminiAsked } from "./ai/gemini";
 export { askSystemOne, SYSTEM_ONE_URL } from "./ai/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./ai/typesafe";
 export { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./email/cold-request";
@@ -144,6 +146,34 @@ export { resendWebhookSignature, verifyResendWebhook, WEBHOOK_TOLERANCE_S } from
 export type { SvixHeaders } from "./email/webhook-signature";
 export { fileFingerprintOf, FINGERPRINT_BYTES } from "./files/file-fingerprint";
 export { remadeLogo } from "./files/logo-png";
+export {
+  askStreamAudio,
+  deleteStreamVideo,
+  fetchStreamAudio,
+  fetchStreamFrame,
+  putStreamCaptions,
+  readStreamAudio,
+  readStreamUsage,
+  readStreamVideo,
+  reserveStreamUpload,
+  streamAudioUrl,
+  streamFrameUrl,
+  streamPlayerUrl,
+  streamTokenOf,
+  streamVideoOf,
+  verifyStreamWebhook,
+} from "./files/stream";
+export type {
+  StreamAccount,
+  StreamAudio,
+  StreamFetched,
+  StreamRead,
+  StreamReserved,
+  StreamSigning,
+  StreamState,
+  StreamUsage,
+  StreamVideo,
+} from "./files/stream";
 export {
   authorizeUrl,
   b64url,
@@ -494,6 +524,8 @@ export type {
   RetellTranscriptTurn,
   RetellWrite,
 } from "./voice/retell";
+export { transcribeWithScribe } from "./voice/scribe";
+export type { ScribeAnswer } from "./voice/scribe";
 export {
   agentSettingsDrift,
   availabilityUrl,

@@ -22,6 +22,7 @@ export { modelSubjectOf, profileDetailsOf, profileReferenceOf, subjectIdOf } fro
 export { EFFORT_MESSAGE_BETA, effortAbove, effortInForce, effortMessage, foldEffortMessages, isEffortMessage } from "./ai/effort";
 export { DATA_NOT_INSTRUCTIONS, defang, fenceActed, fenced, fencedInline, injectionQuestion, PROFILE_NAME_MAX, promptSafeName } from "./ai/fence";
 export { daysToSunset, FLAG_MECHANISMS, FLAGS } from "./ai/flags";
+export { AI_USAGE_PORTS, AI_USAGE_PURPOSES, HEARING_MODELS, hearingDollars, hearingUsageBodyOf, videoEarModelOf, videoWordsShapeOf } from "./ai/hearing";
 export { fallbackModel, FAST_MODE_BETA, hasFastMode, isModelId, MODEL_EFFORTS, MODEL_IDS, MODEL_PORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_SPEEDS, MODEL_TAKES, modelRoute, MODELS, modelTakes, readsAsModel, RETELL_MODELS, routeThinkingFor, screenFloorOf, secondKeyFloorOf, shadowPortOf, THINKING_TYPES, thinkingOffOf } from "./ai/models";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn";
 export { AI_USAGE_ERROR_CHARS, aiUsageBodyOf, creditRanOut, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, MODEL_PRICES, NO_USAGE, priceOf, usageDollars, usageOf, usageTokens } from "./ai/usage";
@@ -270,11 +271,14 @@ export { CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_DAILY_CAP_MAX, MAILBOX_HOLDS, MAILBO
 export { SENDER_KINDS, SENDER_READ_MAX_TOKENS, SENDER_READING_SCHEMA, senderLeftWhy, senderReadingAsk, senderReadingOf, senderReadingSystem } from "./email/sender-reading";
 export { firstSubject, oneLine, posesAsReply, replySubject } from "./email/subject";
 export { emailTextOf } from "./email/text";
-export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_GOOGLE_WORDS_MAX, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHELVES, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, FILE_WORDS, fileCursorOf, fileFolderOf, fileNameOf, filePathOf, FILES_BUCKET, FILES_MAX, FILES_PAGE, fileSaidOf, fileShelfOpening, filesSayOf, filesTallyOf, fileViewOf, inboxCleanOf, isFileMime, postNameOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/files";
+export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_GOOGLE_WORDS_MAX, FILE_KINDS, FILE_LOOK_STATUSES, FILE_MADE_OF_VIDEO, FILE_MADE_OF_VIDEO_MIMES, FILE_MEDIA_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHELVES, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_VIDEO_BYTES_MAX, FILE_VIDEO_MIMES, FILE_VIDEO_SECONDS_MAX, FILE_WHO_IN_IT, FILE_WORDS, fileCursorOf, fileFolderOf, fileKindOf, fileMadePathOf, fileNameOf, filePathOf, FILES_BUCKET, FILES_MAX, FILES_PAGE, fileSaidOf, fileShelfOpening, filesSayOf, filesTallyOf, fileViewOf, inboxCleanOf, isFileMime, isVideoMime, keptSaidOf, postNameOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/files";
 export { fileIndexLineOf, fileShelfSaid, filesLineOf, fileWhoSaid, withFilesAttached, withFilesOpened } from "./files/line";
-export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HINT, FILE_LOOK_SCHEMA, FILE_LOOK_SYSTEM, FILE_PICTURE_KEEP_S, fileLookAsked, fileLookOf } from "./files/look";
+export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HINT, FILE_LOOK_SCHEMA, FILE_LOOK_SYSTEM, FILE_PICTURE_KEEP_S, FILE_VIDEO_LOOK_SCHEMA, fileLookAsked, fileLookOf, fileVideoLookAsked, fileVideoLookOf, VIDEO_LOOK_EDITION } from "./files/look";
 export { POST_LAYOUTS, POST_LIMITS, POST_NO_PHONE, POST_PICTURES, POST_SHAPES, POST_VOICES, POST_WORDS, postPhotoWont, postPlanOf, postPlanTidied, postWordsIn } from "./files/post";
 export { postBandOf, postPathOf, postPhotoProblem, postPlanProblem, postUndrawable, postWordsProblem } from "./files/post-check";
+export { cuesSaidOf, earWordsOf, fileSoundOf, languageCodeOf, languageNameOf, noteSaidOf, scribeWordsOf, soundNoteOf, soundSaidOf, soundTurnSaidOf, VIDEO_EAR_SCHEMA, VIDEO_EAR_SYSTEM, VIDEO_EAR_WORDS_SCHEMA, videoEarAsked, videoListenAsked, videoSheetAfterOf, vttOf } from "./files/sound";
+export { clockOf, isDigestStep, nextDigestStepOf, secondsOf, VIDEO_DIGEST_STEPS, VIDEO_FRAME_SIDE, VIDEO_SHEET_FRAMES, VIDEO_SHEET_PIXELS, VIDEO_SHEET_SIDE, VIDEO_SPAN_FRAMES, VIDEO_TILE_LABEL_PX, videoFrameSizeOf, videoFramesSaidOf, videoFrameWhatOf, videoPreviewOf, videoSheetPlanOf, videoSheetSaidOf, videoSheetWhatOf, videoSpanPlanOf, videoSpanWhatOf } from "./files/video";
+export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";
 export { bookingPageOffered, checkedWords, connectionWords, gainedOver, GOOGLE_SHOWN_REVIEWS, hoursFromGoogle, listingFactsOf, listingLine, NEW_REVIEW_NEWS, placesQueryOf, ratingWords, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, reviewIsNew, reviewNoticeIsAbout, reviewSnippet, reviewsWords, starsOf, toGoogleReviewVM, toGoogleVM } from "./google/google";
@@ -466,7 +470,7 @@ export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./shared/
 export { sumOf } from "./shared/numbers";
 export { areaCodeOf, formatPhoneDisplay, formatPhoneLocal, FORWARD_IS_HANDOFF, HANDOFF_FORWARDS_BACK, handoffE164, normalizePhone, phoneDialable, phoneTail, samePhone, shortCode, whyNotAHandoff, whyNotAPhone, whyNotForward } from "./shared/phone";
 export { agoShort, agoWords, dateFormat, DAY_MS, HOUR_MS, jittered, MIN_MS, SECOND_MS, spanLabel, spanUnits, timezoneCity, VIEW_CHANGE_MS, waitedLabel, WEEK_MS } from "./shared/time";
-export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./shared/unknown";
+export { finiteOrNull, finiteOrZero, isObjectRecord, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./shared/unknown";
 export { clipAtWord, plural } from "./shared/words";
 export { appLink, canonicalRoute, isMessagesParam, MESSAGES_ROUTE, movedAddress, retiredRouteOf, ROUTE_WORDS, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "./shell/address";
 export { BROADCAST_WORDS, CAMPAIGN_ROOMS, heldEmailsWords, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, NEW_MESSAGE_WORDS, OFFERS_IN_WRITING_WORDS, RUN_OPEN_WORDS, RUN_UNNAMED_WORDS, RUN_WAITING_SHORT, RUN_WAITING_WORDS, runApprovedTail, runApproveWords, runStopDoorWords, runStoppedWords, runStopWords, runsWaitingSentence, WHO_GETS_IT_WORDS } from "./shell/campaign-rooms";

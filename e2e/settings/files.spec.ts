@@ -31,6 +31,52 @@ async function aPhotoOfItsOwn(page: Page): Promise<Buffer> {
   return Buffer.from(base64, "base64");
 }
 
+/**
+ * A clip no one has kept before (stage B): three seconds of moving colour with a tone, recorded in the browser as a phone's own
+ * camera would hand one over (MediaRecorder, WebM), so every run's is its own.
+ */
+async function aClipOfItsOwn(page: Page): Promise<Buffer> {
+  const base64 = await page.evaluate(async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 360;
+    const draw = canvas.getContext("2d");
+    if (!draw) throw new Error("no canvas");
+    const hue = Math.random() * 360;
+    const audio = new AudioContext();
+    const tone = audio.createOscillator();
+    tone.frequency.value = 330 + Math.random() * 220;
+    const out = audio.createMediaStreamDestination();
+    tone.connect(out);
+    tone.start();
+    const stream = new MediaStream([...canvas.captureStream(30).getVideoTracks(), ...out.stream.getAudioTracks()]);
+    const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => chunks.push(e.data);
+    const stopped = new Promise((resolve) => (recorder.onstop = resolve));
+    let frame = 0;
+    const paint = setInterval(() => {
+      frame += 1;
+      draw.fillStyle = `hsl(${(hue + frame * 3) % 360} 60% 45%)`;
+      draw.fillRect(0, 0, 640, 360);
+      draw.fillStyle = "#fff";
+      draw.fillRect((frame * 7) % 640, 140, 80, 80);
+    }, 33);
+    recorder.start(250);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    recorder.stop();
+    await stopped;
+    clearInterval(paint);
+    tone.stop();
+    await audio.close();
+    const bytes = new Uint8Array(await new Blob(chunks, { type: "video/webm" }).arrayBuffer());
+    let binary = "";
+    for (const b of bytes) binary += String.fromCharCode(b);
+    return btoa(binary);
+  });
+  return Buffer.from(base64, "base64");
+}
+
 /** Ask's answer: what a turn streams, with a real card on it. An id that is no row's asks nothing of the server when it is pressed. */
 function askAnswers(fileId: string): string {
   const said = "Here it is, from your photo.";
@@ -265,6 +311,69 @@ test.describe("Files, from a photo to a post", () => {
       for (const id of [...made, photoId].filter(Boolean)) {
         const gone = await page.request.delete(scoped(`/api/v1/files/${id}`, workspace), fromTheApp);
         expect([200, 404], `${id} cleared`).toContain(gone.status());
+      }
+    }
+  });
+});
+
+/**
+ * A video, for real (decision 0099, stage B): a three-second clip goes up through Stream over tus, Stream's webhook makes it a
+ * file, its tile carries its length, and its sheet holds Stream's player; then it is deleted, which frees its minutes at Stream
+ * at once. A night costs a fraction of a stored minute and a few thousandths of a cent of hearing. Only where the workspace takes
+ * videos (`features.video_preview`): elsewhere Add offers photos alone, and this says so.
+ */
+test.describe("Files, a video", () => {
+  test.skip(!HAVE_SESSION, WHY_SKIPPED);
+  test.setTimeout(300_000);
+
+  test("a clip goes up through Stream, is made ready with its length, plays in its sheet, and is deleted", async ({
+    page,
+  }) => {
+    await signIn(page);
+    await page.goto("/#/admin/files");
+    await expect(page.getByTestId("rec-card-files")).toBeVisible({ timeout: 30_000 });
+    const accepts = (await page.getByTestId("fl-picker").getAttribute("accept")) ?? "";
+    test.skip(!accepts.includes("video/"), "this workspace does not take videos (features.video_preview is off)");
+    const workspace = await activeWorkspace(page);
+    let videoId = "";
+    try {
+      const started = page.waitForResponse(
+        (res) => new URL(res.url()).pathname === "/api/v1/files/start" && res.request().method() === "POST",
+        { timeout: 60_000 },
+      );
+      const proven = page.waitForResponse(
+        (res) => /\/api\/v1\/files\/[^/]+\/done/.test(res.url()) && res.request().method() === "POST",
+        { timeout: 120_000 },
+      );
+      await page.getByTestId("fl-picker").setInputFiles({
+        name: `e2e-${Date.now()}.webm`,
+        mimeType: "video/webm",
+        buffer: await aClipOfItsOwn(page),
+      });
+      const start = await started;
+      expect(start.ok(), "the reservation at Stream").toBeTruthy();
+      videoId = ((await start.json()) as { data: { id: string } }).data.id;
+      expect((await proven).ok(), "the clip went up").toBeTruthy();
+
+      // Stream's webhook makes it a file: the tile goes from being made ready to its poster with its length.
+      await expect(page.getByTestId("fl-length").first(), "made ready, with its length").toBeVisible({
+        timeout: 180_000,
+      });
+      await expect(page.getByTestId("fl-length").first()).toHaveText(/^0:0[2-4]$/);
+
+      // Its sheet holds Stream's player, under a token for this session.
+      await page.goto(`${new URL(page.url()).pathname}?do=file:${videoId}`);
+      const sheet = page.getByTestId("fl-sheet");
+      await expect(sheet).toBeVisible({ timeout: 30_000 });
+      await expect(sheet.getByTestId("fl-player")).toHaveAttribute("src", /cloudflarestream\.com\/.+\/iframe/, {
+        timeout: 30_000,
+      });
+      await expect(sheet.getByTestId("fl-make-post"), "a video makes no post").toHaveCount(0);
+      await expect(sheet.getByTestId("fl-download"), "and its own file stays with whoever sent it").toHaveCount(0);
+    } finally {
+      if (videoId) {
+        const gone = await page.request.delete(scoped(`/api/v1/files/${videoId}`, workspace), fromTheApp);
+        expect([200, 404], `${videoId} cleared`).toContain(gone.status());
       }
     }
   });

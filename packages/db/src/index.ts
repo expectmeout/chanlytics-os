@@ -705,6 +705,7 @@ export {
 } from "./repositories/facts/rehearsals";
 export type { RehearsalRow } from "./repositories/facts/rehearsals";
 export {
+  beginFileVideo,
   fileChange,
   fileFound,
   fileKeepMany,
@@ -714,8 +715,13 @@ export {
   filePurged,
   fileRemove,
   fileStart,
+  keepFileSound,
+  markFileMediaFailed,
+  markFileMediaProcessing,
+  markFileMediaReady,
+  removeLapsedUpload,
 } from "./repositories/files/doors";
-export type { FileFate } from "./repositories/files/doors";
+export type { FileFate, MediaFate, VideoFate } from "./repositories/files/doors";
 export {
   fileForWork,
   fileMadeOf,
@@ -729,9 +735,12 @@ export {
   filesToLookAgain,
   filesToPurgeAgain,
   keepClaudeCopy,
+  listVideosToDigestAgain,
+  listVideosWaiting,
   newestMadeOf,
+  readFileSound,
 } from "./repositories/files/files";
-export type { FileMemberRow, FileRow } from "./repositories/files/files";
+export type { FileMemberRow, FileRow, VideoToDigest, VideoWaiting } from "./repositories/files/files";
 export { importPerson, keepBefore, peopleCount, personBeforeNote } from "./repositories/imports/before";
 export type { BeforeKept, BeforeMessage } from "./repositories/imports/before";
 export {

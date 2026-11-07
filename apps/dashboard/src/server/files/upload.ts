@@ -1,28 +1,38 @@
 /**
- * A member's photo on its way in (decision 0099). It goes straight from the browser to storage over an address signed here: a
- * function could not carry 25 MB, and nothing else needs to read it on the way. So what arrived is proven afterwards from its
- * first bytes, read here and never taken from the browser's word: an image of the kind it said, large enough to use. Only then
- * is there a file: nothing holds a name for a photo that never arrives. Keeping a proven upload is the service role's, so no
- * session can say what the bytes are.
+ * A member's photo or video on its way in (decision 0099). A photo goes straight from the browser to storage over an address
+ * signed here: a function could not carry 25 MB, and nothing else needs to read it on the way. So what arrived is proven
+ * afterwards from its first bytes, read here and never taken from the browser's word: an image of the kind it said, large enough
+ * to use. Only then is there a file: nothing holds a name for a photo that never arrives. Keeping a proven upload is the service
+ * role's, so no session can say what the bytes are.
+ *
+ * A video (stage B) goes straight from the browser to Stream over tus, which keeps it: we never hold its bytes, so Stream is
+ * what proves it. The dashboard holds no Stream token, so it asks the edge for the reservation (api/admin/files/video-start),
+ * which makes the row at once with everything the browser knows (00556 file_video_begin), and Stream's webhook finishes it,
+ * whether or not the browser says done.
  */
 import "server-only";
 import { randomUUID } from "node:crypto";
 import {
   AppError,
+  FILE_BYTES_MAX,
   FILE_LOOK_EDITION,
   FILE_PIXELS_MAX,
   FILE_SIDE_MIN,
   FILE_TYPES,
+  FILE_VIDEO_BYTES_MAX,
+  FILE_VIDEO_SECONDS_MAX,
   FILE_WORDS as W,
   SECOND_MS,
-  uploadNameOf,
   filePathOf,
+  isVideoMime,
   recordOrNull,
+  uploadNameOf,
   type FileMime,
 } from "@chanlytics/contracts";
 import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels";
 import { imageHeaderOf } from "@chanlytics/core";
-import { fileFound, fileStart } from "@chanlytics/db";
+import { fileFound, markFileMediaProcessing, fileStart } from "@chanlytics/db";
+import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
@@ -35,13 +45,29 @@ const HEAD_READ_MS = 15 * SECOND_MS;
 /** How wide a copy is asked for where the head can't say, and how long Storage's decoder is given, inside a browser's patience. */
 const DECODE_WIDTH = 320;
 const DECODE_READ_MS = 10 * SECOND_MS;
+/** How long the edge has for a video's reservation and its row: one call to Stream and one door. */
+const VIDEO_START_MS = 12 * SECOND_MS;
 
-/** POST files/start: the door's word, and where the browser sends the bytes. There is no file yet. */
-export async function startUpload(
-  ctx: RouteContext,
-  member: Member,
-  input: { mime: FileMime },
-): Promise<{ id: string; upload_url: string }> {
+/** What files/start asks: a photo's kind and size, and a video's facts besides, so Stream's word alone can finish it. */
+interface StartAsked {
+  mime: FileMime;
+  bytes: number;
+  name?: string | undefined;
+  seconds?: number | null | undefined;
+  fingerprint?: string | undefined;
+}
+
+/** Where the browser sends the bytes, or the file a video twins, where nothing need go. */
+interface Started {
+  id: string;
+  upload_url: string | null;
+  twin: boolean;
+}
+
+/** POST files/start: the door's word, and where the browser sends the bytes. There is no photo yet; a video's row waits. */
+export async function startUpload(ctx: RouteContext, member: Member, input: StartAsked): Promise<Started> {
+  if (isVideoMime(input.mime)) return startVideo(ctx, member, input);
+  if (input.bytes > FILE_BYTES_MAX) throw new AppError("validation", W.tooBig);
   const id = randomUUID();
   const started = await fileStart(ctx.supabase, member.tenantId, id);
   if (started.error) throw doorRefusal(started.error);
@@ -50,7 +76,55 @@ export async function startUpload(
     log.error("file_upload_sign_failed", { tenant_id: member.tenantId, error: signed.error?.message ?? "no address" });
     throw new AppError("internal", W.notSaved, 503);
   }
-  return { id, upload_url: signed.data.signedUrl };
+  return { id, upload_url: signed.data.signedUrl, twin: false };
+}
+
+/**
+ * A video's start: the workspace takes videos (`features.video_preview`), the door's permission and cap (file_start, whose purge
+ * a day on lets go a video whose bytes never arrived), then the edge's reservation and the row. A twin is answered as one now,
+ * before a byte goes; no room is said in words.
+ */
+async function startVideo(ctx: RouteContext, member: Member, input: StartAsked): Promise<Started> {
+  if (input.bytes > FILE_VIDEO_BYTES_MAX) throw new AppError("validation", W.video.tooBig);
+  if (typeof input.seconds === "number" && input.seconds > FILE_VIDEO_SECONDS_MAX)
+    throw new AppError("validation", W.video.tooLong);
+  if (!input.fingerprint || !/^[0-9a-f]{64}$/.test(input.fingerprint))
+    throw new AppError("validation", W.video.notSaved);
+  // Whether the workspace takes videos is the edge's to say (its door reads the switch): a member may not read the config.
+  if (!edgeConfigured()) throw new AppError("validation", W.video.off);
+  const id = randomUUID();
+  const started = await fileStart(ctx.supabase, member.tenantId, id);
+  if (started.error) throw doorRefusal(started.error);
+  const answer = await callEdge(
+    "/api/admin/files/video-start",
+    {
+      tenant_id: member.tenantId,
+      id,
+      name: uploadNameOf(input.name ?? "", "video"),
+      mime: input.mime,
+      bytes: input.bytes,
+      seconds: input.seconds ?? null,
+      fingerprint: input.fingerprint,
+    },
+    { workspace: member.tenantId, user: ctx.userId, timeoutMs: VIDEO_START_MS },
+  );
+  const reply = recordOrNull(answer.body);
+  const fate = answer.status === 200 && reply ? reply.fate : null;
+  if (fate === "kept" && typeof reply?.upload_url === "string")
+    return { id, upload_url: reply.upload_url, twin: false };
+  if (fate === "here" && typeof reply?.file_id === "string") return { id: reply.file_id, upload_url: null, twin: true };
+  if (fate === "full") throw new AppError("validation", W.full);
+  if (fate === "minutes") throw new AppError("validation", W.video.full);
+  if (fate === "too_long") throw new AppError("validation", W.video.tooLong);
+  if (fate === "off") throw new AppError("validation", W.video.off);
+  log.error("file_video_start_failed", {
+    tenant_id: member.tenantId,
+    status: answer.status,
+    fate: typeof fate === "string" ? fate : null,
+  });
+  // The account is full, or Stream did not answer: nothing the person can change but to wait.
+  if (fate === "account_full") throw new AppError("validation", W.video.off);
+  throw new AppError("internal", W.video.notSaved, 503);
 }
 
 /** Its first bytes and its whole size, or null where nothing arrived. */
@@ -132,6 +206,12 @@ export async function finishUpload(
   id: string,
   input: { name: string; mime: FileMime },
 ): Promise<{ file_id: string; twin: boolean }> {
+  // A video's bytes are Stream's to prove: its row exists already, and this only says they have all gone, so its tile says
+  // "Getting it ready" at once. Optional: Stream's webhook finishes the row whether or not this comes.
+  if (isVideoMime(input.mime)) {
+    await markFileMediaProcessing(ctx.supabase, member.tenantId, id);
+    return { file_id: id, twin: false };
+  }
   const path = filePathOf(member.tenantId, id, input.mime);
   const read = await firstBytesOf(path);
   if (!read) throw new AppError("validation", W.notSaved);

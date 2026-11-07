@@ -3031,6 +3031,7 @@ test("every read, each an action of the read tools, runs against the database in
       "files.compare",
       "files.get",
       "files.list",
+      "files.listen",
       "files.view",
       "files.zoom",
       "guide",

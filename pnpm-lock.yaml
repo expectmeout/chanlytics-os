@@ -199,6 +199,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.118.0
         version: 2.118.0
+      sharp:
+        specifier: 0.35.5
+        version: 0.35.5(@types/node@24.19.2)
       stripe:
         specifier: 22.6.2
         version: 22.6.2(@types/node@24.19.2)

@@ -133,5 +133,13 @@ export {
   WEEK_MS,
 } from "./time";
 export type { SpanUnits } from "./time";
-export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./unknown";
+export {
+  finiteOrNull,
+  finiteOrZero,
+  isObjectRecord,
+  lineOrNull,
+  nonBlankOrNull,
+  recordOrNull,
+  trimmedOrNull,
+} from "./unknown";
 export { plural } from "./words";

@@ -255,6 +255,8 @@ export interface JobContext {
     fetch: (job: ClaimedJob, deadline: number) => Promise<void>;
     /** A removed file's bytes and Anthropic's copy let go. Throws when either could not be. */
     purge: (job: ClaimedJob) => Promise<void>;
+    /** One step of a video made ready, the next scheduled at once (00556). Throws when a try is worth repeating. */
+    digest: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
    * A freed time offered to the people who asked and never booked (decision 0082), as the edge holds it: the workspace's
