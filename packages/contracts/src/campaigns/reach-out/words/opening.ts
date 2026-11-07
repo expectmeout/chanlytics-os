@@ -17,6 +17,7 @@ import {
   wordCount,
   wordsIssueWords,
 } from "./limits";
+import { isOneOf } from "../../../shared/unknown";
 
 export type ChainProblem =
   | WordsProblem
@@ -139,7 +140,7 @@ export const OPENING_FACT_KEYS = [
 export type OpeningFactKey = (typeof OPENING_FACT_KEYS)[number];
 
 export function isOpeningFactKey(key: string): key is OpeningFactKey {
-  return (OPENING_FACT_KEYS as readonly string[]).includes(key);
+  return isOneOf(OPENING_FACT_KEYS, key);
 }
 
 /** A business's record: what the writer and the reader are given, and what code checks their answers against. */
@@ -301,7 +302,7 @@ export function openingGuess(text: string): string | null {
 }
 
 export function isOpeningProblem(phone: string | null | undefined): phone is OpeningProblem {
-  return (OPENING_PROBLEMS as readonly string[]).includes(phone ?? "");
+  return isOneOf(OPENING_PROBLEMS, phone ?? "");
 }
 
 /**

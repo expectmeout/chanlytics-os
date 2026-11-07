@@ -824,8 +824,7 @@ test.describe("Phone shell on a real workspace", () => {
     // worker, step by step with no one step at fault (the whole suite, 7 Nov 2026).
     test.setTimeout(180_000);
     const pulls: Record<string, string> = {};
-    // Where the list is, and what gives under a pull: its own scroller (a box that scrolls itself), its rows, or the
-    // route view.
+    // Where the list is, and what gives under a pull: its rows, or the route view.
     for (const [hash, sel, gives] of [
       ["inbox", ".ix-threads", ".ix-threads"],
       ["conversations", ".cv-rows", ".cv-rows"],
@@ -845,13 +844,6 @@ test.describe("Phone shell on a real workspace", () => {
       const box = page.locator(sel).first();
       // A surface this workspace (or the local harness) does not draw, or a pane a phone leaves out while nothing is open.
       if ((await box.count()) === 0 || !(await box.isVisible())) continue;
-      if (gives === "own") {
-        pulls[`${hash} ${sel}`] = await box.evaluate((el) => {
-          const oy = getComputedStyle(el).overflowY;
-          return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight ? "gives" : "holds";
-        });
-        continue;
-      }
       const at = (await box.boundingBox())!;
       const top = page.locator(".frame-top");
       const topWas = (await top.boundingBox())!.y;

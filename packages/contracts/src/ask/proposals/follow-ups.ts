@@ -10,6 +10,7 @@
  */
 
 import { DAY_KEY } from "../../shared/zone/day-keys";
+import { isOneOf } from "../../shared/unknown";
 
 /** The page a member's follow-ups are kept under in their views. */
 export const ASK_VIEW_PAGE = "ask";
@@ -39,8 +40,7 @@ export interface AskFollowUp {
   made_at: string;
 }
 
-const isWake = (v: unknown): v is FollowUpWake =>
-  typeof v === "string" && (FOLLOW_UP_WAKES as readonly string[]).includes(v);
+const isWake = (v: unknown): v is FollowUpWake => typeof v === "string" && isOneOf(FOLLOW_UP_WAKES, v);
 const clipped = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
 /** One follow-up as a view keeps it, or null where it is not one: a view is the member's, and read leniently. */

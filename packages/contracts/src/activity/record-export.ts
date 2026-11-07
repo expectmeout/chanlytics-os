@@ -148,15 +148,14 @@ export function exportLeftOutWords(): string {
 /** Everything the owner's copy does not hold, each with why: the file's `not_included`, in the order the kinds are named. */
 export function exportLeftOut(): ExportLeftOut[] {
   const kinds: ExportLeftOut[] = [];
-  for (const how of Object.values(EXPORT_OF) as readonly ExportOf[])
-    if ("not_exported" in how) kinds.push(how.not_exported);
+  for (const how of Object.values(EXPORT_OF)) if ("not_exported" in how) kinds.push(how.not_exported);
   return [...kinds, ...LEFT_OUT_BESIDE_THE_KINDS];
 }
 
 /** The sections some kind of record is exported to, each once, in the file's order. */
 export function exportedSections(): ExportSection[] {
   const named = new Set<ExportSection>();
-  for (const how of Object.values(EXPORT_OF) as readonly ExportOf[]) if ("section" in how) named.add(how.section);
+  for (const how of Object.values(EXPORT_OF)) if ("section" in how) named.add(how.section);
   return EXPORT_SECTIONS.filter((s) => named.has(s));
 }
 

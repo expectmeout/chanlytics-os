@@ -4,6 +4,7 @@ import type { ModelStanding } from "../../ai/anthropic-enforcement";
 import { WORKSPACE_PAUSED } from "../../lines/caller-gets";
 import { PAUSED_WORDS } from "../../workspace/billing/plans";
 import { roleSays } from "../../config/workspace-config/role-perms";
+import { isOneOf } from "../../shared/unknown";
 
 /** Whether a key press belongs to a field the person is typing in. */
 export function isTypingTarget(tagName: string | null | undefined, contentEditable: boolean): boolean {
@@ -326,7 +327,7 @@ export function toastShape(params: {
   ms?: unknown;
   stays?: unknown;
 }): ToastShape {
-  const tone: ToastTone = (TOAST_TONES as readonly unknown[]).includes(params.tone) ? (params.tone as ToastTone) : "ok";
+  const tone: ToastTone = isOneOf(TOAST_TONES, params.tone) ? params.tone : "ok";
   const request = typeof params.ms === "number" && Number.isFinite(params.ms) && params.ms > 0 ? params.ms : null;
   const presses = !!params.undo || !!params.action || (Array.isArray(params.links) && params.links.length > 0);
   const ms = Math.min(

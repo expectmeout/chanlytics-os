@@ -70,6 +70,7 @@ import { effortAbove } from "../ai/effort";
 import { MODEL_EFFORTS, MODEL_ROUTES, readsAsModel, type ModelEffort } from "../ai/models/routes";
 import { hasFastMode, modelTakes, type ModelSpeed } from "../ai/models/ids";
 import { ASK_MAX_TOKENS } from "./thread-words";
+import { isOneOf } from "../shared/unknown";
 
 export interface AskModelProfile {
   /** The model's id as the API takes it: the registry's, or any other a deployment names. */
@@ -115,7 +116,7 @@ export function askRoundCap(effort: ModelEffort | null): number {
 
 const effortOf = (raw: string | null | undefined): ModelEffort | null => {
   const request = (raw ?? "").trim();
-  return (MODEL_EFFORTS as readonly string[]).includes(request) ? (request as ModelEffort) : null;
+  return isOneOf(MODEL_EFFORTS, request) ? request : null;
 };
 
 /**

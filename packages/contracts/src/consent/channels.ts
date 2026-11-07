@@ -33,6 +33,7 @@
  * `contact.consent_changed` event as it is written (the migration's `consent_channels_of`, which a test holds to this
  * function case by case), so the predicate reads a column and never replays a ledger.
  */
+import { isOneOf } from "../shared/unknown";
 
 /** The channels a yes may cover: the ones a business writes to a person on. */
 export const CONSENT_CHANNELS = ["whatsapp", "sms", "email"] as const;
@@ -46,7 +47,7 @@ export const CONSENT_CHANNEL_WORDS: Record<ConsentChannel, string> = {
 };
 
 function isConsentChannel(c: string | null | undefined): c is ConsentChannel {
-  return !!c && (CONSENT_CHANNELS as readonly string[]).includes(c);
+  return !!c && isOneOf(CONSENT_CHANNELS, c);
 }
 
 /**

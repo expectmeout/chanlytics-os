@@ -7,6 +7,7 @@
  */
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import type { MessageDto } from "./thread-dto";
+import { textOrEmpty } from "../shared/unknown";
 
 export interface MessageAuthor {
   kind: "receptionist" | "team" | "broadcast" | "playbook";
@@ -84,8 +85,8 @@ export function isPersonsWords(meta: unknown): boolean {
 export function messageVia(message: Pick<MessageDto, "meta">): { kind: "broadcast" | "playbook"; name: string } | null {
   if (message.meta?.source !== "broadcast") return null;
   return message.meta.playbook_name
-    ? { kind: "playbook", name: String(message.meta.playbook_name) }
-    : { kind: "broadcast", name: String(message.meta.broadcast_name ?? "broadcast") };
+    ? { kind: "playbook", name: textOrEmpty(message.meta.playbook_name) }
+    : { kind: "broadcast", name: textOrEmpty(message.meta.broadcast_name ?? "broadcast") };
 }
 
 /**

@@ -3,6 +3,7 @@ import { activityKindWords } from "../workspace/activity/kinds";
 import { ACTIVITY_KINDS, isActivityNoise } from "../workspace/activity-rows";
 import { activityTone } from "./tones";
 import { UNKNOWN_MEMBER_WORD } from "../shared/words";
+import { isOneOf } from "../shared/unknown";
 
 /**
  * The activity log's families: where in the product a row belongs, in the words the sidebar and Settings say.
@@ -165,7 +166,7 @@ export function activityFamily(kind: string): ActivityFamily | null {
 }
 
 export const isActivityFamily = (value: unknown): value is ActivityFamily =>
-  typeof value === "string" && (ACTIVITY_FAMILIES as readonly string[]).includes(value);
+  typeof value === "string" && isOneOf(ACTIVITY_FAMILIES, value);
 
 /** Every kind either ledger may hold that belongs to a family, as the ledgers spell them: what the route narrows by. */
 export function activityFamilyKinds(family: ActivityFamily): string[] {

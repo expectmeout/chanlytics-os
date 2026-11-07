@@ -19,6 +19,7 @@ import { PEOPLE_KEYWORD_CHARS, type LeadPeoplePlan } from "./search/people-plan/
 import { peopleIndustryOf } from "./search/people-industries";
 import type { LeadSearchPlan } from "./search/plan";
 import { LeadSearchPlanSchema } from "./search/plan-schema";
+import { isOneOf } from "../shared/unknown";
 
 const cut = (max: number) => z.string().transform((s) => s.trim().slice(0, max));
 /**
@@ -146,10 +147,10 @@ function peoplePlanOf(idea: IdeaAnswer, ideaPacket: IdeaPacket): LeadPeoplePlan 
     terms: (titles.length ? titles : [idea.who_one || idea.who]).slice(0, 5),
     region: states.length ? states.join(", ") : "US",
     asked: `${capFirst(idea.words)} ${states.length ? `in ${states.join(", ")}` : "anywhere in the US"}`.slice(0, 400),
-    seniority: idea.seniority.filter((s) => (PEOPLE_SENIORITIES as readonly string[]).includes(s)),
+    seniority: idea.seniority.filter((s) => isOneOf(PEOPLE_SENIORITIES, s)),
     industries: industries.slice(0, 5),
     keywords: idea.keywords.map((k) => k.trim()).filter((k) => k.length >= 2 && k.length <= PEOPLE_KEYWORD_CHARS),
-    company_sizes: idea.company_sizes.filter((s) => (PEOPLE_COMPANY_SIZES as readonly string[]).includes(s)),
+    company_sizes: idea.company_sizes.filter((s) => isOneOf(PEOPLE_COMPANY_SIZES, s)),
   });
   if (!input.success) return null;
   const result = planPeopleSearch(input.data);

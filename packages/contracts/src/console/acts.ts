@@ -16,6 +16,7 @@ import {
   whyWords,
 } from "./staff";
 import { SLUG } from "../shared/identity";
+import { isOneOf } from "../shared/unknown";
 
 // --------------------------------------------------------------------------------------------------- what came of it
 
@@ -199,14 +200,10 @@ export function consoleAddressOf(pathname: string | null | undefined): ConsoleAd
   const [root, screen, slug, tab] = parts;
   const home: ConsoleAddress = { screen: "home", slug: null, tab: "overview" };
   if (root !== CONSOLE_PATH.slice(1) || !screen) return home;
-  if (!(CONSOLE_SCREENS as readonly string[]).includes(screen)) return home;
-  const consoleScreen = screen as ConsoleScreen;
-  if (consoleScreen !== "workspaces" || !slug || !SLUG.test(slug))
-    return { screen: consoleScreen, slug: null, tab: "overview" };
-  const item = (CONSOLE_WORKSPACE_TABS as readonly string[]).includes(tab ?? "")
-    ? (tab as ConsoleWorkspaceTab)
-    : "overview";
-  return { screen: consoleScreen, slug, tab: item };
+  if (!isOneOf(CONSOLE_SCREENS, screen)) return home;
+  if (screen !== "workspaces" || !slug || !SLUG.test(slug)) return { screen, slug: null, tab: "overview" };
+  const item = isOneOf(CONSOLE_WORKSPACE_TABS, tab) ? tab : "overview";
+  return { screen, slug, tab: item };
 }
 
 /** The address of a screen, or of a workspace and its tab. */

@@ -16,6 +16,7 @@ import { quotedFact, trimWords } from "../judge";
 import { LEAD_REASON_MAX_WORDS } from "./caps";
 import { LEAD_KIND_KEY } from "./class";
 import { peopleWho, type LeadPeoplePlan } from "./people-plan/plan";
+import { isOneOf } from "../../shared/unknown";
 
 /* ----------------------------------------------------------- the facts -- */
 
@@ -36,7 +37,6 @@ export interface CompanyFacts {
 
 /** The keys an answer may cite: the facts, by name. */
 const COMPANY_FACT_KEYS = ["name", "industry", "size", "city", "state", "host", "about"] as const;
-type CompanyFactKey = (typeof COMPANY_FACT_KEYS)[number];
 
 /** How long a company's own description may be when the judge reads it: longer than a fact, since it is the evidence. */
 export const COMPANY_ABOUT_MAX = 400;
@@ -160,9 +160,8 @@ export function parseCompanyJudgeAnswer(
     if (seen.has(otherCompany.ref)) return { ok: false, why: `ref ${otherCompany.ref} answered twice` };
     seen.add(otherCompany.ref);
     for (const f of otherCompany.facts) {
-      if (!(COMPANY_FACT_KEYS as readonly string[]).includes(f))
-        return { ok: false, why: `ref ${otherCompany.ref}: fact ${f}` };
-      const v = company[f as CompanyFactKey];
+      if (!isOneOf(COMPANY_FACT_KEYS, f)) return { ok: false, why: `ref ${otherCompany.ref}: fact ${f}` };
+      const v = company[f];
       if (otherCompany.fit === "pass" && (v === null || v === ""))
         return { ok: false, why: `ref ${otherCompany.ref}: fact ${f} is not there` };
     }

@@ -18,6 +18,7 @@ import { weekdayNamed } from "../shared/zone/day-keys";
 import { clockInZone, dayInZone, dayPlusInZone } from "../shared/zone/math";
 import { formatPhoneLocal } from "../shared/phone";
 import { DAY_MS } from "../shared/time";
+import { entryOf } from "../shared/unknown";
 
 /**
  * Today, as an owner about to call needs it: whether they are open NOW. "Open today · 11 AM to 5 PM" made them work
@@ -143,7 +144,7 @@ export function leadCheckWord(search: LeadSearchDto | null, key: string, answer:
   if (cr) return said(cap(cr.text), `${cap(cr.text)}: no`);
   const ex = plan?.exclusions.find((e) => e.key === key);
   if (ex) return said(`Not ${low(ex.text)}`, `One of the ${low(ex.text)}`);
-  const fixed = (LEAD_CHECK_WORDS as Record<string, Record<"yes" | "no" | "unknown", string>>)[key];
+  const fixed = entryOf(LEAD_CHECK_WORDS, key);
   if (fixed) return fixed[answer];
   const plain = cap(key.replace(/_+/g, " ").trim()) || key;
   return said(plain, `${plain}: no`);

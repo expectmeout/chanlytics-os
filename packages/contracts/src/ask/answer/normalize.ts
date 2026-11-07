@@ -37,7 +37,7 @@ import {
   type AskOpen,
   type AskSource,
 } from "./shape";
-import { recordOrEmpty } from "../../shared/unknown";
+import { isOneOf, recordOrEmpty } from "../../shared/unknown";
 
 /**
  * The openings route's days, as the palette reads them (bridge/ask/api.ts `openings`). The route's `text` is
@@ -199,7 +199,7 @@ function groundRef(value: unknown, read: AskReadSet): AskSource | null {
   const obj = recordOrEmpty(value);
   const kind = typeof obj.kind === "string" ? obj.kind : "none";
   const spelled = typeof obj.id === "string" ? obj.id.trim().replace(/^#?\/+/, "") : "";
-  if (!spelled || !(ASK_CITATION_KINDS as readonly string[]).includes(kind)) return null;
+  if (!spelled || !isOneOf(ASK_CITATION_KINDS, kind)) return null;
   const label = words(obj.label, C.label) || spelled;
   // The row is the route's LAST id: every row's route carries one, but a lead's on a search's view carries the search's
   // first (leadsRoute: `clients/leads:s-<search>:p-<lead>`, the open lead last), and the lead is the row it names.
@@ -209,9 +209,7 @@ function groundRef(value: unknown, read: AskReadSet): AskSource | null {
   const page = row || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page" as const, id: spelled, label }];
   const tries: AskCitation[] = [
     ...(kind === "page" ? page : []),
-    ...[kind, ...ROW_KINDS]
-      .filter((k) => k !== "page")
-      .map((k) => ({ kind: k as AskCitationKind, id: row ?? spelled, label })),
+    ...[kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row ?? spelled, label })),
     ...page,
   ];
   const kept = groundCitations(tries, read).kept[0];
@@ -261,7 +259,7 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
     ...sentence,
     detail: answerDoors(sentence.detail, (target, label) => {
       const [, kind = "", id = ""] = /^([a-z_]+):(.+)$/.exec(target) ?? [];
-      const named = (ASK_CITATION_KINDS as readonly string[]).includes(kind);
+      const named = isOneOf(ASK_CITATION_KINDS, kind);
       return ground(named ? { kind, id, label } : { kind: "page", id: target, label })?.to ?? null;
     }),
   };

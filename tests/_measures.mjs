@@ -66,6 +66,7 @@ import { BOUNDARY_RATCHETS } from "./repo/boundaries/_boundaries.mjs";
 import { SIZE_RATCHETS } from "./repo/size/_size.mjs";
 import { RULE_RATCHETS } from "./repo/rules/_rules.mjs";
 import { API_RATCHETS } from "./repo/api/_api.mjs";
+import { TYPE_RATCHETS } from "./types/_types.mjs";
 
 /** A function's limits: eslint.config.mjs's FUNCTION_LIMITS, as errors where this holds nothing. */
 export const LIMIT = { lines: 150, branches: 30, depth: 5 };
@@ -1036,15 +1037,16 @@ function uncheckedIndexReads() {
   for (const { tsconfig } of waitingProjects()) {
     const config = resolvedConfig(tsconfig);
     // One program over the project and the packages' sources it imports (no project references, so nothing need be
-    // built first), checked in the project's own files alone: a package's reads are its own project's to count.
+    // built first), checked in the files the project includes alone: a package's reads are its own project's to count,
+    // and a file the project takes in from outside its folder (the browser specs, the kit's harness) is the project's.
     const program = ts.createProgram({
       rootNames: config.fileNames,
       options: { ...unbuilt(config.options), noUncheckedIndexedAccess: true },
     });
-    const home = path.dirname(tsconfig) + path.sep;
+    const own = new Set(config.fileNames.map((f) => path.resolve(f)));
     for (const sf of program.getSourceFiles()) {
       const file = path.relative(ROOT, path.resolve(sf.fileName)).split(path.sep).join("/");
-      if (!path.resolve(sf.fileName).startsWith(home) || /(^|\/)(\.next|node_modules)\//.test(file)) continue;
+      if (!own.has(path.resolve(sf.fileName)) || /(^|\/)(\.next|node_modules)\//.test(file)) continue;
       const n = program.getSemanticDiagnostics(sf).length;
       if (n) now[file] = (now[file] ?? 0) + n;
     }
@@ -1301,4 +1303,5 @@ export const RATCHETS = [
   ...SIZE_RATCHETS,
   ...RULE_RATCHETS,
   ...API_RATCHETS,
+  ...TYPE_RATCHETS,
 ].map((m) => ({ mode: "count", ...m, key: m.key ?? m.file.replace(/\.json$/, "") }));

@@ -16,6 +16,7 @@ import { callsOf, sendsOf, webhooksOf, type HealthPartsDto } from "../health-par
 import { deliveriesOf } from "../health-parts/models-connections";
 import { healthAskOf } from "../health-ask";
 import { inScope, oursOf, type HealthScope, type HealthWorkspaceDto } from "../health-scope";
+import { isOneOf } from "../../shared/unknown";
 
 // --------------------------------------------------------------------------------------------------- the read
 
@@ -106,7 +107,7 @@ const HEALTH_PATH = `${CONSOLE_PATH}/health`;
 export function healthTabOf(pathname: string | null | undefined): HealthTab {
   const parts = ((pathname ?? "").split(/[?#]/)[0] ?? "").split("/").filter(Boolean);
   const tab = parts[0] === CONSOLE_PATH.slice(1) && parts[1] === "health" ? parts[2] : undefined;
-  return (HEALTH_TABS as readonly string[]).includes(tab ?? "") ? (tab as HealthTab) : "overview";
+  return isOneOf(HEALTH_TABS, tab) ? tab : "overview";
 }
 
 /** A tab's address: /console/health for the overview, /console/health/<tab> for the others. */

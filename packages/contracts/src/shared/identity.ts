@@ -5,6 +5,7 @@
  * signed token, a form's field -- so it is one pattern here (decision 0108). A module that looks for an id inside a
  * longer text (Ask's answers) is a different test and keeps its own.
  */
+import { textOrEmpty } from "./unknown";
 
 /** A whole string that is a uuid. No `g` flag, so one shared pattern keeps no state between two tests. */
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,7 +18,7 @@ export const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
  * so a number or a missing field is simply not an id, never a throw.
  */
 export function isUuid(value: unknown): boolean {
-  return UUID.test(String(value ?? ""));
+  return UUID.test(textOrEmpty(value));
 }
 
 /**

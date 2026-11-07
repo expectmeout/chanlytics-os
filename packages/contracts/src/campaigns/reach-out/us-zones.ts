@@ -6,6 +6,7 @@
  * The finder is US-only (leads.region is a two-letter state or DC, contracts stateCode), so a region outside this map
  * has no zone, and the timetable falls back to the workspace's.
  */
+import { entryOf } from "../../shared/unknown";
 export const US_STATE_ZONES = {
   AL: "America/Chicago",
   AK: "America/Anchorage",
@@ -64,5 +65,5 @@ export type UsStateCode = keyof typeof US_STATE_ZONES;
 
 export function zoneOfRegion(region: string | null | undefined): string | null {
   const code = (region ?? "").trim().toUpperCase();
-  return (US_STATE_ZONES as Record<string, string>)[code] ?? null;
+  return entryOf(US_STATE_ZONES, code) ?? null;
 }

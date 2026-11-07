@@ -16,6 +16,7 @@ import type { ActivationMilestone } from "../activation";
 import { partnerEventBits } from "../partner/platform";
 import { broadcastFailureWords } from "../../campaigns/broadcasts/failure-words";
 import { WORDS } from "./dtos";
+import { listOrEmpty } from "../../shared/unknown";
 
 /** "line.texting_approved" → "Line · texting approved", for a kind the table above does not name (a channel.* field, or a new one). */
 export function humanize(kind: string): string {
@@ -41,9 +42,7 @@ export function settingsChangedWords(p: Record<string, unknown>): string | null 
   const from = textAt(p, "from");
   const to = textAt(p, "to");
   if (from && to) return `renamed from “${from}” to “${to}”`;
-  const fields = Array.isArray(p.fields)
-    ? (p.fields as unknown[]).filter((f): f is string => typeof f === "string")
-    : [];
+  const fields = listOrEmpty(p.fields).filter((f): f is string => typeof f === "string");
   return fields.length ? fields.slice(0, 4).join(", ") : null;
 }
 
@@ -231,7 +230,7 @@ const CAPABILITY_WORDS: Record<string, string> = { voice: "calls", whatsapp: "Wh
 
 /** A list of a row's own short words (the parts of a playbook that moved): each as written, four at most. */
 const wordsAt = (o: Record<string, unknown>, k: string): string | null => {
-  const list = Array.isArray(o[k]) ? (o[k] as unknown[]).filter((f): f is string => typeof f === "string") : [];
+  const list = listOrEmpty(o[k]).filter((f): f is string => typeof f === "string");
   return list.length ? list.slice(0, 4).join(", ") : null;
 };
 

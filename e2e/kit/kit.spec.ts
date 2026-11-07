@@ -107,7 +107,7 @@ async function show(page: Page, theme: Theme = "dark", look: Look = "glass") {
   await page.goto(`/?theme=${theme}&look=${look}`);
   const still = await page.addStyleTag({ content: STILL });
   await still.evaluate((el, id) => {
-    el.id = id;
+    if (el instanceof Element) el.id = id;
   }, STILL_ID);
   await page.evaluate(() => document.fonts.ready);
 }

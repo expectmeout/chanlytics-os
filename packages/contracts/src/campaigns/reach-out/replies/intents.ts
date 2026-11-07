@@ -1,14 +1,14 @@
 /** Replies: intents. */
 
 import { clipAtWord } from "../../../conversations/message-words";
+import { isOneOf } from "../../../shared/unknown";
 
 /** What a reply means, in the spec's order (§4.7). */
 export const REPLY_INTENTS = ["interested", "question", "not_now", "no", "wrong_person", "away", "other"] as const;
 
 export type ReplyIntent = (typeof REPLY_INTENTS)[number];
 
-export const isReplyIntent = (value: unknown): value is ReplyIntent =>
-  (REPLY_INTENTS as readonly unknown[]).includes(value);
+export const isReplyIntent = (value: unknown): value is ReplyIntent => isOneOf(REPLY_INTENTS, value);
 
 /**
  * What an owner may say the business wrote back to an email they sent from their own inbox (00429): a person's reply,
@@ -73,7 +73,7 @@ export const REPLY_UNREADS = ["no_model", "may_not_spend", "day_spent", "model_f
 
 export type Unread = (typeof REPLY_UNREADS)[number];
 
-export const isUnread = (value: unknown): value is Unread => (REPLY_UNREADS as readonly unknown[]).includes(value);
+export const isUnread = (value: unknown): value is Unread => isOneOf(REPLY_UNREADS, value);
 
 /** Replies a workspace reads a UTC day (G4), beside the check's REACH_OUT_CHECKS_PER_DAY. */
 export const REACH_OUT_READS_PER_DAY = 200;

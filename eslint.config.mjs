@@ -123,14 +123,10 @@ export const HELD_TYPED = [
   "@typescript-eslint/no-deprecated",
   "@typescript-eslint/no-misused-promises",
   "@typescript-eslint/no-redundant-type-constituents",
-  "@typescript-eslint/no-unsafe-argument",
   "@typescript-eslint/no-unsafe-assignment",
-  "@typescript-eslint/no-unsafe-call",
-  "@typescript-eslint/no-unsafe-member-access",
   "@typescript-eslint/no-unsafe-return",
   "@typescript-eslint/only-throw-error",
   "@typescript-eslint/require-await",
-  "@typescript-eslint/restrict-template-expressions",
   "@typescript-eslint/unbound-method",
 ];
 
@@ -151,6 +147,37 @@ const OUR_TYPED_TS_RULES = {
   ...TYPED_AT_ERROR,
   ...Object.fromEntries(HELD_TYPED.map((rule) => [rule, asWarning(TYPED_AT_ERROR[rule] ?? "error")])),
 };
+
+/**
+ * Rules of typescript-eslint's strict set, on the backend alone (decision 0112): the edge, the packages and the
+ * dashboard's server and routes (BACKEND_TYPED). A page's findings are the frontend's to take on. Each is held as a
+ * warning while the backend has findings of it, as HELD_TYPED's are, and is an error in the change that fixes its last:
+ * checks/lint.mjs fails a run in which a rule of HELD_STRICT has none. no-unnecessary-condition is fixed last, after
+ * outside data is parsed where it comes in: while an assertion gives a value a shape on trust, the rule reads the check
+ * that value still needs as one that can never fire.
+ */
+const STRICT_AT_ERROR = {
+  // An object literal told its type passes a missing or misspelled field; an annotation or `satisfies` refuses one.
+  "@typescript-eslint/consistent-type-assertions": [
+    "error",
+    { assertionStyle: "as", objectLiteralTypeAssertions: "never" },
+  ],
+  // A condition the types say is always true or always false: a dead branch, or a type that says less than the code knows.
+  "@typescript-eslint/no-unnecessary-condition": "error",
+};
+export const HELD_STRICT = [
+  "@typescript-eslint/consistent-type-assertions",
+  "@typescript-eslint/no-unnecessary-condition",
+];
+const BACKEND_TYPED = [
+  "apps/edge/**/*.ts",
+  "packages/*/src/**/*.ts",
+  "apps/dashboard/src/server/**/*.ts",
+  "apps/dashboard/app/api/**/*.ts",
+];
+const BACKEND_STRICT_RULES = Object.fromEntries(
+  Object.entries(STRICT_AT_ERROR).map(([rule, entry]) => [rule, HELD_STRICT.includes(rule) ? asWarning(entry) : entry]),
+);
 
 /** Plugin map for every TypeScript block. */
 const TS_PLUGINS = { "@typescript-eslint": tseslint.plugin };
@@ -541,12 +568,15 @@ const NEEDS_TYPES = new Set(
 export const withoutTypes = (config) =>
   config.map((block) => {
     const parserOptions = block.languageOptions?.parserOptions;
-    if (!parserOptions?.projectService) return block;
+    // A block of rules alone (the backend's strict rules) adds typed rules to files another block parses: off too.
+    const rules =
+      block.rules &&
+      Object.fromEntries(
+        Object.entries(block.rules).map(([rule, entry]) => [rule, NEEDS_TYPES.has(rule) ? "off" : entry]),
+      );
+    if (!parserOptions?.projectService) return rules ? { ...block, rules } : block;
     const { projectService: _service, tsconfigRootDir: _root, ...rest } = parserOptions;
-    const rules = Object.fromEntries(
-      Object.entries(block.rules ?? {}).map(([rule, entry]) => [rule, NEEDS_TYPES.has(rule) ? "off" : entry]),
-    );
-    return { ...block, languageOptions: { ...block.languageOptions, parserOptions: rest }, rules };
+    return { ...block, languageOptions: { ...block.languageOptions, parserOptions: rest }, rules: rules ?? {} };
   });
 
 export default [
@@ -670,6 +700,12 @@ export default [
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
     },
+  },
+
+  // The backend's strict rules (decision 0112, STRICT_AT_ERROR above), after every block that types it.
+  {
+    files: BACKEND_TYPED,
+    rules: BACKEND_STRICT_RULES,
   },
 
   // The dashboard reads its environment in one place too, as the edge does: src/server/shared/env.ts on the server, typed by

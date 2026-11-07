@@ -79,7 +79,7 @@ export default function CodeStep({
     field.current?.focus();
   }, []);
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.SubmitEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);

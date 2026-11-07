@@ -26,6 +26,7 @@
 import { replyWaitsOnYou } from "../conversations/standing";
 import { runApprovalRefusal } from "../campaigns/playbooks/approval";
 import { RUN_GOING_STATES } from "../campaigns/broadcasts/states";
+import { isOneOf } from "../shared/unknown";
 
 /** One thread as the count reads it, however the page holds the thread: a view model, or a conversation off the wire. */
 export interface WaitingThread {
@@ -82,7 +83,7 @@ export function runWaitsOnYou(run: WaitingRun, days: RunDays): boolean {
 
 /** How many emails a going run's check holds for your say: none for a run that is not going, or where Sent did not say. */
 export function runHeldEmails(run: Pick<WaitingRun, "state" | "held">): number {
-  const going = (RUN_GOING_STATES as readonly string[]).includes(run.state);
+  const going = isOneOf(RUN_GOING_STATES, run.state);
   return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
 }
 
@@ -96,7 +97,7 @@ export function batchHeldEmails(run: Pick<WaitingRun, "state" | "held">): number
 
 /** How many of a going run's emails wait for its owner to send them from their inbox (00429): none for a run not going. */
 export function runDraftedEmails(run: Pick<WaitingRun, "state" | "drafted">): number {
-  const going = (RUN_GOING_STATES as readonly string[]).includes(run.state);
+  const going = isOneOf(RUN_GOING_STATES, run.state);
   return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
 }
 

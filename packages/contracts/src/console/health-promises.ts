@@ -116,7 +116,10 @@ export function promiseDaysOf(
   for (const r of inView) byDay.set(r.day, [...(byDay.get(r.day) ?? []), r]);
   const out = PROMISES.map((name): PromiseRowVM => {
     const target = PLATFORM_NUMBERS[name];
-    let worst: { v: number; most: number; key: string | null; name: string; day: string } | null = null;
+    // Kept on an object the day loop writes: a `let` set to null reads as null after the loop, which never runs in its flow.
+    const seen: { worst: { v: number; most: number; key: string | null; name: string; day: string } | null } = {
+      worst: null,
+    };
     const missedBy = new Set<string>();
     let lastMissMs: number | null = null;
     const cells = span.map((day): PromiseCellVM => {
@@ -127,7 +130,8 @@ export function promiseDaysOf(
         for (const b of pastTarget(r, { all: true }).filter((x) => x.number === name)) {
           missedBy.add(r.name);
           if (!dayWorst || b.value > dayWorst.v) dayWorst = { v: b.value, most: b.most, key: b.key };
-          if (!worst || b.value > worst.v) worst = { v: b.value, most: b.most, key: b.key, name: r.name, day };
+          if (!seen.worst || b.value > seen.worst.v)
+            seen.worst = { v: b.value, most: b.most, key: b.key, name: r.name, day };
         }
       if (!dayWorst) return { day, state: "kept", words: null };
       lastMissMs = Date.parse(`${day}T23:59:59Z`);
@@ -139,7 +143,7 @@ export function promiseDaysOf(
     });
     const missedDays = cells.filter((c) => c.state === "missed").length;
     const judged = cells.some((c) => c.state !== "none");
-    const item = worst as { v: number; most: number; key: string | null; name: string; day: string } | null;
+    const item = seen.worst;
     return {
       key: name,
       ...PROMISE_WORDS[name],

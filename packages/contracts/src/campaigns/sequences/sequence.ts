@@ -1,4 +1,5 @@
 import { PLAYBOOK_VETO_DELAY_WORDS } from "../playbooks/triggers/notices";
+import { isOneOf } from "../../shared/unknown";
 
 /**
  * A sequence (decision 0060): anything the workspace sends on its own. It starts for someone, takes its steps in their
@@ -29,7 +30,7 @@ export const SEQUENCE_MODES = ["auto", "veto", "ask"] as const;
 export type SequenceMode = (typeof SEQUENCE_MODES)[number];
 
 export const isSequenceMode = (message: unknown): message is SequenceMode =>
-  typeof message === "string" && (SEQUENCE_MODES as readonly string[]).includes(message);
+  typeof message === "string" && isOneOf(SEQUENCE_MODES, message);
 
 /**
  * Each mode in the owner's words: `line` is what the line under a sequence's name says ("· holds each batch for you to

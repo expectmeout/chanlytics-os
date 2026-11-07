@@ -34,6 +34,7 @@ import {
   type ProposalCall,
   type ProposalSpec,
 } from "./spec";
+import { isOneOf, listOrEmpty } from "../../shared/unknown";
 
 /** What a member does with a playbook's run that waits for them (the Phase 4 plan, D11): send it, or end it unsent. */
 export const RUN_VERBS = ["approve", "skip"] as const;
@@ -211,7 +212,7 @@ export const broadcastSpec: ProposalSpec = {
         ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it`
         : SENDING_NOW_WORDS;
     const sentence = heardWords(leftOut, true);
-    return `Send “${result.name ?? asText(pl.name)}” — ${count} ${count === 1 ? "person" : "people"}, ${goes}${sentence ? ` · ${sentence}` : ""}`;
+    return `Send “${asText(result.name ?? pl.name)}” — ${count} ${count === 1 ? "person" : "people"}, ${goes}${sentence ? ` · ${sentence}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -248,7 +249,7 @@ export const playbookSpec: ProposalSpec = {
   }),
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
   receipt: ({ payload: pl }, data) =>
-    `Campaign “${rec(data).name ?? asText(pl.name)}” is running — its next run is under Coming up in Campaigns${
+    `Campaign “${asText(rec(data).name ?? pl.name)}” is running — its next run is under Coming up in Campaigns${
       rec(rec(data).starter).status === "submitted"
         ? " · its starter's WhatsApp version is with WhatsApp for review"
         : ""
@@ -273,8 +274,10 @@ export const playbookSpec: ProposalSpec = {
 };
 
 /** The channels a payload names, in the product's order: what a card's commit and its receipt read; none where it names none. */
-const channelsIn = (v: unknown): ConsentChannel[] =>
-  Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => (v as unknown[]).includes(c)) : [];
+const channelsIn = (v: unknown): ConsentChannel[] => {
+  const named = listOrEmpty(v);
+  return CONSENT_CHANNELS.filter((c) => named.includes(c));
+};
 
 /**
  * The channels an existing playbook goes by, changed from a card (8 Oct 2026): what a press on the Goes by row of its
@@ -449,7 +452,7 @@ export const runSpec: ProposalSpec = {
   // cancel. The verb is the card's to say (no default, the Phase 4 plan, D11): a card that says neither is never sent.
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "broadcast_id");
-    if (!id || !(RUN_VERBS as readonly unknown[]).includes(pl.verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    if (!id || !isOneOf(RUN_VERBS, pl.verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     return {
       route: pl.verb === "approve" ? "POST broadcasts/[id]/approve" : "POST broadcasts/[id]/cancel",
       params: { id },
@@ -630,8 +633,8 @@ const versionsIn = (v: unknown): VersionAnswered[] =>
     ? v
         .map(rec)
         .flatMap((x) =>
-          (CONSENT_CHANNELS as readonly unknown[]).includes(x.channel) && typeof x.id === "string" && x.id
-            ? [{ channel: x.channel as ConsentChannel, id: x.id, state: asText(x.state) }]
+          isOneOf(CONSENT_CHANNELS, x.channel) && typeof x.id === "string" && x.id
+            ? [{ channel: x.channel, id: x.id, state: asText(x.state) }]
             : [],
         )
     : [];
@@ -674,8 +677,8 @@ export const messageSpec: ProposalSpec = {
   receipt: ({ payload: pl }, data) => {
     const d = rec(data);
     const refused = rec(d.refused);
-    const not = (CONSENT_CHANNELS as readonly unknown[]).includes(refused.channel)
-      ? { channel: refused.channel as ConsentChannel, words: asText(refused.words) }
+    const not = isOneOf(CONSENT_CHANNELS, refused.channel)
+      ? { channel: refused.channel, words: asText(refused.words) }
       : null;
     return MESSAGE_WORDS.filed(asText(d.name ?? pl.name), versionsIn(d.versions), not);
   },

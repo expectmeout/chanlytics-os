@@ -33,7 +33,7 @@ export const BrainConfigSchema = z
      * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Every business is
      * offered one the same way (business-gap.ts BOOKING_LINK_ROW_WORDS).
      */
-    booking_link: z.string().url().max(BOOKING_LINK_MAX).optional(),
+    booking_link: z.url().max(BOOKING_LINK_MAX).optional(),
     /** The complete system prompt the model receives — the "AI memory" pane's
      *  one hard promise is that what it shows is EXACTLY this, nothing more. */
     system_prompt: z.string().min(40).max(INSTRUCTIONS_MAX),

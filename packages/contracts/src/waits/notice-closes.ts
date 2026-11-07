@@ -32,6 +32,7 @@ import {
   type ServerNotificationKind,
 } from "../today/notifications/feed-input";
 import { runWaitsOnYou, type RunDays, type WaitingRun } from "./waits";
+import { isOneOf } from "../shared/unknown";
 
 /**
  * What one surface holds of the subjects a waiting row is about, and when it read them. A surface read BEFORE a notice was kept
@@ -182,7 +183,7 @@ const RUN_GOES_TITLE = /^(?:Campaign|Playbook) “.*” sends /u;
 /** The check held some of a going reach-out run's emails for its owner's say (contracts heldNoticeWords). */
 const RUN_HELD_TITLE = /^The check held \d+ emails? in /u;
 
-const isGoing = (state: string): boolean => (RUN_GOING_STATES as readonly string[]).includes(state);
+const isGoing = (state: string): boolean => isOneOf(RUN_GOING_STATES, state);
 
 /**
  * A run's notice: one waiting for a word asks while an approval can still send it (the verb's own rule, by the days, where

@@ -4,6 +4,7 @@
  * (sendableTemplates).
  */
 import { starterByName, starterText } from "./starter-lookup";
+import { listOrEmpty, recordOrEmpty, textOrEmpty } from "../../shared/unknown";
 
 /**
  * The line under a message's words, from the components Meta holds.
@@ -24,7 +25,7 @@ export function footerOf(components: unknown): string | null {
   for (const c of components) {
     if (!c || typeof c !== "object") continue;
     const part = c as { type?: unknown; text?: unknown };
-    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
+    if (textOrEmpty(part.type).toUpperCase() !== "FOOTER") continue;
     const text = typeof part.text === "string" ? part.text.trim() : "";
     if (text) return text;
   }
@@ -75,7 +76,7 @@ const FILLED_PARTS: readonly string[] = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
 const partOf = (components: unknown, type: string): Record<string, unknown> | null => {
   if (!Array.isArray(components)) return null;
   for (const c of components) {
-    if (c && typeof c === "object" && String((c as { type?: unknown }).type ?? "").toUpperCase() === type)
+    if (c && typeof c === "object" && textOrEmpty(recordOrEmpty(c).type).toUpperCase() === type)
       return c as Record<string, unknown>;
   }
   return null;
@@ -98,16 +99,16 @@ export function templateParts(components: unknown): TemplateParts {
   const header = partOf(components, "HEADER");
   const buttons: TemplateButton[] = [];
   const holder = partOf(components, "BUTTONS");
-  const list = holder && Array.isArray(holder.buttons) ? (holder.buttons as unknown[]) : [];
+  const list = listOrEmpty(holder?.buttons);
   for (const b of list) {
     if (!b || typeof b !== "object") continue;
-    const kind = BUTTON_KIND[String((b as { type?: unknown }).type ?? "").toUpperCase()];
+    const kind = BUTTON_KIND[textOrEmpty(recordOrEmpty(b).type).toUpperCase()];
     const text = typeof (b as { text?: unknown }).text === "string" ? (b as { text: string }).text.trim() : "";
     if (kind && text) buttons.push({ text, kind });
   }
   return {
     // A picture heading is not words and is not drawn as any.
-    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
+    header: header && textOrEmpty(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
     footer: footerOf(components),
     buttons,
   };
@@ -145,19 +146,19 @@ export function templateBlocked(target: { blocked?: string | null; components?: 
   if (unfilled) return "a part Chanlytics cannot fill";
   const header = partOf(components, "HEADER");
   if (header) {
-    const format = String(header.format ?? "TEXT").toUpperCase();
+    const format = textOrEmpty(header.format ?? "TEXT").toUpperCase();
     if (format !== "TEXT")
       return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
-    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
+    if (/\{\{\d+\}\}/.test(textOrEmpty(header.text))) return "a heading that takes a value";
   }
   const holder = partOf(components, "BUTTONS");
-  const list = holder && Array.isArray(holder.buttons) ? (holder.buttons as unknown[]) : [];
+  const list = listOrEmpty(holder?.buttons);
   for (const b of list) {
     if (!b || typeof b !== "object") continue;
     const button = b as { type?: unknown; url?: unknown };
-    const type = String(button.type ?? "").toUpperCase();
+    const type = textOrEmpty(button.type).toUpperCase();
     if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
-    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
+    if (type === "URL" && /\{\{\d+\}\}/.test(textOrEmpty(button.url))) return "a button that takes a value";
   }
   return null;
 }
@@ -212,11 +213,11 @@ export function sendableTemplates<T extends { components?: unknown }>(
 /** The one button that opens a link, from the components Meta holds: its words and its address. Null when there is none. */
 export function templateLinkButton(components: unknown): { text: string; url: string } | null {
   const holder = partOf(components, "BUTTONS");
-  const list = holder && Array.isArray(holder.buttons) ? (holder.buttons as unknown[]) : [];
+  const list = listOrEmpty(holder?.buttons);
   for (const b of list) {
     if (!b || typeof b !== "object") continue;
     const x = b as { type?: unknown; text?: unknown; url?: unknown };
-    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
+    if (textOrEmpty(x.type).toUpperCase() !== "URL") continue;
     const text = typeof x.text === "string" ? x.text.trim() : "";
     const url = typeof x.url === "string" ? x.url.trim() : "";
     if (text && url) return { text, url };

@@ -1,6 +1,7 @@
 /** Templates: params. */
 
 import { isIdentifierName } from "../../conversations/thread-contact";
+import { listOrEmpty } from "../../shared/unknown";
 
 /* ---- What fills a slot ---- */
 
@@ -99,9 +100,7 @@ export function parseParamSpec(raw: unknown): ParamSpec | null {
  * renders. The one reader for the four places that used to spell this out.
  */
 export function parseParamSpecs(raw: unknown): ParamSpec[] {
-  return Array.isArray(raw)
-    ? (raw as unknown[]).map((p) => parseParamSpec(p) ?? { kind: "text" as const, value: String(p) })
-    : [];
+  return listOrEmpty(raw).map((p) => parseParamSpec(p) ?? { kind: "text" as const, value: String(p) });
 }
 
 export function paramLabel(spec: ParamSpec): string {

@@ -3,10 +3,11 @@
  * back at us. message-words.ts says an email's words with it; the Inbox's thread (inbox-thread.ts) shows the rest.
  */
 import type { MessageDto } from "./thread-dto";
+import { recordOrNull } from "../shared/unknown";
 
 /** An email's subject, as the intake kept it (core email-ingest.ts). */
 export function emailSubjectOf(message: MessageDto): string | null {
-  const email = (message.meta as { email?: { subject?: unknown } } | null)?.email;
+  const email = recordOrNull(message.meta?.email);
   return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
 }
 
@@ -360,7 +361,7 @@ export function emailSignedLine(signature: string): string {
 /** The words an email of ours was signed with, as the reply that sent it kept them (00487 meta.email.signature); else null. */
 export function emailSignedWithOf(message: MessageDto): string | null {
   if (message.sender === "customer") return null;
-  const signed = (message.meta as { email?: { signature?: unknown } } | null)?.email?.signature;
+  const signed = recordOrNull(message.meta?.email)?.signature;
   return typeof signed === "string" && signed.trim() ? signed.trim() : null;
 }
 
@@ -399,6 +400,6 @@ export function emailTopicOf(message: MessageDto): string | null {
 /** The name the sender's client gave an email of theirs, as the intake kept it; null on one of ours or with none. */
 export function emailFromNameOf(message: MessageDto): string | null {
   if (message.sender !== "customer") return null;
-  const name = (message.meta as { email?: { from_name?: unknown } } | null)?.email?.from_name;
+  const name = recordOrNull(message.meta?.email)?.from_name;
   return typeof name === "string" && name.trim() ? name.trim() : "";
 }

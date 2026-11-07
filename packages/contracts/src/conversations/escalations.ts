@@ -9,6 +9,7 @@
  */
 import { STOP_WORDS } from "../consent/consent";
 import type { EscalationReason } from "../shared/enums";
+import { entryOf } from "../shared/unknown";
 
 export interface EscalationDto {
   id: string;
@@ -95,7 +96,7 @@ export const ESCALATION_REASON_SHORT: Record<EscalationReason, string> = {
 /** The clause for a reason, or the reason's own words for one the set does not know; nothing for none. */
 export function reasonShort(reason: string | null | undefined): string {
   if (!reason) return "";
-  return (ESCALATION_REASON_SHORT as Record<string, string>)[reason] ?? reason.replace(/_/g, " ");
+  return entryOf(ESCALATION_REASON_SHORT, reason) ?? reason.replace(/_/g, " ");
 }
 
 /**
@@ -131,7 +132,7 @@ const ESCALATION_REASON_WHY: Record<EscalationReason, string> = {
 
 /** Why a reason handed a conversation over; a reason the set does not know is said by its clause. */
 export function reasonWhy(reason: string): string {
-  return (ESCALATION_REASON_WHY as Record<string, string>)[reason] ?? `because ${reasonShort(reason)}`;
+  return entryOf(ESCALATION_REASON_WHY, reason) ?? `because ${reasonShort(reason)}`;
 }
 
 /**
@@ -184,12 +185,12 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
 
 /** The label for a reason, or the reason's own words for one the set does not know: a row never reads as nothing. */
 export function reasonLabelOf(reason: string): string {
-  return (ESCALATION_REASON_LABELS as Record<string, string>)[reason] ?? reason;
+  return entryOf(ESCALATION_REASON_LABELS, reason) ?? reason;
 }
 
 /** The operator's first sentence for a reason, or the label with "Needs a human." for one the set does not know. */
 export function reasonSummaryOf(reason: string): string {
-  return (ESCALATION_SUMMARIES as Record<string, string>)[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
+  return entryOf(ESCALATION_SUMMARIES, reason) ?? `${reasonLabelOf(reason)}. Needs a human.`;
 }
 
 /**
@@ -227,7 +228,7 @@ const ESCALATION_LINES: Record<EscalationReason, string> = {
 
 /** The dock's line for a reason, or the reason's label for one the set does not know. */
 export function reasonLineOf(reason: string): string {
-  return (ESCALATION_LINES as Record<string, string>)[reason] ?? reasonLabelOf(reason);
+  return entryOf(ESCALATION_LINES, reason) ?? reasonLabelOf(reason);
 }
 
 /**
@@ -275,7 +276,7 @@ export const ESCALATION_ACTS: Record<EscalationReason, HoldAct> = {
 
 /** The act of a reason; a reason the set does not know is answered, as a person is needed for it. */
 export function holdActOf(reason: string | null | undefined): HoldAct {
-  return (ESCALATION_ACTS as Record<string, HoldAct>)[reason ?? ""] ?? "reply";
+  return entryOf(ESCALATION_ACTS, reason) ?? "reply";
 }
 
 /**

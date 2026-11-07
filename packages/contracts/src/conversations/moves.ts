@@ -14,6 +14,7 @@
  * the ones the session role may update besides it (00037).
  */
 import { CONVERSATION_STATES, type ConversationState } from "../shared/enums";
+import { isOneOf } from "../shared/unknown";
 
 type MoveColumn = "paused_until" | "snooze_until" | "assignee_user_id" | "last_message_at";
 type MoveInputName = "until" | "user" | "now";
@@ -78,7 +79,7 @@ export function conversationPatch<M extends ConversationMoveName>(
   ...input: [InputsOf<M>] extends [never] ? [] : [MoveInput<M>]
 ): ConversationPatch {
   const conversationMove: ConversationMove = CONVERSATION_MOVES[move];
-  const given = (input[0] ?? {}) as Partial<Record<MoveInputName, string>>;
+  const given: Partial<Record<MoveInputName, string>> = input[0] ?? {};
   const patch: ConversationPatch = { state: conversationMove.to };
   for (const [column, from] of Object.entries(conversationMove.sets) as [MoveColumn, MoveInputName | null][]) {
     const value = from === null ? null : given[from];
@@ -90,5 +91,5 @@ export function conversationPatch<M extends ConversationMoveName>(
 
 /** Whether a thread in `state` may take the move. */
 export function conversationMoveAllowed(move: ConversationMoveName, state: string): boolean {
-  return (CONVERSATION_MOVES[move].from as readonly string[]).includes(state);
+  return isOneOf(CONVERSATION_MOVES[move].from, state);
 }

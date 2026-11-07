@@ -18,6 +18,7 @@
  * 86 s and 8,854 output tokens at max.
  */
 import { MODEL_EFFORTS, type ModelEffort } from "./models/routes";
+import { isOneOf, listOrEmpty } from "../shared/unknown";
 
 /** The beta an effort message needs (Anthropic's migration guide for Opus 5.5, read 15 Oct 2026). */
 export const EFFORT_MESSAGE_BETA = "mid-conversation-output-config-2026-07-01";
@@ -43,7 +44,7 @@ export function isEffortMessage(message: unknown): message is EffortMessage {
   if (role !== "system" || !Array.isArray(content) || content.length > 0 || Object.keys(rest).length > 0) return false;
   if (!isPlainObject(oc)) return false;
   const { effort, ...more } = oc;
-  return Object.keys(more).length === 0 && (MODEL_EFFORTS as readonly unknown[]).includes(effort);
+  return Object.keys(more).length === 0 && isOneOf(MODEL_EFFORTS, effort);
 }
 
 /** The effort in force at the end of `messages`: the last effort message's, else `base`, the request's own. */
@@ -65,7 +66,7 @@ export function effortAbove(modelEffort: ModelEffort, otherModelEffort: ModelEff
  * ended on as the request's own, beside its format. A body that carries none is returned as it is.
  */
 export function foldEffortMessages(body: Record<string, unknown>): Record<string, unknown> {
-  const messages = Array.isArray(body.messages) ? (body.messages as unknown[]) : [];
+  const messages = listOrEmpty(body.messages);
   const effort = effortInForce(messages, null);
   if (effort === null) return body;
   const own = isPlainObject(body.output_config) ? body.output_config : {};

@@ -44,6 +44,7 @@ import {
 import { DEAL_STAGE_WORDS } from "../deals/words";
 import { TEMPLATE_STATUS_WORDS } from "../campaigns/templates/templates";
 import { REPLY_CHIP_WORDS } from "../campaigns/reach-out/replies/intents";
+import { textOrEmpty } from "../shared/unknown";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -297,7 +298,7 @@ export function stateTone(kind: StateKind, value: unknown): Tone {
 
 /** The words for a state, or the value itself when nobody has written any. */
 export function stateLabel(kind: StateKind, value: unknown): string {
-  const v = typeof value === "string" ? value : String(value ?? "");
+  const v = textOrEmpty(value);
   return LABEL_OF[kind]?.[v] ?? v;
 }
 

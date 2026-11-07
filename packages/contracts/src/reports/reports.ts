@@ -253,7 +253,7 @@ const moodBarsOf = (sentiments: ReportDto["sentiments"]): ReportBarVM[] =>
   bars(
     Object.entries(sentiments ?? {})
       .sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1])
-      .map(([s, n]) => [s, s, n] as [string, string, number]),
+      .map(([s, n]): [string, string, number] => [s, s, n]),
   );
 
 /** Messages and calls per weekday, now and the period before, and the one busiest and quietest. */

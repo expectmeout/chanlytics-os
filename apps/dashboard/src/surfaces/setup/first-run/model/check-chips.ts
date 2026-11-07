@@ -9,7 +9,7 @@
  * in front of its customers (trade-neutral.test.mjs). A line naming one trade's own services says so with
  * `trade-word:`: the table only reaches a business Google lists as that trade.
  */
-import { sameListed, PROFILE_LIMITS, COMMON_LANGUAGES } from "@chanlytics/contracts";
+import { isList, sameListed, PROFILE_LIMITS, COMMON_LANGUAGES } from "@chanlytics/contracts";
 import { profileRefusal } from "../../../settings/business/model/fold-limits";
 
 const SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
@@ -141,7 +141,7 @@ export function checkChipsOf(input: {
   languages: readonly string[] | null | undefined;
 }): CheckChipsVM {
   // A stored list that is not one (a hand-edited record) is none, never a throw: the page draws this as it draws.
-  const listed = (Array.isArray(input.services) ? input.services : [])
+  const listed = (isList(input.services) ? input.services : [])
     .map((s) => (s && typeof s.name === "string" ? s.name.trim() : ""))
     .filter(Boolean);
   const chosen = (Array.isArray(input.languages) ? input.languages : [])

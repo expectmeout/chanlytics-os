@@ -6,6 +6,7 @@
  */
 
 import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
+import { isOneOf } from "../../shared/unknown";
 
 const PERSON_TABS = ["overview", "history", "visits", "deals", "campaigns", "about"] as const;
 export type PersonTab = (typeof PERSON_TABS)[number];
@@ -41,7 +42,7 @@ export function personRouteOf(param: string): { id: string; tab: PersonTab } {
   if (slash < 0) return { id: param, tab: "overview" };
   const id = param.slice(0, slash);
   const word = param.slice(slash + 1).split(/[/?#]/)[0] ?? "";
-  const tab = (PERSON_TABS as readonly string[]).includes(word) ? (word as PersonTab) : "overview";
+  const tab = isOneOf(PERSON_TABS, word) ? word : "overview";
   return { id, tab };
 }
 

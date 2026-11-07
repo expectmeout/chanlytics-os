@@ -21,6 +21,7 @@
 
 import { ROLE_PERMS, ROLES, type Role } from "../config/workspace-config/role-perms";
 import { UUID } from "../shared/identity";
+import { isOneOf } from "../shared/unknown";
 
 /** The title of a no, by the least role the door wanted: the gate says it before the press (roleGate), the refusal after it. */
 export const NEEDS_TITLE: Readonly<Record<"owner" | "operator", string>> = {
@@ -293,7 +294,7 @@ export function roleGate(
   perm: RolePerm,
   doing?: string | null,
 ): { needs: "owner" | "operator"; title: string; reason: string } | null {
-  const otherRole: Role = (ROLES as readonly string[]).includes(role ?? "") ? (role as Role) : "viewer";
+  const otherRole: Role = isOneOf(ROLES, role) ? role : "viewer";
   if (ROLE_PERMS[otherRole]?.[perm]) return null;
   const needs = ROLE_PERMS.operator?.[perm] ? "operator" : "owner";
   const text = doing?.trim() || PERM_DOING[perm] || "do this";

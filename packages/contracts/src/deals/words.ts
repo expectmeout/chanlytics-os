@@ -4,6 +4,7 @@
  * refusals. The deal as a page says it is deals/vm.ts.
  */
 import type { SchemaSet } from "../shared/schema-sets";
+import { isOneOf } from "../shared/unknown";
 
 export const DEAL_STAGES = ["proposed", "won", "lost", "ended"] as const;
 export type DealStage = SchemaSet<"deals.stage">;
@@ -35,15 +36,15 @@ export const DEAL_PER_WORDS: Record<DealPer, string> = { once: "once", month: "a
 export const DEAL_LINE_NONE = "No proposal yet";
 
 export function isDealStage(text: unknown): text is DealStage {
-  return typeof text === "string" && (DEAL_STAGES as readonly string[]).includes(text);
+  return typeof text === "string" && isOneOf(DEAL_STAGES, text);
 }
 
 export function isDealLostReason(text: unknown): text is DealLostReason {
-  return typeof text === "string" && (DEAL_LOST_REASONS as readonly string[]).includes(text);
+  return typeof text === "string" && isOneOf(DEAL_LOST_REASONS, text);
 }
 
 export function isDealPer(text: unknown): text is DealPer {
-  return typeof text === "string" && (DEAL_PERS as readonly string[]).includes(text);
+  return typeof text === "string" && isOneOf(DEAL_PERS, text);
 }
 
 /** What a move may empty (deal_record's p_clear, 00160): the link, the valid-until day, the amount with its per, the note. */

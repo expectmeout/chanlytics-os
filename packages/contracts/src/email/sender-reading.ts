@@ -12,6 +12,7 @@
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import type { MailboxLeftWhy } from "./mailbox-senders";
+import { isOneOf } from "../shared/unknown";
 
 /** The kinds, in the order 00495's check lists them. */
 export const SENDER_KINDS = ["inquiry", "person", "pitch", "notice", "relayed"] as const;
@@ -118,7 +119,7 @@ export function senderReadingAsk(senderFacts: SenderFacts): string {
 /** The model's answer as a reading, or null for one that is not: a kind it was not offered, or no answer at all. */
 export function senderReadingOf(answer: unknown): SenderReading | null {
   const a = answer as { kind?: unknown; about?: unknown } | null;
-  const kind = (SENDER_KINDS as readonly unknown[]).includes(a?.kind) ? (a?.kind as SenderKind) : null;
+  const kind = isOneOf(SENDER_KINDS, a?.kind) ? a.kind : null;
   if (!kind) return null;
   const about = typeof a?.about === "string" ? a.about.replace(/\s+/g, " ").trim().slice(0, SENDER_ABOUT_MAX) : "";
   return { kind, about: kind === "notice" || !about ? null : about };

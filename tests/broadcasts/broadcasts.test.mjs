@@ -910,8 +910,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   // broadcasts-honest and runs-honest draw them.
   const vm = readCode("packages/contracts/src/conversations/message-author.ts");
   assert.ok(
-    vm.includes('{ kind: "broadcast", name: String(message.meta.broadcast_name ?? "broadcast") }') &&
-      vm.includes('{ kind: "playbook", name: String(message.meta.playbook_name) }'),
+    vm.includes('{ kind: "broadcast", name: textOrEmpty(message.meta.broadcast_name ?? "broadcast") }') &&
+      vm.includes('{ kind: "playbook", name: textOrEmpty(message.meta.playbook_name) }'),
   );
   assert.ok(
     readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes(
