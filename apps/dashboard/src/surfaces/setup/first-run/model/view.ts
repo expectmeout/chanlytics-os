@@ -658,7 +658,6 @@ export function firstRunOf(vm: SetupVM, at?: string | null, firstRunWho?: FirstR
   // Setup's own rows, where the step draws nothing of its own (a broken configuration's ask, a line a person sets up).
   const drawsRows = !find && !connect && !check && shown.key === "business";
   const primary = drawsRows ? (shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null) : null;
-  const rehearse = FIRST_RUN_WORDS.rehearse;
   return {
     steps,
     current,
@@ -675,9 +674,14 @@ export function firstRunOf(vm: SetupVM, at?: string | null, firstRunWho?: FirstR
     findDone: find && findAsked ? shown.to : null,
     connect,
     check,
-    skip:
-      shown.key === "rehearse" && vm.rehearsal.reviewed === 0 && !vm.rehearseSkipped
-        ? { label: rehearse.skip, nudge: rehearse.nudge, stay: rehearse.stay, anyway: rehearse.anyway }
-        : null,
+    skip: rehearseSkipOf(vm, shown.key),
   };
+}
+
+/** Skip, on the rehearsal while nothing in it was reviewed and it was not put off already. */
+function rehearseSkipOf(vm: SetupVM, shown: FirstRunStepKey): FirstRunVM["skip"] {
+  const rehearse = FIRST_RUN_WORDS.rehearse;
+  return shown === "rehearse" && vm.rehearsal.reviewed === 0 && !vm.rehearseSkipped
+    ? { label: rehearse.skip, nudge: rehearse.nudge, stay: rehearse.stay, anyway: rehearse.anyway }
+    : null;
 }

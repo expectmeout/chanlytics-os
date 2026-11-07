@@ -23,13 +23,13 @@ export async function getInvoices(
   db: Db,
   tenantId: string,
 ): Promise<{ ok: true; invoices: BillingInvoiceDto[] } | { ok: false; error: BillingFailure; detail?: string }> {
-  const result = stripe();
-  if (!result) return { ok: false, error: "not_ready" };
+  const client = stripe();
+  if (!client) return { ok: false, error: "not_ready" };
   const row = await accountOf(db, tenantId);
   if (!row) return { ok: false, error: "no_account" };
   if (row.mode === "direct" || !row.stripe_customer_id) return { ok: true, invoices: [] };
   try {
-    const list = await result.invoices.list({ customer: row.stripe_customer_id, limit: 12 });
+    const list = await client.invoices.list({ customer: row.stripe_customer_id, limit: 12 });
     return {
       ok: true,
       invoices: list.data.map((index) => ({
@@ -55,18 +55,18 @@ export async function syncFor(
   tenantId: string,
   now = new Date(),
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
-  const result = stripe();
-  if (!result) return { ok: false, error: "not_ready" };
+  const client = stripe();
+  if (!client) return { ok: false, error: "not_ready" };
   const row = await accountOf(db, tenantId);
   if (!row) return { ok: false, error: "no_account" };
   if (row.mode === "direct") return { ok: false, error: "direct" };
   try {
     let sub: Stripe.Subscription | null = null;
     if (row.stripe_subscription_id) {
-      sub = await result.subscriptions.retrieve(row.stripe_subscription_id, { expand: ["default_payment_method"] });
+      sub = await client.subscriptions.retrieve(row.stripe_subscription_id, { expand: ["default_payment_method"] });
     } else if (row.stripe_customer_id) {
       // A Checkout finished before its delivery arrived: the newest subscription on the customer is the one.
-      const list = await result.subscriptions.list({
+      const list = await client.subscriptions.list({
         customer: row.stripe_customer_id,
         limit: 1,
         status: "all",
@@ -89,8 +89,8 @@ export async function resumeFor(
   now = new Date(),
   by: string | null = null,
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
-  const result = stripe();
-  if (!result) return { ok: false, error: "not_ready" };
+  const client = stripe();
+  if (!client) return { ok: false, error: "not_ready" };
   const row = await accountOf(db, tenantId);
   if (!row) return { ok: false, error: "no_account" };
   if (row.mode === "direct") return { ok: false, error: "direct" };
@@ -98,7 +98,7 @@ export async function resumeFor(
   if (await leftEmpty(db, tenantId)) return { ok: false, error: "platform_hold", detail: ENDED_WORDS };
   if (row.status !== "paused") return { ok: false, error: "not_paused" };
   try {
-    const sub = await result.subscriptions.resume(row.stripe_subscription_id, {
+    const sub = await client.subscriptions.resume(row.stripe_subscription_id, {
       billing_cycle_anchor: "now",
       expand: ["default_payment_method"],
     });
@@ -121,8 +121,8 @@ export async function startPlanNowFor(
   now = new Date(),
   by: string | null = null,
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
-  const result = stripe();
-  if (!result) return { ok: false, error: "not_ready" };
+  const client = stripe();
+  if (!client) return { ok: false, error: "not_ready" };
   const row = await accountOf(db, tenantId);
   if (!row) return { ok: false, error: "no_account" };
   if (row.mode === "direct") return { ok: false, error: "direct" };
@@ -130,7 +130,7 @@ export async function startPlanNowFor(
   if (await leftEmpty(db, tenantId)) return { ok: false, error: "platform_hold", detail: ENDED_WORDS };
   if (row.status !== "trialing") return { ok: false, error: "not_trialing" };
   try {
-    const sub = await result.subscriptions.update(row.stripe_subscription_id, {
+    const sub = await client.subscriptions.update(row.stripe_subscription_id, {
       trial_end: "now",
       expand: ["default_payment_method"],
     });

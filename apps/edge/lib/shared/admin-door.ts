@@ -54,9 +54,9 @@ export async function readBody<D extends EdgeDoor>(source: Request | string, doo
   if (!held.success)
     logger().warn("door_body_unexpected", {
       door: door.aud,
-      fields: [...new Set(held.error.issues.map((issue) => issue.path.join(".") || "(body)"))].slice(0, 10),
+      fields: [...new Set(held.error.issues.map((issue) => issue.path.join(".") || "(body)"))].sort().slice(0, 10),
     });
-  return body as DoorRead<D>;
+  return body;
 }
 
 /** The database and the workspace an op acts on: no database is a 503, an id that is not a workspace's a 400. */

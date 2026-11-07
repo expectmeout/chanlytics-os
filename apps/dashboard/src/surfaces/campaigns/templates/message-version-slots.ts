@@ -115,8 +115,7 @@ export function clampWords(
  */
 export function eraseSlot(
   text: string,
-  start: number,
-  end: number,
+  { start, end }: { start: number; end: number },
   way: "back" | "forward",
   set: Pick<SlotSet, "kind"> = { kind: "numbered" },
 ): SlotEdit | null {

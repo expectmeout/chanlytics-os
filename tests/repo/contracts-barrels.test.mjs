@@ -187,8 +187,10 @@ const isDomainFolder = (from, spec) => {
 };
 
 test("the measure sees every package's barrels", () => {
-  for (const p of ["channels", "contracts", "core", "db", "jobs"])
-    assert.ok(packageNames.includes(p), `${p}'s src/index.ts was found`);
+  for (const p of ["contracts", "core", "jobs"]) assert.ok(packageNames.includes(p), `${p}'s src/index.ts was found`);
+  // db and channels have no root: each domain's barrel is an entry (decision 0110).
+  for (const barrel of ["packages/channels/src/ai/index.ts", "packages/db/src/repositories/ai/index.ts"])
+    assert.ok(packageBarrels.includes(barrel), `${barrel} was found`);
   assert.ok(
     packageBarrels.length > packageNames.length,
     `the domain barrels were found too (${packageBarrels.length})`,

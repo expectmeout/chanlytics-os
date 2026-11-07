@@ -12,7 +12,7 @@
  */
 import { useState, type ReactNode } from "react";
 import type { ReceptionistCardVM } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "./model/helpers";
+import { FIRST_RUN_HELPERS } from "./model/first-run-helpers";
 import type { FirstRunVM } from "./model/view";
 import { refusalToast, type FrameFlash } from "../../frame-verbs";
 import { BtHowItDid, BtTyped, historyOf, useRehearsal } from "../../settings/business/rehearse/rehearse";

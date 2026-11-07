@@ -141,7 +141,7 @@ export async function getTokensLast24h(
   const log = logger({ tenant_id: tenantId });
   try {
     // Without a workspace the read would sum every workspace's day: a budget for none is an error, which counts zero.
-    if (!tenantId) throw new Error("tokensLast24h: a workspace is required");
+    if (!tenantId) throw new Error("getTokensLast24h: a workspace is required");
     let sum = 0;
     for await (const page of usagePages(db, tenantId, new Date(Date.now() - DAY_MS).toISOString())) {
       for (const r of page) sum += finiteOrZero(r.data?.input_tokens) + finiteOrZero(r.data?.output_tokens);

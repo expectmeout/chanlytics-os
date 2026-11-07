@@ -1,5 +1,5 @@
 /**
- * One registry by purpose (contracts ai/models/routes.ts; scorecard move 10, defect 54): every model id the platform names is
+ * One registry by purpose (contracts ai/models/ids.ts and routes.ts; scorecard move 10, defect 54): every model id the platform names is
  * written there and nowhere else in the source, every purpose has a whole route, every model has a list price, and
  * the dollars a call came to are the prices times its four kinds of tokens.
  */
@@ -33,7 +33,8 @@ import {
 } from "@chanlytics/contracts";
 import { repoFiles, parse } from "../_ast.mjs";
 
-const REGISTRY = "packages/contracts/src/ai/models/routes.ts";
+/** The registry, in the two modules layer 4 split it into: the ids, and the routes that ask them (with Retell's own names). */
+const REGISTRY = ["packages/contracts/src/ai/models/ids.ts", "packages/contracts/src/ai/models/routes.ts"];
 const MODEL_ID = /^(claude-[a-z0-9.-]+|gpt-[a-z0-9.-]+)$/;
 
 /** Every string literal (and template head) in a source file that reads as a model id, with its line. */
@@ -52,9 +53,9 @@ function modelLiterals(file) {
 
 test("a model id is written in the registry and nowhere else in the apps and packages", () => {
   const files = repoFiles(["apps", "packages"]).filter((f) => !/\.(test|type-test)\.|\/test\//.test(f));
-  const elsewhere = files.filter((f) => f !== REGISTRY).flatMap(modelLiterals);
+  const elsewhere = files.filter((f) => !REGISTRY.includes(f)).flatMap(modelLiterals);
   assert.deepEqual(elsewhere, [], "name the model through contracts' MODELS or MODEL_ROUTES");
-  assert.ok(modelLiterals(REGISTRY).length >= MODEL_IDS.length, "the registry itself holds them");
+  assert.ok(REGISTRY.flatMap(modelLiterals).length >= MODEL_IDS.length, "the registry itself holds them");
 });
 
 test("every purpose has a whole route, on a model the registry knows, with a price", () => {

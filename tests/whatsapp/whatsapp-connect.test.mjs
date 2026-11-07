@@ -101,7 +101,7 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
     r.includes("if ((phoneNumberId && !ID.test(phoneNumberId)) || (wabaId && !ID.test(wabaId)))"),
     "an id is validated only when the window gave one: the edge reads a missing one from the token's grant",
   );
-  assert.ok(r.includes('recordDecision(ctx, member.tenantId, "channel", r.channelId, "connect_channel", {'));
+  assert.ok(r.includes('recordDecision(ctx, member.tenantId, "channel", item.channelId, "connect_channel", {'));
   assert.ok(r.includes('"upstream_meta"'), "Meta is the upstream that failed, not the model");
   assert.ok(r.includes('number_taken: "That number is already connected to another workspace."'));
   assert.ok(r.includes("pin_required:"), "the PIN wall has its own words");

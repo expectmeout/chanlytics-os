@@ -722,7 +722,7 @@ test("the campaign's status is read from the list Twilio answers with, and a wai
 test("everything is filed as the workspace's own subaccount, with our primary profile referenced by sid", () => {
   const lib = readCode("apps/edge/lib/lines/a2p-register.ts");
   assert.ok(
-    lib.includes("const sub = await findLineAccount(db, o.line)") &&
+    lib.includes("const sub = await findLineAccount(db, options.line)") &&
       lib.includes('if (!sub) return { ok: false, error: "no_line_credentials"'),
     "no subaccount, no filing",
   );

@@ -504,7 +504,11 @@ test("every route under /api/v1/platform asks the database who is calling", () =
 });
 
 test("the guard asks the database, and answers 404 rather than 403", () => {
-  const src = readCode("apps/dashboard/src/server/console/platform.ts");
+  // The guard is the shared back office's (server/shared/back-office.ts); the platform's reads go through it.
+  const src = readCode(
+    "apps/dashboard/src/server/console/platform.ts",
+    "apps/dashboard/src/server/shared/back-office.ts",
+  );
   // platform_staff_state() (00467): the role, a second factor owed, or none, about the caller alone.
   assert.match(src, /await getStaffState\(ctx\.supabase\)/, "the answer comes from Postgres, not from an env var");
   assert.match(src, /if \(state === "none"\) throw new AppError\("not_found", "No such page\.", 404\);/);
@@ -824,26 +828,29 @@ test("the service-role client cannot be obtained without passing the check", () 
   // The first version exported `platformDb()` — no arguments, no relationship to
   // the guard — and relied on a test walking ONE directory to prove nothing else
   // imported it. A grep cannot see the route that has not been written yet.
-  const src = readCode("apps/dashboard/src/server/console/platform.ts");
+  const src = readCode(
+    "apps/dashboard/src/server/console/platform.ts",
+    "apps/dashboard/src/server/shared/back-office.ts",
+  );
   assert.ok(
     !/export function platformDb|export async function platformDb/.test(src),
     "REGRESSION: a service-role client handed to any importer",
   );
   assert.match(
     src,
-    /import \{ serviceDb \} from "\.\.\/shared\/service-db";/,
+    /import \{ serviceDb \} from "\.\/service-db";/,
     "the dashboard's one service client, kept to this module",
   );
   assert.ok(!/export .*serviceDb/.test(src));
   // The only way to a client is a handle only the check can make, and the brand
   // stops an object literal standing in for one.
   assert.match(src, /declare const backOfficeBrand: unique symbol;/);
-  assert.match(src, /export async function backOffice\(ctx: RouteContext\): Promise<BackOffice>/);
+  assert.match(src, /export async function getBackOffice\(ctx: RouteContext\): Promise<BackOffice>/);
   assert.match(src, /const state = await staffState\(ctx\);/);
   // Every cross-tenant read takes the handle rather than reaching for a client.
   for (const [fn, tail] of [
     ["listPlatformOverview", "\\)"],
-    ["platformTenant", ","],
+    ["findPlatformTenant", ","],
     ["listPlatformEvents", ","],
   ]) {
     assert.match(src, new RegExp(`export async function ${fn}\\(\\s*office: BackOffice\\s*${tail}`), fn);
@@ -1004,7 +1011,7 @@ test("three named operations, and no way to send a fourth", () => {
   const server = readCode("apps/dashboard/src/server/console/platform.ts");
   assert.match(
     server,
-    /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => Record<string, unknown>>/,
+    /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => EdgeBody<"\/api\/admin\/lines">>/,
   );
   assert.match(server, /refile: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true \}\)/);
   assert.match(
@@ -1023,7 +1030,7 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   // The Admin log's row with why comes first (act(), decision 0066), then the workspace's own event, then the edge.
   assert.match(
     fn,
-    /return takeAct\(\s*office,\s*\{ act: LINE_ACTS\[action\], why, tenantId, target: "line", targetId: lineId \}/,
+    /return takeAct\(\s*office,\s*\{ act: LINE_ACTS\[action\], why: reason, tenantId, target: "line", targetId: lineId \}/,
   );
   const audit = fn.search(/recordEvent\(\s*office\.db,\s*tenantId,\s*"platform\.acted"/);
   const act = fn.indexOf("await callEdgeLines(");

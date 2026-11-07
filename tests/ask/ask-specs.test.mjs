@@ -34,8 +34,8 @@ import {
   askUndoOpen,
   cardOpenRoute,
   canonicalRoute,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tests/route-policy.json"), "utf8")).routes;

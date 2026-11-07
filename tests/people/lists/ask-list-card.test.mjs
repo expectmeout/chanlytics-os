@@ -21,8 +21,8 @@ import {
   listDraftFieldLines,
   listRuleParts,
   listUnknownWords,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";

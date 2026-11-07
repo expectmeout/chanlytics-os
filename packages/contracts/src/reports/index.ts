@@ -87,7 +87,6 @@ export type { PeopleDto, PeopleSeriesDto } from "./people/record";
 export { toPeopleReportVM } from "./people/report";
 export type { PeopleFigureVM, PeopleReportVM } from "./people/report";
 export { PEOPLE_RHYTHM_UNIT } from "./people/words/heads";
-export { firstCameEntries, firstCameRecorded } from "./people/words/heads";
 export {
   CAMPAIGNS_RESULTS_PERIOD,
   fixedDaysOf,

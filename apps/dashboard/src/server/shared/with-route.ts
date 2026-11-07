@@ -360,25 +360,25 @@ async function resolveMember(
   // person's home workspace does not move because a tenant was renamed, which
   // name-sorting allowed.
   if (!wanted && rows.length > 1 && !opts.defaultAllowed) throw new AppError("choose_workspace", AMBIGUOUS);
-  const otherRow = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
+  const membership = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
   // A partner's seat is hidden from a session that has not shown its second factor (00218), so a workspace they hold
   // reads as not found here. The database can say, of this session alone, that it holds a partner's seat it cannot
   // see: then what is missing is the code, and the tab is sent to the second step, not told the workspace is gone.
-  if (!otherRow && !secondFactorShown(ctx.aal) && (await doesSessionHoldPartnerSeat(ctx.supabase)))
+  if (!membership && !secondFactorShown(ctx.aal) && (await doesSessionHoldPartnerSeat(ctx.supabase)))
     requireSecondFactor(ctx);
-  if (!otherRow) throw new AppError("not_found", "No workspace found for this account.", 404);
+  if (!membership) throw new AppError("not_found", "No workspace found for this account.", 404);
   // A partner's seat asks for the second factor (0013, M3), on a read as on a write: the one door every workspace
   // request passes. The database refuses the same session on its own (00218).
-  if (seatNeedsSecondFactor(otherRow.role)) requireSecondFactor(ctx);
+  if (seatNeedsSecondFactor(membership.role)) requireSecondFactor(ctx);
   // The workspace this request acts on: every line logged after this carries it as tenant_id.
-  noteTenant(otherRow.tenant_id);
+  noteTenant(membership.tenant_id);
 
   // The workspace's name and clock rode with the membership: a read that would have asked for them first (the
   // Calendar's, the Leads page's) does not wait a round trip for them (2 Oct 2026).
-  const row = otherRow.tenants;
+  const row = membership.tenants;
   return {
-    tenantId: otherRow.tenant_id,
-    role: otherRow.role as MemberContext["role"],
+    tenantId: membership.tenant_id,
+    role: membership.role as MemberContext["role"],
     ...(typeof row?.timezone === "string" ? { facts: tenantFactsOf(row) } : {}),
     ...(typeof row?.slug === "string" && row.slug ? { slug: row.slug } : {}),
   };

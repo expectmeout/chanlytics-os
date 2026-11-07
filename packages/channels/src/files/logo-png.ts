@@ -142,27 +142,28 @@ function unfiltered(raw: Uint8Array, header: Header): Uint8Array {
   const stride = header.side * header.bytesPerPixel;
   const out = new Uint8Array(stride * header.side);
   const bpp = header.bytesPerPixel;
-  for (let count = 0; count < header.side; count++) {
-    const filter = raw[count * (stride + 1)] ?? 0;
-    const src = raw.subarray(count * (stride + 1) + 1, (count + 1) * (stride + 1));
-    const row = out.subarray(count * stride, (count + 1) * stride);
-    const prev = count ? out.subarray((count - 1) * stride, count * stride) : null;
-    for (let result = 0; result < stride; result++) {
-      const first = result >= bpp ? (row[result - bpp] ?? 0) : 0;
-      const second = prev ? (prev[result] ?? 0) : 0;
-      const item = prev && result >= bpp ? (prev[result - bpp] ?? 0) : 0;
-      let value = src[result] ?? 0;
-      if (filter === 1) value += first;
-      else if (filter === 2) value += second;
-      else if (filter === 3) value += (first + second) >> 1;
+  for (let line = 0; line < header.side; line++) {
+    const filter = raw[line * (stride + 1)] ?? 0;
+    const src = raw.subarray(line * (stride + 1) + 1, (line + 1) * (stride + 1));
+    const row = out.subarray(line * stride, (line + 1) * stride);
+    const prev = line ? out.subarray((line - 1) * stride, line * stride) : null;
+    for (let byte = 0; byte < stride; byte++) {
+      // The bytes a filter predicts from, as the PNG spec names them: left, above, and above-left.
+      const left = byte >= bpp ? (row[byte - bpp] ?? 0) : 0;
+      const above = prev ? (prev[byte] ?? 0) : 0;
+      const aboveLeft = prev && byte >= bpp ? (prev[byte - bpp] ?? 0) : 0;
+      let value = src[byte] ?? 0;
+      if (filter === 1) value += left;
+      else if (filter === 2) value += above;
+      else if (filter === 3) value += (left + above) >> 1;
       else if (filter === 4) {
-        const p = first + second - item;
-        const pa = Math.abs(p - first);
-        const pb = Math.abs(p - second);
-        const pc = Math.abs(p - item);
-        value += pa <= pb && pa <= pc ? first : pb <= pc ? second : item;
+        const p = left + above - aboveLeft;
+        const pa = Math.abs(p - left);
+        const pb = Math.abs(p - above);
+        const pc = Math.abs(p - aboveLeft);
+        value += pa <= pb && pa <= pc ? left : pb <= pc ? above : aboveLeft;
       }
-      row[result] = value & 0xff;
+      row[byte] = value & 0xff;
     }
   }
   return out;
@@ -172,18 +173,18 @@ function unfiltered(raw: Uint8Array, header: Header): Uint8Array {
 function shrunk(pixels: Uint8Array, header: Header, to: number): Uint8Array {
   const bpp = header.bytesPerPixel;
   const out = new Uint8Array((1 + to * bpp) * to);
-  const item = header.side / to;
-  for (let count = 0; count < to; count++) {
-    const y0 = Math.floor(count * item);
-    const y1 = Math.max(y0 + 1, Math.floor((count + 1) * item));
+  const block = header.side / to;
+  for (let row = 0; row < to; row++) {
+    const y0 = Math.floor(row * block);
+    const y1 = Math.max(y0 + 1, Math.floor((row + 1) * block));
     for (let x = 0; x < to; x++) {
-      const x0 = Math.floor(x * item);
-      const x1 = Math.max(x0 + 1, Math.floor((x + 1) * item));
+      const x0 = Math.floor(x * block);
+      const x1 = Math.max(x0 + 1, Math.floor((x + 1) * block));
       for (let ch = 0; ch < bpp; ch++) {
         let sum = 0;
         for (let yy = y0; yy < y1; yy++)
           for (let xx = x0; xx < x1; xx++) sum += pixels[(yy * header.side + xx) * bpp + ch] ?? 0;
-        out[count * (1 + to * bpp) + 1 + x * bpp + ch] = Math.round(sum / ((y1 - y0) * (x1 - x0)));
+        out[row * (1 + to * bpp) + 1 + x * bpp + ch] = Math.round(sum / ((y1 - y0) * (x1 - x0)));
       }
     }
   }

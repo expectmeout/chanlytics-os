@@ -70,7 +70,7 @@ const thirdPartyExternal = {
   },
 };
 
-/** The packages reached by their domains (decision 0106). */
+/** The packages reached by their domains (decision 0110). */
 const SPLIT_PACKAGES = new Set(["channels", "db"]);
 
 /** The esbuild options of one package's build: what the shipping test holds. */

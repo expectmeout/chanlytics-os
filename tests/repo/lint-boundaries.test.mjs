@@ -669,7 +669,7 @@ async function fired(file, code) {
 }
 
 test("in a held tree each limit is an error one past its number, and not at it", async () => {
-  const held = "packages/contracts/src/shared/probe.ts";
+  const held = "packages/contracts/src/email/probe.ts";
   const at = { lines: LIMIT.lines, branches: LIMIT.branches, depth: LIMIT.depth, params: FUNCTION_LIMITS.params };
   assert.deepEqual(await fired(held, probe(at)), [], "a function at every limit passes");
   assert.deepEqual(await fired(held, probe({ ...at, lines: at.lines + 1 })), ["max-lines-per-function"]);

@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { FirstRunPhoneVM } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "../model/helpers";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 import type { FirstRunGoLiveVM } from "../model/golive";
 import { mountCheckout, type EmbeddedCheckout } from "@/bridge/billing/embedded";
 import { canDo, gate, type FrameFlash } from "../../../frame-verbs";

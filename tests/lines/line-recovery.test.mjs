@@ -541,7 +541,7 @@ test("a released line leaves a disabled route beside the active one, and the pic
   );
   assert.match(
     readCode("apps/dashboard/src/surfaces/settings/connections/model/setup.ts"),
-    /const channel = \(kind: string\) => channelFor\(i\.channels, kind\);/,
+    /const channel = \(kind: string\) => channelFor\(connectionInputs\.channels, kind\);/,
   );
 });
 

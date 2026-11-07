@@ -230,7 +230,7 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
     ["packages/contracts/src/people/person-row/row-facts.ts", "packages/contracts/src/people/person-row/row-vm.ts"]
       .map((p) => readCode(p))
       .join("\n")
-      .includes("callSummary: r.last_inbound_call_summary?.trim() || null,"),
+      .includes("callSummary: person.last_inbound_call_summary?.trim() || null,"),
   );
   // Run, not read: the surface's mapping (surface-map.ts, over the sample's people) carries each row's attention row.
   const surface = peopleSample(NOW);

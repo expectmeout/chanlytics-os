@@ -169,7 +169,7 @@ function inlinedModules(file) {
 }
 
 test("no package's dist inlines a third-party module", () => {
-  // Every file a bundle writes: db and channels have an entry per domain and no index (decision 0106).
+  // Every file a bundle writes: db and channels have an entry per domain and no index (decision 0110).
   const inlined = PACKAGES.flatMap((p) =>
     builtFiles(p, ".js").flatMap((f) => inlinedModules(f).map((m) => `${f}: ${m}`)),
   );
@@ -185,7 +185,7 @@ test("each package's bundle keeps third-party code external and hands its siblin
     const options = buildOptions(p);
     const plugins = options.plugins.map((pl) => pl.name);
     assert.deepEqual(plugins, ["siblings-by-path", "third-party-external"], p);
-    // Each entry whole, but where a package is reached by its domains (decision 0106): those share their modules as
+    // Each entry whole, but where a package is reached by its domains (decision 0110): those share their modules as
     // chunks in dist, beside the entries whose sibling paths they share, so one breaker and one logger context stand.
     const byDomain = p === "db" || p === "channels";
     assert.equal(options.bundle, true, p);

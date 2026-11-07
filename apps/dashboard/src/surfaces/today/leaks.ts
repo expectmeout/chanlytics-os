@@ -398,8 +398,7 @@ export function todayLeaks(
   people: PeopleListsLike | null,
   /** Who is waiting with nothing back, from the day's view model (`noReply`); the unanswered row names two of them. */
   noReply: readonly TodayNoReplyVM[] = [],
-  max = TODAY_LEAK_MAX,
-  nowMs = Date.now(),
+  { max = TODAY_LEAK_MAX, nowMs = Date.now() }: { max?: number; nowMs?: number } = {},
 ): TodayLeaksVM {
   const facts = leakFactsOf(reports, people, noReply, nowMs);
   const all = LEAK_ORDER.map((id) => LEAK_FINDERS[id](facts)).filter((x): x is TodayLeakVM => !!x);

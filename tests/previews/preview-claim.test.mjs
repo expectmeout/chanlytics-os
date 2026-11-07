@@ -22,7 +22,7 @@ import {
   previewFirstRunMarks,
   setupLaterOf,
 } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/helpers.ts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/first-run-helpers.ts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";

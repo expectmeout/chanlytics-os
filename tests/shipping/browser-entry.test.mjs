@@ -172,26 +172,10 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "reports/receptionist/words.ts",
     "reports/people/report.ts",
     "reports/people/words/lines.ts",
+    "reports/people/words/heads.ts",
     "reports/campaigns/reach-out-lens.ts",
     "reports/campaigns/words/tables.ts",
     "reports/campaigns/lens.ts",
-    "ads/rules.ts",
-    "ads/money.ts",
-    "ads/words.ts",
-    "ads/words-page.ts",
-    "ads/words-drawer.ts",
-    "ads/words-new.ts",
-    "ads/results/words-results.ts",
-    "ads/results/results.ts",
-    "ads/words-connect.ts",
-    "ads/vm-base.ts",
-    "ads/page.ts",
-    "ads/page-parts.ts",
-    "ads/drawer.ts",
-    "ads/drawer-parts.ts",
-    "ads/drawer-edit.ts",
-    "ads/new-ad.ts",
-    "ads/new-ad-parts.ts",
     "ask/proposals/proposals.ts",
   ]);
   for (const name of [
@@ -206,8 +190,9 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "toCampaignLensVM",
   ])
     assert.ok(!current.names.includes(name), `${name} is the Reports page's, by its own entry`);
-  // Campaigns › Ads: its models, rules, money and words are its page's, by its own entry; the data, the addresses and the
-  // day arithmetic are the root's, since Reports, People and Campaigns' routes read them too.
+  // Campaigns › Ads: its models, rules, money and words are its page's alone, in the dashboard's tree since they left
+  // contracts (apps/dashboard/src/surfaces/campaigns/ads); the data, the addresses and the day arithmetic are the root's,
+  // since Reports, People and Campaigns' routes read them too.
   for (const name of ["adsModel", "adModel", "newAdModel", "moneyOf", "BUDGET_RULES", "DOOR_NEEDS", "DRAWER", "NEW_AD"])
     assert.ok(!current.names.includes(name), `${name} is the Ads page's, by its own entry`);
   for (const name of ["addDays", "daysBetween", "parseAds", "adRoute", "ADS_WORDS"])
@@ -299,8 +284,6 @@ test("every page-only path names a file, since one that names none would filter 
     "toReachOutLensVM",
     "toCampaignLensVM",
     "reportWindowOf",
-    "adsModel",
-    "newAdModel",
   ])
     assert.ok(all.names.includes(name), `${name} is in the entry when nothing is page-only`);
 });

@@ -70,7 +70,7 @@ test("an explicit workspace resolves by id OR slug", () => {
 test("a workspace the caller is not a member of is never silently swapped", () => {
   // RLS means the query cannot see other people's memberships, so a forged id
   // finds nothing — and that must 404, not fall through to their own default.
-  assert.match(withRoute, /if \(!m\) throw new AppError\("not_found"/);
+  assert.match(withRoute, /if \(!membership\) throw new AppError\("not_found"/);
 });
 
 /* --------------------------- reads are scoped ----------------------------- */
@@ -174,7 +174,7 @@ test("a request refuses to act on a workspace nobody named, read or write", () =
     "the resolver must refuse an unnamed workspace",
   );
   assert.ok(
-    fn.indexOf("!opts.defaultAllowed") < fn.indexOf("const m = wanted"),
+    fn.indexOf("!opts.defaultAllowed") < fn.indexOf("const membership = wanted"),
     "the refusal must come BEFORE the pick, or the default leaks",
   );
 });

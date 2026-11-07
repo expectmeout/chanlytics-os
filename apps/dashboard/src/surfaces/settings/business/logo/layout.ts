@@ -76,23 +76,23 @@ function groundOf(px: LogoPixels): Ground {
   const { data, width, height } = px;
   const edge = borderOf(width, height);
   let clear = 0;
-  let count = 0;
-  let result = 0;
-  let otherCount = 0;
+  let red = 0;
+  let green = 0;
+  let blue = 0;
   let solid = 0;
   for (const i of edge) {
     const [pr, pg, pb, a] = rgbaOf(data, i);
     if (a < CLEAR) clear++;
     else if (a >= OPAQUE) {
       solid++;
-      count += pr;
-      result += pg;
-      otherCount += pb;
+      red += pr;
+      green += pg;
+      blue += pb;
     }
   }
   if (clear >= edge.length * AGREE) return { kind: "clear" };
   if (solid < edge.length * AGREE) return { kind: "busy" };
-  const mean = { r: count / solid, g: result / solid, b: otherCount / solid };
+  const mean = { r: red / solid, g: green / solid, b: blue / solid };
   let agree = 0;
   for (const i of edge) {
     const [pr, pg, pb, a] = rgbaOf(data, i);
@@ -117,18 +117,18 @@ function contentOf(
   let y1 = -1;
   let lit = 0;
   let weight = 0;
-  for (let count = 0; count < height; count++) {
-    for (let result = 0; result < width; result++) {
-      const [r, g, b, a] = rgbaOf(data, count * width + result);
+  for (let row = 0; row < height; row++) {
+    for (let column = 0; column < width; column++) {
+      const [r, g, b, a] = rgbaOf(data, row * width + column);
       if (a < CLEAR) continue;
       if (ground.kind === "solid") {
         const d = Math.abs(r - ground.r) + Math.abs(g - ground.g) + Math.abs(b - ground.b);
         if (a >= OPAQUE && d <= NEAR) continue;
       }
-      if (result < x0) x0 = result;
-      if (result > x1) x1 = result;
-      if (count < y0) y0 = count;
-      if (count > y1) y1 = count;
+      if (column < x0) x0 = column;
+      if (column > x1) x1 = column;
+      if (row < y0) y0 = row;
+      if (row > y1) y1 = row;
       lit += lightness(r, g, b) * a;
       weight += a;
     }

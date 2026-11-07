@@ -314,7 +314,7 @@ test("the band's head says what each row does, and how many it did not draw", ()
 
 test("a message sent once, pressed for now, goes ten minutes on with a Stop: every receipt says when it goes and that it can be stopped (decision 0064, step 3)", async () => {
   const { SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, whenItGoes } = await import("@chanlytics/contracts");
-  const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+  const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
   assert.equal(SEND_ONCE_STOP_MS, 10 * MIN);
   assert.equal(SEND_ONCE_STOP_WORDS, "10 minutes");
   const when = (ms) => `today ${clockTime(ms, TZ)}`;
@@ -404,7 +404,7 @@ test("a review's reply waits like everything else: held for an OK, or posted aft
   assert.equal(heldReviewReplyOf({ reply_text: "Thanks!", draft_text: "Thanks!", posts_at: at }, TZ), null);
   assert.equal(heldReviewReplyOf({ reply_text: null, draft_text: null }, TZ), null);
   // Its Stop is the verbs' one door's (contracts reviewReplyStopSpec): the route, and a receipt for a stop and for none.
-  const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+  const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
   const stop = PROPOSAL_SPECS.review_reply_stop;
   assert.deepEqual(stop.commit({ payload: { review_id: "rv1" } }), {
     route: "POST google/reviews/[id]/stop",

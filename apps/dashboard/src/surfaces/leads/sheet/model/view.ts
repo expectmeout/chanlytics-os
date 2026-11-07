@@ -315,9 +315,8 @@ export const sheetSlot = (
   act: LeadSheetAct,
   label: string,
   icon: string,
-  key: LeadSheetSlotVM["key"] = null,
-  more: Partial<Pick<LeadSheetSlotVM, "split" | "off" | "door">> = {},
-): LeadSheetSlotVM => ({ act, label, icon, key, off: null, ...more });
+  more: Partial<Pick<LeadSheetSlotVM, "key" | "split" | "off" | "door">> = {},
+): LeadSheetSlotVM => ({ act, label, icon, key: null, off: null, ...more });
 
 /* ------------------------------------------------------------------------------------------------ the picker -- */
 

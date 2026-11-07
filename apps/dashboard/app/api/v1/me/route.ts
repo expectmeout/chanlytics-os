@@ -16,7 +16,8 @@ export const PUT = write({
   scope: account,
   role: null,
   rate: "profile_set",
-  input: z.object({ display_name: z.string().nullish() }),
+  // What a name may be is the contracts' rule (cleanDisplayName), in its words: the schema hands the value on whole.
+  input: z.object({ display_name: z.unknown().optional() }),
   handle: async ({ ctx, input }) => {
     const cleaned = cleanDisplayName(input.display_name ?? "");
     if (!cleaned.ok) throw new AppError("validation", cleaned.reason, 400);

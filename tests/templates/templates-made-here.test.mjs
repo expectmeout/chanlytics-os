@@ -249,7 +249,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   assert.ok(svc.includes("Answer with one JSON object and nothing else"));
   assert.ok(svc.includes("The footer must say how to opt out"), "a marketing draft carries the opt-out line");
   assert.ok(
-    /const check = validateTemplateDraft\(\{\s*name: d\.data\.name/.test(svc),
+    /const check = validateTemplateDraft\(\{\s*name: parsed\.data\.name/.test(svc),
     "the draft passes the same check a submission does",
   );
   assert.ok(svc.includes("do not use a booking_link slot"), "no slot the workspace cannot fill");

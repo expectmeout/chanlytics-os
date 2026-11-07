@@ -158,7 +158,7 @@ test("no way round the door: only lib/ai/model.ts asks the port, and only the po
     importsOf(parse(f)).some(
       (i) =>
         !i.typeOnly &&
-        /channels(\.js)?$/.test(i.specifier) &&
+        /channels(\/ai)?(\.js)?$/.test(i.specifier) &&
         (i.names ?? []).some((n) => n === "askModel" || n === "streamModel"),
     ),
   );

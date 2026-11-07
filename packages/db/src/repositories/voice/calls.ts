@@ -196,7 +196,7 @@ export async function listCallers(
       .select("id, from_e164, from_raw")
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IDS_PER_READ));
-    if (error) throw new Error(`callersOf: ${error.message}`);
+    if (error) throw new Error(`listCallers: ${error.message}`);
     out.push(...(data ?? []));
   }
   return out;

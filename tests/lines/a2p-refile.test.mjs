@@ -192,7 +192,7 @@ test("the owner's route may not refile: making a filing real is an operator's ca
   // in front of them, not a side effect of somebody pressing resubmit.
   const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
   assert.ok(!/refile/.test(owner), "the owner-facing route never sends it");
-  assert.ok(owner.includes('b.error === "mock_registration"'), "but it does say what the state is");
+  assert.ok(owner.includes('body.error === "mock_registration"'), "but it does say what the state is");
   assert.ok(owner.includes("MOCK_TEXTING_SENTENCE"), "in the same words the two pages use");
 });
 
@@ -204,7 +204,7 @@ test("one sentence for a rehearsal, wherever an owner meets it", () => {
   assert.match(MOCK_TEXTING_SENTENCE, /test registry/);
   assert.match(MOCK_TEXTING_SENTENCE, /nothing is delivered/);
   assert.match(MOCK_TEXTING_SENTENCE, /a person at Chanlytics/);
-  for (const f of ["packages/contracts/src/setup/setup.ts", "apps/dashboard/app/api/v1/lines/register/route.ts"]) {
+  for (const f of ["packages/contracts/src/setup/lines.ts", "apps/dashboard/app/api/v1/lines/register/route.ts"]) {
     assert.ok(readCode(f).includes("MOCK_TEXTING_SENTENCE"), `${f} says the shared sentence, not its own`);
   }
   // Integrations reaches it through the same function Setup's row uses, so the
@@ -410,10 +410,10 @@ test("a rejection reaches every person who can act on it, in words about what ha
   // offered them "Fix and resubmit", pointing at the only button guaranteed to
   // produce it.
   const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
-  assert.match(owner, /b\.error === "campaign_rejected"/, "the owner route knows this answer exists");
+  assert.match(owner, /body\.error === "campaign_rejected"/, "the owner route knows this answer exists");
   assert.match(owner, /The carriers sent this registration back\./);
   assert.match(owner, /Chanlytics resubmits it/, "and says who sends it again, because it is not them");
-  assert.match(owner, /b\.reason/, "carrying what the carriers actually said");
+  assert.match(owner, /body\.reason/, "carrying what the carriers actually said");
 
   // The row no longer promises the action gate 6 took away from owners.
   const conn = readCode("apps/dashboard/src/surfaces/settings/connections/model/setup.ts");

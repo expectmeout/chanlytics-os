@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
+import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 
 const { replyToConversation, DM_WINDOW_CLOSED_REFUSAL } = await importSrc("packages/core/src/conversations/reply.ts");
 const { DM_CLOSED } = await importSrc("packages/contracts/src/people/person-reach.ts");
@@ -27,7 +28,6 @@ const {
   repliesWords,
   bookingLinkAction,
   cameFromOf,
-  connectionRows,
   toChannelVM,
   offersFacts,
   dmBackOnConfirmation,

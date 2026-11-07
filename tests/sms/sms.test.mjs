@@ -401,7 +401,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
     "and names the purpose the caller gave it, a reply by default",
   );
   assert.ok(
-    readCode("packages/db/src/repositories/channels/ingest.ts").includes('channel: p.channel ?? "whatsapp",'),
+    readCode("packages/db/src/repositories/channels/ingest.ts").includes('channel: params.channel ?? "whatsapp",'),
     "an outbound row says its wire",
   );
   const reply = readCode("packages/core/src/conversations/reply.ts");

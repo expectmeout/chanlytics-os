@@ -154,7 +154,11 @@ test("one campaign per moment: the journey's groups in order, then Lists & offer
   assert.equal(v.results, "none", "counted, and nothing went in the period");
   assert.ok(v.search.includes("reminder") && v.search.includes("appointment tomorrow"), v.search);
   assert.deepEqual([l.period, l.results, l.tools, l.sentOnce], ["Last 30 days", "read", false, null]);
-  assert.equal(l.words, C.LIFECYCLE_WORDS.ledger);
+  // The home is the dashboard's (layer 3), whose contracts are its own copy under the suite's loader: the same words,
+  // a word that is a function by how many values it takes (the bundle the suite reads is minified).
+  const asWritten = (words) =>
+    JSON.parse(JSON.stringify(words, (_, v) => (typeof v === "function" ? `a function of ${v.length}` : v)));
+  assert.deepEqual(asWritten(l.words), asWritten(C.LIFECYCLE_WORDS.ledger));
 });
 
 test("First contact holds the receptionist and the call's text as rows of their own kind: never counted, no Turn on, each a door", () => {

@@ -104,6 +104,8 @@ const SCOPE = ["packages/contracts/src", "apps/dashboard/src"];
 const RULE_HOMES = [
   "packages/contracts/src/campaigns/playbooks/schedule.ts",
   "packages/contracts/src/campaigns/playbooks/lifecycle/",
+  // The home's stages, ledger and totals, the dashboard's alone since they left contracts (layer 3).
+  "apps/dashboard/src/server/campaigns/lifecycle/",
 ];
 
 /**
@@ -139,11 +141,15 @@ const OTHER_STATES = {
     n: 1,
     why: "Who a card reaches says Paused for a campaign that is off; one past its last day says so by its state on the card (lifecycleStateOf, Ended), which wins.",
   },
-  "packages/contracts/src/campaigns/reach-out/leads/standing.ts": {
-    n: 2,
+  "packages/contracts/src/campaigns/reach-out/leads/lines.ts": {
+    n: 1,
     why: "A reach-out's chain, whose steps have no last day: on or paused is all there is to it.",
   },
-  "packages/contracts/src/campaigns/reach-out/sheet/chain.ts": {
+  "packages/contracts/src/campaigns/reach-out/leads/standing.ts": {
+    n: 1,
+    why: "A reach-out's chain, whose steps have no last day: on or paused is all there is to it.",
+  },
+  "packages/contracts/src/campaigns/reach-out/sheet/words.ts": {
     n: 1,
     why: "A reach-out's chain, whose steps have no last day: on or paused is all there is to it.",
   },
@@ -171,7 +177,7 @@ const OTHER_STATES = {
     n: 1,
     why: "A mailbox's own history on its row in Connections (decision 0086): the imports ledger's run coming in, with Stop, not a campaign.",
   },
-  "packages/contracts/src/setup/rows/steps.ts": {
+  "packages/contracts/src/setup/rows/channels.ts": {
     n: 3,
     why: "Setup's clients' file row: the imports ledger's run of the file, not a campaign.",
   },

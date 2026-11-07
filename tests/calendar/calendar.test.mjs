@@ -315,7 +315,7 @@ test("day keys, the words, and the zone", () => {
 test("the doors and the page: read-only, the feed's address never in the browser, the registry flipped", async () => {
   // The calendar's server modules that hold what is checked here: the feed's parse (parsed-feed.ts), the settings that
   // name the address (calendar/settings.ts), the board's week (calendar/week/week.ts) and the preview (feed-preview.ts).
-  const svc = ["parsed-feed", "settings", "week", "feed-preview"]
+  const svc = ["parsed-feed", "settings", "week/week", "week/items", "feed-preview"]
     .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
     .join("\n");
   assert.ok(
@@ -332,7 +332,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   );
   assert.ok(
     svc.includes("person: matchPerson(it, people, own),") &&
-      svc.includes("contacts: { phones: c.phones, emails: c.emails },"),
+      svc.includes("contacts: { phones: found.phones, emails: found.emails },"),
     "who it is for — by a phone in the event first, then a whole name",
   );
   assert.ok(!/ical_url[^\n]*\n[^\n]*return \{/.test(svc), "the address is read, never returned");

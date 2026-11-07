@@ -28,9 +28,9 @@ interface ZoneParts {
 const PARTS_FORMATS = new Map<string, Intl.DateTimeFormat>();
 
 function partsFormatOf(tz: string): Intl.DateTimeFormat {
-  let pARTS_FORMATS = PARTS_FORMATS.get(tz);
-  if (!pARTS_FORMATS) {
-    pARTS_FORMATS = new Intl.DateTimeFormat("en-US", {
+  let format = PARTS_FORMATS.get(tz);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       hourCycle: "h23",
       weekday: "short",
@@ -41,9 +41,9 @@ function partsFormatOf(tz: string): Intl.DateTimeFormat {
       minute: "2-digit",
       second: "2-digit",
     });
-    PARTS_FORMATS.set(tz, pARTS_FORMATS);
+    PARTS_FORMATS.set(tz, format);
   }
-  return pARTS_FORMATS;
+  return format;
 }
 
 /**
@@ -114,8 +114,8 @@ export function zoneOffsetMs(tz: string, atMs: number): number {
 }
 
 /** The instant a wall-clock time in `tz` refers to. Two passes cover a DST edge. */
-export function localToUtcMs(tz: string, other: number, minutes: number, days: number, hh: number, mm: number): number {
-  const guess = Date.UTC(other, minutes - 1, days, hh, mm);
+export function localToUtcMs(tz: string, year: number, month: number, day: number, hh: number, mm: number): number {
+  const guess = Date.UTC(year, month - 1, day, hh, mm);
   const first = guess - zoneOffsetMs(tz, guess);
   const second = guess - zoneOffsetMs(tz, first);
   return second;
@@ -134,8 +134,8 @@ export function dayInZone(tz: string, atMs: number): { key: string; weekday: str
 }
 
 /** Days since epoch for a calendar date, for stepping and week arithmetic. */
-export const dayNumber = (other: number, minutes: number, days: number) =>
-  Math.floor(Date.UTC(other, minutes - 1, days) / 86400000);
+export const dayNumber = (year: number, month: number, day: number) =>
+  Math.floor(Date.UTC(year, month - 1, day) / 86400000);
 
 /** The days of the week by their number from Sunday (Date.getUTCDay, and Google's Point.day). */
 export const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;

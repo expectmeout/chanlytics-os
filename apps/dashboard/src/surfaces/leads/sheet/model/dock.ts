@@ -143,8 +143,8 @@ const dock = (p: Partial<LeadSheetDockVM>): LeadSheetDockVM => ({
 /** An answer to an email, as a press of the dock: the decide verb's door, or the leave verb. */
 const answerSlot = (a: HeldAnswer): LeadSheetSlotVM =>
   a.door === "take_out"
-    ? slot("take_out", a.words, "ban", "n")
-    : slot("decide", a.words, a.door === "skip" ? "ban" : "check", null, { door: a.door });
+    ? slot("take_out", a.words, "ban", { key: "n" })
+    : slot("decide", a.words, a.door === "skip" ? "ban" : "check", { door: a.door });
 
 /** Whether an answer leaves this email out, the quiet press beside the primary. */
 const leavesOut = (a: HeldAnswer) => a.door === "take_out" || a.door === "skip";
@@ -172,17 +172,19 @@ function waitingDock(f: LeadSheetDockFacts, place: SequencePlaceDto): LeadSheetD
   const writing = checked === false && !own;
   return dock({
     others: no.map(answerSlot),
-    primary: slot("approve", D.approve(f.batch ?? 1), "check", "a", { off: writing ? D.writing : null }),
+    primary: slot("approve", D.approve(f.batch ?? 1), "check", { key: "a", off: writing ? D.writing : null }),
   });
 }
 
 /** Sent by hand from an inbox nobody reads here: only you can say a reply came (They wrote back…). */
 const toldOf = (place: SequencePlaceDto): LeadSheetSlotVM | null =>
-  place.reads_replies || !place.sends.some((s) => s.sent_at) ? null : slot("they_wrote", D.theyWrote, "chat", "a");
+  place.reads_replies || !place.sends.some((s) => s.sent_at)
+    ? null
+    : slot("they_wrote", D.theyWrote, "chat", { key: "a" });
 
 /** Your own ways to them: a call from your phone, and an email of your own where one is not already said. */
 const ownWaysOf = (f: LeadSheetDockFacts, write: boolean): LeadSheetSlotVM[] => [
-  ...(f.canCall ? [slot("call", D.call, "phone", "c")] : []),
+  ...(f.canCall ? [slot("call", D.call, "phone", { key: "c" })] : []),
   ...(f.canWrite && write ? [slot("write", D.write, "mail")] : []),
 ];
 
@@ -208,7 +210,7 @@ function movedPast(f: LeadSheetDockFacts, place: SequencePlaceDto): LeadSheetDoc
  * sent, Move to the pick stays the one primary.
  */
 function standsDock(f: LeadSheetDockFacts, place: SequencePlaceDto): LeadSheetDockVM {
-  const leave = slot("leave", D.takeOut, "ban", "n");
+  const leave = slot("leave", D.takeOut, "ban", { key: "n" });
   const away = elsewhereDock(f);
   if (away && away.primary) return dock({ others: [leave], primary: away.primary });
   const notice = toldOf(place);
@@ -230,7 +232,7 @@ function doneDock(f: LeadSheetDockFacts, place: SequencePlaceDto): LeadSheetDock
  * (they asked to stop, they unsubscribed, their address stopped): only Put back where there is one, and nothing of yours.
  */
 function leftDock(f: LeadSheetDockFacts, place: SequencePlaceDto): LeadSheetDockVM | null {
-  const back = place.put_back ? [slot("return", D.putBack, "undo", "a")] : [];
+  const back = place.put_back ? [slot("return", D.putBack, "undo", { key: "a" })] : [];
   const own = writtenTo(f) && place.place.why === "removed" ? ownWaysOf(f, true) : [];
   return back.length + own.length > 0 ? dock({ others: [...back, ...own] }) : null;
 }
@@ -246,7 +248,7 @@ function placeDock(leadSheetDockFacts: LeadSheetDockFacts, place: SequencePlaceD
     case "to_send":
       return dock({ toSend: true });
     case "replied":
-      return dock({ primary: slot("thread", D.answer, "chat", "a") });
+      return dock({ primary: slot("thread", D.answer, "chat", { key: "a" }) });
     case "left":
       return leftDock(leadSheetDockFacts, place);
     case "next":
@@ -267,20 +269,27 @@ const deciding = (f: LeadSheetDockFacts) => ({ x: true, later: f.canLater });
 
 /** The dock for a lead not in a sequence yet: Add to the pick, or the picker where Add can't go. */
 function readyDock(f: LeadSheetDockFacts): LeadSheetDockVM {
-  if (!f.pick) return dock({ ...deciding(f), primary: slot("pick", D.addToOne, "plus", "a") });
+  if (!f.pick) return dock({ ...deciding(f), primary: slot("pick", D.addToOne, "plus", { key: "a" }) });
   if (f.state === "finding")
-    return dock({ ...deciding(f), primary: slot("add", D.checking, "plus", "a", { off: D.checking, split: true }) });
-  if (f.blocked) return dock({ ...deciding(f), primary: slot("pick", D.choose, "plus", "a") });
-  return dock({ ...deciding(f), primary: slot("add", D.addTo(f.pick.name), "plus", "a", { split: true }) });
+    return dock({
+      ...deciding(f),
+      primary: slot("add", D.checking, "plus", { key: "a", off: D.checking, split: true }),
+    });
+  if (f.blocked) return dock({ ...deciding(f), primary: slot("pick", D.choose, "plus", { key: "a" }) });
+  return dock({ ...deciding(f), primary: slot("add", D.addTo(f.pick.name), "plus", { key: "a", split: true }) });
 }
 
 /** A closed lead: its one fix where one exists; a call is the way on, the others a way back. */
 function closedDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   const fix = f.closed ? f.closed.fix : null;
   if (!fix) return null;
-  if (fix === "call") return dock({ primary: slot("call", D.call, "phone", "c") });
+  if (fix === "call") return dock({ primary: slot("call", D.call, "phone", { key: "c" }) });
   return dock({
-    others: [fix === "put_back" ? slot("put_back", D.putBack, "undo", "a") : slot("ready", D.ready, "undo", "a")],
+    others: [
+      fix === "put_back"
+        ? slot("put_back", D.putBack, "undo", { key: "a" })
+        : slot("ready", D.ready, "undo", { key: "a" }),
+    ],
   });
 }
 
@@ -288,8 +297,10 @@ function closedDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
 function elsewhereDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   const e = f.elsewhere;
   if (!e) return null;
-  if (e.written) return e.id ? dock({ others: [slot("sequence", D.open(e.name), "chevron", "a")] }) : null;
-  return f.pick && f.pick.id !== e.id ? dock({ primary: slot("move", D.moveTo(f.pick.name), "chevron", "a") }) : null;
+  if (e.written) return e.id ? dock({ others: [slot("sequence", D.open(e.name), "chevron", { key: "a" })] }) : null;
+  return f.pick && f.pick.id !== e.id
+    ? dock({ primary: slot("move", D.moveTo(f.pick.name), "chevron", { key: "a" }) })
+    : null;
 }
 
 /**
@@ -304,16 +315,19 @@ export function leadDockOf(leadSheetDockFacts: LeadSheetDockFacts): LeadSheetDoc
     return placeDock(leadSheetDockFacts, leadSheetDockFacts.place) ?? elsewhereDock(leadSheetDockFacts);
   switch (leadSheetDockFacts.state) {
     case "review":
-      return dock({ others: [slot("exclude", D.exclude, "ban", "n")], primary: slot("keep", D.keep, "check", "a") });
+      return dock({
+        others: [slot("exclude", D.exclude, "ban", { key: "n" })],
+        primary: slot("keep", D.keep, "check", { key: "a" }),
+      });
     case "phone":
       return dock({
         ...deciding(leadSheetDockFacts),
-        primary: leadSheetDockFacts.canCall ? slot("call", D.call, "phone", "c") : null,
+        primary: leadSheetDockFacts.canCall ? slot("call", D.call, "phone", { key: "c" }) : null,
       });
     case "elsewhere":
       return elsewhereDock(leadSheetDockFacts);
     case "replied":
-      return dock({ primary: slot("thread", D.answer, "chat", "a") });
+      return dock({ primary: slot("thread", D.answer, "chat", { key: "a" }) });
     case "sequence":
       return null;
     case "closed":

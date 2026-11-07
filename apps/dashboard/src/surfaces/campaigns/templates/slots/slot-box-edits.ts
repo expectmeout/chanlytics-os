@@ -118,7 +118,7 @@ export function putWords(el: HTMLElement, words: string, ctx: BoxContext, kind =
 function eraseSlotAtCaret(el: HTMLElement, way: "back" | "forward", ctx: BoxContext): boolean {
   const scan = scanBox<Node>(el);
   const sel = selectionOf(el);
-  const edit = sel ? eraseSlot(scan.text, sel.start, sel.end, way, ctx.set) : null;
+  const edit = sel ? eraseSlot(scan.text, sel, way, ctx.set) : null;
   const chip = edit ? scan.chips.find((c) => c.start === edit.caret) : undefined;
   if (!chip) return false;
   chip.node.parentNode?.removeChild(chip.node);

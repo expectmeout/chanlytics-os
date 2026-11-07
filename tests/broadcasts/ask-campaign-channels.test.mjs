@@ -35,7 +35,7 @@ const { buildProposal, newToolContext, runTool, toApiTools } = await import(
 );
 const { CHANNEL_WORDS, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, newCampaignChannels, noVersionWords, playbookChannelsRead } =
   await import("@chanlytics/contracts");
-const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 // The route a channels card's Approve and Undo call, run here as the app runs it: the card's own call is sent to it.

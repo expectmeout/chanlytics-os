@@ -86,7 +86,7 @@ export async function listTemplates(
     .select("id, channel, name, language, category, meta_status, body_preview, title, variables")
     .eq("tenant_id", tenantId);
   const { data, error } = await (channel === null ? ofTenant : ofTenant.eq("channel", channel));
-  if (error) throw new Error(`templatesFor: ${error.message}`);
+  if (error) throw new Error(`listTemplates: ${error.message}`);
   return data ?? [];
 }
 
@@ -102,7 +102,7 @@ export async function listTemplatesToSend(db: Db, tenantId: string, channel = "w
     .select("name, language, category, meta_status, body_preview, title, variables, components")
     .eq("tenant_id", tenantId)
     .eq("channel", channel);
-  if (error) throw new Error(`templatesToSend: ${error.message}`);
+  if (error) throw new Error(`listTemplatesToSend: ${error.message}`);
   return data ?? [];
 }
 
@@ -136,7 +136,7 @@ export async function findHeldMessage(
     .select("channel, language, category, variables")
     .eq("tenant_id", tenantId)
     .eq("name", name);
-  if (error) throw new Error(`heldMessageOf: ${error.message}`);
+  if (error) throw new Error(`findHeldMessage: ${error.message}`);
   const rows = (data ?? []).slice().sort((a, b) => {
     const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
     return wa || Number(b.language === language) - Number(a.language === language);
@@ -157,7 +157,7 @@ async function messageOfVersion(
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  if (error) throw new Error(`listMessageVersionRows: ${error.message}`);
   return data;
 }
 
@@ -185,7 +185,7 @@ export async function listMessageVersionRows(
     .eq("tenant_id", tenantId)
     .eq("name", message.name)
     .eq("language", message.language);
-  if (error) throw new Error(`messageVersionRowsOf: ${error.message}`);
+  if (error) throw new Error(`listMessageVersionRows: ${error.message}`);
   return data ?? [];
 }
 
@@ -202,7 +202,7 @@ export async function listOwnVersionsFiled(
     .eq("tenant_id", tenantId)
     .in("channel", ["email", "sms"])
     .in("name", names);
-  if (error) throw new Error(`ownVersionsFiled: ${error.message}`);
+  if (error) throw new Error(`listOwnVersionsFiled: ${error.message}`);
   return data ?? [];
 }
 

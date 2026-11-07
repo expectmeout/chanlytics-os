@@ -1,5 +1,5 @@
 /**
- * The dependency rules decision 0106 holds outright, and each measure kept honest on a graph written for it: a measure that quietly read nothing would hold every
+ * The dependency rules decision 0110 holds outright, and each measure kept honest on a graph written for it: a measure that quietly read nothing would hold every
  * number at zero. `_boundaries.mjs` has the measures; the numbers still falling are check:debt's (BOUNDARY_RATCHETS).
  */
 import { test } from "node:test";

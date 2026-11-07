@@ -15,8 +15,13 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { CAMPAIGN_ROOMS, LIBRARY_WORDS, MESSAGE_BEGIN_WORDS, channelNeverCarries } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../apps/dashboard/src/server/ask/proposals/proposals.ts";
+import {
+  CAMPAIGN_ROOMS,
+  LIBRARY_WORDS,
+  MESSAGE_BEGIN_WORDS,
+  channelNeverCarries,
+  PROPOSAL_SPECS,
+} from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";

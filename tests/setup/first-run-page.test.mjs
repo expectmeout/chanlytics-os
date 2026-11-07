@@ -15,7 +15,7 @@ import {
   RECEPTIONIST_MET,
   REHEARSE_SKIPPED,
 } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/helpers.ts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/first-run-helpers.ts";
 import { FIRST_RUN_STEPS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/view.ts";
 import {
   answering,

@@ -12,7 +12,7 @@
  * until the Business tab moves (step 11).
  */
 import type { ReactNode } from "react";
-import { FIRST_RUN_HELPERS } from "./model/helpers";
+import { FIRST_RUN_HELPERS } from "./model/first-run-helpers";
 import type { FIRST_RUN_WORDS, FirstRunCheckVM } from "./model/view";
 import type { SettingsRecord } from "@/bridge/surfaces/settings";
 import { FailedRead } from "../../kit/empty/empty";

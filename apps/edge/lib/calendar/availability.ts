@@ -366,20 +366,20 @@ export function forgetFeeds(): void {
  */
 export async function findVisits(
   rt: TenantRuntime,
-  personName: { phone: string | null; name: string | null },
+  caller: { phone: string | null; name: string | null },
   on: "call" | "chat",
   now = new Date(),
 ): Promise<string | null> {
   const log = logger({ tenant_id: rt.tenantId });
   const url = feedKeyOf(rt);
-  if (!rt.timezone || (!personName.phone && !personName.name)) return null;
+  if (!rt.timezone || (!caller.phone && !caller.name)) return null;
   try {
     // The feed's events, when there is a feed, and the record joined to them as People and the playbooks join it
     // (0002's readers): a booking that arrived by email is theirs by their number, so a workspace with no calendar still
     // knows their next visit (00345), and a visit a member cancelled or said missed is never confirmed to them.
     const [feed, record] = await Promise.all([
       url ? parsedFeed(rt, url, now) : null,
-      recordFor(rt.tenantId, personName, now, url ? seasonHorizon(now, daysAheadOf(rt)).to : null),
+      recordFor(rt.tenantId, caller, now, url ? seasonHorizon(now, daysAheadOf(rt)).to : null),
     ]);
     if (record === "failed") return null;
     // The caller is known by their number, so the business's own ADDRESSES
@@ -389,12 +389,7 @@ export async function findVisits(
     const items = feedWithRecord(feed?.items ?? [], record, own);
     if (!items.length) return null;
     return describeVisits(
-      visitsOf(
-        items,
-        { id: "caller", name: personName.name ?? "", phone: personName.phone, email: null },
-        now.getTime(),
-        own,
-      ),
+      visitsOf(items, { id: "caller", name: caller.name ?? "", phone: caller.phone, email: null }, now.getTime(), own),
       rt.timezone,
       now.getTime(),
       { hasBookingLink: linkOfferedOn(on, rt) },
@@ -414,7 +409,7 @@ export async function findVisits(
  */
 async function recordFor(
   tenantId: string,
-  personName: { phone: string | null },
+  caller: { phone: string | null },
   now: Date,
   feedTo: number | null,
 ): Promise<PoolRecord | null | "failed"> {
@@ -423,7 +418,7 @@ async function recordFor(
   const from = new Date(now.getTime() - VISITS_BACK_MS).toISOString();
   try {
     const [noted, words] = await Promise.all([
-      personName.phone ? listAppointmentsForClient(db, tenantId, { phone: personName.phone, email: null }, from) : [],
+      caller.phone ? listAppointmentsForClient(db, tenantId, { phone: caller.phone, email: null }, from) : [],
       feedTo !== null ? listFeedWordsOver(db, tenantId, from, new Date(feedTo).toISOString()) : [],
     ]);
     return { noted, marks: feedMarksOf(words) };

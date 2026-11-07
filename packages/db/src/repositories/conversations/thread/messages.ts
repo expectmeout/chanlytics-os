@@ -221,7 +221,7 @@ export async function listFailedMessageErrors(
       .eq("tenant_id", tenantId)
       .eq("status", "failed")
       .in("id", ids.slice(index, index + IDS_PER_READ));
-    if (error) throw new Error(`failedMessageErrors: ${error.message}`);
+    if (error) throw new Error(`listFailedMessageErrors: ${error.message}`);
     for (const r of data ?? [])
       if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
         out.push({ id: r.id, error: r.error });
@@ -242,7 +242,7 @@ export async function listMessageSenders(db: Db, tenantId: string, ids: readonly
       .select("id, sender, status, type")
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IDS_PER_READ));
-    if (error) throw new Error(`messageSenders: ${error.message}`);
+    if (error) throw new Error(`listMessageSenders: ${error.message}`);
     out.push(...(data ?? []));
   }
   return out;
@@ -268,7 +268,7 @@ export async function wasRepliedTo(
     .eq("direction", "outbound")
     .eq("meta->>reply_to", messageId)
     .limit(1);
-  if (error) throw new Error(`repliedTo: ${error.message}`);
+  if (error) throw new Error(`wasRepliedTo: ${error.message}`);
   return (data ?? []).length > 0;
 }
 
@@ -319,7 +319,7 @@ export async function wasTextReached(db: Db, tenantId: string, conversationId: s
     .eq("channel", "sms")
     .in("status", DELIVERED)
     .limit(1);
-  if (error) throw new Error(`textReached: ${error.message}`);
+  if (error) throw new Error(`wasTextReached: ${error.message}`);
   return (data ?? []).length > 0;
 }
 

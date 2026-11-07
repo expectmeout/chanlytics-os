@@ -8,7 +8,7 @@
  */
 import { useState, type ReactNode } from "react";
 import type { FirstRunChannelsVM, ImportLineVM, ImportSource } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "../model/helpers";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 // Each part from its own module, never the kit's index: the index brings every part on Base UI into the first run's
 // and Today's pages (+21 KB and +10 KB gzipped, #1854's first build), and the first run draws its buttons by class.
 import { Meter } from "../../../kit/meter/meter";

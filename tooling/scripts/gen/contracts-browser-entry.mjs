@@ -35,7 +35,7 @@ const SRC = "packages/contracts/src";
  * entry. The page that draws them imports them by that subpath. (The entry was one module every page's route loaded
  * until 17 October 2026, which is why the list began; a file per module now keeps a page's own modules on that page
  * either way, and the list keeps their names off the root entry, which the frame's code reads.) Ask's whole table of
- * cards is the server's alone (server/ask/proposals.ts): a page reads the verbs it presses from page-specs.ts, and
+ * cards (ask/proposals/proposals.ts) is the server's alone: a page reads the verbs it presses from page-specs.ts, and
  * Ask's bridge loads the cards only Ask proposes by their own subpath, `./ask-only`. A path that names no
  * file under SRC filters nothing, silently, so `generate` refuses it.
  */
@@ -47,9 +47,11 @@ export const PAGE_ONLY = [
   "reports/receptionist/words.ts",
   "reports/people/report.ts",
   "reports/people/words/lines.ts",
+  "reports/people/words/heads.ts",
   "reports/campaigns/reach-out-lens.ts",
   "reports/campaigns/words/tables.ts",
   "reports/campaigns/lens.ts",
+  "ask/proposals/proposals.ts",
 ];
 /**
  * The entries a page imports by their own subpath (package.json's `./report-window`, `./report-lens`,

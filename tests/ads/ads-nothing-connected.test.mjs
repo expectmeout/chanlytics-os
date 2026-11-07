@@ -91,7 +91,7 @@ test("read, and nobody new at all: it says so in People's own terms, and its doo
   assert.equal(v0Of(NO_AD).nobodyNew, null);
   assert.equal(v0Of(NO_AD).door.words, V0.door);
   assert.equal(
-    v0Of(readOf(null)).nobodyNew,
+    pageV0Of(readOf(null)).nobodyNew,
     null,
     "not while the counts are unread: that would be a claim about nobody",
   );

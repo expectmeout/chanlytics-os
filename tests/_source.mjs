@@ -70,7 +70,7 @@ export const importSrc = (p) => import(pathToFileURL(path.join(ROOT, p)).href);
 
 /**
  * A package's bundle as the suite builds it, whole: every entry its manifest names, read into one namespace. db and
- * channels have an entry per domain and no index (decision 0106), so a test that reached `dist/index.js` reads this.
+ * channels have an entry per domain and no index (decision 0110), so a test that reached `dist/index.js` reads this.
  */
 export async function importBundle(pkg) {
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "packages", pkg, "package.json"), "utf8"));

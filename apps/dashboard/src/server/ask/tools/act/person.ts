@@ -22,8 +22,8 @@ import {
   whyNotAnEmail,
   type WriteWay,
   UUID,
+  proposalBelowNeeds,
 } from "@chanlytics/contracts";
-import { proposalBelowNeeds } from "../../proposals/proposals";
 import { load } from "../../../shared/reader";
 import { openDealsOf } from "@chanlytics/db/deals";
 import { personReach } from "../../../readers/person";

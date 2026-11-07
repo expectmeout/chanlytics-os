@@ -26,7 +26,7 @@ const {
   SEQUENCE_MODE_WORDS,
   lifecyclePlaybooksOf,
 } = await import("@chanlytics/contracts");
-const { PROPOSAL_SPECS } = await import("../../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const playbookRoute = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));

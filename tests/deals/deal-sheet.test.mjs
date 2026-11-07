@@ -15,6 +15,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, unmount, again, settle, find, byTestId, textOf, press } from "../_stub-react.mjs";
+import { dealSheetBody, dealSheetRefusal } from "../../apps/dashboard/src/surfaces/people/deal-sheet/body.ts";
+import { pipelinePeekOf, pipelineSheetOf } from "../../apps/dashboard/src/surfaces/people/pipeline/peek-view.ts";
 
 const {
   DEAL_ACT_HINTS,
@@ -26,15 +28,11 @@ const {
   dealMenuActs,
   dealNextAct,
   dealSendOf,
-  dealSheetBody,
   dealSheetDirty,
   dealSheetFor,
   dealSheetMerge,
   dealSheetMessage,
-  dealSheetRefusal,
   pickCurrentDeal,
-  pipelinePeekOf,
-  pipelineSheetOf,
   proposalFollowUp,
   proposalMessage,
   toPersonVM,

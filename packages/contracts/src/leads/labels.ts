@@ -22,8 +22,8 @@ export function clockIn(tz: string, iso: string | null, now: Date): string {
 const METRES_PER_MILE = 1609.344;
 
 /** "1.2 mi" close in, whole miles past ten: nobody says "12.4 mi" about a drive across town. */
-export const milesLabel = (minutes: number | null): string => {
-  if (minutes === null || minutes === undefined) return "";
-  const mi = minutes / METRES_PER_MILE;
+export const milesLabel = (metres: number | null): string => {
+  if (metres === null || metres === undefined) return "";
+  const mi = metres / METRES_PER_MILE;
   return `${mi < 10 ? mi.toFixed(1) : String(Math.round(mi))} mi`;
 };

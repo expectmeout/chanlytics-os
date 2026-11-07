@@ -17,7 +17,7 @@ import {
   type SetupPhoneWant,
   type WhatsappChoice,
 } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "../model/helpers";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 import { RecordField, RecordToggleGroup } from "../../../kit/record/field";
 import { canDo, gate, refusalToast, type FrameFlash } from "../../../frame-verbs";
 import { connectedMailboxes } from "../../../settings/connections/connected-mailboxes";

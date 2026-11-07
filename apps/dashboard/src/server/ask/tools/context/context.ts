@@ -2,8 +2,13 @@
 
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { FIX_CARD_WORDS, type AskProposal, type PlanLead } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS, type ProposalKindAboveOperator } from "../../proposals/proposals";
+import {
+  FIX_CARD_WORDS,
+  type AskProposal,
+  type PlanLead,
+  PROPOSAL_SPECS,
+  type ProposalKindAboveOperator,
+} from "@chanlytics/contracts";
 import type { ProposalOutcome } from "./tool-defs";
 
 /**

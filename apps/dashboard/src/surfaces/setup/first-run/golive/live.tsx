@@ -8,7 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { firstRunStepRoute, type WhatsappChoice } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "../model/helpers";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 import type { FirstRunGoLiveVM } from "../model/golive";
 import type { FrameFlash } from "../../../frame-verbs";
 import { WhatsappSteps } from "./whatsapp";

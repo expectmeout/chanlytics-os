@@ -14,7 +14,7 @@ import { translateTemplate, getTranslationSource, type SourceRef } from "@/serve
 const Body = z
   .object({
     brief: z.string().trim().optional(),
-    category: z.string().optional(),
+    category: z.enum(TEMPLATE_CATEGORIES, { error: "A template is marketing or utility." }).optional(),
     language: z.string().optional(),
     translate: z
       .object({

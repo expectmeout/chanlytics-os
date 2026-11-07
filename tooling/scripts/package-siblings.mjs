@@ -8,7 +8,7 @@
  * process: one `AppError`, one provider breaker, one logger context; a contracts change rewrites contracts' dist alone.
  *
  * An entry of the package's own `exports` is the file its bundle writes: `@chanlytics/db/people` is `../../db/dist/people.js`, and a package's root `dist/index.js`
- * (decision 0106: db and channels have no root, each domain is an entry).
+ * (decision 0110: db and channels have no root, each domain is an entry).
  */
 
 /** The esbuild plugin each package's tsup.config.ts hands its build. */
@@ -17,7 +17,7 @@ export const siblingsByPath = {
   setup(build) {
     build.onResolve({ filter: /^@chanlytics\// }, (args) => {
       const match = /^@chanlytics\/([a-z]+)(?:\/([a-z-]+))?$/.exec(args.path);
-      if (!match) return { errors: [{ text: `${args.path}: a sibling is imported by a named entry (decision 0106)` }] };
+      if (!match) return { errors: [{ text: `${args.path}: a sibling is imported by a named entry (decision 0110)` }] };
       return { path: `../../${match[1]}/dist/${match[2] ?? "index"}.js`, external: true };
     });
   },

@@ -288,7 +288,10 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     [MODELS.SONNET_5_5, 15_000, 1, 300],
   );
   const model = readCode("apps/edge/lib/google/review-reply.ts");
-  assert.ok(model.includes('if (!r) return { ok: false, error: "no_model_key" };'), "no key: no draft, said so");
+  assert.ok(
+    model.includes('if (!otherCallModel) return { ok: false, error: "no_model_key" };'),
+    "no key: no draft, said so",
+  );
   // The draft op -- Never refused before the review is read, the no-model
   // path -- runs in google-door.test.mjs.
 

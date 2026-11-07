@@ -17,7 +17,7 @@ import {
   type WhatsappChoice,
   type WhatsappPartVM,
 } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "../model/helpers";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 import type { FirstRunGoLiveVM, GoLiveItemVM } from "../model/golive";
 import type { FirstRunTryVM } from "../model/try";
 import { WhatsappSteps } from "./whatsapp";

@@ -47,7 +47,7 @@ const {
   toReceptionistReportVM,
   toReviewsReportVM,
 } = await import("@chanlytics/contracts");
-const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 beforeEach(() => readerCache.clear());
 

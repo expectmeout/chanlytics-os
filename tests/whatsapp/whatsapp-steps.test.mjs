@@ -213,18 +213,18 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   const HOME = {
     openInbound: "context",
     ingestMessage: "ingest",
-    modeInForce: "gates",
-    firstGates: "gates",
-    tooLate: "reply-gates",
+    readModeInForce: "gates",
+    runFirstGates: "gates",
+    isTooLate: "reply-gates",
     seeingOf: "unreadable",
-    unreadableGate: "unreadable",
+    runUnreadableGate: "unreadable",
     wordsOf: "unreadable",
-    confirmedYes: "reply-gates",
-    heldForThePerson: "reply-gates",
-    photoOf: "unreadable",
-    modelTurn: "model-turn",
+    hasConfirmedYes: "reply-gates",
+    holdForThePerson: "reply-gates",
+    findPhoto: "unreadable",
+    takeModelTurn: "model-turn",
     planTheHold: "dispatch",
-    heldOrKept: "dispatch",
+    holdOrKeep: "dispatch",
     sendNow: "dispatch",
   };
   const src = Object.fromEntries(
@@ -259,11 +259,11 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   );
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   for (const s of [
-    "export async function pgIngest(",
+    "export async function runPgIngest(",
     "export async function runPgSafe<T>(",
     "export function pgSink(",
     "export async function queueReply(",
-    "export async function pgThread(",
+    "export async function readPgThread(",
   ])
     assert.ok(persist.includes(s), s);
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");

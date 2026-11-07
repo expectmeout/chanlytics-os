@@ -1696,7 +1696,7 @@ Writes; for any signed-in person, for themselves; counts against the `profile_se
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `display_name` | string or null | no |  |
+| `display_name` | any | no |  |
 
 ### `DELETE /api/v1/me`
 
@@ -3110,7 +3110,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `brief` | string | no |  |
-| `category` | string | no |  |
+| `category` | one of `"marketing"`, `"utility"` | no |  |
 | `language` | string | no |  |
 | `translate` | object | no |  |
 
@@ -3346,6 +3346,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | --- | --- | --- | --- |
 | `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `ids` | array of string | no |  |
+| `pictures` | array of object | no |  |
 
 ### `POST /api/admin/google`
 

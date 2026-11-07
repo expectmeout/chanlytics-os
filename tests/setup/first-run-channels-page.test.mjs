@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KEEP_ROW } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/helpers.ts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/first-run-helpers.ts";
 import { importSrc } from "../_source.mjs";
 import {
   atChannels,

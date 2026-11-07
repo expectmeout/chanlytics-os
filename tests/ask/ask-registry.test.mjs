@@ -51,7 +51,7 @@ const {
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { MOMENT_TRIGGERS, MOMENTS_RETIRED, REPORT_PERIOD_IDS, roleAtLeast, startersForTrigger } =
   await import("@chanlytics/contracts");
-const { PROPOSAL_SPECS } = await import("../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
 /**
  * 2 Oct 2026: the two moments no longer offered for a new playbook (contracts MOMENTS_RETIRED) leave the playbook's
  * trigger enum; 11 Oct 2026 (D2 of the marketing manager's spec): the two appointment moments join it, the reminder the

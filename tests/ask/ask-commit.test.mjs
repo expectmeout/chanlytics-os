@@ -21,8 +21,8 @@ import {
   DAY_MS,
   PROPOSAL_WORDS,
   applySettingsChange,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";

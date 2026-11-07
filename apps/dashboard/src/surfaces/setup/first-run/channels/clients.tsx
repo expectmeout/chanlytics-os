@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from "react";
 import type { FirstRunChannelsVM } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "../model/helpers";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 import { Sheet } from "../../../kit/sheet/sheet";
 import type { FrameFlash } from "../../../frame-verbs";
 import { listBody, useImport } from "../../../people/import/add-list";

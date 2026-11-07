@@ -412,7 +412,6 @@ export { isReportDto, toHeadlineVM } from "./reports/headline";
 export { adsReportRoute, campaignReportRoute, isAdsScope, isLensParam, LENS_ROUTES, lensEmpty, lensesFor, lensIsShown, lensOf, lensOfRoute, lensRoute, REPORT_LENSES, reportsParamParts, reportsRouteParts, reviewRoute, CAMPAIGN_SCOPE_ALL, campaignScopeKey, campaignScopeOfKey } from "./reports/lenses";
 export { peopleNowOf } from "./reports/people/now";
 export { isPeopleSeriesDto, peopleDtoOf } from "./reports/people/record";
-export { PEOPLE_RHYTHM_UNIT, firstCameEntries, firstCameRecorded } from "./reports/people/words/heads";
 export { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf, isReportDays, isReportPeriod, monthDaysAt, REPORT_MOST_DAYS, REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, reportDaysAsked, reportDaysCount, reportDaysRefusal, reportPeriodOf, reportRangeAsked, reportRangeKey, reportRangeOfKey, sameReportRange } from "./reports/periods";
 export { chainTotalsFromReport, chainTotalsOf, reachOutDayWords } from "./reports/reach-out-report";
 export { isReceptionistSeriesDto, MISSED_CALL_TOUCH_WORDS, receptionistDtoOf } from "./reports/receptionist/record";

@@ -42,7 +42,7 @@ export async function listNamesOfPeople(
       .select(PERSON_FACE_COLUMNS)
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IDS_PER_READ));
-    if (error) throw new Error(`namesOfPeople: ${error.message}`);
+    if (error) throw new Error(`listNamesOfPeople: ${error.message}`);
     out.push(...(data ?? []));
   }
   return out;

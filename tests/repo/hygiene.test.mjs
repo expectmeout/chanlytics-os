@@ -157,7 +157,7 @@ test("F15: the list route ships each turn's start and end, not every word's timi
     "and the raw provider shape still works",
   );
   const route = readCode("apps/dashboard/src/server/conversations/dto.ts");
-  assert.ok(route.includes("transcript_object: stripWordTimings(c.transcript_object),"));
+  assert.ok(route.includes("transcript_object: stripWordTimings(call.transcript_object),"));
 });
 
 test("every route pg_cron calls stands behind the one door", () => {
@@ -178,7 +178,7 @@ test("every route pg_cron calls stands behind the one door", () => {
     // A sweep's route is sweepDoor (lib/ops/sweep-door.ts, which cron-auth.test.mjs runs: the sweep is reached only with
     // the key); the jobs tick, which is no sweep, asks for the key itself.
     assert.ok(
-      src.includes("sweepDoor(") || src.includes("await authorizeCron(request, db, L)"),
+      src.includes("sweepDoor(") || src.includes("await authorizeCron(request, db, log)"),
       `${r} stands behind authorizeCron`,
     );
     assert.ok(

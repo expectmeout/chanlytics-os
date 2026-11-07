@@ -232,60 +232,112 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
     .sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
   const call =
     inbound.find((c) => (c.startedAtMs ?? 0) >= since - TRY_SLACK_MS) ?? (tested ? (inbound[0] ?? null) : null);
-
-  if (!call) {
-    const open = !!f0 && fw!.forwarding_state !== "verified" && forwardingTestOpen(f0, nowMs);
-    const left = open && f0.test_until ? Math.max(1, Math.ceil((Date.parse(f0.test_until) - nowMs) / MIN_MS)) : null;
-    const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
-    const sentence = listenWordsOf(keptPhoneKind(fw), shown, quiet);
-    return {
-      ...base,
-      stage: quiet ? "quiet" : "listen",
-      heading: sentence.heading,
-      lead: sentence.lead,
-      listening: {
-        sentence: quiet ? words.stillListening : words.listening,
-        detail: left !== null ? words.listeningWindow(left) : words.listeningDetail,
-        route: sentence.route,
-      },
-      causes: quiet
-        ? forwarded
-          ? words.causesForwarded.map((c) => ({ ...c }))
-          : [words.causeOwn(formatPhoneDisplay(own) ?? own)]
-        : [],
-    };
-  }
+  const kind = keptPhoneKind(fw);
+  if (!call) return listeningOf(base, { own, kind, shown, testUntil: openWindowUntil(fw, nowMs), since, nowMs });
 
   // The owner's own test call started once the screen was open; an older one (shown once one has reached the
   // receptionist) may be a customer's, so its caller is neither "You" nor offered as the transfer.
   const test = (call.startedAtMs ?? 0) >= since - TRY_SLACK_MS;
-  const turns = call.transcript
+  const turns = turnsOf(call, test);
+  const to = `conversations/${call.cvId}`;
+  if (call.live) {
+    const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1000));
+    const proof = proven ? words.proofForwarded : words.proofOwn;
+    const line = [proof, words.onTheCall, mmss(secs * 1000)].join(" · ");
+    return {
+      ...base,
+      stage: "call",
+      heading: words.pickedUp,
+      lead: "",
+      call: { line, live: true, test, turns, behind: words.behind, to },
+    };
+  }
+  const line = [
+    call.duration ?? call.lengthWords,
+    call.number ? words.from(call.number) : null,
+    proven && shown ? words.through(shown) : null,
+    call.startedLabel,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    ...base,
+    stage: "done",
+    heading: words.doneHeading,
+    lead: "",
+    call: { line, live: false, test, turns, behind: null, to },
+    transfer: transferOf(call, test ? { own, kept } : null, dto.business.handoff, shown && forwarded ? shown : null),
+  };
+}
+
+/** What every stage of the test says alike: the number, how to dial it, help with forwarding, and the skip. */
+type TryBase = Pick<
+  FirstRunTryVM,
+  "number" | "forwarded" | "dial" | "help" | "openTest" | "listening" | "causes" | "call" | "transfer" | "skip"
+>;
+
+/** The forwarding test's window, while one is open on a kept number not yet proven: when it closes. */
+function openWindowUntil(fw: ReturnType<typeof forwardedLineOf>, nowMs: number): string | null {
+  const f0 = fw?.forwarding ?? null;
+  const open = !!f0 && fw!.forwarding_state !== "verified" && forwardingTestOpen(f0, nowMs);
+  return open ? (f0.test_until ?? null) : null;
+}
+
+/** No call yet: listening, the minutes the test window has left, and after three quiet minutes why it may be. */
+function listeningOf(
+  base: TryBase,
+  at: { own: string; kind: KeptRings; shown: string | null; testUntil: string | null; since: number; nowMs: number },
+): FirstRunTryVM {
+  const words = FIRST_RUN_TRY_WORDS;
+  const left = at.testUntil ? Math.max(1, Math.ceil((Date.parse(at.testUntil) - at.nowMs) / MIN_MS)) : null;
+  const quiet = at.nowMs - at.since >= TRY_QUIET_AFTER_MS;
+  const sentence = listenWordsOf(at.kind, at.shown, quiet);
+  return {
+    ...base,
+    stage: quiet ? "quiet" : "listen",
+    heading: sentence.heading,
+    lead: sentence.lead,
+    listening: {
+      sentence: quiet ? words.stillListening : words.listening,
+      detail: left !== null ? words.listeningWindow(left) : words.listeningDetail,
+      route: sentence.route,
+    },
+    causes: !quiet
+      ? []
+      : base.forwarded
+        ? words.causesForwarded.map((c) => ({ ...c }))
+        : [words.causeOwn(formatPhoneDisplay(at.own) ?? at.own)],
+  };
+}
+
+/** The call's turns, the receptionist's and the caller's, the caller "You" only on the owner's own test. */
+function turnsOf(call: LiveCallVM, test: boolean): NonNullable<FirstRunTryVM["call"]>["turns"] {
+  const words = FIRST_RUN_TRY_WORDS;
+  return call.transcript
     .filter((t) => t.speaker === "agent" || t.speaker === "client")
     .map((t) => ({
       who: t.speaker === "agent" ? words.receptionist : test ? words.caller : words.someone,
       text: t.text,
       agent: t.speaker === "agent",
     }));
-  const proof = proven ? words.proofForwarded : words.proofOwn;
-  const to = `conversations/${call.cvId}`;
-  if (call.live) {
-    const secs = Math.max(0, Math.floor((nowMs - (call.startedAtMs ?? nowMs)) / 1000));
-    const clock = mmss(secs * 1000);
-    return {
-      ...base,
-      stage: "call",
-      heading: words.pickedUp,
-      lead: "",
-      call: { line: [proof, words.onTheCall, clock].join(" · "), live: true, test, turns, behind: words.behind, to },
-    };
-  }
+}
 
-  // After the call: where a caller who asks for a person is put through. The phone they called from, where it may be
-  // one (never the receptionist's own line, never the kept number, which would ring straight back: whyNotAHandoff),
-  // the number on record when there is another, or a message.
+/**
+ * After the call: where a caller who asks for a person is put through. The phone they called from, where it may be
+ * one (never the receptionist's own line, never the kept number, which would ring straight back: whyNotAHandoff; and
+ * only on the owner's own test, `lines`), the number on record when there is another, or a message. `keptShown` is the
+ * kept number as the page writes it, whose forwarding the transfer does not change.
+ */
+function transferOf(
+  call: LiveCallVM,
+  lines: { own: string; kept: string | null } | null,
+  handoff: string | null | undefined,
+  keptShown: string | null,
+): FirstRunTryVM["transfer"] {
+  const words = FIRST_RUN_TRY_WORDS;
   const caller = normalizePhone(call.from);
-  const current = normalizePhone(dto.business.handoff);
-  const callerOk = test && !!caller && whyNotAHandoff(caller, own, kept) === null;
+  const current = normalizePhone(handoff);
+  const callerOk = !!lines && !!caller && whyNotAHandoff(caller, lines.own, lines.kept) === null;
   const options: NonNullable<FirstRunTryVM["transfer"]>["options"] = [];
   if (callerOk) {
     options.push({
@@ -305,25 +357,5 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
   }
   options.push({ key: "message", label: words.message, sentence: words.messageSentence, to: null });
   const value: TryTransferKey = !current ? "message" : samePhone(current, caller) && callerOk ? "caller" : "current";
-  const line = [
-    call.duration ?? call.lengthWords,
-    call.number ? words.from(call.number) : null,
-    proven && shown ? words.through(shown) : null,
-    call.startedLabel,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return {
-    ...base,
-    stage: "done",
-    heading: words.doneHeading,
-    lead: "",
-    call: { line, live: false, test, turns, behind: null, to },
-    transfer: {
-      label: words.transferLabel,
-      options,
-      value,
-      note: forwarded && shown ? words.notKept(shown) : null,
-    },
-  };
+  return { label: words.transferLabel, options, value, note: keptShown ? words.notKept(keptShown) : null };
 }

@@ -10,8 +10,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { SEQUENCE_ACT_WHY, SEQUENCE_WORDS } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../../apps/dashboard/src/server/ask/proposals/proposals.ts";
+import { SEQUENCE_ACT_WHY, SEQUENCE_WORDS, PROPOSAL_SPECS } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";

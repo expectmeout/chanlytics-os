@@ -8,7 +8,7 @@
  */
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { restEndsDay, type SetupPutOffWhy } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "@/surfaces/setup/first-run/model/helpers";
+import { FIRST_RUN_HELPERS } from "@/surfaces/setup/first-run/model/first-run-helpers";
 import {
   SETUP_CARD_WORDS,
   type SetupCardPutOff,

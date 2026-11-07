@@ -534,7 +534,7 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
   // message does not.
   assert.match(
     gate,
-    /const may = mayMessageFor\(f\.contact, f\.purpose, \{\s*proactive: f\.proactive,\s*channel: f\.channel,\s*about: f\.about,?\s*\}\);/,
+    /const may = mayMessageFor\(outboundFacts\.contact, outboundFacts\.purpose, \{\s*proactive: outboundFacts\.proactive,\s*channel: outboundFacts\.channel,\s*about: outboundFacts\.about,?\s*\}\);/,
   );
   assert.match(gate, /about: MessageAbout;/, "required of every caller, as the purpose is");
   assert.ok(!/optedOut: boolean/.test(gate), "REGRESSION: a pre-decided boolean cannot answer a per-purpose question");
@@ -618,7 +618,7 @@ test('every read of "said yes to offers" points at the offers column', () => {
   ]
     .map((p) => readCode(p))
     .join("\n");
-  assert.match(setup, /const offers = i\.consent\.offers;/, "the Setup row reads the offers count");
+  assert.match(setup, /const offers = setupInputs\.consent\.offers;/, "the Setup row reads the offers count");
   const server = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
     .map((p) => readCode(p))
     .join("\n");

@@ -842,12 +842,12 @@ test("the profile: a Next appointment fact and About rows when the calendar is c
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", async () => {
   // The board (calendar/week/week.ts) and the profile (person-visits.ts), and the lookup that names the calendar for the
   // profile (calendar/settings.ts).
-  const svc = ["settings", "week", "person-visits"]
+  const svc = ["settings", "week/week", "person-visits"]
     .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
     .join("\n");
   assert.ok(
-    svc.includes("export async function personVisits(") &&
-      svc.includes("const v = visitsIn(index, person, now.getTime());"),
+    svc.includes("export async function findPersonVisits(") &&
+      svc.includes("const visits = visitsIn(index, person, now.getTime());"),
     "the profile's visits, from the same feed and match",
   );
   assert.ok(svc.includes("source: feedSourceLabel(url)"), "the calendar's name, never its address");
@@ -864,11 +864,11 @@ test("the wiring: the board and the profile read one match; both receptionists a
   );
   const edge = readCode("apps/edge/lib/calendar/availability.ts");
   assert.ok(
-    /export async function findVisits\(\s*rt: TenantRuntime,\s*who: \{ phone: string \| null; name: string \| null \}/.test(
+    /export async function findVisits\(\s*rt: TenantRuntime,\s*caller: \{ phone: string \| null; name: string \| null \}/.test(
       edge,
     ) &&
       // The feed's events and the record's rows for the caller (00345), read by the one index.
-      /return describeVisits\(\s*visitsOf\(items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
+      /return describeVisits\(\s*visitsOf\(\s*items,\s*\{ id: "caller", name: caller\.name \?\? "", phone: caller\.phone, email: null \},\s*now\.getTime\(\),\s*own,?\s*\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
         edge,
       ),
   );
@@ -1444,7 +1444,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
       // The calendar's read and everyone's visits off it, apart since 9 Oct 2026 so the pools ask for both at once.
-      svc.includes("export async function calendarRead(") &&
+      svc.includes("export async function getCalendar(") &&
       svc.includes("export function visitsIn(") &&
       // The record joins the feed there (0002's readers): the cal's `record`.
       /peopleVisitsOf\(\s*feed\.parsed\.items,\s*rows,\s*\{ timezone, source, own, services, rules, record \},\s*now\.getTime\(\),?\s*\)/.test(
@@ -1978,7 +1978,7 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   assert.ok(
     // The pool (audience.ts) is everyone with their appointments; ask-turn.test.mjs counts past a thousand through it.
     ports.includes("people: async (now) => (await poolAt(now)).rows,") &&
-      ports.includes("(pool ??= audiencePool(ctx, tenantId, await zone(), now, "),
+      ports.includes("(pool ??= getAudiencePool(ctx, tenantId, await zone(), now, "),
     "the enrol path counts what the page counted, every page of it",
   );
 });
@@ -2021,7 +2021,7 @@ test("asked means they reached out: the call they placed counts, a call the owne
   );
   assert.ok(
     readCode("apps/dashboard/src/server/calendar/people-visits.ts").includes(
-      "const cands = [r.last_inbound_at, r.last_inbound_call_at ?? null]",
+      "const cands = [row.last_inbound_at, row.last_inbound_call_at ?? null]",
     ),
     "the report counts the same way",
   );

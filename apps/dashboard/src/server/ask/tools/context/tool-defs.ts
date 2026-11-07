@@ -9,8 +9,8 @@ import {
   type AskReadSet,
   type MembershipRole,
   type PlanLead,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../proposals/proposals";
 import type { RouteContext } from "../../../shared/with-route";
 import type { ReaderContext } from "../../../shared/reader";
 

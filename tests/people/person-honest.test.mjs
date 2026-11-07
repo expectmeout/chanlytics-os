@@ -22,10 +22,11 @@ import { until } from "../shared/_until.mjs";
 import { importSrc } from "../_source.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 
 // A namespace, not named imports: a word or a filter this slice adds is missing from the module until it
 // lands, and a named import of it would fail the whole file rather than the test that needs it.
-const { CONSENT_SOURCES, attentionRow, mayReceive, offersYesRefusal, stateOf, toPersonRowVM } = contracts;
+const { CONSENT_SOURCES, mayReceive, offersYesRefusal, stateOf, toPersonRowVM } = contracts;
 const filterTimeline = (items, id) => contracts.filterTimeline(items, id);
 /**
  * A person as the contract maps them, remembering the detail it was made from: the page reads its person off the wire, so

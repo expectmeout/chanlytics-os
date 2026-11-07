@@ -18,8 +18,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
+import { smsStateRow, connectionRows } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 
-const { setupSteps, smsStateRow, connectionRows, verbForRoute, formatPhoneDisplay, stateOf } = contracts;
+const { setupSteps, verbForRoute, formatPhoneDisplay, stateOf } = contracts;
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const TID = "t-studio";
 

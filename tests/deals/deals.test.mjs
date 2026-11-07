@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
+import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 
 const {
   DEAL_STAGES,
@@ -1065,7 +1066,7 @@ test("the Journey continues past the booking: five lists, each gated on deals be
 });
 
 test("a row's second line says a waiting proposal after their words and before the visit; a client keeps the visit", () => {
-  const { attentionRow, toPersonRowVM } = contracts;
+  const { toPersonRowVM } = contracts;
   const vmOf = (over) => toPersonRowVM(personRow(over), TZ, new Date(NOW));
   const visits = {
     timezone: TZ,

@@ -16,8 +16,8 @@ import {
   PLAYBOOK_PATCH_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   campaignDayWords,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 import { importSrc } from "../../_source.mjs";
 
 const { checkPlaybookPatch } = await importSrc("packages/core/src/campaigns/check-playbook.ts");

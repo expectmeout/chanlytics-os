@@ -1,6 +1,6 @@
 /**
  * Which way the code's dependencies run, measured from the syntax tree: the numbers check:debt holds (BOUNDARY_RATCHETS) and the
- * rules boundaries.test.mjs holds outright (decision 0106).
+ * rules boundaries.test.mjs holds outright (decision 0110).
  *
  * An import running both ways costs a reader the map: nothing can be read or changed alone. So the packages have a written order, a backend
  * tree's domains lean one way, what a tree shares leans on no domain, and a package holds what two trees use. The browser's trees and contracts'
@@ -386,7 +386,7 @@ export const BOUNDARY_RATCHETS = [
       return out;
     },
     advice:
-      "A module that needs its own importer runs in whatever order it was reached. Move what both need to where both can lean on it (decision 0106).",
+      "A module that needs its own importer runs in whatever order it was reached. Move what both need to where both can lean on it (decision 0110).",
   },
   {
     name: "modules in a circle once type imports count",
@@ -432,7 +432,7 @@ export const BOUNDARY_RATCHETS = [
           .filter(([, n]) => n > 0),
       ),
     advice:
-      "A name joins a domain's barrel, and its importer says the domain. A package's root is not the place for it (decision 0106).",
+      "A name joins a domain's barrel, and its importer says the domain. A package's root is not the place for it (decision 0110).",
   },
   {
     name: "doors over a hundred code lines",

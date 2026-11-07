@@ -8,8 +8,8 @@ import {
   shiftKey,
   zoneMidnight,
   UUID,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../proposals/proposals";
 import { WHOSE, noteRow, str } from "../context/tool-reads";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";

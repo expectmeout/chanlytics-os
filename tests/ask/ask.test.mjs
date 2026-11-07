@@ -1471,12 +1471,12 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     .join("\n");
   assert.ok(
     loop.includes(
-      "const p = notAgain(await ports.propose(tc, b.name, args), [...(input.waiting ?? []), ...proposals]);",
+      "const result = notAgain(await ports.propose(tc, roundBlock.name, args), [...(input.waiting ?? []), ...proposals]);",
     ),
     "an act tool becomes a proposal, never an action",
   );
   assert.ok(
-    loop.includes("if (!args) return cutOff(b, input.tenantId);"),
+    loop.includes("if (!args) return cutOff(roundBlock, input.tenantId);"),
     "a call whose arguments did not arrive whole is told so, not judged as a plan with every field missing",
   );
   const prompt = ASK_RULES.join("\n");
@@ -1788,7 +1788,7 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
     .map((p) => readCode(p))
     .join("\n");
   assert.ok(
-    l.includes('import { askModel } from "./model";') &&
+    l.includes('import { askModel } from "../model";') &&
       !l.includes("export { ASK_MODEL }") &&
       !l.includes("const EFFORT"),
     "the loop asks the deployment's profile for the model and the effort, and names neither itself (spec 5.11)",

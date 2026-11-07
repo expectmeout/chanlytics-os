@@ -51,7 +51,7 @@ test("the clock names the day when it is not today", () => {
 test("the wiring: words on the edge, a bounded reply on both sides, the layout fixes, and nothing of the workshop on a customer's screen", () => {
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
   assert.ok(
-    alerts.includes("subject: `${name} needs a person — ${why}`") &&
+    alerts.includes("subject: `${name} needs a person — ${otherReason}`") &&
       alerts.includes("about: ctx.about ?? null,") &&
       // The reason is said in the Inbox's words (reasonShort of the hold's reason), not a map of the notice's own.
       alerts.includes('["passed to a human", "human_token"]'),

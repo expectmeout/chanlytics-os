@@ -32,6 +32,8 @@ export { PAGE_SPECS } from "./page-specs";
 export type { VerbKind } from "./page-specs";
 export { answerSaidOf } from "./people-verbs";
 export { PERSON_DETAIL_WORDS } from "./person";
+export { PROPOSAL_SPECS, proposalBelowNeeds } from "./proposals";
+export type { ProposalKindAboveOperator } from "./proposals";
 export { PROPOSAL_WORDS } from "./spec";
 export { ASK_SENDS } from "./spec";
 export type {

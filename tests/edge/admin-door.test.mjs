@@ -36,6 +36,7 @@ for (const k of [
   delete process.env[k];
 
 const { readBody } = await importSrc("apps/edge/lib/shared/admin-door.ts");
+const { LINES_DOOR } = await importSrc("packages/contracts/src/lines/edge-doors.ts");
 const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
 const { UNKNOWN_LINE_OP } = await importSrc("apps/edge/lib/lines/ops/search-buy.ts");
 const { UNKNOWN_GOOGLE_OP } = await importSrc("apps/edge/lib/google/ops.ts");
@@ -97,20 +98,20 @@ const world = () => ({
 /* --------------------------------------------------------------- the reader */
 
 test("readBody keeps a JSON object as sent, and reads anything else -- not JSON, or JSON that is not an object -- as an empty body", async () => {
-  assert.deepEqual(await readBody(request('{"op":"buy","tenant_id":"t1","n":{"deep":[1,2]}}')), {
+  assert.deepEqual(await readBody(request('{"op":"buy","tenant_id":"t1","n":{"deep":[1,2]}}'), LINES_DOOR), {
     op: "buy",
     tenant_id: "t1",
     n: { deep: [1, 2] },
   });
-  assert.deepEqual(await readBody(request("{}")), {});
+  assert.deepEqual(await readBody(request("{}"), LINES_DOOR), {});
   for (const raw of [...NOT_OBJECTS, "[1,2]", '[{"op":"status"}]', "false", "0", '""', "not json", ""]) {
-    const body = await readBody(request(raw));
+    const body = await readBody(request(raw), LINES_DOOR);
     assert.deepEqual(body, {}, `${JSON.stringify(raw)} is an empty body`);
     assert.equal(Array.isArray(body), false, `${JSON.stringify(raw)} is not kept as an array`);
   }
   // A door writes the workspace back onto the body it read, so each empty body is its own.
-  const one = await readBody(request("null"));
-  const two = await readBody(request("null"));
+  const one = await readBody(request("null"), LINES_DOOR);
+  const two = await readBody(request("null"), LINES_DOOR);
   one.tenant_id = A;
   assert.deepEqual(two, {}, "one knock's body is never another's");
 });

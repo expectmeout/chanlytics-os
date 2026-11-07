@@ -18,7 +18,13 @@
 export { metricWordsOf } from "./metrics";
 export { toReceptionistReportVM } from "./receptionist/report";
 export { toPeopleReportVM } from "./people/report";
-export { FIRST_CAME_NOBODY, PEOPLE_RHYTHM_EMPTY, PEOPLE_RHYTHM_UNIT } from "./people/words/heads";
+export {
+  FIRST_CAME_NOBODY,
+  PEOPLE_RHYTHM_EMPTY,
+  PEOPLE_RHYTHM_UNIT,
+  firstCameEntries,
+  firstCameRecorded,
+} from "./people/words/heads";
 export { toReachOutLensVM } from "./campaigns/reach-out-lens";
 export { toCampaignLensVM } from "./campaigns/lens";
 export type { MixPartVM, RateRowVM } from "./mix";

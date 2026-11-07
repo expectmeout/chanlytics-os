@@ -12,37 +12,37 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { LEAD_SHEET_WORDS } from "../../../apps/dashboard/src/surfaces/leads/sheet/model/view.ts";
-
-const {
+import {
   leadSheetStateOf,
   leadSheetClosedOf,
   leadVerdictOf,
-  leadSheetSubOf,
-  leadSheetChecksLineOf,
   leadSheetAboutOf,
-  leadSheetWhyOf,
-  leadDockOf,
-  dockSlotsOf,
-  leadLeaveAskOf,
-  leadNowOf,
-  leadApproveAskOf,
-  leadLinesOf,
-  leadHistoryOf,
   leadPickerRowsOf,
   newStartFirst,
   leadPileEndOf,
-  placeWordOf,
-  heldAnswersOf,
-  placeRailOf,
-  runApproveWords,
-  LEAD_SHEET_WORDS: W,
-  LEAD_DOCK_WORDS: D,
-  LEAD_LEAVE_WORDS: L,
-  outreachRefusalOf,
-  LEAD_NOW_WORDS: N,
+  LEAD_SHEET_WORDS as W,
+} from "../../../apps/dashboard/src/surfaces/leads/sheet/model/view.ts";
+import {
+  leadSheetSubOf,
+  leadSheetChecksLineOf,
+  leadSheetWhyOf,
   LEAD_SHEET_CARD_WORDS,
-  PLACE_RAIL_WORDS: R,
-} = contracts;
+} from "../../../apps/dashboard/src/surfaces/leads/sheet/model/card.ts";
+import {
+  leadDockOf,
+  dockSlotsOf,
+  leadLeaveAskOf,
+  LEAD_DOCK_WORDS as D,
+  LEAD_LEAVE_WORDS as L,
+} from "../../../apps/dashboard/src/surfaces/leads/sheet/model/dock.ts";
+import {
+  leadNowOf,
+  leadApproveAskOf,
+  LEAD_NOW_WORDS as N,
+} from "../../../apps/dashboard/src/surfaces/leads/sheet/model/now.ts";
+import { leadLinesOf, leadHistoryOf } from "../../../apps/dashboard/src/surfaces/leads/sheet/model/lines.ts";
+
+const { placeWordOf, heldAnswersOf, placeRailOf, runApproveWords, outreachRefusalOf, PLACE_RAIL_WORDS: R } = contracts;
 
 const TZ = "America/New_York";
 const NOW = Date.parse("2026-10-18T14:00:00Z");

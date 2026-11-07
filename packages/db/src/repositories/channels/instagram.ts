@@ -28,7 +28,7 @@ export async function listActiveInstagramAccounts(db: Db): Promise<InstagramAcco
     .eq("kind", "instagram")
     .eq("status", "active")
     .order("created_at", { ascending: true });
-  if (error) throw new Error(`activeInstagramAccounts: ${error.message}`);
+  if (error) throw new Error(`listActiveInstagramAccounts: ${error.message}`);
   return data ?? [];
 }
 
@@ -56,7 +56,7 @@ export async function findInstagramAccountHolder(
     .eq("kind", "instagram")
     .eq("external_id", accountId)
     .maybeSingle();
-  if (error) throw new Error(`instagramAccountHolder: ${error.message}`);
+  if (error) throw new Error(`findInstagramAccountHolder: ${error.message}`);
   return data;
 }
 
@@ -174,7 +174,7 @@ export async function findInstagramId(db: Db, tenantId: string, contactId: strin
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw Object.assign(new Error(`instagramIdOf: ${error.message}`), { code: error.code });
+  if (error) throw Object.assign(new Error(`findInstagramId: ${error.message}`), { code: error.code });
   return data?.external_id ?? null;
 }
 
@@ -192,7 +192,7 @@ export async function findPersonOfInstagramId(db: Db, tenantId: string, igsid: s
     .eq("external_id", igsid)
     .limit(1)
     .maybeSingle();
-  if (error) throw Object.assign(new Error(`personOfInstagramId: ${error.message}`), { code: error.code });
+  if (error) throw Object.assign(new Error(`findPersonOfInstagramId: ${error.message}`), { code: error.code });
   if (!data || data.contacts?.erased_at) return null;
   return data.contacts?.merged_into_contact_id ?? data.contact_id;
 }
@@ -204,7 +204,7 @@ export async function findPersonOfInstagramId(db: Db, tenantId: string, igsid: s
  */
 export async function listLastDmsSentTo(db: Db, tenantId: string, contactId: string): Promise<string[]> {
   const threads = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId);
-  if (threads.error) throw new Error(`lastDmsSentTo: ${threads.error.message}`);
+  if (threads.error) throw new Error(`listLastDmsSentTo: ${threads.error.message}`);
   const ids = (threads.data ?? []).map((c) => c.id);
   if (!ids.length) return [];
   const { data, error } = await db
@@ -216,7 +216,7 @@ export async function listLastDmsSentTo(db: Db, tenantId: string, contactId: str
     .eq("direction", "outbound")
     .order("created_at", { ascending: false })
     .limit(DMS_TO_COMPARE);
-  if (error) throw new Error(`lastDmsSentTo: ${error.message}`);
+  if (error) throw new Error(`listLastDmsSentTo: ${error.message}`);
   return (data ?? []).flatMap((m) => (m.body ? [m.body] : []));
 }
 /** How many of the DMs sent last an echo's words are compared with: a split reply's parts follow it within seconds. */
@@ -241,7 +241,7 @@ export async function findLastInboundOn(
     .order("channel_ts", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`lastInboundOn: ${error.message}`);
+  if (error) throw new Error(`findLastInboundOn: ${error.message}`);
   return data?.channel_ts ?? data?.created_at ?? null;
 }
 

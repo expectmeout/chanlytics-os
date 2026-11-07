@@ -71,7 +71,7 @@ export function packagePass() {
     const readers = everything.filter((f) => !(own(f) && isBarrel(f)));
     const found = unimportedExports(
       modules.map((file) => ({ file, sf: parse(file) })),
-      // Every entry's names: db and channels are reached by their domains, with no index (decision 0106).
+      // Every entry's names: db and channels are reached by their domains, with no index (decision 0110).
       new Set(Object.keys(entriesOf(p)).flatMap((out) => [...bundleExports(parse(`packages/${p}/${out}`))])),
       readers.map((file) => ({ file, sf: parse(file) })),
     );

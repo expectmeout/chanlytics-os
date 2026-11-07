@@ -26,7 +26,7 @@ import {
   type FirstRunPhoneVM,
   type FirstRunStepKey,
 } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "./model/helpers";
+import { FIRST_RUN_HELPERS } from "./model/first-run-helpers";
 import type { FirstRunGoLiveVM } from "./model/golive";
 import type { FirstRunTryVM } from "./model/try";
 import type { FirstRunVM, FirstRunWho } from "./model/view";

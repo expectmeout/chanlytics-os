@@ -210,13 +210,15 @@ test("the receptionist is made once, in the lib both line paths share: the shell
   const agent = readCode("apps/edge/lib/lines/voice-agent.ts");
   for (const pin of [
     "createRetellLlm(cfg, voiceLlmCreateBody(secrets, fnUrl))",
-    "voiceAgentCreateBody({ llmId, llmVersion, agentName: o.agentName }, secrets, fnUrl)",
+    "voiceAgentCreateBody({ llmId, llmVersion, agentName: options.agentName }, secrets, fnUrl)",
     'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")',
   ]) {
     assert.ok(agent.includes(pin), pin);
   }
   // Resume reads the provider before trusting an id.
-  assert.ok(agent.includes("await getAgentRaw(cfg, o.agentId)") && agent.includes("await getRetellLlm(cfg, llmId)"));
+  assert.ok(
+    agent.includes("await getAgentRaw(cfg, options.agentId)") && agent.includes("await getRetellLlm(cfg, llmId)"),
+  );
   assert.ok(EVENT_KINDS.includes("voice.provisioned"));
   assert.ok(!agent.includes("...w.body"), "a success body echoes the webhook URL with its key");
   assert.ok(

@@ -371,7 +371,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   for (const k of ["billing.updated", "billing.paused", "billing.resumed"]) assert.ok(EVENT_KINDS.includes(k), k);
 
   const hook = readCode("apps/edge/lib/intake/stripe-event.ts");
-  assert.ok(hook.includes("s.webhooks.constructEvent(raw, sig, secret)"), "the signature, on the raw body");
+  assert.ok(hook.includes("result.webhooks.constructEvent(raw, sig, secret)"), "the signature, on the raw body");
   assert.ok(
     hook.indexOf("constructEvent(") < hook.indexOf("keepEvent(") &&
       hook.indexOf("keepEvent(") < hook.indexOf("applySubscription("),
@@ -421,10 +421,10 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     "blank is unset, and it is tested BEFORE the number is parsed",
   );
   assert.ok(
-    lib.indexOf("const raw = (env.BILLING_TRIAL_DAYS") < lib.indexOf("const n = Number(raw)"),
+    lib.indexOf("const raw = (env.BILLING_TRIAL_DAYS") < lib.indexOf("const parsed = Number(raw)"),
     "trimmed first, parsed second",
   );
-  assert.match(lib, /s\.subscriptions\.resume\(row\.stripe_subscription_id, \{\s*billing_cycle_anchor: "now"/);
+  assert.match(lib, /client\.subscriptions\.resume\(row\.stripe_subscription_id, \{\s*billing_cycle_anchor: "now"/);
   assert.ok(lib.includes('if (error.code === "23505") return false;'), "a second delivery hits the primary key");
   assert.ok(
     // Rung once through billing/notices.ts ringOnce (S6-12), whose bell, of kind billing, the webhook and door tests read.
@@ -434,7 +434,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(
     lib.includes("expect: { status: row.status, updated_at: row.updated_at }") &&
       lib.includes("tenantStatus: plan.tenantStatus,") &&
-      lib.includes('L.info("billing_apply_raced"'),
+      lib.includes('log.info("billing_apply_raced"'),
     "two events for one change: the loser writes nothing and rings nothing; the row and the switch are one write (00382)",
   );
   assert.ok(
@@ -456,7 +456,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   );
 
   const get = readCode("apps/dashboard/app/api/v1/billing/route.ts");
-  assert.match(get, /findBilling\(ctx\.supabase, member\.tenantId\),\s*billingReadiness\(\)/);
+  assert.match(get, /findBilling\(ctx\.supabase, member\.tenantId\),\s*getBillingReadiness\(\)/);
   for (const [file, role] of [
     ["checkout", "owner"],
     ["portal", "owner"],
@@ -488,7 +488,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     .join("\n");
   assert.ok(
     setup.includes("findBilling(supabase, tenantId),") &&
-      setup.includes("billingReadiness(),") &&
+      setup.includes("getBillingReadiness(),") &&
       /trial_days: billingReady\.trial_days,\s*cancel_at: billingRow\.cancel_at/.test(setup),
   );
   // Billing is TSX since decision 0015's step 11 (surfaces/settings/billing): the surface, then the pane.

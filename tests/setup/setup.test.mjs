@@ -914,7 +914,7 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
   const route = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
   assert.ok(route.includes("const told = already"));
   assert.ok(
-    route.includes("await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null, ctx.userId)"),
+    route.includes("await tellPlatformOfSetupRequest(member.tenantId, subject, ctx.email ?? null, ctx.userId)"),
     "the mail names the workspace, who asked and the person who pressed",
   );
   assert.ok(route.includes("return { request: data, told };"));
@@ -1076,7 +1076,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   const server = readCode("apps/dashboard/src/server/connections/lines.ts");
   assert.ok(server.includes('callEdge("/api/admin/lines"'));
   assert.ok(
-    !/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function linesFor"))),
+    !/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function listLines"))),
     "no provider id is selected for the page",
   );
   // The edge's verb answers and this read build a line with one builder (contracts lineDtoOf), run on both sides in
@@ -1216,7 +1216,7 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
   for (const pin of [
     'role: "operator",',
     'rate: "setup_request",',
-    'rpc("setup_request", { p_tenant_id: member.tenantId, p_what: what })',
+    'rpc("setup_request", { p_tenant_id: member.tenantId, p_what: subject })',
   ])
     assert.ok(post.includes(pin), pin);
   const mig = readRaw("supabase/migrations/00065_setup_request.sql");

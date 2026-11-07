@@ -34,7 +34,7 @@ export async function listPeopleAtLead(db: Db, tenantId: string, leadId: string)
     .is("erased_at", null)
     .is("merged_into_contact_id", null)
     .limit(PEOPLE_AT_A_LEAD);
-  if (error) throw new Error(`peopleAtLead: ${error.message}`);
+  if (error) throw new Error(`listPeopleAtLead: ${error.message}`);
   const people = data ?? [];
   if (!people.length) return [];
   const ids = people.map((p) => p.id);
@@ -44,7 +44,7 @@ export async function listPeopleAtLead(db: Db, tenantId: string, leadId: string)
     db.from("person_moments").select("contact_id, in_touch_at").eq("tenant_id", tenantId).in("contact_id", ids),
     getPersonIdsWaitingOnYou(db, tenantId, ids, Date.now()),
   ]);
-  if (moments.error) throw new Error(`peopleAtLead: ${moments.error.message}`);
+  if (moments.error) throw new Error(`listPeopleAtLead: ${moments.error.message}`);
   const touched = new Map((moments.data ?? []).map((m) => [m.contact_id, m.in_touch_at]));
   return people
     .map((p) => {
@@ -69,7 +69,7 @@ export async function listSigners(db: Db, tenantId: string, personId: string): P
     .is("undone_at", null)
     .order("read_at", { ascending: false })
     .limit(5);
-  if (error) throw new Error(`signersOf: ${error.message}`);
+  if (error) throw new Error(`listSigners: ${error.message}`);
   return (data ?? []).flatMap((item) =>
     item.signer_name && (item.signer_state === "offered" || item.signer_state === "adopted")
       ? [

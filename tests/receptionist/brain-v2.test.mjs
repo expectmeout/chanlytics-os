@@ -281,10 +281,10 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
   const wa = ["model-turn", "dispatch"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
   const steps = readCode("packages/core/src/inbound/steps.ts");
   assert.ok(wa.includes("let brainMeta: BrainMeta | undefined;"));
-  assert.ok(wa.includes("brainMeta = r.meta;"));
+  assert.ok(wa.includes("brainMeta = item.meta;"));
   assert.ok(
-    readCode("apps/edge/lib/ai/draft-queue.ts").includes(
-      "meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}), to },",
+    /meta: \{\s*source: draftArgs\.source,\s*delay_ms: draftArgs\.delayMs,\s*\.\.\.\(draftArgs\.brainMeta \?\? \{\}\),\s*\.\.\.\(draftArgs\.extra \?\? \{\}\),\s*to,?\s*\}/.test(
+      readCode("apps/edge/lib/ai/draft-queue.ts"),
     ),
     "the draft row remembers",
   );

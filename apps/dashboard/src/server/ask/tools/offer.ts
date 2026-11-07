@@ -1,6 +1,5 @@
 import "server-only";
-import { MEMBERSHIP_ROLES, type MembershipRole } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../proposals/proposals";
+import { MEMBERSHIP_ROLES, type MembershipRole, PROPOSAL_SPECS } from "@chanlytics/contracts";
 import { NO_ACTION, offeredTo, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context/tool-defs";
 import { ACT_DEFS, CORE_TOOLS, READ_DEFS, inputOf, offeredActions, toolSchema } from "./registry";
 import { ANSWER_TOOL } from "./answer";

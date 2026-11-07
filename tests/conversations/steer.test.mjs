@@ -74,9 +74,9 @@ test("the dashboard route keeps its doors and records the decision only after th
   assert.ok(r.includes('rate: "whisper",'));
   assert.ok(r.includes('role: "operator",'));
   assert.ok(r.includes('if (m.sender !== "ai" || m.status !== "queued") {'));
-  const steered = r.indexOf("const r = await steerDraft(id, text, {");
+  const steered = r.indexOf("const result = await steerDraft(id, text, {");
   const recorded = r.search(
-    /recordDecision\(ctx, m\.tenant_id, "message", m\.id, "edit", \{\s*steer: text,\s*new_message_id: r\.messageId,?\s*\}\)/,
+    /recordDecision\(ctx, m\.tenant_id, "message", m\.id, "edit", \{\s*steer: text,\s*new_message_id: result\.messageId,?\s*\}\)/,
   );
   assert.ok(steered > 0 && recorded > steered);
   assert.ok(

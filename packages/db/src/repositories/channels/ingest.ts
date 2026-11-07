@@ -631,7 +631,7 @@ export async function findMessageByExternalId(db: Db, tenantId: string, external
     .eq("tenant_id", tenantId)
     .eq("external_id", externalId)
     .maybeSingle();
-  if (error) throw new Error(`messageByExternalId: ${error.message}`);
+  if (error) throw new Error(`findMessageByExternalId: ${error.message}`);
   if (!data) return null;
   return {
     messageId: data.id,

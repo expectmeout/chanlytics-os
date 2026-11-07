@@ -4,14 +4,9 @@
  * Ask line's one proposal. Apart from page.ts only for the file limit; page.ts hands every name a page needs on. Pure, like
  * the rest of the models.
  */
-import {
-  appointmentWords,
-  firstCameEntries,
-  firstCameRecorded,
-  joinWords,
-  addDays,
-  daysBetween,
-} from "@chanlytics/contracts";
+import { appointmentWords, joinWords, addDays, daysBetween } from "@chanlytics/contracts";
+// How new people first came is the people report's, read through its page entry as the Reports pages read it.
+import { firstCameEntries, firstCameRecorded } from "@chanlytics/contracts/report-lens";
 import type { PeopleSeriesDto, AdDoor, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
 
 import { ADS_DEFAULT_CURRENCY, moneyOf, perDayOf, sumMoney, sumsOf } from "./money";

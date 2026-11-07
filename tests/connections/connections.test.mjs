@@ -497,12 +497,12 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     row.includes('verb.who === "owner" ? canDo("team") : canDo("approve")'),
     "who may press is the row's to say, the page only checks",
   );
-  // The rows and the group words are contracts' own, imported by the pane: nothing is published on the window for it,
-  // and nothing in the app installs the old door.
-  const fromContracts = pane.match(/import \{([^}]*)\} from "@chanlytics\/contracts";/);
+  // The rows and the group words are the page's model's own (they left contracts, which only Connections read),
+  // imported by the pane: nothing is published on the window for it, and nothing in the app installs the old door.
+  const fromModel = pane.match(/import \{([^}]*)\} from "\.\/model\/setup";/);
   assert.ok(
-    fromContracts && /\bconnectionRows\b/.test(fromContracts[1]) && /\bCONNECTION_GROUP_WORDS\b/.test(fromContracts[1]),
-    "the pane imports contracts' rows and group words",
+    fromModel && /\bconnectionRows\b/.test(fromModel[1]) && /\bCONNECTION_GROUP_WORDS\b/.test(fromModel[1]),
+    "the pane imports its model's rows and group words",
   );
   assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installConnections"));
   const edge = readCode("apps/edge/lib/shared/google/config.ts");

@@ -23,8 +23,8 @@ import {
   type ReachOutAddDto,
   US_ZIP,
   UUID,
+  proposalBelowNeeds,
 } from "@chanlytics/contracts";
-import { proposalBelowNeeds } from "../../../proposals/proposals";
 import { listLeadCardsLive } from "@chanlytics/db/leads";
 import { findReachOutRoot } from "@chanlytics/db/campaigns";
 import { addToReachOut } from "../../../../leads/workbench";

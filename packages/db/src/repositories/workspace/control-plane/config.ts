@@ -299,7 +299,7 @@ export async function listPeopleOnTheirOwnMode(db: Db, tenantId: string): Promis
       .order("updated_at", { ascending: false })
       .order("id")
       .range(from, from + OWN_MODES_PAGE - 1);
-    if (error) throw new Error(`peopleOnTheirOwnMode: ${error.message}`);
+    if (error) throw new Error(`listPeopleOnTheirOwnMode: ${error.message}`);
     for (const r of data ?? []) if (r.subject_id) out.push({ id: r.subject_id, mode: r.mode });
     if ((data ?? []).length < OWN_MODES_PAGE) return out;
   }

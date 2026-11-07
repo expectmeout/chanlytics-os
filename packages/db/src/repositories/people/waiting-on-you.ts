@@ -156,7 +156,7 @@ export async function listLastClosedHolds(
       .in("conversation_id", conversationIds.slice(index, index + IN_CHUNK))
       .order("created_at", { ascending: false })
       .limit(CLOSED_HOLDS_MAX);
-    if (error) throw new Error(`lastClosedHolds: ${error.message}`);
+    if (error) throw new Error(`listLastClosedHolds: ${error.message}`);
     for (const r of data ?? []) if (!newest.has(r.conversation_id)) newest.set(r.conversation_id, r);
   }
   return [...newest.values()];

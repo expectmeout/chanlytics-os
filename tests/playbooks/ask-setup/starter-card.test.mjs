@@ -38,7 +38,7 @@ const {
   startersForTrigger,
   winBackWords,
 } = await import("@chanlytics/contracts");
-const { PROPOSAL_SPECS } = await import("../../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 

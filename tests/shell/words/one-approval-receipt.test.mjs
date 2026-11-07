@@ -14,8 +14,8 @@ import {
   runApprovedTail,
   todayRunApproved,
   whenItGoes,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 
 const ZONE = "America/New_York";
 // 22:00 in New York: past the sending hours, so an approval now waits for nine tomorrow.

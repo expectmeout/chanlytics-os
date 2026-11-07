@@ -123,7 +123,7 @@ export function itemsToDays(
     // so an event added before it on the five-minute read moved every id after it, and closed the sheet open on it.
     const seen = new Map<string, number>();
     const rows: CalendarItemDto[] = inDay.slice(0, MAX_ITEMS_PER_DAY).map((it) => {
-      const result = extractContacts(it, own);
+      const found = extractContacts(it, own);
       const key = appointmentKeyOf(it);
       const twin = seen.get(key) ?? 0;
       seen.set(key, twin + 1);
@@ -136,7 +136,7 @@ export function itemsToDays(
         person: matchPerson(it, people, own),
         description: eventText(it.description),
         location: it.location,
-        contacts: { phones: result.phones, emails: result.emails },
+        contacts: { phones: found.phones, emails: found.emails },
         guess: guessName(it, services),
         ...(it.occurrence !== undefined ? { series: true } : {}),
         consultation: isConsultationTitle(it.title, consult.services, consult.rules),

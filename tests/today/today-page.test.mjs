@@ -1269,7 +1269,7 @@ test("Ask found ranks what the workspace's own counts say first: each row its ta
   const vm = withNobodyAnswered();
   set({ today: vm, headline: headline(), __PEOPLE: people() });
   // Every rule that holds, not the old pane's two (Today in three zones, 2 Nov 2026): Ask found ranks and draws three.
-  const { rows: rules } = todayLeaks(headline(), people(), vm.noReply, Number.POSITIVE_INFINITY);
+  const { rows: rules } = todayLeaks(headline(), people(), vm.noReply, { max: Number.POSITIVE_INFINITY });
   assert.ok(
     rules.length > 3,
     `the fixture holds more rules than Ask found draws: ${rules.map((l) => l.id).join(", ")}`,

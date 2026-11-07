@@ -12,8 +12,8 @@ import {
   type LeadRowDto,
   DAY_KEY,
   UUID,
+  proposalBelowNeeds,
 } from "@chanlytics/contracts";
-import { proposalBelowNeeds } from "../../../proposals/proposals";
 import { load } from "../../../../shared/reader";
 import { lead as leadReader } from "../../../../readers/leads";
 import { search as searchReader } from "../../../../readers/searches";

@@ -1,4 +1,4 @@
-# 0106 · The code leans one way
+# 0110 · The code leans one way
 
 **Status:** Accepted by Ruben, 7 November 2026 ("if layer 2 is done continue next layer"). Built on `org/names-say-what-they-do`, 7 November 2026. No migration, and nothing changes
 for a customer: every step is a move, a rename of an import or a check.

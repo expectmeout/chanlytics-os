@@ -24,7 +24,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { FIX_CARD_WORDS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, appointmentWordOf, readyOrWhatsApp } =
   await import("@chanlytics/contracts");
-const { PROPOSAL_SPECS } = await import("../../../apps/dashboard/src/server/ask/proposals/proposals.ts");
+const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
 const { campaignBlockWords, campaignLine, campaignReachable } =
   await import("../../../apps/dashboard/src/server/ask/new-campaign-plan.ts");
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));

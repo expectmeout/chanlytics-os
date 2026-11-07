@@ -195,7 +195,7 @@ test("what a module exports is read from its top level, a framework's own names 
     ).sort(),
     ["CallOutcome", "Row", "clip", "leadOf"],
   );
-  assert.equal(treeOf("apps/dashboard/src/surfaces/campaigns/ads/model/vm-base.ts"), "packages/contracts");
+  assert.equal(treeOf("packages/contracts/src/lines/edge-doors.ts"), "packages/contracts");
   assert.equal(treeOf("apps/edge/lib/receptionist/steer.ts"), "apps/edge");
   assert.equal(treeOf("apps/dashboard/src/server/readers/today.ts"), "apps/dashboard");
 });

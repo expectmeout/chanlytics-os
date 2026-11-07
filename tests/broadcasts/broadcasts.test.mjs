@@ -678,7 +678,7 @@ test("the routes: a message, values its slots take, an audience crossed with who
     .map((p) => readCode(p))
     .join("\n");
   assert.ok(
-    l.includes('if (status === "delivered" || status === "read") c.delivered += 1;'),
+    l.includes('if (status === "delivered" || status === "read") count.delivered += 1;'),
     "delivered comes from the receipts, never from the send",
   );
   assert.ok(
@@ -885,7 +885,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
     ),
     "names come with the rows",
   );
-  assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
+  assert.ok(s.includes("replied: !!(row.messages?.conversation_id && replied.has(row.messages.conversation_id)),"));
   // The number's refusals are run: core-campaigns.test.mjs. Its quality, read from the row's config, is run through the
   // channels route in reads-routes.test.mjs ("the channels read") and through its reader in readers.test.mjs.
   const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
@@ -904,8 +904,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   // broadcasts-honest and runs-honest draw them.
   const vm = readCode("packages/contracts/src/conversations/message-author.ts");
   assert.ok(
-    vm.includes('{ kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") }') &&
-      vm.includes('{ kind: "playbook", name: String(m.meta.playbook_name) }'),
+    vm.includes('{ kind: "broadcast", name: String(message.meta.broadcast_name ?? "broadcast") }') &&
+      vm.includes('{ kind: "playbook", name: String(message.meta.playbook_name) }'),
   );
   assert.ok(
     readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes(

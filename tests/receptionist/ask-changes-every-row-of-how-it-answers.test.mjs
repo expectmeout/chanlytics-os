@@ -20,8 +20,8 @@ import {
   applySettingsChange,
   describeSettingsChange,
   newReceptionistDefaults,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../apps/dashboard/src/server/ask/proposals/proposals.ts";
 import { unmount, all } from "../_stub-react.mjs";
 import { W, drawTab, marisa, openFold, redrawTab, saveRow, saving, typeInto } from "../_business-tab-harness.mjs";
 import { fakeDb } from "../_fake-db.mjs";

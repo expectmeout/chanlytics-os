@@ -369,12 +369,12 @@ test("the wiring: the door files the four columns and keeps them across retries,
   );
   assert.match(
     readCode("packages/db/src/repositories/voice/calls.ts"),
-    /p_analysis: \(?\(n\.analysis \?\? null\) as Json\)?,/,
+    /p_analysis: \(?\(callInput\.analysis \?\? null\) as Json\)?,/,
   );
   const dto = readCode("apps/dashboard/src/server/conversations/dto.ts");
   assert.ok(
     dto.includes("summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object") &&
-      dto.includes("wanted: c.wanted ?? null,"),
+      dto.includes("wanted: call.wanted ?? null,"),
   );
 });
 

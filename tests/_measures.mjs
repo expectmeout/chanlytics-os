@@ -1212,7 +1212,8 @@ export function emittedKinds() {
       }
       for (const m of src.matchAll(/\.from\("events"\)\s*\.insert\(\{[\s\S]{0,400}?kind:\s*"([a-z_]+\.[a-z_]+)"/g))
         add(m[1], f);
-      for (const m of src.matchAll(/\bevent\(\s*(?:ports\.)?db,\s*d,\s*"([a-z_]+\.[a-z_]+)"/g)) add(m[1], f);
+      // The send door's own event(db, delivery, kind, ...): the delivery by whatever name the door gives it.
+      for (const m of src.matchAll(/\bevent\(\s*(?:ports\.)?db,\s*[\w$]+,\s*"([a-z_]+\.[a-z_]+)"/g)) add(m[1], f);
       // A verdict that names its own event kind (channels/a2p: the line's texting state).
       for (const m of src.matchAll(/\bevent:\s*"(line\.[a-z_]+)"/g)) add(m[1], f);
     }

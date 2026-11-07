@@ -13,8 +13,8 @@ import {
   parseListToken,
   plural,
   UUID,
+  proposalBelowNeeds,
 } from "@chanlytics/contracts";
-import { proposalBelowNeeds } from "../../../proposals/proposals";
 import { getPersonReplyModes } from "@chanlytics/db/workspace";
 import { findPoolList } from "../../../../campaigns/audience";
 import { load } from "../../../../shared/reader";

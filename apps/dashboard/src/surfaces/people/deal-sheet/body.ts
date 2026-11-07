@@ -73,72 +73,102 @@ export function dealSheetBody(
   deal: DealVM | null,
   opts: { tz: string; nowMs: number; canSend: boolean },
 ): DealSheetOutcome {
-  const problems = DEAL_SHEET_WORDS.problems;
-  const problem = (field: DealSheetField | null, words: string): DealSheetOutcome => ({ problem: { field, words } });
   const moving = mode !== "propose";
   if (moving && !deal?.id) return problem(null, DEAL_SHEET_WORDS.moved);
-  const body: DealSheetBody = { stage: STAGE_OF[mode] };
+  const made: DealSheetMade = { body: { stage: STAGE_OF[mode] }, clear: [] };
   if (moving && deal?.id) {
-    body.deal_id = deal.id;
-    if (deal.version !== null && deal.version !== undefined) body.version = deal.version;
+    made.body.deal_id = deal.id;
+    if (deal.version !== null && deal.version !== undefined) made.body.version = deal.version;
   }
-  const clear: DealClearable[] = [];
-
-  // The value, where the mode asks for one: an emptied value clears what the deal held.
   const shapes = mode === "propose" || mode === "edit" || mode === "again";
   if (shapes || mode === "won") {
-    const typed = draft.value.trim();
-    if (typed) {
-      const cents = parseAmount(typed);
-      if (cents === null) return problem("value", problems.amount);
-      body.amount_cents = cents;
-      body.per = draft.per;
-    } else if (moving && deal?.amountCents !== null && deal?.amountCents !== undefined) clear.push("amount");
+    const refused = valueInto(made, draft, moving ? deal : null);
+    if (refused) return refused;
   }
+  return shapes
+    ? proposalOutcome(made, draft, deal, { mode, canSend: opts.canSend })
+    : dayOutcome(made, mode, draft, opts);
+}
 
-  if (shapes) {
-    const typed = draft.link.trim();
-    let url: string | null = null;
-    if (typed) {
-      url = normalizeLink(typed);
-      if (!url) return problem("link", whyNotALink(typed) ?? DEAL_REFUSALS.bad_link);
-      body.proposal_url = url;
-    } else if (moving && deal?.proposal) clear.push("proposal_url");
-    if (draft.validUntil) {
-      if (!isRealDate(draft.validUntil)) return problem("validUntil", problems.day);
-      body.valid_until = draft.validUntil;
-    } else if (mode === "edit" && deal?.validUntil) clear.push("valid_until");
-    if (mode === "propose" && draft.service.trim()) body.service = draft.service.trim();
-    let send: { text: string } | null = null;
-    if ((mode === "propose" || mode === "again") && draft.send && opts.canSend) {
-      if (!url) return problem("link", problems.sendNeedsLink);
-      const text = dealSheetMessage(draft).trim();
-      if (!text.includes(url)) return problem("message", problems.messageLink);
-      send = { text };
-    }
-    return { body: clear.length ? { ...body, clear } : body, send };
-  }
+/** The body as it is made, and the fields a move empties: `clear` rides the body only when it names one. */
+interface DealSheetMade {
+  body: DealSheetBody;
+  clear: DealClearable[];
+}
 
-  // A yes, a pass, an end: the day it happened, never one still to come.
+const problem = (field: DealSheetField | null, words: string): DealSheetOutcome => ({ problem: { field, words } });
+
+const outcomeOf = (made: DealSheetMade, send: { text: string } | null): DealSheetOutcome => ({
+  body: made.clear.length ? { ...made.body, clear: made.clear } : made.body,
+  send,
+});
+
+/** The value, where the mode asks for one: an emptied value clears what the deal held (`moved`, null on a new one). */
+function valueInto(made: DealSheetMade, draft: DealSheetDraft, moved: DealVM | null): DealSheetOutcome | null {
+  const typed = draft.value.trim();
+  if (typed) {
+    const cents = parseAmount(typed);
+    if (cents === null) return problem("value", DEAL_SHEET_WORDS.problems.amount);
+    made.body.amount_cents = cents;
+    made.body.per = draft.per;
+  } else if (moved?.amountCents !== null && moved?.amountCents !== undefined) made.clear.push("amount");
+  return null;
+}
+
+/** A proposal's shape: its link, the day it is good until, its service, and the words to send once it lands. */
+function proposalOutcome(
+  made: DealSheetMade,
+  draft: DealSheetDraft,
+  deal: DealVM | null,
+  { mode, canSend }: { mode: DealSheetMode; canSend: boolean },
+): DealSheetOutcome {
+  const problems = DEAL_SHEET_WORDS.problems;
+  const typed = draft.link.trim();
+  let url: string | null = null;
+  if (typed) {
+    url = normalizeLink(typed);
+    if (!url) return problem("link", whyNotALink(typed) ?? DEAL_REFUSALS.bad_link);
+    made.body.proposal_url = url;
+  } else if (mode !== "propose" && deal?.proposal) made.clear.push("proposal_url");
+  if (draft.validUntil) {
+    if (!isRealDate(draft.validUntil)) return problem("validUntil", problems.day);
+    made.body.valid_until = draft.validUntil;
+  } else if (mode === "edit" && deal?.validUntil) made.clear.push("valid_until");
+  if (mode === "propose" && draft.service.trim()) made.body.service = draft.service.trim();
+  if (!((mode === "propose" || mode === "again") && draft.send && canSend)) return outcomeOf(made, null);
+  if (!url) return problem("link", problems.sendNeedsLink);
+  const text = dealSheetMessage(draft).trim();
+  if (!text.includes(url)) return problem("message", problems.messageLink);
+  return outcomeOf(made, { text });
+}
+
+/** A yes, a pass, an end: the day it happened, never one still to come, and what the mode keeps of it. */
+function dayOutcome(
+  made: DealSheetMade,
+  mode: DealSheetMode,
+  draft: DealSheetDraft,
+  opts: { tz: string; nowMs: number },
+): DealSheetOutcome {
+  const problems = DEAL_SHEET_WORDS.problems;
   const today = zoneDayKey(opts.nowMs, opts.tz);
   if (!isRealDate(draft.when)) return problem("when", problems.day);
   if (draft.when > today) return problem("when", problems.future);
-  if (draft.when !== today) body.when = new Date(wallClockAt(opts.tz, draft.when, 12, 0)).toISOString();
+  if (draft.when !== today) made.body.when = new Date(wallClockAt(opts.tz, draft.when, 12, 0)).toISOString();
   if (mode === "won") {
-    if (draft.how === "customer_message" && draft.messageId) body.message_id = draft.messageId;
+    if (draft.how === "customer_message" && draft.messageId) made.body.message_id = draft.messageId;
     if (draft.how === "form" && draft.formNote.trim()) {
       if (draft.formNote.trim().length > DEAL_NOTE_MAX) return problem("how", problems.tooLong);
-      body.form_note = draft.formNote.trim();
+      made.body.form_note = draft.formNote.trim();
     }
   }
   if (mode === "lost") {
-    if (draft.reason) body.lost_reason = draft.reason;
+    if (draft.reason) made.body.lost_reason = draft.reason;
     if (draft.note.trim()) {
       if (draft.note.trim().length > DEAL_NOTE_MAX) return problem("note", DEAL_REFUSALS.note_too_long);
-      body.note = draft.note.trim();
+      made.body.note = draft.note.trim();
     }
   }
-  return { body: clear.length ? { ...body, clear } : body, send: null };
+  return outcomeOf(made, null);
 }
 
 /** The field each refusal of the door is about (DEAL_REFUSALS). */

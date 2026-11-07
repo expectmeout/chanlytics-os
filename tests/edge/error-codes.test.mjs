@@ -44,19 +44,19 @@ const BUILDERS = new Map([["refuse", null]]);
 const FORWARDED = {
   // A case's result, nested in the answer's `results`: the model's failure, in its words.
   "apps/edge/lib/receptionist/eval.ts": ["String(e instanceof Error ? e.message : e).slice(0, 200)"],
-  "apps/edge/lib/ops/ask-turn.ts": ["v.error"], // validateGatewayRequest's (ask-gateway.ts)
-  "apps/edge/lib/shared/admin-auth.ts": ["`token_${v.reason}`"], // the token family (TOKEN, below)
+  "apps/edge/lib/ops/ask-turn.ts": ["result.error"], // validateGatewayRequest's (ask-gateway.ts)
+  "apps/edge/lib/shared/admin-auth.ts": ["`token_${result.reason}`"], // the token family (TOKEN, below)
   // connectAnswer's, chosenLocation's and bindFailedAnswer's, from profile-connection.ts
-  "apps/edge/lib/google/ops.ts": ["r.error", "r.error", "bound.error"],
+  "apps/edge/lib/google/ops.ts": ["connect.error", "locationsRead.error", "bound.error"],
   "apps/edge/lib/google/listing-check.ts": ["error"], // a listing's read (CheckResult): Google's words
   "apps/edge/lib/google/profile-connection.ts": ["bound.error"], // bindLocation's
   "apps/edge/lib/google/profile-sync.ts": ["error"], // a sync's read (CheckResult): Google's words, or the token's
-  "apps/edge/lib/google/review-answers.ts": ["d.error"], // the draft's
+  "apps/edge/lib/google/review-answers.ts": ["result.error"], // the draft's
   "apps/edge/lib/shared/http.ts": ["code", "code"], // refuse(), the envelope itself
   "apps/edge/lib/lines/a2p-sync.ts": ["fresh.error"], // refreshLineToken's (sms.ts)
-  // releaseLine's (line-release.ts), and the refile steps' (a2p-refile.ts) behind this door's own fallbacks
+  "apps/edge/lib/lines/ops/search-buy.ts": ["lineRelease.error"], // releaseLine's (line-release.ts)
+  // the refile steps' (a2p-refile.ts), behind this door's own fallbacks
   "apps/edge/lib/lines/ops/filing.ts": [
-    "r.error",
     'again.error ?? "record_incomplete"',
     'again.error ?? "resubmit_failed"',
     'off.error ?? "record_incomplete"',
@@ -96,14 +96,14 @@ const NOT_ANSWERS = {
     '"no such workspace"',
     '"automatic resumes exhausted; a person retries it from Setup"',
     "`counting the automatic resume: ${counted.error}`",
-    "r.error",
+    "provision.error",
   ],
   // Meta's answer stood in for a template never synced: a 404, which the door reads as a delete already done.
   "apps/edge/lib/whatsapp/template-admin.ts": ['"not synced: no template id on file, so Meta was not asked"'],
 };
 
 /**
- * The one family of codes: an edge token's refusal (apps/edge/lib/admin-auth.ts) is `token_${v.reason}`, over the
+ * The one family of codes: an edge token's refusal (apps/edge/lib/admin-auth.ts) is `token_${result.reason}`, over the
  * reasons the verifier refuses a token with. tsc holds each member to the set at the refusal; while it stands, each
  * member is answered.
  */

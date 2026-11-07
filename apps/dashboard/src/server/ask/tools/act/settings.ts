@@ -14,8 +14,8 @@ import {
   WALK_IN_WORDS,
   answerStyleOf,
   describeSettingsChange,
+  proposalBelowNeeds,
 } from "@chanlytics/contracts";
-import { proposalBelowNeeds } from "../../proposals/proposals";
 import {
   actAction,
   defineActions,

@@ -6,7 +6,7 @@
  */
 import { useEffect, useReducer, useRef, useState } from "react";
 import { FIRST_RUN_LANDED_KEY } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "./model/helpers";
+import { FIRST_RUN_HELPERS } from "./model/first-run-helpers";
 import type { FrameFlash } from "../../frame-verbs";
 import { scrollerOf } from "../../kit/motion/page-scroll";
 import { refreshSurfaces } from "@/bridge/surface-runner";

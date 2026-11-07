@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from "react";
 import { ratingWords, type ImportRowDto } from "@chanlytics/contracts";
-import { FIRST_RUN_HELPERS } from "./model/helpers";
+import { FIRST_RUN_HELPERS } from "./model/first-run-helpers";
 import { googleVerbs } from "@/bridge/google";
 import { Icon } from "../../kit/icon/icon";
 import { gate, refusalToast, type FrameFlash } from "../../frame-verbs";

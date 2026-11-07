@@ -95,7 +95,8 @@ function useFoundRows() {
   // Every rule that holds, never the old pane's two: Ask found ranks them with the rest, draws three, and says the others.
   const rules =
     headline && people
-      ? TODAY_HELPERS.leaks(headline, people, TODAY_HELPERS.withoutWrongPerson(vm?.noReply ?? []), EVERY_RULE).rows
+      ? TODAY_HELPERS.leaks(headline, people, TODAY_HELPERS.withoutWrongPerson(vm?.noReply ?? []), { max: EVERY_RULE })
+          .rows
       : [];
   const read = morning?.offered ? [...(morning.findings ?? []), ...morning.cards] : [];
   const found = askFoundOf({

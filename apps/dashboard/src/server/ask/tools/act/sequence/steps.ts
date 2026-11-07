@@ -20,8 +20,8 @@ import {
   type SequenceActReason,
   type SequenceRecordDto,
   UUID,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
-import { PROPOSAL_SPECS } from "../../../proposals/proposals";
 import { load } from "../../../../shared/reader";
 import { sequence as sequenceReader, sequencePeople } from "../../../../readers/sequences";
 import { getAskedMessage, noteRow, stepNamed, str, readUnlessNotFound } from "../../context/tool-reads";
