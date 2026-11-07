@@ -184,7 +184,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_actor uuid := auth.uid();
 begin
@@ -197,7 +197,7 @@ begin
   update public.files f set media_status = 'processing', updated_at = now()
    where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
      and f.removed_at is null;
-end $;
+end $$;
 revoke all on function public.file_media_processing(uuid, uuid) from public, anon;
 grant execute on function public.file_media_processing(uuid, uuid) to authenticated, service_role;
 comment on function public.file_media_processing(uuid, uuid) is

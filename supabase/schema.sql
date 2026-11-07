@@ -6632,7 +6632,7 @@ COMMENT ON FUNCTION public.file_media_failed(p_media_ref text, p_error text) IS 
 CREATE FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $
+    AS $$
 declare
   v_actor uuid := auth.uid();
 begin
@@ -6645,7 +6645,7 @@ begin
   update public.files f set media_status = 'processing', updated_at = now()
    where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
      and f.removed_at is null;
-end $;
+end $$;
 
 
 --
