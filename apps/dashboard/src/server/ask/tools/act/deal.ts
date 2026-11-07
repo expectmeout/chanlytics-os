@@ -26,6 +26,7 @@ import {
 import { noteRow, str } from "../context/tool-reads";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";
+import { findPersonCard, listDealsOfPerson } from "@chanlytics/db/ask";
 
 /**
  * Why a move found no row of theirs to move, and what to name instead. With several open (0029: one per service) it
@@ -150,22 +151,12 @@ async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<
   const checked = checkedDeal(toolContext, input);
   if ("result" in checked) return checked;
   const { id, stage, url, day, reason, stepWords, stepDay } = checked;
-  const { data: c, error } = await toolContext.ctx.supabase
-    .from("contacts")
-    .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
-    .eq("tenant_id", toolContext.tenantId)
-    .eq("id", id)
-    .maybeSingle();
+  const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
   // Every deal of theirs: the current one may be the oldest, since a running engagement outlives newer proposals
   // (pickCurrentDeal). A read that fails is a card that cannot be checked, never a move proposed against no row.
-  const { data: rows, error: dErr } = await toolContext.ctx.supabase
-    .from("deals")
-    .select("id, stage, service, version, created_at")
-    .eq("tenant_id", toolContext.tenantId)
-    .eq("contact_id", id)
-    .order("created_at", { ascending: false });
+  const { data: rows, error: dErr } = await listDealsOfPerson(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (dErr) throw new Error(dErr.message);
   const otherPersonName = personName(c);
   const named = str(input.service, 80) || null;

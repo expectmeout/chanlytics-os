@@ -16,6 +16,7 @@ import { readAllRows } from "@chanlytics/db/shared";
 import { runCounts } from "@chanlytics/db/reports";
 import { getThreadIdsWaitingOnYou } from "@chanlytics/db/people";
 import type { RouteContext } from "@/server/shared/with-route";
+import { listOutboundSince, pageInboundOn, pagePeopleOnRuns } from "@chanlytics/db/campaigns";
 
 /**
  * A workspace's broadcasts with the numbers their messages earned.
@@ -29,9 +30,6 @@ import type { RouteContext } from "@/server/shared/with-route";
 export const RECENT = 50;
 
 export const IN_CHUNK = 200;
-
-export const ROW_COLUMNS =
-  "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id:step_id, run_for, sequence_id, offered_start, offered_end, offered_from";
 
 export interface BroadcastRow {
   id: string;
@@ -170,16 +168,7 @@ async function inboundOn(
     const chunk = convIds.slice(index, index + IN_CHUNK);
     // A select chosen at run time is past the client's typed parser: the rows are the columns named above.
     const inbound = (await readAllRows("inbound messages", (from, to) =>
-      ctx.supabase
-        .from("messages")
-        .select(withWords ? "conversation_id, created_at, meta, body" : "conversation_id, created_at, meta")
-        .eq("tenant_id", tenantId)
-        .eq("direction", "inbound")
-        .eq("sender", "customer")
-        .in("conversation_id", chunk)
-        .gt("created_at", since)
-        .order("id")
-        .range(from, to),
+      pageInboundOn(ctx.supabase, tenantId, { conversationIds: chunk, since, withWords, from, to }),
     )) as unknown as Inbound[];
     for (const m of inbound) {
       if (!isPersonsWords(m.meta)) continue;
@@ -275,13 +264,12 @@ export async function answeredAfter(
   if (convIds.length === 0) return out;
   const since = [...replied.values()].sort()[0];
   for (let index = 0; index < convIds.length; index += IN_CHUNK) {
-    const { data, error } = await ctx.supabase
-      .from("messages")
-      .select("conversation_id, created_at, sender, type, meta")
-      .eq("tenant_id", tenantId)
-      .eq("direction", "outbound")
-      .in("conversation_id", convIds.slice(index, index + IN_CHUNK))
-      .gt("created_at", since);
+    const { data, error } = await listOutboundSince(
+      ctx.supabase,
+      tenantId,
+      convIds.slice(index, index + IN_CHUNK),
+      since,
+    );
     if (error) throw new Error(error.message);
     for (const m of data ?? []) {
       const reply = replied.get(m.conversation_id);
@@ -346,18 +334,7 @@ async function peopleOnRuns(ctx: RouteContext, tenantId: string, ids: string[]):
   for (let index = 0; index < ids.length; index += IN_CHUNK) {
     const chunk = ids.slice(index, index + IN_CHUNK);
     const people = (await readAllRows("run recipients", (from, to) =>
-      ctx.supabase
-        .from("sequence_sends")
-        // With the channel each went by (00298), so a run says what each sent and its read is WhatsApp's (0030).
-        .select(
-          "broadcast_id:batch_id, contact_id, state, reason, sent_at, channel, messages(conversation_id, status, meta)",
-        )
-        .eq("tenant_id", tenantId)
-        .is("lead_id", null)
-        .in("batch_id", chunk)
-        .order("batch_id")
-        .order("contact_id")
-        .range(from, to),
+      pagePeopleOnRuns(ctx.supabase, tenantId, chunk, from, to),
     )) as unknown as RecipientRow[];
     // Pushed one at a time: spread into one push, a long history throws past about 120,000 rows.
     for (const person of people) out.push(person);

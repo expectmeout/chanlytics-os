@@ -20,6 +20,18 @@ import type { RouteContext } from "../shared/with-route";
 import { getAttached, fileIdsOf, type AttachedFile } from "../files/attached";
 import { answeringOf, askTurnText, titleFromQuestion } from "./prompt/prompt";
 import { log } from "@/server/shared/log";
+import {
+  deleteAskThread,
+  findAskThread,
+  findAskTurnContent,
+  insertAskThread,
+  insertAskTurn,
+  listAskThreads,
+  listAskTurns,
+  listAskTurnsRaw,
+  patchAskThread,
+  saveAskTurnContent,
+} from "@chanlytics/db/ask";
 
 /**
  * Ask threads on the session client. RLS (migration 00040) keeps every read
@@ -99,14 +111,12 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
  * so a year of mornings is left out as surely as one).
  */
 export async function listThreads(ctx: RouteContext, tenantId: string): Promise<AskThreadVM[]> {
-  const { data, error } = await ctx.supabase
-    .from("ask_threads")
-    .select("id, title, scope, last_at, created_at, ask_mornings(made_at)")
-    .eq("tenant_id", tenantId)
-    .lt("ask_mornings.made_at", new Date(Date.now() - DAY_MS).toISOString())
-    .is("ask_mornings", null)
-    .order("last_at", { ascending: false })
-    .limit(THREADS_CAP);
+  const { data, error } = await listAskThreads(
+    ctx.supabase,
+    tenantId,
+    new Date(Date.now() - DAY_MS).toISOString(),
+    THREADS_CAP,
+  );
   if (error) throw new Error(error.message);
   return (data ?? []).map(toThreadVM);
 }
@@ -154,11 +164,7 @@ export async function readThread(
   truncated: boolean;
   tenantId: string;
 } | null> {
-  const { data: t, error } = await ctx.supabase
-    .from("ask_threads")
-    .select("id, tenant_id, title, scope, last_at, created_at")
-    .eq("id", id)
-    .maybeSingle();
+  const { data: t, error } = await findAskThread(ctx.supabase, id);
   if (error) throw new Error(error.message);
   if (!t) return null;
   // The newest MESSAGES_CAP rows, newest first (the id breaks a tie in the clock, so every read agrees), then put back
@@ -168,15 +174,7 @@ export async function readThread(
   // (content.raw, the Phase 5 plan, D11), up to sixty of which a whole read would ship on every turn and every reopen.
   // A key a row does not hold reads as null, which both take as absent. The shape, whole (a nested path would read
   // each row again), says how each turn's history went: where a live replay's chain begins, before any raw is read.
-  const { data: msgs, error: merr } = await ctx.supabase
-    .from("ask_messages")
-    .select(
-      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, files:content->files, opened:content->opened, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering, shape:content->shape",
-    )
-    .eq("thread_id", id)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(MESSAGES_CAP);
+  const { data: msgs, error: merr } = await listAskTurns(ctx.supabase, id, MESSAGES_CAP);
   if (merr) throw new Error(merr.message);
   const rows = (msgs ?? [])
     .reverse()
@@ -200,7 +198,7 @@ export async function readThread(
  * (memory.ts). RLS keeps it to the caller's own; a row it hides, or one gone, is absent.
  */
 export async function readRaws(ctx: RouteContext, ids: string[]): Promise<Map<string, unknown>> {
-  const { data, error } = await ctx.supabase.from("ask_messages").select("id, raw:content->raw").in("id", ids);
+  const { data, error } = await listAskTurnsRaw(ctx.supabase, ids);
   if (error) throw new Error(error.message);
   return new Map((data ?? []).map((r) => [r.id, r.raw]));
 }
@@ -214,11 +212,12 @@ export async function createThread(
   title: string,
   scope: AskScope | null,
 ): Promise<AskThreadVM> {
-  const { data, error } = await ctx.supabase
-    .from("ask_threads")
-    .insert({ tenant_id: tenantId, user_id: ctx.userId, title, scope: scopeColumn(scope) })
-    .select("id, title, scope, last_at, created_at")
-    .single();
+  const { data, error } = await insertAskThread(ctx.supabase, {
+    tenant_id: tenantId,
+    user_id: ctx.userId,
+    title,
+    scope: scopeColumn(scope),
+  });
   if (error) throw new Error(`ask thread: ${error.message}`);
   return toThreadVM(data);
 }
@@ -230,11 +229,13 @@ export async function appendMessage(
   role: "user" | "assistant",
   content: Record<string, unknown>,
 ): Promise<{ id: string; created_at: string }> {
-  const { data, error } = await ctx.supabase
-    .from("ask_messages")
-    .insert({ thread_id: threadId, tenant_id: tenantId, user_id: ctx.userId, role, content: content as Json })
-    .select("id, created_at")
-    .single();
+  const { data, error } = await insertAskTurn(ctx.supabase, {
+    thread_id: threadId,
+    tenant_id: tenantId,
+    user_id: ctx.userId,
+    role,
+    content: content as Json,
+  });
   if (error) throw new Error(`ask message: ${error.message}`);
   return data;
 }
@@ -284,14 +285,11 @@ export async function touchThread(
   scope: AskScope | null | undefined,
   title?: string,
 ): Promise<void> {
-  const { error } = await ctx.supabase
-    .from("ask_threads")
-    .update({
-      last_at: new Date().toISOString(),
-      ...(scope === undefined ? {} : { scope: scopeColumn(scope) }),
-      ...(title ? { title } : {}),
-    })
-    .eq("id", threadId);
+  const { error } = await patchAskThread(ctx.supabase, threadId, {
+    last_at: new Date().toISOString(),
+    ...(scope === undefined ? {} : { scope: scopeColumn(scope) }),
+    ...(title ? { title } : {}),
+  });
   if (error) log.error("ask_thread_touch_failed", { error: error.message });
 }
 
@@ -306,11 +304,7 @@ export async function setProposalOutcome(
   proposalId: string,
   outcome: AskProposalOutcome,
 ): Promise<AskProposal> {
-  const { data: m, error } = await ctx.supabase
-    .from("ask_messages")
-    .select("id, content")
-    .eq("id", messageId)
-    .maybeSingle();
+  const { data: m, error } = await findAskTurnContent(ctx.supabase, messageId);
   if (error) throw new Error(error.message);
   if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
   const content = (m.content ?? {}) as Record<string, unknown>;
@@ -326,18 +320,17 @@ export async function setProposalOutcome(
   const next = proposals.map((p, i) => (i === idx ? { ...p, outcome } : p));
   // Read whole and written back whole, never by path: the turn as the model was sent it (content.raw) stays beside
   // the card's outcome.
-  const { data: upd, error: uerr } = await ctx.supabase
-    .from("ask_messages")
-    .update({ content: { ...content, proposals: next } as unknown as Json })
-    .eq("id", messageId)
-    .select("id");
+  const { data: upd, error: uerr } = await saveAskTurnContent(ctx.supabase, messageId, {
+    ...content,
+    proposals: next,
+  } as unknown as Json);
   if (uerr) throw new Error(uerr.message);
   if (!upd?.length) throw new AppError("not_found", "That turn is not yours.", 404);
   return next[idx];
 }
 
 export async function deleteThread(ctx: RouteContext, id: string): Promise<void> {
-  const { data, error } = await ctx.supabase.from("ask_threads").delete().eq("id", id).select("id");
+  const { data, error } = await deleteAskThread(ctx.supabase, id);
   if (error) throw new Error(error.message);
   if (!data?.length) throw new AppError("not_found", "That thread is not yours or is already gone.", 404);
 }

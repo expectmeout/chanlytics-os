@@ -84,6 +84,15 @@ export {
 } from "./offers-answer";
 export type { LateCarrierStop } from "./offers-answer";
 export {
+  readReachOutChainReport,
+  readReachOutLines,
+  readReachOutReach,
+  readReachOutTimeline,
+  recheckReachOutRun,
+  removeReachOutChain,
+  stopReachOutLead,
+} from "./reach-out/chain-doors";
+export {
   getUncheckedWaiting,
   listHeldStale,
   listUncheckedSends,
@@ -276,6 +285,23 @@ export {
   stampStepRun,
   startBatchSending,
 } from "./sequences/runs";
+export {
+  findProposalFollowUp,
+  findRunRow,
+  findStepList,
+  listConsentChangesSince,
+  listOutboundSince,
+  listPlaybookRunRows,
+  listRecentRunRows,
+  listRunNames,
+  listRunRowsByIds,
+  listStepsWith,
+  pageInboundOn,
+  pagePeopleOnRuns,
+  pagePersonSends,
+  pageProposalsOut,
+  pageRunPeople,
+} from "./sequences/sent";
 export { findConfirmationEmail, findSignupAskFacts } from "./signup-confirms";
 export {
   batchStatesOf,
@@ -290,6 +316,12 @@ export {
   recordSystemDecision,
 } from "./stranded-runs";
 export type { GoingRunRow, StrandedRun, WaitingPlaybookRun, WaitingRunRow } from "./stranded-runs";
+export {
+  countLiveRunsOfTemplate,
+  listRunningStepsOfTemplate,
+  setTemplateHidden,
+  setTemplateTitle,
+} from "./templates/doors";
 export {
   createMessageVersion,
   findHeldMessage,

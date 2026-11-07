@@ -97,7 +97,10 @@ test("the wiring: one profile row per account, written by its owner only, read b
 
   const route = readCode("apps/dashboard/app/api/v1/me/route.ts");
   assert.ok(
-    route.includes('rate: "profile_set",') && route.includes('rpc("profile_set", { p_display_name: cleaned.name })'),
+    // The door is packages/db's (decision 0111): the route names the name through its server module.
+    route.includes('rate: "profile_set",') &&
+      route.includes("setOwnName(ctx, { p_display_name: cleaned.name })") &&
+      readCode("packages/db/src/repositories/auth/account.ts").includes('db.rpc("profile_set", args)'),
   );
   assert.ok(route.includes("cleanDisplayName(input.display_name"), "the contracts' rule, before the database's");
   assert.ok(!route.includes("getMemberContext("), "your name needs no workspace");

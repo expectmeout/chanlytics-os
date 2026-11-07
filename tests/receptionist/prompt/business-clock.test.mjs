@@ -126,8 +126,12 @@ test("both channels read the tenant's zone, and neither invents one", () => {
   const voice = readCode("apps/edge/lib/voice/call-start.ts");
 
   const runtime = readCode("apps/edge/lib/shared/tenant-runtime.ts");
+  // The read is packages/db's (decision 0111): the runtime's own row, with its zone.
   assert.ok(
-    runtime.includes('db.from("tenants").select("name, slug, timezone, status")'),
+    runtime.includes("findWorkspaceRuntimeRow(db, routed.tenantId)") &&
+      readCode("packages/db/src/repositories/workspace/rows.ts").includes(
+        'db.from("tenants").select("name, slug, timezone, status")',
+      ),
     "read from the tenants row, not from config",
   );
   for (const src of [wa, voice, runtime]) {

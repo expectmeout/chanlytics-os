@@ -30,6 +30,7 @@ import { personReach } from "../../../readers/person";
 import { readUnlessNotFound, noteRow, str } from "../context/tool-reads";
 import { actAction, defineActions, offeredTo, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { approvalWords, propose, refuse } from "../context/context";
+import { findPersonCard, findPersonReplyMode } from "@chanlytics/db/ask";
 
 /** The person a card names, as every action of this tool reads them: the name the card calls them, and the profile's. */
 interface CardPerson {
@@ -50,12 +51,7 @@ interface CardPerson {
 async function personOnCard(toolContext: ToolContext, contactId: string): Promise<CardPerson | ProposalOutcome> {
   const id = str(contactId, 40);
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
-  const { data: c, error } = await toolContext.ctx.supabase
-    .from("contacts")
-    .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
-    .eq("tenant_id", toolContext.tenantId)
-    .eq("id", id)
-    .maybeSingle();
+  const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
   // As People names them (personName). What the page shows in place of a name of their own is that, minus the typed name.
@@ -77,14 +73,11 @@ async function proposePersonMode(
     return refuse("mode must be auto, ask, never or inherit");
   const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
-  const { data: pol, error: polErr } = await toolContext.ctx.supabase
-    .from("policies")
-    .select("mode")
-    .eq("tenant_id", toolContext.tenantId)
-    .eq("class", "reply")
-    .eq("subject_type", "contact")
-    .eq("subject_id", person.id)
-    .maybeSingle();
+  const { data: pol, error: polErr } = await findPersonReplyMode(
+    toolContext.ctx.supabase,
+    toolContext.tenantId,
+    person.id,
+  );
   // A mode that cannot be read is not "inherit": the card would say a change that may change nothing.
   if (polErr) throw new Error(`cannot read the person's reply mode: ${polErr.message}`);
   const LABEL: Record<string, string> = {

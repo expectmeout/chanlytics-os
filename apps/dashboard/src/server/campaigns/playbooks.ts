@@ -32,14 +32,18 @@ import {
   type PlaybookInput,
 } from "@chanlytics/core";
 import {
+  findProposalFollowUp,
+  findStepList,
   followUpTouchesSince,
-  listMessageVersionRows,
-  listPlaybookChannels,
   getRecentTouches,
   getSequenceModes,
-  touchIndex,
   isWorkspacePaused,
+  listMessageVersionRows,
+  listPlaybookChannels,
+  listStepsWith,
+  pageProposalsOut,
   type Touch,
+  touchIndex,
 } from "@chanlytics/db/campaigns";
 import { listRow } from "@chanlytics/db/people";
 import { getPlaybookTotals } from "@chanlytics/db/reports";
@@ -95,13 +99,7 @@ async function proposalsOut(
   tenantId: string,
 ): Promise<{ contacts: Set<string>; oldestMs: number } | null> {
   const rows = await readAllRows<{ id: string; contact_id: string; proposed_at: string }>("deals", (from, to) =>
-    ctx.supabase
-      .from("deals")
-      .select("id, contact_id, proposed_at")
-      .eq("tenant_id", tenantId)
-      .eq("stage", "proposed")
-      .order("id")
-      .range(from, to),
+    pageProposalsOut(ctx.supabase, tenantId, from, to),
   );
   if (!rows.length) return null;
   return {
@@ -201,12 +199,7 @@ export async function followUpFacts(
   tz: string,
 ): Promise<FollowUpFactsDto | null> {
   const [pb, paused, number, out] = await Promise.all([
-    ctx.supabase
-      .from("sequence_steps")
-      .select("id, sequence_id, state, run_hour, last_run_for, until, template_name, template_language, words_ok_at")
-      .eq("tenant_id", tenantId)
-      .eq("trigger", "proposal_waiting")
-      .maybeSingle(),
+    findProposalFollowUp(ctx.supabase, tenantId),
     isWorkspacePaused(ctx.supabase, tenantId),
     // The number as the send screen reads it (channels-ready.ts): none, or its health.
     findWhatsappHealth(ctx, tenantId),
@@ -285,12 +278,8 @@ export async function listPlaybookRows(ctx: RouteContext, tenantId: string): Pro
   const read = (
     columns: string,
     moments = true,
-  ): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }> => {
-    const q = ctx.supabase.from("sequence_steps").select(columns).eq("tenant_id", tenantId);
-    return (moments ? q.eq("kind", "moment") : q).order("created_at", {
-      ascending: false,
-    }) as unknown as ReturnType<typeof read>;
-  };
+  ): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }> =>
+    listStepsWith(ctx.supabase, tenantId, columns, moments) as unknown as ReturnType<typeof read>;
   // A database 00168 has not reached has no list_key, and one 00155 has not reached no list_id: read again without
   // them, and no playbook runs on a People list (or on any list).
   let { data: rows, error } = await read(COLUMNS);
@@ -444,11 +433,7 @@ async function archivedListRefusal(
   params: { id: string; trigger: string },
 ): Promise<string | null> {
   if (params.trigger !== "saved_list") return null;
-  const { data: on, error } = await ctx.supabase
-    .from("sequence_steps")
-    .select("list_id")
-    .eq("id", params.id)
-    .maybeSingle();
+  const { data: on, error } = await findStepList(ctx.supabase, params.id);
   // A campaign whose list cannot be read is not one whose list stands: it would resume onto an archived list.
   if (error) throw new Error(`cannot read the campaign's list: ${error.message}`);
   const listId = (on as { list_id?: string | null } | null)?.list_id ?? null;
