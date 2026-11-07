@@ -33,6 +33,7 @@ import { Notice } from "../kit/notice/notice";
 import { Press } from "../kit/press";
 import { Segmented } from "../kit/segmented/segmented";
 import { useHeightGlide } from "../kit/motion/use-height-glide";
+import { useRowOpens } from "../kit/motion/use-row-opens";
 import { useSwapMotion } from "../kit/motion/use-swap-motion";
 import { doAsked } from "../kit/sheet/back";
 import { canDo, gate, refreshSurface, type FrameFlash } from "../frame-verbs";
@@ -163,6 +164,11 @@ function FilesLibrary({
   const glide = useHeightGlide();
   const [glides, setGlides] = useState(false);
   if (!glides && (tally.total === 0 || going.length > 0)) setGlides(true);
+  // The shelves come with the first read that holds a photo: where this visit saw that, they open, and the grid goes down with them.
+  const [startedEmpty] = useState(tally.total === 0);
+  const shelvesOpen = useRowOpens(startedEmpty);
+  const heading = headingOf(tally, going.filter((p) => p.id).length);
+  const headingFades = useSwapMotion<HTMLHeadingElement>(heading);
   const may = canDo("settings");
   const here = pressed ?? shelf;
   const choose = (s: FileShelf) => {
@@ -213,7 +219,9 @@ function FilesLibrary({
       data-dropping={dropping || undefined}
     >
       <div className="rec-card-head files-head" data-adding={left > 0 || undefined}>
-        <h2 className="rec-card-title files-heading">{headingOf(tally, standing.size)}</h2>
+        <h2 ref={headingFades} className="rec-card-title files-heading">
+          {heading}
+        </h2>
         {/* Unseen on an empty page, whose one press stands under its tiles, but holding its place: the tiles don't move as it comes. */}
         <span className="files-head-act" data-away={emptyPage || undefined}>
           <Button ref={addRef} size="sm" onClick={add} {...gate("settings", "add a photo")} data-testid="fl-add">
@@ -232,7 +240,7 @@ function FilesLibrary({
         />
       )}
       {tally.total > 0 && (
-        <div className="files-shelves">
+        <div ref={shelvesOpen} className="files-shelves">
           <Segmented
             className="files-shelves-row"
             label={W.title}
