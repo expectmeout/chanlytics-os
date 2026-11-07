@@ -1746,6 +1746,16 @@ html.frame-on .bt-link { position: relative; }
 .ro-rules > li > svg { flex: none; color: var(--ok-ink); }
 .ro-always, .ro-always-mark { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-dim); }
 .ro-always-mark { margin-inline-start: auto; align-self: center; font-size: var(--text-xs); }
+/* Try it's email (decision 0113): the line written from their listing and each claim marked where they stand. */
+.ro-try-lead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; }
+.ro-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
+.ro-try-mail { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--line); }
+.ro-try-head { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
+.ro-try-head > span { color: var(--ink-dim); }
+.ro-try-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ro-mark { color: inherit; border-radius: var(--radius-sm); padding: 1px 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.ro-mark-them { background: var(--info-soft); border-bottom: 1.5px solid var(--info); }
+.ro-mark-proof { background: var(--ok-soft); border-bottom: 1.5px solid var(--ok); }
 .bt-note-head { font-size: var(--text-xs); color: var(--ink-dim); }
 /* The owner's own words at rest: their opening, quoted, in the muted ink. Their size went with the count, which is
    under the box that edits them now (contracts instructionsWords). */

@@ -44,6 +44,8 @@ test("the page draws its cards in the order a person needs them", () => {
     "rec-card-sends-from",
     "rec-card-writes-back",
     "rec-card-rules",
+    "rec-card-told",
+    "rec-card-try",
   ]);
 });
 
@@ -153,4 +155,30 @@ test("the rail lists it under Receptionist, after How it answers, and its rows o
   for (const row of ["offer", "proof", "cold_tone", "signed_by", "signature", "sign_phone", "reply_offer"])
     assert.equal(paneOfRow(row), "outreach", row);
   assert.equal(settingsRowRoute("offer"), "admin/outreach/offer");
+});
+
+test("Try it with no running sequence to leads says to start one, and asks the preview door nothing", () => {
+  const asked = [];
+  globalThis.window.fetch = (url) => {
+    asked.push(String(url));
+    return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+  };
+  let tree = page();
+  press(byTestId(tree, "rec-row-act-try_lead"));
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "rec-try-none")), /Start a sequence first/);
+  assert.ok(!asked.some((u) => u.includes("reach-outs/preview")), "no sequence, no email written");
+});
+
+test("What it's told opens on the drafter's words, and an answer's parts carry no share", () => {
+  let tree = page();
+  press(byTestId(tree, "rec-row-act-told"));
+  tree = redrawTab();
+  assert.ok(byTestId(tree, "rec-told-sheet"));
+  assert.match(textOf(byTestId(tree, "rec-told-hint")), /Written once by Ask/);
+  const kinds = byTestId(tree, "rec-told-kind");
+  find(kinds, (n) => n.props?.["aria-checked"] !== undefined && textOf(n) === "An answer").props.onClick();
+  tree = redrawTab();
+  assert.ok(byTestId(tree, "rec-told-part-answers"));
+  assert.equal(byTestId(tree, "rec-told-share-answers"), null);
 });

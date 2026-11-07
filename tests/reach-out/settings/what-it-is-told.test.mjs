@@ -78,3 +78,19 @@ test("the drafter's parts are its own lines, in the prompt's order, the business
   assert.equal(parts[3].text, "", "no started emails: the part says nothing, and the sheet leaves it out");
   assert.match(parts[5].text, /What the owner says it should do: Write to clinics about evening cleaning$/);
 });
+
+test("Try it marks the line written for them and each claim where they stand, and nothing else", async () => {
+  const { tryPartsOf } = await import("@chanlytics/contracts");
+  const body =
+    "Lakeside has a 4.9 from 186 reviews.\n\nI run Brightline. We clean 40 clinics across Austin today. Worth a call?\n\nMaya";
+  const parts = tryPartsOf(body, "Lakeside has a 4.9 from 186 reviews.", ["We clean 40 clinics across Austin today."]);
+  assert.deepEqual(
+    parts.map((p) => p.source),
+    ["them", "words", "proof", "words"],
+  );
+  assert.equal(parts.map((p) => p.text).join(""), body, "the parts are the email, whole");
+  assert.deepEqual(
+    tryPartsOf("No claim here.", null, ["A claim the words do not carry."]).map((p) => p.source),
+    ["words"],
+  );
+});

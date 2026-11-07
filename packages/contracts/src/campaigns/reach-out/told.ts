@@ -152,3 +152,36 @@ export const reachOutExampleRecord = (): OpeningRecord => ({
   website_says: "Lakeside Bakery · Fresh bread daily · Order a cake for pickup",
   what_you_asked: "Bakeries and cafes in Springfield",
 });
+
+/** Where a part of a tried email came from: the line written from their listing, a claim of the owner's, or the owner's words. */
+export type TrySource = "them" | "proof" | "words";
+export interface TryPart {
+  text: string;
+  source: TrySource;
+}
+
+/**
+ * Try it's email in parts (decision 0113): the opening written for this business marked as theirs, each claim the words
+ * carry word for word marked as the owner's proof, and everything else the owner's words, values and foot included.
+ * Found by its text in the email the preview assembled, so a mark is only ever where the words truly are.
+ */
+export function tryPartsOf(body: string, opening: string | null, claims: readonly string[]): TryPart[] {
+  const marks: { at: number; end: number; source: TrySource }[] = [];
+  const mark = (needle: string, source: TrySource) => {
+    const at = needle ? body.indexOf(needle) : -1;
+    if (at < 0 || marks.some((m) => at < m.end && at + needle.length > m.at)) return;
+    marks.push({ at, end: at + needle.length, source });
+  };
+  mark(opening?.trim() ?? "", "them");
+  for (const claim of claims) mark(claim.trim(), "proof");
+  marks.sort((a, b) => a.at - b.at);
+  const parts: TryPart[] = [];
+  let from = 0;
+  for (const m of marks) {
+    if (m.at > from) parts.push({ text: body.slice(from, m.at), source: "words" });
+    parts.push({ text: body.slice(m.at, m.end), source: m.source });
+    from = m.end;
+  }
+  if (from < body.length) parts.push({ text: body.slice(from), source: "words" });
+  return parts;
+}

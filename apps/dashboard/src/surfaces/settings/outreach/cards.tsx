@@ -12,6 +12,7 @@ import { useReachOutRead } from "./card";
 import { OfferCard, ProofCard } from "./offer";
 import { RulesCard, SendsFromCard, WritesBackCard } from "./sends";
 import { ToldCard } from "./told";
+import { TryCard } from "./try";
 import { SignOffCard, WritesCard } from "./writes";
 
 export function OutreachCards({
@@ -39,6 +40,11 @@ export function OutreachCards({
       <WritesBackCard {...shared} />
       <RulesCard />
       <ToldCard canEdit={canEdit} />
+      <TryCard
+        read={read}
+        signedBy={typeof config.reach_out?.signed_by === "string" ? config.reach_out.signed_by : null}
+        claims={config.reach_out?.proof ?? []}
+      />
     </>
   );
 }
