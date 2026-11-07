@@ -64,7 +64,7 @@ import {
   SECOND_MS,
 } from "@chanlytics/contracts";
 import { refusalScript } from "@chanlytics/core";
-import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./voice-door-auth.js";
+import { refusedOutLoud, keepKnock, voiceDoorAuth } from "./door-auth.js";
 import {
   gateOnTheCall,
   linkByText,
@@ -354,7 +354,7 @@ async function alreadySentOnThisCall(leg: LinkLeg, callId: string | undefined): 
 export async function sendBookingLinkOnCall(request: Request): Promise<Response> {
   const raw = await request.text();
   // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
-  // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
+  // custom-function calls is what the log answers (voice/door-auth.ts); this file used to say it did not.
   const knock = voiceDoorAuth("fn", request, raw);
   await keepKnock("fn", knock);
   if (!knock.ok) return refusedOutLoud("fn", KNOCK_REFUSED);

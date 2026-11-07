@@ -16,7 +16,7 @@ import {
   usableChannels,
 } from "../broadcasts/reach-for";
 import type { AskedPurpose, MessageAbout } from "../../consent/consent";
-import { channelsWords, CONSENT_CHANNELS, type ConsentChannel } from "../../consent/consent-channels";
+import { channelsWords, CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import { THREAD_CHANNEL_WORDS } from "../../conversations/thread-channel";
 import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
 import { GET_YES_ROUTE } from "../../people/lists/people-route";

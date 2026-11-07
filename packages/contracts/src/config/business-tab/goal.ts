@@ -4,7 +4,7 @@
  * card could set it, and no page said what it was. The row writes it as that card does (applySettingsChange's
  * set_goal) and says so in the card's own line (describeSettingsChange), so the two never word one change two ways.
  */
-import { describeSettingsChange } from "../../ask/ask-settings-change";
+import { describeSettingsChange } from "../../ask/settings-change";
 import { ASK_GOAL_MAX } from "../workspace-config/config-rules";
 
 export const ASK_GOAL_WORDS = {

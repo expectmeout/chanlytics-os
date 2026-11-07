@@ -1,6 +1,6 @@
 /**
  * One person's appointments, for their profile: the next, the last and the timeline, from the feed the board reads
- * (parsed-feed.ts) and the calendar's lookup the People list shares (calendar-settings.ts).
+ * (parsed-feed.ts) and the calendar's lookup the People list shares (calendar/settings.ts).
  */
 import "server-only";
 import {
@@ -17,7 +17,7 @@ import {
   feedWithRecord,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/shared/with-route";
-import { calendarOf } from "./calendar-settings";
+import { calendarOf } from "./settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
 import { poolRecordOf } from "./people-visits";
 import { earlierVisitRows } from "@chanlytics/db";

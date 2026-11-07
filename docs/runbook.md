@@ -784,7 +784,7 @@ sends cold until these are set, in order, and a reach-out exists (step 8).
    `bounceClassOf`): a dead address is stopped, a server refusing the sender
    counts against the mailbox and never the lead, and the sender's own quota
    rests the mailbox a day. A send that timed out is looked for in the
-   mailbox's sent mail ten minutes on (`mailbox-reconcile.ts`): found, it is
+   mailbox's sent mail ten minutes on (`mailbox/reconcile.ts`): found, it is
    sent; not there, it is planned again. The hold reads hard bounces, servers'
    refusals, complaints and unsubscribes (migration 00466), never a polite no.
 8. **The first reach-out, made from the sheet.** On Leads, open a search

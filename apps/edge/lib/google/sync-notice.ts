@@ -15,7 +15,7 @@ import { PlacesError } from "@chanlytics/channels";
 import { mendWarnings, notifyOnce } from "../ops/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { errField, type Logger } from "../shared/log.js";
-import type { ConnectionRow, Db } from "./google-rows.js";
+import type { ConnectionRow, Db } from "./rows.js";
 
 /** Whose a failed sync's cause is: the owner's to mend, a passing one of Google's, or the platform's. */
 export type SyncCause = "lasting" | "passing" | "ours";

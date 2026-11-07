@@ -228,7 +228,7 @@ export interface LeadContext {
    */
   marketingConsent?: string | null;
   /**
-   * The channels that yes covers (contacts.marketing_channels, consent-channels.ts): null where none are kept, a yes
+   * The channels that yes covers (contacts.marketing_channels, consent/channels.ts): null where none are kept, a yes
    * recorded before the channels were, which covers WhatsApp alone. Undefined where the column could not be read,
    * which reads the same way (contracts yesCovers). A yes kept for text alone is not a yes on WhatsApp.
    */

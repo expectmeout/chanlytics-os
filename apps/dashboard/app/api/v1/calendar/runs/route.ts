@@ -13,7 +13,7 @@ const Query = z.object({
 });
 
 /**
- * GET /api/v1/calendar/runs?from=YYYY-MM-DD&days=63 — campaigns over a span of the Calendar (contracts calendar-runs.ts):
+ * GET /api/v1/calendar/runs?from=YYYY-MM-DD&days=63 — campaigns over a span of the Calendar (contracts calendar/runs.ts):
  * the one-off sends and the campaigns' runs that fall in it with what each sent, every campaign's schedule with its
  * class's mode, and whether the workspace is paused, from which the board draws its marks. Its own read, beside GET
  * calendar and never inside it: that one is Today's day and the document head's first read, and a send must never count

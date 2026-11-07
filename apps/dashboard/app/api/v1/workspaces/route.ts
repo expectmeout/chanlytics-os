@@ -1,5 +1,5 @@
 import { read, write, account, workspace } from "@/server/shared/route";
-import { readWorkspaces, patchWorkspace } from "@/server/workspace/workspace-list";
+import { readWorkspaces, patchWorkspace } from "@/server/workspace/list";
 
 /**
  * GET /api/v1/workspaces — the session's tenants, RLS-scoped, plus who is
@@ -17,7 +17,7 @@ import { readWorkspaces, patchWorkspace } from "@/server/workspace/workspace-lis
  * with the one degradation that keeps a stale preference from bricking the
  * app.
  *
- * The handle is readWorkspaces in src/server/workspace/workspace-list.ts: the route is its declaration (who may, how
+ * The handle is readWorkspaces in src/server/workspace/list.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 export const GET = read({
@@ -38,7 +38,7 @@ export const GET = read({
  * for. Only what was sent is written, and only what was written is read back,
  * so a zone saved on a database 00458 has not reached still saves.
  *
- * The handle is patchWorkspace in src/server/workspace/workspace-list.ts: the route is its declaration (who may, how
+ * The handle is patchWorkspace in src/server/workspace/list.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 export const PATCH = write({

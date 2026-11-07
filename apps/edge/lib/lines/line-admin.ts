@@ -26,7 +26,7 @@
  * read is decided in lib/lines/line-ops.ts, pure over the rows; what is left
  * here is the knock, the reads in the order the ops need them, the writes and
  * the job, and the shape the dashboard wants back. The same split the texting
- * door (inbound-sms.ts with sms-ingress.ts) uses.
+ * door (inbound-sms.ts with sms/ingress.ts) uses.
  */
 import { json, refuse } from "../shared/http.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
@@ -51,7 +51,7 @@ import { claimLineForResume, type LineDbRow } from "./line-resume.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "../shared/env.js";
-import { secretToProvision } from "../voice/voice-door-auth.js";
+import { secretToProvision } from "../voice/door-auth.js";
 import {
   UNKNOWN_LINE_OP,
   NO_LINE_PROVIDER,

@@ -12,10 +12,10 @@
  */
 import { previewOn, previewParts, type PreviewVersions } from "../broadcasts/preview-by-channel";
 import { renderTemplate } from "../broadcasts/broadcasts";
-import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import { isOfferByEmail, purposeOfTemplate } from "../../consent/consent";
-import { firstSubject } from "../../email/email-subject";
-import { emailTextOf } from "../../email/email-text";
+import { firstSubject } from "../../email/subject";
+import { emailTextOf } from "../../email/text";
 import { noVersionWords } from "../templates/message-versions";
 import { templateParts } from "../templates/template-parts";
 import { testParamsOf, type ParamSpec } from "../templates/templates";
@@ -29,7 +29,7 @@ import {
   type ReachOutSignsWith,
   type SlotLead,
   type SlotWorkspace,
-} from "../reach-out/reach-out-rules";
+} from "../reach-out/rules";
 
 /** What the press and its mail say. */
 export const SEQUENCE_TEST_WORDS = {

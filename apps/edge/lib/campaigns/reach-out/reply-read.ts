@@ -1,7 +1,7 @@
 /**
  * The reading of a reach-out's reply, as the job runner is handed it (Reach out Part 5, PR 3; the plan's G2, G4, G16):
  * the three things the reply_read job needs from the edge, where the model's key, the spend and the notification door
- * are. The rules are contracts' (reach-out-replies.ts) and the verb is core's (readReply); this asks and tells.
+ * are. The rules are contracts' (reach-out/replies.ts) and the verb is core's (readReply); this asks and tells.
  *
  *   - ask: Haiku (the registry's reply_read route) through the platform's one JSON-model transport (lib/ai/model.ts
  *     askJson), with no retry of its own on "not now" and a deadline of the check's call time or the job's time left,

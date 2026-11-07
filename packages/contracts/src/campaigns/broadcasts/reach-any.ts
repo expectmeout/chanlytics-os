@@ -16,7 +16,7 @@
  *     An email about a visit asks no yes at all (consent.ts), so an address alone reaches them there.
  */
 import type { AskedPurpose } from "../../consent/consent";
-import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import type { PersonRowVM } from "../../people/person-row";
 import { CHANNEL_WORDS, type ChannelsReady, type HeldOn, type ReachRow, reachFor } from "./reach-for";
 

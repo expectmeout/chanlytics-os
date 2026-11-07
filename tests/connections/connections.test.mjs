@@ -503,7 +503,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     "the pane imports contracts' rows and group words",
   );
   assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installConnections"));
-  const edge = readCode("apps/edge/lib/google/google-config.ts");
+  const edge = readCode("apps/edge/lib/google/config.ts");
   assert.ok(
     edge.includes("export function googleAudience(): GoogleAudience | null {") &&
       edge.includes('return a === "testing" || a === "unverified" || a === "verified" ? a : null;'),

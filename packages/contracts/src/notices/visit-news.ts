@@ -22,7 +22,7 @@
  */
 import type { JobNews } from "../today/notifications";
 import { visitRoute } from "../calendar/appointment-key";
-import { visitDateKey, visitLine } from "../calendar/calendar-people";
+import { visitDateKey, visitLine } from "../calendar/people";
 import type { FreedTimeOffer } from "../calendar/visit/freed-time";
 import { MIN_MS } from "../shared/time";
 import { plural } from "../shared/words";

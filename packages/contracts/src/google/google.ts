@@ -304,7 +304,7 @@ export interface SetupGoogleFacts {
 export const GOOGLE_SHOWN_REVIEWS = 5;
 
 /**
- * What a notice of a new review begins with, on the bell and on Today's line (packages/channels google-sync.ts reviewBells says
+ * What a notice of a new review begins with, on the bell and on Today's line (packages/channels google/sync.ts reviewBells says
  * it): the one way to tell a review that waits for an answer from the notice that the receptionist gave one ("Replied to …").
  */
 export const NEW_REVIEW_NEWS = "New on Google:";

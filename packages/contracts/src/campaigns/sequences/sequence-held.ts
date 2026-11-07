@@ -14,8 +14,8 @@ import {
   type HeldClaimKind,
   type HoldDoor,
   type ReachOutHold,
-} from "../reach-out/reach-out-words";
-import type { ReachOutDecision } from "../reach-out/reach-out-dtos";
+} from "../reach-out/words";
+import type { ReachOutDecision } from "../reach-out/dtos";
 import { capitalize } from "../../shared/words";
 
 /**

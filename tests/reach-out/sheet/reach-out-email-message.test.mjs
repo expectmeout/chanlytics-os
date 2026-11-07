@@ -1,7 +1,7 @@
 /**
  * A reach-out's email as a message on the Templates page (One message, every channel, step 5), run on the stub React over
  * the page's own words (surfaces/campaigns/reach-out/email-message.tsx, templates/version-view.tsx and its editor,
- * contracts message-versions.ts and reach-out-words.ts) and its verbs stubbed on the one `templates` object the page
+ * contracts message-versions.ts and reach-out/words.ts) and its verbs stubbed on the one `templates` object the page
  * imports.
  *
  * - It opens on the same version view a campaign message's email does: its subject and its words with examples in the six

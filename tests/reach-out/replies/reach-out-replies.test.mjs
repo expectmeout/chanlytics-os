@@ -1,5 +1,5 @@
 /**
- * A reply from a lead, read (packages/contracts reach-out-replies.ts; the Part 5 plan's Tasks 1.1–1.4): the seven
+ * A reply from a lead, read (packages/contracts reach-out/replies.ts; the Part 5 plan's Tasks 1.1–1.4): the seven
  * intents and the answer's parse, what the reader is shown, the one table of what a reading does (G6) with the days
  * and the reach of a no (N6), when an unread reply is read again (G4), and the notice's words (G16).
  */

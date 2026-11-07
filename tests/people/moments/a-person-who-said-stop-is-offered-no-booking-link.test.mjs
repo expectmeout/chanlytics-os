@@ -331,7 +331,7 @@ installStubReact({
   __DEMO_MODE: false,
   CHANLY: { nav: (route) => went.push(route) },
 });
-const { visitSheetOf } = await import("../../../packages/contracts/src/calendar/visit/visit-sheet");
+const { visitSheetOf } = await import("../../../packages/contracts/src/calendar/visit/sheet");
 
 /** The sheet of the person's visit, kept and over: the one state whose lead act is the booking link (contracts visitSheetOf). */
 const sheetOf = (r) => {

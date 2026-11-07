@@ -7,7 +7,7 @@
  * and the database says the same in `platform_role()` and `platform_staff_state()` (00467).
  */
 import type { Tone } from "../shell/tone";
-import { CONSOLE_PATH } from "./console-path";
+import { CONSOLE_PATH } from "./path";
 import { csvCell } from "../imports/csv";
 import { agoWords, DAY_MS, HOUR_MS, MIN_MS, WEEK_MS } from "../shared/time";
 import {

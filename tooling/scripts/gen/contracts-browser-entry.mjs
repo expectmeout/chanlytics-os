@@ -43,10 +43,10 @@ export const PAGE_ONLY = [
   "reports/report-metrics.ts",
   "reports/report-window.ts",
   "reports/report-mix.ts",
-  "reports/receptionist/receptionist-report.ts",
-  "reports/receptionist/receptionist-words.ts",
-  "reports/people/people-report.ts",
-  "reports/people/people-words.ts",
+  "reports/receptionist/report.ts",
+  "reports/receptionist/words.ts",
+  "reports/people/report.ts",
+  "reports/people/words.ts",
   "reports/campaigns/reach-out-lens.ts",
   "reports/campaigns/campaign-words.ts",
   "reports/campaigns/campaign-lens.ts",
@@ -80,7 +80,7 @@ export const PAGE_ONLY = [
 export const PAGE_ENTRIES = {
   "report-window": "reports/report-window.ts",
   "report-lens": "reports/report-lens.ts",
-  "ads-page": "ads/ads-page.ts",
+  "ads-page": "ads/page-entry.ts",
   "page-specs": "ask/proposals/page-specs.ts",
 };
 /** The specifiers that load zod's classic API. zod/mini and zod/v4/core share its core and are cut by the bundler. */

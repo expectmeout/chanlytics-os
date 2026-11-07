@@ -8,9 +8,9 @@ import { importSrc } from "../_source.mjs";
 
 const { deleteClaudeFile, uploadClaudeFile } = await importSrc("packages/channels/src/ai/anthropic-files.ts");
 const { FINGERPRINT_BYTES, fileFingerprintOf } = await importSrc("packages/channels/src/files/file-fingerprint.ts");
-const { listMedia } = await importSrc("packages/channels/src/google/google-profile.ts");
+const { listMedia } = await importSrc("packages/channels/src/google/profile.ts");
 const { PLACES_DETAILS_MASK, parsePlaceDetails, placePhotoUri } = await importSrc(
-  "packages/channels/src/google/google-places.ts",
+  "packages/channels/src/google/places.ts",
 );
 
 /** A fetch that answers one thing and keeps what it was asked. */

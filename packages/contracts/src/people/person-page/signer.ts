@@ -15,8 +15,8 @@
  * a notice ("Use this name"); it is taken without a press only when automatic naming is on and two independent signals
  * agree (signerAgrees), and it is off until the signer evals pass on the live key (AUTOMATIC_NAMING).
  */
-import type { ReplyIntent } from "../../campaigns/reach-out/reach-out-replies";
-import { replyTextOf } from "../../campaigns/reach-out/reach-out-replies";
+import type { ReplyIntent } from "../../campaigns/reach-out/replies";
+import { replyTextOf } from "../../campaigns/reach-out/replies";
 
 /** Automatic naming (0052, decision 5): off until the signer evals pass on the live key. The press is the default. */
 export const AUTOMATIC_NAMING = false;

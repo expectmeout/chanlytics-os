@@ -281,7 +281,7 @@ function adReferralOf(r: unknown): NormalizedInbound["referral"] {
 /**
  * A referral's id and kind as a message may carry them, by the rules above: the id trimmed and kept only when it can
  * always be written, the kind only when it is a plain word. Every wire's adapter reads its own referral through this
- * one rule (an Instagram DM's ad or link too, instagram/instagram-events.ts). Never throws.
+ * one rule (an Instagram DM's ad or link too, instagram/events.ts). Never throws.
  */
 export function storableReferral(rawId: unknown, rawKind: unknown): NormalizedInbound["referral"] {
   const id = typeof rawId === "string" ? rawId.trim() : "";

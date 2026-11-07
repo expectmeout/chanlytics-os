@@ -9,7 +9,7 @@
  * must not compile. Nothing imports this file, so no build reaches it.
  */
 import type { AskedPurpose } from "../../consent/consent";
-import type { ConsentChannel } from "../../consent/consent-channels";
+import type { ConsentChannel } from "../../consent/channels";
 import type { TemplateStatus } from "../../shared/enums";
 import type { Exactly, Holds } from "../../shared/schema-sets";
 import type { CampaignMessage, campaignMessageOf, campaignMessagesOf, messageHolds } from "./campaign-message";

@@ -161,11 +161,11 @@ test("a boolean said with is_, or sharing its name with a count or a record in i
 });
 
 test("a file repeats its folder when its name starts with the folder's; a folder's main module may share it", () => {
-  assert.equal(repeatsItsFolder("packages/channels/src/email/mailbox/mailbox-gmail.ts"), true);
-  assert.equal(repeatsItsFolder("apps/dashboard/src/surfaces/reach-out/reach-out-sheet.tsx"), true);
-  assert.equal(repeatsItsFolder("packages/channels/src/email/mailbox/gmail.ts"), false);
-  assert.equal(repeatsItsFolder("packages/contracts/src/leads/leads.ts"), false);
-  assert.equal(repeatsItsFolder("packages/contracts/src/leads/lead-dtos.ts"), false);
+  assert.equal(repeatsItsFolder("packages/x/src/letters/letters-sent.ts"), true);
+  assert.equal(repeatsItsFolder("apps/x/src/surfaces/stamps/stamps-sheet.tsx"), true);
+  assert.equal(repeatsItsFolder("packages/x/src/letters/sent.ts"), false);
+  assert.equal(repeatsItsFolder("packages/x/src/letters/letters.ts"), false);
+  assert.equal(repeatsItsFolder("packages/x/src/letters/letter-dtos.ts"), false, "the singular is not counted");
 });
 
 test("a stem that names no contents is generic; a role file and a domain's own word are not", () => {

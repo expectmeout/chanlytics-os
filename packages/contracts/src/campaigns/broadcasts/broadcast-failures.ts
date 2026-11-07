@@ -3,7 +3,7 @@
  * 2.5), which re-exports it.
  */
 import type { DeliveryRefusal } from "../../consent/consent";
-import type { ConsentChannel } from "../../consent/consent-channels";
+import type { ConsentChannel } from "../../consent/channels";
 import { triggerOf } from "../playbooks/playbook-triggers";
 import {
   BROADCAST_FAILURES,

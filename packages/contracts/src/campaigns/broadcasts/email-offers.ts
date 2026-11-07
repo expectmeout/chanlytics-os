@@ -29,7 +29,7 @@ export const OFFERS_BY_EMAIL_WORDS = {
  * The gates on offers by email (the spec's 4.5): complaints above 0.1% of the last 1,000 offers that went, or hard
  * bounces above 2% of the last 500, pause the workspace's offers by email. The pause is the workspace's, and it holds
  * offers alone: reminders and replies by email, and offers by WhatsApp, go on. Read from the receipts the edge stores
- * (apps/edge lib/email/email-receipts.ts), judged where a receipt arrives, cleared by the back office once the list is fixed.
+ * (apps/edge lib/email/receipts.ts), judged where a receipt arrives, cleared by the back office once the list is fixed.
  *
  * `minimum` is the fewest offers a gate judges at all (the spec names none; a rate over a handful of sends is noise: one
  * complaint on the first offer is 100%). Below it the gate says nothing, and a gate is judged over the offers sent since

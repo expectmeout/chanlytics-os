@@ -1,6 +1,6 @@
 /**
  * Lines on the edge: the provider this deployment may use, and the ports
- * the saga (packages/channels lines-saga.ts) runs over — the row store,
+ * the saga (packages/channels lines/saga.ts) runs over — the row store,
  * the vault, the receptionist, Retell's import, the routing row. The saga
  * itself is pure and tested with the dry provider; this file is the only
  * place a real SID, token or key is handled.
@@ -25,7 +25,7 @@ import {
   type RetellConfig,
   type ProvisionSecrets,
 } from "@chanlytics/channels";
-import { ensureVoiceAgent } from "../voice/voice-agent.js";
+import { ensureVoiceAgent } from "../voice/agent.js";
 import { lineDtoOf, type LineDto } from "@chanlytics/contracts";
 import { env } from "../shared/env.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";

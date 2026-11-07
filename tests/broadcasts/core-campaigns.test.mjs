@@ -697,7 +697,7 @@ test("a broadcast is the business's own news, whatever its template's category: 
     people: [byEmail("a"), byEmail("d", { state: "opted_in", channels: ["whatsapp", "sms"] })],
     channels: ready,
   });
-  // Said as what an email of the business's news asks (consent-asks.ts, from the one predicate), never as "a number".
+  // Said as what an email of the business's news asks (consent/asks.ts, from the one predicate), never as "a number".
   await refused(
     make(strangers, { template_id: T1, audience: everyone, channels: ["email"] }),
     "conflict",

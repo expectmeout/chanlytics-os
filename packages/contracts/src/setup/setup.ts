@@ -1,7 +1,7 @@
 /**
  * Setup — what the page is read from (SetupDto), what it draws (SetupVM), the
  * words every state has, and the line's predicates. The rows themselves are a
- * table: setup-rows.ts (setupSteps, the fold over it) and setup-rows-phone.ts.
+ * table: setup/rows.ts (setupSteps, the fold over it) and setup/rows-phone.ts.
  *
  * Four words for every state, so the page reads the same way People and
  * Today do: Not started · Waiting on you · Waiting on carriers (or Meta, or
@@ -28,7 +28,7 @@ import type { ActivationRecord, CapabilityStatus } from "./capabilities";
 import type { EmailSetupDto } from "../email/mailbox";
 import type { ReceptionistState } from "../config/workspace-config/config-schema";
 import type { ImportRowDto } from "../imports/ledger";
-import { WORKSPACE_MARKS, type SetupRests } from "./setup-put-off";
+import { WORKSPACE_MARKS, type SetupRests } from "./put-off";
 import type { BusinessReadDto } from "../imports/business-reads";
 
 export interface SetupDto {
@@ -287,7 +287,7 @@ export function lineStuckProvisioning(
 /**
  * A failure at the vault that keeps the line's credentials, by the saga's own
  * words (edge/lib/lines.ts: "reading the line's credentials", "keeping the
- * line's credentials"; lines-saga.ts: "missing from the vault"). It looks like
+ * line's credentials"; lines/saga.ts: "missing from the vault"). It looks like
  * a carrier failure on the row and is nothing like one: a retry runs into the
  * same wall until a person restores the credentials, so the row, the bell and
  * the refusal say that instead of offering a button that cannot help.

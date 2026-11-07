@@ -4,7 +4,7 @@
  */
 import { oneLine } from "@chanlytics/contracts";
 
-/** A header value is one line: contracts' rule, which an email's subject is cut by too (contracts email-subject.ts). */
+/** A header value is one line: contracts' rule, which an email's subject is cut by too (contracts email/subject.ts). */
 export { oneLine };
 
 /** A Message-ID as a header carries it, angle brackets and all; null for anything that is not one. */

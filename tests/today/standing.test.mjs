@@ -118,7 +118,7 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
     ["packages/contracts/src/conversations/standing.ts", /standingOf\(\s*\{/],
     ["packages/contracts/src/conversations/inbox-thread.ts", /standingOfThread\(/],
     ["packages/contracts/src/people/person-state.ts", /standingOf\(\s*\{/],
-    ["packages/contracts/src/today/today-facts.ts", /standingOfThread\(/],
+    ["packages/contracts/src/today/facts.ts", /standingOfThread\(/],
   ])
     assert.ok(s.test(readCode(file)), `${file} reads standingOf`);
   // Today's view model, in the modules today.ts was split into.
@@ -138,7 +138,7 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
     "away",
     "to-do",
   ]
-    .map((m) => readCode(`packages/contracts/src/today/today-${m}.ts`))
+    .map((m) => readCode(`packages/contracts/src/today/${m}.ts`))
     .join("\n");
   assert.ok(
     !today.includes("live.escalations_open"),

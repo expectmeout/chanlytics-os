@@ -112,7 +112,7 @@ apart, since a folder there is a path (`apps/edge/api`, `apps/dashboard/app`,
 
 Every request proves who is knocking before anything is read, but for the open doors and the handshakes named at the end of this section.
 
-1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature (or, until `RETELL_DOORS_SIGNED` is set, the shared `RETELL_FN_SECRET` on the inbound, tool and availability doors: `apps/edge/lib/voice/voice-door-auth.ts`), Twilio's signature with the line's own token, Svix headers (Resend), ElevenLabs' signature over its post-call webhook, the token Google signs on a Gmail push, the client state a Graph subscription echoes, Stripe's signature. Apify signs nothing, so each run is started with a per-run token in its webhook URL, kept only as a hash and compared in constant time. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
+1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature (or, until `RETELL_DOORS_SIGNED` is set, the shared `RETELL_FN_SECRET` on the inbound, tool and availability doors: `apps/edge/lib/voice/door-auth.ts`), Twilio's signature with the line's own token, Svix headers (Resend), ElevenLabs' signature over its post-call webhook, the token Google signs on a Gmail push, the client state a Graph subscription echoes, Stripe's signature. Apify signs nothing, so each run is started with a per-run token in its webhook URL, kept only as a hash and compared in constant time. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
 2. **Browser to dashboard.** A Supabase session cookie, its token's signature verified (`getClaims()`) by the proxy for every page, move and prefetch, and again by `withRoute` for every read; same origin required for every write. The signed-in frame reads nothing of the request, so it is one prerender for everyone (decision 0053, step 5).
 3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key. The platform's shared key (`x-diag-key`) opens only the diagnostic (`/api/diag`) and the pager (`/api/admin/page`) on an edge that holds the secret, the doors nothing mints a token for (`PLATFORM_KEY` in `tests/edge/doors/door-policy.test.mjs`), and every key-only knock there is logged (`admin_door_key_only`).
 4. **Database to edge.** `x-cron-key` on `/api/cron/*` and `/api/jobs/tick`, read from Vault on both sides.
@@ -154,12 +154,12 @@ Each channel has a door on the edge whose verb (in `lib/<domain>/`) verifies
 the wire, and a plan function that decides what to do with what arrived, run
 over a database in memory by a test.
 
-| Channel  | Door                                                                                             | Decides                                | Then                                                                                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| WhatsApp | `apps/edge/api/whatsapp.ts`                                                                      | `packages/core/src/inbound/steps.ts`   | `packages/core/src/inbound/answer.ts`'s phases: persist, read the posture, ask the brain, deliver or hold (the edge adapts it in `apps/edge/lib/whatsapp/inbound.ts`)  |
-| SMS      | `apps/edge/api/inbound-sms.ts`                                                                   | `apps/edge/lib/sms/sms-ingress.ts`     | The door records the text and answers Twilio; an `inbound_answer` job runs the same handler, with the carrier's consent words and the texting rules (00347)            |
-| Voice    | `apps/edge/api/retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`, `retell-webhook.ts` | `apps/edge/lib/voice/call-start.ts`    | The call runs at the provider from the same business facts; the webhook writes the call into the thread                                                                |
-| Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email/email-ingress.ts` | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist drafts only on a reach-out reply |
+| Channel  | Door                                                                                             | Decides                              | Then                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WhatsApp | `apps/edge/api/whatsapp.ts`                                                                      | `packages/core/src/inbound/steps.ts` | `packages/core/src/inbound/answer.ts`'s phases: persist, read the posture, ask the brain, deliver or hold (the edge adapts it in `apps/edge/lib/whatsapp/inbound.ts`)  |
+| SMS      | `apps/edge/api/inbound-sms.ts`                                                                   | `apps/edge/lib/sms/ingress.ts`       | The door records the text and answers Twilio; an `inbound_answer` job runs the same handler, with the carrier's consent words and the texting rules (00347)            |
+| Voice    | `apps/edge/api/retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`, `retell-webhook.ts` | `apps/edge/lib/voice/call-start.ts`  | The call runs at the provider from the same business facts; the webhook writes the call into the thread                                                                |
+| Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email/ingress.ts`     | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist drafts only on a reach-out reply |
 
 The receptionist itself: `apps/edge/lib/shared/tenant-runtime.ts` reads the
 workspace's config through one door; `packages/contracts/src/config/workspace-config/compose.ts`
@@ -217,7 +217,7 @@ answers; the campaigns lane, for the offers a customer asked for; and the own
 lane, a mailbox the business connected (decision 0056), for outreach, and for a
 person's reply to a reach-out that can go from it. The own lane's route is not
 a key: it is a closure over the mailbox's row (`ownRoutesFor`,
-`apps/edge/lib/email/mailbox/mailbox-wire.ts`) that takes its token from Vault,
+`apps/edge/lib/email/mailbox/wire.ts`) that takes its token from Vault,
 writes the frozen request as MIME (`packages/channels/src/email/mailbox/`) and sends
 it through Gmail's or Graph's own send. What the send learns about the mailbox
 is applied at once: a provider's day used up rests it until the next UTC
@@ -244,7 +244,7 @@ hosted address.
 
 A connected mailbox is read back, never forwarded (decision 0056). The
 mailboxes clock (`/api/cron/mailboxes`, every five minutes,
-`lib/email/mailbox/mailbox-sweep.ts`) keeps each one's watch (Gmail's
+`lib/email/mailbox/sweep.ts`) keeps each one's watch (Gmail's
 `users.watch` on a Pub/Sub topic, Graph's subscription), reads what arrived
 since its cursor (Gmail's history, Graph's delta) and fetches only messages in
 a thread a reach-out started (`mailbox_threads_known`), and a delivery report
@@ -317,7 +317,7 @@ lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
   (a 529, a 5xx, a timeout) asked once of the purpose's fallback. The edge binds it to the key in `apps/edge/lib/ai/model.ts`,
   which first asks whether the workspace may use the model for what a person asks for (`mayUseModels`: not paused, not
   ended, not unbilled) and writes every call to the ledger.
-- **The ledger in dollars** (`ai_usage`, 00273; `packages/db/src/repositories/ai/ai-usage.ts`): one row a call with the model asked, the
+- **The ledger in dollars** (`ai_usage`, 00273; `packages/db/src/repositories/ai/usage.ts`): one row a call with the model asked, the
   model that answered, four kinds of tokens and the price at list (`contracts/ai/usage.ts`), kept 400 days. A member
   reads their workspace's (`GET usage` rolls the month up for an owner), the health sweep pages on its failures
   (`apps/edge/lib/ops/model-watch.ts`), and a new workspace starts with a day's budget (00274).
@@ -406,7 +406,7 @@ How a business comes in, and the one place each part of it is decided (decisions
   the person who enters the code makes the workspace through `create_workspace` (a definer function, the one audited
   place the privilege exists). A lead's preview (`preview_claim`), a partner's set-up (`create_workspace_for_business`)
   and its hand-over (`handover_accept`) are the other doors. What follows any of them is `workspaceBegun`
-  (`apps/dashboard/src/server/workspace/workspace-create.ts`).
+  (`apps/dashboard/src/server/workspace/create.ts`).
 - **The steps.** Contracts' `setupSteps` folds Setup's facts (`setupDtoFor`) with the workspace's choices
   (`setup_choices`, `withWorkspaceChoices`) and the member's own put-offs; `firstRunOf` reads which of the five steps
   is done from that, on every draw. Nothing stores "done".
@@ -728,11 +728,11 @@ Every path is from the repository's root, and
 | What an erasure reaches                | `packages/db/src/repositories/erasure/registry.ts` (each personal column's strategy and the legs), `packages/jobs/src/handlers/erasure.ts` (the legs in order, and the job that finishes a stopped one) over `packages/db/src/repositories/erasure/legs.ts` (what each leg reads and writes), `supabase/migrations/00341_a_note_keeps_nothing_of_a_person_erased_elsewhere.sql`; decision 0036 |
 | Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                                                                                                                                                                                                                                                                    |
 | The lead finder                        | `docs/lead-finder.md` (as built), `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/`, `supabase/migrations/00140_the_lead_finder_engine.sql`                                                                                                                                                                                                                |
-| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask,ask-answer}.ts`                                                                                                                                                                                                                                                                                                            |
+| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask,answer}.ts`                                                                                                                                                                                                                                                                                                                |
 | The calendar                           | `apps/dashboard/src/server/calendar/`, `packages/contracts/src/calendar/{feed,availability}.ts`, `apps/edge/api/cron/calendar.ts`                                                                                                                                                                                                                                                              |
 | A time, a day or a time zone           | `packages/contracts/src/calendar/zone-math.ts` (the one reading of a zone: `zoneParts`, `dayInZone`, `dayPlusInZone`, `usableZone`; the `zone-readers` measure holds it), `packages/contracts/src/shared/clock.ts` (the words a page says a time in), `packages/contracts/src/calendar/day-keys.ts` (a day key stepped, a day in words)                                                        |
 | Phone numbers and carrier registration | `packages/channels/src/lines/` (the A2P wire under `packages/channels/src/lines/a2p/`), `apps/edge/lib/lines/`                                                                                                                                                                                                                                                                                 |
-| Email                                  | `packages/channels/src/email/`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                                                                                                                                                                                                                                                           |
+| Email                                  | `packages/channels/src/email/`, `apps/edge/lib/email/ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                                                                                                                                                                                                                                                                 |
 | Voice                                  | `packages/channels/src/voice/`, the four doors `apps/edge/api/retell-*.ts`                                                                                                                                                                                                                                                                                                                     |
 | How a page looks                       | `apps/dashboard/src/styles/tokens.css` (a value, a look), `apps/dashboard/src/surfaces/kit/` (a primitive, a variant), `tooling/scripts/e2e-harness/kit-gallery.mjs` (the gallery)                                                                                                                                                                                                             |
 

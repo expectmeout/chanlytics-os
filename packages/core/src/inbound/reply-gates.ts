@@ -48,7 +48,7 @@ const sentAtSecondsOf = (iso: string | null): number | undefined =>
 import { unattendedHold } from "./reply-posture";
 import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
 import { toldFromItsEvent } from "../events/subscribers";
-import { heldByThread } from "../deliver/deliver-hold";
+import { heldByThread } from "../deliver/hold";
 
 /**
  * What a START's confirmation adds about offers, or nothing: one row, read by the id the ingest answered. Never fatal

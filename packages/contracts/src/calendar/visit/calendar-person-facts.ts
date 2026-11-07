@@ -1,7 +1,7 @@
 /**
  * What the Calendar says of the person a visit is for, beyond who they are (the Calendar's lane D, 13 Oct 2026): their
  * standing, the business they work at, their deal, their next step and when they were last in touch. The server works the
- * facts out of the People row the board's own read already holds (server/calendar/calendar-week.ts reads everyone once, to
+ * facts out of the People row the board's own read already holds (server/calendar/week.ts reads everyone once, to
  * match the feed), and carries them on the visit (CalendarItemDto.person.facts), so the page never reads People's book of
  * its own: it read it twice for one pill, the server's read and a second whole read in the browser (ROUTE_DRAWS
  * calendar:["people"]), and held the board's deal and business behind window globals.
@@ -11,7 +11,7 @@
  * People's row and the person's page say, never a second spelling.
  */
 import type { PersonRowDto } from "../../people/person-dto";
-import { visitsAt } from "../calendar-people";
+import { visitsAt } from "../people";
 import { personStateFor, PERSON_STATE_LABELS, type PersonState } from "../../people/person-state";
 import { lastContactOf } from "../../people/person-row-facts";
 import { dealOf, type DealColumns, type DealVM } from "../../deals/deal-vm";

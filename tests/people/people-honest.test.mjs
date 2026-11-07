@@ -496,7 +496,7 @@ Object.assign(globalThis.window, {
 });
 // People's parts the shell still reads by name (people-globals.ts: the strip's scopes, the deal and step sheets), on the
 // window and as the bare names a classic script reads. The saved lists' verbs are imported by the pages that press them
-// (people-lists.ts), and the page itself is TSX, imported here.
+// (lists/list-page.ts), and the page itself is TSX, imported here.
 Object.assign(globalThis.window, peoplePages);
 Object.assign(globalThis, peoplePages);
 const { PeopleReal } = await import("../../apps/dashboard/src/surfaces/people/page/people-real.tsx");

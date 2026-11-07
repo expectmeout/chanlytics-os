@@ -79,7 +79,7 @@ const atUndoOpen = (
   );
 };
 
-// A search's card, read (contracts leads/search/search-card.ts, through the Line's LeadCards): what it finds as rows,
+// A search's card, read (contracts leads/search/card.ts, through the Line's LeadCards): what it finds as rows,
 // the line under them, and where its people come from, folded, for a people search. A change is said to Ask; the press
 // is the card's.
 const AskSearchCard = ({ lead, t, alike }: { lead: SearchCardView; t: LineWords; alike: readonly string[] }) => (
@@ -262,7 +262,7 @@ export const AskCard = ({
   const idle = state === "idle";
   // A search's card (Ruben, 23 Oct 2026): what it finds as rows, read, never edited here -- a change is said to Ask, which
   // makes the card again -- its line under them, and one press, for what the month has room for (contracts
-  // leads/search/search-card.ts).
+  // leads/search/card.ts).
   const lead = idle ? searchCardView(p) : null;
   const shut = idle && !!step.fold && !step.fold.open;
   const decided = !idle && !!step.fold;

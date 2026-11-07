@@ -4,13 +4,13 @@
  * carry, or says more about one it does (the client, the service, the staff). A visit both name is drawn once, from
  * the row, since the notice states what the event's title only hints at.
  *
- * Pure: the dashboard's week assembler (server/calendar/calendar-week.ts) hands the rows in and takes the items out.
+ * Pure: the dashboard's week assembler (server/calendar/week.ts) hands the rows in and takes the items out.
  */
-import type { CalendarItemDto, VisitMark } from "./calendar-dto";
+import type { CalendarItemDto, VisitMark } from "./dto";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "./feed-appointments";
 import type { BusyBlock, FeedItem } from "./feed";
-import { visitStands } from "./calendar-words";
-import { replyFactsOf, type MatchVia, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
+import { visitStands } from "./words";
+import { replyFactsOf, type MatchVia, type OwnAddresses, type PersonLike, type PersonMatch } from "./people";
 import { bookingCopyTest, bookingToolName } from "./booking-notice";
 import { appointmentKeyOf, recordKeyOf } from "./appointment-key";
 import { shiftKey, zoneMidnight } from "./day-keys";

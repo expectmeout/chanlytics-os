@@ -7,7 +7,7 @@
  * (planSmsIngress) and the message handed on; the answer is empty TwiML.
  *
  * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What to do with the text is decided by planSmsIngress
- * (lib/sms/sms-ingress.ts), which runs over a database in memory in a test; what is left here is reading the form,
+ * (lib/sms/ingress.ts), which runs over a database in memory in a test; what is left here is reading the form,
  * logging, the alert's own suppression, and the shape Twilio wants back. The same split the health route and the OAuth
  * callback already use. The form is read first: a body that is not a message (smsInboundFrom) is a 400 that asks
  * nothing of the database, and no database is a 503.
@@ -58,7 +58,7 @@ import { oneTimeCodeOf, smsInboundFrom, inboundFromSms, type SmsInbound } from "
 import type { Database, IngestResult, Json } from "@chanlytics/db";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { smsSenderFor, type SmsSender } from "./sms.js";
-import { planSmsIngress, carrierFor, smsAfterThrow, lineForAnswer } from "./sms-ingress.js";
+import { planSmsIngress, carrierFor, smsAfterThrow, lineForAnswer } from "./ingress.js";
 import { recordInboundMessage, resumeInbound } from "../whatsapp/inbound.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { IngestFailed } from "../whatsapp/persist.js";

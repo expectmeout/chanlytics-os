@@ -27,7 +27,7 @@ import {
   type ResumedBy,
 } from "./line-resume.js";
 import { env } from "../shared/env.js";
-import { secretToProvision } from "../voice/voice-door-auth.js";
+import { secretToProvision } from "../voice/door-auth.js";
 
 interface LineProvisionOutcome {
   ok: boolean;

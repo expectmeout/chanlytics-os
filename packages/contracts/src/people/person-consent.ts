@@ -4,7 +4,7 @@
  * people.ts (Reach out Part 2.5); people/index.ts names it.
  */
 import { type AskedPurpose, type MessageAbout, mayMessageFor } from "../consent/consent";
-import type { ConsentChannel } from "../consent/consent-channels";
+import type { ConsentChannel } from "../consent/channels";
 import { MERGE_CONSENT_SOURCE } from "./person-merge";
 import type { PersonRowVM } from "./person-row";
 
@@ -32,7 +32,7 @@ export interface PersonConsent {
   /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
   marketingLabel: string;
   /**
-   * The channels each yes covers, as the row keeps them (consent-channels.ts): null where none are kept, a yes recorded
+   * The channels each yes covers, as the row keeps them (consent/channels.ts): null where none are kept, a yes recorded
    * before the channels were, which covers WhatsApp alone.
    */
   channels: readonly string[] | null;

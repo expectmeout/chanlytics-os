@@ -81,7 +81,7 @@ export function clockTime(atMs: number, tz: string): string {
  * A whole hour of the day in the words clockTime says a time in: "10:00 AM", "6:00 PM". For an hour that is already the
  * business's own (a playbook's `run_hour`), so no zone is asked: a run at ten and a broadcast at ten read alike, where
  * the playbooks said "10:00" and "18:00" beside every other time on the page. Not the Calendar's hour labels, which
- * are its own shorter ones ("10 AM", calendar-words.ts clockLabel). Total: any whole number is read round the day, and
+ * are its own shorter ones ("10 AM", calendar/words.ts clockLabel). Total: any whole number is read round the day, and
  * a value that is not a number at all is read as the day's first hour, never printed as "NaN:00 PM".
  */
 export function clockHour(hour: number): string {

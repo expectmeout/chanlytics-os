@@ -101,7 +101,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // and says so IN the pane: falling through to the page's "demo" replaced all
   // of Settings with a bare card; the pane keeps the nav and states what exists
   // instead (settings.jsx PaneSoon). ⌘K's Memory jump lands on Business, where
-  // what the receptionist knows lives (contracts ask-jump.ts).
+  // what the receptionist knows lives (contracts ask/jump.ts).
   "admin/billing": "real",
   "admin/memory": "real",
   "admin/files": "real",

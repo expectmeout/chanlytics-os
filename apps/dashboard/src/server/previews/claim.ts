@@ -8,7 +8,7 @@ import "server-only";
  *                     token that names nothing. Make it mine's page draws it (app/preview/[token]/mine), and the
  *                     sign-up route asks it, for which a live link stands for an invite code (signupPostureFor)
  *   claimPreviewFor   the claim, signed in (POST preview-claims): preview_claim on the claimer's own session, then what
- *                     a first workspace's making does after its door (workspace-create.ts): the platform's notice, the
+ *                     a first workspace's making does after its door (workspace/create.ts): the platform's notice, the
  *                     claimer's first alert address, sign-up's answers cleared. And what the preview was used for, as
  *                     the claimer's own first-run marks (previewFirstRunMarks), so its first run starts where they are
  */
@@ -28,7 +28,7 @@ import {
   type PreviewRefusal,
 } from "@chanlytics/db";
 import { linkPageDb, linkPageLookOf } from "../public/link-page";
-import { workspaceBegun } from "../workspace/workspace-create";
+import { workspaceBegun } from "../workspace/create";
 import { log } from "../shared/log";
 import type { RouteContext } from "../shared/with-route";
 

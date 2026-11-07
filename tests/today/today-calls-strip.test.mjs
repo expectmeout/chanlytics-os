@@ -153,7 +153,7 @@ test("Today's queue leaves the call in progress to the frame's bar, draws the pe
     all(queue, (n) => String(n.props?.["data-testid"]).startsWith("queue-")).length >= 1,
     "the person waiting is drawn",
   );
-  const vmSrc = readRaw("packages/contracts/src/today/today-queue.ts");
+  const vmSrc = readRaw("packages/contracts/src/today/queue.ts");
   const esc = vmSrc.indexOf("for (const r of escRecords) {");
   const win = vmSrc.indexOf("for (const c of closingConvs) {");
   const ear = vmSrc.indexOf("for (const r of callRows) {");

@@ -15,7 +15,7 @@ import { MIN_MS } from "../../shared/time";
 import { personName } from "../person-name";
 import type { PersonBusinessDto, PersonSignerDto } from "../person-dto";
 import type { PersonRowVM } from "../person-row";
-import { reachOutStandingOf, type ReachOutLeadTimelineDto } from "../../campaigns/reach-out/reach-out-leads";
+import { reachOutStandingOf, type ReachOutLeadTimelineDto } from "../../campaigns/reach-out/leads";
 import { BUSINESS_DOOR_LABEL, PERSON_NAME_WORDS, WORKS_AT_WORDS, type NameSource } from "./words";
 
 /** A face as the page draws it: a person's initials, or a business's tile (with the listing's photo). */

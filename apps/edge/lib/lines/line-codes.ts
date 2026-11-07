@@ -4,7 +4,7 @@
  *
  * Meta texts a code to the number an owner connects to WhatsApp, and when that number is the workspace's own Chanlytics line
  * the text reaches the line like a customer's: the receptionist never answers it and nothing is made of it
- * (lib/sms/sms-ingress.ts), so the owner could not see it. It is read here, from the provider (recentTexts: the account's
+ * (lib/sms/ingress.ts), so the owner could not see it. It is read here, from the provider (recentTexts: the account's
  * own list of the messages to the line's number), narrowed to the codes of the last fifteen minutes by the one rule that says
  * what a code is (lineCodesFrom), and answered { code, from, at } newest first, at most three. Chanlytics never stores a code
  * and this writes nothing; the answer carries no other text, and a failed read is a line that names the workspace and never

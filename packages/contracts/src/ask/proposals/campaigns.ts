@@ -5,17 +5,8 @@
  */
 import { CHANNEL_WORDS } from "../../campaigns/broadcasts/reach-for";
 import { BREATH_WHY, goesToOf, heardWords } from "../../campaigns/broadcasts/run-words";
-import {
-  CONSENT_CHANNELS,
-  CONSENT_CHANNEL_WORDS,
-  channelsWords,
-  type ConsentChannel,
-} from "../../consent/consent-channels";
-import {
-  LIFECYCLE_TOAST,
-  LIFECYCLE_WORDS,
-  channelsGoesByWords,
-} from "../../campaigns/playbooks/lifecycle/lifecycle-words";
+import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, channelsWords, type ConsentChannel } from "../../consent/channels";
+import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../../campaigns/playbooks/lifecycle/words";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../../campaigns/playbooks/playbook-patch";
 import { SEND_ONCE_STOP_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../../campaigns/playbooks/playbook-triggers";
 import { SEQUENCES_ROUTE, newSequenceRoute, runRoute, sequenceRoute } from "../../campaigns/sequences/sequence-address";

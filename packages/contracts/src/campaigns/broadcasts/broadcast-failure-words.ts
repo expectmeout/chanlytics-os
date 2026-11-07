@@ -4,7 +4,7 @@
  * and re-exports it, so a reader of the words alone (the Activity log, in the browser) does not carry the playbook
  * triggers that the fixes beside them need.
  */
-import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 
 /**
  * The codes a run's `failure` holds: what the send job writes (core messages/broadcast.ts) and the one the job ledger

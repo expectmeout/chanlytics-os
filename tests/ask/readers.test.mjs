@@ -85,7 +85,7 @@ const receptionistRoute = await import(at("apps/dashboard/app/api/v1/reports/rec
 const peopleRoute = await import(at("apps/dashboard/app/api/v1/reports/people/route.ts"));
 const googleRoute = await import(at("apps/dashboard/app/api/v1/google/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/calendar-week.ts"));
+const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/week.ts"));
 const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
 const { openings: openingsReader } = await import(at("apps/dashboard/src/server/readers/openings.ts"));
 const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
@@ -2547,7 +2547,7 @@ test("the calendar, for Ask: the board's week exactly as calendarWeek assembles 
 /**
  * The record's five reads (its rows over the span, in two since 00397: the bookings whole and the feed's rows by key;
  * the notices' latest and their held count; the mailbox) are asked for together and waited for together
- * (calendar-week.ts recordOverSpan, 9 Oct 2026: one after the other they were round trips the board stood behind). Which
+ * (calendar/week.ts recordOverSpan, 9 Oct 2026: one after the other they were round trips the board stood behind). Which
  * is heard first is the database stand-in's to say, not the route's, so the five are put in one order before what was
  * asked is compared: every read is still there, once, with its columns, and everything before and after them is still
  * in its own order. `at` is where the five begin.

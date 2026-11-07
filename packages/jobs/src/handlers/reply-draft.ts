@@ -41,7 +41,7 @@ export function replyDraftPortsOf(db: Db, edge: ReplyDraftEdge): ReplyDraftPorts
       said: async (tenantId, address) => senderVerdictOf(await mailboxSenderVerdicts(db, tenantId), address),
       talks: (tenantId, address) => talksWith(db, tenantId, address),
       reading: (tenantId, address) => senderReadingOf(db, tenantId, address),
-      // The reader keeps what it read (edge mailbox-reader.ts), so a sender is read once.
+      // The reader keeps what it read (edge mailbox/reader.ts), so a sender is read once.
       read: (tenantId, email, until) => edge.readSender(tenantId, email, until),
     },
     setAside: (tenantId, conversationId, why) => conversationSetAside(db, { tenantId, conversationId, why }),

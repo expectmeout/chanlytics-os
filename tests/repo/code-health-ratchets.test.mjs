@@ -259,7 +259,7 @@ test("the zone measure counts dates said with no zone and nothing else", () => {
   // trial's end on the bell and in Billing, the runtime's own DATE_FMT, and a campaign's last send take the zone.
   for (const f of [
     "packages/contracts/src/workspace/billing.ts",
-    "apps/edge/lib/billing/billing-notices.ts",
+    "apps/edge/lib/billing/notices.ts",
     "packages/contracts/src/shared/time.ts",
     "packages/contracts/src/reports/campaign-report.ts",
   ])

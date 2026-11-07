@@ -14,7 +14,7 @@ import { lensRoute, reviewRoute } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { importSrc } from "../_source.mjs";
 
-const { aboutReview, reviewRowIds } = await importSrc("apps/edge/lib/google/google-rows.ts");
+const { aboutReview, reviewRowIds } = await importSrc("apps/edge/lib/google/rows.ts");
 
 const A = "11111111-1111-4111-8111-111111111111";
 const B = "11111111-1111-4111-8111-222222222222";

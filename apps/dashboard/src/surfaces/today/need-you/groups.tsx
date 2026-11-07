@@ -1,6 +1,6 @@
 /**
  * Need you's parts around its rows (Today in three zones, 2 Nov 2026): each group under its own small head (Up next,
- * Waiting on you, To decide, To do, Older; contracts need-you-groups.ts), and the old ones let go at once, each handed back
+ * Waiting on you, To decide, To do, Older; contracts need-you/groups.ts), and the old ones let go at once, each handed back
  * to the receptionist with one Undo for all of them.
  */
 import { useId, type ReactNode } from "react";

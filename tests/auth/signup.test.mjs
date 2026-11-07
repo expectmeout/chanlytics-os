@@ -212,7 +212,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
   // partners/a-handed-over-workspace-has-alerts.test.mjs runs).
   const create = readCode(
     "apps/dashboard/app/api/v1/workspaces/create/route.ts",
-    "apps/dashboard/src/server/workspace/workspace-create.ts",
+    "apps/dashboard/src/server/workspace/create.ts",
   );
   // What follows every workspace made is one function (workspaceBegun, decision 0091): the create route asks it, and
   // it tells the mailbox.
@@ -222,10 +222,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
     ) && create.includes("if (how.notify !== null) await notifyPlatformSignup(tenantId, how.notify, ctx.userId);"),
     "the mailbox hears about a workspace where workspaces are made",
   );
-  const list = readCode(
-    "apps/dashboard/app/api/v1/workspaces/route.ts",
-    "apps/dashboard/src/server/workspace/workspace-list.ts",
-  );
+  const list = readCode("apps/dashboard/app/api/v1/workspaces/route.ts", "apps/dashboard/src/server/workspace/list.ts");
   assert.ok(list.includes("pending: pendingWorkspaceOf(ctx.metadata)"), "nowhere yet comes with what sign-up kept");
   const sql = readRaw("supabase/migrations/00072_signup.sql");
   assert.ok(

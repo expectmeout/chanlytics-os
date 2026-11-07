@@ -6,13 +6,13 @@ import { audienceTrigger } from "../broadcasts/broadcast-audience";
 import type { BroadcastDto, BroadcastRecipientDto } from "../broadcasts/broadcasts";
 import { BREATH_WHY } from "../broadcasts/run-words";
 import { purposeOfPlaybook } from "../../consent/consent";
-import { consentRuleWords } from "../../consent/consent-asks";
-import type { ConsentChannel } from "../../consent/consent-channels";
+import { consentRuleWords } from "../../consent/asks";
+import type { ConsentChannel } from "../../consent/channels";
 import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
 import { GET_YES_ROUTE } from "../../people/lists/people-route";
 import { CAMPAIGNS_PAUSED_WORDS } from "../../workspace/billing";
 import { runApproveWords } from "../../shell/campaign-rooms";
-import { isReachOutRun } from "../reach-out/reach-out-rules";
+import { isReachOutRun } from "../reach-out/rules";
 import { capitalize } from "../../shared/words";
 import { messageAboutOfTrigger } from "./playbook-purpose";
 import type { RunReach } from "./playbook-reach";
@@ -399,7 +399,7 @@ export function toApprovalVM(
   const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
   const rules: string[] = [];
   if (t && opts.playbook) {
-    // What each person on the run was asked for, on the channel they are reached on (consent-asks.ts): an email about a
+    // What each person on the run was asked for, on the channel they are reached on (consent/asks.ts): an email about a
     // visit asks no yes, and an offer by email may go on a relationship on record, so it is not one sentence for all.
     rules.push(...consentRuleWords(by, purposeOfPlaybook(t.cls), messageAboutOfTrigger(opts.playbook.trigger)));
     if (t.kind === "visit") {

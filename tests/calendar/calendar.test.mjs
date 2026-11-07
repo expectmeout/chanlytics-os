@@ -314,8 +314,8 @@ test("day keys, the words, and the zone", () => {
 
 test("the doors and the page: read-only, the feed's address never in the browser, the registry flipped", async () => {
   // The calendar's server modules that hold what is checked here: the feed's parse (parsed-feed.ts), the settings that
-  // name the address (calendar-settings.ts), the board's week (calendar-week.ts) and the preview (feed-preview.ts).
-  const svc = ["parsed-feed", "calendar-settings", "calendar-week", "feed-preview"]
+  // name the address (calendar/settings.ts), the board's week (calendar/week.ts) and the preview (feed-preview.ts).
+  const svc = ["parsed-feed", "settings", "week", "feed-preview"]
     .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
     .join("\n");
   assert.ok(
@@ -412,7 +412,7 @@ test("the words from Settings on the board: hours as runs, closures ahead, servi
 test("full-fledged: month and agenda views, a date to jump to, windows that fit a service, the rules bar, Today's line, the assistant's read, and Settings saves that reach the board", async () => {
   // Executed in calendar-honest.test.mjs: the four views, one tab each, and every testid the page is known by; the date picker
   // following the anchor; the open times a service leaves (the assistant's rule); the steps (crStep, the-pages-say-only-what-is-true.test.mjs).
-  const svc = readCode("apps/dashboard/src/server/calendar/calendar-week.ts");
+  const svc = readCode("apps/dashboard/src/server/calendar/week.ts");
   assert.ok(
     svc.includes("const MAX_DAYS = 63;") &&
       svc.includes("consult_first: needsConsultation(s.name, profile?.booking_rules),"),
@@ -497,7 +497,7 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   );
   // The first read is the window around the business's today, asked for by that word: executed in
   // calendar-cold-boot.test.mjs (the page's half) and calendar-feed.test.mjs (the route's).
-  assert.ok(readCode("apps/dashboard/src/server/calendar/calendar-week.ts").includes("const MAX_DAYS = 63;"));
+  assert.ok(readCode("apps/dashboard/src/server/calendar/week.ts").includes("const MAX_DAYS = 63;"));
   const css = readCode("apps/dashboard/src/styles/calendar.css");
   assert.ok(
     css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"),
@@ -693,7 +693,7 @@ test("the board drawn right: overlapping blocks take lanes, a block outside the 
   assert.deepEqual([plain.hours.start, plain.hours.end], [8, 20], "the hours' own air when nothing falls outside them");
 });
 
-/* ------------------------- campaigns on the board (the Calendar's lane C, contracts calendar-runs.ts) ------------------------- */
+/* ------------------------- campaigns on the board (the Calendar's lane C, contracts calendar/runs.ts) ------------------------- */
 
 const { calendarRunMarksOf, runMarkShown, CALENDAR_SHOW_WORDS } = await import("@chanlytics/contracts");
 // Tuesday noon in New York; the span is the week.

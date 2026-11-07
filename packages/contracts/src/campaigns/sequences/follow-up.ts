@@ -9,7 +9,7 @@
 import type { CampaignHow } from "../broadcasts/broadcast-audience";
 import { reachFor, type HeldOn } from "../broadcasts/reach-for";
 import type { MessageAbout } from "../../consent/consent";
-import type { ConsentChannel } from "../../consent/consent-channels";
+import type { ConsentChannel } from "../../consent/channels";
 import type { PersonRowVM } from "../../people/person-row";
 import { enrolPurpose, type RunMessage } from "../playbooks/playbook-purpose";
 import type { RunReach } from "../playbooks/playbook-reach";

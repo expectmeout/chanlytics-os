@@ -3,7 +3,7 @@
  * ask-palette.test.mjs (the Line): the ordinary questions it answered without a model, matched anywhere in their words
  * (the end-to-end review, 15 October 2026, A1: a draft asked for got a list, another period got today's, a name and a
  * format were dropped), and the short forms that stay quick, the Line's own chips' words among them (contracts
- * ask-suggestions.ts).
+ * ask/suggestions.ts).
  */
 export const MODEL_QUESTIONS = [
   "Draft a reply to everyone waiting on me",

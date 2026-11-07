@@ -1,7 +1,7 @@
 /**
  * A failure at the vault that keeps a line's credentials, told from a
  * carrier's failure by the saga's own words (edge/lib/lines.ts: "reading the
- * line's credentials", "keeping the line's credentials"; lines-saga.ts: "the
+ * line's credentials", "keeping the line's credentials"; lines/saga.ts: "the
  * subaccount's token is missing from the vault"). On the row it looked like
  * any other stopped setup and offered the same Retry, which ran into the
  * same wall until a person restored the credentials. Its own module so the

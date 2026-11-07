@@ -21,14 +21,14 @@ import {
   reachOutValues,
   type SlotLead,
   type SlotWorkspace,
-} from "../../campaigns/reach-out/reach-out-rules";
+} from "../../campaigns/reach-out/rules";
 import {
   chainIssueWords,
   firstEmailLinkProblem,
   REACH_OUT_SLOT_SET as SLOTS,
   validateReachOutWords,
   wordsIssueWords,
-} from "../../campaigns/reach-out/reach-out-words";
+} from "../../campaigns/reach-out/words";
 
 /** An email's words: a later step answers the one before, and has no subject (null). */
 export interface LeadEmailText {

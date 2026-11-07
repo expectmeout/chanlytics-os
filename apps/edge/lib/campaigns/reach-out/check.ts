@@ -27,7 +27,7 @@
  * before any call (billing, the month's room, the day's attempts), the checks run a few sends at once until the tick's
  * budget, and last the runs that got their first hold have their owner told (R20, held-notice.ts).
  *
- * The rules are contracts' (reach-out-words.ts, reach-out-opening.ts). This file asks the model and writes the answers.
+ * The rules are contracts' (reach-out/words.ts, reach-out/opening.ts). This file asks the model and writes the answers.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {

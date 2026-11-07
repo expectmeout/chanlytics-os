@@ -30,7 +30,7 @@ import { MAILBOX_ENV, liveCredentials, providers, vault, withEnv } from "./_mail
 
 const restore = withEnv(MAILBOX_ENV);
 after(restore);
-const { gmailSignatureDue, keepGmailSignature } = await importSrc("apps/edge/lib/email/mailbox/mailbox-signature.ts");
+const { gmailSignatureDue, keepGmailSignature } = await importSrc("apps/edge/lib/email/mailbox/signature.ts");
 const { logger } = await importSrc("apps/edge/lib/shared/log.ts");
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

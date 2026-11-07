@@ -55,7 +55,7 @@ export interface GatewayCall {
      * comparison. The API answers on message_start with why this request missed what that one wrote.
      */
     diagnostics?: { previous_message_id: string | null };
-    /** Fast mode (contracts ask-model.ts): the edge sends it, with its beta, to a model that runs it. */
+    /** Fast mode (contracts ask/model.ts): the edge sends it, with its beta, to a model that runs it. */
     speed?: "fast";
     /** How the model thinks (contracts THINKING_TYPES): Ask's turn sends none, and each model thinks as it does. */
     thinking?: { type: ThinkingType };

@@ -53,7 +53,7 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
   `.type-test.ts`, `.generated.ts`, `.config.ts`, Supabase's `database.types.ts`, Metro's `widget.ios.ts`. A role a folder
   repeats keeps one name in every folder: `surface.ts` (a surface's data, decision 0015), `verbs.ts` (what its page or
   domain does), `ports.ts` (a core verb's world, `packages/core/src/conversations/ports.ts`), `sample.ts` (its seed),
-  `types.ts` (its types). A framework's own names are its own: Next's `route.ts`, `page.tsx`, `[id]` and `(os)`, Expo
+  `types.ts` (its types), and since decision 0105 `words.ts` (its sentences), `vm.ts` (its view model), `dto.ts` (its wire shapes), `schemas.ts` (what it parses), `sweep.ts` (its clock) and `ops.ts` (its operator's doors). A framework's own names are its own: Next's `route.ts`, `page.tsx`, `[id]` and `(os)`, Expo
   Router's `_layout.tsx`, `(tabs)` and `+native-intent.tsx`. CSS tokens and classes are kebab-case.
   `tests/docs/file-names.test.mjs` holds the files.
 - **A file does not repeat its folder.** The path says it already: `mailbox/gmail.ts`, not `mailbox/mailbox-gmail.ts`. A

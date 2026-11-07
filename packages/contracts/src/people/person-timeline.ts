@@ -5,9 +5,9 @@
  * PersonCardContext), merged newest first. Decomposed from toPersonVM (Phase 2 of the organization plan), proven equal
  * by value. index.ts names the item types and consentChangeWords; the builders are internal.
  */
-import { visitDateKey, visitDay } from "../calendar/calendar-people";
+import { visitDateKey, visitDay } from "../calendar/people";
 import { visitDoor, visitLinkWords } from "../calendar/appointment-key";
-import type { VisitLineVM } from "../calendar/calendar-words";
+import type { VisitLineVM } from "../calendar/words";
 import { callNoteLines, callNotesOf, tidyCallSummary } from "../voice/call-words";
 import { STOP_WORDS, type ConsentChange } from "../consent/consent";
 import { DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, isDealLostReason } from "../deals/deal-words";
@@ -41,7 +41,7 @@ import { type MessageAuthor, messageAuthor } from "../conversations/message-auth
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { clipAtWord, messageStatusLabel, messageWords, reachedCustomer } from "../conversations/message-words";
 import type { PersonCardContext } from "./person-cards";
-import { reachOutPersonOf, type ReachOutPersonVM } from "../campaigns/reach-out/reach-out-leads";
+import { reachOutPersonOf, type ReachOutPersonVM } from "../campaigns/reach-out/leads";
 import { addressOf } from "../activity/record-address";
 import { dateFormat } from "../shared/time";
 
@@ -67,7 +67,7 @@ export interface PersonTimelineItemVM {
    * happened. A visit marked while it is under way reads as its mark and is not ahead.
    */
   ahead?: boolean;
-  /** On a visit's row: the visit as the one visit line (calendar-words.ts visitLineOf), whose state and presses the page draws. */
+  /** On a visit's row: the visit as the one visit line (calendar/words.ts visitLineOf), whose state and presses the page draws. */
   visit?: VisitLineVM;
   /** A message of ours that has not reached them (queued, failed or canceled): `sub` says which. A reader that tells what was said skips it. */
   unsent?: true;
