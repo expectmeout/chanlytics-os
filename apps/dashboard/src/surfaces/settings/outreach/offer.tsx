@@ -162,7 +162,7 @@ export function ProofCard(shared: OutreachShared) {
           <>
             {claims.map((claim, i) => (
               <RecordRow
-                key={claim}
+                key={i}
                 id={i === 0 ? "proof" : `proof-${i}`}
                 label={claim}
                 stacked

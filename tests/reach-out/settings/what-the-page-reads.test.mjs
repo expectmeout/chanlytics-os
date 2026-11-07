@@ -5,6 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mailboxConnectionDtoOf } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -86,18 +87,32 @@ test("a claim counts the sent emails of the steps that carry it, word for word, 
 });
 
 test("the mailbox shown is the first that sends now, said as Connections says it", () => {
-  const box = (id, state, extra = {}) => ({
-    id,
-    provider: "google",
-    address: `${id}@example.com`,
-    state,
-    resting_until: null,
-    sent_days: 8,
-    daily_cap: 40,
-    customer_domain: false,
-    sent_today: 3,
-    ...extra,
-  });
+  // A mailbox as Connections is told of it: its row, through contracts' own builder (mailboxConnectionDtoOf).
+  const box = (id, state) =>
+    mailboxConnectionDtoOf(
+      {
+        id,
+        provider: "google",
+        address: `${id}@example.com`,
+        host: "example.com",
+        from_name: "Maya Ortiz",
+        signature: null,
+        state,
+        held_why: null,
+        held_at: null,
+        resting_until: null,
+        daily_cap: 40,
+        customer_domain: false,
+        sent_days: 8,
+        dns: {},
+        dns_checked_at: null,
+        last_error: null,
+        connected_at: "2026-10-30T12:00:00Z",
+        sent_at: null,
+        synced_at: null,
+      },
+      { sent_today: 3 },
+    );
   assert.equal(mailboxShown([], Date.now(), "UTC"), null);
   const shown = mailboxShown([box("paused", "paused"), box("maya", "connected")], Date.now(), "UTC");
   assert.equal(shown.address, "maya@example.com");

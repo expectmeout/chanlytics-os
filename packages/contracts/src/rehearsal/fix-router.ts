@@ -545,6 +545,16 @@ export const FIX_BLOCK_OF: Record<AskSettingsChange["op"], string> = {
   set_assistant_name: "identity",
   set_phone_pace: "identity",
   set_walk_ins: "booking_rules",
+  // How it reaches out's rows (decision 0113) write no block of the receptionist's instructions: none to draw.
+  set_offer: "",
+  set_who_for: "",
+  set_fixes: "",
+  add_claim: "",
+  remove_claim: "",
+  set_cold_tone: "",
+  set_signed_by: "",
+  set_signature: "",
+  set_reply_offer: "",
 };
 
 /** The field a change goes to, as the owner reads it: the prompt's own block names. */

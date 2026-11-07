@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { replyOfferSteer } from "@chanlytics/contracts";
+import { newReceptionistDefaults, replyOfferSteer } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -39,6 +39,13 @@ test("with the page, the offer stands in the goal's place, and who, what it fixe
   assert.match(lines[3], /use one at most in an email, word for word[\s\S]*We clean 40 clinics across Austin today\./);
 });
 
+/** A brain as a saved one is, which the config's parse takes: the product's defaults, the name and the profile. */
+const brainWith = (profile) => ({
+  business_name: "Brightline Cleaning",
+  ...newReceptionistDefaults("Brightline Cleaning"),
+  profile,
+});
+
 const workspaceDb = (config, about = null) =>
   fakeDb({
     tenants: [{ id: T, name: "Brightline Cleaning" }],
@@ -47,11 +54,11 @@ const workspaceDb = (config, about = null) =>
   });
 
 test("the opening writer reads the offer where the owner wrote one, else what the business does, as before", async () => {
-  const before = await checkWorkspaceOf(workspaceDb({ brain: { profile: { tone: "Warm" } } }, "We clean offices"), T);
+  const before = await checkWorkspaceOf(workspaceDb({ brain: brainWith({ tone: "Warm" }) }, "We clean offices"), T);
   assert.deepEqual(before.opening, { name: "Brightline Cleaning", what_we_do: "We clean offices", tone: "Warm" });
   const after = await checkWorkspaceOf(
     workspaceDb(
-      { brain: { profile: { tone: "Warm" } }, reach_out: { offer: "Evening cleaning", tone: "Direct" } },
+      { brain: brainWith({ tone: "Warm" }), reach_out: { offer: "Evening cleaning", tone: "Direct" } },
       "We clean offices",
     ),
     T,

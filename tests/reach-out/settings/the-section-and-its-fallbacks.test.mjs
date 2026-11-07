@@ -33,9 +33,9 @@ test("the section parses, leaves out a key it does not know, and holds its limit
 });
 
 test("a reply offer a newer build wrote reads as none, never as a config that cannot be read", () => {
-  assert.deepEqual(TenantConfigSchema.parse({ reach_out: { reply_offer: "fax", offer: "A" } }).reach_out, {
-    offer: "A",
-  });
+  const read = TenantConfigSchema.parse({ reach_out: { reply_offer: "fax", offer: "A" } }).reach_out;
+  assert.equal(read.offer, "A");
+  assert.equal(read.reply_offer, undefined);
 });
 
 test("a typo inside the section is refused on the way in, by name", () => {

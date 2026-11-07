@@ -58,7 +58,15 @@ const keyFold = (
 );
 
 /** The pasted email, read once by Ask into lines about how its owner writes. */
-const PasteBox = ({ f }: { f: Fields }) => (
+/** What the paste's body is handed: its box's words, its one change, its refusal and whether it may be typed in. */
+interface PasteFields {
+  draft: unknown;
+  update: (fn: (d: string) => string, keys?: string[]) => boolean;
+  problems: Record<string, string>;
+  readOnly: boolean;
+}
+
+const PasteBox = ({ f }: { f: PasteFields }) => (
   <RecordField
     id="ro-cold_voice"
     label={null}
@@ -120,7 +128,9 @@ export function WritesCard(shared: OutreachShared & { again: () => void }) {
         saveLabel="Use it"
         gate={gate("settings", "teach it how you write")}
         door={door}
-        check={(text: string) => (text.trim().length < VOICE_PASTE_MIN ? { cold_voice: VOICE_WORDS.tooShort } : {})}
+        check={(text: string): Record<string, string> =>
+          text.trim().length < VOICE_PASTE_MIN ? { cold_voice: VOICE_WORDS.tooShort } : {}
+        }
         row={{
           value: lines.length ? (
             <span className="ro-lines" data-testid="rec-cold-voice-lines">
