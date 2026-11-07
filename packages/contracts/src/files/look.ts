@@ -19,6 +19,8 @@ export const FILE_COPY_SIDE = 1568;
 
 /** How long Anthropic keeps a copy, its longest: an old one is uploaded again when it is next needed. */
 export const FILE_COPY_KEEP_S = 7_776_000;
+/** How long a picture made for one turn is kept at Anthropic (a box of a photo enlarged, a post drawn for a look): a day, past any live chain. */
+export const FILE_PICTURE_KEEP_S = 86_400;
 
 const FILE_QUALITIES = ["good", "ok", "poor"] as const;
 export type FileQuality = (typeof FILE_QUALITIES)[number];

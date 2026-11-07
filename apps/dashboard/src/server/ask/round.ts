@@ -2,7 +2,7 @@ import "server-only";
 import { fenced, type ModelSpeed } from "@chanlytics/contracts";
 import { streamModel, type GatewayCall } from "./gateway";
 import type { GatewayBlockStart } from "./sse";
-import { openedPicture, pictureBlocks } from "./tools/context";
+import { openedPicture, pictureBlocks, type ToolPicture } from "./tools/context";
 import { log } from "@/server/shared/log";
 
 /**
@@ -251,7 +251,7 @@ export function replayBlocks(blocks: RoundBlock[]): unknown[] {
 /** A call a round made, and what it answered: a read's rows or an act's card, or the error said in words. */
 export interface CallOutcome {
   block: RoundBlock;
-  out: { result: string; isError: boolean; pictures?: readonly { name: string; fileId: string }[] };
+  out: { result: string; isError: boolean; pictures?: readonly ToolPicture[] };
 }
 
 /**

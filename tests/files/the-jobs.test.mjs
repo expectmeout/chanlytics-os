@@ -867,8 +867,8 @@ test("Ask's door: a copy already held is answered as it is, and one that ran out
   const res = await copiesAsked(w, { tenant_id: T, ids: [F, OTHER] });
   assert.equal(res.status, 200);
   assert.deepEqual((await res.json()).copies, [
-    { id: F, file_id: "file_held" },
-    { id: OTHER, file_id: "file_abc" },
+    { id: F, file_id: "file_held", width: 600, height: 600 },
+    { id: OTHER, file_id: "file_abc", width: 600, height: 600 },
   ]);
   assert.equal(web.filter((c) => c.url === "https://api.anthropic.com/v1/files").length, 1, "only the one with none");
   assert.equal(w.tables.files[1].claude_copy.id, "file_abc", "and it is kept on its row");
@@ -906,9 +906,36 @@ test("Ask's door: one picture Storage can't make a copy of leaves the others sta
   theWeb({ [`https://storage.example/${T}/${OTHER}/original.jpg`]: () => new Response("no", { status: 500 }) });
   const res = await copiesAsked(w, { tenant_id: T, ids: [F, OTHER] });
   assert.deepEqual((await res.json()).copies, [
-    { id: F, file_id: "file_abc" },
+    { id: F, file_id: "file_abc", width: 600, height: 600 },
     { id: OTHER, file_id: null },
   ]);
+});
+
+test("Ask's door: a picture made for one turn goes up as its bytes, held a day and written on no row, and comes back by its id and size; one that is not what it says it is does not", async () => {
+  const w = world();
+  const web = theWeb();
+  const bytes = Buffer.from(PICTURE).toString("base64");
+  const res = await copiesAsked(w, {
+    tenant_id: T,
+    pictures: [
+      { key: "zoom", bytes, mime: "image/png", name: "storefront-zoom.png" },
+      { key: "lie", bytes, mime: "image/jpeg", name: "x.jpg" },
+    ],
+  });
+  assert.equal(res.status, 200);
+  const said = await res.json();
+  assert.deepEqual(said.copies, []);
+  assert.deepEqual(said.pictures, [
+    { key: "zoom", file_id: "file_abc", width: 600, height: 600 },
+    { key: "lie", file_id: null, width: null, height: null },
+  ]);
+  assert.equal(web.filter((c) => c.url === "https://api.anthropic.com/v1/files").length, 1);
+  assert.equal(w.tables.files[0].claude_copy, null, "written on no row");
+  assert.equal((await copiesAsked(w, { tenant_id: T, pictures: "x" })).status, 400);
+  assert.equal(
+    (await copiesAsked(w, { tenant_id: T, pictures: [{ key: "k", bytes, mime: "image/gif", name: "a.gif" }] })).status,
+    400,
+  );
 });
 
 test("Ask's door: another workspace's knock, and a list that is no list, are refused", async () => {

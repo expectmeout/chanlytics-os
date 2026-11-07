@@ -61,3 +61,29 @@ test("a spoken turn is never raised, whatever it calls", () => {
   );
   assert.equal(raised, false);
 });
+
+test("a picture opened raises the rounds after it to the draft's effort, once; a question that came with pictures from its first round; a spoken turn never", () => {
+  const model = { effort: "low", draft: "high" };
+  const meter = { draft: null };
+  const t = turnEffort(model, { text: "what is in this photo", spoken: false }, meter);
+  const messages = [];
+  assert.equal(t.lookHarder(messages), true);
+  assert.deepEqual(meter.draft, { effort: "high", by: "picture" });
+  assert.equal(messages.length, 1);
+  assert.equal(t.lookHarder(messages), false, "once a turn");
+  assert.equal(messages.length, 1);
+
+  const withPictures = { draft: null };
+  const opened = [];
+  turnEffort(model, { text: "what is in this photo", spoken: false }, withPictures, { pictures: true }).open(opened);
+  assert.deepEqual(withPictures.draft, { effort: "high", by: "picture" });
+  assert.equal(opened.length, 1, "the effort message, after the question");
+
+  const spoken = { draft: null };
+  const voice = turnEffort(model, { text: "what is this", spoken: true }, spoken, { pictures: true });
+  assert.equal(voice.lookHarder([]), false);
+  assert.equal(spoken.draft, null);
+
+  const noDraft = { draft: null };
+  assert.equal(turnEffort({ effort: "low", draft: null }, { text: "x", spoken: false }, noDraft).lookHarder([]), false);
+});

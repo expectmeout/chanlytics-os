@@ -3032,6 +3032,7 @@ test("every read, each an action of the read tools, runs against the database in
       "files.get",
       "files.list",
       "files.view",
+      "files.zoom",
       "guide",
       "inbox.list",
       "inbox.search",
@@ -10365,4 +10366,13 @@ test("the turn sends Show as it is written: the answer tool's input grows, each 
       "the last preview's rows are the final's",
     );
   });
+});
+
+test("an answer written beside a post drawn for a look is set aside: the model looks first, then answers", async () => {
+  const { besideActs } = await import(at("apps/dashboard/src/server/ask/turn-end.ts"));
+  let unsaid = 0;
+  const r = { refused: false, leftOut: false, planned: null, unsay: () => unsaid++, log: () => {} };
+  assert.equal(besideActs("Here is your post", { ...r, looking: true }), "");
+  assert.equal(unsaid, 1);
+  assert.equal(besideActs("Here is your post", { ...r, looking: false }), "Here is your post");
 });

@@ -141,6 +141,34 @@ what a page shows them. So a picture needs one place, one name and a written rec
     how the sheet knows it is up, and how it comes down; a name that isn't this connection's takes nothing down. Campaigns' ads are
     still a mock, so Google is the first place a post goes.
 
+20. **A picture is shown with its size beside its name, and a box is named in those pixels** (Ask's eyes, 6 Nov 2026: Ruben,
+    "the fundamentals that the ask can see/digest images and videos the same way you can"). The edge's copies door answers each
+    copy's width and height with its id (`apps/edge/lib/files/copies.ts`), and a picture opened, or attached to a question, is
+    labelled `The file x (1568×1176):` (`tools/context.ts openedPicture`). Anthropic's own advice: Claude works best with absolute
+    pixel coordinates on the image it was sent, and our copies fit its tier unchanged, so a box maps one to one. `get` says a
+    photo's size too.
+21. **`files` has `zoom`: one box of a picture, cut from the photo itself and enlarged, held for the turn.** How a small sign, a
+    price or a face is read, the way a person leans in. The box comes in the pixels of the size the picture was shown at; the cut
+    is made in the dashboard with sharp from the original where the code can read it, and from Storage's largest copy (2,500 px)
+    for a HEIC or an original past 12 MB (`server/files/zoom.ts`); a point is widened to a region, a small cut is enlarged to
+    read and never more than four times, and the long edge stops at the size a picture is shown at. The bytes go to the edge's
+    copies door as a picture made for one turn, kept at Anthropic for a day (`FILE_PICTURE_KEEP_S`), past any live chain, and
+    written on no row. About a cent a zoom.
+22. **Once a picture is open, the rounds after it think at the draft's effort** (`effort.ts lookHarder`), by the effort message
+    that already raises a draft, appended after the results, so the cache holds; a question that came with pictures is raised from
+    its first round. Judging what it sees is the work the low effort was never meant for. Once a turn, as a draft is, and never
+    on a spoken turn.
+23. **An answer's history line says what Ask opened in that turn**, by the name that opens it now (`[Opened: storefront-dusk (A
+shopfront at dusk.)]`, contracts `withFilesOpened`), as a question's says what it came with, and a rule tells it that a
+    picture from an earlier turn is not in front of it until it opens it again. The pixels of a live chain last as long as its
+    cache (`LIVE_WINDOW_MS`); the words last.
+24. **Ask looks at the post before it offers it, and code holds it to that.** The first call of `propose_post` draws the post as
+    its card would, shows it to the model (`The post drawn from x (1080×1350):`) with a `look_key` that is the plan whole, and
+    makes no card; an answer written beside that look is set aside (`turn-end.ts besideActs`). Only a second call carrying the
+    key makes the card, and a plan changed since the look is refused back to be drawn again. A drawn post the edge could not hold
+    still makes its card on the key, with the model told to say it could not check the picture. One round more on every post:
+    estimated three to five cents and three to four seconds, to be measured on the first real turn.
+
 ## What it costs
 
 - The look: about $0.50 per 1,000 files, on the workspace's usage.
@@ -208,4 +236,4 @@ On production, 6 November 2026, in the test workspace.
 
 ## Not here
 
-Making pictures with a model (step 4) and video (step 5).
+Making pictures with a model (step 4) and video (step 5): Claude Video/docs/2026-11-06-ask-eyes-fundamentals.md says the order, video on Cloudflare Stream first.
