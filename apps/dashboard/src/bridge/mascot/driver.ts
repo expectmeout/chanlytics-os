@@ -29,6 +29,8 @@ import { smooth } from "./math";
 export interface DriverEnv {
   raf: (cb: (ms: number) => void) => number;
   caf: (id: number) => void;
+  /** `fn` once, `ms` from now: answers what cancels it. */
+  wait: (ms: number, fn: () => void) => () => void;
   now: () => number;
   dpr: () => number;
   reduced: boolean;
@@ -93,6 +95,25 @@ const LOOK_WITHIN: Record<Role, number> = { icon: 110, open: 240 };
 const ATTEND_WITHIN = 90;
 /** Seconds at rest, alone, before an icon goes quiet. */
 const ICON_QUIET_AFTER = 18;
+/**
+ * How often a quiet face looks for something to draw, in place of asking for every frame. It drew almost nothing once quiet,
+ * but a frame asked for keeps the page's main thread awake, drawn on or not: 4.2% of it at 4x CPU on a page nobody touched
+ * (production, 6 Nov 2026). Each look takes the time since the last, not the wait it asked for: a timer comes late, and the
+ * character's clock ran 14% slow, so its fidgets came later and later.
+ */
+const QUIET_LOOK_MS = 100;
+/**
+ * The longest step of the character's time, in seconds: a frame's, however late it comes, and a look's, a few of them over.
+ * One long step made its fidgets late (0.8 s by the third, each look 150 ms late), and by its equations the gaze's spring is
+ * unstable past about 0.14.
+ */
+const LONGEST_STEP = 0.05;
+/** The most time one look makes up, in seconds: a page frozen for an hour has no hour of fidgets owing. */
+const REST_MOST_TIME = 1;
+/** Frames in a row with nothing new before a quiet face rests. */
+const REST_AFTER_FRAMES = 3;
+/** Under this a face has stopped breathing (the character's `awake`). */
+const QUIET_BELOW = 0.2;
 
 function browserEnv(): DriverEnv {
   const w = typeof window !== "undefined" ? window : null;
@@ -102,6 +123,10 @@ function browserEnv(): DriverEnv {
     raf: (cb) => (w && typeof w.requestAnimationFrame === "function" ? w.requestAnimationFrame(cb) : 0),
     caf: (id) => {
       if (w && typeof w.cancelAnimationFrame === "function") w.cancelAnimationFrame(id);
+    },
+    wait: (ms, fn) => {
+      const id = setTimeout(fn, ms);
+      return () => clearTimeout(id);
     },
     now: () => (typeof performance !== "undefined" ? performance.now() : Date.now()),
     dpr: () => Math.min(2, (w && w.devicePixelRatio) || 1),
@@ -213,6 +238,9 @@ interface LiveFace {
   sideNow: number;
   raf: number;
   last: number;
+  // frames in a row that drew nothing, and what ends the rest it is in, where it is resting (loopFrame, lookAgainLater)
+  stillFrames: number;
+  endRest: (() => void) | null;
   visible: boolean;
   onScreen: boolean;
   dead: boolean;
@@ -260,6 +288,8 @@ function liveFaceOf(canvas: CanvasLike, opts: MountOptions): LiveFace | null {
     sideNow: sideTarget,
     raf: 0,
     last: 0,
+    stillFrames: 0,
+    endRest: null,
     visible: !env.hidden(),
     onScreen: true,
     dead: false,
@@ -301,7 +331,8 @@ function fitCanvas(face: LiveFace): boolean {
   }
   return true;
 }
-function drawFrame(face: LiveFace, dt: number): void {
+/** A frame of the face's time, drawn where it differs from what is drawn: answers whether it drew. */
+function drawFrame(face: LiveFace, dt: number): boolean {
   const { env, character, pal } = face;
   // a word heard lifts the level to 0.8; it falls to nothing in about half a second of silence
   face.heardLevel = Math.max(0, face.heardLevel - dt * 1.5);
@@ -310,7 +341,7 @@ function drawFrame(face: LiveFace, dt: number): void {
     face.sideNow = env.reduced
       ? face.sideTarget
       : face.sideNow + (face.sideTarget - face.sideNow) * (1 - Math.exp(-dt / 0.1));
-  if (!fitCanvas(face)) return;
+  if (!fitCanvas(face)) return false;
   const { w, h } = face;
   const side = face.sideTarget > 0 ? face.sideNow * env.dpr() : fitSide(w, h);
   character.detail(side / env.dpr());
@@ -319,21 +350,41 @@ function drawFrame(face: LiveFace, dt: number): void {
   easePalette(pal, face.palTarget, env.reduced ? 1e6 : dt);
   const f = character.frame();
   const sig = signature(f, pal, side, w, h);
-  if (sig === face.drawn) return;
+  if (sig === face.drawn) return false;
   face.drawn = sig;
   // the GPU draws only what the 2D drawing cannot: the tiles while they may fuse; at rest, the mark in 2D
   const fused = f.liquid > 0.001 && (face.liquid.now()?.draw(face.ctx, f, pal, side, w, h) ?? false);
   if (!fused) drawCharacter(face.ctx, w, h, f, pal, side);
+  return true;
+}
+const isQuiet = (face: LiveFace): boolean => face.character.frame().awake < QUIET_BELOW;
+/** A look ahead, in place of the next frame: back to its frames once there is something to draw, else another look. */
+function lookAgainLater(face: LiveFace): void {
+  const from = face.env.now();
+  face.endRest = face.env.wait(QUIET_LOOK_MS, () => {
+    face.endRest = null;
+    let left = Math.min(REST_MOST_TIME, (face.env.now() - from) / 1000);
+    for (; left > LONGEST_STEP; left -= LONGEST_STEP) face.character.tick(LONGEST_STEP);
+    if (drawFrame(face, left) || !isQuiet(face)) runLoop(face);
+    else lookAgainLater(face);
+  });
 }
 function loopFrame(face: LiveFace, ms: number): void {
   face.raf = face.env.raf(face.loop);
-  const dt = Math.min(0.05, Math.max(0, (ms - (face.last || ms)) / 1000));
+  const dt = Math.min(LONGEST_STEP, Math.max(0, (ms - (face.last || ms)) / 1000));
   face.last = ms;
-  drawFrame(face, dt);
+  face.stillFrames = drawFrame(face, dt) ? 0 : face.stillFrames + 1;
+  if (face.stillFrames < REST_AFTER_FRAMES || !isQuiet(face)) return;
+  face.env.caf(face.raf);
+  face.raf = 0;
+  lookAgainLater(face);
 }
-/** The loop runs while the face is shown, on screen and free to move, and stops otherwise. */
+/** The loop runs while the face is shown, on screen and free to move, and stops otherwise. Any rest ends here. */
 function runLoop(face: LiveFace): void {
   if (face.dead) return;
+  face.endRest?.();
+  face.endRest = null;
+  face.stillFrames = 0;
   const go = face.visible && face.onScreen && !face.env.reduced;
   if (go && !face.raf) {
     face.last = 0;
@@ -343,6 +394,10 @@ function runLoop(face: LiveFace): void {
     face.env.caf(face.raf);
     face.raf = 0;
   }
+}
+/** A pointer, a finger or a word from the page has come to a face at rest: its frames again at once, not at its next look. */
+function wake(face: LiveFace): void {
+  if (face.endRest) runLoop(face);
 }
 function stillFrame(face: LiveFace): void {
   if (!face.env.reduced) return;
@@ -367,6 +422,7 @@ function lookAtPointer(face: LiveFace, e: { clientX: number; clientY: number } |
       Math.max(box.top - e.clientY, 0, e.clientY - (box.top + box.height)),
     );
   if (role === "icon") face.attention = outside(b ?? r) < ATTEND_WITHIN ? 1 : 0;
+  if (face.attention > 0) wake(face);
   const unit = face.sideTarget > 0 ? face.sideNow : fitSide(r.width, r.height);
   const dx = e.clientX - (r.left + r.width / 2);
   const dy = e.clientY - (r.top + r.height / 2);
@@ -380,6 +436,7 @@ function lookAtPointer(face: LiveFace, e: { clientX: number; clientY: number } |
   }
   const inside = b ? outside(b) === 0 : dist / unit < 2.3;
   character.look((dx / unit / 4) * fade, (dy / unit / 4) * fade, inside);
+  wake(face);
 }
 
 /**
@@ -419,9 +476,15 @@ function listenToPage(face: LiveFace): void {
 function listenToButton(face: LiveFace): void {
   const { button, character } = face;
   if (button && typeof button.addEventListener === "function") {
-    const down = () => character.press(true);
+    const down = () => {
+      character.press(true);
+      wake(face);
+    };
     const up = () => character.press(false);
-    const fin = () => (face.focused = true);
+    const fin = () => {
+      face.focused = true;
+      wake(face);
+    };
     const fout = () => (face.focused = false);
     const names: [string, () => void][] = [
       ["pointerdown", down],
@@ -451,6 +514,7 @@ function mountedOf(face: LiveFace): Mounted {
     set(next) {
       character.set(next);
       stillFrame(face);
+      wake(face);
     },
     setSide(px) {
       face.sideTarget = Math.max(1, px);
@@ -471,13 +535,16 @@ function mountedOf(face: LiveFace): Mounted {
     react(kind) {
       // calm ignores every reaction, so under reduced motion nothing is redrawn
       character.react(kind);
+      wake(face);
     },
     pulse(v) {
       character.pulse(v);
+      wake(face);
     },
     glow(v) {
       character.glow(v);
       stillFrame(face);
+      wake(face);
     },
     step(dt = 1 / 60, frames = 1) {
       for (let i = 0; i < frames; i++) drawFrame(face, dt);
@@ -486,6 +553,8 @@ function mountedOf(face: LiveFace): Mounted {
       face.dead = true;
       if (face.raf) env.caf(face.raf);
       face.raf = 0;
+      face.endRest?.();
+      face.endRest = null;
       face.liquid.release();
       for (const u of face.undo.splice(0)) u();
     },

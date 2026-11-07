@@ -465,7 +465,7 @@ export { asContactId, asTenantId, isUuid, UUID } from "./shared/identity";
 export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./shared/link";
 export { sumOf } from "./shared/numbers";
 export { areaCodeOf, formatPhoneDisplay, formatPhoneLocal, FORWARD_IS_HANDOFF, HANDOFF_FORWARDS_BACK, handoffE164, normalizePhone, phoneDialable, phoneTail, samePhone, shortCode, whyNotAHandoff, whyNotAPhone, whyNotForward } from "./shared/phone";
-export { agoShort, agoWords, DAY_MS, HOUR_MS, jittered, MIN_MS, SECOND_MS, spanLabel, spanUnits, timezoneCity, waitedLabel, WEEK_MS } from "./shared/time";
+export { agoShort, agoWords, dateFormat, DAY_MS, HOUR_MS, jittered, MIN_MS, SECOND_MS, spanLabel, spanUnits, timezoneCity, VIEW_CHANGE_MS, waitedLabel, WEEK_MS } from "./shared/time";
 export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./shared/unknown";
 export { clipAtWord, plural } from "./shared/words";
 export { appLink, canonicalRoute, isMessagesParam, MESSAGES_ROUTE, movedAddress, retiredRouteOf, ROUTE_WORDS, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "./shell/address";

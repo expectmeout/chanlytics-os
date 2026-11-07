@@ -27,6 +27,7 @@ const {
   warmRoute,
   warmSoon,
   keepWarm,
+  warmPhonePlaces,
   aheadWhenIdle,
   afterBoot,
   bootComing,
@@ -505,6 +506,46 @@ test("REGRESSION: what waits for the boot waits for the runner's, once the shell
     await afterBoot();
   } finally {
     globalThis.requestIdleCallback = was;
+  }
+});
+
+test("a phone's tab pages are asked for at once, with no idle wait; never on a desk, in the native app, or where a person has asked to save data", () => {
+  const was = {
+    idle: globalThis.requestIdleCallback,
+    media: globalThis.matchMedia,
+    nav: Object.getOwnPropertyDescriptor(globalThis, "navigator"),
+  };
+  const asked = [];
+  const askedOn = ({ phone = true, inApp = false, connection = null } = {}) => {
+    asked.length = 0;
+    globalThis.matchMedia = (q) => ({ matches: phone && q.includes("900px") });
+    Object.defineProperty(globalThis, "navigator", { value: { connection }, configurable: true });
+    const w = windowAt({ pathname: "/w/acme/today" });
+    if (inApp) w.win.__IN_APP = true;
+    warmPhonePlaces(w.win);
+    return [...asked];
+  };
+  setAppRouter({ push: () => {}, replace: () => {}, prefetch: (href) => asked.push(href) });
+  try {
+    // An idle page never comes here: what is asked is asked as the call returns.
+    globalThis.requestIdleCallback = () => assert.fail("no wait for an idle page");
+    assert.deepEqual(
+      askedOn(),
+      ["/w/acme/inbox", "/w/acme/calendar", "/w/acme/people"],
+      "every place on the bar but the one on screen",
+    );
+    assert.deepEqual(askedOn({ phone: false }), [], "a desk's pointer warms what it reaches");
+    assert.deepEqual(askedOn({ inApp: true }), [], "the native app's tab bar stands in this one's place");
+    assert.deepEqual(askedOn({ connection: { saveData: true } }), [], "save-data");
+    assert.deepEqual(askedOn({ connection: { effectiveType: "2g" } }), [], "2g");
+    setAppRouter(null);
+    assert.deepEqual(askedOn(), [], "and no router, nothing asked and nothing thrown");
+  } finally {
+    setAppRouter(null);
+    globalThis.requestIdleCallback = was.idle;
+    globalThis.matchMedia = was.media;
+    if (was.nav) Object.defineProperty(globalThis, "navigator", was.nav);
+    else delete globalThis.navigator;
   }
 });
 

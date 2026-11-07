@@ -19,6 +19,7 @@ export function useShownCvRows(
 ): { shown: ShownRows; ref: (el: HTMLDivElement | null) => void } {
   const open = openId ? rows.findIndex((c) => c.id === openId) : -1;
   const shown = useShownRows({
+    name: "conversations",
     count: rows.length,
     estimate: CV_ROW_PX,
     keyOf: (i) => rows[i]?.id ?? String(i),
@@ -28,7 +29,7 @@ export function useShownCvRows(
   // At a desk the first rows fade in as the list arrives, as the Inbox's and People's do; on a phone they stand whole on
   // the first frame, as the Inbox's do (kit/motion/use-rows-arrive.ts). The rows the window draws after, as the list is
   // scrolled, come as they are.
-  const arrive = useRowsArrive<HTMLDivElement>(":scope > .cv-row", { onPhone: false });
+  const arrive = useRowsArrive<HTMLDivElement>(":scope > .cv-row");
   const ref = useCallback(
     (el: HTMLDivElement | null) => {
       swap.current = el;

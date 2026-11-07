@@ -13,6 +13,7 @@ import { importSrc } from "../../_source.mjs";
 
 const { hearMoves } = await importSrc("apps/dashboard/src/bridge/hearing/after-the-move.ts");
 const { setStatus } = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
+const { VIEW_CHANGE_MS } = await importSrc("packages/contracts/src/shared/time.ts");
 
 /** A window on Today whose address the test moves, as a popstate tells it. */
 function windowOnToday(extra = {}) {
@@ -44,7 +45,7 @@ test("a surface never read is read at the press, and one the tab holds once the 
   );
   go("inbox");
   assert.deepEqual(reads, [["never"]], "what its page waits on, at once");
-  t.mock.timers.tick(459);
+  t.mock.timers.tick(VIEW_CHANGE_MS - 1);
   assert.equal(reads.length, 1, "nothing read under the slide");
   t.mock.timers.tick(1);
   assert.deepEqual(reads, [["never"], ["held-1"]], "what it holds, after the deck's timeline");
@@ -62,10 +63,10 @@ test("a second move inside the motion adds its own, and one read takes them all"
     win,
   );
   go("inbox");
-  t.mock.timers.tick(200);
+  t.mock.timers.tick(VIEW_CHANGE_MS - 1);
   due = ["held-2"];
   go("conversations");
-  t.mock.timers.tick(260);
+  t.mock.timers.tick(1);
   assert.deepEqual(reads, [["held-1", "held-2"]], "both, once the first move's motion is over");
   t.mock.timers.tick(1000);
   assert.equal(reads.length, 1, "and only once");

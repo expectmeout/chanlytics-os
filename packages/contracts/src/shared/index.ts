@@ -119,6 +119,7 @@ export type { Exactly, Holds, SchemaAgreement, SchemaSet, SchemaSetKey, Within }
 export {
   agoShort,
   agoWords,
+  dateFormat,
   DAY_MS,
   HOUR_MS,
   jittered,
@@ -127,6 +128,7 @@ export {
   spanLabel,
   spanUnits,
   timezoneCity,
+  VIEW_CHANGE_MS,
   waitedLabel,
   WEEK_MS,
 } from "./time";

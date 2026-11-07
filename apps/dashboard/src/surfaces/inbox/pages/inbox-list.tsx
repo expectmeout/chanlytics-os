@@ -225,7 +225,7 @@ export function InboxList(props: InboxListProps) {
   // At a desk the first rows fade in as the list arrives, as People's do; on a phone they stand whole on the first frame
   // (kit/motion/use-rows-arrive.ts). The rows the window draws after, as the list is scrolled, come as they are. One ref
   // on the rows' element gives it to the kit and to the window.
-  const arrive = useRowsArrive<HTMLDivElement>(":scope > .ix-thread", { onPhone: false });
+  const arrive = useRowsArrive<HTMLDivElement>(":scope > .ix-thread");
   const { listRef } = shown;
   const rowsRef = useCallback(
     (el: HTMLDivElement | null) => {

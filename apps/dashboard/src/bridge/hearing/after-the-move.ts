@@ -5,11 +5,9 @@
  * held the frames of the move (People's book read again as People came in from Leads). A second move before then adds its
  * own, and the one read takes them all.
  */
+import { VIEW_CHANGE_MS } from "@chanlytics/contracts";
 import { getSurfaceStatuses } from "../surface-status";
 import { hearAddress } from "../workspace";
-
-/** How long a move's motion takes: the deck's timeline (kit/motion/view-deck.ts TIMELINE_MS); a test's window says 0. */
-const AFTER_THE_MOVE_MS = 460;
 
 /** Hear each move of the address: `dueAt` says what the move owes, and `read` reads it, as above. Answers the stop. */
 export function hearMoves(dueAt: () => string[], read: (keys: string[]) => void, win: Window = window): () => void {
@@ -28,7 +26,8 @@ export function hearMoves(dueAt: () => string[], read: (keys: string[]) => void,
     for (const key of held) owed.add(key);
     if (now.length) read(now);
     if (!owed.size || later !== null) return;
-    const wait = (win as { __afterTheMoveMs?: number }).__afterTheMoveMs ?? AFTER_THE_MOVE_MS;
+    // A test's window says 0: it has no motion to wait out.
+    const wait = (win as { __afterTheMoveMs?: number }).__afterTheMoveMs ?? VIEW_CHANGE_MS;
     if (wait > 0) later = setTimeout(readOwed, wait);
     else readOwed();
   };

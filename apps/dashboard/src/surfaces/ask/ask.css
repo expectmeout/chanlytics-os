@@ -1711,6 +1711,10 @@ body.ask-open .tb-ask .tb-ask-face {
     box-shadow: var(--shadow-rim);
     opacity: var(--dot-on);
     transition: opacity 0.5s ease;
+  }
+  /* Only while it shows: an animation running on a dot nobody can see styled the page again on every frame. */
+  .phone-ask .ask-disc[data-usage="warned"]::before,
+  .phone-ask .ask-disc[data-usage="over"]::before {
     animation: ask-dot-breathe 2.6s ease-in-out infinite;
   }
   @keyframes ask-dot-breathe {
@@ -1919,8 +1923,9 @@ body.ask-open .tb-ask .tb-ask-face {
 
 /* Last, so it wins over the phone's own motion too: nothing moves but the finger's drag. */
 @media (prefers-reduced-motion: reduce) {
-  /* the ✦'s beam holds still: the disc, the three's still frame and the colours stay */
-  .phone-ask .ask-disc::before {
+  /* the ✦'s dot holds still: the disc, the three's still frame and the colours stay */
+  .phone-ask .ask-disc[data-usage="warned"]::before,
+  .phone-ask .ask-disc[data-usage="over"]::before {
     animation: none;
   }
   .ask-cursor,

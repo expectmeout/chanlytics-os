@@ -55,6 +55,34 @@ test("the dateline is the day and the time in the business's zone, not the machi
   assert.deepEqual(pageDatelineShort(NOW, ZONE), { day: "Fri, Oct 2", time: "4:02 PM" });
 });
 
+test("the head says its date with formatters it keeps: every press draws it", () => {
+  pageDatelineParts(NOW, ZONE);
+  pageDatelineShort(NOW, ZONE);
+  const was = {
+    day: Date.prototype.toLocaleDateString,
+    time: Date.prototype.toLocaleTimeString,
+    Format: Intl.DateTimeFormat,
+  };
+  let built = 0;
+  Date.prototype.toLocaleDateString = () => assert.fail("a formatter built for one date");
+  Date.prototype.toLocaleTimeString = () => assert.fail("a formatter built for one time");
+  Intl.DateTimeFormat = new Proxy(was.Format, {
+    construct(target, args) {
+      built += 1;
+      return new target(...args);
+    },
+  });
+  try {
+    assert.deepEqual(pageDatelineParts(NOW + MIN, ZONE), { day: "Friday, October 2", time: "4:03 PM" });
+    assert.deepEqual(pageDatelineShort(NOW + MIN, ZONE), { day: "Fri, Oct 2", time: "4:03 PM" });
+    assert.equal(built, 0, "none built after the first");
+  } finally {
+    Date.prototype.toLocaleDateString = was.day;
+    Date.prototype.toLocaleTimeString = was.time;
+    Intl.DateTimeFormat = was.Format;
+  }
+});
+
 test("the standing sentence counts what waits on you and names the oldest's hour", () => {
   const threads = [waiting("a", 96), waiting("b", 42), waiting("c", 18), waiting("d", 5), handled("e")];
   assert.equal(inboxStanding(threads, NOW, ZONE), "4 need you · the oldest since 2:26 PM");

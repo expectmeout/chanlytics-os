@@ -12,10 +12,11 @@
  * unseen for its turn, and nothing is left on it after. Not under reduced motion, and not for a list coming back from
  * under the row it opened (held-list.ts): it is where it was left, as the screen showed it under that row's page, and
  * React's Activity, which kept People's scope as a person stood over it, draws it as a mount again (Ruben, 20 Oct 2026:
- * every row faded up 4px as the person went). On a phone the Inbox's rows stand whole on the first frame instead
- * (`onPhone: false`), and Conversations', drawn as they are, with them: as each row's fade ended its first letters and
- * its mail glyphs stepped a device pixel, down the list a beat apart, and the line over every other row stood missing
- * until then (Ruben's recording, 2 Nov 2026). People's rows land clean under the same fade, so a table keeps it.
+ * every row faded up 4px as the person went). On a phone every list's rows stand whole on the first frame instead. The
+ * Inbox's and Conversations' first: as each row's fade ended its first letters and its mail glyphs stepped a device pixel,
+ * down the list a beat apart, and the line over every other row stood missing until then (Ruben's recording, 2 Nov 2026).
+ * A table's with them: a tab press remounts its page, so "first draw" was true on every press, and People's rows were
+ * still fading about 500 ms after the press, long after the move had said it was over (production, 6 Nov 2026).
  */
 import { useCallback, useRef } from "react";
 import { firstRowsStand } from "@chanlytics/contracts";
@@ -64,11 +65,10 @@ export function fadeRowsIn(list: ArrivingList, rows: string = TABLE_ROWS): numbe
 /**
  * The ref for the list's element: its first rows fade in on the draw that first puts it in the page, and never again on
  * that page (a draw that puts it back, held-list.ts, is no arrival either). `rows` names a list's own rows where they
- * are not a table's; `onPhone: false` says they stand whole on the first frame at a phone's width.
+ * are not a table's. At a phone's width they stand whole on the first frame.
  */
 export function useRowsArrive<T extends HTMLElement = HTMLTableElement>(
   rows: string = TABLE_ROWS,
-  { onPhone: fadesOnPhone = true }: { onPhone?: boolean } = {},
 ): (el: T | null) => void {
   const arrived = useRef(false);
   return useCallback(
@@ -77,8 +77,8 @@ export function useRowsArrive<T extends HTMLElement = HTMLTableElement>(
       arrived.current = true;
       // Rows that land where the rows a phone last showed stand (contracts shell/first-rows.ts) have arrived already.
       if (typeof document !== "undefined" && firstRowsStand(document)) return;
-      if (!cameBack(el) && (fadesOnPhone || !onAPhone())) fadeRowsIn(el, rows);
+      if (!cameBack(el) && !onAPhone()) fadeRowsIn(el, rows);
     },
-    [rows, fadesOnPhone],
+    [rows],
   );
 }
