@@ -208,6 +208,7 @@ test("the nightly's node suite and its whole suite hold no live secret, and the 
   );
   assert.ok(whole.includes("e2e-workspace.mjs --apply"), "seeded before any spec");
   assert.ok(whole.includes('REQUIRE_SERVICE_CREDENTIALS: "1"'), "the skip ceiling bites only on a run that says so");
+  assert.match(whole, /E2E_MAX_SKIPS: "\d+"/, "a ceiling held to the seed's own number, not the default's");
 });
 
 test("only the nightly's production check holds production's key, it runs a short list, and it creates no workspace", () => {
