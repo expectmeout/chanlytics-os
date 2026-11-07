@@ -749,7 +749,8 @@ to the tests directory. The files are grouped by domain under `tests/<domain>/`,
 a workspace of its own, the shared worlds and helpers at the root, and the runner
 globs every depth. `node tooling/scripts/tests-of.mjs <file>` names the
 tests that prove a module. Playwright specs run
-nightly against production in the suite's own workspace. A browser spec goes in
+nightly on a stack of their own, and a short list against production (decision
+0106). A browser spec goes in
 `e2e/<domain>/`, as `e2e/people/people.spec.ts` is; the helpers stay at the
 root, and so does a domain's only spec until its second.
 

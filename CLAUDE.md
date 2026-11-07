@@ -246,7 +246,7 @@ the repository's root, and `tests/docs/docs-paths.test.mjs` fails one that opens
   `packages/contracts/src/shared/identity.ts`. Its project's `tsc --noEmit` compiles it; nothing compiles
   TypeScript under `tests/`, so one written there could never fail.
 - A journey through the running app in a browser: a Playwright spec in `e2e/<domain>/` (`e2e/people/people.spec.ts`),
-  signed in by `e2e/session.ts` and run nightly against production in the suite's own workspace; the helpers stay at
+  signed in by `e2e/session.ts` and run nightly on a stack of its own (decision 0106); the helpers stay at
   the root, and so does a domain's only spec until its second.
 - A script a person runs: `tooling/scripts/`. One that writes production is dry-run by default, writes a backup
   first and takes `--apply` (`tooling/scripts/ops/lead-marks-backfill.mjs`).

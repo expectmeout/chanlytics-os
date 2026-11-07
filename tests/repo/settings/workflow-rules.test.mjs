@@ -75,6 +75,7 @@ test("a rolling issue closes only the issues its own titles opened, never one a 
   for (const prefix of ["Nightly e2e is red", "Nightly e2e failed ", "Nightly e2e hit its cap "])
     assert.ok(matches.includes(prefix), `the nightly matches "${prefix}"`);
   assert.ok(!matches.includes("Nightly e2e"), "a bare prefix would close a person's issue");
+  assert.ok(matches.includes("Production check is red"), "production's red has an issue of its own");
   assert.ok(workflow("migration-ledger.yml").includes(`--match "Production's migrations disagree with main's"`));
 });
 
@@ -182,6 +183,28 @@ test("the nightly's node suite runs in four parts with their own cap, its covera
     assert.ok(report.includes(said), said);
   assert.ok(report.includes("PRODUCTION: ${{ needs.production.result }}"), "the report says which was red");
   assert.ok(report.includes("COVERAGE: ${{ needs.coverage.result }}"), "a floor missed is the suite's red");
+});
+
+test("a night says its two reds apart: production's has its own issue and pages at the first, the suites' never page", () => {
+  const steps = job(workflow("nightly-e2e.yml"), "report").split("- name: ");
+  const suites = steps.find((s) => s.startsWith("Say what the suites came to"));
+  const production = steps.find((s) => s.startsWith("Say what the check of production came to"));
+  assert.ok(suites && production, "two steps, one for each");
+
+  assert.ok(production.includes('--title "Production check is red"'));
+  assert.ok(production.includes("--page-after 1 --condition production_check_red"), "a customer may be seeing it");
+  assert.ok(production.includes("PAGER_KEY: ${{ secrets.PAGER_KEY }}") && production.includes("PAGER_URL:"));
+  assert.ok(production.includes("if: ${{ !cancelled() }}"), "a refusal in the suites' step does not silence it");
+  assert.ok(/skipped\)/.test(production), "a check that never ran is no red on production, and pages nobody");
+  assert.ok(!production.includes("$WHOLE") && !production.includes("$SUITE"));
+
+  assert.ok(suites.includes('--title "Nightly e2e is red"'));
+  assert.ok(
+    !suites.includes("--page-after") && !suites.includes("PAGER_"),
+    "no customer is on the stack: an issue, no page",
+  );
+  assert.ok(suites.includes("--assignee"), "the owner is told by the issue");
+  assert.ok(suites.includes("$WHOLE") && suites.includes("$SUITE") && !suites.includes("$PRODUCTION"));
 });
 
 test("the nightly's node suite and its whole suite hold no live secret, and the whole suite cannot reach production", () => {
