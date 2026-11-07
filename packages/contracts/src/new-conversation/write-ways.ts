@@ -20,7 +20,7 @@ import {
   type MessageAbout,
   type PurposeBearing,
 } from "../consent/consent";
-import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
+import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/channels";
 import type { WrittenChannel } from "../conversations/thread-channel";
 import { STOP_WORDS } from "../consent/consent";
 import { replyWindow } from "../config/policy";

@@ -25,15 +25,15 @@
 import { MIN_MS } from "../../shared/time";
 import { RUN_WAITING_WORDS } from "../../shell/campaign-rooms";
 import { isCount, recordOrNull } from "../../shared/unknown";
-import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
+import type { ReachOutRunDto } from "../reach-out/dtos";
 import { templateTitle } from "../templates/template-titles";
 import { clockDate, clockNearWhen, clockWhen } from "../../shared/clock";
-import { noNumberWords } from "../../people/people-lists";
+import { noNumberWords } from "../../people/lists/list-page";
 import type { PersonRowVM } from "../../people/person-row";
 import type { ParamSpec } from "../templates/templates";
 import type { AskedPurpose, MessageAbout } from "../../consent/consent";
-import { consentGuardWords } from "../../consent/consent-asks";
-import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/consent-channels";
+import { consentGuardWords } from "../../consent/asks";
+import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/channels";
 import type { Audience } from "./broadcast-audience";
 import { broadcastFailureWords } from "./broadcast-failures";
 import { answeredYes } from "./reach-any";
@@ -129,7 +129,7 @@ export type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];
 
 /**
  * A run waiting on its owner says "Waiting for your approval", as its tab on Sent, its line on Campaigns' home, the drawer,
- * Coming up, Today's row and brief and Ask say it (lifecycle-words.ts, today-runs.ts, reach-out-approval.ts all read this
+ * Coming up, Today's row and brief and Ask say it (lifecycle/words.ts, today/runs.ts, reach-out/approval.ts all read this
  * one). It said "Needs you" on its row's pill alone until 8 Oct 2026, which is the Inbox's word for a thread a person must
  * answer, and then "Waiting on you", which People used for a thread you have and Reports for a thread nobody has: three
  * things under one name, and a run waiting wore nine phrasings (D1-run-words). A thread is NEEDS_YOU_WORD or HELD_WORDS'
@@ -431,7 +431,7 @@ export const OUTCOME_UNKNOWN = "outcome_unknown";
  * words are read in a toast on the send screen, which has no QR, and in Ask,
  * which is no page at all -- so they say where it is rather than "on this page".
  *
- * A send that ticks email is said by what each channel it ticks asks of a person (consent-asks.ts, read from the one
+ * A send that ticks email is said by what each channel it ticks asks of a person (consent/asks.ts, read from the one
  * predicate): by email the business's news asks a yes covering email or a relationship on record and an address that
  * works (decision D1), never "a number". WhatsApp and a text ask what they always did, in the words below.
  */

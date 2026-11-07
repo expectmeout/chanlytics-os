@@ -59,7 +59,7 @@ import type {
   PARTNER_STATUSES,
 } from "../workspace/partner";
 import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../campaigns/broadcasts/broadcasts";
-import type { REPLY_INTENTS, REPLY_UNREADS } from "../campaigns/reach-out/reach-out-replies";
+import type { REPLY_INTENTS, REPLY_UNREADS } from "../campaigns/reach-out/replies";
 import type { SEQUENCE_MODES, SEQUENCE_STARTS, SEQUENCE_STATES } from "../campaigns/sequences/sequence";
 import type { CALL_OUTCOMES } from "../voice/call-words";
 import type { PREVIEW_STATES } from "../previews/lead-preview";

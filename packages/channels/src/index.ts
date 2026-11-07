@@ -18,9 +18,6 @@ export { askSystemOne, SYSTEM_ONE_URL } from "./ai/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./ai/typesafe";
 export { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./email/cold-request";
 export type { RequestRefusal } from "./email/cold-request";
-export { fetchMailDomains, fetchReceivedEmail, SEND_DEADLINE_MS, SEND_MIN_MS, sendEmail } from "./email/email-resend";
-export type { ResendAnswer, ResendConfig, SendEmailOptions } from "./email/email-resend";
-export { emailPlainText } from "./email/email-text";
 export { addressOf, messageIdHeader, oneLine } from "./email/header-values";
 export {
   campaignsIdentity,
@@ -43,14 +40,8 @@ export {
   senderAuthenticated,
 } from "./email/intake";
 export type { EmailClaim, EmailReceivedEvent, PlatformRecipient, ReceivedEmail } from "./email/intake";
-export {
-  calendarIcs,
-  googleCalendarIds,
-  googleEvents,
-  graphCalendarIds,
-  graphEvents,
-} from "./email/mailbox/mailbox-calendar";
-export type { CalendarEvent, CalendarIds, EventsPage } from "./email/mailbox/mailbox-calendar";
+export { calendarIcs, googleCalendarIds, googleEvents, graphCalendarIds, graphEvents } from "./email/mailbox/calendar";
+export type { CalendarEvent, CalendarIds, EventsPage } from "./email/mailbox/calendar";
 export {
   DKIM_SELECTORS,
   dkimOf,
@@ -59,8 +50,8 @@ export {
   spfNamesProvider,
   spfRecordsOf,
   spfTermsOf,
-} from "./email/mailbox/mailbox-dns";
-export type { TxtAnswer } from "./email/mailbox/mailbox-dns";
+} from "./email/mailbox/dns";
+export type { TxtAnswer } from "./email/mailbox/dns";
 export {
   gmailDayUsed,
   gmailFindSent,
@@ -78,8 +69,8 @@ export {
   gmailStop,
   gmailThreadOf,
   gmailWatch,
-} from "./email/mailbox/mailbox-gmail";
-export type { GmailHistory, GmailSent } from "./email/mailbox/mailbox-gmail";
+} from "./email/mailbox/gmail";
+export type { GmailHistory, GmailSent } from "./email/mailbox/gmail";
 export {
   graphDayUsed,
   graphDeleteMessage,
@@ -96,11 +87,11 @@ export {
   graphSignedOut,
   graphSubscribe,
   graphUnsubscribe,
-} from "./email/mailbox/mailbox-graph";
-export type { GraphDelta, GraphSent } from "./email/mailbox/mailbox-graph";
-export { gmailListSince, graphListSince } from "./email/mailbox/mailbox-history";
-export type { ListedMail, MailPage, MailWindow } from "./email/mailbox/mailbox-history";
-export { buildMime, mailboxMessageId } from "./email/mailbox/mailbox-mime";
+} from "./email/mailbox/graph";
+export type { GraphDelta, GraphSent } from "./email/mailbox/graph";
+export { gmailListSince, graphListSince } from "./email/mailbox/history";
+export type { ListedMail, MailPage, MailWindow } from "./email/mailbox/history";
+export { buildMime, mailboxMessageId } from "./email/mailbox/mime";
 export {
   grantHolds,
   grantScopes,
@@ -114,17 +105,12 @@ export {
   mailboxRevokeRequest,
   mailboxTokenRequest,
   parseMailboxGrant,
-} from "./email/mailbox/mailbox-oauth";
-export type { MailboxGrant, MailboxOAuthClient, MailboxReach, MailboxRequest } from "./email/mailbox/mailbox-oauth";
-export { googleContacts, graphContacts } from "./email/mailbox/mailbox-people";
-export type { KnownPerson, PeoplePage } from "./email/mailbox/mailbox-people";
-export {
-  clientStateMatches,
-  gmailPushOf,
-  graphNotificationsOf,
-  verifyGooglePushToken,
-} from "./email/mailbox/mailbox-push";
-export type { PushTokenRefusal } from "./email/mailbox/mailbox-push";
+} from "./email/mailbox/oauth";
+export type { MailboxGrant, MailboxOAuthClient, MailboxReach, MailboxRequest } from "./email/mailbox/oauth";
+export { googleContacts, graphContacts } from "./email/mailbox/people";
+export type { KnownPerson, PeoplePage } from "./email/mailbox/people";
+export { clientStateMatches, gmailPushOf, graphNotificationsOf, verifyGooglePushToken } from "./email/mailbox/push";
+export type { PushTokenRefusal } from "./email/mailbox/push";
 export {
   deliveryReportOf,
   filedAsBulk,
@@ -132,17 +118,12 @@ export {
   gmailEmailOf,
   graphEmailOf,
   rowIdOfMessageId,
-} from "./email/mailbox/mailbox-read";
-export type { BounceClass, DeliveryReport, FoundSent, MailboxEmail, ReadVerdict } from "./email/mailbox/mailbox-read";
-export { sendFromMailbox } from "./email/mailbox/mailbox-send";
-export type { MailboxSendInput, MailboxSendResult } from "./email/mailbox/mailbox-send";
-export { gmailHeadOf, replyToElsewhere, sentByAService } from "./email/mailbox/mailbox-sender";
-export {
-  cleanGmailSignature,
-  gmailSignatureWords,
-  mailboxDtoOf,
-  mailboxSignatureOf,
-} from "./email/mailbox/mailbox-signature";
+} from "./email/mailbox/read";
+export type { BounceClass, DeliveryReport, FoundSent, MailboxEmail, ReadVerdict } from "./email/mailbox/read";
+export { sendFromMailbox } from "./email/mailbox/send";
+export type { MailboxSendInput, MailboxSendResult } from "./email/mailbox/send";
+export { gmailHeadOf, replyToElsewhere, sentByAService } from "./email/mailbox/sender";
+export { cleanGmailSignature, gmailSignatureWords, mailboxDtoOf, mailboxSignatureOf } from "./email/mailbox/signature";
 export { mailDomainsFrom, resendLimitOf } from "./email/provider-answers";
 export type { MailCapability, MailDomainFacts, ResendLimit } from "./email/provider-answers";
 export { emailReceiptEffect, emailReceiptFrom } from "./email/receipts";
@@ -156,6 +137,9 @@ export {
   replySubject,
 } from "./email/request";
 export type { EmailCampaign, EmailIdentity, EmailParent, EmailRequest, EmailRequestInput } from "./email/request";
+export { fetchMailDomains, fetchReceivedEmail, SEND_DEADLINE_MS, SEND_MIN_MS, sendEmail } from "./email/resend";
+export type { ResendAnswer, ResendConfig, SendEmailOptions } from "./email/resend";
+export { emailPlainText } from "./email/text";
 export { resendWebhookSignature, verifyResendWebhook, WEBHOOK_TOLERANCE_S } from "./email/webhook-signature";
 export type { SvixHeaders } from "./email/webhook-signature";
 export { fileFingerprintOf, FINGERPRINT_BYTES } from "./files/file-fingerprint";
@@ -178,8 +162,8 @@ export {
   tokenRefreshRequest,
   unb64url,
   verifyState,
-} from "./google/google-oauth";
-export type { OAuthClient, OAuthState, TokenGrant } from "./google/google-oauth";
+} from "./google/oauth";
+export type { OAuthClient, OAuthState, TokenGrant } from "./google/oauth";
 export {
   getPlace,
   parsePlaceDetails,
@@ -197,15 +181,8 @@ export {
   placesSearchRequest,
   reviewIdOf,
   searchPlaces,
-} from "./google/google-places";
-export type {
-  PlaceCandidate,
-  PlaceDetails,
-  PlacePhoto,
-  PlaceReview,
-  PlacesHttp,
-  PlacesRequest,
-} from "./google/google-places";
+} from "./google/places";
+export type { PlaceCandidate, PlaceDetails, PlacePhoto, PlaceReview, PlacesHttp, PlacesRequest } from "./google/places";
 export {
   accountsRequest,
   cleanReply,
@@ -235,7 +212,7 @@ export {
   reviewParent,
   reviewsRequest,
   starRatingNumber,
-} from "./google/google-profile";
+} from "./google/profile";
 export type {
   GbpAccount,
   GbpLocation,
@@ -245,8 +222,8 @@ export type {
   GbpPostAsked,
   GbpReview,
   GbpReviewsPage,
-} from "./google/google-profile";
-export { FRESH_SLACK_MS, planListingCheck, planProfileSync, REVIEW_BELL_MAX, reviewBells } from "./google/google-sync";
+} from "./google/profile";
+export { FRESH_SLACK_MS, planListingCheck, planProfileSync, REVIEW_BELL_MAX, reviewBells } from "./google/sync";
 export type {
   KnownReview,
   ListingBefore,
@@ -254,11 +231,11 @@ export type {
   ProfileBefore,
   ProfileSyncPlan,
   ReviewBell,
-} from "./google/google-sync";
+} from "./google/sync";
 export { isLinkedMedia } from "./inbound/inbound";
 export type { InboundMessage, LinkedMediaRef, MediaRef } from "./inbound/inbound";
-export { inboundFromInstagram, instagramEventsOf } from "./instagram/instagram-events";
-export type { IgMessaging, IgReferral, InstagramEvent } from "./instagram/instagram-events";
+export { inboundFromInstagram, instagramEventsOf } from "./instagram/events";
+export type { IgMessaging, IgReferral, InstagramEvent } from "./instagram/events";
 export {
   fetchLinkedMedia,
   INSTAGRAM_DM_MAX_BYTES,
@@ -280,7 +257,7 @@ export {
   parseInstagramToken,
   readInstagramName,
   sendInstagramText,
-} from "./instagram/instagram-graph";
+} from "./instagram/graph";
 export type {
   InstagramAnswer,
   InstagramApp,
@@ -289,7 +266,7 @@ export type {
   InstagramDeps,
   InstagramGraphError,
   InstagramRequest,
-} from "./instagram/instagram-graph";
+} from "./instagram/graph";
 export {
   APIFY_BASE,
   APIFY_RUN_END_EVENTS,
@@ -348,6 +325,8 @@ export { isBrandNotReady, refusalWords, registrationVerdict, smsStateFor } from 
 export type { CampaignError, SmsRegistrationState } from "./lines/a2p/verdict";
 export { A2P_POLICIES, encodeForm, MESSAGING, TRUSTHUB } from "./lines/a2p/wire";
 export type { A2PRequest } from "./lines/a2p/wire";
+export { dryProvider } from "./lines/dry";
+export type { DryCall, DryProvider } from "./lines/dry";
 export {
   chooseLineProvider,
   isAreaCode,
@@ -367,21 +346,8 @@ export type {
   ReceivedText,
   SmsSendResult,
 } from "./lines/lines";
-export { dryProvider } from "./lines/lines-dry";
-export type { DryCall, DryProvider } from "./lines/lines-dry";
-export { LINE_STEPS, nextLineStep, retellImportBody, runLineSaga } from "./lines/lines-saga";
-export type { LinePorts, LineRow, LineSecrets, LineStep, LineVoiceState, SagaResult } from "./lines/lines-saga";
-export {
-  fetchTwilio,
-  TWILIO_TIMEOUT_MS,
-  TwilioError,
-  twilioProvider,
-  twilioRequest,
-  twilioUrls,
-} from "./lines/lines-twilio";
-export { lookupLineType } from "./lines/lines-twilio";
-export type { TwilioAnswer, TwilioHttp } from "./lines/lines-twilio";
-export type { LineTypeAnswer } from "./lines/lines-twilio";
+export { LINE_STEPS, nextLineStep, retellImportBody, runLineSaga } from "./lines/saga";
+export type { LinePorts, LineRow, LineSecrets, LineStep, LineVoiceState, SagaResult } from "./lines/saga";
 export {
   carrierConsent,
   inboundFromSms,
@@ -407,6 +373,10 @@ export {
   verifyTwilioSignature,
 } from "./lines/sms";
 export type { CarrierConsent, SmsInbound, SmsStatus } from "./lines/sms";
+export { fetchTwilio, TWILIO_TIMEOUT_MS, TwilioError, twilioProvider, twilioRequest, twilioUrls } from "./lines/twilio";
+export { lookupLineType } from "./lines/twilio";
+export type { TwilioAnswer, TwilioHttp } from "./lines/twilio";
+export type { LineTypeAnswer } from "./lines/twilio";
 export { errField, logger } from "./log/logger";
 export type { LogFields, Logger, LogLevel } from "./log/logger";
 export {
@@ -467,7 +437,7 @@ export {
   voiceNumberBinding,
   voiceNumberCreateBody,
   withKey,
-} from "./voice/voice-provision";
+} from "./voice/provision";
 export type {
   ProvisionAction,
   ProvisionSecrets,
@@ -476,7 +446,7 @@ export type {
   VoiceProvisionPlan,
   VoiceProvisionRequest,
   VoiceProvisionState,
-} from "./voice/voice-provision";
+} from "./voice/provision";
 export {
   callSummaryLine,
   createAgent,
@@ -509,7 +479,7 @@ export {
   updatePhoneNumber,
   updateRetellLlm,
   verifyRetellSignature,
-} from "./voice/voice-retell";
+} from "./voice/retell";
 export type {
   ListCallsPage,
   LiveCallControl,
@@ -523,7 +493,7 @@ export type {
   RetellLlmConfig,
   RetellTranscriptTurn,
   RetellWrite,
-} from "./voice/voice-retell";
+} from "./voice/retell";
 export {
   agentSettingsDrift,
   availabilityUrl,
@@ -548,7 +518,7 @@ export {
   VOICE_WEBHOOK_TIMEOUT_MS,
   voiceShellDrift,
   voiceShellTools,
-} from "./voice/voice-shell";
+} from "./voice/shell";
 export type {
   AgentPlan,
   LiveAgentSettings,
@@ -556,9 +526,9 @@ export type {
   RetellTool,
   VoiceConvergencePlan,
   VoiceShellTarget,
-} from "./voice/voice-shell";
-export { webCallBody, webCallMadeOf } from "./voice/voice-web-call";
-export type { WebCallMade } from "./voice/voice-web-call";
+} from "./voice/shell";
+export { webCallBody, webCallMadeOf } from "./voice/web-call";
+export type { WebCallMade } from "./voice/web-call";
 export {
   FIRECRAWL_CREDITS,
   FIRECRAWL_MAP,

@@ -1,12 +1,12 @@
 /**
  * Ask's citation grammar: the kinds a citation may name, the rule that keeps one honest (a row a reader returned this
- * turn, or a page) and where each opens. Read by ask.ts's message, the answer's normaliser (ask-answer.ts) and the
+ * turn, or a page) and where each opens. Read by ask.ts's message, the answer's normaliser (ask/answer.ts) and the
  * format the model writes (answer-format.ts). Pure; it imports only the tables of the addresses the pages themselves parse.
  */
 import { addressOf } from "../activity/record-address";
 import { calendarParamParts } from "../calendar/appointment-key";
 import { JOURNEY_STAGE_IDS, type JourneyStageId } from "../journey/journey";
-import type { LifecycleGroup } from "../campaigns/playbooks/lifecycle/lifecycle-types";
+import type { LifecycleGroup } from "../campaigns/playbooks/lifecycle/types";
 import { parseLeadsRoute, leadsRoute } from "../leads/lead-plan";
 import { BUILTIN_LISTS } from "../people/lists/builtin-lists";
 import { parseListToken } from "../people/lists/list-token";

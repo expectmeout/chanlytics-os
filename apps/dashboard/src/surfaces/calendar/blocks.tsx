@@ -2,7 +2,7 @@
  * The Calendar's blocks (moved from legacy/pages/calendar.jsx, decision 0015): one taken block from the feed, a window the
  * receptionist would offer, the board (hours down, days across), the month and the agenda. Each draws what it is handed,
  * and reads nothing itself: the days are the page's frames (types.ts), the words are the view model's, and the campaigns
- * a day carries are contracts' marks (calendar-runs.ts), which are never a block and never taken time.
+ * a day carries are contracts' marks (calendar/runs.ts), which are never a block and never taken time.
  *
  * Every word of how a visit stands is the visit line's (contracts visitLineOf), judged at the board's own minute (the
  * page's useMinute), so a block, its dot and its sheet never disagree with each other or with the clock.

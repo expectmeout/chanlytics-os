@@ -7,12 +7,12 @@
  *   rows first, each opening its place, and what is already done (canvas T·c).
  * - After: Setup's own rows that wait on the owner, with Skip and Hide for a week: Skip asks which before it puts a row
  *   off, for a week (back on its day) or for good, with where it is set up from then; Hide puts every row off for a
- *   week, and a week is always a week (setup-put-off.ts setupPutOffNext, `why: "week"`; the refined canvas, 31 Oct 2026).
+ *   week, and a week is always a week (setup/put-off.ts setupPutOffNext, `why: "week"`; the refined canvas, 31 Oct 2026).
  */
 import { formatPhoneDisplay } from "../shared/phone";
 import { SETUP_STATE_WORDS, type SetupRowVM, type SetupVM } from "./setup";
-import { KEEP_ROW, REMIND_SKIPPED } from "./setup-put-off";
-import { FORWARDING_WAIT_WORDS } from "./setup-put-off";
+import { KEEP_ROW, REMIND_SKIPPED } from "./put-off";
+import { FORWARDING_WAIT_WORDS } from "./put-off";
 import { FIRST_RUN_ROUTE, firstRunStepRoute } from "./first-run-route";
 import { FINISH_SETTING_UP } from "./first-run-route";
 import { firstRunOf, firstRunStepDefOf } from "./first-run";
@@ -296,7 +296,7 @@ const GOING_LIVE_ROWS = ["keep", "try", "whatsapp"] as const;
 /** Today's card: what is left to set up, or null when nothing is. */
 export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null {
   const W = SETUP_CARD_WORDS;
-  // Billing's row waits on the owner only for a payment that failed or a plan paused (setup-rows.ts billingRow): its own
+  // Billing's row waits on the owner only for a payment that failed or a plan paused (setup/rows.ts billingRow): its own
   // row, its own act (the card's portal, or Billing), required, so nothing to Skip or Hide.
   const billing = cardRowOf(vm, "billing");
   if (billing && billing.state === "waiting_you" && billing.verb)

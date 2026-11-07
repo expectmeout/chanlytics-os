@@ -1,8 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
-import { CONNECT, EXAMPLE, V0, firstTouchOf } from "../../packages/contracts/src/ads/ads-page";
-import { ASK_ADS_VIEW } from "../../packages/contracts/src/ask/ask-context";
+import { CONNECT, EXAMPLE, V0, firstTouchOf } from "../../packages/contracts/src/ads/page-entry";
+import { ASK_ADS_VIEW } from "../../packages/contracts/src/ask/context";
 
 /**
  * Campaigns › Ads in a workspace's preview, in a real browser. The node suite draws every part of this page on a stub React, and

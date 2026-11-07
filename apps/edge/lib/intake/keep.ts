@@ -31,7 +31,7 @@ export function signatureHeaders(request: Request, names: readonly string[]): Re
 /**
  * Keeps one verified delivery; a copy that could not be taken is said, never thrown. Answers whether it is kept (a
  * delivery the ledger already holds under that id is), for a door that must say where a delivery it could not take
- * went (sms-status.ts: Twilio sends a status callback once).
+ * went (sms/status.ts: Twilio sends a status callback once).
  */
 export async function keepDelivery(
   db: Db,

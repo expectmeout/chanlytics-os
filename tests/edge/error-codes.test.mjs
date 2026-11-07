@@ -47,7 +47,7 @@ const FORWARDED = {
   "apps/edge/lib/ops/ask-turn.ts": ["v.error"], // validateGatewayRequest's (ask-gateway.ts)
   "apps/edge/lib/shared/admin-auth.ts": ["`token_${v.reason}`"], // the token family (TOKEN, below)
   // connectAnswer's, chosenLocation's and bindFailedAnswer's, from profile-connection.ts
-  "apps/edge/lib/google/google-ops.ts": ["r.error", "r.error", "bound.error"],
+  "apps/edge/lib/google/ops.ts": ["r.error", "r.error", "bound.error"],
   "apps/edge/lib/google/listing-check.ts": ["error"], // a listing's read (CheckResult): Google's words
   "apps/edge/lib/google/profile-connection.ts": ["bound.error"], // bindLocation's
   "apps/edge/lib/google/profile-sync.ts": ["error"], // a sync's read (CheckResult): Google's words, or the token's

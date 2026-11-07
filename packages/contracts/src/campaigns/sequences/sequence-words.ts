@@ -23,7 +23,7 @@ import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceSte
 import { SEQUENCE_MODE_WORDS, isSequenceMode, type SequenceState } from "./sequence";
 import { heldByCheckWords, needsCount, needsWords, okSendsNothing } from "./sequence-list";
 import { sequenceRunOff, type RunOffReason } from "./sequence-run-off";
-import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
+import type { ReachOutFedBy } from "../reach-out/leads";
 
 /** The page's own words, said once. */
 export const SEQUENCE_WORDS = {

@@ -12,11 +12,11 @@
  *     sentence that lets it ask, so the two cannot drift.
  *
  * The question is asked on WhatsApp alone: a text carries no offers (deliver.ts), and the sign-up page offers the yes on
- * WhatsApp only (consent-page.ts). The prompt names WhatsApp for every conversation it is composed for, a text
+ * WhatsApp only (consent/public-page.ts). The prompt names WhatsApp for every conversation it is composed for, a text
  * included (it rides the same road), so the conversation's channel is said in the facts as well, and the sentence that
  * lets the receptionist ask is never said on a text or a call.
  */
-import { yesCovers } from "../../consent/consent-channels";
+import { yesCovers } from "../../consent/channels";
 import { STOP_ENDED_OFFERS_SOURCE } from "../../people/person-consent";
 import { clockDate } from "../../shared/clock";
 import { OFFERS_OPT_IN_PHRASES } from "../../shared/enums";
@@ -91,7 +91,7 @@ export function offersFacts(
  * A START is a yes to messages about their own visit and nothing more, so a person who had offers before they stopped
  * would otherwise wait for news that no longer comes. The confirmation says so, with the phrase that turns offers
  * on again (the inbound path records it as their own yes). On WHATSAPP ALONE: the texting line's confirmation is the
- * campaign's filed opt-in message, word for word (consent-page.ts optInConfirmation), and offers are never offered on
+ * campaign's filed opt-in message, word for word (consent/public-page.ts optInConfirmation), and offers are never offered on
  * that line (30896). Nothing for a person who never said yes, who was asked and did not answer, or who said no: the
  * receptionist's own ask is once (offersAskRule), and this is not a second one. It is said on each START while the
  * ended yes is the answer on their row, and no longer once they answer about offers again. The sentence holds the

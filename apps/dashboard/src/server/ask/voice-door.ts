@@ -15,7 +15,7 @@ import type { Database, VoiceSessionRow } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
-import { isRetryableAuthError } from "../auth/auth-errors";
+import { isRetryableAuthError } from "../auth/errors";
 import { verifyBearer } from "../auth/bearer";
 import { takeRate } from "../shared/rate-limit";
 import type { Member } from "../shared/route";

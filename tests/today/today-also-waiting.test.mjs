@@ -1,5 +1,5 @@
 /**
- * What the queue holds besides the people who asked for a person, said once (contracts today-bands.ts
+ * What the queue holds besides the people who asked for a person, said once (contracts today/bands.ts
  * todayAlsoWaiting), and the head's last rung over it (todayHeadline).
  *
  * The head said "Nothing needs you" above a queue that said "1 Need you": a search waiting on an answer is in the
@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { todayAlsoWaiting, todayHeadline } = await importSrc("packages/contracts/src/today/today-bands.ts");
+const { todayAlsoWaiting, todayHeadline } = await importSrc("packages/contracts/src/today/bands.ts");
 
 /** A day nobody asked for a person on: three messages from two people and a call, all answered by the receptionist. */
 const calm = (period = {}) => ({

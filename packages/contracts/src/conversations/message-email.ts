@@ -78,7 +78,7 @@ const readStrict = (bytes: Uint8Array): string =>
  * sender that labels a UTF-8 part as Latin-1, or encoded its words twice, gives an email this; the import kept three
  * such, which People then said as their last words (27 Oct 2026). Only a run that is whole UTF-8 once read back as
  * bytes is changed, so a word truly written in Latin-1 ("café") stays as it is. The mailbox's import repairs what it
- * reads (channels mailbox-read.ts), and an email's parts repair what was kept before it did: a message's words never
+ * reads (channels mailbox/read.ts), and an email's parts repair what was kept before it did: a message's words never
  * change once written (00486's guard), so the three are said right without being rewritten.
  */
 export function repairMojibake(text: string): string {

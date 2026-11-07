@@ -1,6 +1,6 @@
 import { ReceptionistManyBody } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/shared/route";
-import { setReceptionistMany } from "@/server/people/people-many";
+import { setReceptionistMany } from "@/server/people/many";
 
 /**
  * PUT /api/v1/contacts/receptionist -- { ids, mode }

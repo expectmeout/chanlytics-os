@@ -4,8 +4,8 @@
  * (dealStepOf), which its card says.
  */
 import { foldName } from "../../calendar/service-offer";
-import { visitDay } from "../../calendar/calendar-people";
-import { visitStateOf } from "../../calendar/calendar-words";
+import { visitDay } from "../../calendar/people";
+import { visitStateOf } from "../../calendar/words";
 import { clockDate } from "../../shared/clock";
 import { DEAL_LINE_NONE, DEAL_STAGE_WORDS } from "../deal-words";
 import type { DealVM } from "../deal-vm";

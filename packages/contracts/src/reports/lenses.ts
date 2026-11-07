@@ -2,7 +2,7 @@
  * Reports' lenses (the reports-lenses spec, §6): one page, a lens to each thing the business runs, each at its own address,
  * `/w/<slug>/reports/<lens>` and the Overview at `/w/<slug>/reports`. This is the one table every list of them is read from:
  * the frame's strip and the route's `takes` (the dashboard's surfaces/reports/chrome.ts), the palette's jumps and Ask's page
- * routes (ask/ask-jump.ts, ask/citations.ts). Six lenses are drawn; a lens joins here in the change that draws its first tile
+ * routes (ask/jump.ts, ask/citations.ts). Six lenses are drawn; a lens joins here in the change that draws its first tile
  * (Calendar, Usage and Leads each in phase C), so no row stands for a lens that is not there. A lens that exists and is not
  * shown to a workspace draws its `empty` at its address, never a not-found: Ask and ⌘K may link it. Ads (11 Oct 2026) is shown
  * where the workspace has ads (`ads_on`: a demo session until the wiring lane reads the workspace's connected ad accounts,

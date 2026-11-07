@@ -4,7 +4,7 @@ import { providerFetch } from "../shared/provider-fetch";
  * The lead finder's provider, over its HTTP API (https://docs.apify.com/api/v2).
  *
  * No SDK: six documented calls, each pinned to its shape, with fetch handed in
- * so every test runs without a network (google-places.ts's pattern). The token
+ * so every test runs without a network (google/places.ts's pattern). The token
  * travels in a header, never in a URL. A 429 or a 5xx, or no answer at all,
  * throws ApifyRetryable, and the jobs ledger's own waits retry the job
  * (RETRY_WAITS_MS); any other 4xx throws ApifyRefused, which is an answer.

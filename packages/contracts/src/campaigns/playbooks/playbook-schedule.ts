@@ -27,7 +27,7 @@ export function campaignEnded(p: { until?: string | null }, day: string): string
  * business's today). THE rule every page and Ask ask of a campaign: Sent's week ahead, the
  * Library's "sends", Run now, Today's day strip, People's follow-up and Ask's rows, which each tested `state` alone and said a
  * campaign past its last day was still on (the wiring's second audit, S1-3). The home's cards say why one runs nothing
- * (lifecycle-inputs.ts cardReadOf), from the same two facts.
+ * (lifecycle/inputs.ts cardReadOf), from the same two facts.
  */
 export function campaignRunsOn(
   p: { state: string; trigger: string; until?: string | null },
@@ -192,7 +192,7 @@ export function nextRunLabel(
  * where its hour has come and today's run is not made yet (the clock's next tick makes it: "within the hour"). Today at
  * its hour while that is ahead; today and soon once the hour has come, the sending hours are still open and today's run
  * has not been made; tomorrow at its hour otherwise. THE rule, which the card's label (nextRunLabel) and Coming up's
- * line (lifecycle-tiles.ts) are both said from. The line used to parse the label's words back into a time, and a label
+ * line (lifecycle/tiles.ts) are both said from. The line used to parse the label's words back into a time, and a label
  * it could not read dropped the moment from the week without a trace.
  */
 export function nextRunOf(

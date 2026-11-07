@@ -7,7 +7,7 @@ import {
 } from "../workspace/activity";
 
 /**
- * The activity log, read the way the bell reads its notes (today/today-away.ts bellSections): rows of one kind by one
+ * The activity log, read the way the bell reads its notes (today/away.ts bellSections): rows of one kind by one
  * hand on one day are said once, where the newest of them stood, and open with a press.
  *
  * On the owner's own log a hundred lines in one minute read "Ruben Segura · Listened to a call's recording", every one

@@ -6,12 +6,12 @@ import { audienceMembers, type CampaignHow, saidYesOnAny } from "../broadcasts/b
 import { reachFor } from "../broadcasts/reach-for";
 import { heardWithin } from "../broadcasts/run-words";
 import { POLICY_CLASS_WORDS } from "../../config/workspace-config/policy-classes";
-import { visitDateKey, type MatchVia, type PersonVisitsDto, type VisitDto } from "../../calendar/calendar-people";
+import { visitDateKey, type MatchVia, type PersonVisitsDto, type VisitDto } from "../../calendar/people";
 import { dayPlusInZone } from "../../calendar/zone-math";
-import { fullNameKey } from "../../calendar/visit/visit-service";
+import { fullNameKey } from "../../calendar/visit/service";
 import { purposeOfPlaybook } from "../../consent/consent";
 import type { DealPaceVM } from "../../deals/deal-waits";
-import { NO_CHANNEL_REACH, saidYesWords } from "../../people/people-lists";
+import { NO_CHANNEL_REACH, saidYesWords } from "../../people/lists/list-page";
 import { GET_YES_ROUTE } from "../../people/lists/people-route";
 import type { PersonRowVM } from "../../people/person-row";
 
@@ -21,7 +21,7 @@ import { DAY_MS } from "./playbook-time";
 import { HOUR_MS } from "../../shared/time";
 import { type PlaybookPolicyClass, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
-import type { ConsentChannel } from "../../consent/consent-channels";
+import type { ConsentChannel } from "../../consent/channels";
 
 /**
  * Where the Playbooks route counts one playbook on its own, in its `pools`: when its message is stricter than its

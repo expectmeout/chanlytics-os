@@ -11,8 +11,8 @@
  */
 import { ASK_MEMORY_WORDS } from "../../ask/memory/memory";
 import { CONSENT_LIST_IDS } from "../broadcasts/broadcast-audience";
-import type { ConsentChannel } from "../../consent/consent-channels";
-import { REACH_OUT_AFTER_DAYS, REACH_OUT_STEPS_MAX } from "../reach-out/reach-out-words";
+import type { ConsentChannel } from "../../consent/channels";
+import { REACH_OUT_AFTER_DAYS, REACH_OUT_STEPS_MAX } from "../reach-out/words";
 import type { ParamSourceKind, ParamSpec } from "../templates/templates";
 import { FOLLOW_UP_CONDITIONS, type FollowUpCondition } from "./follow-up";
 import type { SequenceMode } from "./sequence";

@@ -31,7 +31,7 @@ import { industryWords } from "./a2p-enums";
 import { ABOUT_MIN, type BusinessRecordDto } from "./business-record";
 import { notFoundPageMetadata, type PublicPageMetadata } from "../shell/chrome";
 import { takesSignUps, type OpenToCustomers } from "../workspace/billing";
-import { notTakingSignUps } from "../consent/consent-page";
+import { notTakingSignUps } from "../consent/public-page";
 
 /**
  * The clauses every carrier review looks for, word for word.

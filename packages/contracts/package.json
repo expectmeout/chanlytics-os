@@ -31,10 +31,10 @@
       "default": "./src/reports/report-lens.ts"
     },
     "./ads-page": {
-      "types": "./src/ads/ads-page.ts",
+      "types": "./src/ads/page-entry.ts",
       "bundled": "./dist/ads-page.js",
-      "import": "./src/ads/ads-page.ts",
-      "default": "./src/ads/ads-page.ts"
+      "import": "./src/ads/page-entry.ts",
+      "default": "./src/ads/page-entry.ts"
     },
     "./alert-pane": {
       "types": "./src/alert-pane.ts",

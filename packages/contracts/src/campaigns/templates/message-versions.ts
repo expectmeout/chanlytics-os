@@ -161,7 +161,7 @@ export interface EmailIssue<Extra extends string = never> {
 /**
  * What a kind of email keeps to: the slots it fills, whether it has a subject, how long each half may be, anything it
  * asks of its words beyond that, and its own sentences for what is wrong. A campaign message's rules are
- * campaignEmailRules; a reach-out's are reachOutRules (reach-out-words.ts). One check reads them all (emailIssues). Its
+ * campaignEmailRules; a reach-out's are reachOutRules (reach-out/words.ts). One check reads them all (emailIssues). Its
  * three functions are methods, so a page that holds the rules of either kind holds them as `EmailRules<string>`.
  */
 export interface EmailRules<Extra extends string = never> {
@@ -400,7 +400,7 @@ export function versionsOf<T extends { name: string; channel: string }>(
 
 /**
  * The states of a message's version a send can go by: approved, or in WhatsApp's review (a campaign by email too holds
- * its WhatsApp people until it is approved). What a plan reuses a message by (contracts ask/plan.ts, journey-plan.ts).
+ * its WhatsApp people until it is approved). What a plan reuses a message by (contracts ask/plan.ts, journey/plan.ts).
  */
 export const LIVE_VERSION_STATES: ReadonlySet<string> = new Set(["approved", "pending"]);
 

@@ -24,7 +24,7 @@ export type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
 /**
  * A promise that answers how it settled, and never rejects: one read among several that may refuse is weighed after the
- * rest (workspace-list.ts), and a read asked early is judged where its answer is used, in the words it always failed
+ * rest (workspace/list.ts), and a read asked early is judged where its answer is used, in the words it always failed
  * in, never as a rejection nobody was waiting for (campaigns/playbook-pools.ts poolReads).
  */
 export const settled = <T>(p: PromiseLike<T>): Promise<Settled<T>> =>

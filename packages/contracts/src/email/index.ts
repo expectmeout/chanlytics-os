@@ -1,8 +1,6 @@
 /** Email: the workspace's own address, the free-mail providers, and the mailboxes it writes from (decision 0056). */
 export { coldEmailOf } from "./cold-email";
 export type { ColdEmail } from "./cold-email";
-export { firstSubject, oneLine, posesAsReply, replySubject } from "./email-subject";
-export { emailTextOf } from "./email-text";
 export { isFreeMail } from "./free-mail";
 export {
   EMAIL_ELSEWHERE_SENTENCE,
@@ -106,3 +104,5 @@ export {
   senderReadingSystem,
 } from "./sender-reading";
 export type { SenderFacts, SenderKind, SenderReading } from "./sender-reading";
+export { firstSubject, oneLine, posesAsReply, replySubject } from "./subject";
+export { emailTextOf } from "./text";

@@ -11,7 +11,7 @@ import {
   personBundle,
   workspaceBundle,
   type BundleReaders,
-} from "@/server/export/export-bundle";
+} from "@/server/export/bundle";
 import { personSections, workspaceSections } from "@/server/export/workspace-sections";
 import { recordDecision } from "@/server/shared/verbs";
 import { log } from "@/server/shared/log";

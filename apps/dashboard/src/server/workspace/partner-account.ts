@@ -39,7 +39,7 @@ import {
   resendHandover,
 } from "@chanlytics/db";
 import { requireUuid } from "@/server/shared/request-guards";
-import { workspaceBegun } from "@/server/workspace/workspace-create";
+import { workspaceBegun } from "@/server/workspace/create";
 import { handoverRefusal, sendHandoverInvite } from "@/server/workspace/handover";
 import type { Params } from "@/server/shared/route";
 import type { z } from "zod";

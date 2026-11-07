@@ -1146,8 +1146,8 @@ test("the words: four states, no jargon, no trade", () => {
   const src =
     [
       "packages/contracts/src/setup/setup.ts",
-      "packages/contracts/src/setup/setup-rows.ts",
-      "packages/contracts/src/setup/setup-rows-phone.ts",
+      "packages/contracts/src/setup/rows.ts",
+      "packages/contracts/src/setup/rows-phone.ts",
     ]
       .map((f) => readCode(f))
       .join("\n") +

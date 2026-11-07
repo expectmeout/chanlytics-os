@@ -26,7 +26,7 @@ import {
 import { peopleWithEarlierVisits, recordOver } from "@chanlytics/db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { lazily, type Lazy } from "@/server/shared/lazy";
-import { calendarOf } from "./calendar-settings";
+import { calendarOf } from "./settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
 import { log } from "@/server/shared/log";
 
@@ -207,7 +207,7 @@ export async function withVisits(
 }
 
 /**
- * The board's People rows with their visits (calendar-week.ts), attached as the list attaches them (peopleVisitsOf,
+ * The board's People rows with their visits (calendar/week.ts), attached as the list attaches them (peopleVisitsOf,
  * withVisitsOf), and who of them comes in today or tomorrow for the first visit the record holds of theirs: none over in
  * the season, and none before it (packages/db peopleWithEarlierVisits). What Today's day says under who is coming ("Last
  * here Aug 12", "First visit"; calendar-person-facts.ts). A record that could not be read leaves the rows as they were and

@@ -113,7 +113,7 @@ export const listSpec: ProposalSpec = {
 
 /**
  * People on or off a list kept by hand: the person page's list picker ticks one, a selection puts many on (the sheets
- * as verbs, 14 Oct 2026). One part of the route's at a time (people-lists.ts sends a big selection in turns). Its undo
+ * as verbs, 14 Oct 2026). One part of the route's at a time (lists/list-page.ts sends a big selection in turns). Its undo
  * puts back what it changed and nothing else: the people already on the list were never in `add`.
  */
 export const listMemberSpec: ProposalSpec = {

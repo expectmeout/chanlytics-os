@@ -1,5 +1,5 @@
 /**
- * The People lens's record, EXECUTED: the shape the route answers (contracts reports/people/people-record.ts) -- the
+ * The People lens's record, EXECUTED: the shape the route answers (contracts reports/people/record.ts) -- the
  * database's own answer (people_series, 00395), the guard that tells it from `{ error }`, and the one builder that puts it
  * beside the book as it stands now. The window comes from the database, the book from the pool (people-pool.test.mjs
  * holds the counts); each half stands without the other, since a database with no people_series yet still has a book, and

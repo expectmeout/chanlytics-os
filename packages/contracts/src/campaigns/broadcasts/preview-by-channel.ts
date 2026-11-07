@@ -6,7 +6,7 @@
  * (campaigns/templates/email-foot.ts: the one the send puts on the wire, in the version's language). The To line says the split
  * as one short clause, and the bar draws it. Pure: every sentence the composers say of this is here.
  */
-import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../../consent/channels";
 import { customerEmailFoot } from "../templates/email-foot";
 import {
   OWN_VERSION_CHANNELS,

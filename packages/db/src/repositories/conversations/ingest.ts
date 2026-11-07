@@ -142,7 +142,7 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
       failed.push(`${event}: ${error}`);
     }
   };
-  // A START is a yes on the channel it came on (contracts consent-channels.ts): see keepYesOnChannel. After the ingest,
+  // A START is a yes on the channel it came on (contracts consent/channels.ts): see keepYesOnChannel. After the ingest,
   // using the contact it returned.
   if (p.optIn) await attempt("consent_channel_write_failed", () => keepYesOnChannel(db, p, out));
   if (p.optInMarketing) await attempt("marketing_consent_write_failed", () => keepOffersYes(db, p, out));
@@ -382,7 +382,7 @@ export interface OutboundTarget extends PurposeBearing {
   // whole compiled, read `marketing_consent` as absent, and failed CLOSED: every
   // promotion silently refused, with no error anywhere to say why.
   marketing_consent: string | null;
-  /** The channels each yes covers, as the database keeps them (contracts consent-channels.ts); null: WhatsApp alone. */
+  /** The channels each yes covers, as the database keeps them (contracts consent/channels.ts); null: WhatsApp alone. */
   consent_channels: string[] | null;
   marketing_channels: string[] | null;
   /** A human has this thread until then. Carried for the same reason consent

@@ -933,7 +933,7 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // old place's reviews forgotten), unlink, refresh, and the two events --
   // runs in google-door.test.mjs. The library is modules: the key's, the check's and the profile's sync. The
   // bell each of them rings, and the lens it opens, run there and in cron-doors-b.test.mjs.
-  const lib = ["google-config", "listing-check", "profile-sync"]
+  const lib = ["config", "listing-check", "profile-sync"]
     .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
     .join("\n");
   assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));

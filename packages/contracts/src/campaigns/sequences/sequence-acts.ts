@@ -3,13 +3,13 @@
  * each offered or not with why, read by the page and by Ask's cards alike; the head's words past its one act (decision
  * 0060; the parity review of 15 Oct 2026), and Turn on asked first, as a campaign's Resume is (decision 7, the wiring's
  * second audit S9-2). Pure: the clock is an argument, and Turn on's when and how many are said by the rule the home's rows
- * say a Resume by (lifecycle-tiles.ts resumeDetailOf), over the record's first step and its reach.
+ * say a Resume by (lifecycle/tiles.ts resumeDetailOf), over the record's first step and its reach.
  *
  *   sequenceActsOf      every act of the head at once: { ok: true }, or { ok: false, because, instead? }
  *   SEQUENCE_ACT_WHY    each reason in a person's words (the model says them in the turn's own language)
  */
-import { resumeDetailOf } from "../playbooks/lifecycle/lifecycle-tiles";
-import { LIFECYCLE_WORDS } from "../playbooks/lifecycle/lifecycle-words";
+import { resumeDetailOf } from "../playbooks/lifecycle/tiles";
+import { LIFECYCLE_WORDS } from "../playbooks/lifecycle/words";
 import { campaignRunsOn } from "../playbooks/playbook-schedule";
 import { triggerOf } from "../playbooks/playbook-triggers";
 import type { SequenceReachDto, SequenceRecordDto, SequenceRowDto } from "./sequence-dto";

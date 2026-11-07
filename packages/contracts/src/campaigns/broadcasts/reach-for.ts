@@ -18,7 +18,7 @@
 import { isOfferByEmail, type AskedPurpose, type MessageAbout, type SendPurpose } from "../../consent/consent";
 import { dayInZone } from "../../calendar/zone-math";
 import { wallClockAt } from "../../shared/clock";
-import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import type { WrittenChannel } from "../../conversations/thread-channel";
 import { type NotReceived, type ReceiveRow, whyNotReceive } from "../../people/person-consent";
 import { triggerOf } from "../playbooks/playbook-triggers";

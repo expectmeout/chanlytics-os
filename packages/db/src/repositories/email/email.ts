@@ -14,11 +14,11 @@
  *   what a reply answers   lastInboundEmail (the person's latest email on one thread) and answeredReachOutEmail (the
  *                          reach-out email a reply answers), read for the dashboard's reply routes on the member's
  *                          client (apps/dashboard/src/server/ports/core-ports.ts, connections/email.ts).
- *   what became of a sent  the provider's receipts, applied by apps/edge/lib/email/email-receipts.ts: stampEmailSent,
+ *   what became of a sent  the provider's receipts, applied by apps/edge/lib/email/receipts.ts: stampEmailSent,
  *   email                  sentEmailOf, recordEmailStatus, stampEmailComplaint, recordEmailNo and suppressEmailOf.
  *                          stampEmailLeftAs is written by core's deliver() after an email leaves.
  *   one of unknown outcome emailFoundSent and emailNeverLeft, a mailbox's sent mail looked in for an email whose send
- *                          timed out (the edge's mailbox-reconcile.ts).
+ *                          timed out (the edge's mailbox/reconcile.ts).
  *
  * Taking an email in goes through ingest_inbound, the atomic gate every channel uses (one advisory lock per identity,
  * one replay gate on the provider's id), with the sender's address as the identity; it is not recreated to learn a
@@ -536,7 +536,7 @@ export async function suppressEmailOf(
 }
 
 /**
- * An email a mailbox may have sent, settled (decision 0056; the edge's mailbox-reconcile.ts): a send whose provider
+ * An email a mailbox may have sent, settled (decision 0056; the edge's mailbox/reconcile.ts): a send whose provider
  * call timed out is recorded failed with its outcome unknown (core deliver.ts), and no receipt comes from a mailbox.
  * Each move is made only from failed with the outcome unknown, which messages_guard (00326) lets move to sent; a row a
  * receipt settled meanwhile is not touched. True when it moved.

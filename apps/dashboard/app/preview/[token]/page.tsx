@@ -8,7 +8,7 @@ import { PreviewPage } from "@/surfaces/preview/preview-page";
  * A lead's own receptionist, before they sign up (decision 0079): the page a cold email's `{{their preview}}` link
  * opens, by its token alone (src/server/public/preview-page.ts reads it on the service role). Public by the proxy's
  * `/preview/` prefix, which says on what terms; a token that names nothing is Not found before this renders
- * (public-page-gate.ts), and notFound() here is the floor.
+ * (public/page-gate.ts), and notFound() here is the floor.
  *
  * NOT INDEXED, and it sends no referrer: the token is the link's whole authority, so nothing on the page should carry it
  * anywhere. Its title is the business's, as a link preview reads it.

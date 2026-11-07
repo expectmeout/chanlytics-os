@@ -2205,7 +2205,7 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
 });
 
 test("a new list may be described: the assistant drafts a rule, the box shows its chips, who it holds for and what it left out, and Save makes the smart list", async () => {
-  // The lists' verbs are the module's own (people-lists.ts), so the draft goes over the wire it would go over, and who the
+  // The lists' verbs are the module's own (lists/list-page.ts), so the draft goes over the wire it would go over, and who the
   // rule holds for is counted by the real rule over the people the page has read: three of these four were last here
   // more than sixty days ago, on a calendar that reads. Sixty-two, never sixty-one: the rule counts the business's calendar
   // days, and 61 × 24 hours back across a clock change is sixty of them (it failed on 2 Nov 2026, the day after one).

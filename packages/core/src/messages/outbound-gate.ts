@@ -52,7 +52,7 @@ interface OutboundFacts {
    * asking to be texted, and the reason that send does not need a prior opt-in.
    */
   proactive: boolean;
-  /** The channel the message would go out on: a yes covers the channels it was given for (consent-channels.ts). */
+  /** The channel the message would go out on: a yes covers the channels it was given for (consent/channels.ts). */
   channel: string;
   /**
    * What the message is about (contracts MessageAbout, decision D1): the receptionist's are theirs (the call they are

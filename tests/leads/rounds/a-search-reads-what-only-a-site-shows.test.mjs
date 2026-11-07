@@ -24,7 +24,7 @@ import { LEAD_SITE_FACT_MAX, LEAD_SITE_READ_USD } from "../../../packages/contra
 import { estimateRoundUsd } from "../../../packages/contracts/src/leads/search/cards.ts";
 import { planReadsSites } from "../../../packages/contracts/src/leads/search/plan.ts";
 import { LeadSearchPlanSchema } from "../../../packages/contracts/src/leads/search/plan-schema.ts";
-import { searchCardView } from "../../../packages/contracts/src/leads/search/search-card.ts";
+import { searchCardView } from "../../../packages/contracts/src/leads/search/card.ts";
 import { leadPlanFactLine } from "../../../packages/contracts/src/leads/lead-plan.ts";
 import { planLeadSearch } from "../../../packages/contracts/src/leads/lead-plan-schema.ts";
 import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";

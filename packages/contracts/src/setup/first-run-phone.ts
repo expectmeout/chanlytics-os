@@ -37,7 +37,7 @@ import {
   type SetupState,
   type SetupVM,
 } from "./setup";
-import { FORWARDING_WAIT_WORDS } from "./setup-put-off";
+import { FORWARDING_WAIT_WORDS } from "./put-off";
 
 /**
  * `choose` is Where it answers' (decision 0073): the ways, the number, nothing bought. `go` is Go live's press before the

@@ -1,5 +1,5 @@
 /**
- * An offer's plan, said to the person in the question's language (PlanWorld.says), as a setup's is (journey-plan.ts):
+ * An offer's plan, said to the person in the question's language (PlanWorld.says), as a setup's is (journey/plan.ts):
  * contracts planOf (ask/plan.ts) makes the steps, and these are the sentences of its answer's detail, which answerForCards
  * cuts at 700 characters, so what no card carries comes first there. Each language says the same sentences: the channel
  * the offer goes without and why, the message reused or written, the receptionist's note, the month's offer paused, the

@@ -27,7 +27,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { sessionHoldsPartnerSeat, type Database } from "@chanlytics/db";
 import { isSameOrigin } from "./request-guards";
 import { bearerOf, verifyBearer } from "../auth/bearer";
-import { isRetryableAuthError } from "../auth/auth-errors";
+import { isRetryableAuthError } from "../auth/errors";
 import { serverTimingHeader, touchedLine, TOUCHES_ALL_HEADER } from "./server-timing";
 import { REQUEST_ID_HEADER, requestId, requestIdOf, requestTimings, requestTouches } from "@chanlytics/channels";
 import { log, noteTenant, withRequestId } from "./log";

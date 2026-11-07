@@ -17,7 +17,7 @@
  * nothing typed into Retell is spoken, since begin_message is this variable.
  *
  * Contracts' since the first run shows the owner the sentence their receptionist
- * will say (first-run.ts); the voice shell (packages/channels voice-shell.ts)
+ * will say (first-run.ts); the voice shell (packages/channels voice/shell.ts)
  * re-exports it, so the phone and the page say one sentence.
  */
 export function greetingFor(name: string | null, assistant: string | null = null): string {

@@ -3,7 +3,7 @@
  * -- run with what a knock carries: the shared secret, Retell's signature, both, neither. Retell's signature opens
  * every door on its own, over the raw body or the body as Retell's example re-serialises it, as it does the webhook.
  * The secret opens a door only where that door says it still reads one (the URL for inbound, a header for the two
- * tools; lib/voice/voice-door-auth.ts lists them and why), compared in constant time, and each knock that comes in
+ * tools; lib/voice/door-auth.ts lists them and why), compared in constant time, and each knock that comes in
  * logs whether it was signed; with RETELL_DOORS_SIGNED=1 no door reads the secret at all.
  */
 import { test, after } from "node:test";
@@ -200,7 +200,7 @@ for (const door of ["inbound", "fn", "availability"]) {
 }
 
 test("the webhook checks the signature the same one way (retellSigned), and still takes nothing but the signature", async () => {
-  const { retellSigned } = await import(at("apps/edge/lib/voice/voice-door-auth.ts"));
+  const { retellSigned } = await import(at("apps/edge/lib/voice/door-auth.ts"));
   const raw = '{"event":"call_ended","call":{"call_id":"c\\u00e91"}}';
   assert.deepEqual(retellSigned(raw, sign(raw)), { ok: true, raw: true, restringified: true });
   assert.deepEqual(retellSigned(raw, sign(JSON.stringify(JSON.parse(raw)))), {

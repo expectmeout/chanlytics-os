@@ -10,7 +10,7 @@
  */
 import { allowanceBeforeSend, type MonthSent } from "../broadcasts/reach-for";
 import type { SendPurpose } from "../../consent/consent";
-import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/consent-channels";
+import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import type { RunReach } from "./playbook-reach";
 import { triggerOf } from "./playbook-triggers";
 

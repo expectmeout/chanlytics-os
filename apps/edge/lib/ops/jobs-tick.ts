@@ -23,7 +23,7 @@ import { whatsappWireForTenant } from "../shared/tenant-runtime.js";
 import { instagramWireForTenant } from "../instagram/credentials.js";
 import { smsSenderForTenant, smsWire } from "../sms/sms.js";
 import { emailBoundFor, emailIntake } from "../email/email.js";
-import { mailboxIntake } from "../email/mailbox/mailbox-intake.js";
+import { mailboxIntake } from "../email/mailbox/intake.js";
 import { historyImports } from "../imports/history-import.js";
 import { websiteReader } from "../imports/website-read.js";
 import { fileJobs } from "../files/upkeep.js";

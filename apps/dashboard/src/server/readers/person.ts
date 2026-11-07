@@ -35,7 +35,7 @@ import {
   toCallDto,
   toConversationDto,
 } from "../conversations/dto";
-import { personLike } from "../calendar/calendar-week";
+import { personLike } from "../calendar/week";
 import { signedByThreadOf, signedFirstOf } from "../connections/email";
 import { personVisits } from "../calendar/person-visits";
 import { personRuns } from "../campaigns/broadcasts";

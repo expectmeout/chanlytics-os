@@ -13,7 +13,7 @@
  * address to be written to, so nothing arrives and nothing is answered.
  *
  * A workspace's wire (emailWireFor) sends as its hosted mailbox on the platform's account and as each mailbox the
- * business connected through that mailbox's own provider (decision 0056, mailbox/mailbox-wire.ts), never as another
+ * business connected through that mailbox's own provider (decision 0056, mailbox/wire.ts), never as another
  * workspace's address; a connected mailbox that does not send now has no route, and a read of them that fails is a
  * wire not bound, so a send waits. The intake (emailIntake) hands the job runner the fetch, the erasure check and the
  * owner's note, and emailWaitingMessage is that note's words.
@@ -28,7 +28,7 @@ import { erasedBeforeEmail } from "../shared/erased.js";
 import { notify, type NotifyMessage } from "../ops/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import type { CampaignsBinding, CampaignsLane } from "./campaigns-domain.js";
-import { ownRoutesFor } from "./mailbox/mailbox-wire.js";
+import { ownRoutesFor } from "./mailbox/wire.js";
 import { logger, errField, type Logger } from "../shared/log.js";
 import { env } from "../shared/env.js";
 

@@ -17,7 +17,7 @@ import { clockDate, clockTime, localDaysBetween } from "../../shared/clock";
 import { HOUR_MS, MIN_MS, dateFormat } from "../../shared/time";
 import { plural } from "../../shared/words";
 import { BOOKING_DEFAULTS, freeWindows, hasHours, openAt, type BookingRulesLike } from "../availability";
-import { sameVisitStart } from "../calendar-people";
+import { sameVisitStart } from "../people";
 import type { BusyBlock } from "../feed";
 import { clockInZone, dayInZone } from "../zone-math";
 

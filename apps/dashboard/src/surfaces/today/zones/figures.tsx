@@ -3,7 +3,7 @@
  * the customer messages ("31 of 34", which holds what the messages figure said), calls and new people, always the four.
  * Each with its receipt on a press, its clause and its door. On a desk they stand in the head's right (TodayHeadFigures);
  * on a phone in Today so far, near the page's end (foot.tsx). A count that could not be read is a dash, never a zero.
- * Every sentence is contracts' (today-figures.ts); this file draws them.
+ * Every sentence is contracts' (today/figures.ts); this file draws them.
  */
 import { useEffect, useState } from "react";
 import { TODAY_PHONE_WORDS, type TodayFigureId, type TodayFigureVM } from "@chanlytics/contracts";

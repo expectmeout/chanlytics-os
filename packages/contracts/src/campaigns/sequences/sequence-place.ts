@@ -10,8 +10,8 @@
  */
 import { clockDate, clockNear } from "../../shared/clock";
 import { capitalize, plural } from "../../shared/words";
-import type { ReachOutWhyNot } from "../reach-out/reach-out-leads";
-import { isReachOutHold } from "../reach-out/reach-out-words";
+import type { ReachOutWhyNot } from "../reach-out/leads";
+import { isReachOutHold } from "../reach-out/words";
 import { heldWhyOf } from "./sequence-held";
 import type { SequenceState } from "./sequence";
 import type {

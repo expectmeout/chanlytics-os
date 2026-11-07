@@ -34,7 +34,7 @@ export async function signedMediaUrl(tenantId: string, storagePath: string, seco
 
 /**
  * Signed URLs for many of this workspace's stored files at once, in the order asked (the owner's copy lists every file a
- * customer sent with one: export-bundle.ts). A path outside the workspace is never signed and answers null, as one the
+ * customer sent with one: export/bundle.ts). A path outside the workspace is never signed and answers null, as one the
  * store could not sign does: one bad path must not cost the copy every other link.
  */
 export async function signedMediaUrls(

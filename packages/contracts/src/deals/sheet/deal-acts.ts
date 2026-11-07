@@ -7,7 +7,7 @@
 import { DEAL_ACT_WORDS, type DealActId, type DealStage } from "../deal-words";
 import type { DealVM } from "../deal-vm";
 import { waitingOnProposal, type DealPaceVM } from "../deal-waits";
-import type { VisitMark } from "../../calendar/calendar-dto";
+import type { VisitMark } from "../../calendar/dto";
 import { consultationHappened, consultServiceOf, noProposalSince } from "../deal-consultations";
 import { EMAIL_CANT_REACH, mayReach, proposalAction, proposalMessage } from "../../people/person-reach";
 import type { ReplyVia } from "../../people/person-words";

@@ -14,9 +14,9 @@ import {
   type TokenGrant,
 } from "@chanlytics/channels";
 import { MIN_MS, type EdgeRefusal } from "@chanlytics/contracts";
-import { profileClient } from "./google-config.js";
+import { profileClient } from "./config.js";
 import { http } from "./places.js";
-import type { Db } from "./google-rows.js";
+import type { Db } from "./rows.js";
 
 /** An access token is refreshed this long before it expires. */
 const TOKEN_SLACK_MS = MIN_MS;
