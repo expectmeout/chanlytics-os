@@ -1,7 +1,8 @@
 /**
  * Photos on their way (apps/dashboard/src/surfaces/files/sending.ts and verbs.ts, decision 0099), bundled for node with
- * the dashboard's own React and run over a browser in memory. Three go at a time, a failed one stays with its picture and its
- * words until the person says, a twin leaves calmly, a dropped line is tried again, and the end is told once.
+ * the dashboard's own React and run over a browser in memory. Three go at a time, one that arrived stands where it is until the list
+ * has it, a failed one stays with its picture and its words until the person says, a twin leaves calmly, a dropped line is tried again,
+ * and the end is told once.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -16,6 +17,16 @@ import { until } from "../shared/_until.mjs";
 const DASHBOARD_MODULES = path.join(ROOT, "apps/dashboard/node_modules");
 
 const heard = {};
+let reads = 0;
+let readAnswers = async () => true;
+const theReadLands = async () => {
+  if (!(await readAnswers())) return;
+  reads += 1;
+  S.setSurfaceValue("files", {
+    dto: { files: [], shelf: "all", next: null, tally: { total: 0, kept: 0, waiting: 0, looking: 0, shelves: {} } },
+    fetchedAt: reads,
+  });
+};
 const win = {
   location: { pathname: "/w/harbor/admin/files", search: "", hash: "", assign() {} },
   sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -23,7 +34,8 @@ const win = {
   addEventListener: (t, fn) => (heard[t] ||= []).push(fn),
   removeEventListener() {},
   dispatchEvent: () => true,
-  __refreshSurface: async () => {},
+  // The read a run's end asks for: as a real one does, it lands in the surface's value, unless a test says otherwise.
+  __refreshSurface: async () => theReadLands(),
   fetch: async () => {
     throw new Error("nothing answers");
   },
@@ -47,6 +59,7 @@ const out = await build({
     contents:
       'export * from "../../apps/dashboard/src/surfaces/files/sending.ts";\n' +
       'export { fileVerbs } from "../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
+      'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tests/files"),
@@ -90,8 +103,11 @@ const toasts = [];
 const flash = (f) => toasts.push(f);
 const realAdd = S.fileVerbs.add;
 
+const handedOver = () => waitFor(() => !stateNow().photos.some((p) => p.state === "arrived"));
+
 beforeEach(async () => {
   toasts.length = 0;
+  readAnswers = async () => true;
   S.fileVerbs.add = realAdd;
   for (const p of stateNow().photos) S.takeAway(p.key);
   S.clearSaid();
@@ -103,7 +119,7 @@ function heldAdds() {
   S.fileVerbs.add = (f) => new Promise((resolve) => held.push({ name: f.name, resolve }));
   return held;
 }
-const KEPT = { kept: true, twin: false };
+const KEPT = { kept: true, twin: false, id: "a-file" };
 
 test("three go at a time, the rest wait their turn, and the next starts as one comes free", async () => {
   const held = heldAdds();
@@ -119,11 +135,16 @@ test("three go at a time, the rest wait their turn, and the next starts as one c
   assert.equal(stateNow().photos[3].picture, null, "only what is going holds a picture");
   held[0].resolve(KEPT);
   await waitFor(() => held.length === 4);
-  assert.equal(stateNow().photos.length, 4);
+  assert.deepEqual(
+    stateNow().photos.map((p) => p.state),
+    ["arrived", "sending", "sending", "sending", "waiting"],
+    "what arrived stands where it is, and the next goes",
+  );
   for (const h of held.slice(1)) h.resolve(KEPT);
   await waitFor(() => held.length === 5);
   held[4].resolve(KEPT);
   await waitFor(() => toasts.length === 1);
+  await handedOver();
   assert.equal(stateNow().photos.length, 0);
   assert.equal(toasts[0].msg, "5 photos added.");
   assert.equal(toasts[0].tone, undefined);
@@ -136,6 +157,7 @@ test("a failed photo stays with its picture and its words, and Try again sends o
   held[0].resolve({ kept: false, message: "That photo is too small to use." });
   held[1].resolve(KEPT);
   await waitFor(() => toasts.length === 1);
+  await handedOver();
   const [failed] = stateNow().photos;
   assert.equal(stateNow().photos.length, 1);
   assert.equal(failed.state, "failed");
@@ -151,6 +173,7 @@ test("a failed photo stays with its picture and its words, and Try again sends o
   assert.equal(goneUrls.length, gone + 1, "its old picture let go");
   held[2].resolve(KEPT);
   await waitFor(() => toasts.length === 2);
+  await handedOver();
   assert.equal(stateNow().photos.length, 0);
 });
 
@@ -173,7 +196,118 @@ test("Try all sends every failed one, Remove takes one off the page, and each le
   );
   for (const h of held.slice(3)) h.resolve(KEPT);
   await waitFor(() => toasts.length === 2);
+  await handedOver();
   assert.equal(stateNow().photos.length, 0);
+});
+
+test("a batch stays whole to its end: nothing goes until the read that ends it has landed, where a first add once said it held nothing", async () => {
+  const held = heldAdds();
+  let answer;
+  readAnswers = () =>
+    new Promise((resolve) => {
+      answer = resolve;
+    });
+  S.addPhotos([photo("a.jpg"), photo("b.jpg")], flash);
+  await waitFor(() => held.length === 2);
+  held[0].resolve({ kept: true, twin: false, id: "file-a" });
+  held[1].resolve({ kept: true, twin: false, id: "file-b" });
+  await waitFor(() => toasts.length === 1);
+  await waitFor(() => answer);
+  assert.deepEqual(
+    stateNow().photos.map((p) => [p.state, p.id]),
+    [
+      ["arrived", "file-a"],
+      ["arrived", "file-b"],
+    ],
+    "the toast has said so and the list isn't in: each still stands, as the file it became",
+  );
+  assert.equal(stateNow().finished, 0);
+  answer(true);
+  await handedOver();
+  assert.equal(stateNow().photos.length, 0);
+});
+
+test("a read that failed leaves what arrived standing, since it is true, and is asked again", async (t) => {
+  quickly(t);
+  const held = heldAdds();
+  let asked = 0;
+  let onTheSecondAsk = null;
+  readAnswers = async () => {
+    asked += 1;
+    if (asked === 1) return false;
+    onTheSecondAsk = stateNow().photos[0]?.state;
+    return true;
+  };
+  S.addPhotos([photo("a.jpg")], flash);
+  await waitFor(() => held.length === 1);
+  held[0].resolve({ kept: true, twin: false, id: "file-a" });
+  await waitFor(() => asked === 2 && stateNow().photos.length === 0);
+  assert.equal(onTheSecondAsk, "arrived", "it stood through the read that failed");
+});
+
+test("a read that never lands stops asking, and what arrived goes with the next run's", async (t) => {
+  quickly(t);
+  const held = heldAdds();
+  let asked = 0;
+  readAnswers = async () => {
+    asked += 1;
+    return false;
+  };
+  S.addPhotos([photo("a.jpg")], flash);
+  await waitFor(() => held.length === 1);
+  held[0].resolve({ kept: true, twin: false, id: "file-a" });
+  await waitFor(() => asked === 3);
+  assert.equal(stateNow().photos.length, 1, "it goes on standing");
+  readAnswers = async () => true;
+  S.addPhotos([photo("b.jpg")], flash);
+  await waitFor(() => held.length === 2);
+  held[1].resolve({ kept: true, twin: false, id: "file-b" });
+  await handedOver();
+  assert.equal(stateNow().photos.length, 0);
+});
+
+test("one that arrived lets its full-size picture go as the server's comes in, once", async () => {
+  const held = heldAdds();
+  S.addPhotos([photo("a.jpg")], flash);
+  await waitFor(() => held.length === 1);
+  readAnswers = () => new Promise(() => {});
+  held[0].resolve({ kept: true, twin: false, id: "file-a" });
+  await waitFor(() => stateNow().photos[0]?.state === "arrived");
+  const [{ key, picture }] = stateNow().photos;
+  assert.ok(picture, "its own stands until then, so the tile never blinks");
+  const gone = goneUrls.length;
+  S.serverPictureIn(key);
+  assert.equal(stateNow().photos[0].picture, null);
+  assert.equal(goneUrls.at(-1), picture);
+  S.serverPictureIn(key);
+  assert.equal(goneUrls.length, gone + 1, "asked twice, let go once");
+  S.takeAway(key);
+});
+
+test("the list draws what was added here where it stood, and everything else in the server's order after it", async () => {
+  const held = heldAdds();
+  S.addPhotos([photo("a.jpg"), photo("b.jpg"), photo("c.jpg")], flash);
+  await waitFor(() => held.length === 3);
+  held[0].resolve({ kept: true, twin: false, id: "first" });
+  held[1].resolve({ kept: true, twin: false, id: "second" });
+  held[2].resolve({ kept: true, twin: false, id: "third" });
+  await waitFor(() => stateNow().photos.length === 0);
+  // Newest first, as the server answers: a batch sent in the order it was picked has its last on top.
+  const fromTheServer = ["third", "second", "older", "first", "oldest"].map((id) => ({ id }));
+  assert.deepEqual(
+    S.inLandedOrder(fromTheServer).map((f) => f.id),
+    ["first", "second", "third", "older", "oldest"],
+  );
+  held.length = 0;
+  S.addPhotos([photo("d.jpg")], flash);
+  await waitFor(() => held.length === 1);
+  held[0].resolve({ kept: true, twin: false, id: "later" });
+  await waitFor(() => stateNow().photos.length === 0);
+  assert.deepEqual(
+    S.inLandedOrder(fromTheServer.concat({ id: "later" })).map((f) => f.id),
+    ["later", "first", "second", "third", "older", "oldest"],
+    "a later batch comes in above an earlier one, as it was drawn",
+  );
 });
 
 test("a twin leaves calmly, said in the end, with no warning in it", async () => {
@@ -241,6 +375,7 @@ test("the screen is held awake while there is work, and a refusal stops nothing"
     assert.equal(asked[0], "screen");
     held[0].resolve(KEPT);
     await waitFor(() => toasts.length === 1);
+    await handedOver();
     assert.equal(lock.released, 1);
 
     globalThis.navigator.wakeLock = {
@@ -252,6 +387,7 @@ test("the screen is held awake while there is work, and a refusal stops nothing"
     await waitFor(() => held.length === 2);
     held[1].resolve(KEPT);
     await waitFor(() => toasts.length === 2);
+    await handedOver();
   } finally {
     delete globalThis.navigator.wakeLock;
   }
