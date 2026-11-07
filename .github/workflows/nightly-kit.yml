@@ -7,9 +7,8 @@ name: Nightly kit
 # e2e/kit/kit-behaves.spec.ts, but a person, and reds piled up unseen. It also catches what no path filter can: a page's
 # stylesheet over a kit rule, a component that parts from its gallery family.
 #
-# Its own workflow, not a job in nightly-e2e.yml: that one runs against production with live credentials and has been
-# red for weeks for reasons of its own, so a red kit would be one more line in its issue, and a dispatch of it spends
-# an hour on the node suite and the production specs first. Here the harness serves the gallery from the checkout: no
+# Its own workflow, not a job in nightly-e2e.yml: a red kit would be one more line in that one's issue, and a dispatch
+# of it spends an hour on the node suite and the whole suite first. Here the harness serves the gallery from the checkout: no
 # deployment, no service's secret, and only the report may write, and only issues.
 #
 # A run asked for by hand on a branch proves that branch's kit on Linux, and files nothing.

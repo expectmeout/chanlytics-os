@@ -61,7 +61,10 @@ function wire() {
   };
 }
 
-const RED = { condition: "nightly_red", detail: "Nightly e2e is red. https://github.com/example/repo/actions/runs/1" };
+const RED = {
+  condition: "production_check_red",
+  detail: "Nightly e2e is red. https://github.com/example/repo/actions/runs/1",
+};
 
 test("only the platform's key opens it: no credential, a wrong key and a workspace's token are refused before anything is read", async () => {
   const db = fakeDb({ operator_pages: [] });
@@ -88,7 +91,12 @@ test("only the platform's key opens it: no credential, a wrong key and a workspa
 test("only the closed set pages, with words; an unknown condition, no detail and an unreadable body are 400", async () => {
   const db = fakeDb({ operator_pages: [] });
   setPg(db);
-  for (const body of [{ ...RED, condition: "anything" }, { condition: "nightly_red" }, { ...RED, detail: "  " }, "{"]) {
+  for (const body of [
+    { ...RED, condition: "anything" },
+    { condition: "production_check_red" },
+    { ...RED, detail: "  " },
+    "{",
+  ]) {
     const [status, said] = await answer(await knock(body));
     assert.equal(status, 400, JSON.stringify(body));
     assert.equal(said.error, "bad_request");
@@ -112,10 +120,13 @@ test("a condition pages the platform once, remembered as the pager remembers its
   setPg(fakeDb(tables));
   const net = wire();
   try {
-    assert.deepEqual(await answer(await knock(RED)), [200, { ok: true, condition: "nightly_red", outcome: "sent" }]);
     assert.deepEqual(await answer(await knock(RED)), [
       200,
-      { ok: true, condition: "nightly_red", outcome: "suppressed" },
+      { ok: true, condition: "production_check_red", outcome: "sent" },
+    ]);
+    assert.deepEqual(await answer(await knock(RED)), [
+      200,
+      { ok: true, condition: "production_check_red", outcome: "suppressed" },
     ]);
     const ledger = {
       condition: "migration_ledger",
@@ -128,13 +139,13 @@ test("a condition pages the platform once, remembered as the pager remembers its
   const mail = net.mail();
   assert.equal(mail.length, 2);
   assert.deepEqual(mail[0].to, ["ops@platform.test"]);
-  assert.equal(mail[0].subject, "[Chanlytics] The nightly has been red two runs in a row");
+  assert.equal(mail[0].subject, "[Chanlytics] The check of production is red");
   assert.match(mail[0].text, /actions\/runs\/1/);
   assert.equal(mail[1].subject, "[Chanlytics] Production's migrations disagree with main's");
   const rows = tables.operator_pages.map((r) => [r.key, r.count]);
   assert.deepEqual(rows.sort(), [
     ["outside:migration_ledger", 1],
-    ["outside:nightly_red", 2],
+    ["outside:production_check_red", 2],
   ]);
 });
 
@@ -143,7 +154,7 @@ test("every condition a workflow pages for is one the door accepts, so a typo ca
   const named = new Set();
   for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".yml")))
     for (const m of fs.readFileSync(path.join(dir, f), "utf8").matchAll(/--condition\s+([a-z_]+)/g)) named.add(m[1]);
-  assert.deepEqual([...named].sort(), ["migration_ledger", "nightly_red"], "the workflows page for these two");
+  assert.deepEqual([...named].sort(), ["migration_ledger", "production_check_red"], "the workflows page for these two");
   setPg(fakeDb({ operator_pages: [] }));
   const net = wire();
   try {

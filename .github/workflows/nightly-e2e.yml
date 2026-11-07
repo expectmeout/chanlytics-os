@@ -368,15 +368,12 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
-  # Somebody has to be told. The run starts in the night with nobody watching,
-  # and its whole purpose is to notice things. One issue, not one a night:
-  # a red run comments on it (the old per-night issues fold into it the
-  # first time), a green run closes it, and the second red run in a row
-  # pages the platform through the edge's pager door, once PAGER_URL and
-  # PAGER_KEY are set (docs/runbook.md, What CI proves). A job the cap
-  # cancelled is a job nobody heard from: it is red too. The issue says
-  # which was red: the node suite, the whole suite, the check of production. The suite is green when its four parts
-  # passed and what they ran of the code held its floors.
+  # Somebody has to be told. The run starts in the night with nobody watching, and its whole purpose is to notice things.
+  # Two reds, said apart (decision 0106). The suites', on a copy no customer is on: one issue, the owner's, and no page.
+  # Production's: an issue of its own, and its first red pages the platform through the edge's pager door, once PAGER_URL
+  # and PAGER_KEY are set (docs/runbook.md, What CI proves), since a customer may be seeing it. A red run comments on its
+  # issue and the first green closes it. A job the cap cancelled is a job nobody heard from: it is red too. The suites are
+  # green when the four parts passed, what they ran of the code held its floors, and the whole suite passed.
   report:
     name: Say what the night came to
     needs: [suite, coverage, whole, production]
@@ -391,23 +388,40 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Say so, where a person will see it
+      - name: Say what the suites came to
         shell: bash
         run: |
           nightly=(--title "Nightly e2e is red" --match "Nightly e2e is red" --match "Nightly e2e failed " --match "Nightly e2e hit its cap ")
           if [ "$SUITE" = "success" ] && [ "$COVERAGE" != "success" ]; then SUITE="passed, but what it ran of the code was not held to its floors ($COVERAGE)"; fi
-          if [ "$SUITE" = "success" ] && [ "$WHOLE" = "success" ] && [ "$PRODUCTION" = "success" ]; then
+          if [ "$SUITE" = "success" ] && [ "$WHOLE" = "success" ]; then
             node tooling/scripts/ops/rolling-issue.mjs --state green "${nightly[@]}"
           else
-            echo "The nightly's node suite: $SUITE. The whole suite on its own stack: $WHOLE. The check of production: $PRODUCTION. A cancelled job hit its cap or was cancelled by hand before it finished; the run's jobs say which tests failed." > nightly.md
-            node tooling/scripts/ops/rolling-issue.mjs --state red "${nightly[@]}" --body-file nightly.md --page-after 2 --condition nightly_red --assignee "$OWNER"
+            echo "The nightly's node suite: $SUITE. The whole suite on its own stack: $WHOLE. A cancelled job hit its cap or was cancelled by hand before it finished; the run's jobs say which tests failed." > nightly.md
+            node tooling/scripts/ops/rolling-issue.mjs --state red "${nightly[@]}" --body-file nightly.md --assignee "$OWNER"
           fi
         env:
           SUITE: ${{ needs.suite.result }}
           COVERAGE: ${{ needs.coverage.result }}
           WHOLE: ${{ needs.whole.result }}
-          PRODUCTION: ${{ needs.production.result }}
           # The red issue is the owner's: GitHub tells an assignee of every comment, and nobody else was told.
+          OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Whatever the suites' step came to: a refusal there is no reason for production's red to go unsaid.
+      - name: Say what the check of production came to
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          check=(--title "Production check is red" --match "Production check is red")
+          case "$PRODUCTION" in
+            success) node tooling/scripts/ops/rolling-issue.mjs --state green "${check[@]}" ;;
+            skipped) echo "The check of production did not run, so this night says nothing of production." ;;
+            *)
+              echo "The check of production: $PRODUCTION. A customer may be seeing what it saw. A cancelled job hit its cap or was cancelled by hand before it finished; the run's jobs say which tests failed." > production.md
+              node tooling/scripts/ops/rolling-issue.mjs --state red "${check[@]}" --body-file production.md --page-after 1 --condition production_check_red --assignee "$OWNER"
+              ;;
+          esac
+        env:
+          PRODUCTION: ${{ needs.production.result }}
           OWNER: ${{ github.repository_owner }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PAGER_URL: ${{ secrets.PAGER_URL }}

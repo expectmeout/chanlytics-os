@@ -5,7 +5,7 @@
  * here, handed the knock and the request, whose body it reads once the knock is known to be the key's.
  *
  * The edge pages the platform for what it sees itself (lib/ops/page-operator.ts). Two conditions are seen only by
- * GitHub's workflows: the nightly red twice running, and production's migrations disagreeing with main's for a day
+ * GitHub's workflows: the nightly's check of production red, and production's migrations disagreeing with main's for a day
  * (docs/runbook.md). Both reached nobody outside GitHub, so both come here and page the way the edge's own do: one
  * page per condition per six hours, to the platform's addresses, remembered in operator_pages and shown on /api/diag.
  *
@@ -21,7 +21,7 @@ import type { Admitted } from "../shared/admin-auth.js";
 
 /** What a workflow may page for, and the subject its page carries. */
 const OUTSIDE_CONDITIONS = {
-  nightly_red: "The nightly has been red two runs in a row",
+  production_check_red: "The check of production is red",
   migration_ledger: "Production's migrations disagree with main's",
 } as const;
 

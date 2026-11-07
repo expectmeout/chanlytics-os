@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * End-to-end tests, against a DEPLOYED url.
+ * End-to-end tests, against a running app: a deployed url by default, the nightly's own copy on its stack.
  *
  * There are 415 unit tests in this repo and, until now, none that opened the
  * app. Every user-facing bug this project has shipped was found by loading the

@@ -1,6 +1,6 @@
 /**
- * POST /api/admin/page: the pager's door, for a platform condition seen outside the edge (the nightly red twice
- * running; production's migrations disagreeing with main's). The platform's key only (DIAG_KEY): nothing mints a token
+ * POST /api/admin/page: the pager's door, for a platform condition seen outside the edge (the nightly's check of
+ * production red; production's migrations disagreeing with main's). The platform's key only (DIAG_KEY): nothing mints a token
  * for this door.
  *
  * The door is the knock (authorizeAdmin with platformKey: true); pageFromOutside in lib/ops/outside-page.ts refuses a

@@ -103,8 +103,8 @@ the same day after the health lane (the sizes are the block's, not typed here).
 
 1. Decision 0015's surface moves, each drawn with the kit: the address first, then Reports as the pilot, then Inbox,
    Today and People (rows 1, 2, 5, 6, 9, 10, 14 and 20).
-2. The nightly green, and a staging database for it and the previews, so no test writes to production (rows 15 and
-   24; the staging project is Ruben's switch).
+2. A staging database for the previews and the nightly's short check, so no test writes to production; the suites run
+   on a stack of their own (decision 0106; rows 15 and 24; the staging project is Ruben's switch).
 3. The copies left and the dead exports, after a look at each (rows 3 and 21).
 4. A message's thread and person fenced by workspace (row 13), and a second factor for owners and platform admins
    (row 12, Ruben's switch).
