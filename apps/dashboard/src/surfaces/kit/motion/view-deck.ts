@@ -366,8 +366,8 @@ function stop(table: Table, el: HTMLElement): void {
 }
 
 /**
- * Whether a view keeps its arrival's last frame until the page is touched: one inside another whose styles say
- * `--view-rest: layer`. An iPhone draws a moving view on a layer of its own and draws it on the page again as the move
+ * Whether a view keeps its arrival's last frame, or its spring home's, until the page is touched: one inside another
+ * whose styles say `--view-rest: layer`. An iPhone draws a moving view on a layer of its own and draws it on the page again as the move
  * ends, and what was on a fraction of a pixel lands a pixel off (docs/superpowers/specs/2026-11-03-a-still-calendar-on-
  * a-phone-design.md): Leads and the Pipeline stepped a pixel up the frame after their slide (Ruben's recording, 7 Nov
  * 2026). Held, it is handed back as the page is next touched, when what follows moves it anyway; nothing of the page
@@ -622,11 +622,13 @@ function comeHome(table: Table, el: HTMLElement, away: Away): Follow | null {
   const { from, level, width } = away;
   if (table.env.reduced() || from === 0) return null;
   const now = table.env.now();
-  const run: Run = { ms: TIMELINE_MS, t0: now, keep: false };
+  // Home on its layer as an arrival rests: handed back as the spring ended, Leads stepped a pixel up 240 ms after a
+  // finger let it go short (Ruben's third recording, 7 Nov 2026).
+  const run: Run = { ms: TIMELINE_MS, t0: now, keep: restsOnLayer(table, el) };
   const anims = [startAt(el, springFrames({ from, to: 0, speed: 0 }, TIMELINE_MS), run)];
   if (level < 1)
     anims.push(startAt(el, [{ opacity: level }, { opacity: 1 }], { ms: JOIN_FADE_MS, t0: now, keep: false }));
-  restAfter(table, el, { move: null, role: "back", spot: null, anims }, anims[0]);
+  restAfter(table, el, { move: null, role: "back", spot: null, anims, onLayer: run.keep }, anims[0]);
   const share = (t: number) => (t >= TIMELINE_MS ? 0 : shareOf(springAt(from, 0, 0, t), width));
   return {
     follow: (other, frame) =>
