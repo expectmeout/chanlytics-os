@@ -16,7 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { deleteAgent, deleteRetellLlm } from "@chanlytics/channels/voice";
 import { endPreview, listPreviewsPastTheirEnd } from "@chanlytics/db/campaigns";
 import { findVoiceAgent } from "@chanlytics/db/facts";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { json, refuse } from "../shared/http.js";
 import { env } from "../shared/env.js";
 import { errField, type Logger } from "../shared/log.js";

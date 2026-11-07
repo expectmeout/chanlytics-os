@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, find, redrawWanted, textOf, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import { SERIES, dtoWith } from "../reports/people/_people-world.mjs";
-import { firstTouchOf, v0Of } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-parts.ts";
+import { firstTouchOf, v0Of as pageV0Of } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-parts.ts";
 import { V0, HEAD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
 import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
 import { EXAMPLE } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
@@ -32,7 +32,7 @@ const NOTE = "ads-preview-note";
 const seriesOf = (byVia, over = {}) => ({ first_came: { by_via: byVia }, today: "2031-03-15", days: 30, ...over });
 const rowsOf = (byVia) => firstTouchOf(seriesOf(byVia)).rows;
 const readOf = (firstTouch) => ({ ...exampleAt("v0", NOW, null), firstTouch });
-const v0Of = (byVia) => v0Of(readOf(firstTouchOf(seriesOf(byVia))));
+const v0Of = (byVia) => pageV0Of(readOf(firstTouchOf(seriesOf(byVia))));
 
 /** A business that has imported its book, found some leads and been written to: nobody by an ad. */
 const NO_AD = { import: 330, lead: 27, email: 2, call: 1 };

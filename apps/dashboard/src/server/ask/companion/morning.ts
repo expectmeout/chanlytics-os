@@ -29,7 +29,7 @@ import {
 import { askCardsTold, getMemberViews } from "@chanlytics/db/notices";
 import { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "@chanlytics/db/ask";
 import { batchStatesOf, getHeldSends } from "@chanlytics/db/campaigns";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import type { RouteContext } from "../../shared/with-route";
 import type { Member } from "../../shared/route";
 import { env } from "../../shared/env";

@@ -1,9 +1,9 @@
 /** Words: notes. */
 
-import { type LeadRoundEnding } from "../search/sets";
+import type { LeadRoundEnding } from "../search/sets";
 import { LEAD_ENDING_WORDS } from "../search/endings";
 import { plural } from "../../shared/words";
-import { type LEAD_CALL_OUTCOMES, type LeadStage } from "./lists";
+import type { LEAD_CALL_OUTCOMES, LeadStage } from "./lists";
 
 export const LEAD_CALL_QUESTION = "How did the call go?";
 

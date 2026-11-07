@@ -57,7 +57,7 @@ import { businessShape, policies as policiesReader } from "../../../readers/fact
 import { lists as listsReader } from "../../../readers/lists";
 import { AUDIENCES_CALL, findTouchesThisWeek, getWhatsappHow } from "../context/tool-reads";
 import { propose, refuse } from "../context/context";
-import { type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import type { ProposalOutcome, ToolContext } from "../context/tool-defs";
 
 export type Trigger = NonNullable<ReturnType<typeof triggerOf>>;
 

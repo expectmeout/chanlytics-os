@@ -55,7 +55,7 @@ export async function tryReceptionist(
   if (!edgeConfigured()) throw new AppError("conflict", TRY_IT_WORDS.notLive, 409);
   const result = await callEdge(
     "/api/admin/eval",
-    { tenant_id: tenantId, cases: [{ id: "try", text, history }] },
+    { tenant_id: tenantId, cases: [{ id: "try", text, history: [...history] }] },
     { workspace: tenantId, user: userId, timeoutMs: TRY_TIMEOUT_MS },
   );
   const results = (result.body as { results?: unknown } | null)?.results;

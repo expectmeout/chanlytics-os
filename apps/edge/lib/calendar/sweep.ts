@@ -72,7 +72,7 @@ import {
   type TenantConfig,
 } from "@chanlytics/contracts";
 import { noteImport } from "@chanlytics/db/imports";
-import { type DueCalendar } from "@chanlytics/db/jobs";
+import type { DueCalendar } from "@chanlytics/db/jobs";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** What the reads kept as appointments, for the tick's log line. */

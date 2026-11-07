@@ -15,7 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS, pastTarget, pastTargetPage } from "@chanlytics/contracts";
 import { listPlatformDay } from "@chanlytics/db/console";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
 import { logger } from "../shared/log.js";
 

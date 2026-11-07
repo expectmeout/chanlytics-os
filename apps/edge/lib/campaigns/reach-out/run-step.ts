@@ -9,7 +9,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { stampReachOutStep } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { getReachOutRunId, runHandStep, runReachOut } from "@chanlytics/core";
 import { localDate } from "@chanlytics/contracts";
 import { getReachOutRunContext, type ReachOutRow } from "./run-context.js";

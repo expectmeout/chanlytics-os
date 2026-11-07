@@ -17,7 +17,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { keepLeadPrices, findLeadPricesSeen, type LeadPricesSeen } from "@chanlytics/db/leads";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { DAY_MS } from "@chanlytics/contracts";
 import { apifyClient, type ApifyClient } from "@chanlytics/channels/leads";
 import { leadPins } from "@chanlytics/core";

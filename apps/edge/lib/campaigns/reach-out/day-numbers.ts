@@ -12,7 +12,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { REACH_OUT_DAY_ROUTE, reachOutDayWords } from "@chanlytics/contracts";
 import { listReachOutDayDue } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { recordNotification } from "../../shared/alerts/notify.js";
 import type { Logger } from "../../shared/log.js";
 

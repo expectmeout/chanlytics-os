@@ -16,8 +16,8 @@ import {
   type FileMime,
 } from "@chanlytics/contracts";
 import { findWorkspaceLook } from "@chanlytics/db/look";
-import { type Database } from "@chanlytics/db/types";
-import { type FileMemberRow } from "@chanlytics/db/files";
+import type { Database } from "@chanlytics/db/types";
+import type { FileMemberRow } from "@chanlytics/db/files";
 import { log } from "@/server/shared/log";
 import { load, readerContext } from "@/server/shared/reader";
 import * as readers from "@/server/readers/facts";

@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { importBundle } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -25,7 +26,7 @@ const skip =
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { ingestInbound, markProcessed, wasRepliedTo } = await import(at("packages/db/dist/index.js"));
+const { ingestInbound, markProcessed, wasRepliedTo } = await importBundle("db");
 const { scheduleJobOnce } = await import(at("packages/jobs/dist/index.js"));
 
 const ok = (res, what = "") => {

@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inviteUserByEmail } from "@chanlytics/db/auth";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { AppError } from "@chanlytics/contracts";
 import { deployment } from "../shared/env";
 import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";

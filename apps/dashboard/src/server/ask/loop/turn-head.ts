@@ -17,11 +17,11 @@ import {
   type PageContext,
 } from "@chanlytics/contracts";
 import { ASK_ANSWER_TEXT_FORMAT } from "../answer-format";
-import { type AskTurnShape } from "../shape";
+import type { AskTurnShape } from "../shape";
 import type { AskModelProfile, EffortMessage, MembershipRole, WordsMessage } from "@chanlytics/contracts";
 import type { RouteContext } from "../../shared/with-route";
 import type { ReaderContext } from "../../shared/reader";
-import { type Offer } from "../refusals";
+import type { Offer } from "../refusals";
 import { buildProposal, calledName, cardsOf, newToolContext, runTool, toApiTools, type ToolContext } from "../tools";
 import { stableSystem, type WorkspaceFacts } from "../prompt/stable-system";
 import { systemBlocks, systemHash } from "../prompt/prompt";

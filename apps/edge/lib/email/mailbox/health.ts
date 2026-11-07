@@ -14,7 +14,7 @@ import { DAY_MS, HOUR_MS, mailboxHoldOf } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { getMailboxCapacity } from "@chanlytics/db/campaigns";
 import { getMailboxCounts, patchMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { readMailboxDns } from "./dns.js";
 import { tellHeld } from "./notices.js";
 import { errField, type Logger } from "../../shared/log.js";

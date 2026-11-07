@@ -3,7 +3,7 @@
 import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
 import { DEAL_ACT_WORDS } from "../../deals/words";
 import type { DealVM } from "../../deals/vm";
-import { type DealPaceVM } from "../../deals/waits";
+import type { DealPaceVM } from "../../deals/waits";
 import type { PersonCampaignVM, PersonDetailDto, PersonSequenceVM } from "../person-dto";
 import { MERGE_WORDS } from "../person-merge";
 import { DOUBT_WORDS, type DoubtSeen } from "../person-doubts";
@@ -14,25 +14,20 @@ import type { PersonMode } from "../person-receptionist";
 import { DM_CLOSED, mayReach, type PersonProposalVM } from "../person-reach";
 import type { PersonRowVM } from "../person-row/row-facts";
 import { ts } from "../person-helpers";
-import { type PersonNoteTeamDto, type PersonNoteVM } from "../../notes/person-notes";
+import type { PersonNoteTeamDto, PersonNoteVM } from "../../notes/person-notes";
 import { PERSON_CHANNEL_WORDS, REPLY_WIRE, type PersonChannel } from "../person-words";
-import { signupAskOf } from "../doors/signup-confirm";
+import type { signupAskOf } from "../doors/signup-confirm";
 import { wayOff, type WriteWay } from "../../new-conversation/write-ways";
 import { messageAt } from "../../conversations/thread-dto";
-import {
-  type PersonAboutFact,
-  type PersonFact,
-  type PersonLastExchange,
-  type PersonRightNow,
-} from "../person-cards/right-now";
-import { type PersonTimelineItemVM, type PersonVisitAheadVM, type TimelineKind } from "../person-timeline";
-import { type BusinessRecordVM, type PersonHeadVM, type WorksAtVM } from "../person-page/business";
-import { type PersonFigureVM } from "../person-page/figures";
-import { type UpNextVM } from "../person-page/next";
-import { type LastWordVM } from "../person-page/last-words";
-import { type NoticeVM } from "../person-page/notices";
-import { type PersonTabVM } from "../person-page/route";
-import { type PersonVisitsVM } from "../person-page/visits";
+import type { PersonAboutFact, PersonFact, PersonLastExchange, PersonRightNow } from "../person-cards/right-now";
+import type { PersonTimelineItemVM, PersonVisitAheadVM, TimelineKind } from "../person-timeline";
+import type { BusinessRecordVM, PersonHeadVM, WorksAtVM } from "../person-page/business";
+import type { PersonFigureVM } from "../person-page/figures";
+import type { UpNextVM } from "../person-page/next";
+import type { LastWordVM } from "../person-page/last-words";
+import type { NoticeVM } from "../person-page/notices";
+import type { PersonTabVM } from "../person-page/route";
+import type { PersonVisitsVM } from "../person-page/visits";
 import { WORKS_AT_WORDS } from "../person-page/words";
 
 /* -------------------------------- profile -------------------------------- */

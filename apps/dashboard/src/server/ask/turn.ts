@@ -30,7 +30,7 @@ import { filesTallied } from "../readers/files";
 import { memberViews } from "../readers/notifications";
 import { getAttached, noWordsIn, type AttachedFile } from "../files/attached";
 import { runAskTurn } from "./loop/loop";
-import { type TurnEvent, type TurnInput, type TurnResult } from "./loop/turn-head";
+import type { TurnEvent, TurnInput, TurnResult } from "./loop/turn-head";
 import { storedRaw, findThreadForTurn, toldWithArrived } from "./memory";
 import { askTurnText, type SearchAnswering } from "./prompt/prompt";
 import { workspaceFacts, type WorkspaceFacts } from "./prompt/stable-system";

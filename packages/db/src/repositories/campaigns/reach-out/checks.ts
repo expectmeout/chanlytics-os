@@ -2,7 +2,7 @@
 
 import { maySpend, type BillingMode, type BillingStatus, type SpendKind } from "@chanlytics/contracts";
 import { recordEvent } from "../../events/events";
-import { type Db, type ReachOutSendRow } from "./reach-out";
+import type { Db, ReachOutSendRow } from "./reach-out";
 
 /**
  * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),

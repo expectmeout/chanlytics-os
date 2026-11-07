@@ -18,7 +18,7 @@ import {
 import { listMomentSchedules, listRunsInSpan, getSequenceModes, isWorkspacePaused } from "@chanlytics/db/campaigns";
 import { runCounts } from "@chanlytics/db/reports";
 import { getCalendarSources, weekFrom } from "../calendar/week/week";
-import { type CalendarSources } from "../calendar/week/items";
+import type { CalendarSources } from "../calendar/week/items";
 import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
 import * as facts from "./facts";
 

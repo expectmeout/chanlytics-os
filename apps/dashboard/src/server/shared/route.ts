@@ -50,7 +50,7 @@ import {
   releaseIdempotencyKey,
   takeIdempotencyKey,
 } from "@chanlytics/db/conversations";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import {
   getMemberContext,
   requireFreshSession,

@@ -12,7 +12,7 @@ import {
 } from "@chanlytics/contracts";
 import { PROPOSAL_SPECS } from "../../proposals/proposals";
 import type { RouteContext } from "../../../shared/with-route";
-import { type ReaderContext } from "../../../shared/reader";
+import type { ReaderContext } from "../../../shared/reader";
 
 /**
  * What every tool runs in, and the helpers the reads and the acts share.

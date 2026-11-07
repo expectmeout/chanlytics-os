@@ -4,7 +4,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { FIX_CARD_WORDS, type AskProposal, type PlanLead } from "@chanlytics/contracts";
 import { PROPOSAL_SPECS, type ProposalKindAboveOperator } from "../../proposals/proposals";
-import { type ProposalOutcome } from "./tool-defs";
+import type { ProposalOutcome } from "./tool-defs";
 
 /**
  * Who may approve a card of this kind, and what to tell a member who may not, for its tool's description: one whole

@@ -12,7 +12,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emitEvent } from "@chanlytics/db/events";
 import { findMessageByExternalId } from "@chanlytics/db/channels";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { raiseLateFailure, type LateFailureCommand, type LateFailureOutcome } from "@chanlytics/core";
 import { upsertEscalation } from "@chanlytics/jobs";
 

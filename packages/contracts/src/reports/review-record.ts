@@ -13,7 +13,7 @@ import { pct, sumOf } from "../shared/numbers";
 import { isoMs } from "../shared/time";
 import { plural } from "../shared/words";
 import { reviewsFromProfile } from "../google/google";
-import { type GoogleConnectionDto, type GoogleReadDto, type GoogleReviewDto } from "../google/listing";
+import type { GoogleConnectionDto, GoogleReadDto, GoogleReviewDto } from "../google/listing";
 import { periodSince } from "./periods";
 import { dayPointOf, fmtDay, quantile } from "./dtos";
 

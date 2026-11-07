@@ -8,7 +8,7 @@ import { formatPhoneDisplay } from "../shared/phone";
 import { possessive } from "../shared/words";
 import { greetingOf } from "../voice/greeting-owner";
 import { forwardedLineOf } from "./setup";
-import { type SetupDto } from "./lines";
+import type { SetupDto } from "./lines";
 
 export interface FirstRunLiveVM {
   heading: string;

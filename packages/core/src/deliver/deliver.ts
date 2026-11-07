@@ -28,7 +28,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { smsRefusalOf } from "@chanlytics/channels/lines";
 import { addressOf, type EmailRequest, type ResendLimit } from "@chanlytics/channels/email";
-import { type SendResult } from "@chanlytics/channels/whatsapp";
+import type { SendResult } from "@chanlytics/channels/whatsapp";
 import { logger, errField } from "@chanlytics/log";
 import {
   CARRIER_CONSENT_SOURCE,
@@ -54,7 +54,7 @@ import { emitEvent, type EventData } from "@chanlytics/db/events";
 import { stampEmailFromMailbox, stampEmailLeftAs } from "@chanlytics/db/email";
 import { recordOutbound, findWireRow } from "@chanlytics/db/channels";
 import { replyAnswersAt } from "@chanlytics/db/conversations";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./email";
 import { heldByThread, lateDraft, liveHoldOf } from "./hold";
 import { textRefusal } from "./text";

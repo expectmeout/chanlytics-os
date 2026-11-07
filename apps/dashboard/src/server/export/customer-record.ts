@@ -1,5 +1,5 @@
 /** One customer's whole record, as the export writes it. */
-import { type MessageDto } from "@chanlytics/contracts";
+import type { MessageDto } from "@chanlytics/contracts";
 import { CALL_COLUMNS, MESSAGE_COLUMNS, mediaPublic, toCallDto } from "@/server/conversations/dto";
 import { consentChangeOf, type BundleReaders } from "@/server/export/bundle";
 import type { RouteContext } from "@/server/shared/with-route";

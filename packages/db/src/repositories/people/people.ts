@@ -1,13 +1,7 @@
 /** People: people. */
 
 import type { PostgrestError } from "@supabase/supabase-js";
-import {
-  type DoubtSeen,
-  type PersonAtLeadDto,
-  type PersonDoubtDto,
-  type PersonSignerDto,
-  type SeenMarksDto,
-} from "@chanlytics/contracts";
+import type { DoubtSeen, PersonAtLeadDto, PersonDoubtDto, PersonSignerDto, SeenMarksDto } from "@chanlytics/contracts";
 import type { Json } from "../../database.types";
 import { getPersonIdsWaitingOnYou } from "./waiting-on-you";
 import { IDS_PER_READ, type Db } from "./pages";

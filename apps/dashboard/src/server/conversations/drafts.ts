@@ -12,7 +12,7 @@ import {
   type ReplyDraftWords,
 } from "@chanlytics/contracts";
 import { listConversationDrafts, listConversationsSetAside, type ConversationDraftRow } from "@chanlytics/db/ask";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import type { RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
 import type { VerbConversation } from "../shared/verbs";

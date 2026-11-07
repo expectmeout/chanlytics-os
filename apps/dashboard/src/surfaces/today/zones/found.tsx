@@ -22,7 +22,7 @@ import {
   type AskRested,
 } from "@chanlytics/contracts";
 import { ASK_FOUND_WORDS as F, askFoundOf, type AskFoundRowVM } from "./found-rows";
-import { type PeopleListsLike } from "../leaks";
+import type { PeopleListsLike } from "../leaks";
 import { refreshSurfaces } from "@/bridge/surface-runner";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";

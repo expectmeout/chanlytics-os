@@ -47,7 +47,7 @@ import { listRetellCallIds } from "@chanlytics/db/voice";
 import { scrubModelTurns } from "@chanlytics/db/ai";
 import { scrubPersonNotes } from "@chanlytics/db/people";
 import { scrubProviderEvents } from "@chanlytics/db/events";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { errText, type ClaimedJob, type JobContext } from "../runner/context";
 import type { Db } from "../runner/ledger";
 import { scheduleJobOnce } from "../runner/schedule";

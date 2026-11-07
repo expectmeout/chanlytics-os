@@ -590,6 +590,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   assert.deepEqual(toldFor("lines"), EVERY_EVENT, "a callback repaints Setup");
   // The package hands the edge every value the saga's four modules export: its barrel names each one.
 
+  const channels = await import("@chanlytics/channels/lines");
   for (const m of ["lines", "twilio", "dry", "saga"]) {
     const mod = await import(new URL(`../../packages/channels/src/lines/${m}.ts`, import.meta.url).href);
     for (const name of Object.keys(mod)) assert.ok(name in channels, `${m}.ts: ${name}`);

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { putTenantConfig } from "@chanlytics/db/workspace";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { withFirstAlertAddress, withOwnerAlertAddress, type TenantConfig } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { findConfigRow } from "@/server/workspace/config-row";

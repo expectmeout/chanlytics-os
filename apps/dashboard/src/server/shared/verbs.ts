@@ -22,7 +22,7 @@ import {
 import { listRow } from "@chanlytics/db/people";
 import { withdrawMemberDrafts, findOurLastWire } from "@chanlytics/db/conversations";
 import { findReachOutRoot, findReachOutSendRef, replyReadingRefOf, findSequenceRow } from "@chanlytics/db/campaigns";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { findAppointmentWorkspace } from "@chanlytics/db/calendar";
 import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";

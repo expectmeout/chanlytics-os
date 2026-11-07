@@ -27,7 +27,7 @@ import * as facts from "../../../../readers/facts";
 import { lists as listsReader } from "../../../../readers/lists";
 import { people } from "../../../../readers/people";
 import { AUDIENCES_CALL, noteRow, str } from "../../context/tool-reads";
-import { type ToolContext } from "../../context/tool-defs";
+import type { ToolContext } from "../../context/tool-defs";
 import { nullsLeftOut } from "@/server/ask/tools/context/tool-reads";
 
 /**

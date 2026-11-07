@@ -39,7 +39,7 @@ import {
 } from "@chanlytics/db/partners";
 import { markWaitlistInvited, getWaitlistWaiting } from "@chanlytics/db/workspace";
 import { recordEvent } from "@chanlytics/db/events";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { requeueFailedJob } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -228,7 +228,7 @@ export async function listPlatformEvents(office: BackOffice, tenantId: string, l
 import { EDGE_LINES_TIMEOUT_MS, callEdgeLines } from "../connections/lines";
 import { LINE_ACTS, whyWords, type ConsoleWhy, type PlatformLineAction } from "@chanlytics/contracts";
 import { NOT_RECORDED } from "@/server/console/words";
-import { type EdgeBody } from "@/server/shared/edge";
+import type { EdgeBody } from "@/server/shared/edge";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
 const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => EdgeBody<"/api/admin/lines">> = {

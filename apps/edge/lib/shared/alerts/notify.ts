@@ -32,7 +32,7 @@ import {
   type KeptNotice,
 } from "@chanlytics/db/notices";
 import { findWorkspaceNamed } from "@chanlytics/db/workspace";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { NotificationsConfig } from "@chanlytics/contracts";
 import {
   EMAIL_ALWAYS_KINDS,

@@ -23,7 +23,7 @@ import { fetchImageBytes, type SitePage } from "@chanlytics/channels/website";
 import { findPlacePhotoUri, type PlaceDetails } from "@chanlytics/channels/google";
 import { imageHeaderOf, sitePhotosFrom } from "@chanlytics/core";
 import { findFileForWork, recordFileFound, markFileSeen, filesBucket } from "@chanlytics/db/files";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { http } from "../shared/google/places.js";
 import { recordNotification } from "../shared/alerts/notify.js";

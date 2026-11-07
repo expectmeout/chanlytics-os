@@ -20,7 +20,7 @@ import "server-only";
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { offerLanguageOf, setEmailUnsubscribed, stopAllMessages } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { addressOf } from "@chanlytics/channels/email";
 import { verifyUnsubscribeToken } from "@chanlytics/channels/tokens";
 import {

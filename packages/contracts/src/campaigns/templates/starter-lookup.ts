@@ -3,9 +3,9 @@
  * draft the submit route takes, in a language. The set itself is starter-templates.ts.
  */
 import { triggerOf, triggerOffered } from "../playbooks/triggers/notices";
-import { type PlaybookTrigger } from "../playbooks/triggers/kinds";
+import type { PlaybookTrigger } from "../playbooks/triggers/kinds";
 import { STARTER_TEMPLATES } from "./starter-templates/table";
-import { type StarterTemplate, type StarterText } from "./starter-templates/shapes";
+import type { StarterTemplate, StarterText } from "./starter-templates/shapes";
 
 export function starterByName(name: string | null | undefined): StarterTemplate | null {
   return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;

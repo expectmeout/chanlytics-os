@@ -12,11 +12,11 @@
  */
 import { mailboxSendsNow, DAY_MS } from "@chanlytics/contracts";
 import { sendFromMailbox, sendsAsConnected, type EmailRequest } from "@chanlytics/channels/email";
-import { type SendResult } from "@chanlytics/channels/whatsapp";
+import type { SendResult } from "@chanlytics/channels/whatsapp";
 import type { EmailRoute } from "@chanlytics/core";
 import { emitEvent } from "@chanlytics/db/events";
 import { listMailboxConnectionsOf, patchMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { getToken } from "./credentials.js";
 import { tellSignedOut } from "./notices.js";
 import { logger, errField, type Logger } from "../../shared/log.js";

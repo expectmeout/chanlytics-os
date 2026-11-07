@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getMailboxCapacity } from "@chanlytics/db/campaigns";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { mailboxDailyCap, reachOutWritesFrom, type TimetableSender } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;

@@ -13,7 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FreedTimeOffer } from "@chanlytics/contracts";
 import type { FreedTimeRun } from "@chanlytics/core";
 import { findFreedTimeBatch, findFreedTimeStep } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "./playbooks/playbooks.js";
 
 type Db = SupabaseClient<Database>;

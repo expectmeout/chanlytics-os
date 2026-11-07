@@ -12,7 +12,7 @@ import type { ReachOutChainDto, ReachOutMailboxChoice, ReachOutMailboxFacts } fr
 import { CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_DAILY_CAP_MAX, mailboxDailyCap } from "../../../email/mailbox-standing";
 import { reachOutWritesFrom } from "../../../email/mailbox-connections/states";
 import { chainFirstSender, type ReachOutDraft } from "../../reach-out/draft";
-import { type SlotWorkspace } from "../../reach-out/rules";
+import type { SlotWorkspace } from "../../reach-out/rules";
 import { chainPaceOf } from "../../reach-out/sheet/chain";
 import { REACH_OUT_GAP_MINUTES } from "../../reach-out/words/limits";
 import { LEAD_BUILD_WORDS, YOU, leadSlotLabel } from "./steps";

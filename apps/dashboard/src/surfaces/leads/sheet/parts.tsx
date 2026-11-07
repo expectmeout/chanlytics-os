@@ -11,7 +11,7 @@
 import type { ReactNode } from "react";
 import { LEAD_WORDS, type LeadPeekVM, type LeadRowVM } from "@chanlytics/contracts";
 import { LEAD_SHEET_WORDS as W, type LeadPileEndVM } from "./model/view";
-import { type LeadNowFactVM, type LeadNowVM } from "./model/now";
+import type { LeadNowFactVM, LeadNowVM } from "./model/now";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";

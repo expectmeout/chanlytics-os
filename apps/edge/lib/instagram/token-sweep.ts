@@ -30,7 +30,7 @@ import {
   readChannelSecret,
   type InstagramAccountRow,
 } from "@chanlytics/db/channels";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { json, refuse } from "../shared/http.js";
 import { errField, type Logger } from "../shared/log.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";

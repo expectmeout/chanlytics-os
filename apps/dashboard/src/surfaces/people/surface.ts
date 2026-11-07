@@ -19,7 +19,7 @@ import {
   type PeopleAggregates,
   type ListRule,
 } from "@chanlytics/contracts";
-import { type AttentionRowVM } from "./person/model/attention";
+import type { AttentionRowVM } from "./person/model/attention";
 import { resnapshotHere } from "@/bridge/surface-cache";
 import { read } from "@/bridge/api";
 import { workspaceZone } from "@/bridge/zone";

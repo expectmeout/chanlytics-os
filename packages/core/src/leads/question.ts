@@ -5,7 +5,7 @@
  * the words and the threshold; this holds what the runner does with its
  * answer.
  */
-import { type LeadSearchPlan } from "@chanlytics/contracts";
+import type { LeadSearchPlan } from "@chanlytics/contracts";
 import { questionAfterProbe, type ProbeMember } from "./search-question";
 import type { RoundQuestion } from "./ports";
 import { probeYield } from "./sizing";

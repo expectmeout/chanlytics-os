@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { TRY_SKIPPED } from "@chanlytics/contracts";
-import { type FIRST_RUN_TRY_WORDS, type FirstRunTryVM } from "./model/try";
+import type { FIRST_RUN_TRY_WORDS, FirstRunTryVM } from "./model/try";
 import { Icon } from "../../kit/icon/icon";
 import { RecordToggleGroup } from "../../kit/record/field";
 import { canDo, gate, refusalToast, type FrameFlash } from "../../frame-verbs";

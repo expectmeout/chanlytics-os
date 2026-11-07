@@ -14,7 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatPhoneDisplay, parseTenantConfig, type PreviewPageFacts } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { findLeadForPreview, findLeadPreviewByToken, type LeadPreviewRow } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { linkPageDb, linkPageLookOf, NO_LOOK, type LinkPageLook } from "./link-page";
 
 type Db = SupabaseClient<Database>;

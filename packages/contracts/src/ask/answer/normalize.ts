@@ -1,6 +1,6 @@
 /** Answer: normalize. */
 
-import { type AskProposal } from "../thread-words";
+import type { AskProposal } from "../thread-words";
 import {
   answerChart,
   answerDoors,

@@ -31,7 +31,7 @@ import { load, type ReaderContext, type RowRef } from "../../../shared/reader";
 import { reachOutChains } from "../../../readers/playbooks";
 import { sequence, sequenceHistory, sequencePeople, sequences } from "../../../readers/sequences";
 import { notePerson, str, readUnlessNotFound } from "../context/tool-reads";
-import { type ToolContext } from "../context/tool-defs";
+import type { ToolContext } from "../context/tool-defs";
 
 /**
  * Ask's reads of the sequences (decision 0060), over the Sequences page's own readers (readers/sequences.ts), so the

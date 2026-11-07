@@ -30,7 +30,7 @@ import { json, refuse } from "../shared/http.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { emitEvent, recordActivation } from "@chanlytics/db/events";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import {
   alreadyRegistered,
   exchangeCode,

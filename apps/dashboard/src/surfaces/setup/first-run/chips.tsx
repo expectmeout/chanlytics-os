@@ -3,8 +3,8 @@
  * receptionist speaks, a toggle each, saved as the Business tab saves that list.
  */
 import { sameListed } from "@chanlytics/contracts";
-import { type CheckChipSetVM, type CheckChipVM } from "./model/check-chips";
-import { type FIRST_RUN_WORDS } from "./model/view";
+import type { CheckChipSetVM, CheckChipVM } from "./model/check-chips";
+import type { FIRST_RUN_WORDS } from "./model/view";
 import { Icon } from "../../kit/icon/icon";
 import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 import { businessTabSave } from "../shell";

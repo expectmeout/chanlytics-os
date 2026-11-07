@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getTenantConfig, getTenantConfigAsMember, type TenantConfigRow } from "@chanlytics/db/workspace";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { serviceDb } from "@/server/shared/service-db";
 
 /**

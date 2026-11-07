@@ -15,7 +15,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { CalendarPerson } from "@chanlytics/contracts";
 
 interface AddedFromCalendar {

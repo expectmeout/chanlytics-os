@@ -48,7 +48,7 @@ import {
 import { EMAIL_BODY_MAX } from "@chanlytics/core";
 import { importCursorOf, keepBefore, noteImport } from "@chanlytics/db/imports";
 import { getKnownThreads, findMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import { getToken } from "../email/mailbox/credentials.js";
 import { markSignedOut } from "../email/mailbox/wire.js";
 import { mailboxEmailMeta, readEmail } from "../email/mailbox/sync.js";

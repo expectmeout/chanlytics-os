@@ -23,7 +23,7 @@ import { IMPORT_STOPPED_WORDS, normalizeEmail, normalizePhone } from "@chanlytic
 import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
 import { importCursorOf, noteImport } from "@chanlytics/db/imports";
 import { findMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import { getToken } from "../email/mailbox/credentials.js";
 import { markSignedOut } from "../email/mailbox/wire.js";
 import type { Part, PartOutcome } from "./history-import.js";

@@ -1,6 +1,6 @@
 /** Billing: billing. */
 
-import Stripe from "stripe";
+import type Stripe from "stripe";
 import { applyBilling } from "@chanlytics/db/billing";
 import { emitEvent } from "@chanlytics/db/events";
 import { type BillingInvoiceDto, type BillingStatus, type SchemaSet, MIN_MS } from "@chanlytics/contracts";

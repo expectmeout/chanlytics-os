@@ -19,7 +19,7 @@ import {
   renameList,
   setListRule,
 } from "@chanlytics/db/people";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { LIST_NAME_TAKEN, cleanListName, cleanListRule, cleanIdList, type SavedListDto } from "@/server/people/lists";
 import { recordDecision, type listScope } from "@/server/shared/verbs";
 import type { RouteContext } from "@/server/shared/with-route";

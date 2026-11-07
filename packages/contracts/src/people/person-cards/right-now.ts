@@ -16,7 +16,7 @@ import {
 } from "../person-receptionist";
 import { ago } from "../person-row-facts";
 import { holderOf, personStanding } from "../person-state";
-import { type PersonProposalVM } from "../person-reach";
+import type { PersonProposalVM } from "../person-reach";
 import { igClockOfRow, type PersonRowVM } from "../person-row/row-facts";
 import { toPersonRowVM } from "../person-row/row-vm";
 import { ourWireOfThreads, proposalSending, proposalSent, replyChannelOfThreads, ts } from "../person-helpers";

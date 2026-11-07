@@ -37,7 +37,7 @@ import {
   type SupportReportDto,
 } from "@chanlytics/contracts";
 import { listPlatformEvents, listPlatformOverview, findPlatformPartners, getPlatformWaitlist } from "./platform";
-import { type BackOffice } from "../shared/back-office";
+import type { BackOffice } from "../shared/back-office";
 import { listConsoleRequests } from "./requests";
 import { getBillingReadiness } from "@/server/workspace/billing";
 import { listConsoleActs } from "./acts";

@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { exportSectionPages, personExportPages } from "@chanlytics/db/workspace";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { listSignedMediaUrls } from "@/server/conversations/media";
 import { getTeamRoster } from "@/server/workspace/team";
 import { FILE_LINK_SECONDS, type BundleReaders, type BundleTeamMember, type PersonBundleReaders } from "./bundle";

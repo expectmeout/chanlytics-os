@@ -26,7 +26,7 @@ import {
 import { createClient } from "../../lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { doesSessionHoldPartnerSeat } from "@chanlytics/db/partners";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { isSameOrigin } from "./request-guards";
 import { bearerOf, verifyBearer } from "./auth/bearer";
 import { isRetryableAuthError } from "./auth/errors";

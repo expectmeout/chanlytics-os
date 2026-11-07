@@ -9,7 +9,7 @@
  */
 import { fenced } from "../ai/fence";
 import { LEAD_IDEAS_MAX, type IdeaHome } from "./ideas/history";
-import { type IdeaPacket } from "./ideas/places";
+import type { IdeaPacket } from "./ideas/places";
 import {
   PEOPLE_COMPANY_SIZES,
   PEOPLE_KEYWORDS_MAX,

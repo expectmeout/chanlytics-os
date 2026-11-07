@@ -12,7 +12,7 @@ import {
   listFilesToLookAgain,
   listFilesToPurgeAgain,
 } from "@chanlytics/db/files";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";

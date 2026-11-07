@@ -12,7 +12,7 @@
  */
 import type { ReactNode } from "react";
 import { LEAD_DOCK_WORDS as D, type LeadSheetDockVM } from "./model/dock";
-import { type LeadSheetSlotVM } from "./model/view";
+import type { LeadSheetSlotVM } from "./model/view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";

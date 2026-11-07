@@ -17,7 +17,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CALENDAR_SETTING_ROUTE, NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA, ANSWER_JSON_ONLY } from "@chanlytics/contracts";
 import { findContactIdByEmail, findContactIdByPhone } from "@chanlytics/db/calendar";
 import { mayWorkspaceSpend } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { JobContext } from "@chanlytics/jobs";
 import { askJson, promptHashOf } from "../ai/model.js";
 import { env } from "../shared/env.js";

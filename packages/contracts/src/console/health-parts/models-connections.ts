@@ -3,7 +3,7 @@
 import type { ModelPurpose } from "../../ai/models/routes";
 import { creditRanOut } from "../../ai/usage";
 import { capitalize } from "../../shared/words";
-import { type HealthScope } from "../health-scope";
+import type { HealthScope } from "../health-scope";
 import { subscriberWords } from "../health-clocks";
 import { SEND_CHANNEL_WORDS, inScopeRows, latest, type HealthPartsDto } from "./sends-calls";
 

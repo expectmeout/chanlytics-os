@@ -1,7 +1,7 @@
 /** Files: files. */
 
-import { type FileDto, type FileShelf, type FilesTally } from "./views";
-import { type FileShows, type FileSource, type FileWhoInIt } from "./limits";
+import type { FileDto, FileShelf, FilesTally } from "./views";
+import type { FileShows, FileSource, FileWhoInIt } from "./limits";
 
 /** The place in a shelf's order a page ends at, for the next to start from. */
 export const fileCursorOf = (file: Pick<FileDto, "created_at" | "id">): string => `${file.created_at}|${file.id}`;

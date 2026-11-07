@@ -5,7 +5,7 @@ import { lineCredentialFailure } from "../lines/failure";
 import type { FactConflict } from "../config/facts";
 import { agoWords, MIN_MS } from "../shared/time";
 import type { SetupGoogleFacts } from "../google/listing";
-import { type SetupBillingFacts } from "../workspace/billing/checkout";
+import type { SetupBillingFacts } from "../workspace/billing/checkout";
 import { SOLE_PROP_LIMITS } from "../lines/registration-path";
 import type { ActivationRecord } from "./capabilities";
 import type { EmailSetupDto } from "../email/mailbox";

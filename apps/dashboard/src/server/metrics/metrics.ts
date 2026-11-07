@@ -15,7 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { HOUR_MS, emailWires, holdOf, replyHoldDtoOf, type MetricsSummaryDto } from "@chanlytics/contracts";
 import { listFirstReplies } from "@chanlytics/db/reports";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { getEmailLine } from "../connections/email";
 import { findBookedSince, findBookingsLately } from "./bookings";
 import { log } from "@/server/shared/log";

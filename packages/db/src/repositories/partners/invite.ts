@@ -1,7 +1,7 @@
 /** Partner: invite. */
 
-import { type HandoverResult, type HandoverWorkspace } from "./handover";
-import { type Db } from "./partner";
+import type { HandoverResult, HandoverWorkspace } from "./handover";
+import type { Db } from "./partner";
 
 /** The workspace the partner joined, and whether its plan earns them a share. */
 export interface PartnerJoined extends HandoverWorkspace {

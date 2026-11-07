@@ -46,7 +46,7 @@ import {
   type LeadSendRow,
   type ReachOutSendRow,
 } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { sendMessageId } from "@chanlytics/core";
 import { draftRefusalOf, isWaitRefusal } from "@chanlytics/contracts";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";

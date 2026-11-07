@@ -17,7 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inboundFromInstagram, type IgMessaging } from "@chanlytics/channels/instagram";
 import { resolveChannelDetailed, type RoutedChannel } from "@chanlytics/db/channels";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { errField, logger } from "../shared/log.js";
 import { recordDmInbound, resumeDmInbound } from "../whatsapp/inbound.js";

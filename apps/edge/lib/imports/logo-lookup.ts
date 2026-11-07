@@ -31,7 +31,7 @@ import { publicFetcher } from "@chanlytics/channels/shared";
 import { findSiteLogo } from "@chanlytics/core";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { findListingFactsStored } from "@chanlytics/db/imports";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { findHomePage, PAGE_READS } from "../shared/public-page.js";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";

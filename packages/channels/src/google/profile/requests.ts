@@ -1,6 +1,6 @@
 /** Profile: requests. */
 
-import { type PlacesRequest } from "../places";
+import type { PlacesRequest } from "../places";
 
 export const GBP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
 

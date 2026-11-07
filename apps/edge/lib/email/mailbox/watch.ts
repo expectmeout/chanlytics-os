@@ -16,7 +16,7 @@ import {
 } from "@chanlytics/channels/email";
 import { HOUR_MS } from "@chanlytics/contracts";
 import { keepMailboxWatch, type MailboxConnectionRow } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { gmailPush, graphPush } from "./config.js";
 import type { Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";

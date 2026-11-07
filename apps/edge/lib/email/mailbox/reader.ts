@@ -29,7 +29,7 @@ import {
 import { keepSenderReading } from "@chanlytics/db/email";
 import { findWorkspaceAbout, findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
 import { mayWorkspaceUseModels } from "@chanlytics/db/ai";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { askJson, promptHashOf } from "../../ai/model.js";
 import { env } from "../../shared/env.js";
 import { errField, type Logger } from "../../shared/log.js";

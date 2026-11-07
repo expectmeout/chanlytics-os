@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isUuid } from "@chanlytics/contracts";
 import { leadAsListing, previewZoneOf } from "./lead-as-listing";
 import { findLeadForPreview, makeLeadPreview, type PreviewDoor, type PreviewMade } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";

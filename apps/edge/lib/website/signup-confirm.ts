@@ -42,7 +42,7 @@ import { findContactEmail, insertQueuedEmail, findSignupAskFacts } from "@chanly
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { resolveOutboundTargetForContact } from "@chanlytics/db/channels";
 import { findWorkspaceLook } from "@chanlytics/db/look";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { onceKeyId } from "../shared/alerts/notify.js";

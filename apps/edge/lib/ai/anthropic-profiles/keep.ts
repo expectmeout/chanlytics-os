@@ -33,7 +33,7 @@ import {
   setAnthropicEnforcement,
   type AnthropicProfileRow,
 } from "@chanlytics/db/ai";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";
 import { modelDeps } from "../model.js";

@@ -12,7 +12,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { inboundFromSms, inboundFromWhatsapp, normalizeInbound, smsInboundFrom } = channels;
+import { inboundFromSms, smsInboundFrom } from "@chanlytics/channels/lines";
+import { inboundFromWhatsapp, normalizeInbound } from "@chanlytics/channels/whatsapp";
 
 const FROM = "16465550123";
 const value = { metadata: { phone_number_id: "p1" }, contacts: [{ wa_id: FROM, profile: { name: "Dana" } }] };

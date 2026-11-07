@@ -18,8 +18,8 @@ import {
   type WhatsappPartVM,
 } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "../model/helpers";
-import { type FirstRunGoLiveVM, type GoLiveItemVM } from "../model/golive";
-import { type FirstRunTryVM } from "../model/try";
+import type { FirstRunGoLiveVM, GoLiveItemVM } from "../model/golive";
+import type { FirstRunTryVM } from "../model/try";
 import { WhatsappSteps } from "./whatsapp";
 import { Icon } from "../../../kit/icon/icon";
 import { refusalToast, type FrameFlash } from "../../../frame-verbs";

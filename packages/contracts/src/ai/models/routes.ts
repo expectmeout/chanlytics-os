@@ -1,16 +1,6 @@
 /** Models: routes. */
 
-import {
-  HAIKU_4_5,
-  HAIKU_5_5,
-  MODEL_IDS,
-  OPUS_5,
-  OPUS_5_5,
-  SONNET_5,
-  SONNET_5_5,
-  modelTakes,
-  type ModelId,
-} from "./ids";
+import { HAIKU_5_5, MODEL_IDS, OPUS_5_5, SONNET_5, SONNET_5_5, modelTakes, type ModelId } from "./ids";
 
 /**
  * How hard a request asks a model to think (`output_config.effort`), least first: the levels the gateway lets through,

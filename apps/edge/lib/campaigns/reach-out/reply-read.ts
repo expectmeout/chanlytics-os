@@ -30,7 +30,7 @@ import {
   ANSWER_JSON_ONLY,
 } from "@chanlytics/contracts";
 import { takeReplyRead, mayWorkspaceSpend } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { JobContext } from "@chanlytics/jobs";
 import { askJson, promptHashOf, type JsonAnswer } from "../../ai/model.js";
 import { startShadow } from "../../ai/shadow.js";

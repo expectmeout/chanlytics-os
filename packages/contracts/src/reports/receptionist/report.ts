@@ -15,7 +15,7 @@
  */
 import { NEEDS_YOU_WORD } from "../../conversations/standing";
 import { rangeLabelOf } from "../reports";
-import { type ReportBarVM } from "../dtos";
+import type { ReportBarVM } from "../dtos";
 import { closedOf, hoursUnsetOf, type ReportProfile } from "../closed";
 import { barsOf, mixOf, noMix, type MixPartVM } from "../mix";
 import { REPORT_MIN_N, beforeWords, fmtSeconds, type ReportStripTile } from "../tiles";

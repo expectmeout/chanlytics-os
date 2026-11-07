@@ -2,7 +2,7 @@
 
 import { PERSON_CHANNEL_WORDS } from "../../../people/person-words";
 import { plural } from "../../../shared/words";
-import { type MixEntry } from "../../mix";
+import type { MixEntry } from "../../mix";
 import { REPORT_MIN_N } from "../../tiles";
 import type { PeopleNowDto } from "../now";
 import type { PeopleSeriesDto } from "../record";

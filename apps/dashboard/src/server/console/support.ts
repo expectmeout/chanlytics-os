@@ -66,7 +66,7 @@ import { callEdge, edgeAnswered, edgeConfigured, edgeRefusalWords } from "../sha
 import { deployment, env } from "../shared/env";
 import { takeAct } from "./acts";
 import { listPlatformOverview } from "./platform";
-import { type BackOffice } from "../shared/back-office";
+import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
 import { inSet } from "@/server/console/acts";
 

@@ -18,7 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { addressOf } from "@chanlytics/channels/email";
 import { OFFERS_NOTICE_WORDS, offerGate, type OfferPauseReason, SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import { getEmailOfferCounts, pauseEmailOffers } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { logger, errField } from "../shared/log.js";
 import { notify } from "../shared/alerts/notify.js";
 import { pageOperator } from "../shared/alerts/page-operator.js";

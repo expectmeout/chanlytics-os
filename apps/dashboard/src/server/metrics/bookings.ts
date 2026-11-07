@@ -21,7 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { listBookedVisits } from "@chanlytics/db/notices";
 import { canBookingsArrive, findVisitChangesSince } from "@chanlytics/db/calendar";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
 
 type Db = SupabaseClient<Database>;

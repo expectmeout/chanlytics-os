@@ -42,7 +42,7 @@ import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { clipAtWord, messageStatusLabel, messageWords, reachedCustomer } from "../conversations/message-words";
 import type { PersonCardContext } from "./person-cards/right-now";
 import { reachOutPersonOf } from "../campaigns/reach-out/leads/standing";
-import { type ReachOutPersonVM } from "../campaigns/reach-out/leads/lines";
+import type { ReachOutPersonVM } from "../campaigns/reach-out/leads/lines";
 import { addressOf } from "../activity/record-address";
 import { dateFormat } from "../shared/time";
 

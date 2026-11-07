@@ -17,7 +17,7 @@ import {
   type LeadSheetWhyVM,
 } from "./model/card";
 import { LEAD_SHEET_WORDS as W, leadSheetAboutOf, type LeadSheetFactVM } from "./model/view";
-import { type LeadLineId, type LeadLineVM } from "./model/lines";
+import type { LeadLineId, LeadLineVM } from "./model/lines";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";

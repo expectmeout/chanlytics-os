@@ -8,7 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SCHEMA_SETS } from "@chanlytics/contracts";
 import { findProviderEvent, type DeliveryProvider } from "@chanlytics/db/events";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 

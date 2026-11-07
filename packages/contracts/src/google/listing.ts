@@ -3,7 +3,7 @@
 import type { SchemaSet } from "../shared/schema-sets";
 import { agoWords, HOUR_MS, DAY_MS } from "../shared/time";
 import { reviewsPhrase } from "../shared/words";
-import { type ReviewReplyMode } from "./review-reply";
+import type { ReviewReplyMode } from "./review-reply";
 import type { Hours } from "../config/workspace-config/business-profile";
 import { DAYS, dayProblems } from "../config/workspace-config/config-rules";
 import { WEEKDAY_KEYS } from "../shared/zone/math";

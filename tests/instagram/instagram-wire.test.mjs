@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const {
+import {
   instagramAuthorizeUrl,
   instagramCodeOf,
   instagramCodeRequest,
@@ -25,9 +25,9 @@ const {
   sendInstagramText,
   instagramRefusalOf,
   instagramThrottled,
-  resetBreakers,
   INSTAGRAM_DM_MAX_BYTES,
-} = channels;
+} from "@chanlytics/channels/instagram";
+import { resetBreakers } from "@chanlytics/channels/shared";
 
 const APP = {
   clientId: "990000000000001",

@@ -16,14 +16,14 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendInstagramText, type InstagramConfig } from "@chanlytics/channels/instagram";
-import { type SendResult } from "@chanlytics/channels/whatsapp";
+import type { SendResult } from "@chanlytics/channels/whatsapp";
 import {
   listActiveChannelRows,
   findLineWrittenTo,
   readChannelSecret,
   type WhatsappNumberRow,
 } from "@chanlytics/db/channels";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   wireUnavailable,
   WireUnavailableError,

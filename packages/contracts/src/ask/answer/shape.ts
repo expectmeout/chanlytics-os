@@ -1,6 +1,6 @@
 /** Answer: shape. */
 
-import { type AskMessageVM } from "../thread-words";
+import type { AskMessageVM } from "../thread-words";
 import { FOLLOWUP_ECHO, navigateLabel, sameQuestion, storedChart, type AskChart } from "../answer-text";
 import type { AskLanguage } from "../language";
 import type { FastCall } from "../fast-paths";

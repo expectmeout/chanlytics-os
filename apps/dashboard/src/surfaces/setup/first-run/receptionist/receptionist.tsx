@@ -14,7 +14,7 @@ import {
   type ReceptionistCardVM,
   type WalkIns,
 } from "@chanlytics/contracts";
-import { type FirstRunCheckVM } from "../model/view";
+import type { FirstRunCheckVM } from "../model/view";
 import type { SettingsRecord } from "@/bridge/surfaces/settings";
 import { Icon } from "../../../kit/icon/icon";
 import { RecordToggleGroup } from "../../../kit/record/field";

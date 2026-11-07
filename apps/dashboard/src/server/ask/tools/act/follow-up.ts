@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { setMemberView } from "@chanlytics/db/notices";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import {
   ASK_FOLLOW_UPS_MAX,
   ASK_VIEW_PAGE,

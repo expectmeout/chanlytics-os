@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getStaffState } from "@chanlytics/db/console";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { AppError, SECOND_FACTOR_WORDS, STAFF_STATES, type StaffRole, type StaffState } from "@chanlytics/contracts";
 import type { RouteContext } from "./with-route";
 import { serviceDb } from "./service-db";

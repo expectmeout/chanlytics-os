@@ -13,7 +13,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emitEvent } from "@chanlytics/db/events";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { DAY_MS } from "@chanlytics/contracts";
 import { MAX_ROWS } from "../shared/paged.js";
 import { logger, errField } from "../shared/log.js";

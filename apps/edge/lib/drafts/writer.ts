@@ -50,7 +50,7 @@ import { describeLead, readLeadContext, readThreadState } from "@chanlytics/db/c
 import { listMailboxConnectionsOf, findMailboxOfTenant } from "@chanlytics/db/email";
 import { findOldestActiveChannel, type RoutedChannel } from "@chanlytics/db/channels";
 import { mayWorkspaceSpend } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { layerTwo, type BriefWritten, type ReplyDraftAsk, type ReplyWritten } from "@chanlytics/core";
 import type { ReplyDraftEdge } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";

@@ -54,7 +54,7 @@ import {
   type UncheckedSend,
 } from "@chanlytics/db/campaigns";
 import { findLeadCountries } from "@chanlytics/db/leads";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   askReachOutModel,
   checkBudget,

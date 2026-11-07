@@ -10,7 +10,7 @@ import {
   type IdeaAbout,
 } from "@chanlytics/contracts";
 import { getLeadAllowance } from "@chanlytics/db/leads";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
 import { getStoredConfig } from "../workspace/config-row";

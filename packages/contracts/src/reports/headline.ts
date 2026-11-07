@@ -7,7 +7,7 @@
 import { toBookingReportVM, type BookingReportDto, type BookingReportVM } from "./booking-report";
 import type { ReportPeriodId } from "./periods";
 import { periodWords, rangeLabelOf } from "./reports";
-import { type ReportDto } from "./dtos";
+import type { ReportDto } from "./dtos";
 import { compareWords } from "./tiles";
 
 /** What `GET reports/headline` answers: counts over the period, and the calendar's line over the same days. */

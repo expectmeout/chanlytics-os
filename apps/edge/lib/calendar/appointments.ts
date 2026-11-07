@@ -18,7 +18,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listEveryoneIn } from "@chanlytics/db/people";
 import { listNotedOver, syncFeedAppointments, type AppointmentSync } from "@chanlytics/db/calendar";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   feedAppointmentRows,
   ownAddressesOf,

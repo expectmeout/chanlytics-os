@@ -18,7 +18,7 @@ import {
   type PhoneWay,
 } from "../../voice/forwarding";
 import { lineStuckProvisioning, type LineDto, type SetupDto, type SetupRowVM } from "../lines";
-import { type SetupVM } from "../setup";
+import type { SetupVM } from "../setup";
 import { FIRST_RUN_PHONE_WORDS, type FirstRunPhoneCodeVM, type FirstRunPhoneVM, type FirstRunPhoneWayVM } from "./vm";
 
 export interface FirstRunPhoneInput {

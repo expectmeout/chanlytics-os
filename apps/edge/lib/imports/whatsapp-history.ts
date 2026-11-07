@@ -31,7 +31,7 @@ import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
 import { importCursorOf, listImports, keepBefore, noteImport } from "@chanlytics/db/imports";
 import { findProviderEvent } from "@chanlytics/db/events";
 import { resolveChannelDetailed } from "@chanlytics/db/channels";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import { getWaCredentialsForChannel } from "../shared/tenant-runtime.js";
 import { graphRetryable, getSmbAppData } from "../whatsapp/meta-graph.js";
 import type { Part, PartOutcome } from "./history-import.js";

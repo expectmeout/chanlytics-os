@@ -15,7 +15,7 @@ import {
   type ReportsParts,
   type SequenceRowDto,
 } from "@chanlytics/contracts";
-import { type CampaignChoice, type CampaignOneVM } from "./campaign-one";
+import type { CampaignChoice, CampaignOneVM } from "./campaign-one";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
 import { navigate } from "../../frame-verbs";
 import type { ReportsSurface } from "../surface";

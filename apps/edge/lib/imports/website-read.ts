@@ -29,7 +29,7 @@ import type { SitePage } from "@chanlytics/channels/website";
 import { bookingPageOfSite, sitePagesLinkedFrom, sitePagesNamed } from "@chanlytics/core";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { keepBusinessRead, findListingFactsStored } from "@chanlytics/db/imports";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import { askJson, promptHashOf } from "../ai/model.js";
 import { env } from "../shared/env.js";

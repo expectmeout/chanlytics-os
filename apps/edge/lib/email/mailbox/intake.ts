@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { gmailEmailOf, readGmailMessage, graphEmailOf, readGraphMessage } from "@chanlytics/channels/email";
 import { findMailboxConnectionById } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { JobContext } from "@chanlytics/jobs";
 import { wasErasedBeforeEmail } from "../../shared/erased.js";
 import { tellOfWaitingEmail } from "../email.js";

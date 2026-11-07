@@ -18,7 +18,7 @@ import {
   type ReportStripTile,
   type ReportVM,
 } from "@chanlytics/contracts";
-import { type ReportFactVM } from "./model/facts";
+import type { ReportFactVM } from "./model/facts";
 import { metricWordsOf } from "@chanlytics/contracts/report-lens";
 import { listRoute, openBookingTool, routeDoor } from "../frame-verbs";
 import { titleOf } from "../campaigns/templates/verbs";

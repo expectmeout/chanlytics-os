@@ -5,7 +5,7 @@
  * Later puts them all off in this pass of the search. One verb each, as the sheet's: sequence_add and sequence_make.
  */
 import { useState } from "react";
-import { type ReachOutAddDto } from "@chanlytics/contracts";
+import type { ReachOutAddDto } from "@chanlytics/contracts";
 import { LEAD_SHEET_WORDS as W, leadPickerRowsOf, type LeadPickerRowVM } from "../sheet/model/view";
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";

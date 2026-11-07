@@ -24,7 +24,7 @@ import {
   type WrittenEmail,
 } from "@chanlytics/db/campaigns";
 import { findMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import {
   draftRefusalOf,

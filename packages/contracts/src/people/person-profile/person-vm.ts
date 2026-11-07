@@ -14,7 +14,7 @@ import { sinceWords } from "../person-words";
 import { signupAskOf } from "../doors/signup-confirm";
 import type { ChannelsReady } from "../../campaigns/broadcasts/reach-for";
 import { writeWaysOf } from "../../new-conversation/write-ways";
-import { type MessageDto } from "../../conversations/thread-dto";
+import type { MessageDto } from "../../conversations/thread-dto";
 import { draftSendsAtMs, heldDraftOf } from "../../conversations/message-words";
 import { replyWaitsOnYou } from "../../conversations/standing";
 import { isIdentifierName, shortName } from "../../conversations/thread-contact";

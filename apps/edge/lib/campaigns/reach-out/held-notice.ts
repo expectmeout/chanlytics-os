@@ -14,7 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { heldNoticeWords, isReachOutHold, type ReachOutHold, runRoute } from "@chanlytics/contracts";
 import { listHeldNoticeDue, markHeldNotice } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { notifyOnce, type NotifyMessage } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import type { LogEvent } from "../../shared/log.js";

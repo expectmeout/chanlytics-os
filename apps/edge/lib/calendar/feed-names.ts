@@ -19,7 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import type { FeedNames } from "@chanlytics/contracts";
 import { getTenantConfig, findWorkspaceZone } from "@chanlytics/db/workspace";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { listFeedItems } from "./availability.js";
 
 /**

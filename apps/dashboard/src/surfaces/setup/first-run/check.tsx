@@ -13,7 +13,7 @@
  */
 import type { ReactNode } from "react";
 import { FIRST_RUN_HELPERS } from "./model/helpers";
-import { type FIRST_RUN_WORDS, type FirstRunCheckVM } from "./model/view";
+import type { FIRST_RUN_WORDS, FirstRunCheckVM } from "./model/view";
 import type { SettingsRecord } from "@/bridge/surfaces/settings";
 import { FailedRead } from "../../kit/empty/empty";
 import { recFolds } from "../../kit/record/registry";

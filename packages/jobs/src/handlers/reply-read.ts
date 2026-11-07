@@ -26,7 +26,7 @@ import {
   type ReplyReadingRow,
 } from "@chanlytics/db/campaigns";
 import { claimConversationDraft, writeConversationDraft } from "@chanlytics/db/ask";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { logger } from "@chanlytics/log";
 import type { ClaimedJob, JobContext } from "../runner/context";
 import { FUNCTION_CEILING_MS, LEASE_SECONDS, type Db } from "../runner/ledger";

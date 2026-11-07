@@ -22,7 +22,7 @@ import { publicFetcher } from "@chanlytics/channels/shared";
 import { remadeLogo } from "@chanlytics/channels/files";
 import { accentOfColour, siteAccentOf, findSiteLogo } from "@chanlytics/core";
 import { wearFoundLook } from "@chanlytics/db/look";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { errField, logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;

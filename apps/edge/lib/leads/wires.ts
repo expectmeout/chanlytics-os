@@ -27,7 +27,7 @@ import {
   type LeadJudgeClient,
 } from "@chanlytics/channels/leads";
 import { publicFetcher } from "@chanlytics/channels/shared";
-import { type SitePage } from "@chanlytics/channels/website";
+import type { SitePage } from "@chanlytics/channels/website";
 import { judgeShadowSpecs, readsAsModel } from "@chanlytics/contracts";
 import { env, httpsOriginOf } from "../shared/env.js";
 import { edgeOrigin } from "../shared/dashboard-origin.js";

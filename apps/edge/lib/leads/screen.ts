@@ -11,7 +11,7 @@
  * here throws to the collect.
  */
 import { askSystemOne, type SystemOneReply } from "@chanlytics/channels/ai";
-import { type LeadJudge, type LeadScreen } from "@chanlytics/channels/leads";
+import type { LeadJudge, LeadScreen } from "@chanlytics/channels/leads";
 import {
   LEAD_SCREEN_BOUND_MS,
   SHADOW_TIMEOUT_MS,

@@ -10,12 +10,11 @@ import {
   deliver,
   isWireUnavailable,
   sendBroadcastBatch,
-  type BatchCarry,
   type BroadcastBatchPorts,
   type Channel,
 } from "@chanlytics/core";
 import { carriedBy, nextBatch } from "../runner/batch-carry";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { getAppointmentStates } from "@chanlytics/db/calendar";
 import {
   recordCampaignMonthSent,

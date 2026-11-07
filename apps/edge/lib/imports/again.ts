@@ -10,7 +10,7 @@ import { IMPORT_SOURCES, UUID, parseTenantConfig, type ImportSource } from "@cha
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { importCursorOf, listImports, type ImportLedgerRow } from "@chanlytics/db/imports";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";

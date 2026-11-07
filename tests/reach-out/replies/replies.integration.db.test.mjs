@@ -45,7 +45,7 @@ import {
   liveCredentials,
   withEnv,
 } from "../../email/mailboxes/_mailbox-world.mjs";
-import { importSrc } from "../../_source.mjs";
+import { importSrc, importBundle } from "../../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -446,7 +446,7 @@ before(async () => {
     ...(await import(at("apps/dashboard/src/server/campaigns/ports.ts"))),
     ...(await import(at("packages/core/dist/index.js"))),
     ...(await import(at("packages/jobs/dist/index.js"))),
-    ...(await import(at("packages/db/dist/index.js"))),
+    ...(await importBundle("db")),
   };
   // The dashboard's own doors: the Inbox's reply, and "read as no · undo".
   dash = {

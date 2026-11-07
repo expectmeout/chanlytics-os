@@ -58,7 +58,7 @@ import {
   findSenderReading,
   getTalksWith,
 } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { platformFrom } from "../../shared/alerts/notify.js";
 import type { Logger } from "../../shared/log.js";
 import { answersSomething, senderReaderFor, type SenderReader } from "./reader.js";

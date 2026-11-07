@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { type AskProposal } from "@chanlytics/contracts";
+import type { AskProposal } from "@chanlytics/contracts";
 import { ASK_GUIDE_PAGES } from "../../proposals/guide";
 import { ASK_SKILL_IDS, isAskSkillId, skillGuide } from "../../skills/registry";
 import { load } from "../../../shared/reader";

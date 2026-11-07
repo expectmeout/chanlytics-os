@@ -8,7 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { keepVoiceAgent, findVoiceAgent } from "@chanlytics/db/facts";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   voiceLlmCreateBody,
   voiceAgentCreateBody,

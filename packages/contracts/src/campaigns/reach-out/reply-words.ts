@@ -6,7 +6,7 @@
 import { clockDate, wallClockAt } from "../../shared/clock";
 import { REPLY_CHIP_WORDS, REPLY_INTENT_WORDS, type ReplyIntent, type Unread } from "./replies/intents";
 import { REPLY_REREADS } from "./replies/words";
-import { type ReplyClaim } from "./replies/reading";
+import type { ReplyClaim } from "./replies/reading";
 import type { DraftWhy } from "./reply-draft";
 
 /** The most readings one page is told, and how far back it looks (the reading's own window, REACH_OUT_REPLY_DAYS). */

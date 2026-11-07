@@ -9,7 +9,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { type FeedItem, type OwnAddresses } from "@chanlytics/contracts";
+import type { FeedItem, OwnAddresses } from "@chanlytics/contracts";
 import { bookedSeenOf } from "./reach-out-booked-rule";
 import { logger } from "../shared/log.js";
 

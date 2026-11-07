@@ -32,7 +32,7 @@ import {
 import { grantHolds } from "@chanlytics/channels/email";
 import { importRowOf, listImports, noteImport } from "@chanlytics/db/imports";
 import { noteCalendarGrant, patchMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { mailHistoryPart } from "./mail-history.js";

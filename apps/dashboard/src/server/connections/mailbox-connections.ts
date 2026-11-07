@@ -13,7 +13,7 @@ import {
   getMailboxLeftSince,
   getMailboxPeopleSince,
 } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   AppError,
   DAY_MS,

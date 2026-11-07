@@ -1,7 +1,7 @@
 /** Sequences: batches. */
 
 import { answer, type DoorResult } from "../reach-out/leads";
-import { type Db } from "./reads";
+import type { Db } from "./reads";
 import { decided, type DoorDecision, type SequenceDoorAnswer } from "./doors";
 
 /** The search a sequence to leads draws its new ready leads from, or none (00459 reach_out_source_set: auto-add). */

@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inWorkspace } from "@chanlytics/db/erasure";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { AppError } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";

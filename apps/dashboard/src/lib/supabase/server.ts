@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { namedFetch } from "@chanlytics/db/shared";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { env, servedOverHttps } from "@/server/shared/env";
 import { sessionCookieOptions } from "./cookie-options";
 

@@ -20,7 +20,7 @@ import {
 import { findLeadCountries } from "@chanlytics/db/leads";
 import { findLeadPreview, findLeadSlots, listReachOutAudience, readReachOutRecord } from "@chanlytics/db/campaigns";
 import { findMailboxConnection } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   askReachOutModel,
   checkBudget,

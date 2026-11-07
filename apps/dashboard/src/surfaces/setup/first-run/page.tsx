@@ -27,9 +27,9 @@ import {
   type FirstRunStepKey,
 } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "./model/helpers";
-import { type FirstRunGoLiveVM } from "./model/golive";
-import { type FirstRunTryVM } from "./model/try";
-import { type FirstRunVM, type FirstRunWho } from "./model/view";
+import type { FirstRunGoLiveVM } from "./model/golive";
+import type { FirstRunTryVM } from "./model/try";
+import type { FirstRunVM, FirstRunWho } from "./model/view";
 import type { SettingsSurface } from "@/bridge/surfaces/settings";
 import { pageClock } from "@/bridge/zone";
 import type { LiveSurface } from "../../live/surface";

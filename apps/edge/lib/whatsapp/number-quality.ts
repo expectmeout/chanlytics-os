@@ -29,7 +29,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { keepChannelQuality, listWhatsappNumbersToRead, type WhatsappNumber } from "@chanlytics/db/jobs";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { HOUR_MS } from "@chanlytics/contracts";
 import { errField, type Logger } from "../shared/log.js";
 import type { notify } from "../shared/alerts/notify.js";

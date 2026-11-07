@@ -37,7 +37,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDueCalendars, getDuePlaybooks, type DueCalendar, type DuePage, type DueStep } from "@chanlytics/db/jobs";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 
 type Db = SupabaseClient<Database>;
 

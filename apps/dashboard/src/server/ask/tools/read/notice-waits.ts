@@ -10,7 +10,7 @@ import {
 import { findHeldNoticeKeys } from "@chanlytics/db/calendar";
 import { listReviewsNamed } from "@chanlytics/db/notices";
 import { listRunsNamed } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
 
 /**

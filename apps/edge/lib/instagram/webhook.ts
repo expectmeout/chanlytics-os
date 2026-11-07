@@ -43,7 +43,7 @@ import {
   resolveChannelDetailed,
   type RoutedChannel,
 } from "@chanlytics/db/channels";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { HOUR_MS, MIN_MS, pauseMsOf, WAITING_REASONS } from "@chanlytics/contracts";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";

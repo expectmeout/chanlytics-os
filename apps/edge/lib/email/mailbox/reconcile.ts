@@ -23,7 +23,7 @@ import {
   listUnknownMailboxEmails,
   type MailboxConnectionRow,
 } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { UNKNOWN_OUTCOME_MS } from "../../shared/unknown-outcome.js";
 import { getToken } from "./credentials.js";
 import { errField, type Logger } from "../../shared/log.js";

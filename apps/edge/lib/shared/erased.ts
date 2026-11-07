@@ -12,7 +12,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getErasureDigests } from "@chanlytics/db/people";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 
 type Db = SupabaseClient<Database>;
 

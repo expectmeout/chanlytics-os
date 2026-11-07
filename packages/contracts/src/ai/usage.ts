@@ -8,7 +8,7 @@
  * all four and the dollars they came to.
  */
 import { MODELS, type ModelId, type ModelSpeed } from "./models/ids";
-import { type ModelPort, type ModelPurpose } from "./models/routes";
+import type { ModelPort, ModelPurpose } from "./models/routes";
 
 /**
  * One call's tokens, as the API counts them, and the speed it ran at when that was fast mode (the API's own

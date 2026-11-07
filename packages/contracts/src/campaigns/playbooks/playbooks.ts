@@ -15,7 +15,7 @@ import { visitServiceOf } from "../../calendar/visit/service";
 import type { ListRef } from "../../people/lists/token";
 import { localDate } from "./schedule";
 import { DAY_MS } from "./time";
-import { type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger } from "./triggers/kinds";
+import type { PlaybookPolicyClass, PlaybookState, PlaybookTrigger } from "./triggers/kinds";
 import { triggerOf } from "./triggers/notices";
 import { dateFormat } from "../../shared/time";
 import type { SequenceMode } from "../sequences/sequence";

@@ -12,7 +12,7 @@
  * broadcast's next batch) carries the request that started the chain.
  */
 import { hasRequeuedCopy, readJobToRequeue } from "@chanlytics/db/jobs";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { JOB_KINDS, type JobKind } from "@chanlytics/contracts";
 import { logger, requestId } from "@chanlytics/log";
 import { kindPolicyOf } from "./kinds";

@@ -22,10 +22,6 @@ import { emailCanSend } from "../../../lib/email/email.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { EMAIL_WIRE_DOOR } from "@chanlytics/contracts";
 
-interface EmailBody {
-  op?: unknown;
-}
-
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/email/wire");
   if (!auth.ok) return auth.response;

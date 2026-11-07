@@ -13,7 +13,7 @@ import {
 } from "@chanlytics/contracts";
 import { findAnsweredSince, findBellSeenAt, findContactName } from "@chanlytics/db/notices";
 import { getTodayDoneCount } from "@chanlytics/db/people";
-import { type GoingRunRow, type WaitingRunRow } from "@chanlytics/db/campaigns";
+import type { GoingRunRow, WaitingRunRow } from "@chanlytics/db/campaigns";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { goingRuns, waitingRuns } from "./broadcasts";
 import { findHeldThreadsBeyond } from "./inbox";

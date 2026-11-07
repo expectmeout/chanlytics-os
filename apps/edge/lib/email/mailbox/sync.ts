@@ -57,7 +57,7 @@ import {
   takeMailboxSync,
   type MailboxConnectionRow,
 } from "@chanlytics/db/email";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { applyEmailReceipt } from "../receipts.js";
 import { getToken } from "./credentials.js";

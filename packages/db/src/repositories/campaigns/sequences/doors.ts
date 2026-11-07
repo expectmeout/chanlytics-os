@@ -9,7 +9,7 @@ import type {
 import type { Json } from "../../../database.types";
 import { answer, type DoorResult } from "../reach-out/leads";
 import { putBackOf, withListedWhyNot, withOneLeadsOpening, withOpenings, withPlaceWhyNot } from "../sequence-waiting";
-import { type Db } from "./reads";
+import type { Db } from "./reads";
 
 /** How many ids one `in` list carries: two hundred keeps the URL short (the run reader's own chunk). */
 const REPLIES_IN_CHUNK = 200;

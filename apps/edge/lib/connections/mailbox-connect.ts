@@ -55,7 +55,7 @@ import {
 } from "@chanlytics/db/email";
 import { emitEvent } from "@chanlytics/db/events";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { mailboxClient } from "../email/mailbox/config.js";
 import { grantOf, storeMailboxCredentials, getToken } from "../email/mailbox/credentials.js";
 import { readMailboxDns } from "../email/mailbox/dns.js";

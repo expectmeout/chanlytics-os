@@ -6,7 +6,7 @@
  * (lists/actions.ts), read as Today's page loads.
  */
 import { LIST_GROUP_WORDS, TODAY_PHONE_WORDS as P } from "@chanlytics/contracts";
-import { type PeopleListsLike } from "../leaks";
+import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { Button } from "../../kit/button/button";

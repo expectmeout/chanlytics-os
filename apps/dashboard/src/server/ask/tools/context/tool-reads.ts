@@ -27,7 +27,7 @@ import { readerContext, type ReaderContext } from "../../../shared/reader";
 import { findWhatsappHealth } from "../../../campaigns/channels-ready";
 import { createBroadcastPorts, templateValuePorts } from "../../../campaigns/ports";
 import { log } from "@/server/shared/log";
-import { type ToolContext } from "./tool-defs";
+import type { ToolContext } from "./tool-defs";
 
 /** Whose a role's action is, in the words a refusal says it: "an owner's", "an owner's or a partner's". */
 export const WHOSE: Record<MembershipRole, string> = {

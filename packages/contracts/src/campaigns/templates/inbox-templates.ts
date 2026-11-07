@@ -8,7 +8,7 @@ import { languageWords } from "./message-languages";
 import { templateBlocked } from "./parts";
 import { languageBase, languageLabel } from "./languages";
 import { TEMPLATE_STATUS_WORDS } from "./templates";
-import { type ParamSourceKind, type ParamSpec } from "./params";
+import type { ParamSourceKind, ParamSpec } from "./params";
 import { defaultParamSpecs, slotLabels } from "./slots";
 import { templateTitle } from "./titles";
 import { starterByName } from "./starter-lookup";

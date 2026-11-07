@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS, IMPORT_STOPPED_WORDS } from "@chanlytics/contracts";
 import { getDueCalendars } from "@chanlytics/db/jobs";
 import { noteImport } from "@chanlytics/db/imports";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { readOneCalendar, type Kept } from "../calendar/sweep.js";
 import type { Part, PartOutcome } from "./history-import.js";
 

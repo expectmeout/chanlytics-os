@@ -21,7 +21,7 @@ import { json, refuse } from "../shared/http.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { keepChannelStanding, findWhatsappNumber, type WhatsappNumber } from "@chanlytics/db/jobs";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { standingAlertWords, UUID, type NumberStanding } from "@chanlytics/contracts";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { notify } from "../shared/alerts/notify.js";

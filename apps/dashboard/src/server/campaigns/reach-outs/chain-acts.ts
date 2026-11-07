@@ -34,7 +34,7 @@ import {
   type ReachOutStepRow,
 } from "@chanlytics/db/campaigns";
 import { emitEvent } from "@chanlytics/db/events";
-import { type MailboxConnectionRow } from "@chanlytics/db/email";
+import type { MailboxConnectionRow } from "@chanlytics/db/email";
 import { mailboxSignatureOf } from "@chanlytics/channels/email";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";

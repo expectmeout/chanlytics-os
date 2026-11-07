@@ -69,6 +69,21 @@ export const readCode = (...paths) => paths.map((p) => stripComments(readRaw(p))
 export const importSrc = (p) => import(pathToFileURL(path.join(ROOT, p)).href);
 
 /**
+ * A package's bundle as the suite builds it, whole: every entry its manifest names, read into one namespace. db and
+ * channels have an entry per domain and no index (decision 0106), so a test that reached `dist/index.js` reads this.
+ */
+export async function importBundle(pkg) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "packages", pkg, "package.json"), "utf8"));
+  const outs = Object.values(manifest.exports ?? {})
+    .map((target) => (typeof target === "object" ? target.bundled : null))
+    .filter(Boolean);
+  const modules = await Promise.all(
+    outs.map((out) => import(pathToFileURL(path.join(ROOT, "packages", pkg, out)).href)),
+  );
+  return Object.assign({}, ...modules);
+}
+
+/**
  * The trees whose words reach a person: a page, a prompt, a message, a refusal. The trade-neutral scan reads them
  * (repo/trade-neutral.test.mjs), and so does the appointment words' ratchet (journey/journey.test.mjs).
  */

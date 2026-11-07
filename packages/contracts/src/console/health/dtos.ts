@@ -1,6 +1,6 @@
 /** Health: dtos. */
 
-import { type HealthAnthropicProfilesDto } from "../../ai/anthropic-enforcement";
+import type { HealthAnthropicProfilesDto } from "../../ai/anthropic-enforcement";
 import type { Tone } from "../../shell/tone";
 import type { PageVitalsRowDto } from "../../shell/vitals";
 import type { PageSpeedRowDto, PageSpotRowDto } from "../../shell/page-speed";

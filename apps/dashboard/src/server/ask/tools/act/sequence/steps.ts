@@ -6,8 +6,8 @@ import {
   FOLLOW_UP_CONDITIONS,
   HELD_DECIDE_CARD,
   PLAYBOOK_CARD_WORDS,
-  REACH_OUT_DECISIONS,
-  REACH_OUT_SAID_OUTCOMES,
+  type REACH_OUT_DECISIONS,
+  type REACH_OUT_SAID_OUTCOMES,
   SEQUENCE_ACT_WHY,
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_MODE_WORDS,
@@ -26,7 +26,7 @@ import { load } from "../../../../shared/reader";
 import { sequence as sequenceReader, sequencePeople } from "../../../../readers/sequences";
 import { getAskedMessage, noteRow, stepNamed, str, readUnlessNotFound } from "../../context/tool-reads";
 import { propose, refuse } from "../../context/context";
-import { type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
+import type { ProposalOutcome, ToolContext } from "../../context/tool-defs";
 import { playbookAction } from "../playbook/playbook";
 
 /**

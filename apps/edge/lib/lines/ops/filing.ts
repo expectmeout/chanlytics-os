@@ -6,9 +6,9 @@ import { campaignFactsFor } from "../a2p-campaign-facts.js";
 import type { RegisterResult } from "../a2p-register.js";
 import type { RefileOutcome } from "../a2p-refile.js";
 import type { RegistrationSync } from "../a2p-sync.js";
-import { type LineDbRow } from "../resume.js";
-import { type DoorAnswer } from "../../shared/admin-door.js";
-import { type LinesBody, type RecordRow } from "./search-buy.js";
+import type { LineDbRow } from "../resume.js";
+import type { DoorAnswer } from "../../shared/admin-door.js";
+import type { LinesBody, RecordRow } from "./search-buy.js";
 
 /* -------------------------------------------------------------- register */
 

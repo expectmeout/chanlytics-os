@@ -51,7 +51,7 @@ import { lists as listsReader } from "../../../../readers/lists";
 import { playbooks } from "../../../../readers/playbooks";
 import { templates as templatesReader, type TemplatesRead } from "../../../../readers/templates";
 import { noteRow, findTouchesThisWeek, unread, whatsappHowOf } from "../../context/tool-reads";
-import { type ToolContext } from "../../context/tool-defs";
+import type { ToolContext } from "../../context/tool-defs";
 
 /**
  * The messages a broadcast may be made on, as the composers' read gave them (its `messages`: one a name and language, with

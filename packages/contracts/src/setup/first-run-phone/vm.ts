@@ -1,8 +1,8 @@
 /** First run phone: vm. */
 
 import { CHECKOUT_OUTCOME_WORDS } from "../../workspace/billing/checkout";
-import { type Carrier, type PhoneCompany, type PhoneRings, type PhoneWay } from "../../voice/forwarding";
-import { type SetupState } from "../lines";
+import type { Carrier, PhoneCompany, PhoneRings, PhoneWay } from "../../voice/forwarding";
+import type { SetupState } from "../lines";
 import { FORWARDING_WAIT_WORDS } from "../put-off";
 
 /**

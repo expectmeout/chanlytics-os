@@ -14,7 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listAiFailuresHour, purgeAiUsage, type AiFailures } from "@chanlytics/db/ai";
 import { isWorkspaceOurs } from "@chanlytics/db/console";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
 import { logger, errField } from "../shared/log.js";
 

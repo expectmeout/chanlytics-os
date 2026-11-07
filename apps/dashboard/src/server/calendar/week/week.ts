@@ -33,7 +33,7 @@ import {
   mailboxCalendarOf,
 } from "@chanlytics/contracts";
 import { listVisitOrigins } from "@chanlytics/db/calendar";
-import { type MailboxRow } from "@chanlytics/db/email";
+import type { MailboxRow } from "@chanlytics/db/email";
 import type { RouteContext } from "@/server/shared/with-route";
 import { getTenantFacts } from "@/server/shared/tenant";
 import { listEveryone } from "@/server/people/people";

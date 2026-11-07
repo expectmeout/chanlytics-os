@@ -6,7 +6,7 @@
  * a miss, and nothing the tab says about a row is believed.
  */
 import { ASK_SCOPE_KINDS, type AskScope, type AskScopeKind, type AskSurface } from "./ask";
-import { type AskMessageVM } from "./thread-words";
+import type { AskMessageVM } from "./thread-words";
 import { answerFromV1 } from "./answer/shape";
 
 /** The rows a context may carry: what one screen shows, and what one turn's context can afford (the plan, D11). */

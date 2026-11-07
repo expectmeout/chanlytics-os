@@ -44,7 +44,7 @@ import { findMailboxOfTenant, type MailboxRow } from "@chanlytics/db/email";
 import { hostedAddress } from "@chanlytics/channels/email";
 import type { RouteContext } from "@/server/shared/with-route";
 import { emailDomain } from "../../connections/email";
-import { type ParsedRead } from "../parsed-feed";
+import type { ParsedRead } from "../parsed-feed";
 import { log } from "@/server/shared/log";
 
 /**

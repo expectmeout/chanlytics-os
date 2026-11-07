@@ -7,7 +7,7 @@ import { reachFor } from "../broadcasts/reach-for";
 import { heardWithin } from "../broadcasts/run-words";
 import { POLICY_CLASS_WORDS } from "../../config/workspace-config/policy-classes";
 import { visitDateKey, type PersonVisitsDto, type VisitDto } from "../../calendar/people/visits";
-import { type MatchVia } from "../../calendar/people/matching";
+import type { MatchVia } from "../../calendar/people/matching";
 import { dayPlusInZone } from "../../shared/zone/math";
 import { fullNameKey } from "../../calendar/visit/service";
 import { purposeOfPlaybook } from "../../consent/consent";
@@ -20,7 +20,7 @@ import { followUpCovers, followUpDealOf, followUpKey, type FollowUpsHad } from "
 import { enrolPurpose, messageAboutOfTrigger, type RunMessage } from "./purpose";
 import { DAY_MS } from "./time";
 import { HOUR_MS } from "../../shared/time";
-import { type PlaybookPolicyClass } from "./triggers/kinds";
+import type { PlaybookPolicyClass } from "./triggers/kinds";
 import { triggerOf } from "./triggers/notices";
 import type { PlaybookDto } from "./playbooks";
 import type { ConsentChannel } from "../../consent/channels";

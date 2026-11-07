@@ -26,7 +26,7 @@ import {
   type ReachOutStepRow,
   type ReplyListRow,
 } from "@chanlytics/db/campaigns";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import type { RouteContext } from "../shared/with-route";
 import { findMailboxAddress, replyFromOf, replyIdentitiesOf } from "../connections/email";
 

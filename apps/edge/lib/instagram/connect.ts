@@ -39,7 +39,7 @@ import {
   setInstagramStatus,
   writeInstagramAccount,
 } from "@chanlytics/db/channels";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { UUID } from "@chanlytics/contracts";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";

@@ -4,7 +4,7 @@ import type { ChannelStandingPart } from "../../../broadcasts/channels-standing"
 import type { ConsentChannel } from "../../../../consent/channels";
 import type { JourneyStageId } from "../../../../journey/journey";
 import type { LIFECYCLE_WORDS } from "../words";
-import { type LifecycleChannelMark } from "./reads";
+import type { LifecycleChannelMark } from "./reads";
 
 /** Whether the read a tile is made of landed: drawn when it did, said quietly while it is out, the kit's failed read where it failed. */
 export type LifecycleTileRead = "read" | "reading" | "failed";

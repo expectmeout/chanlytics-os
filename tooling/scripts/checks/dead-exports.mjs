@@ -31,6 +31,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { repoFiles, parse, bundleExports, unimportedExports } from "../../../tests/_ast.mjs";
+import { entriesOf } from "../package-build.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -70,7 +71,8 @@ export function packagePass() {
     const readers = everything.filter((f) => !(own(f) && isBarrel(f)));
     const found = unimportedExports(
       modules.map((file) => ({ file, sf: parse(file) })),
-      bundleExports(parse(`packages/${p}/dist/index.js`)),
+      // Every entry's names: db and channels are reached by their domains, with no index (decision 0106).
+      new Set(Object.keys(entriesOf(p)).flatMap((out) => [...bundleExports(parse(`packages/${p}/${out}`))])),
       readers.map((file) => ({ file, sf: parse(file) })),
     );
     for (const [file, names] of Object.entries(found)) now[file] = names.length;

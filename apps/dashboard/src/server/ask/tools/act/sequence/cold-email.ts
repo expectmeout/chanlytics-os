@@ -17,7 +17,7 @@ import { listMailboxConnections } from "../../../../connections/mailbox-connecti
 import { searchRow } from "../../../../leads/leads";
 import { stepNamed, str } from "../../context/tool-reads";
 import { propose, refuse } from "../../context/context";
-import { type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
+import type { ProposalOutcome, ToolContext } from "../../context/tool-defs";
 import { coldEmailCard } from "../leads/cold-email-card";
 import { after, isRefusal, refusedAct, sequenceOnCard } from "./steps";
 

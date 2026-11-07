@@ -19,7 +19,7 @@ import {
   type AskRowRef,
   type AskScope,
 } from "@chanlytics/contracts";
-import { type AskTurnShape } from "./shape";
+import type { AskTurnShape } from "./shape";
 import type { RouteContext } from "../shared/with-route";
 import {
   answerLine,

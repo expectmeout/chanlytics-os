@@ -59,7 +59,7 @@ import {
   type AskedMessage,
 } from "../../context/tool-reads";
 import { propose, refuse } from "../../context/context";
-import { type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
+import type { ProposalOutcome, ToolContext } from "../../context/tool-defs";
 import { channelsWaitWords } from "../playbook-channels";
 import {
   getAllowanceHeld,

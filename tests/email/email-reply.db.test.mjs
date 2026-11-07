@@ -10,9 +10,8 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { pathToFileURL, fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { importBundle } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,7 +22,6 @@ const skip =
       ? "refusing a database that is not on this machine: this suite writes customers"
       : false;
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const {
   ingestInboundEmail,
   findLastInboundEmail,
@@ -32,7 +30,7 @@ const {
   getSentEmailWithMessageId,
   stampEmailSent,
   suppressEmailOf,
-} = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+} = await importBundle("db");
 
 let db;
 let tenantId;

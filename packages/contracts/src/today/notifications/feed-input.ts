@@ -1,7 +1,7 @@
 /** Notifications: feed input. */
 
 import { agoShort as spanAgo } from "../../shared/time";
-import { type LiveCallVM } from "../../voice/live";
+import type { LiveCallVM } from "../../voice/live";
 
 /**
  * The bell: what needs the owner, from what the browser already holds.

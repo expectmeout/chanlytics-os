@@ -1,7 +1,7 @@
 import "server-only";
 import { MIN_MS, type ReplyDraftKind } from "@chanlytics/contracts";
 import { claimControl } from "@chanlytics/db/conversations";
-import { type ConversationDraftRow } from "@chanlytics/db/ask";
+import type { ConversationDraftRow } from "@chanlytics/db/ask";
 import { deployment } from "../shared/env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
 

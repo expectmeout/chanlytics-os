@@ -231,8 +231,8 @@ function knockOf(file, call) {
   }
   if (!ts.isIdentifier(callee) || boundInside(callee)) return null;
   const o = originOf(file, callee.text);
-  const file = o?.file?.startsWith(`${CHANNELS}/`) ? CHANNELS : o?.file;
-  return o && Object.hasOwn(KNOCKS, o.name) && KNOCKS[o.name].from === file ? o.name : null;
+  const from = o?.file?.startsWith(`${CHANNELS}/`) ? CHANNELS : o?.file;
+  return o && Object.hasOwn(KNOCKS, o.name) && KNOCKS[o.name].from === from ? o.name : null;
 }
 
 /**

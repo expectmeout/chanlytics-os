@@ -12,7 +12,7 @@ import { getAddressesSuppressed, mayWorkspaceSpend } from "@chanlytics/db/campai
 import { getErasureDigests } from "@chanlytics/db/people";
 import { upsertLeadCompany, recordLeadSiteReadsSpent } from "@chanlytics/db/leads";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   DEFAULT_TIMEZONE,
   asContactId,

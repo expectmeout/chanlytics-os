@@ -9,7 +9,7 @@ import {
   type PageContext,
 } from "@chanlytics/contracts";
 import { after } from "next/server";
-import { type Member } from "@/server/shared/route";
+import type { Member } from "@/server/shared/route";
 import { log } from "@/server/shared/log";
 import { requireUuid } from "@/server/shared/request-guards";
 import { readerContext } from "@/server/shared/reader";

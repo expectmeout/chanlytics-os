@@ -1,7 +1,7 @@
 /** Lead build: steps. */
 
 import type { ReachOutChainDto } from "../../reach-out/dtos";
-import { type ReachOutDraft, type ReachOutDraftStep } from "../../reach-out/draft";
+import type { ReachOutDraft, ReachOutDraftStep } from "../../reach-out/draft";
 import {
   REACH_OUT_DRAFTS_PER_DAY,
   reachOutCardSlotsOf,

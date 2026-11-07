@@ -10,8 +10,8 @@ import { GET_YES_ROUTE } from "../../people/lists/people-route";
 import { lensRoute } from "../../reports/lenses";
 import { FIRST_RUN_FIND_ROUTE, firstRunStepRoute } from "../first-run-route";
 import { viaWords } from "../../imports/csv";
-import { type SetupInputs, type SetupRowBuilder } from "../setup";
-import { type SetupRowContext, type SetupRowDraft } from "../lines";
+import type { SetupInputs, SetupRowBuilder } from "../setup";
+import type { SetupRowContext, SetupRowDraft } from "../lines";
 import { lineRow, receptionistRow, tryRow, keepRow } from "../rows-phone";
 import { billingRow, factsRow, handoffRow, whatsappRow } from "./business";
 

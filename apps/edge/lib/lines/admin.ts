@@ -33,7 +33,7 @@ import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js"
 import { errorMessage, respond, stop, workspaceOf, workspaceRow, type Refused } from "../shared/admin-door.js";
 import { findBusinessOnRecord } from "@chanlytics/db/lines";
 import { emitEvent } from "@chanlytics/db/events";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   SPEND_NUMBER,
   SPEND_TEXTING,

@@ -6,7 +6,7 @@
  * go. Nobody is messaged because of it: they come in with no yes (D16).
  */
 import type { ReactNode } from "react";
-import { type FirstRunChannelsVM } from "@chanlytics/contracts";
+import type { FirstRunChannelsVM } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "../model/helpers";
 import { Sheet } from "../../../kit/sheet/sheet";
 import type { FrameFlash } from "../../../frame-verbs";

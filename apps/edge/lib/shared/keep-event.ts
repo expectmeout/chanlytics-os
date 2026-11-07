@@ -9,7 +9,7 @@
 import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { keepProviderEvent, type DeliveryProvider } from "@chanlytics/db/events";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { logger } from "./log.js";
 
 type Db = SupabaseClient<Database>;

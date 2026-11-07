@@ -35,7 +35,7 @@ import { respond, workspaceOf, workspaceRow, type Refused } from "../shared/admi
 import { emitEvent } from "@chanlytics/db/events";
 import { setFileListingAside } from "@chanlytics/db/files";
 import { findLinkedPlace } from "@chanlytics/db/imports";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { DEFAULT_TIMEZONE, UUID } from "@chanlytics/contracts";
 import type { PlaceDetails } from "@chanlytics/channels/google";
 import { googleReadiness, placesKey, profilePublic } from "../shared/google/config.js";

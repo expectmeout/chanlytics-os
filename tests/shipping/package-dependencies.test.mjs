@@ -129,7 +129,9 @@ test("no package's dist carries a sibling's code: one module per package per pro
   );
   assert.deepEqual(carried, []);
   for (const p of PACKAGES.filter((x) => x !== "channels")) {
-    const dist = fs.readFileSync(path.join(ROOT, `packages/${p}/dist/index.js`), "utf8");
+    const dist = builtFiles(p, ".js")
+      .map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"))
+      .join("\n");
     assert.ok(!/async function providerFetch\(/.test(dist), `${p}: the breaker's module is channels' alone`);
   }
 });
@@ -167,7 +169,10 @@ function inlinedModules(file) {
 }
 
 test("no package's dist inlines a third-party module", () => {
-  const inlined = PACKAGES.flatMap((p) => inlinedModules(`packages/${p}/dist/index.js`).map((m) => `${p}: ${m}`));
+  // Every file a bundle writes: db and channels have an entry per domain and no index (decision 0106).
+  const inlined = PACKAGES.flatMap((p) =>
+    builtFiles(p, ".js").flatMap((f) => inlinedModules(f).map((m) => `${f}: ${m}`)),
+  );
   assert.deepEqual(
     inlined,
     [],
@@ -180,7 +185,16 @@ test("each package's bundle keeps third-party code external and hands its siblin
     const options = buildOptions(p);
     const plugins = options.plugins.map((pl) => pl.name);
     assert.deepEqual(plugins, ["siblings-by-path", "third-party-external"], p);
-    assert.equal(options.bundle && !options.splitting, true, `${p}: each entry whole, sharing no chunk`);
+    // Each entry whole, but where a package is reached by its domains (decision 0106): those share their modules as
+    // chunks in dist, beside the entries whose sibling paths they share, so one breaker and one logger context stand.
+    const byDomain = p === "db" || p === "channels";
+    assert.equal(options.bundle, true, p);
+    assert.equal(
+      options.splitting,
+      byDomain,
+      `${p}: ${byDomain ? "its domains share chunks" : "each entry whole, sharing no chunk"}`,
+    );
+    if (byDomain) assert.ok(options.chunkNames.startsWith("dist/"), `${p}: a chunk sits in dist, beside its entries`);
   }
   const external = buildOptions("core").plugins.find((pl) => pl.name === "third-party-external");
   const asked = [];

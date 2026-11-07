@@ -318,18 +318,18 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
     // CHECK-allowed, LABELLED escalation reason this whole time with no
     // emitter anywhere in the repo. At the shipped default of 20/day this
     // fires on a busy thread, not only when someone lowers the limit.
-    const escalate = sink.escalate(
+    const ask = sink.escalate(
       "rate_cap",
       `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`,
     );
     await Promise.all([
-      escalate,
-      tell(escalate, {
+      ask,
+      tell(ask, {
         said: bodyText,
         answered: "(no reply sent — daily automatic-reply limit reached)",
         why: "rate cap",
       }),
-      getProcessedAfter(sink, escalate, "none"),
+      getProcessedAfter(sink, ask, "none"),
     ]);
     return;
   }
@@ -343,18 +343,18 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
     // pause above logs, so nothing reading the stream could tell a human
     // taking one conversation over from a workspace-wide billing stop.
     L.info("wa_skip_workspace_paused");
-    const escalate = sink.escalate(
+    const ask = sink.escalate(
       "paused",
       "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
     );
     await Promise.all([
-      escalate,
-      tell(escalate, {
+      ask,
+      tell(ask, {
         said: bodyText,
         answered: "(no reply sent — the workspace is paused until billing resumes)",
         why: "paused",
       }),
-      getProcessedAfter(sink, escalate, "none"),
+      getProcessedAfter(sink, ask, "none"),
     ]);
     return;
   }
@@ -374,18 +374,14 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (tokenBudgetSpent(replyLimits, used)) {
       L.info("wa_skip_budget", { cap: tokenCap, used });
-      const escalate = sink.escalate(
+      const ask = sink.escalate(
         "budget",
         `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`,
       );
       await Promise.all([
-        escalate,
-        tell(escalate, {
-          said: bodyText,
-          answered: "(no reply sent — the day's model budget is used up)",
-          why: "budget",
-        }),
-        getProcessedAfter(sink, escalate, "none"),
+        ask,
+        tell(ask, { said: bodyText, answered: "(no reply sent — the day's model budget is used up)", why: "budget" }),
+        getProcessedAfter(sink, ask, "none"),
       ]);
       return;
     }

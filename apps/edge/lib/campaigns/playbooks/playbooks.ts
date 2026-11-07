@@ -27,7 +27,7 @@ import { emitEvent } from "@chanlytics/db/events";
 import { listEveryoneIn, listSavedLists } from "@chanlytics/db/people";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { recordOver } from "@chanlytics/db/calendar";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import {
   runPlaybook as runOverPorts,
   type FreedTimeRun,

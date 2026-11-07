@@ -21,7 +21,7 @@ import {
   type SetupPhoneWant,
 } from "@chanlytics/contracts";
 import { setupChoicesOf } from "@chanlytics/db/workspace";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import { lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
 import { liveLineOf, planBuy, provisionJob } from "./ops/search-buy.js";

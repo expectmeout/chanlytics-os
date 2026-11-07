@@ -19,7 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { findLeadReplyFacts, getOwnerSendFacts, replySaid, type OwnerSendFacts } from "@chanlytics/db/campaigns";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { serviceDb } from "@/server/shared/service-db";
 import { getTenantFacts } from "@/server/shared/tenant";
 import type { RouteContext } from "@/server/shared/with-route";

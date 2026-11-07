@@ -36,7 +36,7 @@ import {
   recordPreviewBuilt,
   type LeadPreviewRow,
 } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob, JobContext } from "@chanlytics/jobs";
 import { readWebsite, type WebsiteReadKept } from "../imports/website-read.js";
 import { env } from "../shared/env.js";

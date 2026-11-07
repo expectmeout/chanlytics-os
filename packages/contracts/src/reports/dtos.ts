@@ -1,8 +1,8 @@
 /** Reports: dtos. */
 
-import { type ReplyDotVM, type ReportHoldVM } from "./speed";
-import { type ReportArrivalDto } from "./closed";
-import { type ReportTileVM } from "./tiles";
+import type { ReplyDotVM, ReportHoldVM } from "./speed";
+import type { ReportArrivalDto } from "./closed";
+import type { ReportTileVM } from "./tiles";
 import { dateFormat } from "../shared/time";
 
 export interface ReportDayDto {

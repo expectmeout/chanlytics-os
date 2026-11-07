@@ -11,12 +11,12 @@ import type { PersonDetailDto } from "../person-dto";
 import { asPersonMode, type PersonMode, type ReceptionistTone } from "../person-receptionist";
 import { ago } from "../person-row-facts";
 import { bookingLinkAction, emailFactWords, repliesWords } from "../person-reach";
-import { type PersonRowVM } from "../person-row/row-facts";
+import type { PersonRowVM } from "../person-row/row-facts";
 import { visitTitleWithout } from "../../calendar/visit/service";
 import { addedBy, ts } from "../person-helpers";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "../person-words";
 import { neverConnected } from "../../conversations/call-dto";
-import { type PersonAboutFact, type PersonCardContext, type PersonFact, type PersonReply } from "./right-now";
+import type { PersonAboutFact, PersonCardContext, PersonFact, PersonReply } from "./right-now";
 
 /**
  * "Held for you" is the word the People row puts beside the state, for a thread you have or a mode that holds. A

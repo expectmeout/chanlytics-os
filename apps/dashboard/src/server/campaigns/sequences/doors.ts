@@ -23,7 +23,7 @@ import {
   type DoorResult,
   type SequenceDoorAnswer,
 } from "@chanlytics/db/campaigns";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { checkPlaybookInput } from "@/server/campaigns/playbooks";
 import { findVisitTwinRefusal } from "@/server/campaigns/playbook-row";
 import { removeChain } from "@/server/campaigns/reach-outs/chain-acts";

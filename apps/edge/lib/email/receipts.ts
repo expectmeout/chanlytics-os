@@ -48,7 +48,7 @@ import {
   stampEmailSent,
   suppressEmailOf,
 } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "@chanlytics/channels/email";
 import { isCampaignEmail } from "@chanlytics/contracts";
 import { judgeOfferGates } from "./offer-gates.js";

@@ -26,7 +26,7 @@ import {
   type LeadSheetSlotVM,
 } from "./model/view";
 import { dockSlotsOf } from "./model/dock";
-import { type LeadLineId } from "./model/lines";
+import type { LeadLineId } from "./model/lines";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { useLeadEmails, useLeadPlace, useLeadWords } from "../../campaigns/sequences/place/parts";

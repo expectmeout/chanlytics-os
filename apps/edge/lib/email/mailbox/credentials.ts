@@ -9,7 +9,7 @@
  * answer is `unavailable`: the mailbox is not touched, and the next try asks again.
  */
 import { getMailboxCredentials, putMailboxCredentials, type MailboxConnectionRow } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   mailboxRefreshRequest,
   parseMailboxGrant,

@@ -31,14 +31,14 @@ import {
 } from "@chanlytics/db/email";
 import { markProcessed } from "@chanlytics/db/channels";
 import { findReachOutReply } from "@chanlytics/db/campaigns";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { hasMemberAddress } from "@chanlytics/db/calendar";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { claimQueuedSend, releaseQueuedSend } from "@chanlytics/db/jobs";
 import { findThreadDraftFacts } from "@chanlytics/db/ask";
 import { upsertEscalation } from "../runner/escalate";
 import { senderLeftAt } from "./reply-draft";
-import { type ClaimedJob, type JobContext } from "../runner/context";
+import type { ClaimedJob, JobContext } from "../runner/context";
 
 /** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email | to_instagram, body?, template?, purpose? (marketing, or outreach: a cold email), proactive? } */
 export async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {

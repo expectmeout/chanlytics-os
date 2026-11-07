@@ -27,7 +27,7 @@ import {
   playbookFailedWords,
 } from "@chanlytics/contracts";
 import { wasNoticeKept } from "@chanlytics/db/notices";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { errField, type Logger } from "../../shared/log.js";
 import { notify } from "../../shared/alerts/notify.js";
 import { pageOperator } from "../../shared/alerts/page-operator.js";

@@ -26,7 +26,7 @@ import { deleteClaudeFile, uploadClaudeFile } from "@chanlytics/channels/ai";
 import { imageHeaderOf } from "@chanlytics/core";
 import { findFileForWork, keepFileLook, filesBucket, keepClaudeCopy, type FileRow } from "@chanlytics/db/files";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob } from "@chanlytics/jobs";
 import { askJson, firstJson, mayModelGo, promptHashOf, type ModelCallFor } from "../ai/model.js";
 import { env } from "../shared/env.js";

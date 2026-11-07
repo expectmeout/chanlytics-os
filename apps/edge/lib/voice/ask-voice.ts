@@ -21,7 +21,7 @@ import {
 } from "@chanlytics/channels/voice";
 import { ASK_VOICE_ID, ASK_VOICE_MODEL } from "@chanlytics/contracts";
 import { endVoiceSession, readVoiceSessionByConversation, type VoiceSessionRow } from "@chanlytics/db/ask";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 
 type Db = SupabaseClient<Database>;
 

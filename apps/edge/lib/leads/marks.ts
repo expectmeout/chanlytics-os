@@ -15,7 +15,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { keepLeadMark, recordLeadSiteReadsSpent, listLeadsUnmarked } from "@chanlytics/db/leads";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   DEADLINE_MARGIN_MS,
   markPlaces,

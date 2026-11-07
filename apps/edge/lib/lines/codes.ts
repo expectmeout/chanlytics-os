@@ -23,7 +23,7 @@ import { errField, logger } from "../shared/log.js";
 import { lineCodesFrom, type ProviderAccount } from "@chanlytics/channels/lines";
 import { LINE_CODES_WITHIN_MS, UUID } from "@chanlytics/contracts";
 import { findOwnLine } from "@chanlytics/db/lines";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { findLineAccount } from "./sms.js";
 import { lineProviderFromEnv } from "./lines.js";
 

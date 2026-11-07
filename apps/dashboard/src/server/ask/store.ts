@@ -13,7 +13,7 @@ import {
   storedAnswer,
   v1FromAnswer,
 } from "@chanlytics/contracts";
-import { type AskTurnShape } from "./shape";
+import type { AskTurnShape } from "./shape";
 import { withFilesAttached, withFilesOpened } from "@/server/files/line";
 import type { Json } from "@chanlytics/db/types";
 import type { RouteContext } from "../shared/with-route";

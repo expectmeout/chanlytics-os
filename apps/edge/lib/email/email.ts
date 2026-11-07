@@ -20,7 +20,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { emailSender, wireUnavailable, type EmailRoute, type Sender, type WireUnavailable } from "@chanlytics/core";
 import { fetchReceivedEmail, sendsAs, sendsAsCampaigns } from "@chanlytics/channels/email";
 import { emailDomainOf } from "@chanlytics/contracts";

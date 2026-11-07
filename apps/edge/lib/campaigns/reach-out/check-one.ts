@@ -44,7 +44,7 @@ import {
   ANSWER_JSON_ONLY,
 } from "@chanlytics/contracts";
 import { findWorkspaceAbout, findWorkspaceNameAndConfig, type ReachOutRecordRow } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { askJson, type JsonAnswer, type ModelCallFor } from "../../ai/model.js";
 import { siteWordsOf } from "@chanlytics/core";
 import { findHomePage, PAGE_READS } from "../../shared/public-page.js";

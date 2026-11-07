@@ -9,7 +9,7 @@
 import { readLocationDetails, type GbpLocationDetails, type PlacesHttp } from "@chanlytics/channels/google";
 import { listingFactsOf, normalizePhone } from "@chanlytics/contracts";
 import { keepBusinessRead, findListingFactsStored, patchListing } from "@chanlytics/db/imports";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { errField, logger } from "../shared/log.js";
 import { http } from "../shared/google/places.js";
 import { tokenFor } from "../shared/google/credentials.js";

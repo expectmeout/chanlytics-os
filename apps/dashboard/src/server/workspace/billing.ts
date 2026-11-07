@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callSecondsSince } from "@chanlytics/db/voice";
 import { findWorkspaceModelStanding } from "@chanlytics/db/ai";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   billingAccountDto,
   type BillingAccountDto,

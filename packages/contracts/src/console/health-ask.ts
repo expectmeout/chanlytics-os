@@ -7,7 +7,7 @@
  */
 import { inScope, type HealthScope } from "./health-scope";
 import { modelCallsOf } from "./health-parts/models-connections";
-import { type HealthPartsDto } from "./health-parts/sends-calls";
+import type { HealthPartsDto } from "./health-parts/sends-calls";
 
 /** Past this at the 95th percentile, an owner is waiting too long: the tile turns red. */
 const ASK_SLOW_P95_MS = 30_000;

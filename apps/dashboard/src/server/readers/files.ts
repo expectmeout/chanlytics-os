@@ -16,7 +16,7 @@ import {
   type FilesPageDto,
   UUID,
 } from "@chanlytics/contracts";
-import { type FileForAsk } from "@/server/files/line";
+import type { FileForAsk } from "@/server/files/line";
 import { listFiles, listFilesOnShelf, listFilesTallied, type FileMemberRow } from "@chanlytics/db/files";
 import { load, readerStamp, type Reader } from "../shared/reader";
 

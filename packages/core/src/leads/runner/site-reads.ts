@@ -6,7 +6,7 @@
  * read is paid for when it is made, whether or not the page it served is ever committed (settleSiteReads).
  */
 import { LEAD_SITE_FACT_MAX, LEAD_SITE_READ_USD } from "@chanlytics/contracts";
-import { type SitePage } from "@chanlytics/channels/website";
+import type { SitePage } from "@chanlytics/channels/website";
 import { errField, logger } from "@chanlytics/log";
 import { bookingPageOfSite } from "../../website/booking-page";
 import { runEachAtOnce } from "../../shared/each-at-once";

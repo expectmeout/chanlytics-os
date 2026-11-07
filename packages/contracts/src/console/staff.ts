@@ -1,6 +1,6 @@
 /** Console: staff. */
 
-import { type PlatformLineAction } from "../workspace/platform";
+import type { PlatformLineAction } from "../workspace/platform";
 
 // ---------------------------------------------------------------------------------------------------- the staff
 

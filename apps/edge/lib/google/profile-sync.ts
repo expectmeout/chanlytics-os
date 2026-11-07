@@ -8,7 +8,7 @@
 import { emitEvent } from "@chanlytics/db/events";
 import { noteImport } from "@chanlytics/db/imports";
 import { reviewLinkOf } from "@chanlytics/db/campaigns";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   GBP_REVIEWS_FIRST_PAGES,
   GBP_REVIEWS_MAX_PAGES,

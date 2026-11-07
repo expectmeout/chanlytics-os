@@ -42,7 +42,7 @@ import {
   type MailboxConnectionRow,
   type MailboxRow,
 } from "@chanlytics/db/email";
-import { type Database, type Json } from "@chanlytics/db/types";
+import type { Database, Json } from "@chanlytics/db/types";
 import type { EmailReplyPorts } from "@chanlytics/core";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 import { listMailboxConnectionsWithDays, findMailboxesLeftToday, getMailboxesReadiness } from "./mailbox-connections";

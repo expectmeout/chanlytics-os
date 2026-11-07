@@ -33,7 +33,7 @@ import {
   keepAnthropicProfileId,
   type AnthropicProfileHeld,
 } from "@chanlytics/db/ai";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";

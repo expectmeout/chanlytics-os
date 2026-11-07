@@ -1,7 +1,7 @@
 import { DECISION_VERBS, EVENT_KINDS, WABA_FIELDS } from "../shared/enums";
 import { isUuid } from "../shared/identity";
 import { activityWords } from "./activity/words";
-import { type ActivityRowDto } from "./activity/dtos";
+import type { ActivityRowDto } from "./activity/dtos";
 
 /**
  * The activity log's rows, as both ledgers become them: which kinds are kept from an owner unless asked for by name, which

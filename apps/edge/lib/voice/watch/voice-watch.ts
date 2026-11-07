@@ -23,7 +23,7 @@ import {
   type RetellConcurrency,
 } from "@chanlytics/channels/voice";
 import { listActiveVoiceAgents } from "@chanlytics/db/facts";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { edgeFnUrl } from "../../shared/dashboard-origin.js";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";

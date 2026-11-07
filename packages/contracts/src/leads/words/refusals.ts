@@ -1,8 +1,8 @@
 /** Words: refusals. */
 
 import type { LeadCheckKey } from "../dtos";
-import { type LeadEmailState, type LeadMemberClass } from "../search/sets";
-import { type LeadNotAFitWhy } from "./lists";
+import type { LeadEmailState, LeadMemberClass } from "../search/sets";
+import type { LeadNotAFitWhy } from "./lists";
 
 /** Where a lead's facts came from, in the owner's words. */
 export const LEAD_SOURCE_WORD = "Google Maps listing";

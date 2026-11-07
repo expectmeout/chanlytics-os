@@ -9,7 +9,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { accentOf, escapeHtml, workspaceLogoSrc } from "@chanlytics/contracts";
 import { findWorkspaceLook } from "@chanlytics/db/look";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { env } from "@/server/shared/env";
 import { serviceDbIfConfigured } from "@/server/shared/service-db";
 

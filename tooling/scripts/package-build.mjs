@@ -84,7 +84,7 @@ export function buildOptions(name) {
     bundle: true,
     // Entries by domain share their modules, so one breaker, one logger context and one port stand however many of a package's entries a process loads.
     splitting: SPLIT_PACKAGES.has(name),
-    chunkNames: "chunk-[hash]",
+    chunkNames: "dist/chunk-[hash]",
     platform: "node",
     format: "esm",
     target: "node24",

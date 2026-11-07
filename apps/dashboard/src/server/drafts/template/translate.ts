@@ -23,7 +23,7 @@ import {
   type TemplateCategoryChoice,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/shared/with-route";
-import { type WorkspaceFacts } from "@/server/ask/prompt/stable-system";
+import type { WorkspaceFacts } from "@/server/ask/prompt/stable-system";
 import { log } from "@/server/shared/log";
 import { askOnce, extractJson, workspaceFor, writeIn } from "./draft";
 import { SHORTER_ASK, WARMER_ASK } from "@/server/shared/model/tones";

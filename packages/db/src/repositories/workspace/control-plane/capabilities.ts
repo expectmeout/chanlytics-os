@@ -4,7 +4,7 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { hasPublicPages, openToCustomersOf } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../database.types";
 import { isMissingDoor } from "../../../shared/missing-door";
-import { type Db } from "./config";
+import type { Db } from "./config";
 
 /**
  * The workspaces whose first run chose a number to buy (setup_choices.phone, 00513): what the lines sweep asks the

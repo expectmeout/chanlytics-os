@@ -17,7 +17,7 @@ import type { MembershipRole } from "@chanlytics/contracts";
 import type { AskColumn, AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
 import { oneLine } from "../context/rows";
 import { AD_SCOPE_LINE, adsLine } from "../prompt-rules";
-import { type WorkspaceFacts } from "./stable-system";
+import type { WorkspaceFacts } from "./stable-system";
 
 /**
  * The turn's system blocks: the rules and facts every turn in the workspace shares, and the workspace's shape, each ending

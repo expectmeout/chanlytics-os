@@ -60,7 +60,7 @@ import {
   type IdeasKept,
 } from "@chanlytics/db/leads";
 import { askMemoryLines } from "@chanlytics/db/ask";
-import { type Json } from "@chanlytics/db/types";
+import type { Json } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
 import { readMonthUsed, getWorkspaceOffer } from "./allowance";
 import { findNichePrior } from "./plan-facts";

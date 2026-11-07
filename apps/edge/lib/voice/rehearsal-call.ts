@@ -38,7 +38,7 @@ import {
   type RehearsalRow,
 } from "@chanlytics/db/facts";
 import { findLeadPreviewOfWorkspace, recordPreviewCalled, mayWorkspaceSpend } from "@chanlytics/db/campaigns";
-import { type RoutedChannel } from "@chanlytics/db/channels";
+import type { RoutedChannel } from "@chanlytics/db/channels";
 import {
   rehearsalAllowance,
   rehearsalCallMs,

@@ -3,7 +3,7 @@ import { emitEvent, recordEvent, getSubjectsWith } from "@chanlytics/db/events";
 import { getOwnPartner } from "@chanlytics/db/partners";
 import { inviteUserByEmail } from "@chanlytics/db/auth";
 import { listWorkspaceIds } from "@chanlytics/db/workspace";
-import { type Database } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError, type InvitationsAcceptedDto, type JoinedWorkspaceDto } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
