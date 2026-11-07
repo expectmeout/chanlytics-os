@@ -447,16 +447,6 @@ const swipeHold = (e: SwipeEvent) => {
   if ((g.way === "page" || g.way === "back" || g.way === "away") && e.cancelable !== false && e.preventDefault)
     e.preventDefault();
 };
-/**
- * Whether a page is carried across by the touch on `el`, said on it (`data-carried`) from the moment the reader takes the
- * touch until the next touch begins. An iPhone keeps `:hover` on the row a finger lands on, and a touch whose scroll is
- * refused is no scroll to it: the row a swipe began on lit as the page went (Ruben's recording, 7 Nov 2026). The rows'
- * fill gives way under the mark (clients.css), and the next touch, a tap, lights its row as before.
- */
-const swipeCarried = (el: HTMLElement, on: boolean) => {
-  if (on && el.setAttribute) el.setAttribute("data-carried", "");
-  else if (!on && el.removeAttribute) el.removeAttribute("data-carried");
-};
 /** Elements whose move listener stands from their mount (`holdMoves`), not from a touch's start. */
 const heldFromMount = new WeakSet<EventTarget>();
 const swipeDrop = (el: HTMLElement) => {
@@ -495,6 +485,10 @@ const swipeTake = (g: Held, dx: number, dy: number) => {
   const { o, el } = g;
   g.way = swipeWay(g, dx, dy);
   if (g.way === "none") return;
+  // A page carried across says so (`data-carried`) until the next touch: an iPhone keeps `:hover` on the row a finger
+  // lands on, and a touch whose scroll is refused is no scroll to it, so the row a swipe began on lit as the page went
+  // (Ruben's recording, 7 Nov 2026). The rows' fill gives way under the mark (clients.css); a tap lights its row as before.
+  if (g.way === "page") el.setAttribute?.("data-carried", "");
   g.wash = washBehind(el);
   // A page moves itself (the strip's, by the deck); anything else is the element.
   if (g.way !== "page" && el.style) el.style.transition = "none";
@@ -592,7 +586,8 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
     const t = firstTouchOf(e && e.touches);
     const el = elementOf(e);
     if (!t || !el) return;
-    swipeCarried(el, false);
+    // The page a swipe carried is no longer so once the next touch begins (swipeTake).
+    el.removeAttribute?.("data-carried");
     if (swipeOwnDrag(e.target, el)) {
       swipeDrop(el);
       return;
@@ -634,7 +629,6 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < GRAB_AT) return;
       swipeTake(g, dx, dy);
       if (g.way === "none") return;
-      if (g.way === "page") swipeCarried(el, true);
     }
     if (!el.style) return;
     swipeFollow(g, dx, dy);
