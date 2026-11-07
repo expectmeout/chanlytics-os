@@ -5,7 +5,9 @@
  * (`GET reports/ads`) and nothing else here survives. Loaded only where the lens is drawn (lenses/ads-load.ts imports it on demand),
  * so no other workspace's Reports pays for the fixtures, the Ads models or the words.
  *
- * The sample reads as of `now`, as the Ads page's does (`exampleAt`), so an ad says the same days on both. Ads end yesterday (a
+ * The sample reads as of `now`, as the Ads page's does, and on the business's `today`, the day Reports' own days count from
+ * (`exampleOn`): where the sample is the business's that is the Ads page's day too, so an ad says the same days on both, and where
+ * it stands whole, in New York, it is still read on the business's days, never cut at another zone's midnight. Ads end yesterday (a
  * platform has no today yet), so a period that ends today is read the same number of days, ending yesterday; days a member picked
  * are read as picked.
  */
@@ -14,7 +16,7 @@ import type { AdsScope, ReportFactVM, ReportRange } from "@chanlytics/contracts"
 import { RESULTS, adsFactOf, adsResultsOf } from "@chanlytics/contracts/ads-page";
 import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
-import { exampleAt } from "../campaigns/ads/examples";
+import { exampleOn } from "../campaigns/ads/examples";
 import { adsOwnHere } from "../campaigns/ads/own";
 import { CONFIG } from "../campaigns/ads/sample";
 
@@ -22,7 +24,7 @@ import { CONFIG } from "../campaigns/ads/sample";
 export function adsDemoFold(range: ReportRange, scope: AdsScope, today: string, now: number): AdsResultsVM {
   const win = reportWindowOf(range, today);
   const days = win.live ? { from: addDays(win.from, -1), to: addDays(win.to, -1) } : { from: win.from, to: win.to };
-  return adsResultsOf(exampleAt("running", now, adsOwnHere()), CONFIG, { ...days, scope });
+  return adsResultsOf(exampleOn("running", today, now, adsOwnHere()), CONFIG, { ...days, scope });
 }
 
 /** The one Worth-knowing fact the Overview makes of them, with its door to Ads; null where the ads brought and spent nothing. */

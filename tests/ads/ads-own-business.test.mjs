@@ -263,6 +263,19 @@ test("the store a page draws is the workspace's own, and so is Reports' fold, in
     "the same example numbers",
   );
   assert.ok(JSON.stringify(own).includes("a visit"), "said in the workspace's word");
+  // The hour New York has turned the day and Chicago has not: a preview whose business has said no name keeps the sample whole,
+  // in New York, and Reports still reads it on the workspace's days, as it reads the named business's.
+  const night = Date.parse("2031-03-15T04:30:00Z");
+  const itsDay = ads.zoneDayKey(night, "America/Chicago");
+  assert.notEqual(itsDay, ads.zoneDayKey(night, "America/New_York"), "a moment the two zones are a day apart");
+  const nameless = holding(settingsOf({ business_name: NO_FACT }), () =>
+    adsDemoFold("30d", ads.ADS_SCOPE_ALL, itsDay, night),
+  );
+  assert.deepEqual(
+    nameless.figures.map((f) => f.value),
+    holding(settingsOf(), () => adsDemoFold("30d", ads.ADS_SCOPE_ALL, itsDay, night)).figures.map((f) => f.value),
+    "the same example numbers at the hour New York is a day ahead",
+  );
 });
 
 test("a Service with no price says its name alone, with no comma left hanging", () => {
