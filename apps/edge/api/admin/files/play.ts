@@ -6,11 +6,13 @@
  * signVideoPlay in lib/files/video-doors.ts is everything after.
  */
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { signVideoPlay } from "../../../lib/files/video-doors.js";
+import { FILE_PLAY_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/files/play");
   if (!auth.ok) return auth.response;
-  return signVideoPlay(auth, request);
+  return signVideoPlay(auth, await readBody(request, FILE_PLAY_DOOR));
 });

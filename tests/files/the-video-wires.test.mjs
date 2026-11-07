@@ -7,7 +7,7 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync, verify as verifyWith } from "node:crypto";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
 
@@ -158,7 +158,10 @@ test("the audio download: asked for, being made, ready; one Stream makes no soun
 
 test("the caption track is put in its language, as WebVTT", async () => {
   const web = answers(ok({ result: { language: "es" } }));
-  assert.equal(await stream.putStreamCaptions(ACCOUNT, UID, "es", "WEBVTT\n\n", { fetch: web.fetch }), true);
+  assert.equal(
+    await stream.putStreamCaptions(ACCOUNT, UID, { language: "es", vtt: "WEBVTT\n\n" }, { fetch: web.fetch }),
+    true,
+  );
   assert.equal(web.calls[0].url, `https://api.cloudflare.com/client/v4/accounts/acct-1/stream/${UID}/captions/es`);
   assert.equal(web.calls[0].init.method, "PUT");
   const file = web.calls[0].init.body.get("file");

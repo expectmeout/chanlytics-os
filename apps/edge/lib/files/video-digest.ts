@@ -200,7 +200,7 @@ async function putCaptions(d: Digest, words: SoundWords): Promise<void> {
   const vtt = vttOf(words);
   const keys = streamKeys();
   if (!vtt || !keys || "none" in words) return;
-  const put = await putStreamCaptions(keys.account, d.row.media_ref ?? "", words.language ?? "en", vtt);
+  const put = await putStreamCaptions(keys.account, d.row.media_ref ?? "", { language: words.language ?? "en", vtt });
   if (!put) logger({ tenant_id: d.row.tenant_id }).warn("video_captions_failed", { file: d.row.id });
 }
 

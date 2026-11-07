@@ -6,11 +6,13 @@
  * listenToVideo in lib/files/video-doors.ts is everything after.
  */
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { listenToVideo } from "../../../lib/files/video-doors.js";
+import { FILE_LISTEN_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/files/listen");
   if (!auth.ok) return auth.response;
-  return listenToVideo(auth, request);
+  return listenToVideo(auth, await readBody(request, FILE_LISTEN_DOOR));
 });

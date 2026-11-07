@@ -214,8 +214,7 @@ export async function readStreamAudio(account: StreamAccount, uid: string, deps:
 export async function putStreamCaptions(
   account: StreamAccount,
   uid: string,
-  language: string,
-  vtt: string,
+  { language, vtt }: { language: string; vtt: string },
   deps: ModelDeps = {},
 ): Promise<boolean> {
   const form = new FormData();

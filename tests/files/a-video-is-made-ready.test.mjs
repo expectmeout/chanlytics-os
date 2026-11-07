@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { generateKeyPairSync } from "node:crypto";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 import { at, ROOT } from "../_cron-doors-world.mjs";
 
@@ -197,21 +197,19 @@ test("a video's start: a reservation at Stream, then its row with every fact; a 
     if (url === `${STREAM_API}/${UID}` && init.method === "DELETE") return ok({ success: true });
     throw new Error(`nothing answers ${url}`);
   };
+  // What the door read of the dashboard's knock (api/admin/files/video-start.ts reads it through FILE_VIDEO_START_DOOR).
   const ask = (id) =>
     startVideoUpload(
       { ok: true, via: "token", workspace: T, user: U },
-      new Request("https://edge.example/api/admin/files/video-start", {
-        method: "POST",
-        body: JSON.stringify({
-          tenant_id: T,
-          id,
-          name: "salon-tour",
-          mime: "video/mp4",
-          bytes: 5_000_000,
-          seconds: 24,
-          fingerprint: "b".repeat(64),
-        }),
-      }),
+      {
+        tenant_id: T,
+        id,
+        name: "salon-tour",
+        mime: "video/mp4",
+        bytes: 5_000_000,
+        seconds: 24,
+        fingerprint: "b".repeat(64),
+      },
     );
   const off = await ask(F);
   assert.deepEqual(await off.json(), { ok: true, fate: "off" }, "a workspace whose switch is off is told so");
@@ -235,10 +233,7 @@ test("a video's start: a reservation at Stream, then its row with every fact; a 
   );
   const bad = await startVideoUpload(
     { ok: true, via: "token", workspace: T, user: U },
-    new Request("https://edge.example/x", {
-      method: "POST",
-      body: JSON.stringify({ tenant_id: T, id: F, mime: "image/jpeg" }),
-    }),
+    { tenant_id: T, id: F, mime: "image/jpeg" },
   );
   assert.equal(bad.status, 400);
 });

@@ -21,14 +21,15 @@ import {
   isVideoMime,
   secondsOf,
   videoPreviewOf,
-  FILE_LISTEN_DOOR,
-  FILE_PLAY_DOOR,
-  FILE_VIDEO_START_DOOR,
+  type DoorRead,
+  type FILE_LISTEN_DOOR,
+  type FILE_PLAY_DOOR,
+  type FILE_VIDEO_START_DOOR,
 } from "@chanlytics/contracts";
 import { deleteStreamVideo, reserveStreamUpload, streamPlayerUrl, streamTokenOf } from "@chanlytics/channels/files";
 import { beginFileVideo, findFileForWork, filesBucket } from "@chanlytics/db/files";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
-import { readBody, workspaceOf } from "../shared/admin-door.js";
+import { workspaceOf } from "../shared/admin-door.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
@@ -47,8 +48,10 @@ const QUESTION_MOST = 600;
 const isFingerprint = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
 
 /** POST /api/admin/files/video-start: a reservation, and the row. */
-export async function startVideoUpload(auth: Admitted, request: Request): Promise<Response> {
-  const body = await readBody(request, FILE_VIDEO_START_DOOR);
+export async function startVideoUpload(
+  auth: Admitted,
+  body: DoorRead<typeof FILE_VIDEO_START_DOOR>,
+): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const at = workspaceOf(ws.tenantId);
@@ -131,8 +134,7 @@ async function playableOf(db: Parameters<typeof findFileForWork>[0], tenantId: s
 }
 
 /** POST /api/admin/files/play: the player's address for one video, under an hour's token, its poster and captions ours. */
-export async function signVideoPlay(auth: Admitted, request: Request): Promise<Response> {
-  const body = await readBody(request, FILE_PLAY_DOOR);
+export async function signVideoPlay(auth: Admitted, body: DoorRead<typeof FILE_PLAY_DOOR>): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const at = workspaceOf(ws.tenantId);
@@ -160,9 +162,8 @@ export async function signVideoPlay(auth: Admitted, request: Request): Promise<R
 }
 
 /** POST /api/admin/files/listen: Ask's question about a stretch, put to the ear; the answer is data, the dashboard fences it. */
-export async function listenToVideo(auth: Admitted, request: Request): Promise<Response> {
+export async function listenToVideo(auth: Admitted, body: DoorRead<typeof FILE_LISTEN_DOOR>): Promise<Response> {
   const started = Date.now();
-  const body = await readBody(request, FILE_LISTEN_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const at = workspaceOf(ws.tenantId);

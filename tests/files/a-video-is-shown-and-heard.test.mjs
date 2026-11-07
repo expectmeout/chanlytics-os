@@ -14,11 +14,11 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
 const video = await import(at("packages/contracts/src/files/video.ts"));
 const sound = await import(at("packages/contracts/src/files/sound.ts"));
-const files = await import(at("packages/contracts/src/files/files.ts"));
-const line = await import(at("packages/contracts/src/files/line.ts"));
+const files = await import(at("packages/contracts/src/files/index.ts"));
+const line = await import(at("apps/dashboard/src/server/files/line.ts"));
 const look = await import(at("packages/contracts/src/files/look.ts"));
 const post = await import(at("packages/contracts/src/files/post.ts"));
-const postCheck = await import(at("packages/contracts/src/files/post-check.ts"));
+const postCheck = await import(at("apps/dashboard/src/server/files/post-check.ts"));
 const hearing = await import(at("packages/contracts/src/ai/hearing.ts"));
 const zoom = await import(at("packages/contracts/src/files/zoom.ts"));
 

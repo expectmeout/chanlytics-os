@@ -6,11 +6,13 @@
  * startVideoUpload in lib/files/video-doors.ts is everything after.
  */
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { startVideoUpload } from "../../../lib/files/video-doors.js";
+import { FILE_VIDEO_START_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/files/video-start");
   if (!auth.ok) return auth.response;
-  return startVideoUpload(auth, request);
+  return startVideoUpload(auth, await readBody(request, FILE_VIDEO_START_DOOR));
 });
