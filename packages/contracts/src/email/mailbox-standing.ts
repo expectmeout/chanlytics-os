@@ -42,10 +42,10 @@ export function mailboxRampShare(sentDays: number): number {
  * How many a day a mailbox may send now: the least of its ramp's share, its owner's cap, and the customer domain's
  * ceiling. The claim, the timetable, the door and the page all ask this one rule.
  */
-export function mailboxDailyCap(m: { sent_days: number; daily_cap: number; customer_domain: boolean }): number {
-  const owner = Math.max(0, Math.min(MAILBOX_DAILY_CAP_MAX, Math.floor(Number(m.daily_cap) || 0)));
-  const ceiling = m.customer_domain ? CUSTOMER_DOMAIN_DAILY_MAX : MAILBOX_DAILY_CAP_MAX;
-  return Math.min(mailboxRampShare(m.sent_days), owner, ceiling);
+export function mailboxDailyCap(message: { sent_days: number; daily_cap: number; customer_domain: boolean }): number {
+  const owner = Math.max(0, Math.min(MAILBOX_DAILY_CAP_MAX, Math.floor(Number(message.daily_cap) || 0)));
+  const ceiling = message.customer_domain ? CUSTOMER_DOMAIN_DAILY_MAX : MAILBOX_DAILY_CAP_MAX;
+  return Math.min(mailboxRampShare(message.sent_days), owner, ceiling);
 }
 
 /* ------------------------------------------------------------------------------------------------- its holds */
@@ -57,8 +57,8 @@ const HOLD_WORDS: Record<MailboxHold, string> = {
 };
 
 /** Why a mailbox was held, as a clause: the row, the Activity log and the owner's notice say it alike. */
-export function mailboxHoldWords(why: string | null | undefined): string {
-  return (why && HOLD_WORDS[why as MailboxHold]) || "it was held";
+export function mailboxHoldWords(reason: string | null | undefined): string {
+  return (reason && HOLD_WORDS[reason as MailboxHold]) || "it was held";
 }
 
 const HOLD_FIX_WORDS: Record<MailboxHold, string> = {
@@ -68,6 +68,6 @@ const HOLD_FIX_WORDS: Record<MailboxHold, string> = {
 };
 
 /** What to do about a hold: on the row, in the Resume confirm, and in the owner's notice. */
-export function mailboxHoldFixWords(why: string | null | undefined): string | null {
-  return (why && HOLD_FIX_WORDS[why as MailboxHold]) || null;
+export function mailboxHoldFixWords(reason: string | null | undefined): string | null {
+  return (reason && HOLD_FIX_WORDS[reason as MailboxHold]) || null;
 }

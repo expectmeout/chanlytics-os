@@ -20,18 +20,18 @@ const HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 
 export function normalizeLink(raw: string | null | undefined): string | null {
   if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s || /\s/.test(s)) return null;
-  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
+  const text = String(raw).trim();
+  if (!text || /\s/.test(text)) return null;
+  const withScheme = SCHEME.test(text) ? text : `https://${text}`;
   if (withScheme.length > MAX_LINK) return null;
-  let u: URL;
+  let url: URL;
   try {
-    u = new URL(withScheme);
+    url = new URL(withScheme);
   } catch {
     return null;
   }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (!HOST.test(u.hostname)) return null;
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (!HOST.test(url.hostname)) return null;
   return withScheme;
 }
 

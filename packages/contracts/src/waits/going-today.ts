@@ -7,14 +7,14 @@
  * (today/queue.ts heldRow), and Ask's read says it as needs_you's replies on their way.
  *
  * Pure: the page hands in the runs it holds, the business's zone and the clock; every sentence is said here, from the
- * wait rule's own words (wait-rules.ts waitEndsWords).
+ * wait rule's own words (waits/rules.ts waitEndsWords).
  */
 import { addressOf } from "../activity/record-address";
 import { isReachOutRun } from "../campaigns/reach-out/rules";
 import { clockTime, zoneDayKey } from "../shared/clock";
 import { HOUR_MS } from "../shared/time";
 import { plural } from "../shared/words";
-import { waitEndsWords, type WaitKind } from "./wait-rules";
+import { waitEndsWords, type WaitKind } from "./rules";
 
 /** A run as the page holds it, as far as Going today reads it. */
 export interface GoingRun {
@@ -73,26 +73,26 @@ export function goingTodayOf(input: { runs: readonly GoingRun[]; tz: string; now
   const { tz, nowMs } = input;
   const today = zoneDayKey(nowMs, tz);
   const rows: GoingTodayRowVM[] = [];
-  for (const r of input.runs) {
-    const atMs = r.scheduled_for ? Date.parse(r.scheduled_for) : NaN;
+  for (const run of input.runs) {
+    const atMs = run.scheduled_for ? Date.parse(run.scheduled_for) : NaN;
     const soon = atMs - nowMs <= HOUR_MS;
-    if (r.state !== "scheduled" || !(atMs > nowMs) || (!soon && zoneDayKey(atMs, tz) !== today)) continue;
-    const reach = isReachOutRun(r.audience);
-    const kind = r.playbook_id ? "batch" : "one_off";
-    const g = goes(kind === "batch" ? "batch_hold" : "one_off", atMs, tz);
+    if (run.state !== "scheduled" || !(atMs > nowMs) || (!soon && zoneDayKey(atMs, tz) !== today)) continue;
+    const reach = isReachOutRun(run.audience);
+    const kind = run.playbook_id ? "batch" : "one_off";
+    const items = goes(kind === "batch" ? "batch_hold" : "one_off", atMs, tz);
     const people = reach
-      ? plural(r.recipient_count, "business", "businesses")
-      : plural(r.recipient_count, "person", "people");
-    const what = reach ? "To leads" : kind === "batch" ? "Campaign" : "Sent once";
+      ? plural(run.recipient_count, "business", "businesses")
+      : plural(run.recipient_count, "person", "people");
+    const subject = reach ? "To leads" : kind === "batch" ? "Campaign" : "Sent once";
     rows.push({
-      key: `run-${r.id}`,
+      key: `run-${run.id}`,
       kind,
-      name: r.title,
-      meta: `${what} · goes ${g.at}`,
-      sentence: `${people}. ${g.ends}.`,
+      name: run.title,
+      meta: `${subject} · goes ${items.at}`,
+      sentence: `${people}. ${items.ends}.`,
       atMs,
-      stop: { kind: "run", id: r.id },
-      to: addressOf({ kind: "send", id: r.id }),
+      stop: { kind: "run", id: run.id },
+      to: addressOf({ kind: "send", id: run.id }),
     });
   }
   return rows.sort((a, b) => a.atMs - b.atMs);

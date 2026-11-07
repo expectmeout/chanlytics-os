@@ -31,7 +31,7 @@ const SEND_LEAD_MS = 2 * DAY_MS;
  * `toDay`), and the one-off sends scheduled from a little before the span to its end (a send sits where it finished,
  * else began, else was scheduled: the contracts' placement decides the day). Two reads, waited for together.
  */
-export async function runsInSpan(
+export async function listRunsInSpan(
   db: Db,
   tenantId: string,
   span: { fromIso: string; toIso: string; fromDay: string; toDay: string },
@@ -76,7 +76,7 @@ export type MomentScheduleRow = Pick<
 >;
 
 /** Every campaign's schedule columns, and nothing more: the board forecasts from these alone. */
-export async function momentSchedules(db: Db, tenantId: string): Promise<MomentScheduleRow[]> {
+export async function listMomentSchedules(db: Db, tenantId: string): Promise<MomentScheduleRow[]> {
   return readAllRows<MomentScheduleRow>("calendar_moment_schedules", (from, to) =>
     db
       .from("sequence_steps")

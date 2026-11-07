@@ -20,9 +20,10 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as C from "@chanlytics/contracts";
-import { FACTS_UNAVAILABLE, GREETING_DEFAULT } from "@chanlytics/channels";
+import { FACTS_UNAVAILABLE, GREETING_DEFAULT } from "@chanlytics/channels/voice";
 import { fakeDb } from "../_fake-db.mjs";
 import { installStubReact, fresh, again, textOf } from "../_stub-react.mjs";
+import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -162,7 +163,7 @@ test("the standing values: what a caller gets and the tone it is drawn in, once"
 test("Connections: the phone line row says what a caller gets, in the tone the value gives", () => {
   const voice = C.toChannelVM(channelDto("voice"), NOW);
   assert.equal(voice.healthLabel, `Switched off — ${C.PHONE_LINE_OFF.gets}; Chanlytics is told, you are not`);
-  const row = C.connectionRows(
+  const row = connectionRows(
     {
       channels: [voice],
       whatsapp: null,

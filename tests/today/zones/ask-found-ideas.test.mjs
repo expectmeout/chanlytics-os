@@ -14,7 +14,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ASK_FOUND_WORDS as F, NEED_YOU_WORDS, repliesFellCard } from "@chanlytics/contracts";
+import { NEED_YOU_WORDS, repliesFellCard } from "@chanlytics/contracts";
+import { ASK_FOUND_WORDS as F } from "../../../apps/dashboard/src/surfaces/today/zones/found-rows.ts";
 import { again, all, byTestId, fresh, press, textOf } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { until } from "../../shared/_until.mjs";
@@ -161,7 +162,7 @@ test("Not today rests an idea for the member and keeps 'dismissed' on its turn, 
 });
 
 /**
- * A new campaign's card, as the propose_sequence act makes it (act/playbook.ts): its one line, and its sheet, what holds
+ * A new campaign's card, as the propose_sequence act makes it (act/playbook/playbook.ts): its one line, and its sheet, what holds
  * it first and then a row a fact. On production Today drew its summary, one run-on paragraph of every rule.
  */
 const CAMPAIGN = card("p-c", "Campaign: Meeting reminder", {
@@ -196,7 +197,7 @@ test("a campaign says its one line, and a press opens its rules, holds first; an
   setSurfaceValue("ask_morning", undefined);
 });
 
-/** The one thing to fix before a campaign can reach anyone (act/playbook-card.ts blockedOutcome): a plain id, its door. */
+/** The one thing to fix before a campaign can reach anyone (act/playbook-card.ts getBlockedOutcome): a plain id, its door. */
 const FIX = card("p-f", "Get their yes to offers", {
   kind: "fix",
   line: "Nobody has said yes to offers yet, so the “Win-back” campaign would reach no one.",

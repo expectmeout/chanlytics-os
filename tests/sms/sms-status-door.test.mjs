@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { twilioSignature } from "@chanlytics/channels";
+import { signTwilio } from "@chanlytics/channels/lines";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -75,7 +75,7 @@ function world(over = {}) {
   const post = async (fields, token = TOKEN, url = DOOR) => {
     const headers = {
       "content-type": "application/x-www-form-urlencoded",
-      ...(token ? { "x-twilio-signature": await twilioSignature(token, url, fields) } : {}),
+      ...(token ? { "x-twilio-signature": await signTwilio(token, url, fields) } : {}),
     };
     const res = await door.POST(
       new Request(url, { method: "POST", headers, body: new URLSearchParams(fields).toString() }),

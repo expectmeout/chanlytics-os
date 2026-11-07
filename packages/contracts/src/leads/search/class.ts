@@ -4,7 +4,7 @@
  * and the rule that turns the judge's answers (lead-judge.ts) into Qualified, Needs review or Excluded.
  */
 import { phoneDialable } from "../../shared/phone";
-import type { JudgePlaceAnswer, PlaceFacts } from "../lead-judge";
+import type { JudgePlaceAnswer, PlaceFacts } from "../judge";
 import type { LeadEmailState, LeadFit, LeadMemberClass } from "./sets";
 import type { LeadSearchPlan } from "./plan";
 
@@ -98,30 +98,30 @@ export function classify(
   let excludedBy: string | null = null;
   let softFail = false;
   let unknown = false;
-  for (const r of rubric) {
-    const a = answer.criteria.find((x) => x.key === r.key);
-    const verdict = a?.answer ?? "unknown";
-    const readOnly = onSite.has(r.key)
-      ? !a?.facts.includes("site")
-      : r.standard === "seen" && a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
+  for (const item of rubric) {
+    const found = answer.criteria.find((x) => x.key === item.key);
+    const verdict = found?.answer ?? "unknown";
+    const readOnly = onSite.has(item.key)
+      ? !found?.facts.includes("site")
+      : item.standard === "seen" && found?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
     if (verdict === "fail") {
-      if (r.required) {
-        excludedBy = excludedBy ?? r.key;
-        reasons.push(`fail:${r.key}`);
+      if (item.required) {
+        excludedBy = excludedBy ?? item.key;
+        reasons.push(`fail:${item.key}`);
       } else {
         softFail = true;
       }
     } else if (verdict === "unknown") {
-      if (r.required) {
+      if (item.required) {
         unknown = true;
-        reasons.push(`unknown:${r.key}`);
+        reasons.push(`unknown:${item.key}`);
       } else {
         softFail = true;
       }
     } else if (readOnly) {
-      if (r.required) {
+      if (item.required) {
         unknown = true;
-        reasons.push(`inferred:${r.key}`);
+        reasons.push(`inferred:${item.key}`);
       } else {
         softFail = true;
       }

@@ -1,6 +1,13 @@
+import { z } from "zod";
 import { BusinessLineSchema } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/shared/route";
-import { lineForMe, newIdeas, setBusinessLine, suggestionsKept, suggestionsWritten } from "@/server/leads/leads";
+import {
+  getLineForMe,
+  listNewIdeas,
+  setBusinessLine,
+  getSuggestionsKept,
+  getSuggestionsWritten,
+} from "@/server/leads/leads";
 
 /**
  * GET /api/v1/lead-suggestions — the ideas for a new search (§8.9, 00398): three
@@ -13,7 +20,7 @@ export const GET = read({
   scope: workspace,
   // Its own: a read asks no model, so it never spends the ten an hour a write does.
   rate: "lead_ideas_read",
-  handle: ({ ctx, member }) => suggestionsKept(ctx, member.tenantId),
+  handle: ({ ctx, member }) => getSuggestionsKept(ctx, member.tenantId),
 });
 
 /**
@@ -29,10 +36,10 @@ export const POST = write({
   scope: workspace,
   role: "partner",
   rate: "lead_suggest",
-  handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => null)) as { again?: unknown; ours?: unknown } | null;
-    if (body?.ours === true) return lineForMe(ctx, member.tenantId);
-    return body?.again === true ? newIdeas(ctx, member.tenantId) : suggestionsWritten(ctx, member.tenantId);
+  input: z.object({ again: z.boolean().nullish(), ours: z.boolean().nullish() }),
+  handle: async ({ ctx, input, member }) => {
+    if (input.ours === true) return getLineForMe(ctx, member.tenantId);
+    return input.again === true ? listNewIdeas(ctx, member.tenantId) : getSuggestionsWritten(ctx, member.tenantId);
   },
 });
 

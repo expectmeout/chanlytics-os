@@ -356,9 +356,11 @@ test("a run that waits for a person is open, never sent by the job, approved thr
   );
   assert.equal(vm.open, true);
   assert.equal(vm.stateLabel, "Waiting for your approval");
-  const h = readCode("packages/core/src/messages/broadcast.ts");
+  const h = ["packages/core/src/messages/broadcast/stops.ts", "packages/core/src/messages/broadcast/batch.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
-    h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'),
+    h.includes('if (broadcast.state !== "scheduled" && broadcast.state !== "sending") return;'),
     "only a scheduled or sending broadcast goes out",
   );
   // Approve and skip are run: core-campaigns.test.mjs; the button is drawn by broadcasts-honest and confirm.
@@ -384,7 +386,7 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.ok(m.includes("'start_playbook', 'pause_playbook'") && m.includes("'broadcast', 'playbook'"));
   assert.ok(!/create table public.playbook_touches/.test(m), "touches are derived from the runs' recipient rows");
   // The run's branches are run: core-run-playbook.test.mjs. The touches the loader and the Playbooks page read
-  // (packages/db touchesSince) are run in send-rails.test.mjs.
+  // (packages/db listTouchesSince) are run in send-rails.test.mjs.
   // Run now -- a person's run through the same implementation, sent now under
   // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
   // Each sequence class's row says it is what a new sequence starts as (decision 0064): each keeps its own mode.
@@ -418,7 +420,7 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
   );
   assert.ok(
     one.includes('state === "running" ? "start_playbook" : "pause_playbook"') &&
-      /"pause_playbook", \{\s*name: p\.name,\s*deleted: true,?\s*\}/.test(one),
+      /"pause_playbook", \{\s*name: playbook\.name,\s*deleted: true,?\s*\}/.test(one),
     "pause, resume and delete are recorded",
   );
   const run = readCode("apps/dashboard/app/api/v1/playbooks/[id]/run/route.ts");
@@ -594,7 +596,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     "campaigns/sequences",
     "a playbook card opens Sequences",
   );
-  const { ASK_DEFINITIONS } = await importSrc("apps/dashboard/src/server/ask/prompt.ts");
+  const { ASK_DEFINITIONS } = await importSrc("apps/dashboard/src/server/ask/prompt/stable-system.ts");
   assert.ok(ASK_DEFINITIONS.playbook.startsWith("A standing rule"));
   const sug = buildAskSuggestions({
     surface: "people",
@@ -621,7 +623,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   );
   assert.ok(
     readCode("packages/contracts/src/conversations/message-author.ts").includes(
-      '{ kind: "playbook", name: String(m.meta.playbook_name) }',
+      '{ kind: "playbook", name: String(message.meta.playbook_name) }',
     ),
   );
   assert.ok(

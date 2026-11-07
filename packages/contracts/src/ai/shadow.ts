@@ -13,7 +13,7 @@
  * read of the ledger; the pilot of 29 September (decision 0023) found every decided answer right.
  */
 import type { AiUsageBody } from "./usage";
-import { secondKeyFloorOf, type ModelPurpose, type ShadowPort } from "./models";
+import { secondKeyFloorOf, type ModelPurpose, type ShadowPort } from "./models/routes";
 import {
   SYSTEM_ONE_MODEL,
   systemOneDollars,
@@ -24,8 +24,9 @@ import {
 import { injectionQuestion, fenceActed } from "./fence";
 import { policyClassLabel, policyClassQuestion } from "../config/workspace-config/policy-classes";
 import { stopRequestQuestion } from "../consent/consent";
-import { isReplyIntent, replyIntentQuestion } from "../campaigns/reach-out/replies";
-import { judgeShadowCalls, type PlaceFacts } from "../leads/lead-judge";
+import { isReplyIntent } from "../campaigns/reach-out/replies/intents";
+import { replyIntentQuestion } from "../campaigns/reach-out/replies/words";
+import { judgeShadowCalls, type PlaceFacts } from "../leads/judge";
 import type { LeadSearchPlan } from "../leads/search/plan";
 
 /** The confidence at which a shadow answer counts as decided: the line the pilot was read at. */
@@ -124,7 +125,7 @@ export function shadowBodies(call: ShadowCallFor, result: ShadowCallOutcome): Ai
     return [{ ...base, outcome: result.outcome, question: SHADOW_CALL, input_tokens: 0, usd: 0 }];
   }
   const usd = systemOneDollars(result.inputTokens);
-  return Object.entries(call.questions).map(([name, question], i) => {
+  return Object.entries(call.questions).map(([name, question], index) => {
     const read = shadowRead(question, result.answers[name]);
     const primary = call.primary[name] ?? null;
     return {
@@ -132,8 +133,8 @@ export function shadowBodies(call: ShadowCallFor, result: ShadowCallOutcome): Ai
       // An answer the shadow gave that is not the kind asked is an answer that could not be read.
       outcome: read ? ("answered" as const) : ("unreadable" as const),
       question: name,
-      input_tokens: i === 0 ? result.inputTokens : 0,
-      usd: i === 0 ? usd : 0,
+      input_tokens: index === 0 ? result.inputTokens : 0,
+      usd: index === 0 ? usd : 0,
       primary_answer: primary,
       shadow_answer: read?.answer ?? null,
       shadow_confidence: read?.confidence ?? null,
@@ -164,14 +165,14 @@ const SHADOW_QUESTIONS = {
  * fence's), and whether it asks to stop (consent's). The state is the message, as the receptionist was handed it.
  */
 export function receptionistShadowCall(customerText: string): ShadowCallSpec {
-  const q = SHADOW_QUESTIONS.receptionist;
+  const receptionist = SHADOW_QUESTIONS.receptionist;
   return {
     ref: "message",
     state: systemOneState(customerText),
     questions: {
-      [q.moneyClass]: policyClassQuestion(),
-      [q.injection]: injectionQuestion(),
-      [q.stop]: stopRequestQuestion(),
+      [receptionist.moneyClass]: policyClassQuestion(),
+      [receptionist.injection]: injectionQuestion(),
+      [receptionist.stop]: stopRequestQuestion(),
     },
   };
 }
@@ -181,9 +182,9 @@ export function receptionistShadowCall(customerText: string): ShadowCallSpec {
  * when it has none (the framing the primary is given around a photo, and the placeholder a captionless one leaves as its
  * text, are not words the customer wrote). Undefined asks the shadow nothing.
  */
-export function shadowWordsOf(x: { text: string; photo: boolean; caption?: string | null }): string | undefined {
-  if (!x.photo) return x.text;
-  return x.caption?.trim() || undefined;
+export function shadowWordsOf(input: { text: string; photo: boolean; caption?: string | null }): string | undefined {
+  if (!input.photo) return input.text;
+  return input.caption?.trim() || undefined;
 }
 
 /** The primary's answer to each of those: its intent's class; the fence's verdict; and no stop, or the door would have held it. */

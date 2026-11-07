@@ -17,12 +17,12 @@ import {
   isUuid,
   parsePageMessage,
   parseShellMessage,
-  todayWidgetSnapshot,
   type LiveVM,
   type PageMessage,
   type TodayVM,
   type Waits,
 } from "@chanlytics/contracts";
+import { todayWidgetSnapshot } from "@/bridge/surfaces/today-widget";
 import { hearNeedsYou, needsYouNow, needsYouOnToday } from "../surfaces/needs-you";
 import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";

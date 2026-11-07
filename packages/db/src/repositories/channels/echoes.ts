@@ -10,7 +10,7 @@ import type { Database } from "../../database.types";
 import { emitEvent } from "../events/events";
 import { dbLog } from "../../shared/observe";
 import { settleByEcho } from "../conversations/control";
-import { getOrCreateContact } from "../conversations/ingest";
+import { getOrCreateContact } from "./ingest";
 
 type Db = SupabaseClient<Database>;
 
@@ -24,7 +24,7 @@ type Db = SupabaseClient<Database>;
  *  acknowledged echoes it had not kept). A pause that fails takes the kept words back out, so the redelivery pauses. */
 export async function recordEchoAndPause(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     /** Who the owner wrote to on WhatsApp: the number's digits, the person found or made by them. */
     customerPhoneDigits?: string;
@@ -49,13 +49,13 @@ export async function recordEchoAndPause(
   // divergence this function exists to prevent.
   let contact: { id: string };
   try {
-    if (p.customerId) contact = { id: p.customerId };
-    else if (p.customerPhoneDigits)
-      contact = await getOrCreateContact(db, p.tenantId, `+${p.customerPhoneDigits.replace(/^\+/, "")}`);
+    if (params.customerId) contact = { id: params.customerId };
+    else if (params.customerPhoneDigits)
+      contact = await getOrCreateContact(db, params.tenantId, `+${params.customerPhoneDigits.replace(/^\+/, "")}`);
     else throw new Error("an echo names neither the number nor the person it was written to");
   } catch (e) {
     dbLog().error("record_echo_contact_failed", {
-      tenant_id: p.tenantId,
+      tenant_id: params.tenantId,
       error: e instanceof Error ? e.message : String(e),
     });
     return false;
@@ -69,48 +69,49 @@ export async function recordEchoAndPause(
   // uniqueness on (tenant_id, external_id) is what says "seen this already".
   const { data: conv, error: verr } = await db
     .from("conversations")
-    .upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" })
+    .upsert({ tenant_id: params.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" })
     .select("id")
     .single();
   if (verr || !conv) {
-    dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
+    dbLog().error("record_echo_conv_failed", { tenant_id: params.tenantId, error: verr?.message ?? "no row" });
     return false;
   }
   const { error } = await db.from("messages").insert({
-    tenant_id: p.tenantId,
+    tenant_id: params.tenantId,
     conversation_id: conv.id,
     contact_id: contact.id,
-    channel: p.channel ?? "whatsapp",
+    channel: params.channel ?? "whatsapp",
     direction: "outbound",
     sender: "human",
     type: "text",
-    body: p.body,
-    external_id: p.externalId,
+    body: params.body,
+    external_id: params.externalId,
     status: "sent",
     meta: { echo: true },
   });
   if (error && error.code !== "23505")
-    dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
+    dbLog().error("record_echo_failed", { tenant_id: params.tenantId, conversation_id: conv.id, error: error.message });
   // An echo we have already stored changes nothing else: the owner spoke once.
   // An echo carrying no id of its own cannot be told apart from its own replay,
   // so it still pauses -- a receptionist talking over the owner is the worse of
   // the two failures, and it is what this function exists to prevent.
   // A redelivery still asks for the settle: the first try may have kept the echo and failed it (settleByEcho).
-  if (error?.code === "23505" && p.externalId) return settleByEcho(db, p);
+  if (error?.code === "23505" && params.externalId) return settleByEcho(db, params);
   const { error: perr } = await db
     .from("conversations")
-    .update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: new Date().toISOString() }))
+    .update(conversationPatch("owner_echo", { until: params.pausedUntilIso, now: new Date().toISOString() }))
     .eq("id", conv.id)
-    .eq("tenant_id", p.tenantId);
+    .eq("tenant_id", params.tenantId);
   if (perr) {
     // The words kept without their pause would be found by the redelivery and taken for a replay, which pauses
     // nothing: so they are taken back out, and the echo comes again whole. Said with whether that worked.
     const unwound =
-      !error && p.externalId
-        ? !(await db.from("messages").delete().eq("tenant_id", p.tenantId).eq("external_id", p.externalId)).error
+      !error && params.externalId
+        ? !(await db.from("messages").delete().eq("tenant_id", params.tenantId).eq("external_id", params.externalId))
+            .error
         : null;
     dbLog().error("record_echo_pause_failed", {
-      tenant_id: p.tenantId,
+      tenant_id: params.tenantId,
       conversation_id: conv.id,
       error: perr.message,
       unwound,
@@ -119,9 +120,11 @@ export async function recordEchoAndPause(
   }
   // The receptionist is quiet on this thread because its owner spoke: on the ledger, since nothing on any page said why
   // it stopped answering. Once per echo: a redelivery returned above.
-  await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
+  await emitEvent(db, params.tenantId, "conversation.owner_replied", "conversation", conv.id, {
+    until: params.pausedUntilIso,
+  });
   // The pause landed. The words did only when their insert did: one the database refused comes again, and its
   // redelivery writes them (and the pause once more, from its own moment).
   if (error) return false;
-  return settleByEcho(db, p);
+  return settleByEcho(db, params);
 }

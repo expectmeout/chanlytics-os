@@ -7,7 +7,7 @@
  * from, how its words are written (each step's box and sheet) and the check (How it runs). A sequence to leads drew its
  * own rail beside this one (leads/lead-steps.tsx), and every change to the record was made twice.
  *
- * Hookless. Every word is contracts' (sequence-schedule.ts, sequence-place.ts).
+ * Hookless. Every word is contracts' (sequences/schedule.ts, sequences/place.ts).
  */
 import { Fragment, type ReactNode } from "react";
 import { SCHEDULE_WORDS as SW } from "@chanlytics/contracts";

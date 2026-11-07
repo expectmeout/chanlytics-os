@@ -3,7 +3,7 @@
  *  twice and the row's pill lies about who owes a reply. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toConversationVM } from "@chanlytics/contracts";
+import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";

@@ -10,11 +10,11 @@
  * Nothing here is shown to an owner, so the vendor's name is fine in what it says.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { firecrawlCredits, type SiteReaderCredits } from "@chanlytics/channels";
-import type { Database } from "@chanlytics/db";
+import { readFirecrawlCredits, type SiteReaderCredits } from "@chanlytics/channels/website";
+import type { Database } from "@chanlytics/db/types";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
-import { pageOperator, type PagePorts } from "../ops/page-operator.js";
+import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -34,15 +34,15 @@ const creditsLow = (c: { remaining: number; plan: number | null }): boolean =>
  */
 export async function watchSiteReader(
   db: Db,
-  read: (key: string) => Promise<SiteReaderCredits> = firecrawlCredits,
+  read: (key: string) => Promise<SiteReaderCredits> = readFirecrawlCredits,
   pager: Omit<PagePorts, "db"> = {},
 ): Promise<number | null> {
   const key = env.FIRECRAWL_API_KEY;
   if (!key) return null;
-  const L = logger({ sweep: "health" });
+  const log = logger({ sweep: "health" });
   const credits = await read(key);
   if (credits.kind === "unread") {
-    L.warn("site_reader_unreadable", {});
+    log.warn("site_reader_unreadable", {});
     return null;
   }
   if (credits.kind === "refused") {
@@ -57,7 +57,7 @@ export async function watchSiteReader(
     );
     return null;
   }
-  L.info("site_reader_credits", { remaining: credits.remaining, plan: credits.plan, period_end: credits.periodEnd });
+  log.info("site_reader_credits", { remaining: credits.remaining, plan: credits.plan, period_end: credits.periodEnd });
   if (creditsLow(credits))
     await pageOperator(
       { db, ...pager },

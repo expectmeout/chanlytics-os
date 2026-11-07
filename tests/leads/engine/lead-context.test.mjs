@@ -16,7 +16,13 @@ import { readCode } from "../../_source.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assembleHistory, describeLead, readDealForPhone, readLeadContext, searchMessages } from "@chanlytics/db";
+import {
+  assembleHistory,
+  describeLead,
+  readDealForPhone,
+  readLeadContext,
+  searchMessages,
+} from "@chanlytics/db/conversations";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -205,7 +211,7 @@ const wa = read("packages/core/src/inbound/model-turn.ts");
 // import, so the receptionist reaches the one description through a port. The
 // edge is where the two are joined.
 const waPorts = read("apps/edge/lib/whatsapp/ports.ts");
-const brain = read("apps/edge/lib/receptionist/brain.ts");
+const brain = read("apps/edge/lib/ai/receptionist-brain.ts");
 
 test("REGRESSION: the voice agent no longer reads the Blob mirror", () => {
   assert.ok(!/getThread\(/.test(voice), "caller context must come from Postgres");
@@ -262,7 +268,12 @@ test("the owner's notes ride with who the person is — as facts, with the rule 
     NOW,
   );
   assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
-  const src = readCode("packages/db/src/repositories/conversations/thread.ts");
+  const src = [
+    "packages/db/src/repositories/conversations/thread/history.ts",
+    "packages/db/src/repositories/conversations/thread/messages.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   // Changed on purpose (0009 for email, then the ask for the yes to offers; and on 18 Oct 2026 the workspace's answer
   // to how its customers buy left it, every workspace having deals): whether an address is on file, and their answer
   // about offers with whether they were asked ride on the same read, one round trip on the live path. Checked as the

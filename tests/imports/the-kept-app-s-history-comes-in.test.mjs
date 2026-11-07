@@ -10,7 +10,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { contactsSyncedOf, sharedHistoryOf, WA_HISTORY_NOT_SHARED } from "@chanlytics/channels";
+import { contactsSyncedOf, sharedHistoryOf, WA_HISTORY_NOT_SHARED } from "@chanlytics/channels/whatsapp";
 import {
   DAY_MS,
   IMPORT_STOPPED_WORDS,

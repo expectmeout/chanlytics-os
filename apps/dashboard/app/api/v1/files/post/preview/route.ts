@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { POST_PICTURES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
-import { postPlanInput, previewPost } from "@/server/files/post/make";
+import { postPlanInput, previewPost } from "@/server/posts/make";
 
 /**
  * POST /api/v1/files/post/preview — the real picture a post would be, for a card or an editor to show as its words change: a JPEG,
  * kept nowhere. A POST for the length of what it is asked, and since each is drawn afresh. Whoever may save one. Its own limit, since a
  * person typing draws far more of these than they add photos.
  *
- * The handle is in src/server/files/post/make.ts.
+ * The handle is in src/server/posts/make.ts.
  */
 export const POST = write({
   scope: workspace,

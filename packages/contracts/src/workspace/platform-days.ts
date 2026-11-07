@@ -115,9 +115,9 @@ const seconds = (ms: number): string =>
         : `${Math.round(ms / DAY_MS)} days`;
 
 /** The spine's numbers in words, each only where the day has it; "" for a day rolled before they were counted. */
-function spineLine(r: PlatformDayRowDto): string {
+function spineLine(platformDay: PlatformDayRowDto): string {
   const parts: string[] = [];
-  const lanes = Object.entries(r.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));
+  const lanes = Object.entries(platformDay.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));
   const [first, ...rest] = lanes;
   if (first) {
     const [lane0, ms0] = first;
@@ -127,38 +127,40 @@ function spineLine(r: PlatformDayRowDto): string {
         .join(", "),
     );
   }
-  const channels = Object.keys(r.first_answer_ms).sort();
+  const channels = Object.keys(platformDay.first_answer_ms).sort();
   if (channels.length) {
-    const worst = Math.max(...Object.values(r.first_answer_ms));
+    const worst = Math.max(...Object.values(platformDay.first_answer_ms));
     parts.push(`first answer within ${seconds(worst)} (${channels.join(", ")})`);
   }
-  if (r.duplicate_sends !== null) parts.push(plural(r.duplicate_sends, "duplicate send", "duplicate sends"));
-  const died = sum(r.dead_letters);
+  if (platformDay.duplicate_sends !== null)
+    parts.push(plural(platformDay.duplicate_sends, "duplicate send", "duplicate sends"));
+  const died = sum(platformDay.dead_letters);
   if (died > 0) {
-    const kinds = Object.entries(r.dead_letters)
+    const kinds = Object.entries(platformDay.dead_letters)
       .filter(([, n]) => n > 0)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([kind, n]) => `${kind} ${n}`);
     parts.push(`${plural(died, "job", "jobs")} died (${kinds.join(", ")})`);
   }
-  if (r.relay_lag_ms !== null) parts.push(`events relayed within ${seconds(r.relay_lag_ms)}`);
-  const providers = Object.keys(r.intake_lag_ms).sort();
+  if (platformDay.relay_lag_ms !== null) parts.push(`events relayed within ${seconds(platformDay.relay_lag_ms)}`);
+  const providers = Object.keys(platformDay.intake_lag_ms).sort();
   if (providers.length) {
-    const worst = Math.max(...Object.values(r.intake_lag_ms));
+    const worst = Math.max(...Object.values(platformDay.intake_lag_ms));
     parts.push(`deliveries taken in within ${seconds(worst)} (${providers.join(", ")})`);
   }
   return parts.join("; ");
 }
 
-function receptionistLine(r: PlatformDayRowDto): string {
-  const replies = r.replies_answered + r.replies_held + r.replies_handed_off;
+function receptionistLine(platformDay: PlatformDayRowDto): string {
+  const replies = platformDay.replies_answered + platformDay.replies_held + platformDay.replies_handed_off;
   if (replies === 0) return "the receptionist did not reply";
   const parts = [
-    `${r.replies_answered} answered at once`,
-    ...(r.replies_held ? [`${r.replies_held} held`] : []),
-    ...(r.replies_handed_off ? [`${r.replies_handed_off} handed over`] : []),
+    `${platformDay.replies_answered} answered at once`,
+    ...(platformDay.replies_held ? [`${platformDay.replies_held} held`] : []),
+    ...(platformDay.replies_handed_off ? [`${platformDay.replies_handed_off} handed over`] : []),
   ];
-  const pace = r.brain_p95_ms === null ? "" : ` · 95% within ${(r.brain_p95_ms / 1000).toFixed(1)} s`;
+  const pace =
+    platformDay.brain_p95_ms === null ? "" : ` · 95% within ${(platformDay.brain_p95_ms / 1000).toFixed(1)} s`;
   return `${parts.join(", ")}${pace}`;
 }
 
@@ -169,17 +171,17 @@ export function platformDaysWords(rows: readonly PlatformDayRowDto[] | null): Pl
   if (day === null) return { day: null, sentence: "No day has been counted yet.", lines: [] };
   const lines = rows
     .filter((r) => r.day === day)
-    .map((r): PlatformDayLineVM & { asks: number } => ({
-      tenantId: r.tenant_id,
-      name: r.name,
-      day: r.day,
-      answers: `${r.asks} asked, ${r.answered} answered`,
-      receptionist: receptionistLine(r),
-      failures: failuresOf(r.provider_failures),
-      spine: spineLine(r),
-      silent: r.asks > 0 && r.answered === 0,
-      tone: r.asks > 0 && r.answered === 0 ? "danger" : "plain",
-      asks: r.asks,
+    .map((row): PlatformDayLineVM & { asks: number } => ({
+      tenantId: row.tenant_id,
+      name: row.name,
+      day: row.day,
+      answers: `${row.asks} asked, ${row.answered} answered`,
+      receptionist: receptionistLine(row),
+      failures: failuresOf(row.provider_failures),
+      spine: spineLine(row),
+      silent: row.asks > 0 && row.answered === 0,
+      tone: row.asks > 0 && row.answered === 0 ? "danger" : "plain",
+      asks: row.asks,
     }))
     .sort((a, b) => Number(b.silent) - Number(a.silent) || b.asks - a.asks || a.name.localeCompare(b.name))
     .map(({ asks: _asks, ...line }) => line);
@@ -214,7 +216,7 @@ interface PlatformCount {
 
 type PlatformNumber = PlatformTarget | PlatformCount;
 
-const heldToNothing = (why: string): PlatformCount => ({ promise: false, why });
+const heldToNothing = (reason: string): PlatformCount => ({ promise: false, why: reason });
 
 /**
  * Every number the nightly rollup keeps (platform_metrics' columns beyond the workspace, the day and the stamp), and
@@ -307,16 +309,16 @@ function mostFor(t: PlatformTarget, key: string | null): number {
 }
 
 /** One number's breaches: a single figure past its most, or each key past its own. */
-function breachesOf(name: PlatformNumberName, t: PlatformTarget, v: unknown): PlatformBreach[] {
-  if (typeof v === "number") {
-    const most = mostFor(t, null);
-    return v > most ? [{ number: name, key: null, value: v, most }] : [];
+function breachesOf(name: PlatformNumberName, platformTarget: PlatformTarget, value: unknown): PlatformBreach[] {
+  if (typeof value === "number") {
+    const most = mostFor(platformTarget, null);
+    return value > most ? [{ number: name, key: null, value: value, most }] : [];
   }
-  if (!v || typeof v !== "object" || Array.isArray(v)) return [];
-  return Object.entries(v as Record<string, unknown>)
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value as Record<string, unknown>)
     .sort(([a], [b]) => a.localeCompare(b))
     .flatMap(([key, x]) => {
-      const most = mostFor(t, key);
+      const most = mostFor(platformTarget, key);
       return typeof x === "number" && x > most ? [{ number: name, key, value: x, most }] : [];
     });
 }

@@ -1,6 +1,6 @@
 /**
  * A view's leads as one file, of any size (decision 0103). The route answers a chunk of it and where the next begins
- * (server/leads/lead-export.ts); this asks until none is left and joins them, so the page saves one file. A press that POSTs,
+ * (server/leads/export.ts); this asks until none is left and joins them, so the page saves one file. A press that POSTs,
  * not a link: marking what a chunk took moves the month's count (§0.2, decision 0047, lane 6). Apart from surface.ts, which
  * stands at its file limit. The file keeps the view's own order, so a lead that moves in that order while a large file is
  * walked may land twice or not at all; the walk lasts seconds.

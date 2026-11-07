@@ -138,52 +138,53 @@ function scanlinesOf(header: Header, idat: Uint8Array[]): Uint8Array | null {
 }
 
 /** The pixels, the filters undone: what each row's bytes are, not how they were predicted (PNG's five filters). */
-function unfiltered(raw: Uint8Array, h: Header): Uint8Array {
-  const stride = h.side * h.bytesPerPixel;
-  const out = new Uint8Array(stride * h.side);
-  const bpp = h.bytesPerPixel;
-  for (let y = 0; y < h.side; y++) {
-    const filter = raw[y * (stride + 1)] ?? 0;
-    const src = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
-    const row = out.subarray(y * stride, (y + 1) * stride);
-    const prev = y ? out.subarray((y - 1) * stride, y * stride) : null;
-    for (let x = 0; x < stride; x++) {
-      const a = x >= bpp ? (row[x - bpp] ?? 0) : 0;
-      const b = prev ? (prev[x] ?? 0) : 0;
-      const c = prev && x >= bpp ? (prev[x - bpp] ?? 0) : 0;
-      let v = src[x] ?? 0;
-      if (filter === 1) v += a;
-      else if (filter === 2) v += b;
-      else if (filter === 3) v += (a + b) >> 1;
+function unfiltered(raw: Uint8Array, header: Header): Uint8Array {
+  const stride = header.side * header.bytesPerPixel;
+  const out = new Uint8Array(stride * header.side);
+  const bpp = header.bytesPerPixel;
+  for (let line = 0; line < header.side; line++) {
+    const filter = raw[line * (stride + 1)] ?? 0;
+    const src = raw.subarray(line * (stride + 1) + 1, (line + 1) * (stride + 1));
+    const row = out.subarray(line * stride, (line + 1) * stride);
+    const prev = line ? out.subarray((line - 1) * stride, line * stride) : null;
+    for (let byte = 0; byte < stride; byte++) {
+      // The bytes a filter predicts from, as the PNG spec names them: left, above, and above-left.
+      const left = byte >= bpp ? (row[byte - bpp] ?? 0) : 0;
+      const above = prev ? (prev[byte] ?? 0) : 0;
+      const aboveLeft = prev && byte >= bpp ? (prev[byte - bpp] ?? 0) : 0;
+      let value = src[byte] ?? 0;
+      if (filter === 1) value += left;
+      else if (filter === 2) value += above;
+      else if (filter === 3) value += (left + above) >> 1;
       else if (filter === 4) {
-        const p = a + b - c;
-        const pa = Math.abs(p - a);
-        const pb = Math.abs(p - b);
-        const pc = Math.abs(p - c);
-        v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        const p = left + above - aboveLeft;
+        const pa = Math.abs(p - left);
+        const pb = Math.abs(p - above);
+        const pc = Math.abs(p - aboveLeft);
+        value += pa <= pb && pa <= pc ? left : pb <= pc ? above : aboveLeft;
       }
-      row[x] = v & 0xff;
+      row[byte] = value & 0xff;
     }
   }
   return out;
 }
 
 /** A square of pixels made `to` a side by averaging each block it covers; rows written unfiltered (filter 0). */
-function shrunk(pixels: Uint8Array, h: Header, to: number): Uint8Array {
-  const bpp = h.bytesPerPixel;
+function shrunk(pixels: Uint8Array, header: Header, to: number): Uint8Array {
+  const bpp = header.bytesPerPixel;
   const out = new Uint8Array((1 + to * bpp) * to);
-  const f = h.side / to;
-  for (let y = 0; y < to; y++) {
-    const y0 = Math.floor(y * f);
-    const y1 = Math.max(y0 + 1, Math.floor((y + 1) * f));
+  const block = header.side / to;
+  for (let row = 0; row < to; row++) {
+    const y0 = Math.floor(row * block);
+    const y1 = Math.max(y0 + 1, Math.floor((row + 1) * block));
     for (let x = 0; x < to; x++) {
-      const x0 = Math.floor(x * f);
-      const x1 = Math.max(x0 + 1, Math.floor((x + 1) * f));
+      const x0 = Math.floor(x * block);
+      const x1 = Math.max(x0 + 1, Math.floor((x + 1) * block));
       for (let ch = 0; ch < bpp; ch++) {
         let sum = 0;
         for (let yy = y0; yy < y1; yy++)
-          for (let xx = x0; xx < x1; xx++) sum += pixels[(yy * h.side + xx) * bpp + ch] ?? 0;
-        out[y * (1 + to * bpp) + 1 + x * bpp + ch] = Math.round(sum / ((y1 - y0) * (x1 - x0)));
+          for (let xx = x0; xx < x1; xx++) sum += pixels[(yy * header.side + xx) * bpp + ch] ?? 0;
+        out[row * (1 + to * bpp) + 1 + x * bpp + ch] = Math.round(sum / ((y1 - y0) * (x1 - x0)));
       }
     }
   }

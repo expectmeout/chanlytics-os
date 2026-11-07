@@ -4,13 +4,9 @@
  * (live.tsx, with Live's own summary under it).
  */
 import type { ReactNode } from "react";
-import type {
-  FirstRunGoLiveVM,
-  FirstRunLiveVM,
-  FirstRunPhoneVM,
-  FirstRunTryVM,
-  WhatsappChoice,
-} from "@chanlytics/contracts";
+import type { FirstRunLiveVM, FirstRunPhoneVM, WhatsappChoice } from "@chanlytics/contracts";
+import type { FirstRunGoLiveVM } from "../model/golive";
+import type { FirstRunTryVM } from "../model/try";
 import type { WorkspaceSettings } from "@/bridge/surfaces/settings";
 import type { FrameFlash } from "../../../frame-verbs";
 import type { CardBrain } from "../inputs";

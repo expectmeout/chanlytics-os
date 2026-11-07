@@ -15,6 +15,11 @@ export {
   whatsappStoppedRunWords,
 } from "./campaign-message";
 export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";
+export {
+  WHATSAPP_TEMPLATES_CREATE_DOOR,
+  WHATSAPP_TEMPLATES_DELETE_DOOR,
+  WHATSAPP_TEMPLATES_SYNC_DOOR,
+} from "./edge-doors";
 export { customerEmailFoot, emailFoot, emailFootHtml } from "./email-foot";
 export type { EmailFoot, LinkedFoot } from "./email-foot";
 export {
@@ -30,6 +35,16 @@ export {
   templateWords,
 } from "./inbox-templates";
 export type { InboxBlank, InboxTemplateLike, TemplateHolds, TemplatePart } from "./inbox-templates";
+export {
+  findLanguages,
+  languageLabel,
+  languageName,
+  languageTag,
+  templateLanguage,
+  WHATSAPP_LANGUAGES,
+} from "./languages";
+export { languageBase } from "./languages";
+export type { TemplateLanguage } from "./languages";
 export { isLibrarySample, libraryCount } from "./library-count";
 export {
   LANGUAGE_GROUP_WORDS,
@@ -40,110 +55,38 @@ export {
 } from "./message-languages";
 export type { LanguageChoice, LanguageGroup } from "./message-languages";
 export {
-  clampWords,
-  eraseSlot,
-  fromSlotParts,
-  insertSlot,
-  namedProblem,
-  partWritten,
-  slotKnown,
-  slotLabel,
-  toSlotParts,
-} from "./message-version-slots";
-export type { SlotEdit, SlotPart } from "./message-version-slots";
-export {
-  campaignEmailRules,
   EMAIL_BODY_MAX,
   EMAIL_SUBJECT_MAX,
-  emailIssues,
-  isReachOutRow,
-  keepsValues,
   noVersionWords,
   OWN_VERSION_CHANNELS,
-  reachOutRowName,
-  reachOutStepOf,
-  renderOwnVersion,
   SMS_SEGMENTS_MAX,
   smsSegments,
   smsStopLine,
   smsVersionSegments,
+  VERSION_CHANNEL_WORDS,
+  VERSION_CHANNELS,
+  versionWord,
+} from "./message-versions/channels";
+export type { OwnVersionChannel, VersionChannel } from "./message-versions/channels";
+export {
+  campaignEmailRules,
+  emailIssues,
+  isReachOutRow,
+  keepsValues,
+  reachOutRowName,
+  reachOutStepOf,
+  renderOwnVersion,
   validateEmailVersion,
   validateOwnVersion,
   validateSmsVersion,
-  VERSION_CHANNEL_WORDS,
-  VERSION_CHANNELS,
   versionComponents,
   versionSlotsRefusal,
   versionsOf,
-  versionWord,
   versionWords,
-} from "./message-versions";
-export type {
-  EmailIssue,
-  EmailProblem,
-  EmailRules,
-  OwnVersionChannel,
-  VersionChannel,
-  VersionCheck,
-  VersionWords,
-} from "./message-versions";
-export { SENDER_WORDS, senderLanguage, senderWords } from "./sender-words";
-export type { SenderLanguage, SenderWords } from "./sender-words";
-export { fillSlots, numberedSlots, slotValueOf, slotWritten } from "./slot-sets";
-export type { SlotKey, SlotSet, SlotValue } from "./slot-sets";
-export {
-  starterByKey,
-  starterByName,
-  starterDraft,
-  starterEmailText,
-  starterForTrigger,
-  startersForTrigger,
-  starterSmsText,
-  startersOffered,
-  starterText,
-} from "./starter-lookup";
-export { messageLanguageCode, STARTER_LANGUAGES, STARTER_TEMPLATES } from "./starter-templates";
-export type {
-  StarterEmailText,
-  StarterSlot,
-  StarterSlotKind,
-  StarterSmsText,
-  StarterTemplate,
-  StarterText,
-} from "./starter-templates";
-export {
-  findLanguages,
-  languageLabel,
-  languageName,
-  languageTag,
-  templateLanguage,
-  WHATSAPP_LANGUAGES,
-} from "./template-languages";
-export { languageBase } from "./template-languages";
-export type { TemplateLanguage } from "./template-languages";
-export { bookingTemplate, compareTemplates, defaultTemplate, groupTemplates, starterIndex } from "./template-order";
-export type { TemplateGroup } from "./template-order";
-export {
-  footerOf,
-  refusedWords,
-  sendableTemplates,
-  templateBlocked,
-  templateFooter,
-  templateLinkButton,
-  templateParts,
-} from "./template-parts";
-export type { TemplateButton, TemplateParts } from "./template-parts";
-export { starterPreview, starterPreviewValues, templatePreview, templatePreviewValues } from "./template-preview";
-export type { OwnFacts } from "./template-preview";
-export {
-  defaultParamSpecs,
-  defaultSlotKinds,
-  guessSlotKind,
-  slotChoices,
-  slotLabels,
-  templateSlots,
-} from "./template-slots";
-export { playbookName, TEMPLATE_TITLE_MAX, templateTitle } from "./template-titles";
+} from "./message-versions/email-rules";
+export type { EmailIssue, EmailProblem, EmailRules, VersionCheck, VersionWords } from "./message-versions/email-rules";
+export { bookingTemplate, compareTemplates, defaultTemplate, groupTemplates, starterIndex } from "./order";
+export type { TemplateGroup } from "./order";
 export {
   exampleParams,
   exampleParamsFor,
@@ -155,10 +98,52 @@ export {
   paramSaid,
   parseParamSpec,
   parseParamSpecs,
-  placeholdersOf,
-  placeholdersSequential,
   playbooksStillSending,
   resolveParams,
+  testParamsOf,
+} from "./params";
+export type { ParamFacts, ParamSourceKind, ParamSpec } from "./params";
+export {
+  footerOf,
+  refusedWords,
+  sendableTemplates,
+  templateBlocked,
+  templateFooter,
+  templateLinkButton,
+  templateParts,
+} from "./parts";
+export type { TemplateButton, TemplateParts } from "./parts";
+export { SENDER_WORDS, senderLanguage, senderWords } from "./sender-words";
+export type { SenderLanguage, SenderWords } from "./sender-words";
+export { fillSlots, numberedSlots, slotValueOf, slotWritten } from "./slot-sets";
+export { slotMentions, slotOutside } from "./slot-sets";
+export type { SlotKey, SlotSet, SlotValue } from "./slot-sets";
+export { defaultParamSpecs, defaultSlotKinds, guessSlotKind, slotChoices, slotLabels, templateSlots } from "./slots";
+export type { VariableLike } from "./slots";
+export {
+  starterByKey,
+  starterByName,
+  starterDraft,
+  starterEmailText,
+  starterForTrigger,
+  startersForTrigger,
+  starterSmsText,
+  startersOffered,
+  starterText,
+} from "./starter-lookup";
+export { messageLanguageCode, STARTER_LANGUAGES } from "./starter-templates/shapes";
+export type {
+  StarterEmailText,
+  StarterSlot,
+  StarterSlotKind,
+  StarterSmsText,
+  StarterTemplate,
+  StarterText,
+} from "./starter-templates/shapes";
+export { STARTER_TEMPLATES } from "./starter-templates/table";
+export {
+  placeholdersOf,
+  placeholdersSequential,
   slugTemplateName,
   TEMPLATE_BODY_MAX,
   TEMPLATE_BODY_WORDS,
@@ -171,10 +156,15 @@ export {
   TEMPLATE_NAME_WORDS,
   TEMPLATE_SAME_NAME_WORDS,
   TEMPLATE_STATUS_WORDS,
-  TEMPLATE_UNUSED_WORDS,
   templateBodyTooLong,
   templateComponents,
   templateNameOk,
+  validateTemplateDraft,
+} from "./templates";
+export type { TemplateCategoryChoice, TemplateDraft, TemplateDraftCheck, TemplateDraftInput } from "./templates";
+export { playbookName, TEMPLATE_TITLE_MAX, templateTitle } from "./titles";
+export {
+  TEMPLATE_UNUSED_WORDS,
   templateSends,
   templateSendsOf,
   templateSentWords,
@@ -182,20 +172,5 @@ export {
   templateUsage,
   templateUseNote,
   templateUseWords,
-  testParamsOf,
-  validateTemplateDraft,
-} from "./templates";
-export type {
-  ParamFacts,
-  ParamSourceKind,
-  ParamSpec,
-  TemplateCategoryChoice,
-  TemplateDraft,
-  TemplateDraftCheck,
-  TemplateDraftInput,
-  TemplateSends,
-  TemplateSendSource,
-  TemplateSentWords,
-  TemplateUse,
-  TemplateUseSource,
-} from "./templates";
+} from "./usage";
+export type { TemplateSends, TemplateSendSource, TemplateSentWords, TemplateUse, TemplateUseSource } from "./usage";

@@ -47,8 +47,8 @@ const backgroundsOf = (declarations: string): string =>
   [...declarations.matchAll(/background(?:-color)?\s*:\s*([^;}]+)/gi)].map((x) => x[1] ?? "").join(";");
 
 /** A colour said to be the brand's, as a button can wear it; null for paper, ink, a grey, or no colour at all. */
-export function accentOfColour(said: string | null | undefined): string | null {
-  const rgb = said ? parseCssColour(said) : null;
+export function accentOfColour(sentence: string | null | undefined): string | null {
+  const rgb = sentence ? parseCssColour(sentence) : null;
   return rgb && isAccentLike(rgb) ? readableOnWhite(hexOfRgb(rgb)) : null;
 }
 

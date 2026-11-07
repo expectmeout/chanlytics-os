@@ -6,7 +6,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
  *
  * Every /api/v1 read on the workspace scope must be told which workspace it
  * means. An account in one workspace has no ambiguity; an account in two is
- * refused with `choose_workspace` (with-route.ts memberContext) rather than
+ * refused with `choose_workspace` (with-route.ts getMemberContext) rather than
  * answered from the oldest membership -- the fallback only GET /workspaces
  * may take, because deciding which workspace a tab opens is its job. The
  * unit suite runs the rule against a database in memory; this is the same

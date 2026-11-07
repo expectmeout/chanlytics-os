@@ -11,7 +11,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { sendFailureWords, toConversationVM, toInboxThreadVM } from "@chanlytics/contracts";
+import { sendFailureWords, toInboxThreadVM } from "@chanlytics/contracts";
+import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -19,7 +20,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 const { groupMessages } = await import(at("apps/dashboard/src/server/conversations/dto.ts"));
 

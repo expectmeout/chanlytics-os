@@ -27,10 +27,10 @@
  * report healthy.
  */
 import { json, refuse } from "../shared/http.js";
-import { notify } from "./notify.js";
-import { pageOperator } from "./page-operator.js";
+import { notify } from "../shared/alerts/notify.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "./sweep-health.js";
-import { whatsappWithoutReceipts, describeSilentReceipts } from "../whatsapp/receipts-watch.js";
+import { listWhatsappWithoutReceipts, describeSilentReceipts } from "../whatsapp/receipts-watch.js";
 import { checkMailDomain, describeCampaignsDomainTrouble, describeMailDomainTrouble } from "../email/mail-domain.js";
 import { campaignsDomain } from "../email/campaigns-domain.js";
 import { emailDomain } from "../email/email.js";
@@ -39,8 +39,8 @@ import { watchModels } from "./model-watch.js";
 import { keepAnthropicProfiles } from "../ai/anthropic-profiles/keep.js";
 import { keepFilesMoving } from "../files/upkeep.js";
 import { watchSiteReader } from "../imports/site-reader-watch.js";
-import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/lead-sources.js";
-import { pausedJobKinds } from "@chanlytics/db";
+import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/sources.js";
+import { listPausedJobKinds } from "@chanlytics/db/jobs";
 import { watchVoice } from "../voice/watch/voice-watch.js";
 import { env } from "../shared/env.js";
 import type { SweepTick } from "./sweep-door.js";
@@ -122,7 +122,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
 
   // A kind an operator paused (decision 0089): its work waits, which is meant, and nobody should forget that it does.
   // One page per kind per window while it holds; a read that fails is logged.
-  const paused = await pausedJobKinds(db).catch((e: unknown) => {
+  const paused = await listPausedJobKinds(db).catch((e: unknown) => {
     L.error("sweep_health_paused_unreadable", { error: e instanceof Error ? e.message : String(e) });
     return [];
   });
@@ -138,7 +138,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   // else has been receipted since either: the webhook, not a phone. The page
   // names workspaces and times, never a customer, and comes once per window
   // while it lasts. A read that fails is logged.
-  const receipts = await whatsappWithoutReceipts(db, Date.now());
+  const receipts = await listWhatsappWithoutReceipts(db, Date.now());
   if (receipts.error) L.error("sweep_health_receipts_unreadable", { error: receipts.error });
   const unreceipted = receipts.silent.reduce((n, w) => n + w.count, 0);
   if (unreceipted > 0) {

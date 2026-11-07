@@ -16,7 +16,7 @@ import { clipAtWord } from "../../conversations/message-words";
  */
 export const DRAFT_WHYS = ["no_receptionist", "off", "budget", "may_not_spend", "not_drafted"] as const;
 export type DraftWhy = (typeof DRAFT_WHYS)[number];
-export const isDraftWhy = (v: unknown): v is DraftWhy => (DRAFT_WHYS as readonly unknown[]).includes(v);
+export const isDraftWhy = (value: unknown): value is DraftWhy => (DRAFT_WHYS as readonly unknown[]).includes(value);
 
 /**
  * The time a reading's job must have left before its deadline to draft now: the brain's one attempt (20 s,
@@ -37,16 +37,16 @@ const SILENT_MODE = "never";
  * code, the reply window, consent, a thread held for a person, the reply cap) are not asked: a draft does not leave,
  * and the owner's Send asks the door, which asks them.
  */
-export function draftRefusal(f: {
+export function draftRefusal(fields: {
   receptionist: boolean;
   mode: string;
   budgetSpent: boolean;
   maySpend: boolean;
 }): DraftWhy | null {
-  if (!f.receptionist) return "no_receptionist";
-  if (f.mode === SILENT_MODE) return "off";
-  if (f.budgetSpent) return "budget";
-  if (!f.maySpend) return "may_not_spend";
+  if (!fields.receptionist) return "no_receptionist";
+  if (fields.mode === SILENT_MODE) return "off";
+  if (fields.budgetSpent) return "budget";
+  if (!fields.maySpend) return "may_not_spend";
   return null;
 }
 
@@ -62,20 +62,20 @@ const flatClip = (v: string | null | undefined, max: number): string => clipAtWo
  * system block (the brain's whoNote), so the name is one as a prompt may show one and fenced as the name they call
  * themselves (contracts ai/fence.ts), and a listing that names itself an instruction says nothing to the model.
  */
-export function leadReplyNote(p: {
+export function leadReplyNote(params: {
   business: string;
   /** The reach-out email they answered, its first words. */
   answered: string | null;
   kind: "answer" | "thanks";
 }): string {
-  const name = promptSafeName(p.business);
+  const name = promptSafeName(params.business);
   const business = name ? fencedInline("profile_name", name) : "a business";
-  const answered = flatClip(p.answered, 600);
+  const answered = flatClip(params.answered, 600);
   return [
     `${business}, a business that wrote back by email to a reach-out this business sent them. You are drafting the email`,
     `answer for the owner to read, change and send: it is not sent until they do.`,
     answered ? `The reach-out they answered said: "${answered}"` : null,
-    p.kind === "thanks"
+    params.kind === "thanks"
       ? `They said not now. Write one short line thanking them, and nothing else: no offer, no question, no follow-up.`
       : `Answer what they asked or said from the business's own facts.`,
   ]

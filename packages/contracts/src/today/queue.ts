@@ -18,9 +18,9 @@ import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
 import { contactName, initialsOf } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
-import { waWindow } from "../config/policy";
+import { waWindow } from "../config/policy/prices";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
-import { previewSaidOf, previewTriedWords, type PreviewTriedDto } from "../previews/preview-tried";
+import { previewSaidOf, previewTriedWords, type PreviewTriedDto } from "../previews/tried";
 import { NEED_YOU_CAPS, needYouGroupsOf, needYouOrder } from "../need-you/groups";
 import { NEED_YOU_WORDS } from "../need-you/words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
@@ -39,8 +39,8 @@ const PEOPLE_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "
  * Whether a row is a person, as the queue's rows go: the people past Need you's caps, which its foot says. Who needs you
  * is isHoldRow: a closing window is a person, and nobody waiting on you (the wiring's second audit, S7-8).
  */
-export function isPersonRow(r: Pick<TodayQueueRowVM, "kind">): boolean {
-  return PEOPLE_KINDS.has(r.kind);
+export function isPersonRow(todayQueue: Pick<TodayQueueRowVM, "kind">): boolean {
+  return PEOPLE_KINDS.has(todayQueue.kind);
 }
 
 /** The kinds of row that are a hold: a person who asked for a person (a handoff, a call-back, a reach-out's reply read). */
@@ -50,8 +50,8 @@ const HOLD_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "ca
  * Whether a row is someone who needs you: a hold. The brief names these as needing you and the phone's widget names the
  * first; a closing window is said as a window, never as someone who needs you (the wiring's second audit, S7-8).
  */
-export function isHoldRow(r: Pick<TodayQueueRowVM, "kind">): boolean {
-  return HOLD_KINDS.has(r.kind);
+export function isHoldRow(todayQueue: Pick<TodayQueueRowVM, "kind">): boolean {
+  return HOLD_KINDS.has(todayQueue.kind);
 }
 
 /**
@@ -59,8 +59,13 @@ export function isHoldRow(r: Pick<TodayQueueRowVM, "kind">): boolean {
  * waiting on its owner (a lead search's name) and the rows for the steps and the visits not named (a count). A step, a
  * visit to mark and a call worth a listen name a person without being one waiting on you, which isPersonRow keeps apart.
  */
-export function namesAPerson(r: Pick<TodayQueueRowVM, "kind">): boolean {
-  return r.kind !== "search" && r.kind !== "steps" && r.kind !== "visits" && r.kind !== "tried";
+export function namesAPerson(todayQueue: Pick<TodayQueueRowVM, "kind">): boolean {
+  return (
+    todayQueue.kind !== "search" &&
+    todayQueue.kind !== "steps" &&
+    todayQueue.kind !== "visits" &&
+    todayQueue.kind !== "tried"
+  );
 }
 
 /** A question waited this long is warned: the sweep stops it after a day. */
@@ -75,17 +80,20 @@ const SEARCH_WARN_MS = 12 * HOUR_MS;
  * WhatsApp's free window where the wire is WhatsApp. A thread the page did not read has no message to answer, and its
  * draft waits for the thread.
  */
-function writesOf(conv: ConversationDto | undefined, f: Pick<TodayFacts, "tz" | "now">): TodayQueueRowVM["writes"] {
+function writesOf(
+  conv: ConversationDto | undefined,
+  todayFacts: Pick<TodayFacts, "tz" | "now">,
+): TodayQueueRowVM["writes"] {
   if (!conv) return undefined;
   const last = [...conv.messages].reverse().find((x) => x.sender === "customer");
   const wire = threadChannelWords(conv.messages);
-  const w = wire === "WhatsApp" ? waWindow(conv.last_wa_inbound_at, f.now) : null;
+  const item = wire === "WhatsApp" ? waWindow(conv.last_wa_inbound_at, todayFacts.now) : null;
   return {
     for_message_id: last?.id ?? null,
     for_message_at_ms: last ? Date.parse(last.created_at) : null,
     wire,
-    window_open: w ? w.open : null,
-    window_closes: w?.open ? tzClock(w.closesAtIso, f.tz, f.now) : null,
+    window_open: item ? item.open : null,
+    window_closes: item?.open ? tzClock(item.closesAtIso, todayFacts.tz, todayFacts.now) : null,
   };
 }
 
@@ -104,35 +112,35 @@ function windowLeftMs(conv: ConversationDto | undefined, now: Date): number | nu
  * someone stops it, so it stands first. Its words are the sentence's draft; their words are the sentence. Null for a
  * thread with no reply counting down, or one whose deadline has passed: that one is going out, not waiting.
  */
-function heldRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM | null {
-  const draft = heldDraftOf(c.messages);
+function heldRow(conversation: ConversationDto, todayFacts: TodayFacts): TodayQueueRowVM | null {
+  const draft = heldDraftOf(conversation.messages);
   if (!draft) return null;
   const sendsAtMs = draftSendsAtMs(draft);
-  if (sendsAtMs <= f.now.getTime()) return null;
-  const last = [...c.messages].reverse().find((x) => x.sender === "customer");
-  const who = contactName(c);
+  if (sendsAtMs <= todayFacts.now.getTime()) return null;
+  const last = [...conversation.messages].reverse().find((x) => x.sender === "customer");
+  const personName = contactName(conversation);
   return {
-    id: `q-h-${c.id}`,
+    id: `q-h-${conversation.id}`,
     kind: "held",
-    conversationId: c.id,
+    conversationId: conversation.id,
     callId: null,
-    person_id: c.contact.id,
-    who,
-    initials: initialsOf(who),
-    channel: threadChannelWords(c.messages),
+    person_id: conversation.contact.id,
+    who: personName,
+    initials: initialsOf(personName),
+    channel: threadChannelWords(conversation.messages),
     when: "",
     sentence: last ? clipAtWord(messageWords(last), QUOTE_MAX) : "",
     quoted: !!last,
     status: [NEED_YOU_WORDS.held.goesAlone],
     tone: "warn",
     warn: false,
-    cta: { label: NEED_YOU_WORDS.openThread, to: addressOf({ kind: "conversation", id: c.id }) },
+    cta: { label: NEED_YOU_WORDS.openThread, to: addressOf({ kind: "conversation", id: conversation.id }) },
     also: null,
-    writes: writesOf(c, f),
+    writes: writesOf(conversation, todayFacts),
     held: { message_id: draft.id, text: messageText(draft), sends_at_ms: sendsAtMs },
     // Before everyone waiting: it goes on its own in seconds.
     waitedMs: Number.MAX_SAFE_INTEGER,
-    clock_ms: sendsAtMs - f.now.getTime(),
+    clock_ms: sendsAtMs - todayFacts.now.getTime(),
   };
 }
 
@@ -144,38 +152,38 @@ const CALL_BACK_ASK = ` ${HOLD_ACT_WORDS.call_back.notice}`;
  * with ("Hung up after 39 sec without a word."): "Needs a call back" under it and Call beside it say that (his look on a
  * phone, 29 Oct 2026). The call itself is where the verb goes, Done resolves it.
  */
-function callbackRow(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
-  const e = r.e;
-  const todo = say(e.details);
-  const since = `since ${r.since}`;
+function callbackRow(escalation: EscalationRecord, todayFacts: TodayFacts): TodayQueueRowVM {
+  const error = escalation.e;
+  const todo = say(error.details);
+  const since = `since ${escalation.since}`;
   return {
-    id: `q-${e.id}`,
+    id: `q-${error.id}`,
     kind: "callback",
-    conversationId: e.conversation_id,
-    callId: r.call ? r.call.id : null,
-    person_id: r.conv?.contact.id ?? r.call?.contact_id ?? null,
-    who: r.who,
-    initials: initialsOf(r.who),
+    conversationId: error.conversation_id,
+    callId: escalation.call ? escalation.call.id : null,
+    person_id: escalation.conv?.contact.id ?? escalation.call?.contact_id ?? null,
+    who: escalation.who,
+    initials: initialsOf(escalation.who),
     channel: "Phone",
-    when: `waited ${formatWaited(r.waitedMs)}`,
+    when: `waited ${formatWaited(escalation.waitedMs)}`,
     sentence:
       (todo.endsWith(CALL_BACK_ASK) ? todo.slice(0, -CALL_BACK_ASK.length) : todo) || "The caller needs a call back.",
     quoted: false,
     status: ["Needs a call back", since],
     since,
     tone: "escalated",
-    warn: r.warn,
+    warn: escalation.warn,
     cta: {
       label: HOLD_ACT_WORDS.call_back.cta,
-      to: r.call
-        ? addressOf({ kind: "call", id: r.call.id })
-        : addressOf({ kind: "hold", conversationId: e.conversation_id }),
+      to: escalation.call
+        ? addressOf({ kind: "call", id: escalation.call.id })
+        : addressOf({ kind: "hold", conversationId: error.conversation_id }),
     },
-    also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
-    writes: writesOf(r.conv, f),
-    phone: r.conv?.contact.phone_e164 ?? r.call?.contact?.phone_e164 ?? null,
-    reason: say(e.details) || null,
-    waitedMs: r.waitedMs,
+    also: { label: "Done", verb: "resolve", conversationId: error.conversation_id, escalationId: error.id },
+    writes: writesOf(escalation.conv, todayFacts),
+    phone: escalation.conv?.contact.phone_e164 ?? escalation.call?.contact?.phone_e164 ?? null,
+    reason: say(error.details) || null,
+    waitedMs: escalation.waitedMs,
   };
 }
 
@@ -192,75 +200,75 @@ function failedReplyOf(conv: ConversationDto | undefined): TodayQueueRowVM["fail
 }
 
 /** A handoff: the receptionist stopped and asked for a person; her words are the sentence, Snooze puts it aside. */
-function handoffRow(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
-  const e = r.e;
+function handoffRow(escalation: EscalationRecord, todayFacts: TodayFacts): TodayQueueRowVM {
+  const error = escalation.e;
   // A time the customer picked by text: what they asked for is the sentence, and the row answers it (decision 0061).
-  if (e.reason === "booking_request")
+  if (error.reason === "booking_request")
     return {
-      ...handoffOf(r, f),
-      sentence: say(e.details) || reasonLabelOf(e.reason),
+      ...handoffOf(escalation, todayFacts),
+      sentence: say(error.details) || reasonLabelOf(error.reason),
       quoted: false,
-      request: { conversationId: e.conversation_id },
+      request: { conversationId: error.conversation_id },
     };
   // A reply that never reached them: what failed and why is the sentence, and the row's words are those that failed, to
   // send again as written with Try again, first among those waiting (needYouOrder). Their own last words stay in the thread.
-  if (e.reason === "send_failed") {
-    const failed = failedReplyOf(r.conv);
+  if (error.reason === "send_failed") {
+    const failed = failedReplyOf(escalation.conv);
     return {
-      ...handoffOf(r, f),
+      ...handoffOf(escalation, todayFacts),
       sentence: [NEED_YOU_WORDS.failed.sentence, failed?.said ?? ""].filter(Boolean).join(" "),
       quoted: false,
       ...(failed ? { failed, prepared: failed.text } : {}),
       why: NEED_YOU_WORDS.failed.why,
     };
   }
-  return handoffOf(r, f);
+  return handoffOf(escalation, todayFacts);
 }
 
 /** The handoff's row as every reason draws it. */
-function handoffOf(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
-  const e = r.e;
-  const since = `since ${r.since}`;
+function handoffOf(escalation: EscalationRecord, todayFacts: TodayFacts): TodayQueueRowVM {
+  const error = escalation.e;
+  const since = `since ${escalation.since}`;
   return {
-    id: `q-${e.id}`,
+    id: `q-${error.id}`,
     kind: "handoff",
-    conversationId: e.conversation_id,
+    conversationId: error.conversation_id,
     callId: null,
-    person_id: r.conv?.contact.id ?? null,
-    who: r.who,
-    initials: initialsOf(r.who),
-    channel: r.conv ? threadChannelWords(r.conv.messages) : "WhatsApp",
-    when: `waited ${formatWaited(r.waitedMs)}`,
-    sentence: r.quote || reasonLabelOf(e.reason),
-    quoted: !!r.quote,
+    person_id: escalation.conv?.contact.id ?? null,
+    who: escalation.who,
+    initials: initialsOf(escalation.who),
+    channel: escalation.conv ? threadChannelWords(escalation.conv.messages) : "WhatsApp",
+    when: `waited ${formatWaited(escalation.waitedMs)}`,
+    sentence: escalation.quote || reasonLabelOf(error.reason),
+    quoted: !!escalation.quote,
     // An email says what it is about before its words: "test need you — “needs you test”".
-    ...(r.quote && r.subject ? { lead: r.subject } : {}),
+    ...(escalation.quote && escalation.subject ? { lead: escalation.subject } : {}),
     status: [
       "Escalated",
-      reasonShort(e.reason) || e.reason,
+      reasonShort(error.reason) || error.reason,
       since,
-      ...(r.closes ? [`reply window closes ${r.closes}`] : []),
+      ...(escalation.closes ? [`reply window closes ${escalation.closes}`] : []),
     ],
     since,
     tone: "escalated",
-    warn: r.warn,
+    warn: escalation.warn,
     // The verb follows the reason's act (escalations.ts): a reply to write, a call to return, or nothing that may be sent.
     cta: {
-      label: HOLD_ACT_WORDS[holdActOf(e.reason)].cta,
-      to: addressOf({ kind: "hold", conversationId: e.conversation_id }),
+      label: HOLD_ACT_WORDS[holdActOf(error.reason)].cta,
+      to: addressOf({ kind: "hold", conversationId: error.conversation_id }),
     },
-    also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
-    writes: writesOf(r.conv, f),
-    reason: reasonLabelOf(e.reason),
-    waitedMs: r.waitedMs,
-    act: holdActOf(e.reason),
-    clock_ms: windowLeftMs(r.conv, f.now),
+    also: { label: "Snooze", verb: "snooze", conversationId: error.conversation_id, escalationId: error.id },
+    writes: writesOf(escalation.conv, todayFacts),
+    reason: reasonLabelOf(error.reason),
+    waitedMs: escalation.waitedMs,
+    act: holdActOf(error.reason),
+    clock_ms: windowLeftMs(escalation.conv, todayFacts.now),
     // Someone asking to book, a time they picked or an ask for one: worth the most of anyone waiting (needYouOrder).
-    ...(BOOKING_REASONS.has(e.reason) ? { booking: true } : {}),
+    ...(BOOKING_REASONS.has(error.reason) ? { booking: true } : {}),
     // Why it was handed over, in a few words, for the open card's name line; never "wrote by email" beside the mail glyph
     // an address's face is, over a subject that wears it too (the phone pass, 3 Nov 2026: "email" three times a card).
-    ...(reasonShort(e.reason) && !(e.reason === "email_review" && r.who.includes("@"))
-      ? { why: reasonShort(e.reason) }
+    ...(reasonShort(error.reason) && !(error.reason === "email_review" && escalation.who.includes("@"))
+      ? { why: reasonShort(error.reason) }
       : {}),
   };
 }
@@ -271,22 +279,22 @@ function handoffOf(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
  * last WhatsApp inbound), which is the one wire that has one. The
  * handoff row above names the wire the reply would go out on instead.
  */
-function windowRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM {
-  const { tz, now } = f;
-  const w = waWindow(c.last_wa_inbound_at, now);
-  const leftMs = w.closesAtIso ? Math.max(MIN_MS, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
-  const last = [...c.messages].reverse().find((x) => x.sender === "customer");
-  const who = contactName(c);
+function windowRow(conversation: ConversationDto, todayFacts: TodayFacts): TodayQueueRowVM {
+  const { tz, now } = todayFacts;
+  const result = waWindow(conversation.last_wa_inbound_at, now);
+  const leftMs = result.closesAtIso ? Math.max(MIN_MS, new Date(result.closesAtIso).getTime() - now.getTime()) : 0;
+  const last = [...conversation.messages].reverse().find((x) => x.sender === "customer");
+  const personName = contactName(conversation);
   return {
-    id: `q-w-${c.id}`,
+    id: `q-w-${conversation.id}`,
     kind: "window",
-    conversationId: c.id,
+    conversationId: conversation.id,
     callId: null,
-    person_id: c.contact.id,
-    who,
-    initials: initialsOf(who),
+    person_id: conversation.contact.id,
+    who: personName,
+    initials: initialsOf(personName),
     channel: "WhatsApp",
-    when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
+    when: `closes ${tzClock(result.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
     sentence: last
       ? clipAtWord(messageWords(last), QUOTE_MAX)
       : "They wrote last, and the free reply window is closing.",
@@ -294,9 +302,9 @@ function windowRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM {
     status: ["Reply window closing", "they wrote last"],
     tone: "warn",
     warn: leftMs < 2 * HOUR_MS,
-    cta: { label: "Open thread", to: addressOf({ kind: "conversation", id: c.id }) },
+    cta: { label: "Open thread", to: addressOf({ kind: "conversation", id: conversation.id }) },
     also: null,
-    writes: writesOf(c, f),
+    writes: writesOf(conversation, todayFacts),
     // After every escalation (which waited ≥ 0), the soonest to close first.
     waitedMs: -leftMs,
     clock_ms: leftMs,
@@ -307,7 +315,7 @@ function windowRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM {
  * What the rule owes, as a row (today/facts.ts OwedThread). With no hold to give back, letting it go archives the thread, as
  * the thread's own No reply needed does: a new message brings it back.
  */
-function owedRow({ conv: c, move, who, waitedMs, word, quote }: OwedThread, f: TodayFacts): TodayQueueRowVM {
+function owedRow({ conv: c, move, who, waitedMs, word, quote }: OwedThread, todayFacts: TodayFacts): TodayQueueRowVM {
   const failed = move.move === "failed" ? failedReplyOf(c) : undefined;
   return {
     id: `q-o-${c.id}`,
@@ -326,36 +334,36 @@ function owedRow({ conv: c, move, who, waitedMs, word, quote }: OwedThread, f: T
     warn: waitedMs > 30 * MIN_MS,
     cta: { label: HOLD_ACT_WORDS.reply.cta, to: addressOf({ kind: "conversation", id: c.id }) },
     also: null,
-    writes: writesOf(c, f),
+    writes: writesOf(c, todayFacts),
     reason: word,
     waitedMs,
     act: "reply",
-    clock_ms: windowLeftMs(c, f.now),
+    clock_ms: windowLeftMs(c, todayFacts.now),
     closes: "archive",
     ...(failed ? { failed, prepared: failed.text, why: NEED_YOU_WORDS.failed.why } : {}),
   };
 }
 
 /** A call worth an ear, as a queue row: after everyone waiting, what the caller wanted as the sentence. */
-function earRow(r: TodayCallRowVM, f: TodayFacts): TodayQueueRowVM {
-  const c = f.callsInWindow.find((k) => k.id === r.id);
-  const wanted = say(c?.wanted);
+function earRow(todayCall: TodayCallRowVM, todayFacts: TodayFacts): TodayQueueRowVM {
+  const found = todayFacts.callsInWindow.find((k) => k.id === todayCall.id);
+  const wanted = say(found?.wanted);
   return {
-    id: `q-c-${r.id}`,
+    id: `q-c-${todayCall.id}`,
     kind: "call",
-    conversationId: c?.conversation_id ?? null,
-    callId: r.id,
-    person_id: c?.contact_id ?? null,
-    who: r.who,
-    initials: initialsOf(r.who),
+    conversationId: found?.conversation_id ?? null,
+    callId: todayCall.id,
+    person_id: found?.contact_id ?? null,
+    who: todayCall.who,
+    initials: initialsOf(todayCall.who),
     channel: "Phone",
-    when: `${r.at}${r.duration ? ` · ${r.duration}` : ""}`,
-    sentence: wanted || r.note,
+    when: `${todayCall.at}${todayCall.duration ? ` · ${todayCall.duration}` : ""}`,
+    sentence: wanted || todayCall.note,
     quoted: false,
-    status: [wanted ? r.note : "Worth a listen"],
+    status: [wanted ? todayCall.note : "Worth a listen"],
     tone: "warn",
     warn: false,
-    cta: { label: "Open the call", to: r.to },
+    cta: { label: "Open the call", to: todayCall.to },
     also: null,
     waitedMs: Number.NEGATIVE_INFINITY,
   };
@@ -365,27 +373,27 @@ function earRow(r: TodayCallRowVM, f: TodayFacts): TodayQueueRowVM {
  * A search that stopped to ask waits on the owner like a person does (spec G6): its name, its question, one
  * button to answer it. Null for a search that is not waiting.
  */
-function searchRow(s: LeadSearchDto, now: Date): TodayQueueRowVM | null {
-  const r = s.round;
-  if (!r || r.state !== "waiting_on_owner" || !r.question) return null;
-  const since = r.waiting_since ? new Date(r.waiting_since).getTime() : now.getTime();
+function searchRow(leadSearch: LeadSearchDto, now: Date): TodayQueueRowVM | null {
+  const round = leadSearch.round;
+  if (!round || round.state !== "waiting_on_owner" || !round.question) return null;
+  const since = round.waiting_since ? new Date(round.waiting_since).getTime() : now.getTime();
   const waitedMs = Math.max(0, now.getTime() - since);
   return {
-    id: `q-s-${s.id}`,
+    id: `q-s-${leadSearch.id}`,
     kind: "search",
     conversationId: null,
     callId: null,
     person_id: null,
-    who: s.name,
-    initials: initialsOf(s.name),
+    who: leadSearch.name,
+    initials: initialsOf(leadSearch.name),
     channel: "Leads",
     when: `waited ${formatWaited(waitedMs)}`,
-    sentence: r.question.sentence,
+    sentence: round.question.sentence,
     quoted: false,
     status: ["Waiting for your answer", "nothing is spent while it waits"],
     tone: "escalated",
     warn: waitedMs > SEARCH_WARN_MS,
-    cta: { label: "Answer", to: leadQuestionRoute(s.id) },
+    cta: { label: "Answer", to: leadQuestionRoute(leadSearch.id) },
     also: null,
     waitedMs,
   };
@@ -395,57 +403,61 @@ function searchRow(s: LeadSearchDto, now: Date): TodayQueueRowVM | null {
  * A lead who tried their own receptionist (decision 0079): the business, what came of it and the first thing they said
  * is not right, and one button to open the lead. A hot lead, never a person waiting, so it sorts after everyone who is.
  */
-function triedRow(t: PreviewTriedDto, f: TodayFacts): TodayQueueRowVM {
-  const who = t.business?.trim() || NEED_YOU_WORDS.tried.someone;
-  const [said] = previewSaidOf(t.not_right);
+function triedRow(previewTried: PreviewTriedDto, todayFacts: TodayFacts): TodayQueueRowVM {
+  const text = previewTried.business?.trim() || NEED_YOU_WORDS.tried.someone;
+  const [said] = previewSaidOf(previewTried.not_right);
   return {
-    id: `q-t-${t.id}`,
+    id: `q-t-${previewTried.id}`,
     kind: "tried",
     conversationId: null,
     callId: null,
     person_id: null,
-    who,
-    initials: initialsOf(who),
+    who: text,
+    initials: initialsOf(text),
     channel: "Leads",
-    when: tzClock(t.tried_at, f.tz, f.now) ?? "",
-    sentence: [previewTriedWords(t), said].filter(Boolean).join(" · ") || NEED_YOU_WORDS.tried.sentence,
+    when: tzClock(previewTried.tried_at, todayFacts.tz, todayFacts.now) ?? "",
+    sentence: [previewTriedWords(previewTried), said].filter(Boolean).join(" · ") || NEED_YOU_WORDS.tried.sentence,
     quoted: false,
-    status: [NEED_YOU_WORDS.tried.status, ...(t.state === "claimed" ? [NEED_YOU_WORDS.tried.claimed] : [])],
+    status: [NEED_YOU_WORDS.tried.status, ...(previewTried.state === "claimed" ? [NEED_YOU_WORDS.tried.claimed] : [])],
     tone: "warn",
     warn: false,
-    cta: { label: NEED_YOU_WORDS.tried.open, to: addressOf({ kind: "lead", id: t.lead_id }) },
+    cta: { label: NEED_YOU_WORDS.tried.open, to: addressOf({ kind: "lead", id: previewTried.lead_id }) },
     also: null,
     waitedMs: Number.NEGATIVE_INFINITY,
   };
 }
 
 /** The queue: the rows in order, the rest as a count, what the rows hold in words, and how many people are waiting on you. */
-export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: TodayQueueEmptyVM): TodayVM["queue"] {
-  const { escRecords, closingConvs, searches, now } = f;
+export function todayQueue(
+  todayFacts: TodayFacts,
+  callRows: TodayCallRowVM[],
+  empty: TodayQueueEmptyVM,
+): TodayVM["queue"] {
+  const { escRecords, closingConvs, searches, now } = todayFacts;
   const queueAll: TodayQueueRowVM[] = [];
   // The receptionist's replies counting down, first: each sends on its own in seconds unless stopped (decision 0071).
   const held = new Set<string>();
-  for (const c of f.conversations) {
-    if (f.escSet.has(c.id)) continue;
-    const row = heldRow(c, f);
+  for (const c of todayFacts.conversations) {
+    if (todayFacts.escSet.has(c.id)) continue;
+    const row = heldRow(c, todayFacts);
     if (!row) continue;
     queueAll.push(row);
     held.add(c.id);
   }
   for (const r of escRecords) {
-    queueAll.push(r.e.reason === "callback" ? callbackRow(r, f) : handoffRow(r, f));
+    queueAll.push(r.e.reason === "callback" ? callbackRow(r, todayFacts) : handoffRow(r, todayFacts));
   }
   // A thread whose reply is counting down is its held row, which says when its window closes: one row for one person.
   for (const c of closingConvs) {
-    if (!held.has(c.id)) queueAll.push(windowRow(c, f));
+    if (!held.has(c.id)) queueAll.push(windowRow(c, todayFacts));
   }
   // What the rule owes with no row above: each thread once, a reply counting down its held row.
-  for (const o of f.owed) {
-    if (!held.has(o.conv.id)) queueAll.push(owedRow(o, f));
+  for (const o of todayFacts.owed) {
+    if (!held.has(o.conv.id)) queueAll.push(owedRow(o, todayFacts));
   }
   for (const r of callRows) {
     if (r.to === "live") continue;
-    queueAll.push(earRow(r, f));
+    queueAll.push(earRow(r, todayFacts));
   }
   // Null: the searches were not read; the queue says nothing about them.
   for (const s of searches ?? []) {
@@ -453,7 +465,7 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
     if (row) queueAll.push(row);
   }
   // The leads who tried their preview, newest first, after everyone waiting (decision 0079).
-  for (const t of f.previewsTried) queueAll.push(triedRow(t, f));
+  for (const t of todayFacts.previewsTried) queueAll.push(triedRow(t, todayFacts));
   // Need you's order (need-you/groups.ts needYouOrder): a clock near enough first (a reply that goes on its own in
   // seconds, then a window that shuts within two hours), since a window that shuts cannot be answered later and an old wait
   // still can; then the waits under a week by what each is worth, a reply that never reached them first, then a booking,

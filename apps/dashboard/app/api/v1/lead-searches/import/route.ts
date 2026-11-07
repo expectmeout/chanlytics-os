@@ -1,6 +1,6 @@
 import { LeadImportSchema, SPEND_LEADS } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
-import { importLeads } from "@/server/leads/lead-lists";
+import { importLeads } from "@/server/leads/lists";
 
 /**
  * POST /api/v1/lead-searches/import: a file of the owner's own leads as a search of its own (Reach out, Part 7, 00242

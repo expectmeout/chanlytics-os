@@ -6,10 +6,10 @@
  */
 import "server-only";
 import { AppError, LOOK_WORDS, accentOk } from "@chanlytics/contracts";
-import { setWorkspaceAccent } from "@chanlytics/db";
+import { setWorkspaceAccent } from "@chanlytics/db/look";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
-import { doorRefusal } from "./logo/logo";
+import { logoDoorRefusal } from "./logo/logo";
 
 /** PUT workspaces/accent: the colour, lower-cased, as the route's schema held it; DELETE: null, and ink stands in. */
 export async function saveAccent(
@@ -20,6 +20,6 @@ export async function saveAccent(
   const kept = accent === null ? null : accent.trim().toLowerCase();
   if (kept !== null && !accentOk(kept)) throw new AppError("validation", LOOK_WORDS.unusable);
   const { error } = await setWorkspaceAccent(ctx.supabase, member.tenantId, kept);
-  if (error) throw doorRefusal(error);
+  if (error) throw logoDoorRefusal(error);
   return { accent: kept };
 }

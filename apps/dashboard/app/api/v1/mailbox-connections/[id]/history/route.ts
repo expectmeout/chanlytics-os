@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
-import { mailboxHistory } from "@/server/connections/mailbox-connections";
+import { getMailboxHistory } from "@/server/connections/mailbox-connections";
 
 const Body = z.object({ act: z.enum(["stop", "resume", "bring"]) }).strict();
 
@@ -17,6 +17,6 @@ export const POST = write({
   rate: "settings",
   input: Body,
   handle: async ({ ctx, member, input }) => ({
-    mailbox: await mailboxHistory(member.tenantId, ctx.userId, String(ctx.params.id ?? ""), input.act),
+    mailbox: await getMailboxHistory(member.tenantId, ctx.userId, String(ctx.params.id ?? ""), input.act),
   }),
 });

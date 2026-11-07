@@ -13,11 +13,18 @@ import {
   WEEK_MS,
   fileNameOf,
   filePathOf,
-  postPathOf,
   type FileMime,
   type FileShows,
 } from "@chanlytics/contracts";
-import { fileChange, fileKeepMany, fileOf, fileRemove, filesBucket, type FileMemberRow } from "@chanlytics/db";
+import { postPathOf } from "./post-check";
+import {
+  updateFileRow,
+  keepManyFiles,
+  findFile,
+  deleteFileRow,
+  filesBucket,
+  type FileMemberRow,
+} from "@chanlytics/db/files";
 import { log } from "@/server/shared/log";
 import { requireUuid } from "@/server/shared/request-guards";
 import { row, type Member } from "@/server/shared/route";
@@ -36,7 +43,7 @@ const VIEW_WIDTHS = [480, 1280] as const;
 const VIEW_WIDEST = 2000;
 
 /** The door's refusal, in its own words; anything else is ours to say. */
-export function doorRefusal(error: { code?: string; message: string }): AppError {
+export function fileDoorRefusal(error: { code?: string; message: string }): AppError {
   if (error.code === "42501") return new AppError("forbidden", error.message, 403);
   if (error.code === "22023") return new AppError("validation", error.message);
   if (error.code === "P0002") return new AppError("not_found", error.message, 404);
@@ -48,7 +55,7 @@ export const bucket = () => filesBucket(serviceDb());
 
 /** A file the caller may see (RLS), or a 404. */
 export const fileScope = row(async (ctx: RouteContext, params): Promise<FileMemberRow> => {
-  const found = await fileOf(ctx.supabase, requireUuid(params.id, "file"));
+  const found = await findFile(ctx.supabase, requireUuid(params.id, "file"));
   if (!found) throw new AppError("not_found", W.gone, 404);
   return found;
 });
@@ -67,7 +74,7 @@ export async function changeFile(
 ): Promise<{ ok: true }> {
   const name = input.name === undefined ? undefined : fileNameOf(input.name);
   if (name === "") throw new AppError("validation", W.nameEmpty);
-  const { error } = await fileChange(ctx.supabase, {
+  const { error } = await updateFileRow(ctx.supabase, {
     tenantId: member.tenantId,
     id: file.id,
     name,
@@ -75,7 +82,7 @@ export async function changeFile(
     whoInIt: input.who_in_it,
     status: input.status,
   });
-  if (error) throw doorRefusal(error);
+  if (error) throw fileDoorRefusal(error);
   return { ok: true };
 }
 
@@ -85,21 +92,21 @@ export async function keepFiles(
   member: Member,
   input: { ids: string[] },
 ): Promise<{ kept: number }> {
-  const { data, error } = await fileKeepMany(ctx.supabase, member.tenantId, input.ids);
-  if (error) throw doorRefusal(error);
+  const { data, error } = await keepManyFiles(ctx.supabase, member.tenantId, input.ids);
+  if (error) throw fileDoorRefusal(error);
   return { kept: typeof data === "number" ? data : 0 };
 }
 
 /** DELETE files/[id]: hidden now, its bytes gone by the job. */
 export async function removeFile(ctx: RouteContext, member: Member, file: FileMemberRow): Promise<{ ok: true }> {
-  const { error } = await fileRemove(ctx.supabase, member.tenantId, file.id);
-  if (error) throw doorRefusal(error);
+  const { error } = await deleteFileRow(ctx.supabase, member.tenantId, file.id);
+  if (error) throw fileDoorRefusal(error);
   return { ok: true };
 }
 
 /** The nearest width we draw at, for what a page asked. */
-function widthOf(asked: string | null): number {
-  const n = Number(asked);
+function widthOf(text: string | null): number {
+  const n = Number(text);
   return VIEW_WIDTHS.find((w) => w >= n) ?? VIEW_WIDEST;
 }
 
@@ -110,15 +117,15 @@ function widthOf(asked: string | null): number {
  */
 export async function viewFile(file: FileMemberRow, url: URL): Promise<Response> {
   const download = url.searchParams.has("download");
-  const asked = url.searchParams.get("w");
+  const value = url.searchParams.get("w");
   const mime = file.mime as FileMime;
   // A made file holds a shape each; anything else has its one picture, whatever is asked.
   const shape = file.source === "made" ? POST_SHAPES.find((s) => s === url.searchParams.get("shape")) : undefined;
   const path = shape ? postPathOf(file.tenant_id, file.id, shape) : filePathOf(file.tenant_id, file.id, mime);
   // A post is drawn at its own size, and small: a resize would only count it against Storage's allowance of source images.
   const opts =
-    !download && file.source !== "made" && (asked !== null || FILE_TYPES[mime] === "heic")
-      ? { transform: { width: widthOf(asked), resize: "contain" as const } }
+    !download && file.source !== "made" && (value !== null || FILE_TYPES[mime] === "heic")
+      ? { transform: { width: widthOf(value), resize: "contain" as const } }
       : {};
   const link = await bucket().createSignedUrl(path, VIEW_LINK_S, opts);
   if (link.error || !link.data) {

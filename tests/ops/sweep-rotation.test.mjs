@@ -18,15 +18,15 @@ import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
 import { readCode, readRaw } from "../_source.mjs";
 import {
-  calendarDue,
-  playbooksDue,
-  reachOutsDue,
+  listCalendarsDue,
+  listPlaybooksDue,
+  listReachOutsDue,
   markCalendarChecked,
   noteBacklog,
   CALENDAR_PER_TICK,
   PLAYBOOKS_PER_TICK,
   BACKLOG_TICKS_BEFORE_ALARM,
-} from "../../apps/edge/lib/ops/sweep-rotation.ts";
+} from "../../apps/edge/lib/shared/sweep-rotation.ts";
 
 const NOW = new Date("2026-09-09T18:00:00Z");
 const ago = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
@@ -48,7 +48,7 @@ test("every tenant is reached: a hundred workspaces, forty a tick, three ticks",
   const served = new Set();
 
   for (let tick = 0; tick < 3; tick++) {
-    const page = await calendarDue(db, NOW, CALENDAR_PER_TICK);
+    const page = await listCalendarsDue(db, NOW, CALENDAR_PER_TICK);
     for (const r of page.rows) {
       assert.ok(!served.has(r.tenant_id), `${r.tenant_id} served twice before everyone was served once`);
       served.add(r.tenant_id);
@@ -83,7 +83,7 @@ test("workspaces with no calendar are not the queue: they never sort first, and 
   // Three ticks: under the old query each one was forty feedless rows and a
   // standing backlog, and the third called the sweep broken.
   for (let tick = 0; tick < 3; tick++) {
-    const page = await calendarDue(db, NOW, CALENDAR_PER_TICK);
+    const page = await listCalendarsDue(db, NOW, CALENDAR_PER_TICK);
     // Oldest first, as always — t002 was read 150 minutes ago, t000 ninety.
     assert.deepEqual(
       page.rows.map((r) => r.tenant_id),
@@ -101,7 +101,7 @@ test("workspaces with no calendar are not the queue: they never sort first, and 
   // A workspace that connects one joins the queue, at the front, as any
   // never-read row does.
   rows[0].config = { calendar: { ical_url: "https://cal.example/new.ics" } };
-  const next = await calendarDue(db, NOW, CALENDAR_PER_TICK);
+  const next = await listCalendarsDue(db, NOW, CALENDAR_PER_TICK);
   assert.equal(next.rows[0].tenant_id, "empty0", "the new feed is read first");
   assert.equal(next.rows.length, 4);
 });
@@ -116,7 +116,7 @@ test("a workspace that has never been read goes first", async () => {
     calendar_checked_at: null,
   });
   const db = fakeDb({ tenant_config: rows });
-  const page = await calendarDue(db, NOW, 5);
+  const page = await listCalendarsDue(db, NOW, 5);
   assert.equal(page.rows[0].tenant_id, "brand-new", "never-read sorts ahead of least-recently-read");
 });
 
@@ -126,7 +126,7 @@ test("a workspace read this hour is not read again", async () => {
   const db = fakeDb({
     tenant_config: configs(3, { 0: { calendar_checked_at: ago(5) }, 1: { calendar_checked_at: ago(10) } }),
   });
-  const page = await calendarDue(db, NOW, 40);
+  const page = await listCalendarsDue(db, NOW, 40);
   assert.deepEqual(
     page.rows.map((r) => r.tenant_id),
     ["t002"],
@@ -136,12 +136,12 @@ test("a workspace read this hour is not read again", async () => {
 
 test("the sweep says what it could not reach", async () => {
   const db = fakeDb({ tenant_config: configs(100) });
-  const page = await calendarDue(db, NOW, CALENDAR_PER_TICK);
+  const page = await listCalendarsDue(db, NOW, CALENDAR_PER_TICK);
   assert.equal(page.rows.length, 40);
   assert.equal(page.remaining, 60, "a count of the matches, taken before the limit");
 
   const small = fakeDb({ tenant_config: configs(4) });
-  assert.equal((await calendarDue(small, NOW, CALENDAR_PER_TICK)).remaining, 0, "a drained queue reports zero");
+  assert.equal((await listCalendarsDue(small, NOW, CALENDAR_PER_TICK)).remaining, 0, "a drained queue reports zero");
 });
 
 test("a failed feed leaves the workspace due, so the next tick retries it", async () => {
@@ -149,12 +149,12 @@ test("a failed feed leaves the workspace due, so the next tick retries it", asyn
   // because its feed was briefly unreachable.
   const rows = configs(2);
   const db = fakeDb({ tenant_config: rows });
-  const page = await calendarDue(db, NOW, 40);
+  const page = await listCalendarsDue(db, NOW, 40);
   // Only the first "succeeds".
   await markCalendarChecked(db, page.rows[0].tenant_id, NOW);
   // Ten minutes later, not sixty: past the age floor the one that succeeded
   // would be legitimately due again, and this is asking about the floor.
-  const next = await calendarDue(db, new Date(NOW.getTime() + 10 * 60_000), 40);
+  const next = await listCalendarsDue(db, new Date(NOW.getTime() + 10 * 60_000), 40);
   assert.ok(
     next.rows.some((r) => r.tenant_id === page.rows[1].tenant_id),
     "the one that failed is still due",
@@ -206,7 +206,7 @@ test("the playbooks page is only what is due, by each workspace's own clock, lea
     moment("r1", "e", { kind: "reach_out" }),
   ];
   const db = fakeDb({ tenants, playbooks: rows });
-  const page = await playbooksDue(db, NOW, PLAYBOOKS_PER_TICK);
+  const page = await listPlaybooksDue(db, NOW, PLAYBOOKS_PER_TICK);
   assert.deepEqual(
     page.rows.map((r) => [r.step.id, r.timezone]),
     [
@@ -217,7 +217,7 @@ test("the playbooks page is only what is due, by each workspace's own clock, lea
     "never-run first, then oldest, each with the zone it was judged in; paused, run today, before its hour and asleep are not due at all",
   );
   assert.equal(page.remaining, 0, "and what is not due is not left behind either");
-  const reach = await reachOutsDue(db, NOW, PLAYBOOKS_PER_TICK);
+  const reach = await listReachOutsDue(db, NOW, PLAYBOOKS_PER_TICK);
   assert.deepEqual(
     reach.rows.map((r) => r.step.id),
     ["r1"],
@@ -237,7 +237,7 @@ test("what the playbooks page leaves behind is due playbooks only: twenty-six du
       moment(`due-${String(i).padStart(2, "0")}`, "a", { last_run_for: "2026-09-08", last_run_at: ago(1500 - i) }),
     );
   const db = fakeDb({ tenants, playbooks: rows });
-  const page = await playbooksDue(db, NOW, PLAYBOOKS_PER_TICK);
+  const page = await listPlaybooksDue(db, NOW, PLAYBOOKS_PER_TICK);
   assert.equal(page.rows.length, PLAYBOOKS_PER_TICK);
   assert.ok(
     page.rows.every((r) => r.step.id.startsWith("due-")),
@@ -246,7 +246,7 @@ test("what the playbooks page leaves behind is due playbooks only: twenty-six du
   assert.deepEqual(page.rows.map((r) => r.step.id).slice(0, 2), ["due-00", "due-01"], "the least recently run first");
   assert.equal(page.remaining, 1, "the twenty-sixth due one, and none of the hundred");
   // A reach-out page over the same table has nothing: no reach-out is running.
-  assert.deepEqual(await reachOutsDue(db, NOW, PLAYBOOKS_PER_TICK), { rows: [], remaining: 0 });
+  assert.deepEqual(await listReachOutsDue(db, NOW, PLAYBOOKS_PER_TICK), { rows: [], remaining: 0 });
 });
 
 test("three consecutive backlogged ticks is a fault; one is a busy hour", async () => {

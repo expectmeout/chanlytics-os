@@ -9,20 +9,15 @@
  * Hookless: the sheet hands down the lead, its facts, its acts and which line is open. Every word is contracts'.
  */
 import type { ReactNode } from "react";
+import { PLACE_RAIL_WORDS, type LeadPeekVM, type PlaceRailStepVM } from "@chanlytics/contracts";
 import {
   LEAD_SHEET_CARD_WORDS as CW,
-  LEAD_SHEET_WORDS as W,
-  PLACE_RAIL_WORDS,
-  leadSheetAboutOf,
   leadSheetExceptionWords,
-  type LeadLineId,
-  type LeadLineVM,
-  type LeadPeekVM,
   type LeadSheetCheckVM,
-  type LeadSheetFactVM,
   type LeadSheetWhyVM,
-  type PlaceRailStepVM,
-} from "@chanlytics/contracts";
+} from "./model/card";
+import { LEAD_SHEET_WORDS as W, leadSheetAboutOf, type LeadSheetFactVM } from "./model/view";
+import type { LeadLineId, LeadLineVM } from "./model/lines";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";

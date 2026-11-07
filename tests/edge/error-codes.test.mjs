@@ -44,19 +44,19 @@ const BUILDERS = new Map([["refuse", null]]);
 const FORWARDED = {
   // A case's result, nested in the answer's `results`: the model's failure, in its words.
   "apps/edge/lib/receptionist/eval.ts": ["String(e instanceof Error ? e.message : e).slice(0, 200)"],
-  "apps/edge/lib/ops/ask-turn.ts": ["v.error"], // validateGatewayRequest's (ask-gateway.ts)
-  "apps/edge/lib/shared/admin-auth.ts": ["`token_${v.reason}`"], // the token family (TOKEN, below)
+  "apps/edge/lib/ops/ask-turn.ts": ["result.error"], // validateGatewayRequest's (ask-gateway.ts)
+  "apps/edge/lib/shared/admin-auth.ts": ["`token_${result.reason}`"], // the token family (TOKEN, below)
   // connectAnswer's, chosenLocation's and bindFailedAnswer's, from profile-connection.ts
-  "apps/edge/lib/google/ops.ts": ["r.error", "r.error", "bound.error"],
+  "apps/edge/lib/google/ops.ts": ["connect.error", "locationsRead.error", "bound.error"],
   "apps/edge/lib/google/listing-check.ts": ["error"], // a listing's read (CheckResult): Google's words
   "apps/edge/lib/google/profile-connection.ts": ["bound.error"], // bindLocation's
   "apps/edge/lib/google/profile-sync.ts": ["error"], // a sync's read (CheckResult): Google's words, or the token's
-  "apps/edge/lib/google/review-answers.ts": ["d.error"], // the draft's
+  "apps/edge/lib/google/review-answers.ts": ["result.error"], // the draft's
   "apps/edge/lib/shared/http.ts": ["code", "code"], // refuse(), the envelope itself
   "apps/edge/lib/lines/a2p-sync.ts": ["fresh.error"], // refreshLineToken's (sms.ts)
-  // releaseLine's (line-release.ts), and the refile steps' (a2p-refile.ts) behind this door's own fallbacks
-  "apps/edge/lib/lines/line-ops.ts": [
-    "r.error",
+  "apps/edge/lib/lines/ops/search-buy.ts": ["lineRelease.error"], // releaseLine's (line-release.ts)
+  // the refile steps' (a2p-refile.ts), behind this door's own fallbacks
+  "apps/edge/lib/lines/ops/filing.ts": [
     'again.error ?? "record_incomplete"',
     'again.error ?? "resubmit_failed"',
     'off.error ?? "record_incomplete"',
@@ -64,9 +64,9 @@ const FORWARDED = {
   ],
   // The database's words, or the count's own (a line that is not there to count against), for a log and the job
   // ledger (a resume's count) or for `detail` (a release's routing rows).
-  "apps/edge/lib/lines/line-resume.ts": ["error.message", "NOT_THERE_TO_COUNT"],
+  "apps/edge/lib/lines/resume.ts": ["error.message", "NOT_THERE_TO_COUNT"],
   "apps/edge/lib/lines/lines.ts": ["error"],
-  // templatesSynced's (the Sync door's body, callable since the verdict's row waits on it: R11 S11-6), typed EdgeErrorCode.
+  // syncTemplates's (the Sync door's body, callable since the verdict's row waits on it: R11 S11-6), typed EdgeErrorCode.
   "apps/edge/lib/whatsapp/template-admin.ts": ["synced.code"],
   // Meta's own answers, in Meta's words: a door answers its code with them in `detail`.
   "apps/edge/lib/whatsapp/meta-graph.ts": [
@@ -90,20 +90,20 @@ const FORWARDED = {
  */
 const NOT_ANSWERS = {
   // The provision job's outcome, the job ledger's alone: packages/jobs writes a stopped run's `error` into its message.
-  "apps/edge/lib/lines/line-provision-job.ts": [
+  "apps/edge/lib/lines/provision-job.ts": [
     '"no_line_provider"',
     '!apiKey ? "no_provider_key" : "no_fn_secret"',
     '"no such workspace"',
     '"automatic resumes exhausted; a person retries it from Setup"',
     "`counting the automatic resume: ${counted.error}`",
-    "r.error",
+    "provision.error",
   ],
   // Meta's answer stood in for a template never synced: a 404, which the door reads as a delete already done.
   "apps/edge/lib/whatsapp/template-admin.ts": ['"not synced: no template id on file, so Meta was not asked"'],
 };
 
 /**
- * The one family of codes: an edge token's refusal (apps/edge/lib/admin-auth.ts) is `token_${v.reason}`, over the
+ * The one family of codes: an edge token's refusal (apps/edge/lib/admin-auth.ts) is `token_${result.reason}`, over the
  * reasons the verifier refuses a token with. tsc holds each member to the set at the refusal; while it stands, each
  * member is answered.
  */

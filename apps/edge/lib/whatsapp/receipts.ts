@@ -14,18 +14,14 @@
  * door answers with a 503 so Meta sends it again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { waPricingOf, waStoppedMarketing, type WaChangeValue } from "@chanlytics/channels";
-import {
-  keepMessageCost,
-  recordStatusByExternalId,
-  recordWhatsAppOffersStop,
-  type Database,
-  type Json,
-} from "@chanlytics/db";
+import { waPricingOf, waStoppedMarketing, type WaChangeValue } from "@chanlytics/channels/whatsapp";
+import { keepMessageCost, recordStatusByExternalId } from "@chanlytics/db/channels";
+import { recordWhatsAppOffersStop } from "@chanlytics/db/campaigns";
+import type { Database, Json } from "@chanlytics/db/types";
 import { phoneTail } from "@chanlytics/contracts";
 import { logger, type Logger } from "../shared/log.js";
-import { flagLateFailure } from "../receptionist/late-failure.js";
-import { pgSafe } from "./persist.js";
+import { flagLateFailure } from "../shared/late-failure.js";
+import { runPgSafe } from "./persist.js";
 
 type Receipt = NonNullable<WaChangeValue["statuses"]>[number];
 
@@ -44,19 +40,19 @@ const asJson = (v: unknown): Json => JSON.parse(JSON.stringify(v)) as Json;
  * best-effort in a guard of its own: a database that refuses it is `pg_cost_failed`, and the receipt is as it was.
  */
 async function keepCost(
-  L: Logger,
+  log: Logger,
   db: SupabaseClient<Database>,
   tenantId: string,
   id: string,
-  s: Receipt,
+  receipt: Receipt,
 ): Promise<void> {
-  if (s.pricing === undefined || s.pricing === null) return;
-  const pricing = waPricingOf(s.pricing);
+  if (receipt.pricing === undefined || receipt.pricing === null) return;
+  const pricing = waPricingOf(receipt.pricing);
   if (!pricing) {
-    L.warn("wa_pricing_dropped", { id, status: s.status });
+    log.warn("wa_pricing_dropped", { id, status: receipt.status });
     return;
   }
-  await pgSafe("cost", () => keepMessageCost(db, tenantId, id, pricing));
+  await runPgSafe("cost", () => keepMessageCost(db, tenantId, id, pricing));
 }
 
 /** How many receipts the database would not take, which must come again (0 when every one was recorded). */
@@ -65,27 +61,32 @@ export async function recordReceipts(
   tenantId: string | null,
   statuses: Receipt[],
 ): Promise<number> {
-  const L = logger();
+  const log = logger();
   let again = 0;
   // One receipt per message and status: Meta can repeat one in a single delivery, and the copies, read together, each
   // found the row still sent and each raised the failure.
   const once = [...new Map(statuses.map((s) => [`${s.id}\u0000${s.status}`, s])).values()];
   await Promise.all(
-    once.map(async (s) => {
-      L.info("wa_status", { id: s.id, status: s.status, to_tail: phoneTail(s.recipient_id), errors: s.errors });
-      const status = receiptStatusOf(s.status);
-      if (!db || !tenantId || !s.id || !status) return;
-      const id = s.id;
-      const error = s.errors ? asJson({ errors: s.errors }) : undefined;
+    once.map(async (text) => {
+      log.info("wa_status", {
+        id: text.id,
+        status: text.status,
+        to_tail: phoneTail(text.recipient_id),
+        errors: text.errors,
+      });
+      const status = receiptStatusOf(text.status);
+      if (!db || !tenantId || !text.id || !status) return;
+      const id = text.id;
+      const error = text.errors ? asJson({ errors: text.errors }) : undefined;
       // The person stopped marketing messages from this business: their answer (recorded below), never a failed send.
-      const stopped = status === "failed" && waStoppedMarketing(s.errors);
+      const stopped = status === "failed" && waStoppedMarketing(text.errors);
       if (status === "failed" && !stopped) {
         // Before the row moves: a flag that could not be written leaves it as it was, so the redelivery flags it.
-        const flagged = await pgSafe("escalation", () =>
+        const flagged = await runPgSafe("escalation", () =>
           flagLateFailure(db, tenantId, {
             externalId: id,
             channel: "whatsapp",
-            error: s.errors ? { errors: s.errors } : {},
+            error: text.errors ? { errors: text.errors } : {},
           }),
         );
         if (flagged === undefined) {
@@ -93,12 +94,14 @@ export async function recordReceipts(
           return;
         }
       }
-      await pgSafe("status", () => recordStatusByExternalId(db, tenantId, id, status, error));
-      await keepCost(L, db, tenantId, id, s);
+      await runPgSafe("status", () => recordStatusByExternalId(db, tenantId, id, status, error));
+      await keepCost(log, db, tenantId, id, text);
       if (stopped) {
-        const recorded = await pgSafe("offers_stop", () => recordWhatsAppOffersStop(db, { tenantId, externalId: id }));
+        const recorded = await runPgSafe("offers_stop", () =>
+          recordWhatsAppOffersStop(db, { tenantId, externalId: id }),
+        );
         // A write that threw has said so itself (pg_offers_stop_failed): this line is for an answer the database gave.
-        if (recorded !== undefined) L.info("wa_marketing_stopped", { id, recorded });
+        if (recorded !== undefined) log.info("wa_marketing_stopped", { id, recorded });
       }
     }),
   );

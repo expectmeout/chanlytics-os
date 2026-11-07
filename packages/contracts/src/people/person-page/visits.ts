@@ -5,14 +5,14 @@
  * the record's count of theirs from before it (`profile.visits.earlier`, R7); the line says over how long it counts:
  * what the page holds, never more.
  */
-import { visitDateKey, visitDay } from "../../calendar/people";
+import { visitDateKey, visitDay } from "../../calendar/people/visits";
 import { visitDoor } from "../../calendar/appointment-key";
-import type { VisitLineVM } from "../../calendar/words";
+import type { VisitLineVM } from "../../calendar/words/visit";
 import { SEASON_BACK_DAYS } from "../../calendar/feed-url";
 import type { EarlierVisitsDto } from "../../calendar/dto";
 import { clockDate } from "../../shared/clock";
-import { visitLineForDto } from "../person-row";
-import type { PersonCardContext } from "../person-cards";
+import { visitLineForDto } from "../person-row/row-facts";
+import type { PersonCardContext } from "../person-cards/right-now";
 import { DAY_MS, dateFormat } from "../../shared/time";
 import { appointmentWords } from "../../journey/appointment-word";
 
@@ -93,7 +93,7 @@ function visitCadenceOf(kept: readonly number[], unmarked: readonly number[]): s
 const EARLIER_KEPT_MAX = 24;
 
 /**
- * The record's rows of one person from before the season (packages/db earlierVisitRows), as the person read carries
+ * The record's rows of one person from before the season (packages/db getEarlierVisitRows), as the person read carries
  * them: kept and missed counted, the newest kept and the unmarked among them for the cadence, the earliest for "on
  * record since". A row the season already holds (its record_id among `seasonIds`) is left out, so none counts twice;
  * null with nothing earlier.
@@ -130,9 +130,10 @@ function visitsHeadOf(
   zone: string,
   nowMs: number,
 ): PersonVisitsVM["head"] {
-  const W = VISITS_TAB_WORDS;
+  const words = VISITS_TAB_WORDS;
   const dayOf = (iso: string) => clockDate(Date.parse(iso), zone, nowMs);
-  const lastKept = season.keptAt.length === 0 && earlier?.last_kept_at ? W.lastKept(dayOf(earlier.last_kept_at)) : null;
+  const lastKept =
+    season.keptAt.length === 0 && earlier?.last_kept_at ? words.lastKept(dayOf(earlier.last_kept_at)) : null;
   return {
     kept: season.keptAt.length + (earlier?.kept ?? 0),
     missed: season.missed + (earlier?.missed ?? 0),
@@ -142,7 +143,7 @@ function visitsHeadOf(
     ),
     toMark: season.toMark,
     lastKept,
-    over: earlier ? W.since(dayOf(earlier.first_at)) : W.over(SEASON_BACK_DAYS),
+    over: earlier ? words.since(dayOf(earlier.first_at)) : words.over(SEASON_BACK_DAYS),
   };
 }
 
@@ -157,41 +158,44 @@ export function personVisitsOf({ profile, nowMs, base, word }: PersonCardContext
   const unmarkedAt: number[] = [];
   let missed = 0;
   const visits = profile.visits;
-  for (const v of visits?.all ?? []) {
-    const t = Date.parse(v.start);
-    if (!visits || !Number.isFinite(t)) continue;
+  for (const value of visits?.all ?? []) {
+    const parsed = Date.parse(value.start);
+    if (!visits || !Number.isFinite(parsed)) continue;
     const zone = visits.timezone;
-    const line = visitLineForDto(v, { zone, nowMs, person: { id: base.id, name: base.name } });
+    const line = visitLineForDto(value, { zone, nowMs, person: { id: base.id, name: base.name } });
     const status = line.mark?.status;
-    const said = status === "kept" || status === "missed" || status === "cancelled" ? status : null;
-    const at = new Date(t);
-    const day = visitDay(t, zone, nowMs);
+    const sentence = status === "kept" || status === "missed" || status === "cancelled" ? status : null;
+    const at = new Date(parsed);
+    const day = visitDay(parsed, zone, nowMs);
     const weekday =
       day === "Today" || day === "Tomorrow"
         ? day
         : dateFormat("en-US", { timeZone: zone, weekday: "short" }).format(at);
     const start = dateFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }).format(at);
     const row: PersonVisitRowVM = {
-      id: `v-${v.id}`,
+      id: `v-${value.id}`,
       month: dateFormat("en-US", { timeZone: zone, month: "short" }).format(at),
       date: dateFormat("en-US", { timeZone: zone, day: "numeric" }).format(at),
       title: line.title || untitled,
       // A match the calendar guessed (a name) is said on a page about them, as Coming up says it (VisitLineVM.guess).
-      sub: [said === "missed" ? VISITS_TAB_WORDS.notCounted : `${weekday} · ${start}`, line.guess ? line.match : null]
+      sub: [
+        sentence === "missed" ? VISITS_TAB_WORDS.notCounted : `${weekday} · ${start}`,
+        line.guess ? line.match : null,
+      ]
         .filter(Boolean)
         .join(" · "),
-      said,
-      saidWord: said && line.state ? line.state.text : null,
+      said: sentence,
+      saidWord: sentence && line.state ? line.state.text : null,
       visit: line,
-      to: visitDoor(visitDateKey(v.start, zone), v.record_id),
+      to: visitDoor(visitDateKey(value.start, zone), value.record_id),
     };
-    if (said === "kept") keptAt.push(t);
-    if (said === "missed") missed += 1;
+    if (sentence === "kept") keptAt.push(parsed);
+    if (sentence === "missed") missed += 1;
     if (line.unmarked) {
-      unmarkedAt.push(t);
-      toMark.push({ t, row });
-    } else if (line.state === null) ahead.push({ t, row });
-    else past.push({ t, row });
+      unmarkedAt.push(parsed);
+      toMark.push({ t: parsed, row });
+    } else if (line.state === null) ahead.push({ t: parsed, row });
+    else past.push({ t: parsed, row });
   }
   const newest = (a: { t: number }, b: { t: number }) => b.t - a.t;
   const season = { keptAt, unmarkedAt, missed, toMark: toMark.length };

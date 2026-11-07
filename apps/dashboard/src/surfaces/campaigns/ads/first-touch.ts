@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import type { AdsRead } from "@chanlytics/contracts";
-import { firstTouchOf } from "@chanlytics/contracts/ads-page";
+import { firstTouchOf } from "./model/page-parts";
 import { read } from "@/bridge/api";
 
 export interface FirstTouchHere {

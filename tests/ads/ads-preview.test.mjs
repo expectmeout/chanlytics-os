@@ -18,12 +18,21 @@ import {
   press,
 } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import {
+  ADS_EXAMPLES,
+  dayShort,
+  dayWord,
+  EXAMPLE,
+} from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
+import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
+import { adsResultsOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/results/view.ts";
+import { CONNECT } from "../../apps/dashboard/src/surfaces/settings/connections/model/ads-words.ts";
+import { adModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/drawer/view.ts";
 
 installStubReact({ __DEMO_MODE: false, CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const ads = await import("@chanlytics/contracts");
-const page = await import("@chanlytics/contracts/ads-page");
 const { toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
 const { EXAMPLE_READS, exampleAt } = await import(`${S}/surfaces/campaigns/ads/examples.ts`);
 const { CONFIG, SPRING, SATURDAY } = await import(`${S}/surfaces/campaigns/ads/sample.ts`);
@@ -73,7 +82,7 @@ const world = (read) => ({ get: () => read, put() {} });
 // As of now
 
 test("every example reads as of now: no date a fixture is written with is left in it, its today is the business's, and it was read just now", () => {
-  for (const example of page.ADS_EXAMPLES) {
+  for (const example of ADS_EXAMPLES) {
     const read = exampleAt(example, NOW);
     assert.equal(read.today, TODAY, example);
     assert.equal(Date.parse(read.readAt), NOW, `${example}: read at this moment`);
@@ -88,7 +97,7 @@ test("nothing it says has happened is still to come, at any hour, and each day k
   const moments = (read) => JSON.stringify(read).match(/\d{4}-\d\d-\d\dT[^"]+/g) ?? [];
   const before = Date.parse("2031-03-15T04:30:00Z"); // 12:30 AM there, well before the 9:19 AM it was written at
   for (const now of [NOW, before]) {
-    for (const example of page.ADS_EXAMPLES) {
+    for (const example of ADS_EXAMPLES) {
       const late = moments(exampleAt(example, now)).filter((m) => Date.parse(m) > now);
       assert.deepEqual(late, [], `${example} at ${new Date(now).toISOString()}`);
     }
@@ -114,17 +123,17 @@ test("a fixture is only moved: its own moment moves nothing, and a test still re
   assert.equal(raw.today, "2026-10-11", "the fixture keeps its date");
   // A new ad's name says the day it starts: that follows it.
   const named = exampleAt("setting-up", NOW).ads.find((a) => a.state === "setting-up");
-  assert.equal(named.name, `First appointment · ${page.dayShort(named.startDay)}`);
+  assert.equal(named.name, `First appointment · ${dayShort(named.startDay)}`);
   assert.equal(named.startDay, "2031-03-16");
 });
 
 test("the page says today: the pane line's read, the month-away permission, and an ad sent this morning", () => {
   const read = exampleAt("running", NOW);
-  const vm = page.adsModel(read, CONFIG);
+  const vm = adsModel(read, CONFIG);
   assert.match(vm.pane, /read 10:05 AM/);
   const tiktok = vm.standing.find((s) => s.id === "tiktok");
   assert.ok(
-    tiktok.rows.some((r) => r.text.includes(page.dayWord("2031-04-08"))),
+    tiktok.rows.some((r) => r.text.includes(dayWord("2031-04-08"))),
     "the permission lapses as far off as it was written",
   );
   const coming = vm.tiles.coming.rows.flatMap((r) => r.when).join(" ");
@@ -136,10 +145,10 @@ test("an ad says the same days on the page and in Reports, whose days hold it: t
   const read = exampleAt("running", NOW);
   const days = { from: read.window.from, to: read.window.to };
   const lens = adsDemoFold(days, ALL, TODAY, NOW);
-  const sheet = page.adsResultsOf(read, CONFIG, { ...days, scope: ALL });
+  const sheet = adsResultsOf(read, CONFIG, { ...days, scope: ALL });
   assert.equal(lens.empty, null, "REGRESSION: the sheet's door named 30 days of October, where Reports' ads were not");
   assert.deepEqual(lens.byAd, sheet.byAd);
-  assert.deepEqual(lens.byAd, rowsOf(page.adsModel(read, CONFIG)), "and the ledger's own rows, to the word");
+  assert.deepEqual(lens.byAd, rowsOf(adsModel(read, CONFIG)), "and the ledger's own rows, to the word");
   assert.equal(lens.pane, sheet.pane);
   const hints = lens.byAd.map((r) => r.hint).join(" | ");
   assert.doesNotMatch(hints, /Oct|Sep/, "REGRESSION: Reports said an ad was sent to Meta on 11 Oct");
@@ -161,7 +170,7 @@ test("the store a page draws reads as of the clock, whichever example is chosen"
 // It says what it is
 
 const read = exampleAt("running", NOW);
-const fold = page.adsResultsOf(read, CONFIG, { from: read.window.from, to: read.window.to, scope: ALL });
+const fold = adsResultsOf(read, CONFIG, { from: read.window.from, to: read.window.to, scope: ALL });
 const surfaces = {
   "the page": () => AdsPage({ param: "ads" }),
   "an ad's drawer": () =>
@@ -205,7 +214,7 @@ for (const [name, draw] of Object.entries(surfaces)) {
       NOTE,
     );
     assert.ok(note, "the note is drawn");
-    assert.equal(textOf(note), `${page.EXAMPLE.preview.word} ${page.EXAMPLE.preview.said}`);
+    assert.equal(textOf(note), `${EXAMPLE.preview.word} ${EXAMPLE.preview.said}`);
     assert.equal(byTestId(demo(draw), NOTE), null);
   });
 }
@@ -218,14 +227,14 @@ test("Connections' card says it in the note, which a phone draws, and not in its
     [],
     "REGRESSION: on a phone the sample accounts said Connected, unlabelled",
   );
-  assert.equal(textOf(sub(demo(card))[0]), page.CONNECT.sub, "a demo's card keeps its line");
+  assert.equal(textOf(sub(demo(card))[0]), CONNECT.sub, "a demo's card keeps its line");
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Its people open nothing
 
 test("Waiting on you: a demo's names are links to the demo's people; a preview's are names, on a row no press opens", () => {
-  const tile = page.adsModel(read, CONFIG).tiles.waiting;
+  const tile = adsModel(read, CONFIG).tiles.waiting;
   assert.ok(tile.rows.length > 1, "the sample has people waiting");
   const linked = demo(() => WaitingBlock({ tile }));
   assert.deepEqual(
@@ -245,7 +254,7 @@ test("Waiting on you: a demo's names are links to the demo's people; a preview's
 });
 
 test("An ad's people: a demo's rows are links and a door goes to all of them; a preview's rows are rows, and no door promises a list no page holds", () => {
-  const vm = page.adModel(
+  const vm = adModel(
     read.ads.find((a) => a.id === SATURDAY),
     read,
     CONFIG,
@@ -262,7 +271,7 @@ test("An ad's people: a demo's rows are links and a door goes to all of them; a 
 });
 
 test("A phone's one amber row opens the people who wait: doors with where they go in a demo, names alone in a preview, even for one", () => {
-  const vm = page.adsModel(read, CONFIG);
+  const vm = adsModel(read, CONFIG);
   const props = { vm, ask: null, onOpen() {}, onYes() {}, onNo() {}, arrived: null };
   const opened = (draw) => {
     press(byTestId(draw(), "ads-needs-row"));

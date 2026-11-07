@@ -6,7 +6,7 @@
  * to a sequence of its own from here): every lead shown is chosen and Add opens at New, the one place a sequence is named
  * and started from; with none taking leads yet, New is all it offers.
  */
-import { LEAD_SHEET_WORDS as W, leadPickerRowsOf } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS as W, leadPickerRowsOf } from "./model/view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup } from "../../kit/menu/menu";

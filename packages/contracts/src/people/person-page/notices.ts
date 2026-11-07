@@ -10,7 +10,7 @@
  * its veto window (under their last words). A consultation with no proposal after it is Up next's own rung, so it is
  * not said twice here.
  */
-import type { PersonDoubtVM } from "../person-profile";
+import type { PersonDoubtVM } from "../person-profile/timeline";
 import type { BusinessRecordVM, PersonHeadVM } from "./business";
 import type { CallFactsVM } from "./call-facts";
 import { CALL_FACT_WORDS, DRAFT_NOTICE_WORDS, PERSON_NAME_WORDS, WORKS_AT_WORDS } from "./words";
@@ -86,24 +86,26 @@ export interface NoticeFacts {
 }
 
 /** The notices, each once, in the order their homes come on the page. */
-export function personNoticesOf(f: NoticeFacts): NoticeVM[] {
+export function personNoticesOf(noticeFacts: NoticeFacts): NoticeVM[] {
   const out: NoticeVM[] = [];
-  const s = f.head.signer;
-  if (s)
+  const signer = noticeFacts.head.signer;
+  if (signer)
     out.push({
-      id: `name:${s.messageId}`,
+      id: `name:${signer.messageId}`,
       home: "name",
-      fact: s.fact,
-      source: s.day,
-      act: { label: PERSON_NAME_WORDS.use, do: { kind: "use-name", messageId: s.messageId } },
+      fact: signer.fact,
+      source: signer.day,
+      act: { label: PERSON_NAME_WORDS.use, do: { kind: "use-name", messageId: signer.messageId } },
       dismiss: { label: PERSON_NAME_WORDS.notTheirs },
     });
   // One human, two doors: the record we wrote to (a stand-in that never wrote) and the person who answered from another
   // address at the same business. Each offers to combine with the other; the merge door judges the pair (0052, 0028)
   // and keeps the person who answered, with their own name or none (00420). Offered only where it can hold: two numbers
   // are two people, and the door refuses them.
-  const others = f.peopleHere.filter((p) => p.id && p.email && !(f.phone && p.phone && f.phone !== p.phone));
-  if (f.head.standIn && !f.heardFrom) {
+  const others = noticeFacts.peopleHere.filter(
+    (p) => p.id && p.email && !(noticeFacts.phone && p.phone && noticeFacts.phone !== p.phone),
+  );
+  if (noticeFacts.head.standIn && !noticeFacts.heardFrom) {
     const human = others.find((p) => p.nameSource !== "lead");
     if (human && human.email) {
       const named = !!human.named;
@@ -127,7 +129,7 @@ export function personNoticesOf(f: NoticeFacts): NoticeVM[] {
         dismiss: null,
       });
     }
-  } else if (!f.head.standIn) {
+  } else if (!noticeFacts.head.standIn) {
     const standIn = others.find((p) => p.nameSource === "lead");
     if (standIn && standIn.email)
       out.push({
@@ -143,13 +145,13 @@ export function personNoticesOf(f: NoticeFacts): NoticeVM[] {
             otherName: standIn.name,
             otherEmail: standIn.email,
             keepsOther: false,
-            keptNamed: !!f.named,
+            keptNamed: !!noticeFacts.named,
           },
         },
         dismiss: null,
       });
   }
-  for (const d of f.doubts)
+  for (const d of noticeFacts.doubts)
     out.push({
       id: `doubt:${d.id}`,
       home: "reach",
@@ -158,14 +160,14 @@ export function personNoticesOf(f: NoticeFacts): NoticeVM[] {
       act: { label: "Same person?", do: { kind: "same-person", doubtId: d.id, otherId: d.otherId } },
       dismiss: { label: "Not the same" },
     });
-  out.push(...callNotices(f, !!s));
-  if (f.draft)
+  out.push(...callNotices(noticeFacts, !!signer));
+  if (noticeFacts.draft)
     out.push({
       id: "draft",
       home: "last-words",
       fact: DRAFT_NOTICE_WORDS.waiting,
-      source: DRAFT_NOTICE_WORDS.sends(f.draft.sends),
-      act: { label: DRAFT_NOTICE_WORDS.review, do: { kind: "open-thread", to: f.draft.to } },
+      source: DRAFT_NOTICE_WORDS.sends(noticeFacts.draft.sends),
+      act: { label: DRAFT_NOTICE_WORDS.review, do: { kind: "open-thread", to: noticeFacts.draft.to } },
       dismiss: null,
     });
   return out;
@@ -179,38 +181,44 @@ const folded = (s: string | null | undefined) =>
  * where they have none of their own, or it is not the name they hold), an address they spelled out at Reach them while
  * none is on their page, and the newest call's next step in Up next while no step stands and no note says it already.
  */
-function callNotices(f: NoticeFacts, signerOffered: boolean): NoticeVM[] {
-  const c = f.calls;
-  if (!c) return [];
-  const W = CALL_FACT_WORDS;
+function callNotices(noticeFacts: NoticeFacts, signerOffered: boolean): NoticeVM[] {
+  const calls = noticeFacts.calls;
+  if (!calls) return [];
+  const words = CALL_FACT_WORDS;
   const out: NoticeVM[] = [];
-  const nameIsNew = !!c.name && folded(c.name.name) !== folded(f.givenName);
-  if (c.name && nameIsNew && !signerOffered && (!f.givenName || f.head.standIn))
+  const nameIsNew = !!calls.name && folded(calls.name.name) !== folded(noticeFacts.givenName);
+  if (calls.name && nameIsNew && !signerOffered && (!noticeFacts.givenName || noticeFacts.head.standIn))
     out.push({
-      id: `call-name:${c.name.callId}`,
+      id: `call-name:${calls.name.callId}`,
       home: "name",
-      fact: W.name(c.name.name),
-      source: W.onTheCall(c.name.day),
-      act: { label: PERSON_NAME_WORDS.use, do: { kind: "use-call-name", callId: c.name.callId, name: c.name.name } },
+      fact: words.name(calls.name.name),
+      source: words.onTheCall(calls.name.day),
+      act: {
+        label: PERSON_NAME_WORDS.use,
+        do: { kind: "use-call-name", callId: calls.name.callId, name: calls.name.name },
+      },
       dismiss: { label: PERSON_NAME_WORDS.notTheirs },
     });
-  if (c.email && !f.email)
+  if (calls.email && !noticeFacts.email)
     out.push({
-      id: `call-email:${c.email.callId}`,
+      id: `call-email:${calls.email.callId}`,
       home: "reach",
-      fact: W.email(c.email.day, c.email.email),
+      fact: words.email(calls.email.day, calls.email.email),
       source: null,
-      act: { label: W.useEmail, do: { kind: "use-call-email", callId: c.email.callId, email: c.email.email } },
-      dismiss: { label: W.notTheirAddress },
+      act: {
+        label: words.useEmail,
+        do: { kind: "use-call-email", callId: calls.email.callId, email: calls.email.email },
+      },
+      dismiss: { label: words.notTheirAddress },
     });
-  if (c.step && !f.openStep && !f.stepNoted)
+  if (calls.step && !noticeFacts.openStep && !noticeFacts.stepNoted)
     out.push({
-      id: `call-step:${c.step.callId}`,
+      id: `call-step:${calls.step.callId}`,
       home: "next",
-      fact: c.step.body,
-      source: W.fromTheCall(c.step.day),
-      act: { label: W.keepStep, do: { kind: "note-call-step", callId: c.step.callId, body: c.step.body } },
-      dismiss: { label: W.notAStep },
+      fact: calls.step.body,
+      source: words.fromTheCall(calls.step.day),
+      act: { label: words.keepStep, do: { kind: "note-call-step", callId: calls.step.callId, body: calls.step.body } },
+      dismiss: { label: words.notAStep },
     });
   return out;
 }

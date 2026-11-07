@@ -15,9 +15,9 @@ process.env.ASK_MORNINGS = "on";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { morningOf } = await import(at("apps/dashboard/src/server/ask/companion/morning.ts"));
+const { getMorning } = await import(at("apps/dashboard/src/server/ask/companion/morning.ts"));
 
 afterEach(() => {
   setServiceClient(null);
@@ -87,7 +87,7 @@ function world(cards, theirs = []) {
 function read(data) {
   const supabase = fakeDb(data, {}, { sequence_overview: () => [], run_counts: () => [] });
   setServiceClient(supabase);
-  return morningOf(
+  return getMorning(
     { supabase, userId: ME, email: "ada@example.com", params: {} },
     { tenantId: A, role: "operator" },
     NOW,
@@ -140,7 +140,7 @@ test("a read that fails costs what it read, never the morning", async () => {
       throw new Error("service read down");
     },
   });
-  const morning = await morningOf(
+  const morning = await getMorning(
     { supabase, userId: ME, email: "ada@example.com", params: {} },
     { tenantId: A, role: "operator" },
     NOW,

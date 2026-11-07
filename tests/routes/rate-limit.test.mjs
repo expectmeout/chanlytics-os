@@ -207,7 +207,7 @@ test("F42: only the production dashboard reaches the live store or a live call â
     "apps/dashboard/src/server/connections/whatsapp.ts",
     "apps/dashboard/src/server/campaigns/meta-templates.ts",
     "apps/dashboard/src/server/campaigns/playbook-run.ts",
-    "apps/dashboard/src/server/campaigns/reach-outs.ts",
+    "apps/dashboard/src/server/campaigns/reach-outs/reach-outs.ts",
   ]
     .map((p) => readCode(p))
     .join("\n");

@@ -19,8 +19,8 @@ export const UNSUBSCRIBE_PATH = "/u/";
 
 const UNSUBSCRIBE_LABEL = "chanlytics-unsubscribe:";
 
-export function signUnsubscribeToken(secret: string, c: UnsubscribeClaims): string {
-  return sealLink("signUnsubscribeToken", UNSUBSCRIBE_LABEL, secret, c);
+export function signUnsubscribeToken(secret: string, unsubscribeClaims: UnsubscribeClaims): string {
+  return sealLink("signUnsubscribeToken", UNSUBSCRIBE_LABEL, secret, unsubscribeClaims);
 }
 
 /**

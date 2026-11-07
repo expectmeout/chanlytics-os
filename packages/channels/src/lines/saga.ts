@@ -124,7 +124,7 @@ const OUT_OF_TIME = Symbol("out of time");
 const AGENT_STEP_MORE_MS = 10_000;
 
 /** The body Retell's import takes — pure, so a test can pin it. */
-export function retellImportBody(o: {
+export function retellImportBody(options: {
   e164: string;
   terminationUri: string;
   username: string;
@@ -135,13 +135,15 @@ export function retellImportBody(o: {
   inboundWebhookUrl: string;
 }): Record<string, unknown> {
   return {
-    phone_number: o.e164,
-    termination_uri: o.terminationUri,
-    sip_trunk_auth_username: o.username,
-    sip_trunk_auth_password: o.password,
-    inbound_agents: [{ agent_id: o.agentId, ...(o.pinned ? { agent_version: "latest_published" } : {}), weight: 1 }],
-    nickname: o.nickname,
-    inbound_webhook_url: o.inboundWebhookUrl,
+    phone_number: options.e164,
+    termination_uri: options.terminationUri,
+    sip_trunk_auth_username: options.username,
+    sip_trunk_auth_password: options.password,
+    inbound_agents: [
+      { agent_id: options.agentId, ...(options.pinned ? { agent_version: "latest_published" } : {}), weight: 1 },
+    ],
+    nickname: options.nickname,
+    inbound_webhook_url: options.inboundWebhookUrl,
   };
 }
 
@@ -204,15 +206,15 @@ function lineRun(start: LineRow, ports: LinePorts): LineRun {
       if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
     },
     async once(key, look, make) {
-      const asked = `asked_${key}`;
+      const text = `asked_${key}`;
       run.room();
-      if (run.line.facts[asked] === true) {
+      if (run.line.facts[text] === true) {
         const found = await look();
         if (found) return found;
         run.room();
       } else {
         // Marked only once the run has time to ask: a mark with no ask behind it costs the next run a look.
-        await run.fact(asked, true);
+        await run.fact(text, true);
       }
       return make();
     },
@@ -324,12 +326,12 @@ async function ensureTrunk(run: LineRun, acct: ProviderAccount): Promise<void> {
   if (run.line.trunk_sid) return;
   const { ports } = run;
   const domainName = trunkDomain(run.line.id);
-  const t = await run.once(
+  const once = await run.once(
     "trunk",
     () => ports.provider.findTrunk(acct, domainName),
     () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} · Chanlytics`, domainName }),
   );
-  await run.save({ trunk_sid: t.sid, termination_uri: t.domainName });
+  await run.save({ trunk_sid: once.sid, termination_uri: once.domainName });
 }
 
 /** The credential list the trunk knows Retell by. */
@@ -381,7 +383,7 @@ async function ensureCredentialListAttached(run: LineRun, acct: ProviderAccount)
 async function ensureOrigination(run: LineRun, acct: ProviderAccount): Promise<void> {
   if (typeof run.line.facts.origination_sid === "string") return;
   const { ports } = run;
-  const o = await run.once(
+  const once = await run.once(
     "origination",
     () => ports.provider.findOrigination(acct, run.line.trunk_sid!, RETELL_ORIGINATION),
     () =>
@@ -390,7 +392,7 @@ async function ensureOrigination(run: LineRun, acct: ProviderAccount): Promise<v
         friendlyName: "Retell",
       }),
   );
-  await run.fact("origination_sid", o.sid);
+  await run.fact("origination_sid", once.sid);
 }
 
 /** The number, on the trunk. */
@@ -425,16 +427,20 @@ async function importStep(run: LineRun): Promise<void> {
     nickname: ports.nickname,
     inboundWebhookUrl: ports.inboundWebhookUrl,
   });
-  const r = await ports.retell.importNumber(body);
-  if (!r.ok) {
-    const msg = typeof r.body?.message === "string" ? r.body.message : JSON.stringify(r.body ?? {}).slice(0, 200);
-    throw new Error(`Retell import: HTTP ${r.status} ${msg}`);
+  const importNumber = await ports.retell.importNumber(body);
+  if (!importNumber.ok) {
+    const msg =
+      typeof importNumber.body?.message === "string"
+        ? importNumber.body.message
+        : JSON.stringify(importNumber.body ?? {}).slice(0, 200);
+    throw new Error(`Retell import: HTTP ${importNumber.status} ${msg}`);
   }
   await run.save({
     facts: {
       ...run.line.facts,
       retell_imported: true,
-      retell_number_type: typeof r.body?.phone_number_type === "string" ? r.body.phone_number_type : "custom",
+      retell_number_type:
+        typeof importNumber.body?.phone_number_type === "string" ? importNumber.body.phone_number_type : "custom",
     },
   });
 }

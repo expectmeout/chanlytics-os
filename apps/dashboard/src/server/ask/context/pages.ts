@@ -3,15 +3,12 @@ import {
   ASK_ADS_VIEW,
   addressOf,
   campaignRunsOn,
-  chainResultsOf,
   lifecycleChainStateOf,
-  lifecycleChainsOf,
   lifecyclePlaybooksOf,
   lifecycleStateOf,
   plural,
   reportDaysAsked,
   reportRangeOfKey,
-  sentResultsOfSource,
   setupSteps,
   toBookingReportVM,
   toBroadcastVM,
@@ -26,15 +23,16 @@ import {
   runRoute,
   sequenceRoute,
 } from "@chanlytics/contracts";
+import { chainResultsOf, lifecycleChainsOf, sentResultsOfSource } from "@/server/campaigns/lifecycle/ledger/chains";
 import { toPeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { log } from "@/server/shared/log";
-import { load, type ReaderContext } from "../../readers";
+import { load, type ReaderContext } from "../../shared/reader";
 import * as facts from "../../readers/facts";
-import type { ReportWindow } from "@chanlytics/db";
+import type { ReportWindow } from "@chanlytics/db/reports";
 import { peopleReport, report as reportReader, reportWindowFor } from "../../readers/report";
 import { playbooks as playbooksReader, reachOutChains } from "../../readers/playbooks";
 import { broadcasts as broadcastsReader } from "../../readers/broadcasts";
-import { chainLastDays, lastDaysBySource, lastDaysOf } from "../../readers/campaign-report";
+import { findChainLastDays, listLastDaysBySource, lastDaysOf } from "../../readers/campaign-report";
 import { templates as templatesReader } from "../../readers/templates";
 import { channels as channelsReader } from "../../readers/channels";
 import { connections as connectionsReader } from "../../readers/connections";
@@ -64,10 +62,10 @@ async function windowShown(rc: ReaderContext, view: string | null | undefined): 
 }
 
 /** Reports: the period the page shows, its tiles and its lines, as the report tool says them. */
-export const reports: Provider = async (rc, ctx) => {
-  const r = (await load(rc, reportReader, await windowShown(rc, ctx.view))).data;
-  const vm = toReportVM(r.report, { profile: r.profile });
-  const booking = r.booking ? toBookingReportVM(r.booking) : null;
+export const readReports: Provider = async (rc, ctx) => {
+  const result = (await load(rc, reportReader, await windowShown(rc, ctx.view))).data;
+  const vm = toReportVM(result.report, { profile: result.profile });
+  const booking = result.booking ? toBookingReportVM(result.booking) : null;
   return {
     rows: [],
     aggregate: aggregateOf([
@@ -110,7 +108,7 @@ function lastDaysPart(r: LifecycleRowResults | null): string {
  * A citation opens its drawer.
  */
 async function playbookContextRows(rc: ReaderContext, ids: string[]) {
-  const [read, sources] = await Promise.all([load(rc, playbooksReader, undefined), lastDaysBySource(rc)]);
+  const [read, sources] = await Promise.all([load(rc, playbooksReader, undefined), listLastDaysBySource(rc)]);
   const pb = read.data;
   // Each card as the home reads it at this turn's clock (contracts lifecyclePlaybooksOf, the reading sequences.moments makes):
   // a campaign past its last day is Ended, and its next run is none after its last day. The raw row said
@@ -122,21 +120,21 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
   for (const id of ids) {
     const card = byId.get(id);
     if (!card) continue;
-    const p = card.playbook;
+    const playbook = card.playbook;
     // Nothing sent is the row's own rule (sentResultsOfSource): a reply to an older send is no sending in these days.
     const days = lastDaysOf(sources, id);
-    const moment = triggerOf(p.trigger)?.label ?? p.trigger;
+    const moment = triggerOf(playbook.trigger)?.label ?? playbook.trigger;
     rows.push({
       source: sourceOf("playbook", id),
-      title: p.name,
+      title: playbook.name,
       text: line(
         [
-          p.name,
+          playbook.name,
           lastDaysPart(days ? sentResultsOfSource(days) : null),
           // The campaign's state as the home says it (lifecycleStateOf), a run waiting included, paused or not.
-          lifecycleStateOf({ ...p, ended: card.read.ended, off: card.read.off }).words,
+          lifecycleStateOf({ ...playbook, ended: card.read.ended, off: card.read.off }).words,
           `next run ${card.read.next}`,
-          moment.trim().toLowerCase() === p.name.trim().toLowerCase() ? null : moment,
+          moment.trim().toLowerCase() === playbook.name.trim().toLowerCase() ? null : moment,
         ],
         sequenceRoute(id),
       ),
@@ -155,19 +153,19 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
  * citation names it as its first step's playbook, as its reader gives it.
  */
 async function chainContextRows(rc: ReaderContext, ids: string[]) {
-  const [read, totals] = await Promise.all([load(rc, reachOutChains, undefined), chainLastDays(rc)]);
+  const [read, totals] = await Promise.all([load(rc, reachOutChains, undefined), findChainLastDays(rc)]);
   const byRoot = new Map(read.data.chains.map((c) => [c.root_id, c]));
   const refs = refsOf(read.rows);
   const chains = lifecycleChainsOf(totals);
   const rows: ContextRow[] = [];
   for (const id of ids) {
-    const c = byRoot.get(id);
-    if (!c) continue;
+    const found = byRoot.get(id);
+    if (!found) continue;
     rows.push({
       source: sourceOf("reach_out", id),
-      title: c.name,
+      title: found.name,
       text: line(
-        [c.name, lastDaysPart(chains ? chainResultsOf(id, chains) : null), lifecycleChainStateOf(c).words],
+        [found.name, lastDaysPart(chains ? chainResultsOf(id, chains) : null), lifecycleChainStateOf(found).words],
         sequenceRoute(id),
       ),
       ref: refs.get(id) ?? null,
@@ -184,21 +182,21 @@ async function broadcastRows(rc: ReaderContext, ids: string[]) {
   const refs = refsOf(read.rows);
   const rows: ContextRow[] = [];
   for (const id of ids) {
-    const b = vms.get(id);
-    if (!b) continue;
+    const found = vms.get(id);
+    if (!found) continue;
     rows.push({
       source: sourceOf("run", id),
-      title: b.name,
+      title: found.name,
       text: line(
         [
-          b.name,
-          b.stateLabel,
-          b.when,
-          `${b.recipient_count} people`,
-          `${b.counts.sent} sent`,
-          b.deliveredPct === null ? null : `${b.deliveredPct}% delivered`,
+          found.name,
+          found.stateLabel,
+          found.when,
+          `${found.recipient_count} people`,
+          `${found.counts.sent} sent`,
+          found.deliveredPct === null ? null : `${found.deliveredPct}% delivered`,
         ],
-        runRoute(id, b.sequence_id),
+        runRoute(id, found.sequence_id),
       ),
       ref: refs.get(id) ?? null,
     });
@@ -228,14 +226,17 @@ async function templateRows(rc: ReaderContext, ids: string[]) {
   const refs = refsOf(read.rows);
   const rows: ContextRow[] = [];
   for (const id of ids) {
-    const t = byId.get(id);
-    if (!t) continue;
-    const name = t.title || t.name;
+    const found = byId.get(id);
+    if (!found) continue;
+    const name = found.title || found.name;
     rows.push({
       source: sourceOf("template", id),
       title: name,
       // Its own address in the Library, by name, as its row's (the templates reader): the message, not the list.
-      text: line([name, t.category, t.meta_status, t.language], addressOf({ kind: "template", name: t.name })),
+      text: line(
+        [name, found.category, found.meta_status, found.language],
+        addressOf({ kind: "template", name: found.name }),
+      ),
       ref: refs.get(id) ?? null,
     });
   }
@@ -306,9 +307,9 @@ async function adsAggregate(rc: ReaderContext, view: string | null | undefined):
  * Campaigns: the home's ledger (its campaigns and one-off sends), Sent's runs, the Library's messages or Ads, whichever the page is
  * (bridge/ask/context.ts), and its rows are that page's.
  */
-export const campaigns: Provider = async (rc, ctx) => {
+export const readCampaigns: Provider = async (rc, ctx) => {
   if (isAskAdsView(ctx.view)) return { rows: [], aggregate: await adsAggregate(rc, ctx.view) };
-  const got = ctx.view?.startsWith("playbooks")
+  const result = ctx.view?.startsWith("playbooks")
     ? await ledgerRows(rc, ctx)
     : ctx.view === "broadcasts"
       ? await broadcastRows(
@@ -320,13 +321,13 @@ export const campaigns: Provider = async (rc, ctx) => {
           idsOf(ctx, "template").map((r) => r.id),
         );
   return {
-    rows: got.rows,
-    aggregate: aggregateOf([`${pageWithView(ctx)}: ${got.rows.length} on screen`, got.aggregate]),
+    rows: result.rows,
+    aggregate: aggregateOf([`${pageWithView(ctx)}: ${result.rows.length} on screen`, result.aggregate]),
   };
 };
 
 /** Settings: the pane the page is on, and what the workspace runs on: its name, its zone, its lines, its word. */
-export const settings: Provider = async (rc, ctx) => {
+export const readSettingsContext: Provider = async (rc, ctx) => {
   const [f, chans, word] = await Promise.all([
     load(rc, facts.facts, undefined).then((r) => r.data),
     load(rc, channelsReader, undefined).then((r) => r.data.channels),
@@ -361,7 +362,7 @@ export const start: Provider = async (rc, ctx) => {
 };
 
 /** Any other page: its address, and nothing read. */
-export const other: Provider = async (_rc, ctx) => ({
+export const readOther: Provider = async (_rc, ctx) => ({
   rows: [],
   aggregate: aggregateOf([`${pageWithView(ctx)}: ${ctx.route || "the page"}`, "nothing on it is read here"]),
 });

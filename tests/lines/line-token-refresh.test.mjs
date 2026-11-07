@@ -13,7 +13,7 @@
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 import { importSrc } from "../_source.mjs";
 
@@ -21,7 +21,7 @@ for (const k of ["VERCEL_ENV", "LINES_DRY_RUN"]) delete process.env[k];
 process.env.TWILIO_ACCOUNT_SID = "ACmaster0000000000000000000000000";
 process.env.TWILIO_AUTH_TOKEN = "master-token-for-this-file";
 
-const { refreshLineToken } = await importSrc("apps/edge/lib/sms/sms.ts");
+const { refreshLineToken } = await importSrc("apps/edge/lib/lines/sms.ts");
 const { syncRegistration } = await importSrc("apps/edge/lib/lines/a2p-sync.ts");
 
 const realFetch = globalThis.fetch;

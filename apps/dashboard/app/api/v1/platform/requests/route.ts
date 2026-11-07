@@ -1,6 +1,6 @@
 import { read, write, platform } from "@/server/shared/route";
 import { RequestFileSchema } from "@chanlytics/contracts";
-import { consoleFileRequest, consoleRequests } from "@/server/console/requests";
+import { fileConsoleRequest, listConsoleRequests } from "@/server/console/requests";
 
 /**
  * GET /api/v1/platform/requests — the requests the data-deletion page promises an answer to (decision 0066), with
@@ -9,7 +9,7 @@ import { consoleFileRequest, consoleRequests } from "@/server/console/requests";
 export const GET = read({
   scope: platform,
   sees: "requests",
-  handle: async ({ office }) => ({ requests: await consoleRequests(office) }),
+  handle: async ({ office }) => ({ requests: await listConsoleRequests(office) }),
 });
 
 /**
@@ -22,5 +22,5 @@ export const POST = write({
   rate: "platform_request",
   act: "request_file",
   input: RequestFileSchema,
-  handle: async ({ office, input }) => ({ request: await consoleFileRequest(office, input) }),
+  handle: async ({ office, input }) => ({ request: await fileConsoleRequest(office, input) }),
 });

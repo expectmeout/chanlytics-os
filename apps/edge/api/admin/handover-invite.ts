@@ -9,9 +9,10 @@ import { readBody } from "../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
 import { adminDoor } from "../../lib/shared/log.js";
 import { sendHandoverInvite } from "../../lib/partners/handover-invite.js";
+import { HANDOVER_INVITE_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/handover-invite");
   if (!auth.ok) return auth.response;
-  return sendHandoverInvite(auth, await readBody(request));
+  return sendHandoverInvite(auth, await readBody(request, HANDOVER_INVITE_DOOR));
 });

@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { isRetryableAuthError } from "@/server/auth/errors";
+import { isRetryableAuthError } from "@/server/shared/auth/errors";
 import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
 import { linkHostAnswers, linkHostOf } from "@/link-host";
-import { publicPageNamesNothing } from "@/server/public/page-gate";
+import { getPublicPageNamesNothing } from "@/server/public/page-gate";
 import { writeAuthCookies } from "@/server/auth/cookies";
 import { env, isProduction, servedOverHttps } from "@/server/shared/env";
 import { publicEnv } from "@/lib/public-env";
@@ -162,7 +162,7 @@ export async function proxy(request: NextRequest) {
   // A public page's address that names no page is the not-found page with a 404, decided here because the page's own
   // notFound() runs after its shell has gone out with a 200 (src/server/public/page-gate.ts). `/_none` is a
   // private folder's name, so no route can ever answer it. Before the session is read: nothing here needs one.
-  if (await publicPageNamesNothing(request.nextUrl.pathname)) {
+  if (await getPublicPageNamesNothing(request.nextUrl.pathname)) {
     const none = NextResponse.rewrite(new URL("/_none", request.url));
     none.headers.set(CSP_HEADER, csp);
     return none;

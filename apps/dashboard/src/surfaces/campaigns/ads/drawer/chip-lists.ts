@@ -5,8 +5,11 @@
  * to hand, jumps to its steps instead of opening a list. Amounts are minor units of the ad's currency.
  */
 import type { AdDoor, AdsRead } from "@chanlytics/contracts";
-import { CHIPS, DOOR, DOOR_ORDER, LIST, PLATFORM_WORD, platformsFor } from "@chanlytics/contracts/ads-page";
-import type { ChipId, EditVM, SentencePart } from "@chanlytics/contracts/ads-page";
+import { CHIPS, LIST } from "../model/drawer/words";
+import { DOOR, DOOR_ORDER, PLATFORM_WORD } from "../model/words";
+import { platformsFor } from "../model/vm-base";
+import type { ChipId, SentencePart } from "../model/vm-base";
+import type { EditVM } from "../model/drawer/edit-lists";
 
 /** A word of the sentence that can be tapped. */
 export type ChipPart = Extract<SentencePart, { chip: string }>;

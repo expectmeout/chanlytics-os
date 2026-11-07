@@ -8,7 +8,7 @@
  * Two questions, kept apart because they are two facts:
  *   - SAID YES: they gave the answer this kind of message asks (answeredYes). It is what they said, on whatever channel and
  *     whether the workspace can send on it or not, so it does not move with the workspace's lines; it is the word People's
- *     columns say. (The send screen's count, broadcast-audience.ts saidYesOnAny, is that answer where it covers a channel
+ *     columns say. (The send screen's count, broadcasts/audience.ts saidYesOnAny, is that answer where it covers a channel
  *     one send goes by, whether or not that channel can carry it now.)
  *   - CAN RECEIVE: reachFor over every channel, against what the workspace can send on now. Offers go by WhatsApp, and by
  *     email once the workspace can send them (reach-for.ts channelRefuses: texts carry none); a message about a visit goes by
@@ -17,7 +17,7 @@
  */
 import type { AskedPurpose } from "../../consent/consent";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
-import type { PersonRowVM } from "../../people/person-row";
+import type { PersonRowVM } from "../../people/person-row/row-facts";
 import { CHANNEL_WORDS, type ChannelsReady, type HeldOn, type ReachRow, reachFor } from "./reach-for";
 
 /**
@@ -42,8 +42,8 @@ export function readyOrWhatsApp(read: ChannelsReady | null | undefined): Channel
  * into no), whatever channel it was given for: when nobody can be sent a thing and somebody on the list said yes, what is
  * missing is a way to reach them, not an answer (#663's rule).
  */
-export function answeredYes(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose): boolean {
-  return (purpose === "marketing" ? r.consent.marketing : r.consent.state) === "opted_in";
+export function answeredYes(person: Pick<PersonRowVM, "consent">, purpose: AskedPurpose): boolean {
+  return (purpose === "marketing" ? person.consent.marketing : person.consent.state) === "opted_in";
 }
 
 /** A value for each kind of message a page asks about: offers (a promotion) and messages (the rest, about their visit). */
@@ -71,15 +71,15 @@ export interface PersonReach {
  * at once (reachFor with all three ticked). `ready` is the workspace's channels now, or null where they could not be
  * read (readyOrWhatsApp). One call answers all three facts, so they cannot disagree.
  */
-export function personReachOf(r: ReachRow, ready: ChannelsReady | null): PersonReach {
+export function personReachOf(reach: ReachRow, ready: ChannelsReady | null): PersonReach {
   // A row's "can get your messages" is the visit and proposal moments' (the home's "Opens: visit reminder, how did it
   // go"): their own, which by email asks no yes. A broadcast asks its own question of its own people (decision D1).
   const how = { channels: CONSENT_CHANNELS, ready: readyOrWhatsApp(ready), about: "theirs" as const };
-  const offers = reachFor(r, "marketing", how).held;
+  const offers = reachFor(reach, "marketing", how).held;
   // One pick answers both: whether a message reaches them, and on which channel it would.
-  const visit = reachFor(r, "conversational", how);
+  const visit = reachFor(reach, "conversational", how);
   return {
-    saidYes: { offers: answeredYes(r, "marketing"), messages: answeredYes(r, "conversational") },
+    saidYes: { offers: answeredYes(reach, "marketing"), messages: answeredYes(reach, "conversational") },
     canReceive: { offers: offers === null, messages: visit.held === null },
     whyNot: { offers, messages: visit.held },
     reachedOn: visit.channel,

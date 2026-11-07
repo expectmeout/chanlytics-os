@@ -16,7 +16,7 @@ const REQUEST_COLUMNS =
   "id, number, kind, tenant_id, slug, name, asked_by, asked_at, ticket, note, due_at, steps, closed_at, created_at";
 
 /** A request filed: the row as kept. */
-export async function fileRequest(db: Db, row: PrivacyRequestInsert) {
+export async function requestFile(db: Db, row: PrivacyRequestInsert) {
   return db.from("privacy_requests").insert(row).select(REQUEST_COLUMNS).single();
 }
 

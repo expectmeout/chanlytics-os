@@ -30,7 +30,7 @@ import {
   toTodayVM,
   waitsOf,
 } from "@chanlytics/contracts";
-import { waitingRunsOf } from "@chanlytics/db";
+import { listWaitingRuns } from "@chanlytics/db/campaigns";
 import { fakeDb } from "../../_fake-db.mjs";
 import { installStubReact, fresh, byTestId, textOf } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
@@ -307,7 +307,7 @@ test("the server reads the runs waiting for a word as the page counts them: thos
     ],
     reach_out_sends: [send("holding", "held"), send("holding", "held"), send("clear", "sent"), send("done", "held")],
   });
-  const runs = await waitingRunsOf(db, T);
+  const runs = await listWaitingRuns(db, T);
   assert.deepEqual(
     runs.map((r) => [r.id, r.held ?? null]),
     [

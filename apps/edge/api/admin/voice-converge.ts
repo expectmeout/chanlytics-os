@@ -10,9 +10,10 @@ import { readBody } from "../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
 import { adminDoor } from "../../lib/shared/log.js";
 import { convergeVoiceAgents } from "../../lib/voice/converge.js";
+import { VOICE_CONVERGE_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/voice-converge");
   if (!auth.ok) return auth.response;
-  return convergeVoiceAgents(auth, await readBody(request));
+  return convergeVoiceAgents(auth, await readBody(request, VOICE_CONVERGE_DOOR));
 });

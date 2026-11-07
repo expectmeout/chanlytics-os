@@ -15,7 +15,6 @@ import {
   PLAYBOOK_TRIGGERS,
   triggerWords,
   winBackWords,
-  campaignsHomeOf,
   isWinBack,
   momentOffered,
   momentReadsCalendar,
@@ -26,6 +25,7 @@ import {
   triggerOf,
   triggerOffered,
 } from "@chanlytics/contracts";
+import { campaignsHomeOf } from "../../../apps/dashboard/src/server/campaigns/lifecycle/stages.ts";
 import { installStubReact } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 
@@ -541,7 +541,7 @@ const run = async (playbook, ctx, category) => {
   const assembled = [];
   const outcome = await runPlaybook(
     {
-      // The message's rows (db messageVersionRowsOf): Meta's approved row, filed as `category`.
+      // The message's rows (db listMessageVersionRows): Meta's approved row, filed as `category`.
       message: async (name, language) => [
         {
           id: "tpl-1",

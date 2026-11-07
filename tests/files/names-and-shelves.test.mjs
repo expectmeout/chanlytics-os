@@ -7,18 +7,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const {
-  FILE_NAME_MAX,
-  fileFolderOf,
-  fileNameOf,
-  filePathOf,
-  fileSaidOf,
-  filesSayOf,
-  inboxCleanOf,
-  isFileMime,
-  shelfOf,
-  whoStandsOf,
-} = await importSrc("packages/contracts/src/files/files.ts");
+const { FILE_NAME_MAX, filePathOf, isFileMime } = await importSrc("packages/contracts/src/files/limits.ts");
+const { fileFolderOf, fileNameOf, fileSaidOf, inboxCleanOf, shelfOf, whoStandsOf } = await importSrc(
+  "packages/contracts/src/files/views.ts",
+);
+const { filesSayOf } = await importSrc("packages/contracts/src/files/files.ts");
 
 /** The door's own shape for a name (00551 files_name_shape), in the words of a regular expression. */
 function theDoorTakes(name) {

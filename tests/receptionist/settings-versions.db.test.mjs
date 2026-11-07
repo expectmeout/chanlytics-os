@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
 import { RETENTION_DAYS } from "@chanlytics/contracts";
-import { putTenantConfig } from "@chanlytics/db";
+import { putTenantConfig } from "@chanlytics/db/workspace";
 import { ROOT } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;

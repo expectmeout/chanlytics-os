@@ -22,12 +22,12 @@ async function legacyDigest(tenantId: string, identifier: string): Promise<strin
 }
 
 /** Of the number as stored: E.164 with its "+". */
-export function legacyErasedPhoneHash(tenantId: string, phoneE164: string): Promise<string> {
+export function hashLegacyErasedPhone(tenantId: string, phoneE164: string): Promise<string> {
   return legacyDigest(tenantId, phoneE164);
 }
 
 /** Of the address as stored: normalizeEmail's output, never a raw header. */
-export function legacyErasedEmailHash(tenantId: string, email: string): Promise<string> {
+export function hashLegacyErasedEmail(tenantId: string, email: string): Promise<string> {
   return legacyDigest(tenantId, email);
 }
 
@@ -37,6 +37,6 @@ export function legacyErasedEmailHash(tenantId: string, email: string): Promise<
  * answers byte for byte until the re-key (lead-engine.db.test.mjs proves it). The
  * value is the one stored: E.164 with its "+", normalizeEmail's output, the place id.
  */
-export function legacyLeadSuppressionHash(tenantId: string, value: string): Promise<string> {
+export function hashLegacyLeadSuppression(tenantId: string, value: string): Promise<string> {
   return legacyDigest(tenantId, value);
 }

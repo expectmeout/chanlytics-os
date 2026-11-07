@@ -1,7 +1,7 @@
 /**
  * A list of your own, drawn (Reach out Part 7: J4, J5, J7, J12; surfaces/leads/reach-out/lists.tsx, TSX since decision 0015
  * step 9), on the stub React over the bridge's own words (surfaces/campaigns/reach-out/surface.ts over contracts
- * lead-import.ts). The import door is the only thing stubbed, so what is proved is what each piece draws and what it
+ * leads/import.ts). The import door is the only thing stubbed, so what is proved is what each piece draws and what it
  * asks of the bridge: the import sheet reads pasted rows, says what it read, and hands the door the rows it can take;
  * the rail's foot carries *Import leads*. *Write to them* went with the composer (the lead-to-sequence canvas, 18 Oct
  * 2026): the bulk bar's Add is the one road, proved in leads/finder/leads-honest.test.mjs.

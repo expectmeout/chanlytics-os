@@ -1,7 +1,7 @@
 /**
  * The business's website read for Check (decision 0073, R10; 00479's website_read), as the job runner is handed it: its
  * home page and up to two pages it links to for its services, prices, rules and questions (core sitePagesLinkedFrom),
- * each read by the platform's one page reader (lib/shared/public-page.ts sitePage: Firecrawl's scrape, the page's main content
+ * each read by the platform's one page reader (lib/shared/public-page.ts findSitePage: Firecrawl's scrape, the page's main content
  * as Markdown), and drawn out by the smallest model into a fixed shape (contracts WEBSITE_READ_SCHEMA), its answer read
  * in code (businessReadFactsOf). Kept whole in business_reads, the newest read standing; one that could not be made
  * says why, which Check says. Where the site says its customers book is read off the same home page and kept with the
@@ -23,14 +23,17 @@ import {
   fenced,
   listingFactsOf,
   parseTenantConfig,
+  ANSWER_JSON_ONLY,
 } from "@chanlytics/contracts";
-import type { SitePage } from "@chanlytics/channels";
+import type { SitePage } from "@chanlytics/channels/website";
 import { bookingPageOfSite, sitePagesLinkedFrom, sitePagesNamed } from "@chanlytics/core";
-import { getTenantConfig, keepBusinessRead, listingFactsStored, type Database, type Json } from "@chanlytics/db";
+import { getTenantConfig } from "@chanlytics/db/workspace";
+import { keepBusinessRead, findListingFactsStored } from "@chanlytics/db/imports";
+import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import { askJson, promptHashOf } from "../ai/model.js";
 import { env } from "../shared/env.js";
-import { homePage, PAGE_READS, sitePage, siteLinks, sitePagesReadable } from "../shared/public-page.js";
+import { findHomePage, PAGE_READS, findSitePage, listSiteLinks, sitePagesReadable } from "../shared/public-page.js";
 import { wearSiteLook } from "./look.js";
 import { askForFoundFiles, sitePhotosOf } from "../files/found.js";
 import { json, refuse } from "../shared/http.js";
@@ -64,7 +67,7 @@ export interface WebsiteReadKept {
 async function pagesBeside(home: SitePage): Promise<string[]> {
   const linked = sitePagesLinkedFrom(home.html, home.url, PAGES_BESIDE);
   if (linked.length) return linked;
-  const links = await siteLinks(home.url, { search: MAP_SEARCH, limit: 20, timeoutMs: MAP_MS });
+  const links = await listSiteLinks(home.url, { search: MAP_SEARCH, limit: 20, timeoutMs: MAP_MS });
   return sitePagesNamed(links, home.url, PAGES_BESIDE);
 }
 
@@ -81,7 +84,7 @@ export async function readWebsite(
   raw: string | null,
   { deadline, fresh = false, photos = false }: { deadline: number; fresh?: boolean; photos?: boolean },
 ): Promise<WebsiteReadKept> {
-  const L = logger({ tenant_id: tenantId });
+  const log = logger({ tenant_id: tenantId });
   const url = feedUrlOk(raw);
   const keep = async (facts: Json, error: string | null): Promise<WebsiteReadKept> => {
     await keepBusinessRead(db, { tenantId, source: "website", facts, readFrom: url ?? raw, error });
@@ -90,10 +93,10 @@ export async function readWebsite(
   if (!url) return keep({}, WEBSITE_UNREAD_WORDS.address);
   // No reader is not a site that did not answer: an edge without its key would tell every owner their site is down.
   if (!sitePagesReadable()) {
-    L.error("website_read_failed", { step: "no_reader" });
+    log.error("website_read_failed", { step: "no_reader" });
     return keep({}, WEBSITE_UNREAD_WORDS.failed);
   }
-  const home = await homePage(url, { ...PAGE_READS.website, fresh });
+  const home = await findHomePage(url, { ...PAGE_READS.website, fresh });
   if (!home) return keep({}, WEBSITE_UNREAD_WORDS.silent);
   // The business's look, off the home page already in hand (decision 0075): its colour and the mark it declares,
   // worn where the workspace has none of its own and no person set them. Kept with the read, model or no model.
@@ -116,7 +119,7 @@ export async function readWebsite(
   const beside = await Promise.all(
     reads.map(async (r) => ({
       ...r,
-      page: await sitePage(r.at, { ...PAGE_READS.websitePage, fresh, timeoutMs: pageMs }),
+      page: await findSitePage(r.at, { ...PAGE_READS.websitePage, fresh, timeoutMs: pageMs }),
     })),
   );
   const pages = [{ at: url, page: home, booking: false }, ...beside].filter(
@@ -128,7 +131,7 @@ export async function readWebsite(
     // A booking platform's pictures are its own, not the business's.
     const own = pages.filter((p) => !p.booking).map((p) => p.page);
     await askForFoundFiles(db, tenantId, { source: "website", items: sitePhotosOf(own) }).catch((e: unknown) =>
-      L.warn("file_fetch_failed", { source: "website", error: errField(e) }),
+      log.warn("file_fetch_failed", { source: "website", error: errField(e) }),
     );
   }
   // A page is someone else's words, and its address too, which a link on the site can make say anything: both in its
@@ -149,19 +152,19 @@ export async function readWebsite(
       user,
       schema: WEBSITE_READ_SCHEMA,
       maxTokens: 2500,
-      plainJsonHint: "Answer with only a JSON object in the shape asked.",
+      plainJsonHint: ANSWER_JSON_ONLY,
       timeoutMs: ms,
       signal: AbortSignal.timeout(ms),
       for: { tenantId, subjectId: null, promptHash: promptHashOf(WEBSITE_READ_SYSTEM) },
     });
     answer = answered?.answer ?? null;
   } catch (e) {
-    L.warn("website_read_failed", { step: "reading", error: errField(e) });
+    log.warn("website_read_failed", { step: "reading", error: errField(e) });
     return keep({ look, booking_page }, WEBSITE_UNREAD_WORDS.failed);
   }
   const facts = businessReadFactsOf(answer);
   const found = facts.services.length + facts.rules.length + facts.answers.length + facts.closed.length;
-  L.info("website_read", { pages: pages.length, services: facts.services.length, found, booking: !!booking_page });
+  log.info("website_read", { pages: pages.length, services: facts.services.length, found, booking: !!booking_page });
   const kept: Json = {
     services: facts.services,
     closed: facts.closed,
@@ -236,7 +239,7 @@ export async function askWebsiteRead(
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const cfg = parseTenantConfig((await getTenantConfig(db, tenantId))?.config ?? null);
-  const listing = listingFactsOf(await listingFactsStored(db, tenantId).catch(() => null));
+  const listing = listingFactsOf(await findListingFactsStored(db, tenantId).catch(() => null));
   const website = cfg?.brain?.profile?.website ?? listing?.website ?? null;
   if (!feedUrlOk(website)) return json(200, { ok: true, asked: false });
   await scheduleWebsiteRead(db, tenantId, website);

@@ -30,11 +30,11 @@ import { json, refuse } from "../shared/http.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
-import { openingsFor, takesRequests } from "../calendar/availability.js";
+import { findOpenings, takesRequests } from "../calendar/availability.js";
 import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, UUID } from "@chanlytics/contracts";
 import { holdPlan, layerTwo } from "@chanlytics/core";
-import { oldestActiveChannel, type RoutedChannel } from "@chanlytics/db";
-import { brainCallOf, generateReply, type BrainReply } from "./brain.js";
+import { findOldestActiveChannel, type RoutedChannel } from "@chanlytics/db/channels";
+import { brainCallOf, generateReply, type BrainReply } from "../ai/receptionist-brain.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 
@@ -55,7 +55,7 @@ interface EvalCase {
  * hand a brain in, and the last two call POST the way Vercel calls it and
  * watch the real brain reach the model.
  */
-export interface BrainPort {
+export interface EvalBrainPort {
   generateReply?: typeof generateReply;
 }
 
@@ -86,7 +86,7 @@ function evalAnswer(
  * 0061). A workspace with no calendar is told the clock alone, as before; one that takes no requests answers as before.
  */
 async function turnOf(rt: TenantRuntime, now: Date) {
-  const openings = await openingsFor(rt, "chat", now);
+  const openings = await findOpenings(rt, "chat", now);
   const clock = describeNow(rt.timezone, now, rt.brain?.profile?.closures);
   const takes = takesRequests(rt);
   return {
@@ -108,27 +108,27 @@ ${openings}`
  * The words go out either way, as they do live: a hand-off sends them and holds the thread for a person. Under "ask" or
  * "never" the live receptionist is not asked at all (core reply-gates.ts), which the mode says.
  */
-function thenOf(rt: TenantRuntime, brainCfg: NonNullable<TenantRuntime["brain"]>, r: BrainReply, now: Date) {
+function thenOf(rt: TenantRuntime, brainCfg: NonNullable<TenantRuntime["brain"]>, brainReply: BrainReply, now: Date) {
   const reply = rt.policy["reply"];
   // A workspace with no reply row holds every message for a person, as the runtime reads it (an unexpected mode is ask).
   const mode = reply?.mode ?? "ask";
   const two = layerTwo({
-    replyText: r.text,
-    escalate: r.escalate,
-    escalationReason: r.reason ?? "human_token",
+    replyText: brainReply.text,
+    escalate: brainReply.escalate,
+    escalationReason: brainReply.reason ?? "human_token",
     brainCfg,
     policy: rt.policy,
-    intent: r.meta?.intent ?? null,
-    language: r.meta?.language ?? null,
+    intent: brainReply.meta?.intent ?? null,
+    language: brainReply.meta?.language ?? null,
     known: rt.known,
     tz: rt.timezone,
     now,
   });
-  const plan = holdPlan(mode, reply?.limits ?? {}, r.meta);
+  const plan = holdPlan(mode, reply?.limits ?? {}, brainReply.meta);
   return {
     mode,
     text: two.replyText,
-    changed: two.replyText === r.text ? null : two.priceBlocked ? "price" : two.askClass,
+    changed: two.replyText === brainReply.text ? null : two.priceBlocked ? "price" : two.askClass,
     escalate: two.escalate,
     reason: two.escalate ? two.escalationReason : null,
     hold_ms: plan.delayMs,
@@ -143,7 +143,7 @@ function thenOf(rt: TenantRuntime, brainCfg: NonNullable<TenantRuntime["brain"]>
  * builds its mailbox's the same way: a kind that is not WhatsApp binds no number and reads every setting by the tenant).
  */
 async function routedFor(db: NonNullable<ReturnType<typeof pg>>, tenantId: string): Promise<RoutedChannel | undefined> {
-  const routed = await oldestActiveChannel(db, tenantId, "whatsapp").catch(() => undefined);
+  const routed = await findOldestActiveChannel(db, tenantId, "whatsapp").catch(() => undefined);
   if (routed !== null) return routed;
   return {
     kind: "chat",
@@ -161,21 +161,23 @@ const CASE_MAX_CHARS = 500;
 
 /** The first case the door refuses, in its own words; null where every one is whole. */
 function caseRefusal(cases: readonly EvalCase[]): Response | null {
-  for (const c of cases) {
+  for (const otherCase of cases) {
     if (
-      !c ||
-      typeof c.id !== "string" ||
-      typeof c.text !== "string" ||
-      !c.text.trim() ||
-      c.text.length > CASE_MAX_CHARS
+      !otherCase ||
+      typeof otherCase.id !== "string" ||
+      typeof otherCase.text !== "string" ||
+      !otherCase.text.trim() ||
+      otherCase.text.length > CASE_MAX_CHARS
     ) {
       return refuse(400, "bad_request", `each case needs an id and a text of 1-${CASE_MAX_CHARS} chars`);
     }
     if (
-      c.history &&
-      (!Array.isArray(c.history) ||
-        c.history.length > 12 ||
-        c.history.some((h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string"))
+      otherCase.history &&
+      (!Array.isArray(otherCase.history) ||
+        otherCase.history.length > 12 ||
+        otherCase.history.some(
+          (h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string",
+        ))
     ) {
       return refuse(400, "bad_request", "history is up to 12 turns of { role, content }");
     }
@@ -186,9 +188,9 @@ function caseRefusal(cases: readonly EvalCase[]): Response | null {
 export async function evaluateCases(
   auth: Admitted,
   body: Partial<{ tenant_id?: string; cases?: EvalCase[] }>,
-  brain?: BrainPort | null,
+  brain?: EvalBrainPort | null,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const ask = brain?.generateReply ?? generateReply;
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
   const ws = workspaceFor(auth, body.tenant_id);
@@ -218,25 +220,35 @@ export async function evaluateCases(
   const holding = fallbackMessages(rt.brain, rt.known).error;
   const call = { ...brainCallOf(tenantId, rt), ...asks };
   const results = [];
-  for (const c of cases) {
+  for (const otherCase of cases) {
     const t0 = Date.now();
     try {
-      const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote, undefined, undefined, call);
+      const result = await ask(
+        otherCase.history ?? [],
+        otherCase.text,
+        system,
+        holding,
+        undefined,
+        nowNote,
+        undefined,
+        undefined,
+        call,
+      );
       results.push({
-        id: c.id,
+        id: otherCase.id,
         ok: true,
-        text: r.text,
-        escalate: r.escalate,
-        reason: r.reason ?? null,
-        meta: r.meta ?? null,
-        usage: r.usage ?? null,
+        text: result.text,
+        escalate: result.escalate,
+        reason: result.reason ?? null,
+        meta: result.meta ?? null,
+        usage: result.usage ?? null,
         ms: Date.now() - t0,
-        then: thenOf(rt, rt.brain, r, now),
-        ...said(r),
+        then: thenOf(rt, rt.brain, result, now),
+        ...said(result),
       });
     } catch (e) {
       results.push({
-        id: c.id,
+        id: otherCase.id,
         ok: false,
         error: String(e instanceof Error ? e.message : e).slice(0, 200),
         ms: Date.now() - t0,
@@ -244,7 +256,7 @@ export async function evaluateCases(
     }
   }
   // The texts are the model's and stay out of the log; the count and the time are what a search needs.
-  L.info("admin_eval", {
+  log.info("admin_eval", {
     tenant_id: tenantId,
     cases: cases.length,
     ms: Date.now() - now.getTime(),

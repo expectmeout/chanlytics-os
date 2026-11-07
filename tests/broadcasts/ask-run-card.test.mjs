@@ -13,11 +13,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ASK_MORNING_EDITED_QUESTION,
   ASK_MORNING_QUESTION,
-  PROPOSAL_SPECS,
   SEQUENCE_ACT_WHY,
   SEQUENCE_FLOW_WORDS,
   localDate,
   runDayPassed,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -26,7 +26,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/bridge/ask/commit.ts"));

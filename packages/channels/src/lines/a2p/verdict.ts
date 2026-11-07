@@ -45,24 +45,26 @@ export interface CampaignError {
 // rejection reason that says nothing at all.
 const PREAMBLE = /^the campaign submission has been reviewed and (?:it was )?rejected because\s*(?:of\s*)?/i;
 
-export function refusalWords(o: {
+export function refusalWords(options: {
   brandFailureReason?: string | null;
   campaignErrors?: readonly CampaignError[] | null;
 }): string | null {
   const parts: string[] = [];
-  const brand = (o.brandFailureReason ?? "").trim();
+  const brand = (options.brandFailureReason ?? "").trim();
   if (brand) parts.push(brand);
-  for (const e of o.campaignErrors ?? []) {
-    const said = String(e?.description ?? "");
+  for (const error of options.campaignErrors ?? []) {
+    const sentence = String(error?.description ?? "");
     // A trailing full stop before the code reads as a false sentence end.
-    const body = said.replace(PREAMBLE, "").trim().replace(/\.$/, "").trim();
+    const body = sentence.replace(PREAMBLE, "").trim().replace(/\.$/, "").trim();
     // Nothing left once the boilerplate is gone: contributing an empty string
     // here would make the whole result a non-null empty string, and every caller
     // uses `?? fallback` -- which an empty string sails straight past.
     if (!body) continue;
     // The code and the field are what a resubmit is aimed at, so they travel
     // with the sentence rather than in a log line nobody opens.
-    const tags = [e?.error_code == null ? null : String(e.error_code), ...(e?.fields ?? [])].filter(Boolean);
+    const tags = [error?.error_code == null ? null : String(error.error_code), ...(error?.fields ?? [])].filter(
+      Boolean,
+    );
     parts.push(tags.length ? `${body} (${tags.join(" · ")})` : body);
   }
   if (!parts.length) return null;
@@ -72,13 +74,13 @@ export function refusalWords(o: {
 /** Twilio's brand and campaign statuses, in the words `lines.sms_state` uses. */
 export type SmsRegistrationState = "registering" | "approved" | "active" | "rejected" | "failed";
 
-export function smsStateFor(o: {
+export function smsStateFor(options: {
   brandStatus?: string | null;
   campaignStatus?: string | null;
   mock?: boolean;
 }): SmsRegistrationState {
-  const brand = (o.brandStatus ?? "").toUpperCase();
-  const campaign = (o.campaignStatus ?? "").toUpperCase();
+  const brand = (options.brandStatus ?? "").toUpperCase();
+  const campaign = (options.campaignStatus ?? "").toUpperCase();
   if (brand === "FAILED" || campaign === "FAILED") return "rejected";
   if (brand === "SUSPENDED") return "failed";
   // A verified campaign IS the permission, and the number is already in the
@@ -93,7 +95,7 @@ export function smsStateFor(o: {
   // would be rejected by the carriers and the customer would get silence.
   // A verified mock has proved everything a rehearsal can prove, which is what
   // `approved` means.
-  if (campaign === "VERIFIED") return o.mock ? "approved" : "active";
+  if (campaign === "VERIFIED") return options.mock ? "approved" : "active";
   // Two quite different waits were one word. The business being approved is
   // the slow half and the half that can be refused; once it is through, what
   // is left is the campaign, which is days rather than weeks.
@@ -110,7 +112,7 @@ export function smsStateFor(o: {
 export function registrationVerdict(
   before: string,
   after: SmsRegistrationState,
-  o: { number: string | null; reason?: string | null; mock?: boolean },
+  options: { number: string | null; reason?: string | null; mock?: boolean },
 ): {
   kind: "number" | "alert";
   title: string;
@@ -119,8 +121,8 @@ export function registrationVerdict(
   event: "line.texting_on" | "line.texting_rejected" | "line.texting_approved";
 } | null {
   if (before === after) return null;
-  const num = o.number ?? "your line";
-  const rehearsal = o.mock ? " (this was a test filing, so nothing routes)" : "";
+  const num = options.number ?? "your line";
+  const rehearsal = options.mock ? " (this was a test filing, so nothing routes)" : "";
   if (after === "active") {
     return {
       kind: "number",
@@ -151,7 +153,7 @@ export function registrationVerdict(
     return {
       kind: "alert",
       title: "The carriers sent your texting registration back",
-      body: `${o.reason ? `They said: ${o.reason}. ` : ""}Open Connections, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
+      body: `${options.reason ? `They said: ${options.reason}. ` : ""}Open Connections, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
       route: "admin/integrations",
       event: "line.texting_rejected",
     };
@@ -160,7 +162,7 @@ export function registrationVerdict(
     return {
       kind: "alert",
       title: "Your texting registration stopped",
-      body: `${o.reason ? `The carriers said: ${o.reason}. ` : ""}A person at Chanlytics has it — there is nothing for you to do. Calls and WhatsApp are unaffected.`,
+      body: `${options.reason ? `The carriers said: ${options.reason}. ` : ""}A person at Chanlytics has it — there is nothing for you to do. Calls and WhatsApp are unaffected.`,
       route: "admin/integrations",
       event: "line.texting_rejected",
     };

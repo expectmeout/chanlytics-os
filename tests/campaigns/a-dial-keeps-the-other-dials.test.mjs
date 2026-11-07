@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setPolicyMode } from "@chanlytics/db";
+import { setPolicyMode } from "@chanlytics/db/workspace";
 import { fakeDb } from "../_fake-db.mjs";
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

@@ -7,9 +7,8 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   businessGap,
-  PROFILE_CROSSING_WORDS,
   hasProfile,
-  hoursLines,
+  calendarHoursLines,
   openWeekWords,
   closuresAheadWords,
   toCalendarVM,
@@ -23,6 +22,7 @@ import {
   MAX_INTERVALS_PER_DAY,
   MAX_CLOSURES,
 } from "@chanlytics/contracts";
+import { PROFILE_CROSSING_WORDS } from "../../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
 import { CALENDAR_PAGE } from "../../../apps/dashboard/src/surfaces/calendar/words.ts";
 import {
   unmount,
@@ -78,7 +78,7 @@ const copyTo = (tree, flash, words) => {
   return redrawTab(flash);
 };
 /** The card's summary is the composer's own run-collapsing, joined. Never a second implementation. */
-const summaryOf = (hours) => hoursLines(hours).join(" · ");
+const summaryOf = (hours) => calendarHoursLines(hours).join(" · ");
 
 test("When you're open draws three rows in the spec's order, under a line contracts wrote", () => {
   const tree = drawTab();

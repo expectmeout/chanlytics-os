@@ -11,10 +11,17 @@ export type CsvCell = string | number | boolean | null | undefined;
  * One rule for every file the product writes: the route's export of everyone (apps/dashboard/src/server/export.ts)
  * and the page's export of a selection (clients-a.jsx, through window.__csvCell), which quoted and nothing more.
  */
-export function csvCell(v: CsvCell): string {
-  let s = v == null ? "" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+export function csvCell(otherCsvCell: CsvCell): string {
+  let text =
+    otherCsvCell == null
+      ? ""
+      : typeof otherCsvCell === "boolean"
+        ? otherCsvCell
+          ? "yes"
+          : "no"
+        : String(otherCsvCell);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 /* ------------------------------------------------------------------ reading a file */
@@ -38,8 +45,8 @@ function delimiterOf(text: string): "," | ";" {
  * non-enumerable properties, so a row still compares equal to a plain array literal in a test.
  */
 export function parseCsv(text: string): string[][] {
-  const s = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  const sep = delimiterOf(s);
+  const items = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const sep = delimiterOf(items);
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -50,13 +57,13 @@ export function parseCsv(text: string): string[][] {
     Object.defineProperty(row, "line", { value: rowStartLine, enumerable: false });
     rows.push(row);
   };
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
+  for (let index = 0; index < items.length; index++) {
+    const ch = items[index];
     if (quoted) {
       if (ch === '"') {
-        if (s[i + 1] === '"') {
+        if (items[index + 1] === '"') {
           cell += '"';
-          i++;
+          index++;
         } else quoted = false;
       } else {
         if (ch === "\n") lineNo++; // a newline embedded in a quoted cell still advances the file's line count
@@ -137,10 +144,10 @@ const FACT_WORDS: ReadonlyArray<["lastVisit" | "visits" | "birthday" | "notes", 
  * normalizePhone's 8-digit floor on purpose — this decides which COLUMN is the phone column, and the looser floor
  * (meant for a value already known to be a phone) would let a Birthday, a Zip+4 or a visit count win it instead.
  * normalizePhone still decides the stored value once the column is found. People's import and a list of leads
- * (leads/lead-import.ts) both find their columns with these rules.
+ * (leads/import.ts) both find their columns with these rules.
  */
-export function phoneShaped(v: string): boolean {
-  return /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 10;
+export function phoneShaped(value: string): boolean {
+  return /^\+?[\d\s().-]+$/.test(value) && value.replace(/\D/g, "").length >= 10;
 }
 
 /** A file's first row is a header when none of its cells is a number or an address. */
@@ -181,15 +188,15 @@ export function matchColumns(
   const columns: ImportColumns = { name: null, last: null, phone: null, email: null };
   if (opts.facts) Object.assign(columns, { lastVisit: null, visits: null, birthday: null, notes: null });
   if (header) {
-    first.forEach((h, i) => {
-      const w = h.trim();
-      if (columns.email === null && EMAIL_WORDS.test(w)) columns.email = i;
-      else if (columns.phone === null && PHONE_WORDS.test(w)) columns.phone = i;
-      else if (columns.last === null && LAST_WORDS.test(w)) columns.last = i;
-      else if (columns.name === null && NAME_WORDS.test(w)) columns.name = i;
+    first.forEach((text, index) => {
+      const result = text.trim();
+      if (columns.email === null && EMAIL_WORDS.test(result)) columns.email = index;
+      else if (columns.phone === null && PHONE_WORDS.test(result)) columns.phone = index;
+      else if (columns.last === null && LAST_WORDS.test(result)) columns.last = index;
+      else if (columns.name === null && NAME_WORDS.test(result)) columns.name = index;
       else if (opts.facts) {
-        const fact = FACT_WORDS.find(([key, words]) => columns[key] === null && words.test(w));
-        if (fact) columns[fact[0]] = i;
+        const fact = FACT_WORDS.find(([key, words]) => columns[key] === null && words.test(result));
+        if (fact) columns[fact[0]] = index;
       }
     });
   }
@@ -271,34 +278,34 @@ const dateKey = (y: number | null, m: number, d: number): string | null =>
  * guess: "05/06" is May 6th here, never the fifth of June.
  */
 export function fileDateOf(raw: string): string | null {
-  const v = raw.trim();
-  const [, isoY, isoM, isoD] = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/.exec(v) ?? [];
+  const text = raw.trim();
+  const [, isoY, isoM, isoD] = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/.exec(text) ?? [];
   if (isoY) return dateKey(+isoY, Number(isoM), Number(isoD));
-  const [, usM, usD, usY] = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/.exec(v) ?? [];
+  const [, usM, usD, usY] = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/.exec(text) ?? [];
   if (usM) return dateKey(usY ? fullYear(usY) : null, +usM, Number(usD));
-  const [, mfMonth, mfD, mfY] = /^([A-Za-z]{3,9})\.? (\d{1,2})(?:,? (\d{4}))?$/.exec(v) ?? [];
+  const [, mfMonth, mfD, mfY] = /^([A-Za-z]{3,9})\.? (\d{1,2})(?:,? (\d{4}))?$/.exec(text) ?? [];
   if (mfMonth) return dateKey(mfY ? +mfY : null, monthNumberOf(mfMonth), Number(mfD));
-  const [, dfD, dfMonth, dfY] = /^(\d{1,2}) ([A-Za-z]{3,9})\.?(?:,? (\d{4}))?$/.exec(v) ?? [];
+  const [, dfD, dfMonth, dfY] = /^(\d{1,2}) ([A-Za-z]{3,9})\.?(?:,? (\d{4}))?$/.exec(text) ?? [];
   if (dfD) return dateKey(dfY ? +dfY : null, monthNumberOf(dfMonth), +dfD);
   return null;
 }
 
 /** What a line says beyond who the person is, read by the rules above; none where it says nothing. */
 function fileFactsOf(
-  r: string[],
+  texts: string[],
   columns: ImportColumns,
   cell: (r: string[], i: number | null) => string,
 ): ImportFacts | undefined {
   const facts: ImportFacts = {};
-  const last = fileDateOf(cell(r, columns.lastVisit ?? null));
+  const last = fileDateOf(cell(texts, columns.lastVisit ?? null));
   // A last visit has its year: a day and a month alone could be any year's.
   if (last && !last.startsWith("--")) facts.last_visit = last;
-  const visits = cell(r, columns.visits ?? null).replace(/,/g, "");
+  const visits = cell(texts, columns.visits ?? null).replace(/,/g, "");
   if (/^\d{1,6}$/.test(visits)) facts.visits = Number(visits);
-  const birthday = fileDateOf(cell(r, columns.birthday ?? null));
+  const birthday = fileDateOf(cell(texts, columns.birthday ?? null));
   if (birthday) facts.birthday = birthday;
   // contacts.notes holds 1 to 600 characters; longer notes are cut at a code point, never mid-emoji.
-  const notes = Array.from(cell(r, columns.notes ?? null).replace(/\s+/g, " "))
+  const notes = Array.from(cell(texts, columns.notes ?? null).replace(/\s+/g, " "))
     .slice(0, 600)
     .join("")
     .trim();
@@ -309,24 +316,24 @@ function fileFactsOf(
 /** The rows as the door takes them: the one phone rule, the one email rule, a name of at most 80 characters. */
 export function importRowsOf(rows: string[][], columns: ImportColumns, header: boolean): ImportRow[] {
   const cell = (r: string[], i: number | null): string => (i === null ? "" : (r[i] ?? "").trim());
-  return (header ? rows.slice(1) : rows).map((r, n) => {
+  return (header ? rows.slice(1) : rows).map((item, count) => {
     // Array.from, not .slice: an 80th code point landing mid-emoji must not cut the surrogate pair in half. trim:
     // truncation can land exactly on the space the join above put between the two names.
     const name = Array.from(
-      [cell(r, columns.name), cell(r, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " "),
+      [cell(item, columns.name), cell(item, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " "),
     )
       .slice(0, 80)
       .join("")
       .trim();
     // parseCsv carries the file's own 1-based line on each row it returns; a row built some other way (or a future
     // caller that hand-assembles string[][]) falls back to counting from the header instead of losing the field.
-    const carried = (r as { line?: number }).line;
-    const facts = fileFactsOf(r, columns, cell);
+    const carried = (item as { line?: number }).line;
+    const facts = fileFactsOf(item, columns, cell);
     return {
-      line: carried ?? n + (header ? 2 : 1),
+      line: carried ?? count + (header ? 2 : 1),
       name: name || null,
-      phone: normalizePhone(cell(r, columns.phone)),
-      email: normalizeEmail(cell(r, columns.email)),
+      phone: normalizePhone(cell(item, columns.phone)),
+      email: normalizeEmail(cell(item, columns.email)),
       ...(facts ? { facts } : {}),
     };
   });

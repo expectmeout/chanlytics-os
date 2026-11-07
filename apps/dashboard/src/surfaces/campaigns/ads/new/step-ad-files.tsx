@@ -6,7 +6,8 @@
 import { useState } from "react";
 import { FILE_WORDS, fileSaidOf, fileViewOf } from "@chanlytics/contracts";
 import type { FileDto } from "@chanlytics/contracts";
-import { NEW_AD, adFileNotes } from "@chanlytics/contracts/ads-page";
+import { NEW_AD } from "../model/words-new";
+import { adFileNotes } from "../model/new-ad-parts";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { routeDoor } from "../../../frame-verbs";

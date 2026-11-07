@@ -5,7 +5,7 @@
  * sheet: what an Approve says, with its Stop, outlives the sheet that closed over it (the run review's item 6).
  */
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { seeValueOf, type SeeRef } from "@chanlytics/contracts";
+import { seeValueOf, type SeeRef } from "./over";
 import { useFrameToast } from "../frame-verbs";
 import { hearSeeOver, seeOverNow } from "./see-over";
 

@@ -117,12 +117,12 @@ export function peopleDtoOf(
     head: { timezone: string; today: string; end?: string; days: number };
   },
 ): PeopleDto {
-  const asked = series ?? parts.head;
+  const request = series ?? parts.head;
   return {
-    timezone: asked.timezone,
-    today: asked.today,
-    ...(asked.end === undefined ? {} : { end: asked.end }),
-    days: asked.days,
+    timezone: request.timezone,
+    today: request.today,
+    ...(request.end === undefined ? {} : { end: request.end }),
+    days: request.days,
     series,
     now: parts.now,
   };

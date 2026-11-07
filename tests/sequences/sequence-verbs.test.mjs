@@ -1,5 +1,5 @@
 /**
- * The Sequences page's verbs (decision 0060, contracts ask/proposals/sequences.ts), executed through the one table every
+ * The Sequences page's verbs (decision 0060, contracts ask/proposals/sequences/specs.ts), executed through the one table every
  * sheet and card commits by (verbSpec): each makes the call its door takes, says its receipt from the door's answer, and
  * keeps an undo that is the door's own way back, or none where nothing comes back (a step taken away, a draft let go).
  * What a step's verb sends is what its door takes: the route's own body (server/campaigns/sequences/bodies.ts) parses it.

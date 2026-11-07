@@ -266,7 +266,7 @@ function matches(row, filters, defaults = {}) {
                           // the oldest" -- and that is a filter, not a shape a source scan can see.
                           op === "or"
                           ? orClauses(val).some(function holds(clause) {
-                              // A keyset's place in an order: this time and past this id (db filesOnShelfOf).
+                              // A keyset's place in an order: this time and past this id (db listFilesOnShelf).
                               if (clause.startsWith("and(")) return orClauses(clause.slice(4, -1)).every(holds);
                               // The value may hold dots (a phone, a name): the column and the
                               // operator are the first two segments, the rest is the value.
@@ -290,7 +290,7 @@ function matches(row, filters, defaults = {}) {
                                   .toLowerCase()
                                   .includes(v.replace(/\*/g, "").toLowerCase());
                               // A list, `in.(a,b)` or quoted `in.("a","b")`: modelled for the people with visits before
-                              // the season (db peopleWithEarlierVisits), asked of several by id, number or address at
+                              // the season (db findPeopleWithEarlierVisits), asked of several by id, number or address at
                               // once. NULL is in no list.
                               if (o === "in")
                                 return cell(row, c) != null && listValues(v).includes(String(cell(row, c)));
@@ -1664,7 +1664,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
     // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of
-    // "<tenant>:<value>", in order, null for null (contracts' legacyErasedPhoneHash is the same bytes).
+    // "<tenant>:<value>", in order, null for null (contracts' hashLegacyErasedPhone is the same bytes).
     erasure_digests: ({ p_tenant_id, p_values }) =>
       (p_values ?? []).map((v) =>
         v == null ? null : crypto.createHash("sha256").update(`${p_tenant_id}:${v}`, "utf8").digest("hex"),

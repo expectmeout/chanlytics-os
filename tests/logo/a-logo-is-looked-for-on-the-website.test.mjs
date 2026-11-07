@@ -8,7 +8,9 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { parseTenantConfig } from "@chanlytics/contracts";
-import { setPublicFetch, setSitePageReader, signEdgeToken } from "@chanlytics/channels";
+import { setPublicFetch } from "@chanlytics/channels/shared";
+import { setSitePageReader } from "@chanlytics/channels/website";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 

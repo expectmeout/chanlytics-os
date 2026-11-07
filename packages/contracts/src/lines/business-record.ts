@@ -34,7 +34,7 @@ import {
 } from "./a2p-enums";
 import { registrationPathOf, SOLE_PROP_LIMITS, type RegistrationPath } from "./registration-path";
 import { isPublishedFact } from "./published-facts";
-import { E164 } from "../config/workspace-config/config-rules";
+import { E164 } from "../shared/phone";
 
 export interface BusinessRecordDto {
   legal_name: string;
@@ -241,7 +241,7 @@ const BUILT: Partial<Record<RegistrationPath, readonly BusinessFieldVM[]>> = {};
 export function businessFieldsFor(path: RegistrationPath): readonly BusinessFieldVM[] {
   const built = BUILT[path];
   if (built) return built;
-  const made = PATH_FIELDS[path].map((a) => ({
+  const created = PATH_FIELDS[path].map((a) => ({
     ...FIELD[a.name],
     name: a.name,
     required: a.required,
@@ -249,8 +249,8 @@ export function businessFieldsFor(path: RegistrationPath): readonly BusinessFiel
     ...(a.label ? { label: a.label } : {}),
     ...(a.hint ? { hint: a.hint } : {}),
   }));
-  BUILT[path] = made;
-  return made;
+  BUILT[path] = created;
+  return created;
 }
 
 /** The headings over each part of the form. A sole proprietor has no tax filing, so the standard headings would be lying. */
@@ -276,14 +276,14 @@ export function businessGroupWordsFor(
 
 /** What a column is called where a person reads it (the activity log's line for a save): the form's label, or its name in words. */
 export function businessFieldLabel(column: string): string {
-  const asked: Partial<Record<string, FieldShape>> = FIELD;
+  const record: Partial<Record<string, FieldShape>> = FIELD;
   const label =
-    asked[column]?.label ?? (column === "contact_job_position" ? "Job position" : column.replace(/_/g, " "));
+    record[column]?.label ?? (column === "contact_job_position" ? "Job position" : column.replace(/_/g, " "));
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 /** An empty record, with the defaults the carriers accept already chosen. */
-export function emptyBusinessRecord(o: { websiteUrl?: string; email?: string } = {}): BusinessRecordDto {
+export function emptyBusinessRecord(options: { websiteUrl?: string; email?: string } = {}): BusinessRecordDto {
   return {
     legal_name: "",
     trade_name: null,
@@ -294,14 +294,14 @@ export function emptyBusinessRecord(o: { websiteUrl?: string; email?: string } =
     region: "",
     postal_code: "",
     country: "US",
-    website_url: o.websiteUrl ?? "",
+    website_url: options.websiteUrl ?? "",
     industry: DEFAULT_INDUSTRY,
     about: "",
     business_type: DEFAULT_BUSINESS_TYPE,
     company_type: DEFAULT_COMPANY_TYPE,
     contact_first_name: "",
     contact_last_name: "",
-    contact_email: o.email ?? "",
+    contact_email: options.email ?? "",
     contact_phone: "",
     contact_title: "Owner",
     contact_job_position: "Director",
@@ -341,38 +341,38 @@ export interface RecordCheckFacts {
  * was missing.
  */
 export function businessRecordProblems(
-  r: Partial<BusinessRecordDto>,
+  business: Partial<BusinessRecordDto>,
   path: RegistrationPath,
   facts: RecordCheckFacts = {},
 ): Partial<Record<keyof BusinessRecordDto, string>> {
   const out: Partial<Record<keyof BusinessRecordDto, string>> = {};
-  const has = (k: keyof BusinessRecordDto) => String(r[k] ?? "").trim().length > 0;
+  const has = (k: keyof BusinessRecordDto) => String(business[k] ?? "").trim().length > 0;
   // Missing before malformed, in the order the form asks: the first problem is
   // the one the page shows, and "your name is needed" beats "that ZIP is odd"
   // when both are true.
   for (const f of businessFieldsFor(path)) if (f.required && !has(f.name)) out[f.name] = `${f.label} is needed.`;
-  if (has("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
-  if (has("contact_email") && !EMAIL.test(String(r.contact_email).trim()))
+  if (has("ein") && !EIN.test(String(business.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
+  if (has("contact_email") && !EMAIL.test(String(business.contact_email).trim()))
     out.contact_email = "That does not look like an email address.";
-  if (has("contact_phone") && !E164.test(String(r.contact_phone).replace(/[\s()-]/g, "")))
+  if (has("contact_phone") && !E164.test(String(business.contact_phone).replace(/[\s()-]/g, "")))
     out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
   // Enough to tell a reviewer what the business is, and no more than the pages and the filing carry.
-  if (has("about") && String(r.about).trim().length < ABOUT_MIN)
+  if (has("about") && String(business.about).trim().length < ABOUT_MIN)
     out.about = "Say a little more: what you sell, and who buys it.";
-  if (String(r.about ?? "").trim().length > ABOUT_MAX) out.about = `Keep it under ${ABOUT_MAX} characters.`;
-  if (has("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
-  if (has("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim()))
+  if (String(business.about ?? "").trim().length > ABOUT_MAX) out.about = `Keep it under ${ABOUT_MAX} characters.`;
+  if (has("region") && !REGION.test(String(business.region).trim())) out.region = "Two letters, like NY.";
+  if (has("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(business.website_url).trim()))
     out.website_url = "A full address a reviewer can open, starting with https://";
   // Not a form field — it is "US" unless something hand-built says otherwise —
   // but the carriers only register businesses in two countries, and a refusal
   // for this arrives days later saying nothing a person can act on.
-  if (has("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
+  if (has("country") && !REGISTERABLE_COUNTRIES.includes(String(business.country).trim().toUpperCase())) {
     out.country = "The carriers register US and Canadian businesses only. Ours is not a door we can open.";
   }
   if (
     path === "sole_proprietor" &&
     has("contact_phone") &&
-    (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))
+    (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(business.contact_phone)))
   ) {
     out.contact_phone =
       "This is the number Chanlytics answers for you. The carriers need YOUR handset — they text a code to it and you reply from the phone in your hand.";
@@ -390,20 +390,20 @@ export function businessRecordProblems(
  * ownership columns are left at their defaults rather than blanked: they are
  * not null, nothing on this path sends them, and a default is not a claim.
  */
-export function businessRecordForPath<T extends Partial<BusinessRecordDto>>(r: T, path: RegistrationPath): T {
-  return path === "standard" ? r : { ...r, ein: null };
+export function businessRecordForPath<T extends Partial<BusinessRecordDto>>(item: T, path: RegistrationPath): T {
+  return path === "standard" ? item : { ...item, ein: null };
 }
 
 /** What the pane says about the record as it stands. */
-export function businessRecordLine(r: BusinessRecordDto | null): string {
-  if (!r) return "The carriers ask who you are before they let a number text. It takes two minutes, once.";
+export function businessRecordLine(business: BusinessRecordDto | null): string {
+  if (!business) return "The carriers ask who you are before they let a number text. It takes two minutes, once.";
   // A record on file is on the path its own tax id says it is on — see
   // ./registration-path for why that reads back exactly.
-  const path = registrationPathOf(r) ?? "standard";
-  const problems = businessRecordProblems(r, path);
+  const path = registrationPathOf(business) ?? "standard";
+  const problems = businessRecordProblems(business, path);
   const missing = Object.keys(problems).length;
   if (missing) return `${missing} thing${missing === 1 ? "" : "s"} still to fill in before this can be filed.`;
   const capped =
     path === "sole_proprietor" ? ` · one number, about ${SOLE_PROP_LIMITS.messagesPerSecond} text a second` : "";
-  return `${r.legal_name}${r.trade_name ? ` (${r.trade_name})` : ""} · ${r.city}, ${r.region} · on record${capped}.`;
+  return `${business.legal_name}${business.trade_name ? ` (${business.trade_name})` : ""} · ${business.city}, ${business.region} · on record${capped}.`;
 }

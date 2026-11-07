@@ -1,7 +1,7 @@
 /**
  * What a connected mailbox signs its emails with (00487, the email canvas's lane B). A reply sent from Chanlytics left
  * unsigned, ending on "Talk soon,", where the same reply written in Gmail carries the owner's signature. Gmail keeps it
- * as HTML (gmailSignature reads it): sent as it is, cleaned of what an email never carries; said everywhere else as
+ * as HTML (readGmailSignature reads it): sent as it is, cleaned of what an email never carries; said everywhere else as
  * words, never drawn as markup. Which one a mailbox signs with is contracts' rule (mailboxSignsOf).
  */
 import { convert } from "html-to-text";

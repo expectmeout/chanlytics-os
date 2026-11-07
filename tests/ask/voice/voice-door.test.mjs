@@ -20,11 +20,11 @@ delete process.env.ASK_MODEL;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { voiceDoor } = await import(at("apps/dashboard/src/server/ask/voice-door.ts"));
+const { runVoiceDoor } = await import(at("apps/dashboard/src/server/ask/voice-door.ts"));
 const { createVoiceSession } = await import(at("apps/dashboard/src/server/ask/voice-session.ts"));
-const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop/turn-head.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 beforeEach(() => readerCache.clear());
@@ -133,7 +133,7 @@ const body = (S, over = {}) => ({
   ...over,
 });
 const knock = (w, b = body(w.S), headers = { "x-chanlytics-agent": process.env.ELEVENLABS_LLM_SECRET }) =>
-  voiceDoor(
+  runVoiceDoor(
     new Request("http://localhost/api/ask/voice/llm/chat/completions", {
       method: "POST",
       headers: { ...headers, "content-type": "application/json" },

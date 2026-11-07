@@ -9,9 +9,10 @@ import { readBody } from "../../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { makePreviewFor } from "../../../lib/previews/make.js";
+import { PREVIEW_MAKE_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/previews/make");
   if (!auth.ok) return auth.response;
-  return makePreviewFor(auth, await readBody(request));
+  return makePreviewFor(auth, await readBody(request, PREVIEW_MAKE_DOOR));
 });

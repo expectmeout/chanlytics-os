@@ -41,19 +41,20 @@
  */
 import { text } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
-import { keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { SMS_OPTED_OUT_CODE, smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "@chanlytics/channels";
-import { recordLateCarrierOptOut, recordStatusByExternalId, type LateCarrierStop } from "@chanlytics/db";
-import { flagLateFailure } from "../receptionist/late-failure.js";
-import { lineByNumber, lineAccount } from "./sms.js";
-import { pageOperator, type PageOutcome } from "../ops/page-operator.js";
+import { keepDelivery, signatureHeaders } from "../shared/keep-event.js";
+import { SMS_OPTED_OUT_CODE, smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "@chanlytics/channels/lines";
+import { recordLateCarrierOptOut, type LateCarrierStop } from "@chanlytics/db/campaigns";
+import { recordStatusByExternalId } from "@chanlytics/db/channels";
+import { flagLateFailure } from "../shared/late-failure.js";
+import { findLineByNumber, findLineAccount } from "../lines/sms.js";
+import { pageOperator, type PageOutcome } from "../shared/alerts/page-operator.js";
 import { logger } from "../shared/log.js";
 import { phoneTail } from "@chanlytics/contracts";
 
 const empty = (status: number) => text(status, "", { "content-type": "text/plain" });
 
 /**
- * A carrier's report the database would not take, told to the platform (ops/page-operator.ts), under the workspace's
+ * A carrier's report the database would not take, told to the platform (shared/alerts/page-operator.ts), under the workspace's
  * own key: `sms_status_unrecorded:<tenant_id>`, so a database that refuses every report pages a few times a day, not
  * once a text. Names the delivery's replay key and never a number or the words. Never throws: a page that could not
  * go is its outcome, said on the door's line.
@@ -61,20 +62,20 @@ const empty = (status: number) => text(status, "", { "content-type": "text/plain
 async function pageLostReport(
   db: NonNullable<ReturnType<typeof pg>>,
   tenantId: string,
-  f: { replay: string; kept: boolean; status: string; error: string },
+  fields: { replay: string; kept: boolean; status: string; error: string },
 ): Promise<PageOutcome> {
   return pageOperator(
     { db },
     `sms_status_unrecorded:${tenantId}`,
     `A text's delivery report could not be recorded in workspace ${tenantId.slice(0, 8)}`,
     [
-      `Twilio reported "${f.status}" for a text and the database would not take it: ${f.error}`,
+      `Twilio reported "${fields.status}" for a text and the database would not take it: ${fields.error}`,
       "Twilio does not send a status callback again, so until it is replayed the text reads as sent, and a reply the carrier refused is not flagged for the owner.",
       "",
       `Workspace: ${tenantId}`,
-      f.kept
-        ? `Replay it once the database is well: POST /api/admin/intake/replay {"provider":"twilio","provider_event_id":"${f.replay}"}. Any others are on the log as sms_status_record_failed, each with its key.`
-        : `It could not be kept in the intake ledger either (${f.replay}): read the message's status in Twilio's console.`,
+      fields.kept
+        ? `Replay it once the database is well: POST /api/admin/intake/replay {"provider":"twilio","provider_event_id":"${fields.replay}"}. Any others are on the log as sms_status_record_failed, each with its key.`
+        : `It could not be kept in the intake ledger either (${fields.replay}): read the message's status in Twilio's console.`,
       "",
       "This page comes at most once in six hours for the workspace.",
     ].join("\n"),
@@ -85,40 +86,45 @@ export async function receiveSmsStatus(request: Request): Promise<Response> {
   const raw = await request.text();
   const form: Record<string, string> = {};
   for (const [k, v] of new URLSearchParams(raw)) form[k] = v;
-  const s = smsStatusFrom(form);
-  if (!s) return empty(400);
-  const L = logger({ sid: s.messageSid, status: s.status, to_tail: phoneTail(s.to), from_tail: phoneTail(s.from) });
+  const smsStatus = smsStatusFrom(form);
+  if (!smsStatus) return empty(400);
+  const log = logger({
+    sid: smsStatus.messageSid,
+    status: smsStatus.status,
+    to_tail: phoneTail(smsStatus.to),
+    from_tail: phoneTail(smsStatus.from),
+  });
 
   const db = pg();
   if (!db) return empty(503);
 
   let line, acct;
   try {
-    line = await lineByNumber(db, s.from);
-    acct = line ? await lineAccount(db, line) : null;
+    line = await findLineByNumber(db, smsStatus.from);
+    acct = line ? await findLineAccount(db, line) : null;
   } catch (e) {
-    L.error("sms_status_line_unreadable", { error: e instanceof Error ? e.message : String(e) });
+    log.error("sms_status_line_unreadable", { error: e instanceof Error ? e.message : String(e) });
     return empty(503);
   }
   if (!line) {
-    L.warn("sms_status_unknown_line");
+    log.warn("sms_status_unknown_line");
     return empty(404);
   }
   if (!acct) {
-    L.error("sms_status_line_without_account");
+    log.error("sms_status_line_without_account");
     return empty(503);
   }
   if (line.provider !== "dry") {
     const ok = await verifyTwilioSignature(acct.token, request.url, form, request.headers.get("x-twilio-signature"));
     if (!ok) {
-      L.warn("sms_status_bad_signature");
+      log.warn("sms_status_bad_signature");
       return empty(403);
     }
   }
 
   // Kept under Twilio's id and the status it carried, before the verdict (decision 0032, 00336): the key a report the
   // database would not take is replayed by.
-  const replay = `${s.messageSid}:${s.status}`;
+  const replay = `${smsStatus.messageSid}:${smsStatus.status}`;
   const kept = await keepDelivery(db, {
     provider: "twilio",
     id: replay,
@@ -128,33 +134,39 @@ export async function receiveSmsStatus(request: Request): Promise<Response> {
     headers: signatureHeaders(request, ["x-twilio-signature"]),
     body: raw,
   });
-  const rowStatus = smsStatusToRow(s.status);
+  const rowStatus = smsStatusToRow(smsStatus.status);
   if (!rowStatus) {
-    L.info("sms_status_interim");
+    log.info("sms_status_interim");
     return empty(200);
   }
   const failure =
-    rowStatus === "failed" ? { carrier: s.status, ...(s.errorCode ? { code: s.errorCode } : {}) } : undefined;
+    rowStatus === "failed"
+      ? { carrier: smsStatus.status, ...(smsStatus.errorCode ? { code: smsStatus.errorCode } : {}) }
+      : undefined;
   // The person replied STOP to the number: their answer, recorded below, never a failed send to raise.
-  const stopped = !!failure && s.errorCode === String(SMS_OPTED_OUT_CODE);
+  const stopped = !!failure && smsStatus.errorCode === String(SMS_OPTED_OUT_CODE);
   let flagged: string | null = null;
   let carrierStop: LateCarrierStop | null = null;
   try {
     if (failure && !stopped)
-      flagged = await flagLateFailure(db, line.tenant_id, { externalId: s.messageSid, channel: "sms", error: failure });
-    await recordStatusByExternalId(db, line.tenant_id, s.messageSid, rowStatus, failure);
+      flagged = await flagLateFailure(db, line.tenant_id, {
+        externalId: smsStatus.messageSid,
+        channel: "sms",
+        error: failure,
+      });
+    await recordStatusByExternalId(db, line.tenant_id, smsStatus.messageSid, rowStatus, failure);
     if (stopped)
-      carrierStop = await recordLateCarrierOptOut(db, { tenantId: line.tenant_id, externalId: s.messageSid });
+      carrierStop = await recordLateCarrierOptOut(db, { tenantId: line.tenant_id, externalId: smsStatus.messageSid });
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     // Twilio will not send it again, so a person replays it: the line names every one, the page the first.
-    const paged = await pageLostReport(db, line.tenant_id, { replay, kept, status: s.status, error });
-    L.error("sms_status_record_failed", { error, replay, kept, paged });
+    const paged = await pageLostReport(db, line.tenant_id, { replay, kept, status: smsStatus.status, error });
+    log.error("sms_status_record_failed", { error, replay, kept, paged });
     return empty(503);
   }
-  L.info("sms_status", {
+  log.info("sms_status", {
     recorded: rowStatus,
-    code: s.errorCode,
+    code: smsStatus.errorCode,
     ...(flagged ? { flagged } : {}),
     ...(carrierStop === null ? {} : { carrier_stop: carrierStop }),
   });

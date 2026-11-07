@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { businessPageMetadata, businessPageVM } from "@chanlytics/contracts";
-import { businessPageFor } from "@/server/public/business-page";
+import { findBusinessPage } from "@/server/public/business-page";
 import { BusinessPublicPage } from "@/yes/BusinessPublicPage";
 
 /**
@@ -40,7 +40,7 @@ import { BusinessPublicPage } from "@/yes/BusinessPublicPage";
  */
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  return businessPageMetadata(await businessPageFor(slug));
+  return businessPageMetadata(await findBusinessPage(slug));
 }
 
 // Rendered for each request, as it always was: it reads its slug and the workspace's record before anything is drawn,
@@ -50,7 +50,7 @@ export const instant = false;
 
 export default async function BusinessPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const facts = await businessPageFor(slug);
+  const facts = await findBusinessPage(slug);
   if (!facts) notFound();
   const vm = businessPageVM(facts);
   if (vm.empty) notFound();

@@ -5,7 +5,7 @@
  * customers', not the person's asking (messageLanguageOf), and the next question that offers the others the business
  * speaks (messageLanguagesNext).
  */
-import { findLanguages, languageBase } from "../campaigns/templates/template-languages";
+import { findLanguages, languageBase } from "../campaigns/templates/languages";
 
 /* ------------------------------------------------------------- language */
 
@@ -32,7 +32,7 @@ export function detectLanguage(text: string): AskLanguage {
 
 /* ------------------------------------------------------------- a message's language */
 
-/** The languages Ask writes a message to customers in: the starters' (campaigns/templates/starter-templates.ts STARTER_LANGUAGES). */
+/** The languages Ask writes a message to customers in: the starters' (campaigns/templates/starter-templates/table.ts STARTER_LANGUAGES). */
 type MessageLanguage = "en" | "es";
 const MESSAGE_LANGUAGES: readonly MessageLanguage[] = ["en", "es"];
 
@@ -60,9 +60,9 @@ export function messageLanguagesOf(names: readonly string[]): MessageLanguage[] 
  * business speaks it or names none; else the business's first; English where neither says.
  */
 export function messageLanguageOf(business: readonly MessageLanguage[], turn: AskLanguage): MessageLanguage {
-  const asked = MESSAGE_LANGUAGES.find((l) => l === turn);
-  if (asked && (business.length === 0 || business.includes(asked))) return asked;
-  return business[0] ?? asked ?? "en";
+  const found = MESSAGE_LANGUAGES.find((l) => l === turn);
+  if (found && (business.length === 0 || business.includes(found))) return found;
+  return business[0] ?? found ?? "en";
 }
 
 /** "Can you write it in Spanish too?", in the turn's language: the person's own next words, a tap away. */

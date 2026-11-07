@@ -1,7 +1,7 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import { publicEnv } from "@/lib/public-env";
 import { sessionCookieOptions } from "./cookie-options";
 

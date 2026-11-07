@@ -92,12 +92,20 @@ function offersAnswer(a: string, b: string, stopped: boolean): Answer {
 }
 
 /** The most careful answer on each question (D5). Symmetric: which record is kept does not change an answer. */
-export function mergedAnswers(a: RecordAnswers, b: RecordAnswers): MergedAnswers {
-  const stopped = a.consent === "opted_out" || a.dnc || b.consent === "opted_out" || b.dnc;
+export function mergedAnswers(recordAnswers: RecordAnswers, otherRecordAnswers: RecordAnswers): MergedAnswers {
+  const stopped =
+    recordAnswers.consent === "opted_out" ||
+    recordAnswers.dnc ||
+    otherRecordAnswers.consent === "opted_out" ||
+    otherRecordAnswers.dnc;
   return {
-    consent: stopped ? "opted_out" : a.consent === "opted_in" || b.consent === "opted_in" ? "opted_in" : "unknown",
+    consent: stopped
+      ? "opted_out"
+      : recordAnswers.consent === "opted_in" || otherRecordAnswers.consent === "opted_in"
+        ? "opted_in"
+        : "unknown",
     dnc: stopped,
-    marketing: offersAnswer(a.marketing, b.marketing, stopped),
-    emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped),
+    marketing: offersAnswer(recordAnswers.marketing, otherRecordAnswers.marketing, stopped),
+    emailMarketing: offersAnswer(recordAnswers.emailMarketing, otherRecordAnswers.emailMarketing, stopped),
   };
 }

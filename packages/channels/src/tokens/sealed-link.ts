@@ -31,15 +31,15 @@ const macOf = (label: string, secret: string, payload: Buffer): Buffer =>
   createHmac("sha256", secret).update(label).update(payload).digest().subarray(0, MAC_BYTES);
 
 /** The link's token, sealed under `label` and `secret`; `who` names the caller in what it throws. */
-export function sealLink(who: string, label: string, secret: string, c: SealedClaims): string {
-  if (!secret) throw new Error(`${who}: no secret`);
-  for (const id of [c.tenantId, c.contactId, c.messageId])
-    if (!UUID.test(id)) throw new Error(`${who}: the workspace, the person and the email are uuids`);
+export function sealLink(personName: string, label: string, secret: string, sealedClaims: SealedClaims): string {
+  if (!secret) throw new Error(`${personName}: no secret`);
+  for (const id of [sealedClaims.tenantId, sealedClaims.contactId, sealedClaims.messageId])
+    if (!UUID.test(id)) throw new Error(`${personName}: the workspace, the person and the email are uuids`);
   const payload = Buffer.concat([
     Buffer.from([VERSION]),
-    bytesOf(c.tenantId),
-    bytesOf(c.contactId),
-    bytesOf(c.messageId),
+    bytesOf(sealedClaims.tenantId),
+    bytesOf(sealedClaims.contactId),
+    bytesOf(sealedClaims.messageId),
   ]);
   return Buffer.concat([payload, macOf(label, secret, payload)]).toString("base64url");
 }

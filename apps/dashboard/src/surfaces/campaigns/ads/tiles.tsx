@@ -6,8 +6,9 @@
  * is the list's "Needs you").
  */
 import { adRoute } from "@chanlytics/contracts";
-import { DASH } from "@chanlytics/contracts/ads-page";
-import type { AdWaitingRowVM, DoorVM, TilesVM } from "@chanlytics/contracts/ads-page";
+import { DASH } from "./model/vm-base";
+import type { AdWaitingRowVM, TilesVM } from "./model/page-parts";
+import type { DoorVM } from "./model/vm-base";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";

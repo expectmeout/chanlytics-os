@@ -23,7 +23,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const server = await import(at("apps/dashboard/src/server/campaigns/reach-outs.ts"));
+const server = await import(at("apps/dashboard/src/server/campaigns/reach-outs/reach-outs.ts"));
 const chains = await import(at("apps/dashboard/app/api/v1/reach-outs/route.ts"));
 const chain = await import(at("apps/dashboard/app/api/v1/reach-outs/[id]/route.ts"));
 const preview = await import(at("apps/dashboard/app/api/v1/reach-outs/preview/route.ts"));
@@ -301,7 +301,7 @@ test("GET reach-outs lists each chain, steps in order, with what decides its nex
 });
 
 test("GET reach-outs answers its reader's payload (readers/playbooks.ts reachOutChains), each chain a row a citation names", async () => {
-  const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+  const { load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
   const { reachOutChains } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
   const page = await chains.GET.run(get(), ctxFor(tables("viewer")));
   const read = await load(
@@ -719,7 +719,7 @@ test("a reach-out run's block: today and later from the checked only, the still-
     ],
     mailbox_connections: [box(DOM, "sam@harbor-mail.example", { sent_days: 12 })],
   });
-  const run = await server.reachOutRunOf(ctxFor(t), A, t.broadcasts[0]);
+  const run = await server.findReachOutRun(ctxFor(t), A, t.broadcasts[0]);
   assert.deepEqual([run.today, run.later, run.checking], [1, 1, 1]);
   assert.equal(run.first_at, iso(now + 120_000));
   assert.deepEqual(
@@ -761,7 +761,7 @@ test("a reach-out run's block: today and later from the checked only, the still-
     ],
   });
   for (const p of signed.playbooks) if (p.signed_by === "Sam") p.signs_with = "mailbox";
-  const as = (await server.reachOutRunOf(ctxFor(signed), A, signed.broadcasts[0])).first;
+  const as = (await server.findReachOutRun(ctxFor(signed), A, signed.broadcasts[0])).first;
   assert.equal(as.signature, "Sam Rivera\nHarbor Moving Co");
   assert.match(as.foot, /Harbor Moving Co · 1 Main St, Austin, TX 78701/);
   assert.match(as.foot, /This is a marketing email/);
@@ -769,9 +769,12 @@ test("a reach-out run's block: today and later from the checked only, the still-
     { address: "sam@harbor-mail.example", sent_days: 12, daily_cap: 40, customer_domain: false },
   ]);
   assert.deepEqual([run.step_n, run.chain_name, run.include_unconfirmed], [0, "Reach out · Personal trainers", false]);
-  assert.equal(await server.reachOutRunOf(ctxFor(t), A, { ...t.broadcasts[0], audience: { kind: "everyone" } }), null);
+  assert.equal(
+    await server.findReachOutRun(ctxFor(t), A, { ...t.broadcasts[0], audience: { kind: "everyone" } }),
+    null,
+  );
   // A run whose step was dropped from the chain since: no step, said so by the words (R17).
-  const dropped = await server.reachOutRunOf(ctxFor(t), A, { ...t.broadcasts[0], playbook_id: null });
+  const dropped = await server.findReachOutRun(ctxFor(t), A, { ...t.broadcasts[0], playbook_id: null });
   assert.deepEqual([dropped.step_id, dropped.step_n, dropped.first], [null, null, null]);
 });
 
@@ -784,7 +787,7 @@ test("the chains read the step's run's own readings: a paused workspace may not 
       }),
     ),
   );
-  assert.equal(paused.chains[0].next.may_spend, false, "a paused workspace may not spend (workspaceMaySpend)");
+  assert.equal(paused.chains[0].next.may_spend, false, "a paused workspace may not spend (mayWorkspaceSpend)");
   // Its sequence was made under the workspace's outreach row (00462 sequence_mode_for), and keeps that mode as its own.
   const asks = await chains.GET.run(
     get(),

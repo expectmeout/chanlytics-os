@@ -28,9 +28,9 @@ const BUDGET_SAMPLE_MIN = 10;
  * A reply's model tokens, in and out, at this workspace's own size (its usage events over the last week, db
  * replyTokensSince): what the budget counts, so a cap divided by it is the replies it buys. Null with too few replies.
  */
-export function tokensPerReply(r: { replies: number; tokens: number } | null | undefined): number | null {
-  if (!r || r.replies < BUDGET_SAMPLE_MIN || r.tokens <= 0) return null;
-  return Math.round(r.tokens / r.replies);
+export function tokensPerReply(row: { replies: number; tokens: number } | null | undefined): number | null {
+  if (!row || row.replies < BUDGET_SAMPLE_MIN || row.tokens <= 0) return null;
+  return Math.round(row.tokens / row.replies);
 }
 
 /** About how many replies a cap buys, rounded as a person says it: to five under a hundred, to ten past it. */
@@ -76,11 +76,11 @@ export interface BudgetDial {
 export function budgetDial(caps: readonly number[], perReply: number | null): BudgetDial {
   const word = (c: number, inReplies: boolean) =>
     c <= 0 ? BUDGET_WORDS.none : inReplies && perReply ? `~${repliesFor(c, perReply)}` : tokensWord(c);
-  const said = caps.map((c) => [word(c, true), c] as const);
-  const inReplies = perReply !== null && new Set(said.map(([w]) => w)).size === said.length;
+  const sentence = caps.map((c) => [word(c, true), c] as const);
+  const inReplies = perReply !== null && new Set(sentence.map(([w]) => w)).size === sentence.length;
   return {
     label: inReplies ? BUDGET_WORDS.inReplies : BUDGET_WORDS.inTokens,
     note: `${perReply ? BUDGET_WORDS.sized(perReply) : BUDGET_WORDS.unsized} ${BUDGET_WORDS.stops}`,
-    steps: inReplies ? said : caps.map((c) => [word(c, false), c] as const),
+    steps: inReplies ? sentence : caps.map((c) => [word(c, false), c] as const),
   };
 }

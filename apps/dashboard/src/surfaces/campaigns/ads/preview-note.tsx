@@ -3,7 +3,7 @@
  * sheet, Reports' lens and Connections' card, each of which someone can reach without passing the others. The Example pill is the
  * menu that walks the states, and says this only once it is opened. A demo session draws none: the whole session is one.
  */
-import { EXAMPLE } from "@chanlytics/contracts/ads-page";
+import { EXAMPLE } from "./model/words";
 import { Notice } from "../../kit/notice/notice";
 import { adsInPreview } from "./shown";
 

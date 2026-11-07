@@ -9,12 +9,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  emailOffersPause,
-  offersEmailReach,
+  pauseEmailOffersFor,
+  findOffersEmailReach,
   pauseEmailOffers,
   setEmailOffersYes,
   stopAllMessages,
-} from "@chanlytics/db";
+} from "@chanlytics/db/campaigns";
 
 /** A client whose mailbox read and rpc answer `{ data, error }` as given; the rpc remembers its calls. */
 function client({ read = { data: null, error: null }, rpc = { data: null, error: null } } = {}) {
@@ -47,7 +47,7 @@ test("the pause reads as none only where Postgres says the pause's own column is
   // A database before 00299: the column does not exist, said by Postgres about that column.
   for (const column of ["offers_paused_at", "offers_paused_reason"])
     assert.equal(
-      await emailOffersPause(client({ read: error("42703", `column mailboxes.${column} does not exist`) }).db, T),
+      await pauseEmailOffersFor(client({ read: error("42703", `column mailboxes.${column} does not exist`) }).db, T),
       null,
       column,
     );
@@ -69,21 +69,21 @@ test("the pause reads as none only where Postgres says the pause's own column is
     ["a connection that failed", error(undefined, "fetch failed")],
   ])
     await assert.rejects(
-      emailOffersPause(client({ read: e }).db, T),
+      pauseEmailOffersFor(client({ read: e }).db, T),
       /cannot read whether offers by email are paused/,
       what,
     );
   // What a database that has the columns says: none, a pause, and a workspace with no mailbox.
-  assert.equal(await emailOffersPause(client({ read: { data: null, error: null } }).db, T), null, "no mailbox");
+  assert.equal(await pauseEmailOffersFor(client({ read: { data: null, error: null } }).db, T), null, "no mailbox");
   assert.equal(
-    await emailOffersPause(
+    await pauseEmailOffersFor(
       client({ read: { data: { offers_paused_at: null, offers_paused_reason: null }, error: null } }).db,
       T,
     ),
     null,
   );
   assert.deepEqual(
-    await emailOffersPause(
+    await pauseEmailOffersFor(
       client({
         read: { data: { offers_paused_at: "2026-10-01T10:00:00Z", offers_paused_reason: "bounces" }, error: null },
       }).db,
@@ -98,15 +98,19 @@ test("Setup's count is none only where its function is not there yet (PGRST202 o
     error("PGRST202", "Could not find the function public.offers_email_reach(p_tenant_id) in the schema cache"),
     error("42883", "function public.offers_email_reach(uuid) does not exist"),
   ])
-    assert.equal(await offersEmailReach(client({ rpc: e }).db, T), null, e.error.code);
+    assert.equal(await findOffersEmailReach(client({ rpc: e }).db, T), null, e.error.code);
   for (const e of [
     error("PGRST202", "Could not find the function public.another_function(p_x) in the schema cache"),
     error("42501", "permission denied for function offers_email_reach"),
     error(undefined, "fetch failed"),
   ])
-    await assert.rejects(offersEmailReach(client({ rpc: e }).db, T), /cannot count who an offer by email reaches/);
-  assert.equal(await offersEmailReach(client({ rpc: { data: 12, error: null } }).db, T), 12);
-  assert.equal(await offersEmailReach(client({ rpc: { data: "12", error: null } }).db, T), null, "not a count: none");
+    await assert.rejects(findOffersEmailReach(client({ rpc: e }).db, T), /cannot count who an offer by email reaches/);
+  assert.equal(await findOffersEmailReach(client({ rpc: { data: 12, error: null } }).db, T), 12);
+  assert.equal(
+    await findOffersEmailReach(client({ rpc: { data: "12", error: null } }).db, T),
+    null,
+    "not a count: none",
+  );
 });
 
 test("a pause is written with the counts it was judged by, and answers whether this call paused it", async () => {

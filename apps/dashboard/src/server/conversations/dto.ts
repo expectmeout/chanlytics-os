@@ -149,8 +149,8 @@ interface CallRow {
  */
 export function mediaPublic(raw: unknown): MessageDto["media"] {
   if (!raw || typeof raw !== "object") return null;
-  const m = raw as Record<string, unknown>;
-  const str = (k: string) => (typeof m[k] === "string" ? m[k] : null);
+  const match = raw as Record<string, unknown>;
+  const str = (k: string) => (typeof match[k] === "string" ? match[k] : null);
   return {
     mime_type: str("mime_type"),
     ...(str("fetch_state") ? { fetch_state: str("fetch_state") as string } : {}),
@@ -185,24 +185,24 @@ export function messageRowsOf(data: unknown): MessageRow[] {
 
 export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
   const byConv = new Map<string, MessageDto[]>();
-  for (const m of rows) {
-    const list = byConv.get(m.conversation_id) ?? [];
+  for (const row of rows) {
+    const list = byConv.get(row.conversation_id) ?? [];
     list.unshift({
-      id: m.id,
-      direction: m.direction as MessageDto["direction"],
-      sender: m.sender as MessageDto["sender"],
-      type: m.type,
+      id: row.id,
+      direction: row.direction as MessageDto["direction"],
+      sender: row.sender as MessageDto["sender"],
+      type: row.type,
       // The wire it travelled: a reply goes back on it, and the window is that wire's (replyWindow, I5).
-      ...(m.channel ? { channel: m.channel } : {}),
-      body: m.body,
-      media: mediaPublic(m.media),
-      meta: memberMetaOf(m.meta),
-      status: m.status,
-      ...failedErrorOf(m.status, m.error),
-      created_at: m.created_at,
-      channel_ts: m.channel_ts,
+      ...(row.channel ? { channel: row.channel } : {}),
+      body: row.body,
+      media: mediaPublic(row.media),
+      meta: memberMetaOf(row.meta),
+      status: row.status,
+      ...failedErrorOf(row.status, row.error),
+      created_at: row.created_at,
+      channel_ts: row.channel_ts,
     });
-    byConv.set(m.conversation_id, list);
+    byConv.set(row.conversation_id, list);
   }
   // Reading order is CHANNEL time — when the message happened on WhatsApp, or
   // when the call started — never created_at, which for an imported row is
@@ -217,44 +217,44 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
  * a reader hands none, the row says nothing of it and no list calls it new.
  */
 export function toConversationDto(
-  c: ConversationRow,
+  conversation: ConversationRow,
   messages: MessageDto[],
   userId: string,
   seen: SeenOf = {},
 ): ConversationDto {
   return {
-    id: c.id,
-    state: c.state as ConversationDto["state"],
-    paused_until: c.paused_until,
-    snooze_until: c.snooze_until,
-    set_aside_at: c.set_aside_at,
-    set_aside_why: c.set_aside_why,
-    assignee_user_id: c.assignee_user_id,
-    assignee_is_me: c.assignee_user_id ? c.assignee_user_id === userId : undefined,
-    last_wa_inbound_at: c.last_wa_inbound_at,
+    id: conversation.id,
+    state: conversation.state as ConversationDto["state"],
+    paused_until: conversation.paused_until,
+    snooze_until: conversation.snooze_until,
+    set_aside_at: conversation.set_aside_at,
+    set_aside_why: conversation.set_aside_why,
+    assignee_user_id: conversation.assignee_user_id,
+    assignee_is_me: conversation.assignee_user_id ? conversation.assignee_user_id === userId : undefined,
+    last_wa_inbound_at: conversation.last_wa_inbound_at,
     // Said where the row was read with it, as the next one is.
-    ...(c.last_ig_inbound_at !== undefined ? { last_ig_inbound_at: c.last_ig_inbound_at } : {}),
-    last_message_at: c.last_message_at,
+    ...(conversation.last_ig_inbound_at !== undefined ? { last_ig_inbound_at: conversation.last_ig_inbound_at } : {}),
+    last_message_at: conversation.last_message_at,
     // Said where the row was read with it (CONVERSATION_COLUMNS asks for it).
-    ...(c.last_inbound_at !== undefined ? { last_inbound_at: c.last_inbound_at } : {}),
+    ...(conversation.last_inbound_at !== undefined ? { last_inbound_at: conversation.last_inbound_at } : {}),
     ...seen,
     contact: {
-      id: c.contacts?.id ?? "",
-      display_name: c.contacts?.display_name ?? null,
-      wa_profile_name: c.contacts?.wa_profile_name ?? null,
-      phone_e164: c.contacts?.phone_e164 ?? null,
+      id: conversation.contacts?.id ?? "",
+      display_name: conversation.contacts?.display_name ?? null,
+      wa_profile_name: conversation.contacts?.wa_profile_name ?? null,
+      phone_e164: conversation.contacts?.phone_e164 ?? null,
       // The select above has asked for the address since email arrived, and this
       // mapper threw it away: the one field the thread's name falls back to for a
       // person reached only by email. The Inbox and Conversations called that
       // person "Unknown" while their own page, read another way, named them.
-      email: c.contacts?.email ?? null,
-      consent: c.contacts?.consent ?? null,
-      dnc: c.contacts?.dnc ?? false,
+      email: conversation.contacts?.email ?? null,
+      consent: conversation.contacts?.consent ?? null,
+      dnc: conversation.contacts?.dnc ?? false,
       // Yes to offers, for the composer to offer only the templates the reply route sends (I4).
-      marketing_consent: c.contacts?.marketing_consent ?? null,
-      proposal_url: c.contacts?.proposal_url ?? null,
-      email_suppressed_at: c.contacts?.email_suppressed_at ?? null,
-      email_suppressed_reason: c.contacts?.email_suppressed_reason ?? null,
+      marketing_consent: conversation.contacts?.marketing_consent ?? null,
+      proposal_url: conversation.contacts?.proposal_url ?? null,
+      email_suppressed_at: conversation.contacts?.email_suppressed_at ?? null,
+      email_suppressed_reason: conversation.contacts?.email_suppressed_reason ?? null,
     },
     messages,
   };
@@ -272,8 +272,8 @@ export function toConversationDto(
  */
 export function stripWordTimings(raw: unknown): CallDto["transcript_object"] {
   if (!Array.isArray(raw)) return null;
-  return raw.map((t) => {
-    const turn = (t ?? {}) as {
+  return raw.map((item) => {
+    const turn = (item ?? {}) as {
       role?: string;
       content?: string;
       words?: Array<{ start?: number; end?: number }>;
@@ -316,50 +316,50 @@ export function listedCall(dto: CallDto): CallDto {
   };
 }
 
-export function toCallDto(c: CallRow): CallDto {
-  const rec = c.recording as { fetch_state?: string; mime?: string | null; bytes?: number } | null;
+export function toCallDto(call: CallRow): CallDto {
+  const rec = call.recording as { fetch_state?: string; mime?: string | null; bytes?: number } | null;
   // The address the caller spelled out, from the post-call analysis (voice-shell CALL_ANALYSIS_FIELDS): a string
   // in the analysis object, or nothing. Any other shape the provider might send is nothing too.
-  const spelled = (c.analysis as { caller_email?: unknown } | null | undefined)?.caller_email;
+  const spelled = (call.analysis as { caller_email?: unknown } | null | undefined)?.caller_email;
   return {
-    id: c.id,
-    retell_call_id: c.retell_call_id,
-    direction: c.direction as CallDto["direction"],
-    call_type: c.call_type,
-    status: c.status,
-    from_e164: c.from_e164,
-    from_raw: c.from_raw,
-    to_e164: c.to_e164,
-    started_at: c.started_at,
-    ended_at: c.ended_at,
-    updated_at: c.updated_at,
-    duration_ms: c.duration_ms,
-    disconnection_reason: c.disconnection_reason,
-    sentiment: c.sentiment,
-    call_successful: c.call_successful,
-    in_voicemail: c.in_voicemail,
-    summary: c.summary,
-    wanted: c.wanted ?? null,
-    outcome: c.outcome ?? null,
-    follow_up: c.follow_up ?? null,
-    caller_name: c.caller_name ?? null,
+    id: call.id,
+    retell_call_id: call.retell_call_id,
+    direction: call.direction as CallDto["direction"],
+    call_type: call.call_type,
+    status: call.status,
+    from_e164: call.from_e164,
+    from_raw: call.from_raw,
+    to_e164: call.to_e164,
+    started_at: call.started_at,
+    ended_at: call.ended_at,
+    updated_at: call.updated_at,
+    duration_ms: call.duration_ms,
+    disconnection_reason: call.disconnection_reason,
+    sentiment: call.sentiment,
+    call_successful: call.call_successful,
+    in_voicemail: call.in_voicemail,
+    summary: call.summary,
+    wanted: call.wanted ?? null,
+    outcome: call.outcome ?? null,
+    follow_up: call.follow_up ?? null,
+    caller_name: call.caller_name ?? null,
     // In its stored spelling (normalizeEmail) or nothing: a suggestion for the person's page, never applied to the
     // contact by itself, like the name beside it.
     caller_email: normalizeEmail(typeof spelled === "string" ? spelled : null),
-    transcript_object: stripWordTimings(c.transcript_object),
+    transcript_object: stripWordTimings(call.transcript_object),
     // storage_path and provider_url never leave the server: audio is reachable
     // only through the signed-URL route.
     recording: rec ? { fetch_state: rec.fetch_state, mime: rec.mime ?? null, bytes: rec.bytes } : null,
-    conversation_id: c.conversation_id,
-    contact_id: c.contact_id,
-    message_id: c.message_id,
-    contact: c.contacts
+    conversation_id: call.conversation_id,
+    contact_id: call.contact_id,
+    message_id: call.message_id,
+    contact: call.contacts
       ? {
-          display_name: c.contacts.display_name,
-          wa_profile_name: c.contacts.wa_profile_name,
-          phone_e164: c.contacts.phone_e164,
-          consent: c.contacts.consent ?? null,
-          dnc: c.contacts.dnc ?? null,
+          display_name: call.contacts.display_name,
+          wa_profile_name: call.contacts.wa_profile_name,
+          phone_e164: call.contacts.phone_e164,
+          consent: call.contacts.consent ?? null,
+          dnc: call.contacts.dnc ?? null,
         }
       : null,
   };

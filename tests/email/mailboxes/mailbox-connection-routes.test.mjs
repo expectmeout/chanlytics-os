@@ -13,16 +13,9 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
-import {
-  MAILBOX_SCOPES,
-  STATE_TTL_MS,
-  mailboxPkceChallenge,
-  mailboxPkceVerifier,
-  newNonce,
-  signState,
-  verifyEdgeToken,
-  verifyState,
-} from "@chanlytics/channels";
+import { MAILBOX_SCOPES, makeMailboxPkceChallenge, makeMailboxPkceVerifier } from "@chanlytics/channels/email";
+import { STATE_TTL_MS, newNonce, signState, verifyState } from "@chanlytics/channels/google";
+import { verifyEdgeToken } from "@chanlytics/channels/tokens";
 
 const SECRET = "state-secret-for-this-file";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -47,10 +40,10 @@ const resume = await import(at(`${R}/[id]/resume/route.ts`));
 const check = await import(at(`${R}/[id]/check/route.ts`));
 const testOne = await import(at(`${R}/[id]/test/route.ts`));
 const history = await import(at(`${R}/[id]/history/route.ts`));
-const { forgetMailboxesReadiness, mailboxConnectionsFor } = await import(
+const { forgetMailboxesReadiness, listMailboxConnections } = await import(
   at("apps/dashboard/src/server/connections/mailbox-connections.ts")
 );
-const { emailSetupFor } = await import(at("apps/dashboard/src/server/connections/email.ts"));
+const { getEmailSetup } = await import(at("apps/dashboard/src/server/connections/email.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -146,7 +139,7 @@ test("Connect: to the provider's own consent screen, with its client, its scopes
     assert.equal(g.searchParams.get("code_challenge_method"), "S256");
     assert.equal(
       g.searchParams.get("code_challenge"),
-      await mailboxPkceChallenge(await mailboxPkceVerifier(SECRET, gp.state.n)),
+      await makeMailboxPkceChallenge(await makeMailboxPkceVerifier(SECRET, gp.state.n)),
     );
     assert.equal(gp.state.k, 1, "the state says the way back sends the verifier");
     assert.equal(proof.state.k, undefined);
@@ -265,7 +258,7 @@ test("the way back: nothing trusted before the state proves itself; the code to 
       user_id: USER,
       provider: "google",
       code: "4/code",
-      code_verifier: await mailboxPkceVerifier(SECRET, nonce),
+      code_verifier: await makeMailboxPkceVerifier(SECRET, nonce),
     });
     const v = verifyEdgeToken(process.env.EDGE_CALL_SECRET, c.token, "/api/admin/mailboxes");
     assert.deepEqual([v.ok, v.claims.ws, v.claims.user], [true, A, USER]);
@@ -378,7 +371,7 @@ test("the pages' read of the mailboxes never carries a token's name, removed one
     removed_at: "2026-10-01T00:00:00Z",
   });
   const db = fakeDb({ mailbox_connections: [live, gone] });
-  const read = await mailboxConnectionsFor(db, A);
+  const read = await listMailboxConnections(db, A);
   assert.deepEqual(
     read.map((m) => m.address),
     ["sam@getharbor.example"],
@@ -387,7 +380,7 @@ test("the pages' read of the mailboxes never carries a token's name, removed one
   const net = edge(() => [200, READY]);
   try {
     // GET mailbox-connections went with #1695 (no page called it): Setup and Connections read them with the email line.
-    const out = (await emailSetupFor(fakeDb({ mailbox_connections: [live] }), A, async () => null)).sending;
+    const out = (await getEmailSetup(fakeDb({ mailbox_connections: [live] }), A, async () => null)).sending;
     assert.deepEqual(out.providers, ["google", "microsoft"]);
     assert.deepEqual(
       out.mailboxes.map((m) => m.id),

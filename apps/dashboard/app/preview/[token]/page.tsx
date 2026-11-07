@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { accentOf, LEAD_PREVIEW_WORDS as W, previewPageOf } from "@chanlytics/contracts";
-import { previewPageFor } from "@/server/public/preview-page";
+import { findPreviewPage } from "@/server/public/preview-page";
 import { PreviewPage } from "@/surfaces/preview/preview-page";
 
 /**
@@ -15,7 +15,7 @@ import { PreviewPage } from "@/surfaces/preview/preview-page";
  */
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const { token } = await params;
-  const read = await previewPageFor(token).catch(() => null);
+  const read = await findPreviewPage(token).catch(() => null);
   return {
     title: read?.facts.business ? W.title(read.facts.business) : W.chip,
     robots: { index: false, follow: false },
@@ -45,7 +45,7 @@ export default async function LeadPreviewPage({
   const { token } = await params;
   // Its sender looking (the lead sheet's Open it): counted as nothing, and nothing to press.
   const look = (await searchParams).look === "1";
-  const read = await previewPageFor(token);
+  const read = await findPreviewPage(token);
   if (!read) notFound();
   const vm = previewPageOf(read.facts, new Date());
   const rule = accentRule(read.look.accent);

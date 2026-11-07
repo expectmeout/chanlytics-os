@@ -67,10 +67,10 @@ const NUMBER_FORMATS = new Map<string, Intl.NumberFormat>();
 function formatterKept<F>(cache: Map<string, F>, key: string, make: () => F): F {
   const hit = cache.get(key);
   if (hit) return hit;
-  const made = make();
+  const created = make();
   if (cache.size >= FORMATS_KEPT) cache.clear();
-  cache.set(key, made);
-  return made;
+  cache.set(key, created);
+  return created;
 }
 
 /**

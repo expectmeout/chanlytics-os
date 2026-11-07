@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
+import { leadDb } from "../../../apps/edge/lib/leads/db.ts";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 

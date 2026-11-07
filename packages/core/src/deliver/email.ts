@@ -15,7 +15,7 @@
  * the database.
  */
 import { isOfferByEmail, type DeliveryRefusal, type MessageAbout, type SendPurpose } from "@chanlytics/contracts";
-import type { EmailRequest } from "@chanlytics/channels";
+import type { EmailRequest } from "@chanlytics/channels/email";
 
 /** What makes a send an offer by email (contracts isOfferByEmail): its channel, its purpose, whether it starts a conversation, and what it is about. */
 type Offerable = { channel: string; purpose: SendPurpose; proactive: boolean; about: MessageAbout };
@@ -34,21 +34,24 @@ export interface OfferFacts {
  * very next offer, because it is read at the wire.
  */
 export async function offerFacts(
-  d: Offerable,
+  offerable: Offerable,
   emailOffers: boolean | undefined,
   pausedSince: () => Promise<unknown>,
 ): Promise<OfferFacts> {
   const open = emailOffers === true;
-  const asked = open && isOfferByEmail(d);
-  return { open, paused: asked ? (await pausedSince()) !== null : false };
+  const request = open && isOfferByEmail(offerable);
+  return { open, paused: request ? (await pausedSince()) !== null : false };
 }
 
 /** Why an offer by email may not leave, or null when it may (and for any send that is not one). */
-export function offerRefusal(d: Offerable & { email?: EmailRequest }, o: OfferFacts): DeliveryRefusal | null {
-  if (!isOfferByEmail(d)) return null;
-  if (!o.open) return "email_marketing_disabled";
-  if (o.paused) return "email_offers_paused";
-  const headers = d.email?.headers ?? {};
+export function offerRefusal(
+  offerable: Offerable & { email?: EmailRequest },
+  offerFacts: OfferFacts,
+): DeliveryRefusal | null {
+  if (!isOfferByEmail(offerable)) return null;
+  if (!offerFacts.open) return "email_marketing_disabled";
+  if (offerFacts.paused) return "email_offers_paused";
+  const headers = offerable.email?.headers ?? {};
   const oneClick = !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
   return oneClick ? null : "outreach_without_unsubscribe";
 }
@@ -58,17 +61,17 @@ export function offerRefusal(d: Offerable & { email?: EmailRequest }, o: OfferFa
  * request's tag, so a row written after the send (recordOutbound's) is one no receipt can find, and its bounce
  * suppresses nothing. A delivery that breaks this is a caller's mistake, said as one before anything is read.
  */
-export function assertFrozenFor(d: {
+export function assertFrozenFor(details: {
   channel: string;
   conversationId: string;
   messageId?: string | null;
   email?: EmailRequest;
   ownEmail?: EmailRequest;
 }): void {
-  if (d.channel !== "email") return;
-  const keys = [d.email, d.ownEmail].map((r) => r?.idempotency_key ?? d.messageId);
-  if (d.messageId && keys.every((k) => k === d.messageId)) return;
+  if (details.channel !== "email") return;
+  const keys = [details.email, details.ownEmail].map((r) => r?.idempotency_key ?? details.messageId);
+  if (details.messageId && keys.every((k) => k === details.messageId)) return;
   throw new Error(
-    `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`,
+    `deliver: an email leaves only from the queued row its request was frozen for (conversation ${details.conversationId})`,
   );
 }

@@ -1,10 +1,10 @@
 /**
  * The phone's rows of Setup: the line, the receptionist that answers it, the test call, and the number the business
  * already has. Their own module because the line's row alone is a ladder from bought to answering and from asked
- * for to paid for; setup/rows.ts holds the table they sit in, setup.ts the words and the context they read.
+ * for to paid for; setup/rows/steps.ts holds the table they sit in, setup.ts the words and the context they read.
  */
 import { PHONE_LINE_OFF } from "../lines/caller-gets";
-import { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "../lines/line-failure";
+import { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "../lines/failure";
 import { formatPhoneDisplay } from "../shared/phone";
 import { agoWords, spanLabel } from "../shared/time";
 import {
@@ -14,27 +14,24 @@ import {
   type Carrier,
   type ForwardingMode,
 } from "../voice/forwarding";
-import { whyCannotSpend, priceWords, billingDoorOpen } from "../workspace/billing";
+import { whyCannotSpend, billingDoorOpen } from "../workspace/billing/dtos";
+import { priceWords } from "../workspace/billing/plans";
 import { capabilityStatus } from "./capabilities";
+import { activationWords, forwardedLineOf, keptPhoneKind, type SetupInputs, type SetupVM } from "./setup";
 import {
-  activationWords,
-  forwardedLineOf,
-  keptPhoneKind,
   lineStuckProvisioning,
   LINE_STEP_WORDS,
   type LineDto,
   type SetupDto,
-  type SetupInputs,
   type SetupRowContext,
   type SetupRowDraft,
-  type SetupVM,
-} from "./setup";
+} from "./lines";
 import { KEEP_ROW } from "./put-off";
 
 /**
  * 3. A line for calls and texts — the product's own line when this deployment can get one; a person at Chanlytics otherwise.
  */
-export function lineRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
+export function lineRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const { voice, voiceReady, voiceNum, answering, ownLine, texting } = ctx;
   if (voiceReady) {
     return {
@@ -68,7 +65,7 @@ export function lineRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const own = ownLineRow(ctx);
   if (own) return own;
   // Not by phone (decision 0091): nothing is owed, and a number is one press away whenever calls are wanted.
-  if (i.noCalls)
+  if (setupInputs.noCalls)
     return {
       id: "line",
       icon: "phone",
@@ -79,7 +76,7 @@ export function lineRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       details: ["Add a number any time, and calls are answered too"],
       verb: { label: "Get a number", to: "start/channels" },
     };
-  return lineToGetRow(i, ctx);
+  return lineToGetRow(setupInputs, ctx);
 }
 
 /**
@@ -102,7 +99,7 @@ interface OwnLineStand {
 
 /** `number` is how the sentences name the line (Start names it; Connections shows the number beside the row and says none). */
 export function ownLineStandOf(line: LineDto, nowMs: number, number: string | null): OwnLineStand | null {
-  const n = number ? ` ${number}` : "";
+  const count = number ? ` ${number}` : "";
   const step = LINE_STEP_WORDS[line.step ?? ""] ?? "working on it";
   const ago = agoWords(Date.parse(line.state_since), nowMs);
   const retry = `verb:retry-line:${line.id}`;
@@ -121,7 +118,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
     // and the retry it withheld is the only thing that would have finished the job.
     return {
       kind: "stuck",
-      sentence: `Setting up${n} stopped while ${step}, ${ago}.`,
+      sentence: `Setting up${count} stopped while ${step}, ${ago}.`,
       details: [
         "It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is",
         "Retry from here — it picks up where it stopped and buys nothing twice",
@@ -132,7 +129,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
   if (line.voice_state === "provisioning") {
     return {
       kind: "setting_up",
-      sentence: `Setting up${n} — ${step}, since ${ago}.`,
+      sentence: `Setting up${count} — ${step}, since ${ago}.`,
       details: ["Usually a minute or two; this page updates by itself"],
       retry: null,
     };
@@ -141,7 +138,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
     // Not a carrier failure and not the owner's to retry: the wall is ours.
     return {
       kind: "credentials",
-      sentence: `Setting up${n} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
+      sentence: `Setting up${count} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
       details: [
         "A retry cannot help until the credentials are restored; we have been told and will finish it with you",
       ],
@@ -151,7 +148,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
   if (line.voice_state === "failed") {
     return {
       kind: "stopped",
-      sentence: `Setting up${n} stopped while ${step}. A person at Chanlytics has it.`,
+      sentence: `Setting up${count} stopped while ${step}. A person at Chanlytics has it.`,
       details: ["Retry from here; we have been told"],
       retry,
     };
@@ -191,9 +188,12 @@ function ownLineRow(ctx: SetupRowContext): SetupRowDraft | null {
  * No line of its own yet: the number being brought over, the line asked for, the number to get — when this
  * deployment can get one, and whatever stands between the workspace and paying for it — or the ask.
  */
-function lineToGetRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
+function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const { answering, lines, canSpend, nowMs } = ctx;
-  if (i.requests.port && !(i.requests.line && Date.parse(i.requests.line) > Date.parse(i.requests.port))) {
+  if (
+    setupInputs.requests.port &&
+    !(setupInputs.requests.line && Date.parse(setupInputs.requests.line) > Date.parse(setupInputs.requests.port))
+  ) {
     // Bringing the number they have (S14): its own ask, and while it waits, the one thing that loses a number.
     return {
       id: "line",
@@ -201,7 +201,7 @@ function lineToGetRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       title: "A line for calls and texts",
       state: "waiting_them",
       required: !answering,
-      sentence: `Requested ${agoWords(Date.parse(i.requests.port), nowMs)} — a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`,
+      sentence: `Requested ${agoWords(Date.parse(setupInputs.requests.port), nowMs)} — a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`,
       details: [
         "Keep your current phone service until the move is finished — cancelling it first can lose the number",
         "Carriers take 7 to 14 business days once the move is filed",
@@ -209,14 +209,14 @@ function lineToGetRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       verb: null,
     };
   }
-  if (i.requests.line) {
+  if (setupInputs.requests.line) {
     return {
       id: "line",
       icon: "phone",
       title: "A line for calls and texts",
       state: "waiting_them",
       required: !answering,
-      sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`,
+      sentence: `Requested ${agoWords(Date.parse(setupInputs.requests.line), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`,
       details: [],
       verb: null,
     };
@@ -243,7 +243,7 @@ function lineToGetRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
           ],
           verb: { label: "Get a line", to: "verb:choose-line" },
         }
-      : billingDoorOpen(i.billing) && i.billing.status === "none"
+      : billingDoorOpen(setupInputs.billing) && setupInputs.billing.status === "none"
         ? // No plan yet: the trial starts with the number, and the first run's Go live is where both happen. A trial
           // already running covers the number (decision 0090), so it reads canSpend above.
           {
@@ -254,21 +254,23 @@ function lineToGetRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
             required: !answering,
             sentence: "Get a number for calls: it starts your free trial.",
             details: [
-              priceWords(i.billing.price ?? null)
-                ? `A local number, included in your plan · ${priceWords(i.billing.price ?? null)} after the trial`
+              priceWords(setupInputs.billing.price ?? null)
+                ? `A local number, included in your plan · ${priceWords(setupInputs.billing.price ?? null)} after the trial`
                 : "A local number, included in your plan",
             ],
             // Where it answers chooses the number, Go live buys it (decision 0073).
             verb: { label: "Get a number", to: "start/channels" },
           }
-        : billingDoorOpen(i.billing)
+        : billingDoorOpen(setupInputs.billing)
           ? {
               id: "line",
               icon: "phone",
               title: "A line for calls and texts",
               state: "waiting_you",
               required: !answering,
-              sentence: whyCannotSpend(i.billing.mode, i.billing.status) ?? "Billing needs attention first.",
+              sentence:
+                whyCannotSpend(setupInputs.billing.mode, setupInputs.billing.status) ??
+                "Billing needs attention first.",
               details: ["A local number, included in your plan"],
               verb: { label: "Open Billing", to: "admin/billing" },
             }
@@ -312,17 +314,17 @@ function lineToGetRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
 /**
  * 4. The phone receptionist — answering on the line, transferring to a person.
  */
-export function receptionistRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
+export function receptionistRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const { voice, voiceReady, voiceNum, answering, handoffNum, ownLine, nowMs } = ctx;
   if (voiceReady) {
     const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
-    const cap = capabilityStatus("voice", i, nowMs);
+    const cap = capabilityStatus("voice", setupInputs, nowMs);
     // A line can be bought in a minute and the facts take longer, so a
     // receptionist can be answering with nothing to answer WITH. It does not
     // invent — it says someone will confirm and takes a message — but the
     // page said "Answering", which reads as ready, and the one thing that
     // would fix it was three rows up with no mention of the phone.
-    if (!i.business.name || !i.business.hours) {
+    if (!setupInputs.business.name || !setupInputs.business.hours) {
       return {
         id: "receptionist",
         icon: "headphones",
@@ -336,7 +338,7 @@ export function receptionistRow(i: SetupInputs, ctx: SetupRowContext): SetupRowD
         ],
         // The first of the two it answers with that is missing, open on the page that holds it (the hours left Details
         // for Hours & booking on 17 Oct 2026).
-        verb: { label: "Add your facts", to: `admin/workspace/${!i.business.name ? "name" : "hours"}` },
+        verb: { label: "Add your facts", to: `admin/workspace/${!setupInputs.business.name ? "name" : "hours"}` },
       };
     } else {
       return {
@@ -433,14 +435,14 @@ export function tryRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | n
 export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const { voice, voiceReady, voiceNum, lines, nowMs } = ctx;
   const fw = lines.rows.find((l) => l.kind === "forwarded") ?? null;
-  const f = fw?.forwarding ?? null;
+  const forwarding = fw?.forwarding ?? null;
   const kept = fw?.e164 ? (formatPhoneDisplay(fw.e164) ?? fw.e164) : "your number";
   const dest = voiceReady && voice.number ? voiceNum : null;
-  const how = f
-    ? `${FORWARDING_MODE_WORDS[f.mode as ForwardingMode] ?? "Forwarded"} · ${CARRIER_WORDS[f.carrier as Carrier] ?? "your carrier"}`
+  const how = forwarding
+    ? `${FORWARDING_MODE_WORDS[forwarding.mode as ForwardingMode] ?? "Forwarded"} · ${CARRIER_WORDS[forwarding.carrier as Carrier] ?? "your carrier"}`
     : "";
   const title = "The number you already have";
-  if (fw && f && fw.forwarding_state === "verified") {
+  if (fw && forwarding && fw.forwarding_state === "verified") {
     return {
       id: "keep",
       icon: "refresh",
@@ -448,11 +450,14 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       state: "ready",
       required: false,
       sentence: `Calls to ${kept} reach your receptionist.`,
-      details: [f.verified_at ? `Verified ${agoWords(Date.parse(f.verified_at), nowMs)}` : "Verified", how],
+      details: [
+        forwarding.verified_at ? `Verified ${agoWords(Date.parse(forwarding.verified_at), nowMs)}` : "Verified",
+        how,
+      ],
       verb: { label: "Change it", to: "verb:forwarding" },
     };
   }
-  if (fw && f && forwardingTestOpen(f, nowMs)) {
+  if (fw && forwarding && forwardingTestOpen(forwarding, nowMs)) {
     return {
       id: "keep",
       icon: "refresh",
@@ -460,11 +465,11 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       state: "waiting_you",
       required: false,
       sentence: `Testing — call ${kept} from another phone. This page updates by itself.`,
-      details: [`Window open for ${spanLabel(Date.parse(f.test_until ?? "") - nowMs)}`],
+      details: [`Window open for ${spanLabel(Date.parse(forwarding.test_until ?? "") - nowMs)}`],
       verb: { label: "Show the code", to: "verb:forwarding" },
     };
   }
-  if (fw && f) {
+  if (fw && forwarding) {
     return {
       id: "keep",
       icon: "refresh",
@@ -472,7 +477,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       state: "waiting_you",
       required: false,
       sentence:
-        f.carrier === "office"
+        forwarding.carrier === "office"
           ? `Forward ${kept} to your receptionist in your phone system's settings, then test it.`
           : `Dial the code on the phone with ${kept}, then test it.`,
       details: [how],

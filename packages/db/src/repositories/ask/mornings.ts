@@ -30,24 +30,24 @@ export async function askMorningWrite(
   db: Db,
   tenantId: string,
   day: string,
-  a: AskMorningAct,
+  askMorningAct: AskMorningAct,
 ): Promise<AskMorningDoor> {
   const { data, error } = await db.rpc("ask_morning_write", {
     p_tenant_id: tenantId,
     p_day: day,
-    p_act: a.act,
-    ...(a.act === "thread" ? { p_thread_id: a.threadId } : {}),
-    ...(a.act === "answered" ? { p_cards: a.cards } : {}),
+    p_act: askMorningAct.act,
+    ...(askMorningAct.act === "thread" ? { p_thread_id: askMorningAct.threadId } : {}),
+    ...(askMorningAct.act === "answered" ? { p_cards: askMorningAct.cards } : {}),
   });
   if (error) throw new Error(`ask_morning_write: ${error.message}`);
-  const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
-  if (typeof d.error === "string") return { refused: d.error };
+  const item = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  if (typeof item.error === "string") return { refused: item.error };
   return {
-    ...(typeof d.claimed === "boolean" ? { claimed: d.claimed } : {}),
-    ...("thread_id" in d ? { thread_id: typeof d.thread_id === "string" ? d.thread_id : null } : {}),
-    ...("cards" in d ? { cards: typeof d.cards === "number" ? d.cards : null } : {}),
-    ...(typeof d.named === "boolean" ? { named: d.named } : {}),
-    ...(typeof d.recorded === "boolean" ? { recorded: d.recorded } : {}),
+    ...(typeof item.claimed === "boolean" ? { claimed: item.claimed } : {}),
+    ...("thread_id" in item ? { thread_id: typeof item.thread_id === "string" ? item.thread_id : null } : {}),
+    ...("cards" in item ? { cards: typeof item.cards === "number" ? item.cards : null } : {}),
+    ...(typeof item.named === "boolean" ? { named: item.named } : {}),
+    ...(typeof item.recorded === "boolean" ? { recorded: item.recorded } : {}),
   };
 }
 

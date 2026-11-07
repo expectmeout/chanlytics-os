@@ -26,7 +26,7 @@ carrying any price while "Never quote a price" is on, and with it off any price
 the owner did not write (`priceAllowance`, decision 0051), and hands the thread
 to a person, whatever the prompt said.
 Every model call, whichever the purpose, goes through one port and one registry
-(`packages/contracts/src/ai/models.ts`) and is kept, in dollars, in `ai_usage`.
+(`packages/contracts/src/ai/models/routes.ts`) and is kept, in dollars, in `ai_usage`.
 
 **This is live.** Real businesses are in production with real customers on real
 numbers. Treat every change to `apps/edge` and `packages/channels` as something

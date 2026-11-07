@@ -21,11 +21,12 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 // Read as a module, so a name contracts does not export yet is a failing assertion, not a file that will not load.
-const { ASK_ANSWER_FORMAT, ASK_ANSWER_TEXT_FORMAT } = await import("@chanlytics/contracts");
-const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
-const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
-const { propose } = await import(at("apps/dashboard/src/server/ask/tools/context.ts"));
+const { ASK_ANSWER_FORMAT, ASK_ANSWER_TEXT_FORMAT } =
+  await import("../../../apps/dashboard/src/server/ask/answer-format.ts");
+const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
+const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
+const { propose } = await import(at("apps/dashboard/src/server/ask/tools/context/context.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ROBIN = "abababab-abab-4aba-8aba-abababababa1";

@@ -22,14 +22,14 @@ import {
   hasProfile,
   MAX_INTERVALS_PER_DAY,
   MAX_CLOSURES,
-  bookingRuleRefusal,
   BookingRulesSchema,
   guardrailsInForce,
   GUARDRAIL_KEYS,
-  ALWAYS_ON,
   PROFILE_LIMITS,
-  profileRefusal,
 } from "@chanlytics/contracts";
+import { bookingRuleRefusal } from "../../../apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts";
+import { ALWAYS_ON } from "../../../apps/dashboard/src/surfaces/settings/business/model/rule-strengths.ts";
+import { profileRefusal } from "../../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
 import { installStubReact } from "../../_stub-react.mjs";
 import { withStanding } from "../_prompt-rules.mjs";
 

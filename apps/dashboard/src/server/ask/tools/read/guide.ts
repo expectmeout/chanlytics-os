@@ -1,13 +1,16 @@
 import "server-only";
 import { z } from "zod";
-import { ASK_GUIDE_PAGES, ASK_SKILL_IDS, isAskSkillId, skillGuide, type AskProposal } from "@chanlytics/contracts";
-import { load } from "../../../readers";
+import type { AskProposal } from "@chanlytics/contracts";
+import { ASK_GUIDE_PAGES } from "../../proposals/guide";
+import { ASK_SKILL_IDS, isAskSkillId, skillGuide } from "../../skills/registry";
+import { load } from "../../../shared/reader";
 import { connections } from "../../../readers/connections";
-import { NO_ACTION, defineRead, offeredTo, unread, type ActTool, type ToolContext } from "../context";
+import { NO_ACTION, defineRead, offeredTo, type ActTool, type ToolContext } from "../context/tool-defs";
+import { unread } from "../context/tool-reads";
 import { propose_call } from "../act/call";
 import { propose_deal } from "../act/deal";
 import { propose_follow_up } from "../act/follow-up";
-import { propose_lead_search } from "../act/leads/lead-search";
+import { propose_lead_search } from "../act/leads/search";
 import { propose_leads } from "../act/leads/leads";
 import { propose_list } from "../act/people/list";
 import { propose_people } from "../act/people/people";
@@ -15,7 +18,7 @@ import { propose_person } from "../act/person";
 import { rememberAct } from "../act/remember";
 import { propose_reply } from "../act/reply";
 import { propose_review } from "../act/review";
-import { propose_sequence } from "../act/sequence";
+import { propose_sequence } from "../act/sequence/sequence";
 import { propose_settings } from "../act/settings";
 import { propose_thread_verb } from "../act/thread-verb";
 
@@ -50,8 +53,8 @@ function kindsAsked(t: ToolContext): Map<AskProposal["kind"], string[]> {
   for (const tool of ACT_TOOLS)
     for (const [action, def] of Object.entries(tool.actions)) {
       if (!offeredTo(def, t.role)) continue;
-      const said = action === NO_ACTION ? tool.name : `${tool.name} with action ${action}`;
-      out.set(def.kind, [...(out.get(def.kind) ?? []), said]);
+      const sentence = action === NO_ACTION ? tool.name : `${tool.name} with action ${action}`;
+      out.set(def.kind, [...(out.get(def.kind) ?? []), sentence]);
     }
   return out;
 }
@@ -65,17 +68,20 @@ function skillRead(skill: string): unknown {
   return { skill, guide: skillGuide(skill) };
 }
 
-async function readGuide(t: ToolContext, input: { skill?: string | undefined }): Promise<unknown> {
+async function readGuide(toolContext: ToolContext, input: { skill?: string | undefined }): Promise<unknown> {
   if (input.skill) return skillRead(input.skill);
-  const asked = kindsAsked(t);
-  const setup = await load(t.rc, connections, undefined).then((r) => r.data.setup, unread(t, "guide", "setup"));
+  const otherKindsAsked = kindsAsked(toolContext);
+  const setup = await load(toolContext.rc, connections, undefined).then(
+    (r) => r.data.setup,
+    unread(toolContext, "guide", "setup"),
+  );
   const missing: string[] = [];
   if (setup) {
-    const b = setup.business;
-    if (!b.hours)
+    const business = setup.business;
+    if (!business.hours)
       missing.push("Opening hours: the receptionist cannot say when you are open (Settings › Hours & booking).");
-    if (!b.services) missing.push("Services: the receptionist cannot say what you offer (Settings › Details).");
-    if (!b.bookingLink && setup.calendar.state === "none")
+    if (!business.services) missing.push("Services: the receptionist cannot say what you offer (Settings › Details).");
+    if (!business.bookingLink && setup.calendar.state === "none")
       missing.push(
         "A booking link or a calendar: nobody can be booked by the receptionist (Settings › Hours & booking).",
       );
@@ -102,7 +108,7 @@ async function readGuide(t: ToolContext, input: { skill?: string | undefined }):
       page: p.page,
       route: p.route,
       for: p.for,
-      ask_can: [...new Set(p.verbs.flatMap((k) => asked.get(k) ?? []))],
+      ask_can: [...new Set(p.verbs.flatMap((k) => otherKindsAsked.get(k) ?? []))],
       on_the_page_only: p.pageOnly.map((x) => `${x.what}: ${x.why}`),
     })),
     setup: setup

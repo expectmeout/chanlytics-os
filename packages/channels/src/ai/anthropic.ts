@@ -4,7 +4,7 @@
  * Before it, four SDK clients (the receptionist, the review reply, the lead judge, the JSON reads) and the gateway's own
  * fetch each asked the API their own way: a 529 was retried by some and forwarded by others, and the dashboard read the
  * gateway's forwarded 529 as "the model refused the question". Now every purpose asks through here, over providerFetch
- * and its outcome rules, and the route contracts' registry gives it (ai/models.ts) says the model, the fallback, the
+ * and its outcome rules, and the route contracts' registry gives it (ai/models/routes.ts) says the model, the fallback, the
  * bound and the retries.
  *
  * What a call comes to:
@@ -54,7 +54,7 @@ import {
   NO_USAGE,
 } from "@chanlytics/contracts";
 import type { ModelPurpose, ModelSpeed, ModelUsage } from "@chanlytics/contracts";
-import { providerFetch, type ProviderReply } from "../shared/provider-fetch";
+import { fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -182,14 +182,14 @@ const neverCame = (a: ProviderReply): boolean => a.outcome === "unknown";
 const modelUnknown = (a: ProviderReply): boolean => a.status === 404;
 
 function messageOf(json: unknown): ModelMessage {
-  const j = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
-  const content = Array.isArray(j.content) ? (j.content as ModelBlock[]) : [];
+  const otherJson = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+  const content = Array.isArray(otherJson.content) ? (otherJson.content as ModelBlock[]) : [];
   return {
-    id: typeof j.id === "string" ? j.id : null,
-    model: typeof j.model === "string" ? j.model : null,
-    stop_reason: typeof j.stop_reason === "string" ? j.stop_reason : null,
+    id: typeof otherJson.id === "string" ? otherJson.id : null,
+    model: typeof otherJson.model === "string" ? otherJson.model : null,
+    stop_reason: typeof otherJson.stop_reason === "string" ? otherJson.stop_reason : null,
     content,
-    usage: j.usage && typeof j.usage === "object" ? (j.usage as Record<string, unknown>) : null,
+    usage: otherJson.usage && typeof otherJson.usage === "object" ? (otherJson.usage as Record<string, unknown>) : null,
   };
 }
 
@@ -206,12 +206,12 @@ function messageTextOf(message: Pick<ModelMessage, "content">): string {
  * without it (plain JSON, no beta), as it always has.
  */
 export function formatRejected<R extends { outcome: ModelOutcome; status: number; error?: string }>(
-  r: R,
-): r is R & { outcome: "rejected"; error: string } {
+  item: R,
+): item is R & { outcome: "rejected"; error: string } {
   return (
-    r.outcome === "rejected" &&
-    r.status === 400 &&
-    /output_config|output_format|json_schema|schema|format|fallback|beta/i.test(r.error ?? "")
+    item.outcome === "rejected" &&
+    item.status === 400 &&
+    /output_config|output_format|json_schema|schema|format|fallback|beta/i.test(item.error ?? "")
   );
 }
 
@@ -247,15 +247,15 @@ function sentFor(ask: ModelAsk, model: string, slowed: boolean): Sent {
   const fast = speed === "fast" && !slowed && (takes?.fast ?? true);
   const type = thinking && typeof thinking === "object" ? (thinking as { type?: unknown }).type : undefined;
   const thinks = thinking !== undefined && (!takes || (takes.thinking as readonly unknown[]).includes(type));
-  const said = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
-  const told = said && (takes?.effortMessages ?? true);
+  const sentence = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
+  const notice = sentence && (takes?.effortMessages ?? true);
   const worded = Array.isArray(asked.messages) && asked.messages.some(isWordsMessage);
-  const folded = said && !told ? foldEffortMessages(asked) : asked;
+  const folded = sentence && !notice ? foldEffortMessages(asked) : asked;
   const body = worded && !(takes?.systemMessages ?? true) ? foldWordsMessages(folded) : folded;
   const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA && b !== EFFORT_MESSAGE_BETA);
   return {
     body: { ...body, ...(thinks ? { thinking } : {}), ...(fast ? { speed: "fast" } : {}) },
-    betas: [...betas, ...(told ? [EFFORT_MESSAGE_BETA] : []), ...(fast ? [FAST_MODE_BETA] : [])],
+    betas: [...betas, ...(notice ? [EFFORT_MESSAGE_BETA] : []), ...(fast ? [FAST_MODE_BETA] : [])],
     speed: fast ? "fast" : "standard",
   };
 }
@@ -297,7 +297,7 @@ const leftOf = (ask: ModelAsk, p: Plan): number =>
   ask.deadlineMs === undefined ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
 
 /**
- * One try's bound, in ms: the route's (contracts ai/models.ts, the ceiling the registry set for the purpose), a
+ * One try's bound, in ms: the route's (contracts ai/models/routes.ts, the ceiling the registry set for the purpose), a
  * caller's sooner one when it gave one, and never past what is left of the deadline. Never later than the route's: a
  * caller handing over its own ceiling (a job's time left) widened the registry's number instead of narrowing it, so
  * booking_read's 30 s rode over the 8 s its row says. At least a millisecond.
@@ -310,28 +310,33 @@ export function tryBound(route: { timeoutMs: number }, ask: { timeoutMs?: number
 function tryModel(
   key: string,
   ask: ModelAsk,
-  p: Plan,
+  plan: Plan,
   model: string,
   sent: Sent,
   stream: boolean,
 ): Promise<ProviderReply> {
-  const left = leftOf(ask, p);
-  const timeoutMs = tryBound(p.route, ask, left);
-  return providerFetch(
+  const left = leftOf(ask, plan);
+  const timeoutMs = tryBound(plan.route, ask, left);
+  return fetchFromProvider(
     "anthropic",
     ANTHROPIC_MESSAGES_URL,
     {
       method: "POST",
       headers: headersFor(key, sent.betas, ask.attribution.profileId),
-      body: JSON.stringify({ max_tokens: p.route.maxTokens, ...sent.body, model, ...(stream ? { stream: true } : {}) }),
+      body: JSON.stringify({
+        max_tokens: plan.route.maxTokens,
+        ...sent.body,
+        model,
+        ...(stream ? { stream: true } : {}),
+      }),
       timeoutMs,
-      tries: 1 + Math.max(0, ask.retries ?? p.route.retries),
+      tries: 1 + Math.max(0, ask.retries ?? plan.route.retries),
       ...(Number.isFinite(left) ? { deadlineMs: left } : {}),
       breaker: "count",
       ...(ask.signal ? { signal: ask.signal } : {}),
       ...(stream ? { stream: true } : {}),
     },
-    p.d,
+    plan.d,
   );
 }
 
@@ -353,37 +358,37 @@ const failure = (a: ProviderReply): "rejected" | "unreachable" =>
  * when fast mode refused a fast request (a 429 or a 529), which holds the model; then the fallback when no answer came
  * or the model is unknown. What the last try was.
  */
-async function triesOf(key: string, ask: ModelAsk, p: Plan, stream: boolean) {
-  let model = p.first;
-  let sent = sentFor(ask, model, fastHeld(model, p));
-  let a = await tryModel(key, ask, p, model, sent, stream);
+async function triesOf(key: string, ask: ModelAsk, plan: Plan, stream: boolean) {
+  let model = plan.first;
+  let sent = sentFor(ask, model, fastHeld(model, plan));
+  let result = await tryModel(key, ask, plan, model, sent, stream);
   let slowed = false;
-  if (sent.speed === "fast" && fastRefused(a)) {
-    fastHolds.set(model, p.d.now() + FAST_HOLD_MS);
+  if (sent.speed === "fast" && fastRefused(result)) {
+    fastHolds.set(model, plan.d.now() + FAST_HOLD_MS);
     slowed = true;
-    if (roomFor(ask, p)) {
+    if (roomFor(ask, plan)) {
       sent = sentFor(ask, model, true);
-      a = await tryModel(key, ask, p, model, sent, stream);
+      result = await tryModel(key, ask, plan, model, sent, stream);
     }
   }
   let fellBack = false;
-  const next = a.outcome === "ok" ? null : fallbackFor(ask, p, a);
+  const next = result.outcome === "ok" ? null : fallbackFor(ask, plan, result);
   if (next) {
     model = next;
     fellBack = true;
-    sent = sentFor(ask, model, fastHeld(model, p));
-    a = await tryModel(key, ask, p, model, sent, stream);
+    sent = sentFor(ask, model, fastHeld(model, plan));
+    result = await tryModel(key, ask, plan, model, sent, stream);
   }
-  return { a, model, base: { asked: p.first, fellBack, status: a.status, speed: sent.speed, slowed } };
+  return { a: result, model, base: { asked: plan.first, fellBack, status: result.status, speed: sent.speed, slowed } };
 }
 
 /** A request that says nothing of whom it is for: refused here, and nothing leaves. A type error everywhere but a script. */
 function unattributed(ask: ModelAsk, deps: ModelDeps) {
-  const p = planOf(ask, deps);
+  const plan = planOf(ask, deps);
   const error = "this request does not say whom it is for";
   return {
-    asked: p.first,
-    model: p.first,
+    asked: plan.first,
+    model: plan.first,
     fellBack: false,
     status: 0,
     speed: "standard" as const,

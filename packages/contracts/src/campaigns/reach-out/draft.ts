@@ -4,7 +4,7 @@
  * chainIssueWords), a slot put in at the caret, the pace its mailboxes allow, the preview's lines, and the Leads door.
  * Pure: the page draws these and says every sentence from here.
  */
-import { reachOutWritesFrom } from "../../email/mailbox-connections";
+import { reachOutWritesFrom } from "../../email/mailbox-connections/states";
 import { mailboxDailyCap, mailboxRampShare, MAILBOX_RAMP } from "../../email/mailbox-standing";
 import {
   REACH_OUT_PREVIEW_INDEX_MAX,
@@ -15,20 +15,13 @@ import {
 } from "./dtos";
 import { RUN_OPEN_WORDS } from "../../shell/campaign-rooms";
 import type { HandKind, StepHand } from "./hand";
-import { REACH_OUT_SHEET_WORDS, startWords } from "./sheet";
-import {
-  REACH_OUT_AFTER_DAYS,
-  REACH_OUT_MAILBOXES_MAX,
-  REACH_OUT_STEPS_MAX,
-  chainIssueWords,
-  holdWords,
-  isReachOutHold,
-  validateReachOutChain,
-  type ChainIssue,
-} from "./words";
+import { REACH_OUT_SHEET_WORDS, startWords } from "./sheet/words";
+import { REACH_OUT_AFTER_DAYS, REACH_OUT_MAILBOXES_MAX, REACH_OUT_STEPS_MAX } from "./words/limits";
+import { chainIssueWords, validateReachOutChain, type ChainIssue } from "./words/opening";
+import { holdWords, isReachOutHold } from "./words/claims";
 import type { ReachOutChainInput } from "./schemas";
 import type { ReachOutSignsWith } from "./rules";
-import { runRoute, sequenceRoute } from "../sequences/sequence-address";
+import { runRoute, sequenceRoute } from "../sequences/address";
 
 export interface ReachOutDraftStep {
   /** The step's row when the chain is being changed; null for a step not saved yet. */
@@ -76,24 +69,24 @@ export function reachOutDefaultName(searchName: string): string {
  * The draft a sheet opens as: the chain being changed, or a new one over the search, signed with the member's name. A new
  * one is its owner's to send (`ownerSends`) when the workspace has no mailbox connected to write from.
  */
-export function reachOutDraftOf(p: {
+export function reachOutDraftOf(params: {
   chain: ReachOutChainDto | null;
   searchName: string;
   signedBy: string | null;
   includeUnconfirmed?: boolean;
   ownerSends?: boolean;
 }): ReachOutDraft {
-  const c = p.chain;
-  if (c)
+  const chain = params.chain;
+  if (chain)
     return {
-      name: c.name,
-      include_unconfirmed: c.include_unconfirmed,
-      gap_minutes: c.gap_minutes,
-      mailbox_ids: c.mailbox_ids,
-      owner_sends: c.owner_sends === true,
-      signed_by: c.signed_by ?? p.signedBy ?? "",
-      signs_with: c.signs_with ?? "name",
-      steps: c.steps.map((s) => ({
+      name: chain.name,
+      include_unconfirmed: chain.include_unconfirmed,
+      gap_minutes: chain.gap_minutes,
+      mailbox_ids: chain.mailbox_ids,
+      owner_sends: chain.owner_sends === true,
+      signed_by: chain.signed_by ?? params.signedBy ?? "",
+      signs_with: chain.signs_with ?? "name",
+      steps: chain.steps.map((s) => ({
         id: s.id,
         subject: s.n === 0 ? s.subject : null,
         body: s.body,
@@ -102,12 +95,12 @@ export function reachOutDraftOf(p: {
       })),
     };
   return {
-    name: reachOutDefaultName(p.searchName),
-    include_unconfirmed: !!p.includeUnconfirmed,
+    name: reachOutDefaultName(params.searchName),
+    include_unconfirmed: !!params.includeUnconfirmed,
     gap_minutes: REACH_OUT_GAP_FIRST,
     mailbox_ids: [],
-    owner_sends: p.ownerSends === true,
-    signed_by: p.signedBy ?? "",
+    owner_sends: params.ownerSends === true,
+    signed_by: params.signedBy ?? "",
     signs_with: "name",
     steps: [
       {
@@ -151,11 +144,11 @@ export const REACH_OUT_NEW_LIST_WORDS = {
  * Whether another step may be added (five at most, and nothing after a call or a note, which ends the chain), and the
  * draft with one: a short nudge four days on.
  */
-export function reachOutMayAddStep(d: ReachOutDraft): boolean {
-  return d.steps.length < REACH_OUT_STEPS_MAX && !d.steps[d.steps.length - 1]?.hand;
+export function reachOutMayAddStep(reachOutDraft: ReachOutDraft): boolean {
+  return reachOutDraft.steps.length < REACH_OUT_STEPS_MAX && !reachOutDraft.steps[reachOutDraft.steps.length - 1]?.hand;
 }
-export function reachOutAddStep(d: ReachOutDraft): ReachOutDraft {
-  if (!reachOutMayAddStep(d)) return d;
+export function reachOutAddStep(reachOutDraft: ReachOutDraft): ReachOutDraft {
+  if (!reachOutMayAddStep(reachOutDraft)) return reachOutDraft;
   const step = {
     id: null,
     subject: null,
@@ -163,23 +156,26 @@ export function reachOutAddStep(d: ReachOutDraft): ReachOutDraft {
     after_days: REACH_OUT_AFTER_DAYS.first,
     hand: null,
   };
-  return { ...d, steps: [...d.steps, step] };
+  return { ...reachOutDraft, steps: [...reachOutDraft.steps, step] };
 }
 /** The draft ending in a call or a note for you (Part 5, G20): as another step may be added, after the first email. */
-export function reachOutAddHandStep(d: ReachOutDraft, kind: HandKind): ReachOutDraft {
-  if (!reachOutMayAddStep(d)) return d;
+export function reachOutAddHandStep(reachOutDraft: ReachOutDraft, kind: HandKind): ReachOutDraft {
+  if (!reachOutMayAddStep(reachOutDraft)) return reachOutDraft;
   const step = { id: null, subject: null, body: "", after_days: REACH_OUT_AFTER_DAYS.first, hand: { kind, words: "" } };
-  return { ...d, steps: [...d.steps, step] };
+  return { ...reachOutDraft, steps: [...reachOutDraft.steps, step] };
 }
 /** A hand step's words, as the member writes them. */
-export function reachOutSetHandWords(d: ReachOutDraft, i: number, words: string): ReachOutDraft {
-  const s = d.steps[i];
-  if (!s?.hand) return d;
-  return { ...d, steps: d.steps.map((x, j) => (j === i ? { ...x, hand: { kind: s.hand!.kind, words } } : x)) };
+export function reachOutSetHandWords(reachOutDraft: ReachOutDraft, index: number, words: string): ReachOutDraft {
+  const s = reachOutDraft.steps[index];
+  if (!s?.hand) return reachOutDraft;
+  return {
+    ...reachOutDraft,
+    steps: reachOutDraft.steps.map((x, j) => (j === index ? { ...x, hand: { kind: s.hand!.kind, words } } : x)),
+  };
 }
 /** The draft without its last step; the first email always stays. */
-export function reachOutDropStep(d: ReachOutDraft): ReachOutDraft {
-  return d.steps.length > 1 ? { ...d, steps: d.steps.slice(0, -1) } : d;
+export function reachOutDropStep(reachOutDraft: ReachOutDraft): ReachOutDraft {
+  return reachOutDraft.steps.length > 1 ? { ...reachOutDraft, steps: reachOutDraft.steps.slice(0, -1) } : reachOutDraft;
 }
 
 /** The days a later step may wait, as the sheet offers them. */
@@ -190,18 +186,18 @@ export function reachOutAfterDayChoices(): number[] {
 }
 
 /** The body the sheet saves: ReachOutChainSchema's shape, each step's id kept where it has one (an edit). */
-export function reachOutChainBodyOf(d: ReachOutDraft, searchId: string): ReachOutChainInput {
+export function reachOutChainBodyOf(reachOutDraft: ReachOutDraft, searchId: string): ReachOutChainInput {
   return {
-    name: d.name.trim() || "Write to leads",
+    name: reachOutDraft.name.trim() || "Write to leads",
     search_id: searchId,
-    include_unconfirmed: d.include_unconfirmed,
-    gap_minutes: d.gap_minutes,
-    mailbox_ids: d.mailbox_ids,
-    owner_sends: d.owner_sends,
-    signed_by: d.signed_by.trim() || null,
-    signs_with: d.signs_with,
+    include_unconfirmed: reachOutDraft.include_unconfirmed,
+    gap_minutes: reachOutDraft.gap_minutes,
+    mailbox_ids: reachOutDraft.mailbox_ids,
+    owner_sends: reachOutDraft.owner_sends,
+    signed_by: reachOutDraft.signed_by.trim() || null,
+    signs_with: reachOutDraft.signs_with,
     // An email carries no hand at all: the door reads a step with the key as a hand step (00228).
-    steps: d.steps.map((s, i) => ({
+    steps: reachOutDraft.steps.map((s, i) => ({
       ...(s.id ? { id: s.id } : {}),
       subject: i === 0 ? (s.subject ?? "") : null,
       body: s.hand ? "" : s.body,
@@ -222,12 +218,16 @@ export interface ReachOutDraftIssues {
 }
 
 /** The draft's problems at the field each belongs to, in contracts' words (validateReachOutChain, chainIssueWords). */
-export function reachOutDraftIssues(d: ReachOutDraft, has: { bookingLink: boolean }): ReachOutDraftIssues {
+export function reachOutDraftIssues(reachOutDraft: ReachOutDraft, has: { bookingLink: boolean }): ReachOutDraftIssues {
   const issues: ChainIssue[] = validateReachOutChain(
-    reachOutChainBodyOf(d, "00000000-0000-4000-8000-000000000000"),
+    reachOutChainBodyOf(reachOutDraft, "00000000-0000-4000-8000-000000000000"),
     has,
   );
-  const steps = d.steps.map(() => ({ subject: [] as string[], body: [] as string[], after_days: [] as string[] }));
+  const steps = reachOutDraft.steps.map(() => ({
+    subject: [] as string[],
+    body: [] as string[],
+    after_days: [] as string[],
+  }));
   const out: ReachOutDraftIssues = { steps, signed_by: [], chain: [], ready: issues.length === 0 };
   for (const i of issues) {
     const words = chainIssueWords(i);
@@ -286,16 +286,21 @@ export function previewRefusedWords(reason: string): string {
 }
 
 /** The preview's lines: whose email it is and where in the list, its hold or its refusal, or that it waits for words. */
-export function previewLinesOf(p: { preview: ReachOutPreviewDto; index: number; of: number }) {
-  const v = p.preview;
+export function previewLinesOf(params: { preview: ReachOutPreviewDto; index: number; of: number }) {
+  const preview = params.preview;
   return {
-    reader: v.lead ? `as ${v.lead.business_name} reads it · ${p.index + 1} of ${p.of}` : null,
-    nobody: v.lead ? null : "Nobody on this search can be written to yet.",
-    hold: v.hold && isReachOutHold(v.hold) ? `The check would hold this one: ${holdWords(v.hold, v.detail)}.` : null,
-    refused: v.refused ? previewRefusedWords(v.refused) : null,
-    unavailable: v.unavailable ? "The opening couldn't be written just now. Rewrite the opening to ask again." : null,
-    first: p.index <= 0,
-    last: p.index + 1 >= p.of,
+    reader: preview.lead ? `as ${preview.lead.business_name} reads it · ${params.index + 1} of ${params.of}` : null,
+    nobody: preview.lead ? null : "Nobody on this search can be written to yet.",
+    hold:
+      preview.hold && isReachOutHold(preview.hold)
+        ? `The check would hold this one: ${holdWords(preview.hold, preview.detail)}.`
+        : null,
+    refused: preview.refused ? previewRefusedWords(preview.refused) : null,
+    unavailable: preview.unavailable
+      ? "The opening couldn't be written just now. Rewrite the opening to ask again."
+      : null,
+    first: params.index <= 0,
+    last: params.index + 1 >= params.of,
   };
 }
 
@@ -319,12 +324,13 @@ export const REACH_OUT_PREVIEW_WORDS = {
  * the ones whose address is unconfirmed, included; else nothing. One chain per search.
  */
 export function reachOutDoorOf(
-  r: ReachOutReachDto | null,
+  reachOutReach: ReachOutReachDto | null,
 ): { kind: "open"; label: string; rootId: string } | { kind: "write"; label: string; include: boolean } | null {
-  if (!r) return null;
-  if (r.chain) return { kind: "open", label: "Open its sequence", rootId: r.chain };
-  if (r.ready > 0) return { kind: "write", label: `Write to the ${r.ready} ready`, include: false };
-  const unconfirmed = Math.max(0, r.with_unconfirmed - r.ready);
+  if (!reachOutReach) return null;
+  if (reachOutReach.chain) return { kind: "open", label: "Open its sequence", rootId: reachOutReach.chain };
+  if (reachOutReach.ready > 0)
+    return { kind: "write", label: `Write to the ${reachOutReach.ready} ready`, include: false };
+  const unconfirmed = Math.max(0, reachOutReach.with_unconfirmed - reachOutReach.ready);
   if (unconfirmed > 0)
     return {
       kind: "write",
@@ -342,8 +348,8 @@ export function reachOutWhoWords(includeUnconfirmed: boolean): string {
 }
 
 /** Whether another mailbox may be picked (ReachOutChainSchema's most). */
-export function reachOutMayPickMailbox(d: ReachOutDraft): boolean {
-  return d.mailbox_ids.length < REACH_OUT_MAILBOXES_MAX;
+export function reachOutMayPickMailbox(reachOutDraft: ReachOutDraft): boolean {
+  return reachOutDraft.mailbox_ids.length < REACH_OUT_MAILBOXES_MAX;
 }
 
 /** A read the sheet draws from: in, still out, or failed. */
@@ -353,10 +359,13 @@ type ReachOutSheetRead = "in" | "reading" | "failed";
  * What the sheet cannot say yet because a read it draws from is not in: the mailboxes (Setup's read) and the booking
  * link (Settings' read). Unread is never "none": the sheet says it is reading, and Start waits.
  */
-export function reachOutSheetUnreadOf(r: { mailboxes: ReachOutSheetRead; settings: ReachOutSheetRead }): string | null {
-  if (r.mailboxes === "failed" || r.settings === "failed")
+export function reachOutSheetUnreadOf(row: {
+  mailboxes: ReachOutSheetRead;
+  settings: ReachOutSheetRead;
+}): string | null {
+  if (row.mailboxes === "failed" || row.settings === "failed")
     return "Your mailboxes or your booking link couldn't be read. Start waits until they are; reload to try again.";
-  if (r.mailboxes === "reading" || r.settings === "reading") return "Reading your mailboxes and your booking link…";
+  if (row.mailboxes === "reading" || row.settings === "reading") return "Reading your mailboxes and your booking link…";
   return null;
 }
 
@@ -381,13 +390,13 @@ export function reachOutSavedWords(saved: ReachOutSavedDto): {
   to: string;
   label: string;
 } {
-  const said = saved.start
+  const sentence = saved.start
     ? startWords(saved.start)
     : { tone: "good" as const, text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
   return run
-    ? { ...said, to: runRoute(run), label: RUN_OPEN_WORDS }
-    : { ...said, to: sequenceRoute(saved.root_id), label: "Open its sequence" };
+    ? { ...sentence, to: runRoute(run), label: RUN_OPEN_WORDS }
+    : { ...sentence, to: sequenceRoute(saved.root_id), label: "Open its sequence" };
 }
 
 /** The sheet's own labels: its parts, its fields and its acts. */

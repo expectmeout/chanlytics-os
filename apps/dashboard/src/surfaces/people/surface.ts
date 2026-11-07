@@ -17,9 +17,9 @@ import {
   type DealPaceVM,
   type PersonRowVM,
   type PeopleAggregates,
-  type AttentionRowVM,
   type ListRule,
 } from "@chanlytics/contracts";
+import type { AttentionRowVM } from "./person/model/attention";
 import { resnapshotHere } from "@/bridge/surface-cache";
 import { read } from "@/bridge/api";
 import { workspaceZone } from "@/bridge/zone";
@@ -292,7 +292,7 @@ export async function peopleMore(): Promise<void> {
 
 /**
  * A person's current deal, laid on their People row as the door answers (0008): the deal door answers the deal their
- * row shows after the write (server/people/deals.ts currentDealOf, people_list's own rule), so the Pipeline moves the row as
+ * row shows after the write (server/people/deals.ts findCurrentDeal, people_list's own rule), so the Pipeline moves the row as
  * the sheet closes, instead of once all of People has been read again; the re-read the refresh map asks for behind
  * it says the rest. It was the deal the door recorded, which is not the row's when the move was on someone's older
  * deal: their row jumped to it until the re-read. True when a row took it.

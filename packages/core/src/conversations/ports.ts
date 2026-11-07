@@ -8,7 +8,7 @@
  * apps/dashboard/src/server/core-ports.ts.
  */
 import type { DecisionSubject, DecisionVerb, TenantId } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 
 /** The thread as the route's scope loaded it. A verb names only the fields it reads. */
 export interface Thread {

@@ -4,12 +4,12 @@
  * campaign replaced (a new vetting fee). Each asks the pre-flight in
  * a2p-register.ts before anything at the carrier is touched.
  */
-import { deleteCampaignRequest, updateCampaignRequest, encodeForm, twilioRequest } from "@chanlytics/channels";
+import { deleteCampaignRequest, updateCampaignRequest, encodeForm, requestTwilio } from "@chanlytics/channels/lines";
 import type { EdgeErrorCode } from "@chanlytics/contracts";
-import { lineAccount } from "../sms/sms.js";
+import { findLineAccount } from "./sms.js";
 import { logger } from "../shared/log.js";
-import { tenantDb } from "@chanlytics/db";
-import { filingProblems, TWILIO_TIMEOUT_MS, type Db, type LineRow, type RecordRow } from "./a2p-register.js";
+import { tenantDb } from "@chanlytics/db/shared";
+import { listFilingProblems, TWILIO_TIMEOUT_MS, type Db, type LineRow, type RecordRow } from "./a2p-register.js";
 
 /**
  * What a refile step answers: the row as it now reads; or why not, as a code, with the pre-flight's sentences in
@@ -55,19 +55,19 @@ export async function unfileMockRegistration(
    */
   check: { record: RecordRow; workspaceName: string; hasOptInNumber?: boolean },
 ): Promise<RefileOutcome> {
-  const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
-  const problems = await filingProblems(db, line, check);
+  const log = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  const problems = await listFilingProblems(db, line, check);
   if (problems.length) {
-    L.warn("a2p_unfile_refused", { problems: problems.length });
+    log.warn("a2p_unfile_refused", { problems: problems.length });
     return { ok: false, error: "record_incomplete", problems };
   }
   if (line.messaging_service_sid && line.campaign_sid) {
-    const sub = await lineAccount(db, line).catch(() => null);
+    const sub = await findLineAccount(db, line).catch(() => null);
     if (!sub) return { ok: false, error: "no_line_credentials" };
     const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
-    const r = await twilioRequest(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });
-    const gone = r.outcome === "ok" || r.status === 404;
-    L.info("a2p.mock_campaign_deleted", { status: r.status, ok: gone });
+    const result = await requestTwilio(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });
+    const gone = result.outcome === "ok" || result.status === 404;
+    log.info("a2p.mock_campaign_deleted", { status: result.status, ok: gone });
     // NOT best effort. A campaign left on the service makes the real POST fail
     // one step later with a message about the wrong thing, and the row by then
     // says nothing is filed. 404 is the state we were asking for; anything else
@@ -76,7 +76,7 @@ export async function unfileMockRegistration(
       return {
         ok: false,
         error: "provider_refused",
-        detail: `the mock campaign would not come off (HTTP ${r?.status ?? 0})`,
+        detail: `the mock campaign would not come off (HTTP ${result?.status ?? 0})`,
       };
   }
   // `single()` is the row count: a write that changed nothing errors here
@@ -145,26 +145,26 @@ export async function resubmitRejectedCampaign(
   // updateCampaignRequest.
   facts: { description: string; messageFlow: string; samples: string[]; privacyPolicyUrl: string; termsUrl: string },
   /**
-   * What `filingProblems` needs to answer "is this ready to go out". Required, not
+   * What `listFilingProblems` needs to answer "is this ready to go out". Required, not
    * optional: this function used to send whatever it was handed, which is how a
    * rejection came to be answered with the fault that caused it.
    */
   check: { record: RecordRow; workspaceName: string; hasOptInNumber?: boolean },
 ): Promise<RefileOutcome> {
-  const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  const log = logger({ tenant_id: line.tenant_id, line_id: line.id });
   if (!line.messaging_service_sid || !line.campaign_sid) return { ok: false, error: "no_campaign_to_resubmit" };
 
   // THE SAME CHECK THE FIRST FILING MAKES, before this one leaves. The row is NOT
   // touched: it is carrying the carriers' verdict and their words, and replacing
   // those with our own pre-check would destroy the only record of what they said
   // -- while a resubmit that goes out with a known fault costs another week.
-  const problems = await filingProblems(db, line, check);
+  const problems = await listFilingProblems(db, line, check);
   if (problems.length) {
-    L.warn("a2p_refile_refused", { problems: problems.length });
+    log.warn("a2p_refile_refused", { problems: problems.length });
     return { ok: false, error: "record_incomplete", problems };
   }
 
-  const sub = await lineAccount(db, line).catch(() => null);
+  const sub = await findLineAccount(db, line).catch(() => null);
   if (!sub) return { ok: false, error: "no_line_credentials" };
 
   const req = updateCampaignRequest(line.messaging_service_sid, line.campaign_sid, {
@@ -174,20 +174,20 @@ export async function resubmitRejectedCampaign(
     privacyPolicyUrl: facts.privacyPolicyUrl,
     termsUrl: facts.termsUrl,
   });
-  const r = await twilioRequest(sub, req.method, req.url, {
+  const result = await requestTwilio(sub, req.method, req.url, {
     form: encodeForm(req.form ?? {}),
     timeoutMs: TWILIO_TIMEOUT_MS,
   });
-  if (r.outcome !== "ok") {
-    const detail = r.status ? r.text.slice(0, 200) : "no answer";
-    L.error("a2p.campaign_resubmit_refused", { status: r.status, detail });
+  if (result.outcome !== "ok") {
+    const detail = result.status ? result.text.slice(0, 200) : "no answer";
+    log.error("a2p.campaign_resubmit_refused", { status: result.status, detail });
     return {
       ok: false,
       error: "provider_refused",
-      detail: `the campaign could not be resubmitted (HTTP ${r?.status ?? 0}) ${detail}`,
+      detail: `the campaign could not be resubmitted (HTTP ${result?.status ?? 0}) ${detail}`,
     };
   }
-  L.info("a2p.campaign_resubmitted", { campaign: line.campaign_sid });
+  log.info("a2p.campaign_resubmitted", { campaign: line.campaign_sid });
 
   const cleared = await tenantDb(db, line.tenant_id)
     .from("lines")
@@ -231,27 +231,27 @@ export async function replaceRejectedCampaign(
   line: LineRow,
   check: { record: RecordRow; workspaceName: string; hasOptInNumber?: boolean },
 ): Promise<RefileOutcome> {
-  const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  const log = logger({ tenant_id: line.tenant_id, line_id: line.id });
   if (line.sms_state !== "rejected") return { ok: false, error: "not_rejected" };
-  const problems = await filingProblems(db, line, check);
+  const problems = await listFilingProblems(db, line, check);
   if (problems.length) {
-    L.warn("a2p_replace_refused", { problems: problems.length });
+    log.warn("a2p_replace_refused", { problems: problems.length });
     return { ok: false, error: "record_incomplete", problems };
   }
   if (line.messaging_service_sid && line.campaign_sid) {
-    const sub = await lineAccount(db, line).catch(() => null);
+    const sub = await findLineAccount(db, line).catch(() => null);
     if (!sub) return { ok: false, error: "no_line_credentials" };
     const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
-    const r = await twilioRequest(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });
-    const gone = r.outcome === "ok" || r.status === 404;
-    L.info("a2p.rejected_campaign_deleted", { status: r.status, ok: gone, campaign: line.campaign_sid });
+    const result = await requestTwilio(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });
+    const gone = result.outcome === "ok" || result.status === 404;
+    log.info("a2p.rejected_campaign_deleted", { status: result.status, ok: gone, campaign: line.campaign_sid });
     // A campaign left on the service makes the new POST fail one step later
     // with a message about the wrong thing. 404 is the state asked for.
     if (!gone)
       return {
         ok: false,
         error: "provider_refused",
-        detail: `the rejected campaign would not come off (HTTP ${r.status})`,
+        detail: `the rejected campaign would not come off (HTTP ${result.status})`,
       };
   }
   // `single()` is the row count: a write that changed nothing errors here

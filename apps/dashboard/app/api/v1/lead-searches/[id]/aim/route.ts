@@ -2,7 +2,7 @@ import { z } from "zod";
 import { UUID } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
-import { aimSearch } from "@/server/leads/lead-workbench";
+import { aimSearch } from "@/server/leads/workbench";
 
 /**
  * POST /api/v1/lead-searches/:id/aim — { sequence_id }: the sequence this search's Add goes to, or none (null), kept on

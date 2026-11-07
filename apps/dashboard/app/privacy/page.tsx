@@ -30,7 +30,7 @@ const THEIR_COPY_WORDS =
  * What Google's review reads against the consent screen: each scope the app asks for, named with what it is used for
  * (channels MAILBOX_SCOPES; decision 0073, 18 to 22: the mail, the contacts, the calendar), and the Limited Use
  * commitments spelled out, not only linked. Removing a mailbox revokes the grant at Google and drops its credentials
- * (edge mailboxRemove), which is what the paragraph on the access says.
+ * (edge removeMailbox), which is what the paragraph on the access says.
  */
 function GoogleUserData() {
   return (

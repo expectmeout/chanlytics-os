@@ -8,9 +8,9 @@ import {
   type PageVitalsInputDto,
   type PageVitalsRowDto,
 } from "@chanlytics/contracts";
-import { notePageVitals, pageSpeed, pageSpots, pageVitalsP75 } from "@chanlytics/db";
+import { notePageVitals, readPageSpeed, readPageSpots, readPageVitalsP75 } from "@chanlytics/db/reports";
 import { serviceDb } from "../shared/service-db";
-import type { BackOffice } from "./platform";
+import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
 
 /**
@@ -52,11 +52,11 @@ const readOrRefusal = <T>(call: () => PromiseLike<T>) =>
  * last days (PAGE_VITALS_READ). Null when it could not be read; none when the database has no page_vitals_p75 yet,
  * which is a database 00255 has not reached, with no timings to show.
  */
-export async function platformVitals(office: BackOffice): Promise<PageVitalsRowDto[] | null> {
-  const r = await readOrRefusal(() => pageVitalsP75(office.db, PAGE_VITALS_READ));
-  if (r.error) return r.error.code === "PGRST202" ? [] : null;
+export async function listPlatformVitals(office: BackOffice): Promise<PageVitalsRowDto[] | null> {
+  const orRefusal = await readOrRefusal(() => readPageVitalsP75(office.db, PAGE_VITALS_READ));
+  if (orRefusal.error) return orRefusal.error.code === "PGRST202" ? [] : null;
   // The generator types every column of a returned table as present; the row over every page has no page.
-  return (r.data ?? []).map((row) => ({
+  return (orRefusal.data ?? []).map((row) => ({
     metric: row.metric,
     page: row.page,
     samples: row.samples,
@@ -74,28 +74,28 @@ const knownOr = <T extends string>(set: ReadonlySet<string>, v: unknown, fallbac
  * Where the pages' time goes (00412, decision 0053): page_speed's rows and page_spots', read together. Null when either
  * could not be read; none of either when the database has not reached 00412, which has nothing to show yet.
  */
-export async function platformSpeed(
+export async function findPlatformSpeed(
   office: BackOffice,
 ): Promise<{ rows: PageSpeedRowDto[]; spots: PageSpotRowDto[] } | null> {
   const [speed, spots] = await Promise.all([
-    readOrRefusal(() => pageSpeed(office.db, PAGE_SPEED_READ)),
-    readOrRefusal(() => pageSpots(office.db, PAGE_SPEED_READ)),
+    readOrRefusal(() => readPageSpeed(office.db, PAGE_SPEED_READ)),
+    readOrRefusal(() => readPageSpots(office.db, PAGE_SPEED_READ)),
   ]);
   if (speed.error || spots.error) {
     const missing = speed.error?.code === "PGRST202" || spots.error?.code === "PGRST202";
     return missing ? { rows: [], spots: [] } : null;
   }
   return {
-    rows: (speed.data ?? []).map((r) => ({
-      metric: r.metric,
-      page: r.page,
-      part: r.part ?? "",
-      how: knownOr(HOWS, r.how, "all"),
-      device: knownOr(DEVICES, r.device, "unknown"),
-      warm: knownOr(WARMS, r.warm, "unknown"),
-      samples: r.samples,
-      p75: r.p75,
-      waits_on: r.waits_on,
+    rows: (speed.data ?? []).map((item) => ({
+      metric: item.metric,
+      page: item.page,
+      part: item.part ?? "",
+      how: knownOr(HOWS, item.how, "all"),
+      device: knownOr(DEVICES, item.device, "unknown"),
+      warm: knownOr(WARMS, item.warm, "unknown"),
+      samples: item.samples,
+      p75: item.p75,
+      waits_on: item.waits_on,
     })),
     spots: (spots.data ?? []).map((s) => ({
       metric: s.metric,

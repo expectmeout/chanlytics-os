@@ -20,7 +20,7 @@
  */
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { SPEND_LEADS, legacyLeadSuppressionHash, whyCannotSpend } from "@chanlytics/contracts";
+import { SPEND_LEADS, hashLegacyLeadSuppression, whyCannotSpend } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 import { PLAN, probeItems, mainItems, checkerItem, fakeApify, fakeJudge } from "./_lead-fixtures.mjs";
 
@@ -30,7 +30,7 @@ const uuid = () => crypto.randomUUID();
 const FINAL = new Set(["succeeded", "failed", "aborted", "timed_out"]);
 const live = (j) => j.state == null || j.state === "scheduled" || j.state === "fired";
 
-/** The token the edge derives for a run row (lead-wires.ts), under a test secret. */
+/** The token the edge derives for a run row (leads/wires.ts), under a test secret. */
 export const webhookToken = async (runRowId) =>
   crypto.createHmac("sha256", "a-test-secret-for-lead-webhooks").update(`lead-webhook:${runRowId}`).digest("base64url");
 export const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
@@ -130,7 +130,7 @@ export function leadWorld({
       id: uuid(),
       tenant_id: TENANT,
       kind,
-      hash: await legacyLeadSuppressionHash(TENANT, value),
+      hash: await hashLegacyLeadSuppression(TENANT, value),
       what,
       created_at: nowIso(),
     });
@@ -769,7 +769,7 @@ export function leadWorld({
     for (const r of Object.values(apify.state.runs)) if (r.status === "RUNNING") apify.finish(r.id, status, 0.05);
   };
   w.judge = fakeJudge();
-  /** The wires the edge would bind (lead-wires.ts), over the fakes. */
+  /** The wires the edge would bind (leads/wires.ts), over the fakes. */
   // The home pages this world serves, by origin (D6): what markPlaces reads a lead's own mark from, and, under `w.sites`,
   // what a plan that reads sites shows its judge.
   w.sites = {};

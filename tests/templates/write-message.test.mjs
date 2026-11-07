@@ -19,8 +19,8 @@ import {
   CAMPAIGN_ROOMS,
   LIBRARY_WORDS,
   MESSAGE_BEGIN_WORDS,
-  PROPOSAL_SPECS,
   channelNeverCarries,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";

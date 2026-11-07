@@ -146,8 +146,8 @@ export const NOTE_WORDS = {
   /** The Overview's Notes (canvas A): the door to every note, History's Notes, at the pane's head. */
   all: "All notes",
   /** Over the newest note on the Overview, in the mono eyebrow: "Note · Marisa · Sep 21"; a step says its day. */
-  eyebrow: (who: string, when: string) => `Note · ${who} · ${when}`,
-  stepEyebrow: (who: string, due: string) => `Step · ${who} · ${due}`,
+  eyebrow: (personName: string, when: string) => `Note · ${personName} · ${when}`,
+  stepEyebrow: (personName: string, due: string) => `Step · ${personName} · ${due}`,
 } as const;
 
 /** A door's refusal, in the owner's words (00157's error keys). */
@@ -181,22 +181,26 @@ const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
  * A note's step: its day, and once done, who did it and when ("Done by Maria · Sep 24"). Null for a note. Done by the one
  * who wrote it, it says only when ("Done · Sep 24"): the note names its writer beside it, and read "You · Done by you".
  */
-function noteStepOf(n: PersonNoteDto, tz: string, nowMs: number): PersonNoteVM["step"] {
-  const day = stepDayOf(n.due_on, tz, nowMs);
+function noteStepOf(personNote: PersonNoteDto, tz: string, nowMs: number): PersonNoteVM["step"] {
+  const day = stepDayOf(personNote.due_on, tz, nowMs);
   if (!day) return null;
-  const doneMs = n.done_at ? Date.parse(n.done_at) : NaN;
+  const doneMs = personNote.done_at ? Date.parse(personNote.done_at) : NaN;
   if (!Number.isFinite(doneMs)) return { day, due: day.due, words: day.words, done: false, doneWords: null };
-  const who = n.done_by_me ? "you" : (n.done_by_name ?? "").trim() || "a former teammate";
+  const personName = personNote.done_by_me ? "you" : (personNote.done_by_name ?? "").trim() || "a former teammate";
   const byWriter =
-    n.author_kind === "member" &&
-    (n.mine ? !!n.done_by_me : !n.done_by_me && !!n.done_by_name && n.done_by_name.trim() === n.author_name?.trim());
+    personNote.author_kind === "member" &&
+    (personNote.mine
+      ? !!personNote.done_by_me
+      : !personNote.done_by_me &&
+        !!personNote.done_by_name &&
+        personNote.done_by_name.trim() === personNote.author_name?.trim());
   const when = clockShort(doneMs, tz, nowMs);
   return {
     day,
     due: day.due,
     words: NOTE_WORDS.done,
     done: true,
-    doneWords: byWriter ? `${NOTE_WORDS.done} · ${when}` : `${NOTE_WORDS.done} by ${who} · ${when}`,
+    doneWords: byWriter ? `${NOTE_WORDS.done} · ${when}` : `${NOTE_WORDS.done} by ${personName} · ${when}`,
   };
 }
 
@@ -219,31 +223,31 @@ export function personNotesVM(
       (a, b) =>
         Number(b.state === "suggested") - Number(a.state === "suggested") || at(b.created_at) - at(a.created_at),
     )
-    .map((n) => {
-      const t = at(n.created_at);
+    .map((row) => {
+      const item = at(row.created_at);
       return {
-        id: n.id,
-        body: n.body,
+        id: row.id,
+        body: row.body,
         who:
-          n.author_kind === "receptionist"
+          row.author_kind === "receptionist"
             ? "The receptionist"
-            : n.mine
+            : row.mine
               ? "You"
-              : (n.author_name ?? "").trim() || "A former teammate",
-        when: clockShort(t, tz, nowMs),
-        whenFull: `${clockDateYear(t, tz)} · ${clockTime(t, tz)}`,
-        forWho: forWords(n.for_me, n.for_user_id, n.for_name),
-        forMe: n.for_me,
-        forSeen: n.for_me && !!n.for_seen,
-        forUserId: n.for_user_id,
-        teamOnly: n.team_only,
-        suggested: n.state === "suggested",
-        from: n.author_kind === "receptionist" ? NOTE_FROM[n.source] : null,
-        mine: n.mine && n.author_kind === "member",
-        edited: n.version > 1 && n.state === "kept" && n.author_kind === "member",
-        version: n.version,
-        step: noteStepOf(n, tz, nowMs),
-        dealId: n.deal_id ?? null,
+              : (row.author_name ?? "").trim() || "A former teammate",
+        when: clockShort(item, tz, nowMs),
+        whenFull: `${clockDateYear(item, tz)} · ${clockTime(item, tz)}`,
+        forWho: forWords(row.for_me, row.for_user_id, row.for_name),
+        forMe: row.for_me,
+        forSeen: row.for_me && !!row.for_seen,
+        forUserId: row.for_user_id,
+        teamOnly: row.team_only,
+        suggested: row.state === "suggested",
+        from: row.author_kind === "receptionist" ? NOTE_FROM[row.source] : null,
+        mine: row.mine && row.author_kind === "member",
+        edited: row.version > 1 && row.state === "kept" && row.author_kind === "member",
+        version: row.version,
+        step: noteStepOf(row, tz, nowMs),
+        dealId: row.deal_id ?? null,
       };
     });
 }

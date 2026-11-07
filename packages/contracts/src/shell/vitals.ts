@@ -184,12 +184,12 @@ export function vitalVerdict(metric: PageVital, p75: number): PageVitalVerdict {
 /** The line for each metric reported over every page, in the order of PAGE_VITALS. */
 function vitalLinesOf(overall: ReadonlyMap<PageVital, PageVitalsRowDto>): PageVitalLineVM[] {
   return PAGE_VITALS.flatMap((metric) => {
-    const r = overall.get(metric);
-    if (!r) return [];
-    const verdict = vitalVerdict(metric, r.p75);
-    const value = vitalValueWords(metric, r.p75);
+    const result = overall.get(metric);
+    if (!result) return [];
+    const verdict = vitalVerdict(metric, result.p75);
+    const value = vitalValueWords(metric, result.p75);
     // A load reports INP only once somebody tapped, clicked or typed.
-    const counted = `${loadsWords(r.samples)}${metric === "INP" ? " with a tap" : ""}`;
+    const counted = `${loadsWords(result.samples)}${metric === "INP" ? " with a tap" : ""}`;
     return [
       {
         metric,
@@ -197,7 +197,7 @@ function vitalLinesOf(overall: ReadonlyMap<PageVital, PageVitalsRowDto>): PageVi
         value,
         verdict,
         tone: VERDICT_TONES[verdict],
-        samples: r.samples,
+        samples: result.samples,
         hint: `${value} · ${verdict} · ${counted}`,
       },
     ];
@@ -210,12 +210,12 @@ function sentenceOf(overall: ReadonlyMap<PageVital, PageVitalsRowDto>): string {
   const counted = `${loads.toLocaleString("en-US")} page load${loads === 1 ? "" : "s"} in the last ${PAGE_VITALS_READ.days} days`;
   const drawn = overall.get("LCP");
   const tap = overall.get("INP");
-  const said = [
+  const sentence = [
     drawn ? `drew the page within ${vitalValueWords("LCP", drawn.p75)}` : null,
     tap ? `answered a tap within ${vitalValueWords("INP", tap.p75)}` : null,
   ].filter(Boolean);
-  return said.length
-    ? `Of ${counted}, three in four ${said.join(" and ")}.`
+  return sentence.length
+    ? `Of ${counted}, three in four ${sentence.join(" and ")}.`
     : `${counted}; none has drawn its page yet.`;
 }
 
@@ -238,8 +238,8 @@ function pagesOf(rows: readonly PageVitalsRowDto[]): PageVitalsPageVM[] {
     .map((p) => {
       const drawn = vitalValueWords("LCP", p.drawn.p75);
       const tap = p.tap ? vitalValueWords("INP", p.tap.p75) : null;
-      const said = `Drawn within ${drawn}${tap ? `, a tap answered within ${tap}` : ""}`;
-      return { page: p.page, loads: p.drawn.samples, drawn, tap, hint: `${said} · ${loadsWords(p.drawn.samples)}` };
+      const sentence = `Drawn within ${drawn}${tap ? `, a tap answered within ${tap}` : ""}`;
+      return { page: p.page, loads: p.drawn.samples, drawn, tap, hint: `${sentence} · ${loadsWords(p.drawn.samples)}` };
     });
 }
 

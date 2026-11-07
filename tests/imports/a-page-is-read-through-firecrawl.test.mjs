@@ -1,7 +1,7 @@
 /**
  * A business's page is read through Firecrawl (31 Oct 2026, Ruben: "we are not a website reading software"): channels'
  * one reader (site-reads.ts firecrawlReader) asks the provider's scrape for the page as a browser draws it and its main
- * content as Markdown, its key in a header, through the platform's one provider transport; and the edge's sitePage
+ * content as Markdown, its key in a header, through the platform's one provider transport; and the edge's findSitePage
  * (lib/shared/public-page.ts) judges the address before asking and the address the page landed at after, and holds what it
  * hands on to its caller's measure. Run with the provider answered by the test; nothing here reaches the network. The
  * suites' own stand-in for the reader (calendar/_stand-in-network.mjs) is set aside for each test and put back.
@@ -12,14 +12,14 @@ import {
   FIRECRAWL_CREDITS,
   FIRECRAWL_MAP,
   FIRECRAWL_SCRAPE,
-  firecrawlCredits,
+  readFirecrawlCredits,
   firecrawlMapper,
   firecrawlReader,
-  resetBreakers,
   setSiteMapper,
   setSitePageReader,
   sitePageReader,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/website";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { importSrc } from "../_source.mjs";
 
 const KEY = "fc-made-up-for-this-file";
@@ -28,7 +28,9 @@ after(() => {
   if (was === undefined) delete process.env.FIRECRAWL_API_KEY;
   else process.env.FIRECRAWL_API_KEY = was;
 });
-const { homePage, siteLinks, sitePage, sitePagesReadable } = await importSrc("apps/edge/lib/shared/public-page.ts");
+const { findHomePage, listSiteLinks, findSitePage, sitePagesReadable } = await importSrc(
+  "apps/edge/lib/shared/public-page.ts",
+);
 
 const HTML = `<html><head><title>Harbor Moving</title></head><body><h1>Harbor Moving</h1><p>From $300.</p></body></html>`;
 /** The scrape's answer for a page drawn, as the provider's API reference gives it. */
@@ -199,7 +201,7 @@ test("the credits: what the plan has left, the provider's no to the key told apa
       success: true,
       data: { remainingCredits: 1000, planCredits: 3000, billingPeriodEnd: "2026-12-01T00:00:00Z" },
     }));
-    assert.deepEqual(await firecrawlCredits(KEY, { fetch: p.fetch }), {
+    assert.deepEqual(await readFirecrawlCredits(KEY, { fetch: p.fetch }), {
       kind: "read",
       remaining: 1000,
       plan: 3000,
@@ -207,7 +209,7 @@ test("the credits: what the plan has left, the provider's no to the key told apa
     });
     assert.equal(p.calls[0].url, FIRECRAWL_CREDITS);
     assert.equal(p.calls[0].headers.get("authorization"), `Bearer ${KEY}`);
-    const said = (answer) => firecrawlCredits(KEY, { fetch: provider(answer).fetch });
+    const said = (answer) => readFirecrawlCredits(KEY, { fetch: provider(answer).fetch });
     assert.deepEqual(await said(() => new Response("{}", { status: 401 })), { kind: "refused", status: 401 });
     assert.deepEqual(await said(() => new Response("{}", { status: 500 })), { kind: "unread" });
     assert.deepEqual(await said(() => ({ success: true, data: { planCredits: 3 } })), { kind: "unread" });
@@ -249,7 +251,7 @@ test("the reader is a test's where one stands in, the provider's with a key, and
 test("the edge's read: no key reads nothing; a private address is never asked for; a page that landed in one is not read; what is handed on is held to the caller's measure", async () => {
   await withoutStandIn(async () => {
     delete process.env.FIRECRAWL_API_KEY;
-    assert.equal(await sitePage("https://harbormoving.example/", { timeoutMs: 2_000, maxChars: 100 }), null);
+    assert.equal(await findSitePage("https://harbormoving.example/", { timeoutMs: 2_000, maxChars: 100 }), null);
 
     const asked = [];
     let landed = "https://www.harbormoving.example/";
@@ -265,10 +267,10 @@ test("the edge's read: no key reads nothing; a private address is never asked fo
       };
     });
     for (const inside of ["http://10.0.0.5/", "http://169.254.169.254/latest/meta-data", "http://[fd00::1]/", null])
-      assert.equal(await sitePage(inside, { timeoutMs: 2_000, maxChars: 100 }), null, String(inside));
+      assert.equal(await findSitePage(inside, { timeoutMs: 2_000, maxChars: 100 }), null, String(inside));
     assert.deepEqual(asked, [], "nothing asked for a private address");
 
-    const page = await sitePage("https://harbormoving.example", { timeoutMs: 2_000, maxChars: 20 });
+    const page = await findSitePage("https://harbormoving.example", { timeoutMs: 2_000, maxChars: 20 });
     assert.deepEqual(page, {
       url: "https://www.harbormoving.example/",
       html: HTML.slice(0, 20),
@@ -280,7 +282,7 @@ test("the edge's read: no key reads nothing; a private address is never asked fo
     assert.deepEqual(asked, ["https://harbormoving.example/"]);
 
     landed = "http://169.254.169.254/latest/meta-data";
-    assert.equal(await sitePage("https://harbormoving.example/", { timeoutMs: 2_000, maxChars: 100 }), null);
+    assert.equal(await findSitePage("https://harbormoving.example/", { timeoutMs: 2_000, maxChars: 100 }), null);
   });
 });
 
@@ -308,12 +310,12 @@ test("a home page is asked for as spelled, then its other spelling, in what is l
       });
     const READ = { timeoutMs: 4_000, maxChars: 100 };
     answers("https://harbormoving.example/");
-    assert.equal((await homePage("https://harbormoving.example/", READ)).url, "https://harbormoving.example/");
+    assert.equal((await findHomePage("https://harbormoving.example/", READ)).url, "https://harbormoving.example/");
     assert.equal(asked.length, 1, "one that answers is asked once");
 
     asked.length = 0;
     answers("https://www.harbormoving.example/");
-    assert.equal((await homePage("https://harbormoving.example/", READ)).url, "https://www.harbormoving.example/");
+    assert.equal((await findHomePage("https://harbormoving.example/", READ)).url, "https://www.harbormoving.example/");
     assert.deepEqual(
       asked.map((a) => a[0]),
       ["https://harbormoving.example/", "https://www.harbormoving.example/"],
@@ -323,7 +325,7 @@ test("a home page is asked for as spelled, then its other spelling, in what is l
     asked.length = 0;
     answers("https://harbormoving.example/");
     assert.equal(
-      (await homePage("https://www.harbormoving.example/", READ)).url,
+      (await findHomePage("https://www.harbormoving.example/", READ)).url,
       "https://harbormoving.example/",
       "and the other way",
     );
@@ -337,7 +339,7 @@ test("a home page is asked for as spelled, then its other spelling, in what is l
       return null;
     });
     try {
-      assert.equal(await homePage("https://harbormoving.example/", { timeoutMs: 1_020, maxChars: 100 }), null);
+      assert.equal(await findHomePage("https://harbormoving.example/", { timeoutMs: 1_020, maxChars: 100 }), null);
       assert.equal(asked.length, 1, "with under a second left, the other spelling is not asked");
     } finally {
       clock.mock.restore();
@@ -349,20 +351,20 @@ test("the map as the edge asks it: only public addresses come back, and with no 
   await withoutStandIn(async () => {
     delete process.env.FIRECRAWL_API_KEY;
     const o = { search: "services", limit: 5, timeoutMs: 1_000 };
-    assert.deepEqual(await siteLinks("https://harbormoving.example/", o), [], "no key");
+    assert.deepEqual(await listSiteLinks("https://harbormoving.example/", o), [], "no key");
     const before = setSiteMapper(async () => [
       { url: "https://harbormoving.example/services", title: null },
       { url: "http://10.0.0.5/admin", title: "inside" },
     ]);
     try {
-      assert.deepEqual(await siteLinks("https://harbormoving.example/", o), [
+      assert.deepEqual(await listSiteLinks("https://harbormoving.example/", o), [
         { url: "https://harbormoving.example/services", title: null },
       ]);
-      assert.deepEqual(await siteLinks("http://10.0.0.5/", o), [], "a private address is never asked about");
+      assert.deepEqual(await listSiteLinks("http://10.0.0.5/", o), [], "a private address is never asked about");
       setSiteMapper(async () => {
         throw new Error("offline");
       });
-      assert.deepEqual(await siteLinks("https://harbormoving.example/", o), []);
+      assert.deepEqual(await listSiteLinks("https://harbormoving.example/", o), []);
     } finally {
       setSiteMapper(before);
     }

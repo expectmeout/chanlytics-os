@@ -2,15 +2,15 @@
  * A run's report: its figures over time, the people it reached and what each said back. Moved whole from
  * broadcasts.ts (Reach out Part 2.5), which re-exports it.
  */
-import { audienceTrigger } from "./broadcast-audience";
-import { broadcastFailureFix, broadcastFailureWords } from "./broadcast-failures";
+import { audienceTrigger } from "./audience";
+import { broadcastFailureFix, broadcastFailureWords } from "./failures";
 import type { BroadcastRecipientDto } from "./broadcasts";
 import type { AnswerPurpose } from "./run-answers";
 import { HELD_REASONS } from "./run-words";
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../../consent/channels";
 import { STOP_WORDS } from "../../consent/consent";
 import { NEEDS_YOU_WORD } from "../../conversations/standing";
-import type { ParamSpec } from "../templates/templates";
+import type { ParamSpec } from "../templates/params";
 import { pct } from "../../shared/numbers";
 import { HOUR_MS } from "../../shared/time";
 
@@ -160,22 +160,31 @@ const STATUS_WORDS: Record<string, string> = {
 
 /** What happened to one person, with the times WhatsApp's receipts gave (00111): "sent 10:31 · delivered 10:32 · read 10:40 · replied 10:52". */
 export function receiptWords(
-  r: Pick<BroadcastRecipientDto, "sent_at" | "message_status" | "delivered_at" | "read_at" | "replied" | "replied_at">,
+  broadcastRecipient: Pick<
+    BroadcastRecipientDto,
+    "sent_at" | "message_status" | "delivered_at" | "read_at" | "replied" | "replied_at"
+  >,
   clock: (iso: string | null) => string | null,
 ): string {
   const parts: string[] = [];
-  const sent = clock(r.sent_at);
+  const sent = clock(broadcastRecipient.sent_at);
   parts.push(
-    sent ? `sent ${sent}` : (r.message_status && STATUS_WORDS[r.message_status]) || r.message_status || "sent",
+    sent
+      ? `sent ${sent}`
+      : (broadcastRecipient.message_status && STATUS_WORDS[broadcastRecipient.message_status]) ||
+          broadcastRecipient.message_status ||
+          "sent",
   );
-  const delivered = clock(r.delivered_at);
-  const read = clock(r.read_at);
+  const delivered = clock(broadcastRecipient.delivered_at);
+  const read = clock(broadcastRecipient.read_at);
   if (delivered) parts.push(`delivered ${delivered}`);
-  else if (r.message_status === "delivered" || r.message_status === "read") parts.push("delivered");
+  else if (broadcastRecipient.message_status === "delivered" || broadcastRecipient.message_status === "read")
+    parts.push("delivered");
   if (read) parts.push(`read ${read}`);
-  else if (r.message_status === "read") parts.push("read");
-  if (r.message_status === "failed") parts.push("not delivered");
-  if (r.replied) parts.push(clock(r.replied_at) ? `replied ${clock(r.replied_at)}` : "replied");
+  else if (broadcastRecipient.message_status === "read") parts.push("read");
+  if (broadcastRecipient.message_status === "failed") parts.push("not delivered");
+  if (broadcastRecipient.replied)
+    parts.push(clock(broadcastRecipient.replied_at) ? `replied ${clock(broadcastRecipient.replied_at)}` : "replied");
   return parts.join(" · ");
 }
 
@@ -245,9 +254,9 @@ function cutOffWordsOf(state: string | undefined): string | null {
 }
 
 /** What a run's report is counted from, once: who it reached, what came back, the bars' span, and how it ended. */
-function runFactsOf(d: RunReportInput, opts: RunReportOpts) {
+function runFactsOf(runReportInput: RunReportInput, opts: RunReportOpts) {
   const clock = opts.clock ?? ((iso: string | null) => iso);
-  const reached = d.recipients.filter((r) => r.state === "sent");
+  const reached = runReportInput.recipients.filter((r) => r.state === "sent");
   const sent = reached.length;
   const delivered = reached.filter((r) => r.message_status === "delivered" || r.message_status === "read");
   const replied = reached.filter((r) => r.replied);
@@ -257,15 +266,15 @@ function runFactsOf(d: RunReportInput, opts: RunReportOpts) {
   const { start, spanH, step } = barSpanOf(reached, opts);
   const never = sent - delivered.length;
   // A first-name slot takes the wire's own first name for each person (firstNameOf), and "there" for someone with none.
-  const greets = (d.broadcast?.params ?? []).some((p) => p && p.kind === "first_name");
-  const cutOff = cutOffWordsOf(d.broadcast?.state);
+  const greets = (runReportInput.broadcast?.params ?? []).some((p) => p && p.kind === "first_name");
+  const cutOff = cutOffWordsOf(runReportInput.broadcast?.state);
   // Said only where somebody was reached some other way than WhatsApp: a run of WhatsApp alone reads as it always did.
-  const channelsSaid = d.recipients.some((r) => {
+  const channelsSaid = runReportInput.recipients.some((r) => {
     const c = channelOf(r);
     return c !== null && c !== "whatsapp";
   });
   return {
-    d,
+    d: runReportInput,
     clock,
     reached,
     sent,
@@ -336,18 +345,26 @@ function personPillOf(r: ReportRecipient, c: PersonCase): RunPersonVM["pill"] {
 }
 
 /** The words: why they were held back or not reached, what they answered, or what WhatsApp's receipts say. */
-function personWordsOf(r: ReportRecipient, { hiThere, answer, quote, cutOff, clock, via }: PersonCase): string {
+function personWordsOf(
+  reportRecipient: ReportRecipient,
+  { hiThere, answer, quote, cutOff, clock, via }: PersonCase,
+): string {
   // `send_failed` is the one reason whose words depend on the channel: the others are the same on every one.
-  const said = r.reason === "send_failed" ? SEND_REFUSED_WORDS[via] : r.reason ? HELD_REASONS[r.reason] : undefined;
-  if (r.state === "skipped") return said || r.reason || "held back";
-  if (r.state === "failed") return said || SEND_REFUSED_WORDS[via];
-  if (r.state === "queued") return cutOff ?? "not sent yet";
-  if (r.consent_after === "opted_out") return quote ? `${quote} — ${answer}` : answer!;
+  const sentence =
+    reportRecipient.reason === "send_failed"
+      ? SEND_REFUSED_WORDS[via]
+      : reportRecipient.reason
+        ? HELD_REASONS[reportRecipient.reason]
+        : undefined;
+  if (reportRecipient.state === "skipped") return sentence || reportRecipient.reason || "held back";
+  if (reportRecipient.state === "failed") return sentence || SEND_REFUSED_WORDS[via];
+  if (reportRecipient.state === "queued") return cutOff ?? "not sent yet";
+  if (reportRecipient.consent_after === "opted_out") return quote ? `${quote} — ${answer}` : answer!;
   if (quote) return quote;
-  if (r.consent_after === "opted_in") return answer!;
-  if (r.message_status === "failed") return NOT_DELIVERED_WORDS[via];
+  if (reportRecipient.consent_after === "opted_in") return answer!;
+  if (reportRecipient.message_status === "failed") return NOT_DELIVERED_WORDS[via];
   if (hiThere) return "greeted “Hi there” — no name on file";
-  return receiptWords(r, clock);
+  return receiptWords(reportRecipient, clock);
 }
 
 /** The one door their line offers: their consent after a stop, their card to add a name, or their thread. */
@@ -368,43 +385,62 @@ function personFiltersOf(r: ReportRecipient, { out, cutOff }: PersonCase): RunFi
 }
 
 /** One person's line: what happened to them, in words, with the one door it offers. */
-function personLineOf(r: ReportRecipient, { greets, cutOff, clock, channelsSaid }: RunFacts): RunPersonVM {
-  const out = r.state === "sent";
-  const hiThere = out && greets && !r.first_name;
-  const answer = r.consent_after ? consentAnswerWords(r.consent_after, r.consent_purpose) : null;
-  const quote = r.replied && r.reply_words ? `“${r.reply_words}”` : null;
-  const channel = channelOf(r);
-  const c: PersonCase = { out, hiThere, answer, quote, cutOff, clock, via: channel ?? "whatsapp" };
-  const pill = personPillOf(r, c);
-  const words = personWordsOf(r, c);
-  const door = personDoorOf(r, c);
-  const inn = personFiltersOf(r, c);
+function personLineOf(
+  reportRecipient: ReportRecipient,
+  { greets, cutOff, clock, channelsSaid }: RunFacts,
+): RunPersonVM {
+  const out = reportRecipient.state === "sent";
+  const hiThere = out && greets && !reportRecipient.first_name;
+  const answer = reportRecipient.consent_after
+    ? consentAnswerWords(reportRecipient.consent_after, reportRecipient.consent_purpose)
+    : null;
+  const quote = reportRecipient.replied && reportRecipient.reply_words ? `“${reportRecipient.reply_words}”` : null;
+  const channel = channelOf(reportRecipient);
+  const personCase: PersonCase = { out, hiThere, answer, quote, cutOff, clock, via: channel ?? "whatsapp" };
+  const pill = personPillOf(reportRecipient, personCase);
+  const words = personWordsOf(reportRecipient, personCase);
+  const door = personDoorOf(reportRecipient, personCase);
+  const inn = personFiltersOf(reportRecipient, personCase);
   return {
-    contact_id: r.contact_id,
-    name: r.name,
-    initials: initialsOf(r.name, !!r.first_name),
+    contact_id: reportRecipient.contact_id,
+    name: reportRecipient.name,
+    initials: initialsOf(reportRecipient.name, !!reportRecipient.first_name),
     pill,
     words,
     channel: channelsSaid && channel ? CONSENT_CHANNEL_WORDS[channel] : null,
     door,
-    at: out ? clock(r.replied_at || r.consent_at || r.read_at || r.delivered_at || r.sent_at) : null,
-    attn: (out && r.consent_after === "opted_out") || hiThere,
+    at: out
+      ? clock(
+          reportRecipient.replied_at ||
+            reportRecipient.consent_at ||
+            reportRecipient.read_at ||
+            reportRecipient.delivered_at ||
+            reportRecipient.sent_at,
+        )
+      : null,
+    attn: (out && reportRecipient.consent_after === "opted_out") || hiThere,
     held: !out,
     in: inn,
   };
 }
 
 /** What has happened since a reply: a person is waiting, who answered it and when, or nobody yet. */
-function replyOutcomeOf(r: ReportRecipient, clock: (iso: string | null) => string | null): RunReplyVM["outcome"] {
+function replyOutcomeOf(
+  reportRecipient: ReportRecipient,
+  clock: (iso: string | null) => string | null,
+): RunReplyVM["outcome"] {
   // Its thread waits on a person and nobody has it (the one standing rule): the Inbox's "Needs you".
-  if (r.waiting_on_you) return { words: NEEDS_YOU_WORD, tone: "warn" };
-  if (r.answered_by === "receptionist")
+  if (reportRecipient.waiting_on_you) return { words: NEEDS_YOU_WORD, tone: "warn" };
+  if (reportRecipient.answered_by === "receptionist")
     return {
-      words: `The receptionist answered${clock(r.answered_at) ? ` · ${clock(r.answered_at)}` : ""}`,
+      words: `The receptionist answered${clock(reportRecipient.answered_at) ? ` · ${clock(reportRecipient.answered_at)}` : ""}`,
       tone: "ok",
     };
-  if (r.answered_by === "team")
-    return { words: `Your team answered${clock(r.answered_at) ? ` · ${clock(r.answered_at)}` : ""}`, tone: "ok" };
+  if (reportRecipient.answered_by === "team")
+    return {
+      words: `Your team answered${clock(reportRecipient.answered_at) ? ` · ${clock(reportRecipient.answered_at)}` : ""}`,
+      tone: "ok",
+    };
   return { words: "Not answered yet", tone: "plain" };
 }
 
@@ -460,82 +496,82 @@ const runGroupsOf = (people: readonly RunPersonVM[]): Record<RunFilterId, number
 /** One of the five figures, over the run's facts. */
 type RunFigureOf = (f: RunFacts) => RunFigure;
 
-const sentFigure: RunFigureOf = (f) => ({
+const sentFigure: RunFigureOf = (item) => ({
   id: "sent",
   label: "Messages sent",
-  n: f.sent,
+  n: item.sent,
   pct: null,
-  sub: `of ${f.d.recipients.length} on the list`,
+  sub: `of ${item.d.recipients.length} on the list`,
   tone: "plain",
   bars: barsOf(
-    f,
-    f.reached.map((r) => r.sent_at),
+    item,
+    item.reached.map((r) => r.sent_at),
   ),
 });
 
-const deliveredFigure: RunFigureOf = (f) => ({
+const deliveredFigure: RunFigureOf = (item) => ({
   id: "delivered",
   label: "Delivered",
-  n: f.delivered.length,
-  pct: pctOf(f, f.delivered.length),
+  n: item.delivered.length,
+  pct: pctOf(item, item.delivered.length),
   sub:
-    f.sent === 0
+    item.sent === 0
       ? "nothing has gone out"
-      : f.never > 0
-        ? `${f.never} never reached ${f.channelsSaid ? "them" : "the handset"}`
-        : f.channelsSaid
+      : item.never > 0
+        ? `${item.never} never reached ${item.channelsSaid ? "them" : "the handset"}`
+        : item.channelsSaid
           ? "every one reached them"
           : "every one reached the handset",
-  tone: f.delivered.length > 0 ? "ok" : "plain",
+  tone: item.delivered.length > 0 ? "ok" : "plain",
   bars: barsOf(
-    f,
-    f.delivered.map((r) => r.delivered_at ?? r.read_at),
+    item,
+    item.delivered.map((r) => r.delivered_at ?? r.read_at),
   ),
 });
 
-const repliedFigure: RunFigureOf = (f) => ({
+const repliedFigure: RunFigureOf = (item) => ({
   id: "replied",
   label: "Replied",
-  n: f.replied.length,
-  pct: pctOf(f, f.replied.length),
+  n: item.replied.length,
+  pct: pctOf(item, item.replied.length),
   sub:
-    f.waiting > 0
-      ? `${f.waiting} ${f.waiting === 1 ? "needs" : "need"} you in the Inbox`
-      : f.replied.length > 0
+    item.waiting > 0
+      ? `${item.waiting} ${item.waiting === 1 ? "needs" : "need"} you in the Inbox`
+      : item.replied.length > 0
         ? "each one is a thread in the Inbox"
         : "nobody has written back yet",
-  tone: f.replied.length > 0 ? "ok" : "plain",
+  tone: item.replied.length > 0 ? "ok" : "plain",
   bars: barsOf(
-    f,
-    f.replied.map((r) => r.replied_at),
+    item,
+    item.replied.map((r) => r.replied_at),
   ),
 });
 
-const saidYesFigure: RunFigureOf = (f) => ({
+const saidYesFigure: RunFigureOf = (item) => ({
   id: "said_yes",
   label: "Said yes",
-  n: f.yes.length,
-  pct: pctOf(f, f.yes.length),
-  sub: f.yes.length > 0 ? answersWords(f.yes, "opted_in") : "nobody new said yes",
-  tone: f.yes.length > 0 ? "ok" : "plain",
+  n: item.yes.length,
+  pct: pctOf(item, item.yes.length),
+  sub: item.yes.length > 0 ? answersWords(item.yes, "opted_in") : "nobody new said yes",
+  tone: item.yes.length > 0 ? "ok" : "plain",
   bars: barsOf(
-    f,
-    f.yes.map((r) => r.consent_at),
+    item,
+    item.yes.map((r) => r.consent_at),
   ),
 });
 
 // A STOP is news, never a wait (decision 0048): its figure is in STOP's one tone and words, as the person's pill on the same
 // sheet is (consent.ts STOP_WORDS). It was amber, a figure that asked something of the owner (the wiring's second audit, S9-8).
-const stoppedFigure: RunFigureOf = (f) => ({
+const stoppedFigure: RunFigureOf = (item) => ({
   id: "stopped",
   label: STOP_WORDS.heading,
-  n: f.stopped.length,
-  pct: pctOf(f, f.stopped.length),
-  sub: f.stopped.length > 0 ? answersWords(f.stopped, "opted_out") : `nobody ${STOP_WORDS.short}`,
+  n: item.stopped.length,
+  pct: pctOf(item, item.stopped.length),
+  sub: item.stopped.length > 0 ? answersWords(item.stopped, "opted_out") : `nobody ${STOP_WORDS.short}`,
   tone: STOP_WORDS.tone,
   bars: barsOf(
-    f,
-    f.stopped.map((r) => r.consent_at),
+    item,
+    item.stopped.map((r) => r.consent_at),
   ),
 });
 
@@ -560,7 +596,7 @@ const RUN_FIGURES: readonly RunFigureOf[] = [sentFigure, deliveredFigure, replie
  * the order the run has always been read.
  */
 export function toRunReportVM(
-  d: {
+  details: {
     broadcast?: {
       state?: string;
       failure?: string | null;
@@ -573,17 +609,17 @@ export function toRunReportVM(
   },
   opts: { windowMs: number; nowMs: number; clock?: (iso: string | null) => string | null },
 ): RunReportVM {
-  const f = runFactsOf(d, opts);
-  const people = d.recipients.map((r) => personLineOf(r, f));
-  const replies = repliesOf(f);
-  const stop = runStopOf(f);
+  const runFacts = runFactsOf(details, opts);
+  const people = details.recipients.map((r) => personLineOf(r, runFacts));
+  const replies = repliesOf(runFacts);
+  const stop = runStopOf(runFacts);
   return {
-    enrolled: d.recipients.length,
-    span: spanWordsOf(f.spanH),
+    enrolled: details.recipients.length,
+    span: spanWordsOf(runFacts.spanH),
     groups: runGroupsOf(people),
     people,
     replies,
     stop,
-    figures: RUN_FIGURES.map((figure) => figure(f)),
+    figures: RUN_FIGURES.map((figure) => figure(runFacts)),
   };
 }

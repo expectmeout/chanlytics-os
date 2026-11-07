@@ -24,13 +24,13 @@ const asList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
  * What the record holds, as foundOf weighs what was found against it: its services, its days closed, its notes and its
  * booking rules' notes. Its own words are never offered over (null): the business's words go in as a note.
  */
-export function foundRecordOf(p: Profile): Parameters<typeof foundOf>[1] {
-  const rules = (p.booking_rules || {}) as { notes?: string[] };
+export function foundRecordOf(profile: Profile): Parameters<typeof foundOf>[1] {
+  const rules = (profile.booking_rules || {}) as { notes?: string[] };
   return {
-    services: asList(p.services) as { name?: string }[],
-    closures: asList(p.closures) as { date?: string }[],
+    services: asList(profile.services) as { name?: string }[],
+    closures: asList(profile.closures) as { date?: string }[],
     notes: [
-      ...(asList(p.notes) as { title?: string; text?: string }[]),
+      ...(asList(profile.notes) as { title?: string; text?: string }[]),
       ...(rules.notes ?? []).map((t) => ({ title: null, text: t })),
     ],
     description: null,
@@ -40,23 +40,30 @@ export function foundRecordOf(p: Profile): Parameters<typeof foundOf>[1] {
 type FoundService = FoundVM["services"][number];
 
 /** The services found that the record has room for, in the order they were found. */
-export function foundServicesRoom(p: Profile, picked: readonly FoundService[]): FoundService[] {
-  return picked.slice(0, Math.max(0, PROFILE_LIMITS.services - asList(p.services).length));
+export function foundServicesRoom(profile: Profile, picked: readonly FoundService[]): FoundService[] {
+  return picked.slice(0, Math.max(0, PROFILE_LIMITS.services - asList(profile.services).length));
 }
 
 /** Services found, as many as the record has room for: with their price and minutes, or with their minutes alone. */
-export function withFoundServices(p: Profile, picked: readonly FoundService[], o: { prices: boolean }): Profile {
-  const kept = foundServicesRoom(p, picked).map((s) => ({
+export function withFoundServices(
+  profile: Profile,
+  picked: readonly FoundService[],
+  options: { prices: boolean },
+): Profile {
+  const kept = foundServicesRoom(profile, picked).map((s) => ({
     name: s.name,
-    ...(o.prices && s.price_note ? { price_note: s.price_note.slice(0, PROFILE_LIMITS.servicePrice) } : {}),
+    ...(options.prices && s.price_note ? { price_note: s.price_note.slice(0, PROFILE_LIMITS.servicePrice) } : {}),
     ...(s.duration_min ? { duration_min: s.duration_min } : {}),
   }));
-  return kept.length ? { ...p, services: [...asList(p.services), ...kept] } : p;
+  return kept.length ? { ...profile, services: [...asList(profile.services), ...kept] } : profile;
 }
 
 /** A day closed, and the day it runs to. */
-export function withFoundClosure(p: Profile, c: FoundVM["closed"][number]): Profile {
-  return { ...p, closures: [...asList(p.closures), { date: c.date, ...(c.until ? { until: c.until } : {}) }] };
+export function withFoundClosure(profile: Profile, found: FoundVM["closed"][number]): Profile {
+  return {
+    ...profile,
+    closures: [...asList(profile.closures), { date: found.date, ...(found.until ? { until: found.until } : {}) }],
+  };
 }
 
 /** A booking rule in its own words, among the rules' notes. */
@@ -66,9 +73,9 @@ function withFoundRule(p: Profile, text: string): Profile {
 }
 
 /** An answer, or the business's own words, as a thing it should know; a booking rule goes with the rules. */
-export function withFoundNote(p: Profile, n: { title: string; text: string }): Profile {
-  if (n.title === FOUND_WORDS.rulesTitle) return withFoundRule(p, n.text);
-  return { ...p, notes: [...asList(p.notes), { title: n.title, text: n.text }] };
+export function withFoundNote(profile: Profile, input: { title: string; text: string }): Profile {
+  if (input.title === FOUND_WORDS.rulesTitle) return withFoundRule(profile, input.text);
+  return { ...profile, notes: [...asList(profile.notes), { title: input.title, text: input.text }] };
 }
 
 /** Whether the record has room for one more of a list, by its limit. */
@@ -76,8 +83,8 @@ const roomIn = (list: unknown, limit: number): boolean => asList(list).length < 
 const rulesOf = (p: Profile): unknown => ((p.booking_rules || {}) as { notes?: unknown }).notes;
 
 /** Everything found, at once, where the record has room, a service's price left out (a preview's, decision 0079). */
-export function withFoundWorn(p: Profile, found: FoundVM): Profile {
-  let next = withFoundServices(p, found.services, { prices: false });
+export function withFoundWorn(profile: Profile, found: FoundVM): Profile {
+  let next = withFoundServices(profile, found.services, { prices: false });
   for (const c of found.closed) if (roomIn(next.closures, PROFILE_LIMITS.closures)) next = withFoundClosure(next, c);
   const about = found.description ? [{ title: FOUND_WORDS.aboutTitle, text: found.description.text }] : [];
   for (const n of [...found.notes, ...about]) {

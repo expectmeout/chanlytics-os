@@ -22,10 +22,11 @@ import { until } from "../shared/_until.mjs";
 import { importSrc } from "../_source.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 
 // A namespace, not named imports: a word or a filter this slice adds is missing from the module until it
 // lands, and a named import of it would fail the whole file rather than the test that needs it.
-const { CONSENT_SOURCES, attentionRow, mayReceive, offersYesRefusal, stateOf, toPersonRowVM } = contracts;
+const { CONSENT_SOURCES, mayReceive, offersYesRefusal, stateOf, toPersonRowVM } = contracts;
 const filterTimeline = (items, id) => contracts.filterTimeline(items, id);
 /**
  * A person as the contract maps them, remembering the detail it was made from: the page reads its person off the wire, so
@@ -1780,7 +1781,7 @@ test("the spoken ways still record at once, with the source and nothing else", a
 /* --------------------------- the person is the hub: runs, lists, the lead --------------------------- */
 
 const LEAD = "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f";
-/** One of ours, as a run or a person sent it: the meta the send job writes (core messages/broadcast.ts). */
+/** One of ours, as a run or a person sent it: the meta the send job writes (core messages/broadcast/batch.ts). */
 const ours = (id, at, meta, sender = "human") => ({
   id,
   conversation_id: "cv1",
@@ -2205,7 +2206,7 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
 });
 
 test("a new list may be described: the assistant drafts a rule, the box shows its chips, who it holds for and what it left out, and Save makes the smart list", async () => {
-  // The lists' verbs are the module's own (lists/list-page.ts), so the draft goes over the wire it would go over, and who the
+  // The lists' verbs are the module's own (lists/actions.ts), so the draft goes over the wire it would go over, and who the
   // rule holds for is counted by the real rule over the people the page has read: three of these four were last here
   // more than sixty days ago, on a calendar that reads. Sixty-two, never sixty-one: the rule counts the business's calendar
   // days, and 61 × 24 hours back across a clock change is sixty of them (it failed on 2 Nov 2026, the day after one).

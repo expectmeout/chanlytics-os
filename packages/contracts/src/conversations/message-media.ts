@@ -1,6 +1,6 @@
 /**
  * A message's attachment: what kind of thing it is, and the shape the thread draws it in. message-words.ts
- * names it in words; the view models (inbox-thread.ts, conversation-vm.ts) carry it on the bubble.
+ * names it in words; the view models (inbox-thread.ts, conversations/vm.ts) carry it on the bubble.
  */
 import type { MessageDto } from "./thread-dto";
 
@@ -25,11 +25,11 @@ export const MEDIA_LABEL: Record<MediaVM["kind"], string> = {
 
 /** What kind of thing an attachment is: from its mime, else from WhatsApp's own word for it. */
 export function mediaKind(mime: string | null | undefined, raw?: string | null): MediaVM["kind"] {
-  const t = (mime ?? "").toLowerCase();
-  if (t.startsWith("image/")) return "image";
-  if (t.startsWith("audio/")) return "audio";
-  if (t.startsWith("video/")) return "video";
-  if (t.startsWith("application/") || t.startsWith("text/")) return "document";
+  const text = (mime ?? "").toLowerCase();
+  if (text.startsWith("image/")) return "image";
+  if (text.startsWith("audio/")) return "audio";
+  if (text.startsWith("video/")) return "video";
+  if (text.startsWith("application/") || text.startsWith("text/")) return "document";
   switch (raw) {
     case "image":
     case "sticker":
@@ -46,15 +46,15 @@ export function mediaKind(mime: string | null | undefined, raw?: string | null):
 }
 
 /** The attachment on a message, as the thread draws it; null for words. */
-export function mediaVM(m: MessageDto): MediaVM | null {
-  if (m.type !== "media" || !m.media) return null;
-  const mime = m.media.mime_type ?? null;
+export function mediaVM(message: MessageDto): MediaVM | null {
+  if (message.type !== "media" || !message.media) return null;
+  const mime = message.media.mime_type ?? null;
   return {
-    messageId: m.id,
-    kind: mediaKind(mime, (m.meta && (m.meta.raw_type as string)) || null),
+    messageId: message.id,
+    kind: mediaKind(mime, (message.meta && (message.meta.raw_type as string)) || null),
     mime,
-    filename: m.media.filename ?? null,
-    caption: m.media.caption ?? null,
-    available: m.media.fetch_state === "stored",
+    filename: message.media.filename ?? null,
+    caption: message.media.caption ?? null,
+    available: message.media.fetch_state === "stored",
   };
 }

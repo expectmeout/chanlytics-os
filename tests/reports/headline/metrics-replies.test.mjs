@@ -13,13 +13,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { HOUR_MS } from "@chanlytics/contracts";
-import { firstReplies } from "@chanlytics/db";
+import { listFirstReplies } from "@chanlytics/db/reports";
 import { fakeDb } from "../../_fake-db.mjs";
 import { importSrc } from "../../_source.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
-const { metricsSummaryFor } = await importSrc("apps/dashboard/src/server/metrics/metrics.ts");
+const { findMetricsSummary } = await importSrc("apps/dashboard/src/server/metrics/metrics.ts");
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CONVERSATION = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
@@ -77,13 +77,13 @@ test("firstReplies: the receptionist's replies as report_series lists them, whol
       ],
     },
   });
-  assert.deepEqual(await firstReplies(db, A, since), [
+  assert.deepEqual(await listFirstReplies(db, A, since), [
     { asked_at: "2026-09-18T14:00:00.250+00:00", s: 61, hold: 60 },
     { asked_at: "2026-09-18T14:00:00.250+00:00", s: 7, hold: 0 },
   ]);
   assert.deepEqual(asked, [["first_replies", { p_tenant_id: A, p_start: since.toISOString() }]]);
   const down = dbWith({ first_replies: { data: null, error: { message: "boom", code: "08006" } } });
-  await assert.rejects(firstReplies(down.db, A, since), /first_replies.*boom/);
+  await assert.rejects(listFirstReplies(down.db, A, since), /first_replies.*boom/);
 });
 
 /** The function's answer once it carries the day's replies (00359), each as it lists them: asked, seconds, hold, whole. */
@@ -111,7 +111,7 @@ test("the day's replies are the function's own where it answers them: counted on
     { asked_at: "2026-09-18T15:00:00+00:00", s: 95, hold: 60 },
     { asked_at: "2026-09-18T16:00:00+00:00", s: 7, hold: 0 },
   ]);
-  const m = await metricsSummaryFor(db, A, 1);
+  const m = await findMetricsSummary(db, A, 1);
   assert.deepEqual(m.reply_hold, { label: "1-minute", at_end: 1, later: 1, unheld: 1 });
   assert.equal(
     db.seen.filter((q) => q.rpc === "first_replies").length,
@@ -124,7 +124,7 @@ test("the day's replies are the function's own where it answers them: counted on
   // A day nobody was answered on, and a day no reply waited a hold: the function's answer, less the list, and no second read.
   for (const replies of [[], [{ asked_at: "2026-09-18T16:00:00+00:00", s: 7, hold: 0 }]]) {
     const quiet = carrying(replies);
-    assert.deepEqual(await metricsSummaryFor(quiet, A, 1), DAY);
+    assert.deepEqual(await findMetricsSummary(quiet, A, 1), DAY);
     assert.equal(quiet.seen.filter((q) => q.rpc === "first_replies").length, 0);
   }
   // A row that is not a reply is left out, never counted as one nobody waited for.
@@ -135,7 +135,7 @@ test("the day's replies are the function's own where it answers them: counted on
     null,
     { asked_at: "2026-09-18T16:00:00+00:00", s: 61 },
   ]);
-  assert.deepEqual((await metricsSummaryFor(odd, A, 1)).reply_hold, {
+  assert.deepEqual((await findMetricsSummary(odd, A, 1)).reply_hold, {
     label: "1-minute",
     at_end: 1,
     later: 0,
@@ -145,7 +145,7 @@ test("the day's replies are the function's own where it answers them: counted on
 
 test("a longer window's answer carries no replies (null), and none are asked for: the period's are Reports'", async () => {
   const db = carrying(null, { window: { ...SUMMARY.window, days: 7 } });
-  const m = await metricsSummaryFor(db, A, 7);
+  const m = await findMetricsSummary(db, A, 7);
   assert.equal(m.reply_hold, undefined);
   assert.equal(m.bookings, undefined, "nor bookings: Today's figure is the day's");
   assert.equal(m.replies, undefined);
@@ -160,7 +160,7 @@ test("a database the migration has not reached: a one-day window carries the day
     row({ asked_at: "2026-09-18T15:30:00.000+00:00", who: "you", ai_seconds: null, ai_hold_s: null }),
     row({ asked_at: "2026-09-18T16:00:00.000+00:00", ai_seconds: 7.4, ai_hold_s: 0 }),
   ]);
-  const m = await metricsSummaryFor(db, A, 1);
+  const m = await findMetricsSummary(db, A, 1);
   // The reply before the window's midnight is not the day's; of the three that are: one went out as its minute ended, one after it
   // (95 seconds against 60, past the queue's own tick), one was sent with no hold at all.
   assert.deepEqual(m.reply_hold, { label: "1-minute", at_end: 1, later: 1, unheld: 1 });
@@ -181,14 +181,14 @@ test("a database the migration has not reached: a one-day window carries the day
 
 test("a day on which no reply waited a hold sends no summary: the function's answer as it was", async () => {
   const db = world(() => [row({ ai_hold_s: 0 }), row({ ai_hold_s: null, asked_at: "2026-09-18T16:00:00.000+00:00" })]);
-  const m = await metricsSummaryFor(db, A, 1);
+  const m = await findMetricsSummary(db, A, 1);
   assert.equal(m.reply_hold, undefined);
   assert.deepEqual(m, DAY, "byte for byte what the function answered, and the day's bookings beside it");
 });
 
 test("a longer window reads no replies: the period's are Reports' (report_series), and the answer is the function's alone", async () => {
   const db = world(() => [row({})]);
-  const m = await metricsSummaryFor(db, A, 7);
+  const m = await findMetricsSummary(db, A, 7);
   assert.equal(m.reply_hold, undefined);
   assert.equal(db.seen.filter((q) => q.rpc === "first_replies").length, 0);
 });
@@ -200,7 +200,7 @@ test("a replies read that fails costs the clause and nothing else: Today draws, 
   const was = console.error;
   console.error = () => {};
   try {
-    const m = await metricsSummaryFor(db, A, 1);
+    const m = await findMetricsSummary(db, A, 1);
     assert.equal(m.reply_hold, undefined);
     assert.equal(m.period.median_reply_seconds_ai, 62);
     assert.equal(m.linesRead, undefined, "the lines were all read: only the replies were not");

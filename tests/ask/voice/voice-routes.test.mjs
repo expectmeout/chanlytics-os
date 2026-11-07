@@ -58,7 +58,7 @@ const json = (status, body) =>
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
 const { openToken, sessionHashOf } = await import(at("apps/dashboard/src/server/ask/voice-session.ts"));
 const voice = await import(at("apps/dashboard/app/api/v1/ask/voice/route.ts"));

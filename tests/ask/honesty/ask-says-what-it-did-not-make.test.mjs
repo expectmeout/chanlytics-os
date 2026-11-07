@@ -26,10 +26,11 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
-const { workspaceFacts, turnWords } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
+const { turnWords } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
 const { aboveRoleWords } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { propose, refuse } = await import(at("apps/dashboard/src/server/ask/tools/context.ts"));
+const { propose, refuse } = await import(at("apps/dashboard/src/server/ask/tools/context/context.ts"));
 const { turnUnmade } = await import(at("apps/dashboard/src/server/ask/turn-end.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

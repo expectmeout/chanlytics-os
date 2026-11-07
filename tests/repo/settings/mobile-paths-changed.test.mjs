@@ -90,7 +90,7 @@ test("a change to the app, to a module its door reaches, or to what an install r
     assert.equal(couldThePhoneAppHaveChanged([file]), true, file);
   // A module of contracts the door does not reach, the dashboard, the edge, a migration, a document: none is the app's.
   const elsewhere = [
-    "packages/contracts/src/deals/deal-words.ts",
+    "packages/contracts/src/deals/words.ts",
     "packages/contracts/dist/index.js",
     "apps/dashboard/src/server/people/deals.ts",
     "apps/edge/lib/shared/env.ts",

@@ -16,7 +16,7 @@ import { importSrc } from "../../_source.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
-const { metricsSummaryFor } = await importSrc("apps/dashboard/src/server/metrics/metrics.ts");
+const { findMetricsSummary } = await importSrc("apps/dashboard/src/server/metrics/metrics.ts");
 
 // 11:00 in New York on Friday 18 September 2026; the day began at 04:00 UTC.
 const NOW = new Date("2026-09-18T15:00:00Z");
@@ -94,7 +94,7 @@ const membership = {
 async function day(tables) {
   mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
   try {
-    return await metricsSummaryFor(
+    return await findMetricsSummary(
       fakeDb(
         { memberships: [membership], mailboxes: [], ...tables },
         {},

@@ -24,13 +24,13 @@ export async function addToWaitlist(
 export async function refreshWaitlistRow(
   db: SupabaseClient<Database>,
   email: string,
-  said: { business: string | null; source: string | null },
+  sentence: { business: string | null; source: string | null },
 ) {
-  return db.from("waitlist").update(said).eq("email", email).is("invited_at", null);
+  return db.from("waitlist").update(sentence).eq("email", email).is("invited_at", null);
 }
 
 /** Those still waiting, oldest first, and how many there are in all. */
-export async function waitlistWaiting(db: SupabaseClient<Database>, limit: number) {
+export async function getWaitlistWaiting(db: SupabaseClient<Database>, limit: number) {
   return db
     .from("waitlist")
     .select("id, email, business, source, created_at", { count: "exact" })

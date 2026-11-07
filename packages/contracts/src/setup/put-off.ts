@@ -114,23 +114,23 @@ const restUntil = (s: SetupPutOff, id: string): number | null => {
 };
 
 /** Off the card and the first run's open rows just now: put off for good, or for a week that has not ended. */
-export function setupOffNow(s: SetupPutOff, id: string, nowMs: number): boolean {
-  const until = restUntil(s, id);
-  return s.later.includes(id) || (until !== null && until > nowMs);
+export function setupOffNow(setupPutOff: SetupPutOff, id: string, nowMs: number): boolean {
+  const until = restUntil(setupPutOff, id);
+  return setupPutOff.later.includes(id) || (until !== null && until > nowMs);
 }
 
 /** Put off for a week, and back since it ended: drawn again, and its next put-off is for good (putOffEnds). */
-export function setupBack(s: SetupPutOff, id: string, nowMs: number): boolean {
-  const until = restUntil(s, id);
-  return !s.later.includes(id) && until !== null && until <= nowMs;
+export function setupBack(setupPutOff: SetupPutOff, id: string, nowMs: number): boolean {
+  const until = restUntil(setupPutOff, id);
+  return !setupPutOff.later.includes(id) && until !== null && until <= nowMs;
 }
 
 /**
  * Put off at all, for good or for a week, ended or not: the member said it can wait. The first run's phone step reads
  * it, so a kept number's forwarding back on Today after its week does not open that step again.
  */
-export function setupPutOffEver(s: SetupPutOff, id: string): boolean {
-  return s.later.includes(id) || restUntil(s, id) !== null;
+export function setupPutOffEver(setupPutOff: SetupPutOff, id: string): boolean {
+  return setupPutOff.later.includes(id) || restUntil(setupPutOff, id) !== null;
 }
 
 /**
@@ -159,19 +159,20 @@ export type SetupPutOffChange = { on: true; why: SetupPutOffWhy } | { on: false 
  * off stays as it is.
  */
 export function setupPutOffNext(
-  s: SetupPutOff,
+  setupPutOff: SetupPutOff,
   ids: readonly string[],
   change: SetupPutOffChange,
   nowMs: number,
 ): SetupPutOff {
-  const later = new Set(s.later);
-  const rests = new Map(Object.entries(s.rests));
+  const later = new Set(setupPutOff.later);
+  const rests = new Map(Object.entries(setupPutOff.rests));
   for (const id of ids) {
     if (!change.on) {
       if (later.has(id)) later.delete(id);
       else rests.delete(id);
-    } else if (!setupOffNow(s, id, nowMs)) {
-      const good = change.why === "answer" || (change.why === "rest" && putOffEnds(setupBack(s, id, nowMs)) === "good");
+    } else if (!setupOffNow(setupPutOff, id, nowMs)) {
+      const good =
+        change.why === "answer" || (change.why === "rest" && putOffEnds(setupBack(setupPutOff, id, nowMs)) === "good");
       if (good) later.add(id);
       else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
     }

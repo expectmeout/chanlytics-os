@@ -12,7 +12,7 @@
  * JSON-model transport, with no retry of its own on "not now"; an overload is asked once of the route's fallback when
  * the call's deadline leaves room), the budget a caller's calls keep to (checkBudget), and the input built from a
  * business's record and a step's words, which the clock and the preview both use (checkInputOf, checkWorkspaceOf). The
- * tick that drives it is check.ts, which re-exports all of this. The rules are contracts' (reach-out/words.ts,
+ * tick that drives it is check.ts, which re-exports all of this. The rules are contracts' (reach-out/words/opening.ts,
  * reach-out/opening.ts). Moved whole from check.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -41,11 +41,13 @@ import {
   type OpeningWorkspace,
   type ReachOutHold,
   type WrittenOpening,
+  ANSWER_JSON_ONLY,
 } from "@chanlytics/contracts";
-import { workspaceAbout, workspaceNameAndConfig, type Database, type ReachOutRecordRow } from "@chanlytics/db";
+import { findWorkspaceAbout, findWorkspaceNameAndConfig, type ReachOutRecordRow } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
 import { askJson, type JsonAnswer, type ModelCallFor } from "../../ai/model.js";
 import { siteWordsOf } from "@chanlytics/core";
-import { homePage, PAGE_READS } from "../../shared/public-page.js";
+import { findHomePage, PAGE_READS } from "../../shared/public-page.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -54,14 +56,14 @@ const WEBSITE_SAYS_MAX = 600;
 
 /**
  * What a business's own website says of itself (core siteWordsOf), its home page read by the platform's one page reader
- * (lib/shared/public-page.ts homePage), for its opening's record (30 Oct 2026: a lead is not only its listing, and a finder's
+ * (lib/shared/public-page.ts findHomePage), for its opening's record (30 Oct 2026: a lead is not only its listing, and a finder's
  * company or an owner's file has none). Undefined where it has no website.
  */
 export function siteReaderOf(host: string | null): (() => Promise<string | null>) | undefined {
   const at = host?.trim();
   if (!at) return undefined;
   return async () => {
-    const page = await homePage(`https://${at}/`, PAGE_READS.opening);
+    const page = await findHomePage(`https://${at}/`, PAGE_READS.opening);
     return page ? siteWordsOf(page, WEBSITE_SAYS_MAX) : null;
   };
 }
@@ -98,7 +100,7 @@ export const askReachOutModel: AskModel = (system, user, schema, maxTokens, sign
     user,
     schema,
     maxTokens,
-    plainJsonHint: "Answer with only a JSON object in the shape asked.",
+    plainJsonHint: ANSWER_JSON_ONLY,
     timeoutMs: CHECK_CALL_MS,
     signal,
     for: forWhom,
@@ -193,13 +195,13 @@ function timedOut(e: unknown): boolean {
 /** The record with what its website says, read once for the writer and the reader alike; a site unread says nothing. */
 async function withWebsite(i: CheckInput): Promise<OpeningRecord> {
   if (!i.site) return i.record;
-  const said = await i.site().catch(() => null);
-  return { ...i.record, website_says: said };
+  const sentence = await i.site().catch(() => null);
+  return { ...i.record, website_says: sentence };
 }
 
 /** One send's check, over an injectable model; `forWhom` is the usage ledger's row for each call. */
 export async function checkOne(
-  i: CheckInput,
+  checkInput: CheckInput,
   ask: AskModel,
   budget: CheckBudget,
   forWhom: ModelCallFor,
@@ -214,36 +216,36 @@ export async function checkOne(
   ): Promise<{ answer: unknown } | { failed: CheckFailure } | "late"> => {
     if (budget.late()) return "late";
     calls += 1;
-    let a: JsonAnswer | null;
+    let jsonAnswer: JsonAnswer | null;
     try {
-      a = await ask(system, user, schema, maxTokens, budget.signal(), forWhom);
+      jsonAnswer = await ask(system, user, schema, maxTokens, budget.signal(), forWhom);
     } catch (e) {
       return { failed: timedOut(e) ? "timeout" : "error" };
     }
-    if (!a) return { failed: "no_answer" };
-    tokens.input += a.tokens.input;
-    tokens.output += a.tokens.output;
-    return { answer: a.answer };
+    if (!jsonAnswer) return { failed: "no_answer" };
+    tokens.input += jsonAnswer.tokens.input;
+    tokens.output += jsonAnswer.tokens.output;
+    return { answer: jsonAnswer.answer };
   };
-  const failed = (why: CheckFailure): CheckOutcome => ({ kind: "failed", why, tokens, calls });
+  const failed = (reason: CheckFailure): CheckOutcome => ({ kind: "failed", why: reason, tokens, calls });
   const late = (): CheckOutcome => ({ kind: "late", tokens, calls });
   // The record every call reads: the listing's, and what its website says once the writer is to be asked.
-  let record = i.record;
+  let record = checkInput.record;
   // The reader's verdict on an opening against the record, after code's own reading of it: the call every opening takes,
   // a fact's and each one the writer wrote; an outcome where the check ends there.
-  const verdictOn = async (o: WrittenOpening): Promise<OpeningVerdict | CheckOutcome> => {
-    i.onStep?.("checking");
-    const r = await call(
+  const verdictOn = async (writtenOpening: WrittenOpening): Promise<OpeningVerdict | CheckOutcome> => {
+    checkInput.onStep?.("checking");
+    const result = await call(
       readingSystemPrompt(),
-      readingUserContent({ record, opening: o.opening }),
+      readingUserContent({ record, opening: writtenOpening.opening }),
       READING_SCHEMA,
       200,
     );
-    if (r === "late") return late();
-    if ("failed" in r) return failed(r.failed);
-    const reading = parseReading(r.answer);
+    if (result === "late") return late();
+    if ("failed" in result) return failed(result.failed);
+    const reading = parseReading(result.answer);
     if (!reading) return failed("unparseable");
-    return openingVerdict(checkOpening(o, record), reading, i.language, o.opening);
+    return openingVerdict(checkOpening(writtenOpening, record), reading, checkInput.language, writtenOpening.opening);
   };
 
   let opening: WrittenOpening | null = null;
@@ -254,49 +256,55 @@ export async function checkOne(
   // where it passes, and where its hold is one no rewrite changes (the business's language); one the reader or code
   // cannot back is the writer's to write, as an opening with no fact is. An owner who pressed Rewrite turned the
   // listing's sentence down already: theirs goes to the writer.
-  if (i.needsOpening && i.fact && !i.asked) {
-    const v = await verdictOn(i.fact);
+  if (checkInput.needsOpening && checkInput.fact && !checkInput.asked) {
+    const v = await verdictOn(checkInput.fact);
     if ("kind" in v) return v;
     if (v.ok || !v.rewrite) {
-      opening = i.fact;
+      opening = checkInput.fact;
       hold = v.ok ? null : v.hold;
       detail = v.ok ? null : v.detail;
     }
   }
-  if (i.needsOpening && opening === null) {
-    record = await withWebsite(i);
+  if (checkInput.needsOpening && opening === null) {
+    record = await withWebsite(checkInput);
     let retry: { opening: string; why: string } | undefined;
     for (let round = 0; round < 2; round += 1) {
-      i.onStep?.(round === 0 ? "writing" : "again");
-      const w = await call(
+      checkInput.onStep?.(round === 0 ? "writing" : "again");
+      const result = await call(
         openingSystemPrompt(),
-        openingUserContent({ record, workspace: i.workspace, words: i.words, asked: i.asked, retry }),
+        openingUserContent({
+          record,
+          workspace: checkInput.workspace,
+          words: checkInput.words,
+          asked: checkInput.asked,
+          retry,
+        }),
         OPENING_SCHEMA,
         400,
       );
-      if (w === "late") return late();
-      if ("failed" in w) return failed(w.failed);
-      const o = parseOpening(w.answer);
-      if (!o) return failed("unparseable");
-      const v = await verdictOn(o);
-      if ("kind" in v) return v;
-      opening = o;
-      if (v.ok) {
+      if (result === "late") return late();
+      if ("failed" in result) return failed(result.failed);
+      const otherOpening = parseOpening(result.answer);
+      if (!otherOpening) return failed("unparseable");
+      const verdict = await verdictOn(otherOpening);
+      if ("kind" in verdict) return verdict;
+      opening = otherOpening;
+      if (verdict.ok) {
         hold = null;
         detail = null;
         break;
       }
-      hold = v.hold;
-      detail = v.detail;
+      hold = verdict.hold;
+      detail = verdict.detail;
       // One rewrite, told why; a second failure holds (F2).
-      if (!v.rewrite || round === 1) break;
-      retry = { opening: o.opening, why: v.why };
+      if (!verdict.rewrite || round === 1) break;
+      retry = { opening: otherOpening.opening, why: verdict.why };
       rewritten = true;
     }
   }
   // Included past it by its owner, where an Include carries (R7): a business hold is not made again, and the opening
   // goes as it reads; a word hold's Include covered one email, and this opening is new words.
-  const included = (h: ReachOutHold): boolean => HOLDS_INCLUDED_FOR_CHAIN.has(h) && i.included.includes(h);
+  const included = (h: ReachOutHold): boolean => HOLDS_INCLUDED_FOR_CHAIN.has(h) && checkInput.included.includes(h);
   if (hold && included(hold)) {
     hold = null;
     detail = null;
@@ -305,12 +313,12 @@ export async function checkOne(
   // over an opening the reader or code refused keeps no opening: an Include past the code hold then finds none, and the
   // send is checked again (the sender's no_opening), where the opening's own hold is said.
   const code: { hold: ReachOutHold; detail: string } | null =
-    i.customerDomain && !included("customer_domain")
-      ? { hold: "customer_domain", detail: i.customerDomain }
-      : i.chain && !included("chain")
-        ? { hold: "chain", detail: `${i.chain.by}:${i.chain.listings}` }
-        : i.abroad && !included("abroad")
-          ? { hold: "abroad", detail: i.abroad }
+    checkInput.customerDomain && !included("customer_domain")
+      ? { hold: "customer_domain", detail: checkInput.customerDomain }
+      : checkInput.chain && !included("chain")
+        ? { hold: "chain", detail: `${checkInput.chain.by}:${checkInput.chain.listings}` }
+        : checkInput.abroad && !included("abroad")
+          ? { hold: "abroad", detail: checkInput.abroad }
           : null;
   if (code) {
     if (hold) opening = null;
@@ -334,19 +342,19 @@ export function hoursLine(hours: unknown): string | null {
 }
 
 /** The record the writer and the reader are given, from the database's. */
-export function openingRecordOf(r: ReachOutRecordRow): OpeningRecord {
+export function openingRecordOf(reachOut: ReachOutRecordRow): OpeningRecord {
   return {
-    business_name: r.business_name?.trim() || "",
-    category: r.category?.trim() || null,
-    city: r.city?.trim() || null,
-    region: r.region?.trim() || null,
-    rating: r.rating,
-    reviews: r.reviews,
-    website: r.website_host?.trim() || null,
-    hours: hoursLine(r.hours),
-    about: r.about?.trim() || null,
-    why_it_fits: r.why_it_fits?.trim() || null,
-    what_you_asked: r.what_you_asked?.trim() || null,
+    business_name: reachOut.business_name?.trim() || "",
+    category: reachOut.category?.trim() || null,
+    city: reachOut.city?.trim() || null,
+    region: reachOut.region?.trim() || null,
+    rating: reachOut.rating,
+    reviews: reachOut.reviews,
+    website: reachOut.website_host?.trim() || null,
+    hours: hoursLine(reachOut.hours),
+    about: reachOut.about?.trim() || null,
+    why_it_fits: reachOut.why_it_fits?.trim() || null,
+    what_you_asked: reachOut.what_you_asked?.trim() || null,
     // Read by the check itself, and only when the writer is asked (CheckInput.site).
     website_says: null,
   };
@@ -354,10 +362,10 @@ export function openingRecordOf(r: ReachOutRecordRow): OpeningRecord {
 
 /**
  * The check's input for one business and one step's words. The clock and the preview both build it here. `country` is
- * the lead's (db leadCountriesOf); a country never written to is the clock's to skip before it asks (check.ts).
+ * the lead's (db findLeadCountries); a country never written to is the clock's to skip before it asks (check.ts).
  */
 export function checkInputOf(
-  r: ReachOutRecordRow,
+  reachOut: ReachOutRecordRow,
   words: { subject: string | null; body: string },
   workspace: OpeningWorkspace,
   language: string,
@@ -365,21 +373,25 @@ export function checkInputOf(
   country: string | null = null,
 ): CheckInput {
   return {
-    record: openingRecordOf(r),
+    record: openingRecordOf(reachOut),
     workspace,
     words,
     language,
     needsOpening: wordsNeedOpening(words),
-    chain: chainOf({ website: r.website_host, site_listings: r.site_listings, name_listings: r.name_listings }),
-    customerDomain: customerDomainOf(r.email, r.email_domain_shared),
+    chain: chainOf({
+      website: reachOut.website_host,
+      site_listings: reachOut.site_listings,
+      name_listings: reachOut.name_listings,
+    }),
+    customerDomain: customerDomainOf(reachOut.email, reachOut.email_domain_shared),
     abroad: reachOutCountryOf(country) === "held" ? (country ?? "").trim().toUpperCase() : null,
     included,
     fact: leadFactOf({
-      business_name: r.business_name,
-      city: r.city,
-      hours: r.hours,
-      rating: r.rating,
-      reviews: r.reviews,
+      business_name: reachOut.business_name,
+      city: reachOut.city,
+      hours: reachOut.hours,
+      rating: reachOut.rating,
+      reviews: reachOut.reviews,
     }),
   };
 }
@@ -393,7 +405,7 @@ export interface CheckWorkspace {
 }
 
 export async function checkWorkspaceOf(db: Db, tenantId: string): Promise<CheckWorkspace> {
-  const [w, about] = await Promise.all([workspaceNameAndConfig(db, tenantId), workspaceAbout(db, tenantId)]);
+  const [w, about] = await Promise.all([findWorkspaceNameAndConfig(db, tenantId), findWorkspaceAbout(db, tenantId)]);
   const brain = parseTenantConfig(w.config)?.brain;
   const name = w.name?.trim() || null;
   return {

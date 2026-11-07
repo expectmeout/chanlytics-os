@@ -18,8 +18,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { checkedWordsOf } = await import("@chanlytics/channels");
-const { leadStepKey, leadWordsOfLeads, ownWordsAtSteps } = await import("@chanlytics/db");
+const { checkedWordsOf } = await import("@chanlytics/channels/email");
+const { leadStepKey, getLeadWordsOfLeads, getOwnWordsAtSteps } = await import("@chanlytics/db/campaigns");
 const door = await import(at("apps/dashboard/app/api/v1/sequences/[id]/steps/[step]/lead-words/route.ts"));
 const wordsRoute = await import(at("apps/dashboard/app/api/v1/leads/[id]/words/route.ts"));
 const sentRoute = await import(at("apps/dashboard/app/api/v1/leads/[id]/sent/[send]/route.ts"));
@@ -342,10 +342,10 @@ test("a big run's words are read however many its leads: one `in` list past the 
     })),
   };
   const db = fakeDb(world);
-  const words = await leadWordsOfLeads(db, [...many, many[0]]);
+  const words = await getLeadWordsOfLeads(db, [...many, many[0]]);
   assert.equal(words.size, 450);
   assert.equal(words.get(leadStepKey(STEP2, many[449])).body, "Words 449");
-  const counts = await ownWordsAtSteps(db, A, [ROOT_ID, STEP2]);
+  const counts = await getOwnWordsAtSteps(db, A, [ROOT_ID, STEP2]);
   assert.deepEqual([counts.get(ROOT_ID), counts.get(STEP2)], [225, 225]);
-  assert.equal((await leadWordsOfLeads(db, [])).size, 0);
+  assert.equal((await getLeadWordsOfLeads(db, [])).size, 0);
 });

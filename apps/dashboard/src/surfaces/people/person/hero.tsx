@@ -17,9 +17,9 @@ import {
   PERSON_CALL_WORDS,
   PERSON_WASH_WORDS,
   appointmentWords,
-  personHeadStateOf,
   proposalMessage,
 } from "@chanlytics/contracts";
+import { personHeadStateOf } from "./model/head-state";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Menu } from "../../kit/menu/menu";

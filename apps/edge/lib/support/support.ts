@@ -15,12 +15,12 @@
 import { json, refuse } from "../shared/http.js";
 import { personFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
-import { platformFrom, platformTo, postMail } from "../ops/notify.js";
+import { platformFrom, platformTo, postMail } from "../shared/alerts/notify.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
-import { reportToMail } from "@chanlytics/db";
-import { oneLine } from "@chanlytics/channels";
+import { reportToMail } from "@chanlytics/db/console";
+import { oneLine } from "@chanlytics/channels/email";
 import { CONSOLE_PATH, SUPPORT_KIND_WORDS, UUID, pageWords, reportCode } from "@chanlytics/contracts";
 
 /** The support inbox: SUPPORT_TO, one address or several separated by commas; the platform's mailbox while unset. */
@@ -51,23 +51,23 @@ const kindWords = (kind: string): string =>
   kind in SUPPORT_KIND_WORDS ? SUPPORT_KIND_WORDS[kind as keyof typeof SUPPORT_KIND_WORDS] : SUPPORT_KIND_WORDS.how_to;
 
 /** The mail: the report's number, what they needed and the workspace in the subject, the words first, then the page. */
-function supportMail(r: ReportToMail, origin: string): { subject: string; text: string } {
-  const code = reportCode(r.number);
-  const need = kindWords(r.kind);
-  const screen = r.kind === "wrong" ? "health" : "support";
-  const where = r.tenant ? `${r.tenant.name} (${r.tenant.slug})` : "No workspace";
-  const error = r.error_id
-    ? `${r.error_id} · ${[r.error_name, r.error_message].filter(Boolean).join(": ") || "an error"}`
+function supportMail(reportToMail: ReportToMail, origin: string): { subject: string; text: string } {
+  const code = reportCode(reportToMail.number);
+  const need = kindWords(reportToMail.kind);
+  const screen = reportToMail.kind === "wrong" ? "health" : "support";
+  const where = reportToMail.tenant ? `${reportToMail.tenant.name} (${reportToMail.tenant.slug})` : "No workspace";
+  const error = reportToMail.error_id
+    ? `${reportToMail.error_id} · ${[reportToMail.error_name, reportToMail.error_message].filter(Boolean).join(": ") || "an error"}`
     : "None caught";
-  const said = oneLine(r.words);
+  const sentence = oneLine(reportToMail.words);
   return {
-    subject: oneLine(`${code} · ${need} · ${where} · ${said.length > 60 ? `${said.slice(0, 59)}…` : said}`),
+    subject: oneLine(`${code} · ${need} · ${where} · ${sentence.length > 60 ? `${sentence.slice(0, 59)}…` : sentence}`),
     text:
-      `${code}, ${need.toLowerCase()}, from ${r.email ?? "a member"} in ${where}.\n\n` +
-      `What they wrote:\n${r.words}\n\n` +
-      `Page: ${pageWords(r.page)}\n` +
-      (r.kind === "wrong" || r.error_id ? `Last error: ${error}\n` : "") +
-      `Sent: ${r.created_at}\n\n` +
+      `${code}, ${need.toLowerCase()}, from ${reportToMail.email ?? "a member"} in ${where}.\n\n` +
+      `What they wrote:\n${reportToMail.words}\n\n` +
+      `Page: ${pageWords(reportToMail.page)}\n` +
+      (reportToMail.kind === "wrong" || reportToMail.error_id ? `Last error: ${error}\n` : "") +
+      `Sent: ${reportToMail.created_at}\n\n` +
       `Reply to this mail to answer them, within one business day. It is in the Console: ${origin}${CONSOLE_PATH}/${screen}\n`,
   };
 }
@@ -77,7 +77,7 @@ export async function mailSupportReport(
   body: { report_id?: unknown },
   send: typeof postMail = postMail,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const from = platformFrom();
   const to = supportTo();
   if (!from || !to.length) return refuse(503, "no_platform_mailbox");
@@ -91,6 +91,6 @@ export async function mailSupportReport(
   if (!data) return refuse(404, "not_found", "no such report");
   const { subject, text } = supportMail(data, dashboardOrigin());
   const sent = await send({ from, to, subject, text, replyTo: data.email });
-  L.info("support_report_mailed", { tenant_id: data.tenant_id, report: reportCode(data.number), sent });
+  log.info("support_report_mailed", { tenant_id: data.tenant_id, report: reportCode(data.number), sent });
   return json(sent ? 200 : 502, { ok: sent });
 }

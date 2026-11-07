@@ -57,7 +57,7 @@ import {
 import { LEAD_ROUND_ENDINGS } from "../../../packages/contracts/src/leads/search/sets.ts";
 import { LEAD_ENDING_WORDS } from "../../../packages/contracts/src/leads/search/endings.ts";
 import { LeadSearchPlanSchema } from "../../../packages/contracts/src/leads/search/plan-schema";
-import { LeadStageInputSchema } from "../../../packages/contracts/src/leads/lead-plan-schema.ts";
+import { LeadStageInputSchema } from "../../../packages/contracts/src/leads/plan-schema.ts";
 
 /* ------------------------------------------------------------ the fixtures */
 

@@ -33,7 +33,7 @@ import { createClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { leaveSequence } from "@chanlytics/db";
+import { leaveSequence } from "@chanlytics/db/campaigns";
 
 const PAGE = 500;
 const IDS_AT_ONCE = 100;

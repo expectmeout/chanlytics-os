@@ -52,23 +52,33 @@ function tagOf(tags: unknown, name: string): string | null {
 
 /** A receipt, or null for any other event or shape. */
 export function emailReceiptFrom(payload: unknown): EmailReceipt | null {
-  const p = payload as { type?: unknown; data?: Record<string, unknown> } | null;
-  if (!p || typeof p.type !== "string" || !p.type.startsWith("email.") || !p.data || typeof p.data !== "object")
+  const item = payload as { type?: unknown; data?: Record<string, unknown> } | null;
+  if (
+    !item ||
+    typeof item.type !== "string" ||
+    !item.type.startsWith("email.") ||
+    !item.data ||
+    typeof item.data !== "object"
+  )
     return null;
-  const type = p.type.slice("email.".length);
+  const type = item.type.slice("email.".length);
   if (!RECEIPT_TYPES.has(type)) return null;
-  const d = p.data;
-  if (typeof d.email_id !== "string" || !d.email_id) return null;
+  const data = item.data;
+  if (typeof data.email_id !== "string" || !data.email_id) return null;
   const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const said = (d.bounce ?? d.failed ?? d.suppressed ?? {}) as Record<string, unknown>;
+  const sentence = (data.bounce ?? data.failed ?? data.suppressed ?? {}) as Record<string, unknown>;
   return {
     type: type as EmailReceiptType,
-    providerId: d.email_id,
-    rfcMessageId: messageIdHeader(str(d.message_id)),
-    to: addressesOf(d.to),
-    messageId: tagOf(d.tags, "cl_message"),
-    tenantId: tagOf(d.tags, "cl_tenant"),
-    detail: { kind: str(said.type) ?? str(said.reason), subKind: str(said.subType), message: str(said.message) },
+    providerId: data.email_id,
+    rfcMessageId: messageIdHeader(str(data.message_id)),
+    to: addressesOf(data.to),
+    messageId: tagOf(data.tags, "cl_message"),
+    tenantId: tagOf(data.tags, "cl_tenant"),
+    detail: {
+      kind: str(sentence.type) ?? str(sentence.reason),
+      subKind: str(sentence.subType),
+      message: str(sentence.message),
+    },
   };
 }
 
@@ -95,13 +105,22 @@ export interface EmailReceiptEffect {
  * nothing: the first is the send's own word to say (deliver.ts), the second is
  * interim.
  */
-export function emailReceiptEffect(r: EmailReceipt): EmailReceiptEffect {
-  const error = { provider: r.type, kind: r.detail.kind, sub_kind: r.detail.subKind, message: r.detail.message };
-  switch (r.type) {
+export function emailReceiptEffect(emailReceipt: EmailReceipt): EmailReceiptEffect {
+  const error = {
+    provider: emailReceipt.type,
+    kind: emailReceipt.detail.kind,
+    sub_kind: emailReceipt.detail.subKind,
+    message: emailReceipt.detail.message,
+  };
+  switch (emailReceipt.type) {
     case "delivered":
       return { status: "delivered", error: null, suppress: null };
     case "bounced":
-      return { status: "failed", error, suppress: /^permanent$/i.test(r.detail.kind ?? "") ? "hard_bounce" : null };
+      return {
+        status: "failed",
+        error,
+        suppress: /^permanent$/i.test(emailReceipt.detail.kind ?? "") ? "hard_bounce" : null,
+      };
     case "failed":
       return { status: "failed", error, suppress: null };
     case "suppressed":

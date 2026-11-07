@@ -36,7 +36,7 @@
  * There is no instrumentation hook for plain functions; a module every door
  * loads is the edge's boot.
  */
-import { logger } from "./log.js";
+import { logger } from "@chanlytics/log";
 
 function trimmedEnv(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
@@ -234,7 +234,7 @@ export const env = {
   get EXPO_ACCESS_TOKEN() {
     return trimmedEnv(process.env.EXPO_ACCESS_TOKEN);
   },
-  // Apple's push service, spoken to directly for the call in progress on a phone's Lock Screen (lib/ops/apns.ts).
+  // Apple's push service, spoken to directly for the call in progress on a phone's Lock Screen (lib/voice/apns.ts).
   // All four set, or the port is absent; the key is the .p8's PEM, or a base64 of it.
   get APNS_TEAM_ID() {
     return trimmedEnv(process.env.APNS_TEAM_ID);
@@ -315,7 +315,7 @@ export const env = {
   get APIFY_TOKEN() {
     return trimmedEnv(process.env.APIFY_TOKEN);
   },
-  /** A business's page read for what it says and declares (lib/shared/public-page.ts sitePage); unset, none is read. */
+  /** A business's page read for what it says and declares (lib/shared/public-page.ts findSitePage); unset, none is read. */
   get FIRECRAWL_API_KEY() {
     return trimmedEnv(process.env.FIRECRAWL_API_KEY);
   },
@@ -415,7 +415,7 @@ export function httpsOriginOf(value: string | undefined): string | null {
  * edge without it lets the platform key open every admin door), and the two addresses it writes into links and hands
  * to providers. DASHBOARD_ORIGIN and EDGE_ORIGIN had production's addresses as code defaults, so a production edge that
  * lost its setting went on writing whatever the default said; production now names them, and only a preview or a
- * laptop keeps the default (dashboard-origin.ts, lines/lines.ts, leads/lead-wires.ts).
+ * laptop keeps the default (dashboard-origin.ts, lines/lines.ts, leads/wires.ts).
  */
 const REQUIRED_IN_PRODUCTION = [
   "SUPABASE_URL",

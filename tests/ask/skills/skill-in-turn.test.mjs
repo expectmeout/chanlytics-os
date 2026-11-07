@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { skillGuide } from "../../../apps/dashboard/src/server/ask/skills/registry.ts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -19,10 +20,10 @@ delete process.env.ASK_MODEL;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
 const { withSkillGuides } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
-const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { guideTool } = await import(at("apps/dashboard/src/server/ask/tools/read/guide.ts"));
 const C = await import("@chanlytics/contracts");
 
@@ -30,7 +31,7 @@ beforeEach(() => readerCache.clear());
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TZ = "America/New_York";
-const GUIDE = C.skillGuide("customer_message");
+const GUIDE = skillGuide("customer_message");
 
 const NONE = { kind: "none", id: "", label: "" };
 const answer = (headline) => ({

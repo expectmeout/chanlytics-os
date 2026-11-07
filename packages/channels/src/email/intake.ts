@@ -25,11 +25,11 @@ export type PlatformRecipient = { kind: "mailbox"; localPart: string } | { kind:
  * name, and a plus tag on a published address is not a second mailbox.
  */
 export function platformRecipient(address: string, domain: string): PlatformRecipient | null {
-  const a = address.trim().toLowerCase();
-  const at = a.lastIndexOf("@");
+  const text = address.trim().toLowerCase();
+  const at = text.lastIndexOf("@");
   if (at < 1) return null;
-  const host = a.slice(at + 1);
-  const local = a.slice(0, at);
+  const host = text.slice(at + 1);
+  const local = text.slice(0, at);
   const token = /^r\+([a-z2-7]{24})$/.exec(local)?.[1];
   if (host !== domain.toLowerCase()) return null;
   if (token) return { kind: "reply", token };
@@ -55,14 +55,14 @@ export interface EmailReceivedEvent {
 
 /** The received event, or null for any other event or shape. Lenient about a list that arrives as one string. */
 export function emailReceivedEventFrom(payload: unknown): EmailReceivedEvent | null {
-  const p = payload as { type?: unknown; data?: Record<string, unknown> } | null;
-  if (!p || p.type !== "email.received" || !p.data || typeof p.data !== "object") return null;
-  const id = p.data.email_id ?? p.data.id;
+  const item = payload as { type?: unknown; data?: Record<string, unknown> } | null;
+  if (!item || item.type !== "email.received" || !item.data || typeof item.data !== "object") return null;
+  const id = item.data.email_id ?? item.data.id;
   if (typeof id !== "string" || !id) return null;
-  const envelope = addressesOf(p.data.received_for);
+  const envelope = addressesOf(item.data.received_for);
   const recipients = envelope.length
     ? envelope
-    : [...addressesOf(p.data.to), ...addressesOf(p.data.cc), ...addressesOf(p.data.bcc)];
+    : [...addressesOf(item.data.to), ...addressesOf(item.data.cc), ...addressesOf(item.data.bcc)];
   return { type: "email.received", receivedId: id, recipients: [...new Set(recipients)] };
 }
 
@@ -107,30 +107,30 @@ function headersOf(v: unknown): Record<string, string> {
  */
 function senderChecksOf(v: unknown): ReceivedEmail["authentication"] {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
-  const said = v as Record<string, unknown>;
+  const sentence = v as Record<string, unknown>;
   const word = (x: unknown): string => (typeof x === "string" ? x : "");
-  return { spf: word(said.spf), dkim: word(said.dkim), dmarc: word(said.dmarc) };
+  return { spf: word(sentence.spf), dkim: word(sentence.dkim), dmarc: word(sentence.dmarc) };
 }
 
 /** The fetched email, or null when the answer is not one. Headers as a map or as a list of pairs, whichever the provider sends. */
 export function receivedEmailFrom(body: unknown): ReceivedEmail | null {
-  const b = body as Record<string, unknown> | null;
-  if (!b || typeof b !== "object" || typeof b.id !== "string") return null;
-  const headers = headersOf(b.headers);
+  const row = body as Record<string, unknown> | null;
+  if (!row || typeof row !== "object" || typeof row.id !== "string") return null;
+  const headers = headersOf(row.headers);
   const str = (v: unknown): string | null => (typeof v === "string" && v.length ? v : null);
   return {
-    id: b.id,
-    from: addressOf(str(b.from) ?? headers.from),
-    to: addressesOf(b.to),
-    cc: addressesOf(b.cc),
-    subject: str(b.subject) ?? str(headers.subject),
-    text: str(b.text),
-    html: str(b.html),
+    id: row.id,
+    from: addressOf(str(row.from) ?? headers.from),
+    to: addressesOf(row.to),
+    cc: addressesOf(row.cc),
+    subject: str(row.subject) ?? str(headers.subject),
+    text: str(row.text),
+    html: str(row.html),
     headers,
-    authentication: senderChecksOf(b.authentication),
-    messageId: messageIdHeader(str(b.message_id) ?? headers["message-id"]),
-    createdAt: str(b.created_at),
-    attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
+    authentication: senderChecksOf(row.authentication),
+    messageId: messageIdHeader(str(row.message_id) ?? headers["message-id"]),
+    createdAt: str(row.created_at),
+    attachments: (Array.isArray(row.attachments) ? row.attachments : []).map((a) => {
       const x = (a ?? {}) as Record<string, unknown>;
       return {
         filename: str(x.filename),
@@ -205,11 +205,14 @@ const DMARC_SAID_NOTHING: ReadonlySet<string> = new Set(["gray", "unknown", "pro
  * name each deployment had to be told by hand (EMAIL_AUTHSERV_ID). Production was never told, and so proved no sender at
  * all. The verdict is not in the message, and needs nothing set.
  */
-export function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "headers" | "authentication">): boolean {
-  const said = e.authentication;
-  const own = e.headers.from === undefined ? e.from : addressOf(e.headers.from);
-  if (!said || !oneMailbox(e.from) || !oneMailbox(own) || own.address !== e.from.address) return false;
-  return said.dmarc === "pass" || (said.dkim === "pass" && DMARC_SAID_NOTHING.has(said.dmarc));
+export function senderAuthenticated(
+  receivedEmail: Pick<ReceivedEmail, "from" | "headers" | "authentication">,
+): boolean {
+  const sentence = receivedEmail.authentication;
+  const own = receivedEmail.headers.from === undefined ? receivedEmail.from : addressOf(receivedEmail.headers.from);
+  if (!sentence || !oneMailbox(receivedEmail.from) || !oneMailbox(own) || own.address !== receivedEmail.from.address)
+    return false;
+  return sentence.dmarc === "pass" || (sentence.dkim === "pass" && DMARC_SAID_NOTHING.has(sentence.dmarc));
 }
 
 /**
@@ -254,39 +257,44 @@ const DMARC_REPORT_SUBJECT = /^\s*(?:\[[^\]]*\]\s*)?report\s+domain:\s*\S+\s+sub
 const DMARC_SENDER = /(?:^|[-_.+])dmarc(?:reports?)?(?:[-_.+]|$)/i;
 
 /** Whether a program or a list sent it, by its headers and its sender's addresses (classifyReceived's last test). */
-function programSent(e: Pick<ReceivedEmail, "headers" | "subject">, local: string): boolean {
-  const h = e.headers;
-  const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
+function programSent(receivedEmail: Pick<ReceivedEmail, "headers" | "subject">, local: string): boolean {
+  const headers = receivedEmail.headers;
+  const auto = (headers["auto-submitted"] ?? "").trim().toLowerCase();
   return (
     (auto !== "" && auto !== "no") ||
-    /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) ||
-    "list-id" in h ||
-    "list-unsubscribe" in h ||
+    /^(bulk|list|junk)$/i.test((headers.precedence ?? "").trim()) ||
+    "list-id" in headers ||
+    "list-unsubscribe" in headers ||
     NO_REPLY.test(local) ||
     PROGRAM_MAILBOX.test(local) ||
-    repliesGoNowhere(h) ||
+    repliesGoNowhere(headers) ||
     DMARC_SENDER.test(local) ||
-    DMARC_REPORT_SUBJECT.test(e.subject ?? "")
+    DMARC_REPORT_SUBJECT.test(receivedEmail.subject ?? "")
   );
 }
 
-export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">): EmailClaim {
-  const h = e.headers;
-  const local = e.from?.address.split("@")[0] ?? "";
-  if (/multipart\/report/i.test(h["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/.test(local)) return "report";
+export function classifyReceived(
+  receivedEmail: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">,
+): EmailClaim {
+  const headers = receivedEmail.headers;
+  const local = receivedEmail.from?.address.split("@")[0] ?? "";
+  if (/multipart\/report/i.test(headers["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/.test(local))
+    return "report";
   // A booking tool writing about one of the business's appointments (contracts bookingNoticeOf): its own sender, or a
   // person's forward whose quoted head names it. Before the automated marks, which a tool's notice carries too.
-  if (bookingNoticeOf({ from: e.from, subject: e.subject, text: e.text })) return "booking_notice";
+  if (bookingNoticeOf({ from: receivedEmail.from, subject: receivedEmail.subject, text: receivedEmail.text }))
+    return "booking_notice";
   // Gmail asking whether it may forward an account's mail here (contracts forwardingConfirmationOf): kept on the
   // mailbox for Settings, never as a thread; the same automated marks as a tool's notice.
-  if (forwardingConfirmationOf({ from: e.from, subject: e.subject, text: e.text })) return "forwarding_confirmation";
-  const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
+  if (forwardingConfirmationOf({ from: receivedEmail.from, subject: receivedEmail.subject, text: receivedEmail.text }))
+    return "forwarding_confirmation";
+  const auto = (headers["auto-submitted"] ?? "").trim().toLowerCase();
   if (
     auto.startsWith("auto-replied") ||
-    "x-autoreply" in h ||
-    "x-autorespond" in h ||
-    /^auto[_-]?reply$/i.test((h.precedence ?? "").trim())
+    "x-autoreply" in headers ||
+    "x-autorespond" in headers ||
+    /^auto[_-]?reply$/i.test((headers.precedence ?? "").trim())
   )
     return "auto_reply";
-  return programSent(e, local) ? "automated" : "person";
+  return programSent(receivedEmail, local) ? "automated" : "person";
 }

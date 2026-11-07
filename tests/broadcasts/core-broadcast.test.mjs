@@ -6,8 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX } = await importSrc(
-  "packages/core/src/messages/broadcast.ts",
+const { sendBroadcastBatch } = await importSrc("packages/core/src/messages/broadcast/batch.ts");
+const { BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX } = await importSrc(
+  "packages/core/src/messages/broadcast/stops.ts",
 );
 const { BROADCAST_CHUNK, BROADCAST_THROTTLE_WAITS_MS, HELD_REASONS, OUTCOME_UNKNOWN, mayMessageFor } =
   await import("@chanlytics/contracts");
@@ -48,7 +49,7 @@ const contacts = {
   k2: { id: "k2", phone_e164: "+13475550102", erased_at: null, display_name: null, wa_profile_name: "Bo" },
 };
 
-/** A template row as the message port answers it (db messageVersionRowsOf): every column the batch and contracts read, of the name and language asked. */
+/** A template row as the message port answers it (db listMessageVersionRows): every column the batch and contracts read, of the name and language asked. */
 const rowOf = (channel, name, language, over = {}) => ({
   id: `${channel}-${name}`,
   channel,
@@ -2180,7 +2181,7 @@ test("a person released and re-batched is sent under a new email id, whatever th
 
 test("a broadcast's email id is named by the person's attempt, as reach-out's sends are; a database with no attempt to read keeps the id it always had", async () => {
   const { broadcastEmailId } = await importSrc("packages/core/src/campaigns/reach-out-ids.ts");
-  const { uuidV5 } = await importSrc("packages/core/src/shared/uuid-v5.ts");
+  const { makeUuidV5 } = await importSrc("packages/core/src/shared/uuid-v5.ts");
   const of = (over = {}) =>
     broadcastEmailId({ broadcastId: "b1", contactId: "k1", attempt: 0, waits: 0, stalls: 0, ...over });
   // The run and the person and the attempt: the same three, the same id; any one different, a different one.
@@ -2193,7 +2194,7 @@ test("a broadcast's email id is named by the person's attempt, as reach-out's se
   // No attempt to read (a database before 00301): the waits and the stalls, as before the column.
   assert.equal(
     await of({ attempt: undefined, waits: 2, stalls: 1 }),
-    await uuidV5("broadcast_email:b1:k1:2:1"),
+    await makeUuidV5("broadcast_email:b1:k1:2:1"),
     "the id every run before the column was written under",
   );
   assert.notEqual(await of({ attempt: undefined }), await of({ attempt: 0 }), "the two names never meet");

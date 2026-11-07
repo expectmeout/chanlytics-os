@@ -47,7 +47,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { composePromptPreview, openingsBlock } = await import(
+const { composePromptPreview, findOpeningsBlock } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/receptionist/prompt-preview.ts")).href
 );
 
@@ -140,7 +140,7 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
   // until a booking arrives by email.
   const none = async () => [];
   try {
-    const got = await openingsBlock(
+    const got = await findOpeningsBlock(
       "t-preview-1",
       { url: "webcal://cal.example/harbor.ics", brain: BRAIN, tz: TZ, taken: none },
       NOW,
@@ -160,7 +160,7 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
       TZ,
       { daysAhead: 14, hasBookingLink: true },
     );
-    assert.equal(got, expected, "the same functions the edge's openingsFor runs, with the same inputs");
+    assert.equal(got, expected, "the same functions the edge's findOpenings runs, with the same inputs");
     assert.ok(
       got.startsWith("Open times (from the calendar") && got.includes("Tuesday, September 15"),
       "the busy block on Tuesday morning leaves the afternoon, and Monday is closed",
@@ -168,7 +168,7 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
     assert.equal(fetched[0], "https://cal.example/harbor.ics", "webcal is https in a hat, as on the edge");
 
     // Under a booking hold the block ends in a person confirming, never the link, as the edge's says it (11 Oct 2026).
-    const held = await openingsBlock(
+    const held = await findOpeningsBlock(
       "t-preview-1",
       {
         url: "webcal://cal.example/harbor.ics",
@@ -186,7 +186,7 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
     // edge's does, asked for with the days the rules offer. Tuesday afternoon, three to five, New York.
     const emailed = [{ start: Date.parse("2026-09-15T19:00:00.000Z"), end: Date.parse("2026-09-15T21:00:00.000Z") }];
     const askedFor = [];
-    const withEmailed = await openingsBlock(
+    const withEmailed = await findOpeningsBlock(
       "t-preview-1",
       {
         url: "webcal://cal.example/harbor.ics",
@@ -216,12 +216,12 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
 
     const refused = async () => assert.fail("nothing is offered, so nothing of the record is read");
     assert.equal(
-      await openingsBlock("t-preview-2", { url: null, brain: BRAIN, tz: TZ, taken: refused }, NOW),
+      await findOpeningsBlock("t-preview-2", { url: null, brain: BRAIN, tz: TZ, taken: refused }, NOW),
       null,
       "no feed",
     );
     assert.equal(
-      await openingsBlock(
+      await findOpeningsBlock(
         "t-preview-3",
         { url: "https://cal.example/x.ics", brain: { ...BRAIN, profile: undefined }, tz: TZ, taken: refused },
         NOW,
@@ -230,7 +230,7 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
       "no profile",
     );
     assert.equal(
-      await openingsBlock(
+      await findOpeningsBlock(
         "t-preview-4",
         { url: "https://cal.example/x.ics", brain: BRAIN, tz: null, taken: refused },
         NOW,
@@ -240,7 +240,7 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
     );
     assert.equal(fetched.length, 1, "none of those reached for the feed");
     assert.equal(
-      await openingsBlock(
+      await findOpeningsBlock(
         "t-preview-5",
         { url: "https://cal.example/broken.ics", brain: BRAIN, tz: TZ, taken: refused },
         NOW,

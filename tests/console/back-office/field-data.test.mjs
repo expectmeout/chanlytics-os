@@ -31,7 +31,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { platformVitals } = await import(at("apps/dashboard/src/server/console/vitals.ts"));
+const { listPlatformVitals } = await import(at("apps/dashboard/src/server/console/vitals.ts"));
 const vitalsRoute = await import(at("apps/dashboard/app/api/v1/vitals/route.ts"));
 const overview = await import(at("apps/dashboard/app/api/v1/platform/overview/route.ts"));
 const { createFieldData, beaconTo, flushWhenHidden } = await import(at("apps/dashboard/src/client/field-data.ts"));
@@ -234,7 +234,7 @@ test("the back office's read asks for the bounded window, says unread as null, a
     { metric: "LCP", page: "inbox", samples: 40, p75: 2300, since: "2026-09-21T10:00:00Z" },
   ];
   const office = (rpc) => ({ db: fakeDb({}, {}, { page_vitals_p75: rpc }), session: null });
-  const read = await platformVitals(
+  const read = await listPlatformVitals(
     office((args) => {
       asked.push(args);
       return rows;
@@ -245,8 +245,8 @@ test("the back office's read asks for the bounded window, says unread as null, a
     { metric: "LCP", page: null, samples: 40, p75: 2300 },
     { metric: "LCP", page: "inbox", samples: 40, p75: 2300 },
   ]);
-  assert.equal(await platformVitals(office(raise("57014", "canceling statement due to statement timeout"))), null);
-  assert.deepEqual(await platformVitals(office(raise("PGRST202", "Could not find the function"))), []);
+  assert.equal(await listPlatformVitals(office(raise("57014", "canceling statement due to statement timeout"))), null);
+  assert.deepEqual(await listPlatformVitals(office(raise("PGRST202", "Could not find the function"))), []);
 });
 
 test("the timings ride on the overview, and a read that fails takes nothing else with it", async () => {

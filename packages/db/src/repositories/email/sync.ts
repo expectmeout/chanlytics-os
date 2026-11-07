@@ -29,45 +29,51 @@ export async function takeMailboxSync(db: Db, id: string, at: Date, leaseMs: num
 /** Where the sync left off, and the lease given back. A cursor of null keeps the one it had. */
 export async function endMailboxSync(
   db: Db,
-  p: { id: string; cursor: string | null; at: Date; error?: string | null },
+  params: { id: string; cursor: string | null; at: Date; error?: string | null },
 ): Promise<void> {
   const { error } = await db
     .from("mailbox_connections")
     .update({
-      ...(p.cursor !== null ? { sync_cursor: p.cursor } : {}),
-      synced_at: p.at.toISOString(),
+      ...(params.cursor !== null ? { sync_cursor: params.cursor } : {}),
+      synced_at: params.at.toISOString(),
       sync_lease_until: null,
-      ...(p.error !== undefined ? { last_error: p.error, last_error_at: p.error ? p.at.toISOString() : null } : {}),
+      ...(params.error !== undefined
+        ? { last_error: params.error, last_error_at: params.error ? params.at.toISOString() : null }
+        : {}),
     })
-    .eq("id", p.id);
+    .eq("id", params.id);
   if (error) throw new Error(`cannot end the mailbox's sync: ${error.message}`);
 }
 
 /** The watch the provider holds for the mailbox: Graph's subscription id (Gmail has none) and when it lapses. */
 export async function keepMailboxWatch(
   db: Db,
-  p: { id: string; watchId: string | null; expiresAt: Date; cursor?: string | null },
+  params: { id: string; watchId: string | null; expiresAt: Date; cursor?: string | null },
 ): Promise<void> {
   const { error } = await db
     .from("mailbox_connections")
     .update({
-      watch_id: p.watchId,
-      watch_expires_at: p.expiresAt.toISOString(),
-      ...(p.cursor ? { sync_cursor: p.cursor } : {}),
+      watch_id: params.watchId,
+      watch_expires_at: params.expiresAt.toISOString(),
+      ...(params.cursor ? { sync_cursor: params.cursor } : {}),
     })
-    .eq("id", p.id);
+    .eq("id", params.id);
   if (error) throw new Error(`cannot keep the mailbox's watch: ${error.message}`);
 }
 
 /** One connection by its id, whichever workspace's: a job or a push names it by id alone. */
-export async function mailboxConnectionById(db: Db, id: string): Promise<MailboxConnectionRow | null> {
+export async function findMailboxConnectionById(db: Db, id: string): Promise<MailboxConnectionRow | null> {
   const { data, error } = await db.from("mailbox_connections").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
   return data;
 }
 
 /** Our outbound email's row by the Message-ID it went under, for a report that quotes one we did not mint. */
-export async function sentEmailIdByMessageId(db: Db, tenantId: string, rfcMessageId: string): Promise<string | null> {
+export async function findSentEmailIdByMessageId(
+  db: Db,
+  tenantId: string,
+  rfcMessageId: string,
+): Promise<string | null> {
   const { data, error } = await db
     .from("messages")
     .select("id")
@@ -81,7 +87,7 @@ export async function sentEmailIdByMessageId(db: Db, tenantId: string, rfcMessag
 }
 
 /** Of the provider threads that changed, the ones holding an email this workspace sent (00424). */
-export async function knownThreads(db: Db, tenantId: string, threadIds: string[]): Promise<Set<string>> {
+export async function getKnownThreads(db: Db, tenantId: string, threadIds: string[]): Promise<Set<string>> {
   if (threadIds.length === 0) return new Set();
   const { data, error } = await db.rpc("mailbox_threads_known", {
     p_tenant_id: tenantId,
@@ -103,7 +109,7 @@ type OwnerEmailKept = { kept: true; resolved: number } | { kept: false; why: "no
  */
 export async function keepOwnerEmail(
   db: Db,
-  p: {
+  params: {
     tenantId: string;
     address: string;
     externalId: string;
@@ -114,13 +120,13 @@ export async function keepOwnerEmail(
   },
 ): Promise<OwnerEmailKept> {
   const { data, error } = await db.rpc("mailbox_owner_wrote", {
-    p_tenant_id: p.tenantId,
-    p_address: p.address,
-    p_external_id: p.externalId,
-    p_body: p.body ?? "",
-    p_channel_ts: p.channelTs,
-    p_meta: p.meta,
-    p_reasons: [...p.settles],
+    p_tenant_id: params.tenantId,
+    p_address: params.address,
+    p_external_id: params.externalId,
+    p_body: params.body ?? "",
+    p_channel_ts: params.channelTs,
+    p_meta: params.meta,
+    p_reasons: [...params.settles],
   });
   if (error) throw new Error(`cannot keep the owner's email: ${error.message}`);
   const out = (data ?? {}) as { kept?: unknown; why?: unknown; resolved?: unknown };

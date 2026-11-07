@@ -1,7 +1,7 @@
 import "server-only";
 import { HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX, type EscalationDto } from "@chanlytics/contracts";
-import { openRequestsOfThreads } from "@chanlytics/db";
-import { stamp, type Reader } from "./index";
+import { openRequestsOfThreads } from "@chanlytics/db/calendar";
+import { readerStamp, type Reader } from "../shared/reader";
 import { isGoing } from "../people/going";
 
 /**
@@ -19,20 +19,20 @@ async function withRequests(
   const byThread = new Map<string, (typeof requests)[number]>();
   for (const r of requests)
     if (r.conversation_id && !byThread.has(r.conversation_id)) byThread.set(r.conversation_id, r);
-  return rows.map((e) => {
-    const r = e.reason === "booking_request" ? byThread.get(e.conversation_id) : undefined;
-    return r
+  return rows.map((row) => {
+    const item = row.reason === "booking_request" ? byThread.get(row.conversation_id) : undefined;
+    return item
       ? {
-          ...e,
+          ...row,
           request: {
-            id: r.id,
-            starts_at: r.starts_at,
-            ends_at: r.ends_at,
-            service: r.service ?? null,
-            expires_at: r.expires_at ?? null,
+            id: item.id,
+            starts_at: item.starts_at,
+            ends_at: item.ends_at,
+            service: item.service ?? null,
+            expires_at: item.expires_at ?? null,
           },
         }
-      : e;
+      : row;
   });
 }
 
@@ -88,6 +88,6 @@ export const escalations: Reader<
         created_at,
         conversation_id,
       }));
-    return { data: { escalations: await withRequests(rc, escalations) }, rows: [], stamp: stamp() };
+    return { data: { escalations: await withRequests(rc, escalations) }, rows: [], stamp: readerStamp() };
   },
 };

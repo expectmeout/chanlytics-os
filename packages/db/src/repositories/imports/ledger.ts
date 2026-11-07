@@ -36,7 +36,7 @@ function ledgerCountsOf(raw: unknown): Record<string, number> {
 }
 
 /** The workspace's ledger, every row it holds: a source's, or a mailbox's of a source. */
-export async function importsOf(db: Db, tenantId: string): Promise<ImportLedgerRow[]> {
+export async function listImports(db: Db, tenantId: string): Promise<ImportLedgerRow[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("imports")
     .select(
@@ -67,22 +67,22 @@ export interface ImportNote {
   take?: boolean;
 }
 
-export async function noteImport(db: Db, n: ImportNote): Promise<void> {
+export async function noteImport(db: Db, importNote: ImportNote): Promise<void> {
   const { error } = await db.rpc("import_ledger_note", {
-    p_tenant_id: n.tenantId,
-    p_source: n.source,
-    p_state: n.state,
-    p_counts: (n.counts ?? {}) as Json,
-    p_add: n.add ?? false,
-    p_parts_done: n.partsDone ?? undefined,
-    p_parts_total: n.partsTotal ?? undefined,
-    p_oldest: n.oldest ?? undefined,
-    p_via: n.via ?? undefined,
-    p_error: n.error ?? undefined,
-    p_cursor: n.cursor ?? undefined,
-    p_connection_id: n.connectionId ?? undefined,
-    p_run: n.run ?? undefined,
-    p_take: n.take ?? undefined,
+    p_tenant_id: importNote.tenantId,
+    p_source: importNote.source,
+    p_state: importNote.state,
+    p_counts: (importNote.counts ?? {}) as Json,
+    p_add: importNote.add ?? false,
+    p_parts_done: importNote.partsDone ?? undefined,
+    p_parts_total: importNote.partsTotal ?? undefined,
+    p_oldest: importNote.oldest ?? undefined,
+    p_via: importNote.via ?? undefined,
+    p_error: importNote.error ?? undefined,
+    p_cursor: importNote.cursor ?? undefined,
+    p_connection_id: importNote.connectionId ?? undefined,
+    p_run: importNote.run ?? undefined,
+    p_take: importNote.take ?? undefined,
   });
   if (error) throw new Error(error.message);
 }
@@ -112,13 +112,13 @@ export async function importRowOf(
   source: string,
   connectionId: string | null = null,
 ): Promise<ImportRunRow | null> {
-  const q = tenantDb(db, tenantId)
+  const result = tenantDb(db, tenantId)
     .from("imports")
     .select("connection_id, state, run, last_error, job_cursor")
     .eq("source", source);
   const { data, error } = await (connectionId
-    ? q.or(`connection_id.eq.${connectionId},connection_id.is.null`)
-    : q.is("connection_id", null));
+    ? result.or(`connection_id.eq.${connectionId},connection_id.is.null`)
+    : result.is("connection_id", null));
   if (error) throw new Error(error.message);
   const rows = data ?? [];
   const kept = rows.find((r) => r.connection_id === null);

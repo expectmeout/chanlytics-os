@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { wordsNeedOpening } from "@chanlytics/contracts";
 import type { SequencePlaceDto, SequencePlaceOfDto, SequencePlaceRowDto, SequenceRowDto } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
-import { leadStepKey, leadWordsOfLeads } from "./lead-words";
+import { leadStepKey, getLeadWordsOfLeads } from "./lead-words";
 
 type Db = SupabaseClient<Database>;
 
@@ -52,16 +52,19 @@ export async function withReadyCounts(db: Db, tenantId: string, rows: SequenceRo
       held.set(id, kept);
     }),
   );
-  return rows.map((r) => {
-    if (!(r.needs?.batches ?? []).some((b) => ready.has(b.id))) return r;
-    const batches = r.needs.batches.map((b) =>
+  return rows.map((row) => {
+    if (!(row.needs?.batches ?? []).some((b) => ready.has(b.id))) return row;
+    const batches = row.needs.batches.map((b) =>
       ready.has(b.id) ? { ...b, people: ready.get(b.id) ?? b.people, held: held.get(b.id) ?? 0 } : b,
     );
-    const next = r.next && ready.has(r.next.id) ? { ...r.next, people: ready.get(r.next.id) ?? r.next.people } : r.next;
+    const next =
+      row.next && ready.has(row.next.id)
+        ? { ...row.next, people: ready.get(row.next.id) ?? row.next.people }
+        : row.next;
     return {
-      ...r,
+      ...row,
       next,
-      needs: { ...r.needs, batches, waiting_people: batches.reduce((n, b) => n + b.people, 0) },
+      needs: { ...row.needs, batches, waiting_people: batches.reduce((n, b) => n + b.people, 0) },
     };
   });
 }
@@ -104,7 +107,7 @@ export async function withOpenings<R extends { group: string; send_id: string | 
     if (sends.error) throw new Error(`cannot read the emails' openings: ${sends.error.message}`);
     sent.push(...(sends.data ?? []));
   }
-  const words = await leadWordsOfLeads(
+  const words = await getLeadWordsOfLeads(
     db,
     sent.flatMap((s) => (s.lead_id ? [s.lead_id] : [])),
   );
@@ -154,8 +157,10 @@ export async function putBackOf(
     .limit(1);
   if (error) throw new Error(`cannot read the leave to put back: ${error.message}`);
   const [leave] = data ?? [];
-  const said = leave ? (leave.payload as { left?: unknown; put_back?: { why?: unknown } } | null) : null;
-  return leave && said && said.left === 1 && said.put_back?.why === place.place.why ? { decision_id: leave.id } : null;
+  const sentence = leave ? (leave.payload as { left?: unknown; put_back?: { why?: unknown } } | null) : null;
+  return leave && sentence && sentence.left === 1 && sentence.put_back?.why === place.place.why
+    ? { decision_id: leave.id }
+    : null;
 }
 
 /** A lead on a sequence's list, and the sequence whose list it is. */
@@ -192,10 +197,10 @@ export async function withListedWhyNot(
   const listed = rows
     .filter((r) => r.group === "queued")
     .map((r) => ({ lead_id: r.lead_id, sequence_id: r.sequence_id }));
-  const why = await listedWhyNotOf(db, tenantId, listed);
-  return why.size === 0
+  const reason = await listedWhyNotOf(db, tenantId, listed);
+  return reason.size === 0
     ? rows
-    : rows.map((r) => (r.group === "queued" ? { ...r, why: why.get(r.lead_id) ?? r.why } : r));
+    : rows.map((r) => (r.group === "queued" ? { ...r, why: reason.get(r.lead_id) ?? r.why } : r));
 }
 
 /** One lead's place (sequence_place), on a list and not planned, with why no batch takes it, where one cannot. */
@@ -206,6 +211,6 @@ export async function withPlaceWhyNot(
   place: SequencePlaceDto,
 ): Promise<SequencePlaceRowDto> {
   if (place.place.group !== "queued") return place.place;
-  const why = await listedWhyNotOf(db, tenantId, [{ lead_id: leadId, sequence_id: place.sequence.id }]);
-  return { ...place.place, why: why.get(leadId) ?? place.place.why };
+  const reason = await listedWhyNotOf(db, tenantId, [{ lead_id: leadId, sequence_id: place.sequence.id }]);
+  return { ...place.place, why: reason.get(leadId) ?? place.place.why };
 }

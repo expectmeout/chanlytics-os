@@ -10,7 +10,7 @@
  */
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import type { logger } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
@@ -35,12 +35,12 @@ export function cardFingerprintOf(sub: Stripe.Subscription): string | null {
 }
 
 /** Keep the workspace's card mark (00203 billing_card_marks), for the sweep's one check that needs it. */
-export async function markCard(db: Db, tenantId: string, fingerprint: string | null, L: Log): Promise<void> {
+export async function markCard(db: Db, tenantId: string, fingerprint: string | null, log: Log): Promise<void> {
   if (!fingerprint) return;
   const { error } = await db.rpc("billing_card_mark", { p_tenant_id: tenantId, p_fingerprint: fingerprint });
   if (!error) return;
   if (notYet(error)) {
-    L.warn("partner_card_mark_skipped", { tenant_id: tenantId, error: error.message });
+    log.warn("partner_card_mark_skipped", { tenant_id: tenantId, error: error.message });
     return;
   }
   throw new Error(`billing_card_mark: ${error.message}`);
@@ -74,7 +74,7 @@ export async function earnFromInvoice(
   tenantId: string,
   inv: Stripe.Invoice,
   eventId: string,
-  L: Log,
+  log: Log,
 ): Promise<LedgerOutcome> {
   if (!inv.id || !planInvoice(inv) || !(inv.amount_paid > 0)) return null;
   const paidAt = inv.status_transitions?.paid_at ?? inv.created;
@@ -88,14 +88,14 @@ export async function earnFromInvoice(
   });
   if (error) {
     if (notYet(error)) {
-      L.warn("partner_earning_skipped", { tenant_id: tenantId, invoice: inv.id, error: error.message });
+      log.warn("partner_earning_skipped", { tenant_id: tenantId, invoice: inv.id, error: error.message });
       return { skipped: true };
     }
     throw new Error(`partner_earn: ${error.message}`);
   }
   if (!data) return null;
   const earned = Number((data as { earned_cents?: number }).earned_cents ?? 0);
-  L.info("partner_earned", { tenant_id: tenantId, invoice: inv.id, earned_cents: earned });
+  log.info("partner_earned", { tenant_id: tenantId, invoice: inv.id, earned_cents: earned });
   return { earned };
 }
 
@@ -103,13 +103,13 @@ export async function earnFromInvoice(
  * The invoice a payment intent paid. This API version links a charge or a dispute to its invoice only through the
  * payment intent (an invoice's payments); a payment that paid no invoice answers null.
  */
-export async function invoiceOfPayment(
-  s: Stripe,
+export async function findInvoiceOfPayment(
+  stripe: Stripe,
   paymentIntent: string | null,
   options?: Stripe.RequestOptions,
 ): Promise<string | null> {
   if (!paymentIntent) return null;
-  const list = await s.invoicePayments.list(
+  const list = await stripe.invoicePayments.list(
     { payment: { type: "payment_intent", payment_intent: paymentIntent }, limit: 1 },
     options,
   );
@@ -125,7 +125,7 @@ export async function reverseForInvoice(
   eventId: string,
   kind: ReversalKind,
   amountCents: number,
-  L: Log,
+  log: Log,
 ): Promise<LedgerOutcome> {
   const { data, error } = await db.rpc("partner_reverse", {
     p_invoice_id: invoiceId,
@@ -135,13 +135,13 @@ export async function reverseForInvoice(
   });
   if (error) {
     if (notYet(error)) {
-      L.warn("partner_earning_skipped", { invoice: invoiceId, kind, error: error.message });
+      log.warn("partner_earning_skipped", { invoice: invoiceId, kind, error: error.message });
       return { skipped: true };
     }
     throw new Error(`partner_reverse: ${error.message}`);
   }
   if (!data) return null;
   const earned = Number((data as { earned_cents?: number }).earned_cents ?? 0);
-  L.info("partner_reversed", { invoice: invoiceId, kind, earned_cents: earned });
+  log.info("partner_reversed", { invoice: invoiceId, kind, earned_cents: earned });
   return { earned };
 }

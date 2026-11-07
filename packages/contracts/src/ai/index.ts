@@ -40,43 +40,34 @@ export {
   promptSafeName,
 } from "./fence";
 export type { FenceTag } from "./fence";
-export { daysToSunset, FLAG_MECHANISMS, FLAGS } from "./flags";
-export type { Flag, FlagMechanism, WeakerMode } from "./flags";
 export {
-  fallbackModel,
   FAST_MODE_BETA,
   hasFastMode,
+  MODEL_IDS,
+  MODEL_SPEEDS,
+  MODEL_TAKES,
+  MODELS,
+  modelTakes,
+  THINKING_TYPES,
+} from "./models/ids";
+export type { ModelId, ModelSpeed, ModelTakes, ThinkingType } from "./models/ids";
+export {
+  fallbackModel,
   isModelId,
   MODEL_EFFORTS,
-  MODEL_IDS,
   MODEL_PORTS,
   MODEL_PURPOSES,
   MODEL_ROUTES,
-  MODEL_SPEEDS,
-  MODEL_TAKES,
   modelRoute,
-  MODELS,
-  modelTakes,
   readsAsModel,
   RETELL_MODELS,
   routeThinkingFor,
   screenFloorOf,
   secondKeyFloorOf,
   shadowPortOf,
-  THINKING_TYPES,
   thinkingOffOf,
-} from "./models";
-export type {
-  ModelEffort,
-  ModelId,
-  ModelPort,
-  ModelPurpose,
-  ModelRoute,
-  ModelSpeed,
-  ModelTakes,
-  ShadowPort,
-  ThinkingType,
-} from "./models";
+} from "./models/routes";
+export type { ModelEffort, ModelPort, ModelPurpose, ModelRoute, ShadowPort } from "./models/routes";
 export {
   judgeShadowSpecs,
   LEAD_SCREEN_BOUND_MS,

@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/shared/route";
-import { reachOutSourcesOf } from "@/server/leads/lead-workbench";
+import { getReachOutSources } from "@/server/leads/workbench";
 
 /**
  * GET /api/v1/reach-outs/sources — what a reach-out could start from (00426 reach_out_sources): the newest searches and
@@ -8,5 +8,5 @@ import { reachOutSourcesOf } from "@/server/leads/lead-workbench";
  */
 export const GET = read({
   scope: workspace,
-  handle: ({ ctx, member }) => reachOutSourcesOf(ctx, member.tenantId),
+  handle: ({ ctx, member }) => getReachOutSources(ctx, member.tenantId),
 });

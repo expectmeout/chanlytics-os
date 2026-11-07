@@ -13,7 +13,7 @@ import {
   leavePersonLead,
   undoPersonName,
   type PersonNameAnswer,
-} from "@chanlytics/db";
+} from "@chanlytics/db/people";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
 /** A door's own refusal, carried back; an answer that did nothing, said in the page's words as a conflict. */
@@ -27,8 +27,8 @@ async function asDoor<T>(run: () => Promise<T>): Promise<T> {
 
 function done(a: PersonNameAnswer): { name: string | null } {
   if (!a.done) {
-    const why = (a.why ?? "settled") as keyof typeof PERSON_NAME_WORDS.refused;
-    throw new AppError("conflict", PERSON_NAME_WORDS.refused[why] ?? PERSON_NAME_WORDS.refused.settled, 409);
+    const reason = (a.why ?? "settled") as keyof typeof PERSON_NAME_WORDS.refused;
+    throw new AppError("conflict", PERSON_NAME_WORDS.refused[reason] ?? PERSON_NAME_WORDS.refused.settled, 409);
   }
   return { name: a.name };
 }

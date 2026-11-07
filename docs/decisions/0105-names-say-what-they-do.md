@@ -1,7 +1,7 @@
 # 0105 · Names say what they do and what they hold
 
-**Status:** Accepted by Ruben, 6 November 2026. Its first step, the checks, is built on `org/names-are-checked`. No migration,
-and nothing changes for a customer: every step is a rule or a rename.
+**Status:** Accepted by Ruben, 6 November 2026. Built on `org/names-say-what-they-do`, 7 November 2026. No migration, and nothing changes for a
+customer: every step is a rule or a rename.
 
 ## Context
 
@@ -43,6 +43,12 @@ The eight's code measures are a seeded sample of 150 `.ts` files each. The recor
    prefixes (`bt`, `pl`, `bc`, `ix`) and short names go with the frontend's own layers.
 
 What never changes in this layer: a string, a log event, a wire name, a table, a job kind.
+
+7. **A file does not repeat its folder, in the plural or the singular.** A review of the first move found the rule counted
+   `mailbox/mailbox-gmail.ts` and not `leads/lead-dtos.ts`: 134 more backend files, 8.7%, against 0.1 to 3.4% across the eight.
+8. **Left for the API's layer:** 63 one-letter properties of exported types, five `…Dto` in camelCase, seven `…VM` with a snake_case field.
+   Most are on the wire or stored as JSON, where a rename is a change to what is sent. `held`, `kept` and `named` left the value-names
+   list: held is a product word, and the other two say which of a collection a value is.
 
 ## How it is held
 

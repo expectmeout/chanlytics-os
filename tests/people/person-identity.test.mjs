@@ -30,15 +30,15 @@ import {
   personName,
   contactName,
   agentFor,
-  toConversationVM,
   toInboxThreadVM,
   toPersonVM,
   PERSON_CHANNEL_WORDS,
   LAST_WORDS_TITLE,
   lastWordsOf,
 } from "@chanlytics/contracts";
+import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { toConversationDto } from "../../apps/dashboard/src/server/conversations/dto.ts";
-import { personLabel } from "../../apps/dashboard/src/server/export/export.ts";
+import { personLabel } from "../../apps/dashboard/src/server/shared/export-file.ts";
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-18T02:45:00Z");

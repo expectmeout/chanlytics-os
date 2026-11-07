@@ -58,14 +58,16 @@ import {
   newDraftNote,
   voiceNumberBinding,
   type LiveAgentSettings,
-} from "@chanlytics/channels";
-import { resolveChannel, voiceAgentsBeforeANumber } from "@chanlytics/db";
+} from "@chanlytics/channels/voice";
+import { resolveChannel } from "@chanlytics/db/channels";
+import { listVoiceAgentsBeforeANumber } from "@chanlytics/db/facts";
 import { loadTenantRuntime } from "../shared/tenant-runtime.js";
 import { env } from "../shared/env.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
-import { signatureOnly } from "./door-auth.js";
+import { signatureOnly } from "../shared/door-auth.js";
 import { logger } from "../shared/log.js";
 import type { Admitted } from "../shared/admin-auth.js";
+import { E164 } from "@chanlytics/contracts";
 
 interface Body {
   agent_id?: string;
@@ -99,7 +101,7 @@ async function agentsNamed(body: Body): Promise<string[] | Response> {
   if (error) return refuse(503, "read_failed", error.message);
   let before: string[];
   try {
-    before = await voiceAgentsBeforeANumber(db);
+    before = await listVoiceAgentsBeforeANumber(db);
   } catch (e) {
     return refuse(503, "read_failed", e instanceof Error ? e.message : String(e));
   }
@@ -186,20 +188,20 @@ async function shellPlanOf(
  */
 async function pinPlan(
   cfg: { apiKey: string },
-  p: { agentId: string; number: string; latestPublished: boolean; apply: boolean },
+  params: { agentId: string; number: string; latestPublished: boolean; apply: boolean },
 ): Promise<Record<string, unknown>> {
-  if (!p.latestPublished)
+  if (!params.latestPublished)
     return { pinned: false, refused: "the latest version is a draft: publish it first, or the line switches back" };
-  const bound = await getPhoneNumber(cfg, p.number);
+  const bound = await getPhoneNumber(cfg, params.number);
   if (!bound) return { pinned: false, refused: "the number could not be read" };
   const ours = ((bound.inbound_agents ?? []) as Array<{ agent_id?: string; agent_version?: unknown }>).find(
-    (a) => a.agent_id === p.agentId,
+    (a) => a.agent_id === params.agentId,
   );
   if (!ours) return { pinned: false, refused: "the number does not answer in this agent: a pin never moves a line" };
   if (ours.agent_version === "latest_published") return { pinned: true, already: true };
-  if (!p.apply) return { pinned: false, would_pin: true };
-  const put = await updatePhoneNumber(cfg, p.number, {
-    inbound_agents: voiceNumberBinding({ agentId: p.agentId, pinned: true }),
+  if (!params.apply) return { pinned: false, would_pin: true };
+  const put = await updatePhoneNumber(cfg, params.number, {
+    inbound_agents: voiceNumberBinding({ agentId: params.agentId, pinned: true }),
   });
   return put.ok ? { pinned: true } : { pinned: false, error: { step: "pin", status: put.status, body: put.body } };
 }
@@ -225,7 +227,7 @@ type StepFailed = { step: string; status: number; body: unknown };
  */
 async function applyOne(
   cfg: { apiKey: string },
-  a: {
+  args: {
     agentId: string;
     before: Record<string, unknown>;
     plan: ReturnType<typeof planAgentSettings>;
@@ -235,7 +237,7 @@ async function applyOne(
   },
   out: Record<string, unknown>,
 ): Promise<StepFailed | null> {
-  const { agentId, before, plan, shell } = a;
+  const { agentId, before, plan, shell } = args;
   let working = typeof before.version === "number" ? before.version : null;
   if (before.is_published === true && working !== null) {
     const draft = await createAgentVersion(cfg, agentId, working);
@@ -254,14 +256,14 @@ async function applyOne(
   out.applied = true;
   // The version the patches went on, where it is not the one that was there: a new draft to publish or to name.
   const drafted = working !== null && working !== before.version ? working : null;
-  if (a.publish && drafted !== null) {
+  if (args.publish && drafted !== null) {
     const pub = await publishAgentVersion(cfg, agentId, drafted, "converged from the edge");
     if (!pub.ok) return { step: "publish", status: pub.status, body: pub.body };
     out.published_version = drafted;
   } else if (drafted !== null) {
     out.note = newDraftNote(drafted, before.version);
   }
-  out.after = await readBack(cfg, agentId, a.opts);
+  out.after = await readBack(cfg, agentId, args.opts);
   logger().info("voice_converge", {
     agent_id: agentId,
     from: before.version ?? null,
@@ -281,7 +283,7 @@ export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): 
   const apply = body.apply === true;
   const publish = body.publish === true;
   const pinNumber = typeof body.pin_number === "string" ? body.pin_number : null;
-  if (pinNumber !== null && (!/^\+[1-9]\d{6,14}$/.test(pinNumber) || typeof body.agent_id !== "string"))
+  if (pinNumber !== null && (!E164.test(pinNumber) || typeof body.agent_id !== "string"))
     return refuse(400, "bad_request", "pin_number is the named agent's number, in E.164");
 
   const agentIds = await agentsNamed(body);

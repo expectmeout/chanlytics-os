@@ -457,7 +457,12 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/channels/whatsapp/connect/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `code` | string or null | no |  |
+| `phone_number_id` | string or null | no |  |
+| `waba_id` | string or null | no |  |
+| `keep_app` | boolean or null | no |  |
 
 ### `GET /api/v1/channels/whatsapp/signup`
 
@@ -881,7 +886,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `state` | string | no |  |
+| `state` | one of `"open"`, `"resolved"` | no |  |
 
 ### `POST /api/v1/escalations/[id]/resolve`
 
@@ -1059,7 +1064,9 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `google_link` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/link/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `place_id` | string or null | no |  |
 
 ### `DELETE /api/v1/google/link`
 
@@ -1077,7 +1084,10 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `google_link` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/locations/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `account_name` | string or null | no |  |
+| `location_name` | string or null | no |  |
 
 ### `POST /api/v1/google/refresh`
 
@@ -1272,7 +1282,10 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lead_suggest` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lead-suggestions/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `again` | boolean or null | no |  |
+| `ours` | boolean or null | no |  |
 
 ### `PUT /api/v1/lead-suggestions`
 
@@ -1539,7 +1552,9 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lines_forwarding` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/forwarding/test/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `line_id` | string or null | no |  |
 
 ### `POST /api/v1/lines/lookup`
 
@@ -1561,13 +1576,17 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lines_retry` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/retry/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `line_id` | string or null | no |  |
 
 ### `POST /api/v1/lines/search`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lines_search` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/search/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `area_code` | number or string or null | no |  |
 
 ## mailbox-connections
 
@@ -1675,7 +1694,9 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for any signed-in person, for themselves; counts against the `profile_set` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `display_name` | any | no |  |
 
 ### `DELETE /api/v1/me`
 
@@ -1707,7 +1728,9 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/devices/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `token` | string or null | no |  |
 
 ### `POST /api/v1/me/invitations/accept`
 
@@ -3087,7 +3110,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `brief` | string | no |  |
-| `category` | string | no |  |
+| `category` | one of `"marketing"`, `"utility"` | no |  |
 | `language` | string | no |  |
 | `translate` | object | no |  |
 
@@ -3236,3 +3259,440 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for a member of the workspace the request names, partner or above; counts against the `workspace_logo_lookup` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/logo/lookup/route.ts`).
+
+## The edge's doors
+
+Every door on the edge whose body contracts declares (`packages/contracts/src/<domain>/edge-doors.ts`, decision 0109):
+the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same
+schema. Who may knock on each is `tests/edge/door-policy.json`'s.
+
+50 doors.
+
+### `POST /api/admin/billing`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `op` | string | yes |  |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `email` | string or null | no |  |
+| `return` | any | no |  |
+| `embedded` | boolean | no |  |
+
+### `POST /api/admin/calendar/feed`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `from` | number | no |  |
+| `to` | number | no |  |
+
+### `POST /api/admin/calendar/freed-time`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `appointment_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/draft`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `conversation_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `kind` | string | no |  |
+| `instruction` | string | no |  |
+
+### `POST /api/admin/email/alert-test`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/email/signup-confirm`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `contact_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/email/test-to-self`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `subject` | string | no |  |
+| `text` | string | no |  |
+
+### `POST /api/admin/email/wire`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `op` | string | yes |  |
+
+### `POST /api/admin/eval`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `cases` | array of object | no |  |
+
+### `POST /api/admin/files/copies`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `ids` | array of string | no |  |
+| `pictures` | array of object | no |  |
+
+### `POST /api/admin/google`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `op` | string | yes |  |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `place_id` | string | no |  |
+| `query` | string | no |  |
+| `code` | string | no |  |
+| `account_name` | string | no |  |
+| `location_name` | string | no |  |
+| `id` | string | no |  |
+| `comment` | string | no |  |
+| `file_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `summary` | string | no |  |
+| `photo_url` | string | no |  |
+| `language` | string | no |  |
+| `call` | boolean | no |  |
+| `post_name` | string | no |  |
+
+### `POST /api/admin/hand-over`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `call_id` | string | no |  |
+| `line` | string | no |  |
+
+### `POST /api/admin/handover-invite`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/imports/again`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `source` | string | no |  |
+
+### `POST /api/admin/imports/logo-lookup`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/imports/website-read`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/instagram/account`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `op` | string | yes |  |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `code` | string | no |  |
+| `channel_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/intake/replay`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `provider` | string | no |  |
+| `provider_event_id` | string | no |  |
+
+### `POST /api/admin/lines`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `op` | string | yes |  |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `area_code` | number or string | no |  |
+| `number` | string | no |  |
+| `line_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `by` | string | no |  |
+| `record` | any | no |  |
+| `path` | string | no |  |
+| `mock` | boolean | no |  |
+| `refile` | boolean | no |  |
+| `replace` | boolean | no |  |
+
+### `GET /api/admin/lines/codes`
+
+Read with GET; takes no body.
+
+### `POST /api/admin/llm`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `purpose` | string | no |  |
+| `request` | any | no |  |
+
+### `POST /api/admin/mailboxes`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `op` | string | yes |  |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `mailbox_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `provider` | string | no |  |
+| `code` | string | no |  |
+| `code_verifier` | string | no |  |
+| `from_name` | string | no |  |
+| `signature` | string or null | no |  |
+| `signature_off` | boolean | no |  |
+| `daily_cap` | number | no |  |
+| `address` | string | no |  |
+| `history` | any | no |  |
+
+### `POST /api/admin/partner-invite`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/playbooks-run`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `playbook_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/previews/make`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `lead_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/reach-out-preview`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `search_id` | string (uuid) | yes |  |
+| `index` | integer | yes | ≥ 0; ≤ 199 |
+| `include_unconfirmed` | boolean | yes |  |
+| `words` | object | yes |  |
+| `signed_by` | string or null | yes |  |
+| `signs_with` | one of `"name"`, `"mailbox"` | no |  |
+| `mailbox_id` | string (uuid) or null | no |  |
+| `language` | string | no | matches `^[a-z]{2,3}(_[A-Z]{2})?$` |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/reach-out/check`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `send_ids` | array of string | no |  |
+| `stream` | boolean | no |  |
+
+### `POST /api/admin/rehearsal/agent`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/rehearsal/call`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/rehearsal/fix`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `kind` | string | no |  |
+| `words` | string | no |  |
+| `customer` | string | no |  |
+| `answer` | string | no |  |
+| `rule` | string | no |  |
+
+### `POST /api/admin/rehearsal/review`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `rehearsal_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `call_id` | string | no |  |
+| `turns` | array of object | no |  |
+| `config_version` | number or null | no |  |
+
+### `POST /api/admin/setup-request`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `what` | string | no |  |
+| `by` | string or null | no |  |
+
+### `POST /api/admin/signup-notify`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `email` | string | no |  |
+
+### `POST /api/admin/steer`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `message_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `text` | string | no |  |
+
+### `POST /api/admin/stop-call`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `call_id` | string | no |  |
+
+### `POST /api/admin/support/report`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `report_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/voice-converge`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `agent_id` | string | no |  |
+| `apply` | boolean | no |  |
+| `publish` | boolean | no |  |
+| `shell` | boolean | no |  |
+| `pin_number` | string | no |  |
+
+### `POST /api/admin/voice-provision`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `number` | string | no |  |
+| `area_code` | number or string | no |  |
+| `llm_id` | string | no |  |
+| `agent_id` | string | no |  |
+| `apply` | boolean | no |  |
+
+### `POST /api/admin/voice/erase-calls`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `call_ids` | array of string | no |  |
+
+### `POST /api/admin/voice/session`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/voice/speech`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `text` | string | no |  |
+| `purpose` | string | no |  |
+| `before` | string | no |  |
+
+### `POST /api/admin/whatsapp/connect`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `code` | string | no |  |
+| `phone_number_id` | string | no |  |
+| `waba_id` | string | no |  |
+| `keep_app` | boolean | no |  |
+
+### `GET /api/admin/whatsapp/signup-config`
+
+Read with GET; takes no body.
+
+### `POST /api/admin/whatsapp/standing`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/whatsapp/templates-create`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `name` | string | no |  |
+| `language` | string | no |  |
+| `category` | string | no |  |
+| `components` | array of any | no |  |
+| `body` | string | no |  |
+| `examples` | array of string | no |  |
+| `labels` | array of string | no |  |
+
+### `POST /api/admin/whatsapp/templates-delete`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `template_id` | string | no |  |
+
+### `POST /api/admin/whatsapp/templates-sync`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/admin/whisper`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `call_id` | string | no |  |
+| `text` | string | no |  |
+| `trigger` | boolean | no |  |
+
+### `POST /api/admin/you-are-live`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/voice-canary`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `op` | string | no |  |
+| `since` | string | no |  |

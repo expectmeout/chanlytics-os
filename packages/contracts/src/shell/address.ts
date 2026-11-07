@@ -28,7 +28,7 @@ import {
   runRoute,
   sendOnceRoute,
   sequenceRoute,
-} from "../campaigns/sequences/sequence-address";
+} from "../campaigns/sequences/address";
 import { GET_YES_PARAM, GET_YES_ROUTE } from "../people/lists/people-route";
 
 /**
@@ -37,7 +37,7 @@ import { GET_YES_PARAM, GET_YES_ROUTE } from "../people/lists/people-route";
  * tabs review of 19 Oct 2026: a phone showed nothing for 600 ms between them). Its old route, `messages`, whose path was
  * `/w/<slug>/templates`, lands here for ever (retiredRouteOf, below). Declared here, beside the route words, so the boot does
  * not carry Campaigns' words: from them it carried those into the error screen's chunk (+3.7 KB on every first load). The
- * modules this one imports are Sequences' and People's addresses (sequence-address.ts, people/lists/people-route.ts),
+ * modules this one imports are Sequences' and People's addresses (sequences/address.ts, people/lists/people-route.ts),
  * which import nothing.
  */
 export const MESSAGES_ROUTE = "campaigns/messages";
@@ -71,7 +71,7 @@ const headOf = (route: string): string => (route.includes("/") ? route.slice(0, 
  * Where a retired address lands, in one move, or null where the address is a page's own (the Campaigns wiring review's
  * lane 1, 19 Oct 2026). The one table of them: every edge reads it, `movedAddress` as a page loads, `canonicalRoute` for
  * a move the app makes, `workspacePath` for a link, and Campaigns' and Sent's pages for an address that reaches them
- * some other way (a history entry from before). Every writer writes the page's own address (sequence-address.ts), so
+ * some other way (a history entry from before). Every writer writes the page's own address (sequences/address.ts), so
  * only a link kept from before says one of these: a bell row, an email, an Ask citation, a bookmark.
  *
  * - The old Playbooks list (`outbound`, the path's `playbooks`) is Sequences, and a playbook (`outbound/<id>`) its sequence.
@@ -202,18 +202,18 @@ export function routeOfAddress(address: AddressParts): string {
  * moves to the word (`/w/acme/people/c1`), the query and the hash kept.
  */
 export function movedAddress(address: AddressParts): string | null {
-  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
-  if (m?.[2]) {
-    const written = m[2].replace(/\/+$/, "");
+  const match = WORKSPACE_PATH.exec(address.pathname ?? "");
+  if (match?.[2]) {
+    const written = match[2].replace(/\/+$/, "");
     // A retired route, in the path's word or the shell's own, lands on the route that replaced it (retiredRouteOf).
     const door = retiredRouteOf(shellRoute(written));
-    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
-    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
-      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
+    if (door !== null) return `/w/${match[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
+    if (Object.hasOwn(ROUTE_WORDS, headOf(match[2]))) {
+      return `/w/${match[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
     }
   }
   const route = routeOfHash(address.hash);
-  if (!m || route === null || m[2]) return null;
+  if (!match || route === null || match[2]) return null;
   const at = route.indexOf("?");
   const name = (at < 0 ? route : route.slice(0, at)).replace(/\/+$/, "");
   // `#/` names no route: Today, where the path already stands.
@@ -221,7 +221,7 @@ export function movedAddress(address: AddressParts): string | null {
   const own = at < 0 ? "" : route.slice(at + 1);
   const search = address.search ?? "";
   const joined = own ? (search ? `${search}&${own}` : `?${own}`) : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(retiredRouteOf(name) ?? name)}${joined}`;
+  return `/w/${match[1] ?? ""}/${pathRoute(retiredRouteOf(name) ?? name)}${joined}`;
 }
 
 /** Where a route lives in a workspace: `workspacePath("acme", "inbox/th-1")` is `/w/acme/inbox/th-1`. */
@@ -247,11 +247,11 @@ export function appLink(
   route = "",
   query?: Readonly<Record<string, string | null | undefined>>,
 ): string {
-  const asked = Object.entries(query ?? {})
+  const entries = Object.entries(query ?? {})
     .filter((e): e is [string, string] => typeof e[1] === "string")
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
-  if (!slug) return `/${asked ? `?${asked}` : ""}${route ? `#/${route}` : ""}`;
+  if (!slug) return `/${entries ? `?${entries}` : ""}${route ? `#/${route}` : ""}`;
   const path = workspacePath(slug, route);
-  return asked ? `${path}${path.includes("?") ? "&" : "?"}${asked}` : path;
+  return entries ? `${path}${path.includes("?") ? "&" : "?"}${entries}` : path;
 }

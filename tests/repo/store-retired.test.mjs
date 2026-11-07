@@ -122,7 +122,9 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "canary",
     ],
   );
-  const handlers = readCode("packages/jobs/src/handlers/handlers.ts");
+  const handlers = ["packages/jobs/src/handlers/incoming-email.ts", "packages/jobs/src/handlers/handlers.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   for (const k of JOB_KINDS)
     assert.ok(new RegExp(`^\\s*${k}(?:: \\w+)?,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
   for (const dead of [

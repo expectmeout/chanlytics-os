@@ -9,7 +9,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { HOUR_MS } from "@chanlytics/contracts";
-import { firstReplies } from "@chanlytics/db";
+import { listFirstReplies } from "@chanlytics/db/reports";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -156,7 +156,7 @@ test(
 
     // What the server read for itself before 00359, as it read it: from 26 hours back, kept to the window's midnight.
     const since = Date.parse(day.window.since);
-    const beside = (await firstReplies(db, tenantId, new Date(Date.now() - 26 * HOUR_MS))).filter(
+    const beside = (await listFirstReplies(db, tenantId, new Date(Date.now() - 26 * HOUR_MS))).filter(
       (r) => Date.parse(r.asked_at) >= since,
     );
     assert.equal(beside.length, 2);

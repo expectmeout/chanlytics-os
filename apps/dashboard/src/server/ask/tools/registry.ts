@@ -4,11 +4,8 @@ import { log } from "@/server/shared/log";
 import { MEMBERSHIP_ROLES, roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
 import {
   NO_ACTION,
-  WHOSE,
-  json,
   needsOf,
   offeredTo,
-  refuse,
   type ActDef,
   type ActTool,
   type ProposalOutcome,
@@ -19,18 +16,20 @@ import {
   type ToolOutcome,
   type ToolRun,
   PICTURES,
-} from "./context";
+} from "./context/tool-defs";
+import { WHOSE, json } from "./context/tool-reads";
+import { refuse } from "./context/context";
 import { todayTool } from "./read/today";
 import { filesTool } from "./read/files";
 import { signalsTool } from "./read/signals";
 import { guideTool } from "./read/guide";
 import { inboxTool } from "./read/threads";
-import { peopleTool } from "./read/people";
+import { peopleTool } from "./read/people/people";
 import { callsTool } from "./read/calls";
 import { reportTool } from "./read/report";
 import { workspaceTool } from "./read/settings";
 import { calendarTool } from "./read/calendar";
-import { sequencesTool } from "./read/campaigns";
+import { sequencesTool } from "./read/campaigns/campaigns";
 import { leadsTool } from "./read/leads";
 import { recallTool } from "./read/recall";
 import { propose_reply } from "./act/reply";
@@ -41,9 +40,9 @@ import { propose_people } from "./act/people/people";
 import { propose_list } from "./act/people/list";
 import { propose_deal } from "./act/deal";
 import { propose_settings } from "./act/settings";
-import { propose_lead_search } from "./act/leads/lead-search";
+import { propose_lead_search } from "./act/leads/search";
 import { propose_leads } from "./act/leads/leads";
-import { propose_sequence } from "./act/sequence";
+import { propose_sequence } from "./act/sequence/sequence";
 import { propose_review } from "./act/review";
 import { propose_plan } from "./act/plan";
 import { propose_follow_up } from "./act/follow-up";
@@ -160,9 +159,9 @@ function defFor<D>(t: Tool<D>, raw: unknown): D {
  * action takes is refused by parseInput), and an action's input that could not be extended (one with an object-level
  * refinement) fails when the registry loads, never quietly.
  */
-export function inputOf(t: Tool<{ input: z.ZodObject }>, only?: readonly string[]): z.ZodType {
-  if (!takesAction(t)) return t.actions[NO_ACTION].input;
-  const branches = Object.entries(t.actions)
+export function inputOf(tool: Tool<{ input: z.ZodObject }>, only?: readonly string[]): z.ZodType {
+  if (!takesAction(tool)) return tool.actions[NO_ACTION].input;
+  const branches = Object.entries(tool.actions)
     .filter(([action]) => !only || only.includes(action))
     .map(([action, d]) => d.input.extend({ action: z.literal(action) }));
   return z.discriminatedUnion("action", branches as [(typeof branches)[number], ...typeof branches]);
@@ -183,33 +182,34 @@ const KEY_ORDER = ["type", "enum", "items", "properties", "required", "additiona
 function normalise(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(normalise);
   if (!node || typeof node !== "object") return node;
-  const o: Record<string, unknown> = { ...(node as Record<string, unknown>) };
-  delete o.$schema;
-  if (o.minimum === Number.MIN_SAFE_INTEGER) delete o.minimum;
-  if (o.maximum === Number.MAX_SAFE_INTEGER) delete o.maximum;
-  const branches = Array.isArray(o.anyOf) ? (o.anyOf as Array<Record<string, unknown>>) : null;
+  const record: Record<string, unknown> = { ...(node as Record<string, unknown>) };
+  delete record.$schema;
+  if (record.minimum === Number.MIN_SAFE_INTEGER) delete record.minimum;
+  if (record.maximum === Number.MAX_SAFE_INTEGER) delete record.maximum;
+  const branches = Array.isArray(record.anyOf) ? (record.anyOf as Array<Record<string, unknown>>) : null;
   if (
     branches &&
     branches.length > 0 &&
     branches.every((b) => "const" in b && Object.keys(b).length === 2) &&
     new Set(branches.map((b) => b.type)).size === 1
   ) {
-    o.type = branches[0].type;
-    o.enum = branches.map((b) => b.const);
-    delete o.anyOf;
+    record.type = branches[0].type;
+    record.enum = branches.map((b) => b.const);
+    delete record.anyOf;
   }
-  if (o.type === "number" && Array.isArray(o.enum) && o.enum.every((v) => Number.isInteger(v))) o.type = "integer";
-  if (o.type === "object" && !("required" in o)) o.required = [];
+  if (record.type === "number" && Array.isArray(record.enum) && record.enum.every((v) => Number.isInteger(v)))
+    record.type = "integer";
+  if (record.type === "object" && !("required" in record)) record.required = [];
   const out: Record<string, unknown> = {};
   const place = (k: string) => {
     // A shape's properties keep their own order: it is the order the model reads them in.
     out[k] =
       k === "properties"
-        ? Object.fromEntries(Object.entries(o[k] as Record<string, unknown>).map(([p, v]) => [p, normalise(v)]))
-        : normalise(o[k]);
+        ? Object.fromEntries(Object.entries(record[k] as Record<string, unknown>).map(([p, v]) => [p, normalise(v)]))
+        : normalise(record[k]);
   };
-  for (const k of KEY_ORDER) if (k in o) place(k);
-  for (const k of Object.keys(o).sort()) if (!(k in out)) place(k);
+  for (const k of KEY_ORDER) if (k in record) place(k);
+  for (const k of Object.keys(record).sort()) if (!(k in out)) place(k);
   return out;
 }
 
@@ -228,21 +228,21 @@ function flatten(schema: Record<string, unknown>): Record<string, unknown> {
     action: { type: "string", enum: branches.map((b) => b.properties.action.const) },
   };
   // What each action says of a shared field (the operator, 15 Oct 2026: each input explained on itself), by action.
-  const said = new Map<string, Array<[string, string]>>();
-  for (const b of branches) {
-    const named = b.properties.action?.const;
+  const sentence = new Map<string, Array<[string, string]>>();
+  for (const branch of branches) {
+    const named = branch.properties.action?.const;
     const action = typeof named === "string" ? named : "";
-    for (const [k, v] of Object.entries(b.properties)) {
+    for (const [k, v] of Object.entries(branch.properties)) {
       if (k === "action") continue;
       // One shape, whatever each action says of it: a description is words, never a shape.
       if (k in properties && shapeOf(properties[k]) !== shapeOf(v))
         throw new Error(`ask tools: ${k} is taken by two actions of one tool in two shapes`);
       properties[k] ??= v;
-      if (typeof v.description === "string") said.set(k, [...(said.get(k) ?? []), [action, v.description]]);
+      if (typeof v.description === "string") sentence.set(k, [...(sentence.get(k) ?? []), [action, v.description]]);
     }
   }
   // A field the actions describe alike says it once; described apart, each action's words, named by its action.
-  for (const [k, words] of said) {
+  for (const [k, words] of sentence) {
     const distinct = [...new Set(words.map(([, w]) => w))];
     properties[k] = {
       ...properties[k],
@@ -272,8 +272,8 @@ export function toolSchema(input: z.ZodType): Record<string, unknown> {
 }
 
 /** The actions of a tool this role may use, in the model's order (D2): a tool with no action, its one, or none. */
-export function offeredActions(t: Pick<Tool<ReadDef | ActDef>, "actions">, role: MembershipRole): string[] {
-  return Object.keys(t.actions).filter((a) => offeredTo(t.actions[a], role));
+export function offeredActions(tool: Pick<Tool<ReadDef | ActDef>, "actions">, role: MembershipRole): string[] {
+  return Object.keys(tool.actions).filter((a) => offeredTo(tool.actions[a], role));
 }
 
 /**
@@ -396,11 +396,11 @@ function parseInput<D extends ReadDef | ActDef>(
   raw: unknown,
   role: MembershipRole,
 ): { ok: true; def: D; data: Record<string, unknown> } | { ok: false; error: string } {
-  const asked = actionOf(tool, raw);
-  if (asked !== null && Object.prototype.hasOwnProperty.call(tool.actions, asked)) {
-    const def = tool.actions[asked];
+  const otherAction = actionOf(tool, raw);
+  if (otherAction !== null && Object.prototype.hasOwnProperty.call(tool.actions, otherAction)) {
+    const def = tool.actions[otherAction];
     if (def && !offeredTo(def, role))
-      return { ok: false, error: `${tool.name}: action ${asked} is ${WHOSE[needsOf(def)]}` };
+      return { ok: false, error: `${tool.name}: action ${otherAction} is ${WHOSE[needsOf(def)]}` };
   }
   const input = INPUTS.get(role)?.get(tool.name);
   if (!input) {
@@ -408,12 +408,14 @@ function parseInput<D extends ReadDef | ActDef>(
     const least = needs.find((n) => needs.every((m) => roleAtLeast(m, n))) ?? "owner";
     return { ok: false, error: `${tool.name} is ${WHOSE[least]}` };
   }
-  const r = input.safeParse(withoutNulls(input, raw));
-  if (!r.success) {
-    const issues = r.error.issues.map((i) => `${i.path.length ? `${i.path.join(".")} ` : ""}${i.message}`).join("; ");
+  const parsed = input.safeParse(withoutNulls(input, raw));
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.length ? `${i.path.join(".")} ` : ""}${i.message}`)
+      .join("; ");
     return { ok: false, error: `${tool.name}: ${issues}` };
   }
-  const data = r.data as Record<string, unknown>;
+  const data = parsed.data as Record<string, unknown>;
   if (!takesAction(tool)) return { ok: true, def: tool.actions[NO_ACTION], data };
   const { action, ...rest } = data as { action: string };
   const stray = othersFields(tool, action, raw, offeredActions(tool, role));
@@ -424,14 +426,14 @@ function parseInput<D extends ReadDef | ActDef>(
 /* ----------------------------------------------------------- dispatch */
 
 /** Run one read. A tool's own failure is returned to the model as an error result, never thrown. */
-export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome> {
+export async function runTool(toolContext: ToolContext, run: ToolRun): Promise<ToolOutcome> {
   const label = toolLabel(run.name, run.input);
   const tool = READ_BY_NAME.get(run.name);
   if (!tool) return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
   try {
-    const parsed = parseInput(tool, run.input, t.role);
+    const parsed = parseInput(tool, run.input, toolContext.role);
     if (!parsed.ok) return { result: json({ error: parsed.error }), isError: true, label };
-    const out = await parsed.def.run(t, parsed.data);
+    const out = await parsed.def.run(toolContext, parsed.data);
     const isError = !!(
       out &&
       typeof out === "object" &&
@@ -447,16 +449,16 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
 }
 
 export async function buildProposal(
-  t: ToolContext,
+  toolContext: ToolContext,
   name: string,
   input: Record<string, unknown>,
 ): Promise<ProposalOutcome> {
   const tool = ACT_BY_NAME.get(name);
   if (!tool) return refuse(`unknown tool ${name}`);
   try {
-    const parsed = parseInput(tool, input, t.role);
+    const parsed = parseInput(tool, input, toolContext.role);
     if (!parsed.ok) return refuse(parsed.error);
-    return await parsed.def.build(t, parsed.data);
+    return await parsed.def.build(toolContext, parsed.data);
   } catch (e) {
     log.error("ask_proposal_failed", { tool: calledName(name, input), error: e });
     return refuse("that could not be checked; say so and suggest the page");

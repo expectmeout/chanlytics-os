@@ -1475,7 +1475,7 @@ test("a step's token is @step:n, and resolveSteps fills every one from what the 
 /* ---- every step's input is its action's input, and every written message the door's ---- */
 
 const tool = async (rel, name) => (await import(at(`apps/dashboard/src/server/ask/tools/act/${rel}`)))[name];
-const sequenceTool = await tool("sequence.ts", "propose_sequence");
+const sequenceTool = await tool("sequence/sequence.ts", "propose_sequence");
 const settingsTool = await tool("settings.ts", "propose_settings");
 /** An action of a tool by its name: propose_sequence's own, or "" for a tool that is one action. */
 const action = (t, name) => {

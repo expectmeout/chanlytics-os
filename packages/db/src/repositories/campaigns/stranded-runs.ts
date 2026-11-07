@@ -5,14 +5,14 @@
  * steps: the row moves to `scheduled`, then its job is written, and when the job cannot be written the row is put back
  * to wait (core approveRun). When that put-back fails too, the row says "scheduled" for ever and nothing will send it:
  * the ledger settles a run whose JOB died (jobs settle.ts), and this run never had one. The edge's watchdog asks for
- * these (ops/stranded-runs.ts), marks each not sent and tells its owner.
+ * these (receptionist/stranded-runs.ts), marks each not sent and tells its owner.
  *
  * A reach-out's run is not one: approved, it is released with no broadcast job on purpose, and the reach-out clock claims
  * its planned sends (core approveReachOut).
  *
  * And runs nothing will ever send: a playbook's run still waiting for approval after the day it was made for, which the
  * approve verb refuses (contracts runApprovalRefusal) and only a skip can end. The edge's playbooks sweep reads them here
- * (waitingPlaybookRuns), ends each that is too late (cancelBroadcastFrom) and records the system's decision
+ * (listWaitingPlaybookRuns), ends each that is too late (cancelBroadcastFrom) and records the system's decision
  * (recordSystemDecision), so a missed day's run waits on nobody (the wiring's second audit, S7-3).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -38,18 +38,21 @@ export interface StrandedRun {
  * for or working on, oldest first, at most `limit`. Reads every workspace (the service role's client). A read that fails
  * THROWS: "could not look" is not "none".
  */
-export async function strandedRuns(db: Db, p: { since: Date; before: Date; limit: number }): Promise<StrandedRun[]> {
+export async function listStrandedRuns(
+  db: Db,
+  params: { since: Date; before: Date; limit: number },
+): Promise<StrandedRun[]> {
   const { data, error } = await db
     .from("sequence_batches")
     .select("id, tenant_id, name, playbook_id:step_id, audience, scheduled_for")
     .eq("state", "scheduled")
-    .gt("scheduled_for", p.since.toISOString())
-    .lt("scheduled_for", p.before.toISOString())
+    .gt("scheduled_for", params.since.toISOString())
+    .lt("scheduled_for", params.before.toISOString())
     // A reach-out's run waits `scheduled` with no broadcast job until its clock writes its first email: left out here,
     // before the limit, or a page of them would hide every run this is for. NULL is not "not reach_out" to a `neq`.
     .or("audience->>kind.is.null,audience->>kind.neq.reach_out")
     .order("scheduled_for", { ascending: true })
-    .limit(p.limit);
+    .limit(params.limit);
   if (error) throw new Error(`stranded runs: cannot read the scheduled runs: ${error.message}`);
   // The test in the query is the test here too (contracts isReachOutRun): a row the filter could not see is not let through.
   const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
@@ -78,18 +81,21 @@ export async function strandedRuns(db: Db, p: { since: Date; before: Date; limit
  * (jobs settle.ts failBroadcast), so its page says so in those words. Only while it is still `scheduled`: a run that a
  * late job started, or its owner stopped, is left as it is. True iff this call moved it. Throws when it cannot be written.
  */
-export async function failStrandedRun(db: Db, p: { tenantId: string; id: string }): Promise<boolean> {
+export async function failStrandedRun(db: Db, params: { tenantId: string; id: string }): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_batches")
     .update({ state: "failed", failure: "run_interrupted", finished_at: new Date().toISOString() })
-    .eq("id", p.id)
-    .eq("tenant_id", p.tenantId)
+    .eq("id", params.id)
+    .eq("tenant_id", params.tenantId)
     .eq("state", "scheduled")
     .select("id");
-  if (error) throw new Error(`stranded runs: cannot mark run ${p.id} not sent: ${error.message}`);
+  if (error) throw new Error(`stranded runs: cannot mark run ${params.id} not sent: ${error.message}`);
   if (!(data ?? []).length) return false;
   // On the ledger as every stopped run is (broadcast.stopped), best effort. Nobody got it: it never left `scheduled`.
-  await emitEvent(db, p.tenantId, "broadcast.stopped", "broadcast", p.id, { failure: "run_interrupted", sent: 0 });
+  await emitEvent(db, params.tenantId, "broadcast.stopped", "broadcast", params.id, {
+    failure: "run_interrupted",
+    sent: 0,
+  });
   return true;
 }
 
@@ -135,11 +141,14 @@ export interface WaitingPlaybookRun {
  * workspace's zone: the runs for a day, oldest day first, and a freed time's batches (0082), which have their time
  * instead of a day, soonest time first, at most `limit` of each. Read apart, so a page of days still ahead never hides a
  * freed time that has come, whose missing day sorts it last. A reach-out's run is approved on any later day (decision D6),
- * so it is left out before the limit, as strandedRuns leaves it out. A read that fails THROWS: "could not look" is not
+ * so it is left out before the limit, as listStrandedRuns leaves it out. A read that fails THROWS: "could not look" is not
  * "none".
  */
-export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise<WaitingPlaybookRun[]> {
-  const [days, freed] = await Promise.all([waitingBy(db, "run_for", p.limit), waitingBy(db, "offered_start", p.limit)]);
+export async function listWaitingPlaybookRuns(db: Db, params: { limit: number }): Promise<WaitingPlaybookRun[]> {
+  const [days, freed] = await Promise.all([
+    waitingBy(db, "run_for", params.limit),
+    waitingBy(db, "offered_start", params.limit),
+  ]);
   const runs = [...new Map([...days, ...freed].map((r) => [r.id, r])).values()].filter(
     (r) => !isReachOutRun(r.audience),
   );
@@ -150,20 +159,20 @@ export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise
     .in("id", [...new Set(runs.map((r) => r.tenant_id))]);
   if (zones.error) throw new Error(`waiting runs: cannot read their workspaces' zones: ${zones.error.message}`);
   const zoneOf = new Map((zones.data ?? []).map((t) => [t.id, t.timezone]));
-  return runs.flatMap((r) =>
-    r.playbook_id && (r.run_for || r.offered_start)
+  return runs.flatMap((run) =>
+    run.playbook_id && (run.run_for || run.offered_start)
       ? [
           {
-            id: r.id,
-            tenant_id: r.tenant_id,
-            name: r.name,
-            state: r.state,
-            playbook_id: r.playbook_id,
-            run_for: r.run_for,
-            offered_start: r.offered_start,
-            audience: r.audience,
-            recipient_count: r.recipient_count ?? 0,
-            timezone: zoneOf.get(r.tenant_id) || DEFAULT_TIMEZONE,
+            id: run.id,
+            tenant_id: run.tenant_id,
+            name: run.name,
+            state: run.state,
+            playbook_id: run.playbook_id,
+            run_for: run.run_for,
+            offered_start: run.offered_start,
+            audience: run.audience,
+            recipient_count: run.recipient_count ?? 0,
+            timezone: zoneOf.get(run.tenant_id) || DEFAULT_TIMEZONE,
           },
         ]
       : [],
@@ -175,33 +184,36 @@ export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise
  * since it was read is left as it is). The cancel verb's port for a run nobody's session asks for. Throws when it
  * cannot be written.
  */
-export async function cancelBroadcastFrom(db: Db, p: { tenantId: string; id: string; from: string }): Promise<boolean> {
+export async function cancelBroadcastFrom(
+  db: Db,
+  params: { tenantId: string; id: string; from: string },
+): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_batches")
     .update({ state: "canceled" })
-    .eq("id", p.id)
-    .eq("tenant_id", p.tenantId)
-    .eq("state", p.from)
+    .eq("id", params.id)
+    .eq("tenant_id", params.tenantId)
+    .eq("state", params.from)
     .select("id");
-  if (error) throw new Error(`waiting runs: cannot end run ${p.id}: ${error.message}`);
+  if (error) throw new Error(`waiting runs: cannot end run ${params.id}: ${error.message}`);
   return (data ?? []).length > 0;
 }
 
 /** A decision the system made, with nobody's hand on it (actor_type `system`): its id. Throws when it cannot be written. */
 export async function recordSystemDecision(
   db: Db,
-  p: { tenantId: string; subjectType: string; subjectId: string; verb: string; payload: Json },
+  params: { tenantId: string; subjectType: string; subjectId: string; verb: string; payload: Json },
 ): Promise<string> {
   const { data, error } = await db
     .from("decisions")
     .insert({
-      tenant_id: p.tenantId,
-      subject_type: p.subjectType,
-      subject_id: p.subjectId,
-      verb: p.verb,
+      tenant_id: params.tenantId,
+      subject_type: params.subjectType,
+      subject_id: params.subjectId,
+      verb: params.verb,
       actor_type: "system",
       actor_user_id: null,
-      payload: p.payload,
+      payload: params.payload,
     })
     .select("id")
     .single();
@@ -234,7 +246,7 @@ const WAITING_RUN_COLUMNS = "id, name, state, playbook_id:step_id, run_for, audi
  * as waiting on you (contracts runsThatWait, by the verb's own day rule, runHeldEmails and runDraftedEmails) and Ask's
  * today tool names. A read that fails throws.
  */
-export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRunRow[]> {
+export async function listWaitingRuns(db: Db, tenantId: string): Promise<WaitingRunRow[]> {
   const [pending, going] = await Promise.all([
     db
       .from("sequence_batches")
@@ -276,7 +288,7 @@ export async function batchStatesOf(db: Db, tenantId: string, ids: readonly stri
 }
 
 /** Which of these sends the check still holds, on the session's client: what a card about one is checked against. */
-export async function heldSendsOf(db: Db, tenantId: string, ids: readonly string[]): Promise<Set<string>> {
+export async function getHeldSends(db: Db, tenantId: string, ids: readonly string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   const { data, error } = await db
     .from("sequence_sends")
@@ -304,7 +316,7 @@ export interface GoingRunRow {
  * decides): what goes on its own unless stopped (contracts goingTodayOf, which keeps those on the business's day). A read
  * that fails throws.
  */
-export async function runsGoingBetween(db: Db, tenantId: string, from: Date, until: Date): Promise<GoingRunRow[]> {
+export async function listRunsGoingBetween(db: Db, tenantId: string, from: Date, until: Date): Promise<GoingRunRow[]> {
   const { data, error } = await db
     .from("sequence_batches")
     .select("id, name, state, playbook_id:step_id, scheduled_for, recipient_count, audience")
@@ -324,7 +336,7 @@ export async function runsGoingBetween(db: Db, tenantId: string, from: Date, unt
  * holds, so a run approved, sent or stopped is no longer listed as waiting (the wiring's second audit, R13 X5-1). On the
  * session's client (RLS decides). A read that fails throws.
  */
-export async function runsNamed(db: Db, tenantId: string, ids: readonly string[]): Promise<WaitingRunRow[]> {
+export async function listRunsNamed(db: Db, tenantId: string, ids: readonly string[]): Promise<WaitingRunRow[]> {
   if (!ids.length) return [];
   const { data, error } = await db
     .from("sequence_batches")

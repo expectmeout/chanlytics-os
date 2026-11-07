@@ -13,8 +13,8 @@ import {
 import { isSameOrigin } from "@/server/shared/request-guards";
 import { takeRate } from "@/server/shared/rate-limit";
 import { ipOf, hashKey as hash } from "@/server/shared/request-ip";
-import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/console/signup";
-import { previewForSignup } from "@/server/previews/claim";
+import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/workspace/signup";
+import { findPreviewForSignup } from "@/server/previews/claim";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
 
@@ -59,7 +59,7 @@ export async function POST(req: Request): Promise<Response> {
     // A lead's own receptionist's live link opens sign-up whatever the posture (decision 0079): it stands for an
     // invite code, and rides on the account for the first screen to claim. One that cannot be made theirs any more is
     // no link at all, and the posture is the switch's.
-    const preview = input.preview && (await previewForSignup(input.preview)) ? input.preview : undefined;
+    const preview = input.preview && (await findPreviewForSignup(input.preview)) ? input.preview : undefined;
     const posture = signupPostureFor(signupPosture(env.SIGNUP_CODE), !!preview);
 
     // THE WAITLIST BRANCH RETURNS BEFORE ANYTHING IS CREATED.

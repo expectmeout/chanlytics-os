@@ -281,7 +281,7 @@ export const reachOuts = {
   },
   /**
    * A list of your own (Part 7, 00242): a file's rows as a search a sequence writes to. The door answers or refuses in
-   * words (the typed client's result); the rest is contracts' reading of a file (lead-import.ts) and every sentence the
+   * words (the typed client's result); the rest is contracts' reading of a file (leads/import.ts) and every sentence the
    * import sheet and a list's strip say.
    */
   lists: {

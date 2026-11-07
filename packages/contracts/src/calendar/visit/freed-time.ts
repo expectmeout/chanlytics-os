@@ -12,14 +12,14 @@
  * Pure: the caller reads the row, the calendar's facts and what stands on the record now, and hands the clock.
  */
 import type { Closure, Hours } from "../../config/workspace-config/business-profile";
-import { campaignRunsOn } from "../../campaigns/playbooks/playbook-schedule";
+import { campaignRunsOn } from "../../campaigns/playbooks/schedule";
 import { clockDate, clockTime, localDaysBetween } from "../../shared/clock";
 import { HOUR_MS, MIN_MS, dateFormat } from "../../shared/time";
 import { plural } from "../../shared/words";
 import { BOOKING_DEFAULTS, freeWindows, hasHours, openAt, type BookingRulesLike } from "../availability";
-import { sameVisitStart } from "../people";
+import { sameVisitStart } from "../people/matching";
 import type { BusyBlock } from "../feed";
-import { clockInZone, dayInZone } from "../zone-math";
+import { clockInZone, dayInZone } from "../../shared/zone/math";
 
 /** The changes of an appointment that free its time: the record's and the feed's words (00419, 00436). */
 const FREEING_CHANGES: ReadonlySet<string> = new Set(["cancelled", "moved", "vanished"]);
@@ -91,7 +91,7 @@ export type FreedTimeOffer =
 
 export type FreedTimeVerdict = { ok: true; start: number; end: number } | { ok: false; why: FreedTimeRefusal };
 
-const no = (why: FreedTimeRefusal): FreedTimeVerdict => ({ ok: false, why });
+const no = (reason: FreedTimeRefusal): FreedTimeVerdict => ({ ok: false, why: reason });
 
 /** The quarter hours a span is looked at by, for whether any part of it is open. */
 const LOOK_STEP_MS = 15 * MIN_MS;

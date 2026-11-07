@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, ASK_SPEECH_MAX_CHARS, MIN_MS, SPEECH_PURPOSES } from "@chanlytics/contracts";
+import { AppError, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { log } from "@/server/shared/log";
 import {
@@ -7,9 +7,10 @@ import {
   edgeUrl,
   edgeConfigured,
   edgeReasonOf,
-  edgeRefusalWords,
   type EdgeAnswer,
+  type EdgeBody,
 } from "@/server/shared/edge";
+import { DOOR, refusalOf, SPEECH_TIMEOUT_MS } from "@/server/ask/doors/speech-request";
 
 /**
  * POST /api/v1/ask/speech — words read aloud in Ask's one voice, as the signed-in member
@@ -35,30 +36,6 @@ const Input = z.object({
   before: z.string().max(ASK_SPEECH_MAX_CHARS).optional(),
 });
 
-const DOOR = "/api/admin/voice/speech";
-/** The edge's call to the vendor, bounded under the route's own minute: the whole clip streams inside half of it. */
-const SPEECH_TIMEOUT_MS = MIN_MS / 2;
-
-/** The edge's no, in the words the Line already knows: the gateway's refusals, answered the same way. */
-function refusalOf(a: EdgeAnswer): AppError {
-  if (a.status === 402) {
-    return new AppError(
-      "payment_required",
-      edgeRefusalWords(a.body) ?? "Voice is off while this workspace is paused or its plan has ended.",
-      402,
-    );
-  }
-  const reason = edgeReasonOf(a);
-  return new AppError(
-    "upstream_voice",
-    reason === "no_provider_key"
-      ? "Voice is not set up yet."
-      : "Ask's voice could not be reached just now. Try again in a moment.",
-    503,
-    { reason },
-  );
-}
-
 export const POST = write({
   scope: workspace,
   role: "viewer",
@@ -76,11 +53,11 @@ export const POST = write({
       text,
       purpose: input.purpose,
       ...(before ? { before } : {}),
-    });
+    } satisfies EdgeBody<"/api/admin/voice/speech">);
     const t0 = Date.now();
-    let r: Response;
+    let response: Response;
     try {
-      r = await fetch(`${edgeUrl()}${DOOR}`, {
+      response = await fetch(`${edgeUrl()}${DOOR}`, {
         method: "POST",
         headers: edgeHeaders(DOOR, { workspace: tenantId, user: ctx.userId, body }),
         body,
@@ -92,17 +69,21 @@ export const POST = write({
       log.warn("ask_speech_refused", { tenant_id: tenantId, reason: timedOut ? "edge_timeout" : "edge_unreachable" });
       throw new AppError("upstream_voice", "Ask's voice could not be reached just now. Try again in a moment.", 503);
     }
-    if (!r.ok || !r.body) {
-      const parsed: unknown = await r.json().catch(() => null);
-      const a: EdgeAnswer = {
-        status: r.status,
+    if (!response.ok || !response.body) {
+      const parsed: unknown = await response.json().catch(() => null);
+      const edgeAnswer: EdgeAnswer = {
+        status: response.status,
         body:
           parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
             ? (parsed as EdgeAnswer["body"])
             : null,
       };
-      log.warn("ask_speech_refused", { tenant_id: tenantId, reason: edgeReasonOf(a), status: r.status });
-      throw refusalOf(a);
+      log.warn("ask_speech_refused", {
+        tenant_id: tenantId,
+        reason: edgeReasonOf(edgeAnswer),
+        status: response.status,
+      });
+      throw refusalOf(edgeAnswer);
     }
     log.info("ask_speech", {
       tenant_id: tenantId,
@@ -110,10 +91,10 @@ export const POST = write({
       chars: text.length,
       ttfb_ms: Date.now() - t0,
     });
-    return new Response(r.body, {
+    return new Response(response.body, {
       status: 200,
       headers: {
-        "content-type": r.headers.get("content-type") || "audio/mpeg",
+        "content-type": response.headers.get("content-type") || "audio/mpeg",
         "cache-control": "private, no-store",
       },
     });

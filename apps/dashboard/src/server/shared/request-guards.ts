@@ -55,9 +55,9 @@ export function isSameOrigin(request: Request): boolean {
  * a real difference, unlike the four copies of this pattern that used to state
  * it.
  */
-export function requireUuid(value: unknown, what = "record"): string {
+export function requireUuid(value: unknown, text = "record"): string {
   const s = String(value ?? "");
-  if (!UUID.test(s)) throw new AppError("not_found", `That ${what} does not exist.`, 404);
+  if (!UUID.test(s)) throw new AppError("not_found", `That ${text} does not exist.`, 404);
   return s;
 }
 
@@ -70,9 +70,9 @@ export function requireUuid(value: unknown, what = "record"): string {
  * A link to a record the page does not hold reads that one record by its id (wiring/records-not-pages, finding A2c); the
  * route's workspace scopes the rows, so an id of another workspace answers nothing, and no other record opens in its place.
  */
-export function requireUuidList(value: string | undefined, what: string, max: number): string[] | null {
+export function requireUuidList(value: string | undefined, text: string, max: number): string[] | null {
   if (!value) return null;
-  const asked = [
+  const items = [
     ...new Set(
       value
         .split(",")
@@ -80,9 +80,9 @@ export function requireUuidList(value: string | undefined, what: string, max: nu
         .filter(Boolean),
     ),
   ];
-  if (asked.length > max) throw new AppError("validation", `Ask for at most ${max} ${what}s at once.`);
-  for (const id of asked) requireUuid(id, what);
-  return asked;
+  if (items.length > max) throw new AppError("validation", `Ask for at most ${max} ${text}s at once.`);
+  for (const id of items) requireUuid(id, text);
+  return items;
 }
 
 /**
@@ -92,7 +92,7 @@ export function requireUuidList(value: string | undefined, what: string, max: nu
  * the result, so a malformed body produced a message about a missing field
  * rather than about the body.
  */
-export async function jsonBody<T = unknown>(request: Request): Promise<T> {
+export async function readJsonBody<T = unknown>(request: Request): Promise<T> {
   const raw = await request.json().catch(() => undefined);
   if (raw === undefined) throw new AppError("validation", "Expected a JSON body.");
   return raw as T;

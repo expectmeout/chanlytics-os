@@ -37,6 +37,9 @@
   "exclude": ["node_modules", "mockup"],
   "references": [
     {
+      "path": "../../packages/log"
+    },
+    {
       "path": "../../packages/contracts"
     },
     {

@@ -6,8 +6,9 @@
  *
  * Pure: the server reads the sequences and their batches, and the tests read the same fold.
  */
-import { sequenceRoute } from "../../campaigns/sequences/sequence-address";
-import type { BroadcastCounts, BroadcastState } from "../../campaigns/broadcasts/broadcasts";
+import { sequenceRoute } from "../../campaigns/sequences/address";
+import type { BroadcastCounts } from "../../campaigns/broadcasts/broadcasts";
+import type { BroadcastState } from "../../campaigns/broadcasts/states";
 import { plural } from "../../shared/words";
 import { ASK_IDEA_REST_DAYS, dayAfterDays } from "./lately";
 import type { AskMorningCard } from "./morning";
@@ -97,9 +98,9 @@ function repliesFell(last: Earned, before: Earned): boolean {
 export function askFindingsOf(sequences: readonly FindingSequence[], runs: readonly FindingRun[]): AskFinding[] {
   const fell: AskFinding[] = [];
   const steady: AskFinding[] = [];
-  for (const s of sequences) {
-    if (s.state !== "on") continue;
-    const done = finishedOf(runs, s.id).filter((r) => r.counts.sent > 0 || r.state === "canceled");
+  for (const sequence of sequences) {
+    if (sequence.state !== "on") continue;
+    const done = finishedOf(runs, sequence.id).filter((r) => r.counts.sent > 0 || r.state === "canceled");
     const [newest] = done;
     const sent = done.filter((r) => r.state === "sent");
     const [lastSent, ...rest] = sent;
@@ -107,16 +108,28 @@ export function askFindingsOf(sequences: readonly FindingSequence[], runs: reado
       const last = earnedOver([lastSent]);
       const before = earnedOver(rest.slice(0, FELL_BEFORE));
       if (repliesFell(last, before))
-        fell.push({ key: `fell-${s.id}`, kind: "replies_fell", sequenceId: s.id, name: s.name, last, before });
+        fell.push({
+          key: `fell-${sequence.id}`,
+          kind: "replies_fell",
+          sequenceId: sequence.id,
+          name: sequence.name,
+          last,
+          before,
+        });
     }
     const lastFew = done.slice(0, STEADY_BATCHES);
-    if (s.mode === "ask" && s.first && lastFew.length === STEADY_BATCHES && lastFew.every((r) => r.state === "sent"))
+    if (
+      sequence.mode === "ask" &&
+      sequence.first &&
+      lastFew.length === STEADY_BATCHES &&
+      lastFew.every((r) => r.state === "sent")
+    )
       steady.push({
-        key: `steady-${s.id}`,
+        key: `steady-${sequence.id}`,
         kind: "steady",
-        sequenceId: s.id,
-        name: s.name,
-        stepId: s.first.id,
+        sequenceId: sequence.id,
+        name: sequence.name,
+        stepId: sequence.first.id,
         batches: STEADY_BATCHES,
       });
   }
@@ -127,29 +140,29 @@ export function askFindingsOf(sequences: readonly FindingSequence[], runs: reado
 const FINDING_ID = "finding-";
 
 /** A finding's card id: stable, so its row keeps its place and a rest finds it again. */
-export const findingCardId = (f: Pick<AskFinding, "key">): string => `${FINDING_ID}${f.key}`;
+export const findingCardId = (askFinding: Pick<AskFinding, "key">): string => `${FINDING_ID}${askFinding.key}`;
 
 /** Whether a card is a finding's rather than a morning's. */
 export const isFindingCard = (card: Pick<AskMorningCard, "id">): boolean => card.id.startsWith(FINDING_ID);
 
 /** Replies falling, as a card: nothing to approve, only the door to where the sequence is changed (a `fix` card). */
-export function repliesFellCard(f: Extract<AskFinding, { kind: "replies_fell" }>): AskMorningCard {
-  const W = ASK_FINDING_WORDS.repliesFell;
-  const line = W.line(f.last, f.before);
+export function repliesFellCard(askFinding: Extract<AskFinding, { kind: "replies_fell" }>): AskMorningCard {
+  const repliesFell = ASK_FINDING_WORDS.repliesFell;
+  const line = repliesFell.line(askFinding.last, askFinding.before);
   return {
-    id: findingCardId(f),
+    id: findingCardId(askFinding),
     kind: "fix",
     needs: "operator",
-    title: W.title(f.name),
+    title: repliesFell.title(askFinding.name),
     summary: line,
     line,
     // The row Ask found draws of it says the numbers in its sentence (askFoundOf's noticedRow); Ask's own card says its line.
     payload: {
-      door: W.door,
-      to: sequenceRoute(f.sequenceId),
-      tag: W.tag,
-      sentence: W.sentence(f.name, f.last, f.before),
-      why: W.why,
+      door: repliesFell.door,
+      to: sequenceRoute(askFinding.sequenceId),
+      tag: repliesFell.tag,
+      sentence: repliesFell.sentence(askFinding.name, askFinding.last, askFinding.before),
+      why: repliesFell.why,
     },
     undo: null,
   };

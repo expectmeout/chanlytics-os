@@ -4,17 +4,179 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "bundled": "./dist/index.js",
-      "import": "./src/index.ts",
-      "default": "./src/index.ts"
+    "./ai": {
+      "types": "./src/repositories/ai/index.ts",
+      "bundled": "./dist/ai.js",
+      "import": "./src/repositories/ai/index.ts",
+      "default": "./src/repositories/ai/index.ts"
+    },
+    "./ask": {
+      "types": "./src/repositories/ask/index.ts",
+      "bundled": "./dist/ask.js",
+      "import": "./src/repositories/ask/index.ts",
+      "default": "./src/repositories/ask/index.ts"
+    },
+    "./auth": {
+      "types": "./src/repositories/auth/index.ts",
+      "bundled": "./dist/auth.js",
+      "import": "./src/repositories/auth/index.ts",
+      "default": "./src/repositories/auth/index.ts"
+    },
+    "./billing": {
+      "types": "./src/repositories/billing/index.ts",
+      "bundled": "./dist/billing.js",
+      "import": "./src/repositories/billing/index.ts",
+      "default": "./src/repositories/billing/index.ts"
+    },
+    "./calendar": {
+      "types": "./src/repositories/calendar/index.ts",
+      "bundled": "./dist/calendar.js",
+      "import": "./src/repositories/calendar/index.ts",
+      "default": "./src/repositories/calendar/index.ts"
+    },
+    "./campaigns": {
+      "types": "./src/repositories/campaigns/index.ts",
+      "bundled": "./dist/campaigns.js",
+      "import": "./src/repositories/campaigns/index.ts",
+      "default": "./src/repositories/campaigns/index.ts"
+    },
+    "./channels": {
+      "types": "./src/repositories/channels/index.ts",
+      "bundled": "./dist/channels.js",
+      "import": "./src/repositories/channels/index.ts",
+      "default": "./src/repositories/channels/index.ts"
+    },
+    "./console": {
+      "types": "./src/repositories/console/index.ts",
+      "bundled": "./dist/console.js",
+      "import": "./src/repositories/console/index.ts",
+      "default": "./src/repositories/console/index.ts"
+    },
+    "./conversations": {
+      "types": "./src/repositories/conversations/index.ts",
+      "bundled": "./dist/conversations.js",
+      "import": "./src/repositories/conversations/index.ts",
+      "default": "./src/repositories/conversations/index.ts"
+    },
+    "./deals": {
+      "types": "./src/repositories/deals/index.ts",
+      "bundled": "./dist/deals.js",
+      "import": "./src/repositories/deals/index.ts",
+      "default": "./src/repositories/deals/index.ts"
+    },
+    "./email": {
+      "types": "./src/repositories/email/index.ts",
+      "bundled": "./dist/email.js",
+      "import": "./src/repositories/email/index.ts",
+      "default": "./src/repositories/email/index.ts"
+    },
+    "./erasure": {
+      "types": "./src/repositories/erasure/index.ts",
+      "bundled": "./dist/erasure.js",
+      "import": "./src/repositories/erasure/index.ts",
+      "default": "./src/repositories/erasure/index.ts"
+    },
+    "./events": {
+      "types": "./src/repositories/events/index.ts",
+      "bundled": "./dist/events.js",
+      "import": "./src/repositories/events/index.ts",
+      "default": "./src/repositories/events/index.ts"
+    },
+    "./facts": {
+      "types": "./src/repositories/facts/index.ts",
+      "bundled": "./dist/facts.js",
+      "import": "./src/repositories/facts/index.ts",
+      "default": "./src/repositories/facts/index.ts"
+    },
+    "./files": {
+      "types": "./src/repositories/files/index.ts",
+      "bundled": "./dist/files.js",
+      "import": "./src/repositories/files/index.ts",
+      "default": "./src/repositories/files/index.ts"
+    },
+    "./imports": {
+      "types": "./src/repositories/imports/index.ts",
+      "bundled": "./dist/imports.js",
+      "import": "./src/repositories/imports/index.ts",
+      "default": "./src/repositories/imports/index.ts"
+    },
+    "./jobs": {
+      "types": "./src/repositories/jobs/index.ts",
+      "bundled": "./dist/jobs.js",
+      "import": "./src/repositories/jobs/index.ts",
+      "default": "./src/repositories/jobs/index.ts"
+    },
+    "./leads": {
+      "types": "./src/repositories/leads/index.ts",
+      "bundled": "./dist/leads.js",
+      "import": "./src/repositories/leads/index.ts",
+      "default": "./src/repositories/leads/index.ts"
+    },
+    "./lines": {
+      "types": "./src/repositories/lines/index.ts",
+      "bundled": "./dist/lines.js",
+      "import": "./src/repositories/lines/index.ts",
+      "default": "./src/repositories/lines/index.ts"
+    },
+    "./look": {
+      "types": "./src/repositories/look/index.ts",
+      "bundled": "./dist/look.js",
+      "import": "./src/repositories/look/index.ts",
+      "default": "./src/repositories/look/index.ts"
+    },
+    "./notices": {
+      "types": "./src/repositories/notices/index.ts",
+      "bundled": "./dist/notices.js",
+      "import": "./src/repositories/notices/index.ts",
+      "default": "./src/repositories/notices/index.ts"
+    },
+    "./partners": {
+      "types": "./src/repositories/partners/index.ts",
+      "bundled": "./dist/partners.js",
+      "import": "./src/repositories/partners/index.ts",
+      "default": "./src/repositories/partners/index.ts"
+    },
+    "./people": {
+      "types": "./src/repositories/people/index.ts",
+      "bundled": "./dist/people.js",
+      "import": "./src/repositories/people/index.ts",
+      "default": "./src/repositories/people/index.ts"
     },
     "./realtime": {
       "types": "./src/realtime.ts",
       "bundled": "./dist/realtime.js",
       "import": "./src/realtime.ts",
       "default": "./src/realtime.ts"
+    },
+    "./reports": {
+      "types": "./src/repositories/reports/index.ts",
+      "bundled": "./dist/reports.js",
+      "import": "./src/repositories/reports/index.ts",
+      "default": "./src/repositories/reports/index.ts"
+    },
+    "./shared": {
+      "types": "./src/shared/index.ts",
+      "bundled": "./dist/shared.js",
+      "import": "./src/shared/index.ts",
+      "default": "./src/shared/index.ts"
+    },
+    "./types": {
+      "types": "./src/database.types.ts",
+      "bundled": "./dist/types.js",
+      "import": "./src/database.types.ts",
+      "default": "./src/database.types.ts"
+    },
+    "./voice": {
+      "types": "./src/repositories/voice/index.ts",
+      "bundled": "./dist/voice.js",
+      "import": "./src/repositories/voice/index.ts",
+      "default": "./src/repositories/voice/index.ts"
+    },
+    "./workspace": {
+      "types": "./src/repositories/workspace/index.ts",
+      "bundled": "./dist/workspace.js",
+      "import": "./src/repositories/workspace/index.ts",
+      "default": "./src/repositories/workspace/index.ts"
     }
   },
   "scripts": {

@@ -4,13 +4,8 @@
  * operation the door answered, which is the only thing an undo names (the review's E9).
  */
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import {
-  LEAD_EXPORT_WORDS,
-  formatPhoneDisplay,
-  type LeadNotAFitWhy,
-  type LeadRowVM,
-  type LeadsBulkInput,
-} from "@chanlytics/contracts";
+import { formatPhoneDisplay, type LeadNotAFitWhy, type LeadRowVM, type LeadsBulkInput } from "@chanlytics/contracts";
+import { LEAD_EXPORT_WORDS } from "./export-words";
 import type { ApiRefusal } from "@/client/api";
 import { downloadCsv } from "../../kit/download";
 import { canDo, refusalToast } from "../../frame-verbs";

@@ -39,7 +39,7 @@ import {
 } from "../../apps/edge/lib/campaigns/reach-out/check.ts";
 import { PREVIEW_LIMITS } from "../../apps/edge/lib/campaigns/reach-out/preview.ts";
 import { SEND_DEADLINE_MS, SEND_MIN_MS } from "../../packages/channels/src/email/resend.ts";
-import { NOTIFY_TIMEOUT_MS } from "../../apps/edge/lib/ops/notify.ts";
+import { NOTIFY_TIMEOUT_MS } from "../../apps/edge/lib/shared/alerts/notify.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 
 test("the events purge drops the evidence kinds and only those, past the contract's days, on a minute no sweep uses", () => {
@@ -359,7 +359,7 @@ test("a log line on the message path carries a phone tail, never the number or t
   // Every log call is read to its closing paren, so a field on the next line
   // counts; a value already reduced to a tail does not.
   const files = [
-    "apps/edge/lib/whatsapp/webhook.ts",
+    "apps/edge/lib/intake/whatsapp.ts",
     "apps/edge/lib/sms/inbound-text.ts",
     "apps/edge/lib/voice/inbound-call.ts",
     "apps/edge/lib/voice/call-start.ts",
@@ -371,7 +371,7 @@ test("a log line on the message path carries a phone tail, never the number or t
       (m) => `packages/core/src/inbound/${m}.ts`,
     ),
     "apps/edge/lib/whatsapp/persist.ts",
-    "apps/edge/lib/sms/sms.ts",
+    "apps/edge/lib/lines/sms.ts",
   ];
   const CALL = /(console\.(log|error|warn)\(|\bL\.(info|warn|error)\(|\blogger\(|ports\.log\(|\.child\()/g;
   const NUMBER = /[{,(]\s*(from|to|phone|phone_e164|recipient_id|e164|number)\s*[:,})]/;
@@ -396,8 +396,8 @@ test("a log line on the message path carries a phone tail, never the number or t
   }
   assert.deepEqual(offences, [], "a whole number or a customer's words on a log line");
   assert.ok(
-    readRaw("apps/edge/lib/whatsapp/webhook.ts").includes(
-      'L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });',
+    readRaw("apps/edge/lib/intake/whatsapp.ts").includes(
+      'L.info("wa_inbound", { from_tail: phoneTail(message.from), type: message.type, id: message.id });',
     ),
     "the WhatsApp inbound line: a tail, a type, an id",
   );

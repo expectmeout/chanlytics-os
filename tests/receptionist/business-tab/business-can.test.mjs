@@ -14,7 +14,8 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { ABILITY_CHANNEL_WORDS, abilityRows, cannotRows, POLICY_MODE_WORDS } from "@chanlytics/contracts";
+import { abilityRows, cannotRows, POLICY_MODE_WORDS } from "@chanlytics/contracts";
+import { ABILITY_CHANNEL_WORDS } from "../../../apps/dashboard/src/surfaces/settings/business/model/rule-strengths.ts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
   POLICIES,

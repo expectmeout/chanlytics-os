@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const core = await importSrc("packages/core/src/conversations/index.ts");
-const { askReplyDraft, notACustomer, replyAnyway, rewriteReplyDraft, writeReplyDraft } = core;
+const { askReplyDraft, markNotACustomer, replyAnyway, rewriteReplyDraft, writeReplyDraft } = core;
 const NOW = new Date("2026-11-04T12:00:00Z");
 const T = "t1";
 const C = "c1";
@@ -271,8 +271,8 @@ test("Not a customer and Reply anyway: a door that moved no row says the thread 
     notACustomer: async (...a) => (log.push(["not", ...a]), { decision_id: "d1" }),
     replyAnyway: async (...a) => (log.push(["anyway", ...a]), { decision_id: "d2" }),
   };
-  assert.deepEqual(await notACustomer(ports, { conv, undo: false }), { set_aside: false, decision_id: "d1" });
-  assert.deepEqual(await notACustomer(ports, { conv, undo: true }), { set_aside: true, decision_id: "d1" });
+  assert.deepEqual(await markNotACustomer(ports, { conv, undo: false }), { set_aside: false, decision_id: "d1" });
+  assert.deepEqual(await markNotACustomer(ports, { conv, undo: true }), { set_aside: true, decision_id: "d1" });
   assert.deepEqual(await replyAnyway(ports, { conv }), { reopened: true, decision_id: "d2" });
   assert.deepEqual(log, [
     ["not", T, C, false],
@@ -280,7 +280,7 @@ test("Not a customer and Reply anyway: a door that moved no row says the thread 
     ["anyway", T, C],
   ]);
   const moved = { notACustomer: async () => null, replyAnyway: async () => null };
-  await assert.rejects(notACustomer(moved, { conv, undo: false }), (e) => e.code === "conflict");
+  await assert.rejects(markNotACustomer(moved, { conv, undo: false }), (e) => e.code === "conflict");
   await assert.rejects(replyAnyway(moved, { conv }), (e) => e.code === "conflict");
 });
 

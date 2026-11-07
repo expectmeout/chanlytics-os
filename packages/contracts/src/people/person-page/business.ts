@@ -5,17 +5,18 @@
  * person's page needs, so the two never say a business two ways.
  */
 import { initialsOf, shortName } from "../../conversations/thread-contact";
-import { leadTileSrc } from "../../leads/lead-facts";
-import { leadsRoute } from "../../leads/lead-plan";
-import { toLeadPeekVM } from "../../leads/lead-peek";
-import { LEAD_STAGE_WORDS } from "../../leads/lead-words";
+import { leadTileSrc } from "../../leads/facts";
+import { leadsRoute } from "../../leads/plan";
+import { toLeadPeekVM } from "../../leads/peek";
+import { LEAD_STAGE_WORDS } from "../../leads/words/lists";
 import { clockDate } from "../../shared/clock";
 import { formatPhoneDisplay } from "../../shared/phone";
 import { MIN_MS } from "../../shared/time";
 import { personName } from "../person-name";
 import type { PersonBusinessDto, PersonSignerDto } from "../person-dto";
-import type { PersonRowVM } from "../person-row";
-import { reachOutStandingOf, type ReachOutLeadTimelineDto } from "../../campaigns/reach-out/leads";
+import type { PersonRowVM } from "../person-row/row-facts";
+import { reachOutStandingOf } from "../../campaigns/reach-out/leads/standing";
+import type { ReachOutLeadTimelineDto } from "../../campaigns/reach-out/leads/lines";
 import { BUSINESS_DOOR_LABEL, PERSON_NAME_WORDS, WORKS_AT_WORDS, type NameSource } from "./words";
 
 /** A face as the page draws it: a person's initials, or a business's tile (with the listing's photo). */
@@ -78,13 +79,15 @@ function tileOf(name: string, b: PersonBusinessDto | null): PersonFaceVM {
 }
 
 /** The head (decision 0052): a stand-in's tile and story, or a person's face and their business as a door. */
-export function personHeadOf(h: PersonHeadInput, tz: string, nowMs: number): PersonHeadVM {
-  const standIn = h.nameSource === "lead";
+export function personHeadOf(personHeadInput: PersonHeadInput, tz: string, nowMs: number): PersonHeadVM {
+  const standIn = personHeadInput.nameSource === "lead";
   const day = (ms: number) => clockDate(ms, tz, nowMs);
   // A signer is offered to a stand-in, or to someone nobody has named: never over a name of their own.
-  const offered = h.signers.find((s) => s.state === "offered" && s.intent !== "no" && s.claim === "person");
+  const offered = personHeadInput.signers.find(
+    (s) => s.state === "offered" && s.intent !== "no" && s.claim === "person",
+  );
   const signer =
-    offered && (standIn || !h.givenName)
+    offered && (standIn || !personHeadInput.givenName)
       ? {
           name: offered.name,
           title: offered.title,
@@ -93,38 +96,45 @@ export function personHeadOf(h: PersonHeadInput, tz: string, nowMs: number): Per
           day: day(Date.parse(offered.read_at)),
         }
       : null;
-  const gone = !!h.worksAt?.gone;
-  const business = h.worksAt && !gone ? (h.worksAt.name ?? h.business?.lead.business_name ?? null) : null;
+  const gone = !!personHeadInput.worksAt?.gone;
+  const business =
+    personHeadInput.worksAt && !gone
+      ? (personHeadInput.worksAt.name ?? personHeadInput.business?.lead.business_name ?? null)
+      : null;
   let line: PersonHeadLine | null = null;
   if (gone) line = { kind: "gone", text: WORKS_AT_WORDS.gone };
   else if (signer) line = null;
   else if (standIn) {
     const story =
-      h.saidNoMs !== null
-        ? WORKS_AT_WORDS.saidNo(day(h.saidNoMs))
-        : h.calledMs !== null && (h.addedMs === null || h.calledMs <= h.addedMs + MIN_MS)
-          ? WORKS_AT_WORDS.youCalled(day(h.calledMs))
-          : h.addedMs !== null
-            ? WORKS_AT_WORDS.weWroteFirst(day(h.addedMs))
+      personHeadInput.saidNoMs !== null
+        ? WORKS_AT_WORDS.saidNo(day(personHeadInput.saidNoMs))
+        : personHeadInput.calledMs !== null &&
+            (personHeadInput.addedMs === null || personHeadInput.calledMs <= personHeadInput.addedMs + MIN_MS)
+          ? WORKS_AT_WORDS.youCalled(day(personHeadInput.calledMs))
+          : personHeadInput.addedMs !== null
+            ? WORKS_AT_WORDS.weWroteFirst(day(personHeadInput.addedMs))
             : null;
     line = story ? { kind: "origin", text: story } : null;
   } else if (business) line = { kind: "business", text: business, label: BUSINESS_DOOR_LABEL(business) };
-  const adopted = h.nameSource === "signature" ? h.signers.find((s) => s.state === "adopted") : undefined;
+  const adopted =
+    personHeadInput.nameSource === "signature" ? personHeadInput.signers.find((s) => s.state === "adopted") : undefined;
   return {
-    face: standIn ? tileOf(h.name, h.business) : { kind: "face", initials: h.initials, image: null },
-    name: h.name,
+    face: standIn
+      ? tileOf(personHeadInput.name, personHeadInput.business)
+      : { kind: "face", initials: personHeadInput.initials, image: null },
+    name: personHeadInput.name,
     standIn,
     line,
     signer,
-    addName: standIn && h.saidNoMs === null && !signer,
+    addName: standIn && personHeadInput.saidNoMs === null && !signer,
     namedBy: adopted
       ? {
           messageId: adopted.message_id,
           day: day(Date.parse(adopted.read_at)),
-          putBack: business ?? h.business?.lead.business_name ?? null,
+          putBack: business ?? personHeadInput.business?.lead.business_name ?? null,
         }
       : null,
-    ask: standIn ? PERSON_NAME_WORDS.askAboutThisPerson : PERSON_NAME_WORDS.askAbout(shortName(h.name)),
+    ask: standIn ? PERSON_NAME_WORDS.askAboutThisPerson : PERSON_NAME_WORDS.askAbout(shortName(personHeadInput.name)),
   };
 }
 
@@ -153,16 +163,16 @@ function ratingOf(rating: number | null, reviews: number | null): string | null 
 /** The Works at row of a person who works somewhere; null for someone who works nowhere. */
 export function worksAtOf(
   worksAt: { leadId: string; name: string | null; gone: boolean } | null,
-  b: PersonBusinessDto | null,
+  personBusiness: PersonBusinessDto | null,
   tz: string,
   nowMs: number,
 ): WorksAtVM | null {
   if (!worksAt) return null;
   if (worksAt.gone) return { gone: true, text: WORKS_AT_WORDS.gone };
-  const name = worksAt.name ?? b?.lead.business_name ?? null;
+  const name = worksAt.name ?? personBusiness?.lead.business_name ?? null;
   if (!name) return null;
-  const lead = b?.lead ?? null;
-  const people = b?.people.length ?? 0;
+  const lead = personBusiness?.lead ?? null;
+  const people = personBusiness?.people.length ?? 0;
   const kind = [
     lead?.category ?? null,
     lead ? ratingOf(lead.rating, lead.reviews) : null,
@@ -175,7 +185,7 @@ export function worksAtOf(
     gone: false,
     leadId: worksAt.leadId,
     name,
-    tile: tileOf(name, b),
+    tile: tileOf(name, personBusiness),
     kind: kind || name,
     read: Number.isFinite(found) ? WORKS_AT_WORDS.read(clockDate(found, tz, nowMs)) : "",
     label: BUSINESS_DOOR_LABEL(name),
@@ -226,44 +236,47 @@ export interface BusinessRecordVM {
  * Leads' own peek view model.
  */
 export function businessRecordOf(
-  b: PersonBusinessDto,
+  personBusiness: PersonBusinessDto,
   of: { personId: string; reachOut: ReachOutLeadTimelineDto | null },
   tz: string,
   now: Date,
 ): BusinessRecordVM {
   const { personId, reachOut } = of;
   const nowMs = now.getTime();
-  const peek = toLeadPeekVM(b.lead, null, tz, now);
-  const found = Date.parse(b.lead.found_at);
-  const people: BusinessPersonVM[] = b.people.map((p) => {
-    const name = personName(p);
-    const touched = p.in_touch_at ? Date.parse(p.in_touch_at) : NaN;
+  const peek = toLeadPeekVM(personBusiness.lead, null, tz, now);
+  const found = Date.parse(personBusiness.lead.found_at);
+  const people: BusinessPersonVM[] = personBusiness.people.map((item) => {
+    const name = personName(item);
+    const touched = item.in_touch_at ? Date.parse(item.in_touch_at) : NaN;
     return {
-      id: p.id,
+      id: item.id,
       name,
       initials: initialsOf(name),
-      here: p.id === personId,
+      here: item.id === personId,
       line:
-        p.id === personId
+        item.id === personId
           ? WORKS_AT_WORDS.thisPage
           : Number.isFinite(touched)
             ? WORKS_AT_WORDS.inTouch(clockDate(touched, tz, nowMs))
             : WORKS_AT_WORDS.neverInTouch,
-      needsYou: p.needs_you,
-      to: p.id === personId ? null : `clients/${p.id}`,
+      needsYou: item.needs_you,
+      to: item.id === personId ? null : `clients/${item.id}`,
     };
   });
   const links = Object.values(peek.links).filter((l): l is { label: string; href: string } => !!l && !!l.href);
   return {
-    leadId: b.lead.id,
-    name: b.lead.business_name,
-    tile: tileOf(b.lead.business_name, b),
+    leadId: personBusiness.lead.id,
+    name: personBusiness.lead.business_name,
+    tile: tileOf(personBusiness.lead.business_name, personBusiness),
     kind: peek.sub,
-    rating: ratingOf(b.lead.rating, b.lead.reviews),
+    rating: ratingOf(personBusiness.lead.rating, personBusiness.lead.reviews),
     address: peek.where ? { line: peek.where.line, href: peek.where.href } : null,
     read: Number.isFinite(found) ? WORKS_AT_WORDS.readOnSheet(clockDate(found, tz, nowMs)) : "",
-    stage: { word: LEAD_STAGE_WORDS[b.lead.stage] ?? b.lead.stage, note: WORKS_AT_WORDS.stageNote },
-    open: b.lead.stage !== "archived" && !!b.lead.contact_id,
+    stage: {
+      word: LEAD_STAGE_WORDS[personBusiness.lead.stage] ?? personBusiness.lead.stage,
+      note: WORKS_AT_WORDS.stageNote,
+    },
+    open: personBusiness.lead.stage !== "archived" && !!personBusiness.lead.contact_id,
     people,
     peopleTitle: WORKS_AT_WORDS.peopleHere(people.length),
     fit: peek.checkDots.length ? { word: peek.fit.word, checks: WORKS_AT_WORDS.checks(peek.checkDots.length) } : null,
@@ -277,13 +290,13 @@ export function businessRecordOf(
       : null,
     phone: peek.reach.phone
       ? {
-          value: peek.reach.phone.value ?? formatPhoneDisplay(b.lead.phone) ?? "",
+          value: peek.reach.phone.value ?? formatPhoneDisplay(personBusiness.lead.phone) ?? "",
           tel: peek.reach.phone.tel,
           hours: peek.today ? WORKS_AT_WORDS.listingHours(peek.today) : null,
         }
       : null,
     links,
-    to: leadsRoute({ peek: b.lead.id }),
+    to: leadsRoute({ peek: personBusiness.lead.id }),
   };
 }
 
@@ -347,11 +360,11 @@ export function leadPeopleOf(lead: { id: string; contactId: string | null }, ind
     ...others.filter((r) => r.state !== "needs_you"),
   ];
   const names = WORKS_AT_WORDS.someNames(people.filter((r) => !r.standIn).map((r) => r.name));
-  const n = people.length;
+  const length = people.length;
   return {
     door: face ? { id: face.id, name: face.standIn ? null : face.name } : null,
-    line: names ? WORKS_AT_WORDS.peopleLine(n, names) : null,
-    card: n ? (names ? WORKS_AT_WORDS.inPeopleNamed(names) : WORKS_AT_WORDS.inPeople(n)) : null,
+    line: names ? WORKS_AT_WORDS.peopleLine(length, names) : null,
+    card: length ? (names ? WORKS_AT_WORDS.inPeopleNamed(names) : WORKS_AT_WORDS.inPeople(length)) : null,
     client: [...(own ? [own] : []), ...people].find((r) => r.deal?.stage === "won")?.id ?? null,
     order: people.map((r) => r.id),
   };

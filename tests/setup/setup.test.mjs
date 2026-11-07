@@ -23,7 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
-import { setupDtoFor } from "../../apps/dashboard/src/server/workspace/setup.ts";
+import { setupDtoFor } from "../../apps/dashboard/src/server/setup/setup.ts";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const VOICE = "+13055550124";
@@ -394,7 +394,7 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   assert.deepEqual(
     [dto.business.receptionist, dto.business.broken],
     ["set", false],
-    "by the one test (receptionistOf)",
+    "by the one test (personReceptionistOf)",
   );
   assert.equal(dto.google.type, "moving_company", "Google's kind of place, which Check's suggestions follow");
   assert.equal(dto.google.phone, "+13055550100", "the listing's number, which the phone step offers to keep");
@@ -501,7 +501,7 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       "lines.select",
       // The mailboxes a reach-out writes from (decision 0056): read with the email line, whatever the hosted one.
       "mailbox_connections.select",
-      // Whether a day-before reminder runs (runningStepsOn): Today's card stops offering one.
+      // Whether a day-before reminder runs (listRunningStepsOn): Today's card stops offering one.
       "sequence_steps.select",
       // The first run's (decision 0073), each read quietly: the rehearsals reviewed, what was brought in, the people the
       // workspace holds, and what the profile and the website say.
@@ -912,12 +912,12 @@ test("the bell's verb follows the row's route: a setup row opens Setup, an unrou
 
 test("a first ask reaches the platform mailbox through the edge; a repeat does not; a failure is never the owner's problem", () => {
   const route = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
-  assert.ok(route.includes("const told = already"));
+  assert.ok(route.includes("const wasTold = already"));
   assert.ok(
-    route.includes("await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null, ctx.userId)"),
+    route.includes("await tellPlatformOfSetupRequest(member.tenantId, subject, ctx.email ?? null, ctx.userId)"),
     "the mail names the workspace, who asked and the person who pressed",
   );
-  assert.ok(route.includes("return { request: data, told };"));
+  assert.ok(route.includes("return { request: data, told: wasTold };"));
   const service = readCode("apps/dashboard/src/server/workspace/tell.ts");
   assert.ok(service.includes("if (!deployment.providersLive || !edgeConfigured()) return false;"), "production only");
   assert.ok(service.includes('"/api/admin/setup-request"'));
@@ -1076,7 +1076,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   const server = readCode("apps/dashboard/src/server/connections/lines.ts");
   assert.ok(server.includes('callEdge("/api/admin/lines"'));
   assert.ok(
-    !/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function linesFor"))),
+    !/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function listLines"))),
     "no provider id is selected for the page",
   );
   // The edge's verb answers and this read build a line with one builder (contracts lineDtoOf), run on both sides in
@@ -1084,7 +1084,9 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   // a mock filing "approved".
   assert.ok(
     /lines: \{\s*rows: lineRows,\s*ready: lineStatus\.ready,\s*provider: lineStatus\.provider,\s*costs: \{ local_number_month_usd: lineStatus\.costs\.local_number_month_usd \},?\s*\},/.test(
-      readCode("apps/dashboard/src/server/workspace/setup.ts"),
+      ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+        .map((p) => readCode(p))
+        .join("\n"),
     ),
   );
   // What Setup reads and hears is its override's, the light module the frame registers (override.ts), run here; its read
@@ -1146,7 +1148,7 @@ test("the words: four states, no jargon, no trade", () => {
   const src =
     [
       "packages/contracts/src/setup/setup.ts",
-      "packages/contracts/src/setup/rows.ts",
+      "packages/contracts/src/setup/rows/steps.ts",
       "packages/contracts/src/setup/rows-phone.ts",
     ]
       .map((f) => readCode(f))
@@ -1192,12 +1194,14 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
   // One assembly, two callers: the workspace reads its own on the session
   // client, the back office reads another's on the service client. The route
   // is now four lines and the pins live where the work does.
-  const get = readCode("apps/dashboard/src/server/workspace/setup.ts");
+  const get = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+    .map((p) => readCode(p))
+    .join("\n");
   for (const pin of [
     "parseTenantConfigResult(cfgRow.config)",
     "starterByName(t.name)",
-    "calendarWeek({ supabase }, tenantId, { from: null, days: 7 }",
-    'viewer.kind === "member" ? teamRoster(supabase, tenantId) : teamCounts(supabase, tenantId)',
+    "getCalendarWeek({ supabase }, tenantId, { from: null, days: 7 }",
+    'viewer.kind === "member" ? getTeamRoster(supabase, tenantId) : teamCounts(supabase, tenantId)',
     '.eq("consent", "opted_in")',
     '.eq("kind", "setup.requested")',
   ])
@@ -1212,7 +1216,7 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
   for (const pin of [
     'role: "operator",',
     'rate: "setup_request",',
-    'rpc("setup_request", { p_tenant_id: member.tenantId, p_what: what })',
+    'rpc("setup_request", { p_tenant_id: member.tenantId, p_what: subject })',
   ])
     assert.ok(post.includes(pin), pin);
   const mig = readRaw("supabase/migrations/00065_setup_request.sql");

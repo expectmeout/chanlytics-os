@@ -467,14 +467,14 @@ test(
   "a call's start holds its workspace's one start on the row's unique call id: a second at once is refused, one given back or left as it died frees it, and a named one leaves the minutes to say it runs",
   { skip },
   async () => {
-    const { reserveRehearsalCall, releaseRehearsalCall, keepRehearsalCall, rehearsalSpokenMs } =
-      await import("@chanlytics/db");
+    const { reserveRehearsalCall, releaseRehearsalCall, keepRehearsalCall, getRehearsalSpokenMs } =
+      await import("@chanlytics/db/facts");
     const MIN = 60_000;
     const now = new Date();
     const ids = Array.from({ length: 4 }, () => crypto.randomUUID());
     const reserve = (id) => reserveRehearsalCall(db, { id, tenantId: B, createdBy: null, now });
     const spoken = (except) =>
-      rehearsalSpokenMs(db, B, { since: null, now, runningMs: 5 * MIN, callMs: 3 * MIN, except });
+      getRehearsalSpokenMs(db, B, { since: null, now, runningMs: 5 * MIN, callMs: 3 * MIN, except });
 
     assert.equal(await reserve(ids[0]), true);
     assert.equal(await reserve(ids[1]), false, "a second start at the same moment: the unique call id refuses it");

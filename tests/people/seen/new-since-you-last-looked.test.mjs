@@ -11,7 +11,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NEW_SINCE_WORDS, newSinceOf, toPersonRowVM } from "@chanlytics/contracts";
+import { toPersonRowVM } from "@chanlytics/contracts";
+import { NEW_SINCE_WORDS, newSinceOf } from "../../../apps/dashboard/src/surfaces/people/person/model/new-since.ts";
 import { installStubReact, fresh, all, find, byTestId, classes } from "../../_stub-react.mjs";
 import { personDto } from "../../consent/_person-row.mjs";
 

@@ -12,7 +12,7 @@
  *   - guide: a short block put into Ask's own turn when the job comes up (guideBlock), prefetched where the question's
  *     words ask for it (skillsAsked, registry.ts) or read by the guide tool, by the skill's id.
  */
-import type { ModelEffort } from "../../ai/models";
+import type { ModelEffort } from "../../ai/models/routes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 
 /**

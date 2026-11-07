@@ -8,7 +8,7 @@
  * message itself is what the owner wrote in the language they chose. THE LANGUAGE IS REQUIRED wherever these are read
  * (a null says the version kept none), so no sender says its foot without asking which one it is.
  */
-import { languageBase } from "./template-languages";
+import { languageBase } from "./languages";
 
 /** The languages the sender's words are written in. */
 export type SenderLanguage = "en" | "es";
@@ -45,31 +45,31 @@ export interface SenderWords {
 export const SENDER_WORDS: Record<SenderLanguage, SenderWords> = {
   en: {
     textStop: "Reply STOP to opt out",
-    linkAsked: (who, link) => `${who}: here's the link to book, as you asked on the phone: ${link}`,
+    linkAsked: (person, link) => `${person}: here's the link to book, as you asked on the phone: ${link}`,
     emailStop: "Reply STOP to stop these emails.",
     marketing: "This is a marketing email.",
     noThanks: `Not interested? Reply "no thanks" and I won't write again`,
     unsubscribe: "Unsubscribe",
     us: "us",
-    offerAsked: (who) => `You asked for offers from ${who}.`,
-    offerCustomer: (who) => `You're a customer of ${who}.`,
-    visitProposal: (who) => `You're getting this about your proposal from ${who}.`,
-    visitBooked: (who) => `You're getting this because of your appointment with ${who}.`,
-    visitInTouch: (who) => `You're getting this because you've been in touch with ${who}.`,
+    offerAsked: (person) => `You asked for offers from ${person}.`,
+    offerCustomer: (person) => `You're a customer of ${person}.`,
+    visitProposal: (person) => `You're getting this about your proposal from ${person}.`,
+    visitBooked: (person) => `You're getting this because of your appointment with ${person}.`,
+    visitInTouch: (person) => `You're getting this because you've been in touch with ${person}.`,
   },
   es: {
     textStop: "Responde STOP para darte de baja",
-    linkAsked: (who, link) => `${who}: aquí tienes el enlace para reservar, como pediste por teléfono: ${link}`,
+    linkAsked: (person, link) => `${person}: aquí tienes el enlace para reservar, como pediste por teléfono: ${link}`,
     emailStop: "Responde STOP para dejar de recibir estos correos.",
     marketing: "Este es un correo de marketing.",
     noThanks: `¿No te interesa? Responde "no, gracias" y no volveré a escribirte`,
     unsubscribe: "Darme de baja",
     us: "nosotros",
-    offerAsked: (who) => `Pediste recibir ofertas de ${who}.`,
-    offerCustomer: (who) => `Eres cliente de ${who}.`,
-    visitProposal: (who) => `Recibes esto sobre tu propuesta de ${who}.`,
-    visitBooked: (who) => `Recibes esto por tu cita con ${who}.`,
-    visitInTouch: (who) => `Recibes esto porque has estado en contacto con ${who}.`,
+    offerAsked: (person) => `Pediste recibir ofertas de ${person}.`,
+    offerCustomer: (person) => `Eres cliente de ${person}.`,
+    visitProposal: (person) => `Recibes esto sobre tu propuesta de ${person}.`,
+    visitBooked: (person) => `Recibes esto por tu cita con ${person}.`,
+    visitInTouch: (person) => `Recibes esto porque has estado en contacto con ${person}.`,
   },
 };
 

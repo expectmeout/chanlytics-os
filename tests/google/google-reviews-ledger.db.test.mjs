@@ -14,7 +14,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { REVIEWS_WAITING_SHOWN, isReviewsLedgerDto } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db/events";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

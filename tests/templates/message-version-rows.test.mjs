@@ -1,5 +1,5 @@
 /**
- * One read of a message's rows (packages/db repositories/campaigns/templates/templates.ts, messageVersionRowsOf): the workspace's template rows
+ * One read of a message's rows (packages/db repositories/campaigns/templates/templates.ts, listMessageVersionRows): the workspace's template rows
  * that share a message's name and language, whatever their channel, named by any one version's id or by the name and
  * language. The real built function runs over a database in memory; contracts' campaignMessageOf picks the versions out
  * of what it answers, so these rows go to it as they are.
@@ -11,7 +11,7 @@
  * two trips, naming the function. The columns are the ones campaignMessageOf reads, and a refused WhatsApp version's
  * words reach it.
  *
- * And the workspace's whole list of them (templatesFor with no channel, which the Playbooks page's pools read the messages out
+ * And the workspace's whole list of them (listTemplates with no channel, which the Playbooks page's pools read the messages out
  * of, campaignMessagesOf): every channel's rows with each one's id and channel, the default still WhatsApp's alone, and
  * only the asking workspace's.
  *
@@ -27,7 +27,7 @@ import {
   reachOutRowName,
   versionComponents,
 } from "@chanlytics/contracts";
-import { messageVersionRowsOf, templatesFor } from "@chanlytics/db";
+import { listMessageVersionRows, listTemplates } from "@chanlytics/db/campaigns";
 import { fakeDb } from "../_fake-db.mjs";
 import { AT, TENANT, uuid } from "../_rows.mjs";
 import { schemaOf } from "../_schema.mjs";
@@ -40,7 +40,7 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const NAME = "autumn_note";
 const LANGUAGE = "en_US";
 
-/** The columns messageVersionRowsOf answers, which campaignMessageOf and the pages that draw a version read. */
+/** The columns listMessageVersionRows answers, which campaignMessageOf and the pages that draw a version read. */
 const ANSWERED = [
   "id",
   "channel",
@@ -110,7 +110,7 @@ test("by an email version's id, every version of the message comes back, and not
   const spanish = template({ channel: "email", language: "es_ES" });
   const another = template({ channel: "whatsapp", name: "spring_offer" });
   const db = world([own.w, own.e, own.t, spanish, another]);
-  const answered = await messageVersionRowsOf(db, A, { id: own.e.id });
+  const answered = await listMessageVersionRows(db, A, { id: own.e.id });
   assert.deepEqual(
     idsOf(answered),
     idsOf([own.w, own.e, own.t]),
@@ -131,7 +131,7 @@ test("by a WhatsApp or a text version's id, the same rows come back", async () =
   const db = world([own.w, own.e, own.t, template({ channel: "email", language: "es_ES" })]);
   for (const named of [own.w, own.t])
     assert.deepEqual(
-      idsOf(await messageVersionRowsOf(db, A, { id: named.id })),
+      idsOf(await listMessageVersionRows(db, A, { id: named.id })),
       idsOf([own.w, own.e, own.t]),
       named.channel,
     );
@@ -146,16 +146,16 @@ test("by name and language, the same rows come back in one read", async () => {
     template({ channel: "email", language: "es_ES" }),
     template({ channel: "sms", name: "spring_offer" }),
   ]);
-  const answered = await messageVersionRowsOf(db, A, { name: NAME, language: LANGUAGE });
+  const answered = await listMessageVersionRows(db, A, { name: NAME, language: LANGUAGE });
   assert.deepEqual(idsOf(answered), idsOf([own.w, own.e, own.t]));
   assert.equal(reads(db), 1, "no row to name it first");
   assert.deepEqual(
-    await messageVersionRowsOf(db, A, { name: NAME, language: "fr_FR" }),
+    await listMessageVersionRows(db, A, { name: NAME, language: "fr_FR" }),
     [],
     "a language it has no version in",
   );
   assert.deepEqual(
-    await messageVersionRowsOf(db, A, { name: "no_such_message", language: LANGUAGE }),
+    await listMessageVersionRows(db, A, { name: "no_such_message", language: LANGUAGE }),
     [],
     "a name it has none of",
   );
@@ -176,7 +176,7 @@ test("a message with no WhatsApp version comes back by any of its versions, and 
   const db = world([own.w, own.e, own.t, refused, ...onlyOwn]);
 
   // The rows go to campaignMessageOf as they are: its anchor, the channels it holds, and Meta's refusal in its words.
-  const refusedRows = await messageVersionRowsOf(db, A, { id: onlyOwn[0].id });
+  const refusedRows = await listMessageVersionRows(db, A, { id: onlyOwn[0].id });
   const message = campaignMessageOf(refusedRows, "winter_note", LANGUAGE);
   assert.equal(message?.anchor.channel, "whatsapp", "the refused WhatsApp row anchors it");
   assert.equal(message?.versions.whatsapp?.status, "rejected");
@@ -185,7 +185,7 @@ test("a message with no WhatsApp version comes back by any of its versions, and 
 
   const noWhatsApp = world(onlyOwn);
   const email = campaignMessageOf(
-    await messageVersionRowsOf(noWhatsApp, A, { id: onlyOwn[1].id }),
+    await listMessageVersionRows(noWhatsApp, A, { id: onlyOwn[1].id }),
     "winter_note",
     LANGUAGE,
   );
@@ -199,23 +199,23 @@ test("another workspace's rows are never returned, and its id names nothing", as
   const db = world([mine.w, mine.e, theirs.w, theirs.e, theirs.t]);
 
   assert.deepEqual(
-    idsOf(await messageVersionRowsOf(db, A, { name: NAME, language: LANGUAGE })),
+    idsOf(await listMessageVersionRows(db, A, { name: NAME, language: LANGUAGE })),
     idsOf([mine.w, mine.e]),
   );
-  assert.deepEqual(idsOf(await messageVersionRowsOf(db, A, { id: mine.e.id })), idsOf([mine.w, mine.e]));
+  assert.deepEqual(idsOf(await listMessageVersionRows(db, A, { id: mine.e.id })), idsOf([mine.w, mine.e]));
   assert.deepEqual(
-    idsOf(await messageVersionRowsOf(db, B, { name: NAME, language: LANGUAGE })),
+    idsOf(await listMessageVersionRows(db, B, { name: NAME, language: LANGUAGE })),
     idsOf([theirs.w, theirs.e, theirs.t]),
   );
 
   assert.deepEqual(
-    await messageVersionRowsOf(db, A, { id: theirs.e.id }),
+    await listMessageVersionRows(db, A, { id: theirs.e.id }),
     [],
     "their version's id is no message of ours",
   );
   const alone = world([theirs.w, theirs.e]);
   assert.deepEqual(
-    await messageVersionRowsOf(alone, A, { name: NAME, language: LANGUAGE }),
+    await listMessageVersionRows(alone, A, { name: NAME, language: LANGUAGE }),
     [],
     "and a workspace with none has none",
   );
@@ -228,10 +228,10 @@ test("a reach-out's email belongs to no message, by its id or its name, and its 
   const own = versions();
   const db = world([email, text, own.w, own.e]);
 
-  assert.deepEqual(await messageVersionRowsOf(db, A, { id: email.id }), [], "by its id");
-  assert.deepEqual(await messageVersionRowsOf(db, A, { name: stepName, language: LANGUAGE }), [], "by its name");
+  assert.deepEqual(await listMessageVersionRows(db, A, { id: email.id }), [], "by its id");
+  assert.deepEqual(await listMessageVersionRows(db, A, { name: stepName, language: LANGUAGE }), [], "by its name");
   assert.deepEqual(
-    idsOf(await messageVersionRowsOf(db, A, { id: own.e.id })),
+    idsOf(await listMessageVersionRows(db, A, { id: own.e.id })),
     idsOf([own.w, own.e]),
     "a message beside it is whole",
   );
@@ -240,8 +240,8 @@ test("a reach-out's email belongs to no message, by its id or its name, and its 
 test("an id nobody holds is no message", async () => {
   const own = versions();
   const db = world([own.w, own.e]);
-  assert.deepEqual(await messageVersionRowsOf(db, A, { id: "99999999-9999-4999-8999-999999999999" }), []);
-  assert.deepEqual(await messageVersionRowsOf(world([]), A, { id: own.e.id }), [], "nor in an empty table");
+  assert.deepEqual(await listMessageVersionRows(db, A, { id: "99999999-9999-4999-8999-999999999999" }), []);
+  assert.deepEqual(await listMessageVersionRows(world([]), A, { id: own.e.id }), [], "nor in an empty table");
 });
 
 test("the workspace's whole list, on every channel, answers the messages it holds: a message with no WhatsApp row among them, each row with its id and channel; the default is WhatsApp's alone; another workspace's rows never", async () => {
@@ -252,7 +252,7 @@ test("the workspace's whole list, on every channel, answers the messages it hold
   const theirs = versions({ tenant_id: B, name: "their_message" });
   const db = world([own.w, own.e, own.t, onlyEmail, reachOut, voice, theirs.w, theirs.e]);
 
-  const all = await templatesFor(db, A, null);
+  const all = await listTemplates(db, A, null);
   assert.deepEqual(
     idsOf(all),
     idsOf([own.w, own.e, own.t, onlyEmail, reachOut, voice]),
@@ -279,12 +279,16 @@ test("the workspace's whole list, on every channel, answers the messages it hold
     "whatever channel a row sits on comes back; the message ignores the ones it has no version on",
   );
 
-  assert.deepEqual(idsOf(await templatesFor(db, A)), idsOf([own.w]), "the default is WhatsApp's rows");
-  assert.deepEqual(idsOf(await templatesFor(db, A, "email")), idsOf([own.e, onlyEmail, reachOut]), "one named channel");
-  assert.deepEqual(await templatesFor(world([theirs.w]), A, null), [], "a workspace with none has none");
+  assert.deepEqual(idsOf(await listTemplates(db, A)), idsOf([own.w]), "the default is WhatsApp's rows");
+  assert.deepEqual(
+    idsOf(await listTemplates(db, A, "email")),
+    idsOf([own.e, onlyEmail, reachOut]),
+    "one named channel",
+  );
+  assert.deepEqual(await listTemplates(world([theirs.w]), A, null), [], "a workspace with none has none");
   await assert.rejects(
-    templatesFor(world([own.w], { "templates.select": { message: "the database is down" } }), A, null),
-    { message: "templatesFor: the database is down" },
+    listTemplates(world([own.w], { "templates.select": { message: "the database is down" } }), A, null),
+    { message: "listTemplates: the database is down" },
     "a read that fails throws",
   );
 });
@@ -293,15 +297,15 @@ test("a read that fails throws, naming the function, on either trip", async () =
   const own = versions();
   const down = { message: "the database is down", code: "08006" };
   const failing = (templates) => world(templates, { "templates.select": down });
-  const expected = { message: "messageVersionRowsOf: the database is down" };
+  const expected = { message: "listMessageVersionRows: the database is down" };
 
   await assert.rejects(
-    messageVersionRowsOf(failing([own.e]), A, { name: NAME, language: LANGUAGE }),
+    listMessageVersionRows(failing([own.e]), A, { name: NAME, language: LANGUAGE }),
     expected,
     "by name",
   );
   await assert.rejects(
-    messageVersionRowsOf(failing([own.e]), A, { id: own.e.id }),
+    listMessageVersionRows(failing([own.e]), A, { id: own.e.id }),
     expected,
     "by id, the row that names it",
   );
@@ -312,6 +316,6 @@ test("a read that fails throws, naming the function, on either trip", async () =
   const unwell = failing(templates);
   let trips = 0;
   const flaky = { from: (table) => (++trips === 1 ? well : unwell).from(table) };
-  await assert.rejects(messageVersionRowsOf(flaky, A, { id: own.e.id }), expected, "by id, the rows beside it");
+  await assert.rejects(listMessageVersionRows(flaky, A, { id: own.e.id }), expected, "by id, the rows beside it");
   assert.equal(trips, 2, "the failure was the second trip's");
 });

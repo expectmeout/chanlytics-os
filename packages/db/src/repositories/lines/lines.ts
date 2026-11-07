@@ -4,7 +4,7 @@
  * The line a workspace was given (provisioned through a provider: Twilio, or the dry one on a preview) as the Connections
  * page's rows say it (the oldest that is not a number the business kept at its carrier), with what a read of its texts takes:
  * which line, its number, its provider and its subaccount. Nothing here reads the vault: the account's token is the edge's
- * own door (lineAccount, apps/edge/lib/sms/sms.ts). A read that fails throws.
+ * own door (findLineAccount, apps/edge/lib/sms/sms.ts). A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LINE_FILED_NAMES } from "@chanlytics/contracts";
@@ -14,7 +14,7 @@ import type { Database } from "../../database.types";
 // new one renumbers every alias after it, which is a diff of hundreds of lines in a committed file that says nothing new.
 
 /** The workspace's own line that can have texts (not a carrier's, not one whose provisioning failed), or null. */
-export async function ownLineOf(
+export async function findOwnLine(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<Pick<
@@ -38,7 +38,7 @@ export async function ownLineOf(
  * The business on record, whole: what a carrier filing reads and what the save door compares a save against (the
  * wiring's second audit, X4-3). Null when nothing is on record. A read that fails throws.
  */
-export async function businessOnRecordOf(
+export async function findBusinessOnRecord(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<Database["public"]["Tables"]["business_records"]["Row"] | null> {
@@ -62,7 +62,7 @@ export async function dropLineCredentials(db: SupabaseClient<Database>, lineId: 
  * (a filing before the name was kept, or none at all). For what a rename says the carriers still hold, and the
  * confirmation's name (the wiring's second audit, X4-5). A read that fails throws.
  */
-export async function filedNamesOf(
+export async function findFiledNames(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<{ campaign: string | null; brand: string | null }> {

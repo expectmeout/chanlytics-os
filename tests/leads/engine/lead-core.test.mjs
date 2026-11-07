@@ -22,7 +22,7 @@ import { probeAsk, mainAsk, runCaps, yieldOf } from "../../../packages/core/src/
 import { afterProbe } from "../../../packages/core/src/leads/question.ts";
 import { discoveryEnding, termsShortOf, runStateOf } from "../../../packages/core/src/leads/endings.ts";
 import { leadMarkFrom, leadMarksFrom } from "../../../packages/core/src/leads/mark.ts";
-import { runIdFor, sha256Hex } from "../../../packages/core/src/leads/ids.ts";
+import { runIdFor, hashSha256Hex } from "../../../packages/core/src/leads/ids.ts";
 import { PLAN, mapsItem, fakeJudge } from "../../_lead-fixtures.mjs";
 
 const card = CARDS.local_businesses;
@@ -458,7 +458,7 @@ test("a run row's id is derived from the round, the phase and the term, so two s
   assert.equal(a, await runIdFor("11111111-1111-4111-8111-111111111111", "probe", "personal trainer"));
   assert.match(a, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   assert.notEqual(a, await runIdFor("11111111-1111-4111-8111-111111111111", "main", "personal trainer"));
-  assert.equal(await sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  assert.equal(await hashSha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 });
 
 // D3: where to look when an area ran dry -- the nearest ZIP centres past a ring, as areas the plan can take.

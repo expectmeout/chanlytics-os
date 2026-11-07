@@ -10,21 +10,22 @@ import {
   visitStands,
   type CalendarBlockVM,
 } from "@chanlytics/contracts";
-import { load } from "../../../readers";
+import { load } from "../../../shared/reader";
 import { calendar } from "../../../readers/calendar";
 import { openings } from "../../../readers/openings";
-import { ROOM_DAYS } from "../../openings";
-import { defineActions, noteRow, readAction, str, type ToolContext } from "../context";
+import { ROOM_DAYS } from "../../../calendar/openings";
+import { defineActions, readAction, type ToolContext } from "../context/tool-defs";
+import { noteRow, str } from "../context/tool-reads";
 
 /**
  * How full the book is over the next fourteen days, for pacing an offer to what the business can take: the openings
  * reader's own answer for every day and service (readers/openings.ts), read once a turn as calendar.openings reads it
- * with neither asked, its room summed (ask/openings.ts roomOf). No calendar, or one that cannot be read, is said in
+ * with neither asked, its room summed (calendar/openings.ts roomOf). No calendar, or one that cannot be read, is said in
  * `none`, and counts nothing. Ask's plan reads the room through it too (act/plan.ts), so the room it paces an offer to is
  * the room this says.
  */
-export async function getRoom(t: ToolContext) {
-  const r = (await load(t.rc, openings, { day: null, service: null })).data.openings;
+export async function getRoom(toolContext: ToolContext) {
+  const r = (await load(toolContext.rc, openings, { day: null, service: null })).data.openings;
   if (!r.room) {
     const none = r.state === "no_calendar" ? "no_calendar" : "unavailable";
     return { days: ROOM_DAYS, open: 0, taken: 0, by_day: [], none };
@@ -33,67 +34,69 @@ export async function getRoom(t: ToolContext) {
   return { days, open: by_day.reduce((n, d) => n + d.open, 0), taken, by_day };
 }
 
-async function getOpenings(t: ToolContext, input: { day: string; service: string }): Promise<unknown> {
+async function getOpenings(toolContext: ToolContext, input: { day: string; service: string }): Promise<unknown> {
   // The palette's own read (readers/openings.ts), once a turn, with the zone and the settings the turn read; what was
   // asked is cut where the route cuts it, the service at 160 (ledger #13). Today and tomorrow are their days; a weekday
   // stays a weekday, which the openings read as the next one that has room (contracts filterOpenings).
-  const asked = str(input.day, 20).trim();
-  const named = isDayKey(asked) ? null : dayWordIn(asked);
+  const text = str(input.day, 20).trim();
+  const named = isDayKey(text) ? null : dayWordIn(text);
   const day =
     named === "today" || named === "tomorrow"
-      ? dayKeyNamed(asked, dayInZone(t.timezone, t.now.getTime()).key)
-      : (named ?? (asked || null));
-  const r = (await load(t.rc, openings, { day, service: str(input.service, 160) || null })).data.openings;
-  return { state: r.state, text: r.text, days: r.days, service: r.service?.name ?? null };
+      ? dayKeyNamed(text, dayInZone(toolContext.timezone, toolContext.now.getTime()).key)
+      : (named ?? (text || null));
+  const result = (await load(toolContext.rc, openings, { day, service: str(input.service, 160) || null })).data
+    .openings;
+  return { state: result.state, text: result.text, days: result.days, service: result.service?.name ?? null };
 }
 
 /** The calendar for a day or a few, in the words the page uses. */
-async function getCalendar(t: ToolContext, input: { day: string; days?: number }): Promise<unknown> {
-  const todayKey = dayInZone(t.timezone, t.now.getTime()).key;
-  const asked = str(input.day, 20).trim();
-  const from = dayKeyNamed(asked, todayKey) ?? todayKey;
+async function getCalendar(toolContext: ToolContext, input: { day: string; days?: number }): Promise<unknown> {
+  const todayKey = dayInZone(toolContext.timezone, toolContext.now.getTime()).key;
+  const text = str(input.day, 20).trim();
+  const from = dayKeyNamed(text, todayKey) ?? todayKey;
   const days = Math.min(14, Math.max(1, Math.round(Number(input.days)) || 1));
   // The board as its page reads it (readers/calendar.ts), once a turn, with the zone and the settings the turn read,
   // and never a write. No day asked is the page's own span from its Monday: its week, as the Calendar opens (ledger
   // #11), or as many days as were asked for; a day asked is that day and the days after it, as before. Then the page's
   // own view model, as the bridge builds it.
-  const r = await load(
-    t.rc,
+  const item = await load(
+    toolContext.rc,
     calendar,
-    asked ? { from, days } : { from: null, days: input.days === undefined ? 7 : days },
+    text ? { from, days } : { from: null, days: input.days === undefined ? 7 : days },
   );
-  const vm = toCalendarVM(r.data.calendar, t.now);
+  const vm = toCalendarVM(item.data.calendar, toolContext.now);
   // Taken is what stands: the board draws a visit the record says was cancelled, struck, and Today and People count it none.
   const standing = (blocks: CalendarBlockVM[]) => blocks.filter((b) => visitStands(b.visit));
   // A person the calendar names is a row read: the answer may name them, and open their profile. So is a visit the record
   // keeps (its row, VisitMark.id): the answer may cite it as kind visit, and it opens on its day with its sheet.
-  for (const d of vm.days)
-    for (const b of [...standing(d.allDay), ...standing(d.blocks)]) {
-      if (b.person) noteRow(t, "person", b.person.id, b.person.name, `clients/${b.person.id}`);
-      if (b.visit?.id)
+  for (const day of vm.days)
+    for (const second of [...standing(day.allDay), ...standing(day.blocks)]) {
+      if (second.person)
+        noteRow(toolContext, "person", second.person.id, second.person.name, `clients/${second.person.id}`);
+      if (second.visit?.id)
         noteRow(
-          t,
+          toolContext,
           "visit",
-          b.visit.id,
-          `${b.person?.name ?? b.title} · ${d.long}, ${b.time}`,
-          visitRoute(b.visit.id, d.key),
+          second.visit.id,
+          `${second.person?.name ?? second.title} · ${day.long}, ${second.time}`,
+          visitRoute(second.visit.id, day.key),
         );
     }
   return {
     route: "calendar",
     feed: vm.feed.line,
     timezone: vm.timezone,
-    days: vm.days.map((d) => ({
-      day: d.key,
-      label: d.long,
-      closed: d.closed.yes ? (d.closed.note ? `closed · ${d.closed.note}` : "closed") : null,
-      taken: [...standing(d.allDay), ...standing(d.blocks)].map((b) => ({
+    days: vm.days.map((day) => ({
+      day: day.key,
+      label: day.long,
+      closed: day.closed.yes ? (day.closed.note ? `closed · ${day.closed.note}` : "closed") : null,
+      taken: [...standing(day.allDay), ...standing(day.blocks)].map((b) => ({
         time: b.time,
         title: b.title,
         person: b.person ? { contact_id: b.person.id, name: b.person.name } : null,
         visit_id: b.visit?.id ?? null,
       })),
-      open: d.windows.map((w) => w.label),
+      open: day.windows.map((w) => w.label),
     })),
     note: "Taken is the owner's own calendar; open is what the receptionist would offer a caller.",
   };

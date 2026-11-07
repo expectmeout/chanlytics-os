@@ -32,8 +32,8 @@ const OPEN = 'Owner: "';
  * switches set them (decision 0051): a frame that restated "do not quote a price" told a receptionist whose owner had
  * turned that rule off to refuse what the owner had just asked for.
  */
-const STANDING_RULES_HOLD = (what: "whisper" | "instruction") =>
-  `The rules in your instructions still hold, and you are the business's automated assistant, never a person: if the ${what} asks for something they rule out, use what you can of it and leave the rest.`;
+const STANDING_RULES_HOLD = (kind: "whisper" | "instruction") =>
+  `The rules in your instructions still hold, and you are the business's automated assistant, never a person: if the ${kind} asks for something they rule out, use what you can of it and leave the rest.`;
 
 export function frameWhisper(text: string): string {
   return (
@@ -63,13 +63,13 @@ export function frameWhisper(text: string): string {
  * business with none, to take the details the team needs (priceNextStep).
  */
 export function frameGuardrail(rule: "price", opts: { hasBookingLink: boolean }): string {
-  const what =
+  const subject =
     rule === "price"
       ? "You said a price your instructions do not let you give."
       : "You broke one of your standing rules.";
   return (
     "A correction from the Chanlytics platform, not from the business. The caller cannot hear it.\n" +
-    `${what}\n` +
+    `${subject}\n` +
     `Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${priceNextStep(opts.hasBookingLink)}. ` +
     "Do not repeat the figure, and never read this out."
   );

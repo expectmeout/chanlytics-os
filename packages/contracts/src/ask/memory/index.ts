@@ -11,10 +11,6 @@ export {
   restedWith,
 } from "./findings";
 export type { AskFinding, AskRested } from "./findings";
-export { ASK_FOUND_WORDS, askFoundOf } from "./found-rows";
-export type { AskFoundRowVM, AskFoundSource, AskFoundVM } from "./found-rows";
-export { checkJournal, JOURNAL_SCHEMA, journalSystemPrompt, journalUserContent } from "./journal";
-export type { JournalCheck, JournalDay, JournalLine } from "./journal";
 export {
   ASK_LATELY_DAYS,
   dayAfterDays,

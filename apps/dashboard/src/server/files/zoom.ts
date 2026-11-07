@@ -8,7 +8,7 @@
 import "server-only";
 import sharp from "sharp";
 import { FILE_COPY_SIDE, FILE_TYPES, filePathOf, type FileMime } from "@chanlytics/contracts";
-import type { FileMemberRow } from "@chanlytics/db";
+import type { FileMemberRow } from "@chanlytics/db/files";
 import { bucket } from "./file";
 
 /** The long edge a zoom is shown at, the least it is enlarged to, and how far a tiny box may be blown up before it is only blur. */
@@ -52,9 +52,9 @@ function sideShown(from: number, to: number, most: number): [number, number] {
 }
 
 /** The box in the shown picture's pixels, whole, inside its edges, and no smaller than the least worth cutting. */
-export function boxShown(asked: Box, of: Size): Box | ZoomWont {
+export function boxShown(request: Box, of: Size): Box | ZoomWont {
   const [w, h] = of;
-  const [x1, y1, x2, y2] = asked;
+  const [x1, y1, x2, y2] = request;
   const inside = (a: number, b: number, most: number) => Math.max(a, b) > 0 && Math.min(a, b) < most;
   if (!inside(x1, x2, w) || !inside(y1, y2, h)) return { wont: `the box is outside the picture, which is ${w}×${h}` };
   const [left, right] = sideShown(x1, x2, w);
@@ -86,8 +86,8 @@ async function sourceOf(file: FileMemberRow): Promise<{ bytes: Buffer; original:
 }
 
 /** Cut the box the model named from the photo, upright, and enlarge it to read. */
-export async function zoomInto(file: FileMemberRow, asked: Box, of: Size): Promise<Zoomed | ZoomWont> {
-  const box = boxShown(asked, of);
+export async function getZoomInto(file: FileMemberRow, request: Box, of: Size): Promise<Zoomed | ZoomWont> {
+  const box = boxShown(request, of);
   if ("wont" in box) return box;
   const source = await sourceOf(file);
   if (!source) return { wont: "the photo could not be read just now" };

@@ -9,9 +9,10 @@ import { readBody } from "../../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
 import { adminDoor } from "../../../lib/shared/log.js";
 import { syncWhatsappTemplates } from "../../../lib/whatsapp/template-admin.js";
+import { WHATSAPP_TEMPLATES_SYNC_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/whatsapp/templates-sync");
   if (!auth.ok) return auth.response;
-  return syncWhatsappTemplates(auth, await readBody(request));
+  return syncWhatsappTemplates(auth, await readBody(request, WHATSAPP_TEMPLATES_SYNC_DOOR));
 });

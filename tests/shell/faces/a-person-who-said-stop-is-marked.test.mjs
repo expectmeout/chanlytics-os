@@ -21,16 +21,16 @@ import {
   STOP_WORDS,
   isOptedOutContact,
   pipelineOf,
-  pipelinePeekOf,
   shiftKey,
   stopToldBesideState,
   toCalendarVM,
   toCallVM,
-  toConversationVM,
   toInboxThreadVM,
   toLiveCallVM,
   toPersonRowVM,
 } from "@chanlytics/contracts";
+import { pipelinePeekOf } from "../../../apps/dashboard/src/surfaces/people/pipeline/peek-view.ts";
+import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, find, all, byTestId, classes, textOf } from "../../_stub-react.mjs";
 
 installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });

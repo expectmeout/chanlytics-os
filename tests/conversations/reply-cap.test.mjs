@@ -7,12 +7,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { importBundle } from "../_source.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { readThreadState } = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+const { readThreadState } = await importBundle("db");
 
 const T = "t1",
   C = "c1";

@@ -19,7 +19,6 @@
 import {
   MIN_MS,
   canonicalRoute,
-  LAST_WORKSPACE_STORAGE,
   movedAddress,
   PAGE_PHONE_QUERY,
   routeOfAddress,
@@ -27,6 +26,7 @@ import {
   routeOfPath,
   workspacePath,
 } from "@chanlytics/contracts";
+import { LAST_WORKSPACE_STORAGE } from "@/frame-boot";
 import type { AddressParts } from "@chanlytics/contracts";
 import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { PHONE_WARM_ROUTES } from "../surfaces/frame/places";

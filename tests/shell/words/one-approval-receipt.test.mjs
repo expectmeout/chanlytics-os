@@ -8,13 +8,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   LIFECYCLE_TOAST,
-  PROPOSAL_SPECS,
   SENDING_HOURS_WORDS,
   SENDING_NOW_WORDS,
   clockWhen,
   runApprovedTail,
   todayRunApproved,
   whenItGoes,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";

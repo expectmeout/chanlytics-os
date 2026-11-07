@@ -15,7 +15,7 @@
  * again blind).
  */
 import { utf8Bytes } from "@chanlytics/contracts";
-import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
+import { answerObject, fetchFromProvider, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import type { SendResult } from "../whatsapp/whatsapp";
 
 const INSTAGRAM_GRAPH = "https://graph.instagram.com/v26.0";
@@ -154,20 +154,20 @@ export interface InstagramGraphError {
 }
 
 export function instagramErrorOf(json: unknown): InstagramGraphError | null {
-  const o = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
-  const e = valueAt(o, "error");
-  if (!e || typeof e !== "object") {
+  const value = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  const result = valueAt(value, "error");
+  if (!result || typeof result !== "object") {
     // The token endpoints answer an error flat: { error_type, code, error_message }.
-    const flat = asText(valueAt(o, "error_message"));
+    const flat = asText(valueAt(value, "error_message"));
     return flat
       ? {
-          code: typeof valueAt(o, "code") === "number" ? (valueAt(o, "code") as number) : null,
+          code: typeof valueAt(value, "code") === "number" ? (valueAt(value, "code") as number) : null,
           subcode: null,
           message: flat,
         }
       : null;
   }
-  const err = e as Record<string, unknown>;
+  const err = result as Record<string, unknown>;
   return {
     code: typeof err.code === "number" ? err.code : null,
     subcode: typeof err.error_subcode === "number" ? err.error_subcode : null,
@@ -184,17 +184,19 @@ export interface InstagramCodeGrant {
 
 /** The code exchange's answer (Meta documents it as `data[0]`, and has answered it flat); throws with Meta's words when none. */
 export function parseInstagramCodeGrant(json: unknown): InstagramCodeGrant {
-  const o = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
-  const data = valueAt(o, "data");
-  const g = (Array.isArray(data) && data[0] && typeof data[0] === "object" ? data[0] : o) as Record<
+  const value = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  const data = valueAt(value, "data");
+  const group = (Array.isArray(data) && data[0] && typeof data[0] === "object" ? data[0] : value) as Record<
     string,
     unknown
   > | null;
-  const accessToken = asText(valueAt(g, "access_token"));
+  const accessToken = asText(valueAt(group, "access_token"));
   if (!accessToken) throw new Error(instagramErrorOf(json)?.message ?? "Instagram answered without a token");
-  const p = valueAt(g, "permissions");
-  const permissions = (Array.isArray(p) ? p.map(asText) : asText(p).split(",")).map((s) => s.trim()).filter(Boolean);
-  return { accessToken, userId: asText(valueAt(g, "user_id")), permissions };
+  const result = valueAt(group, "permissions");
+  const permissions = (Array.isArray(result) ? result.map(asText) : asText(result).split(","))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return { accessToken, userId: asText(valueAt(group, "user_id")), permissions };
 }
 
 /** A long-lived token's answer, from the exchange or a refresh; throws with Meta's words when none. */
@@ -240,12 +242,12 @@ export interface InstagramDeps {
 }
 
 /** One request to Instagram, bounded and never thrown. A read may be asked twice; a write once. */
-export async function instagramCall(
+export async function callInstagram(
   req: InstagramRequest,
   opts: { timeoutMs?: number; send?: boolean } = {},
   deps: InstagramDeps = {},
 ): Promise<InstagramAnswer> {
-  const a: ProviderReply = await providerFetch(
+  const providerReply: ProviderReply = await fetchFromProvider(
     "instagram",
     req.url,
     {
@@ -259,7 +261,12 @@ export async function instagramCall(
     },
     deps.fetch ? { fetch: deps.fetch } : {},
   );
-  return { outcome: a.outcome, status: a.status, json: answerObject(a), error: a.error };
+  return {
+    outcome: providerReply.outcome,
+    status: providerReply.status,
+    json: answerObject(providerReply),
+    error: providerReply.error,
+  };
 }
 
 /** A person's name as their profile has it, or null when it could not be read (never a reason to hold a message). */
@@ -268,7 +275,7 @@ export async function readInstagramName(
   igsid: string,
   deps: InstagramDeps = {},
 ): Promise<string | null> {
-  const a = await instagramCall(
+  const a = await callInstagram(
     instagramProfileRequest(token, igsid),
     { timeoutMs: INSTAGRAM_PROFILE_TIMEOUT_MS },
     deps,
@@ -283,9 +290,9 @@ export async function readInstagramName(
 const INSTAGRAM_THROTTLE_CODES: readonly number[] = [4, 17, 32, 613, 80002];
 
 /** Whether Instagram refused a send as too many, too fast. */
-export function instagramThrottled(r: { ok: boolean; status: number; code?: number | null }): boolean {
-  if (r.ok) return false;
-  return r.status === 429 || (typeof r.code === "number" && INSTAGRAM_THROTTLE_CODES.includes(r.code));
+export function instagramThrottled(row: { ok: boolean; status: number; code?: number | null }): boolean {
+  if (row.ok) return false;
+  return row.status === 429 || (typeof row.code === "number" && INSTAGRAM_THROTTLE_CODES.includes(row.code));
 }
 
 /**
@@ -296,12 +303,12 @@ export function instagramThrottled(r: { ok: boolean; status: number; code?: numb
  * Null for any other failure, and for a send that went.
  */
 export function instagramRefusalOf(
-  r: Pick<SendResult, "ok" | "code" | "subcode">,
+  send: Pick<SendResult, "ok" | "code" | "subcode">,
 ): "window_closed" | "not_reachable" | "token" | null {
-  if (r.ok) return null;
-  if (r.code === 10 && r.subcode === 2018278) return "window_closed";
-  if (r.code === 551 || (r.code === 100 && r.subcode === 2018001)) return "not_reachable";
-  if (r.code === 190) return "token";
+  if (send.ok) return null;
+  if (send.code === 10 && send.subcode === 2018278) return "window_closed";
+  if (send.code === 551 || (send.code === 100 && send.subcode === 2018001)) return "not_reachable";
+  if (send.code === 190) return "token";
   return null;
 }
 
@@ -349,20 +356,26 @@ export function instagramDmChunks(words: string, maxBytes = INSTAGRAM_DM_MAX_BYT
 }
 
 /** One DM's answer as a send's result. */
-function sentOf(a: InstagramAnswer): SendResult {
-  if (a.status === 0)
-    return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
-  const ok = a.outcome === "ok";
-  const err = ok ? null : instagramErrorOf(a.json);
+function sentOf(instagramAnswer: InstagramAnswer): SendResult {
+  if (instagramAnswer.status === 0)
+    return {
+      ok: false,
+      wamid: null,
+      status: 0,
+      errorBody: instagramAnswer.error ?? "no answer",
+      outcome: instagramAnswer.outcome,
+    };
+  const ok = instagramAnswer.outcome === "ok";
+  const err = ok ? null : instagramErrorOf(instagramAnswer.json);
   const sent: SendResult = {
     ok,
-    wamid: ok ? asText(valueAt(a.json, "message_id")) || null : null,
-    status: a.status,
-    errorBody: ok ? undefined : JSON.stringify(a.json ?? {}).slice(0, 200),
+    wamid: ok ? asText(valueAt(instagramAnswer.json, "message_id")) || null : null,
+    status: instagramAnswer.status,
+    errorBody: ok ? undefined : JSON.stringify(instagramAnswer.json ?? {}).slice(0, 200),
     code: err?.code ?? null,
     subcode: err?.subcode ?? null,
   };
-  return { ...sent, outcome: instagramThrottled(sent) ? "retryable" : a.outcome };
+  return { ...sent, outcome: instagramThrottled(sent) ? "retryable" : instagramAnswer.outcome };
 }
 
 /**
@@ -392,7 +405,7 @@ export async function sendInstagramText(
         outcome: "unknown",
       };
     const sent = sentOf(
-      await instagramCall(
+      await callInstagram(
         instagramSendRequest(cfg, to, part),
         { timeoutMs: INSTAGRAM_SEND_TIMEOUT_MS, send: true },
         deps,

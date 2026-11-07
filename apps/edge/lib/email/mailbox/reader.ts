@@ -8,12 +8,12 @@
  * little of the caller's minute left: the email is left to the rules (null), nothing is kept, and the sender is read
  * again with their next email.
  *
- * Who may be read for is the receptionist's rule (db workspaceMayUseModels: open to its customers, not paused, not
+ * Who may be read for is the receptionist's rule (db mayWorkspaceUseModels: open to its customers, not paused, not
  * ended), not reach-out's spend: a mailbox is connected in the first run, inside the free trial reach-out waits out, and
  * a reading costs a hundredth of a cent.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emailPlainText, replyToElsewhere, sentByAService, type MailboxEmail } from "@chanlytics/channels";
+import { emailPlainText, replyToElsewhere, sentByAService, type MailboxEmail } from "@chanlytics/channels/email";
 import {
   SECOND_MS,
   SENDER_READ_MAX_TOKENS,
@@ -24,14 +24,12 @@ import {
   senderReadingSystem,
   type SenderFacts,
   type SenderReading,
+  ANSWER_JSON_ONLY,
 } from "@chanlytics/contracts";
-import {
-  keepSenderReading,
-  workspaceAbout,
-  workspaceMayUseModels,
-  workspaceNameAndConfig,
-  type Database,
-} from "@chanlytics/db";
+import { keepSenderReading } from "@chanlytics/db/email";
+import { findWorkspaceAbout, findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
+import { mayWorkspaceUseModels } from "@chanlytics/db/ai";
+import type { Database } from "@chanlytics/db/types";
 import { askJson, promptHashOf } from "../../ai/model.js";
 import { env } from "../../shared/env.js";
 import { errField, type Logger } from "../../shared/log.js";
@@ -47,8 +45,8 @@ const LINE_MARGIN_MS = 2 * SECOND_MS;
 export type SenderReader = (e: MailboxEmail, until: number) => Promise<SenderReading | null>;
 
 /** Whether an email names one it answers. */
-export const answersSomething = (e: Pick<MailboxEmail, "headers">): boolean =>
-  !!(e.headers["in-reply-to"] || e.headers.references);
+export const answersSomething = (mailboxEmail: Pick<MailboxEmail, "headers">): boolean =>
+  !!(mailboxEmail.headers["in-reply-to"] || mailboxEmail.headers.references);
 
 /** Where Gmail filed an email: its Primary tab or Updates, as the model is told; null where its labels say neither. */
 function gmailTabOf(e: Pick<MailboxEmail, "labels">): SenderFacts["tab"] {
@@ -57,15 +55,15 @@ function gmailTabOf(e: Pick<MailboxEmail, "labels">): SenderFacts["tab"] {
 }
 
 /** What the model is shown of one email: its sender, where its replies go, its subject and words, what its headers say. */
-function senderFactsOf(e: MailboxEmail, from: string): SenderFacts {
+function senderFactsOf(mailboxEmail: MailboxEmail, from: string): SenderFacts {
   return {
-    from: { address: from, name: e.from?.name ?? null },
-    replyTo: replyToElsewhere(e),
-    subject: e.subject,
-    words: emailPlainText(e),
-    service: sentByAService(e),
-    tab: gmailTabOf(e),
-    answers: answersSomething(e),
+    from: { address: from, name: mailboxEmail.from?.name ?? null },
+    replyTo: replyToElsewhere(mailboxEmail),
+    subject: mailboxEmail.subject,
+    words: emailPlainText(mailboxEmail),
+    service: sentByAService(mailboxEmail),
+    tab: gmailTabOf(mailboxEmail),
+    answers: answersSomething(mailboxEmail),
   };
 }
 
@@ -94,8 +92,11 @@ export function senderFactsReaderFor(
   const mayRead = () =>
     (may ??= (async () => {
       if (!env.ANTHROPIC_API_KEY) return null;
-      if (!(await workspaceMayUseModels(db, tenantId))) return null;
-      const [named, about] = await Promise.all([workspaceNameAndConfig(db, tenantId), workspaceAbout(db, tenantId)]);
+      if (!(await mayWorkspaceUseModels(db, tenantId))) return null;
+      const [named, about] = await Promise.all([
+        findWorkspaceNameAndConfig(db, tenantId),
+        findWorkspaceAbout(db, tenantId),
+      ]);
       return { name: named.name, about };
     })().catch((err: unknown) => {
       log.warn("mailbox_sender_unread", { stage: "may_read", error: errField(err) });
@@ -115,7 +116,7 @@ export function senderFactsReaderFor(
         user: senderReadingAsk(facts),
         schema: SENDER_READING_SCHEMA,
         maxTokens: SENDER_READ_MAX_TOKENS,
-        plainJsonHint: "Answer with only a JSON object in the shape asked.",
+        plainJsonHint: ANSWER_JSON_ONLY,
         timeoutMs: ms,
         signal: AbortSignal.timeout(ms),
         for: { tenantId, promptHash: promptHashOf(system) },

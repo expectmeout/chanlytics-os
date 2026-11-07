@@ -45,7 +45,7 @@ import {
   liveCredentials,
   withEnv,
 } from "../../email/mailboxes/_mailbox-world.mjs";
-import { importSrc } from "../../_source.mjs";
+import { importSrc, importBundle } from "../../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -205,7 +205,7 @@ const followers = async () =>
 async function jobContext(extra) {
   return {
     db,
-    wire: { email: await lib.emailWireFor(db, A) },
+    wire: { email: await lib.findEmailWire(db, A) },
     mailboxIntake: lib.mailboxIntake(db),
     alert: async (news) => {
       alerts.push(news);
@@ -248,12 +248,12 @@ const noModel = async () => {
 const tick = async (now = new Date()) => {
   const checked = await lib.checkSends({ db, now, started: Date.now(), log: L, tenantId: A, ask: noModel });
   assert.deepEqual([checked.calls, checked.errors], [0, 0], JSON.stringify(checked));
-  await lib.reachOutClock(db, now, L, Date.now(), A);
+  await lib.runReachOutClock(db, now, L, Date.now(), A);
   return lib.claimAndWrite({ db, now, started: Date.now(), lane: LANE, log: L, tenantId: A });
 };
 const stepRun = async (stepId) => {
   const now = new Date();
-  const ctx = await lib.reachOutRunContext(db, await playbook(stepId), now);
+  const ctx = await lib.getReachOutRunContext(db, await playbook(stepId), now);
   assert.ok(!("error" in ctx), JSON.stringify(ctx));
   return lib.runReachOut(ctx.ports, ctx.step, { runFor: dayIn(now) });
 };
@@ -437,16 +437,16 @@ before(async () => {
     ...(await import(at("apps/edge/lib/campaigns/reach-out/run-context.ts"))),
     ...(await import(at("apps/edge/lib/campaigns/reach-out/clock.ts"))),
     ...(await import(at("apps/edge/lib/campaigns/reach-out/check.ts"))),
-    ...(await import(at("apps/edge/lib/campaigns/reach-out/sender.ts"))),
+    ...(await import(at("apps/edge/lib/campaigns/reach-out/sender/sender.ts"))),
     ...(await import(at("apps/edge/lib/campaigns/reach-out/reply-read.ts"))),
     ...(await import(at("apps/edge/lib/campaigns/reach-out/reply-draft.ts"))),
     ...(await import(at("apps/edge/lib/email/email.ts"))),
     ...(await import(at("apps/edge/lib/email/mailbox/sync.ts"))),
     ...(await import(at("apps/edge/lib/email/mailbox/intake.ts"))),
-    ...(await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"))),
+    ...(await import(at("apps/dashboard/src/server/campaigns/ports.ts"))),
     ...(await import(at("packages/core/dist/index.js"))),
     ...(await import(at("packages/jobs/dist/index.js"))),
-    ...(await import(at("packages/db/dist/index.js"))),
+    ...(await importBundle("db")),
   };
   // The dashboard's own doors: the Inbox's reply, and "read as no · undo".
   dash = {
@@ -605,7 +605,7 @@ test(
       replyOf[key] = m;
     }
     assert.equal(
-      await lib.mailboxPeopleSince(db, A, mailbox, new Date(0)),
+      await lib.getMailboxPeopleSince(db, A, mailbox, new Date(0)),
       Object.keys(BUSINESSES).length + 1,
       "its row counts each who wrote through it once: the four businesses and the supplier",
     );

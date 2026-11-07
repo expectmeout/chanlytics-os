@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/shared/route";
 import { JobRequeueSchema } from "@chanlytics/contracts";
-import { platformJobRequeue } from "@/server/console/platform";
+import { requeuePlatformJob } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/jobs/requeue — run a failed job of another workspace again.
@@ -18,5 +18,5 @@ export const POST = write({
   rate: "platform_job_requeue",
   act: "job_requeue",
   input: JobRequeueSchema,
-  handle: async ({ office, input }) => platformJobRequeue(office, input.tenant_id, input.job_id, input.why),
+  handle: async ({ office, input }) => requeuePlatformJob(office, input.tenant_id, input.job_id, input.why),
 });

@@ -6,7 +6,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { ACTIVATION_MILESTONES } from "@chanlytics/contracts";
-import { recordActivation } from "@chanlytics/db";
+import { recordActivation } from "@chanlytics/db/events";
 import { fakeDb } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
 

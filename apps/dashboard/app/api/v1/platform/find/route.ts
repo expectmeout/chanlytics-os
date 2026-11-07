@@ -1,6 +1,6 @@
 import { read, platform } from "@/server/shared/route";
 import { FindQuerySchema } from "@chanlytics/contracts";
-import { consoleFind } from "@/server/console/console";
+import { findInConsole } from "@/server/console/console";
 
 /**
  * GET /api/v1/platform/find?q= — the Console's Find (decision 0066): workspaces by name or address, owners by email,
@@ -10,5 +10,5 @@ import { consoleFind } from "@/server/console/console";
 export const GET = read({
   scope: platform,
   query: FindQuerySchema,
-  handle: async ({ office, input }) => ({ rows: await consoleFind(office, input.q) }),
+  handle: async ({ office, input }) => ({ rows: await findInConsole(office, input.q) }),
 });

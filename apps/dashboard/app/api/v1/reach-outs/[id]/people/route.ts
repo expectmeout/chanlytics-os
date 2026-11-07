@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { read } from "@/server/shared/route";
 import { reachOutScope } from "@/server/shared/verbs";
-import { chainPeopleOf } from "@/server/leads/lead-workbench";
+import { getChainPeople } from "@/server/leads/workbench";
 
 /**
  * GET /api/v1/reach-outs/:id/people — who is in a reach-out, as its drawer lists them (00426 reach_out_chain_people):
@@ -12,5 +12,5 @@ import { chainPeopleOf } from "@/server/leads/lead-workbench";
 export const GET = read({
   scope: reachOutScope,
   query: z.object({ limit: z.coerce.number().int().min(1).max(200).optional() }),
-  handle: ({ ctx, member, row, input }) => chainPeopleOf(ctx, member.tenantId, row.id, input.limit),
+  handle: ({ ctx, member, row, input }) => getChainPeople(ctx, member.tenantId, row.id, input.limit),
 });

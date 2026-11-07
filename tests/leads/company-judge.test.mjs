@@ -28,7 +28,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { collect } = await import(at("packages/core/src/leads/runner/collect.ts"));
+const { collect } = await import(at("packages/core/src/leads/runner/collect/collect.ts"));
 
 const homeServices = peoplePlanFrom({
   name: "Owners of home service companies",

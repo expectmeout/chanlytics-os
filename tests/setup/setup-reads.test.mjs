@@ -1,5 +1,5 @@
 /**
- * What Setup reads to say where a workspace stands, and when (server/workspace/setup.ts): one wave, and nothing twice.
+ * What Setup reads to say where a workspace stands, and when (server/setup/setup.ts): one wave, and nothing twice.
  *
  * Three things it did until 9 Oct 2026, each run here through the real assembly over a database in memory, with the
  * edge and the calendar's feed scripted:
@@ -21,8 +21,8 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const { setupDtoFor } = await importSrc("apps/dashboard/src/server/workspace/setup.ts");
-const { forgetFeeds } = await importSrc("apps/dashboard/src/server/ask/openings.ts");
+const { setupDtoFor } = await importSrc("apps/dashboard/src/server/setup/setup.ts");
+const { forgetFeeds } = await importSrc("apps/dashboard/src/server/calendar/openings.ts");
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const NOW = new Date("2026-09-07T15:00:00Z");

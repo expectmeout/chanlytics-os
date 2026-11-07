@@ -1,7 +1,7 @@
 import { takeOver } from "@chanlytics/core";
 import { write } from "@/server/shared/route";
 import { conversationScope } from "@/server/shared/verbs";
-import { threadPorts } from "@/server/ports/core-ports";
+import { threadPorts } from "@/server/conversations/ports";
 
 /** Take over: pause the receptionist, claim the thread. The open escalation stays open (§4). */
 export const POST = write({

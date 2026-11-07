@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
-import { tellLeadQuestion } from "../../apps/edge/lib/leads/lead-tell.ts";
+import { tellLeadQuestion } from "../../apps/edge/lib/leads/tell.ts";
 
 const T = "11111111-1111-4111-8111-111111111111";
 const R = "22222222-2222-4222-8222-222222222222";

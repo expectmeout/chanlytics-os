@@ -16,7 +16,7 @@ import {
 import type { BrainConfig, BrainMeta } from "@chanlytics/contracts";
 import { photoUserText } from "./vision";
 import { layerTwo, noModelPlan, NO_MODEL_PAGE } from "./steps";
-import { errField } from "@chanlytics/channels";
+import { errField } from "@chanlytics/log";
 import type { Answering } from "./context";
 import type { BookingRequestHold, InboundBrainReply } from "./ports";
 
@@ -76,19 +76,19 @@ async function leadNoteFor(at: Answering): Promise<string | undefined> {
 function checked(
   at: Answering,
   brainCfg: BrainConfig,
-  r: { text: string; escalate: boolean; reason?: string; meta?: BrainMeta },
+  row: { text: string; escalate: boolean; reason?: string; meta?: BrainMeta },
   now: Date,
 ): Pick<Turn, "replyText" | "escalate" | "escalationReason"> {
   const { rt, L } = at;
-  const intent = r.meta?.intent ?? null;
+  const intent = row.meta?.intent ?? null;
   const two = layerTwo({
-    replyText: r.text,
-    escalate: r.escalate,
-    escalationReason: r.reason ?? "human_token",
+    replyText: row.text,
+    escalate: row.escalate,
+    escalationReason: row.reason ?? "human_token",
     brainCfg,
     policy: rt?.policy,
     intent,
-    language: r.meta?.language ?? null,
+    language: row.meta?.language ?? null,
     known: rt?.known,
     // The clock the prompt was composed at: a note's price is allowed exactly while the receptionist was told the note.
     tz: rt?.timezone,
@@ -110,39 +110,41 @@ function checked(
  */
 async function requestOf(
   at: Answering,
-  r: InboundBrainReply,
+  inboundBrainReply: InboundBrainReply,
   turn: Pick<Turn, "replyText" | "escalate" | "escalationReason">,
   now: Date,
 ): Promise<Pick<Turn, "replyText" | "escalate" | "escalationReason" | "bookingRequest">> {
   const { ports, rt, L, ing } = at;
   const requests = ports.calendar.requests;
-  if (!rt || !requests || !r.booking?.slot) return turn;
+  if (!rt || !requests || !inboundBrainReply.booking?.slot) return turn;
   const terms = await requests.terms(rt, ing?.contact_id ?? null, now);
-  const asked = terms ? requestedBookingOf({ slot: r.booking.slot, service: r.booking.service, ...terms }) : null;
+  const request = terms
+    ? requestedBookingOf({ slot: inboundBrainReply.booking.slot, service: inboundBrainReply.booking.service, ...terms })
+    : null;
   // A hold of a booking set to Ask me first (policy_ask), or the model's own handoff (human_token), is the request's.
   const ownHold = turn.escalate && turn.escalationReason !== "policy_ask" && turn.escalationReason !== "human_token";
-  if (terms && asked?.ok && !ownHold && turn.replyText === r.text) {
-    L.info("booking_request_taken", { service: asked.service !== null });
+  if (terms && request?.ok && !ownHold && turn.replyText === inboundBrainReply.text) {
+    L.info("booking_request_taken", { service: request.service !== null });
     return {
       ...turn,
       escalate: true,
       escalationReason: "booking_request",
       bookingRequest: {
-        startsAt: new Date(asked.startMs).toISOString(),
-        endsAt: new Date(asked.endMs).toISOString(),
-        service: asked.service,
+        startsAt: new Date(request.startMs).toISOString(),
+        endsAt: new Date(request.endMs).toISOString(),
+        service: request.service,
         timezone: terms.tz,
-        words: BOOKING_REQUEST_WORDS.hold(slotShort(asked.startMs, terms.tz), asked.service),
+        words: BOOKING_REQUEST_WORDS.hold(slotShort(request.startMs, terms.tz), request.service),
       },
     };
   }
-  L.info("booking_request_refused", { why: !asked ? "no_openings" : asked.ok ? "held" : asked.why });
+  L.info("booking_request_refused", { why: !request ? "no_openings" : request.ok ? "held" : request.why });
   // Held already (a booking set to Ask me first, or a hold of its own), it stays as it is; else a reply is owed.
   return turn.escalate ? turn : { ...turn, escalate: true, escalationReason: "booking_reply" };
 }
 
 /** The model composes and layer two checks the words, or, with no model key, the fallback goes. */
-export async function modelTurn(
+export async function takeModelTurn(
   at: Answering,
   bodyText: string,
   photo: { mime: string; base64: string } | null,
@@ -177,7 +179,7 @@ export async function modelTurn(
       // the receptionist is told and the prices it may say from them are the same notes.
       const now = new Date();
       const tBrain = Date.now();
-      const r = await generateReply(
+      const item = await generateReply(
         thread.history,
         photo
           ? photoUserText(n.media?.caption, priceAllowance(brainCfg, rt?.timezone, now) ? "written" : "none")
@@ -207,12 +209,12 @@ export async function modelTurn(
           ...(takes ? { bookingRequests: true } : {}),
         },
       );
-      usage = r.usage;
-      brainMeta = r.meta;
+      usage = item.usage;
+      brainMeta = item.meta;
       brainMs = Date.now() - tBrain;
-      const two = checked(at, brainCfg, r, now);
+      const two = checked(at, brainCfg, item, now);
       const done: Pick<Turn, "replyText" | "escalate" | "escalationReason" | "bookingRequest"> = takes
-        ? await requestOf(at, r, two, now)
+        ? await requestOf(at, item, two, now)
         : two;
       ({ replyText, escalate, escalationReason } = done);
       bookingRequest = done.bookingRequest ?? null;

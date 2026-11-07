@@ -63,14 +63,14 @@ function doorAnswer(fn: string, data: unknown): AskMemoryDoor {
 /** Keep a line (ask_memory_write, keep): as the person signed in, from a turn of Ask or from the pane. */
 export async function keepAskMemory(
   db: Db,
-  p: { tenantId: string; text: string; source: AskMemorySource; threadId: string | null },
+  params: { tenantId: string; text: string; source: AskMemorySource; threadId: string | null },
 ): Promise<AskMemoryDoor> {
   const { data, error } = await db.rpc("ask_memory_write", {
-    p_tenant_id: p.tenantId,
+    p_tenant_id: params.tenantId,
     p_act: "keep",
-    p_text: p.text,
-    p_source: p.source,
-    ...(p.threadId ? { p_thread_id: p.threadId } : {}),
+    p_text: params.text,
+    p_source: params.source,
+    ...(params.threadId ? { p_thread_id: params.threadId } : {}),
   });
   if (error) throw error;
   return doorAnswer("ask_memory_write keep", data);
@@ -79,13 +79,13 @@ export async function keepAskMemory(
 /** Change a line's words (ask_memory_write, change): the settings permission, a line of this workspace. */
 export async function changeAskMemory(
   db: Db,
-  p: { tenantId: string; id: string; text: string },
+  params: { tenantId: string; id: string; text: string },
 ): Promise<AskMemoryDoor> {
   const { data, error } = await db.rpc("ask_memory_write", {
-    p_tenant_id: p.tenantId,
+    p_tenant_id: params.tenantId,
     p_act: "change",
-    p_id: p.id,
-    p_text: p.text,
+    p_id: params.id,
+    p_text: params.text,
   });
   if (error) throw error;
   return doorAnswer("ask_memory_write change", data);
@@ -94,9 +94,13 @@ export async function changeAskMemory(
 /** Forget a line (ask_memory_write, forget): the settings permission, or the member who kept it. */
 export async function forgetAskMemory(
   db: Db,
-  p: { tenantId: string; id: string },
+  params: { tenantId: string; id: string },
 ): Promise<{ id: string; text: string; again: boolean }> {
-  const { data, error } = await db.rpc("ask_memory_write", { p_tenant_id: p.tenantId, p_act: "forget", p_id: p.id });
+  const { data, error } = await db.rpc("ask_memory_write", {
+    p_tenant_id: params.tenantId,
+    p_act: "forget",
+    p_id: params.id,
+  });
   if (error) throw error;
   const answer = doorAnswer("ask_memory_write forget", data);
   if ("refused" in answer) throw new Error(`ask_memory_write forget: ${answer.refused}`);

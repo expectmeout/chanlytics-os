@@ -61,7 +61,7 @@ const okSignedBy = (v: unknown): v is string | null | undefined =>
 
 /** The body as the preview reads it, or null when it is not one: every field checked here, once. */
 function previewInputOf(body: Body, tenantId: string): (PreviewInput & { userId: string }) | null {
-  const w = body.words;
+  const words = body.words;
   const language = body.language ?? "en";
   if (
     !isUuid(tenantId) ||
@@ -69,8 +69,8 @@ function previewInputOf(body: Body, tenantId: string): (PreviewInput & { userId:
     !isUuid(body.search_id) ||
     !okIndex(body.index) ||
     typeof body.include_unconfirmed !== "boolean" ||
-    !okBody(w?.body) ||
-    !okSubject(w?.subject) ||
+    !okBody(words?.body) ||
+    !okSubject(words?.subject) ||
     !okSignedBy(body.signed_by) ||
     !(body.signs_with === undefined || body.signs_with === "name" || body.signs_with === "mailbox") ||
     !(body.mailbox_id === undefined || body.mailbox_id === null || isUuid(body.mailbox_id)) ||
@@ -84,7 +84,7 @@ function previewInputOf(body: Body, tenantId: string): (PreviewInput & { userId:
     searchId: body.search_id,
     index: body.index,
     includeUnconfirmed: body.include_unconfirmed,
-    words: { subject: w.subject, body: w.body },
+    words: { subject: words.subject, body: words.body },
     signedBy: body.signed_by ?? null,
     signsWith: body.signs_with === "mailbox" ? "mailbox" : "name",
     mailboxId: isUuid(body.mailbox_id) ? body.mailbox_id : null,
@@ -95,12 +95,12 @@ function previewInputOf(body: Body, tenantId: string): (PreviewInput & { userId:
 /** What a preview cost, counted in Ask's daily budget against the member who asked (R12). */
 async function recordPreviewSpend(
   db: NonNullable<ReturnType<typeof pg>>,
-  i: { tenantId: string; userId: string },
+  input: { tenantId: string; userId: string },
   tokens: { input: number; output: number },
   t0: number,
 ): Promise<void> {
   if (tokens.input + tokens.output <= 0) return;
-  await recordAskUsage(db, i.tenantId, i.userId, {
+  await recordAskUsage(db, input.tenantId, input.userId, {
     input_tokens: tokens.input,
     output_tokens: tokens.output,
     cache_read_input_tokens: 0,

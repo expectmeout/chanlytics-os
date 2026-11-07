@@ -21,7 +21,7 @@
  * page's own rule, because link scanners open every URL in an email. Without the edge's own key nothing is sealed, so
  * nothing is probed.
  */
-import { signUnsubscribeToken, unsubscribeUrl } from "@chanlytics/channels";
+import { signUnsubscribeToken, unsubscribeUrl } from "@chanlytics/channels/tokens";
 import { UNSUBSCRIBE_PAGE_HEADER } from "@chanlytics/contracts";
 import { errField, type Logger } from "../shared/log.js";
 
@@ -39,7 +39,7 @@ interface ProbePorts {
   /** The origin the links name, where the page answers: UNSUBSCRIBE_ORIGIN, or the dashboard's (dashboard-origin.ts). */
   origin: string;
   log: Logger;
-  /** The platform's pager (ops/page-operator.ts). */
+  /** The platform's pager (shared/alerts/page-operator.ts). */
   page: (key: string, subject: string, body: string) => Promise<unknown>;
 }
 
@@ -93,27 +93,27 @@ function wordsFor(outcome: Exclude<ProbeOutcome, "no_secret" | "opens">, at: str
   );
 }
 
-export async function probeUnsubscribe(p: ProbePorts): Promise<ProbeOutcome> {
-  if (!p.secret) return "no_secret";
+export async function probeUnsubscribe(probePorts: ProbePorts): Promise<ProbeOutcome> {
+  if (!probePorts.secret) return "no_secret";
   const url = unsubscribeUrl(
-    p.origin,
-    signUnsubscribeToken(p.secret, { tenantId: NOBODY, contactId: NOBODY, messageId: NOBODY }),
+    probePorts.origin,
+    signUnsubscribeToken(probePorts.secret, { tenantId: NOBODY, contactId: NOBODY, messageId: NOBODY }),
   );
-  let answer = await ask(url, p.log);
+  let answer = await ask(url, probePorts.log);
   let seen = "seen" in answer ? answer.seen : "";
   if ("seen" in answer) {
     await new Promise((resolve) => setTimeout(resolve, PROBE_RETRY_AFTER_MS));
-    answer = await ask(url, p.log);
+    answer = await ask(url, probePorts.log);
     if ("seen" in answer) seen = `${seen}, then ${answer.seen}`;
   }
   const outcome: ProbeOutcome = "seen" in answer ? "unreachable" : answer.outcome;
   if (outcome === "opens") return outcome;
   if ("status" in answer) seen = String(answer.status);
-  p.log.error("unsubscribe_probe_failed", { outcome, seen });
-  await p.page(
+  probePorts.log.error("unsubscribe_probe_failed", { outcome, seen });
+  await probePorts.page(
     UNSUBSCRIBE_PROBE_PAGE,
     "Cold email: unsubscribe links don't open",
-    wordsFor(outcome, unsubscribeUrl(p.origin, ""), seen),
+    wordsFor(outcome, unsubscribeUrl(probePorts.origin, ""), seen),
   );
   return outcome;
 }

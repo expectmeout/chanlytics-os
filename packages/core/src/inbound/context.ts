@@ -9,8 +9,9 @@
 import { phoneTail, fallbackMessages, pauseHoursOf, pauseMsOf } from "@chanlytics/contracts";
 import type { BrainConfig, NotificationsConfig, SendPurpose } from "@chanlytics/contracts";
 // TYPES ONLY: the one inbound shape is the channels package's, and a value from there would be a provider in a verb.
-import type { InboundMessage } from "@chanlytics/channels";
-import type { IngestResult, Json } from "@chanlytics/db";
+import type { InboundMessage } from "@chanlytics/channels/inbound";
+import type { IngestResult } from "@chanlytics/db/channels";
+import type { Json } from "@chanlytics/db/types";
 import type { Delivered } from "../deliver/deliver";
 import { replyPosture } from "./reply-posture";
 import type { EscalateOutcome, InboundChannel, InboundHandoff, InboundPorts, InboundSink } from "./ports";
@@ -38,7 +39,7 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
   const t0 = Date.now();
   // Bound once, here, where the tenant becomes known. Every line below carries
   // it, which is the only way that stays true as this function changes.
-  const L = ports.log({ tenant_id: tenantId, wamid: n.externalId, from_tail: phoneTail(from), type: n.rawType });
+  const log = ports.log({ tenant_id: tenantId, wamid: n.externalId, from_tail: phoneTail(from), type: n.rawType });
   // The control plane, through its one door (PRD §03). A tenant with no brain
   // profile never auto-replies, and a control plane that cannot be READ holds
   // the thread for a person: silence over someone else's voice, and no second
@@ -80,7 +81,7 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
     channel,
     db,
     t0,
-    L,
+    L: log,
     rt,
     posture,
     brainCfg,

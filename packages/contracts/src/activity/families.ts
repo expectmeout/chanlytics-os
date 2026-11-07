@@ -1,5 +1,5 @@
 import type { DecisionVerb, EVENT_KINDS } from "../shared/enums";
-import { activityKindWords } from "../workspace/activity";
+import { activityKindWords } from "../workspace/activity/kinds";
 import { ACTIVITY_KINDS, isActivityNoise } from "../workspace/activity-rows";
 import { activityTone } from "./tones";
 import { UNKNOWN_MEMBER_WORD } from "../shared/words";
@@ -164,8 +164,8 @@ export function activityFamily(kind: string): ActivityFamily | null {
   return Object.hasOwn(PREFIX_FAMILY, prefix) ? PREFIX_FAMILY[prefix as EventPrefix] : null;
 }
 
-export const isActivityFamily = (v: unknown): v is ActivityFamily =>
-  typeof v === "string" && (ACTIVITY_FAMILIES as readonly string[]).includes(v);
+export const isActivityFamily = (value: unknown): value is ActivityFamily =>
+  typeof value === "string" && (ACTIVITY_FAMILIES as readonly string[]).includes(value);
 
 /** Every kind either ledger may hold that belongs to a family, as the ledgers spell them: what the route narrows by. */
 export function activityFamilyKinds(family: ActivityFamily): string[] {
@@ -257,8 +257,8 @@ export const ACTIVITY_PAGE_WORDS = {
   soFar: (n: number): string => `${n} so far`,
   /** A fold's name to a screen reader: its sentence, then what a press on it does. */
   fold: {
-    show: (said: string): string => `${said}: show them`,
-    hide: (said: string): string => `${said}: hide them`,
+    show: (sentence: string): string => `${sentence}: show them`,
+    hide: (sentence: string): string => `${sentence}: hide them`,
   },
   since: (time: string): string => `since ${time}`,
   /** Who did a row whose member the roster does not know (they have left the team): memberWords' word for it. */

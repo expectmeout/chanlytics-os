@@ -29,24 +29,24 @@ export function runStateOf(status: string): "running" | "succeeded" | "failed" |
 /** A term is short when its run saw fewer places than it asked for. Unknown asks read as not short. */
 export function termsShortOf(runs: LeadRunRow[], askedOf: (run: LeadRunRow) => number | null): boolean[] {
   return runs.map((r) => {
-    const asked = askedOf(r);
-    return asked !== null && r.items_seen < asked;
+    const request = askedOf(r);
+    return request !== null && r.items_seen < request;
   });
 }
 
 export function discoveryEnding(
   round: LeadRoundRow,
   runs: LeadRunRow[],
-  x: { counted: number; target: number; termsShort: boolean[]; stopped: boolean },
+  input: { counted: number; target: number; termsShort: boolean[]; stopped: boolean },
 ): LeadRoundEnding {
   const discover = runs.filter((r) => r.purpose === "discover");
   return endingOfRound({
-    counted: x.counted,
-    target: x.target,
-    termsShort: x.termsShort,
+    counted: input.counted,
+    target: input.target,
+    termsShort: input.termsShort,
     budgetLeftUsd: round.cost_reserved_usd - round.cost_usd,
     allowanceLeft: round.allowance_reserved - round.allowance_used,
-    stopped: x.stopped,
+    stopped: input.stopped,
     sourceFailed: discover.length > 0 && discover.every((r) => r.state === "failed" || r.state === "timed_out"),
     unanswered: false,
     paused: false,

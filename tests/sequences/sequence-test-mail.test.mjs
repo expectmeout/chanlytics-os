@@ -5,12 +5,12 @@
  * the message lacks, or an offer by email with no postal address for its foot, is refused in words: never another
  * channel's words under its name. A lead's step's test (contracts leadStepTestMail) is one line saying whose email it is
  * over the email the send makes for that lead, word for word, with the opening it goes with (contracts leadOpeningOf, read
- * by db leadStepOpeningOf).
+ * by db findLeadStepOpening).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildEmailRequest } from "@chanlytics/channels";
-import { leadStepOpeningOf } from "@chanlytics/db";
+import { buildEmailRequest } from "@chanlytics/channels/email";
+import { findLeadStepOpening } from "@chanlytics/db/campaigns";
 import { fakeDb } from "../_fake-db.mjs";
 import {
   OFFERS_BY_EMAIL_WORDS,
@@ -194,7 +194,7 @@ test("a lead's test mail says the name the business is called by, in its words a
 
 /* ---------------------------------------------------- a lead's test is the email the send makes (3 Nov 2026) -- */
 
-const { reachOutRequest } = await import("@chanlytics/channels");
+const { reachOutRequest } = await import("@chanlytics/channels/email");
 
 const COLD = {
   business: "Harbor Studio",
@@ -388,7 +388,7 @@ test("what a lead's test reads of the database: the opening of their latest emai
       { id: NOBODY_YET, tenant_id: T, business_name: "Quiet Co", city: null, hours: [], rating: null, reviews: null },
     ],
   });
-  const read = await leadStepOpeningOf(db, { tenantId: T, stepId: STEP, leadId: LEAD });
+  const read = await findLeadStepOpening(db, { tenantId: T, stepId: STEP, leadId: LEAD });
   assert.equal(read.written, "The one that goes.");
   assert.deepEqual(read.listing, {
     business_name: "R&T Mechanical | Springfield IL",
@@ -397,9 +397,9 @@ test("what a lead's test reads of the database: the opening of their latest emai
     rating: 4.7,
     reviews: 120,
   });
-  const none = await leadStepOpeningOf(db, { tenantId: T, stepId: STEP, leadId: NOBODY_YET });
+  const none = await findLeadStepOpening(db, { tenantId: T, stepId: STEP, leadId: NOBODY_YET });
   assert.equal(none.written, null, "its email is planned, its opening not written yet");
   assert.equal(leadOpeningOf(none.written, none.listing), null, "and its listing says nothing code can say");
-  const theirs = await leadStepOpeningOf(db, { tenantId: OTHER_T, stepId: STEP, leadId: LEAD });
+  const theirs = await findLeadStepOpening(db, { tenantId: OTHER_T, stepId: STEP, leadId: LEAD });
   assert.deepEqual(theirs, { written: "Another workspace's.", listing: null }, "a workspace reads its own alone");
 });

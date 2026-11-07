@@ -141,8 +141,8 @@ export const EXPORT_HOLDS_WORDS =
 /** What the owner's copy leaves out, as the card says it: each `what` of exportLeftOut, the why at the file's end. */
 export function exportLeftOutWords(): string {
   // Semicolons between them: a thing left out may itself be a list ("its numbers, mailboxes and connections").
-  const what = exportLeftOut().map((l) => l.what.charAt(0).toLowerCase() + l.what.slice(1));
-  return `Not in it: ${what.slice(0, -1).join("; ")}; and ${what.at(-1) ?? ""}. The end of the file says why for each.`;
+  const subject = exportLeftOut().map((l) => l.what.charAt(0).toLowerCase() + l.what.slice(1));
+  return `Not in it: ${subject.slice(0, -1).join("; ")}; and ${subject.at(-1) ?? ""}. The end of the file says why for each.`;
 }
 
 /** Everything the owner's copy does not hold, each with why: the file's `not_included`, in the order the kinds are named. */

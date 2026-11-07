@@ -13,8 +13,9 @@
  * Chromium and in WebKit (typing around a slot, Backspace and Delete at one, Shift and the arrows over one, Enter, a
  * paste, a cut and paste back, a value put in from the menu, an input method's word, the subject's limit).
  */
-import { clampWords, eraseSlot } from "@chanlytics/contracts";
-import type { SlotEdit, SlotSet } from "@chanlytics/contracts";
+import { clampWords, eraseSlot } from "../message-version-slots";
+import type { SlotSet } from "@chanlytics/contracts";
+import type { SlotEdit } from "../message-version-slots";
 import { offsetIn, pointIn, scanBox, selectionIn, typedSlots } from "./slot-dom";
 import type { HistoryKeeper } from "./slot-history";
 
@@ -117,7 +118,7 @@ export function putWords(el: HTMLElement, words: string, ctx: BoxContext, kind =
 function eraseSlotAtCaret(el: HTMLElement, way: "back" | "forward", ctx: BoxContext): boolean {
   const scan = scanBox<Node>(el);
   const sel = selectionOf(el);
-  const edit = sel ? eraseSlot(scan.text, sel.start, sel.end, way, ctx.set) : null;
+  const edit = sel ? eraseSlot(scan.text, sel, way, ctx.set) : null;
   const chip = edit ? scan.chips.find((c) => c.start === edit.caret) : undefined;
   if (!chip) return false;
   chip.node.parentNode?.removeChild(chip.node);

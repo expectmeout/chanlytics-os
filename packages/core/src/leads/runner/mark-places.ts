@@ -2,12 +2,12 @@
  * The business's own mark, for the places a page is about to commit. What a home page declares is read by mark.ts
  * and the bytes worth keeping are told by mark-image.ts, one folder up; the collect (collect.ts) and the re-judging
  * (rejudge.ts) call it, and the leads sweep calls it again for the leads a collect had no time to mark (the edge's
- * lead-marks.ts).
+ * leads/marks.ts).
  */
 
 import { leadMarksFrom } from "../mark";
 import { markImageFrom, MARK_MAX_BYTES } from "../mark-image";
-import { eachAtOnce } from "../../shared/each-at-once";
+import { runEachAtOnce } from "../../shared/each-at-once";
 import type { LeadColumns, LeadPorts } from "../ports";
 import { SITES_AT_ONCE, type SiteReads } from "./site-reads";
 
@@ -35,13 +35,13 @@ const MARK_LEAST_MS = 1_000;
 export type MarkPlace = Pick<LeadColumns, "website_host" | "logo_url" | "mark_path">;
 
 export async function markPlaces(
-  p: Pick<LeadPorts, "fetchBytes" | "storeMark" | "now">,
+  leadPorts: Pick<LeadPorts, "fetchBytes" | "storeMark" | "now">,
   sites: SiteReads,
   places: readonly MarkPlace[],
   until: number,
 ): Promise<number> {
-  const { fetchBytes, storeMark } = p;
-  const left = () => until - p.now().getTime();
+  const { fetchBytes, storeMark } = leadPorts;
+  const left = () => until - leadPorts.now().getTime();
   let kept = 0;
 
   const markOne = async (place: MarkPlace): Promise<void> => {
@@ -66,6 +66,6 @@ export async function markPlaces(
     }
   };
 
-  await eachAtOnce(places, SITES_AT_ONCE, () => left() >= MARK_LEAST_MS, markOne);
+  await runEachAtOnce(places, SITES_AT_ONCE, () => left() >= MARK_LEAST_MS, markOne);
   return kept;
 }

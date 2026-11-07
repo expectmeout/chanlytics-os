@@ -91,12 +91,18 @@ test("the thread's line above an attachment names it, and the attachment itself 
     messageText(msg({ media: { mime_type: null, fetch_state: "pending" }, meta: { raw_type: "document" } })),
     "Document",
   );
-  // The view models carry it through: the Inbox's (inbox-thread.ts) and Conversations' (conversation-vm.ts).
-  const vm = ["inbox-thread", "conversation-vm"]
-    .map((m) => readCode(`packages/contracts/src/conversations/${m}.ts`))
+  // The view models carry it through: the Inbox's (inbox-thread.ts) and Conversations' (surfaces/inbox/model/thread-vm.ts).
+  const vm = [
+    "packages/contracts/src/conversations/inbox-thread/thread-vm.ts",
+    "apps/dashboard/src/surfaces/inbox/model/thread-vm.ts",
+  ]
+    .map((p) => readCode(p))
     .join("\n");
   assert.ok(vm.includes("...(media ? { media } : {}),"), "the Inbox timeline entry");
-  assert.ok(vm.includes("...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),"), "the Conversations message");
+  assert.ok(
+    vm.includes("...(mediaVM(message) ? { media: mediaVM(message) as MediaVM } : {}),"),
+    "the Conversations message",
+  );
 });
 
 test("a browser sees the attachment's facts and never its storage path", () => {
@@ -128,7 +134,7 @@ test("a browser sees the attachment's facts and never its storage path", () => {
     "apps/dashboard/src/server/export/conversation-export.ts",
   ]) {
     const src = readCode(rel);
-    assert.ok(src.includes("media: mediaPublic(m.media),"), `${rel} maps through the filter`);
+    assert.ok(src.includes("media: mediaPublic(row.media),"), `${rel} maps through the filter`);
     assert.ok(!src.includes('media: m.media as MessageDto["media"]'), `${rel} no longer ships the raw JSON`);
   }
 });
@@ -142,7 +148,7 @@ test("the media route: member of the named workspace, stored only, a redirect th
   assert.ok(route.includes('.eq("tenant_id", member.tenantId)'));
   assert.ok(route.includes('media.fetch_state !== "stored"'));
   assert.ok(
-    route.includes("signedMediaUrl(member.tenantId, media.storage_path, 300)"),
+    route.includes("findSignedMediaUrl(member.tenantId, media.storage_path, 300)"),
     "signed only as this workspace's",
   );
   assert.ok(
@@ -197,7 +203,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
     /&&\s*!!brainCfg &&\s*speaksUnattended\(replyMode\) &&\s*Date\.now\(\) > thread\.pausedUntil/.test(wa),
     "a held workspace or person gets the old path",
   );
-  assert.ok(wa.includes("got.bytes.byteLength <= VISION_MAX_BYTES"));
+  assert.ok(wa.includes("result.bytes.byteLength <= VISION_MAX_BYTES"));
   assert.ok(
     wa.includes('if (!maySee && (n.type !== "text" || !n.body)) {'),
     "the unreadable branch is skipped only when the photo is one we may look at",
@@ -217,7 +223,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
   );
   assert.ok(
     wa.includes(
-      "const said = await sayUnreadable(thread.pausedUntil);\n      await sink.processed(handledOf(said.way));",
+      "const sentence = await sayUnreadable(thread.pausedUntil);\n      await sink.processed(handledOf(sentence.way));",
     ),
     "a photo that could not be fetched is handed over, not answered from its caption",
   );
@@ -234,8 +240,11 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
     ),
   );
   assert.ok(/photo \?\? undefined,\s*undefined,/.test(wa), "the image reaches the brain");
-  assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("return got;"), "sink.media hands the bytes back");
-  const brain = readCode("apps/edge/lib/receptionist/brain.ts");
+  assert.ok(
+    readCode("apps/edge/lib/whatsapp/persist.ts").includes("return result;"),
+    "sink.media hands the bytes back",
+  );
+  const brain = readCode("apps/edge/lib/ai/receptionist-brain.ts");
   assert.ok(
     brain.includes('{ type: "image", source: { type: "base64", media_type: image.mime, data: image.base64 } },'),
   );

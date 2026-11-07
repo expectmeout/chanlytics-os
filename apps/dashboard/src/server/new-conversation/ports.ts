@@ -6,13 +6,14 @@
  * is kept through the notes door (person_note_add, 0007), as the person's page keeps a note.
  */
 import "server-only";
-import { SMS_FOOTER, smsBody } from "@chanlytics/channels";
+import { SMS_FOOTER, smsBody } from "@chanlytics/channels/lines";
 import { asContactId } from "@chanlytics/contracts";
 import type { BeginPorts } from "@chanlytics/core";
-import { addPersonNote, openConversation, personRow, textReached } from "@chanlytics/db";
-import { channelsReadyOf } from "../campaigns/channels-ready";
+import { addPersonNote, findPersonRow } from "@chanlytics/db/people";
+import { openConversation, wasTextReached } from "@chanlytics/db/conversations";
+import { getChannelsReady } from "../campaigns/channels-ready";
 import { noteAnswer } from "../people/person-notes";
-import { replyPorts, threadPorts } from "../ports/core-ports";
+import { replyPorts, threadPorts } from "../conversations/ports";
 import { loadConversation } from "../shared/verbs";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 
@@ -20,8 +21,8 @@ export function beginPorts(ctx: RouteContext): BeginPorts {
   return {
     reply: replyPorts(ctx),
     handBack: threadPorts(ctx),
-    person: (tenantId, personId) => personRow(ctx.supabase, tenantId, personId),
-    ready: (tenantId) => channelsReadyOf(ctx, tenantId, { fresh: true, withPause: false }),
+    person: (tenantId, personId) => findPersonRow(ctx.supabase, tenantId, personId),
+    ready: (tenantId) => getChannelsReady(ctx, tenantId, { fresh: true, withPause: false }),
     open: async (tenantId, personId) => {
       const id = await openConversation(ctx.supabase, tenantId, personId).catch((e: unknown) => {
         // The door's own refusal keeps its words and its status; anything else is the database's, and a 503.
@@ -30,7 +31,7 @@ export function beginPorts(ctx: RouteContext): BeginPorts {
       const conv = await loadConversation(ctx, id);
       return { ...conv, contact_id: asContactId(conv.contact_id) };
     },
-    textedBefore: (tenantId, conversationId) => textReached(ctx.supabase, tenantId, conversationId),
+    textedBefore: (tenantId, conversationId) => wasTextReached(ctx.supabase, tenantId, conversationId),
     // The words whole and the line whole, or nothing: the carrier's ceiling cuts a text that is too long (smsBody), and
     // would cut the line that says how to stop with it.
     firstText: (text) => {

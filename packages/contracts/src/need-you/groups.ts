@@ -38,7 +38,7 @@ export const NEED_YOU_CAPS = { waiting: 5, ok: 3, todo: 3 } as const;
 /**
  * The members' decisions "N done today" counts, by Need you's door (Today in three zones, 2 Nov 2026): a reply sent, a
  * draft approved or a run's OK, a hold closed or handed back, a visit marked, a review answered, a time asked for by text
- * answered. Each subject once a day, however often it moved, and none taken back (db waiting-on-you.ts todayDoneCount).
+ * answered. Each subject once a day, however often it moved, and none taken back (db waiting-on-you.ts getTodayDoneCount).
  * Each a verb the decisions ledger keeps (DECISION_VERBS), or the count would read nothing for it and say so to nobody.
  */
 export const NEED_YOU_DONE_VERBS = [
@@ -60,16 +60,23 @@ type GroupRow = Pick<TodayQueueRowVM, "kind" | "act" | "clock_ms" | "waitedMs" |
  * yours to approve, as a run is; every other person is a reply. Null for what nobody waits on: a call worth a listen, a
  * lead who tried their preview, a step and a visit to mark (To do's).
  */
-export function needYouVerbOf(r: Pick<TodayQueueRowVM, "kind" | "act">): NeedYouVerb | null {
-  if (r.kind === "callback" || (r.kind === "handoff" && r.act === "call_back")) return "call";
-  if (r.kind === "search") return "approve";
-  if (r.kind === "handoff" || r.kind === "window" || r.kind === "reply" || r.kind === "held") return "reply";
+export function needYouVerbOf(todayQueue: Pick<TodayQueueRowVM, "kind" | "act">): NeedYouVerb | null {
+  if (todayQueue.kind === "callback" || (todayQueue.kind === "handoff" && todayQueue.act === "call_back"))
+    return "call";
+  if (todayQueue.kind === "search") return "approve";
+  if (
+    todayQueue.kind === "handoff" ||
+    todayQueue.kind === "window" ||
+    todayQueue.kind === "reply" ||
+    todayQueue.kind === "held"
+  )
+    return "reply";
   return null;
 }
 
 /** Whether a row's clock is near enough to put it before every wait: it shuts, or goes, within two hours. */
-export const clockIsNear = (r: Pick<TodayQueueRowVM, "clock_ms">): boolean =>
-  typeof r.clock_ms === "number" && r.clock_ms <= NEED_YOU_CLOCK_MS;
+export const clockIsNear = (todayQueue: Pick<TodayQueueRowVM, "clock_ms">): boolean =>
+  typeof todayQueue.clock_ms === "number" && todayQueue.clock_ms <= NEED_YOU_CLOCK_MS;
 
 /** Whether a row has waited past a week, which folds it at the end (a reply that goes on its own never has). */
 const waitedPastAWeek = (r: Pick<TodayQueueRowVM, "kind" | "waitedMs">): boolean =>
@@ -94,15 +101,15 @@ function needYouWorthOf(r: Pick<TodayQueueRowVM, "kind" | "act" | "booking" | "f
  * Need you's order, the queue's and Up next's: a clock near enough first, the nearest before the rest; then the waits
  * under a week before those past it; then what each is worth (needYouWorthOf); the longest wait first among equals.
  */
-export function needYouOrder(a: GroupRow, b: GroupRow): number {
-  const near = Number(clockIsNear(b)) - Number(clockIsNear(a));
+export function needYouOrder(group: GroupRow, otherGroup: GroupRow): number {
+  const near = Number(clockIsNear(otherGroup)) - Number(clockIsNear(group));
   if (near) return near;
-  if (clockIsNear(a)) return (a.clock_ms ?? 0) - (b.clock_ms ?? 0);
-  const old = Number(waitedPastAWeek(a)) - Number(waitedPastAWeek(b));
+  if (clockIsNear(group)) return (group.clock_ms ?? 0) - (otherGroup.clock_ms ?? 0);
+  const old = Number(waitedPastAWeek(group)) - Number(waitedPastAWeek(otherGroup));
   if (old) return old;
-  const worth = needYouWorthOf(a) - needYouWorthOf(b);
+  const worth = needYouWorthOf(group) - needYouWorthOf(otherGroup);
   if (worth) return worth;
-  return b.waitedMs - a.waitedMs;
+  return otherGroup.waitedMs - group.waitedMs;
 }
 
 /** Need you's rows by where each stands, each group in the queue's order; Ask found's apart. */
@@ -163,15 +170,19 @@ const windowClockOf = (when: string): string => when.replace(/^closes /, "").spl
  * say there.
  */
 export function needYouWaitOf(
-  r: Pick<TodayQueueRowVM, "kind" | "when" | "waitedMs" | "clock_ms" | "failed">,
+  todayQueue: Pick<TodayQueueRowVM, "kind" | "when" | "waitedMs" | "clock_ms" | "failed">,
   goesAlone: string,
   /** The business's own target for answering (config answerWithinMsOf): a wait past it is the amber; a day by default. */
   withinMs: number = DAY_MS,
 ): { words: string; long: boolean } | null {
-  if (r.kind === "held") return { words: goesAlone, long: true };
-  if (r.kind === "window") return { words: `closes ${windowClockOf(r.when)}`, long: clockIsNear(r) };
-  if (!r.when) return null;
-  if (!r.when.startsWith("waited ")) return { words: r.when, long: false };
+  if (todayQueue.kind === "held") return { words: goesAlone, long: true };
+  if (todayQueue.kind === "window")
+    return { words: `closes ${windowClockOf(todayQueue.when)}`, long: clockIsNear(todayQueue) };
+  if (!todayQueue.when) return null;
+  if (!todayQueue.when.startsWith("waited ")) return { words: todayQueue.when, long: false };
   // A reply that never reached them is seen whatever its wait: as far as they know, nobody answered.
-  return { words: r.when.slice("waited ".length), long: !!r.failed || r.waitedMs >= withinMs || clockIsNear(r) };
+  return {
+    words: todayQueue.when.slice("waited ".length),
+    long: !!todayQueue.failed || todayQueue.waitedMs >= withinMs || clockIsNear(todayQueue),
+  };
 }

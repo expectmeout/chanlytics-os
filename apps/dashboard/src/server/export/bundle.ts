@@ -20,7 +20,7 @@
  * the export is the one place a skipped row is worse than a slow page. People are not: their order is people_list's, the
  * latest contact first, which moves whenever someone writes or calls, so by offset one who wrote between two pages was
  * never exported and the one on the boundary was exported twice. Their reader hands over pages of everyone exactly once
- * (server/people everyoneOnce), in whatever size it reads them. The messages are read for MESSAGES_BATCH conversations
+ * (server/people listEveryoneOnce), in whatever size it reads them. The messages are read for MESSAGES_BATCH conversations
  * at a time: a query a conversation was about ten thousand queries for a large workspace (R14 X7).
  *
  * One person's own copy (personBundle; GET export?person=<id>, "Download their records" on their page, R14 X5) is the
@@ -298,8 +298,8 @@ async function* withMessages(
   const written = async function* (convs: BundleConversation[]) {
     const ids = convs.map((c) => c.id);
     const by = new Map<string, MessageDto[]>(ids.map((id) => [id, []]));
-    for await (const m of paged((o, l) => readers.messages(ids, o, l), size.page)) {
-      const { conversation_id, stored_path, ...message } = m;
+    for await (const match of paged((o, l) => readers.messages(ids, o, l), size.page)) {
+      const { conversation_id, stored_path, ...message } = match;
       by.get(conversation_id)?.push(message);
       messages.count += 1;
       if (stored_path)
@@ -333,8 +333,8 @@ async function* linked(
   files: readonly StoredFile[],
   expiresAt: string,
 ): AsyncGenerator<Omit<StoredFile, "path"> & { url: string | null; url_expires_at: string | null }> {
-  for (let i = 0; i < files.length; i += SIGN_BATCH) {
-    const chunk = files.slice(i, i + SIGN_BATCH);
+  for (let index = 0; index < files.length; index += SIGN_BATCH) {
+    const chunk = files.slice(index, index + SIGN_BATCH);
     const urls = await readers.signFiles(chunk.map((f) => f.path));
     for (const [j, f] of chunk.entries()) {
       const url = urls.at(j) ?? null;

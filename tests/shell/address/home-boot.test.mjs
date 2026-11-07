@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { homeBootScript, LAST_WORKSPACE_STORAGE } from "../../../packages/contracts/src/index.ts";
+import { homeBootScript, LAST_WORKSPACE_STORAGE } from "../../../apps/dashboard/src/frame-boot.ts";
 import { importSrc } from "../../_source.mjs";
 
 const { homeHref, workspaceHref } = await importSrc("apps/dashboard/src/bridge/workspace.ts");

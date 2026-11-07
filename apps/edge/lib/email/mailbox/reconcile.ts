@@ -10,22 +10,22 @@
  * place of ours).
  *
  *   found       the email is sent, stamped with the id, Message-ID and thread it went under, so its replies are read
- *               (packages/db emailFoundSent); the clock counts its send sent on its next tick.
- *   not there   it never left: its send is planned again (emailNeverLeft, the clock's never_delivered), as a new email.
+ *               (packages/db getEmailFoundSent); the clock counts its send sent on its next tick.
+ *   not there   it never left: its send is planned again (getEmailNeverLeft, the clock's never_delivered), as a new email.
  *               A draft Graph left of it is deleted first.
  *   unsure      the provider could not be asked: it waits for the next tick, and the clock's day still stands.
  */
-import { gmailFindSent, graphDeleteMessage, graphFindSent, mailboxMessageId } from "@chanlytics/channels";
+import { findGmailSent, deleteGraphMessage, findGraphSent, mailboxMessageId } from "@chanlytics/channels/email";
 import { MIN_MS } from "@chanlytics/contracts";
 import {
-  emailFoundSent,
-  emailNeverLeft,
-  unknownMailboxEmails,
-  type Database,
+  getEmailFoundSent,
+  getEmailNeverLeft,
+  listUnknownMailboxEmails,
   type MailboxConnectionRow,
-} from "@chanlytics/db";
-import { UNKNOWN_OUTCOME_MS } from "../../campaigns/reach-out/clock.js";
-import { tokenFor } from "./credentials.js";
+} from "@chanlytics/db/email";
+import type { Database } from "@chanlytics/db/types";
+import { UNKNOWN_OUTCOME_MS } from "../../shared/unknown-outcome.js";
+import { getToken } from "./credentials.js";
 import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -53,29 +53,31 @@ export async function reconcileMailbox(
 ): Promise<Reconciled> {
   const out: Reconciled = { sent: 0, never: 0 };
   try {
-    const emails = await unknownMailboxEmails(db, row.id, {
+    const emails = await listUnknownMailboxEmails(db, row.id, {
       since: new Date(now - UNKNOWN_OUTCOME_MS),
       before: new Date(now - LOOK_AFTER_MS),
     });
     if (emails.length === 0) return out;
-    const t = await tokenFor(db, row, now);
-    if (!t.ok) return out;
-    for (const e of emails) {
+    const token = await getToken(db, row, now);
+    if (!token.ok) return out;
+    for (const email of emails) {
       if (Date.now() >= until) break;
-      if (!e.to) continue;
+      if (!email.to) continue;
       const want = {
-        messageId: mailboxMessageId(e.id, row.host),
-        to: e.to,
-        subject: e.subject,
-        sinceMs: Date.parse(e.writtenAt),
+        messageId: mailboxMessageId(email.id, row.host),
+        to: email.to,
+        subject: email.subject,
+        sinceMs: Date.parse(email.writtenAt),
       };
       try {
         const found =
-          row.provider === "microsoft" ? await graphFindSent(t.token, want) : await gmailFindSent(t.token, want);
+          row.provider === "microsoft"
+            ? await findGraphSent(token.token, want)
+            : await findGmailSent(token.token, want);
         if (found.found) {
-          const moved = await emailFoundSent(db, {
-            tenantId: e.tenantId,
-            id: e.id,
+          const moved = await getEmailFoundSent(db, {
+            tenantId: email.tenantId,
+            id: email.id,
             mailboxId: row.id,
             providerId: found.id,
             rfcMessageId: found.messageId ?? want.messageId,
@@ -84,11 +86,22 @@ export async function reconcileMailbox(
           if (moved) out.sent += 1;
           continue;
         }
-        if (found.draftId) await graphDeleteMessage(t.token, found.draftId).catch(() => null);
-        if (await emailNeverLeft(db, { tenantId: e.tenantId, id: e.id, note: "not in the mailbox's sent mail" }))
+        if (found.draftId) await deleteGraphMessage(token.token, found.draftId).catch(() => null);
+        if (
+          await getEmailNeverLeft(db, {
+            tenantId: email.tenantId,
+            id: email.id,
+            note: "not in the mailbox's sent mail",
+          })
+        )
           out.never += 1;
       } catch (err) {
-        log.warn("mailbox_sync_failed", { mailbox: row.id, stage: "reconcile", message: e.id, error: errField(err) });
+        log.warn("mailbox_sync_failed", {
+          mailbox: row.id,
+          stage: "reconcile",
+          message: email.id,
+          error: errField(err),
+        });
       }
     }
     if (out.sent || out.never) log.info("mailbox_reconciled", { mailbox: row.id, ...out });

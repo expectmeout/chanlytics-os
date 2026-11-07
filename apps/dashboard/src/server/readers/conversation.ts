@@ -2,7 +2,7 @@ import "server-only";
 import { AppError, addressOf, personName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
 import { groupMessages, messageRowsOf, THREAD_MESSAGE_COLUMNS } from "../conversations/dto";
 import { loadConversation, type VerbConversation } from "../shared/verbs";
-import { load, stamp, type Reader, type RowRef } from "./index";
+import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
 
 /**
  * One thread's messages, as GET conversations/:id answers them: the hundred
@@ -19,16 +19,16 @@ export const messagesOf: Reader<{ id: string; before: string | null }, MessageDt
   name: "messagesOf",
   async read(rc, { id, before }) {
     const { supabase } = rc.ctx;
-    let q = supabase
+    let query = supabase
       .from("messages")
       .select(THREAD_MESSAGE_COLUMNS)
       .eq("conversation_id", id)
       .order("created_at", { ascending: false })
       .limit(100);
-    if (before) q = q.lt("created_at", before);
-    const { data: msgs, error: merr } = await q;
+    if (before) query = query.lt("created_at", before);
+    const { data: msgs, error: merr } = await query;
     if (merr) throw new Error(merr.message);
-    return { data: groupMessages(messageRowsOf(msgs)).get(id) ?? [], rows: [], stamp: stamp() };
+    return { data: groupMessages(messageRowsOf(msgs)).get(id) ?? [], rows: [], stamp: readerStamp() };
   },
 };
 
@@ -92,6 +92,6 @@ export const conversation: Reader<
         route: addressOf({ kind: "person", id: row.contact_id }),
         label,
       });
-    return { data: { conversation: conversationDtoOf(row, rc.userId), messages }, rows, stamp: stamp() };
+    return { data: { conversation: conversationDtoOf(row, rc.userId), messages }, rows, stamp: readerStamp() };
   },
 };

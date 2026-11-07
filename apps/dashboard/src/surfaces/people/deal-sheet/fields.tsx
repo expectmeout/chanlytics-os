@@ -6,7 +6,8 @@
  */
 import type { ReactNode } from "react";
 import { dealSheetMessage } from "@chanlytics/contracts";
-import type { DealSheetDraft, DealSheetProblem, DealSheetVM } from "@chanlytics/contracts";
+import type { DealSheetDraft, DealSheetVM } from "@chanlytics/contracts";
+import type { DealSheetProblem } from "./body";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";

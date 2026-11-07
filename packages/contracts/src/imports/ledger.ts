@@ -6,7 +6,7 @@
  * sentences. Everything brought is "before Chanlytics": shown, never counted as today's, never answered, never a yes
  * (decision 0073, D15 and D16). Every sentence is here; the pages compose.
  */
-import { dayWords } from "../workspace/billing";
+import { billingDayWords } from "../workspace/billing/plans";
 import { groupedPlural } from "../shared/words";
 import { DAY_MS } from "../shared/time";
 import { viaWords } from "./csv";
@@ -37,7 +37,7 @@ export const HISTORY_BACK_DAYS = 180;
 export const IMPORT_STOPPED_WORDS = {
   signedOut: "Your mailbox signed out. Connect it again in Connections, then Try again.",
   removed: "That mailbox was removed, so nothing more comes from it.",
-  notTicked: (what: string) => `${what} weren't ticked when you connected. Connect it again and leave them ticked.`,
+  notTicked: (text: string) => `${text} weren't ticked when you connected. Connect it again and leave them ticked.`,
   failed: "It stopped part way. What came in is kept.",
   /** The clients' file is read in the browser: Try again is adding it again. */
   clientsAgain: "Add the file again from People › Add people.",
@@ -182,58 +182,61 @@ export const IMPORT_WORDS = {
 } as const;
 
 /** How far back a source reached, "since Apr 23" by the workspace's calendar (`tz`), or null before anything came. */
-const since = (oldest: string | null, tz: string): string | null => (oldest ? `since ${dayWords(oldest, tz)}` : null);
+const since = (oldest: string | null, tz: string): string | null =>
+  oldest ? `since ${billingDayWords(oldest, tz)}` : null;
 /** The parts of a line that have something to say, one " · " apart. */
 const joined = (...parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(" · ");
 const countOfPeople = (n: number): string => groupedPlural(n, "person", "people");
 
 /** What the mailbox brought: the emails from people (so far, while it reads), since when, and any it could not read. */
-function mailSaysOf(r: ImportRowDto, tz: string): string {
-  const c = r.counts;
-  const n = c.messages ?? 0;
-  const read = n ? `${groupedPlural(n, "email")}${r.state === "done" ? "" : " so far"}` : null;
+function mailSaysOf(otherImport: ImportRowDto, tz: string): string {
+  const counts = otherImport.counts;
+  const messages = counts.messages ?? 0;
+  const read = messages ? `${groupedPlural(messages, "email")}${otherImport.state === "done" ? "" : " so far"}` : null;
   return joined(
-    read ?? (r.state === "done" ? "No email from people" : "Reading your inbox"),
-    c.asked ? IMPORT_WORDS.asked(c.asked) : null,
-    since(r.oldest, tz),
-    c.unreadable ? `${c.unreadable.toLocaleString("en-US")} couldn't be read` : null,
+    read ?? (otherImport.state === "done" ? "No email from people" : "Reading your inbox"),
+    counts.asked ? IMPORT_WORDS.asked(counts.asked) : null,
+    since(otherImport.oldest, tz),
+    counts.unreadable ? `${counts.unreadable.toLocaleString("en-US")} couldn't be read` : null,
   );
 }
 
 /** What one source brought, in words, its days by the workspace's calendar (`tz`). */
-function saysOf(r: ImportRowDto, tz: string): string {
-  const c = r.counts;
-  const via = viaWords(r.via);
-  switch (r.source) {
+function saysOf(otherImport: ImportRowDto, tz: string): string {
+  const counts = otherImport.counts;
+  const via = viaWords(otherImport.via);
+  switch (otherImport.source) {
     case "google_reviews":
-      return c.reviews
+      return counts.reviews
         ? joined(
-            groupedPlural(c.reviews, "review"),
-            since(r.oldest, tz),
-            c.unanswered ? `${c.unanswered} wait for a reply` : null,
+            groupedPlural(counts.reviews, "review"),
+            since(otherImport.oldest, tz),
+            counts.unanswered ? `${counts.unanswered} wait for a reply` : null,
           )
         : "Reading them";
     case "calendar":
-      return c.past === undefined
+      return counts.past === undefined
         ? "Reading your calendar"
         : joined(
-            c.past ? groupedPlural(c.past, "past appointment") : "No past appointments",
-            c.coming ? `${c.coming} coming up` : null,
+            counts.past ? groupedPlural(counts.past, "past appointment") : "No past appointments",
+            counts.coming ? `${counts.coming} coming up` : null,
           );
     case "clients_file":
-      return c.people === undefined
+      return counts.people === undefined
         ? "Reading your file"
-        : joined(countOfPeople(c.people), via ? `from ${via}'s file` : "from your file");
+        : joined(countOfPeople(counts.people), via ? `from ${via}'s file` : "from your file");
     case "contacts":
-      return c.people === undefined ? "Reading them" : joined(countOfPeople(c.people), via);
+      return counts.people === undefined ? "Reading them" : joined(countOfPeople(counts.people), via);
     case "mailbox":
-      return mailSaysOf(r, tz);
+      return mailSaysOf(otherImport, tz);
     case "google_photos":
-      return c.photos === undefined ? "Reading them" : groupedPlural(c.photos, "photo");
+      return counts.photos === undefined ? "Reading them" : groupedPlural(counts.photos, "photo");
     case "whatsapp_contacts":
-      return c.people === undefined ? "Reading them" : countOfPeople(c.people);
+      return counts.people === undefined ? "Reading them" : countOfPeople(counts.people);
     case "whatsapp_history":
-      return r.oldest ? `Back to ${dayWords(r.oldest, tz)} so far` : "Chats from the last six months";
+      return otherImport.oldest
+        ? `Back to ${billingDayWords(otherImport.oldest, tz)} so far`
+        : "Chats from the last six months";
   }
 }
 
@@ -272,10 +275,10 @@ function shareOf(r: ImportRowDto): number | null {
 
 /** Where a source's run stands, in the line's last word. */
 function standOf(r: ImportRowDto, share: number | null): string {
-  const W = IMPORT_WORDS;
-  if (r.state === "done") return W.in;
-  if (r.state === "failed") return W.stopped;
-  if (r.state === "queued") return W.queued;
+  const words = IMPORT_WORDS;
+  if (r.state === "done") return words.in;
+  if (r.state === "failed") return words.stopped;
+  if (r.state === "queued") return words.queued;
   // Meta's history comes in three parts, said as parts; anything else that can say how far it has come, as a share.
   if (r.source === "whatsapp_history" && r.parts_total && r.parts_total > 1)
     return `${r.parts_done} of ${r.parts_total}`;
@@ -294,22 +297,24 @@ function leadCountOf(r: ImportRowDto): number | null {
 }
 
 /** One source's line. */
-export function importLineOf(r: ImportRowDto, tz: string): ImportLineVM {
-  const share = shareOf(r);
+export function importLineOf(otherImport: ImportRowDto, tz: string): ImportLineVM {
+  const share = shareOf(otherImport);
   const aside =
-    r.source === "mailbox" && r.state !== "failed" && r.counts.dropped ? IMPORT_WORDS.setAside(r.counts.dropped) : null;
+    otherImport.source === "mailbox" && otherImport.state !== "failed" && otherImport.counts.dropped
+      ? IMPORT_WORDS.setAside(otherImport.counts.dropped)
+      : null;
   return {
-    source: r.source,
-    title: IMPORT_WORDS.titles[r.source],
-    says: r.state === "failed" ? stoppedSaysOf(r) : saysOf(r, tz),
-    stand: standOf(r, share),
-    state: r.state,
-    retry: r.state === "failed" && !ONCE_ONLY.has(r.source),
+    source: otherImport.source,
+    title: IMPORT_WORDS.titles[otherImport.source],
+    says: otherImport.state === "failed" ? stoppedSaysOf(otherImport) : saysOf(otherImport, tz),
+    stand: standOf(otherImport, share),
+    state: otherImport.state,
+    retry: otherImport.state === "failed" && !ONCE_ONLY.has(otherImport.source),
     share,
     aside,
-    door: IMPORT_DOORS[r.source],
+    door: IMPORT_DOORS[otherImport.source],
     asideDoor: aside ? MAILBOX_LEFT_ROUTE : null,
-    count: leadCountOf(r),
+    count: leadCountOf(otherImport),
   };
 }
 
@@ -342,23 +347,25 @@ export const WHATSAPP_PART_WORDS = {
  * back to 180, each in, coming in or next by the parts Meta has finished (the row's parts_done), and how far back each
  * reaches from when the run started. Nothing for a run that stopped: its row says why.
  */
-export function whatsappPartsOf(r: ImportRowDto | null | undefined, tz: string): WhatsappPartVM[] {
-  if (!r || r.source !== "whatsapp_history" || r.state === "failed") return [];
-  const W = WHATSAPP_PART_WORDS;
-  const from = r.started_at ? Date.parse(r.started_at) : NaN;
-  return W.parts.map((p, i) => {
+export function whatsappPartsOf(otherImport: ImportRowDto | null | undefined, tz: string): WhatsappPartVM[] {
+  if (!otherImport || otherImport.source !== "whatsapp_history" || otherImport.state === "failed") return [];
+  const words = WHATSAPP_PART_WORDS;
+  const from = otherImport.started_at ? Date.parse(otherImport.started_at) : NaN;
+  return words.parts.map((part, otherPart) => {
     const state: WhatsappPartVM["state"] =
-      r.state === "done" || r.parts_done > i
+      otherImport.state === "done" || otherImport.parts_done > otherPart
         ? "done"
-        : r.parts_done === i && r.state === "running"
+        : otherImport.parts_done === otherPart && otherImport.state === "running"
           ? "running"
           : "next";
-    const back = Number.isFinite(from) ? `Back to ${dayWords(new Date(from - p.back * DAY_MS).toISOString(), tz)}` : "";
+    const back = Number.isFinite(from)
+      ? `Back to ${billingDayWords(new Date(from - part.back * DAY_MS).toISOString(), tz)}`
+      : "";
     return {
-      key: p.key,
-      label: p.label,
-      says: p.key === "day" ? W.lastDay : back,
-      stand: state === "done" ? W.in : state === "running" ? W.coming : W.next,
+      key: part.key,
+      label: part.label,
+      says: part.key === "day" ? words.lastDay : back,
+      stand: state === "done" ? words.in : state === "running" ? words.coming : words.next,
       state,
     };
   });
@@ -455,12 +462,12 @@ const SAID_ORDER: readonly ImportSource[] = [
 export function importLinesOf(
   rows: readonly ImportRowDto[] | null | undefined,
   tz: string,
-  o: { whatsappWaiting: boolean } = { whatsappWaiting: false },
+  options: { whatsappWaiting: boolean } = { whatsappWaiting: false },
 ): { lines: ImportLineVM[]; done: number; of: number; running: boolean } {
-  const got = sourceRowsOf(rows).sort((a, b) => SAID_ORDER.indexOf(a.source) - SAID_ORDER.indexOf(b.source));
-  const lines = got.map((r) => importLineOf(r, tz));
-  const hasWhatsapp = got.some((r) => r.source === "whatsapp_contacts" || r.source === "whatsapp_history");
-  if (o.whatsappWaiting && !hasWhatsapp)
+  const result = sourceRowsOf(rows).sort((a, b) => SAID_ORDER.indexOf(a.source) - SAID_ORDER.indexOf(b.source));
+  const lines = result.map((r) => importLineOf(r, tz));
+  const hasWhatsapp = result.some((r) => r.source === "whatsapp_contacts" || r.source === "whatsapp_history");
+  if (options.whatsappWaiting && !hasWhatsapp)
     lines.push({
       source: "whatsapp_history",
       title: "WhatsApp",
@@ -500,9 +507,9 @@ export function broughtInCardOf(
   count: number | null,
   tz: string,
 ): { title: string; state: BroughtInStateVM; facts: BroughtInFactVM[] } | null {
-  const got = sourceRowsOf(rows);
-  if (!got.length) return null;
-  const by = (s: ImportSource) => got.find((r) => r.source === s) ?? null;
+  const result = sourceRowsOf(rows);
+  if (!result.length) return null;
+  const by = (s: ImportSource) => result.find((r) => r.source === s) ?? null;
   const reviews = by("google_reviews");
   const mail = by("mailbox");
   const cal = by("calendar");
@@ -514,15 +521,15 @@ export function broughtInCardOf(
   if (first) facts.push({ key: "people", text: first });
   if (mail?.oldest) facts.push({ key: "mail", text: `Email ${since(mail.oldest, tz)}` });
   if (cal && cal.counts.past !== undefined) facts.push({ key: "calendar", text: saysOf(cal, tz) });
-  const stopped = got.filter((r) => r.state === "failed").length;
-  const { done, of, running } = importLinesOf(got, tz);
-  const W = IMPORT_WORDS;
+  const stopped = result.filter((r) => r.state === "failed").length;
+  const { done, of, running } = importLinesOf(result, tz);
+  const words = IMPORT_WORDS;
   const state: BroughtInStateVM = stopped
-    ? { tone: "stopped", words: W.stoppedCount(stopped) }
+    ? { tone: "stopped", words: words.stoppedCount(stopped) }
     : running
-      ? { tone: "live", words: W.bringing(done, of) }
-      : { tone: "ok", words: W.allIn };
-  return { title: W.card, state, facts };
+      ? { tone: "live", words: words.bringing(done, of) }
+      : { tone: "ok", words: words.allIn };
+  return { title: words.card, state, facts };
 }
 
 /**
@@ -538,9 +545,9 @@ const BROUGHT_IN_SHOWN_MS = DAY_MS;
  * Calendar's own.
  */
 export function broughtInShown(rows: readonly ImportRowDto[] | null | undefined, nowMs: number): boolean {
-  const got = sourceRowsOf(rows);
-  if (!got.length) return false;
-  if (got.some((r) => r.state !== "done")) return true;
-  const last = Math.max(...got.map((r) => (r.finished_at ? Date.parse(r.finished_at) : 0)));
+  const result = sourceRowsOf(rows);
+  if (!result.length) return false;
+  if (result.some((r) => r.state !== "done")) return true;
+  const last = Math.max(...result.map((r) => (r.finished_at ? Date.parse(r.finished_at) : 0)));
   return Number.isFinite(last) && nowMs - last < BROUGHT_IN_SHOWN_MS;
 }

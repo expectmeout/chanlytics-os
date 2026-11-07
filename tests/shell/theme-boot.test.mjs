@@ -23,7 +23,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   themeBootScript,
-  outlineBootScript,
   themePrefOf,
   resolveTheme,
   lookPrefOf,
@@ -32,7 +31,8 @@ import {
   DEFAULT_LOOK_PREF,
   THEME_COLORS,
   LOOK_THEME_COLORS,
-} from "../../packages/contracts/src/shell/chrome.ts";
+} from "../../packages/contracts/src/shell/chrome/theme.ts";
+import { outlineBootScript } from "../../packages/contracts/src/shell/chrome/in-app.ts";
 import { routeOfAddress, routeOfPath } from "../../packages/contracts/src/shell/address.ts";
 import { FIRST_RUN_ROUTE } from "../../packages/contracts/src/setup/first-run-route.ts";
 import { paintThemeColor } from "../../apps/dashboard/src/bridge/theme-color.ts";

@@ -14,19 +14,24 @@ const TELL_TIMEOUT_MS = 8000;
  */
 export async function tellPlatformOfSetupRequest(
   tenantId: string,
-  what: string,
+  text: string,
   by: string | null,
   userId: string,
 ): Promise<boolean> {
   if (!deployment.providersLive || !edgeConfigured()) return false;
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/setup-request",
-    { tenant_id: tenantId, what, by },
+    { tenant_id: tenantId, what: text, by },
     { workspace: tenantId, user: userId, timeoutMs: TELL_TIMEOUT_MS },
   );
-  if (!edgeAnswered(r))
-    log.error("setup_request_tell_failed", { tenant_id: tenantId, what, status: r.status, error: r.body?.error });
-  return edgeAnswered(r);
+  if (!edgeAnswered(answer))
+    log.error("setup_request_tell_failed", {
+      tenant_id: tenantId,
+      what: text,
+      status: answer.status,
+      error: answer.body?.error,
+    });
+  return edgeAnswered(answer);
 }
 
 /**
@@ -36,12 +41,12 @@ export async function tellPlatformOfSetupRequest(
  */
 export async function tellOwnerLive(tenantId: string, userId: string): Promise<boolean> {
   if (!deployment.providersLive || !edgeConfigured()) return false;
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/you-are-live",
     { tenant_id: tenantId },
     { workspace: tenantId, user: userId, timeoutMs: TELL_TIMEOUT_MS },
   );
-  if (!edgeAnswered(r))
-    log.error("you_are_live_tell_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
-  return edgeAnswered(r);
+  if (!edgeAnswered(answer))
+    log.error("you_are_live_tell_failed", { tenant_id: tenantId, status: answer.status, error: answer.body?.error });
+  return edgeAnswered(answer);
 }

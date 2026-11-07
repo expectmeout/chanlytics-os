@@ -25,7 +25,10 @@ test("every barrel is in the order the command writes", async () => {
 test("the barrels are read: every package's root and its domains', and the kit's", () => {
   const all = barrels();
   assert.ok(all.length > 40, `the barrels are found (${all.length})`);
-  for (const p of ["channels", "core", "db", "jobs"]) assert.ok(all.includes(`packages/${p}/src/index.ts`), p);
+  for (const p of ["core", "jobs"]) assert.ok(all.includes(`packages/${p}/src/index.ts`), p);
+  // db and channels have no root: each domain's barrel is an entry (decision 0110).
+  for (const barrel of ["packages/channels/src/ai/index.ts", "packages/db/src/repositories/ai/index.ts"])
+    assert.ok(all.includes(barrel), barrel);
   assert.ok(all.includes("packages/contracts/src/email/index.ts"), "a domain of contracts");
   assert.ok(!all.includes(OWN_ORDER[0]), "contracts' root keeps its own order");
 });

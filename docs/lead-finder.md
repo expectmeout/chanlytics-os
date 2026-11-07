@@ -40,7 +40,7 @@ review on its address until the checker answers.
     month's and today's searching (`lead_spend_room`, `lead_check_estimate`), and is charged where it runs.
 - **Sources (§0.3).** Only Apify actors at pinned builds (`packages/core/src/leads/cards.ts`). The health sweep reads
   every pin by its build id, and since 00506 each actor's prices once a day against the last read
-  (`apps/edge/lib/leads/lead-sources.ts`, `lead_platform.prices`).
+  (`apps/edge/lib/leads/sources.ts`, `lead_platform.prices`).
 - **Consent (§0.4).** Amended by decisions 0056 and 0057: a lead is written to by a sequence to leads from the
   business's own connected mailbox, never from the platform's. A lead becomes a person only on a real conversation (a
   reply, a call marked Interested, a booking, a deal; `lead_convert_by`).
@@ -71,7 +71,7 @@ started with less than its own 28-second bound left (`runner/rules.ts` `JUDGE_MA
 asked again only while the bound is still left, or its places wait in Needs review.
 `tests/leads/engine/tick-geometry.test.mjs` holds the numbers to each other.
 
-**The sweep** (`apps/edge/lib/leads/lead-sweep.ts`, every five minutes):
+**The sweep** (`apps/edge/lib/leads/sweep-plan.ts`, every five minutes):
 
 - **Runs.** A running run nobody is collecting gets a collect; one past 45 minutes is aborted and read once more; a
   lost start is reconciled from the provider's own list; a run whose collects failed three times is given up.
@@ -92,10 +92,10 @@ found, and since 00506 the bell says so.
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The plan, its words, its prices | `packages/contracts/src/leads/search/` (`plan.ts`, `cards.ts`, `class.ts`, `endings.ts`, `caps.ts`)                                                |
 | The runner                      | `packages/core/src/leads/runner/` over `packages/core/src/leads/ports.ts`                                                                          |
-| The runner's database half      | `apps/edge/lib/leads/lead-db.ts` (the edge's binding of core's `LeadDb`)                                                                           |
-| The provider and the judge      | `packages/channels/src/leads/apify.ts`, `packages/channels/src/leads/lead-judge.ts`, `apps/edge/lib/leads/lead-wires.ts`                           |
+| The runner's database half      | `apps/edge/lib/leads/db.ts` (the edge's binding of core's `LeadDb`)                                                                                |
+| The provider and the judge      | `packages/channels/src/leads/apify.ts`, `packages/channels/src/leads/judge.ts`, `apps/edge/lib/leads/wires.ts`                                     |
 | The webhook                     | `apps/edge/api/apify-webhook.ts`, `apps/edge/lib/leads/apify-delivery.ts`                                                                          |
-| The sweep                       | `apps/edge/api/cron/leads.ts`, `apps/edge/lib/leads/sweep.ts`, `apps/edge/lib/leads/lead-sweep.ts`                                                 |
+| The sweep                       | `apps/edge/api/cron/leads.ts`, `apps/edge/lib/leads/sweep.ts`, `apps/edge/lib/leads/sweep-plan.ts`                                                 |
 | The routes                      | `apps/dashboard/app/api/v1/lead-searches/`, `apps/dashboard/app/api/v1/leads/`                                                                     |
 | What they call                  | `apps/dashboard/src/server/leads/`                                                                                                                 |
 | Ask's cards                     | `apps/dashboard/src/server/ask/tools/act/leads/`                                                                                                   |

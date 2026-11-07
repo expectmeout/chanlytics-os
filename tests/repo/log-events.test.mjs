@@ -43,13 +43,13 @@ const FORWARDED = {
   "apps/edge/lib/leads/apify-delivery.ts": ["verdict.log", "verdict.log", "verdict.log"], // planApifyIngress
   "apps/edge/lib/ops/sweep-door.ts": ["noDbEvent"], // sweepDoor: the line a sweep says when it has no database
   "apps/edge/lib/campaigns/reach-out/check.ts": ["event"], // the check sweep's error(...)
-  "apps/edge/lib/campaigns/reach-out/sender.ts": ["event"], // the claim's failed(...)
+  "apps/edge/lib/campaigns/reach-out/sender/sender.ts": ["event"], // the claim's failed(...)
   "apps/edge/lib/sms/inbound-text.ts": ["verdict.log", "verdict.log"], // planSmsIngress
-  "apps/edge/lib/voice/call-webhook.ts": ["s.event"], // planCallEvent's log step (call-event.ts)
-  // The one computed name: pgSafe's step is a PgStep, so the family is a union tsc checks against the set.
+  "apps/edge/lib/voice/call-webhook.ts": ["callStep.event"], // planCallEvent's log step (call-event.ts)
+  // The one computed name: runPgSafe's step is a PgStep, so the family is a union tsc checks against the set.
   "apps/edge/lib/whatsapp/persist.ts": ["`pg_${label}_failed`"],
   // ingestInbound's attempt(...): the answer it could not write, a union of the two literal names it is called with.
-  "packages/db/src/repositories/conversations/ingest.ts": ["event"],
+  "packages/db/src/repositories/channels/ingest.ts": ["event"],
 };
 
 /**
@@ -58,7 +58,7 @@ const FORWARDED = {
  * one is a literal instead, or a value typed `DashboardLogEvent` and named here.
  */
 const FORWARDED_DASHBOARD = {
-  "apps/dashboard/src/server/ask/loop.ts": ["DROP_EVENTS[drop]"], // the drop a refusal made the turn give up (refusals.ts)
+  "apps/dashboard/src/server/ask/loop/loop.ts": ["DROP_EVENTS[drop]"], // the drop a refusal made the turn give up (refusals.ts)
 };
 
 /** The names a first argument can take: a string literal, or a conditional whose branches all are; else null. */
@@ -76,7 +76,7 @@ function literalNames(e) {
 
 const isConsole = (e) => ts.isIdentifier(e) && e.text === "console";
 
-/** One pass over the trees: every log line, every string spelled, and the steps pgSafe is called with. */
+/** One pass over the trees: every log line, every string spelled, and the steps runPgSafe is called with. */
 function measure() {
   const lines = [];
   const spelled = new Set();
@@ -99,7 +99,7 @@ function measure() {
         }
         if (
           ts.isIdentifier(callee) &&
-          callee.text === "pgSafe" &&
+          callee.text === "runPgSafe" &&
           n.arguments[0] &&
           ts.isStringLiteralLike(n.arguments[0])
         )
@@ -128,7 +128,7 @@ test("every line names an event in LOG_EVENTS, with a literal", () => {
   const undeclared = [];
   for (const l of lines)
     for (const name of l.names ?? []) if (!declared.has(name)) undeclared.push(`${name} <- ${l.file}:${l.line}`);
-  for (const name of pgFamily) if (!declared.has(name)) undeclared.push(`${name} <- pgSafe`);
+  for (const name of pgFamily) if (!declared.has(name)) undeclared.push(`${name} <- runPgSafe`);
   assert.deepEqual(
     undeclared,
     [],

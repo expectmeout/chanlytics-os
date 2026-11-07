@@ -11,13 +11,13 @@ import {
   REVIEWS_WAITING_SHOWN,
   endedOn,
   isReviewsLedgerDto,
-  lensAnswerOf,
   metricWordsOf,
   reviewsAreOnRecord,
   reviewsWindowOf,
   toGoogleVM,
   toReviewsReportVM,
 } from "@chanlytics/contracts";
+import { lensAnswerOf } from "../../../apps/dashboard/src/surfaces/reports/model/lens-answer.ts";
 import {
   REVIEWS_NOW,
   googleConnection,

@@ -17,21 +17,17 @@ import {
   type ReachOutSearchLinesDto,
   type ReachOutStopDto,
 } from "@chanlytics/contracts";
-import {
-  emitEvent,
-  leadReplyFactsOf,
-  ownerSendFactsOf,
-  replySaid,
-  type Json,
-  type OwnerSendFacts,
-} from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db/events";
+import { findLeadReplyFacts, getOwnerSendFacts, replySaid, type OwnerSendFacts } from "@chanlytics/db/campaigns";
+import type { Json } from "@chanlytics/db/types";
 import { serviceDb } from "@/server/shared/service-db";
-import { tenantFacts } from "@/server/shared/tenant";
+import { getTenantFacts } from "@/server/shared/tenant";
 import type { RouteContext } from "@/server/shared/with-route";
-import { chainsOf, dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs";
+import { listChains } from "@/server/campaigns/reach-outs/reach-outs";
+import { dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts";
 
 /** An open search's chain and its leads' lines; both null when the search has no chain. */
-export async function leadLinesOf(ctx: RouteContext, tenantId: string, searchId: string): Promise<ReachOutLeadsDto> {
+export async function getLeadLines(ctx: RouteContext, tenantId: string, searchId: string): Promise<ReachOutLeadsDto> {
   const { data, error } = await ctx.supabase.rpc("reach_out_search_lines", {
     p_tenant_id: tenantId,
     p_search_id: searchId,
@@ -39,7 +35,7 @@ export async function leadLinesOf(ctx: RouteContext, tenantId: string, searchId:
   if (error) throw reachOutRefusal(error);
   const lines = data ? dtoOf<ReachOutSearchLinesDto>(data) : null;
   if (!lines) return { lines: null, chain: null, timeline: null };
-  const chain = (await chainsOf(ctx, tenantId)).find((c) => c.root_id === lines.chain.root_id) ?? null;
+  const chain = (await listChains(ctx, tenantId)).find((c) => c.root_id === lines.chain.root_id) ?? null;
   return { lines, chain, timeline: null };
 }
 
@@ -49,7 +45,7 @@ export async function leadLinesOf(ctx: RouteContext, tenantId: string, searchId:
  * says whether it went on their word (from their own inbox, not a mailbox before 00424). Read beside the story, which
  * never fails for it.
  */
-export async function leadTimelineOf(
+export async function findLeadTimeline(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   leadId: string,
@@ -63,7 +59,7 @@ export async function leadTimelineOf(
   const story = dtoOf<ReachOutLeadTimelineDto>(data);
   const owners = story.sends.filter((s) => s.state === "drafted" || (s.left && !s.from && !s.host)).map((s) => s.id);
   if (owners.length === 0) return story;
-  const facts = await ownerSendFactsOf(ctx.supabase, { tenantId, sendIds: owners }).catch(
+  const facts = await getOwnerSendFacts(ctx.supabase, { tenantId, sendIds: owners }).catch(
     () => new Map<string, OwnerSendFacts>(),
   );
   return {
@@ -109,8 +105,8 @@ export async function sayReply(
   resume_at: string | null;
 }> {
   const [facts, tenant] = await Promise.all([
-    leadReplyFactsOf(ctx.supabase, { tenantId: lead.tenant_id, leadId: lead.id }),
-    tenantFacts(ctx.supabase, lead.tenant_id),
+    findLeadReplyFacts(ctx.supabase, { tenantId: lead.tenant_id, leadId: lead.id }),
+    getTenantFacts(ctx.supabase, lead.tenant_id),
   ]);
   const now = Date.now();
   const reading = {
@@ -133,7 +129,7 @@ export async function sayReply(
     readAt: now,
   });
   const planJson: Json = { ...plan, step: plan.step ? { ...plan.step } : null };
-  const r = await replySaid(serviceDb(), {
+  const result = await replySaid(serviceDb(), {
     tenantId: lead.tenant_id,
     userId: ctx.userId,
     leadId: lead.id,
@@ -141,13 +137,13 @@ export async function sayReply(
     plan: planJson,
     note: REACH_OUT_SAID_WORDS.note(input.intent),
   });
-  if (r.error) throw reachOutRefusal(r.error);
+  if (result.error) throw reachOutRefusal(result.error);
   return {
     lead_id: lead.id,
-    applied: r.data.applied,
-    already: r.data.already === true,
+    applied: result.data.applied,
+    already: result.data.already === true,
     intent: input.intent,
-    message_id: r.data.message_id ?? null,
-    resume_at: r.data.applied ? plan.resumeAt : null,
+    message_id: result.data.message_id ?? null,
+    resume_at: result.data.applied ? plan.resumeAt : null,
   };
 }

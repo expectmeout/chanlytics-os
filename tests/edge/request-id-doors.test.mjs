@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { ROOT, importSrc } from "../_source.mjs";
 import { logLineOf } from "../_log-lines.mjs";
 import { METHODS, doorFiles } from "./doors/_doors.mjs";

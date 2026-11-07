@@ -38,7 +38,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const here = path.dirname(fileURLToPath(import.meta.url));
 // The link People builds to the route's file (surfaces/people/shell-verbs.ts), run in the test below.
 const { exportLink, personExportLink } = await importSrc("apps/dashboard/src/surfaces/people/shell-verbs.ts");
-const X = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/server/export/export.ts")).href);
+const X = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/server/shared/export-file.ts")).href);
 
 const TZ = "America/New_York";
 const OPTS = { business: "Marisa's Beauty Salon", tz: TZ, exportedAt: new Date("2026-09-05T15:04:00Z") };
@@ -65,15 +65,15 @@ const msg = (over) => ({
 });
 
 test("stamp writes the business's clock, tolerates a bad zone, and says nothing for no time", () => {
-  assert.equal(X.stamp("2026-09-05T15:04:00Z", TZ), "2026-09-05 11:04");
-  assert.equal(X.stamp("2026-09-05T03:30:00Z", TZ), "2026-09-04 23:30", "midnight-side, in the zone, h23");
+  assert.equal(X.exportStamp("2026-09-05T15:04:00Z", TZ), "2026-09-05 11:04");
+  assert.equal(X.exportStamp("2026-09-05T03:30:00Z", TZ), "2026-09-04 23:30", "midnight-side, in the zone, h23");
   assert.equal(
-    X.stamp("2026-09-05T15:04:00Z", "Not/AZone"),
+    X.exportStamp("2026-09-05T15:04:00Z", "Not/AZone"),
     "2026-09-05 15:04",
     "unknown zone falls back to UTC instead of a 500",
   );
-  assert.equal(X.stamp(null, TZ), "");
-  assert.equal(X.stamp("garbage", TZ), "");
+  assert.equal(X.exportStamp(null, TZ), "");
+  assert.equal(X.exportStamp("garbage", TZ), "");
 });
 
 test("a thread exports oldest first in CHANNEL time, with who said it and what state it was in", () => {
@@ -465,7 +465,7 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
     assert.ok(src.includes('rate: "export",'), `${name}: rate bucket`);
     assert.ok(src.includes("scope: workspace,"), `${name}: the workspace comes from the request`);
     assert.ok(
-      src.includes('.eq("tenant_id", member.tenantId)') || src.includes("everyoneOnce(ctx, member.tenantId)"),
+      src.includes('.eq("tenant_id", member.tenantId)') || src.includes("listEveryoneOnce(ctx, member.tenantId)"),
       `${name}: scoped to the named workspace`,
     );
     assert.ok(src.includes("return attachment("), `${name}: a file`);
@@ -613,7 +613,7 @@ test("the bundle is one JSON document: every section in contracts' order, every 
   // answer people_list caps at 1000 rows in the database -- so a workspace
   // above that downloaded a bundle short by everyone after the first page, with
   // no error, no flag, and no way to tell it from the whole thing. Their pages
-  // come as their reader reads them (everyoneOnce), not by offset: their order
+  // come as their reader reads them (listEveryoneOnce), not by offset: their order
   // moves as they write.
   const people = [
     { id: "p1", display_name: "Dani", phone_e164: "+19175550100", consent: "opted_in", dnc: false },

@@ -8,17 +8,17 @@
  * A picture made for one turn (a box of a photo enlarged, a post drawn for Ask to look at before it is offered) comes as its
  * bytes, is kept at Anthropic for a day, past any live chain, and is written on no row: it is nobody's file.
  */
-import { FILE_PICTURE_KEEP_S, UUID, isFileMime } from "@chanlytics/contracts";
-import { uploadClaudeFile } from "@chanlytics/channels";
+import { FILE_PICTURE_KEEP_S, UUID, isFileMime, FILE_COPIES_DOOR } from "@chanlytics/contracts";
+import { uploadClaudeFile } from "@chanlytics/channels/ai";
 import { imageHeaderOf } from "@chanlytics/core";
-import { fileForWork } from "@chanlytics/db";
+import { findFileForWork } from "@chanlytics/db/files";
 import { readBody } from "../shared/admin-door.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
-import { claudeCopyOf } from "./look.js";
+import { findClaudeCopy } from "./look.js";
 
 /** The most one call asks for: what one turn's question may carry. */
 const COPIES_AT_ONCE = 10;
@@ -52,32 +52,32 @@ function picturesSent(raw: unknown): PictureSent[] | null {
 /** One picture kept for a day, or why not: an id for the request, and the size the model will see. */
 async function pictureKept(
   tenantId: string,
-  p: PictureSent,
+  pictureSent: PictureSent,
 ): Promise<{ key: string; file_id: string | null; width: number | null; height: number | null }> {
-  const none = { key: p.key, file_id: null, width: null, height: null };
+  const none = { key: pictureSent.key, file_id: null, width: null, height: null };
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return none;
-  const bytes = new Uint8Array(Buffer.from(p.bytes, "base64"));
+  const bytes = new Uint8Array(Buffer.from(pictureSent.bytes, "base64"));
   const head = imageHeaderOf(bytes);
-  if (!head || head.contentType !== p.mime || bytes.byteLength > PICTURE_BYTES_MOST) {
-    logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: p.key, why: "picture" });
+  if (!head || head.contentType !== pictureSent.mime || bytes.byteLength > PICTURE_BYTES_MOST) {
+    logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: pictureSent.key, why: "picture" });
     return none;
   }
   const up = await uploadClaudeFile(key, {
     bytes,
     mime: head.contentType,
-    name: p.name,
+    name: pictureSent.name,
     expiresInSeconds: FILE_PICTURE_KEEP_S,
   });
   if (!up.ok) {
-    logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: p.key, why: "upload", error: up.error });
+    logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: pictureSent.key, why: "upload", error: up.error });
     return none;
   }
-  return { key: p.key, file_id: up.id, width: head.width, height: head.height };
+  return { key: pictureSent.key, file_id: up.id, width: head.width, height: head.height };
 }
 
-export async function fileCopies(auth: Admitted, request: Request): Promise<Response> {
-  const body = await readBody<{ tenant_id: string; ids: unknown; pictures: unknown }>(request);
+export async function listFileCopies(auth: Admitted, request: Request): Promise<Response> {
+  const body = await readBody(request, FILE_COPIES_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -95,9 +95,9 @@ export async function fileCopies(auth: Admitted, request: Request): Promise<Resp
     Promise.all(
       ids.map(async (id) => {
         try {
-          const row = await fileForWork(db, tenantId, id);
+          const row = await findFileForWork(db, tenantId, id);
           if (!row || row.removed_at || row.look_status === "refused") return { id, file_id: null };
-          const copy = await claudeCopyOf(db, row);
+          const copy = await findClaudeCopy(db, row);
           return copy ? { id, file_id: copy.id, width: copy.width, height: copy.height } : { id, file_id: null };
         } catch (e) {
           logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: id, why: "door", error: errField(e) });

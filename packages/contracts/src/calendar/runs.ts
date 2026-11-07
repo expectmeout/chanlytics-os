@@ -17,14 +17,14 @@
  * - cold email, on its own switch: a reach-out's runs a day, counts only ("12 written"), never a time, since each lead is
  *   written to in its own zone.
  */
-import { BROADCAST_STATE_LABELS, type BroadcastState } from "../campaigns/broadcasts/broadcasts";
+import { BROADCAST_STATE_LABELS, type BroadcastState } from "../campaigns/broadcasts/states";
 import { addressOf } from "../activity/record-address";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import type { Tone } from "../shell/tone";
-import { campaignEnded, nextRunOf, planRun } from "../campaigns/playbooks/playbook-schedule";
-import { clockInZone, dayInZone } from "./zone-math";
-import { shiftKey } from "./day-keys";
-import { clockLabel } from "./words";
+import { campaignEnded, nextRunOf, planRun } from "../campaigns/playbooks/schedule";
+import { clockInZone, dayInZone } from "../shared/zone/math";
+import { shiftKey } from "../shared/zone/day-keys";
+import { clockLabel } from "./words/labels";
 import { plural } from "../shared/words";
 import { MIN_MS } from "../shared/time";
 import type { SequenceMode } from "../campaigns/sequences/sequence";
@@ -52,7 +52,7 @@ export interface CalendarRunDto {
 export interface CalendarMomentDto {
   id: string;
   name: string;
-  /** Its moment (playbook-triggers.ts): the day-before reminder is `visit_tomorrow`, which a visit's sheet names. */
+  /** Its moment (playbooks/triggers/notices.ts): the day-before reminder is `visit_tomorrow`, which a visit's sheet names. */
   trigger: string;
   /** running, paused, … */
   state: string;
@@ -141,8 +141,8 @@ export const CALENDAR_SHOW_WORDS = {
     const all = on.open && (campaigns || !offered.campaigns) && (cold || !offered.cold);
     if (all) return "Everything";
     const parts = [on.open ? "Open times" : null, campaigns ? "campaigns" : null, cold ? "cold email" : null];
-    const said = parts.filter(Boolean).join(", ");
-    return said ? said.charAt(0).toUpperCase() + said.slice(1) : "Bookings only";
+    const sentence = parts.filter(Boolean).join(", ");
+    return sentence ? sentence.charAt(0).toUpperCase() + sentence.slice(1) : "Bookings only";
   },
   /** The service picker's word now that it only filters the open times: "Open for · Any service". */
   openFor: "Open for",
@@ -187,40 +187,40 @@ function pushOn(days: Days, day: string, mark: CalendarRunMark): void {
 }
 
 /** A one-off send, at its time, in Sent's words for its state; a cancelled one is not drawn, as Sent's strip hides it. */
-function sendMark(r: CalendarRunDto, tz: string): CalendarRunMark | null {
-  if (r.state === "canceled") return null;
-  const at = placedAt(r);
-  const waiting = r.state === "pending_approval";
-  const t = waiting || !Number.isFinite(at) ? null : hoursIn(tz, at);
+function sendMark(calendarRun: CalendarRunDto, tz: string): CalendarRunMark | null {
+  if (calendarRun.state === "canceled") return null;
+  const at = placedAt(calendarRun);
+  const waiting = calendarRun.state === "pending_approval";
+  const item = waiting || !Number.isFinite(at) ? null : hoursIn(tz, at);
   const words =
-    r.state === "sent"
-      ? RUN_WORDS.sent(r.sent)
-      : r.state === "sending"
-        ? `${BROADCAST_STATE_LABELS.sending} · ${RUN_WORDS.sent(r.sent)}`
-        : r.state === "scheduled"
-          ? `${BROADCAST_STATE_LABELS.scheduled} · ${plural(r.recipient_count, "person", "people")}`
-          : BROADCAST_STATE_LABELS[r.state];
+    calendarRun.state === "sent"
+      ? RUN_WORDS.sent(calendarRun.sent)
+      : calendarRun.state === "sending"
+        ? `${BROADCAST_STATE_LABELS.sending} · ${RUN_WORDS.sent(calendarRun.sent)}`
+        : calendarRun.state === "scheduled"
+          ? `${BROADCAST_STATE_LABELS.scheduled} · ${plural(calendarRun.recipient_count, "person", "people")}`
+          : BROADCAST_STATE_LABELS[calendarRun.state];
   const tone: Tone =
-    r.state === "failed"
+    calendarRun.state === "failed"
       ? "danger"
       : waiting
         ? "warn"
-        : r.state === "sending"
+        : calendarRun.state === "sending"
           ? "accent"
-          : r.state === "scheduled"
+          : calendarRun.state === "scheduled"
             ? "info"
             : "plain";
   return {
-    key: `send:${r.id}`,
+    key: `send:${calendarRun.id}`,
     kind: "send",
-    t,
-    time: t === null ? "" : clockLabel(t),
-    name: r.name,
+    t: item,
+    time: item === null ? "" : clockLabel(item),
+    name: calendarRun.name,
     words,
     tone,
-    ahead: r.state === "scheduled" || waiting,
+    ahead: calendarRun.state === "scheduled" || waiting,
     cold: false,
-    route: addressOf({ kind: "send", id: r.id }),
+    route: addressOf({ kind: "send", id: calendarRun.id }),
     door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: [],
@@ -228,10 +228,10 @@ function sendMark(r: CalendarRunDto, tz: string): CalendarRunMark | null {
 }
 
 /** A campaign's run that waits for a person, on its day and at no hour; "Too late to approve" once that day has passed. */
-function waitingMark(r: CalendarRunDto, name: string, todayKey: string): CalendarRunMark {
-  const late = !!r.run_for && r.run_for < todayKey;
+function waitingMark(calendarRun: CalendarRunDto, name: string, todayKey: string): CalendarRunMark {
+  const late = !!calendarRun.run_for && calendarRun.run_for < todayKey;
   return {
-    key: `run:${r.id}`,
+    key: `run:${calendarRun.id}`,
     kind: "run",
     t: null,
     time: "",
@@ -240,7 +240,7 @@ function waitingMark(r: CalendarRunDto, name: string, todayKey: string): Calenda
     tone: late ? "plain" : "warn",
     ahead: !late,
     cold: false,
-    route: addressOf({ kind: "send", id: r.id }),
+    route: addressOf({ kind: "send", id: calendarRun.id }),
     door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: [],
@@ -248,20 +248,20 @@ function waitingMark(r: CalendarRunDto, name: string, todayKey: string): Calenda
 }
 
 /** A campaign's run that failed, at the time it tried. */
-function failedMark(r: CalendarRunDto, name: string, tz: string): CalendarRunMark {
-  const at = placedAt(r);
-  const t = Number.isFinite(at) ? hoursIn(tz, at) : null;
+function failedMark(calendarRun: CalendarRunDto, name: string, tz: string): CalendarRunMark {
+  const at = placedAt(calendarRun);
+  const item = Number.isFinite(at) ? hoursIn(tz, at) : null;
   return {
-    key: `run:${r.id}`,
+    key: `run:${calendarRun.id}`,
     kind: "run",
-    t,
-    time: t === null ? "" : clockLabel(t),
+    t: item,
+    time: item === null ? "" : clockLabel(item),
     name,
     words: RUN_WORDS.failed,
     tone: "danger",
     ahead: false,
     cold: false,
-    route: addressOf({ kind: "send", id: r.id }),
+    route: addressOf({ kind: "send", id: calendarRun.id }),
     door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: [],
@@ -297,12 +297,12 @@ function wentMark(
   const sent = runs.reduce((n, x) => n + x.r.sent, 0);
   const one = runs.length === 1 ? runs[0] : undefined;
   const first = runs[0];
-  const t = first && Number.isFinite(first.at) ? hoursIn(tz, first.at) : null;
+  const item = first && Number.isFinite(first.at) ? hoursIn(tz, first.at) : null;
   return {
     key: `campaigns:${day}:${first?.r.id ?? ""}`,
     kind: "campaigns",
-    t,
-    time: t === null ? "" : clockLabel(t),
+    t: item,
+    time: item === null ? "" : clockLabel(item),
     name: one ? one.name : plural(runs.length, "campaign", "campaigns"),
     words: RUN_WORDS.sent(sent),
     tone: "plain",
@@ -356,26 +356,27 @@ function coldMark(
 /** The runs of the span laid on their days: one-off sends, runs waiting or failed, what went, and cold email. */
 function runMarks(dto: CalendarRunsDto, days: Days, todayKey: string, names: ReadonlyMap<string, string>): void {
   const tz = dto.timezone;
-  const went = new Map<string, Array<{ r: CalendarRunDto; name: string }>>();
+  const sent = new Map<string, Array<{ r: CalendarRunDto; name: string }>>();
   const cold = new Map<string, { day: string; id: string; runs: CalendarRunDto[] }>();
-  for (const r of dto.runs) {
-    const at = placedAt(r);
-    const day = r.run_for ?? (Number.isFinite(at) ? dayInZone(tz, at).key : null);
-    if (!day || !days.has(day) || r.state === "canceled") continue;
-    const name = (r.playbook_id ? names.get(r.playbook_id) : null) ?? r.name;
-    if (r.reach_out) {
-      const key = `${r.playbook_id ?? r.id}:${day}`;
-      const c = cold.get(key) ?? { day, id: r.playbook_id ?? r.id, runs: [] };
-      c.runs.push(r);
+  for (const run of dto.runs) {
+    const at = placedAt(run);
+    const day = run.run_for ?? (Number.isFinite(at) ? dayInZone(tz, at).key : null);
+    if (!day || !days.has(day) || run.state === "canceled") continue;
+    const name = (run.playbook_id ? names.get(run.playbook_id) : null) ?? run.name;
+    if (run.reach_out) {
+      const key = `${run.playbook_id ?? run.id}:${day}`;
+      const c = cold.get(key) ?? { day, id: run.playbook_id ?? run.id, runs: [] };
+      c.runs.push(run);
       cold.set(key, c);
-    } else if (!r.playbook_id) {
-      const m = sendMark(r, tz);
+    } else if (!run.playbook_id) {
+      const m = sendMark(run, tz);
       if (m) pushOn(days, day, m);
-    } else if (r.state === "pending_approval") pushOn(days, day, waitingMark(r, name, todayKey));
-    else if (r.state === "failed") pushOn(days, day, failedMark(r, name, tz));
-    else if (r.state === "sent" || r.state === "sending") went.set(day, [...(went.get(day) ?? []), { r, name }]);
+    } else if (run.state === "pending_approval") pushOn(days, day, waitingMark(run, name, todayKey));
+    else if (run.state === "failed") pushOn(days, day, failedMark(run, name, tz));
+    else if (run.state === "sent" || run.state === "sending")
+      sent.set(day, [...(sent.get(day) ?? []), { r: run, name }]);
   }
-  for (const [day, runs] of went) for (const m of wentMarks(day, runs, tz)) pushOn(days, day, m);
+  for (const [day, runs] of sent) for (const m of wentMarks(day, runs, tz)) pushOn(days, day, m);
   for (const c of cold.values())
     pushOn(days, c.day, coldMark(c.day, c.id, names.get(c.id) ?? c.runs[0]?.name ?? "", c.runs, todayKey));
 }
@@ -391,32 +392,32 @@ function nextMarks(dto: CalendarRunsDto, days: Days, now: Date, todayKey: string
   const standing = new Set(
     dto.runs.filter((r) => r.playbook_id && r.run_for).map((r) => `${r.playbook_id}:${r.run_for}`),
   );
-  for (const p of dto.moments) {
-    if (p.state !== "running" || p.reach_out) continue;
-    const next = nextRunOf(p, tz, now);
+  for (const moment of dto.moments) {
+    if (moment.state !== "running" || moment.reach_out) continue;
+    const next = nextRunOf(moment, tz, now);
     const day = next.day === "today" ? todayKey : shiftKey(todayKey, 1);
     // A run already made for that day or a later one (an approval asked a day ahead) is the run: it is drawn, not forecast.
-    const made = !!p.last_run_for && p.last_run_for >= day;
-    if (made || standing.has(`${p.id}:${day}`) || campaignEnded(p, day)) continue;
-    const sends = planRun(p.mode, now).kind === "send";
-    const t = sends && !next.soon ? next.hour : null;
+    const created = !!moment.last_run_for && moment.last_run_for >= day;
+    if (created || standing.has(`${moment.id}:${day}`) || campaignEnded(moment, day)) continue;
+    const sends = planRun(moment.mode, now).kind === "send";
+    const item = sends && !next.soon ? next.hour : null;
     const when = next.day === "today" ? "today" : "tomorrow";
     pushOn(days, day, {
-      key: `next:${p.id}`,
+      key: `next:${moment.id}`,
       kind: "next",
-      t,
-      time: t === null ? "" : clockLabel(t),
-      name: p.name,
+      t: item,
+      time: item === null ? "" : clockLabel(item),
+      name: moment.name,
       // The hour leads where it has one (`time`), so the words do not say it twice.
       words: sends
-        ? t === null
+        ? item === null
           ? `${RUN_WORDS.runs} ${RUN_WORDS.withinTheHour} · ${RUN_WORDS.toCome}`
           : RUN_WORDS.toCome
         : `${RUN_WORDS.toApprove} ${when}`,
       tone: "info",
       ahead: true,
       cold: false,
-      route: addressOf({ kind: "campaign", id: p.id }),
+      route: addressOf({ kind: "campaign", id: moment.id }),
       door: CALENDAR_RUN_DOORS.campaigns,
       named: false,
       items: [],
@@ -426,19 +427,19 @@ function nextMarks(dto: CalendarRunsDto, days: Days, now: Date, todayKey: string
 
 /** A running campaign's last day, where it falls in the span. */
 function lastDayMarks(dto: CalendarRunsDto, days: Days): void {
-  for (const p of dto.moments) {
-    if (p.state !== "running" || p.reach_out || !p.until || !days.has(p.until)) continue;
-    pushOn(days, p.until, {
-      key: `last:${p.id}`,
+  for (const moment of dto.moments) {
+    if (moment.state !== "running" || moment.reach_out || !moment.until || !days.has(moment.until)) continue;
+    pushOn(days, moment.until, {
+      key: `last:${moment.id}`,
       kind: "last_day",
       t: null,
       time: "",
-      name: p.name,
+      name: moment.name,
       words: RUN_WORDS.lastDay,
       tone: "plain",
       ahead: false,
       cold: false,
-      route: addressOf({ kind: "campaign", id: p.id }),
+      route: addressOf({ kind: "campaign", id: moment.id }),
       door: CALENDAR_RUN_DOORS.campaigns,
       named: true,
       items: [],
@@ -469,6 +470,9 @@ export function calendarRunMarksOf(dto: CalendarRunsDto, now: Date): Map<string,
 }
 
 /** Whether a mark is drawn under Show's switches: campaigns for every mark but cold email, which has its own. */
-export function runMarkShown(m: Pick<CalendarRunMark, "cold">, show: { campaigns: boolean; cold: boolean }): boolean {
-  return m.cold ? show.cold : show.campaigns;
+export function runMarkShown(
+  calendarRunMark: Pick<CalendarRunMark, "cold">,
+  show: { campaigns: boolean; cold: boolean },
+): boolean {
+  return calendarRunMark.cold ? show.cold : show.campaigns;
 }

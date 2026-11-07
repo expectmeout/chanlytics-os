@@ -5,7 +5,7 @@
  * two that read a surface (`usageOf`) read what the surface holds now, as the JSX read `window.__TEMPLATE_USE`,
  * `__TEMPLATE_SENT` and `__PLAYBOOKS` with no surface argument.
  */
-import { messageHolds, messageStandingWords } from "@chanlytics/contracts";
+import { messageHolds, messageStandingWords, NUMBERED_SLOT } from "@chanlytics/contracts";
 import type { CampaignMessage, TemplateSentWords } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { surfaceValue } from "../../surface-values";
@@ -317,7 +317,7 @@ function lineWords(p: {
   const labels = tplLike ? S.slotLabels(tplLike) : [];
   return tplOneLine(
     String(lineText || "").replace(
-      /\{\{(\d+)\}\}/g,
+      NUMBERED_SLOT,
       (_: string, n: string) => `{${tplSlotWord(kinds[Number(n) - 1], labels[Number(n) - 1], n)}}`,
     ),
   );

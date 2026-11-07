@@ -18,7 +18,7 @@ import { fakeDb } from "../_fake-db.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { businessPageFor } = await import(at("apps/dashboard/src/server/public/business-page.ts"));
+const { findBusinessPage } = await import(at("apps/dashboard/src/server/public/business-page.ts"));
 
 const T = "aaaaaaaa-0000-4000-8000-000000000439";
 
@@ -66,7 +66,7 @@ test("a sole proprietor's page says where by city; a business with a tax id says
   t.after(() => setServiceClient(null));
 
   world(null);
-  const one = await businessPageFor("harbor");
+  const one = await findBusinessPage("harbor");
   assert.equal(one.soleProprietor, true);
   assert.equal(addressOf(one), "Miami, FL 33101, US");
   assert.doesNotMatch(
@@ -76,10 +76,10 @@ test("a sole proprietor's page says where by city; a business with a tax id says
   );
 
   world("  ");
-  assert.equal((await businessPageFor("harbor")).soleProprietor, true, "a blank tax id is none");
+  assert.equal((await findBusinessPage("harbor")).soleProprietor, true, "a blank tax id is none");
 
   const db = world("12-3456789");
-  const firm = await businessPageFor("harbor");
+  const firm = await findBusinessPage("harbor");
   assert.equal(firm.soleProprietor, false);
   assert.match(addressOf(firm), /^1 Example Street, Unit 2, Miami, FL 33101, US$/);
   // Asked as a yes or no: the load never selects the tax id itself.

@@ -52,23 +52,14 @@ export {
   toChannelVM,
 } from "./channels";
 export type { ChannelDto, ChannelHealth, ChannelPickable, ChannelVM } from "./channels";
-export { LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS } from "./line-codes";
-export type { LineCodeDto } from "./line-codes";
-export { lineDtoOf } from "./line-dto";
-export type { LineFacts } from "./line-dto";
-export { LINE_CREDENTIALS_SENTENCE, lineCredentialFailure } from "./line-failure";
-export {
-  billingEndedAt,
-  LINE_RELEASE_MIN_DAYS,
-  LINE_RELEASE_REPORT_DAYS,
-  LINE_RELEASE_WARN_DAYS,
-  lineReleaseAfterDays,
-  lineReleaseDay,
-  lineReleasedWords,
-  lineReleaseStep,
-  lineReleaseWarning,
-} from "./line-release";
-export type { LineReleaseBilling, LineReleaseStep, LineReleaseWarned, LineReleaseWordsInput } from "./line-release";
+export { LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS } from "./codes";
+export { codeNotes } from "./codes";
+export type { LineCodeDto } from "./codes";
+export type { ConnectionNote } from "./connection-note";
+export { lineDtoOf } from "./dto";
+export type { LineFacts } from "./dto";
+export { LINE_CODES_DOOR, LINES_DOOR } from "./edge-doors";
+export { LINE_CREDENTIALS_SENTENCE, lineCredentialFailure } from "./failure";
 export {
   nameDecisionWords,
   numberHealthOfConfig,
@@ -79,6 +70,7 @@ export {
   standingFromConfig,
   standingNeedsRead,
 } from "./number-standing";
+export { standingNotes, standingRow } from "./number-standing";
 export type { NumberStanding } from "./number-standing";
 export {
   BUSINESS_PAGE_NOTE,
@@ -106,4 +98,4 @@ export {
 } from "./registration-path";
 export type { RegistrationPath, RegistrationPathWords } from "./registration-path";
 export { WHATSAPP_COST_WORDS } from "./whatsapp-cost";
-export { tryItLink } from "./whatsapp-try-it";
+export { whatsappCostNotes } from "./whatsapp-cost";

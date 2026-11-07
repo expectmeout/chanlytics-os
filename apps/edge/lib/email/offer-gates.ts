@@ -15,12 +15,13 @@
  * bounce judges again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { addressOf } from "@chanlytics/channels";
+import { addressOf } from "@chanlytics/channels/email";
 import { OFFERS_NOTICE_WORDS, offerGate, type OfferPauseReason, SEQUENCES_ROUTE } from "@chanlytics/contracts";
-import { emailOfferCounts, pauseEmailOffers, type Database } from "@chanlytics/db";
+import { getEmailOfferCounts, pauseEmailOffers } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
 import { logger, errField } from "../shared/log.js";
-import { notify } from "../ops/notify.js";
-import { pageOperator } from "../ops/page-operator.js";
+import { notify } from "../shared/alerts/notify.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { campaignsDomain } from "./campaigns-domain.js";
 
@@ -63,7 +64,7 @@ export async function judgeOfferGates(db: Db, tenantId: string, from: string | n
   if (!campaigns || !host || host !== campaigns) return null;
   const log = logger({ tenant_id: tenantId });
   try {
-    const counts = await emailOfferCounts(db, { tenantId, host });
+    const counts = await getEmailOfferCounts(db, { tenantId, host });
     const reason = offerGate(counts);
     if (!reason) return null;
     // Once: a pause already in force keeps its first moment and reason, and says nothing twice.

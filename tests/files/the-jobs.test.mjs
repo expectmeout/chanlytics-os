@@ -6,7 +6,7 @@
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { resetBreakers, setPublicFetch } from "@chanlytics/channels";
+import { resetBreakers, setPublicFetch } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 import { squarePng } from "../look/_png.mjs";
 import { at } from "../_cron-doors-world.mjs";
@@ -34,9 +34,9 @@ const { askForFoundFiles, askForListingPhotos, keepFoundFile, sitePhotosOf } = a
   at("apps/edge/lib/files/found.ts")
 );
 const { fileJobs, keepFilesMoving } = await import(at("apps/edge/lib/files/upkeep.ts"));
-const { fileCopies } = await import(at("apps/edge/lib/files/copies.ts"));
+const { listFileCopies } = await import(at("apps/edge/lib/files/copies.ts"));
 const { historyImports } = await import(at("apps/edge/lib/imports/history-import.ts"));
-const { importAgain } = await import(at("apps/edge/lib/imports/import-again.ts"));
+const { importAgain } = await import(at("apps/edge/lib/imports/again.ts"));
 
 const previous = setPublicFetch((url, init) => answer(String(url), init));
 after(() => {
@@ -852,7 +852,7 @@ test("the sweep's pass catches its own failures: nothing else the sweep does wai
 });
 
 const copiesAsked = (w, body, workspace = T) =>
-  fileCopies(
+  listFileCopies(
     { ok: true, via: "token", workspace, user: U },
     new Request("https://edge.example/api/admin/files/copies", { method: "POST", body: JSON.stringify(body) }),
   );

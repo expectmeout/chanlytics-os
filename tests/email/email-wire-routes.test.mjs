@@ -11,10 +11,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 import { MAILBOX_ENV, liveCredentials, providers, vault, withEnv } from "./mailboxes/_mailbox-world.mjs";
-import { buildEmailRequest, connectedIdentity, hostedIdentity } from "@chanlytics/channels";
+import { buildEmailRequest, connectedIdentity, hostedIdentity } from "@chanlytics/channels/email";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const { emailWireFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/email/email.ts")).href);
+const { findEmailWire } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/email/email.ts")).href);
 const { deliver, isWireUnavailable, isWireUnavailableError } = await import(
   pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href
 );
@@ -73,7 +73,7 @@ const auths = (calls) => calls.map((c) => c.headers.Authorization ?? c.headers.a
 test("the hosted mailbox leaves on the platform's key, a connected mailbox through Gmail on its own token, and a paused one by no route", async () => {
   const v = vault({ [SENDING.id]: liveCredentials("ya29.sam"), [PAUSED.id]: liveCredentials("ya29.dana") });
   const db = fakeDb({ mailboxes: [MAILBOX], mailbox_connections: [SENDING, PAUSED] }, {}, v.rpcs);
-  const wire = await emailWireFor(db, T);
+  const wire = await findEmailWire(db, T);
   const net = answered();
   try {
     assert.equal((await wire("owner@example.com", { body: "x", email: hosted() })).ok, true);
@@ -103,9 +103,9 @@ test("a workspace with no hosted mailbox still has a wire for the mailboxes it c
   const v = vault({ [SENDING.id]: liveCredentials("ya29.sam") });
   const net = answered();
   try {
-    const wire = await emailWireFor(fakeDb({ mailboxes: [], mailbox_connections: [SENDING] }, {}, v.rpcs), T);
+    const wire = await findEmailWire(fakeDb({ mailboxes: [], mailbox_connections: [SENDING] }, {}, v.rpcs), T);
     assert.equal((await wire("owner@example.com", { body: "x", email: own(SENDING), purpose: "outreach" })).ok, true);
-    assert.equal(await emailWireFor(fakeDb({ mailboxes: [], mailbox_connections: [] }, {}, v.rpcs), T), null);
+    assert.equal(await findEmailWire(fakeDb({ mailboxes: [], mailbox_connections: [] }, {}, v.rpcs), T), null);
   } finally {
     net.restore();
   }
@@ -116,7 +116,7 @@ test("REGRESSION: a mailboxes read that fails is the wire not bound, so a reach-
   const tables = { mailboxes: [MAILBOX], mailbox_connections: [SENDING] };
   const net = answered();
   try {
-    const wire = await emailWireFor(
+    const wire = await findEmailWire(
       fakeDb(tables, { "mailbox_connections.select": { message: "the database went away" } }, v.rpcs),
       T,
     );
@@ -176,7 +176,7 @@ test("REGRESSION: a mailboxes read that fails is the wire not bound, so a reach-
     assert.deepEqual(net.calls, [], "nothing reached a provider");
 
     // The same workspace once the read works: the wire has the mailbox's route, and the email leaves through Gmail.
-    const bound = await emailWireFor(fakeDb(tables, {}, v.rpcs), T);
+    const bound = await findEmailWire(fakeDb(tables, {}, v.rpcs), T);
     assert.equal(isWireUnavailable(bound), false);
     assert.equal((await bound("owner@example.com", { body: "x", email: own(SENDING), purpose: "outreach" })).ok, true);
   } finally {
@@ -190,7 +190,7 @@ test("a provider's day used up rests the mailbox until it turns (Gmail's rolling
     const tables = { mailboxes: [MAILBOX], mailbox_connections: [{ ...box }] };
     const net = providers(answer);
     try {
-      const wire = await emailWireFor(fakeDb(tables, {}, v.rpcs), T);
+      const wire = await findEmailWire(fakeDb(tables, {}, v.rpcs), T);
       const out = await wire("owner@example.com", { body: "x", email: own(box), purpose: "outreach" });
       assert.equal(out.ok, false);
       assert.equal(out.outcome, "retryable", "the outbox hands it to a fresh job, which meets the door's wait");
@@ -226,7 +226,7 @@ test("a grant gone (invalid_grant at the refresh) sets the mailbox to reconnect,
       : { status: 500, json: {} },
   );
   try {
-    const wire = await emailWireFor(fakeDb(tables, {}, v.rpcs), T);
+    const wire = await findEmailWire(fakeDb(tables, {}, v.rpcs), T);
     const out = await wire("owner@example.com", { body: "x", email: own(SENDING), purpose: "outreach" });
     assert.equal(out.ok, false);
     assert.equal(out.outcome, "retryable");

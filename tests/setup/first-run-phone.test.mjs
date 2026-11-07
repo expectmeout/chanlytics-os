@@ -11,8 +11,8 @@ import {
   areaCodeOf,
   forwardingCarrierOf,
   FIRST_RUN_PHONE_WORDS as W,
-  FIRST_RUN_HELPERS,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/first-run-helpers.ts";
 
 const NOW = Date.parse("2026-09-24T15:00:00Z");
 const LISTED = "+13055550100";
@@ -82,8 +82,8 @@ test("the area code a number is bought in: a US number's three digits, and nothi
   assert.equal(areaCodeOf("+442071838750"), null, "not a US number");
   assert.equal(areaCodeOf(""), null);
   assert.equal(areaCodeOf(null), null);
-  assert.equal(FIRST_RUN_HELPERS.areaCodeOf, areaCodeOf, "published for the page");
-  assert.equal(FIRST_RUN_HELPERS.phone, firstRunPhoneOf);
+  assert.equal(FIRST_RUN_HELPERS.areaCodeOf.name, areaCodeOf.name, "published for the page");
+  assert.equal(FIRST_RUN_HELPERS.phone.name, firstRunPhoneOf.name);
 });
 
 test("choosing at Where it answers (canvas 4): keeping the listing's number first and recommended, and nothing bought; at Go live, the plan the number starts at Stripe's price and the button named for it", () => {
@@ -331,7 +331,7 @@ test("the carrier a phone's code comes from: a mobile's company, a landline's la
   assert.equal(forwardingCarrierOf("mobile", null), null, "a mobile needs its company");
   assert.equal(forwardingCarrierOf(null, "att"), null);
   assert.equal(forwardingCarrierOf("office", "verizon"), "office", "an office phone system takes no code");
-  assert.equal(FIRST_RUN_HELPERS.forwardingCarrierOf, forwardingCarrierOf);
+  assert.equal(FIRST_RUN_HELPERS.forwardingCarrierOf.name, forwardingCarrierOf.name);
 });
 
 test("while the number is on its way (canvas R4): the two questions for a number kept, the button held until the line answers", () => {

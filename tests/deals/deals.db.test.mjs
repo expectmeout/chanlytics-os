@@ -26,7 +26,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { personRow } from "@chanlytics/db";
+import { findPersonRow } from "@chanlytics/db/people";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -415,7 +415,7 @@ test(
         .select("id")
         .single(),
     ).id;
-    const none = await personRow(w.operator, w.tenant, two);
+    const none = await findPersonRow(w.operator, w.tenant, two);
     assert.equal(none.open_deals, null, "nothing open: null, read as none");
     // A pass on a website, then a client of SEO billed in euros, then a proposal for ads: two open, one passed.
     const web = await record(w.operator, { p_contact_id: two, p_stage: "proposed", p_service: "Website" });
@@ -450,7 +450,7 @@ test(
       "every open one, the newest first; the pass is history",
     );
     // The way the People page and Ask read it: the column read into its shape.
-    const read = await personRow(w.operator, w.tenant, two);
+    const read = await findPersonRow(w.operator, w.tenant, two);
     assert.deepEqual(
       read.open_deals.map((d) => [d.id, d.stage, d.currency]),
       [
@@ -458,7 +458,7 @@ test(
         [seo.deal.id, "won", "EUR"],
       ],
     );
-    assert.equal(await personRow(w.stranger, w.tenant, two), null, "another workspace's member reads nobody");
+    assert.equal(await findPersonRow(w.stranger, w.tenant, two), null, "another workspace's member reads nobody");
   },
 );
 

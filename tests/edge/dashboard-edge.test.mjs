@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { verifyEdgeToken } from "@chanlytics/channels";
+import { verifyEdgeToken } from "@chanlytics/channels/tokens";
 import { importSrc } from "../_source.mjs";
 
 const SECRET = "edge-secret-for-this-file";
@@ -126,7 +126,7 @@ test("every call to the edge is bounded and never throws: the door's answer as i
 });
 
 test("a request's name: the caller's only where it is trusted to give one, else the platform's, else a fresh one; the dashboard's calls to the edge carry the name of the request they serve", async () => {
-  const { requestIdOf, REQUEST_ID_HEADER } = await import("@chanlytics/channels");
+  const { requestIdOf, REQUEST_ID_HEADER } = await import("@chanlytics/channels/tokens");
   const { withRequestId, requestId } = await importSrc("apps/dashboard/src/server/shared/log.ts");
   const h = (o) => new Headers(o);
   assert.equal(REQUEST_ID_HEADER, "x-request-id");

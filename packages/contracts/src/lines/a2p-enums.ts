@@ -69,26 +69,26 @@ export type CompanyType = (typeof COMPANY_TYPES)[number];
 export const DEFAULT_COMPANY_TYPE: CompanyType = "private";
 
 /** The value Twilio will accept, or the default — never a guess it refuses. */
-export function industryOf(v: string | null | undefined): BusinessIndustry {
-  const up = String(v ?? "")
+export function industryOf(value: string | null | undefined): BusinessIndustry {
+  const up = String(value ?? "")
     .trim()
     .toUpperCase();
   return (BUSINESS_INDUSTRIES as readonly string[]).includes(up) ? (up as BusinessIndustry) : DEFAULT_INDUSTRY;
 }
-export function businessTypeOf(v: string | null | undefined): BusinessType {
-  const s = String(v ?? "").trim();
+export function businessTypeOf(value: string | null | undefined): BusinessType {
+  const s = String(value ?? "").trim();
   return (BUSINESS_TYPES as readonly string[]).includes(s) ? (s as BusinessType) : DEFAULT_BUSINESS_TYPE;
 }
-export function companyTypeOf(v: string | null | undefined): CompanyType {
-  const s = String(v ?? "")
+export function companyTypeOf(value: string | null | undefined): CompanyType {
+  const s = String(value ?? "")
     .trim()
     .toLowerCase();
   return (COMPANY_TYPES as readonly string[]).includes(s) ? (s as CompanyType) : DEFAULT_COMPANY_TYPE;
 }
 
 /** The words for a value, where the carriers' spelling is not the owner's. */
-export function industryWords(v: string): string {
-  return v
+export function industryWords(value: string): string {
+  return value
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/^./, (c) => c.toUpperCase());

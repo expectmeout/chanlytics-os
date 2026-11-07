@@ -33,26 +33,26 @@ interface Who {
 
 /** One knock on the edge's door, with what it answered as a record, or null where it did not answer. */
 async function copiesDoor(
-  who: Who,
+  person: Who,
   body: Record<string, unknown>,
   leftMs: number,
 ): Promise<Record<string, unknown> | null> {
   if (!edgeConfigured()) return null;
   const answer = await callEdge(
     "/api/admin/files/copies",
-    { tenant_id: who.tenantId, ...body },
-    { workspace: who.tenantId, user: who.userId, timeoutMs: Math.min(COPIES_MS, Math.max(SECOND_MS, leftMs)) },
+    { tenant_id: person.tenantId, ...body },
+    { workspace: person.tenantId, user: person.userId, timeoutMs: Math.min(COPIES_MS, Math.max(SECOND_MS, leftMs)) },
   );
-  const said = recordOrNull(answer.body);
-  if (answer.status !== 200 || !said) {
+  const sentence = recordOrNull(answer.body);
+  if (answer.status !== 200 || !sentence) {
     log.warn("ask_file_copies_failed", {
-      tenant_id: who.tenantId,
+      tenant_id: person.tenantId,
       status: answer.status,
-      ...(typeof said?.detail === "string" ? { detail: said.detail.slice(0, 200) } : {}),
+      ...(typeof sentence?.detail === "string" ? { detail: sentence.detail.slice(0, 200) } : {}),
     });
     return null;
   }
-  return said;
+  return sentence;
 }
 
 const sizeOf = (row: Record<string, unknown>) => ({
@@ -61,15 +61,15 @@ const sizeOf = (row: Record<string, unknown>) => ({
 });
 
 /** What a request sends a picture by, by the file it is of. A file left out has no copy to send. */
-export async function fileCopiesOf(
-  who: Who,
+export async function listFileCopiesOf(
+  person: Who,
   ids: readonly string[],
   leftMs: number = COPIES_MS,
 ): Promise<ReadonlyMap<string, FileCopy>> {
   const out = new Map<string, FileCopy>();
   if (ids.length === 0) return out;
-  const said = await copiesDoor(who, { ids }, leftMs);
-  const copies = said?.copies;
+  const sentence = await copiesDoor(person, { ids }, leftMs);
+  const copies = sentence?.copies;
   if (!Array.isArray(copies)) return out;
   for (const c of copies) {
     const row = recordOrNull(c);
@@ -80,13 +80,13 @@ export async function fileCopiesOf(
 }
 
 /** A picture made here, held at Anthropic for a day, or null where it could not be: said in words then, never a failed turn. */
-export async function pictureCopyOf(
-  who: Who,
+export async function findPictureCopy(
+  person: Who,
   picture: PictureMade,
   leftMs: number = COPIES_MS,
 ): Promise<FileCopy | null> {
-  const said = await copiesDoor(
-    who,
+  const sentence = await copiesDoor(
+    person,
     {
       pictures: [
         { key: "one", bytes: Buffer.from(picture.bytes).toString("base64"), mime: picture.mime, name: picture.name },
@@ -94,7 +94,7 @@ export async function pictureCopyOf(
     },
     leftMs,
   );
-  const row = Array.isArray(said?.pictures) ? recordOrNull(said.pictures[0]) : null;
+  const row = Array.isArray(sentence?.pictures) ? recordOrNull(sentence.pictures[0]) : null;
   if (typeof row?.file_id !== "string") return null;
   return { fileId: row.file_id, ...sizeOf(row) };
 }

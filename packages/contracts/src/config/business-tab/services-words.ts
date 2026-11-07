@@ -53,11 +53,12 @@ export const SERVICE_PRICE_EMPTY = "At consult";
  * consult", "45 min · $40 · Consult first". The row opens onto its boxes when pressed.
  */
 export function serviceLineWords(
-  s: { duration_min?: number | string | null; price_note?: string | null },
+  state: { duration_min?: number | string | null; price_note?: string | null },
   consultFirst: boolean,
 ): string {
-  const price = typeof s.price_note === "string" && s.price_note.trim() ? s.price_note.trim() : SERVICE_PRICE_EMPTY;
-  return [lengthWords(s.duration_min), price, consultFirst ? "Consult first" : null].filter(Boolean).join(" · ");
+  const price =
+    typeof state.price_note === "string" && state.price_note.trim() ? state.price_note.trim() : SERVICE_PRICE_EMPTY;
+  return [lengthWords(state.duration_min), price, consultFirst ? "Consult first" : null].filter(Boolean).join(" · ");
 }
 
 /**
@@ -73,17 +74,17 @@ export function servicesWords(services: readonly ServiceWordsInput[] | null | un
   const list = (Array.isArray(services) ? services : []).filter(
     (s): s is ServiceWordsInput & { name: string } => !!s && typeof s.name === "string" && s.name.trim() !== "",
   );
-  const n = list.length;
-  if (!n) return { count: 0, line: null, chips: [], more: null };
+  const length = list.length;
+  if (!length) return { count: 0, line: null, chips: [], more: null };
   const chips = list.slice(0, SERVICE_CHIPS).map((s) => ({
     name: s.name.trim(),
     takes: lengthWords(s.duration_min),
   }));
   return {
-    count: n,
-    line: count(n),
+    count: length,
+    line: count(length),
     chips,
-    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null,
+    more: length > SERVICE_CHIPS ? chipsMoreWords(length - SERVICE_CHIPS) : null,
   };
 }
 
@@ -92,11 +93,11 @@ export function servicesWords(services: readonly ServiceWordsInput[] | null | un
  * reads." (the canvas's Edit-Sheet), from the services the save would write, its block's characters and the whole
  * prompt's length. With none it says what that costs, in the gap line's own words for it (CANNOT_SAY_SERVICES).
  */
-export function servicesToldWords(i: { count: number; chars: number | null; total: number | null }): string {
-  const n = i.count;
+export function servicesToldWords(input: { count: number; chars: number | null; total: number | null }): string {
+  const n = input.count;
   if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
-  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
-  const size = i.chars ? `, ${count(i.chars)} characters` : "";
+  const share = input.chars ? blockShareWords(input.chars, input.total ?? 0) : null;
+  const size = input.chars ? `, ${count(input.chars)} characters` : "";
   return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` — ${share}` : ""}.`;
 }
 

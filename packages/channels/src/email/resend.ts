@@ -23,7 +23,7 @@
  * this instance sends meets an open second rather than a 429.
  */
 import type { SendResult } from "../whatsapp/whatsapp";
-import { providerFetch, type SendOutcome } from "../shared/provider-fetch";
+import { fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
 import { receivedEmailFrom, type ReceivedEmail } from "./intake";
 import { mailDomainsFrom, resendLimitOf, type MailDomainFacts } from "./provider-answers";
 import type { EmailRequest } from "./request";
@@ -89,7 +89,7 @@ async function resendRequest(
   path: string,
   opts: { body?: unknown; timeoutMs?: number; idempotencyKey?: string; breaker?: "hold" | "count" } = {},
 ): Promise<ResendAnswer> {
-  const a = await providerFetch("resend", `${RESEND_API}${path}`, {
+  const first = await fetchFromProvider("resend", `${RESEND_API}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${cfg.apiKey}`,
@@ -101,12 +101,12 @@ async function resendRequest(
     breaker: opts.breaker ?? "hold",
   });
   return {
-    status: a.status,
-    json: a.json,
-    raw: a.status === 0 ? (a.error ?? "") : a.text,
-    headers: a.headers,
-    timedOut: a.error === "timeout",
-    outcome: a.outcome,
+    status: first.status,
+    json: first.json,
+    raw: first.status === 0 ? (first.error ?? "") : first.text,
+    headers: first.headers,
+    timedOut: first.error === "timeout",
+    outcome: first.outcome,
   };
 }
 
@@ -143,35 +143,41 @@ async function postEmail(
 ): Promise<{ result: SendResult; waitMs: number | null; paceMs: number | null; timedOut: boolean }> {
   const { idempotency_key, ...body } = request;
   // An email to a person is always posted: another call's timeouts never fail it (provider-fetch's breaker).
-  const a = await resendRequest(cfg, "POST", "/emails", {
+  const result = await resendRequest(cfg, "POST", "/emails", {
     body,
     timeoutMs,
     idempotencyKey: idempotency_key,
     breaker: "count",
   });
-  if (a.status >= 200 && a.status < 300) {
-    const id = (a.json as { id?: unknown } | null)?.id;
+  if (result.status >= 200 && result.status < 300) {
+    const id = (result.json as { id?: unknown } | null)?.id;
     // Accepted with no id is still accepted: the words are with the provider,
     // and the receipt finds the row by its tag, not by this id.
     return {
-      result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status, outcome: "ok" },
+      result: { ok: true, wamid: typeof id === "string" ? id : null, status: result.status, outcome: "ok" },
       waitMs: null,
-      paceMs: paceAskedMs(a.headers),
+      paceMs: paceAskedMs(result.headers),
       timedOut: false,
     };
   }
-  if (a.status === 0)
+  if (result.status === 0)
     // status 0: never answered. A timeout is kept by name: the provider may have taken it (deliver.ts outcome unknown).
     return {
-      result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw, outcome: a.outcome },
+      result: {
+        ok: false,
+        wamid: null,
+        status: 0,
+        errorBody: result.timedOut ? "timeout" : result.raw,
+        outcome: result.outcome,
+      },
       waitMs: null,
       paceMs: null,
-      timedOut: a.timedOut,
+      timedOut: result.timedOut,
     };
-  const refused: SendResult = { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) };
+  const refused: SendResult = { ok: false, wamid: null, status: result.status, errorBody: result.raw.slice(0, 500) };
   return {
-    result: { ...refused, outcome: emailOutcome(refused, a.outcome) },
-    waitMs: a.headers ? waitAskedMs(a.headers) : null,
+    result: { ...refused, outcome: emailOutcome(refused, result.outcome) },
+    waitMs: result.headers ? waitAskedMs(result.headers) : null,
     paceMs: null,
     timedOut: false,
   };
@@ -218,8 +224,8 @@ export async function sendEmail(
     // The first may have been taken. A second answer that cannot say otherwise -- no answer, the first still being
     // worked under this key, the provider's own error -- leaves the outcome unknown, so the row stays settleable by its
     // receipt (deliver.ts). A plain answer (sent, or refused for a reason) is what became of it.
-    const s = second.result;
-    if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
+    const result = second.result;
+    if (!result.ok && (result.status === 0 || result.status >= 500 || resendLimitOf(result) === "in_flight"))
       return { ok: false, wamid: null, status: 0, errorBody: "timeout", outcome: "unknown" };
     return paced(second);
   }
@@ -242,17 +248,18 @@ const FETCH_TIMEOUT_MS = 15_000;
  * RETRY_WAITS_MS), and fails it only when the last try throws too.
  */
 export async function fetchReceivedEmail(cfg: ResendConfig, receivedId: string): Promise<ReceivedEmail | null> {
-  const r = await providerFetch("resend", `${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
+  const response = await fetchFromProvider("resend", `${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
     timeoutMs: FETCH_TIMEOUT_MS,
     idempotent: true,
     tries: 2,
   });
-  if (r.status === 404) return null;
-  if (r.status === 0) throw new Error(`resend: received email ${receivedId} could not be read: ${r.error}`);
-  const raw = r.text;
-  if (r.outcome !== "ok")
-    throw new Error(`resend: received email ${receivedId} answered ${r.status}: ${raw.slice(0, 200)}`);
+  if (response.status === 404) return null;
+  if (response.status === 0)
+    throw new Error(`resend: received email ${receivedId} could not be read: ${response.error}`);
+  const raw = response.text;
+  if (response.outcome !== "ok")
+    throw new Error(`resend: received email ${receivedId} answered ${response.status}: ${raw.slice(0, 200)}`);
   let body: unknown;
   try {
     body = JSON.parse(raw);
@@ -277,15 +284,15 @@ const RESEND_DOMAINS = `${RESEND_API}/domains`;
  * somebody for.
  */
 export async function fetchMailDomains(cfg: ResendConfig): Promise<MailDomainFacts[]> {
-  const r = await providerFetch("resend", RESEND_DOMAINS, {
+  const response = await fetchFromProvider("resend", RESEND_DOMAINS, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
     timeoutMs: FETCH_TIMEOUT_MS,
     idempotent: true,
     tries: 2,
   });
-  if (r.status === 0) throw new Error(`resend: domains could not be read: ${r.error}`);
-  const raw = r.text;
-  if (r.outcome !== "ok") throw new Error(`resend: domains answered ${r.status}: ${raw.slice(0, 200)}`);
+  if (response.status === 0) throw new Error(`resend: domains could not be read: ${response.error}`);
+  const raw = response.text;
+  if (response.outcome !== "ok") throw new Error(`resend: domains answered ${response.status}: ${raw.slice(0, 200)}`);
   let body: unknown;
   try {
     body = JSON.parse(raw);

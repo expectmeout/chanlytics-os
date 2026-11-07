@@ -1,5 +1,5 @@
 /**
- * A sequence's Steps as a schedule (contracts sequence-schedule.ts, the Steps redesign of 17 Oct 2026), executed on rows and
+ * A sequence's Steps as a schedule (contracts sequences/schedule.ts, the Steps redesign of 17 Oct 2026), executed on rows and
  * steps as the record reads them: each step's day, the line over the rail, where it starts and stops, the wait between two
  * steps, and what each step is doing now, amber where it needs you and quiet where it is only coming, then its sheet's rows.
  */

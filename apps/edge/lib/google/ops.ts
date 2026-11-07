@@ -5,15 +5,15 @@
  * Business Profile -- and eleven ops over them, each with its own refusals:
  * what the body must carry, what the deployment must hold, what Google
  * answered. They sat in one function of eighty branches. As with the lines
- * door (lib/lines/line-ops.ts): nothing here reads or writes; each function
+ * door (lib/lines/ops/filing.ts): nothing here reads or writes; each function
  * takes what the door read and says what to answer, write or log, and the
  * door (which reads the rows in the order the ops need them) applies it.
  */
-import type { Database } from "@chanlytics/db";
-import { PLACE_ID, cleanReply, type GbpPostAsked, type PlaceDetails } from "@chanlytics/channels";
+import type { Database } from "@chanlytics/db/types";
+import { PLACE_ID, cleanReply, type GbpPostAsked, type PlaceDetails } from "@chanlytics/channels/google";
 import { FILE_GOOGLE_WORDS_MAX, type EdgeRefusal, type ReviewReplyMode } from "@chanlytics/contracts";
 import type { LogEvent } from "../shared/log.js";
-import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "./rows.js";
+import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "../shared/google/rows.js";
 import type { CheckResult } from "./listing-check.js";
 import type { ConnectResult, LocationChoice } from "./profile-connection.js";
 import { errorMessage, type DoorAnswer } from "../shared/admin-door.js";
@@ -102,8 +102,8 @@ export function planPlaceSearch(
 }
 
 /** Google's refusal, in Google's words in `detail`, never a throw. */
-export function googleFailedAnswer(e: unknown): DoorAnswer {
-  return { status: 502, body: { ok: false, error: "google_refused", detail: errorMessage(e) } };
+export function googleFailedAnswer(error: unknown): DoorAnswer {
+  return { status: 502, body: { ok: false, error: "google_refused", detail: errorMessage(error) } };
 }
 
 /* ------------------------------------------------------------------ link */
@@ -124,8 +124,8 @@ export function planLink(
 }
 
 /** A wrong id is refused here, not kept as a row that never reads. */
-export function unreadablePlaceAnswer(e: unknown): DoorAnswer {
-  return { status: 502, body: { ok: false, error: "unreadable", detail: errorMessage(e) } };
+export function unreadablePlaceAnswer(error: unknown): DoorAnswer {
+  return { status: 502, body: { ok: false, error: "unreadable", detail: errorMessage(error) } };
 }
 
 /** The listing row for the place just read: what the read said about it, never what the listing it replaces said. */
@@ -169,13 +169,13 @@ export function planConnect(
 }
 
 /** One location on Maps binds at once and the listing is read; several wait for the owner's choice. */
-export function connectAnswer(r: ConnectResult, listing: ListingView): { answer: DoorAnswer; log: GoogleLog } {
-  if (!r.ok) {
+export function connectAnswer(connect: ConnectResult, listing: ListingView): { answer: DoorAnswer; log: GoogleLog } {
+  if (!connect.ok) {
     return {
-      log: { event: "google_connect_failed", fields: { error: r.error, detail: r.detail?.slice(0, 200) } },
+      log: { event: "google_connect_failed", fields: { error: connect.error, detail: connect.detail?.slice(0, 200) } },
       answer: {
-        status: r.error === "no_oauth_client" ? 503 : 502,
-        body: { ok: false, error: r.error, detail: r.detail },
+        status: connect.error === "no_oauth_client" ? 503 : 502,
+        body: { ok: false, error: connect.error, detail: connect.detail },
       },
     };
   }
@@ -183,15 +183,15 @@ export function connectAnswer(r: ConnectResult, listing: ListingView): { answer:
     // The account's domain, never the owner's address: a log line says what happened, not who it happened to.
     log: {
       event: "google_connected",
-      fields: { pending: r.pending, email_domain: r.connection.google_email?.split("@")[1] ?? null },
+      fields: { pending: connect.pending, email_domain: connect.connection.google_email?.split("@")[1] ?? null },
     },
     answer: {
       status: 200,
       body: {
         ok: true,
-        pending: r.pending,
-        connection: connectionForClient(r.connection),
-        ...(r.pending ? { locations: r.locations } : { read: r.read, listing }),
+        pending: connect.pending,
+        connection: connectionForClient(connect.connection),
+        ...(connect.pending ? { locations: connect.locations } : { read: connect.read, listing }),
       },
     },
   };
@@ -213,21 +213,27 @@ export function draftRefusal(mode: ReviewReplyMode): DoorAnswer | null {
 export function draftAnswer(
   id: string,
   mode: ReviewReplyMode,
-  r: { ok: true; text: string } | EdgeRefusal,
+  row: { ok: true; text: string } | EdgeRefusal,
 ): { answer: DoorAnswer; log: GoogleLog } {
-  if (!r.ok) {
+  if (!row.ok) {
     return {
-      log: { event: "google_review_draft_failed", fields: { id, error: r.error } },
+      log: { event: "google_review_draft_failed", fields: { id, error: row.error } },
       answer: {
         status:
-          r.error === "no_review" ? 404 : r.error === "no_model_key" ? 503 : r.error === "payment_required" ? 402 : 502,
-        body: r,
+          row.error === "no_review"
+            ? 404
+            : row.error === "no_model_key"
+              ? 503
+              : row.error === "payment_required"
+                ? 402
+                : 502,
+        body: row,
       },
     };
   }
   return {
-    log: { event: "google_review_drafted", fields: { id, chars: r.text.length } },
-    answer: { status: 200, body: { ok: true, text: r.text, mode } },
+    log: { event: "google_review_drafted", fields: { id, chars: row.text.length } },
+    answer: { status: 200, body: { ok: true, text: row.text, mode } },
   };
 }
 
@@ -235,8 +241,8 @@ export function draftAnswer(
 
 type LocationsRead = { ok: true; locations: LocationChoice[] } | EdgeRefusal;
 
-export function locationsAnswer(r: LocationsRead): DoorAnswer {
-  return { status: r.ok ? 200 : 502, body: r };
+export function locationsAnswer(locationsRead: LocationsRead): DoorAnswer {
+  return { status: locationsRead.ok ? 200 : 502, body: locationsRead };
 }
 
 export function planChoose(
@@ -263,12 +269,16 @@ export function planChoose(
 
 /** The choice is proven against what the account may manage, never taken on the client's word. */
 export function chosenLocation(
-  r: LocationsRead,
+  locationsRead: LocationsRead,
   accountName: string,
   locationName: string,
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "bind"; loc: LocationChoice } {
-  if (!r.ok) return { kind: "refuse", answer: { status: 502, body: { ok: false, error: r.error, detail: r.detail } } };
-  const loc = r.locations.find((l) => l.account_name === accountName && l.name === locationName);
+  if (!locationsRead.ok)
+    return {
+      kind: "refuse",
+      answer: { status: 502, body: { ok: false, error: locationsRead.error, detail: locationsRead.detail } },
+    };
+  const loc = locationsRead.locations.find((l) => l.account_name === accountName && l.name === locationName);
   if (!loc) return { kind: "refuse", answer: { status: 404, body: { ok: false, error: "no_such_location" } } };
   return { kind: "bind", loc };
 }
@@ -334,17 +344,17 @@ export function planUnpost(
 }
 
 /** What a post's press hears: a post that is not this connection's is as good as not there. */
-export function postAnswer(r: { ok: true } | EdgeRefusal): DoorAnswer {
-  if (r.ok) return { status: 200, body: r };
-  const status = r.error === "not_connected" ? 409 : r.error === "not_found" ? 404 : 502;
-  return { status, body: r };
+export function postAnswer(row: { ok: true } | EdgeRefusal): DoorAnswer {
+  if (row.ok) return { status: 200, body: row };
+  const status = row.error === "not_connected" ? 409 : row.error === "not_found" ? 404 : 502;
+  return { status, body: row };
 }
 
-export function replyAnswer(r: { ok: true } | EdgeRefusal): DoorAnswer {
-  if (r.ok) return { status: 200, body: r };
+export function replyAnswer(row: { ok: true } | EdgeRefusal): DoorAnswer {
+  if (row.ok) return { status: 200, body: row };
   const status =
-    r.error === "not_connected" || r.error === "not_from_profile" ? 409 : r.error === "no_review" ? 404 : 502;
-  return { status, body: r };
+    row.error === "not_connected" || row.error === "not_from_profile" ? 409 : row.error === "no_review" ? 404 : 502;
+  return { status, body: row };
 }
 
 /* --------------------------------------------------------------- refresh */

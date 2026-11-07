@@ -1,10 +1,10 @@
 /**
- * What a new campaign's card says beside its moment (propose_sequence's action moment, act/playbook.ts): who a run of
+ * What a new campaign's card says beside its moment (propose_sequence's action moment, act/playbook/playbook.ts): who a run of
  * it reaches now and on which channels, the month's allowance, the mode it starts with (decision 0064), and its moment in the
  * workspace's word. One module for the three ways a card is made: on a message the workspace holds, on a starter its
- * Approve adds, and on the message an earlier step of Ask's plan writes. Moved whole from act/playbook.ts (11 Oct 2026,
+ * Approve adds, and on the message an earlier step of Ask's plan writes. Moved whole from act/playbook/playbook.ts (11 Oct 2026,
  * which the plan's third way would have taken past 800 lines); who a run reaches is still contracts' one rule
- * (campaigns/playbooks/playbook-reach.ts playbookRunReach), which this only counts with.
+ * (campaigns/playbooks/reach.ts playbookRunReach), which this only counts with.
  */
 import "server-only";
 import {
@@ -14,15 +14,10 @@ import {
   PLAYBOOK_CARD_WORDS,
   PLAYBOOK_CLASS_LABEL,
   SEQUENCE_MODE_WORDS,
-  campaignBlockWords,
-  campaignFixCard,
-  campaignLine,
-  campaignReachable,
   channelRefuses,
   dealPaceOf,
   heldBackOfOneRun,
   newSequenceMode,
-  nobodyNamedWords,
   playbookRunReach,
   proposalChannelsWords,
   runReadingOf,
@@ -30,7 +25,6 @@ import {
   triggerWords,
   type triggerOf,
   type AppointmentWord,
-  type CampaignBlock,
   type AskCardSheet,
   type AskedPurpose,
   type CampaignHow,
@@ -42,42 +36,44 @@ import {
   type RunReach,
   type RunReading,
 } from "@chanlytics/contracts";
-import { campaignHow } from "@chanlytics/core";
-import { archivedListWords, poolList, type AudiencePool } from "../../../people/audience";
-import { dealPaceRead } from "../../../people/deals";
-import { monthSentOrNull } from "../../../campaigns/month-sent";
+import {
+  campaignBlockWords,
+  campaignFixCard,
+  campaignLine,
+  campaignReachable,
+  nobodyNamedWords,
+  type CampaignBlock,
+} from "../../new-campaign-plan";
+import { readCampaignHow } from "@chanlytics/core";
+import { archivedListWords, findPoolList, type AudiencePool } from "../../../campaigns/audience";
+import { findDealPace } from "../../../people/deals";
+import { readMonthSentOrNull } from "../../../campaigns/month-sent";
 import { PLAYBOOK_POOL } from "../../../campaigns/playbook-pools";
-import { noFollowUps, poolTouches, proposalFollowUps, type PlaybookInput } from "../../../campaigns/playbooks";
-import { createBroadcastPorts } from "../../../ports/campaign-ports";
-import { load } from "../../../readers";
+import { noFollowUps, poolTouches, getProposalFollowUps, type PlaybookInput } from "../../../campaigns/playbooks";
+import { createBroadcastPorts } from "../../../campaigns/ports";
+import { load } from "../../../shared/reader";
 import { audiencePool } from "../../../readers/audience-pool";
 import { businessShape, policies as policiesReader } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
-import {
-  AUDIENCES_CALL,
-  propose,
-  refuse,
-  touchesThisWeek,
-  whatsappHow,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../context";
+import { AUDIENCES_CALL, findTouchesThisWeek, getWhatsappHow } from "../context/tool-reads";
+import { propose, refuse } from "../context/context";
+import type { ProposalOutcome, ToolContext } from "../context/tool-defs";
 
 export type Trigger = NonNullable<ReturnType<typeof triggerOf>>;
 
 /**
- * The people a playbook on a list runs on, as a run counts them with no one looking (audience.ts poolList over the pool
+ * The people a playbook on a list runs on, as a run counts them with no one looking (audience.ts findPoolList over the pool
  * read for no one is what the runner does; here the pool is the member's, so a list about "me" was refused by the check).
  * One of the workspace's own lists is counted from the lists the turn holds (readers/lists.ts), never read again. Or why
  * not, in the model's words.
  */
 async function listedPeople(
-  t: ToolContext,
+  toolContext: ToolContext,
   pool: AudiencePool,
   ref: ListRef,
 ): Promise<{ ids: Set<string>; label: string } | { refusal: string }> {
-  const kept = ref.kind === "saved" ? (await load(t.rc, listsReader, undefined)).data.lists : undefined;
-  const found = await poolList(t.ctx, t.tenantId, pool, ref, kept);
+  const kept = ref.kind === "saved" ? (await load(toolContext.rc, listsReader, undefined)).data.lists : undefined;
+  const found = await findPoolList(toolContext.ctx, toolContext.tenantId, pool, ref, kept);
   if (!found) return { refusal: PLAYBOOK_CARD_REFUSALS.noList(AUDIENCES_CALL) };
   if (found.archived) return { refusal: archivedListWords(found.label, "run") };
   if ("unknown" in found) return { refusal: PLAYBOOK_CARD_REFUSALS.uncounted(found.label, found.unknown) };
@@ -86,20 +82,26 @@ async function listedPeople(
 
 /**
  * How the workspace can carry a playbook proposal by the channels it names, as the card counts who a run reaches: the
- * workspace's channels now with the message's own versions laid over them (core campaignHow, which the broadcast's route
+ * workspace's channels now with the message's own versions laid over them (core readCampaignHow, which the broadcast's route
  * reads too); WhatsApp alone when it names none. A tick that cannot send yet stays on the playbook (the check refuses only
  * what its purpose never carries), so nothing is refused here.
  */
-export async function playbookHow(
-  t: ToolContext,
+export async function getPlaybookHow(
+  toolContext: ToolContext,
   message: Pick<CampaignMessage, "versions">,
   by: { channels: ConsentChannel[]; named: boolean },
   /** The moment's (contracts messageAboutOfTrigger): a visit's or a follow-up's message is theirs. */
   about: MessageAbout,
 ): Promise<CampaignHow> {
-  if (!by.named) return whatsappHow(t, about);
-  return (await campaignHow(createBroadcastPorts(t.ctx, t.tenantId, { fresh: false }), message, by.channels, about))
-    .how;
+  if (!by.named) return getWhatsappHow(toolContext, about);
+  return (
+    await readCampaignHow(
+      createBroadcastPorts(toolContext.ctx, toolContext.tenantId, { fresh: false }),
+      message,
+      by.channels,
+      about,
+    )
+  ).how;
 }
 
 /**
@@ -157,8 +159,8 @@ export const reachByChannel = (byChannel: Record<ConsentChannel, number> | undef
  * A moment and its schedule in the workspace's word (readers/facts.ts businessShape), as the page says them: read once
  * the check has passed, so a proposal it refuses makes no read more.
  */
-export async function wordedMoment(t: ToolContext, trig: Trigger) {
-  const word = (await load(t.rc, businessShape, undefined)).data.word;
+export async function getWordedMoment(toolContext: ToolContext, trig: Trigger) {
+  const word = (await load(toolContext.rc, businessShape, undefined)).data.word;
   return { word, moment: triggerWords(trig, word) };
 }
 
@@ -168,15 +170,15 @@ export const breathSaid = (trig: Trigger): string =>
 
 /**
  * Who a new playbook's run reaches now, and who its moment names said the yes it needs, as the page's pools count them
- * (audience.ts poolList over the pool; the week's touches and a proposal's follow-ups by poolTouches, as triggerPools
+ * (audience.ts findPoolList over the pool; the week's touches and a proposal's follow-ups by poolTouches, as triggerPools
  * reads them; a proposal's pace), with the workspace's autonomy rows; or why not, in the model's words. `message` is the
  * message it sends, whose category is the yes its words need and whose WhatsApp version may be in review; `how` the
  * channels it goes by, the workspace ready on them or not: a run holds the people it cannot
  * reach there. `cap` is the campaign's own cap_per_run: `reading` carries who one run of it reaches on each channel, read
  * off the same draw (contracts runReadingOf), what the month's allowance is held against.
  */
-export async function reachNow(
-  t: ToolContext,
+export async function readReachNow(
+  toolContext: ToolContext,
   trig: Trigger,
   listRef: ListRef | null,
   message: PlaybookMessage,
@@ -185,28 +187,30 @@ export async function reachNow(
 ) {
   const deal = trig.kind === "deal";
   const [pool, policies, paceRead, followUps, touched] = await Promise.all([
-    load(t.rc, audiencePool, undefined).then((r) => r.data),
+    load(toolContext.rc, audiencePool, undefined).then((r) => r.data),
     // The autonomy rows, the turn's one read of them (readers/facts.ts policies): what a new sequence of its class starts
     // as (decision 0064). Unread is null, never a guess: the card would say what its batches do on one.
-    load(t.rc, policiesReader, undefined).then(
+    load(toolContext.rc, policiesReader, undefined).then(
       (r) => r.data,
       () => null,
     ),
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
-    deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
-    deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(noFollowUps()),
+    deal ? findDealPace(toolContext.ctx, toolContext.tenantId, toolContext.now) : Promise.resolve(null),
+    deal
+      ? getProposalFollowUps(toolContext.ctx, toolContext.tenantId, toolContext.now).catch(() => null)
+      : Promise.resolve(noFollowUps()),
     // Who hears from you within a week either side, sent or due, by a campaign or a member (the week's breath), the
-    // page's own read of it; one that fails is said in the log (context.ts touchesThisWeek) before the card is refused below.
-    touchesThisWeek(t, "propose_sequence.moment"),
+    // page's own read of it; one that fails is said in the log (context.ts findTouchesThisWeek) before the card is refused below.
+    findTouchesThisWeek(toolContext, "propose_sequence.moment"),
   ]);
   if (!followUps) return { refusal: PLAYBOOK_CARD_REFUSALS.followUpsUnread };
   if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
   if (!policies) return { refusal: PLAYBOOK_CARD_REFUSALS.modeUnread };
   // A list's people, as a run counts them (listedPeople).
-  const listed = listRef ? await listedPeople(t, pool, listRef) : { ids: null, label: null };
+  const listed = listRef ? await listedPeople(toolContext, pool, listRef) : { ids: null, label: null };
   if ("refusal" in listed) return listed;
   // Whether it could reach anyone at all, whenever its moment names them: a campaign nobody could be sent is no campaign
-  // card (the 30 Oct 2026 review, item 6), but what stops it (blockedOutcome).
+  // card (the 30 Oct 2026 review, item 6), but what stops it (getBlockedOutcome).
   const { block, usable } = campaignReachable(pool.rows, { trigger: trig.id, message, ...how }, listed.ids);
   if (block) return { blocked: { block, ready: how.ready, about: how.about } };
   // Everyone the moment reaches now, uncapped (the page's count), with the yes its message needs and its moment's: the
@@ -221,8 +225,8 @@ export async function reachNow(
       message: { category: message.category },
       ...how,
     },
-    poolTouches(touched, followUps, t.now),
-    t.now.getTime(),
+    poolTouches(touched, followUps, toolContext.now),
+    toolContext.now.getTime(),
     dealPaceOf(paceRead),
     listed.ids,
   );
@@ -233,22 +237,26 @@ export async function reachNow(
 type Blocked = { block: CampaignBlock; ready: CampaignHow["ready"]; about: MessageAbout };
 
 /**
- * A campaign that would reach no one (reachNow's `blocked`): where a page mends what stops it, one card of that one thing
+ * A campaign that would reach no one (readReachNow's `blocked`): where a page mends what stops it, one card of that one thing
  * with its door (contracts campaignFixCard), naming the campaign by the name asked or its moment's; where no page mends it
  * (a rule, a reason of each person's own), and in a plan's step, whose cards a plan presses together, the refusal, in the
  * owner's words, for the model to say.
  */
-export async function blockedOutcome(
-  t: ToolContext,
+export async function getBlockedOutcome(
+  toolContext: ToolContext,
   trig: Trigger,
-  b: Blocked,
-  asked: string | null,
+  blocked: Blocked,
+  text: string | null,
 ): Promise<ProposalOutcome> {
-  const { says, fix } = campaignBlockWords(b.block, b);
+  const { says, fix } = campaignBlockWords(blocked.block, blocked);
   const refusal = refuse(PLAYBOOK_CARD_REFUSALS.reachesNobody(says, fix));
-  if (t.step !== undefined) return refusal;
-  const { moment } = await wordedMoment(t, trig);
-  const card = campaignFixCard(b.block, { ready: b.ready, about: b.about, campaign: asked || moment.label });
+  if (toolContext.step !== undefined) return refusal;
+  const { moment } = await getWordedMoment(toolContext, trig);
+  const card = campaignFixCard(blocked.block, {
+    ready: blocked.ready,
+    about: blocked.about,
+    campaign: text || moment.label,
+  });
   if (!card) return refusal;
   return propose({
     kind: "fix",
@@ -300,15 +308,20 @@ export function cardLine(
  * contracts heldBackOfOneRun, the composer's own rule and sentence), with its separator; nothing while there is room,
  * where it goes by WhatsApp alone (no count is read), or where the month could not be counted.
  */
-export async function allowanceHeld(
-  t: ToolContext,
+export async function getAllowanceHeld(
+  toolContext: ToolContext,
   channels: readonly ConsentChannel[],
   reading: RunReading,
   run: { trigger: string; cap_per_run: number },
   purpose: AskedPurpose,
 ): Promise<string> {
   if (!channels.some((c) => c !== "whatsapp")) return "";
-  const words = heldBackOfOneRun(reading, run, await monthSentOrNull(t.tenantId, t.now), purpose);
+  const words = heldBackOfOneRun(
+    reading,
+    run,
+    await readMonthSentOrNull(toolContext.tenantId, toolContext.now),
+    purpose,
+  );
   return words ? `${words} · ` : "";
 }
 
@@ -328,8 +341,8 @@ export function underMode(cls: PlaybookInput["policy_class"], policies: readonly
 }
 
 /** A summary's piece as a sheet's row says it: no separator either side, its first letter a capital. */
-export const sheetWords = (s: string): string => {
-  const t = s
+export const sheetWords = (text: string): string => {
+  const t = text
     .replace(/^\s*·\s*/, "")
     .replace(/\s*·\s*$/, "")
     .trim();
@@ -337,8 +350,8 @@ export const sheetWords = (s: string): string => {
 };
 
 /** The waits a summary says, " · " between them (channelsWaitWords, allowanceHeld, a left-out line), one a sentence. */
-export const holdsOf = (...said: string[]): string[] =>
-  said
+export const holdsOf = (...sentence: string[]): string[] =>
+  sentence
     .join(" · ")
     .split(" · ")
     .map((s) => s.trim())
@@ -351,7 +364,7 @@ export const holdsOf = (...said: string[]): string[] =>
  * message; what holds it from sending apart, read first. A piece that is empty is no row. Its week's breath and how its
  * later batches go are aside: the first batch waits for an OK whatever the mode, so no press turns on them.
  */
-export function campaignSheet(p: {
+export function campaignSheet(params: {
   where: string;
   runs: string;
   breath: string;
@@ -363,18 +376,18 @@ export function campaignSheet(p: {
   waiting: string[];
 }): AskCardSheet {
   const rows = [
-    { label: "Where", value: p.where },
+    { label: "Where", value: params.where },
     // One fact, its parts by commas: "Daily 10:00 AM, up to 25, once per person".
-    { label: "Runs", value: p.runs.replaceAll(" · ", ", ") },
+    { label: "Runs", value: params.runs.replaceAll(" · ", ", ") },
     // An appointment's message is not held back by the others they hear around it, in the owner's words.
-    { label: "Other messages", value: p.breath, aside: true },
-    { label: "Last day", value: p.end },
-    { label: "Goes", value: p.goes },
-    { label: "Reaches", value: p.reaches },
-    { label: "Sends", value: p.sends, aside: true },
-    { label: "Message", value: p.message },
+    { label: "Other messages", value: params.breath, aside: true },
+    { label: "Last day", value: params.end },
+    { label: "Goes", value: params.goes },
+    { label: "Reaches", value: params.reaches },
+    { label: "Sends", value: params.sends, aside: true },
+    { label: "Message", value: params.message },
   ]
     .map((r) => ({ ...r, value: sheetWords(r.value) }))
     .filter((r) => r.value);
-  return { holds: holdsOf(...p.waiting), rows };
+  return { holds: holdsOf(...params.waiting), rows };
 }

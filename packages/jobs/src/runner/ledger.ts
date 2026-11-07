@@ -19,10 +19,11 @@
  * Cross-workspace: the job runner claims the next due job of any workspace; the job then acts in its own.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@chanlytics/db";
+import type { Database, Json } from "@chanlytics/db/types";
 import { DAY_MS, MIN_MS, jittered } from "@chanlytics/contracts";
 import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
-import { TWILIO_TIMEOUT_MS, WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels";
+import { TWILIO_TIMEOUT_MS } from "@chanlytics/channels/lines";
+import { WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels/whatsapp";
 import { collectPage, collectPageKey } from "./collect-page";
 import { deliveryPage, deliveryPageKey } from "./delivery-page";
 import { KIND_POLICY, kindPolicyOf, kindsWhere } from "./kinds";

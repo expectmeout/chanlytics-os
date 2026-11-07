@@ -6,9 +6,9 @@
  * (VERSION_CHANNEL_WORDS, CONSENT_CHANNEL_WORDS, CHANNEL_WORDS): nothing here is a second spelling.
  */
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../../consent/channels";
-import { VERSION_CHANNEL_WORDS } from "../templates/message-versions";
+import { VERSION_CHANNEL_WORDS } from "../templates/message-versions/channels";
 import { joinWords } from "../../shared/words";
-import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing";
+import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing/plans";
 import { CHANNEL_WORDS, type ChannelsReady } from "./reach-for";
 
 /** Where the closed channels are mended: Settings › Connections (the shell's address for it). */
@@ -41,8 +41,8 @@ const NO_DOOR: readonly string[] = [
 ];
 
 /** A reason as a line's words: the sentence the readiness carries, without its full stop, after the channel's name. */
-function closedWords(channel: ConsentChannel, why: string | null): string {
-  const reason = (why ?? "").replace(/\.$/, "");
+function closedWords(channel: ConsentChannel, otherReason: string | null): string {
+  const reason = (otherReason ?? "").replace(/\.$/, "");
   return reason ? `${VERSION_CHANNEL_WORDS[channel]}: ${reason}` : `${VERSION_CHANNEL_WORDS[channel]} is off`;
 }
 
@@ -70,13 +70,13 @@ export function channelsStandingParts(ready: ChannelsReady | null | undefined): 
     },
   ];
   for (const c of closed) {
-    const why = ready[c].why;
+    const reason = ready[c].why;
     parts.push({
       channel: c,
       channels: [c],
       open: false,
-      words: closedWords(c, why),
-      door: why && NO_DOOR.includes(why) ? null : CHANNELS_DOOR,
+      words: closedWords(c, reason),
+      door: reason && NO_DOOR.includes(reason) ? null : CHANNELS_DOOR,
     });
   }
   return parts;

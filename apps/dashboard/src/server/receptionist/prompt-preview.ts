@@ -13,9 +13,9 @@ import {
   type BusyBlock,
   type KnownFacts,
 } from "@chanlytics/contracts";
-import { listPolicies } from "@chanlytics/db";
+import { listPolicies } from "@chanlytics/db/workspace";
 import type { RouteContext } from "@/server/shared/with-route";
-import { loadFeed } from "@/server/ask/openings";
+import { loadFeed } from "@/server/calendar/openings";
 import { recordBusy } from "@/server/calendar/record-busy";
 import { log } from "@/server/shared/log";
 
@@ -77,13 +77,13 @@ export function composePromptPreview(brain: BrainConfig, facts: PromptFacts, now
 
 /**
  * The openings block as the edge composes it (apps/edge/lib/calendar/availability.ts,
- * openingsFor): the feed's busy blocks, and the record's taken time beside them
+ * findOpenings): the feed's busy blocks, and the record's taken time beside them
  * (`taken`, the caller's read: calendar/record-busy.ts, 00345), against the hours,
  * closures and booking rules, in the business's zone. Null when there is no feed, no
  * profile or no zone, and when the feed cannot be read -- the receptionist
  * then says nothing about open times, and so does the preview.
  */
-export async function openingsBlock(
+export async function findOpeningsBlock(
   tenantId: string,
   cfg: {
     url: string | null;
@@ -135,7 +135,7 @@ export async function openingsBlock(
  * composed without its rules is a wrong prompt, not a partial one, and the
  * card would state it as what the receptionist is told.
  */
-export async function promptPreview(
+export async function findPromptPreview(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   cfg: { brain: BrainConfig | null | undefined; calendarUrl: string | null },
@@ -156,7 +156,7 @@ export async function promptPreview(
     return null;
   }
   const taken = (daysAhead: number) => recordBusy(ctx, tenantId, now, daysAhead);
-  const openings = await openingsBlock(tenantId, { url: cfg.calendarUrl, brain, tz, taken, policy }, now);
+  const openings = await findOpeningsBlock(tenantId, { url: cfg.calendarUrl, brain, tz, taken, policy }, now);
   try {
     return composePromptPreview(brain, { tz, policy, known, openings }, now);
   } catch (e) {

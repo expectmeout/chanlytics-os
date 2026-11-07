@@ -17,18 +17,17 @@ import {
   applyReplyReading,
   archiveConversation,
   claimReplyTell,
-  conversationDraftClaim,
-  conversationDraftWrite,
   markReplyDraft,
   markReplyTold,
-  reachOutReplyOf,
+  findReachOutReply,
   replyReadingOf,
   resolveEscalationByReason,
-  type Json,
   type ReachOutReplyOf,
   type ReplyReadingRow,
-} from "@chanlytics/db";
-import { logger } from "@chanlytics/channels";
+} from "@chanlytics/db/campaigns";
+import { claimConversationDraft, writeConversationDraft } from "@chanlytics/db/ask";
+import type { Json } from "@chanlytics/db/types";
+import { logger } from "@chanlytics/log";
 import type { ClaimedJob, JobContext } from "../runner/context";
 import { FUNCTION_CEILING_MS, LEASE_SECONDS, type Db } from "../runner/ledger";
 
@@ -38,24 +37,24 @@ function planJson(plan: ReadingPlan): Json {
 }
 
 /** The reply as the verb reads it. */
-function replyFactsOf(r: ReachOutReplyOf): ReplyFacts {
+function replyFactsOf(reachOutReplyOf: ReachOutReplyOf): ReplyFacts {
   return {
-    conversationId: r.conversation_id,
-    claim: r.claim,
-    text: r.text,
-    subject: r.subject,
+    conversationId: reachOutReplyOf.conversation_id,
+    claim: reachOutReplyOf.claim,
+    text: reachOutReplyOf.text,
+    subject: reachOutReplyOf.subject,
     // The intake's bare from.address, as it kept it: a display-name form would suppress nothing (normalizeEmail).
-    from: r.from,
-    receivedAt: Date.parse(r.received_at),
-    answered: r.answered_text,
-    business: r.business,
-    leadAddress: r.lead_email,
-    leadWebsite: r.lead_website,
-    leadWebsiteRoot: r.lead_website_root,
-    signedBy: r.signed_by,
-    tz: r.tz ?? DEFAULT_TIMEZONE,
-    fromName: r.from_name,
-    notNames: r.not_names,
+    from: reachOutReplyOf.from,
+    receivedAt: Date.parse(reachOutReplyOf.received_at),
+    answered: reachOutReplyOf.answered_text,
+    business: reachOutReplyOf.business,
+    leadAddress: reachOutReplyOf.lead_email,
+    leadWebsite: reachOutReplyOf.lead_website,
+    leadWebsiteRoot: reachOutReplyOf.lead_website_root,
+    signedBy: reachOutReplyOf.signed_by,
+    tz: reachOutReplyOf.tz ?? DEFAULT_TIMEZONE,
+    fromName: reachOutReplyOf.from_name,
+    notNames: reachOutReplyOf.not_names,
   };
 }
 
@@ -98,17 +97,17 @@ function draftMarkOf(m: DraftMark): { state: DraftMark["state"]; draft: string |
 async function keepReachOutDraft(
   db: Db,
   tenantId: string,
-  d: { conversationId: string; messageId: string; text: string; subject: string | null; used: readonly string[] },
+  details: { conversationId: string; messageId: string; text: string; subject: string | null; used: readonly string[] },
 ): Promise<void> {
-  const row = { tenantId, conversationId: d.conversationId, kind: "reply", forMessageId: d.messageId };
+  const row = { tenantId, conversationId: details.conversationId, kind: "reply", forMessageId: details.messageId };
   const shared = { source: "reach_out", rules: REPLY_DRAFT_RULES };
-  await conversationDraftClaim(db, { ...row, ...shared });
-  await conversationDraftWrite(db, {
+  await claimConversationDraft(db, { ...row, ...shared });
+  await writeConversationDraft(db, {
     ...row,
     ...shared,
     state: "ready",
-    words: { text: d.text, subject: replySubject(d.subject), brief: null, asks: [] },
-    used: d.used,
+    words: { text: details.text, subject: replySubject(details.subject), brief: null, asks: [] },
+    used: details.used,
   });
 }
 
@@ -122,7 +121,7 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
   const outcome = await readReply(
     {
       reply: async (tenantId, id) => {
-        const r = await reachOutReplyOf(db, { ...where(tenantId, id), days: REACH_OUT_REPLY_DAYS });
+        const r = await findReachOutReply(db, { ...where(tenantId, id), days: REACH_OUT_REPLY_DAYS });
         return r ? replyFactsOf(r) : null;
       },
       reading: async (tenantId, id) => {
@@ -131,20 +130,20 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
       },
       mayRead: (tenantId, at) => replies.mayRead(tenantId, new Date(at)),
       ask: (system, user) => replies.ask(system, user, ctx.deadline, { tenantId: job.tenant_id, subjectId: messageId }),
-      apply: (tenantId, id, p) =>
+      apply: (tenantId, id, item) =>
         applyReplyReading(db, {
           ...where(tenantId, id),
           reading: {
-            intent: p.reading.intent,
-            summary: p.reading.summary,
-            day: p.reading.day,
-            refer_to: p.reading.referTo,
-            unread: p.unread,
+            intent: item.reading.intent,
+            summary: item.reading.summary,
+            day: item.reading.day,
+            refer_to: item.reading.referTo,
+            unread: item.unread,
             // The signer the gate kept (0052): offered to the owner, or taken when the plan says adoptSigner.
-            signer: p.reading.signer,
+            signer: item.reading.signer,
           },
-          plan: planJson(p.plan),
-          reread: p.reread,
+          plan: planJson(item.plan),
+          reread: item.reread,
           days: REACH_OUT_REPLY_DAYS,
         }),
       claimTell: (tenantId, id, staleBefore) =>

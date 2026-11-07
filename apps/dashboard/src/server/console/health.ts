@@ -13,25 +13,25 @@ import "server-only";
  * workspace and no person, only a short hash of who, so Health counts people without knowing them.
  */
 import { createHash } from "node:crypto";
+import { listFailedJobsOfKind } from "@chanlytics/db/jobs";
 import {
-  failedJobsOfKind,
-  healthBacklog,
-  healthClientErrors,
-  healthClocks,
-  healthFailedJobs,
-  healthLedgerNow,
-  healthPages,
-  healthDraftUses,
-  healthAnthropicProfiles,
-  healthParts,
-  healthSweeps,
-  healthWorkspaces,
+  getHealthBacklog,
+  getHealthClientErrors,
+  getHealthClocks,
+  getHealthFailedJobs,
+  getHealthLedger,
+  getHealthPages,
+  getHealthDraftUses,
+  getHealthParts,
+  getHealthSweeps,
+  getHealthWorkspaces,
   keepClientError,
   pauseJobKind,
-  recordEvent,
   redriveDeliveries,
   resumeJobKind,
-} from "@chanlytics/db";
+} from "@chanlytics/db/console";
+import { getHealthAnthropicProfiles } from "@chanlytics/db/ai";
+import { recordEvent } from "@chanlytics/db/events";
 import { requeueFailedJob } from "@chanlytics/jobs";
 import {
   AppError,
@@ -51,11 +51,11 @@ import {
   type LedgerNowDto,
   type OperatorPageDto,
 } from "@chanlytics/contracts";
-import { side } from "./console";
-import { platformDays } from "./day-counts";
-import { platformSpeed, platformVitals } from "./vitals";
+import { readSide } from "./console";
+import { listPlatformDays } from "./day-counts";
+import { findPlatformSpeed, listPlatformVitals } from "./vitals";
 import { takeAct } from "./acts";
-import type { BackOffice } from "./platform";
+import type { BackOffice } from "../shared/back-office";
 import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
 
@@ -72,35 +72,35 @@ const healthRowsOf = <T>(r: { data: T | null; error: { message: string } | null 
 /** Every clock beside pg_cron's record of its runs, with sweep_health()'s judgement of it where that could be read. */
 async function clocksRead(office: BackOffice, days: number): Promise<HealthClockDto[]> {
   const [clocks, sweeps] = await Promise.all([
-    healthClocks(office.db, days).then(healthRowsOf),
-    healthSweeps(office.db).then(healthRowsOf, (e: unknown) => {
+    getHealthClocks(office.db, days).then(healthRowsOf),
+    getHealthSweeps(office.db).then(healthRowsOf, (e: unknown) => {
       log.error("platform_console_read_failed", { read: "sweep_health", error: e });
       return null;
     }),
   ]);
   const judged = new Map((sweeps ?? []).map((s) => [s.sweep, s]));
-  return clocks.map((c) => {
-    const j = judged.get(c.sweep);
+  return clocks.map((clock) => {
+    const result = judged.get(clock.sweep);
     return {
-      sweep: c.sweep,
-      jobname: c.jobname,
-      schedule: c.schedule,
-      judged_by: c.judged_by,
-      max_silence: c.max_silence,
-      last_run: c.last_run,
-      runs: Number(c.runs),
-      failed: Number(c.failed),
-      last_failure: c.last_failure,
-      healthy: sweeps === null ? null : (j?.healthy ?? null),
-      detail: j?.detail ?? null,
-      last_request_at: j?.last_request_at ?? null,
+      sweep: clock.sweep,
+      jobname: clock.jobname,
+      schedule: clock.schedule,
+      judged_by: clock.judged_by,
+      max_silence: clock.max_silence,
+      last_run: clock.last_run,
+      runs: Number(clock.runs),
+      failed: Number(clock.failed),
+      last_failure: clock.last_failure,
+      healthy: sweeps === null ? null : (result?.healthy ?? null),
+      detail: result?.detail ?? null,
+      last_request_at: result?.last_request_at ?? null,
     };
   });
 }
 
 /** Whether platform_health_parts' answer is the shape Health reads: an object whose every list is a list. */
-function isHealthParts(v: unknown): v is HealthPartsDto {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+function isHealthParts(value: unknown): value is HealthPartsDto {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const lists = [
     "sends",
     "send_errors",
@@ -123,17 +123,17 @@ function isHealthParts(v: unknown): v is HealthPartsDto {
     "google",
     "mailboxes",
   ];
-  return lists.every((k) => Array.isArray((v as Record<string, unknown>)[k]));
+  return lists.every((k) => Array.isArray((value as Record<string, unknown>)[k]));
 }
 
 async function partsRead(office: BackOffice, days: number): Promise<HealthPartsDto> {
-  const parts = healthRowsOf(await healthParts(office.db, days));
+  const parts = healthRowsOf(await getHealthParts(office.db, days));
   if (!isHealthParts(parts)) throw new Error("platform_health_parts answered a shape Health does not read");
   // Each ending in the platform's words and what mends it, from the one table (contracts callEndingOf): the page reads
   // them off the rows, and loads no table of every ending the provider names.
   const read: HealthPartsDto = parts;
   // What the drafts came to has its own small read: a read that fails costs the line, never the page.
-  const uses = await healthDraftUses(office.db, days).then(
+  const uses = await getHealthDraftUses(office.db, days).then(
     (r) => (r.error ? [] : (r.data ?? []).map((u) => ({ ours: u.ours, use: u.use, n: Number(u.n) }))),
     () => [],
   );
@@ -147,27 +147,27 @@ function endingSaid(reason: string | null): { words: string; mend: string | null
 }
 
 async function workspacesRead(office: BackOffice): Promise<HealthWorkspaceDto[]> {
-  const rows = healthRowsOf(await healthWorkspaces(office.db, HEALTH_ROWS.workspaces));
+  const rows = healthRowsOf(await getHealthWorkspaces(office.db, HEALTH_ROWS.workspaces));
   return rows.map((w) => ({ id: w.id, slug: w.slug, name: w.name, ours: w.ours }));
 }
 
 async function failedJobsRead(office: BackOffice, sinceIso: string): Promise<FailedJobDto[]> {
-  return healthRowsOf(await healthFailedJobs(office.db, { sinceIso, limit: HEALTH_ROWS.failedJobs }));
+  return healthRowsOf(await getHealthFailedJobs(office.db, { sinceIso, limit: HEALTH_ROWS.failedJobs }));
 }
 
 async function pagesRead(office: BackOffice): Promise<OperatorPageDto[]> {
-  return healthRowsOf(await healthPages(office.db, HEALTH_ROWS.pages));
+  return healthRowsOf(await getHealthPages(office.db, HEALTH_ROWS.pages));
 }
 
 /** The ledger now (jobs_ledger_now, 00526): by lane, by kind, and the canary's last finish. */
 async function ledgerRead(office: BackOffice): Promise<LedgerNowDto> {
-  const raw = healthRowsOf(await healthLedgerNow(office.db));
-  const j: Record<string, unknown> = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const raw = healthRowsOf(await getHealthLedger(office.db));
+  const record: Record<string, unknown> = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const rows = (v: unknown): Record<string, unknown>[] =>
     Array.isArray(v) ? v.filter((r): r is Record<string, unknown> => !!r && typeof r === "object") : [];
   const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
   return {
-    lanes: rows(j.lanes).map((l) => ({
+    lanes: rows(record.lanes).map((l) => ({
       lane: Number(l.lane),
       running: Number(l.running) || 0,
       due: Number(l.due) || 0,
@@ -175,7 +175,7 @@ async function ledgerRead(office: BackOffice): Promise<LedgerNowDto> {
       expired: Number(l.expired) || 0,
       oldest_due_s: Number(l.oldest_due_s) || 0,
     })),
-    kinds: rows(j.kinds).map((k) => ({
+    kinds: rows(record.kinds).map((k) => ({
       kind: String(k.kind),
       lane: Number(k.lane),
       paused_at: text(k.paused_at),
@@ -183,18 +183,18 @@ async function ledgerRead(office: BackOffice): Promise<LedgerNowDto> {
       failed_day: Number(k.failed_day) || 0,
       done_day: Number(k.done_day) || 0,
     })),
-    canary_done_at: text(j.canary_done_at),
-    read_at: text(j.read_at) ?? new Date().toISOString(),
+    canary_done_at: text(record.canary_done_at),
+    read_at: text(record.read_at) ?? new Date().toISOString(),
   };
 }
 
 async function backlogRead(office: BackOffice): Promise<number> {
-  const due = healthRowsOf(await healthBacklog(office.db));
+  const due = healthRowsOf(await getHealthBacklog(office.db));
   return Number(due);
 }
 
 async function clientErrorsRead(office: BackOffice, sinceIso: string): Promise<ClientErrorDto[]> {
-  const rows = healthRowsOf(await healthClientErrors(office.db, { sinceIso, limit: HEALTH_ROWS.clientErrors }));
+  const rows = healthRowsOf(await getHealthClientErrors(office.db, { sinceIso, limit: HEALTH_ROWS.clientErrors }));
   // A month of errors past the cap is itself the news; the groups count what was read, and the log says it was cut.
   if (rows.length >= HEALTH_ROWS.clientErrors)
     log.error("platform_console_read_failed", { read: "client_errors_capped" });
@@ -205,7 +205,7 @@ async function clientErrorsRead(office: BackOffice, sinceIso: string): Promise<C
  * GET platform/health: every part over the window, each read on its own, a failed one said as null. The nightly
  * roll-up's days, the clocks and the parts are the window's; the speed cards keep their own window (PAGE_VITALS_READ).
  */
-export async function consoleHealth(office: BackOffice, days: HealthWindow, now = Date.now()): Promise<HealthDto> {
+export async function getConsoleHealth(office: BackOffice, days: HealthWindow, now = Date.now()): Promise<HealthDto> {
   const sinceIso = new Date(now - days * DAY_MS).toISOString();
   const [
     workspaces,
@@ -221,18 +221,18 @@ export async function consoleHealth(office: BackOffice, days: HealthWindow, now 
     speed,
     profiles,
   ] = await Promise.all([
-    side("health_workspaces", () => workspacesRead(office)),
-    side("health_clocks", () => clocksRead(office, days)),
-    side("health_backlog", () => backlogRead(office)),
-    side("health_failed_jobs", () => failedJobsRead(office, sinceIso)),
-    side("health_ledger", () => ledgerRead(office)),
-    side("health_pages", () => pagesRead(office)),
-    platformDays(office, days),
-    side("health_parts", () => partsRead(office, days)),
-    side("health_client_errors", () => clientErrorsRead(office, sinceIso)),
-    platformVitals(office),
-    platformSpeed(office),
-    side("health_anthropic_profiles", () => healthAnthropicProfiles(office.db)),
+    readSide("health_workspaces", () => workspacesRead(office)),
+    readSide("health_clocks", () => clocksRead(office, days)),
+    readSide("health_backlog", () => backlogRead(office)),
+    readSide("health_failed_jobs", () => failedJobsRead(office, sinceIso)),
+    readSide("health_ledger", () => ledgerRead(office)),
+    readSide("health_pages", () => pagesRead(office)),
+    listPlatformDays(office, days),
+    readSide("health_parts", () => partsRead(office, days)),
+    readSide("health_client_errors", () => clientErrorsRead(office, sinceIso)),
+    listPlatformVitals(office),
+    findPlatformSpeed(office),
+    readSide("health_anthropic_profiles", () => getHealthAnthropicProfiles(office.db)),
   ]);
   return {
     days,
@@ -256,14 +256,14 @@ export async function consoleHealth(office: BackOffice, days: HealthWindow, now 
  * Deliver again: every failed or paused delivery of one subscriber scheduled again, each once (00334). Taken once its
  * cause is mended; the Admin log has who, why and how many went.
  */
-export async function healthRedrive(
+export async function redriveHealth(
   office: BackOffice,
   subscriber: string,
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
 ): Promise<{ subscriber: string; scheduled: number }> {
   return takeAct(
     office,
-    { act: "delivery_redrive", why, tenantId: null, target: "platform", targetId: subscriber },
+    { act: "delivery_redrive", why: reason, tenantId: null, target: "platform", targetId: subscriber },
     async () => {
       const { data, error } = await redriveDeliveries(office.db, subscriber);
       if (error)
@@ -283,26 +283,26 @@ export async function healthRedrive(
  * run again is left; each run again is on its workspace's ledger as the staff member's act). The Admin log has who, why
  * and how many went; at most HEALTH_ROWS.requeueKind a press, oldest first.
  */
-export async function healthRequeueKind(
+export async function requeueHealthKind(
   office: BackOffice,
   kind: JobKind,
   sinceIso: string,
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
 ): Promise<{ kind: JobKind; requeued: number; refused: number }> {
   return takeAct(
     office,
-    { act: "job_requeue_kind", why, tenantId: null, target: "platform", targetId: kind },
+    { act: "job_requeue_kind", why: reason, tenantId: null, target: "platform", targetId: kind },
     async () => {
       let rows: { id: string; tenant_id: string }[];
       try {
-        rows = await failedJobsOfKind(office.db, { kind, sinceIso, limit: HEALTH_ROWS.requeueKind });
+        rows = await listFailedJobsOfKind(office.db, { kind, sinceIso, limit: HEALTH_ROWS.requeueKind });
       } catch {
         throw new AppError("internal", "The failed jobs could not be read. Try again in a moment.", 503);
       }
       let requeued = 0;
       let refused = 0;
       for (const row of rows) {
-        const r = await requeueFailedJob(office.db, row.tenant_id, row.id, async (k) => {
+        const result = await requeueFailedJob(office.db, row.tenant_id, row.id, async (k) => {
           const { error } = await recordEvent(office.db, row.tenant_id, "platform.acted", "job", row.id, {
             action: `requeue:${k}`,
             by: office.userId,
@@ -310,7 +310,7 @@ export async function healthRequeueKind(
           });
           if (error) throw new Error(error);
         }).catch(() => null);
-        if (r?.outcome === "requeued") requeued += 1;
+        if (result?.outcome === "requeued") requeued += 1;
         else refused += 1;
       }
       return { kind, requeued, refused };
@@ -327,18 +327,22 @@ export async function healthRequeueKind(
  * they wait where they are; resumed, what waited is due at once. The incident lever: a provider answering garbage, a run
  * that should not go on, a handler a deploy broke. The reason is said on Health and in the Admin log.
  */
-export async function healthPauseKind(
+export async function pauseHealthKind(
   office: BackOffice,
   kind: JobKind,
   paused: boolean,
-  why: ConsoleWhy,
+  reason: ConsoleWhy,
 ): Promise<{ kind: JobKind; paused: boolean }> {
   return takeAct(
     office,
-    { act: "job_kind_pause", why, tenantId: null, target: "platform", targetId: kind },
+    { act: "job_kind_pause", why: reason, tenantId: null, target: "platform", targetId: kind },
     async () => {
       const { data, error } = paused
-        ? await pauseJobKind(office.db, kind, [why.kind, why.ticket, why.note].filter(Boolean).join(": ").slice(0, 500))
+        ? await pauseJobKind(
+            office.db,
+            kind,
+            [reason.kind, reason.ticket, reason.note].filter(Boolean).join(": ").slice(0, 500),
+          )
         : await resumeJobKind(office.db, kind);
       const answered = data && typeof data === "object" && !Array.isArray(data) ? data : null;
       if (error || !answered || typeof answered.error === "string")

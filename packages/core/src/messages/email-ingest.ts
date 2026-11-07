@@ -11,8 +11,8 @@ import {
   type EmailClaim,
   type MailboxSenderVerdict,
 } from "@chanlytics/contracts";
-import { logger } from "@chanlytics/channels";
-import type { Json } from "@chanlytics/db";
+import { logger } from "@chanlytics/log";
+import type { Json } from "@chanlytics/db/types";
 
 /** The intake's own lines, by name: a yes the sender's proof does not stand behind. */
 const emailLog = logger();
@@ -269,7 +269,7 @@ export async function ingestEmail(
   const taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation"> =
     claim === "booking_notice" || claim === "forwarding_confirmation" ? "automated" : claim;
 
-  const said = answersOf(email);
+  const sentence = answersOf(email);
   const kept = await ports.record({
     tenantId: mailbox.tenant_id,
     address,
@@ -277,16 +277,16 @@ export async function ingestEmail(
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
     meta: metaOf(email),
-    optOut: said.optOut,
-    optIn: said.optIn,
-    unsubscribe: said.unsubscribe,
-    optInOffers: said.optInOffers,
-    fromThemProven: said.fromThemProven,
+    optOut: sentence.optOut,
+    optIn: sentence.optIn,
+    unsubscribe: sentence.unsubscribe,
+    optInOffers: sentence.optInOffers,
+    fromThemProven: sentence.fromThemProven,
     words: replyTextOf(email.text).slice(0, 80) || null,
   });
   if (!kept.is_new && kept.processed) return "already_handled";
   // Said once the email is known to be new work, so a delivery the provider repeats says it once.
-  if (said.unproven)
+  if (sentence.unproven)
     emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
 
   // A reply to a reach-out is read for what it means (reply_read), whatever it claims: an automatic reply may still
@@ -358,10 +358,10 @@ async function senderWordOf(
 function flaggedAs(
   taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation">,
   claim: EmailClaim,
-  asked: boolean,
+  enabled: boolean,
 ): "person" | "automated" | null {
   if (taken === "auto_reply") return null;
-  return taken === "person" || asked || claim !== "automated" ? taken : null;
+  return taken === "person" || enabled || claim !== "automated" ? taken : null;
 }
 
 /**
@@ -419,9 +419,15 @@ async function keptAside(
 async function flagForAPerson(
   ports: EmailIngestPorts,
   email: IncomingEmail,
-  p: { tenantId: string; conversationId: string; address: string; claim: "person" | "automated"; reachOut: boolean },
+  params: {
+    tenantId: string;
+    conversationId: string;
+    address: string;
+    claim: "person" | "automated";
+    reachOut: boolean;
+  },
 ): Promise<void> {
-  const { tenantId, conversationId, claim, reachOut } = p;
+  const { tenantId, conversationId, claim, reachOut } = params;
   const flagged = await ports.escalate(
     tenantId,
     conversationId,
@@ -441,7 +447,7 @@ async function flagForAPerson(
   if (reachOut || (flagged !== "opened" && flagged !== "changed")) return;
   await ports.tell(tenantId, {
     conversationId,
-    from: p.address,
+    from: params.address,
     fromName: email.from?.name ?? null,
     subject: email.subject,
     preview: bodyOf(email)?.slice(0, 280) ?? null,
@@ -457,7 +463,7 @@ async function flagForAPerson(
  * (`senderAuthenticated`): one whose words say yes and whose proof is missing or says no is not recorded, and
  * `unproven` has it said in the log, as either a forgery or an email the provider gave no verdict on.
  */
-function answersOf(e: IncomingEmail): {
+function answersOf(incomingEmail: IncomingEmail): {
   optOut: boolean;
   unsubscribe: boolean;
   optInOffers: boolean;
@@ -466,17 +472,17 @@ function answersOf(e: IncomingEmail): {
   /** A person's own email from a proven sender, whatever it says: proof that their address takes and sends mail. */
   fromThemProven: boolean;
 } {
-  const optOut = asksToStop(e);
-  const yes = !optOut && saysYesToOffers(e);
-  const start = !optOut && asksToStart(e);
-  const proven = e.senderAuthenticated === true;
+  const optOut = asksToStop(incomingEmail);
+  const yes = !optOut && saysYesToOffers(incomingEmail);
+  const start = !optOut && asksToStart(incomingEmail);
+  const proven = incomingEmail.senderAuthenticated === true;
   return {
     optOut,
-    unsubscribe: !optOut && asksToUnsubscribe(e),
+    unsubscribe: !optOut && asksToUnsubscribe(incomingEmail),
     optInOffers: yes && proven,
     optIn: start && proven,
     unproven: (yes || start) && !proven,
-    fromThemProven: e.claim === "person" && proven,
+    fromThemProven: incomingEmail.claim === "person" && proven,
   };
 }
 
@@ -526,21 +532,21 @@ function bodyOf(e: IncomingEmail): string | null {
 }
 
 /** What the row remembers about the email beside its words: enough to thread a reply under it and to show who it was from. */
-function metaOf(e: IncomingEmail): Json {
+function metaOf(incomingEmail: IncomingEmail): Json {
   return {
     email: {
-      subject: e.subject,
-      message_id: e.messageId,
-      in_reply_to: e.inReplyTo,
-      references: e.references.slice(-20),
-      from: e.from?.address ?? null,
-      from_name: e.from?.name ?? null,
-      to: e.to,
-      cc: e.cc,
-      claim: e.claim,
-      attachments: e.attachments.slice(0, 5),
-      more_attachments: Math.max(0, e.attachments.length - 5),
-      truncated: (e.text?.length ?? 0) > EMAIL_BODY_MAX,
+      subject: incomingEmail.subject,
+      message_id: incomingEmail.messageId,
+      in_reply_to: incomingEmail.inReplyTo,
+      references: incomingEmail.references.slice(-20),
+      from: incomingEmail.from?.address ?? null,
+      from_name: incomingEmail.from?.name ?? null,
+      to: incomingEmail.to,
+      cc: incomingEmail.cc,
+      claim: incomingEmail.claim,
+      attachments: incomingEmail.attachments.slice(0, 5),
+      more_attachments: Math.max(0, incomingEmail.attachments.length - 5),
+      truncated: (incomingEmail.text?.length ?? 0) > EMAIL_BODY_MAX,
     },
   };
 }

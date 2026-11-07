@@ -13,13 +13,13 @@ import {
   type AskProposal,
   type LeadIdeaDto,
 } from "@chanlytics/contracts";
-import { leadCardsLive } from "@chanlytics/db";
+import { listLeadCardsLive } from "@chanlytics/db/leads";
 import type { RouteContext } from "../../../../shared/with-route";
-import { suggestionsKept } from "../../../../leads/lead-suggestions";
-import { planFacts } from "../../../../leads/lead-plan-facts";
-import { peopleCard } from "./lead-search";
-import { propose } from "../../context";
-import { titleFromQuestion } from "../../../prompt";
+import { getSuggestionsKept } from "../../../../leads/suggestions";
+import { planFacts } from "../../../../leads/plan-facts";
+import { getPeopleCard } from "./search";
+import { propose } from "../../context/context";
+import { titleFromQuestion } from "../../../prompt/prompt";
 import { appendMessage, createThread, listThreads, readThread, touchThread } from "../../../store";
 
 /**
@@ -38,31 +38,31 @@ const ideaTitle = (words: string) => titleFromQuestion(words.charAt(0).toUpperCa
 
 /** The answer over an idea's card: the idea's why, the way to change it, and two changes most often said, ready to tap. */
 function ideaAnswer(idea: LeadIdeaDto, card: AskProposal): AskAnswer {
-  const a = answerForCards([card], "en", null, null);
-  const why = idea.who_for.trim();
-  a.say.headline = (why || `Here is the search for ${idea.words}.`).slice(0, ASK_ANSWER_CAPS.headline);
-  a.say.detail = IDEA_DETAIL;
+  const result = answerForCards([card], "en", null, null);
+  const reason = idea.who_for.trim();
+  result.say.headline = (reason || `Here is the search for ${idea.words}.`).slice(0, ASK_ANSWER_CAPS.headline);
+  result.say.detail = IDEA_DETAIL;
   const count = idea.plan?.count ?? idea.people?.count ?? 0;
   const most = idea.people ? PEOPLE_COUNT_MAX : LEAD_MAX_PLACES;
   const website = idea.plan?.criteria.some((c) => /website/i.test(c.text)) ?? true;
-  a.do.next = [
+  result.do.next = [
     ...(count > 0 && count * 2 <= most ? [`Make it ${count * 2}`] : []),
     ...(idea.plan && !website ? ["Only ones with a website"] : []),
   ].slice(0, ASK_ANSWER_CAPS.next);
-  return a;
+  return result;
 }
 
 /** The idea's search as a card: a places plan, or a people plan where the people card finds leads now (00430). */
 async function ideaCard(ctx: RouteContext, tenantId: string, idea: LeadIdeaDto, title: string, now: Date) {
   if (idea.people) {
-    const live = await leadCardsLive(ctx.supabase).catch(() => [] as string[]);
+    const live = await listLeadCardsLive(ctx.supabase).catch(() => [] as string[]);
     if (!live.includes("people_at_companies"))
       throw new AppError(
         "conflict",
         "Finding people at companies opens once it has been checked. Nothing was started.",
         409,
       );
-    return propose(await peopleCard(ctx, tenantId, now, { ...idea.people, from: "idea" }, title)).proposal;
+    return propose(await getPeopleCard(ctx, tenantId, now, { ...idea.people, from: "idea" }, title)).proposal;
   }
   if (!idea.plan) return null;
   // A new search, at the plan's first version: what the door starts (lead_search_create), and from an idea (the ideas'
@@ -97,18 +97,18 @@ export async function keepIdeaCard(
   words: string,
   now: Date = new Date(),
 ): Promise<{ thread: { id: string; title: string } }> {
-  const ideas = await suggestionsKept(ctx, tenantId);
+  const ideas = await getSuggestionsKept(ctx, tenantId);
   const idea = ideas.items.find((i) => i.words === words);
   if (!idea) throw new AppError("not_found", "That idea has changed. Pick one of the ideas shown now.", 404);
   if (!idea.plan && !idea.people) throw new AppError("validation", "That idea has no search to start yet.", 400);
   const title = ideaTitle(idea.words);
   const waiting = await ideaThreadWaiting(ctx, tenantId, title);
   if (waiting) return { thread: waiting };
-  const made = await ideaCard(ctx, tenantId, idea, title, now);
-  if (!made) throw new AppError("validation", "That idea has no search to start yet.", 400);
+  const created = await ideaCard(ctx, tenantId, idea, title, now);
+  if (!created) throw new AppError("validation", "That idea has no search to start yet.", 400);
   const thread = await createThread(ctx, tenantId, title, null);
   // The card carries the thread it was planned in, as a turn's does (turn.ts), so the search keeps it (00172).
-  const card: AskProposal = { ...made, payload: { ...made.payload, thread_id: thread.id } };
+  const card: AskProposal = { ...created, payload: { ...created.payload, thread_id: thread.id } };
   const answer = ideaAnswer(idea, card);
   await appendMessage(ctx, thread.id, tenantId, "user", { text: title });
   await appendMessage(ctx, thread.id, tenantId, "assistant", {

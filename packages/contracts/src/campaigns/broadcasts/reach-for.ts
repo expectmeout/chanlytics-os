@@ -16,12 +16,12 @@
  * held on that channel, never moved to another: nobody gets an email because WhatsApp ran out for the day (decision 9).
  */
 import { isOfferByEmail, type AskedPurpose, type MessageAbout, type SendPurpose } from "../../consent/consent";
-import { dayInZone } from "../../calendar/zone-math";
+import { dayInZone } from "../../shared/zone/math";
 import { wallClockAt } from "../../shared/clock";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import type { WrittenChannel } from "../../conversations/thread-channel";
 import { type NotReceived, type ReceiveRow, whyNotReceive } from "../../people/person-consent";
-import { triggerOf } from "../playbooks/playbook-triggers";
+import { triggerOf } from "../playbooks/triggers/notices";
 import { type EmailOffers, emailOffersOpen, type OfferFacts, OFFERS_BY_EMAIL_WORDS } from "./email-offers";
 import { whatsappOffersOpen } from "./whatsapp-offers";
 
@@ -163,14 +163,14 @@ export function offersNote(ready: ChannelsReady): string {
 
 /**
  * Whether the workspace can send on each channel, from the facts each one is judged by: WhatsApp by its number's health
- * (broadcast-number.ts numberHealth; null without a number), a text by its line (active and not a test filing, as the
+ * (broadcasts/number.ts numberHealth; null without a number), a text by its line (active and not a test filing, as the
  * inbound door reads it), an email by the workspace's mailbox and whether the deployment's email wire can send (the
  * edge's answer, emailCanSend: a mail domain AND the provider's key). The dashboard holds no key, so it asks the edge
  * and reads `domain` null when it could not: email is then not offered, and says so, never guessed ready. Email also
  * learns whether OFFERS can go (`offers`: the edge's verdict on the campaigns domain, the business's address, the
  * mailbox's pause; email-offers.ts), so a tick and a route refuse an offer by email with the reason that is true.
  */
-export function channelsReady(f: {
+export function channelsReady(fields: {
   /**
    * The number's health, and the number itself where the read knows it (E.164): offers on WhatsApp are then judged by
    * Meta's pause on marketing messages to US numbers (whatsapp-offers.ts). A read without the number judges nothing of them.
@@ -181,32 +181,34 @@ export function channelsReady(f: {
   /** The workspace is paused (tenants.status): carried as `paused`, and the channels are as they were. Absent: not paused. */
   paused?: boolean;
 }): ChannelsReady {
-  const waNow: ChannelReady = !f.whatsapp
+  const waNow: ChannelReady = !fields.whatsapp
     ? { ready: false, why: CHANNEL_WORDS.noWhatsApp }
-    : f.whatsapp.canSend
+    : fields.whatsapp.canSend
       ? { ready: true, why: null }
-      : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
+      : { ready: false, why: fields.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
   const wa: ChannelReady =
-    f.whatsapp && f.whatsapp.number !== undefined ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
-  const sms: ChannelReady = !f.textLine
+    fields.whatsapp && fields.whatsapp.number !== undefined
+      ? { ...waNow, offers: whatsappOffersOpen(fields.whatsapp.number) }
+      : waNow;
+  const sms: ChannelReady = !fields.textLine
     ? { ready: false, why: CHANNEL_WORDS.noTextLine }
-    : f.textLine.reg_mock
+    : fields.textLine.reg_mock
       ? { ready: false, why: CHANNEL_WORDS.textLineMock }
-      : f.textLine.sms_state === "active"
+      : fields.textLine.sms_state === "active"
         ? { ready: true, why: null }
         : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
   const emailNow: ChannelReady =
-    f.email.domain === null
+    fields.email.domain === null
       ? { ready: false, why: CHANNEL_WORDS.unchecked, unchecked: true }
-      : !f.email.domain
+      : !fields.email.domain
         ? { ready: false, why: CHANNEL_WORDS.noEmailDomain }
-        : f.email.mailbox
+        : fields.email.mailbox
           ? { ready: true, why: null }
           : { ready: false, why: CHANNEL_WORDS.noMailbox };
-  const email: ChannelReady = f.email.offers
-    ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) }
+  const email: ChannelReady = fields.email.offers
+    ? { ...emailNow, offers: emailOffersOpen(fields.email.offers, CHANNEL_WORDS.unchecked) }
     : emailNow;
-  return { whatsapp: wa, sms, email, ...(f.paused ? { paused: true } : {}) };
+  return { whatsapp: wa, sms, email, ...(fields.paused ? { paused: true } : {}) };
 }
 
 /** The channels a campaign may tick for this kind of message, each with whether it can and why not, in their order. */
@@ -254,14 +256,17 @@ export const HELD_ON: readonly HeldOn[] = (Object.keys(HELD_ORDER) as HeldOn[]).
 /**
  * The channels a campaign ticks that can carry its message now, in the product's order: the workspace can send on each,
  * and it carries this kind of message (channelRefuses). The pick reads them (reachFor), and so does a new campaign's card
- * where it says how it goes (playbook-schedule.ts campaignLine).
+ * where it says how it goes (playbooks/schedule.ts campaignLine).
  */
 export function usableChannels(
   purpose: AskedPurpose,
-  o: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
+  options: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
 ): ConsentChannel[] {
   return CONSENT_CHANNELS.filter(
-    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null,
+    (c) =>
+      options.channels.includes(c) &&
+      options.ready[c].ready &&
+      channelRefuses(c, purpose, options.about, options.ready) === null,
   );
 }
 
@@ -271,21 +276,21 @@ export function usableChannels(
  * by email decides whether a yes is asked (consent.ts MessageAbout).
  */
 export function reachFor(
-  r: ReachRow,
+  reach: ReachRow,
   purpose: AskedPurpose,
-  o: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
+  options: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
 ): { channel: ConsentChannel; held: null } | { channel: null; held: HeldOn } {
-  const usable = usableChannels(purpose, o);
+  const usable = usableChannels(purpose, options);
   if (usable.length === 0) return { channel: null, held: "no_channel" };
-  const last = usable.find((c) => c === r.lastChannel) ?? null;
+  const last = usable.find((c) => c === reach.lastChannel) ?? null;
   const order = last ? [last, ...usable.filter((c) => c !== last)] : usable;
-  const why: HeldOn[] = [];
+  const reason: HeldOn[] = [];
   for (const c of order) {
-    const w = whyNotReceive(r, purpose, c, o.about);
+    const w = whyNotReceive(reach, purpose, c, options.about);
     if (w === null) return { channel: c, held: null };
-    why.push(w);
+    reason.push(w);
   }
-  return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
+  return { channel: null, held: HELD_ON.find((w) => reason.includes(w)) ?? "no_channel" };
 }
 
 /** How a campaign's people split: how many on each channel, and how many held, by why. */
@@ -300,11 +305,11 @@ export interface ReachSplit {
 export function reachSplit(
   rows: readonly ReachRow[],
   purpose: AskedPurpose,
-  o: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
+  options: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
 ): ReachSplit {
   const out: ReachSplit = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
   for (const r of rows) {
-    const p = reachFor(r, purpose, o);
+    const p = reachFor(r, purpose, options);
     if (p.channel) {
       out.reached += 1;
       out.byChannel[p.channel] += 1;
@@ -326,17 +331,17 @@ const SPLIT_CHANNEL_WORDS: Record<ConsentChannel, string> = {
  * The split in one line, as a composer says it: "Reaches 84: 52 on WhatsApp, 32 by email · 12 can't be reached". One
  * channel says its number alone ("Reaches 52 on WhatsApp"); nobody held says nothing of the held.
  */
-export function reachSplitWords(s: ReachSplit): string {
-  const parts = CONSENT_CHANNELS.filter((c) => s.byChannel[c] > 0).map(
-    (c) => `${s.byChannel[c]} ${SPLIT_CHANNEL_WORDS[c]}`,
+export function reachSplitWords(reachSplit: ReachSplit): string {
+  const parts = CONSENT_CHANNELS.filter((c) => reachSplit.byChannel[c] > 0).map(
+    (c) => `${reachSplit.byChannel[c]} ${SPLIT_CHANNEL_WORDS[c]}`,
   );
   const head =
-    s.reached === 0
+    reachSplit.reached === 0
       ? "Reaches nobody"
       : parts.length === 1
         ? `Reaches ${parts[0]}`
-        : `Reaches ${s.reached}: ${parts.join(", ")}`;
-  return s.held > 0 ? `${head} · ${s.held} can't be reached` : head;
+        : `Reaches ${reachSplit.reached}: ${parts.join(", ")}`;
+  return reachSplit.held > 0 ? `${head} · ${reachSplit.held} can't be reached` : head;
 }
 
 /**
@@ -361,7 +366,7 @@ export type MonthSent = Record<Exclude<ConsentChannel, "whatsapp">, number>;
  *
  * The exemption is for the MESSAGE, not the moment: only a booking moment whose purpose is conversational (a message about
  * their own visit, which is what a reminder is) goes whatever the month holds. A booking moment that sends an offer, which a
- * playbook made before messages were checked against their moments may (playbook-purpose.ts), is an offer like any other and
+ * playbook made before messages were checked against their moments may (playbooks/purpose.ts), is an offer like any other and
  * is metered. `purpose` is the run's own: what it enrols by (enrolPurpose), and at the wire the message's (purposeOfTemplate).
  * It is required, so no caller asks about a moment without saying what it sends.
  */
@@ -394,7 +399,7 @@ export interface MonthSentRead {
 
 /**
  * The month's count a send is judged by, at the moment it is set to go: a send that goes in a later month counts against
- * THAT month, as the enrolment counts it (core campaigns/allowance.ts pastTheMonth, at the run's opening moment), so the
+ * THAT month, as the enrolment counts it (core campaigns/allowance.ts listPastTheMonth, at the run's opening moment), so the
  * composer says "held back" for room that is the new month's and not the old month's, and says nothing for a month it has no
  * count of (null: nothing is said that is not known).
  */

@@ -13,18 +13,16 @@
 import { useLayoutEffect, useState } from "react";
 import {
   ASK_FOUND_VIEW,
-  ASK_FOUND_WORDS as F,
   NEED_YOU_WORDS as W,
-  askFoundOf,
   dayInZone,
   needYouGroupsOf,
   restedWith,
   usableZone,
-  type AskFoundRowVM,
   type AskMorningCard,
   type AskRested,
-  type PeopleListsLike,
 } from "@chanlytics/contracts";
+import { ASK_FOUND_WORDS as F, askFoundOf, type AskFoundRowVM } from "./found-rows";
+import type { PeopleListsLike } from "../leaks";
 import { refreshSurfaces } from "@/bridge/surface-runner";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
@@ -97,7 +95,8 @@ function useFoundRows() {
   // Every rule that holds, never the old pane's two: Ask found ranks them with the rest, draws three, and says the others.
   const rules =
     headline && people
-      ? TODAY_HELPERS.leaks(headline, people, TODAY_HELPERS.withoutWrongPerson(vm?.noReply ?? []), EVERY_RULE).rows
+      ? TODAY_HELPERS.leaks(headline, people, TODAY_HELPERS.withoutWrongPerson(vm?.noReply ?? []), { max: EVERY_RULE })
+          .rows
       : [];
   const read = morning?.offered ? [...(morning.findings ?? []), ...morning.cards] : [];
   const found = askFoundOf({

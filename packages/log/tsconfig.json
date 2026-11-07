@@ -1,0 +1,14 @@
+{
+  "//": "A project of its own, built by `tsc -b` into .types/ (declarations only, never committed). Under every other package: it imports none of them.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": ".types",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"]
+}

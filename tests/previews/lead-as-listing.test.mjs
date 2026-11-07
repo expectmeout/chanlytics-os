@@ -8,12 +8,11 @@ import assert from "node:assert/strict";
 import {
   firstReceptionistOf,
   guardrailsInForce,
-  leadAsListing,
   listingPeriodsOf,
   PREVIEW_LIMITS,
   PREVIEW_STATES,
-  previewZoneOf,
 } from "@chanlytics/contracts";
+import { leadAsListing, previewZoneOf } from "../../apps/edge/lib/previews/lead-as-listing.ts";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const week = (words) => DAYS.map((day, i) => ({ day, hours: typeof words === "function" ? words(day, i) : words }));

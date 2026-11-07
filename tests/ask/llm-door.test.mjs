@@ -26,7 +26,8 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { resetFastHolds, signEdgeToken } from "@chanlytics/channels";
+import { resetFastHolds } from "@chanlytics/channels/ai";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import {
   ASK_TOKENS_DAY,
   ASK_MODEL,

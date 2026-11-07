@@ -78,10 +78,14 @@ function craftJudgedLines(v: CraftVersions, couldNot: string | null): string {
 }
 
 /** The judge's question: the brief the writer was handed, then the words to judge, fenced. */
-export function messageJudgeQuestion(b: MessageBrief, v: CraftVersions, couldNot: string | null): string {
+export function messageJudgeQuestion(
+  messageBrief: MessageBrief,
+  craftVersions: CraftVersions,
+  couldNot: string | null,
+): string {
   return [
-    `The brief the message was written from:\n${messageBriefText(b)}`,
-    `The message to judge:\n${fenced("record", craftJudgedLines(v, couldNot))}`,
+    `The brief the message was written from:\n${messageBriefText(messageBrief)}`,
+    `The message to judge:\n${fenced("record", craftJudgedLines(craftVersions, couldNot))}`,
   ].join("\n\n");
 }
 
@@ -130,16 +134,16 @@ export function messageVerdict(issues: readonly CraftIssue[], judged: MessageJud
   const notes: string[] = [];
   let passed = 0;
   let of = 0;
-  for (const c of MESSAGE_RUBRIC) {
-    const v = judged.verdicts.find((x) => x.id === c.id);
-    const ok = v?.pass === true;
-    const why = v ? v.why : "the judge gave no verdict";
-    if (c.hard) {
-      if (!ok) failed.push(`${c.id}: ${why}`);
+  for (const mESSAGERUBRIC of MESSAGE_RUBRIC) {
+    const found = judged.verdicts.find((x) => x.id === mESSAGERUBRIC.id);
+    const ok = found?.pass === true;
+    const reason = found ? found.why : "the judge gave no verdict";
+    if (mESSAGERUBRIC.hard) {
+      if (!ok) failed.push(`${mESSAGERUBRIC.id}: ${reason}`);
     } else {
       of += 1;
       if (ok) passed += 1;
-      else notes.push(`${c.id}: ${why}`);
+      else notes.push(`${mESSAGERUBRIC.id}: ${reason}`);
     }
   }
   return { pass: failed.length === 0, failed, soft: { passed, of }, notes };

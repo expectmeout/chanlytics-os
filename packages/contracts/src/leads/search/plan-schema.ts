@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { stripUnsafe, KEY, US_CODES } from "./plan";
 import type { LeadSearchPlan } from "./plan";
-import { LEAD_MAX_PLACES } from "./caps";
+import { LEAD_MAX_PLACES, US_ZIP } from "./caps";
 
 /** Words the plan keeps: what is unsafe taken out, trimmed, then held to a length (the people plan reads it too). */
 export const words = (min: number, max: number) =>
@@ -31,10 +31,7 @@ export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z
       state: z.string().regex(/^[A-Z]{2}$/),
       center: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).nullable(),
       radius_m: z.number().int().min(500).max(200_000),
-      zip: z
-        .string()
-        .regex(/^\d{5}$/)
-        .optional(),
+      zip: z.string().regex(US_ZIP).optional(),
       query: words(2, 120),
     }),
     count: z.number().int().min(1).max(LEAD_MAX_PLACES),
@@ -61,25 +58,25 @@ export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z
       )
       .max(8),
   })
-  .superRefine((p, ctx) => {
-    const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
+  .superRefine((item, ctx) => {
+    const keys = [...item.criteria.map((c) => c.key), ...item.exclusions.map((e) => e.key)];
     if (new Set(keys).size !== keys.length)
       ctx.addIssue({
         code: "custom",
         message: "every criterion and exclusion has a key of its own",
         path: ["criteria"],
       });
-    const lowerTerms = p.terms.map((t) => t.toLowerCase());
+    const lowerTerms = item.terms.map((t) => t.toLowerCase());
     if (new Set(lowerTerms).size !== lowerTerms.length)
       ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-    if (p.area.kind === "radius" && p.area.center === null)
+    if (item.area.kind === "radius" && item.area.center === null)
       ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-    if (p.area.kind === "zip" && !p.area.zip)
+    if (item.area.kind === "zip" && !item.area.zip)
       ctx.addIssue({
         code: "custom",
         message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
         path: ["area", "zip"],
       });
-    if (!US_CODES.has(p.area.state))
+    if (!US_CODES.has(item.area.state))
       ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
   });

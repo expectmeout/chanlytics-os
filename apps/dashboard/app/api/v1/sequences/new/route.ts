@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/shared/route";
 import { NEW_MAKE_BODY } from "@/server/campaigns/sequences/bodies";
-import { makeFromNew } from "@/server/campaigns/sequences/new-make";
+import { makeFromNew } from "@/server/drafts/sequence-new";
 
 /**
  * POST /api/v1/sequences/new — New's draft, kept (`start` false) or started (decision 0065): a sequence or a message sent

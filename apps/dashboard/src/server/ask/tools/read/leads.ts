@@ -17,25 +17,17 @@ import {
   type LeadRowVM,
   type LeadSearchDto,
   leadNamedPeople,
+  UUID,
 } from "@chanlytics/contracts";
-import { leadTimelineOf } from "../../../campaigns/reach-out-leads";
-import { suggestionsKept } from "../../../leads/lead-suggestions";
-import { backTodayOf } from "../../../leads/lead-workbench";
+import { findLeadTimeline } from "../../../campaigns/reach-out-leads";
+import { getSuggestionsKept } from "../../../leads/suggestions";
+import { getBackToday } from "../../../leads/workbench";
 import { toSearchDto, waitingQuestionOf } from "../../../leads/leads";
-import { load } from "../../../readers";
+import { load } from "../../../shared/reader";
 import { lead as leadReader, leadPeople, leads as leadsReader } from "../../../readers/leads";
 import { search as searchReader, searches } from "../../../readers/searches";
-import {
-  UUID,
-  defineActions,
-  notePerson,
-  noteRow,
-  readAction,
-  str,
-  unlessNotFound,
-  unread,
-  type ToolContext,
-} from "../context";
+import { notePerson, noteRow, str, readUnlessNotFound, unread } from "../context/tool-reads";
+import { defineActions, readAction, type ToolContext } from "../context/tool-defs";
 
 /** A round's state in a word, for the model to say. The owner's own screen words are the strip's. */
 const ROUND_WORDS: Record<string, string> = {
@@ -54,23 +46,23 @@ const LEADS_CAP = 25;
 const cut = (v: string | null | undefined, n = 120) => (typeof v === "string" ? v.slice(0, n) : "");
 
 /** A search as leads.searches says it, and leads.search again: the rail's row, in the owner's own words. */
-function searchLine(s: LeadSearchDto) {
-  const r = s.round;
+function searchLine(leadSearch: LeadSearchDto) {
+  const round = leadSearch.round;
   // The page's round carries the question's sentence as the view held it (toSearchDto), so the one reader of a
   // waiting question says the same sentence; a search with no round has none.
-  const q = r ? waitingQuestionOf(r) : null;
+  const query = round ? waitingQuestionOf(round) : null;
   return {
-    id: s.id,
-    name: cut(s.name),
-    asked: cut(s.asked),
-    asked_on: s.asked_on.slice(0, 10),
-    state: r ? (ROUND_WORDS[r.state] ?? r.state) : "not started",
-    ending: r?.ending ? (LEAD_ENDING_WORDS[r.ending] ?? null) : null,
+    id: leadSearch.id,
+    name: cut(leadSearch.name),
+    asked: cut(leadSearch.asked),
+    asked_on: leadSearch.asked_on.slice(0, 10),
+    state: round ? (ROUND_WORDS[round.state] ?? round.state) : "not started",
+    ending: round?.ending ? (LEAD_ENDING_WORDS[round.ending] ?? null) : null,
     // No round yet: the view's own zeros.
-    qualified: r?.qualified ?? 0,
-    review: r?.review ?? 0,
-    counted: r?.counted ?? 0,
-    question: q ? cut(q) : null,
+    qualified: round?.qualified ?? 0,
+    review: round?.review ?? 0,
+    counted: round?.counted ?? 0,
+    question: query ? cut(query) : null,
   };
 }
 
@@ -83,13 +75,13 @@ function searchLine(s: LeadSearchDto) {
  * reading it, and every string is cut to 120 characters so a long ask cannot
  * fill a turn.
  */
-async function listLeadSearches(t: ToolContext): Promise<unknown> {
+async function listLeadSearches(toolContext: ToolContext): Promise<unknown> {
   // The Leads page's own read (readers/searches.ts), once a turn: every kept search with its latest round as the page
   // maps it, and the rail's counts read with them (ledger #12).
-  const read = await load(t.rc, searches, undefined);
+  const read = await load(toolContext.rc, searches, undefined);
   const { searches: rows, counts } = read.data;
   // Every search it lists is a row an answer may cite, opened on Leads at that search: the reader's RowRefs.
-  noteRows(t.read, read.rows);
+  noteRows(toolContext.read, read.rows);
   return {
     route: "clients/leads",
     counts: {
@@ -128,9 +120,9 @@ function leadLine(vm: LeadRowVM, route: string) {
 }
 
 /** The searches as the Leads page holds them, by id, to hand each row its own (surfaces/leads/surface.ts vmOf). */
-const searchesById = async (t: ToolContext, why: string) =>
+const searchesById = async (t: ToolContext, reason: string) =>
   new Map(
-    ((await load(t.rc, searches, undefined).then((r) => r.data.searches, unread(t, why, "searches"))) ?? []).map(
+    ((await load(t.rc, searches, undefined).then((r) => r.data.searches, unread(t, reason, "searches"))) ?? []).map(
       (s) => [s.id, s],
     ),
   );
@@ -142,7 +134,7 @@ const searchesById = async (t: ToolContext, why: string) =>
  * over the whole view. The rail's counts and, for a member who may find, the month ride with the first page.
  */
 async function listLeads(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: {
     list?: string;
     search_id?: string;
@@ -158,7 +150,7 @@ async function listLeads(
   const [afterKey, afterId] = str(input.after, 130).split("|");
   const after = afterKey && afterId ? { after_key: afterKey, after_id: afterId } : {};
   if (input.after && !after.after_key) return { error: "after must be the next_page an earlier read returned" };
-  const asked = LeadsQuerySchema.safeParse({
+  const request = LeadsQuerySchema.safeParse({
     list: input.list ?? "all",
     ...(searchId ? { search: searchId } : {}),
     ...(input.class ? { class: input.class } : {}),
@@ -169,22 +161,27 @@ async function listLeads(
     ...(str(input.words, 80).trim() ? { q: str(input.words, 80) } : {}),
     ...after,
   });
-  if (!asked.success) return { error: "after must be the next_page an earlier read returned" };
-  const q = asked.data;
-  const [read, bySearch] = await Promise.all([load(t.rc, leadsReader, q), searchesById(t, "leads.leads")]);
+  if (!request.success) return { error: "after must be the next_page an earlier read returned" };
+  const data = request.data;
+  const [read, bySearch] = await Promise.all([
+    load(toolContext.rc, leadsReader, data),
+    searchesById(toolContext, "leads.leads"),
+  ]);
   const page = read.data;
   const refs = new Map(read.rows.map((r) => [r.id, r]));
-  const vms = page.rows.map((r) => toLeadRowVM(r, t.timezone, t.now, bySearch.get(r.search_id) ?? null));
+  const vms = page.rows.map((r) =>
+    toLeadRowVM(r, toolContext.timezone, toolContext.now, bySearch.get(r.search_id) ?? null),
+  );
   const shown = vms.slice(0, LEADS_CAP);
   // Every lead it says is a row an answer may cite, opened at its peek on this view: the reader's RowRefs.
   noteRows(
-    t.read,
+    toolContext.read,
     shown.flatMap((l) => refs.get(l.id) ?? []),
   );
   // And the person a lead became, by the contact_id its line says.
-  for (const l of shown) notePerson(t, l.contactId, l.name);
+  for (const l of shown) notePerson(toolContext, l.contactId, l.name);
   return {
-    route: leadsRoute({ searchId: q.search ?? null, list: q.list, cls: q.class ?? null }),
+    route: leadsRoute({ searchId: data.search ?? null, list: data.list, cls: data.class ?? null }),
     ...(page.counts
       ? {
           counts: {
@@ -210,29 +207,32 @@ async function listLeads(
  * when it is open, its rating, why it fits, the checks made, where it was found, and how to reach it; and who works there,
  * as their business sheet lists them (readers/leads.ts leadPeople, 0052).
  */
-async function getLead(t: ToolContext, input: { lead_id: string; search_id?: string }): Promise<unknown> {
+async function getLead(toolContext: ToolContext, input: { lead_id: string; search_id?: string }): Promise<unknown> {
   const id = str(input.lead_id, 40);
   const searchId = str(input.search_id, 40);
   if (!UUID.test(id)) return { error: "lead_id must be an id leads with action leads returned" };
   if (searchId && !UUID.test(searchId)) return { error: "search_id must be an id leads with action searches returned" };
   const [read, bySearch, people, story] = await Promise.all([
-    unlessNotFound(load(t.rc, leadReader, { id, ...(searchId ? { search: searchId } : {}) })),
-    searchesById(t, "leads.lead"),
+    readUnlessNotFound(load(toolContext.rc, leadReader, { id, ...(searchId ? { search: searchId } : {}) })),
+    searchesById(toolContext, "leads.lead"),
     // Who works there (0052), as their business sheet lists them; a lead whose people cannot be read is the lead alone.
-    load(t.rc, leadPeople, { id }).then((r) => r, unread(t, "leads.lead", "the people at the lead")),
+    load(toolContext.rc, leadPeople, { id }).then(
+      (r) => r,
+      unread(toolContext, "leads.lead", "the people at the lead"),
+    ),
     // Its reach-out's story (00426): where it stands, said as every page says it; one that cannot be read says nothing.
-    leadTimelineOf(t.ctx, t.tenantId, id).catch(() => null),
+    findLeadTimeline(toolContext.ctx, toolContext.tenantId, id).catch(() => null),
   ]);
   if (!read) return { error: "no such lead in this workspace" };
-  const r = read.data.row;
-  const own = bySearch.get(r.search_id) ?? null;
-  const vm = toLeadRowVM(r, t.timezone, t.now, own);
-  const peek = toLeadPeekVM(r, own, t.timezone, t.now);
+  const row = read.data.row;
+  const own = bySearch.get(row.search_id) ?? null;
+  const vm = toLeadRowVM(row, toolContext.timezone, toolContext.now, own);
+  const peek = toLeadPeekVM(row, own, toolContext.timezone, toolContext.now);
   // The lead is a row an answer may cite, opened at its peek: the reader's RowRef; and each of its people, at their page.
-  noteRows(t.read, read.rows);
-  if (people) noteRows(t.read, people.rows);
+  noteRows(toolContext.read, read.rows);
+  if (people) noteRows(toolContext.read, people.rows);
   return {
-    ...leadLine(vm, read.rows[0]?.route ?? leadsRoute({ peek: r.id })),
+    ...leadLine(vm, read.rows[0]?.route ?? leadsRoute({ peek: row.id })),
     about: peek.about ? cut(peek.about, 240) : null,
     where: peek.where ? cut(peek.where.line) : null,
     today: peek.today,
@@ -252,12 +252,12 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
             root_id: story.chain.root_id,
             name: story.chain.name,
             fed_by: story.chain.fed_by ?? null,
-            standing: reachOutStandingOf(story, t.now.getTime(), t.timezone)?.line ?? null,
+            standing: reachOutStandingOf(story, toolContext.now.getTime(), toolContext.timezone)?.line ?? null,
           }
         : null,
     // The people the company's source named (a people search's), one of whom its email goes to: propose_leads with action
     // addressee chooses another by name.
-    named_people: leadNamedPeople(r.facts).map((p) => ({
+    named_people: leadNamedPeople(row.facts).map((p) => ({
       name: p.name,
       title: p.title,
       ...(p.addressee ? { its_email_goes_to_them: true } : {}),
@@ -279,27 +279,27 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
  * where, why this one, which card it is on, and the same search as Ask is asked for it; a people idea (decision 0070)
  * with its plan's fields, so the same search can be proposed as it is. It writes nothing and asks no model.
  */
-async function readIdeas(t: ToolContext): Promise<unknown> {
-  const kept = await suggestionsKept(t.ctx, t.tenantId);
+async function readIdeas(toolContext: ToolContext): Promise<unknown> {
+  const kept = await getSuggestionsKept(toolContext.ctx, toolContext.tenantId);
   return {
     route: "clients/leads",
     business_line: kept.business_line,
-    ideas: kept.items.map((i) => ({
-      finds: i.words,
-      why: i.who_for,
-      kind: i.category_key,
-      card: i.people ? "people" : "places",
-      ...(i.role ? { role: i.role } : {}),
-      ask: i.ask ?? null,
-      ...(i.people
+    ideas: kept.items.map((item) => ({
+      finds: item.words,
+      why: item.who_for,
+      kind: item.category_key,
+      card: item.people ? "people" : "places",
+      ...(item.role ? { role: item.role } : {}),
+      ask: item.ask ?? null,
+      ...(item.people
         ? {
             people: {
-              titles: i.people.titles,
-              states: i.people.states,
-              seniority: i.people.seniority,
-              industries: i.people.industries,
-              company_sizes: i.people.sizes,
-              companies: i.people.count,
+              titles: item.people.titles,
+              states: item.people.states,
+              seniority: item.people.seniority,
+              industries: item.people.industries,
+              company_sizes: item.people.sizes,
+              companies: item.people.count,
             },
           }
         : {}),
@@ -312,12 +312,12 @@ async function readIdeas(t: ToolContext): Promise<unknown> {
  * Leads' Back today (00426, GET leads/back's own read): who asked to hear back on a day that has come, still not closed,
  * booked, stopped or won. Nothing writes to them by itself: the owner writes by hand, or Ask proposes a first message.
  */
-async function readBackToday(t: ToolContext): Promise<unknown> {
-  const back = await backTodayOf(t.ctx, t.tenantId);
+async function readBackToday(toolContext: ToolContext): Promise<unknown> {
+  const back = await getBackToday(toolContext.ctx, toolContext.tenantId);
   // Each lead, opened at its peek, and the person it became: rows an answer may name and open (it noted none before).
   for (const l of back.leads) {
-    noteRow(t, "lead", l.lead_id, l.business_name, leadsRoute({ peek: l.lead_id }));
-    notePerson(t, l.contact_id, l.business_name);
+    noteRow(toolContext, "lead", l.lead_id, l.business_name, leadsRoute({ peek: l.lead_id }));
+    notePerson(toolContext, l.contact_id, l.business_name);
   }
   return {
     route: "clients/leads",
@@ -335,24 +335,24 @@ async function readBackToday(t: ToolContext): Promise<unknown> {
  * the rail's own mapping): the row leads.searches says for it, what the owner asked in their words, and the round's
  * strip -- the emails checked, the leads with a phone, the qualified by fit and where to look next.
  */
-async function getLeadSearch(t: ToolContext, input: { search_id: string }): Promise<unknown> {
+async function getLeadSearch(toolContext: ToolContext, input: { search_id: string }): Promise<unknown> {
   const id = str(input.search_id, 40);
   if (!UUID.test(id)) return { error: "search_id must be an id leads with action searches returned" };
-  const read = await unlessNotFound(load(t.rc, searchReader, { id }));
+  const read = await readUnlessNotFound(load(toolContext.rc, searchReader, { id }));
   if (!read) return { error: "no such search in this workspace" };
-  // A search removed from the rail is not on Leads: the page lists only the kept ones (lead-searches.ts).
+  // A search removed from the rail is not on Leads: the page lists only the kept ones (leads/searches.ts).
   if (read.data.search.removed_at) return { error: "that search was removed from Leads" };
-  const s = toSearchDto(read.data.search);
-  noteRows(t.read, read.rows);
-  const r = s.round;
+  const searchDto = toSearchDto(read.data.search);
+  noteRows(toolContext.read, read.rows);
+  const round = searchDto.round;
   return {
-    route: leadsRoute({ searchId: s.id }),
-    ...searchLine(s),
-    asked_line: cut(leadSearchWords(s, t.timezone).askedLine, 240),
-    emails_checked: r?.emails_checked ?? 0,
-    with_phone: r?.with_phone ?? 0,
-    fits: r?.fits ?? { strong: 0, look: 0, long: 0 },
-    look_next: (r?.nearby ?? []).map((a) => cut(a.label)),
+    route: leadsRoute({ searchId: searchDto.id }),
+    ...searchLine(searchDto),
+    asked_line: cut(leadSearchWords(searchDto, toolContext.timezone).askedLine, 240),
+    emails_checked: round?.emails_checked ?? 0,
+    with_phone: round?.with_phone ?? 0,
+    fits: round?.fits ?? { strong: 0, look: 0, long: 0 },
+    look_next: (round?.nearby ?? []).map((a) => cut(a.label)),
   };
 }
 

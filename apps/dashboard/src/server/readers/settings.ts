@@ -11,11 +11,12 @@ import {
   type TenantConfig,
   type RehearsalDto,
 } from "@chanlytics/contracts";
-import { rehearsalById, reviewLinkOf } from "@chanlytics/db";
+import { findRehearsalById } from "@chanlytics/db/facts";
+import { reviewLinkOf } from "@chanlytics/db/campaigns";
 import type { RouteContext } from "../shared/with-route";
-import { promptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
-import { linesFor } from "../connections/lines";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
+import { findPromptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
+import { listLines } from "../connections/lines";
+import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as readers from "./facts";
 
 function maskFeedUrl(u: string): string {
@@ -56,7 +57,7 @@ export function withHiddenFeed(role: string, incoming: unknown, stored: unknown)
  * is one answer — which is the whole point of facts.ts. With it, from the same row, whether the workspace is ours
  * (00469): only ours makes previews for its leads (decision 0079).
  */
-export async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts & { ours: boolean }> {
+export async function getKnownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts & { ours: boolean }> {
   const [ws, ch, gl, lines] = await Promise.all([
     ctx.supabase.from("tenants").select("name, timezone, ours").eq("id", tenantId).maybeSingle(),
     ctx.supabase.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId),
@@ -64,7 +65,7 @@ export async function knownFacts(ctx: RouteContext, tenantId: string): Promise<K
     // The number the business keeps and forwards: the same rows, read the same way, as Setup's line rows. A failed
     // read is no forwarding, on purpose: the settings read and a save still go through, and a transfer number is
     // then judged against the line alone, as it was before forwarding was known.
-    linesFor(ctx.supabase, tenantId).catch(() => []),
+    listLines(ctx.supabase, tenantId).catch(() => []),
   ]);
   // None of these is worth failing the settings read for. A workspace whose
   // channels could not be listed sees its typed values unresolved, which is
@@ -123,7 +124,7 @@ export const settings: Reader<undefined, SettingsRead> = {
       const cfg = parsed.config;
       const visible = feedVisibleTo(rc.role, cfg);
       const [known, reviewLink] = await Promise.all([
-        knownFacts(rc.ctx, rc.tenantId),
+        getKnownFacts(rc.ctx, rc.tenantId),
         // Whether the listing keeps a review link: the composers offer it to a review-link slot, and the review ask
         // with it, only where it does, as they offer the booking link only where one is on file. A read that fails is
         // none here, as a fact above is: the settings read never fails for it.
@@ -134,7 +135,7 @@ export const settings: Reader<undefined, SettingsRead> = {
       // cannot see (the Autonomy rows, these facts, the closures, the calendar's
       // openings), so the pane's card is the prompt and not a rendering of it.
       // The feed address is read here and stays here.
-      const prompt = await promptPreview(
+      const prompt = await findPromptPreview(
         rc.ctx,
         rc.tenantId,
         { brain: cfg.brain ?? null, calendarUrl: cfg.calendar?.ical_url ?? null },
@@ -163,7 +164,7 @@ export const settings: Reader<undefined, SettingsRead> = {
           previews: known.ours,
         },
         rows: [],
-        stamp: stamp(),
+        stamp: readerStamp(),
       };
     }
     // `as const` on both: the two answers are told apart by this one flag, and the client narrows on it.
@@ -176,7 +177,7 @@ export const settings: Reader<undefined, SettingsRead> = {
         issues: parsed.issues,
       },
       rows: [],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -189,20 +190,20 @@ export const settings: Reader<undefined, SettingsRead> = {
 export const rehearsal: Reader<{ id: string }, RehearsalDto> = {
   name: "rehearsal",
   async read(rc, { id }) {
-    const r = await rehearsalById(rc.ctx.supabase, rc.tenantId, id);
-    if (!r) throw new AppError("not_found", "Rehearsal not found.");
+    const result = await findRehearsalById(rc.ctx.supabase, rc.tenantId, id);
+    if (!result) throw new AppError("not_found", "Rehearsal not found.");
     const data: RehearsalDto = {
-      id: r.id,
-      kind: r.kind,
-      started_at: r.started_at,
-      ended_at: r.ended_at,
-      seconds: r.seconds,
-      end_reason: r.end_reason,
-      transcript: r.transcript,
-      config_version: r.config_version,
-      review: r.review,
-      fixes: r.fixes,
+      id: result.id,
+      kind: result.kind,
+      started_at: result.started_at,
+      ended_at: result.ended_at,
+      seconds: result.seconds,
+      end_reason: result.end_reason,
+      transcript: result.transcript,
+      config_version: result.config_version,
+      review: result.review,
+      fixes: result.fixes,
     };
-    return { data, rows: [], stamp: stamp() };
+    return { data, rows: [], stamp: readerStamp() };
   },
 };

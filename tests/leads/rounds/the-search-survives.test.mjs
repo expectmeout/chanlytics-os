@@ -34,7 +34,7 @@ for (const k of ["APIFY_TOKEN", "ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_S
   delete process.env[k];
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const sweep = await import(at("apps/edge/api/cron/leads.ts"));
-const { leadPipelineOver } = await import(at("apps/edge/lib/leads/lead-pipeline.ts"));
+const { leadPipelineOver } = await import(at("apps/edge/lib/leads/pipeline.ts"));
 after(() => setPg(null));
 
 const SEEDS = process.env.SEED ? [Number(process.env.SEED)] : Array.from({ length: 120 }, (_, i) => i + 1);

@@ -112,7 +112,7 @@ export type FirstRowsMiss = (typeof FIRST_ROWS_MISSES)[number];
  */
 export const FIRST_ROWS_ENDS = ["page", "other-route", "unavailable", "held-8s", "held-20s", "no-frame"] as const;
 export type FirstRowsEnd = (typeof FIRST_ROWS_ENDS)[number];
-export const firstRowsMissPart = (why: FirstRowsMiss): string => `${FIRST_ROWS_PART}-${why}`;
+export const firstRowsMissPart = (reason: FirstRowsMiss): string => `${FIRST_ROWS_PART}-${reason}`;
 export const firstRowsEndPart = (how: FirstRowsEnd): string => `${FIRST_ROWS_PART}-end-${how}`;
 
 /** Whether the picture stands over the page. A document a test draws a page in, with no root to ask, holds none. */

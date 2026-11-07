@@ -28,7 +28,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveSystemPrompt, describeNow, parseTenantConfigResult } from "@chanlytics/contracts";
-import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, GREETING_DEFAULT, greetingFor } from "@chanlytics/channels";
+import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, GREETING_DEFAULT, greetingFor } from "@chanlytics/channels/voice";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf } from "../_log-lines.mjs";
 

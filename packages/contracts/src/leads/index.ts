@@ -12,7 +12,7 @@ export {
   leadCardSlotsOf,
   leadCardStepsOf,
   leadOwnWordsOf,
-} from "./lead-card";
+} from "./card";
 export type {
   LeadCardBulkLead,
   LeadCardBulkVM,
@@ -28,32 +28,21 @@ export type {
   LeadCardStepVM,
   LeadCardTab,
   LeadOwnWords,
-} from "./lead-card";
-export { milesLabel } from "./lead-helpers";
-export {
-  ideaBasisOf,
-  ideaCustomersOf,
-  ideaHistoryOf,
-  ideaPacket,
-  ideaPassed,
-  ideaPassedOf,
-  ideaWhere,
-  LEAD_IDEAS_MAX,
-  LEAD_SUGGEST_RETRY_MS,
-} from "./lead-ideas";
+} from "./card";
+export { ideaJsonSchema, ideaPacketText, LEAD_IDEAS_SYSTEM } from "./ideas-ask";
+export { ideaAsk, ideasFrom, ideasRead, LeadIdeasAnswerSchema } from "./ideas-read";
+export type { IdeaDropped, LeadIdeasAnswer } from "./ideas-read";
+export { ideaBasisOf, ideaHistoryOf, LEAD_IDEAS_MAX, LEAD_SUGGEST_RETRY_MS } from "./ideas/history";
+export type { IdeaHistory, IdeaSearch } from "./ideas/history";
+export { ideaCustomersOf, ideaPacket, ideaPassed, ideaPassedOf, ideaWhere } from "./ideas/places";
 export type {
   IdeaAbout,
   IdeaCustomerRowsIn,
   IdeaCustomers,
-  IdeaHistory,
   IdeaLanguage,
   IdeaPacket,
   IdeaPassed,
-  IdeaSearch,
-} from "./lead-ideas";
-export { ideaJsonSchema, ideaPacketText, LEAD_IDEAS_SYSTEM } from "./lead-ideas-ask";
-export { ideaAsk, ideasFrom, ideasRead, LeadIdeasAnswerSchema } from "./lead-ideas-read";
-export type { IdeaDropped, LeadIdeasAnswer } from "./lead-ideas-read";
+} from "./ideas/places";
 export {
   isLeadList,
   LEAD_IMPORT_MAX_BYTES,
@@ -75,10 +64,10 @@ export {
   leadListStripOf,
   regionOf,
   websiteHostOf,
-} from "./lead-import";
-export type { LeadChooseAnswer, LeadImportAnswer, LeadImportColumns, LeadImportRow, LeadListVia } from "./lead-import";
-export { LeadChooseSchema, LeadImportRowSchema, LeadImportSchema } from "./lead-import-schema";
-export type { LeadChooseInput, LeadImportInput } from "./lead-import-schema";
+} from "./import";
+export type { LeadChooseAnswer, LeadImportAnswer, LeadImportColumns, LeadImportRow, LeadListVia } from "./import";
+export { LeadChooseSchema, LeadImportRowSchema, LeadImportSchema } from "./import-schema";
+export type { LeadChooseInput, LeadImportInput } from "./import-schema";
 export {
   JUDGE_FACT_KEYS,
   JUDGE_OUTPUT_SCHEMA,
@@ -95,8 +84,8 @@ export {
   parseJudgeAnswer,
   screenedAnswer,
   sha256Hex,
-} from "./lead-judge";
-export type { JudgeCriterionAnswer, JudgeFactKey, JudgePlaceAnswer, PlaceFacts } from "./lead-judge";
+} from "./judge";
+export type { JudgeCriterionAnswer, JudgeFactKey, JudgePlaceAnswer, PlaceFacts } from "./judge";
 export {
   LEAD_ADDRESSEE_WORDS,
   LEAD_COMPANY_WORDS,
@@ -112,60 +101,9 @@ export {
   leadNamedPeople,
   leadRoleOf,
   leadSizeOf,
-} from "./lead-kind";
-export type {
-  LeadCompanyPersonVM,
-  LeadCompanyVM,
-  LeadFacts,
-  LeadKind,
-  LeadPerson,
-  LeadRole,
-  LeadSource,
-} from "./lead-kind";
-export {
-  LEAD_BACK_WORDS,
-  LEAD_PILE_SAID,
-  LEAD_PILE_UNDO_KEY,
-  LEAD_PILE_WORDS,
-  leadPileOpen,
-  leadPileProgressOf,
-  leadPileRailOf,
-} from "./lead-pile";
-export type {
-  LeadBackDto,
-  LeadPileAct,
-  LeadPileCountsDto,
-  LeadPileFacts,
-  LeadPileProgressVM,
-  LeadPileSlot,
-} from "./lead-pile";
-export {
-  BusinessLineSchema,
-  LeadDraftAnswerSchema,
-  LeadDraftInputSchema,
-  LeadEmailWordsSchema,
-  LeadExportQuerySchema,
-  LeadOneQuerySchema,
-  LeadsBulkSchema,
-  LeadsCheckAgainSchema,
-  LeadsQuerySchema,
-  LeadStageInputSchema,
-  LeadsViewSchema,
-  planLeadSearch,
-  planPeopleSearch,
-  ProposeAnySearchSchema,
-  ProposeLeadSearchSchema,
-  RenameLeadSearchSchema,
-} from "./lead-plan-schema";
-export type {
-  LeadEmailWords,
-  LeadsBulkInput,
-  LeadsCheckAgainInput,
-  LeadsQuery,
-  LeadStageInput,
-  ProposeLeadSearch,
-  ProposePeopleSearch,
-} from "./lead-plan-schema";
+} from "./kind";
+export type { LeadCompanyPersonVM, LeadCompanyVM, LeadFacts, LeadKind, LeadPerson, LeadRole, LeadSource } from "./kind";
+export { milesLabel } from "./labels";
 export {
   LEAD_ASKED_NOT_WRITTEN,
   LEAD_CALL_OUTCOME_TONES,
@@ -347,6 +285,50 @@ export type {
   LeadWeekRow,
   PeoplePlanned,
 } from "./leads";
+export {
+  LEAD_BACK_WORDS,
+  LEAD_PILE_SAID,
+  LEAD_PILE_UNDO_KEY,
+  LEAD_PILE_WORDS,
+  leadPileOpen,
+  leadPileProgressOf,
+  leadPileRailOf,
+} from "./pile";
+export type {
+  LeadBackDto,
+  LeadPileAct,
+  LeadPileCountsDto,
+  LeadPileFacts,
+  LeadPileProgressVM,
+  LeadPileSlot,
+} from "./pile";
+export {
+  BusinessLineSchema,
+  LeadDraftAnswerSchema,
+  LeadDraftInputSchema,
+  LeadEmailWordsSchema,
+  LeadExportQuerySchema,
+  LeadOneQuerySchema,
+  LeadsBulkSchema,
+  LeadsCheckAgainSchema,
+  LeadsQuerySchema,
+  LeadStageInputSchema,
+  LeadsViewSchema,
+  planLeadSearch,
+  planPeopleSearch,
+  ProposeAnySearchSchema,
+  ProposeLeadSearchSchema,
+  RenameLeadSearchSchema,
+} from "./plan-schema";
+export type {
+  LeadEmailWords,
+  LeadsBulkInput,
+  LeadsCheckAgainInput,
+  LeadsQuery,
+  LeadStageInput,
+  ProposeLeadSearch,
+  ProposePeopleSearch,
+} from "./plan-schema";
 export { leadCalledByOf } from "./search/called-by";
 export {
   BUSINESS_LINE_MAX,
@@ -370,6 +352,7 @@ export {
   LEAD_TRIAL_ALLOWANCE,
   leadAllowanceFor,
   leadMonth,
+  US_ZIP,
 } from "./search/caps";
 // A search's card in Ask: its rows, its press, the card a newer one replaces, and the waiting card as a turn is told it.
 export {
@@ -426,24 +409,29 @@ export {
 } from "./search/company-judge";
 export type { CompanyFacts, CompanyFitAnswer } from "./search/company-judge";
 export { endingOfRound, LEAD_ENDING_WORDS } from "./search/endings";
+export { LeadPeoplePlanSchema, LeadPeopleSearchSchema } from "./search/people-plan-schema";
+export type { LeadPeopleSearchInput } from "./search/people-plan-schema";
 export {
-  listTyped,
-  PEOPLE_ASKED_CHARS,
   PEOPLE_CARD,
   PEOPLE_COMPANY_SIZES,
   PEOPLE_COUNT_MAX,
-  PEOPLE_FIND_WORDS,
   PEOPLE_INDUSTRIES_MAX,
-  PEOPLE_INDUSTRY_CHARS,
   PEOPLE_KEYWORDS_MAX,
-  PEOPLE_PROVIDER_LEAST,
   PEOPLE_RUN_FLOOR_USD,
   PEOPLE_SENIORITIES,
   PEOPLE_SENIORITY_WORDS,
   PEOPLE_STATES_MAX,
+  PEOPLE_TITLES_MAX,
+} from "./search/people-plan/card";
+export type { PeopleCompanySize, PeopleSeniority } from "./search/people-plan/card";
+export {
+  listTyped,
+  PEOPLE_ASKED_CHARS,
+  PEOPLE_FIND_WORDS,
+  PEOPLE_INDUSTRY_CHARS,
+  PEOPLE_PROVIDER_LEAST,
   PEOPLE_STRIP_WORDS,
   PEOPLE_TITLE_CHARS,
-  PEOPLE_TITLES_MAX,
   peopleEstimateUsd,
   peoplePlanAsk,
   peoplePlanFactLine,
@@ -456,16 +444,8 @@ export {
   usStateCode,
   usStateName,
   usStatesTyped,
-} from "./search/people-plan";
-export type {
-  LeadPeoplePlan,
-  PeopleCompanySize,
-  PeopleMonth,
-  PeoplePlanInput,
-  PeopleSeniority,
-} from "./search/people-plan";
-export { LeadPeoplePlanSchema, LeadPeopleSearchSchema } from "./search/people-plan-schema";
-export type { LeadPeopleSearchInput } from "./search/people-plan-schema";
+} from "./search/people-plan/plan";
+export type { LeadPeoplePlan, PeopleMonth, PeoplePlanInput } from "./search/people-plan/plan";
 export { planNeedsASite, planReadsSites, planVersionOf } from "./search/plan";
 export type {
   LeadArea,
@@ -476,9 +456,8 @@ export type {
   LeadSearchPlan,
 } from "./search/plan";
 export { LeadSearchPlanSchema } from "./search/plan-schema";
-export { questionAfterProbe } from "./search/question";
-export type { LeadQuestion, ProbeMember } from "./search/question";
 export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords } from "./search/sentence";
+export { lowerFirst } from "./search/sentence";
 export type { LeadPlanWord } from "./search/sentence";
 export {
   LEAD_COUNTER_KINDS,
@@ -503,20 +482,6 @@ export type {
   LeadRunState,
   LeadSearchVia,
 } from "./search/sets";
-export { LEAD_EXPORT_WORDS } from "./sheet/lead-export-words";
-export {
-  LEAD_NAMED_MAX,
-  LEAD_NAMED_NAME_MAX,
-  LEAD_NAMED_PAGE,
-  LEAD_NAMED_WORDS,
-  LEAD_STARTER_VIEWS,
-  leadNamedActive,
-  leadNamedAdd,
-  leadNamedChanged,
-  leadNamedRouteFor,
-  leadNamedViewsOf,
-} from "./sheet/lead-named-views";
-export type { LeadNamedLayout, LeadNamedNow, LeadNamedView } from "./sheet/lead-named-views";
 export {
   LEAD_COLUMN_GROUPS,
   LEAD_RATED_HINT,
@@ -524,54 +489,8 @@ export {
   leadColumnsOf,
   leadOutcomeWord,
 } from "./sheet/lead-row-columns";
-export { leadFootOf, leadGroupOf, leadRowActOf, leadStatusOf } from "./sheet/lead-row-status";
-export type { LeadRowActKind, LeadRowActVM, LeadStatusTone, LeadStatusVM } from "./sheet/lead-row-status";
-export {
-  LEAD_SHEET_WORDS,
-  leadPickerRowsOf,
-  leadPileEndOf,
-  leadSheetAboutOf,
-  leadSheetClosedOf,
-  leadSheetStateOf,
-  leadVerdictOf,
-  newStartFirst,
-  sheetSlot,
-} from "./sheet/lead-sheet";
-export type {
-  LeadPickerRowVM,
-  LeadPileAdded,
-  LeadPileEndRowVM,
-  LeadPileEndVM,
-  LeadSheetAct,
-  LeadSheetClosedVM,
-  LeadSheetFactVM,
-  LeadSheetLead,
-  LeadSheetSlotVM,
-  LeadSheetState,
-  LeadVerdictVM,
-} from "./sheet/lead-sheet";
-export {
-  LEAD_SHEET_CARD_WORDS,
-  leadSheetChecksLineOf,
-  leadSheetEmailLineOf,
-  leadSheetExceptionWords,
-  leadSheetSubOf,
-  leadSheetWhyOf,
-} from "./sheet/lead-sheet-card";
-export type {
-  LeadSheetChecksLineVM,
-  LeadSheetCheckVM,
-  LeadSheetEmailLineVM,
-  LeadSheetWhyVM,
-} from "./sheet/lead-sheet-card";
-export { dockSlotsOf, LEAD_DOCK_WORDS, LEAD_LEAVE_WORDS, leadDockOf, leadLeaveAskOf } from "./sheet/lead-sheet-dock";
-export type { LeadLeaveAskVM, LeadSheetDockFacts, LeadSheetDockVM } from "./sheet/lead-sheet-dock";
 export { LEAD_OWN_EMAIL_WORDS, leadEmailFromOf, leadEmailLineOf, leadEmailRefusalOf } from "./sheet/lead-sheet-email";
 export type { LeadEmailDto, LeadEmailMailbox, LeadEmailWhy } from "./sheet/lead-sheet-email";
-export { leadHistoryOf, leadLinesOf } from "./sheet/lead-sheet-lines";
-export type { LeadHistoryRowVM, LeadLineId, LeadLineVM } from "./sheet/lead-sheet-lines";
-export { LEAD_NOW_WORDS, leadApproveAskOf, type LeadApproveAskVM, leadNowOf } from "./sheet/lead-sheet-now";
-export type { LeadNowFactVM, LeadNowVM } from "./sheet/lead-sheet-now";
 export {
   LEAD_WORDS_BOX,
   leadWordsFromBox,

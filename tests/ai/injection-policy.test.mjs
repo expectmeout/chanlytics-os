@@ -25,7 +25,7 @@ import {
   reviewReplyPrompt,
   resolveSystemPrompt,
 } from "@chanlytics/contracts";
-import { describeLead } from "@chanlytics/db";
+import { describeLead } from "@chanlytics/db/conversations";
 import { at } from "../_cron-doors-world.mjs";
 import { scripted, json } from "./_model-world.mjs";
 
@@ -33,7 +33,7 @@ process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { setModelFetch } = await import(at("apps/edge/lib/ai/model.ts"));
-const { generateReply } = await import(at("apps/edge/lib/receptionist/brain.ts"));
+const { generateReply } = await import(at("apps/edge/lib/ai/receptionist-brain.ts"));
 const { siteWordsOf } = await import(at("packages/core/src/website/site-words.ts"));
 after(() => {
   setPg(null);
@@ -204,7 +204,7 @@ test("the reach-out reply draft: a lead's business name is a name in its fence i
 });
 
 test("Ask: a row the turn's words name, the scope or the row the words point at, is named in its record fence, never in the sentence around it", async () => {
-  const { turnWords } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { turnWords } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
   const facts = {
     role: "operator",
     personLabel: "ada",
@@ -242,7 +242,7 @@ test("Ask: a row the turn's words name, the scope or the row the words point at,
 });
 
 test("Ask: a card's title replayed into history holds nothing a reader cannot see, though it has no tag for the fence to neutralise", async () => {
-  const { answerLine } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { answerLine } = await import(at("apps/dashboard/src/server/ask/prompt/prompt.ts"));
   const said = {
     v: 2,
     form: "structured",

@@ -1,5 +1,5 @@
 /**
- * A list of your own, in contracts' words (Reach out Part 7: J1, J4, J5, J7, J8; lead-import.ts): a file read by its
+ * A list of your own, in contracts' words (Reach out Part 7: J1, J4, J5, J7, J8; leads/import.ts): a file read by its
  * header or by what its columns hold, each row as the door takes it, what the sheet and *Write to them* say, a list's
  * strip and empty table, a list's line in the rail's menu, and the bodies' limits.
  */
@@ -33,7 +33,7 @@ import {
   matchColumns,
   phoneShaped,
 } from "../../../packages/contracts/src/imports/csv.ts";
-import { leadImportColumns } from "../../../packages/contracts/src/leads/lead-import.ts";
+import { leadImportColumns } from "../../../packages/contracts/src/leads/import.ts";
 
 const TZ = "America/Chicago";
 const NOW = Date.parse("2026-09-28T17:00:00.000Z");

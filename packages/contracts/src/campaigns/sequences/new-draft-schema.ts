@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 import { FOLLOW_UP_CONDITIONS } from "./follow-up";
-import { NEW_AUDIENCES, NEW_KINDS, NEW_STEP_DOES } from "./new-draft";
+import { NEW_AUDIENCES, NEW_KINDS, NEW_STEP_DOES } from "./new-draft/steps";
 
 const LONG_WORDS = z.string().max(2000);
 

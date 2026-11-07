@@ -78,19 +78,20 @@ export interface PersonTabFacts {
  * with its count. On a phone: Overview, History and Visits where they hold something, and About (the rail's groups);
  * Deals and Campaigns are inside Overview there, and no tab says a count. A thin record has none.
  */
-export function personTabsOf(f: PersonTabFacts, phone: boolean): PersonTabVM[] {
-  if (f.thin) return [];
+export function personTabsOf(personTabFacts: PersonTabFacts, phone: boolean): PersonTabVM[] {
+  if (personTabFacts.thin) return [];
   const tab = (id: PersonTab, count: number | null): PersonTabVM => ({
     id,
-    label: personTabWord(id, f.word),
+    label: personTabWord(id, personTabFacts.word),
     count: phone ? null : count,
-    to: personTabRoute(f.id, id),
+    to: personTabRoute(personTabFacts.id, id),
   });
   const tabs: PersonTabVM[] = [tab("overview", null)];
-  if (f.history > 0) tabs.push(tab("history", f.history));
-  if (f.visits > 0 || (f.marked ?? 0) > 0) tabs.push(tab("visits", f.visits > 0 ? f.visits : null));
-  if (!phone && f.deals > 0) tabs.push(tab("deals", f.deals));
-  if (!phone && f.campaigns > 0) tabs.push(tab("campaigns", null));
+  if (personTabFacts.history > 0) tabs.push(tab("history", personTabFacts.history));
+  if (personTabFacts.visits > 0 || (personTabFacts.marked ?? 0) > 0)
+    tabs.push(tab("visits", personTabFacts.visits > 0 ? personTabFacts.visits : null));
+  if (!phone && personTabFacts.deals > 0) tabs.push(tab("deals", personTabFacts.deals));
+  if (!phone && personTabFacts.campaigns > 0) tabs.push(tab("campaigns", null));
   if (phone) tabs.push(tab("about", null));
   return tabs;
 }

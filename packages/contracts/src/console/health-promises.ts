@@ -139,7 +139,7 @@ export function promiseDaysOf(
     });
     const missedDays = cells.filter((c) => c.state === "missed").length;
     const judged = cells.some((c) => c.state !== "none");
-    const w = worst as { v: number; most: number; key: string | null; name: string; day: string } | null;
+    const item = worst as { v: number; most: number; key: string | null; name: string; day: string } | null;
     return {
       key: name,
       ...PROMISE_WORDS[name],
@@ -147,9 +147,13 @@ export function promiseDaysOf(
       state: missedDays ? "missed" : judged ? "kept" : "unjudged",
       missedDays,
       cells,
-      last: w ? `${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)}` : judged ? "kept" : "not judged",
-      worst: w
-        ? `${w.name}: ${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)} on ${w.day}, target ${promiseFigureWords(name, w.most)}`
+      last: item
+        ? `${item.key ? `${item.key} ` : ""}${promiseFigureWords(name, item.v)}`
+        : judged
+          ? "kept"
+          : "not judged",
+      worst: item
+        ? `${item.name}: ${item.key ? `${item.key} ` : ""}${promiseFigureWords(name, item.v)} on ${item.day}, target ${promiseFigureWords(name, item.most)}`
         : null,
       lastMissMs,
       where: [...missedBy].join(", ") || PLATFORM_WHERE,

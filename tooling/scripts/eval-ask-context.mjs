@@ -49,7 +49,7 @@ import {
   unquoted,
   answerBlocks,
 } from "@chanlytics/contracts";
-import { readAllRows } from "@chanlytics/db";
+import { readAllRows } from "@chanlytics/db/shared";
 import { toolNow } from "../evals/rename-ask-tools.mjs";
 
 /** A row of a GET's answer: its id, the name the page shows for it, and when it last moved (for a merge by time). */

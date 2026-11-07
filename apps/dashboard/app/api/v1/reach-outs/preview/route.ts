@@ -1,6 +1,6 @@
 import { AppError, REACH_OUT_REFUSALS, ReachOutPreviewSchema, type ReachOutPreviewDto } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
-import { previewReachOut } from "@/server/campaigns/reach-outs";
+import { previewReachOut } from "@/server/campaigns/reach-outs/reach-outs";
 
 /**
  * POST /api/v1/reach-outs/preview — one business's email as the chain would write it: the edge writes its opening

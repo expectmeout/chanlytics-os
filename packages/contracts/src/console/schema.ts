@@ -6,17 +6,18 @@
  * decision about them, so on those three it is asked for.
  */
 import { z } from "zod";
-import { REASON_KINDS, REASON_LIMITS } from "./console";
+import { REASON_KINDS, REASON_LIMITS } from "./staff";
 import { REQUEST_KINDS, REQUEST_STEP_KEYS } from "./requests";
-import { FIND_LIMITS, SUPPORT_TOPICS } from "./support";
-import { SUPPORT_KIND_FILTERS, SUPPORT_VIEWS } from "./support-queue";
+import { FIND_LIMITS, SUPPORT_TOPICS } from "./support/asks";
+import { SUPPORT_KIND_FILTERS, SUPPORT_VIEWS } from "./support-queue/waits";
 import { WORKSPACE } from "../shell/client-error";
 import { REPORT_KINDS } from "../shell/report-problem";
-import { PARTNER_STANDINGS, PARTNER_STATUSES } from "../workspace/partner";
-import { HEALTH_WINDOWS } from "./health";
+import { PARTNER_STANDINGS, PARTNER_STATUSES } from "../workspace/partner/dtos";
+import { HEALTH_WINDOWS } from "./health/dtos";
 import { JOB_KINDS } from "../shared/enums";
+import { SLUG } from "../shared/identity";
 
-const uuid = (what: string) => z.uuid({ error: `That ${what} does not exist.` });
+const uuid = (text: string) => z.uuid({ error: `That ${text} does not exist.` });
 
 const wordsUpTo = (max: number) =>
   z
@@ -127,11 +128,7 @@ export const RequestFileSchema = z
   .object({
     kind: z.enum(REQUEST_KINDS, { error: "Say what they asked for." }),
     /** The workspace it is about, by its address: a request is kept by its name after the workspace is gone. */
-    workspace: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .regex(/^[a-z0-9][a-z0-9-]{0,62}$/, "Give the workspace's address, as /w/ says it."),
+    workspace: z.string().trim().toLowerCase().regex(SLUG, "Give the workspace's address, as /w/ says it."),
     asked_by: z
       .string()
       .trim()

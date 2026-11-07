@@ -27,18 +27,15 @@ import {
   type JobKind,
   FILE_LOOK_EDITION,
 } from "@chanlytics/contracts";
-import { logger } from "@chanlytics/channels";
-import {
-  conversationDraftFailed,
-  emitEvent,
-  failOpenDelivery,
-  failQueuedSend,
-  fileLookKeep,
-  holdNoticeIfUnkept,
-  noteImport,
-  previewBuilt,
-} from "@chanlytics/db";
-import { carriedBy, nextBatch } from "../handlers/broadcast-send";
+import { logger } from "@chanlytics/log";
+import { recordConversationDraftFailed } from "@chanlytics/db/ask";
+import { emitEvent, failOpenDelivery } from "@chanlytics/db/events";
+import { failQueuedSend } from "@chanlytics/db/jobs";
+import { keepFileLook } from "@chanlytics/db/files";
+import { holdNoticeIfUnkept } from "@chanlytics/db/calendar";
+import { noteImport } from "@chanlytics/db/imports";
+import { recordPreviewBuilt } from "@chanlytics/db/campaigns";
+import { carriedBy, nextBatch } from "./batch-carry";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, RUN_INTERRUPTED, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";
@@ -99,7 +96,7 @@ const MAY_HAVE_SENT = "the run that was sending this did not finish";
  * What the row and the thread's flag say of a send: a failure that said why it is certain, in its own words (core
  * CertainFailure's `why`); a job that never ran, in the ledger's; a run that died, in the words for one that may have sent.
  */
-const noteOf = (certain: boolean, why?: string): string => (certain ? (why ?? NEVER_SENT) : MAY_HAVE_SENT);
+const noteOf = (certain: boolean, reason?: string): string => (certain ? (reason ?? NEVER_SENT) : MAY_HAVE_SENT);
 
 /**
  * What the MAILBOX carries after an intake died, which is a different reader
@@ -187,7 +184,7 @@ async function failBroadcast(
   db: Db,
   job: TerminalJob,
   broadcastId: string,
-  why: string,
+  reason: string,
   far: { reached: number; remaining: number },
 ): Promise<Settled[]> {
   const { data, error } = await db
@@ -197,7 +194,7 @@ async function failBroadcast(
     .eq("tenant_id", job.tenant_id)
     .in("state", ["scheduled", "sending"])
     .select("id");
-  if (error) return [{ what: "broadcast", changed: false, ...far, error: `${why}; then ${error.message}` }];
+  if (error) return [{ what: "broadcast", changed: false, ...far, error: `${reason}; then ${error.message}` }];
   // No row means it finished by itself between the read and here, and there is
   // nothing to tell anyone about work that completed.
   if (!data?.length) return [{ what: "broadcast", changed: false, ...far }];
@@ -206,11 +203,11 @@ async function failBroadcast(
     failure: "run_interrupted",
     sent: far.reached,
   });
-  return [{ what: "broadcast", changed: true, notResumed: why, ...far }];
+  return [{ what: "broadcast", changed: true, notResumed: reason, ...far }];
 }
 
 /** A reply's send: the message still claiming to be on its way is marked failed, and its thread flagged for a person. */
-async function settleSend(db: Db, job: TerminalJob, certain: boolean, why?: string): Promise<Settled[]> {
+async function settleSend(db: Db, job: TerminalJob, certain: boolean, otherReason?: string): Promise<Settled[]> {
   const reason = certain ? "never_delivered" : "run_interrupted";
   const messageId = idFrom(job.payload, "message_id");
   if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
@@ -223,7 +220,7 @@ async function settleSend(db: Db, job: TerminalJob, certain: boolean, why?: stri
   const { row, error } = await failQueuedSend(db, {
     tenantId: job.tenant_id,
     messageId,
-    error: { reason, note: noteOf(certain, why), ...(certain ? {} : { outcome: "unknown" }) },
+    error: { reason, note: noteOf(certain, otherReason), ...(certain ? {} : { outcome: "unknown" }) },
   });
   // A reply that never left is a customer with no answer: the thread is flagged for a person, as a failed
   // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5). A campaign's
@@ -236,7 +233,7 @@ async function settleSend(db: Db, job: TerminalJob, certain: boolean, why?: stri
           job.tenant_id,
           row.conversation_id,
           "send_failed",
-          `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${noteOf(certain, why)}.`,
+          `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${noteOf(certain, otherReason)}.`,
         )
       : null;
   return [
@@ -365,7 +362,7 @@ async function settleBroadcast(db: Db, job: TerminalJob): Promise<Settled[]> {
 async function settlePreview(db: Db, job: TerminalJob): Promise<Settled[]> {
   const id = idFrom(job.payload, "preview_id");
   if (!id) return [{ what: "preview", changed: false, error: "no preview_id on the job" }];
-  return [{ what: "preview", changed: await previewBuilt(db, id, false, "build_failed") }];
+  return [{ what: "preview", changed: await recordPreviewBuilt(db, id, false, "build_failed") }];
 }
 
 /**
@@ -418,7 +415,7 @@ async function settleNotice(db: Db, job: TerminalJob): Promise<Settled[]> {
  * One event's delivery that will not finish (00334): settled failed unless its subscriber's verdict is already on the
  * row, so Deliver again reaches it. A run that died before the verdict left the delivery scheduled, which nothing takes.
  */
-async function settleDelivery(db: Db, job: TerminalJob, certain: boolean, why?: string): Promise<Settled[]> {
+async function settleDelivery(db: Db, job: TerminalJob, certain: boolean, reason?: string): Promise<Settled[]> {
   const eventId = idFrom(job.payload, "event_id");
   const subscriber = idFrom(job.payload, "subscriber");
   if (!eventId || !subscriber)
@@ -427,7 +424,7 @@ async function settleDelivery(db: Db, job: TerminalJob, certain: boolean, why?: 
     tenantId: job.tenant_id,
     eventId,
     subscriber,
-    error: certain ? (why ?? "it never ran") : RUN_INTERRUPTED,
+    error: certain ? (reason ?? "it never ran") : RUN_INTERRUPTED,
   });
   return [{ what: "delivery", changed: moved }];
 }
@@ -440,7 +437,7 @@ async function settleDraft(db: Db, job: TerminalJob): Promise<Settled[]> {
   const conversationId = idFrom(job.payload, "conversation_id");
   const kind = idFrom(job.payload, "draft_kind");
   if (!conversationId || !kind) return [{ what: "draft", changed: false, error: "no thread or kind on the job" }];
-  const moved = await conversationDraftFailed(db, {
+  const moved = await recordConversationDraftFailed(db, {
     tenantId: job.tenant_id,
     conversationId,
     kind,
@@ -459,7 +456,7 @@ async function settleFileLook(db: Db, job: TerminalJob): Promise<Settled[]> {
   const fileId = idFrom(job.payload, "file_id");
   if (!fileId) return [{ what: "file", changed: false, error: "no file on the job" }];
   const edition = Number(idFrom(job.payload, "edition") ?? FILE_LOOK_EDITION);
-  await fileLookKeep(db, {
+  await keepFileLook(db, {
     tenantId: job.tenant_id,
     id: fileId,
     status: "failed",
@@ -520,14 +517,14 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
  * Settle what this job was in the middle of. Never throws: a settlement that cannot be written is reported in its own
  * row, because the caller's job is to tell an owner the truth and "we could not check" is part of the truth.
  */
-export async function settleJob(db: Db, job: TerminalJob, certain: boolean, why?: string): Promise<Settled[]> {
+export async function settleJob(db: Db, job: TerminalJob, certain: boolean, reason?: string): Promise<Settled[]> {
   const settler = (SETTLERS as Record<string, Settler | null | undefined>)[job.kind];
   if (!settler) return [];
   try {
-    return await settler(db, job, certain, why);
+    return await settler(db, job, certain, reason);
   } catch (e) {
-    const what = (WHAT_OF as Record<string, Settled["what"] | undefined>)[job.kind] ?? "delivery";
-    return [{ what, changed: false, error: e instanceof Error ? e.message : String(e) }];
+    const subject = (WHAT_OF as Record<string, Settled["what"] | undefined>)[job.kind] ?? "delivery";
+    return [{ what: subject, changed: false, error: e instanceof Error ? e.message : String(e) }];
   }
 }
 
@@ -538,50 +535,55 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean, why?
  */
 export function saySettled(results: Settled[]): string | null {
   const lines: string[] = [];
-  for (const r of results) {
-    if (r.error) {
+  for (const result of results) {
+    if (result.error) {
       lines.push(
-        r.what === "message"
-          ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.`
-          : r.what === "email"
-            ? `The email it was taking in could not be flagged for a person (${r.error}), so look for it in the Inbox.`
-            : r.what === "broadcast"
-              ? `The broadcast could not be updated (${r.error}), so it may still show as sending.`
-              : `What it was doing could not be marked as stopped (${r.error}), so it may still show as in progress.`,
+        result.what === "message"
+          ? `The message it was sending could not be updated (${result.error}), so it may still show as sending.`
+          : result.what === "email"
+            ? `The email it was taking in could not be flagged for a person (${result.error}), so look for it in the Inbox.`
+            : result.what === "broadcast"
+              ? `The broadcast could not be updated (${result.error}), so it may still show as sending.`
+              : `What it was doing could not be marked as stopped (${result.error}), so it may still show as in progress.`,
       );
-    } else if (r.changed && r.what === "import") {
+    } else if (result.changed && result.what === "import") {
       lines.push("Its source says it stopped, with Try again.");
-    } else if (r.changed && r.what === "notice") {
+    } else if (result.changed && result.what === "notice") {
       lines.push("The booking email is held for a person in Settings › Business, with Read again.");
-    } else if (r.what === "preview" || r.what === "delivery" || r.what === "draft" || r.what === "file") {
+    } else if (
+      result.what === "preview" ||
+      result.what === "delivery" ||
+      result.what === "draft" ||
+      result.what === "file"
+    ) {
       // A preview marked not made, a delivery marked failed: the platform's leavings, said nowhere an owner reads.
-    } else if (r.resumed) {
+    } else if (result.resumed) {
       // Whether this settlement handed it on or found a run already coming, the
       // owner's picture is the same: it is still going. What it does NOT say is
       // "nobody is sent it twice" — a run killed between the wire accepting a
       // message and the row recording it leaves no row for the next run to read.
       lines.push(
-        `The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`,
+        `The broadcast carries on in a fresh run: ${result.reached ?? 0} reached so far, ${result.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`,
       );
-    } else if (r.changed && r.notResumed) {
+    } else if (result.changed && result.notResumed) {
       lines.push(
-        `The broadcast could not be handed to a fresh run (${r.notResumed}), so it has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`,
+        `The broadcast could not be handed to a fresh run (${result.notResumed}), so it has been marked failed; the ${result.reached ?? "people"} it had already reached still got it${typeof result.remaining === "number" ? `, and ${result.remaining} did not` : ""}.`,
       );
-    } else if (r.changed && r.what === "email") {
+    } else if (result.changed && result.what === "email") {
       lines.push("The email it was taking in is in the Inbox and flagged for a person, so nobody has to find it.");
-    } else if (r.what === "email") {
+    } else if (result.what === "email") {
       // Nothing was stored, so there is no thread this could be held against:
       // the mailbox is the only place in the product it can be said at all.
       lines.push(
-        r.mailbox === "marked"
+        result.mailbox === "marked"
           ? "The email it was taking in was never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in."
           : "The email it was taking in was never stored, so there is nothing to flag for a person.",
       );
-    } else if (r.changed) {
+    } else if (result.changed) {
       lines.push(
-        r.what === "message"
+        result.what === "message"
           ? "The message has been marked failed, so it is no longer shown as on its way."
-          : `The broadcast has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`,
+          : `The broadcast has been marked failed; the ${result.reached ?? "people"} it had already reached still got it${typeof result.remaining === "number" ? `, and ${result.remaining} did not` : ""}.`,
       );
     }
     // changed:false with no error means the row had already moved on by itself.

@@ -10,25 +10,25 @@
  */
 import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import type { Logger } from "./log.js";
 import { refuse } from "./http.js";
 
 export async function authorizeCron(
   request: Request,
   db: SupabaseClient<Database>,
-  L: Pick<Logger, "error">,
+  log: Pick<Logger, "error">,
 ): Promise<Response | null> {
   const presented = request.headers.get("x-cron-key") || "";
   const { data: expected, error } = await db.rpc("get_cron_sweep_key");
   if (error || !expected) {
     // The route does nothing without its key, and the 503 is what sweep_health() reads.
-    L.error("cron_key_unavailable", { error: error?.message ?? "no cron_sweep_key in Vault" });
+    log.error("cron_key_unavailable", { error: error?.message ?? "no cron_sweep_key in Vault" });
     return refuse(503, "key_unavailable");
   }
-  const a = Buffer.from(presented);
-  const b = Buffer.from(expected);
-  if (!presented || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+  const items = Buffer.from(presented);
+  const result = Buffer.from(expected);
+  if (!presented || items.length !== result.length || !crypto.timingSafeEqual(items, result)) {
     return refuse(401, "unauthorized");
   }
   return null;

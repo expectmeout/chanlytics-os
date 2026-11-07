@@ -1,20 +1,20 @@
 /**
  * What the Calendar says of the person a visit is for, beyond who they are (the Calendar's lane D, 13 Oct 2026): their
  * standing, the business they work at, their deal, their next step and when they were last in touch. The server works the
- * facts out of the People row the board's own read already holds (server/calendar/week.ts reads everyone once, to
+ * facts out of the People row the board's own read already holds (server/calendar/week/week.ts reads everyone once, to
  * match the feed), and carries them on the visit (CalendarItemDto.person.facts), so the page never reads People's book of
  * its own: it read it twice for one pill, the server's read and a second whole read in the browser (ROUTE_DRAWS
  * calendar:["people"]), and held the board's deal and business behind window globals.
  *
  * The facts are the row's own columns where a sentence depends on the clock (the deal's, the step's), so the page says
- * them with People's own rules at the minute it draws (deal-vm.ts dealOf, notes/steps.ts nextStepOf): the same words
+ * them with People's own rules at the minute it draws (deals/vm.ts dealOf, notes/steps.ts nextStepOf): the same words
  * People's row and the person's page say, never a second spelling.
  */
 import type { PersonRowDto } from "../../people/person-dto";
-import { visitsAt } from "../people";
+import { visitsAt } from "../people/visits";
 import { personStateFor, PERSON_STATE_LABELS, type PersonState } from "../../people/person-state";
 import { lastContactOf } from "../../people/person-row-facts";
-import { dealOf, type DealColumns, type DealVM } from "../../deals/deal-vm";
+import { dealOf, type DealColumns, type DealVM } from "../../deals/vm";
 import { nextStepOf, type PersonNextStepVM, type StepColumns } from "../../notes/steps";
 import { businessTrailOf } from "../../people/person-page/business-trail";
 import { asNameSource } from "../../people/person-page/words";
@@ -37,72 +37,72 @@ export interface CalendarPersonFactsDto {
   email: string | null;
   /**
    * When their next visit begins, at the read's clock (visitsAt), or null with none ahead: a consultation with a visit
-   * booked after it waits on nobody (deal-consultations.ts consultationHeld). Absent from a read before it.
+   * booked after it waits on nobody (deals/consultations.ts consultationHeld). Absent from a read before it.
    */
   next_visit_at?: string | null;
   /**
    * When their last visit that is over began (visitsAt's `last`): what Today's day says under who is coming ("Last here
    * Aug 12"). Null where the record holds none before the one they come for, in the season or before it (the server's
-   * boardVisits): "First visit". Absent where neither is known (their visits were not read, or none was over in the season
+   * getBoardVisits): "First visit". Absent where neither is known (their visits were not read, or none was over in the season
    * and the record was not asked of before it), and from a read before it: then nothing is said.
    */
   last_visit_at?: string | null;
 }
 
 /** The deal's columns of a row, and nothing else: what dealOf reads. */
-function dealColumnsOf(r: PersonRowDto): Partial<DealColumns> | null {
-  if (!r.deal_stage) return null;
+function dealColumnsOf(person: PersonRowDto): Partial<DealColumns> | null {
+  if (!person.deal_stage) return null;
   return {
-    deal_id: r.deal_id ?? null,
-    deal_stage: r.deal_stage,
-    deal_service: r.deal_service ?? null,
-    deal_proposed_at: r.deal_proposed_at ?? null,
-    deal_decided_at: r.deal_decided_at ?? null,
-    deal_ended_at: r.deal_ended_at ?? null,
-    deal_amount_cents: r.deal_amount_cents ?? null,
-    deal_per: r.deal_per ?? null,
+    deal_id: person.deal_id ?? null,
+    deal_stage: person.deal_stage,
+    deal_service: person.deal_service ?? null,
+    deal_proposed_at: person.deal_proposed_at ?? null,
+    deal_decided_at: person.deal_decided_at ?? null,
+    deal_ended_at: person.deal_ended_at ?? null,
+    deal_amount_cents: person.deal_amount_cents ?? null,
+    deal_per: person.deal_per ?? null,
   };
 }
 
 /** The step's columns of a row, and nothing else: what nextStepOf reads. */
-function stepColumnsOf(r: PersonRowDto): StepColumns | null {
-  if (!r.step_id || !r.step_body) return null;
+function stepColumnsOf(person: PersonRowDto): StepColumns | null {
+  if (!person.step_id || !person.step_body) return null;
   return {
-    step_id: r.step_id,
-    step_body: r.step_body,
-    step_due_on: r.step_due_on ?? null,
-    step_for_user_id: r.step_for_user_id ?? null,
-    step_deal_id: r.step_deal_id ?? null,
-    step_for_name: r.step_for_name ?? null,
-    step_for_me: r.step_for_me ?? false,
+    step_id: person.step_id,
+    step_body: person.step_body,
+    step_due_on: person.step_due_on ?? null,
+    step_for_user_id: person.step_for_user_id ?? null,
+    step_deal_id: person.step_deal_id ?? null,
+    step_for_name: person.step_for_name ?? null,
+    step_for_me: person.step_for_me ?? false,
   };
 }
 
 /**
  * A person's facts from their People row, at the read's clock in the business's zone: the server's half. `first`: the
- * record holds no visit of theirs before the one they come for, in the season or before it (the server's boardVisits).
+ * record holds no visit of theirs before the one they come for, in the season or before it (the server's getBoardVisits).
  */
 export function calendarPersonFactsOf(
-  r: PersonRowDto,
+  person: PersonRowDto,
   tz: string,
   nowMs: number,
   first: boolean,
 ): CalendarPersonFactsDto {
-  const last = lastContactOf(r, tz, nowMs);
-  const visits = visitsAt(r.visits ?? null, nowMs);
+  const last = lastContactOf(person, tz, nowMs);
+  const visits = visitsAt(person.visits ?? null, nowMs);
   const lastVisit = visits?.state === "ok" ? (visits.last?.start ?? (first ? null : undefined)) : undefined;
   return {
     ...(lastVisit !== undefined ? { last_visit_at: lastVisit } : {}),
-    state: personStateFor(r, nowMs, tz, null),
+    state: personStateFor(person, nowMs, tz, null),
     business: businessTrailOf({
-      nameSource: asNameSource(r.name_source),
-      worksAt: r.lead_id ? { name: r.lead_name ?? null, gone: !!r.lead_gone } : null,
+      nameSource: asNameSource(person.name_source),
+      worksAt: person.lead_id ? { name: person.lead_name ?? null, gone: !!person.lead_gone } : null,
     }),
-    deal: dealColumnsOf(r),
-    step: stepColumnsOf(r),
+    deal: dealColumnsOf(person),
+    step: stepColumnsOf(person),
     last: { at: last.at, by: last.by },
-    phone: r.phone_e164 ?? null,
-    email: r.email ?? null,
+    phone: person.phone_e164 ?? null,
+    email: person.email ?? null,
     next_visit_at: visits?.next?.start ?? null,
   };
 }
@@ -124,17 +124,17 @@ export interface CalendarPersonVM {
 }
 
 /** The facts a visit carries, as words at `nowMs` in the business's zone: People's own rules for each. */
-export function calendarPersonOf(f: CalendarPersonFactsDto, tz: string, nowMs: number): CalendarPersonVM {
-  const at = f.last.at ? Date.parse(f.last.at) : Number.NaN;
+export function calendarPersonOf(personFacts: CalendarPersonFactsDto, tz: string, nowMs: number): CalendarPersonVM {
+  const at = personFacts.last.at ? Date.parse(personFacts.last.at) : Number.NaN;
   return {
-    state: f.state,
-    stateWord: PERSON_STATE_LABELS[f.state],
-    business: f.business,
-    deal: f.deal ? dealOf(f.deal, tz, nowMs) : null,
-    step: f.step ? nextStepOf(f.step, tz, nowMs) : null,
-    last: Number.isFinite(at) ? `${f.last.by} · ${agoWords(at, nowMs)}` : null,
-    phone: f.phone,
-    email: f.email,
-    nextVisitMs: f.next_visit_at ? Date.parse(f.next_visit_at) : null,
+    state: personFacts.state,
+    stateWord: PERSON_STATE_LABELS[personFacts.state],
+    business: personFacts.business,
+    deal: personFacts.deal ? dealOf(personFacts.deal, tz, nowMs) : null,
+    step: personFacts.step ? nextStepOf(personFacts.step, tz, nowMs) : null,
+    last: Number.isFinite(at) ? `${personFacts.last.by} · ${agoWords(at, nowMs)}` : null,
+    phone: personFacts.phone,
+    email: personFacts.email,
+    nextVisitMs: personFacts.next_visit_at ? Date.parse(personFacts.next_visit_at) : null,
   };
 }

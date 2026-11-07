@@ -21,13 +21,14 @@ import {
   getRetellLlm,
   voiceShellDrift,
   type RetellConcurrency,
-} from "@chanlytics/channels";
-import { activeVoiceAgents, type Database } from "@chanlytics/db";
+} from "@chanlytics/channels/voice";
+import { listActiveVoiceAgents } from "@chanlytics/db/facts";
+import type { Database } from "@chanlytics/db/types";
 import { edgeFnUrl } from "../../shared/dashboard-origin.js";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";
-import { pageOperator } from "../../ops/page-operator.js";
-import { signatureOnly } from "../door-auth.js";
+import { pageOperator } from "../../shared/alerts/page-operator.js";
+import { signatureOnly } from "../../shared/door-auth.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -56,39 +57,39 @@ export async function watchVoice(
   db: Db,
   now: Date = new Date(),
 ): Promise<{ concurrency: number | null; drifted: number | null }> {
-  const L = logger();
+  const log = logger();
   const apiKey = env.RETELL_API_KEY;
   if (!apiKey) return { concurrency: null, drifted: null };
   let share: number | null = null;
   try {
-    const c = await getConcurrency({ apiKey });
-    share = concurrencyShare(c);
-    if (share !== null && share >= CONCURRENCY_PAGE_SHARE && c) {
+    const concurrency = await getConcurrency({ apiKey });
+    share = concurrencyShare(concurrency);
+    if (share !== null && share >= CONCURRENCY_PAGE_SHARE && concurrency) {
       await pageOperator(
         { db },
         "voice_concurrency",
-        `The voice provider is on ${c.current} of its ${c.limit} calls at once`,
+        `The voice provider is on ${concurrency.current} of its ${concurrency.limit} calls at once`,
         `Every workspace's line shares the voice provider's account, and it is at ${Math.round(share * 100)}% of the calls it ` +
           `may hold at once. Past it, callers hear a busy line (concurrency_limit_reached). Raise the account's limit with ` +
           `the provider.`,
       );
     }
   } catch (e) {
-    L.warn("voice_watch_failed", { part: "concurrency", error: errField(e) });
+    log.warn("voice_watch_failed", { part: "concurrency", error: errField(e) });
   }
   if (now.getUTCHours() !== DRIFT_HOUR_UTC) return { concurrency: share, drifted: null };
   const drifted: Array<{ agentId: string; tenantId: string; drift: string[] }> = [];
   try {
-    for (const a of await activeVoiceAgents(db)) {
+    for (const a of await listActiveVoiceAgents(db)) {
       const drift = await agentDrift(apiKey, a.agentId);
       if (drift.length) drifted.push({ ...a, drift });
     }
   } catch (e) {
-    L.warn("voice_watch_failed", { part: "drift", error: errField(e) });
+    log.warn("voice_watch_failed", { part: "drift", error: errField(e) });
     return { concurrency: share, drifted: null };
   }
   if (drifted.length) {
-    L.warn("voice_drift_found", { agents: drifted.length });
+    log.warn("voice_drift_found", { agents: drifted.length });
     await pageOperator(
       { db },
       "voice_drift",

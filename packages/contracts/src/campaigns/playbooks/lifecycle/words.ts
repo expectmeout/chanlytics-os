@@ -1,6 +1,6 @@
 /**
  * The words Campaigns' home says once, and what a playbook says of itself as a state (lifecycle.ts reads them to make the
- * rail, lifecycle/ledger.ts the ledger, lifecycle/tiles.ts the tiles). A sentence of the page is here or made from here, never in the
+ * rail, lifecycle/ledger/ledger.ts the ledger, lifecycle/tiles.ts the tiles). A sentence of the page is here or made from here, never in the
  * page.
  */
 import { SET_UP_CAMPAIGNS } from "../../../ask/suggestions";
@@ -20,10 +20,12 @@ import {
   runStoppedWords,
 } from "../../../shell/campaign-rooms";
 import { joinWords, plural } from "../../../shared/words";
-import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions";
-import { WORKSPACE_PAUSED_FACT } from "../../../workspace/billing";
-import { SENDING_HOURS_WORDS, triggerOf } from "../playbook-triggers";
-import type { LifecyclePlaybook, LifecycleRowResults, LifecycleSentence, LifecycleTone } from "./types";
+import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions/channels";
+import { WORKSPACE_PAUSED_FACT } from "../../../workspace/billing/plans";
+import { SENDING_HOURS_WORDS } from "../triggers/kinds";
+import { triggerOf } from "../triggers/notices";
+import type { LifecyclePlaybook } from "./types/reads";
+import type { LifecycleRowResults, LifecycleSentence, LifecycleTone } from "./types/tiles";
 
 /** The channels a campaign goes by, as a list in a sentence: "WhatsApp and Email", "WhatsApp, Text and Email". */
 export const channelsGoesByWords = (channels: readonly ConsentChannel[]): string =>
@@ -119,9 +121,9 @@ export const LIFECYCLE_WORDS = {
        * tomorrow"): the moment said as the people it names, in the workspace's word for an appointment.
        */
       who: (trigger: string, word: AppointmentWord): string => {
-        const W = appointmentWords(word);
-        if (trigger === "visit_tomorrow") return W.tomorrowWho;
-        if (trigger === "visited") return W.yesterdayWho;
+        const words = appointmentWords(word);
+        if (trigger === "visit_tomorrow") return words.tomorrowWho;
+        if (trigger === "visited") return words.yesterdayWho;
         if (trigger === "lapsed") return `everyone with no ${word} in 45 days`;
         if (trigger === "quiet_30") return "everyone quiet for 30 days";
         if (trigger === "everyone_monthly") return "everyone who said yes";
@@ -487,18 +489,18 @@ const stated = (words: string, tone: LifecycleTone, paused = false, short = word
  * whether it is, for Resume.
  */
 export function lifecycleStateOf(
-  p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cadence_days" | "state" | "totals" | "ended"> & {
+  lifecyclePlaybook: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cadence_days" | "state" | "totals" | "ended"> & {
     off?: string | null;
   },
 ): LifecycleState {
   // A campaign past its last day runs nothing more (its `off` says so too): its end is the state, whatever else it was.
-  if (p.ended) return stated(LIFECYCLE_WORDS.ended(p.ended), "plain");
-  if (p.off) return stated("Not running here", "plain");
-  const paused = p.state !== "running";
-  if (p.totals.waiting) return stated(RUN_WAITING_WORDS, "warn", paused);
+  if (lifecyclePlaybook.ended) return stated(LIFECYCLE_WORDS.ended(lifecyclePlaybook.ended), "plain");
+  if (lifecyclePlaybook.off) return stated("Not running here", "plain");
+  const paused = lifecyclePlaybook.state !== "running";
+  if (lifecyclePlaybook.totals.waiting) return stated(RUN_WAITING_WORDS, "warn", paused);
   // Paused rests (decision 13 of 9 Oct 2026): amber is for a run waiting on someone, never for a rule its owner stopped.
   if (paused) return stated("Paused", "plain", true);
-  return stated(`On · ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
+  return stated(`On · ${lifecycleClock(lifecyclePlaybook)}`, "ok", false, lifecycleClock(lifecyclePlaybook));
 }
 
 /**
@@ -506,21 +508,24 @@ export function lifecycleStateOf(
  * paused, else on. The ledger's row and the reach-out's drawer read it, so the drawer wears the home's word, not "Running".
  */
 export function lifecycleChainStateOf(
-  c: Pick<ReachOutChainDto, "state"> & { next: Pick<ReachOutChainDto["next"], "waiting_run_id"> },
+  reachOutChain: Pick<ReachOutChainDto, "state"> & { next: Pick<ReachOutChainDto["next"], "waiting_run_id"> },
 ): LifecycleState {
-  const paused = c.state !== "running";
-  if (c.next.waiting_run_id) return stated(RUN_WAITING_WORDS, "warn", paused);
+  const paused = reachOutChain.state !== "running";
+  if (reachOutChain.next.waiting_run_id) return stated(RUN_WAITING_WORDS, "warn", paused);
   return paused ? stated("Paused", "plain", true) : stated("On", "ok");
 }
 
 /** How a moment's or a group's campaigns stand, in a line: "3 campaigns · 2 on · 1 paused". */
-export function tallyWords(n: number, t: { on: number; waiting: number; paused: number; off: number }): string {
+export function tallyWords(
+  count: number,
+  target: { on: number; waiting: number; paused: number; off: number },
+): string {
   return [
-    plural(n, "campaign"),
-    t.on > 0 ? `${t.on} on` : "",
-    t.waiting > 0 ? `${t.waiting} waiting` : "",
-    t.paused > 0 ? `${t.paused} paused` : "",
-    t.off > 0 ? `${t.off} not running here` : "",
+    plural(count, "campaign"),
+    target.on > 0 ? `${target.on} on` : "",
+    target.waiting > 0 ? `${target.waiting} waiting` : "",
+    target.paused > 0 ? `${target.paused} paused` : "",
+    target.off > 0 ? `${target.off} not running here` : "",
   ]
     .filter(Boolean)
     .join(" · ");

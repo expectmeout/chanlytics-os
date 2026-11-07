@@ -56,17 +56,17 @@ const exportRoute = await import(at("apps/dashboard/app/api/v1/leads/export/rout
 const suggestions = await import(at("apps/dashboard/app/api/v1/lead-suggestions/route.ts"));
 const askIdea = await import(at("apps/dashboard/app/api/v1/ask/idea/route.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/shared/model-json.ts"));
-const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
+const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
 const { planFacts } = await import(at("apps/dashboard/src/server/leads/leads.ts"));
 // The lead's draft builds its mailto: with the reach-out's compose module (00429): one helper, not two.
 const { mailtoOf: leadMailto } = await import(at("packages/contracts/src/campaigns/reach-out/owner/compose.ts"));
-const { setSuggestionsWriter } = await import(at("apps/dashboard/src/server/leads/lead-suggestions.ts"));
-const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { setSuggestionsWriter } = await import(at("apps/dashboard/src/server/leads/suggestions.ts"));
+const { load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { lead: leadReader, leads: leadsReader } = await import(at("apps/dashboard/src/server/readers/leads.ts"));
 const { search: searchReader, searches: searchesReader } = await import(
   at("apps/dashboard/src/server/readers/searches.ts")
 );
-const { toSearchDto } = await import(at("apps/dashboard/src/server/leads/lead-searches.ts"));
+const { toSearchDto } = await import(at("apps/dashboard/src/server/leads/searches.ts"));
 const { runTool, newToolContext, READ_DEFS } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));

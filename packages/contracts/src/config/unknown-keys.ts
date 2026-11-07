@@ -31,16 +31,21 @@ export function keysLeftOut(
 }
 
 /** Two JSON values the same, whatever order an object's keys were written in. */
-function sameJson(a: unknown, b: unknown): boolean {
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
+function sameJson(first: unknown, body: unknown): boolean {
+  if (Array.isArray(first) || Array.isArray(body)) {
+    return (
+      Array.isArray(first) &&
+      Array.isArray(body) &&
+      first.length === body.length &&
+      first.every((v, i) => sameJson(v, body[i]))
+    );
   }
-  if (isJsonObject(a) && isJsonObject(b)) {
-    const ka = Object.keys(a).filter((k) => a[k] !== undefined);
-    const kb = Object.keys(b).filter((k) => b[k] !== undefined);
-    return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
+  if (isJsonObject(first) && isJsonObject(body)) {
+    const ka = Object.keys(first).filter((k) => first[k] !== undefined);
+    const kb = Object.keys(body).filter((k) => body[k] !== undefined);
+    return ka.length === kb.length && ka.every((k) => Object.hasOwn(body, k) && sameJson(first[k], body[k]));
   }
-  return Object.is(a, b);
+  return Object.is(first, body);
 }
 
 /**

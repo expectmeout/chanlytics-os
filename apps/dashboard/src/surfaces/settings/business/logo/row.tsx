@@ -16,8 +16,8 @@ import {
   logoLookupWords,
   siteHost,
   workspaceInitials,
-  type LogoNote,
 } from "@chanlytics/contracts";
+import type { LogoNote } from "./layout";
 import { Button } from "../../../kit/button/button";
 import { Face } from "../../../kit/face/face";
 import { MoreMenu } from "../../../kit/more-menu/more-menu";

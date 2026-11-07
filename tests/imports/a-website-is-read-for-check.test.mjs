@@ -7,7 +7,8 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { setSiteMapper, setSitePageReader, signEdgeToken } from "@chanlytics/channels";
+import { setSiteMapper, setSitePageReader } from "@chanlytics/channels/website";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { DATA_NOT_INSTRUCTIONS, WEBSITE_UNREAD_WORDS } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";

@@ -71,8 +71,8 @@ const askedOf = (plan: LeadSearchPlan): Record<string, string> => {
 export function memberOf(
   plan: LeadSearchPlan,
   term: string,
-  c: CleanPlace,
-  a: JudgePlaceAnswer | null,
+  cleanPlace: CleanPlace,
+  judgePlaceAnswer: JudgePlaceAnswer | null,
   opId: string | null,
   model: string | null,
   rule: Prepared["rule"],
@@ -80,9 +80,12 @@ export function memberOf(
   shares: LeadShare[],
   duplicateOf: string | null,
 ): CollectPlace {
-  const loc = c.raw.location;
+  const loc = cleanPlace.raw.location;
   const distance = geo.center && loc ? haversineM(geo.center, loc) : null;
-  const picked = a && a.email_index !== null ? (c.emails[a.email_index] ?? null) : null;
+  const picked =
+    judgePlaceAnswer && judgePlaceAnswer.email_index !== null
+      ? (cleanPlace.emails[judgePlaceAnswer.email_index] ?? null)
+      : null;
   const emailState: LeadEmailState = picked ? "checking" : "none";
   // The class is code's (§0.1): contracts' classify from the judge's answers, or a rule that never reached the judge.
   let verdict: {
@@ -95,65 +98,65 @@ export function memberOf(
   if (rule) {
     verdict = { class: rule.class, excluded_by: rule.excluded_by, fit: null, reasons: [rule.token] };
     reason = rule.reason;
-  } else if (!a) {
+  } else if (!judgePlaceAnswer) {
     verdict = { class: "review", excluded_by: null, fit: null, reasons: ["judge:refused"] };
     reason = JUDGE_REFUSED_REASON;
   } else {
     verdict = classify(
       plan,
-      a,
-      factsOf(0, c),
+      judgePlaceAnswer,
+      factsOf(0, cleanPlace),
       emailState,
       geo.center ? inArea(geo.center, geo.radiusM, loc) : true,
-      leadPhoneState(c.phone),
+      leadPhoneState(cleanPlace.phone),
     );
-    reason = a.reason;
+    reason = judgePlaceAnswer.reason;
   }
   const excluded = verdict.class === "excluded";
   return {
     place: {
-      place_id: c.raw.placeId,
-      business_name: c.raw.title,
-      category: c.raw.category,
-      street: c.raw.street,
-      city: c.raw.city,
-      region: c.region ?? c.raw.state,
-      postal_code: c.raw.postalCode,
+      place_id: cleanPlace.raw.placeId,
+      business_name: cleanPlace.raw.title,
+      category: cleanPlace.raw.category,
+      street: cleanPlace.raw.street,
+      city: cleanPlace.raw.city,
+      region: cleanPlace.region ?? cleanPlace.raw.state,
+      postal_code: cleanPlace.raw.postalCode,
       country: "US",
       lat: loc?.lat ?? null,
       lng: loc?.lng ?? null,
-      website_host: c.host,
-      website_root: c.root,
-      instagram_url: c.raw.instagram,
-      phone_e164: c.phone,
-      phone_sources: c.phoneSources,
+      website_host: cleanPlace.host,
+      website_root: cleanPlace.root,
+      instagram_url: cleanPlace.raw.instagram,
+      phone_e164: cleanPlace.phone,
+      phone_sources: cleanPlace.phoneSources,
       // A left-out place never stores its candidate emails (PRD §0.4, §15).
       email: excluded ? null : picked,
       email_alternates: excluded
         ? []
-        : c.emails
+        : cleanPlace.emails
             .filter((e) => e !== picked)
             .slice(0, 4)
             .map((e) => ({
               email: e,
-              why: c.host && e.endsWith(`@${c.host}`) ? "on their own domain" : "another domain",
+              why: cleanPlace.host && e.endsWith(`@${cleanPlace.host}`) ? "on their own domain" : "another domain",
             })),
       email_state: excluded ? "none" : emailState,
-      rating: c.raw.rating,
-      reviews: c.raw.reviews,
+      rating: cleanPlace.raw.rating,
+      reviews: cleanPlace.raw.reviews,
       // What the listing shows about the business (D2): kept for a lead, never for a left-out place (§0.4).
-      neighborhood: excluded ? null : c.raw.neighborhood,
-      about: excluded ? null : c.raw.about,
-      hours: excluded ? [] : c.raw.hours,
-      image_url: excluded ? null : c.raw.imageUrl,
-      price: excluded ? null : c.raw.price,
-      reviews_dist: excluded ? null : c.raw.reviewsDist,
-      facebook_url: excluded ? null : c.raw.facebook,
-      linkedin_url: excluded ? null : c.raw.linkedin,
-      tiktok_url: excluded ? null : c.raw.tiktok,
-      claimed: excluded ? null : c.raw.claimed,
-      maps_url: excluded ? null : c.raw.mapsUrl,
-      rank: excluded ? null : c.raw.rank,
+      neighborhood: excluded ? null : cleanPlace.raw.neighborhood,
+      about: excluded ? null : cleanPlace.raw.about,
+      hours: excluded ? [] : cleanPlace.raw.hours,
+      image_url: excluded ? null : cleanPlace.raw.imageUrl,
+      price: excluded ? null : cleanPlace.raw.price,
+      reviews_dist: excluded ? null : cleanPlace.raw.reviewsDist,
+      facebook_url: excluded ? null : cleanPlace.raw.facebook,
+      linkedin_url: excluded ? null : cleanPlace.raw.linkedin,
+      tiktok_url: excluded ? null : cleanPlace.raw.tiktok,
+      claimed: excluded ? null : cleanPlace.raw.claimed,
+      maps_url: excluded ? null : cleanPlace.raw.mapsUrl,
+      rank: excluded ? null : cleanPlace.raw.rank,
       // The business's own mark (D6) and the copy we keep (00161): read from its home page by markPlaces, below.
       logo_url: null,
       mark_path: null,
@@ -162,10 +165,10 @@ export function memberOf(
       judgment: {
         op_id: opId,
         term,
-        answer: a,
+        answer: judgePlaceAnswer,
         model,
         reasons: verdict.reasons,
-        ...(a ? { asked: askedOf(plan) } : {}),
+        ...(judgePlaceAnswer ? { asked: askedOf(plan) } : {}),
       },
       class: verdict.class,
       excluded_by: verdict.excluded_by,

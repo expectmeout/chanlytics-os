@@ -6,7 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DAY_MS, isReachOutRun, runDraftedEmails, runWaitsOnYou, waitRowsOf } from "@chanlytics/contracts";
+import { DAY_MS, isReachOutRun, runDraftedEmails, runWaitsOnYou } from "@chanlytics/contracts";
+import { waitRowsOf } from "../../apps/dashboard/src/surfaces/waits/rows.ts";
 import { fakeDb } from "../_fake-db.mjs";
 import { converge, LEADS, verify, WAITING_LEADS } from "../../tooling/scripts/ops/e2e-workspace.mjs";
 import { HANDED_OVER, WAITING_RUN, isACopy, writeCopyStates } from "../../tooling/scripts/e2e-harness/copy-states.mjs";

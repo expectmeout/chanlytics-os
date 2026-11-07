@@ -7,13 +7,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, all, find, byTestId, textOf, classes } from "../_stub-react.mjs";
+import { adsResultsOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/results/view.ts";
+import { RESULTS } from "../../apps/dashboard/src/surfaces/campaigns/ads/results/words.ts";
+import { FIGURES } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
 
 const opened = [];
 installStubReact({ __DEMO_MODE: true, CHANLY: { nav: (to) => opened.push(to) } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const ads = await import("@chanlytics/contracts");
-const page = await import("@chanlytics/contracts/ads-page");
 const { EXAMPLE_READS } = await import(`${S}/surfaces/campaigns/ads/examples.ts`);
 const { CONFIG, SPRING } = await import(`${S}/surfaces/campaigns/ads/sample.ts`);
 const { AdsLens } = await import(`${S}/surfaces/reports/lenses/ads.tsx`);
@@ -22,7 +24,7 @@ const { ResultsSheet } = await import(`${S}/surfaces/campaigns/ads/results/resul
 
 const read = EXAMPLE_READS.running();
 const fold = (scope = ads.ADS_SCOPE_ALL, over = {}, r = read) =>
-  page.adsResultsOf(r, CONFIG, { from: r.window.from, to: r.window.to, scope, ...over });
+  adsResultsOf(r, CONFIG, { from: r.window.from, to: r.window.to, scope, ...over });
 const lens = (vm, onScope = () => {}) => {
   fresh();
   return AdsLens({ fold: vm, onScope });
@@ -120,7 +122,7 @@ test("narrowed to a platform the lens draws the door table and not the platform 
     true,
   ]);
   // What came of the appointments is not split by ad: the card says why, in place of rows.
-  assert.equal(textOf(byTestId(spring, "ads-res-came-back-why")), page.RESULTS.cameBack.forAll);
+  assert.equal(textOf(byTestId(spring, "ads-res-came-back-why")), RESULTS.cameBack.forAll);
   // A platform of calls alone has no people, so no funnel; its numbers are Google's.
   const google = lens(fold({ kind: "platform", platform: "google" }));
   assert.equal(byTestId(google, "ads-res-funnel"), null);
@@ -139,8 +141,8 @@ test("days with nothing in them are the lens's own empty card with the door to A
     "the scope stays, to widen it",
   );
   const week = lens(fold(ads.ADS_SCOPE_ALL, { from: ads.addDays(read.window.from, 23) }));
-  assert.equal(textOf(byTestId(week, "ads-res-theirs-why")), page.RESULTS.theirs.window);
-  assert.equal(textOf(byTestId(week, "ads-res-came-back-why")), page.RESULTS.cameBack.forThirty);
+  assert.equal(textOf(byTestId(week, "ads-res-theirs-why")), RESULTS.theirs.window);
+  assert.equal(textOf(byTestId(week, "ads-res-came-back-why")), RESULTS.cameBack.forThirty);
   assert.equal(byTestId(week, "ads-res-theirs"), null, "no card of the platforms' own numbers");
 });
 
@@ -149,8 +151,8 @@ test("no calendar: the lens draws the page's dash and its words for it, and no a
   const tree = lens(fold(ads.ADS_SCOPE_ALL, {}, noCalendar), () => {});
   const booked = find(tree, (n) => n.props?.["data-figure"] === "booked");
   assert.match(textOf(booked), /^—/, "a dash, not a zero nobody counted");
-  assert.ok(textOf(booked).includes(page.FIGURES.needsLink), "and the words that say what to do");
-  assert.equal(textOf(byTestId(tree, "ads-res-came-back-why")), page.FIGURES.needsLink);
+  assert.ok(textOf(booked).includes(FIGURES.needsLink), "and the words that say what to do");
+  assert.equal(textOf(byTestId(tree, "ads-res-came-back-why")), FIGURES.needsLink);
 });
 
 test("the sheet draws only while it is open and its foot opens the full report over the same days", () => {

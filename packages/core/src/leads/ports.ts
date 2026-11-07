@@ -1,12 +1,13 @@
 /**
  * The lead finder's view of the world (PRD §12.5): what the runner needs,
  * named for what each means. The database half is one method per service
- * RPC of migration 00140 plus a few reads (apps/edge/lib/leads/lead-db.ts, service
+ * RPC of migration 00140 plus a few reads (apps/edge/lib/leads/db.ts, service
  * role); the provider and the judge are the channels package's clients, bound
  * by the edge where the keys are (apps/edge/lib/leads/lead-wires.ts). Every verb
  * here runs over fakes in a test: no network, no database.
  */
-import type { ApifyClient, LeadJudge, SitePage } from "@chanlytics/channels";
+import type { ApifyClient, LeadJudge } from "@chanlytics/channels/leads";
+import type { SitePage } from "@chanlytics/channels/website";
 import type { MarkImage } from "./mark-image";
 import type {
   CompanyFitAnswer,

@@ -17,6 +17,7 @@ import { POST as retellWebhook } from "../../retell-webhook.js";
 import { POST as retellInbound } from "../../retell-inbound.js";
 import { POST as resendWebhook } from "../../resend-webhook.js";
 import { POST as stripeWebhook } from "../../stripe-webhook.js";
+import { INTAKE_REPLAY_DOOR } from "@chanlytics/contracts";
 
 const DOORS = {
   "/api/inbound-sms": inboundSms,
@@ -31,5 +32,5 @@ const DOORS = {
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/intake/replay");
   if (!auth.ok) return auth.response;
-  return replayProviderEvent(pg(), await readBody(request), DOORS);
+  return replayProviderEvent(pg(), await readBody(request, INTAKE_REPLAY_DOOR), DOORS);
 });

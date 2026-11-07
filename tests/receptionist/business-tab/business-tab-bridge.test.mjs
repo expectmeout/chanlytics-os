@@ -19,20 +19,16 @@ import {
   cannotRows,
   bookingHeld,
   bookingTemplate,
-  ruleStrength,
   GUARDRAIL_KEYS,
   promptBlocks,
   BrainConfigSchema,
   newReceptionistDefaults,
   hasProfile,
-  PROFILE_CROSSING_WORDS,
   openWeekWords,
   closuresAheadWords,
   servicesWords,
   servicesToldWords,
   blockShareWords,
-  bookingRulesWords,
-  BOOKING_RULE_HINTS,
   needsConsultation,
   foldName,
   serviceUndoName,
@@ -40,7 +36,6 @@ import {
   serviceLineWords,
   lengthWords,
   SERVICE_PRICE_EMPTY,
-  bookingRuleRefusal,
   TONE_PRESETS,
   PROMPT_READERS,
   PROMPT_NOW,
@@ -52,11 +47,8 @@ import {
   HANDOFF_ANYWAY,
   fallbacksWords,
   guardrailsInForce,
-  rulesKept,
   VISION_SWITCH_WORDS,
-  ALWAYS_ON,
   PROFILE_LIMITS,
-  profileRefusal,
   appointmentWordVM,
   appointmentWordSaved,
   APPOINTMENT_WORDS,
@@ -64,6 +56,20 @@ import {
   COMMON_LANGUAGES,
   sameListed,
 } from "@chanlytics/contracts";
+import {
+  ruleStrength,
+  rulesKept,
+  ALWAYS_ON,
+} from "../../../apps/dashboard/src/surfaces/settings/business/model/rule-strengths.ts";
+import {
+  PROFILE_CROSSING_WORDS,
+  profileRefusal,
+} from "../../../apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts";
+import {
+  bookingRulesWords,
+  BOOKING_RULE_HINTS,
+  bookingRuleRefusal,
+} from "../../../apps/dashboard/src/surfaces/settings/business/model/booking-rules-words.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;

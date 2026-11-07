@@ -24,20 +24,20 @@ import {
   type AnthropicEnforcementStatus,
   type EnforcementAction,
 } from "@chanlytics/contracts";
-import { deleteUserProfile, listUserProfiles, type AnthropicProfile } from "@chanlytics/channels";
+import { deleteUserProfile, listUserProfiles, type AnthropicProfile } from "@chanlytics/channels/ai";
 import {
-  anthropicProfileRows,
-  anthropicProfilesWaiting,
+  listAnthropicProfileRows,
+  listAnthropicProfilesWaiting,
   dropAnthropicProfile,
   keepAnthropicProfileId,
   setAnthropicEnforcement,
   type AnthropicProfileRow,
-  type Database,
-} from "@chanlytics/db";
+} from "@chanlytics/db/ai";
+import type { Database } from "@chanlytics/db/types";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";
 import { modelDeps } from "../model.js";
-import { pageOperator, type PagePorts } from "../../ops/page-operator.js";
+import { pageOperator, type PagePorts } from "../../shared/alerts/page-operator.js";
 import { anthropicProfilesOn, makeAnthropicProfile } from "./attribution.js";
 
 /** How old a claim with no id must be before its answer counts as lost: past any create still in flight. */
@@ -92,16 +92,19 @@ const sameActions = (a: EnforcementAction[], b: EnforcementAction[]): boolean =>
 
 /** The page for a profile Anthropic has newly acted on: who, what it said, what follows. Never a customer's words. */
 function actionWords(
-  r: AnthropicProfileRow,
+  anthropicProfile: AnthropicProfileRow,
   status: AnthropicEnforcementStatus,
-  said: string,
+  sentence: string,
 ): { subject: string; body: string } {
-  const who = r.kind === "workspace" ? `Workspace ${r.tenant_id ?? "gone"}` : `Person ${r.user_id ?? "gone"}`;
+  const person =
+    anthropicProfile.kind === "workspace"
+      ? `Workspace ${anthropicProfile.tenant_id ?? "gone"}`
+      : `Person ${anthropicProfile.user_id ?? "gone"}`;
   const paused = anthropicPaused(status);
   return {
     subject: `Anthropic has ${paused ? "paused" : "limited"} one account's model calls`,
     body:
-      `${who} (${r.profile_id ?? "no profile"}). ${said}\n` +
+      `${person} (${anthropicProfile.profile_id ?? "no profile"}). ${sentence}\n` +
       (paused
         ? "Its calls are held here until Anthropic lifts it; "
         : "Its calls still go, and Anthropic refuses what it refuses; ") +
@@ -113,20 +116,35 @@ function actionWords(
  * One row against what the listing said of it. The status is written first: a ban's hold matters more than the page, and a page
  * that cannot be sent is logged, with Health still showing it. A row on its way out is not paged: there is nobody left to help.
  */
-async function readProfile(t: KeepTick, r: AnthropicProfileRow, said: AnthropicProfile): Promise<void> {
-  if (!said.status) return;
-  if (said.status === r.enforcement_status && sameActions(said.actions, r.enforcement_actions)) return;
-  await setAnthropicEnforcement(t.db, r.id, said.status, said.actions, new Date().toISOString());
-  if (anthropicActed(r.enforcement_status) && !anthropicActed(said.status)) t.kept.cleared += 1;
-  const newlyActed = !anthropicActed(r.enforcement_status) && anthropicActed(said.status);
-  const newlyBanned = !anthropicPaused(r.enforcement_status) && anthropicPaused(said.status);
+async function readProfile(
+  keepTick: KeepTick,
+  anthropicProfile: AnthropicProfileRow,
+  sentence: AnthropicProfile,
+): Promise<void> {
+  if (!sentence.status) return;
+  if (
+    sentence.status === anthropicProfile.enforcement_status &&
+    sameActions(sentence.actions, anthropicProfile.enforcement_actions)
+  )
+    return;
+  await setAnthropicEnforcement(
+    keepTick.db,
+    anthropicProfile.id,
+    sentence.status,
+    sentence.actions,
+    new Date().toISOString(),
+  );
+  if (anthropicActed(anthropicProfile.enforcement_status) && !anthropicActed(sentence.status))
+    keepTick.kept.cleared += 1;
+  const newlyActed = !anthropicActed(anthropicProfile.enforcement_status) && anthropicActed(sentence.status);
+  const newlyBanned = !anthropicPaused(anthropicProfile.enforcement_status) && anthropicPaused(sentence.status);
   if (!newlyActed && !newlyBanned) return;
-  t.kept.acted += 1;
-  if (r.leaving) return;
-  const words = actionWords(r, said.status, enforcementWords(said.status, said.actions));
-  const key = `anthropic_profile:${r.id}:${newlyBanned ? "banned" : "acted"}`;
-  await pageOperator({ db: t.db, ...t.pager }, key, words.subject, words.body).catch((e: unknown) =>
-    sweepLog().error("anthropic_profile_unpageable", { row: r.id, error: errField(e) }),
+  keepTick.kept.acted += 1;
+  if (anthropicProfile.leaving) return;
+  const words = actionWords(anthropicProfile, sentence.status, enforcementWords(sentence.status, sentence.actions));
+  const key = `anthropic_profile:${anthropicProfile.id}:${newlyBanned ? "banned" : "acted"}`;
+  await pageOperator({ db: keepTick.db, ...keepTick.pager }, key, words.subject, words.body).catch((e: unknown) =>
+    sweepLog().error("anthropic_profile_unpageable", { row: anthropicProfile.id, error: errField(e) }),
   );
 }
 
@@ -138,29 +156,33 @@ interface Listing {
 }
 
 /** A claim with no id, past any create in flight: the profile the listing finds for it, or the claim let go. */
-async function settleClaim(t: KeepTick, r: AnthropicProfileRow, l: Listing): Promise<AnthropicProfileRow | null> {
-  const found = [...(l.byReference.get(r.reference_id) ?? [])].sort((a, b) =>
+async function settleClaim(
+  keepTick: KeepTick,
+  anthropicProfile: AnthropicProfileRow,
+  listing: Listing,
+): Promise<AnthropicProfileRow | null> {
+  const found = [...(listing.byReference.get(anthropicProfile.reference_id) ?? [])].sort((a, b) =>
     (a.createdAt ?? "").localeCompare(b.createdAt ?? ""),
   );
   const first = found[0];
   if (first) {
     if (found.length > 1)
       sweepLog().error("anthropic_profile_twice", {
-        row: r.id,
+        row: anthropicProfile.id,
         kept: first.id,
         others: found.slice(1).map((p) => p.id),
       });
-    await keepAnthropicProfileId(t.db, r.id, first.id);
-    t.kept.adopted += 1;
-    return { ...r, profile_id: first.id };
+    await keepAnthropicProfileId(keepTick.db, anthropicProfile.id, first.id);
+    keepTick.kept.adopted += 1;
+    return { ...anthropicProfile, profile_id: first.id };
   }
-  if (l.whole) await dropAnthropicProfile(t.db, r.id);
+  if (listing.whole) await dropAnthropicProfile(keepTick.db, anthropicProfile.id);
   return null;
 }
 
 /** What Anthropic now says, written row by row; the rows as they then stand. */
-async function readEnforcement(t: KeepTick, rows: AnthropicProfileRow[]): Promise<AnthropicProfileRow[]> {
-  const { profiles, whole } = await listedProfiles(t);
+async function readEnforcement(keepTick: KeepTick, rows: AnthropicProfileRow[]): Promise<AnthropicProfileRow[]> {
+  const { profiles, whole } = await listedProfiles(keepTick);
   const listing: Listing = { byId: new Map(profiles.map((p) => [p.id, p])), byReference: new Map(), whole };
   for (const p of profiles)
     if (p.referenceId) listing.byReference.set(p.referenceId, [...(listing.byReference.get(p.referenceId) ?? []), p]);
@@ -168,22 +190,22 @@ async function readEnforcement(t: KeepTick, rows: AnthropicProfileRow[]): Promis
   const out: AnthropicProfileRow[] = [];
   for (const row of rows) {
     const stale = !row.profile_id && now - Date.parse(row.claimed_at) >= STALE_CLAIM_MS;
-    const r = stale ? await settleClaim(t, row, listing) : row;
+    const r = stale ? await settleClaim(keepTick, row, listing) : row;
     if (!r) continue;
     out.push(r);
-    const said = r.profile_id ? listing.byId.get(r.profile_id) : undefined;
-    if (said) await readProfile(t, r, said);
+    const sentence = r.profile_id ? listing.byId.get(r.profile_id) : undefined;
+    if (sentence) await readProfile(keepTick, r, sentence);
   }
   return out;
 }
 
 /** The profiles whose subject went: deleted there, then here. A failure waits for the next tick. */
-async function deleteLeaving(t: KeepTick, rows: AnthropicProfileRow[]): Promise<void> {
+async function deleteLeaving(keepTick: KeepTick, rows: AnthropicProfileRow[]): Promise<void> {
   for (const r of rows) {
-    if (!r.leaving || !r.profile_id || Date.now() >= t.until) continue;
-    if (await deleteUserProfile(t.key, r.profile_id, modelDeps())) {
-      await dropAnthropicProfile(t.db, r.id);
-      t.kept.deleted += 1;
+    if (!r.leaving || !r.profile_id || Date.now() >= keepTick.until) continue;
+    if (await deleteUserProfile(keepTick.key, r.profile_id, modelDeps())) {
+      await dropAnthropicProfile(keepTick.db, r.id);
+      keepTick.kept.deleted += 1;
     } else {
       sweepLog().error("anthropic_profile_not_deleted", { row: r.id });
     }
@@ -197,17 +219,17 @@ export async function keepAnthropicProfiles(
 ): Promise<ProfilesKept> {
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return NOTHING_KEPT;
-  const t: KeepTick = { db, key, pager, until: Date.now() + KEEP_MS, kept: { ...NOTHING_KEPT } };
+  const keepTick: KeepTick = { db, key, pager, until: Date.now() + KEEP_MS, kept: { ...NOTHING_KEPT } };
   try {
-    const rows = await anthropicProfileRows(db);
-    if (rows.length) await deleteLeaving(t, await readEnforcement(t, rows));
+    const rows = await listAnthropicProfileRows(db);
+    if (rows.length) await deleteLeaving(keepTick, await readEnforcement(keepTick, rows));
     if (anthropicProfilesOn())
-      for (const subject of await anthropicProfilesWaiting(db, MADE_A_TICK)) {
-        if (Date.now() >= t.until) break;
-        if (await makeAnthropicProfile(db, subject, key, modelDeps())) t.kept.made += 1;
+      for (const subject of await listAnthropicProfilesWaiting(db, MADE_A_TICK)) {
+        if (Date.now() >= keepTick.until) break;
+        if (await makeAnthropicProfile(db, subject, key, modelDeps())) keepTick.kept.made += 1;
       }
   } catch (e) {
     sweepLog().error("anthropic_profiles_unkept", { error: errField(e) });
   }
-  return t.kept;
+  return keepTick.kept;
 }

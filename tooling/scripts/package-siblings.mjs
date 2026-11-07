@@ -7,8 +7,8 @@
  * since every project that declares a package declares the siblings it imports). One module per package per
  * process: one `AppError`, one provider breaker, one logger context; a contracts change rewrites contracts' dist alone.
  *
- * Only a package's root is a sibling's entry. A subpath (`@chanlytics/db/realtime`) is refused at build time rather
- * than guessed at: it would name a file this rewrite does not know.
+ * An entry of the package's own `exports` is the file its bundle writes: `@chanlytics/db/people` is `../../db/dist/people.js`, and a package's root `dist/index.js`
+ * (decision 0110: db and channels have no root, each domain is an entry).
  */
 
 /** The esbuild plugin each package's tsup.config.ts hands its build. */
@@ -16,11 +16,9 @@ export const siblingsByPath = {
   name: "siblings-by-path",
   setup(build) {
     build.onResolve({ filter: /^@chanlytics\// }, (args) => {
-      const match = /^@chanlytics\/([a-z]+)$/.exec(args.path);
-      if (!match) {
-        return { errors: [{ text: `${args.path}: a sibling is imported by its package's root only (decision 0024)` }] };
-      }
-      return { path: `../../${match[1]}/dist/index.js`, external: true };
+      const match = /^@chanlytics\/([a-z]+)(?:\/([a-z-]+))?$/.exec(args.path);
+      if (!match) return { errors: [{ text: `${args.path}: a sibling is imported by a named entry (decision 0110)` }] };
+      return { path: `../../${match[1]}/dist/${match[2] ?? "index"}.js`, external: true };
     });
   },
 };

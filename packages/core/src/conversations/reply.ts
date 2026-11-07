@@ -24,7 +24,7 @@ import {
   MEMBER_REPLY_STALE_MS,
   SEND_GRACE_MS,
 } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 import type { Thread, ThreadPorts } from "./ports";
 import { PERSON_CONTROL_MAX_S } from "./take-over";
 

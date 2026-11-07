@@ -21,7 +21,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { normalizeCall, liveTurns, fetchRecording, getCall } from "@chanlytics/channels";
+import { normalizeCall, liveTurns, fetchRecording, getCall } from "@chanlytics/channels/voice";
 import { toCallVM, toTodayVM, CALL_HEARTBEAT_MS } from "@chanlytics/contracts";
 import { readRaw, importSrc } from "../../_source.mjs";
 

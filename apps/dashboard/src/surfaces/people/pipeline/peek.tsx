@@ -17,7 +17,8 @@
  * when they close (the visit closed itself for good; here the address still names the deal).
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type { PersonVM, PipelinePeekVM, PipelineRowVM, PipelineSheetVM } from "@chanlytics/contracts";
+import type { PersonVM, PipelineRowVM } from "@chanlytics/contracts";
+import type { PipelinePeekVM, PipelineSheetVM } from "./peek-view";
 import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";

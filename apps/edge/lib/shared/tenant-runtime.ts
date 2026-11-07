@@ -10,7 +10,7 @@
  */
 import type { CalendarConfig, CalendarGrantConfig, FeaturesConfig } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import {
   bookingTemplate,
   parseTenantConfigResult,
@@ -21,14 +21,13 @@ import {
   type KnownFacts,
 } from "@chanlytics/contracts";
 import {
-  activeWhatsappNumbers,
-  templatesToSend,
-  textLineFacts,
-  whatsappLineOf,
-  workspaceNamed,
+  listActiveWhatsappNumbers,
+  findWhatsappLine,
   type RoutedChannel,
   type WhatsappNumberRow,
-} from "@chanlytics/db";
+} from "@chanlytics/db/channels";
+import { listTemplatesToSend, findTextLineFacts } from "@chanlytics/db/campaigns";
+import { findWorkspaceNamed } from "@chanlytics/db/workspace";
 import {
   textRefusal,
   whatsappSender,
@@ -38,7 +37,7 @@ import {
   type Sender,
   type WireUnavailable,
 } from "@chanlytics/core";
-import type { SendResult } from "@chanlytics/channels";
+import type { SendResult } from "@chanlytics/channels/whatsapp";
 import { env } from "./env.js";
 import { logger, errField } from "./log.js";
 
@@ -213,9 +212,9 @@ async function resolveWaCredentials(
     logger().error("wa_credentials_lookup_failed", { tenant_id: routed.tenantId, error: error.message });
     return { creds: null, envNumber };
   }
-  const c = data as { access_token?: string; phone_id?: string } | null;
+  const item = data as { access_token?: string; phone_id?: string } | null;
   return {
-    creds: c?.access_token && c?.phone_id ? { accessToken: c.access_token, phoneId: c.phone_id } : null,
+    creds: item?.access_token && item?.phone_id ? { accessToken: item.access_token, phoneId: item.phone_id } : null,
     envNumber,
   };
 }
@@ -240,7 +239,7 @@ function workspaceRowFacts(
  * with one. A read that fails is not known (null), which offers it as before; the tool says when there is none.
  */
 const bookingMessageOf = (db: SupabaseClient<Database>, tenantId: string): Promise<boolean | null> =>
-  templatesToSend(db, tenantId).then(
+  listTemplatesToSend(db, tenantId).then(
     (rows) => bookingTemplate(rows) !== null,
     () => null,
   );
@@ -251,7 +250,7 @@ const bookingMessageOf = (db: SupabaseClient<Database>, tenantId: string): Promi
  * (null), which offers no text.
  */
 const textingLineOf = (db: SupabaseClient<Database>, tenantId: string): Promise<boolean | null> =>
-  textLineFacts(db, tenantId).then(
+  findTextLineFacts(db, tenantId).then(
     (line) => textRefusal("conversational", line) === null,
     () => null,
   );
@@ -357,8 +356,8 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
     };
     cache.set(cacheKey(routed), { v: rt, exp: Date.now() + TTL_MS, stamp });
     return rt;
-  } catch (e) {
-    logger().error("tenant_runtime_load_failed", { tenant_id: routed.tenantId, error: errField(e) });
+  } catch (error) {
+    logger().error("tenant_runtime_load_failed", { tenant_id: routed.tenantId, error: errField(error) });
     // Never cache a failure — the next message retries. loadFailed makes the
     // runtime unusable, so the handler holds the thread for a person: a read
     // that failed is never a persona, for any tenant.
@@ -388,7 +387,7 @@ type WaCredentialsRead = CredentialsRead<{ phoneId: string; accessToken: string 
 /**
  * A tenant's WhatsApp credentials, for callers holding a tenant_id and no
  * routed channel -- the template doors and the number's own reads; the job
- * runner's wire is built on the same rule (whatsappWireForTenant).
+ * runner's wire is built on the same rule (findWhatsappWireForTenant).
  *
  * ABSENT means NO credentials, and the caller must refuse: the environment
  * pair is handed out only to the tenant whose channel row carries the
@@ -404,7 +403,7 @@ type WaCredentialsRead = CredentialsRead<{ phoneId: string; accessToken: string 
  * one Connections shows): these callers know no number a customer wrote to,
  * and an unordered read answered with either, send by send.
  */
-export async function waCredentialsForTenant(
+export async function getWaCredentialsForTenant(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<WaCredentialsRead> {
@@ -418,7 +417,7 @@ export async function waCredentialsForTenant(
  * One number's credentials, by its channel's id: what a coexistence sync asks Meta with (decision 0073, R21), for the
  * number that just connected. Absent when the channel is not one of the workspace's active numbers.
  */
-export async function waCredentialsForChannel(
+export async function getWaCredentialsForChannel(
   db: SupabaseClient<Database>,
   tenantId: string,
   channelId: string,
@@ -429,13 +428,13 @@ export async function waCredentialsForChannel(
   return row ? credentialsOfNumber(db, tenantId, row) : { outcome: "absent" };
 }
 
-/** The workspace's active WhatsApp numbers, oldest first (packages/db activeWhatsappNumbers), or the read's failure. */
+/** The workspace's active WhatsApp numbers, oldest first (packages/db listActiveWhatsappNumbers), or the read's failure. */
 async function numbersOf(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<WhatsappNumberRow[] | { outcome: "unavailable"; error: string }> {
   try {
-    return await activeWhatsappNumbers(db, tenantId);
+    return await listActiveWhatsappNumbers(db, tenantId);
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     logger().error("wa_credentials_channel_unreadable", { tenant_id: tenantId, error });
@@ -452,23 +451,23 @@ async function credentialsOfNumber(
   tenantId: string,
   ch: WhatsappNumberRow,
 ): Promise<WaCredentialsRead> {
-  const L = logger();
+  const log = logger();
   try {
     if (ch.credentials_ref) {
       const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: ch.id });
       if (error) {
-        L.error("wa_credentials_for_tenant_failed", { tenant_id: tenantId, error: error.message });
+        log.error("wa_credentials_for_tenant_failed", { tenant_id: tenantId, error: error.message });
         return { outcome: "unavailable", error: error.message };
       }
-      const c = data as { access_token?: string; phone_id?: string } | null;
-      return c?.access_token && c?.phone_id
-        ? { outcome: "present", credentials: { phoneId: c.phone_id, accessToken: c.access_token } }
+      const item = data as { access_token?: string; phone_id?: string } | null;
+      return item?.access_token && item?.phone_id
+        ? { outcome: "present", credentials: { phoneId: item.phone_id, accessToken: item.access_token } }
         : { outcome: "absent" };
     }
     const pair = isEnvNumber(ch.external_id) ? envPair() : null;
     return pair ? { outcome: "present", credentials: pair } : { outcome: "absent" };
   } catch (e) {
-    L.error("wa_credentials_for_tenant_threw", { tenant_id: tenantId, error: errField(e) });
+    log.error("wa_credentials_for_tenant_threw", { tenant_id: tenantId, error: errField(e) });
     return { outcome: "unavailable", error: errField(e) };
   }
 }
@@ -490,7 +489,7 @@ const NO_CREDENTIALS: SendResult & { reason: "no_credentials" } = {
  * a job -- and sent everything from the oldest, so a reply to someone who wrote to the newer one was refused by Meta,
  * or reached them from a number they never wrote to. The thread says which: the line their newest WhatsApp message came
  * in on (packages/db whatsappLineOf), while that number is still active. When nothing says (they never wrote, wrote
- * before lines were kept, or to a number turned off since), the oldest, as waCredentialsForTenant. Each number's
+ * before lines were kept, or to a number turned off since), the oldest, as getWaCredentialsForTenant. Each number's
  * credentials are read once for the job, and a workspace with one number reads nothing more than it did.
  *
  * The same answers and the same refusal as the read it is built on: never the environment's pair but for the
@@ -499,7 +498,7 @@ const NO_CREDENTIALS: SendResult & { reason: "no_credentials" } = {
  * read that fails at a send -- the thread's line, or the other number's credentials -- throws WireUnavailableError
  * before anything leaves, as the door does for a wire it could not bind: a reply waits for a heartbeat that can read it.
  */
-export async function whatsappWireForTenant(
+export async function findWhatsappWireForTenant(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<Sender | null | WireUnavailable> {
@@ -537,7 +536,7 @@ async function numberWrittenTo(
 ): Promise<WhatsappNumberRow> {
   if (!conversationId) return oldest;
   try {
-    const line = await whatsappLineOf(db, tenantId, conversationId);
+    const line = await findWhatsappLine(db, tenantId, conversationId);
     return numbers.find((n) => n.id === line) ?? oldest;
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
@@ -588,7 +587,7 @@ export async function loadTenantNotifications(
   /** The workspace's settings could not be read: who it is told by is unknown, which is not "nobody". */
   unread?: true;
 }> {
-  const L = logger();
+  const log = logger();
   try {
     const [cfgQ, chQ, named] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
@@ -600,7 +599,7 @@ export async function loadTenantNotifications(
       // either, so it arrived as `chQ.data === null`, which reads as "not the
       // env number": the env-default workspace's own alerts silently became
       // redacted platform notices with the customer's words withheld. Two
-      // ACTIVE rows answer with the oldest, as waCredentialsForTenant does.
+      // ACTIVE rows answer with the oldest, as getWaCredentialsForTenant does.
       db
         .from("tenant_channels")
         .select("external_id")
@@ -613,8 +612,8 @@ export async function loadTenantNotifications(
       // The workspace's address word and name, for an alert mail's link and its top (notify.ts alertWorkspace): read beside the
       // recipients so the mail costs no query of its own. Like the channel above, its failure costs the answer it was
       // asked for -- a mail with no link -- and never the recipients.
-      workspaceNamed(db, tenantId).catch((e: unknown) => {
-        L.error("tenant_notifications_workspace_unreadable", { tenant_id: tenantId, error: errField(e) });
+      findWorkspaceNamed(db, tenantId).catch((e: unknown) => {
+        log.error("tenant_notifications_workspace_unreadable", { tenant_id: tenantId, error: errField(e) });
         return null;
       }),
     ]);
@@ -628,7 +627,7 @@ export async function loadTenantNotifications(
     // perfectly well, which is the outcome this whole function exists to
     // avoid; `isEnvDefault` simply falls back to its safe answer.
     if (chQ.error)
-      L.error("tenant_notifications_channel_unreadable", { tenant_id: tenantId, error: chQ.error.message });
+      log.error("tenant_notifications_channel_unreadable", { tenant_id: tenantId, error: chQ.error.message });
     return {
       notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
       isEnvDefault: !chQ.error && !!envPhoneId && chQ.data?.external_id === envPhoneId,
@@ -636,7 +635,7 @@ export async function loadTenantNotifications(
       ...(named?.slug ? { slug: named.slug, name: named.name } : {}),
     };
   } catch (e) {
-    L.error("tenant_notifications_load_failed", { tenant_id: tenantId, error: errField(e) });
+    log.error("tenant_notifications_load_failed", { tenant_id: tenantId, error: errField(e) });
     // Unknown recipients: notify() will withhold customer content rather than
     // guess a mailbox. Said, so a caller that must not take "unknown" for "nobody" can wait.
     return { notifications: null, isEnvDefault: false, unread: true };

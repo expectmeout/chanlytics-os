@@ -12,10 +12,10 @@
  * is channels' (lead-judge.ts judgeCompanies), the schema and the parser are here.
  */
 import { z } from "zod";
-import { quotedFact } from "../lead-judge";
+import { quotedFact, trimWords } from "../judge";
 import { LEAD_REASON_MAX_WORDS } from "./caps";
 import { LEAD_KIND_KEY } from "./class";
-import { peopleWho, type LeadPeoplePlan } from "./people-plan";
+import { peopleWho, type LeadPeoplePlan } from "./people-plan/plan";
 
 /* ----------------------------------------------------------- the facts -- */
 
@@ -141,9 +141,6 @@ const AnswerSchema = z.object({
   ),
 });
 
-const trimWords = (s: string) =>
-  s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean).slice(0, LEAD_REASON_MAX_WORDS).join(" ");
-
 /**
  * The answer, read by code. Rejected whole when a company is missing or answered twice, a ref is not among the
  * companies, or a pass cites a fact the company lacks; the reason is capped to twelve words.
@@ -157,18 +154,24 @@ export function parseCompanyJudgeAnswer(
   const byRef = new Map(companies.map((c) => [c.ref, c]));
   const seen = new Set<number>();
   const answers: CompanyFitAnswer[] = [];
-  for (const a of parsed.data.companies) {
-    const company = byRef.get(a.ref);
-    if (!company) return { ok: false, why: `ref ${a.ref} is not among the companies` };
-    if (seen.has(a.ref)) return { ok: false, why: `ref ${a.ref} answered twice` };
-    seen.add(a.ref);
-    for (const f of a.facts) {
-      if (!(COMPANY_FACT_KEYS as readonly string[]).includes(f)) return { ok: false, why: `ref ${a.ref}: fact ${f}` };
+  for (const otherCompany of parsed.data.companies) {
+    const company = byRef.get(otherCompany.ref);
+    if (!company) return { ok: false, why: `ref ${otherCompany.ref} is not among the companies` };
+    if (seen.has(otherCompany.ref)) return { ok: false, why: `ref ${otherCompany.ref} answered twice` };
+    seen.add(otherCompany.ref);
+    for (const f of otherCompany.facts) {
+      if (!(COMPANY_FACT_KEYS as readonly string[]).includes(f))
+        return { ok: false, why: `ref ${otherCompany.ref}: fact ${f}` };
       const v = company[f as CompanyFactKey];
-      if (a.fit === "pass" && (v === null || v === ""))
-        return { ok: false, why: `ref ${a.ref}: fact ${f} is not there` };
+      if (otherCompany.fit === "pass" && (v === null || v === ""))
+        return { ok: false, why: `ref ${otherCompany.ref}: fact ${f} is not there` };
     }
-    answers.push({ ref: a.ref, fit: a.fit, facts: [...a.facts], reason: trimWords(a.reason) });
+    answers.push({
+      ref: otherCompany.ref,
+      fit: otherCompany.fit,
+      facts: [...otherCompany.facts],
+      reason: trimWords(otherCompany.reason),
+    });
   }
   for (const c of companies) if (!seen.has(c.ref)) return { ok: false, why: `ref ${c.ref} not answered` };
   return { ok: true, answers };
@@ -182,13 +185,14 @@ export function parseCompanyJudgeAnswer(
  * Needs review by its reason as a place whose kind is unknown is; a fail is left out, its people never kept. No answer
  * (the judge refused twice) waits in Needs review, as a refused place does.
  */
-export function companyFitOf(a: CompanyFitAnswer | null): {
+export function companyFitOf(companyFitAnswer: CompanyFitAnswer | null): {
   left_out: boolean;
   fit: "strong" | "look" | null;
   reasons: string[];
 } {
-  if (!a) return { left_out: false, fit: null, reasons: ["judge:refused"] };
-  if (a.fit === "fail") return { left_out: true, fit: null, reasons: [`fail:${LEAD_KIND_KEY}`] };
-  if (a.fit === "unknown") return { left_out: false, fit: "look", reasons: [`unknown:${LEAD_KIND_KEY}`] };
+  if (!companyFitAnswer) return { left_out: false, fit: null, reasons: ["judge:refused"] };
+  if (companyFitAnswer.fit === "fail") return { left_out: true, fit: null, reasons: [`fail:${LEAD_KIND_KEY}`] };
+  if (companyFitAnswer.fit === "unknown")
+    return { left_out: false, fit: "look", reasons: [`unknown:${LEAD_KIND_KEY}`] };
   return { left_out: false, fit: "strong", reasons: [] };
 }

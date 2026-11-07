@@ -7,7 +7,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ASK_ANSWER_CAPS as C,
-  ASK_ANSWER_FORMAT,
   answerCopy,
   answerWords,
   emptyReadSet,
@@ -16,6 +15,7 @@ import {
   storedAnswer,
   v1FromAnswer,
 } from "@chanlytics/contracts";
+import { ASK_ANSWER_FORMAT } from "../../../apps/dashboard/src/server/ask/answer-format.ts";
 
 const REPORTS = { kind: "page", id: "reports", label: "Reports" };
 const OPENED = { ...REPORTS, to: "reports", door: true };

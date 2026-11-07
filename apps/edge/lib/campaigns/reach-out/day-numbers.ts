@@ -11,8 +11,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { REACH_OUT_DAY_ROUTE, reachOutDayWords } from "@chanlytics/contracts";
-import { reachOutDayDue, type Database } from "@chanlytics/db";
-import { recordNotification } from "../../ops/notify.js";
+import { listReachOutDayDue } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
+import { recordNotification } from "../../shared/alerts/notify.js";
 import type { Logger } from "../../shared/log.js";
 
 type Db = SupabaseClient<Database>;
@@ -26,33 +27,33 @@ const REACH_OUT_DAY_PAGES = 10;
  * `deadlineMs` passes; answers how many were told.
  */
 export async function tellReachOutDays(db: Db, now: Date, log: Logger, deadlineMs: number): Promise<number> {
-  let told = 0;
+  let notice = 0;
   for (let page = 0; page < REACH_OUT_DAY_PAGES && Date.now() < deadlineMs; page += 1) {
     let due;
     try {
-      due = await reachOutDayDue(db, now, REACH_OUT_DAY_PAGE);
+      due = await listReachOutDayDue(db, now, REACH_OUT_DAY_PAGE);
     } catch (e) {
       log.warn("reach_out_day_failed", { error: e instanceof Error ? e.message : String(e) });
-      return told;
+      return notice;
     }
-    for (const d of due) {
-      const words = reachOutDayWords(d.numbers);
+    for (const otherRow of due) {
+      const words = reachOutDayWords(otherRow.numbers);
       const row = await recordNotification(
-        d.tenant_id,
+        otherRow.tenant_id,
         {
           kind: "reach_out_day",
           title: words.title,
           body: words.body,
           route: REACH_OUT_DAY_ROUTE,
-          about: { type: "reach_out_day", id: d.day },
+          about: { type: "reach_out_day", id: otherRow.day },
         },
         db,
       );
       if (!row) continue;
-      told += 1;
-      log.info("reach_out_day_told", { tenant_id: d.tenant_id, day: d.day, ...d.numbers });
+      notice += 1;
+      log.info("reach_out_day_told", { tenant_id: otherRow.tenant_id, day: otherRow.day, ...otherRow.numbers });
     }
     if (due.length < REACH_OUT_DAY_PAGE) break;
   }
-  return told;
+  return notice;
 }

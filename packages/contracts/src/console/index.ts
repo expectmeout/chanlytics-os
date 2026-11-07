@@ -5,87 +5,37 @@ export {
   ACT_TARGETS,
   actRowOf,
   actsCsv,
-  CLAIM_MS,
-  claimWords,
-  CONSOLE_ACT_KEYS,
-  CONSOLE_ACTS,
-  CONSOLE_GROUP_WORDS,
   CONSOLE_SCREEN_WORDS,
   CONSOLE_SCREENS,
-  CONSOLE_WORDS,
   CONSOLE_WORKSPACE_TAB_WORDS,
   CONSOLE_WORKSPACE_TABS,
   consoleAddressOf,
+  consolePathOf,
+  staffSeesScreen,
+} from "./acts";
+export type {
+  ActOutcome,
+  ActTarget,
+  ConsoleAddress,
+  ConsoleScreen,
+  ConsoleWorkspaceTab,
+  PlatformActDto,
+  PlatformActVM,
+} from "./acts";
+export {
+  CLAIM_MS,
+  claimWords,
+  CONSOLE_GROUP_WORDS,
+  CONSOLE_WORDS,
   consoleGroupOf,
   consoleGroups,
   consoleNumbersFrom,
   consoleNumbersOf,
-  consolePathOf,
   homeSentence,
-  LINE_ACTS,
-  REASON_KINDS,
-  REASON_LIMITS,
-  REASON_WORDS,
-  STAFF_ROLE_WORDS,
-  STAFF_ROLES,
-  STAFF_STATES,
-  staffCannotSeeWords,
-  staffCannotWords,
-  staffMay,
-  staffName,
-  staffSees,
-  staffSeesScreen,
   verdictPill,
-  whyWords,
 } from "./console";
-export type {
-  ActOutcome,
-  ActTarget,
-  ClaimDto,
-  ConsoleAct,
-  ConsoleAddress,
-  ConsoleGroup,
-  ConsoleNumbersDto,
-  ConsoleNumberVM,
-  ConsoleScreen,
-  ConsoleSight,
-  ConsoleWhy,
-  ConsoleWorkspaceTab,
-  PlatformActDto,
-  PlatformActVM,
-  ReasonKind,
-  StaffRole,
-  StaffState,
-} from "./console";
-export {
-  actedOnProfileWho,
-  dollarsWords,
-  HEALTH_STATE_WORDS,
-  HEALTH_TAB_WORDS,
-  HEALTH_TABS,
-  HEALTH_WINDOWS,
-  HEALTH_WORDS,
-  healthCounts,
-  healthLooksOf,
-  healthPathOf,
-  healthQuietWords,
-  healthSentence,
-  healthTabOf,
-  healthTilesOf,
-  secondsWords,
-} from "./health";
-export type {
-  ClientErrorDto,
-  FailedJobDto,
-  HealthAct,
-  HealthDto,
-  HealthLookVM,
-  HealthSeverity,
-  HealthState,
-  HealthTab,
-  HealthTileVM,
-  HealthWindow,
-} from "./health";
+export type { ClaimDto, ConsoleGroup, ConsoleNumbersDto, ConsoleNumberVM } from "./console";
+export { INTAKE_REPLAY_DOOR, SUPPORT_REPORT_DOOR } from "./edge-doors";
 export { healthAskOf } from "./health-ask";
 export type { HealthAskStageVM, HealthAskVM } from "./health-ask";
 export {
@@ -98,23 +48,39 @@ export {
   subscriberWords,
 } from "./health-clocks";
 export type { ClockState, ClockVM, HealthClockDto, OperatorPageDto, PageVM } from "./health-clocks";
-export { errorGroupReport, errorGroupsOf } from "./health-errors";
-export type { ErrorGroupsVM, ErrorGroupVM } from "./health-errors";
-export { callsOf, connectionsOf, deliveriesOf, draftUsesOf, modelCallsOf, sendsOf, webhooksOf } from "./health-parts";
-export type {
-  CallsVM,
-  ConnectionVM,
-  DeliveriesVM,
-  HealthPartsDto,
-  ModelCallsVM,
-  SendChannelVM,
-  SendsVM,
-  WebhooksVM,
-} from "./health-parts";
+export { connectionsOf, deliveriesOf, draftUsesOf, modelCallsOf } from "./health-parts/models-connections";
+export type { ConnectionVM, DeliveriesVM, ModelCallsVM } from "./health-parts/models-connections";
+export { callsOf, sendsOf, webhooksOf } from "./health-parts/sends-calls";
+export type { CallsVM, HealthPartsDto, SendChannelVM, SendsVM, WebhooksVM } from "./health-parts/sends-calls";
 export { promiseDaysOf } from "./health-promises";
 export type { PromiseCellState, PromiseCellVM, PromiseRowVM } from "./health-promises";
 export { HEALTH_SCOPE_WORDS, HEALTH_SCOPES, inScope, oursOf, workspaceNamer } from "./health-scope";
 export type { HealthScope, HealthWorkspaceDto } from "./health-scope";
+export {
+  dollarsWords,
+  HEALTH_STATE_WORDS,
+  HEALTH_TAB_WORDS,
+  HEALTH_TABS,
+  HEALTH_WINDOWS,
+  healthPathOf,
+  healthTabOf,
+  healthTilesOf,
+  secondsWords,
+} from "./health/dtos";
+export type {
+  ClientErrorDto,
+  FailedJobDto,
+  HealthAct,
+  HealthDto,
+  HealthSeverity,
+  HealthState,
+  HealthTab,
+  HealthTileVM,
+  HealthWindow,
+} from "./health/dtos";
+export { actedOnProfileWho, HEALTH_WORDS, healthQuietWords } from "./health/looks";
+export type { HealthLookVM } from "./health/looks";
+export { healthCounts, healthLooksOf, healthSentence } from "./health/summary";
 export { LEDGER_LANE_WORDS } from "./ledger";
 export type { LedgerKindDto, LedgerLaneDto, LedgerNowDto } from "./ledger";
 export { CONSOLE_PATH } from "./path";
@@ -158,42 +124,37 @@ export {
 } from "./schema";
 export type { ConsoleWhyInput } from "./schema";
 export {
-  askCode,
-  askDoneOf,
-  cameInOf,
-  FIND_KINDS,
-  FIND_LIMITS,
-  findDigits,
-  findGroups,
-  inboxHomeUrl,
-  inboxSearchUrl,
-  pageWords,
-  reportCode,
-  reportOf,
-  SETUP_ASK_WORDS,
-  SUPPORT_KIND_WORDS,
-  SUPPORT_TOPICS,
-  SUPPORT_WORDS,
-  supportClusters,
-  supportPathOf,
-  supportTopicOf,
-} from "./support";
-export type {
-  AskSignalsDto,
-  CameInVM,
-  FindKind,
-  FindRowDto,
-  SetupAskDto,
-  SupportClusterVM,
-  SupportReportDto,
-  SupportReportVM,
-  SupportTopic,
-  SupportWhoDto,
-} from "./support";
+  CONSOLE_ACT_KEYS,
+  CONSOLE_ACTS,
+  LINE_ACTS,
+  REASON_KINDS,
+  REASON_LIMITS,
+  REASON_WORDS,
+  STAFF_ROLE_WORDS,
+  STAFF_ROLES,
+  STAFF_STATES,
+  staffCannotSeeWords,
+  staffCannotWords,
+  staffMay,
+  staffName,
+  staffSees,
+  whyWords,
+} from "./staff";
+export type { ConsoleAct, ConsoleSight, ConsoleWhy, ReasonKind, StaffRole, StaffState } from "./staff";
 export { playbookOf, setupAskMail, supportMeanwhile } from "./support-playbooks";
 export type { PlaybookFill, SupportPlaybook } from "./support-playbooks";
 export {
   answeredMedianMs,
+  supportDue,
+  supportPageOf,
+  supportQueueOf,
+  supportQuietWords,
+  supportSentence,
+  supportViewOf,
+  supportWorkspaceOf,
+} from "./support-queue/queue";
+export type { SupportBookDto, SupportCounts, SupportFilter, SupportRowVM } from "./support-queue/queue";
+export {
   businessMsBetween,
   firstNameOfAddress,
   SUPPORT_KIND_FILTER_WORDS,
@@ -203,25 +164,33 @@ export {
   SUPPORT_VIEW_WORDS,
   SUPPORT_VIEWS,
   SUPPORT_ZONE,
-  supportDue,
   supportDueAt,
-  supportPageOf,
-  supportQueueOf,
-  supportQuietWords,
-  supportSentence,
-  supportViewOf,
   supportWaitOf,
-  supportWorkspaceOf,
-} from "./support-queue";
+} from "./support-queue/waits";
 export type {
   SupportActDto,
-  SupportBookDto,
-  SupportCounts,
-  SupportFilter,
   SupportKindFilter,
   SupportRowKind,
-  SupportRowVM,
   SupportState,
   SupportView,
   SupportWaitVM,
-} from "./support-queue";
+} from "./support-queue/waits";
+export {
+  askCode,
+  askDoneOf,
+  cameInOf,
+  FIND_KINDS,
+  FIND_LIMITS,
+  findDigits,
+  findGroups,
+  inboxHomeUrl,
+  inboxSearchUrl,
+  SUPPORT_KIND_WORDS,
+  SUPPORT_TOPICS,
+  SUPPORT_WORDS,
+  supportPathOf,
+  supportTopicOf,
+} from "./support/asks";
+export type { AskSignalsDto, CameInVM, FindKind, FindRowDto, SetupAskDto, SupportTopic } from "./support/asks";
+export { pageWords, reportCode, reportOf, SETUP_ASK_WORDS, supportClusters } from "./support/reports";
+export type { SupportClusterVM, SupportReportDto, SupportReportVM, SupportWhoDto } from "./support/reports";

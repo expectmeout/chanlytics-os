@@ -5,8 +5,10 @@
  * platform and a door take. Nothing here spends anything.
  */
 import type { AdsRead } from "@chanlytics/contracts";
-import { ADS_COPY_LIMITS, NEW_AD, dayShort, dayWord } from "@chanlytics/contracts/ads-page";
-import type { AdDraft } from "@chanlytics/contracts/ads-page";
+import { ADS_COPY_LIMITS } from "../model/rules";
+import { NEW_AD } from "../model/words-new";
+import { dayShort, dayWord } from "../model/words";
+import type { AdDraft } from "../model/new-ad";
 import { Icon } from "../../../kit/icon/icon";
 import { Field } from "../../../kit/field/field";
 import { LinkButton } from "../../../kit/link-button/link-button";

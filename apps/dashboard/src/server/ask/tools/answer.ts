@@ -1,7 +1,7 @@
 import "server-only";
-import { ASK_ANSWER_FORMAT } from "@chanlytics/contracts";
+import { ASK_ANSWER_FORMAT } from "../answer-format";
 import type { CallOutcome, RoundBlock } from "../round";
-import type { ToolDef } from "./context";
+import type { ToolDef } from "./context/tool-defs";
 import { ACT_TOOL_NAMES } from "./registry";
 
 /**

@@ -4,7 +4,7 @@
  * a face on a card, a selection as a CSV (moved whole from legacy/pages/people.jsx, decision 0015). The pages that have
  * not moved (Leads, the Pipeline, the person page) still read the names published in people-globals.ts.
  */
-import { appointmentWords, csvCell, PEOPLE_TABS, stateOf, type AppointmentWord } from "@chanlytics/contracts";
+import { appointmentWords, csvCell, PEOPLE_TABS, stateOf, type AppointmentWord, UUID } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { pageClock } from "@/bridge/zone";
@@ -320,7 +320,5 @@ export const plListRoute = (id: string | null | undefined): string => {
   if ((people.lists || []).some((l) => l.id === id)) return `clients/seg:${id}`;
   // One People doesn't have: its own address all the same, where People says it isn't here rather than showing Everyone. A
   // saved list's id is a uuid; a built-in's is a word.
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    ? `clients/list:${id}`
-    : `clients/seg:${id}`;
+  return UUID.test(id) ? `clients/list:${id}` : `clients/seg:${id}`;
 };

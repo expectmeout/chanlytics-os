@@ -27,7 +27,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
-const { firstGates } = await importSrc("packages/core/src/inbound/gates.ts");
+const { runFirstGates } = await importSrc("packages/core/src/inbound/gates.ts");
 
 const PERSON = "d0d0d0d0-d0d0-4d0d-8d0d-d0d0d0d0d0d0";
 
@@ -179,7 +179,7 @@ test("the kind is the bell's line with a mail as the business chooses: never alw
 test("the receptionist's gate: a STOP opens no hold, tells nobody itself, sends nothing, and the message is handled as blocked; a later message from the same person asks nobody either", async () => {
   const run = async (n, ing = null) => {
     const seen = { escalated: [], told: [], processed: [] };
-    const out = await firstGates({
+    const out = await runFirstGates({
       thread: {},
       L: { info() {}, warn() {}, error() {} },
       sink: {

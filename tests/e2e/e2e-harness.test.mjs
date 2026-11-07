@@ -177,7 +177,7 @@ test("the messages the fixture publishes are the scenario's own, the nightly has
   // A workspace's messages with no WhatsApp version (the email-only record's three rows, two messages) are approved the moment
   // they are written and are nobody's verdict but their author's: they are not what the bridge publishes as __TEMPLATES_ALL
   // (bridge/surfaces/settings.ts keeps WhatsApp's rows alone), and Setup, which counts Meta's verdicts
-  // (server/workspace/setup.ts templatesSection), counts none of them.
+  // (server/setup/setup.ts templatesSection), counts none of them.
   for (const [name, approved] of [
     ["nightly", []],
     ["salon", ["booking_link"]],
@@ -344,7 +344,7 @@ test("the server answers the two auth calls signIn() makes, and the settings rea
   assert.deepEqual(settings.body.data.config, record.config);
   assert.deepEqual([settings.body.data.version, settings.body.data.role], [record.version, "owner"]);
 
-  // A read that does not name its workspace is refused here as memberContext refuses it in production.
+  // A read that does not name its workspace is refused here as getMemberContext refuses it in production.
   assert.equal(answer("GET", "/api/v1/settings", new URLSearchParams(), record).status, 400);
   assert.equal(answer("GET", "/api/v1/nothing-here", scoped, record).status, 404);
   // Anything that is not a JSON route is the mockup's to serve.

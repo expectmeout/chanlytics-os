@@ -15,7 +15,7 @@ import {
   OFFERS_OPT_IN_PHRASES,
   parseTenantConfigResult,
 } from "@chanlytics/contracts";
-import { describeLead } from "@chanlytics/db";
+import { describeLead } from "@chanlytics/db/conversations";
 
 const NOW = new Date("2026-10-02T15:00:00Z");
 const TZ = "America/Chicago";

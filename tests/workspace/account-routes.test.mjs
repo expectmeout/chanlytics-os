@@ -129,7 +129,7 @@ test("your name: yours alone to set, judged by the contracts' rule before the da
   );
 });
 
-test("where you are: every workspace with who is signed in; the active one by memberContext's rule, a stale preference degrading to the default rather than a 404; nowhere yet a real answer", async () => {
+test("where you are: every workspace with who is signed in; the active one by getMemberContext's rule, a stale preference degrading to the default rather than a 404; nowhere yet a real answer", async () => {
   const tables = {
     memberships: both("viewer", "owner"),
     tenants: tenants(),

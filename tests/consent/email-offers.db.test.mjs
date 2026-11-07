@@ -13,7 +13,10 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { mayMessageFor, offerGate, relationshipOnRecord, toPersonRowVM, whyNotReceive } from "@chanlytics/contracts";
-import { emailOffersPause, offersEmailReach } from "../../packages/db/src/repositories/campaigns/email-offers.ts";
+import {
+  pauseEmailOffersFor,
+  findOffersEmailReach,
+} from "../../packages/db/src/repositories/campaigns/email-offers.ts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -284,7 +287,7 @@ test(
 );
 
 test(
-  "the door reads has_relationship with the person, embedded in the thread it re-reads (wireRowOf's query)",
+  "the door reads has_relationship with the person, embedded in the thread it re-reads (findWireRow's query)",
   { skip },
   async () => {
     const c = await person({ marketing_consent: "unknown" }, { wrote: true });
@@ -366,7 +369,7 @@ test(
 );
 
 test("offers_email_reach counts exactly the people the rule lets an offer by email reach", { skip }, async () => {
-  const before = await offersEmailReach(db, tenantId);
+  const before = await findOffersEmailReach(db, tenantId);
   const made = [
     await person({}, { wrote: true }),
     await person({}, { called: true }),
@@ -394,12 +397,12 @@ test("offers_email_reach counts exactly the people the rule lets an offer by ema
   const reached = rule.filter(Boolean).length;
   assert.equal(reached, 4, "a customer who wrote, who called, who has a deal, and the one who asked: nobody else");
   assert.equal(
-    (await offersEmailReach(db, tenantId)) - before,
+    (await findOffersEmailReach(db, tenantId)) - before,
     reached,
     "the database counts what the rule lets through",
   );
   // Under a member's row security, as Setup reads it on their session.
-  if (!skipMember) assert.equal(await offersEmailReach(owner, tenantId), await offersEmailReach(db, tenantId));
+  if (!skipMember) assert.equal(await findOffersEmailReach(owner, tenantId), await findOffersEmailReach(db, tenantId));
 });
 
 test(
@@ -841,7 +844,7 @@ test(
 
     // The back office resumes it: the pause is gone, the moment is stamped, the ledger says who was resumed from what.
     assert.equal(ok(await db.rpc("resume_email_offers", { p_tenant_id: tenantId })), true);
-    assert.equal(await emailOffersPause(db, tenantId), null);
+    assert.equal(await pauseEmailOffersFor(db, tenantId), null);
     const resumedAt = ok(
       await db.from("mailboxes").select("offers_resumed_at").eq("tenant_id", tenantId).single(),
     ).offers_resumed_at;
@@ -908,23 +911,23 @@ test(
   "the pause is set once, for a reason in the closed set, read back by the door's own reader, and cleared by the back office alone",
   { skip },
   async () => {
-    assert.equal(await emailOffersPause(db, tenantId), null, "not paused");
+    assert.equal(await pauseEmailOffersFor(db, tenantId), null, "not paused");
     assert.equal(
       (await db.rpc("pause_email_offers", { p_tenant_id: tenantId, p_reason: "spam" })).error?.code,
       "22023",
     );
     assert.equal(ok(await db.rpc("pause_email_offers", { p_tenant_id: tenantId, p_reason: "complaints" })), true);
-    const paused = await emailOffersPause(db, tenantId);
+    const paused = await pauseEmailOffersFor(db, tenantId);
     assert.equal(paused.reason, "complaints");
     assert.ok(paused.at);
     // Once: a second gate does not move the first moment or reason.
     assert.equal(ok(await db.rpc("pause_email_offers", { p_tenant_id: tenantId, p_reason: "bounces" })), false);
-    assert.deepEqual(await emailOffersPause(db, tenantId), paused);
+    assert.deepEqual(await pauseEmailOffersFor(db, tenantId), paused);
     // The column's own CHECK holds the same set.
     const bad = await db.from("mailboxes").update({ offers_paused_reason: "whatever" }).eq("tenant_id", tenantId);
     assert.ok(bad.error, "a reason outside the set is refused by the table");
     assert.equal(ok(await db.rpc("resume_email_offers", { p_tenant_id: tenantId })), true);
-    assert.equal(await emailOffersPause(db, tenantId), null);
+    assert.equal(await pauseEmailOffersFor(db, tenantId), null);
     assert.equal(ok(await db.rpc("resume_email_offers", { p_tenant_id: tenantId })), false, "nothing to clear");
     // A workspace with no mailbox has nothing to pause.
     const bare = ok(
@@ -936,7 +939,7 @@ test(
     );
     try {
       assert.equal(ok(await db.rpc("pause_email_offers", { p_tenant_id: bare.id, p_reason: "bounces" })), false);
-      assert.equal(await emailOffersPause(db, bare.id), null);
+      assert.equal(await pauseEmailOffersFor(db, bare.id), null);
     } finally {
       await db.from("tenants").delete().eq("id", bare.id);
     }
@@ -971,7 +974,7 @@ test(
       ok(await db.from("contacts").select("email_marketing").eq("id", c.id).single()).email_marketing,
       "unknown",
     );
-    assert.equal(await emailOffersPause(db, tenantId), null);
+    assert.equal(await pauseEmailOffersFor(db, tenantId), null);
   },
 );
 
@@ -982,7 +985,7 @@ test(
   { skip },
   async () => {
     const { ingestInboundEmail } = await import("../../packages/db/src/repositories/email/email.ts");
-    const { markProcessed } = await import("../../packages/db/src/repositories/conversations/ingest.ts");
+    const { markProcessed } = await import("../../packages/db/src/repositories/channels/ingest.ts");
     const address = `intake-${Date.now()}@example.com`;
     let k = 0;
     const ingest = (over) =>

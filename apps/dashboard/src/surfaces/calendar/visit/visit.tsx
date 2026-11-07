@@ -15,7 +15,6 @@ import { useState } from "react";
 import {
   ADD_TO_PEOPLE_WORDS,
   BOOKING_REQUEST_WORDS,
-  CALENDAR_VISIT_SHEET_WORDS as W,
   VISIT_ASK_WORDS,
   VISIT_WORDS,
   addToPeopleOf,
@@ -24,10 +23,9 @@ import {
   formatPhoneDisplay,
   type AppointmentWord,
   type CalendarBlockVM,
-  type VisitMoreAct,
-  type VisitSheetVM,
   type VisitWord,
 } from "@chanlytics/contracts";
+import { CALENDAR_VISIT_SHEET_WORDS as W, type VisitMoreAct, type VisitSheetVM } from "./sheet-view";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";

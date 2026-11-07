@@ -16,11 +16,11 @@ import {
   FALLBACK_DEFAULTS,
   GREETING_TEMPLATE,
   PHONE_VOICES,
-  PROPOSAL_SPECS,
   VISION_SWITCH_WORDS,
   applySettingsChange,
   describeSettingsChange,
   newReceptionistDefaults,
+  PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
 import { unmount, all } from "../_stub-react.mjs";
 import { W, drawTab, marisa, openFold, redrawTab, saveRow, saving, typeInto } from "../_business-tab-harness.mjs";

@@ -13,7 +13,7 @@ import type { ConsentChannel } from "../../consent/channels";
 import type { TemplateStatus } from "../../shared/enums";
 import type { Exactly, Holds } from "../../shared/schema-sets";
 import type { CampaignMessage, campaignMessageOf, campaignMessagesOf, messageHolds } from "./campaign-message";
-import type { VersionChannel } from "./message-versions";
+import type { VersionChannel } from "./message-versions/channels";
 
 type Versions = CampaignMessage["versions"];
 

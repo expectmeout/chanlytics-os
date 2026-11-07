@@ -11,7 +11,7 @@ import { formatPhoneDisplay, normalizeEmail } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
 import { readAllRowsByKey } from "../../shared/paged";
-import { erasureDigests } from "../people/people";
+import { getErasureDigests } from "../people/pages";
 
 type Db = SupabaseClient<Database>;
 
@@ -26,7 +26,7 @@ interface ErasableContact {
 }
 
 /** The person by their id, on the service role: null when there is no such row. Throws on a failed read. */
-export async function erasableContact(db: Db, contactId: string): Promise<ErasableContact | null> {
+export async function findErasableContact(db: Db, contactId: string): Promise<ErasableContact | null> {
   const { data, error } = await db
     .from("contacts")
     .select("id, tenant_id, phone_e164, email, erased_at, erasing_since")
@@ -67,8 +67,8 @@ export function erasureKeys(
       .map(digitsOf)
       .filter(Boolean),
   );
-  const spoken = [...numbers].flatMap((n) => {
-    const shown = formatPhoneDisplay(n);
+  const spoken = [...numbers].flatMap((count) => {
+    const shown = formatPhoneDisplay(count);
     if (!shown) return [];
     const na = NORTH_AMERICAN.exec(shown);
     if (!na) return [shown];
@@ -98,21 +98,21 @@ export function visitNeedles(needles: readonly string[]): string[] {
 }
 
 /** The external id of each of the person's identities, read while the rows exist. Throws on a failed read. */
-export async function identityExternalIds(db: Db, contactId: string): Promise<(string | null)[]> {
+export async function listIdentityExternalIds(db: Db, contactId: string): Promise<(string | null)[]> {
   const { data, error } = await db.from("contact_identities").select("external_id").eq("contact_id", contactId);
   if (error) throw new Error(`erasure_identities: ${error.message}`);
   return (data ?? []).map((i) => i.external_id);
 }
 
 /** The Storage paths the person's call recordings name, read while the rows exist. Throws on a failed read. */
-export async function recordingPathsOf(db: Db, contactId: string): Promise<string[]> {
+export async function listRecordingPaths(db: Db, contactId: string): Promise<string[]> {
   const { data, error } = await db.from("calls").select("recording").eq("contact_id", contactId);
   if (error) throw new Error(`erasure_recordings: ${error.message}`);
   return storagePathsOf((data ?? []).map((c) => c.recording));
 }
 
 /** The Storage paths the person's messages' media name, read while the rows exist. Throws on a failed read. */
-export async function mediaPathsOf(db: Db, contactId: string): Promise<string[]> {
+export async function listMediaPaths(db: Db, contactId: string): Promise<string[]> {
   const { data, error } = await db
     .from("messages")
     .select("media")
@@ -145,7 +145,7 @@ export async function beginErasure(
   ids: { phone: string | null; email: string | null },
 ): Promise<void> {
   // The database makes the digests (00263): only it holds the pepper that keys them.
-  const digests = await erasureDigests(
+  const digests = await getErasureDigests(
     db,
     tenantId,
     [ids.phone, ids.email].filter((v): v is string => !!v),
@@ -173,12 +173,12 @@ export async function beginErasure(
  */
 export async function beginPeopleErasure(
   db: Db,
-  p: { tenantId: string; ids: string[]; notAPerson: boolean },
+  params: { tenantId: string; ids: string[]; notAPerson: boolean },
 ): Promise<{ going: string[]; noAddress: string[] }> {
   const { data, error } = await db.rpc("people_erase_begin", {
-    p_tenant_id: p.tenantId,
-    p_contact_ids: p.ids,
-    p_not_a_person: p.notAPerson,
+    p_tenant_id: params.tenantId,
+    p_contact_ids: params.ids,
+    p_not_a_person: params.notAPerson,
   });
   if (error) throw new Error(`people_erase_begin: ${error.message}`);
   const answer = data as { going?: string[]; no_address?: string[] } | null;
@@ -261,8 +261,8 @@ export async function scrubErasedJobs(
       return q.order("id").limit(size);
     },
     SCRUB_READ_CAP,
-    (what, cap) => {
-      throw new Error(`${what}: more than ${cap} jobs; none scrubbed`);
+    (subject, cap) => {
+      throw new Error(`${subject}: more than ${cap} jobs; none scrubbed`);
     },
   );
   const isAddress = (s: string) => s.includes("@");
@@ -273,15 +273,15 @@ export async function scrubErasedJobs(
       .filter(Boolean),
   );
   const addresses = new Set(identifiers.filter(isAddress).map((s) => s.trim().toLowerCase()));
-  const hit = rows.filter((j) => {
-    const p = (j.payload ?? {}) as Record<string, unknown>;
-    if (p.contact_id === contactId) return true;
-    const to = typeof p.to_phone === "string" ? p.to_phone.replace(/\D/g, "") : "";
+  const hit = rows.filter((row) => {
+    const payload = (row.payload ?? {}) as Record<string, unknown>;
+    if (payload.contact_id === contactId) return true;
+    const to = typeof payload.to_phone === "string" ? payload.to_phone.replace(/\D/g, "") : "";
     if (to && digits.has(to)) return true;
     // A DM's address is the person's Instagram-scoped id, all digits, kept among their identities (decision 0001, step 8).
-    const dm = typeof p.to_instagram === "string" ? p.to_instagram : "";
+    const dm = typeof payload.to_instagram === "string" ? payload.to_instagram : "";
     if (dm && digits.has(dm)) return true;
-    const address = typeof p.to_email === "string" ? p.to_email.trim().toLowerCase() : "";
+    const address = typeof payload.to_email === "string" ? payload.to_email.trim().toLowerCase() : "";
     return !!address && addresses.has(address);
   });
   for (const j of hit) {

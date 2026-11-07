@@ -229,7 +229,7 @@ interface Deployment {
    */
   providersLive: boolean;
   /**
-   * Whether this deployment may ask the model through the edge's gateway (ask/gateway.ts streamModel): Ask's turns
+   * Whether this deployment may ask the model through the edge's gateway (shared/model/gateway.ts streamModel): Ask's turns
    * and their warm, and the drafts and craft calls asked through the same door. It spends the model key and sends
    * nothing. True wherever providersLive is, and on a laptop or a preview that says EDGE_PROVIDERS=model.
    */

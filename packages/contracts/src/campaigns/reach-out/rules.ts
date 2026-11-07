@@ -24,12 +24,13 @@
  *   REACH_OUT_CHECKS_AHEAD_PER_DAY how much of it may go on emails not due soon (decision 0098).
  */
 import type { DeliveryRefusal } from "../../consent/consent";
-import { renderOwnVersion } from "../templates/message-versions";
+import { renderOwnVersion } from "../templates/message-versions/email-rules";
 import { slotHoles, slotMentions, slotValueOf, slotValues, slotsWritten } from "../templates/slot-sets";
-import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../../leads/lead-kind";
+import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../../leads/kind";
 import { leadCalledByOf } from "../../leads/search/called-by";
 import type { LeadPreviewSlot } from "../../previews/lead-preview";
-import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET, linkCount } from "./words";
+import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET } from "./words/slots";
+import { linkCount } from "./words/limits";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -41,21 +42,22 @@ export interface OutreachLeadFacts {
   stopped?: boolean;
 }
 
-export function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null {
-  if (!f.leadStage) return "outreach_not_a_lead";
+export function outreachRefusalOf(outreachLeadFacts: OutreachLeadFacts): DeliveryRefusal | null {
+  if (!outreachLeadFacts.leadStage) return "outreach_not_a_lead";
   // Only a business still being written to: a lead that said no, became a customer or was set aside is not.
-  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
-  if (f.suppressed) return "outreach_suppressed";
+  if (outreachLeadFacts.leadStage !== "ready" && outreachLeadFacts.leadStage !== "nurture")
+    return "outreach_lead_closed";
+  if (outreachLeadFacts.suppressed) return "outreach_suppressed";
   // Every cold email's foot promises "reply 'no thanks' and I won't write again", and a reply asking to stop, in any
   // words, is an opt-out the law says to honour. Nothing reads a reply to tell a no from a yes, so the promise is
   // kept the plain way: a person who wrote back, or phoned, is in a conversation, answered from the Inbox, and a
   // reach-out's next email (a nudge, a later run) is never sent to them. An out-of-office is not a person writing;
   // mail with a list's headers is, since a helpdesk sends a person's no with them too (00181).
-  if (f.wroteBack) return "outreach_wrote_back";
+  if (outreachLeadFacts.wroteBack) return "outreach_wrote_back";
   // An automatic out-of-office (00226): the send is skipped, and the step takes the lead back after the day it names.
-  if (f.away) return "outreach_away";
+  if (outreachLeadFacts.away) return "outreach_away";
   // Its owner pressed Stop writing to them (00241): the email is skipped, never waited on.
-  if (f.stopped) return "outreach_stopped";
+  if (outreachLeadFacts.stopped) return "outreach_stopped";
   return null;
 }
 
@@ -104,16 +106,16 @@ export interface DraftLeadFacts {
  * Why a draft may not be offered to its owner now: the send door's refusal (outreachRefusalOf), a customer's address
  * (already_yours, as the person door says it at Sent), or its lead gone. Null when it may.
  */
-export function draftRefusalOf(f: DraftLeadFacts | null): string | null {
-  if (!f) return "lead_gone";
+export function draftRefusalOf(draftLeadFacts: DraftLeadFacts | null): string | null {
+  if (!draftLeadFacts) return "lead_gone";
   const refused = outreachRefusalOf({
-    leadStage: f.lead_stage,
-    suppressed: f.suppressed,
-    wroteBack: f.wrote_back,
-    away: f.away,
-    stopped: f.stopped,
+    leadStage: draftLeadFacts.lead_stage,
+    suppressed: draftLeadFacts.suppressed,
+    wroteBack: draftLeadFacts.wrote_back,
+    away: draftLeadFacts.away,
+    stopped: draftLeadFacts.stopped,
   });
-  return refused ?? (f.customer ? "already_yours" : null);
+  return refused ?? (draftLeadFacts.customer ? "already_yours" : null);
 }
 
 /**
@@ -193,15 +195,15 @@ export function reachOutValues(
   workspace: SlotWorkspace,
   opening: string | null,
 ): Array<string | undefined> {
-  const who = leadAddresseeOf(lead);
+  const leadAddressee = leadAddresseeOf(lead);
   const calledBy = leadCalledByOf(lead);
   return slotValues(REACH_OUT_SLOT_SET, {
     business: calledBy,
     company: calledBy,
-    "first name": who?.first_name || REACH_OUT_SLOT_FALLBACKS["first name"],
+    "first name": leadAddressee?.first_name || REACH_OUT_SLOT_FALLBACKS["first name"],
     // A person's title or role is said only where their source said it: no guess stands in (a hole holds the email).
-    title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null),
-    role: who?.role ? LEAD_ROLE_WORDS[who.role] : null,
+    title: leadAddressee?.title || (leadAddressee?.role ? LEAD_ROLE_WORDS[leadAddressee.role] : null),
+    role: leadAddressee?.role ? LEAD_ROLE_WORDS[leadAddressee.role] : null,
     city: lead.city,
     "your business": workspace.businessName,
     "your name": workspace.yourName,
@@ -279,10 +281,10 @@ const addressKey = (text: string): string =>
  * One web address used to drop the whole signature, so a first email ended with the bare first name.
  */
 function coldSignatureOf(signature: string | null, linkless: boolean, address: string | null): string | null {
-  const said = address ? addressKey(address) : "";
+  const sentence = address ? addressKey(address) : "";
   const kept = (signature ?? "")
     .split(/\r\n|\r|\n/)
-    .filter((line) => !(linkless && linkCount(line) > 0) && !(said && addressKey(line) === said))
+    .filter((line) => !(linkless && linkCount(line) > 0) && !(sentence && addressKey(line) === sentence))
     .join("\n")
     .replace(/\n\s*\n(\s*\n)+/g, "\n\n")
     .trim();
@@ -295,7 +297,7 @@ function coldSignatureOf(signature: string | null, linkless: boolean, address: s
  * under the words, unless their sign-off names it already. `body` is the step's words as written, before their values
  * go in; `address` is the business's, as its foot says it.
  */
-export function coldEndingOf(p: {
+export function coldEndingOf(params: {
   signsWith: ReachOutSignsWith;
   signedBy: string | null;
   signature: string | null;
@@ -307,11 +309,11 @@ export function coldEndingOf(p: {
   // go from a first email, from one whose words hold a link already ({{booking link}}, {{their preview}}, one written
   // out), and where the signature alone would be more than one (31 Oct 2026: a nudge with the booking link went out with
   // the signature's web address under it).
-  const linkless = p.first || linkCount(p.body) > 0 || linkCount(p.signature ?? "") > 1;
-  const signature = p.signsWith === "mailbox" ? coldSignatureOf(p.signature, linkless, p.address) : null;
+  const linkless = params.first || linkCount(params.body) > 0 || linkCount(params.signature ?? "") > 1;
+  const signature = params.signsWith === "mailbox" ? coldSignatureOf(params.signature, linkless, params.address) : null;
   if (signature) return { signOff: null, signature };
-  const name = p.signedBy?.trim() || null;
-  return { signOff: name && !endsWithYourName(p.body) ? name : null, signature: null };
+  const name = params.signedBy?.trim() || null;
+  return { signOff: name && !endsWithYourName(params.body) ? name : null, signature: null };
 }
 
 /** The words with the name under them, a blank line between; the words as they are where there is none. */

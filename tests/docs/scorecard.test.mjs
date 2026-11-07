@@ -38,9 +38,9 @@ test("the scored commit is read from the snapshot line", () => {
 test("a sentence of evidence cites files, with or without lines, and migrations by number", () => {
   assert.deepEqual(
     citedPathsOf(
-      "Verbs take ports (`inbound/ports.ts:192`, `server/ports/core-ports.ts:128`), but `deliver.ts` makes 6 calls; `00260:19-31` adds `media is null`; `lint-boundaries.test.mjs` (19 pass).",
+      "Verbs take ports (`inbound/ports.ts:192`, `server/conversations/ports.ts:128`), but `deliver.ts` makes 6 calls; `00260:19-31` adds `media is null`; `lint-boundaries.test.mjs` (19 pass).",
     ),
-    ["inbound/ports.ts", "server/ports/core-ports.ts", "deliver.ts", "00260", "lint-boundaries.test.mjs"],
+    ["inbound/ports.ts", "server/conversations/ports.ts", "deliver.ts", "00260", "lint-boundaries.test.mjs"],
   );
   assert.deepEqual(citedPathsOf("a `table_name` and a `ROLE_PERMS` are words"), []);
   assert.deepEqual(citedPathsOf("`a.ts` twice: `a.ts:1` and `a.ts:2`"), ["a.ts"]);

@@ -80,21 +80,23 @@ export interface UnsubscribePageWords {
  * The words for a link whose email could not be read just now, so not known to be an offer's or a reach-out's: true of both
  * (what stops is "emails like this one", and an answer to something they wrote still reaches them), with no second act.
  */
-function eitherPageWords(v: Extract<UnsubscribeView, { kind: "ask_either" | "done_either" }>): UnsubscribePageWords {
-  const b = v.business?.trim() || null;
-  const foot = `${b ?? "This business"} sends its email with Chanlytics.`;
-  return v.kind === "ask_either"
+function eitherPageWords(
+  unsubscribeView: Extract<UnsubscribeView, { kind: "ask_either" | "done_either" }>,
+): UnsubscribePageWords {
+  const text = unsubscribeView.business?.trim() || null;
+  const foot = `${text ?? "This business"} sends its email with Chanlytics.`;
+  return unsubscribeView.kind === "ask_either"
     ? {
         title: "Unsubscribe",
         lead: "Stop these emails?",
-        body: `Press the button and ${b ?? "this business"} won't send you emails like this one again. If you write to them, they can still answer you.`,
+        body: `Press the button and ${text ?? "this business"} won't send you emails like this one again. If you write to them, they can still answer you.`,
         button: "Unsubscribe",
         foot,
       }
     : {
         title: "Unsubscribed",
         lead: "You're unsubscribed from these emails.",
-        body: `${b ?? "This business"} won't send you emails like this one again.`,
+        body: `${text ?? "This business"} won't send you emails like this one again.`,
         button: null,
         foot,
       };
@@ -105,33 +107,33 @@ function eitherPageWords(v: Extract<UnsubscribeView, { kind: "ask_either" | "don
  * is the promise the door keeps: marketing email stops (the send door's outreach and marketing purposes); an answer
  * to something the person wrote still reaches them, which is why the page says so.
  */
-export function unsubscribePageWords(v: UnsubscribeView): UnsubscribePageWords {
-  switch (v.kind) {
+export function unsubscribePageWords(unsubscribeView: UnsubscribeView): UnsubscribePageWords {
+  switch (unsubscribeView.kind) {
     case "ask": {
-      const b = v.business?.trim() || null;
-      const like = v.sender?.trim() ? `the one from ${v.sender.trim()}` : "that one";
+      const text = unsubscribeView.business?.trim() || null;
+      const like = unsubscribeView.sender?.trim() ? `the one from ${unsubscribeView.sender.trim()}` : "that one";
       return {
         title: "Unsubscribe",
-        lead: b ? `Stop emails from ${b}?` : "Stop these emails?",
-        body: `Press the button and ${b ?? "this business"} won't send you emails like ${like} again. If you write to them, they can still answer you.`,
+        lead: text ? `Stop emails from ${text}?` : "Stop these emails?",
+        body: `Press the button and ${text ?? "this business"} won't send you emails like ${like} again. If you write to them, they can still answer you.`,
         button: "Unsubscribe",
-        foot: `${b ?? "This business"} sends its email with Chanlytics.`,
+        foot: `${text ?? "This business"} sends its email with Chanlytics.`,
       };
     }
     case "done": {
-      const b = v.business?.trim() || null;
-      const sender = v.sender?.trim() || null;
+      const text = unsubscribeView.business?.trim() || null;
+      const sender = unsubscribeView.sender?.trim() || null;
       return {
         title: "Unsubscribed",
         lead: sender ? `You're unsubscribed from emails from ${sender}.` : "You're unsubscribed.",
-        body: `${b ?? "This business"} won't send you emails like ${sender ? `the one from ${sender}` : "that one"} again.`,
+        body: `${text ?? "This business"} won't send you emails like ${sender ? `the one from ${sender}` : "that one"} again.`,
         button: null,
-        foot: `${b ?? "This business"} sends its email with Chanlytics.`,
+        foot: `${text ?? "This business"} sends its email with Chanlytics.`,
       };
     }
     case "ask_either":
     case "done_either":
-      return eitherPageWords(v);
+      return eitherPageWords(unsubscribeView);
     case "bad_link":
       return {
         title: "Unsubscribe",
@@ -144,10 +146,10 @@ export function unsubscribePageWords(v: UnsubscribeView): UnsubscribePageWords {
       return {
         title: "Unsubscribe",
         lead: "That didn't go through.",
-        body: v.retry
+        body: unsubscribeView.retry
           ? "We couldn't record it just now. Press Try again. Or reply to the email and ask them to stop."
           : "We couldn't record it just now. Try the link again in a minute. Or reply to the email and ask them to stop.",
-        button: v.retry ? "Try again" : null,
+        button: unsubscribeView.retry ? "Try again" : null,
         foot: null,
       };
   }

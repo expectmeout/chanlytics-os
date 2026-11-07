@@ -1,7 +1,7 @@
 import "server-only";
 import { ok, openReads } from "@chanlytics/contracts";
 import { answerOfThrow, shareMembership, type RouteContext } from "@/server/shared/with-route";
-import { shareTurn } from "@/server/readers";
+import { shareTurn } from "@/server/shared/reader";
 
 /**
  * A page's first reads answered as one (GET open, decision 0053 step 2).
@@ -47,7 +47,7 @@ const OPEN_CONTENT_TYPE = "application/x-ndjson; charset=utf-8";
 export function openPage(
   ctx: RouteContext & { params: Record<string, string | string[] | undefined> },
   req: Request,
-  asked: { page: string; period: string | null; thread: string | null },
+  input: { page: string; period: string | null; thread: string | null },
   routeOf: (key: string) => OpenRead | undefined,
 ): Response {
   shareMembership(ctx);
@@ -57,7 +57,7 @@ export function openPage(
   const body = new ReadableStream<Uint8Array>({
     async start(out) {
       const write = (line: OpenLine) => out.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
-      for (const tier of openReads(asked.page, asked.period, asked.thread)) {
+      for (const tier of openReads(input.page, input.period, input.thread)) {
         await Promise.all(
           tier.map(async (key) => {
             const route = routeOf(key);

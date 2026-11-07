@@ -329,7 +329,7 @@ test("the wiring: the migration, the forwarding event kind, and the bridge and t
 
 test("a line is one shape from either side, the dashboard's read and the edge's answer, and no provider id is in it", async () => {
   const { lineForClient } = await importSrc("apps/edge/lib/lines/lines.ts");
-  const { linesFor } = await importSrc("apps/dashboard/src/server/connections/lines.ts");
+  const { listLines } = await importSrc("apps/dashboard/src/server/connections/lines.ts");
   // Every id a provisioned line keeps, each its own made-up value, so one that reached the page would be found by it.
   const IDS = {
     number_sid: "PN00000000000000000000000000000001",
@@ -376,7 +376,7 @@ test("a line is one shape from either side, the dashboard's read and the edge's 
     },
   });
   const told = [provisioned, forwarded].map(lineForClient);
-  const read = await linesFor(fakeDb({ lines: [provisioned, forwarded] }), TENANT);
+  const read = await listLines(fakeDb({ lines: [provisioned, forwarded] }), TENANT);
   assert.deepEqual(
     told.map((l) => l.registered),
     [true, false],

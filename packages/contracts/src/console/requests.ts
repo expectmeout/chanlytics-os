@@ -91,8 +91,8 @@ export function requestClock(
 }
 
 /** A request's Q-number, as the inbox and the log say it. */
-export function requestCode(n: number): string {
-  return `Q-${n}`;
+export function requestCode(count: number): string {
+  return `Q-${count}`;
 }
 
 export interface RequestStepVM {

@@ -27,7 +27,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { emailReceiptFrom, emailReceiptEffect } from "@chanlytics/channels";
+import { emailReceiptFrom, emailReceiptEffect } from "@chanlytics/channels/email";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIR = path.join(HERE, "../../tooling/scripts/fixtures/email");

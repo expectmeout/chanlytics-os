@@ -37,9 +37,9 @@ import {
   versionsOf,
   wordsIssueWords,
 } from "@chanlytics/contracts";
-import { emailWordsFrom } from "@chanlytics/db";
+import { emailWordsFrom } from "@chanlytics/db/campaigns";
 
-const { reachOutRequest } = await import("@chanlytics/channels");
+const { reachOutRequest } = await import("@chanlytics/channels/email");
 
 const problems = (issues) => issues.map((i) => `${i.field}:${i.problem}${i.slot ? `:${i.slot}` : ""}`);
 const campaign = campaignEmailRules(2);

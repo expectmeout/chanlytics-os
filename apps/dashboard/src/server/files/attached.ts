@@ -6,9 +6,9 @@
  */
 import "server-only";
 import { ASK_ATTACHED_MAX, UUID, recordOrNull, type AskLanguage, type FileDto } from "@chanlytics/contracts";
-import { filesNamedBy } from "@chanlytics/db";
+import { listFilesNamedBy } from "@chanlytics/db/files";
 import type { RouteContext } from "../shared/with-route";
-import type { AskedPicture } from "../ask/tools/context";
+import type { AskedPicture } from "../ask/tools/context/tool-defs";
 import type { FileCopy } from "./copies";
 
 /** A file as a question says it, as it is now. */
@@ -26,12 +26,12 @@ export const fileIdsOf = (raw: unknown): string[] =>
   Array.isArray(raw) ? raw.filter((id): id is string => typeof id === "string") : [];
 
 /** The files of these ids that are still there for the caller. */
-export async function attachedNow(
+export async function getAttached(
   ctx: RouteContext,
   tenantId: string,
   ids: readonly string[],
 ): Promise<ReadonlyMap<string, AttachedFile>> {
-  const rows = await filesNamedBy(ctx.supabase, tenantId, ids);
+  const rows = await listFilesNamedBy(ctx.supabase, tenantId, ids);
   return new Map(
     rows.map((r) => {
       const line = recordOrNull(r.look)?.line;
@@ -45,14 +45,14 @@ export const attachedPictures = (
   files: readonly AttachedFile[],
   copies: ReadonlyMap<string, FileCopy>,
 ): AskedPicture[] =>
-  files.map((f) => {
-    const copy = copies.get(f.id);
+  files.map((file) => {
+    const copy = copies.get(file.id);
     const fileId = copy?.fileId ?? null;
     const size = copy?.width && copy.height ? ` (${copy.width}×${copy.height})` : "";
     return {
       said: fileId
-        ? `The file ${f.name}${size}, attached to this question:`
-        : `The file ${f.name} is attached to this question, but could not be opened. Say so, and do not guess what it shows.`,
+        ? `The file ${file.name}${size}, attached to this question:`
+        : `The file ${file.name} is attached to this question, but could not be opened. Say so, and do not guess what it shows.`,
       fileId,
     };
   });

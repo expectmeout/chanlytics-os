@@ -29,16 +29,10 @@ export {
   personCallSave,
 } from "./call";
 export type { PersonCallInput, PersonCallOutcome, PersonCallVM } from "./call";
-export { COMBINE_WORDS, combineOf } from "./combine";
-export type { CombineVM } from "./combine";
 export { personFiguresOf } from "./figures";
 export type { PersonFigureFacts, PersonFigureVM } from "./figures";
-export { personHeadStateOf } from "./head-state";
-export type { PersonHeadStateFacts, PersonHeadStateVM } from "./head-state";
 export { LAST_WORDS_TITLE, lastWordsOf } from "./last-words";
 export type { LastWordVM } from "./last-words";
-export { NEW_SINCE_WORDS, newSinceOf } from "./new-since";
-export type { LookedAt } from "./new-since";
 export { personNextOf, UP_NEXT_WORDS } from "./next";
 export type { UpNextAct, UpNextFacts, UpNextRowVM, UpNextVM } from "./next";
 export { personNoticesOf } from "./notices";

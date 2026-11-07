@@ -14,9 +14,19 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { adModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/drawer/view.ts";
+import { CHANGED, CHIPS, EDIT } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/drawer/words.ts";
+import { checkFix, dayWord } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
+import { perDayOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/money.ts";
+import {
+  editFootOf,
+  raiseOf,
+  areaValueOf,
+  areaOfValue,
+  zipIssue,
+} from "../../apps/dashboard/src/surfaces/campaigns/ads/model/drawer/edit-lists.ts";
 
 const ads = await import("@chanlytics/contracts");
-const page = await import("@chanlytics/contracts/ads-page");
 const { EXAMPLE_READS } = await import("../../apps/dashboard/src/surfaces/campaigns/ads/examples.ts");
 const { CONFIG, SPRING, NEAR_ME, SATURDAY, WEEKEND, OLD_BOOST } =
   await import("../../apps/dashboard/src/surfaces/campaigns/ads/sample.ts");
@@ -27,7 +37,7 @@ const adOf = (read, id) => {
   assert.ok(ad, `the example has ${id}`);
   return ad;
 };
-const drawerOf = (read, id, saved) => page.adModel(adOf(read, id), read, CONFIG, saved);
+const drawerOf = (read, id, saved) => adModel(adOf(read, id), read, CONFIG, saved);
 /** The ad, bent: a clone with fields changed. */
 const bent = (ad, patch) => ({ ...ad, ...patch });
 
@@ -51,12 +61,12 @@ test("a turned-down ad quotes the platform's own words and names the platform th
     ["google", "Google"],
     ["tiktok", "TikTok"],
   ]) {
-    const other = page.adModel(bent(adOf(read, WEEKEND), { platform }), read, CONFIG);
+    const other = adModel(bent(adOf(read, WEEKEND), { platform }), read, CONFIG);
     assert.match(other.callout.text, new RegExp(`^${owner} turned this ad down: “`));
     assert.equal(other.callout.acts[1].label, `Ask ${owner} to look again`);
   }
   assert.match(
-    page.CHANGED.asked({ owner: "Meta", within: "usually within a day" }),
+    CHANGED.asked({ owner: "Meta", within: "usually within a day" }),
     /^Asked Meta to look again\. Usually within a day\.$/,
   );
 });
@@ -70,12 +80,12 @@ test("a card, a paused ad, a changed price and a lapsing permission each say the
     ["google", /^Add a card in Google Ads so your ad can run\./],
     ["tiktok", /^Add balance in TikTok so your ad can run\./],
   ]) {
-    assert.match(page.adModel(bent(adOf(read, SPRING), { platform }), read, CONFIG).callout.text, said);
+    assert.match(adModel(bent(adOf(read, SPRING), { platform }), read, CONFIG).callout.text, said);
     // The step is the account's own check's, not retyped.
     assert.ok(
-      page
-        .adModel(bent(adOf(read, SPRING), { platform }), read, CONFIG)
-        .callout.text.startsWith(page.checkFix("payment", platform)),
+      adModel(bent(adOf(read, SPRING), { platform }), read, CONFIG).callout.text.startsWith(
+        checkFix("payment", platform),
+      ),
     );
   }
 
@@ -110,7 +120,7 @@ test("a card, a paused ad, a changed price and a lapsing permission each say the
     needs: { code: "permission-lapsing", platformWords: null, was: null, now: null },
   });
   assert.equal(
-    page.adModel(named, lapsing, CONFIG).callout.text,
+    adModel(named, lapsing, CONFIG).callout.text,
     saturday.callout.text,
     "stored or derived, the same words",
   );
@@ -120,11 +130,11 @@ test("an ad being made, and one that could not be made, say what was made and of
   const read = EXAMPLE_READS["setting-up"]();
   const making = read.ads.find((a) => a.state === "setting-up");
   const stuck = read.ads.find((a) => a.state === "couldnt-finish");
-  const m = page.adModel(making, read, CONFIG);
+  const m = adModel(making, read, CONFIG);
   assert.equal(m.callout.text, "Setting it up on Meta, paused. This takes a minute.");
   assert.deepEqual(m.callout.acts, []);
   assert.deepEqual(m.foot, [], "nothing to press while it is made");
-  const s = page.adModel(stuck, read, CONFIG);
+  const s = adModel(stuck, read, CONFIG);
   assert.equal(
     s.callout.text,
     "Chanlytics couldn't finish setting this up. What was made is paused on Google: the campaign and who it shows to. Nothing was spent.",
@@ -163,7 +173,7 @@ test("an ad made on the platform itself has no Edit, no End, and one line saying
   assert.equal(old.madeHere, false);
   assert.deepEqual(old.foot, ["resume"], "Pause and Resume only: this one is paused");
   assert.equal(old.adopted, "Made in Meta Ads Manager. Chanlytics can pause and resume it; change it in Meta.");
-  const on = page.adModel(bent(adOf(read, OLD_BOOST), { state: "on" }), read, CONFIG);
+  const on = adModel(bent(adOf(read, OLD_BOOST), { state: "on" }), read, CONFIG);
   assert.deepEqual(on.foot, ["pause"]);
   assert.ok(!old.foot.includes("edit") && !on.foot.includes("edit"));
   // The ad made here has them, and no such line.
@@ -174,7 +184,7 @@ test("an ad made on the platform itself has no Edit, no End, and one line saying
   assert.ok(old.results.facts.length === 4);
   // Turned down on the platform, it can be put to the platform again, but not fixed here: Chanlytics cannot edit it.
   const needs = { code: "rejected", platformWords: "Not allowed", was: null, now: null };
-  const refused = page.adModel(bent(adOf(read, OLD_BOOST), { state: "needs-you", needs }), read, CONFIG);
+  const refused = adModel(bent(adOf(read, OLD_BOOST), { state: "needs-you", needs }), read, CONFIG);
   assert.deepEqual(
     refused.callout.acts.map((a) => a.id),
     ["again"],
@@ -187,9 +197,9 @@ test("TikTok takes no amount beyond 30% of the one now, and none within 2 days o
   const read = running();
   read.ads = read.ads.map((a) => (a.id === SATURDAY ? { ...a, budgetChangedDay: "2026-10-01" } : a));
   // The floor a day is "at least", on TikTok as on Meta (the platform's own fact).
-  assert.equal(page.CHIPS.floor("tiktok", "$20", null), "TikTok needs at least $20 a day for this.");
-  assert.equal(page.CHIPS.floor("meta", "$5", null), "Meta needs at least $5 a day for this.");
-  const step = page.CHIPS.tiktokStepOut(0.3);
+  assert.equal(CHIPS.floor("tiktok", "$20", null), "TikTok needs at least $20 a day for this.");
+  assert.equal(CHIPS.floor("meta", "$5", null), "Meta needs at least $5 a day for this.");
+  const step = CHIPS.tiktokStepOut(0.3);
   assert.equal(step, "TikTok lets you change it by up to 30% at a time");
   const options = drawerOf(read, SATURDAY).edit.amounts;
   const now = adOf(read, SATURDAY).budget.amountMinor;
@@ -214,7 +224,7 @@ test("TikTok takes no amount beyond 30% of the one now, and none within 2 days o
   lately.ads = lately.ads.map((a) => (a.id === SATURDAY ? { ...a, budgetChangedDay: "2026-10-11" } : a));
   const locked = drawerOf(lately, SATURDAY).edit;
   const wait = "TikTok lets you change it again on Tue 13 Oct";
-  assert.equal(wait, page.CHIPS.tiktokWait(page.dayWord("2026-10-13")));
+  assert.equal(wait, CHIPS.tiktokWait(dayWord("2026-10-13")));
   for (const o of locked.amounts) assert.equal(o.refused, o.current ? null : wait);
   assert.equal(locked.own.refused, wait, "nothing can be typed either");
   // Three days on, it may.
@@ -238,7 +248,7 @@ test("a daily Google amount is an average and never 'at most'; a total says what
   const read = running();
   const near = adOf(read, NEAR_ME);
   const daily = bent(near, { budget: { mode: "daily", amountMinor: 1000 }, aboutADayMinor: 1000 });
-  const edit = page.adModel(daily, read, CONFIG).edit;
+  const edit = adModel(daily, read, CONFIG).edit;
   assert.equal(edit.daily, true);
   const labels = edit.amounts.map((o) => o.label);
   assert.ok(labels.includes("about $10 a day, an average"), "the amount now");
@@ -247,15 +257,12 @@ test("a daily Google amount is an average and never 'at most'; a total says what
     labels.every((l) => !/at most|up to/i.test(l)),
     labels.join(" | "),
   );
-  assert.ok(edit.notes.amount.includes(page.CHIPS.dailyOverGoogle));
+  assert.ok(edit.notes.amount.includes(CHIPS.dailyOverGoogle));
   // A total names what a day becomes: lowering, raising and as it is.
   const spring = adOf(read, SPRING);
   const total = drawerOf(read, SPRING).edit.amounts;
   const dayOf = (minor) =>
-    page.perDayOf(
-      ads.aboutADayAfter({ ad: spring, amountMinor: minor, endDay: spring.endDay, today: read.today }),
-      "USD",
-    );
+    perDayOf(ads.aboutADayAfter({ ad: spring, amountMinor: minor, endDay: spring.endDay, today: read.today }), "USD");
   const nowRow = total.find((o) => o.current);
   assert.equal(nowRow.sub, `As it is: about ${dayOf(72000)}`);
   const lower = total.find((o) => o.minor < 72000);
@@ -270,7 +277,7 @@ test("every end date says what it does to a day; Google's list stops at 90 days 
   const spring = adOf(read, SPRING);
   const ends = drawerOf(read, SPRING).edit.ends;
   const perDay = (day) =>
-    page.perDayOf(ads.aboutADayAfter({ ad: spring, amountMinor: 72000, endDay: day, today: read.today }), "USD");
+    perDayOf(ads.aboutADayAfter({ ad: spring, amountMinor: 72000, endDay: day, today: read.today }), "USD");
   for (const e of ends) {
     const said = e.day === spring.endDay ? "As it is" : e.day < spring.endDay ? "Ends sooner" : "Ends later";
     assert.ok(e.sub.startsWith(said), `${e.day}: ${e.sub}`);
@@ -281,14 +288,14 @@ test("every end date says what it does to a day; Google's list stops at 90 days 
   const last = ads.addDays(adOf(read, NEAR_ME).startDay, 90);
   assert.equal(google.lastEnd, last);
   assert.ok(google.ends.every((e) => e.day <= last));
-  assert.ok(google.notes.end.includes(page.CHIPS.googleLastDay({ days: 90, day: page.dayWord(last) })));
+  assert.ok(google.notes.end.includes(CHIPS.googleLastDay({ days: 90, day: dayWord(last) })));
   assert.equal(drawerOf(read, SPRING).edit.lastEnd, null, "Meta has no such day");
 });
 
 test("a raise in Edit names the most it can spend, and the primary says it; lowering and the rest are plain Save changes", () => {
   const read = running();
   const spring = adOf(read, SPRING);
-  const foot = (patch, n = 1) => page.editFootOf({ ad: spring, next: ads.adWith(spring, read, patch), patch, n });
+  const foot = (patch, n = 1) => editFootOf({ ad: spring, next: ads.adWith(spring, read, patch), patch, n });
   const raise = foot({ amountMinor: 90000 });
   assert.equal(raise.save, "Save · raise to $900");
   assert.match(raise.say, /^Up to \$180 more can be spent · 1 change · starts right away$/);
@@ -297,7 +304,7 @@ test("a raise in Edit names the most it can spend, and the primary says it; lowe
   const area = foot({ area: { kind: "radius", miles: 8 } });
   assert.equal(area.save, "Save changes");
   assert.match(area.say, /back with Meta for checking, usually within a day$/);
-  assert.equal(foot({}, 0).say, page.EDIT.noChanges);
+  assert.equal(foot({}, 0).say, EDIT.noChanges);
   // Both a raise and an area: the most is named, and the ad goes back for checking.
   const both = foot({ amountMinor: 90000, area: { kind: "radius", miles: 8 } }, 2);
   assert.equal(both.save, "Save · raise to $900");
@@ -305,17 +312,17 @@ test("a raise in Edit names the most it can spend, and the primary says it; lowe
   // A daily amount has no most: it says about.
   const daily = bent(spring, { budget: { mode: "daily", amountMinor: 1500 } });
   const dailyPatch = { amountMinor: 2500 };
-  const up = page.editFootOf({ ad: daily, next: ads.adWith(daily, read, dailyPatch), patch: dailyPatch, n: 1 });
+  const up = editFootOf({ ad: daily, next: ads.adWith(daily, read, dailyPatch), patch: dailyPatch, n: 1 });
   assert.equal(up.save, "Save · raise to about $25 a day");
   assert.match(up.say, /^About \$10 a day more · /);
   assert.doesNotMatch(up.say, /up to/i);
   // The raise the draft makes is the same the foot names.
-  assert.deepEqual(page.raiseOf(spring, ads.adWith(spring, read, { amountMinor: 90000 })), {
+  assert.deepEqual(raiseOf(spring, ads.adWith(spring, read, { amountMinor: 90000 })), {
     total: true,
     to: 90000,
     by: 18000,
   });
-  assert.equal(page.raiseOf(spring, ads.adWith(spring, read, { amountMinor: 54000 })), null);
+  assert.equal(raiseOf(spring, ads.adWith(spring, read, { amountMinor: 54000 })), null);
 });
 
 test("TikTok's area is ZIP codes: a chip hands them back whole, and a mistake is said in words", () => {
@@ -324,17 +331,17 @@ test("TikTok's area is ZIP codes: a chip hands them back whole, and a mistake is
   assert.deepEqual(edit.zips, ["10001", "10003"]);
   assert.deepEqual(edit.areas, [], "no circle to choose");
   assert.equal(drawerOf(read, SPRING).edit.zips, null);
-  const value = page.areaValueOf({ kind: "zips", zips: ["10001", "10011"] });
+  const value = areaValueOf({ kind: "zips", zips: ["10001", "10011"] });
   assert.equal(value, "zips:10001,10011");
-  assert.deepEqual(page.areaOfValue(value), { kind: "zips", zips: ["10001", "10011"] });
-  assert.deepEqual(page.areaOfValue(page.areaValueOf({ kind: "radius", miles: 8 })), { kind: "radius", miles: 8 });
-  assert.equal(page.zipIssue("10014", ["10001"]), null);
-  assert.equal(page.zipIssue("9410", []), "A ZIP code is 5 digits.");
-  assert.equal(page.zipIssue("10001x", []), "A ZIP code is 5 digits.");
-  assert.equal(page.zipIssue("10001", ["10001"]), "10001 is already in the list.");
+  assert.deepEqual(areaOfValue(value), { kind: "zips", zips: ["10001", "10011"] });
+  assert.deepEqual(areaOfValue(areaValueOf({ kind: "radius", miles: 8 })), { kind: "radius", miles: 8 });
+  assert.equal(zipIssue("10014", ["10001"]), null);
+  assert.equal(zipIssue("9410", []), "A ZIP code is 5 digits.");
+  assert.equal(zipIssue("10001x", []), "A ZIP code is 5 digits.");
+  assert.equal(zipIssue("10001", ["10001"]), "10001 is already in the list.");
   // A ZIP list saved through the store's own rule is a change of area: back for checking, the sentence still reads.
-  const next = ads.adWith(adOf(read, SATURDAY), read, { area: page.areaOfValue(value) });
-  assert.equal(page.adModel(next, read, CONFIG).edit.zips?.join(), "10001,10011");
+  const next = ads.adWith(adOf(read, SATURDAY), read, { area: areaOfValue(value) });
+  assert.equal(adModel(next, read, CONFIG).edit.zips?.join(), "10001,10011");
 });
 
 test("the platform's own numbers are listed by name, each 'not read yet' where none came, and never summed with ours", () => {
@@ -386,18 +393,14 @@ test("the reach line is the ad's own record: when the last person arrived, said 
   const read = running();
   assert.equal(drawerOf(read, SPRING).reach.parts.at(-1), "last message arrived 8:41 AM today");
   assert.equal(drawerOf(read, SATURDAY).reach.parts.at(-1), "last number arrived 9:02 AM today");
-  const yesterday = page.adModel(
-    bent(adOf(read, SATURDAY), { lastArrivalAt: "2026-10-09T18:30:00-04:00" }),
-    read,
-    CONFIG,
-  );
+  const yesterday = adModel(bent(adOf(read, SATURDAY), { lastArrivalAt: "2026-10-09T18:30:00-04:00" }), read, CONFIG);
   assert.equal(yesterday.reach.parts.at(-1), "last number arrived Fri 9 Oct");
-  const none = page.adModel(bent(adOf(read, SPRING), { lastArrivalAt: null }), read, CONFIG);
+  const none = adModel(bent(adOf(read, SPRING), { lastArrivalAt: null }), read, CONFIG);
   assert.equal(none.reach.parts.at(-1), "WhatsApp linked", "without an arrival it says what the ad stands on");
   assert.deepEqual(drawerOf(read, SPRING).reach.parts[0], "Meta approved it Mon 14 Sep");
   // In review it says when it was sent, by its day.
   assert.deepEqual(drawerOf(read, WEEKEND).reach.parts[0], "sent to Meta today 9:02 AM");
-  const old = page.adModel(bent(adOf(read, WEEKEND), { sentAt: "2026-10-10T16:30:00-04:00" }), read, CONFIG);
+  const old = adModel(bent(adOf(read, WEEKEND), { sentAt: "2026-10-10T16:30:00-04:00" }), read, CONFIG);
   assert.deepEqual(old.reach.parts[0], "sent to Meta Sat 10 Oct 4:30 PM");
 });
 

@@ -26,7 +26,7 @@ import {
   resubmitRejectedCampaign,
   replaceRejectedCampaign,
 } from "../../apps/edge/lib/lines/a2p-refile.ts";
-import { filingProblems } from "../../apps/edge/lib/lines/a2p-register.ts";
+import { listFilingProblems } from "../../apps/edge/lib/lines/a2p-register.ts";
 import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord } from "@chanlytics/contracts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
@@ -192,7 +192,7 @@ test("the owner's route may not refile: making a filing real is an operator's ca
   // in front of them, not a side effect of somebody pressing resubmit.
   const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
   assert.ok(!/refile/.test(owner), "the owner-facing route never sends it");
-  assert.ok(owner.includes('b.error === "mock_registration"'), "but it does say what the state is");
+  assert.ok(owner.includes('body.error === "mock_registration"'), "but it does say what the state is");
   assert.ok(owner.includes("MOCK_TEXTING_SENTENCE"), "in the same words the two pages use");
 });
 
@@ -204,12 +204,12 @@ test("one sentence for a rehearsal, wherever an owner meets it", () => {
   assert.match(MOCK_TEXTING_SENTENCE, /test registry/);
   assert.match(MOCK_TEXTING_SENTENCE, /nothing is delivered/);
   assert.match(MOCK_TEXTING_SENTENCE, /a person at Chanlytics/);
-  for (const f of ["packages/contracts/src/setup/setup.ts", "apps/dashboard/app/api/v1/lines/register/route.ts"]) {
+  for (const f of ["packages/contracts/src/setup/lines.ts", "apps/dashboard/app/api/v1/lines/register/route.ts"]) {
     assert.ok(readCode(f).includes("MOCK_TEXTING_SENTENCE"), `${f} says the shared sentence, not its own`);
   }
   // Integrations reaches it through the same function Setup's row uses, so the
   // two pages cannot describe one state two ways even by accident.
-  const conn = readCode("packages/contracts/src/setup/connections.ts");
+  const conn = readCode("apps/dashboard/src/surfaces/settings/connections/model/setup.ts");
   assert.ok(conn.includes("if (line?.reg_mock) {") && conn.includes("textingWords(line).sentence"));
   assert.ok(!/test registry/.test(conn), "and it holds no copy of the sentence");
 });
@@ -235,13 +235,13 @@ test("a question we could not ask is never reported as an answer", () => {
   // The platform heals itself rather than waiting for somebody to paste a
   // secret: the parent account can read its own subaccounts' tokens, which is
   // how the saga got this one in the first place.
-  const sms = readCode("apps/edge/lib/sms/sms.ts");
+  const sms = readCode("apps/edge/lib/lines/sms.ts");
   assert.ok(sms.includes("export async function refreshLineToken("));
   assert.ok(sms.includes("Accounts/${line.subaccount_sid}.json"), "read as the parent");
   assert.ok(sms.includes('db.rpc("put_line_credentials"'), "and written back through the one write path");
   assert.ok(lib.includes("const fresh = await refreshLineToken(db, line);"));
   assert.ok(
-    readRaw("apps/edge/lib/sms/sms.ts").includes("the platform's own Twilio credentials were refused"),
+    readRaw("apps/edge/lib/lines/sms.ts").includes("the platform's own Twilio credentials were refused"),
     "a master-credential fault is named as itself, so nobody is sent looking at the subaccount",
   );
 
@@ -307,8 +307,8 @@ test("EVERY door that talks to the carriers asks first, and a refusal reaches ne
   // whether the real filing would pass, so a refused refile left the line with
   // neither.
   //
-  // This was a source scan comparing where `filingProblems(` sat against
-  // `lineAccount(` and `fetch(` in each function's text. It is run now: the vault
+  // This was a source scan comparing where `listFilingProblems(` sat against
+  // `findLineAccount(` and `fetch(` in each function's text. It is run now: the vault
   // read and the network are stubbed to record being reached, and the row is read
   // back afterwards. (`registerLine`, the first door, is run the same way in
   // registration-path.test.mjs, "an incomplete sole-proprietor record spends
@@ -384,7 +384,7 @@ test("the decider only reads: what a refusal means for the row is each door's to
   // absence of `.update(`.
   const rows = [mockFiled({ sms_state: "rejected", last_error: "their words" })];
   const db = fakeDb({ lines: rows });
-  const problems = await filingProblems(db, rows[0], MISNAMED);
+  const problems = await listFilingProblems(db, rows[0], MISNAMED);
   assert.ok(problems.some((p) => /Billing probe/.test(p)));
   assert.deepEqual(
     db.seen.map((q) => `${q.table}.${q.op}`).sort(),
@@ -394,7 +394,7 @@ test("the decider only reads: what a refusal means for the row is each door's to
   assert.equal(rows[0].sms_state, "rejected");
   assert.equal(rows[0].last_error, "their words");
   assert.deepEqual(
-    await filingProblems(fakeDb({ lines: [mockFiled()] }), mockFiled(), READY),
+    await listFilingProblems(fakeDb({ lines: [mockFiled()] }), mockFiled(), READY),
     [],
     "and a filing that would pass has nothing to say",
   );
@@ -410,13 +410,13 @@ test("a rejection reaches every person who can act on it, in words about what ha
   // offered them "Fix and resubmit", pointing at the only button guaranteed to
   // produce it.
   const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
-  assert.match(owner, /b\.error === "campaign_rejected"/, "the owner route knows this answer exists");
+  assert.match(owner, /body\.error === "campaign_rejected"/, "the owner route knows this answer exists");
   assert.match(owner, /The carriers sent this registration back\./);
   assert.match(owner, /Chanlytics resubmits it/, "and says who sends it again, because it is not them");
-  assert.match(owner, /b\.reason/, "carrying what the carriers actually said");
+  assert.match(owner, /body\.reason/, "carrying what the carriers actually said");
 
   // The row no longer promises the action gate 6 took away from owners.
-  const conn = readCode("packages/contracts/src/setup/connections.ts");
+  const conn = readCode("apps/dashboard/src/surfaces/settings/connections/model/setup.ts");
   const rejected = conn.slice(conn.indexOf('case "rejected":'), conn.indexOf('case "failed":'));
   assert.ok(!/Fix and resubmit/.test(rejected), "REGRESSION: a button an owner may not press");
   assert.match(rejected, /Chanlytics sends it again/);

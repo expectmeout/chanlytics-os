@@ -1,6 +1,6 @@
 /**
  * A customer's call or note on a sequence's record (decision 0065 step 6), at the doors that write it
- * (server/campaigns/sequences/doors.ts) and at Ask's cards over the same steps (server/ask/tools/act/sequence.ts), executed over the
+ * (server/campaigns/sequences/doors.ts) and at Ask's cards over the same steps (server/ask/tools/act/sequence/sequence.ts), executed over the
  * database in memory: each door's reads and its write are the database's own functions (00442 sequence_overview,
  * sequence_steps_of, sequence_step_save, sequence_step_words), answered here as they answer, their parameters held to the
  * schema's.
@@ -28,7 +28,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { addSequenceStep, changeSequenceStep, changeSequenceWords } = await import(
   at("apps/dashboard/src/server/campaigns/sequences/doors.ts")
 );
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 beforeEach(() => readerCache.clear());

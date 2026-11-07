@@ -13,8 +13,8 @@
  * A run is a few hundred leads over a few mailboxes, planned inside one request: the times are kept sorted and
  * searched, and a lead's open spans are worked out once per zone and week, since most leads share both.
  */
-import { dayPlusInZone, localToUtcMs } from "../../calendar/zone-math";
-import type { WeekdayKey } from "../../calendar/day-keys";
+import { dayPlusInZone, localToUtcMs } from "../../shared/zone/math";
+import type { WeekdayKey } from "../../shared/zone/day-keys";
 import { DEFAULT_WEEK, type OpenWindow, type WeekHours } from "./lead-hours";
 import { DAY_MS, MIN_MS } from "../../shared/time";
 
@@ -132,24 +132,24 @@ function earliest(
   // A move forward (a gap, a full day) carries into the next window: a later window starts no earlier than it.
   let floor = 0;
   for (const [start, end] of spans) {
-    let t = Math.max(start, floor);
-    for (let guard = 0; guard < 500 && t < end && t < limitMs; guard += 1) {
+    let highest = Math.max(start, floor);
+    for (let guard = 0; guard < 500 && highest < end && highest < limitMs; guard += 1) {
       // The first send closer than a gap to `t`, either side.
-      const i = lowerBound(times, t - gapMs + 1);
-      if (i < times.length && times[i] < t + gapMs) {
-        t = times[i] + gapMs;
-        floor = t;
+      const result = lowerBound(times, highest - gapMs + 1);
+      if (result < times.length && times[result] < highest + gapMs) {
+        highest = times[result] + gapMs;
+        floor = highest;
         continue;
       }
-      if (!fitsCap(times, t, cap)) {
+      if (!fitsCap(times, highest, cap)) {
         // Wait for the oldest send of the day before it to leave the window: a day is (q - 24 h, q], as the claim
         // counts it (db mailbox_capacity), so the moment it leaves is a day after it.
-        const j = lowerBound(times, t - DAY_MS + 1);
-        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS;
-        floor = t;
+        const j = lowerBound(times, highest - DAY_MS + 1);
+        highest = (j < times.length && times[j] <= highest ? times[j] : highest) + DAY_MS;
+        floor = highest;
         continue;
       }
-      return t;
+      return highest;
     }
   }
   return null;
@@ -181,28 +181,28 @@ export function timetable(input: TimetableInput): TimetableResult {
   const spansOf = new Map<string, Array<[number, number]>>();
   const placed: Placed[] = [];
   const unplaced: string[] = [];
-  for (const s of input.sends) {
+  for (const send of input.sends) {
     const gapMs = Math.round(input.gapMinutes * MIN_MS * (1 + 0.25 * jitter()));
-    const key = `${s.zone}|${JSON.stringify(s.week)}`;
+    const key = `${send.zone}|${JSON.stringify(send.week)}`;
     let spans = spansOf.get(key);
     if (!spans) {
-      spans = spansOrNone(s.zone, s.week, input.nowMs, horizon);
+      spans = spansOrNone(send.zone, send.week, input.nowMs, horizon);
       spansOf.set(key, spans);
     }
     let best: { d: (typeof senders)[number]; t: number } | null = null;
     for (const d of senders) {
-      if (s.only && d.id !== s.only) continue;
+      if (send.only && d.id !== send.only) continue;
       const t = earliest(spans, d.times, d.cap, gapMs, limitMs);
       if (t === null) continue;
       if (!best || t < best.t || (t === best.t && d.placed < best.d.placed)) best = { d, t };
     }
     if (!best) {
-      unplaced.push(s.id);
+      unplaced.push(send.id);
       continue;
     }
     best.d.times.splice(lowerBound(best.d.times, best.t), 0, best.t);
     best.d.placed += 1;
-    placed.push({ id: s.id, senderId: best.d.id, sendAtMs: best.t });
+    placed.push({ id: send.id, senderId: best.d.id, sendAtMs: best.t });
   }
   return { placed, unplaced };
 }

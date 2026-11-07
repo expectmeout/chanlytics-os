@@ -1,5 +1,5 @@
 import { read, write, workspace } from "@/server/shared/route";
-import { keepMemoryLine, memoryPage } from "@/server/ask/companion/memory-pane";
+import { keepMemoryLine, getMemoryPage } from "@/server/ask/companion/memory-pane";
 
 /**
  * GET /api/v1/ask/memory — Settings › Memory: what Ask keeps about the business, newest first, who kept each line, the
@@ -12,7 +12,7 @@ import { keepMemoryLine, memoryPage } from "@/server/ask/companion/memory-pane";
  */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => memoryPage(ctx, member),
+  handle: async ({ ctx, member }) => getMemoryPage(ctx, member),
 });
 
 export const POST = write({

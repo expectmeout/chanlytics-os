@@ -8,14 +8,15 @@
  * playbook, who heard from any playbook this week. Broadcasts is "send this
  * once"; a playbook is "keep doing this".
  */
-import type { ParamSpec } from "../templates/templates";
-import { visitStartTime, type VisitDto } from "../../calendar/people";
+import type { ParamSpec } from "../templates/params";
+import { visitStartTime, type VisitDto } from "../../calendar/people/visits";
 import { freedTimeWords } from "../../calendar/visit/freed-time";
 import { visitServiceOf } from "../../calendar/visit/service";
-import type { ListRef } from "../../people/lists/list-token";
-import { localDate } from "./playbook-schedule";
-import { DAY_MS } from "./playbook-time";
-import { type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, triggerOf } from "./playbook-triggers";
+import type { ListRef } from "../../people/lists/token";
+import { localDate } from "./schedule";
+import { DAY_MS } from "./time";
+import type { PlaybookPolicyClass, PlaybookState, PlaybookTrigger } from "./triggers/kinds";
+import { triggerOf } from "./triggers/notices";
 import { dateFormat } from "../../shared/time";
 import type { SequenceMode } from "../sequences/sequence";
 export {
@@ -32,8 +33,10 @@ export {
   sendsWaitWords,
   SENDING_NOW_WORDS,
   whenItGoes,
-  PLAYBOOK_BREATH_MS,
   PLAYBOOK_VETO_DELAY_MS,
+} from "./triggers/kinds";
+export {
+  PLAYBOOK_BREATH_MS,
   PLAYBOOK_VETO_DELAY_WORDS,
   SEND_ONCE_STOP_MS,
   SEND_ONCE_STOP_WORDS,
@@ -55,14 +58,14 @@ export {
   triggerWords,
   winBackWords,
   policyClassOffered,
-} from "./playbook-triggers";
+} from "./triggers/notices";
 export type {
   PlaybookTrigger,
   PlaybookTriggerKind,
   PlaybookPolicyClass,
   PlaybookState,
   WhenItGoesReceipt,
-} from "./playbook-triggers";
+} from "./triggers/kinds";
 export {
   FOLLOW_UP_NEEDS_LINK,
   FOLLOW_UP_ONE,
@@ -75,8 +78,8 @@ export {
   followUpRunAt,
   followUpStandOf,
   followUpWords,
-} from "./playbook-follow-ups";
-export type { FollowUpFactsDto, FollowUpStand } from "./playbook-follow-ups";
+} from "./follow-ups";
+export type { FollowUpFactsDto, FollowUpStand } from "./follow-ups";
 export {
   eligibleForPlaybook,
   playbookRunReach,
@@ -90,8 +93,8 @@ export {
   playbookPoolKey,
   PLAYBOOK_REACH_WORDS,
   PLAYBOOK_CLASS_LABEL,
-} from "./playbook-reach";
-export type { Touches, RunReach, PlaybookReach, RunPlaybook } from "./playbook-reach";
+} from "./reach";
+export type { Touches, RunReach, PlaybookReach, RunPlaybook } from "./reach";
 export {
   planRun,
   localDate,
@@ -102,8 +105,8 @@ export {
   scheduleLine,
   runsWords,
   nextRunLabel,
-} from "./playbook-schedule";
-export type { RunPlan } from "./playbook-schedule";
+} from "./schedule";
+export type { RunPlan } from "./schedule";
 export {
   FREED_TIME_PASSED_WORDS,
   poolWords,
@@ -113,9 +116,9 @@ export {
   runDaysAt,
   toApprovalVM,
   waitingRunOffer,
-} from "./playbook-approval";
-export type { WaitingRunOffer } from "./playbook-approval";
-export type { ApprovalVM } from "./playbook-approval";
+} from "./approval";
+export type { WaitingRunOffer } from "./approval";
+export type { ApprovalVM } from "./approval";
 
 export interface PlaybookDto {
   id: string;
@@ -155,14 +158,14 @@ export interface PlaybookDto {
  * The list a playbook runs on, as a reference (lists.ts): a saved_list playbook's People list by its id, or one of the
  * workspace's own; null for every other trigger, and for one whose list is gone.
  */
-export function playbookListRef(p: {
+export function playbookListRef(params: {
   trigger: string;
   list_id?: string | null;
   list_key?: string | null;
 }): ListRef | null {
-  if (triggerOf(p.trigger)?.kind !== "saved") return null;
-  if (p.list_key) return { kind: "builtin", id: p.list_key };
-  if (p.list_id) return { kind: "saved", id: p.list_id };
+  if (triggerOf(params.trigger)?.kind !== "saved") return null;
+  if (params.list_key) return { kind: "builtin", id: params.list_key };
+  if (params.list_id) return { kind: "saved", id: params.list_id };
   return null;
 }
 
@@ -224,8 +227,8 @@ export function visitFactsFor(
   /** When the words will be read: the send's moment. Absent, they are read now, as the run assumes. */
   sendAt?: Date,
 ): { visit_when: string; visit_service: string } | null {
-  const t = triggerOf(trigger);
-  if (!t || t.kind !== "visit" || !visit) return null;
+  const result = triggerOf(trigger);
+  if (!result || result.kind !== "visit" || !visit) return null;
   return {
     visit_when:
       trigger === "visit_tomorrow"

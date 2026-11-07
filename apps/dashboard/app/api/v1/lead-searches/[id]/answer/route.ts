@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AppError, LeadSearchPlanSchema } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, answerPlanOf, refusalOf, searchRow } from "@/server/leads/leads";

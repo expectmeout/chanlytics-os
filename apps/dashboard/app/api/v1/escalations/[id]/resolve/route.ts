@@ -2,7 +2,7 @@ import { AppError, asTenantId } from "@chanlytics/contracts";
 import { resolveEscalation } from "@chanlytics/core";
 import { write, row } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
-import { escalationPorts } from "@/server/ports/core-ports";
+import { escalationPorts } from "@/server/conversations/ports";
 
 /** The escalation being answered, read under RLS: one the caller cannot see is a 404. */
 const theEscalation = row(async (ctx, params) => {

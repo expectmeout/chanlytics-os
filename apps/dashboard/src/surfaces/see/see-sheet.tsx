@@ -12,7 +12,7 @@
  * them): each read the thing needs and the page has not read is asked for as the sheet opens. An Approve that opens the
  * next run waiting moves the sheet to it in place; the toast host is the frame's (see-mount.tsx).
  */
-import { SEE_WORDS, seeHomeOf, seeRefOfRoute, type SeeRef } from "@chanlytics/contracts";
+import { SEE_WORDS, seeHomeOf, seeRefOfRoute, type SeeRef } from "./over";
 import { closeSeeOver, openSeeOver } from "./see-over";
 import { goToRoute } from "@/bridge/workspace";
 import { Icon } from "../kit/icon/icon";

@@ -18,7 +18,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"));
+const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/campaigns/ports.ts"));
 after(() => setServiceClient(null));
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

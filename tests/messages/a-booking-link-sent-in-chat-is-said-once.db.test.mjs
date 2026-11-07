@@ -27,7 +27,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { firstNameOf, inboxSlots, renderTemplate, resolveParams } from "@chanlytics/contracts";
-import { recordOutbound } from "@chanlytics/db";
+import { recordOutbound } from "@chanlytics/db/channels";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

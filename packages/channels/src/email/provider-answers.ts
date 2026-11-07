@@ -16,18 +16,18 @@
  */
 export type ResendLimit = "rate" | "in_flight" | "daily" | "monthly";
 
-export function resendLimitOf(r: { ok?: boolean; status: number; errorBody?: string | null }): ResendLimit | null {
-  if (r.ok || (r.status !== 429 && r.status !== 409)) return null;
+export function resendLimitOf(row: { ok?: boolean; status: number; errorBody?: string | null }): ResendLimit | null {
+  if (row.ok || (row.status !== 429 && row.status !== 409)) return null;
   let name: unknown;
   try {
-    name = (JSON.parse(r.errorBody ?? "") as { name?: unknown } | null)?.name ?? null;
+    name = (JSON.parse(row.errorBody ?? "") as { name?: unknown } | null)?.name ?? null;
   } catch {
     name = null;
   }
   if (name === "daily_quota_exceeded") return "daily";
   if (name === "monthly_quota_exceeded") return "monthly";
   if (name === "concurrent_idempotent_requests") return "in_flight";
-  return r.status === 429 ? "rate" : null;
+  return row.status === 429 ? "rate" : null;
 }
 
 /* ----------------------------------------------------------- the mail domain
@@ -63,13 +63,13 @@ export function mailDomainsFrom(body: unknown): MailDomainFacts[] | null {
   const rows = (body as { data?: unknown } | null)?.data;
   if (!Array.isArray(rows)) return null;
   const out: MailDomainFacts[] = [];
-  for (const r of rows) {
-    const d = (r ?? {}) as Record<string, unknown>;
-    const caps = (d.capabilities ?? {}) as Record<string, unknown>;
-    if (typeof d.name !== "string" || !d.name) continue;
+  for (const row of rows) {
+    const item = (row ?? {}) as Record<string, unknown>;
+    const caps = (item.capabilities ?? {}) as Record<string, unknown>;
+    if (typeof item.name !== "string" || !item.name) continue;
     out.push({
-      name: d.name.trim().toLowerCase(),
-      status: typeof d.status === "string" && d.status.trim() ? d.status.trim() : "unknown",
+      name: item.name.trim().toLowerCase(),
+      status: typeof item.status === "string" && item.status.trim() ? item.status.trim() : "unknown",
       sending: capabilityOf(caps.sending),
       receiving: capabilityOf(caps.receiving),
     });

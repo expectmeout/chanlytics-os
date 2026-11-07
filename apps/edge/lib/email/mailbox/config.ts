@@ -6,8 +6,8 @@
  * sweep, which reads every one whatever its push.
  */
 import type { GoogleAudience, MailboxProvider } from "@chanlytics/contracts";
-import { googleAudience } from "../../google/config.js";
-import type { MailboxOAuthClient } from "@chanlytics/channels";
+import { googleAudience } from "../../shared/google/config.js";
+import type { MailboxOAuthClient } from "@chanlytics/channels/email";
 import { env } from "../../shared/env.js";
 
 /**

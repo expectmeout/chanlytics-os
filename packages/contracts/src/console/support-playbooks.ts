@@ -8,8 +8,8 @@
  * name, never from the Console. They are drafts to check against the app as it changes. Only the Console and the
  * edge's mail read this module; a member's page must not, since its steps name the team's own tools.
  */
-import type { SupportTopic } from "./support";
-import type { SupportRowKind } from "./support-queue";
+import type { SupportTopic } from "./support/asks";
+import type { SupportRowKind } from "./support-queue/waits";
 
 /** What a playbook's words are filled with. */
 export interface PlaybookFill {
@@ -388,8 +388,8 @@ export function playbookOf(row: { kind: SupportRowKind; topic: SupportTopic; wha
 }
 
 /** The things a workspace can ask a person for, as the inbox is told them: known, or not. */
-export function setupAskMail(what: string): { subject: string; steps: (p: PlaybookFill) => readonly string[] } | null {
-  const a = ASK_PLAYBOOKS[what];
+export function setupAskMail(text: string): { subject: string; steps: (p: PlaybookFill) => readonly string[] } | null {
+  const a = ASK_PLAYBOOKS[text];
   return a ? { subject: a.subject, steps: a.steps } : null;
 }
 

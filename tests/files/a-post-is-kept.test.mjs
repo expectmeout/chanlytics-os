@@ -1,5 +1,5 @@
 /**
- * A post's picture and its Save, run through route() (apps/dashboard/src/server/files/post/, decision 0099, step 3): the real route
+ * A post's picture and its Save, run through route() (apps/dashboard/src/server/posts/, decision 0099, step 3): the real route
  * modules and the real composer, over a database in memory and a Storage that answers from memory. What a card shows is drawn
  * from the same plan its Save keeps, a shape each, and nothing stays behind that no row names.
  */

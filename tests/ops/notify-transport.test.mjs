@@ -17,7 +17,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { post, postMail, notify, recordNotification, platformTo, reachesTenant } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href
 );
 
 /** console.error, kept instead of printed. */
@@ -712,7 +712,7 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     assert.equal(emailsNotificationKind(kind), true);
   }
   // notifyOnce asks the same list: a bell kind is told by its row, a mailed one by the mail.
-  const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href);
   for (const [kind, mails] of [
     ["review", 0],
     ["playbook", 1],
@@ -755,7 +755,9 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
 // mail. The two the receptionist must always reach someone with cannot be turned off, a kind it does not know is
 // ignored, and an older config, with no email_off, is emailed as it was.
 test("what the business turned off by email is not mailed on any path; the row is kept, and the two the receptionist needs are always mailed (0040)", async () => {
-  const { notifyOnce, mail } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const { notifyOnce, sendOpsMail } = await import(
+    pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href
+  );
   const off = { ...MAILBOX, email_off: ["call", "handoff", "deadman", "a_kind_from_tomorrow"] };
   const target = { tenantId: TENANT, notifications: off, isEnvDefault: false };
   for (const [kind, mails] of [
@@ -789,11 +791,11 @@ test("what the business turned off by email is not mailed on any path; the row i
   // mail(): a caller that names its kind is held to the choice; a mail of no kind (the first run's, a test) is not.
   const m = transport();
   assert.equal(
-    await withEnv(PLATFORM_ENV, () => mail(target, { kind: "call", subject: "c", body: "…" }, { send: m.send })),
+    await withEnv(PLATFORM_ENV, () => sendOpsMail(target, { kind: "call", subject: "c", body: "…" }, { send: m.send })),
     true,
   );
   assert.equal(m.sent.length, 0, "the named kind the business turned off");
-  await withEnv(PLATFORM_ENV, () => mail(target, { subject: "Test alert", body: "…" }, { send: m.send }));
+  await withEnv(PLATFORM_ENV, () => sendOpsMail(target, { subject: "Test alert", body: "…" }, { send: m.send }));
   assert.equal(m.sent.length, 1, "a mail of no kind goes");
   // An older config, and a list that is not one, are emailed as before.
   for (const notifications of [MAILBOX, { ...MAILBOX, email_off: "call" }, { ...MAILBOX, email_off: null }]) {
@@ -813,7 +815,7 @@ test("what the business turned off by email is not mailed on any path; the row i
 // tells no phone, though their kinds are ones phones are told (PUSH_KINDS). keepAndPush keeps the row and queues the
 // push from it, never a mail.
 test("keepAndPush keeps the bell's row and queues one push_send naming it, and mails nobody (0040)", async () => {
-  const { keepAndPush } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const { keepAndPush } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href);
   const rows = [];
   const jobs = [];
   const db = fakeDb({ notifications: rows, jobs });
@@ -835,7 +837,7 @@ test("keepAndPush keeps the bell's row and queues one push_send naming it, and m
 // the warning before a number is given back) kept a new bell row on every tick while the provider failed. Told once under the
 // name of what it answers (onceKey), the row and the phones go with the first try, and every retry sends the mail alone.
 test("a notice told once under its name keeps one row and tells the phones once however often its mail fails, and the retry sends the mail alone (00419)", async () => {
-  const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href);
   // A uuid made from a name (version 5), never an event's (random, version 4).
   const V5 = /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   const target = { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false };
@@ -1029,7 +1031,7 @@ test("an event's notice is told once: its row keeps the event, the phones are to
 // Decision 0048: a notice is three deliveries with one state each. The row and the phones never wait on the mail, and a
 // mail that failed is owed and retried alone, for every notice that can be found again.
 test("notifyOnce keeps the row and tells the phones first, owes a mail that failed, and asked again finds the notice by what it is about and sends the mail alone; another notice about the same subject is not taken for it; a notice that names nothing it is about keeps the old way (S1-15)", async () => {
-  const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href);
   const target = { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false };
   const msg = {
     kind: "reach_out_replied",
@@ -1129,7 +1131,7 @@ test("an event's notice whose recipients could not be read waits for them: its d
 });
 
 test("keepOnce keeps one row under its name and tells the phones with it where asked; asked again it finds the row and keeps no twin; a row it could not keep, or could not look for, is false, so its writer leaves its state to be judged again (R11 S6-12)", async () => {
-  const { keepOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const { keepOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href);
   const tables = { notifications: [], jobs: [] };
   const db = fakeDb(tables);
   const pushes = () => tables.jobs.filter((j) => j.kind === "push_send").length;

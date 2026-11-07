@@ -1,8 +1,8 @@
 import { PersonDraftInputSchema } from "@chanlytics/contracts";
 import { write } from "@/server/shared/route";
 import { contactScope } from "@/server/shared/verbs";
-import { readerContext } from "@/server/readers";
-import { draftForPerson } from "@/server/new-conversation/person-draft";
+import { readerContext } from "@/server/shared/reader";
+import { draftForPerson } from "@/server/drafts/person";
 
 /** A model call that reads a person first: the platform's ceiling, as the reply route's and Ask's own. */
 export const maxDuration = 60;

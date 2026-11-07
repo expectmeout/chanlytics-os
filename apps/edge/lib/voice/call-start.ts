@@ -27,10 +27,11 @@
  * and the real memory read run.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
-import { resolveChannelDetailed, readLeadContext, describeLead } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
+import { resolveChannelDetailed } from "@chanlytics/db/channels";
+import { readLeadContext, describeLead } from "@chanlytics/db/conversations";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
-import { openingsFor, visitsFor } from "../calendar/availability.js";
+import { findOpenings, findVisits } from "../calendar/availability.js";
 import {
   normalizePhone,
   resolveSystemPrompt,
@@ -41,7 +42,7 @@ import {
   phonePaceSpeed,
   type GreetingSource,
 } from "@chanlytics/contracts";
-import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "@chanlytics/channels";
+import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "@chanlytics/channels/voice";
 
 type Db = SupabaseClient<Database>;
 
@@ -160,8 +161,8 @@ interface Calendar {
 
 /** A call's calendar: what follows an opening or a visit offers the link only where WhatsApp can carry it (linkOfferedOn). */
 const CALL_CALENDAR: Calendar = {
-  openings: (rt, at) => openingsFor(rt, "call", at),
-  visits: (rt, who, at) => visitsFor(rt, who, "call", at),
+  openings: (rt, at) => findOpenings(rt, "call", at),
+  visits: (rt, person, at) => findVisits(rt, person, "call", at),
 };
 
 /** How long each calendar read may take inside the plan: the openings, and the caller's visits (the record and the feed). */
@@ -181,16 +182,16 @@ async function inTime<T>(ms: number, read: Promise<T>): Promise<T | null> {
  * The plan, or, past PLAN_BUDGET_MS, the shell's own words: no facts, a caller told as new and a nameless greeting, as a
  * database that does not answer gets. `late` says which; the plan left behind only reads.
  */
-export async function planCallStartWithin(o: CallStartInput): Promise<CallStart & { late: boolean }> {
-  const budget = o.budgets?.planMs ?? PLAN_BUDGET_MS;
-  const readMs = o.budgets?.readMs ?? CALENDAR_READ_MS;
-  const cal = o.calendar ?? CALL_CALENDAR;
+export async function planCallStartWithin(callStartInput: CallStartInput): Promise<CallStart & { late: boolean }> {
+  const budget = callStartInput.budgets?.planMs ?? PLAN_BUDGET_MS;
+  const readMs = callStartInput.budgets?.readMs ?? CALENDAR_READ_MS;
+  const cal = callStartInput.calendar ?? CALL_CALENDAR;
   // Each calendar read within its own budget: a slow feed or record costs its block, never the call.
   const calendar: Calendar = {
     openings: (rt, at) => inTime(readMs, cal.openings(rt, at)),
-    visits: (rt, who, at) => inTime(readMs, cal.visits(rt, who, at)),
+    visits: (rt, person, at) => inTime(readMs, cal.visits(rt, person, at)),
   };
-  const planned = await inTime(budget, planCallStart(o, calendar));
+  const planned = await inTime(budget, planCallStart(callStartInput, calendar));
   if (planned) return { ...planned, late: false };
   return {
     variables: { caller_context: CALLER_UNKNOWN, business_facts: FACTS_UNAVAILABLE, greeting: greetingFor(null) },
@@ -338,9 +339,9 @@ export async function planRehearsalStart(
   };
 }
 
-async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<CallStart> {
-  const now = o.now ?? new Date();
-  const phone = normalizePhone(o.from);
+async function planCallStart(callStartInput: CallStartInput, calendar: Calendar): Promise<CallStart> {
+  const now = callStartInput.now ?? new Date();
+  const phone = normalizePhone(callStartInput.from);
 
   let facts: FactsOutcome = "unreadable";
   let memory: MemoryOutcome = "none";
@@ -362,14 +363,14 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
     // stranger keeps their privacy. "The database said no" and "the database
     // did not answer" are told apart, as the texting door tells them apart:
     // only the first is a switched-off channel worth paging the platform for.
-    const db = o.db;
+    const db = callStartInput.db;
     if (!db) {
       fail("no database to route the call with");
-    } else if (!o.agentId) {
+    } else if (!callStartInput.agentId) {
       facts = "unrouted";
       alert = true;
     } else {
-      const lookup = await resolveChannelDetailed(db, "voice", o.agentId);
+      const lookup = await resolveChannelDetailed(db, "voice", callStartInput.agentId);
       const routed = lookup.channel;
       if (lookup.lookupFailed) {
         fail("the voice channel could not be looked up");

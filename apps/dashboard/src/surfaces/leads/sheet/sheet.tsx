@@ -17,19 +17,16 @@
  * row, `?lead=`) it is the same sheet with no pile and no rows to walk (over.tsx).
  */
 import { useEffect, useState } from "react";
+import { SECOND_MS, placeStands, type LeadPeekVM, type LeadRowVM } from "@chanlytics/contracts";
 import {
   LEAD_SHEET_WORDS as W,
-  SECOND_MS,
-  dockSlotsOf,
   leadPickerRowsOf,
-  placeStands,
-  type LeadLineId,
-  type LeadPeekVM,
   type LeadPickerRowVM,
   type LeadPileEndVM,
-  type LeadRowVM,
   type LeadSheetSlotVM,
-} from "@chanlytics/contracts";
+} from "./model/view";
+import { dockSlotsOf } from "./model/dock";
+import type { LeadLineId } from "./model/lines";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { useLeadEmails, useLeadPlace, useLeadWords } from "../../campaigns/sequences/place/parts";

@@ -1,6 +1,6 @@
 import { read, platform } from "@/server/shared/route";
 import { SupportQuerySchema } from "@chanlytics/contracts";
-import { consoleSupport } from "@/server/console/support";
+import { getConsoleSupport } from "@/server/console/support";
 
 /**
  * GET /api/v1/platform/support?view=needs|waiting|done&kind=&topic=&workspace=&q=&page= — Support's queue (decision
@@ -13,7 +13,7 @@ export const GET = read({
   scope: platform,
   query: SupportQuerySchema,
   handle: async ({ office, input }) =>
-    consoleSupport(office, {
+    getConsoleSupport(office, {
       view: input.view,
       kind: input.kind,
       topic: input.topic ?? null,

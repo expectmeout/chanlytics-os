@@ -2,13 +2,13 @@
  * An email a mailbox may have sent, found to be settled (decision 0056): a send whose provider call timed out after it
  * may have taken the email is recorded failed with its outcome unknown (core deliver.ts), and no receipt comes from a
  * mailbox to settle it. The edge looks in the mailbox (lib/email/mailbox/reconcile.ts) for the ones read here,
- * and settles each through the email repository (email.ts emailFoundSent, emailNeverLeft). Beside them, the mailboxes
+ * and settles each through the email repository (email.ts getEmailFoundSent, getEmailNeverLeft). Beside them, the mailboxes
  * clock asked to run now, for a push that must answer its provider at once.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MIN_MS } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
-import { IDS_PER_READ } from "../people/people";
+import { IDS_PER_READ } from "../people/pages";
 
 type Db = SupabaseClient<Database>;
 
@@ -30,7 +30,7 @@ type UnknownRow = { id: string; tenant_id: string; meta: unknown; created_at: st
  * The mailbox's reach-out emails whose send's outcome is unknown, written between `since` and `before` (oldest first):
  * one too new is left for its provider to file it under Sent, and one past `since` is the clock's (it fails a day on).
  */
-export async function unknownMailboxEmails(
+export async function listUnknownMailboxEmails(
   db: Db,
   mailboxId: string,
   span: { since: Date; before: Date },
@@ -45,11 +45,11 @@ export async function unknownMailboxEmails(
   if (sends.error) throw new Error(`cannot read the mailbox's sends: ${sends.error.message}`);
   const ids = (sends.data ?? []).flatMap((s) => (s.message_id ? [s.message_id] : []));
   const rows: UnknownRow[] = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+  for (let index = 0; index < ids.length; index += IDS_PER_READ) {
     const { data, error } = await db
       .from("messages")
       .select("id, tenant_id, meta, created_at")
-      .in("id", ids.slice(i, i + IDS_PER_READ))
+      .in("id", ids.slice(index, index + IDS_PER_READ))
       .eq("status", "failed")
       .eq("error->>outcome", "unknown")
       .gte("created_at", span.since.toISOString())
@@ -60,15 +60,16 @@ export async function unknownMailboxEmails(
   return rows
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .slice(0, UNKNOWN_PAGE)
-    .map((m) => {
-      const request = (m.meta as { email?: { request?: { to?: unknown; subject?: unknown } } } | null)?.email?.request;
+    .map((row) => {
+      const request = (row.meta as { email?: { request?: { to?: unknown; subject?: unknown } } } | null)?.email
+        ?.request;
       const to = Array.isArray(request?.to) ? request.to.find((a): a is string => typeof a === "string") : null;
       return {
-        id: m.id,
-        tenantId: m.tenant_id,
+        id: row.id,
+        tenantId: row.tenant_id,
         to: to ?? null,
         subject: typeof request?.subject === "string" ? request.subject : null,
-        writtenAt: m.created_at,
+        writtenAt: row.created_at,
       };
     });
 }

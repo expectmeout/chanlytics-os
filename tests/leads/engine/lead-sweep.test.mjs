@@ -15,7 +15,7 @@ import {
   QUESTION_WAIT_MS,
   GIVE_UP_FAILED_COLLECTS,
   carrySeq,
-} from "../../../apps/edge/lib/leads/lead-sweep.ts";
+} from "../../../apps/edge/lib/leads/sweep-plan.ts";
 import { MAX_CARRY_ONS, REDRIVE_AFTER_MS } from "../../../packages/core/src/leads/runner/next-step.ts";
 import { at, knock, answer, vault } from "../../_cron-doors-world.mjs";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";

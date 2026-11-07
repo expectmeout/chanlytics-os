@@ -18,9 +18,9 @@ export interface StepHand {
 }
 
 /** A row's hand, read: null for an email step, or for anything the row should not hold. */
-export function handOf(v: unknown): StepHand | null {
-  if (!v || typeof v !== "object") return null;
-  const h = v as { kind?: unknown; words?: unknown };
+export function handOf(value: unknown): StepHand | null {
+  if (!value || typeof value !== "object") return null;
+  const h = value as { kind?: unknown; words?: unknown };
   if (!HAND_KINDS.includes(h.kind as HandKind) || typeof h.words !== "string") return null;
   const words = h.words.trim();
   return words ? { kind: h.kind as HandKind, words } : null;
@@ -31,8 +31,8 @@ export function handOf(v: unknown): StepHand | null {
  * whether the quote suited them" for a call, "Brightwater & Co.: send the price list" for a note.
  */
 export function handStepWords(kind: HandKind, business: string, words: string): string {
-  const who = business.trim() || "This business";
-  return kind === "call" ? `Call ${who}: ${words.trim()}` : `${who}: ${words.trim()}`;
+  const text = business.trim() || "This business";
+  return kind === "call" ? `Call ${text}: ${words.trim()}` : `${text}: ${words.trim()}`;
 }
 
 /**

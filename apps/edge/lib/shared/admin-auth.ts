@@ -40,10 +40,13 @@
  */
 import crypto from "node:crypto";
 import { json, refuse } from "./http.js";
-import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels";
+import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels/tokens";
 import { UUID } from "@chanlytics/contracts";
 import { env } from "./env.js";
 import { logger } from "./log.js";
+
+/** What a door says when the credential that knocked names no workspace. */
+export const NAMES_NO_WORKSPACE = "this door acts only for a workspace its credential names, and this one names none";
 
 /** A knock let in: how, and the workspace and person its token names (a key names neither). */
 export interface Admitted {
@@ -56,7 +59,7 @@ export interface Admitted {
 type AdminAuth = Admitted | { ok: false; response: Response };
 
 /** The shared key, compared in constant time. An unset or empty key matches nothing, an empty knock included. */
-function sameKey(presented: string | null, key: string | undefined): boolean {
+export function sameKey(presented: string | null, key: string | undefined): boolean {
   if (!key || !presented) return false;
   const a = Buffer.from(presented);
   const b = Buffer.from(key);
@@ -104,17 +107,18 @@ export async function authorizeAdmin(
   const secret = env.EDGE_CALL_SECRET;
   if (token && secret) {
     const now = Date.now();
-    const v = verifyEdgeToken(secret, token, aud, now);
-    if (!v.ok) return { ok: false, response: refuse(403, `token_${v.reason}`) };
+    const result = verifyEdgeToken(secret, token, aud, now);
+    if (!result.ok) return { ok: false, response: refuse(403, `token_${result.reason}`) };
     const hasBody = request.method !== "GET" && request.method !== "HEAD";
-    if (v.claims.bh !== undefined) {
+    if (result.claims.bh !== undefined) {
       const body = opts.body ?? (await request.clone().text());
-      if (!edgeBodyMatches(v.claims, body)) return { ok: false, response: refuse(403, "token_body") };
+      if (!edgeBodyMatches(result.claims, body)) return { ok: false, response: refuse(403, "token_body") };
     } else if (hasBody) {
       return { ok: false, response: refuse(403, "token_body", "the token names no body, and this door takes one") };
     }
-    if (!firstUse(v.claims.nonce, v.claims.exp, now)) return { ok: false, response: refuse(403, "token_replayed") };
-    return { ok: true, via: "token", workspace: v.claims.ws, user: v.claims.user };
+    if (!firstUse(result.claims.nonce, result.claims.exp, now))
+      return { ok: false, response: refuse(403, "token_replayed") };
+    return { ok: true, via: "token", workspace: result.claims.ws, user: result.claims.user };
   }
   if (!sameKey(request.headers.get("x-diag-key"), env.DIAG_KEY)) {
     return { ok: false, response: json(403, { ok: false }) };

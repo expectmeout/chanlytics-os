@@ -63,11 +63,15 @@ export interface OfferCounts {
  * signal. A gate is judged only over at least its `minimum` offers (OFFER_GATES), so null while both rates are within
  * bounds, and for a workspace that has sent too few to say (none, or since its last resume).
  */
-export function offerGate(c: OfferCounts): OfferPauseReason | null {
+export function offerGate(offerCounts: OfferCounts): OfferPauseReason | null {
   const { complaints, bounces } = OFFER_GATES;
-  if (c.complaintSample >= complaints.minimum && c.complaints / c.complaintSample > complaints.above)
+  if (
+    offerCounts.complaintSample >= complaints.minimum &&
+    offerCounts.complaints / offerCounts.complaintSample > complaints.above
+  )
     return "complaints";
-  if (c.bounceSample >= bounces.minimum && c.bounces / c.bounceSample > bounces.above) return "bounces";
+  if (offerCounts.bounceSample >= bounces.minimum && offerCounts.bounces / offerCounts.bounceSample > bounces.above)
+    return "bounces";
   return null;
 }
 
@@ -145,11 +149,12 @@ export interface OfferFacts {
  * fix), then the address (theirs), then a pause (nobody's, until the list is fixed). An edge that could not be asked is
  * "could not be checked", never ready: the page says so and offers nothing.
  */
-export function emailOffersOpen(f: OfferFacts, couldNotBeChecked: string): EmailOffers {
-  if (f.campaigns === null) return { ok: false, why: couldNotBeChecked, paused: f.paused };
-  if (!f.campaigns) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, paused: f.paused };
-  if (!f.address) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: f.paused };
-  if (f.paused) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, paused: f.paused };
+export function emailOffersOpen(offerFacts: OfferFacts, couldNotBeChecked: string): EmailOffers {
+  if (offerFacts.campaigns === null) return { ok: false, why: couldNotBeChecked, paused: offerFacts.paused };
+  if (!offerFacts.campaigns)
+    return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, paused: offerFacts.paused };
+  if (!offerFacts.address) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: offerFacts.paused };
+  if (offerFacts.paused) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, paused: offerFacts.paused };
   return { ok: true, why: null, paused: null };
 }
 

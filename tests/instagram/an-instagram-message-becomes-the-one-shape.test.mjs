@@ -11,9 +11,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import * as channels from "@chanlytics/channels";
 
-const { inboundFromInstagram, instagramEventsOf, metaSignatureValid } = channels;
+import { inboundFromInstagram, instagramEventsOf } from "@chanlytics/channels/instagram";
+import { metaSignatureValid } from "@chanlytics/channels/whatsapp";
 
 const ACCOUNT = "17841400000000001";
 const PERSON = "6000000000000001";

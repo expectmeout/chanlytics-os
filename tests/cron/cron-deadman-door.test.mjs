@@ -979,7 +979,7 @@ test("a notice that cannot be given is an error line, and the run stays marked n
     line.restore();
   }
   // The budget: the watchdog stops telling once the tick has spent it.
-  const { sweepStrandedRuns } = await import(at("apps/edge/lib/ops/stranded-runs.ts"));
+  const { sweepStrandedRuns } = await import(at("apps/edge/lib/receptionist/stranded-runs.ts"));
   const late = world([], { broadcasts: [run("b-2"), run("b-3")] });
   const quietLog = { warn() {}, error() {}, info() {} };
   const r = await sweepStrandedRuns({

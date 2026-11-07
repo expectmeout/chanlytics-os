@@ -15,8 +15,8 @@
 import "../../campaigns/ads/results/results.css";
 import { ADS_ROUTE, ADS_WORDS } from "@chanlytics/contracts";
 import type { AdsScope } from "@chanlytics/contracts";
-import { RESULTS } from "@chanlytics/contracts/ads-page";
-import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
+import { RESULTS } from "@/surfaces/campaigns/ads/results/words";
+import type { AdsResultsVM } from "@/surfaces/campaigns/ads/results/view";
 import {
   CameBackCard,
   DaysCard,

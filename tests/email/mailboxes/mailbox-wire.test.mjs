@@ -20,8 +20,8 @@ import {
   graphEmailOf,
   mailboxAdminConsentUrl,
   mailboxAuthorizeUrl,
-  mailboxPkceChallenge,
-  mailboxPkceVerifier,
+  makeMailboxPkceChallenge,
+  makeMailboxPkceVerifier,
   mailboxMessageId,
   mailboxRefreshRequest,
   mailboxRevokeRequest,
@@ -29,7 +29,7 @@ import {
   parseMailboxGrant,
   rowIdOfMessageId,
   sendFromMailbox,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import { DAY_MS } from "@chanlytics/contracts";
 import { b64url } from "./_mailbox-world.mjs";
 
@@ -101,12 +101,16 @@ test("the way to consent: each provider's scopes, offline access, and the token 
 });
 
 test("Google's consent is asked with PKCE (S256): the verifier made again from the state's nonce with the dashboard's key, the challenge its SHA-256, the exchange carrying the verifier", async () => {
-  const verifier = await mailboxPkceVerifier("state-secret", "nonce-1");
+  const verifier = await makeMailboxPkceVerifier("state-secret", "nonce-1");
   assert.match(verifier, /^[A-Za-z0-9_-]{43}$/, "43 characters of base64url, RFC 7636's shortest");
-  assert.equal(await mailboxPkceVerifier("state-secret", "nonce-1"), verifier, "the same nonce, the same verifier");
-  assert.notEqual(await mailboxPkceVerifier("state-secret", "nonce-2"), verifier);
-  assert.notEqual(await mailboxPkceVerifier("another-secret", "nonce-1"), verifier, "nobody without the key makes it");
-  const challenge = await mailboxPkceChallenge(verifier);
+  assert.equal(await makeMailboxPkceVerifier("state-secret", "nonce-1"), verifier, "the same nonce, the same verifier");
+  assert.notEqual(await makeMailboxPkceVerifier("state-secret", "nonce-2"), verifier);
+  assert.notEqual(
+    await makeMailboxPkceVerifier("another-secret", "nonce-1"),
+    verifier,
+    "nobody without the key makes it",
+  );
+  const challenge = await makeMailboxPkceChallenge(verifier);
   assert.equal(challenge, createHash("sha256").update(verifier).digest("base64url"), "S256, as node computes it");
   const g = new URL(mailboxAuthorizeUrl("google", CLIENT, "state-1", { challenge }));
   assert.deepEqual(

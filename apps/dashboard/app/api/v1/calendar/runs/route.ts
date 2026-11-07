@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/shared/route";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { calendarRuns } from "@/server/readers/calendar";
 
 const Query = z.object({

@@ -16,8 +16,8 @@ import { fakeDb } from "../_fake-db.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
-const { consentPageFor } = await import(at("apps/dashboard/src/server/public/consent-page.ts"));
-const { businessPageFor } = await import(at("apps/dashboard/src/server/public/business-page.ts"));
+const { findConsentPage } = await import(at("apps/dashboard/src/server/public/consent-page.ts"));
+const { findBusinessPage } = await import(at("apps/dashboard/src/server/public/business-page.ts"));
 
 const T = "aaaaaaaa-0000-4000-8000-000000000419";
 
@@ -50,12 +50,12 @@ test("REGRESSION: an ended workspace's sign-up page and business page are Not fo
   t.after(() => setServiceClient(null));
 
   world({ status: "paused", left_empty_at: "2026-10-01T00:00:00Z" });
-  assert.equal(await consentPageFor("harbor"), null, "no sign-up page asks for a yes nobody will answer");
+  assert.equal(await findConsentPage("harbor"), null, "no sign-up page asks for a yes nobody will answer");
   world({ slug: "ended-harbor", status: "paused", left_empty_at: "2026-10-01T00:00:00Z" });
-  assert.equal(await businessPageFor("ended-harbor"), null, "no business page publishes who ran it");
+  assert.equal(await findBusinessPage("ended-harbor"), null, "no business page publishes who ran it");
 
   // Paused by billing, and nobody left: the pages stand for the carriers' re-vet, as before.
   world({ slug: "paused-harbor", status: "paused" });
-  assert.ok(await consentPageFor("paused-harbor"));
-  assert.ok(await businessPageFor("paused-harbor"));
+  assert.ok(await findConsentPage("paused-harbor"));
+  assert.ok(await findBusinessPage("paused-harbor"));
 });

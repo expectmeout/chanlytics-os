@@ -1,9 +1,10 @@
 /** The verbs on many people at once: their receptionist mode, a note appended to each, and their erasure. */
 import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
-import { beginPeopleErasure, setPersonReplyMode } from "@chanlytics/db";
+import { beginPeopleErasure } from "@chanlytics/db/erasure";
+import { setPersonReplyMode } from "@chanlytics/db/workspace";
 import type { RouteContext } from "@/server/shared/with-route";
 import { recordDecision } from "@/server/shared/verbs";
-import { NO_ADDRESS_TO_SORT } from "@/server/connections/mailbox-senders";
+import { NO_ADDRESS_TO_SORT } from "@/server/people/mailbox-senders";
 
 /**
  * The same change for many people at once, through the door each would go
@@ -54,18 +55,18 @@ export async function setReceptionistMany(
   );
   const failed: ManyOutcome["failed"] = [];
   let done = 0;
-  for (const c of rows) {
+  for (const row of rows) {
     try {
-      await setPersonReplyMode(ctx.supabase, tenantId, c.id, mode === "inherit" ? null : mode);
+      await setPersonReplyMode(ctx.supabase, tenantId, row.id, mode === "inherit" ? null : mode);
     } catch (e) {
-      failed.push({ id: c.id, message: e instanceof Error ? e.message : String(e) });
+      failed.push({ id: row.id, message: e instanceof Error ? e.message : String(e) });
       continue;
     }
     await recordDecision(
       ctx,
       tenantId,
       "contact",
-      c.id,
+      row.id,
       mode === "auto" || mode === "inherit" ? "resume_agent" : "pause_agent",
       { receptionist_mode: mode, batch: uniq.length },
     );
@@ -96,15 +97,15 @@ export async function appendNotesMany(
   }>(ctx, tenantId, uniq, "id, tenant_id, erased_at");
   const failed: ManyOutcome["failed"] = [];
   let done = 0;
-  for (const c of rows) {
+  for (const row of rows) {
     const { data, error } = await ctx.supabase.rpc("person_note_add", {
-      p_contact_id: c.id,
+      p_contact_id: row.id,
       p_body: text,
       p_source: "bulk",
     });
     const refused = (data as { error?: string } | null)?.error;
     if (error || refused) {
-      failed.push({ id: c.id, message: error?.message ?? NOTE_REFUSALS[refused ?? ""] ?? "Could not add the note." });
+      failed.push({ id: row.id, message: error?.message ?? NOTE_REFUSALS[refused ?? ""] ?? "Could not add the note." });
       continue;
     }
     done += 1;

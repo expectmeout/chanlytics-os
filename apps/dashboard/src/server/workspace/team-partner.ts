@@ -1,12 +1,12 @@
 /**
  * The workspace's partner, as its owner manages it (decision 0020, 00225): who the partner is and the invitation
- * waiting, asking the partner with a code to join for fourteen days (the partner is told by email, partner-invite.ts),
+ * waiting, asking the partner with a code to join for fourteen days (the partner is told by email, partners/invite.ts),
  * and taking the invitation back before it is answered. Owner-only, as the rest of the team is: a partner changes the
  * receptionist of the business, so bringing one in is the owner's call. The route under app/api/v1/team/partner
  * declares who may and how often.
  */
 import { type PartnerInviteSchema, partnerCodeFrom, type WorkspacePartnerDto } from "@chanlytics/contracts";
-import { getWorkspacePartner, invitePartner, withdrawPartnerInvite } from "@chanlytics/db";
+import { getWorkspacePartner, invitePartner, withdrawPartnerInvite } from "@chanlytics/db/partners";
 import { handoverRefusal } from "@/server/workspace/handover";
 import { sendPartnerInvite } from "@/server/workspace/partner-invite";
 import type { RouteContext } from "@/server/shared/with-route";

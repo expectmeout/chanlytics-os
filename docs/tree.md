@@ -15,6 +15,7 @@ apps/edge/lib/
   billing/
   calendar/
   campaigns/
+  connections/
   drafts/
   email/
   files/
@@ -68,17 +69,20 @@ apps/dashboard/src/server/
   connections/
   console/
   conversations/
+  drafts/
   export/
   files/
   leads/
   metrics/
   new-conversation/
   people/
-  ports/
+  posts/
   previews/
   public/
   readers/
   receptionist/
+  settings/
+  setup/
   shared/
   workspace/
 apps/dashboard/src/bridge/
@@ -106,7 +110,6 @@ packages/channels/src/
   instagram/
   leads/
   lines/
-  log/
   shared/
   tokens/
   voice/
@@ -167,6 +170,7 @@ packages/db/src/
 packages/jobs/src/
   handlers/
   runner/
+packages/log/src/
 tooling/scripts/
   checks/
   e2e-harness/

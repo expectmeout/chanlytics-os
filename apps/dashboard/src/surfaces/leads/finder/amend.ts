@@ -54,7 +54,7 @@ export const leadAnswerPlan = async (words: string, set: FinderSet): Promise<Ask
   let card: AskProposal | null = null;
   let said = "";
   // The owner's words are the turn, in the thread the search was planned in when it keeps one; the route reads the search
-  // and tells the model which one and what it asked (server/ask/prompt.ts askTurnText), and falls back to a thread of the
+  // and tells the model which one and what it asked (server/ask/prompt/prompt.ts askTurnText), and falls back to a thread of the
   // owner's own when that one is not theirs. No scope: the answer has no opinion of one, so the planning thread keeps its
   // own (a null would clear it: the Phase 5 plan, D9).
   const context = leadsContext();

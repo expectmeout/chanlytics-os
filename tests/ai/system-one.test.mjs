@@ -6,7 +6,8 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { askSystemOne, resetBreakers, SYSTEM_ONE_URL } from "@chanlytics/channels";
+import { askSystemOne, SYSTEM_ONE_URL } from "@chanlytics/channels/ai";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import {
   DATA_NOT_INSTRUCTIONS,
   MODEL_PORTS,

@@ -15,7 +15,7 @@ import { fakeDb } from "../_fake-db.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { tellPhonesCallStarted } = await import(at("apps/edge/lib/voice/call-activity.ts"));
-const { apns, apnsJwt, APNS_PRODUCTION, APNS_SANDBOX } = await import(at("apps/edge/lib/ops/apns.ts"));
+const { apns, apnsJwt, APNS_PRODUCTION, APNS_SANDBOX } = await import(at("apps/edge/lib/voice/apns.ts"));
 const live = await import(at("packages/contracts/src/mobile/live-activity.ts"));
 const { callActivityStart, callActivityPropsOf, CALL_ACTIVITY_NAME, CALL_ACTIVITY_STALE_MS, CALL_ACTIVITY_ROLES } =
   live;

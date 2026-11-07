@@ -11,7 +11,7 @@ import {
   MAILBOX_LEFT_ROW,
   broughtInCardOf,
   broughtInShown,
-  dayWords,
+  billingDayWords,
   importLineOf,
   importLinesOf,
   importNotesOf,
@@ -37,7 +37,7 @@ const row = (source, state = "done", counts = {}, over = {}) => ({
 });
 
 test("a source's line says what came and how far back, in its own words, and where it stands", () => {
-  const back = dayWords("2026-03-07T00:00:00Z");
+  const back = billingDayWords("2026-03-07T00:00:00Z");
   assert.deepEqual(
     importLineOf(row("google_reviews", "done", { reviews: 212, unanswered: 9 }, { oldest: "2026-03-07T00:00:00Z" })),
     {
@@ -271,8 +271,14 @@ test("the kept app's chats in Meta's three parts: in, coming in, next, each said
     ],
   );
   assert.equal(parts[0].says, "Chats from the last 24 hours");
-  assert.equal(parts[1].says, `Back to ${dayWords(new Date(Date.parse(r.started_at) - 90 * DAY).toISOString())}`);
-  assert.equal(parts[2].says, `Back to ${dayWords(new Date(Date.parse(r.started_at) - 180 * DAY).toISOString())}`);
+  assert.equal(
+    parts[1].says,
+    `Back to ${billingDayWords(new Date(Date.parse(r.started_at) - 90 * DAY).toISOString())}`,
+  );
+  assert.equal(
+    parts[2].says,
+    `Back to ${billingDayWords(new Date(Date.parse(r.started_at) - 180 * DAY).toISOString())}`,
+  );
   assert.deepEqual(
     whatsappPartsOf({ ...r, state: "done" }).map((p) => p.state),
     ["done", "done", "done"],
@@ -294,7 +300,7 @@ test("Today's Brought in card: where it all stands in one place, and closed, the
     state: { tone: "live", words: "Bringing it in · 3 of 4" },
     facts: [
       { key: "people", text: "640 people · 212 reviews" },
-      { key: "mail", text: `Email since ${dayWords("2026-03-07T00:00:00Z")}` },
+      { key: "mail", text: `Email since ${billingDayWords("2026-03-07T00:00:00Z")}` },
       { key: "calendar", text: "No past appointments · 9 coming up" },
     ],
   });
@@ -360,7 +366,7 @@ test("every mailbox's row of a source is said as the one source (decision 0086):
   assert.deepEqual(sourceRowsOf(null), []);
   assert.deepEqual(
     broughtInCardOf([first, second], 10)?.facts.find((f) => f.key === "mail"),
-    { key: "mail", text: `Email since ${dayWords("2026-05-01T00:00:00Z")}` },
+    { key: "mail", text: `Email since ${billingDayWords("2026-05-01T00:00:00Z")}` },
     "Today's card: the furthest any mailbox reached",
   );
   assert.deepEqual(

@@ -16,7 +16,7 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { resetBreakers } from "@chanlytics/channels";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 
 // The owner's mailbox is the workspace's own (tenant_config), the platform's is configured, and no environment pair exists.
@@ -28,7 +28,7 @@ for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATSAPP_PHONE_ID
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { GRAPH_VERSION, numberStanding } = await import(at("apps/edge/lib/whatsapp/meta-graph.ts"));
+const { GRAPH_VERSION, getNumberStanding } = await import(at("apps/edge/lib/whatsapp/meta-graph.ts"));
 const { readAndKeepStanding } = await import(at("apps/edge/lib/whatsapp/number-standing.ts"));
 beforeEach(() => resetBreakers());
 
@@ -178,7 +178,7 @@ test("the reading asks Meta four times, the phone's health and three things of t
     WABA_ANSWER,
     FUNDED,
   );
-  const got = await numberStanding(TOKEN, PHONE, WABA);
+  const got = await getNumberStanding(TOKEN, PHONE, WABA);
   assert.deepEqual(got, {
     ok: true,
     data: {
@@ -240,7 +240,7 @@ test("a word of Meta's is kept as it said it, upper-cased where it is a status; 
       },
     },
   );
-  const { ok, data } = await numberStanding(TOKEN, PHONE, WABA);
+  const { ok, data } = await getNumberStanding(TOKEN, PHONE, WABA);
   assert.equal(ok, true);
   assert.deepEqual(
     [data.can_send, data.name, data.name_status, data.verification, data.limit],
@@ -267,7 +267,7 @@ test("each read of the account is asked apart, so one Meta refuses costs only wh
   };
   const read = async (...answers) => {
     script = asks(BLOCKED_PHONE, ...answers);
-    const got = await numberStanding(TOKEN, PHONE, WABA);
+    const got = await getNumberStanding(TOKEN, PHONE, WABA);
     assert.equal(got.ok, true, "the phone's answer is a standing whatever the account says");
     const d = got.data;
     return [d.verification, d.limit, d.has_payment_method, d.owner_business_id, d.waba_id];
@@ -300,7 +300,7 @@ test("each read of the account is asked apart, so one Meta refuses costs only wh
   assert.deepEqual((await read(WABA_ANSWER, { body: { id: WABA, primary_funding_id: 100200300 } }, OWNED))[2], true);
   // No account on file: nothing of the account is asked, and nothing of it is said.
   requests.length = 0;
-  const alone = await numberStanding(TOKEN, PHONE, null);
+  const alone = await getNumberStanding(TOKEN, PHONE, null);
   assert.equal(alone.ok, true);
   assert.equal(graphCalls().length, 1, "one read: there is no account to ask about");
   assert.deepEqual(
@@ -317,7 +317,7 @@ test("each read of the account is asked apart, so one Meta refuses costs only wh
 
 test("a phone Meta will not answer, or answers with nothing about what it may do, is a read that failed: no standing is ever guessed", async () => {
   script = asks({ status: 400, body: { error: { message: "Unsupported get request.", code: 100 } } }, WABA_ANSWER);
-  assert.deepEqual(await numberStanding(TOKEN, PHONE, WABA), {
+  assert.deepEqual(await getNumberStanding(TOKEN, PHONE, WABA), {
     ok: false,
     error: "Unsupported get request.",
     code: 100,
@@ -330,12 +330,12 @@ test("a phone Meta will not answer, or answers with nothing about what it may do
     { health_status: "AVAILABLE" },
   ]) {
     script = asks({ body }, WABA_ANSWER);
-    const got = await numberStanding(TOKEN, PHONE, WABA);
+    const got = await getNumberStanding(TOKEN, PHONE, WABA);
     assert.deepEqual([got.ok, got.status, got.code], [false, 200, null], JSON.stringify(body));
   }
   script = asks("throws", WABA_ANSWER);
   assert.equal(
-    (await numberStanding(TOKEN, PHONE, WABA)).ok,
+    (await getNumberStanding(TOKEN, PHONE, WABA)).ok,
     false,
     "a dead network is a failed read, not an exception",
   );

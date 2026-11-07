@@ -13,7 +13,7 @@ import { fakeDb } from "../_fake-db.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const { templateEvent } = await import("../../apps/dashboard/src/server/campaigns/meta-templates.ts");
+const { recordTemplateEvent } = await import("../../apps/dashboard/src/server/campaigns/meta-templates.ts");
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TP = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
@@ -23,8 +23,8 @@ test("a template sent to WhatsApp and one deleted are written on the template, w
   const world = { events: [] };
   const db = fakeDb(world);
   const made = { id: TP, name: "spring_offer", language: "en" };
-  await templateEvent(db, A, "submitted", made, USER);
-  await templateEvent(db, A, "removed", made, USER);
+  await recordTemplateEvent(db, A, "submitted", made, USER);
+  await recordTemplateEvent(db, A, "removed", made, USER);
   assert.deepEqual(
     world.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
     [

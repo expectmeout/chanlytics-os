@@ -2,9 +2,9 @@ import "server-only";
 import { waitingSearchWords, type AskReadSet } from "@chanlytics/contracts";
 import type { BuiltContext, SearchResultBlock } from "../context";
 import { withSkillGuides } from "../cross-page";
-import { turnWords } from "../prompt";
+import { turnWords } from "../prompt/prompt";
 import { aboveRoleWords } from "../tools";
-import type { TurnInput } from "../loop";
+import type { TurnInput } from "./turn-head";
 
 /**
  * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, the row

@@ -1,8 +1,8 @@
 import type { TodayReadDto } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/shared/route";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { appointmentWord } from "@/server/readers/facts";
-import { doneToday, sinceYouLooked, today } from "@/server/readers/today";
+import { findDoneToday, getSinceYouLooked, today } from "@/server/readers/today";
 
 /**
  * GET /api/v1/today — the day's read whole, as the Today page makes the day from it (Today in three zones, 2 Nov 2026,
@@ -23,8 +23,8 @@ export const GET = read({
     const rc = readerContext(ctx, member);
     const [r, done, since, word] = await Promise.all([
       load(rc, today, undefined).then((t) => t.data),
-      doneToday(rc),
-      sinceYouLooked(rc),
+      findDoneToday(rc),
+      getSinceYouLooked(rc),
       load(rc, appointmentWord, undefined).then((w) => w.data),
     ]);
     return {

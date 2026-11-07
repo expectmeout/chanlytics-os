@@ -9,7 +9,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { signupAskFacts } from "../../../packages/db/src/repositories/campaigns/signup-confirms.ts";
+import { findSignupAskFacts } from "../../../packages/db/src/repositories/campaigns/signup-confirms.ts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -211,7 +211,7 @@ test(
   async () => {
     const p = await person();
     const key = `inbox-${Date.now()}@gmail.com`;
-    const facts = () => signupAskFacts(db, { tenantId, contactId: p.id, addressKey: key, nowMs: Date.now() });
+    const facts = () => findSignupAskFacts(db, { tenantId, contactId: p.id, addressKey: key, nowMs: Date.now() });
     const before = await facts();
     assert.deepEqual(before.person, {
       email: p.email,
@@ -222,7 +222,12 @@ test(
     });
     assert.equal(before.open, false);
     const site = await person({ acquired_via: "website" });
-    const siteFacts = await signupAskFacts(db, { tenantId, contactId: site.id, addressKey: key, nowMs: Date.now() });
+    const siteFacts = await findSignupAskFacts(db, {
+      tenantId,
+      contactId: site.id,
+      addressKey: key,
+      nowMs: Date.now(),
+    });
     assert.equal(siteFacts.person.fromWebsite, true, "a person a website's form added is from the website");
 
     const conversation = ok(

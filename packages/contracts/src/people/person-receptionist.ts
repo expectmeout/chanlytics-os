@@ -25,8 +25,8 @@ export const PERSON_MODE_WORDS: Record<PersonMode | "inherit", string> = {
   inherit: "Follow the workspace",
 };
 
-export function asPersonMode(s: string | null | undefined): PersonMode | null {
-  return s && (PERSON_MODES as readonly string[]).includes(s) ? (s as PersonMode) : null;
+export function asPersonMode(text: string | null | undefined): PersonMode | null {
+  return text && (PERSON_MODES as readonly string[]).includes(text) ? (text as PersonMode) : null;
 }
 
 /* ---------------------------------- the people set differently (Settings › Autonomy) ---------------------------------- */
@@ -47,7 +47,7 @@ export interface OwnModesDto {
 }
 
 /**
- * The line's answer from the rows as stored (id and mode, newest first: db peopleOnTheirOwnMode) and the names of the
+ * The line's answer from the rows as stored (id and mode, newest first: db listPeopleOnTheirOwnMode) and the names of the
  * newest (personName over the people the server could read). A mode no person may have is not counted, as nothing sets
  * one; a person the server could not name is counted and not named.
  */
@@ -71,15 +71,16 @@ export function ownModesOf(
 const OWN_MODE_ORDER: readonly PersonMode[] = ["never", "ask", "auto"];
 
 /** The line's words, in the person page's own words for each mode (PERSON_MODE_LABELS); null when nobody is set apart. */
-export function ownModesWords(d: OwnModesDto | null | undefined) {
-  if (!d || d.total === 0) return null;
+export function ownModesWords(ownModes: OwnModesDto | null | undefined) {
+  if (!ownModes || ownModes.total === 0) return null;
   return {
     label: "People set differently",
-    value: d.total === 1 ? "1 person" : `${d.total} people`,
-    hint: OWN_MODE_ORDER.filter((m) => d.by_mode[m] > 0)
-      .map((m) => `${d.by_mode[m]} ${PERSON_MODE_LABELS[m]}`)
+    value: ownModes.total === 1 ? "1 person" : `${ownModes.total} people`,
+    hint: OWN_MODE_ORDER.filter((m) => ownModes.by_mode[m] > 0)
+      .map((m) => `${ownModes.by_mode[m]} ${PERSON_MODE_LABELS[m]}`)
       .join(" · "),
-    header: d.named.length < d.total ? `The ${d.named.length} changed last` : "Their own reply mode",
+    header:
+      ownModes.named.length < ownModes.total ? `The ${ownModes.named.length} changed last` : "Their own reply mode",
   };
 }
 
@@ -136,14 +137,14 @@ export function heldThreadOf(
   name: string | null | undefined,
 ): { tone: ReceptionistTone; label: string; title: string; detail: string } {
   const held = HELD_THREAD[holder];
-  const who = name?.trim();
-  if (holder !== "theirs" || !who) return held;
-  const said = heldPill("theirs", who);
+  const personName = name?.trim();
+  if (holder !== "theirs" || !personName) return held;
+  const sentence = heldPill("theirs", personName);
   return {
     ...held,
-    label: said,
-    title: said,
-    detail: `${who} is answering this. The receptionist stays quiet until they hand it back.`,
+    label: sentence,
+    title: sentence,
+    detail: `${personName} is answering this. The receptionist stays quiet until they hand it back.`,
   };
 }
 
@@ -158,8 +159,10 @@ export const SILENT_STOP = {
  * and those are still open: they are news told once, not an ask (escalations.ts waitsOnAPerson), so the person reads as
  * silent (SILENT_STOP), never as escalated.
  */
-export function askedFor(r: Pick<PersonRowDto, "open_escalation_reason">): string | null {
-  return r.open_escalation_reason && waitsOnAPerson(r.open_escalation_reason) ? r.open_escalation_reason : null;
+export function askedFor(person: Pick<PersonRowDto, "open_escalation_reason">): string | null {
+  return person.open_escalation_reason && waitsOnAPerson(person.open_escalation_reason)
+    ? person.open_escalation_reason
+    : null;
 }
 
 /**
@@ -167,10 +170,10 @@ export function askedFor(r: Pick<PersonRowDto, "open_escalation_reason">): strin
  * open, standing.ts), or null when nothing flagged it. The Inbox says it under the pill (snoozedThreadWords); People and the
  * person's page say it the same way.
  */
-export function snoozedAsk(r: Pick<PersonRowDto, "open_escalation_reason" | "needs_human">): string | null {
-  const asked = askedFor(r);
-  if (asked) return reasonLabelOf(asked);
-  return r.needs_human ? "Waiting for a person" : null;
+export function snoozedAsk(person: Pick<PersonRowDto, "open_escalation_reason" | "needs_human">): string | null {
+  const request = askedFor(person);
+  if (request) return reasonLabelOf(request);
+  return person.needs_human ? "Waiting for a person" : null;
 }
 
 /**
@@ -179,12 +182,16 @@ export function snoozedAsk(r: Pick<PersonRowDto, "open_escalation_reason" | "nee
  * escalation is, as the Inbox tests it; People said "escalated" and the person's page said "Needs you" over a thread the
  * Inbox had put aside (D1-snoozed-hold).
  */
-function snoozedReceptionist(r: PersonRowDto, tz: string, nowMs: number): PersonReceptionist {
-  const wake = ts(r.latest_snooze_until);
-  const wakes = wake !== null && wake > nowMs ? shortTime(r.latest_snooze_until, tz, new Date(nowMs)) : null;
+function snoozedReceptionist(person: PersonRowDto, tz: string, nowMs: number): PersonReceptionist {
+  const wake = ts(person.latest_snooze_until);
+  const wakes = wake !== null && wake > nowMs ? shortTime(person.latest_snooze_until, tz, new Date(nowMs)) : null;
   // What the snooze left open, said after a middle dot so a fact that splits its label at the first comma keeps the wake time.
-  const asked = askedFor(r);
-  const asks = asked ? `still waiting for you (${reasonShort(asked)})` : r.needs_human ? "still waiting for you" : null;
+  const request = askedFor(person);
+  const asks = request
+    ? `still waiting for you (${reasonShort(request)})`
+    : person.needs_human
+      ? "still waiting for you"
+      : null;
   return {
     tone: "snoozed",
     label: [`Snoozed${wakes ? ` until ${wakes}` : ""}`, asks].filter(Boolean).join(" · "),
@@ -196,8 +203,8 @@ function snoozedReceptionist(r: PersonRowDto, tz: string, nowMs: number): Person
  * `viewerId` is the member looking, or null for none (toPersonRowVM's): required, since who has a thread depends on it.
  * `names` is the roster, where the page has read it, so a teammate's thread says whose it is (heldThreadOf).
  */
-export function receptionistOf(
-  r: PersonRowDto,
+export function personReceptionistOf(
+  person: PersonRowDto,
   tz: string,
   nowMs: number,
   viewerId: string | null,
@@ -205,25 +212,25 @@ export function receptionistOf(
 ): PersonReceptionist {
   // One verdict, read once (standing.ts): a snooze puts the thread aside whatever else is open on it. A reply counting down
   // to send is still the thing to say (the receptionist keeps answering a snoozed thread, and People counts it as Needs you).
-  if (personStanding(r, nowMs, viewerId).standing === "snoozed")
-    return r.queued_reply_at ? { tone: "queued", label: "Reply queued" } : snoozedReceptionist(r, tz, nowMs);
+  if (personStanding(person, nowMs, viewerId).standing === "snoozed")
+    return person.queued_reply_at ? { tone: "queued", label: "Reply queued" } : snoozedReceptionist(person, tz, nowMs);
   // A thread a person has is theirs, whatever flagged it — the Inbox says "You have it" or "Ruben has it" for the
   // same row, and the two must not disagree.
-  const held = holderOf(r, nowMs, viewerId);
+  const held = holderOf(person, nowMs, viewerId);
   if (held) {
-    const holder = held === "theirs" && r.latest_assignee_user_id ? names?.(r.latest_assignee_user_id) : null;
+    const holder = held === "theirs" && person.latest_assignee_user_id ? names?.(person.latest_assignee_user_id) : null;
     const { tone, label } = heldThreadOf(held, holder);
     return { tone, label };
   }
-  const asked = askedFor(r);
-  if (asked) return { tone: "escalated", label: `Escalated, ${reasonShort(asked)}` };
-  if (r.needs_human) return { tone: "escalated", label: "Waiting for a person" };
-  if (r.queued_reply_at) return { tone: "queued", label: "Reply queued" };
-  if (r.consent === "opted_out" || r.dnc) return { tone: "silent", label: SILENT_STOP.label };
+  const request = askedFor(person);
+  if (request) return { tone: "escalated", label: `Escalated, ${reasonShort(request)}` };
+  if (person.needs_human) return { tone: "escalated", label: "Waiting for a person" };
+  if (person.queued_reply_at) return { tone: "queued", label: "Reply queued" };
+  if (person.consent === "opted_out" || person.dnc) return { tone: "silent", label: SILENT_STOP.label };
   // "Answering" was shown for a person the owner had set to Never.
-  if (r.effective_reply_mode === "never")
+  if (person.effective_reply_mode === "never")
     return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.never}` };
-  if (r.effective_reply_mode === "ask")
+  if (person.effective_reply_mode === "ask")
     return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.ask}` };
   return { tone: "answering", label: "Answering" };
 }

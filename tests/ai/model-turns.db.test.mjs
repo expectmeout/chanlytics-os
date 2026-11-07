@@ -453,7 +453,7 @@ test(
     process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
     const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
     const { setModelFetch, promptHashOf } = await import(at("apps/edge/lib/ai/model.ts"));
-    const { generateReply } = await import(at("apps/edge/lib/receptionist/brain.ts"));
+    const { generateReply } = await import(at("apps/edge/lib/ai/receptionist-brain.ts"));
     const system = `${PROMPT} Closed on public holidays. (${stamp})`;
     const ask = (conversation) =>
       generateReply(

@@ -6,17 +6,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { personName } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
-import { DELIVERED } from "../conversations/thread";
+import { DELIVERED } from "../conversations/thread/history";
 
 type Db = SupabaseClient<Database>;
 
 /** When a member last closed the bell or marked it read (notification_reads.seen_at); null where they never did. */
-export async function bellSeenAt(db: Db, p: { tenantId: string; userId: string }): Promise<string | null> {
+export async function findBellSeenAt(db: Db, params: { tenantId: string; userId: string }): Promise<string | null> {
   const { data, error } = await db
     .from("notification_reads")
     .select("seen_at")
-    .eq("tenant_id", p.tenantId)
-    .eq("user_id", p.userId)
+    .eq("tenant_id", params.tenantId)
+    .eq("user_id", params.userId)
     .maybeSingle();
   if (error) throw new Error(`cannot read when the bell was opened: ${error.message}`);
   return data?.seen_at ?? null;
@@ -26,18 +26,18 @@ export async function bellSeenAt(db: Db, p: { tenantId: string; userId: string }
  * What the receptionist answered since `since`: the messages it sent that left (outbound, its own, not failed, not held),
  * counted, and the newest of them, its words and whom it was to.
  */
-export async function answeredSince(
+export async function findAnsweredSince(
   db: Db,
-  p: { tenantId: string; since: string },
+  params: { tenantId: string; since: string },
 ): Promise<{ count: number; last: { body: string; created_at: string; contact_id: string | null } | null }> {
   const { data, count, error } = await db
     .from("messages")
     .select("body, created_at, contact_id", { count: "exact" })
-    .eq("tenant_id", p.tenantId)
+    .eq("tenant_id", params.tenantId)
     .eq("direction", "outbound")
     .eq("sender", "ai")
     .in("status", DELIVERED)
-    .gt("created_at", p.since)
+    .gt("created_at", params.since)
     .order("created_at", { ascending: false })
     .limit(1);
   if (error) throw new Error(`cannot read what the receptionist answered: ${error.message}`);
@@ -53,12 +53,12 @@ export async function answeredSince(
  * personName): the name they were given, else what WhatsApp says, else their number, else their address. Null where the
  * read holds no such person.
  */
-export async function contactNameOf(db: Db, p: { tenantId: string; contactId: string }): Promise<string | null> {
+export async function findContactName(db: Db, params: { tenantId: string; contactId: string }): Promise<string | null> {
   const { data, error } = await db
     .from("contacts")
     .select("display_name, wa_profile_name, phone_e164, email")
-    .eq("tenant_id", p.tenantId)
-    .eq("id", p.contactId)
+    .eq("tenant_id", params.tenantId)
+    .eq("id", params.contactId)
     .maybeSingle();
   if (error) throw new Error(`cannot read whom the reply was to: ${error.message}`);
   return data ? personName(data) : null;

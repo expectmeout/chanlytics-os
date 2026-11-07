@@ -12,14 +12,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import {
-  toConversationVM,
-  toInboxThreadVM,
-  toCallVM,
-  toPersonRowVM,
-  toPersonVM,
-  personStateFor,
-} from "@chanlytics/contracts";
+import { toInboxThreadVM, toCallVM, toPersonRowVM, toPersonVM, personStateFor } from "@chanlytics/contracts";
+import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 

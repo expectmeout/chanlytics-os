@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseTranscriptText, liveTurns } from "@chanlytics/channels";
+import { parseTranscriptText, liveTurns } from "@chanlytics/channels/voice";
 
 test("the plain transcript text becomes turns; a line with no speaker continues the turn before it", () => {
   const turns = parseTranscriptText(

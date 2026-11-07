@@ -14,7 +14,7 @@
  */
 import { enforcementActionsOf, enforcementStatusOf, type AnthropicEnforcementStatus } from "@chanlytics/contracts";
 import type { EnforcementAction } from "@chanlytics/contracts";
-import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
+import { answerObject, fetchFromProvider, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import type { ModelDeps } from "./anthropic";
 
 const USER_PROFILES_URL = "https://api.anthropic.com/v1/user_profiles";
@@ -35,15 +35,15 @@ export interface AnthropicProfile {
 }
 
 function profileFromAnswer(raw: unknown): AnthropicProfile | null {
-  const p = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
-  if (!p || typeof p.id !== "string" || !p.id.startsWith("uprof_")) return null;
-  const details = p.external_user_details as { reference_id?: unknown } | null | undefined;
+  const row = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  if (!row || typeof row.id !== "string" || !row.id.startsWith("uprof_")) return null;
+  const details = row.external_user_details as { reference_id?: unknown } | null | undefined;
   return {
-    id: p.id,
+    id: row.id,
     referenceId: typeof details?.reference_id === "string" ? details.reference_id : null,
-    createdAt: typeof p.created_at === "string" ? p.created_at : null,
-    status: enforcementStatusOf(p.enforcement_status),
-    actions: enforcementActionsOf(p.enforcement_actions),
+    createdAt: typeof row.created_at === "string" ? row.created_at : null,
+    status: enforcementStatusOf(row.enforcement_status),
+    actions: enforcementActionsOf(row.enforcement_actions),
   };
 }
 
@@ -64,7 +64,7 @@ export async function createUserProfile(
   details: Record<string, string>,
   deps: ModelDeps = {},
 ): Promise<ProfileCreated> {
-  const a = await providerFetch(
+  const response = await fetchFromProvider(
     "anthropic",
     USER_PROFILES_URL,
     {
@@ -75,14 +75,14 @@ export async function createUserProfile(
     },
     deps,
   );
-  if (a.outcome !== "ok") return { outcome: a.outcome, error: profileFailureWords(a) };
-  const profile = profileFromAnswer(a.json);
+  if (response.outcome !== "ok") return { outcome: response.outcome, error: profileFailureWords(response) };
+  const profile = profileFromAnswer(response.json);
   return profile ? { outcome: "ok", profile } : { outcome: "unknown", error: "the answer named no profile" };
 }
 
 /** Whether the profile is gone: deleted now, or already (a 404). Anything else is tried again by the next sweep. */
 export async function deleteUserProfile(key: string, id: string, deps: ModelDeps = {}): Promise<boolean> {
-  const a = await providerFetch(
+  const a = await fetchFromProvider(
     "anthropic",
     `${USER_PROFILES_URL}/${encodeURIComponent(id)}`,
     { method: "DELETE", headers: profileHeaders(key), timeoutMs: PROFILE_TRY_MS, idempotent: true, tries: 2 },
@@ -97,17 +97,17 @@ export type ProfilesPage =
 /** One page of every profile the organization holds, newest first. */
 export async function listUserProfiles(key: string, page: string | null, deps: ModelDeps = {}): Promise<ProfilesPage> {
   const query = new URLSearchParams({ limit: String(LIST_PAGE_SIZE), ...(page ? { page } : {}) });
-  const a = await providerFetch(
+  const response = await fetchFromProvider(
     "anthropic",
     `${USER_PROFILES_URL}?${query}`,
     { method: "GET", headers: profileHeaders(key), timeoutMs: LIST_TRY_MS, idempotent: true, tries: 2 },
     deps,
   );
-  const j = a.outcome === "ok" ? answerObject(a) : null;
-  if (!j || !Array.isArray(j.data)) return { ok: false, error: profileFailureWords(a) };
+  const json = response.outcome === "ok" ? answerObject(response) : null;
+  if (!json || !Array.isArray(json.data)) return { ok: false, error: profileFailureWords(response) };
   return {
     ok: true,
-    profiles: j.data.map(profileFromAnswer).filter((p): p is AnthropicProfile => p !== null),
-    next: typeof j.next_page === "string" && j.next_page ? j.next_page : null,
+    profiles: json.data.map(profileFromAnswer).filter((p): p is AnthropicProfile => p !== null),
+    next: typeof json.next_page === "string" && json.next_page ? json.next_page : null,
   };
 }

@@ -29,7 +29,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { twilioSignature, SMS_FOOTER, SMS_HELD_REASON, SMS_HELD_DETAILS } from "@chanlytics/channels";
+import { signTwilio, SMS_FOOTER, SMS_HELD_REASON, SMS_HELD_DETAILS } from "@chanlytics/channels/lines";
 import { fakeDb } from "../_fake-db.mjs";
 
 const MAIL = { RESEND_API_KEY: "re_test_only", LEAD_TO: "ops@platform.test", LEAD_FROM: "Pager <pager@platform.test>" };
@@ -61,7 +61,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
-const { smsSenderFor } = await import(at("apps/edge/lib/sms/sms.ts"));
+const { smsSenderFor } = await import(at("apps/edge/lib/lines/sms.ts"));
 const { deliver } = await import(at("packages/core/dist/index.js"));
 const hook = await import(at("apps/edge/api/inbound-sms.ts"));
 const { answerText } = await import(at("apps/edge/lib/sms/inbound-text.ts"));
@@ -152,7 +152,7 @@ const post = (body, headers = {}, url = DOOR) =>
 const text = async (fields, token, { url = DOOR, signedUrl = url, answer = true } = {}) => {
   const res = await post(
     new URLSearchParams(fields).toString(),
-    token ? { "x-twilio-signature": await twilioSignature(token, signedUrl, fields) } : {},
+    token ? { "x-twilio-signature": await signTwilio(token, signedUrl, fields) } : {},
     url,
   );
   if (answer) await runAnswers();
@@ -477,7 +477,7 @@ test("a signature that does not hold is a 403 that pages nobody, and only the UR
       [
         async () =>
           post(new URLSearchParams({ ...fields, Body: "Are you open Sunday?" }).toString(), {
-            "x-twilio-signature": await twilioSignature(w.TOKEN, DOOR, fields),
+            "x-twilio-signature": await signTwilio(w.TOKEN, DOOR, fields),
           }),
         "a field changed after signing",
       ],

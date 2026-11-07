@@ -19,7 +19,14 @@ import type {
   PageContext,
   VoiceEndReason,
 } from "@chanlytics/contracts";
-import { MIN_MS, detectLanguage, refusalOf, type AskOpeningsView, type SpeechPurpose } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  detectLanguage,
+  refusalOf,
+  type AskOpeningsView,
+  type SpeechPurpose,
+  UUID,
+} from "@chanlytics/contracts";
 import { api } from "../api";
 import { readLines, unwrap, type Api } from "../../client/api";
 
@@ -255,7 +262,7 @@ export function askApi(client: Api = api()) {
       ).openings;
     },
     outcome: async (messageId: string, proposalId: string, o: AskProposalOutcome): Promise<boolean> => {
-      if (!/^[0-9a-f-]{36}$/.test(messageId)) return false;
+      if (!UUID.test(messageId)) return false;
       const r = await client("POST ask/messages/[id]/proposals/[pid]", {
         params: { id: messageId, pid: proposalId },
         body: o,

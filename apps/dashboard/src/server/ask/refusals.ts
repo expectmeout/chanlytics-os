@@ -1,20 +1,28 @@
 import "server-only";
 import { foldWordsMessages, MODEL_PAUSED_WORDS, type MembershipRole } from "@chanlytics/contracts";
 import { log, type DashboardLogEvent } from "@/server/shared/log";
-import type { GatewayRefusal } from "./gateway";
+import type { GatewayRefusal } from "../shared/model/gateway";
 import { toApiTools } from "./tools";
-import { featureRejected } from "./sse";
+import { featureRejected } from "../shared/model/stream";
 
 /**
  * A refusal the turn could not do without, as the person is told it in their language, and logged. A request refused
  * (bad_request) is one we built, or an edge that would not take it: our fault, never the question's, so it is said as
  * ours and logged loudly under its own name (ask_request_refused); the rest are the gateway's (ask_gateway_refused).
  */
-export function refusalSaid(r: GatewayRefusal, es: boolean, at: { tenant_id: string; round: number }): string {
-  const said = { kind: r.kind, ...at, message: "message" in r ? String(r.message).slice(0, 300) : undefined };
-  if (r.kind === "bad_request") log.error("ask_request_refused", said);
-  else log.error("ask_gateway_refused", said);
-  switch (r.kind) {
+export function refusalSaid(
+  gatewayRefusal: GatewayRefusal,
+  es: boolean,
+  at: { tenant_id: string; round: number },
+): string {
+  const sentence = {
+    kind: gatewayRefusal.kind,
+    ...at,
+    message: "message" in gatewayRefusal ? String(gatewayRefusal.message).slice(0, 300) : undefined,
+  };
+  if (gatewayRefusal.kind === "bad_request") log.error("ask_request_refused", sentence);
+  else log.error("ask_gateway_refused", sentence);
+  switch (gatewayRefusal.kind) {
     case "preview":
       return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";
     case "budget":

@@ -12,7 +12,7 @@ import { at, withEnv } from "../../_cron-doors-world.mjs";
 import { PLAN } from "../../_lead-fixtures.mjs";
 
 for (const k of ["APIFY_TOKEN", "ANTHROPIC_API_KEY"]) delete process.env[k];
-const { leadPipelineOver, leadPipeline } = await import(at("apps/edge/lib/leads/lead-pipeline.ts"));
+const { leadPipelineOver, leadPipeline } = await import(at("apps/edge/lib/leads/pipeline.ts"));
 after(() => {});
 
 const R = "33333333-3333-4333-8333-333333333333";

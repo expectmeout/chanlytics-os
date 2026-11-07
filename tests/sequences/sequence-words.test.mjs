@@ -1,5 +1,5 @@
 /**
- * What the Sequences page says (decision 0060, contracts sequence-words.ts and sequence-address.ts), executed on rows as the
+ * What the Sequences page says (decision 0060, contracts sequences/words/next.ts and sequences/address.ts), executed on rows as the
  * readers answer them: the list's groups (what needs you first, drafts last), a row's pill and line, the one notice, the
  * flow's sentences, and the page's addresses read and written by one parser and one writer.
  */

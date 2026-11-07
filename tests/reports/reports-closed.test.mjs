@@ -5,7 +5,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { closedOf, reportFacts, toReportVM } from "@chanlytics/contracts";
+import { closedOf, toReportVM } from "@chanlytics/contracts";
+import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 
 const profile = {
   hours: {

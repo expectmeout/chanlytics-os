@@ -336,20 +336,21 @@ export const MINOR_PER_UNIT = 100;
 const atNoon = (iso: string): number => Date.parse(`${iso}T12:00:00Z`);
 
 /** The ISO day `n` days after `iso` (before, where n is negative). */
-export function addDays(iso: string, n: number): string {
-  return new Date(atNoon(iso) + n * DAY_MS).toISOString().slice(0, 10);
+export function addDays(iso: string, count: number): string {
+  return new Date(atNoon(iso) + count * DAY_MS).toISOString().slice(0, 10);
 }
 
 /** Whole days from `a` to `b` (positive where b is later). */
-export const daysBetween = (a: string, b: string): number => Math.round((atNoon(b) - atNoon(a)) / DAY_MS);
+export const daysBetween = (first: string, second: string): number =>
+  Math.round((atNoon(second) - atNoon(first)) / DAY_MS);
 
 /**
  * About how much a day an ad spends once its amount or end moves: the amount itself for a daily budget; for a total, what is
  * left of it over the days left to its end (today included), in whole units, so "about $15 a day" follows a raise or a later
  * end.
  */
-export function aboutADayAfter(o: { ad: AdRead; amountMinor: number; endDay: string; today: string }): number {
-  const { ad, amountMinor, endDay, today } = o;
+export function aboutADayAfter(options: { ad: AdRead; amountMinor: number; endDay: string; today: string }): number {
+  const { ad, amountMinor, endDay, today } = options;
   if (ad.budget.mode === "daily") return amountMinor;
   const spent = ad.days.reduce((all, d) => all + d.spendMinor, 0);
   const daysLeft = Math.max(1, daysBetween(today, endDay) + 1);
@@ -369,9 +370,9 @@ export interface AdPatch {
 }
 
 /** Whether two areas are the same: the same circle, or the same ZIP codes. */
-export function sameArea(a: AdArea, b: AdArea): boolean {
-  if (a.kind === "radius" && b.kind === "radius") return a.miles === b.miles;
-  return a.kind === "zips" && b.kind === "zips" && a.zips.join(",") === b.zips.join(",");
+export function sameArea(adArea: AdArea, otherAdArea: AdArea): boolean {
+  if (adArea.kind === "radius" && otherAdArea.kind === "radius") return adArea.miles === otherAdArea.miles;
+  return adArea.kind === "zips" && otherAdArea.kind === "zips" && adArea.zips.join(",") === otherAdArea.zips.join(",");
 }
 
 const saidWords = (c: AdCopy): string => JSON.stringify([c.headline, c.text, c.headlines, c.lines]);

@@ -25,8 +25,9 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { DB_REQUEST_HEADER, createServiceClient, observeDb, recordEvent } from "@chanlytics/db";
-import { logger, requestId, withRequestId } from "@chanlytics/channels";
+import { DB_REQUEST_HEADER, createServiceClient, observeDb } from "@chanlytics/db/shared";
+import { recordEvent } from "@chanlytics/db/events";
+import { logger, requestId, withRequestId } from "@chanlytics/log";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CLI = process.env.SUPABASE_CLI || "supabase";

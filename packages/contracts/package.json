@@ -19,22 +19,16 @@
       "default": "./src/write-rules.ts"
     },
     "./report-window": {
-      "types": "./src/reports/report-window.ts",
+      "types": "./src/reports/window.ts",
       "bundled": "./dist/report-window.js",
-      "import": "./src/reports/report-window.ts",
-      "default": "./src/reports/report-window.ts"
+      "import": "./src/reports/window.ts",
+      "default": "./src/reports/window.ts"
     },
     "./report-lens": {
-      "types": "./src/reports/report-lens.ts",
+      "types": "./src/reports/lens.ts",
       "bundled": "./dist/report-lens.js",
-      "import": "./src/reports/report-lens.ts",
-      "default": "./src/reports/report-lens.ts"
-    },
-    "./ads-page": {
-      "types": "./src/ads/page-entry.ts",
-      "bundled": "./dist/ads-page.js",
-      "import": "./src/ads/page-entry.ts",
-      "default": "./src/ads/page-entry.ts"
+      "import": "./src/reports/lens.ts",
+      "default": "./src/reports/lens.ts"
     },
     "./alert-pane": {
       "types": "./src/alert-pane.ts",

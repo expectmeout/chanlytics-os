@@ -24,7 +24,7 @@ import {
   type SystemOneQuestion,
   type SystemOneRequest,
 } from "@chanlytics/contracts";
-import { answerObject, providerFetch, type ProviderReply } from "../shared/provider-fetch";
+import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 import type { ModelDeps } from "./anthropic";
 
 export const SYSTEM_ONE_URL = "https://api.typesafe.ai/v1/systemone";
@@ -67,7 +67,7 @@ function failureOf(a: ProviderReply): "rejected" | "throttled" | "unavailable" {
 /** One System One call; never thrown. */
 export async function askSystemOne(key: string, ask: SystemOneAsk, deps: ModelDeps = {}): Promise<SystemOneReply> {
   const request: SystemOneRequest = { state: ask.state, model: SYSTEM_ONE_MODEL, questions: ask.questions };
-  const a = await providerFetch(
+  const response = await fetchFromProvider(
     "typesafe",
     SYSTEM_ONE_URL,
     {
@@ -80,10 +80,15 @@ export async function askSystemOne(key: string, ask: SystemOneAsk, deps: ModelDe
     },
     deps,
   );
-  if (a.outcome !== "ok") return { outcome: failureOf(a), status: a.status, error: errorOf(a, key) };
-  const read = parseSystemOneResponse(a.json);
+  if (response.outcome !== "ok")
+    return { outcome: failureOf(response), status: response.status, error: errorOf(response, key) };
+  const read = parseSystemOneResponse(response.json);
   if (!read.ok)
-    return { outcome: "unavailable", status: a.status, error: scrubbed(`unreadable answer: ${read.error}`, key) };
+    return {
+      outcome: "unavailable",
+      status: response.status,
+      error: scrubbed(`unreadable answer: ${read.error}`, key),
+    };
   return {
     outcome: "ok",
     model: read.value.model,

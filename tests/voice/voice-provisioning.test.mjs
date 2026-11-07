@@ -22,7 +22,7 @@ import {
   VOICE_AGENT_DEFAULTS,
   greetingFor,
   GREETING_DEFAULT,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/voice";
 import { readRaw } from "../_source.mjs";
 
 const module_ = readRaw("packages/channels/src/voice/provision.ts");

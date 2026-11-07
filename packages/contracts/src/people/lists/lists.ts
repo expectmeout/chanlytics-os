@@ -7,12 +7,12 @@
  * was not read, deals that are off here, no one looking for a list about "me", a rule this build cannot read, or a list
  * it reads that is gone. Can't tell is never drawn as nobody.
  */
-import { asListRule, type ListRule } from "./list-rules";
-import { LIST_NEEDS, type ListNeed } from "./list-fields";
-import { listRuleMatches, ruleLists, ruleNeeds } from "./list-match";
+import { asListRule, type ListRule } from "./rules";
+import { LIST_NEEDS, type ListNeed } from "./fields";
+import { listRuleMatches, ruleLists, ruleNeeds } from "./match";
 import { BUILTIN_LISTS, PEOPLE_LISTS, type BuiltinSpec, type PeopleListGroup } from "./builtin-lists";
-import type { PersonRowVM } from "../person-row";
-import { listToken, parseListToken, type ListRef } from "./list-token";
+import type { PersonRowVM } from "../person-row/row-facts";
+import { listToken, parseListToken, type ListRef } from "./token";
 
 /* ------------------------------------------------------------------ what a list needs, and who is on it */
 
@@ -176,38 +176,38 @@ export interface SavedListRowLike extends SavedListLike {
   archived_at?: string | null;
 }
 
-function builtinDef(l: BuiltinSpec): ListDef {
-  const ref: ListRef = { kind: "builtin", id: l.id };
+function builtinDef(builtinSpec: BuiltinSpec): ListDef {
+  const ref: ListRef = { kind: "builtin", id: builtinSpec.id };
   return {
     ref,
     token: listToken(ref),
-    label: l.label,
-    group: l.group,
-    rule: l.rule,
+    label: builtinSpec.label,
+    group: builtinSpec.group,
+    rule: builtinSpec.rule,
     byHand: false,
     readable: true,
     ids: [],
-    needs: ruleNeeds(l.rule),
-    onProfile: l.onProfile !== false,
+    needs: ruleNeeds(builtinSpec.rule),
+    onProfile: builtinSpec.onProfile !== false,
     archived: false,
   };
 }
 
-function savedDef(l: SavedListRowLike, lookup: ListLookup): ListDef {
-  const ref: ListRef = { kind: "saved", id: l.id };
-  const rule = l.rule == null ? null : asListRule(l.rule);
+function savedDef(savedList: SavedListRowLike, lookup: ListLookup): ListDef {
+  const ref: ListRef = { kind: "saved", id: savedList.id };
+  const rule = savedList.rule == null ? null : asListRule(savedList.rule);
   return {
     ref,
     token: listToken(ref),
-    label: l.name,
+    label: savedList.name,
     group: "saved",
     rule,
-    byHand: l.rule == null,
-    readable: l.rule == null || rule !== null,
-    ids: l.rule == null ? l.ids : [],
+    byHand: savedList.rule == null,
+    readable: savedList.rule == null || rule !== null,
+    ids: savedList.rule == null ? savedList.ids : [],
     needs: listNeeds(rule, lookup),
     onProfile: true,
-    archived: !!l.archived_at,
+    archived: !!savedList.archived_at,
   };
 }
 

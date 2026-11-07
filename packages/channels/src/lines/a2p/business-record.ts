@@ -56,8 +56,8 @@ export type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
  * disagree about the same tax id. This maps one vocabulary onto the other and
  * nothing else.
  */
-export function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType {
-  return registrationPathOf(r) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
+export function brandTypeFor(business: Pick<BusinessRecord, "ein">): BrandType {
+  return registrationPathOf(business) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
 }
 
 /**
@@ -65,6 +65,6 @@ export function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType {
  * texts), and the legal name otherwise. One rule for the filing that sends it and the line that keeps it, so the save can
  * say which name the carriers hold (the wiring's second audit, X4-3).
  */
-export function brandNameOf(r: Pick<BusinessRecord, "ein" | "legalName" | "tradeName">): string {
-  return brandTypeFor(r) === "SOLE_PROPRIETOR" ? r.tradeName || r.legalName : r.legalName;
+export function brandNameOf(business: Pick<BusinessRecord, "ein" | "legalName" | "tradeName">): string {
+  return brandTypeFor(business) === "SOLE_PROPRIETOR" ? business.tradeName || business.legalName : business.legalName;
 }

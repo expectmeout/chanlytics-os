@@ -1,5 +1,5 @@
 /**
- * The periods Reports offers and how a request names one (contracts reports/report-periods.ts over REPORT_RANGES): Month is
+ * The periods Reports offers and how a request names one (contracts reports/periods.ts over REPORT_RANGES): Month is
  * the days since the 1st in the workspace's own zone, today included; `period` names one, and `days`, which every page sent
  * before there was a Month, is no longer read. And the days a member picks: a window's first day and its last, its one
  * name, what its control says, what may be read and what a request names.

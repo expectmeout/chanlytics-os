@@ -6,14 +6,14 @@
  * could not do was a log line and a 200: a playbook that failed every hour of a day lost the day with nobody told, while
  * its card read "today, within the hour". Now:
  *
- *   - The platform is paged (ops/page-operator.ts), one key per workspace, `playbook_failed:<tenant_id>`: the pager keeps
+ *   - The platform is paged (shared/alerts/page-operator.ts), one key per workspace, `playbook_failed:<tenant_id>`: the pager keeps
  *     its own six-hour memory of a key, so a workspace that fails all day pages a few times, not once an hour. Not for a
  *     calendar that could not be read (contracts PLAYBOOK_CALENDAR_UNREAD): that link is the owner's, and their notice
  *     says where to check it.
  *   - The owner is told once per playbook per day, in the last hour a run is asked for (contracts inLastSendingHour):
  *     that the playbook could not run today, and that tomorrow's run will try again. Through the notification door
- *     (ops/notify.ts: the bell's row and the mail), about the playbook and the day (contracts playbookFailedAbout), which
- *     the door keeps no memory of: the notice asks whether it was already kept (packages/db noticeKept) before it is
+ *     (shared/alerts/notify.ts: the bell's row and the mail), about the playbook and the day (contracts playbookFailedAbout), which
+ *     the door keeps no memory of: the notice asks whether it was already kept (packages/db wasNoticeKept) before it is
  *     written, so a second tick in that hour, or a second failure of the same playbook, says nothing twice. No migration.
  *
  * Never throws: a notice that could not go is a log line (`playbook_failed_notice_failed`), and the sweep goes on.
@@ -26,10 +26,11 @@ import {
   playbookFailedAbout,
   playbookFailedWords,
 } from "@chanlytics/contracts";
-import { noticeKept, type Database } from "@chanlytics/db";
+import { wasNoticeKept } from "@chanlytics/db/notices";
+import type { Database } from "@chanlytics/db/types";
 import { errField, type Logger } from "../../shared/log.js";
-import { notify } from "../../ops/notify.js";
-import { pageOperator } from "../../ops/page-operator.js";
+import { notify } from "../../shared/alerts/notify.js";
+import { pageOperator } from "../../shared/alerts/page-operator.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 
 type Db = SupabaseClient<Database>;
@@ -55,19 +56,19 @@ interface Failure {
 }
 
 /** The platform, paged under the workspace's own key. */
-async function pageThePlatform(f: Failure): Promise<void> {
-  const many = f.playbooks.length > 1;
-  const named = f.playbooks.map((p) => `${p.name} (${p.id})`).join(", ");
+async function pageThePlatform(failure: Failure): Promise<void> {
+  const many = failure.playbooks.length > 1;
+  const named = failure.playbooks.map((p) => `${p.name} (${p.id})`).join(", ");
   await pageOperator(
-    { db: f.db },
-    `playbook_failed:${f.tenantId}`,
-    `${many ? "Campaigns" : "A campaign"} could not run in workspace ${f.tenantId.slice(0, 8)}`,
+    { db: failure.db },
+    `playbook_failed:${failure.tenantId}`,
+    `${many ? "Campaigns" : "A campaign"} could not run in workspace ${failure.tenantId.slice(0, 8)}`,
     [
-      `${many ? `${f.playbooks.length} campaigns` : "A campaign"} could not run for ${f.runFor}.`,
+      `${many ? `${failure.playbooks.length} campaigns` : "A campaign"} could not run for ${failure.runFor}.`,
       "",
-      `Workspace: ${f.tenantId}`,
+      `Workspace: ${failure.tenantId}`,
       `${many ? "Campaigns" : "Campaign"}: ${named}`,
-      `Why: ${f.error}`,
+      `Why: ${failure.error}`,
       "",
       "The sweep tries again every hour through the workspace's last sending hour, when its owner is told once. This page comes at most once in six hours for the workspace.",
     ].join("\n"),
@@ -78,26 +79,37 @@ async function pageThePlatform(f: Failure): Promise<void> {
 const calendarUnread = (f: Failure): boolean => f.error === PLAYBOOK_CALENDAR_UNREAD;
 
 /** One playbook's owner, told once for the day. */
-async function tellTheOwner(f: Failure, p: FailedPlaybook): Promise<void> {
-  const about = playbookFailedAbout(p.id, f.runFor);
-  if (await noticeKept(f.db, { tenantId: f.tenantId, kind: "playbook", subjectType: about.type, subjectId: about.id }))
+async function tellTheOwner(failure: Failure, failedPlaybook: FailedPlaybook): Promise<void> {
+  const about = playbookFailedAbout(failedPlaybook.id, failure.runFor);
+  if (
+    await wasNoticeKept(failure.db, {
+      tenantId: failure.tenantId,
+      kind: "playbook",
+      subjectType: about.type,
+      subjectId: about.id,
+    })
+  )
     return;
-  const words = playbookFailedWords(p.name, calendarUnread(f) ? "calendar" : "other");
-  const target = await loadTenantNotifications(f.db, f.tenantId);
+  const words = playbookFailedWords(failedPlaybook.name, calendarUnread(failure) ? "calendar" : "other");
+  const target = await loadTenantNotifications(failure.db, failure.tenantId);
   await notify(
-    { tenantId: f.tenantId, ...target },
+    { tenantId: failure.tenantId, ...target },
     {
       kind: "playbook",
       // The playbook's own door, its drawer over Campaigns' home (contracts addressOf).
-      route: addressOf({ kind: "campaign", id: p.id }),
+      route: addressOf({ kind: "campaign", id: failedPlaybook.id }),
       about,
       subject: words.title,
       body: words.body,
       redactedBody: "A campaign could not run today in this workspace.",
     },
-    { db: f.db },
+    { db: failure.db },
   );
-  f.L.info("playbook_failed_told", { tenant_id: f.tenantId, playbook_id: p.id, run_for: f.runFor });
+  failure.L.info("playbook_failed_told", {
+    tenant_id: failure.tenantId,
+    playbook_id: failedPlaybook.id,
+    run_for: failure.runFor,
+  });
 }
 
 /**
@@ -105,22 +117,26 @@ async function tellTheOwner(f: Failure, p: FailedPlaybook): Promise<void> {
  * the owner gave, which the platform cannot mend: a dead one would page it every six hours, for good); each playbook's
  * owner only when this is the last hour the day's run is asked for, told what failed.
  */
-export async function tellPlaybookFailed(f: Failure): Promise<void> {
-  if (!calendarUnread(f)) {
+export async function tellPlaybookFailed(failure: Failure): Promise<void> {
+  if (!calendarUnread(failure)) {
     try {
-      await pageThePlatform(f);
+      await pageThePlatform(failure);
     } catch (e) {
-      f.L.error("playbook_failed_notice_failed", { tenant_id: f.tenantId, who: "platform", error: errField(e) });
+      failure.L.error("playbook_failed_notice_failed", {
+        tenant_id: failure.tenantId,
+        who: "platform",
+        error: errField(e),
+      });
     }
   }
-  if (!inLastSendingHour(f.tz, f.now)) return;
-  for (const p of f.playbooks) {
+  if (!inLastSendingHour(failure.tz, failure.now)) return;
+  for (const playbook of failure.playbooks) {
     try {
-      await tellTheOwner(f, p);
+      await tellTheOwner(failure, playbook);
     } catch (e) {
-      f.L.error("playbook_failed_notice_failed", {
-        tenant_id: f.tenantId,
-        playbook_id: p.id,
+      failure.L.error("playbook_failed_notice_failed", {
+        tenant_id: failure.tenantId,
+        playbook_id: playbook.id,
         who: "owner",
         error: errField(e),
       });

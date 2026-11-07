@@ -12,10 +12,10 @@ import { fakeDb } from "../_fake-db.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { makeSequenceNow } = await import("../../apps/dashboard/src/server/campaigns/sequences/doors.ts");
-const { readerCache } = await import("../../apps/dashboard/src/server/readers/index.ts");
+const { readerCache } = await import("../../apps/dashboard/src/server/shared/reader.ts");
 const { newToolContext } = await import("../../apps/dashboard/src/server/ask/tools/index.ts");
 const { editedOf, readEdited } = await import("../../apps/dashboard/src/server/ask/tools/read/sequences.ts");
-const { sequenceMakes } = await import("@chanlytics/db");
+const { listSequenceMakes } = await import("@chanlytics/db/campaigns");
 beforeEach(() => readerCache.clear());
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -96,7 +96,7 @@ test("the ledger gives each sequence to leads its newest make, by id or by who m
     make(5, ME, 1, {}, "leads", OTHER),
   ];
   const db = fakeDb({ decisions }, {}, {});
-  const byId = await sequenceMakes(db, { tenantId: T, ids: [Q(1), Q(2), Q(4)], limit: 20 });
+  const byId = await listSequenceMakes(db, { tenantId: T, ids: [Q(1), Q(2), Q(4)], limit: 20 });
   assert.deepEqual(
     byId.map((m) => [m.sequence_id, m.made_by, m.as_drafted?.asked ?? null]),
     [
@@ -105,13 +105,13 @@ test("the ledger gives each sequence to leads its newest make, by id or by who m
     ],
     "the newest make of each, a sequence to people's left out, another workspace's never read",
   );
-  const mine = await sequenceMakes(db, { tenantId: T, by: ME, since: ago(24), limit: 20 });
+  const mine = await listSequenceMakes(db, { tenantId: T, by: ME, since: ago(24), limit: 20 });
   assert.deepEqual(
     mine.map((m) => m.sequence_id),
     [Q(1)],
     "a teammate's, and one made before the moment, are not the member's since",
   );
-  assert.deepEqual(await sequenceMakes(db, { tenantId: T, ids: [], limit: 20 }), []);
+  assert.deepEqual(await listSequenceMakes(db, { tenantId: T, ids: [], limit: 20 }), []);
 });
 
 test("edited says the member's own cold emails whose first email is theirs: changed from Ask's draft, or written whole; one sent as drafted is not", () => {
@@ -173,7 +173,7 @@ test("Ask's edited read marks what the member sent as theirs on the turn, and on
 
 /* ------------------------------------------- the morning asks about edits only on a morning that has them */
 
-const { morningQuestionFor } = await import("../../apps/dashboard/src/server/ask/companion/morning.ts");
+const { getMorningQuestion } = await import("../../apps/dashboard/src/server/ask/companion/morning.ts");
 const { ASK_MORNING_EDITED_QUESTION, ASK_MORNING_QUESTION, isAskMorningQuestion } =
   await import("@chanlytics/contracts");
 const MEMBER = { tenantId: T, role: "operator", facts: null };
@@ -186,7 +186,7 @@ test("the morning reads the member's edited cold emails only on a morning after 
     const t = newToolContext(ctx, T, "operator", "UTC", NOW);
     if (chains) t.rc.turn.seed("reachOutChains", { chains });
     return {
-      question: await morningQuestionFor(ctx, MEMBER, NOW, t.rc),
+      question: await getMorningQuestion(ctx, MEMBER, NOW, t.rc),
       seen: supabase.seen.map((s) => s.table ?? s.rpc),
     };
   };

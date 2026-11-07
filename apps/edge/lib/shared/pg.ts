@@ -8,8 +8,8 @@
  * keeps enqueuing, so the client is purely a credential question and that is
  * all it asks for.
  */
-import { createServiceClient } from "@chanlytics/db";
-import type { Database } from "@chanlytics/db";
+import { createServiceClient } from "@chanlytics/db/shared";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "./env.js";
 
@@ -17,8 +17,8 @@ let dbClient: SupabaseClient<Database> | null = null;
 let injectedDb: SupabaseClient<Database> | null = null;
 
 /** Tests: a database handed in, so a handler runs over a fake without env or a network. Null restores the real one. */
-export function setPg(c: SupabaseClient<Database> | null): void {
-  injectedDb = c;
+export function setPg(db: SupabaseClient<Database> | null): void {
+  injectedDb = db;
 }
 
 function pgEnabled(): boolean {

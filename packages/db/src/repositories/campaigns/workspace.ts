@@ -16,7 +16,7 @@ type Db = SupabaseClient<Database>;
  * the approval verb and the send job (so a run stops, core broadcast-stops.ts) all ask. A read that fails throws: "we could
  * not check" is not "it is not paused".
  */
-export async function workspacePaused(db: Db, tenantId: string): Promise<boolean> {
+export async function isWorkspacePaused(db: Db, tenantId: string): Promise<boolean> {
   const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the workspace: ${error.message}`);
   return data?.status === "paused";

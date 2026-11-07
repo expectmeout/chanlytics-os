@@ -9,7 +9,7 @@
  * four "worth an ear". An owner read a provider code for a call that failed on our side, and the platform was never
  * told that its own inbound webhook had failed a call (`error_inbound_webhook`). The three are now read from here
  * (DISCONNECTION_LABELS in conversations/call-dto.ts, Today's calls worth an ear in today/rows.ts, the Health
- * page's words in console/health-parts.ts through the platform's half), and an ending the provider adds that this table
+ * page's words in console/health-parts/models-connections.ts through the platform's half), and an ending the provider adds that this table
  * does not name is said in plain words by `callEndingOf`, never as its code, and fails voice/call-endings.test.mjs until
  * it is given its row.
  */
@@ -67,8 +67,8 @@ export const CALL_ENDINGS_FOR_OWNERS = {
 export type CallEndingReason = keyof typeof CALL_ENDINGS_FOR_OWNERS;
 
 /** Whether a reason is one the table holds. */
-export const isCallEndingReason = (r: string | null | undefined): r is CallEndingReason =>
-  typeof r === "string" && Object.prototype.hasOwnProperty.call(CALL_ENDINGS_FOR_OWNERS, r);
+export const isCallEndingReason = (reason: string | null | undefined): reason is CallEndingReason =>
+  typeof reason === "string" && Object.prototype.hasOwnProperty.call(CALL_ENDINGS_FOR_OWNERS, reason);
 
 /** What an owner reads for each ending (conversations/call-dto.ts DISCONNECTION_LABELS). */
 export const CALL_ENDING_OWNER_WORDS: Record<string, string> = Object.fromEntries(

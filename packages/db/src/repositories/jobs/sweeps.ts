@@ -19,7 +19,7 @@
  *   keepChannelStanding    what Meta holds about the number, kept through channel_keep_standing (00338): the sweep's second
  *                          write, and the owner's check's and the connection's only one.
  * The functions are the service role's alone. The edge's calendar and playbooks sweeps read the pages through
- * lib/ops/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
+ * lib/shared/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
  * whose rows lack the count, so a database without the function is a sweep that says so, never a quiet tick.
  *
  * Cross-workspace: the hourly sweeps page what is due across every workspace; each row carries its tenant_id.
@@ -63,16 +63,16 @@ export interface DueStep {
  * day still open. A customer's step after the first is due only while its sequence is on (D6). `tenantId` keeps to one
  * workspace (a test's); the sweep asks for every workspace.
  */
-export async function duePlaybooks(
+export async function getDuePlaybooks(
   db: Db,
-  p: { kind: "moment" | "reach_out"; at: Date; limit: number; tenantId?: string },
+  params: { kind: "moment" | "reach_out"; at: Date; limit: number; tenantId?: string },
 ): Promise<DuePage<DueStep>> {
   const { data, error } = await db.rpc("sequence_steps_due", {
-    p_kind: p.kind,
-    p_at: p.at.toISOString(),
+    p_kind: params.kind,
+    p_at: params.at.toISOString(),
     p_last_hour: PLAYBOOK_HOURS.max,
-    p_limit: p.limit,
-    ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
+    p_limit: params.limit,
+    ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the playbooks due: ${error.message}`);
   const rows = (data ?? []) as Array<{ step: Json; timezone: string; due_total: number }>;
@@ -89,13 +89,17 @@ export async function duePlaybooks(
  * hour tries them again behind the moments that can run. A page is at most a sweep's cap of ids, so they ride in one
  * statement. Throws when the write fails.
  */
-export async function stampPlaybooksTried(db: Db, tenantId: string, p: { ids: string[]; at: Date }): Promise<void> {
-  if (p.ids.length === 0) return;
+export async function stampPlaybooksTried(
+  db: Db,
+  tenantId: string,
+  params: { ids: string[]; at: Date },
+): Promise<void> {
+  if (params.ids.length === 0) return;
   const { error } = await db
     .from("sequence_steps")
-    .update({ last_run_at: p.at.toISOString() })
+    .update({ last_run_at: params.at.toISOString() })
     .eq("tenant_id", tenantId)
-    .in("id", p.ids);
+    .in("id", params.ids);
   if (error) throw new Error(`cannot move the moments to the back of the page: ${error.message}`);
 }
 
@@ -117,14 +121,14 @@ export interface DueCalendar {
  * or last read before then; never read first, then the least recently read, `limit` of them, each with its zone, with
  * the exact count of due calendars beyond the page. A row whose `calendar` has no address is not a feed, and is neither.
  */
-export async function dueCalendars(
+export async function getDueCalendars(
   db: Db,
-  p: { before: Date; limit: number; tenantId?: string },
+  params: { before: Date; limit: number; tenantId?: string },
 ): Promise<DuePage<DueCalendar>> {
   const { data, error } = await db.rpc("calendars_due", {
-    p_before: p.before.toISOString(),
-    p_limit: p.limit,
-    ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
+    p_before: params.before.toISOString(),
+    p_limit: params.limit,
+    ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
   const rows = (data ?? []) as Array<{
@@ -172,7 +176,7 @@ function readAtOf(config: Json): string | null {
  * database's (the moment of the last read, read out of config), so the numbers a tick has no time for are the first
  * of the next, however many there are. A read that fails throws.
  */
-export async function whatsappNumbersToRead(db: Db, limit: number): Promise<WhatsappNumber[]> {
+export async function listWhatsappNumbersToRead(db: Db, limit: number): Promise<WhatsappNumber[]> {
   const { data, error } = await db
     .from("tenant_channels")
     .select("id, tenant_id, external_id, waba_id, number_e164, config")
@@ -195,7 +199,7 @@ export async function whatsappNumbersToRead(db: Db, limit: number): Promise<What
  * One workspace's WhatsApp number: its oldest active channel, the one `channelFor` (contracts) picks, as the sweep reads a
  * number. Null where the workspace has none. A read that fails throws.
  */
-export async function whatsappNumberOf(db: Db, tenantId: string): Promise<WhatsappNumber | null> {
+export async function findWhatsappNumber(db: Db, tenantId: string): Promise<WhatsappNumber | null> {
   const { data, error } = await db
     .from("tenant_channels")
     .select("id, tenant_id, external_id, waba_id, number_e164, config")

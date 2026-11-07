@@ -7,12 +7,12 @@ import {
   PARTNER_COOKIE,
   PARTNER_WORDS,
   SIGNUP_WORDS,
-  firstRunKicker,
   partnerCodeFromCookie,
   usableDeviceTimezone,
   type PendingWorkspace,
   type SignupPosture,
 } from "@chanlytics/contracts";
+import { firstRunKicker } from "@/surfaces/setup/first-run/model/view";
 import { claimPreviewNow } from "@/auth/preview-claim";
 import { api } from "./api";
 import { joinWaitlistFrom, loadWaitlistRule } from "./waitlist";

@@ -7,8 +7,9 @@
  * of every ad's last 30 days; and, while no calendar link is set, the door to where it is added.
  */
 import { adsResultsRoute } from "@chanlytics/contracts";
-import { COUNTED } from "@chanlytics/contracts/ads-page";
-import type { CountedVM, DoorVM, FigureVM } from "@chanlytics/contracts/ads-page";
+import { COUNTED } from "./model/words-page";
+import type { CountedVM } from "./model/page";
+import type { DoorVM, FigureVM } from "./model/vm-base";
 import { Figure } from "../../kit/figure/figure";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";

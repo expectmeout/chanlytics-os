@@ -40,8 +40,8 @@ const GMAIL_BULK_TABS: ReadonlySet<string> = new Set(["CATEGORY_PROMOTIONS", "CA
  * supplier's invoice) is filed there with the receipts. So the tab alone leaves nothing: a reader weighs it with who
  * sent it and whether it answers anything (edge mailbox/sorting.ts), and lists what it leaves, one press from coming in.
  */
-export function filedUnderUpdates(e: Pick<MailboxEmail, "labels">): boolean {
-  return e.labels.includes("CATEGORY_UPDATES");
+export function filedUnderUpdates(mailboxEmail: Pick<MailboxEmail, "labels">): boolean {
+  return mailboxEmail.labels.includes("CATEGORY_UPDATES");
 }
 
 /**
@@ -49,8 +49,8 @@ export function filedUnderUpdates(e: Pick<MailboxEmail, "labels">): boolean {
  * by the hosted intake, which has none), and never inside a thread a reach-out started: a reply there is a reply,
  * whatever Gmail calls it.
  */
-export function filedAsBulk(e: Pick<MailboxEmail, "labels">): boolean {
-  return e.labels.some((l) => GMAIL_BULK_TABS.has(l));
+export function filedAsBulk(mailboxEmail: Pick<MailboxEmail, "labels">): boolean {
+  return mailboxEmail.labels.some((l) => GMAIL_BULK_TABS.has(l));
 }
 
 const dec = new TextDecoder();
@@ -79,19 +79,20 @@ export interface ReadVerdict {
  * the message gone (404) or a timeout (408) is that message refused; anything else is asked again.
  */
 export function readVerdictOf(
-  r: Pick<ProviderReply, "status" | "retryAfterMs">,
+  providerReply: Pick<ProviderReply, "status" | "retryAfterMs">,
   reason: string | null,
   limit: RegExp,
 ): ReadVerdict {
-  const said = { status: r.status, reason, retryAfterMs: r.retryAfterMs ?? null };
-  const in400s = r.status >= 400 && r.status < 500;
-  if (r.status === 429 || (in400s && limit.test(reason ?? ""))) return { verdict: "paced", ...said };
-  if (in400s && r.status !== 401 && r.status !== 404 && r.status !== 408) return { verdict: "refused", ...said };
-  return { verdict: "again", ...said };
+  const sentence = { status: providerReply.status, reason, retryAfterMs: providerReply.retryAfterMs ?? null };
+  const in400s = providerReply.status >= 400 && providerReply.status < 500;
+  if (providerReply.status === 429 || (in400s && limit.test(reason ?? ""))) return { verdict: "paced", ...sentence };
+  if (in400s && providerReply.status !== 401 && providerReply.status !== 404 && providerReply.status !== 408)
+    return { verdict: "refused", ...sentence };
+  return { verdict: "again", ...sentence };
 }
 
 /**
- * What a look in a mailbox for an email it may have sent found (gmailFindSent, graphFindSent): the email, with the id,
+ * What a look in a mailbox for an email it may have sent found (findGmailSent, findGraphSent): the email, with the id,
  * thread and Message-ID it went under; or nothing, with the draft it left behind when there is one (Graph's), which
  * proves it never left.
  */
@@ -146,15 +147,15 @@ const bodyText = (p: GmailPart): string | null =>
 
 /** Gmail's message, read in full (users.messages.get, format=full); null for an answer that is not one. */
 export function gmailEmailOf(json: unknown): MailboxEmail | null {
-  const m = json as {
+  const match = json as {
     id?: unknown;
     threadId?: unknown;
     labelIds?: unknown;
     internalDate?: unknown;
     payload?: GmailPart;
   } | null;
-  if (!m || typeof m.id !== "string" || !m.payload) return null;
-  const top = m.payload;
+  if (!match || typeof match.id !== "string" || !match.payload) return null;
+  const top = match.payload;
   const headers = headersOfList(top.headers);
   const parts = leaves(top);
   const mime = (p: GmailPart) => (typeof p.mimeType === "string" ? p.mimeType.toLowerCase() : "");
@@ -177,10 +178,10 @@ export function gmailEmailOf(json: unknown): MailboxEmail | null {
         .filter((t): t is string => !!t)
         .join("\n")
     : null;
-  const at = Number(m.internalDate);
+  const at = Number(match.internalDate);
   return {
-    id: m.id,
-    threadId: typeof m.threadId === "string" ? m.threadId : null,
+    id: match.id,
+    threadId: typeof match.threadId === "string" ? match.threadId : null,
     from: addressOf(headers.from),
     to: addressesOf((headers.to ?? "").split(",")),
     cc: addressesOf((headers.cc ?? "").split(",")),
@@ -199,7 +200,7 @@ export function gmailEmailOf(json: unknown): MailboxEmail | null {
         size: typeof p.body?.size === "number" ? p.body.size : null,
       })),
     reportText: report || null,
-    labels: Array.isArray(m.labelIds) ? m.labelIds.filter((l): l is string => typeof l === "string") : [],
+    labels: Array.isArray(match.labelIds) ? match.labelIds.filter((l): l is string => typeof l === "string") : [],
   };
 }
 
@@ -217,7 +218,7 @@ const graphAddress = (a: GraphAddress | undefined): { address: string; name: str
  * that is not one. Graph hands a report's words as its body; its original's headers, Exchange quotes in them.
  */
 export function graphEmailOf(json: unknown): MailboxEmail | null {
-  const m = json as {
+  const match = json as {
     id?: unknown;
     conversationId?: unknown;
     internetMessageId?: unknown;
@@ -230,33 +231,35 @@ export function graphEmailOf(json: unknown): MailboxEmail | null {
     internetMessageHeaders?: GmailHeader[];
     hasAttachments?: unknown;
   } | null;
-  if (!m || typeof m.id !== "string") return null;
-  const headers = headersOfList(m.internetMessageHeaders);
-  const content = typeof m.body?.content === "string" ? m.body.content : null;
-  const isHtml = typeof m.body?.contentType === "string" && m.body.contentType.toLowerCase() === "html";
-  const from = graphAddress(m.from);
+  if (!match || typeof match.id !== "string") return null;
+  const headers = headersOfList(match.internetMessageHeaders);
+  const content = typeof match.body?.content === "string" ? match.body.content : null;
+  const isHtml = typeof match.body?.contentType === "string" && match.body.contentType.toLowerCase() === "html";
+  const from = graphAddress(match.from);
   const looksReport =
     /multipart\/report/i.test(headers["content-type"] ?? "") ||
     /^(mailer-daemon|postmaster|microsoftexchange[0-9a-f]*)@/i.test(from?.address ?? "");
   return {
-    id: m.id,
-    threadId: typeof m.conversationId === "string" ? m.conversationId : null,
+    id: match.id,
+    threadId: typeof match.conversationId === "string" ? match.conversationId : null,
     from,
-    to: (m.toRecipients ?? [])
+    to: (match.toRecipients ?? [])
       .map(graphAddress)
       .filter((a): a is NonNullable<typeof a> => !!a)
       .map((a) => a.address),
-    cc: (m.ccRecipients ?? [])
+    cc: (match.ccRecipients ?? [])
       .map(graphAddress)
       .filter((a): a is NonNullable<typeof a> => !!a)
       .map((a) => a.address),
-    subject: typeof m.subject === "string" ? m.subject : null,
+    subject: typeof match.subject === "string" ? match.subject : null,
     text: isHtml ? null : content,
     html: isHtml ? content : null,
     headers,
     authentication: null,
-    messageId: messageIdHeader(typeof m.internetMessageId === "string" ? m.internetMessageId : headers["message-id"]),
-    createdAt: typeof m.receivedDateTime === "string" ? m.receivedDateTime : null,
+    messageId: messageIdHeader(
+      typeof match.internetMessageId === "string" ? match.internetMessageId : headers["message-id"],
+    ),
+    createdAt: typeof match.receivedDateTime === "string" ? match.receivedDateTime : null,
     attachments: [],
     reportText: looksReport ? content : null,
     labels: [],
@@ -333,18 +336,18 @@ const SENDER_LIMIT_CODES = new Set([
  * names is soft. `said` is only what the server and the report's own text say, never the quoted original, whose
  * headers carry DKIM, SPF and policy words of their own.
  */
-function bounceClassOf(status: string | null, said: string): BounceClass {
+function bounceClassOf(status: string | null, sentence: string): BounceClass {
   if (!status || !status.startsWith("5")) return "soft";
-  if (SENDER_LIMIT_CODES.has(status) || SENDER_LIMIT_WORDS.test(said)) return "sender_limit";
+  if (SENDER_LIMIT_CODES.has(status) || SENDER_LIMIT_WORDS.test(sentence)) return "sender_limit";
   if (HARD_CODES.has(status)) return "hard";
   if (status.startsWith("5.7.")) return "blocked";
   // A full mailbox (5.2.2, and the 5.2.0 Exchange writes for it) is the recipient's passing state, never a dead one.
-  if (MAILBOX_FULL_WORDS.test(said)) return "soft";
-  if (status === "5.4.1") return /relay access denied/i.test(said) ? "soft" : "hard";
-  if (status === "5.2.1") return RECEIVING_TOO_FAST.test(said) ? "soft" : "hard";
+  if (MAILBOX_FULL_WORDS.test(sentence)) return "soft";
+  if (status === "5.4.1") return /relay access denied/i.test(sentence) ? "soft" : "hard";
+  if (status === "5.2.1") return RECEIVING_TOO_FAST.test(sentence) ? "soft" : "hard";
   // A dead address said in words is the address's, whatever else the server adds.
-  if (HARD_WORDS.test(said)) return "hard";
-  if (BLOCKED_WORDS.test(said)) return "blocked";
+  if (HARD_WORDS.test(sentence)) return "hard";
+  if (BLOCKED_WORDS.test(sentence)) return "blocked";
   return "soft";
 }
 
@@ -372,32 +375,33 @@ function reportRecipientOf(field: (name: string) => string | null, headers: Mail
  * report's own text before its copy of the original.
  */
 export function deliveryReportOf(
-  e: Pick<MailboxEmail, "headers" | "from" | "subject" | "text" | "reportText">,
+  mailboxEmail: Pick<MailboxEmail, "headers" | "from" | "subject" | "text" | "reportText">,
 ): DeliveryReport | null {
-  const local = e.from?.address.split("@")[0] ?? "";
+  const local = mailboxEmail.from?.address.split("@")[0] ?? "";
   const isReport =
-    /multipart\/report/i.test(e.headers["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/i.test(local);
+    /multipart\/report/i.test(mailboxEmail.headers["content-type"] ?? "") ||
+    /^(mailer-daemon|postmaster)$/i.test(local);
   if (!isReport) return null;
-  const words = [e.reportText ?? "", e.text ?? ""].join("\n").slice(0, REPORT_WORDS_MAX);
+  const words = [mailboxEmail.reportText ?? "", mailboxEmail.text ?? ""].join("\n").slice(0, REPORT_WORDS_MAX);
   const field = (name: string): string | null =>
     new RegExp(`^${name}:\\s*(.+)$`, "im").exec(words)?.[1]?.trim() ?? null;
   // Linear on any text: the local part takes no @, so a run of "a@a@…" cannot make it try every split.
   const quoted = /message-id:\s*(<[^<>\s@]+@[^<>\s]+>)/i.exec(words)?.[1] ?? null;
   const ours = /<cl\.[0-9a-f]{32}@[^<>\s]+>/i.exec(words)?.[0] ?? null;
   const original = messageIdHeader(ours ?? quoted);
-  const recipient = reportRecipientOf(field, e.headers);
+  const recipient = reportRecipientOf(field, mailboxEmail.headers);
   const action = (field("Action") ?? "").toLowerCase();
   const diagnostic = (field("Diagnostic-Code") ?? "").replace(/^smtp;\s*/i, "").slice(0, 300) || null;
-  const text = (e.text ?? "").slice(0, REPORT_WORDS_MAX);
+  const text = (mailboxEmail.text ?? "").slice(0, REPORT_WORDS_MAX);
   const own = text.split(ORIGINAL_BEGINS)[0] ?? "";
-  const said = [diagnostic ?? "", own].join("\n");
+  const sentence = [diagnostic ?? "", own].join("\n");
   const status =
     field("Status")?.match(/[245]\.\d{1,3}\.\d{1,3}/)?.[0] ??
-    /\b[45]\d\d[ -]#?([45]\.\d{1,3}\.\d{1,3})\b/.exec(said)?.[1] ??
+    /\b[45]\d\d[ -]#?([45]\.\d{1,3}\.\d{1,3})\b/.exec(sentence)?.[1] ??
     null;
   const delayed = action === "delayed" || (!!status && status.startsWith("4") && action !== "failed");
   // With no status, a report that gave up says only that it failed: whose fault is not said, so it is soft.
-  const bounce = delayed ? "soft" : bounceClassOf(status, said);
+  const bounce = delayed ? "soft" : bounceClassOf(status, sentence);
   return {
     rowId: rowIdOfMessageId(original),
     originalMessageId: original,

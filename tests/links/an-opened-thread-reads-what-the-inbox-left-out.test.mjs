@@ -14,7 +14,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { LIST_MESSAGES_EACH, memberWords, stateOf, toConversationVM, toInboxThreadVM } from "@chanlytics/contracts";
+import { LIST_MESSAGES_EACH, memberWords, stateOf, toInboxThreadVM } from "@chanlytics/contracts";
+import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, again as drawAgain } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 

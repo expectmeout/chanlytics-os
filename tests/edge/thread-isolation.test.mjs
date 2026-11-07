@@ -25,7 +25,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const EDGE = path.join(here, "../../apps/edge");
-const { pgThread } = await import(pathToFileURL(path.join(EDGE, "lib/whatsapp/persist.ts")).href);
+const { readPgThread } = await import(pathToFileURL(path.join(EDGE, "lib/whatsapp/persist.ts")).href);
 
 const TENANT_A = "11111111-1111-1111-1111-111111111111";
 const TENANT_B = "22222222-2222-2222-2222-222222222222";
@@ -77,8 +77,8 @@ const world = () =>
 
 test("the same customer at two businesses is two separate memories", async () => {
   const later = new Date(Date.now() + 3600_000).toISOString();
-  const a = await pgThread(world(), TENANT_A, ing(CONV_A, later));
-  const b = await pgThread(world(), TENANT_B, ing(CONV_B));
+  const a = await readPgThread(world(), TENANT_A, ing(CONV_A, later));
+  const b = await readPgThread(world(), TENANT_B, ing(CONV_B));
 
   assert.equal(a.history.length, 2);
   assert.equal(b.history.length, 1, "business B could read business A's conversation");
@@ -91,7 +91,7 @@ test("the same customer at two businesses is two separate memories", async () =>
 test("a workspace cannot read another's conversation even by naming it", async () => {
   // The conversation id alone is not the key: the tenant is read too, so a
   // mis-routed id comes back empty rather than as somebody else's thread.
-  const crossed = await pgThread(world(), TENANT_B, ing(CONV_A));
+  const crossed = await readPgThread(world(), TENANT_B, ing(CONV_A));
   assert.deepEqual(crossed.history, [], "a conversation was read outside its workspace");
   assert.deepEqual(crossed.replies, []);
   assert.equal(crossed.textedBefore, false);
@@ -108,7 +108,7 @@ test("the inbound-call endpoint refuses to read without a resolved tenant", () =
   // must fail loudly rather than pass because it found nothing.
   const src = fs.readFileSync(path.join(EDGE, "lib/voice/call-start.ts"), "utf8");
   assert.ok(
-    src.includes(`resolveChannelDetailed(db, "voice", o.agentId)`),
+    src.includes(`resolveChannelDetailed(db, "voice", callStartInput.agentId)`),
     "it must resolve the tenant from the agent",
   );
   assert.ok(src.includes("if (!routed)"), "it must have an explicit no-tenant branch");

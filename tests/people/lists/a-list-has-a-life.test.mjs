@@ -430,7 +430,7 @@ test("a list about whoever is looking is never a playbook's: none is put on one,
 });
 
 test("either deploy order: on a database 00169 has not reached, every list reads as live, never as an error", async () => {
-  const { savedListsFor, savedListFor, listRow } = await import(at("packages/db/src/repositories/people/lists.ts"));
+  const { listSavedLists, findSavedList, listRow } = await import(at("packages/db/src/repositories/people/lists.ts"));
   const base = fakeDb({
     segments: [
       { id: "s1", tenant_id: "t1", name: "Regulars", rule: { v: 2, all: [{ field: "calls", op: "at_least", n: 1 }] } },
@@ -458,8 +458,8 @@ test("either deploy order: on a database 00169 has not reached, every list reads
     },
   };
   const rule = { v: 2, all: [{ field: "calls", op: "at_least", n: 1 }] };
-  assert.deepEqual(await savedListsFor(db, "t1"), [{ id: "s1", name: "Regulars", ids: [], rule, archived_at: null }]);
-  assert.deepEqual(await savedListFor(db, "t1", "s1"), {
+  assert.deepEqual(await listSavedLists(db, "t1"), [{ id: "s1", name: "Regulars", ids: [], rule, archived_at: null }]);
+  assert.deepEqual(await findSavedList(db, "t1", "s1"), {
     id: "s1",
     name: "Regulars",
     ids: [],

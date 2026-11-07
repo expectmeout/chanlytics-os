@@ -59,7 +59,7 @@ const WRITES = new Set([
   "cancel",
 ]);
 
-/** A template row as the port answers it (db messageVersionRowsOf): WhatsApp's, as Meta holds it. */
+/** A template row as the port answers it (db listMessageVersionRows): WhatsApp's, as Meta holds it. */
 const template = (over = {}) => ({
   id: T1,
   channel: "whatsapp",
@@ -90,7 +90,7 @@ const ownRow = (channel, over = {}) =>
     ...over,
   });
 /**
- * The port's answer for a message (db messageVersionRowsOf, by id): the rows of the name and language that id belongs to,
+ * The port's answer for a message (db listMessageVersionRows, by id): the rows of the name and language that id belongs to,
  * and none for an id the workspace does not hold. `whatsapp` is Meta's row as it stands (null: the message has none), `own`
  * the channels, of email and text, that hold a version of it, `ownCategory` the category those rows carry and `ownOver`
  * what else they differ in.
@@ -163,12 +163,12 @@ const OFFERS_OPEN = { campaigns: true, address: true, paused: null };
 function fakes(over = {}) {
   const log = [];
   const answers = {
-    // The message the id names, as every row the workspace holds of it (db messageVersionRowsOf): Meta's approved row, and no
+    // The message the id names, as every row the workspace holds of it (db listMessageVersionRows): Meta's approved row, and no
     // email or text version beside it.
     message: messageOf(),
     bookingLink: "https://book.example/m",
     people,
-    // One list, resolved and counted the one way (the adapter's poolList): here, a People list over the people these
+    // One list, resolved and counted the one way (the adapter's findPoolList): here, a People list over the people these
     // fakes hold, and no list of the workspace's own unless a test gives one.
     list: null,
     // Step 3: the number's health and the workspace's other channels come from one read.
@@ -722,7 +722,7 @@ test("a broadcast is the business's own news, whatever its template's category: 
 });
 
 test("a broadcast is refused while the workspace is paused, in the words the composers say it in, before the people are read, and Ask's card is refused with it", async () => {
-  const { campaignHowOf } = await importSrc("packages/core/src/campaigns/create-broadcast.ts");
+  const { readCampaignHowOf } = await importSrc("packages/core/src/campaigns/create-broadcast.ts");
   const { CAMPAIGNS_PAUSED_WORDS } = await import("@chanlytics/contracts");
   const f = fakes({ channels: workspace({ paused: true }), people: new Error("the people must not be read") });
   await refused(make(f, { template_id: T1, audience: everyone }), "payment_required", 402, CAMPAIGNS_PAUSED_WORDS);
@@ -742,7 +742,7 @@ test("a broadcast is refused while the workspace is paused, in the words the com
   // The one rule a broadcast's ticks keep, which Ask asks before it proposes one: a card the route would refuse is never shown.
   const asked = fakes({ channels: workspace({ paused: true }) });
   const message = campaignMessageOf([template()], "month_offer", "en_US");
-  await refused(campaignHowOf(asked.ports, message, ["whatsapp"], "marketing"), "payment_required", 402, "paused");
+  await refused(readCampaignHowOf(asked.ports, message, ["whatsapp"], "marketing"), "payment_required", 402, "paused");
   // Not paused, the same broadcast is made.
   const fine = fakes({ channels: workspace({ paused: false }) });
   await make(fine, { template_id: T1, audience: everyone });
@@ -2171,8 +2171,8 @@ test("a booking-link slot needs a link on file, by one rule a message's values a
 });
 
 test("a review-link slot needs the link the workspace's Google listing keeps: refused in TEMPLATE_VALUE_WORDS' words when the port answers none, filled with it when it answers one, and read only where a slot asks for it", async () => {
-  const { templateValues, TEMPLATE_VALUE_WORDS } = await importSrc("packages/core/src/campaigns/template-values.ts");
-  const { resolveParams } = await importSrc("packages/contracts/src/campaigns/templates/templates.ts");
+  const { getTemplateValues, TEMPLATE_VALUE_WORDS } = await importSrc("packages/core/src/campaigns/template-values.ts");
+  const { resolveParams } = await importSrc("packages/contracts/src/campaigns/templates/params.ts");
   assert.equal(TEMPLATE_VALUE_WORDS.noReviewLink, "Connect your Google listing so the review link can be filled.");
   const link = "https://example.com/review/harbor-studio";
   let asked = 0;
@@ -2187,7 +2187,7 @@ test("a review-link slot needs the link the workspace's Google listing keeps: re
   const cmd = (params) => ({ templateId: T1, params, visits: false, proposal: false });
 
   await refused(
-    templateValues(f(null).ports, cmd(["@first_name", "@review_link"])),
+    getTemplateValues(f(null).ports, cmd(["@first_name", "@review_link"])),
     "conflict",
     409,
     TEMPLATE_VALUE_WORDS.noReviewLink,
@@ -2200,7 +2200,7 @@ test("a review-link slot needs the link the workspace's Google listing keeps: re
     TEMPLATE_VALUE_WORDS.noReviewLink,
   );
 
-  const { specs } = await templateValues(f(link).ports, cmd(["@first_name", { kind: "review_link" }]));
+  const { specs } = await getTemplateValues(f(link).ports, cmd(["@first_name", { kind: "review_link" }]));
   assert.deepEqual(specs, [{ kind: "first_name" }, { kind: "review_link" }]);
   // Filled as the send fills it (core sendBroadcastBatch over the facts port).
   assert.deepEqual(
@@ -2212,6 +2212,6 @@ test("a review-link slot needs the link the workspace's Google listing keeps: re
   assert.deepEqual(made.of("assemble")[0][1].params, [{ kind: "first_name" }, { kind: "review_link" }]);
 
   asked = 0;
-  await templateValues(f(null).ports, cmd(["@first_name", "@business_name"]));
+  await getTemplateValues(f(null).ports, cmd(["@first_name", "@business_name"]));
   assert.equal(asked, 0, "no slot for it, no read");
 });

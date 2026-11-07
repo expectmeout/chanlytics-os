@@ -7,8 +7,9 @@
 import type { ReactNode } from "react";
 import { adsScopeOfKey } from "@chanlytics/contracts";
 import type { AdsScope } from "@chanlytics/contracts";
-import { LEDGER, RESULTS } from "@chanlytics/contracts/ads-page";
-import type { AdsResultsVM, ResultsDayVM, ResultsRowVM } from "@chanlytics/contracts/ads-page";
+import { LEDGER } from "../model/words-page";
+import { RESULTS } from "./words";
+import type { AdsResultsVM, ResultsDayVM, ResultsRowVM } from "./view";
 import { BarChart, BarList } from "../../../kit/charts/bar";
 import { ChartCard } from "../../../kit/charts/card";
 import type { ChartConfig } from "../../../kit/charts/geometry";

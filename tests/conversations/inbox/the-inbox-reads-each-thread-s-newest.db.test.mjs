@@ -41,7 +41,7 @@ const skip =
 // What the dashboard's modules read when they load. Set before the imports below.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= URL_;
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const kernel = skip ? null : await import(at("apps/dashboard/src/server/readers/index.ts"));
+const kernel = skip ? null : await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { conversations } = skip ? {} : await import(at("apps/dashboard/src/server/readers/conversations.ts"));
 const { MESSAGE_COLUMNS } = skip ? {} : await import(at("apps/dashboard/src/server/conversations/dto.ts"));
 

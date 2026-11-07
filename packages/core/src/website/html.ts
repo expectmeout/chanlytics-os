@@ -17,10 +17,10 @@ export function attrsOf(tag: string): Record<string, string> {
  * falconry school wrote its mark as `...jpeg?w=180&#038;h=180`, which stored raw asks a server for a parameter
  * literally named `#038;h`. A reader decodes before it judges an address, so nothing spells a scheme past its checks.
  */
-export function decodeEntities(s: string): string {
-  if (!s.includes("&")) return s;
+export function decodeEntities(text: string): string {
+  if (!text.includes("&")) return text;
   const chr = (n: number, had: string) => (n > 0 && n < 0x110000 ? String.fromCodePoint(n) : had);
-  return s
+  return text
     .replace(/&#x([0-9a-f]+);/gi, (had, h) => chr(parseInt(h, 16), had))
     .replace(/&#(\d+);/g, (had, d) => chr(Number(d), had))
     .replace(/&amp;/gi, "&")

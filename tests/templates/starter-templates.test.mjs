@@ -31,7 +31,6 @@ import {
   starterEmailText,
   starterForTrigger,
   starterIndex,
-  starterPreview,
   starterSmsText,
   starterText,
   startersForTrigger,
@@ -40,6 +39,7 @@ import {
   validateOwnVersion,
   validateTemplateDraft,
 } from "@chanlytics/contracts";
+import { starterPreview } from "../../apps/dashboard/src/surfaces/campaigns/templates/preview.ts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 
 /** The set a workspace with deals on and a review link on its Google listing is offered, in the order a composer opens on. */
@@ -277,7 +277,7 @@ test("one starter per moment, one for any broadcast; titles for people, names fo
 });
 
 test("a saved template reads as this business's message: its own name and booking link in the slots that name it, whatever the row calls them", async () => {
-  const { templatePreview } = await import("@chanlytics/contracts");
+  const { templatePreview } = await import("../../apps/dashboard/src/surfaces/campaigns/templates/preview.ts");
   // As the sync stores a row: a position, a label ("Value n" from Meta), the example filed -- no kind.
   const filed = [
     { label: "Value 1", example: "Dani", position: 1 },
@@ -427,12 +427,12 @@ test("the door: idempotent, one language at a time, synced in when the number's 
     "the same check a hand-written template passes",
   );
   assert.ok(
-    r.includes('if (r.reason === "meta_refused" && ALREADY_AT_META.test(r.detail ?? "")) {') &&
+    r.includes('if (template.reason === "meta_refused" && ALREADY_AT_META.test(template.detail ?? "")) {') &&
       r.includes("await syncTemplates(tenantId, ctx.userId);"),
     "a shared account's copy is synced in, not refused",
   );
   assert.ok(
-    /status: "submitted",\s*meta_status: r\.metaStatus,\s*versions: await versionsOf\(s, l\)/.test(r),
+    /status: "submitted",\s*meta_status: template\.metaStatus,\s*versions: await versionsOf\(s, l\)/.test(r),
     "a submission is followed by its versions",
   );
   assert.ok(r.includes("Pick at least one starter template, in English or Spanish."));

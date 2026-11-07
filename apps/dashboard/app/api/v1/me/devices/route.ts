@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { write, account } from "@/server/shared/route";
 import { AppError, parseDevice } from "@chanlytics/contracts";
 import { dbRefusal } from "@/server/shared/with-route";
@@ -32,9 +33,9 @@ export const DELETE = write({
   scope: account,
   role: null,
   rate: "device_register",
-  handle: async ({ ctx, req }) => {
-    const body = (await req.json().catch(() => ({}))) as { token?: unknown };
-    const token = typeof body.token === "string" ? body.token.trim() : "";
+  input: z.object({ token: z.string().nullish() }),
+  handle: async ({ ctx, input }) => {
+    const token = (input.token ?? "").trim();
     if (!token) throw new AppError("validation", "A device needs its push token.", 400);
     const { data, error } = await ctx.supabase.rpc("push_device_forget", { p_token: token });
     if (error) throw dbRefusal(error);

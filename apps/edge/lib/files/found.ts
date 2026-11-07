@@ -17,21 +17,16 @@ import {
   type FileMime,
   type FileShows,
 } from "@chanlytics/contracts";
-import {
-  FINGERPRINT_BYTES,
-  RESPONSE_MAX_BYTES,
-  fileFingerprintOf,
-  imageBytes,
-  placePhotoUri,
-  publicFetcher,
-  type PlaceDetails,
-  type SitePage,
-} from "@chanlytics/channels";
+import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels/files";
+import { RESPONSE_MAX_BYTES, publicFetcher } from "@chanlytics/channels/shared";
+import { fetchImageBytes, type SitePage } from "@chanlytics/channels/website";
+import { findPlacePhotoUri, type PlaceDetails } from "@chanlytics/channels/google";
 import { imageHeaderOf, sitePhotosFrom } from "@chanlytics/core";
-import { fileForWork, fileFound, fileSeen, filesBucket, type Database } from "@chanlytics/db";
+import { findFileForWork, recordFileFound, markFileSeen, filesBucket } from "@chanlytics/db/files";
+import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
-import { http } from "../google/places.js";
-import { recordNotification } from "../ops/notify.js";
+import { http } from "../shared/google/places.js";
+import { recordNotification } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
 
@@ -78,38 +73,39 @@ type FoundFate = "kept" | "here" | "full" | "passed";
 export async function keepFoundFile(
   db: Db,
   tenantId: string,
-  p: { source: string; status: "inbox" | "filed"; file: FoundFile },
+  params: { source: string; status: "inbox" | "filed"; file: FoundFile },
 ): Promise<FoundFate> {
-  const bytes = await imageBytes(publicFetcher(), p.file.url, FETCH_MS, RESPONSE_MAX_BYTES);
+  const bytes = await fetchImageBytes(publicFetcher(), params.file.url, FETCH_MS, RESPONSE_MAX_BYTES);
   const head = bytes ? imageHeaderOf(bytes) : null;
   const mime = head ? MIME_OF_KIND[head.kind] : undefined;
   if (!bytes || !head || !mime) return "passed";
   // Google takes a photo from 250 pixels, and a logo tends to sit there. A website's small pictures are its furniture.
-  if (Math.min(head.width, head.height) < (p.source === "website" ? FOUND_SIDE_MIN : FILE_SIDE_MIN)) return "passed";
+  if (Math.min(head.width, head.height) < (params.source === "website" ? FOUND_SIDE_MIN : FILE_SIDE_MIN))
+    return "passed";
   if (head.width * head.height > FILE_PIXELS_MAX) return "passed";
   const fingerprint = fileFingerprintOf(bytes.subarray(0, FINGERPRINT_BYTES), bytes.length);
   const id = randomUUID();
-  const asked = {
+  const request = {
     tenantId,
     id,
-    status: p.status,
-    source: p.source,
-    sourceRef: p.file.ref,
-    name: p.file.name
-      ? fileNameOf(p.file.name, FILE_NAME_WORDS) || fileNameOf(p.source)
-      : firstNameOf(p.file.url, p.source),
+    status: params.status,
+    source: params.source,
+    sourceRef: params.file.ref,
+    name: params.file.name
+      ? fileNameOf(params.file.name, FILE_NAME_WORDS) || fileNameOf(params.source)
+      : firstNameOf(params.file.url, params.source),
     mime,
     bytes: bytes.length,
     fingerprint,
     width: head.width,
     height: head.height,
-    shows: p.file.shows ?? null,
+    shows: params.file.shows ?? null,
     edition: FILE_LOOK_EDITION,
     actor: null,
   };
-  if (await fileSeen(db, tenantId, fingerprint)) {
-    if (p.status !== "filed") return "here";
-    return (await fileFound(db, asked)).fate;
+  if (await markFileSeen(db, tenantId, fingerprint)) {
+    if (params.status !== "filed") return "here";
+    return (await recordFileFound(db, request)).fate;
   }
   const path = filePathOf(tenantId, id, mime);
   const stored = await filesBucket(db).upload(path, bytes, {
@@ -120,10 +116,10 @@ export async function keepFoundFile(
   if (stored.error) throw new Error(`file_fetch: ${stored.error.message}`);
   let fate: FoundFate;
   try {
-    fate = (await fileFound(db, asked)).fate;
+    fate = (await recordFileFound(db, request)).fate;
   } catch (e) {
     // A lost answer may still have committed: the bytes go only where no row holds them.
-    if (!(await fileForWork(db, tenantId, id).catch(() => true))) await filesBucket(db).remove([path]);
+    if (!(await findFileForWork(db, tenantId, id).catch(() => true))) await filesBucket(db).remove([path]);
     throw e;
   }
   if (fate !== "kept") await filesBucket(db).remove([path]);
@@ -144,7 +140,7 @@ function itemsOf(raw: unknown): FoundFile[] {
 async function addressedNow(source: string, file: FoundFile): Promise<FoundFile | null> {
   if (source !== "google_listing") return file;
   const key = env.GOOGLE_PLACES_API_KEY;
-  const url = key ? await placePhotoUri(http, key, file.url) : null;
+  const url = key ? await findPlacePhotoUri(http, key, file.url) : null;
   return url ? { ...file, url } : null;
 }
 
@@ -156,20 +152,20 @@ const FOUND_ROADS: ReadonlySet<string> = new Set(["website", "google_listing"]);
 
 /** One picture of a batch, what became of it, or that it could not be kept for now, which the batch throws for at its end. */
 async function oneFound(db: Db, job: ClaimedJob, source: string, item: FoundFile): Promise<FoundFate | "failed"> {
-  const L = logger({ tenant_id: job.tenant_id });
+  const log = logger({ tenant_id: job.tenant_id });
   let file: FoundFile | null;
   try {
     file = await addressedNow(source, item);
   } catch (e) {
     // Google refusing one name is a pass: a name can expire, and asking again would not change it.
-    L.warn("file_fetch_failed", { source, step: "address", error: errField(e) });
+    log.warn("file_fetch_failed", { source, step: "address", error: errField(e) });
     return "passed";
   }
   if (!file) return "passed";
   try {
     return await keepFoundFile(db, job.tenant_id, { source, status: "inbox", file });
   } catch (e) {
-    L.warn("file_fetch_failed", { source, step: "keep", error: errField(e) });
+    log.warn("file_fetch_failed", { source, step: "keep", error: errField(e) });
     return "failed";
   }
 }
@@ -188,10 +184,12 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
   let full = false;
   let at = 0;
   for (; at < items.length && Date.now() < deadline && !full; at += FETCHES_AT_ONCE) {
-    const got = await Promise.all(items.slice(at, at + FETCHES_AT_ONCE).map((item) => oneFound(db, job, source, item)));
-    kept += got.filter((f) => f === "kept").length;
-    failed += got.filter((f) => f === "failed").length;
-    full = got.includes("full");
+    const result = await Promise.all(
+      items.slice(at, at + FETCHES_AT_ONCE).map((item) => oneFound(db, job, source, item)),
+    );
+    kept += result.filter((f) => f === "kept").length;
+    failed += result.filter((f) => f === "failed").length;
+    full = result.includes("full");
   }
   const rang = job.payload.rang === true;
   if (kept > 0 && !rang) {

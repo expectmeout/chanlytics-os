@@ -26,6 +26,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { importBundle } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -130,11 +131,11 @@ async function runJob(jobId) {
 }
 
 let phones = 100;
-/** A customer's WhatsApp message, taken in by the edge (persist.ts pgIngest): their thread, and what it returned. */
+/** A customer's WhatsApp message, taken in by the edge (persist.ts runPgIngest): their thread, and what it returned. */
 async function customerWrites(words) {
   phones += 1;
   const digits = `1206555${String(phones).padStart(4, "0")}`;
-  const ing = await persist.pgIngest(db, T, {
+  const ing = await persist.runPgIngest(db, T, {
     channel: "whatsapp",
     externalId: `wamid.in.${stamp}.${phones}`,
     identity: { externalId: digits, phoneE164: `+${digits}`, email: null },
@@ -190,7 +191,7 @@ before(async () => {
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   jobs = await import(at("packages/jobs/src/index.ts"));
   persist = await import(at("apps/edge/lib/whatsapp/persist.ts"));
-  ({ recordStatusByExternalId } = await import("@chanlytics/db"));
+  ({ recordStatusByExternalId } = await importBundle("db"));
   ({ whatsappWire } = await import(at("packages/core/src/index.ts")));
   stubGraph();
   console.error = (...args) => {

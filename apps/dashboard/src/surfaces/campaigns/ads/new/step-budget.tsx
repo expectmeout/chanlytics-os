@@ -5,7 +5,10 @@
  * earlier ads cost. Behind "More choices", whether it keeps to the business's hours (a switch where the platform allows it at
  * this budget, a line where it does not). Nothing here spends anything: the press that does is step 5's.
  */
-import { BUDGET_RULES, CHIPS, NEW_AD, minorOfUnits, moneyOf } from "@chanlytics/contracts/ads-page";
+import { BUDGET_RULES } from "../model/rules";
+import { CHIPS } from "../model/drawer/words";
+import { NEW_AD } from "../model/words-new";
+import { minorOfUnits, moneyOf } from "../model/money";
 import { Icon } from "../../../kit/icon/icon";
 import { Field } from "../../../kit/field/field";
 import { RecordDisclosure } from "../../../kit/record/disclosure";

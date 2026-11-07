@@ -1,6 +1,7 @@
+import { z } from "zod";
 import { read, write, workspace } from "@/server/shared/route";
 import { AppError, type GoogleLocationDto } from "@chanlytics/contracts";
-import { edgeGoogle, readOutcome } from "@/server/connections/google";
+import { callEdgeGoogle, readOutcome } from "@/server/connections/google";
 import { edgeRefusalWords } from "@/server/shared/edge";
 
 /**
@@ -14,7 +15,7 @@ import { edgeRefusalWords } from "@/server/shared/edge";
 const ACCOUNT = /^accounts\/[\w-]{1,64}$/;
 const LOCATION = /^locations\/[\w-]{1,64}$/;
 
-const SAID: Record<string, string> = {
+const REASON_WORDS: Record<string, string> = {
   not_connected: "Connect a Google account first.",
   no_such_location: "That location is not one this Google account manages. Pick again from the list.",
   not_on_maps: "That location is not on Google Maps yet. Verify it in your Business Profile first.",
@@ -23,9 +24,9 @@ const SAID: Record<string, string> = {
 
 function locations(raw: unknown): GoogleLocationDto[] {
   return (Array.isArray(raw) ? raw : [])
-    .map((l) => {
-      const o = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
-      const s = (k: string) => (typeof o[k] === "string" ? o[k] : null);
+    .map((line) => {
+      const value = (line && typeof line === "object" ? line : {}) as Record<string, unknown>;
+      const s = (k: string) => (typeof value[k] === "string" ? value[k] : null);
       return {
         account_name: s("account_name") ?? "",
         account_title: s("account_title") ?? "",
@@ -44,18 +45,18 @@ export const GET = read({
   role: "partner",
   rate: "google_search",
   handle: async ({ ctx, member }) => {
-    const a = await edgeGoogle({ op: "locations", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
-    const b = a.body ?? {};
-    if (a.status === 404) throw new AppError("not_found", SAID.not_connected, 404);
-    if (a.status !== 200 || b.ok !== true)
+    const answer = await callEdgeGoogle({ op: "locations", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
+    const body = answer.body ?? {};
+    if (answer.status === 404) throw new AppError("not_found", REASON_WORDS.not_connected, 404);
+    if (answer.status !== 200 || body.ok !== true)
       throw new AppError(
         "internal",
-        typeof b.error === "string"
-          ? (SAID[b.error] ?? `Google could not be read: ${edgeRefusalWords(b)}`)
+        typeof body.error === "string"
+          ? (REASON_WORDS[body.error] ?? `Google could not be read: ${edgeRefusalWords(body)}`)
           : "Google could not be read. Try again in a moment.",
         502,
       );
-    return { locations: locations(b.locations) };
+    return { locations: locations(body.locations) };
   },
 });
 
@@ -63,13 +64,13 @@ export const POST = write({
   scope: workspace,
   role: "partner",
   rate: "google_link",
-  handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => ({}))) as { account_name?: unknown; location_name?: unknown };
-    const accountName = typeof body.account_name === "string" ? body.account_name.trim() : "";
-    const locationName = typeof body.location_name === "string" ? body.location_name.trim() : "";
+  input: z.object({ account_name: z.string().nullish(), location_name: z.string().nullish() }),
+  handle: async ({ ctx, input, member }) => {
+    const accountName = (input.account_name ?? "").trim();
+    const locationName = (input.location_name ?? "").trim();
     if (!ACCOUNT.test(accountName) || !LOCATION.test(locationName))
       throw new AppError("validation", "Pick a location from the list first.", 400);
-    const a = await edgeGoogle(
+    const answer = await callEdgeGoogle(
       {
         op: "choose",
         tenant_id: member.tenantId,
@@ -79,15 +80,15 @@ export const POST = write({
       },
       55_000,
     );
-    const b = a.body ?? {};
-    if (a.status !== 200 || b.ok !== true) {
-      const reason = typeof b.error === "string" ? b.error : "failed";
+    const result = answer.body ?? {};
+    if (answer.status !== 200 || result.ok !== true) {
+      const reason = typeof result.error === "string" ? result.error : "failed";
       throw new AppError(
-        a.status === 404 ? "not_found" : "internal",
-        SAID[reason] ?? `The location could not be chosen (${edgeRefusalWords(b) ?? reason}).`,
-        a.status === 404 ? 404 : 502,
+        answer.status === 404 ? "not_found" : "internal",
+        REASON_WORDS[reason] ?? `The location could not be chosen (${edgeRefusalWords(result) ?? reason}).`,
+        answer.status === 404 ? 404 : 502,
       );
     }
-    return { connection: b.connection ?? null, listing: b.listing ?? null, read: readOutcome(b.read) };
+    return { connection: result.connection ?? null, listing: result.listing ?? null, read: readOutcome(result.read) };
   },
 });

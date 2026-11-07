@@ -15,12 +15,13 @@
  * A DM the person unsends before its job runs loses its words in the job too (00486 message_unsent).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inboundFromInstagram, type IgMessaging } from "@chanlytics/channels";
-import { resolveChannelDetailed, type Database, type Json, type RoutedChannel } from "@chanlytics/db";
+import { inboundFromInstagram, type IgMessaging } from "@chanlytics/channels/instagram";
+import { resolveChannelDetailed, type RoutedChannel } from "@chanlytics/db/channels";
+import type { Database, Json } from "@chanlytics/db/types";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { errField, logger } from "../shared/log.js";
 import { recordDmInbound, resumeDmInbound } from "../whatsapp/inbound.js";
-import { instagramCarrier, instagramCredentials } from "./credentials.js";
+import { instagramCarrier, getInstagramCredentials } from "./credentials.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -64,7 +65,7 @@ export async function recordThenAnswerDm(
 }
 
 /**
- * The job's half (inbound_answer with `ig`, bound by lib/whatsapp/answer-later.ts answerInboundJob): the DM its door
+ * The job's half (inbound_answer with `ig`, bound by lib/intake/answer-later.ts answerInboundJob): the DM its door
  * recorded, answered. The account's routing is read again and must still be the job's workspace, its token read from the
  * Vault, and the whole inbound phase runs with `resume`. Throws when the payload names no DM, the account is another
  * workspace's now, or a read failed: the ledger tries again until the job has spoken, and after that the sweep hands the
@@ -80,7 +81,7 @@ export async function answerDm(db: Db, job: ClaimedJob): Promise<void> {
   if (!routed) throw new Error("inbound_answer: the account's Instagram channel could not be read, or is not active");
   if (routed.tenantId !== job.tenant_id)
     throw new Error("inbound_answer: the account written to is another workspace's now");
-  const read = await instagramCredentials(db, accountRow(routed));
+  const read = await getInstagramCredentials(db, accountRow(routed));
   if (read.outcome === "unavailable")
     throw new Error(`inbound_answer: the account's token could not be read: ${read.error}`);
   logger({ tenant_id: job.tenant_id }).info("ig_answer_taken_up", { id: message.externalId });
