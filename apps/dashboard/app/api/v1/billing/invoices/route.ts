@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/shared/route";
-import { AppError, type BillingInvoiceDto } from "@chanlytics/contracts";
+import { AppError } from "@chanlytics/contracts";
 import { BILLING_SAID, callEdgeBilling } from "@/server/workspace/billing";
 
 /** GET /api/v1/billing/invoices — the last twelve invoices as Stripe lists them, each with its own page. Owners only, counted as a read: pressing it never locks Checkout for the hour. */
@@ -18,6 +18,6 @@ export const GET = read({
         answer.status === 503 ? 503 : 502,
       );
     }
-    return { invoices: body.invoices as BillingInvoiceDto[] };
+    return { invoices: body.invoices };
   },
 });
