@@ -48,6 +48,7 @@ import {
   ROW,
   rowsBeginAt,
   viewTop,
+  windowTo,
 } from "./page-scroll";
 import { motionReduced, pushIn } from "./swipe";
 
@@ -243,7 +244,7 @@ function holdList(place: Place, owner: object, arrival: Arrival | null): void {
   else if (page) pictureOf(now);
   else if (touchScreen()) now.idle = whenIdle(() => pictureOf(now));
   // The row's page starts at its top where the window scrolls it, as a page arriving does (view-deck.ts toTop).
-  if (isDocumentScroller(place.scroller) && window.scrollY > 0) window.scrollTo(0, 0);
+  if (isDocumentScroller(place.scroller)) windowTo(0);
   if (page && arrival) pushOver(now, page, arrival);
   // The row's page's own entry asks the browser for nothing, as every page's does: what is pushed from it inherits that.
   if (markedAt !== null && window.location.href !== markedAt) browserPutsBack(false);
@@ -500,11 +501,11 @@ function placeList({ list, scroller, row, rowAt, scrolled, topAt, rowsBegin }: P
 
 function scrollBoxBy(scroller: HTMLElement, by: number): void {
   if (Math.abs(by) < 0.5) return;
-  if (isDocumentScroller(scroller)) window.scrollBy(0, by);
+  if (isDocumentScroller(scroller)) windowTo(window.scrollY + by);
   else scroller.scrollTop += by;
 }
 function scrollBoxTo(scroller: HTMLElement, top: number): void {
-  if (isDocumentScroller(scroller)) window.scrollTo(0, top);
+  if (isDocumentScroller(scroller)) windowTo(top);
   else scroller.scrollTop = top;
 }
 
