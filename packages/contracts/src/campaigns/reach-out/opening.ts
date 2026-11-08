@@ -117,7 +117,7 @@ export interface OpeningLine {
 }
 
 /** Lines of one part, with those that say nothing (null) left out. */
-const linesOf = (part: OpeningPart, ...texts: readonly (string | null)[]): OpeningLine[] =>
+const partLines = (part: OpeningPart, ...texts: readonly (string | null)[]): OpeningLine[] =>
   texts.flatMap((text) => (text === null ? [] : [{ part, text }]));
 
 /**
@@ -138,7 +138,7 @@ export const fenceLine = (key: string, value: string | number | null | undefined
 function recordLines(opening: OpeningRecord): OpeningLine[] {
   const name = leadCalledByOf(opening);
   return [
-    ...linesOf(
+    ...partLines(
       "listing",
       "<record>",
       fenceLine("name", name),
@@ -151,9 +151,9 @@ function recordLines(opening: OpeningRecord): OpeningLine[] {
       fenceLine("hours", opening.hours),
       fenceLine("about", opening.about),
     ),
-    ...linesOf("reason", fenceLine("why_it_fits", opening.why_it_fits)),
-    ...linesOf("website", fenceLine("website_says", opening.website_says)),
-    ...linesOf("listing", "</record>"),
+    ...partLines("reason", fenceLine("why_it_fits", opening.why_it_fits)),
+    ...partLines("website", fenceLine("website_says", opening.website_says)),
+    ...partLines("listing", "</record>"),
   ];
 }
 
@@ -199,18 +199,18 @@ interface OpeningInput {
 export function openingUserLines(params: OpeningInput): OpeningLine[] {
   const { record, workspace, words, asked, retry } = params;
   return [
-    ...linesOf("listing", "The business's record:"),
+    ...partLines("listing", "The business's record:"),
     ...recordLines(record),
-    ...linesOf("listing", ""),
-    ...linesOf("searched", fenceLine("What the owner searched for (not about this business)", record.what_you_asked)),
-    ...linesOf(
+    ...partLines("listing", ""),
+    ...partLines("searched", fenceLine("What the owner searched for (not about this business)", record.what_you_asked)),
+    ...partLines(
       "business",
       `The owner's business: ${workspace.name}`,
       workspace.what_we_do ? `What they do: ${workspace.what_we_do}` : null,
       workspace.tone ? `Their tone: ${workspace.tone}` : null,
       "",
     ),
-    ...linesOf(
+    ...partLines(
       "words",
       "The owner's email, where {{opening}} is your sentence:",
       words.subject ? `Subject: ${words.subject}` : null,

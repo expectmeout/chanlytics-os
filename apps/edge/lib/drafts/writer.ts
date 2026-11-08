@@ -230,6 +230,10 @@ async function readied(
 const noWords = (r: { reason?: string; text: string }): boolean =>
   r.reason === "refusal" || r.reason === "brain_error" || !r.text.trim();
 
+/** What the brain is told to change: a member's words; for an answer to a lead, what How it reaches out says it offers. */
+const instructionOf = (ask: ReplyDraftAsk, rt: TenantRuntime): string | null =>
+  ask.answersLead ? replyOfferSteer(rt.replyOffer) : ask.instruction;
+
 async function writeReply(writing: Writing, tenantId: string, ask: ReplyDraftAsk): Promise<ReplyWritten> {
   const { db, brain, now } = writing;
   const log = logger({ tenant_id: tenantId });
@@ -248,8 +252,7 @@ async function writeReply(writing: Writing, tenantId: string, ask: ReplyDraftAsk
   const at = new Date(now());
   const wire: PromptWire = ask.wire;
   const system = resolveSystemPrompt(brainConfig, wire, rt.timezone, at, rt.policy, rt.known, "draft");
-  // What a member asked for; for an answer to a lead, what How it reaches out says it offers, told as a member's change is.
-  const instruction = ask.answersLead ? replyOfferSteer(rt.replyOffer) : ask.instruction;
+  const instruction = instructionOf(ask, rt);
   const change = instruction ? changeOf(ask.given, instruction) : undefined;
   const given = instruction ? [instruction, ask.given ?? ""].join("\n") : null;
   const askBrain = async (steer: string | undefined) => {
