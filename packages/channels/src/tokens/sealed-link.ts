@@ -7,6 +7,7 @@
  * HMAC-SHA256 over them under the secret, after the label. A link is opened under the current secret or, while a
  * rotation settles, the one before it.
  */
+import { heldContactId, heldTenantId } from "@chanlytics/contracts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { UUID } from "@chanlytics/contracts";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -66,8 +67,8 @@ export function openLink(
   const mac = raw.subarray(PAYLOAD_BYTES);
   if (!keys.some((k) => timingSafeEqual(mac, macOf(label, k, payload)))) return null;
   return {
-    tenantId: uuidOf(payload.subarray(1, 17)),
-    contactId: uuidOf(payload.subarray(17, 33)),
+    tenantId: heldTenantId(uuidOf(payload.subarray(1, 17))),
+    contactId: heldContactId(uuidOf(payload.subarray(17, 33))),
     messageId: uuidOf(payload.subarray(33, 49)),
   };
 }
