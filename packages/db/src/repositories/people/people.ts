@@ -258,14 +258,14 @@ export async function markContactSeen(
   const marks = listOrEmpty(value.marks).map(recordOrEmpty);
   return {
     floor_at: stampOf(value.floor_at),
-    marks: marks.flatMap((m) =>
-      typeof m.contact_id === "string"
+    marks: marks.flatMap((mark) =>
+      typeof mark.contact_id === "string"
         ? [
             {
-              contact_id: m.contact_id,
-              seen_at: stampOf(m.seen_at),
-              unread_at: stampOf(m.unread_at),
-              marked_at: stampOf(m.marked_at),
+              contact_id: mark.contact_id,
+              seen_at: stampOf(mark.seen_at),
+              unread_at: stampOf(mark.unread_at),
+              marked_at: stampOf(mark.marked_at),
             },
           ]
         : [],

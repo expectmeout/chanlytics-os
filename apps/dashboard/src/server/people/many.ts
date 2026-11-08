@@ -104,8 +104,8 @@ export async function appendNotesMany(
   let done = 0;
   for (const row of rows) {
     const { data, error } = await addBulkNote(ctx.supabase, row.id, text);
-    const said = recordOrEmpty(data).error;
-    const refused = typeof said === "string" ? said : null;
+    const refusal = recordOrEmpty(data).error;
+    const refused = typeof refusal === "string" ? refusal : null;
     if (error || refused) {
       failed.push({ id: row.id, message: error?.message ?? NOTE_REFUSALS[refused ?? ""] ?? "Could not add the note." });
       continue;
