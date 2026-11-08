@@ -22,7 +22,7 @@
  * select, and what the row keeps of the provider's payload is an allowlist (scrub_call_raw, 00530) members may not
  * select at all. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { recordOrNull, type SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
@@ -490,7 +490,7 @@ export async function listVoiceDoorKnocks(db: Db, sinceIso: string): Promise<Rec
   if (error) throw new Error(`cannot read the voice doors' evidence: ${error.message}`);
   const doors: Record<string, VoiceDoorKnocks> = {};
   for (const r of data ?? []) {
-    const d = (r.data ?? {}) as { provider?: string; door?: string; sig?: boolean; secret?: boolean };
+    const d = recordOrEmpty(r.data);
     if (d.provider !== "retell") continue;
     const door = typeof d.door === "string" ? d.door : "webhook";
     const n = (doors[door] ??= { signed: 0, secret_only: 0, unsigned: 0, last_at: r.created_at });
@@ -534,7 +534,7 @@ export async function getCanaryCallFacts(
     if (convErr) throw new Error(`cannot read the canary's thread: ${convErr.message}`);
     held = conv?.control_kind === "call" && conv.control_ref === row.retell_call_id;
   }
-  const recording = (row.recording ?? null) as { fetch_state?: string } | null;
+  const recordingState = valueAt(row.recording, "fetch_state");
   return {
     call: {
       retell_call_id: row.retell_call_id,
@@ -543,7 +543,7 @@ export async function getCanaryCallFacts(
       thread_line: row.message_id !== null,
       notice_claimed: row.notified_at !== null,
       notice_told: row.notice_told_at !== null,
-      recording: recording?.fetch_state ?? null,
+      recording: typeof recordingState === "string" ? recordingState : null,
       composed: row.config_version !== null,
       hold_released: !held,
     },

@@ -34,6 +34,8 @@ import {
 import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
 import type { TenantId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "../../shared/read-json";
 
 type Db = SupabaseClient<Database>;
 
@@ -62,13 +64,19 @@ export interface AnthropicProfileClaim {
   onboardedAt: string;
 }
 
+/** What anthropic_profile_claim answers: the row's three facts, or null for a subject gone. */
+const ProfileClaim = z
+  .object({ id: z.string(), reference_id: z.string(), onboarded_at: z.string() })
+  .partial()
+  .nullable();
+
 export async function claimAnthropicProfile(db: Db, subject: ProfiledSubject): Promise<AnthropicProfileClaim | null> {
   const { data, error } = await db.rpc("anthropic_profile_claim", {
     p_kind: subject.kind,
     p_subject: subjectIdOf(subject),
   });
   if (error) throw new Error(`anthropic_profile_claim: ${error.message}`);
-  const c = data as { id?: string; reference_id?: string; onboarded_at?: string } | null;
+  const c = readAnswer("anthropic_profile_claim", ProfileClaim, data);
   if (!c?.id || !c.reference_id || !c.onboarded_at) return null;
   return { id: c.id, referenceId: c.reference_id, onboardedAt: c.onboarded_at };
 }

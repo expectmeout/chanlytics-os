@@ -11,6 +11,7 @@ import {
   type ReplyDraftState,
   type ReplyDraftWords,
   recordOrEmpty,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { listConversationDrafts, listConversationsSetAside, type ConversationDraftRow } from "@chanlytics/db/ask";
 import type { Json } from "@chanlytics/db/types";
@@ -56,8 +57,7 @@ function wordsFrom(json: Json): ReplyDraftWords {
  */
 const underTheRules = (r: ConversationDraftRow): boolean => r.rules === REPLY_DRAFT_RULES;
 
-const stateOf = (s: string | null): ReplyDraftState | undefined =>
-  (REPLY_DRAFT_STATES as readonly (string | null)[]).includes(s) ? (s as ReplyDraftState) : undefined;
+const stateOf = (s: string | null): ReplyDraftState | undefined => (isOneOf(REPLY_DRAFT_STATES, s) ? s : undefined);
 
 /** A kept row as the routes answer it, with the words its reply is signed with where it leaves from a mailbox (00487). */
 function dtoOf(conversationDraft: ConversationDraftRow, signed: string | null = null): ReplyDraftDto {

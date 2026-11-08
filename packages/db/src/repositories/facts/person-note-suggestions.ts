@@ -6,6 +6,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "../../shared/read-json";
+
+/** What person_note_suggest answers: the door's refusal, or the note it kept. */
+const NoteSuggested = z.object({ error: z.string(), note: z.object({ id: z.string() }).partial() }).partial();
 
 type Db = SupabaseClient<Database>;
 
@@ -34,7 +39,7 @@ export async function suggestPersonNote(
     ...(params.sourceId ? { p_source_id: params.sourceId } : {}),
   });
   if (error) throw new Error(`person_note_suggest: ${error.message}`);
-  const value = (data ?? {}) as { error?: unknown; note?: { id?: unknown } };
+  const value = readAnswer("person_note_suggest", NoteSuggested, data ?? {});
   if (typeof value.error === "string") return { refused: value.error };
   if (typeof value.note?.id !== "string") throw new Error("person_note_suggest answered without a note");
   return { noteId: value.note.id };

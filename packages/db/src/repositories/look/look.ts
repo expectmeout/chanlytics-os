@@ -6,7 +6,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { saysMissing } from "../../shared/missing-door";
-import type { TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty, type TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -54,7 +54,6 @@ export async function wearFoundLook(
     p_accent: params.accent ?? "",
   });
   if (error) throw new Error(`wear_found_look: ${error.message}`);
-  const item =
-    data && typeof data === "object" && !Array.isArray(data) ? (data as { logo?: unknown; accent?: unknown }) : {};
+  const item = recordOrEmpty(data);
   return { logo: item.logo === true, accent: item.accent === true };
 }

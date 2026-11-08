@@ -6,7 +6,7 @@
  * clock asked to run now, for a push that must answer its provider at once.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { MIN_MS } from "@chanlytics/contracts";
+import { MIN_MS, recordOrEmpty, valueAt, listOrEmpty } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
 import type { TenantId } from "@chanlytics/contracts";
@@ -62,14 +62,13 @@ export async function listUnknownMailboxEmails(
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .slice(0, UNKNOWN_PAGE)
     .map((row) => {
-      const request = (row.meta as { email?: { request?: { to?: unknown; subject?: unknown } } } | null)?.email
-        ?.request;
-      const to = Array.isArray(request?.to) ? request.to.find((a): a is string => typeof a === "string") : null;
+      const request = recordOrEmpty(valueAt(row.meta, "email", "request"));
+      const to = listOrEmpty(request.to).find((a): a is string => typeof a === "string");
       return {
         id: row.id,
         tenantId: row.tenant_id,
         to: to ?? null,
-        subject: typeof request?.subject === "string" ? request.subject : null,
+        subject: typeof request.subject === "string" ? request.subject : null,
         writtenAt: row.created_at,
       };
     });

@@ -11,6 +11,7 @@ import {
   answerSpoken,
   listSpoken,
   type AskLanguage,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import type { VoiceSessionRow } from "@chanlytics/db/ask";
@@ -437,7 +438,7 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
     log.warn("ask_voice_door_refused", { why: "secret" });
     return new Response("unauthorized", { status: 401 });
   }
-  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+  const body = recordOrNull(await req.json().catch(() => null));
   const knock = await admit(body, deps);
   if (knock.kind === "answered") return knock.response;
   const text = lastUserText(body?.messages);

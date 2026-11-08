@@ -14,6 +14,7 @@ import {
   type LeadSearchVia,
   type LeadStage,
   type PersonLeadDto,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { asJson } from "@chanlytics/db/shared";
@@ -212,7 +213,7 @@ export const leadSearchScope = row((ctx: RouteContext, params: Params) => loadLe
 export async function listSearchCounts(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<LeadCounts> {
   const { data, error } = await readLeadListCounts(ctx.supabase, tenantId);
   if (error) throw new Error(`lead_list_counts: ${error.message}`);
-  const leadCounts = (data ?? {}) as Partial<LeadCounts>;
+  const leadCounts = recordOrEmpty(data);
   const n = (v: unknown) => (typeof v === "number" ? v : 0);
   return {
     all: n(leadCounts.all),

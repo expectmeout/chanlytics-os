@@ -19,6 +19,13 @@ import { setupDtoFor } from "@/server/setup/setup";
 import { tellOwnerLive } from "@/server/workspace/tell";
 import type { Member, Params } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
+import { readAnswer } from "@chanlytics/db/shared";
+
+/** What capability_activate answers: when, and whether it is the workspace's first channel. */
+const Activated = z.object({ activated_at: z.string(), first: z.boolean() }).partial();
+
+/** What capability_deactivate answers: its refusal, or when. */
+const Deactivated = z.object({ error: z.string(), deactivated_at: z.string() }).partial();
 
 export const ActivateBody = z.object({
   note: z.string().trim().max(200, "Two hundred characters at most.").optional(),
@@ -45,7 +52,7 @@ export async function activateCapability(
   // The row and its event, one write (00514). `first` says this is the workspace's first activation of any channel.
   const { data, error } = await activateCapabilityFn(ctx.supabase, member.tenantId, kind, input.note ?? null);
   if (error) throw dbRefusal(error, { code: "forbidden", status: 403 });
-  const row = (data ?? {}) as { activated_at?: string; first?: boolean };
+  const row = readAnswer("capability_activate", Activated, data ?? {});
   const now = row.activated_at ?? new Date().toISOString();
   // The first run's Finish, switching on the workspace's first channel (calls or WhatsApp alike, decision 0091): the
   // owner is emailed that it answers. Setup's own Activate on a workspace that has answered for months says nothing.
@@ -62,7 +69,7 @@ export async function deactivateCapability(ctx: RouteContext & { params: Params 
   const kind = kindOf(ctx.params.kind);
   const { data, error } = await deactivateCapabilityFn(ctx.supabase, member.tenantId, kind);
   if (error) throw dbRefusal(error, { code: "forbidden", status: 403 });
-  const row = (data ?? {}) as { error?: string; deactivated_at?: string };
+  const row = readAnswer("capability_deactivate", Deactivated, data ?? {});
   if (row.error === "not_activated") throw new AppError("conflict", "This capability was not activated.", 409);
   return { capability: kind, deactivated_at: row.deactivated_at ?? new Date().toISOString() };
 }

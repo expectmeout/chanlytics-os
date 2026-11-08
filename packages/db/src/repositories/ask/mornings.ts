@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
-import type { TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty, type TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -41,7 +41,7 @@ export async function askMorningWrite(
     ...(askMorningAct.act === "answered" ? { p_cards: askMorningAct.cards } : {}),
   });
   if (error) throw new Error(`ask_morning_write: ${error.message}`);
-  const item = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const item = recordOrEmpty(data);
   if (typeof item.error === "string") return { refused: item.error };
   return {
     ...(typeof item.claimed === "boolean" ? { claimed: item.claimed } : {}),

@@ -4,7 +4,7 @@ import "server-only";
  * What a write of the settings says when it cannot land, and what it records when it does: the settings PUT's, and
  * the first receptionist's (first-receptionist.ts), which write the one config row the same versioned way.
  */
-import { changedConfigFields } from "@chanlytics/contracts";
+import { changedConfigFields, valueAt } from "@chanlytics/contracts";
 import { recordEvent } from "@chanlytics/db/events";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -17,9 +17,7 @@ const WEBSITE_ASK_MS = 5_000;
 
 /** The website a config names (brain.profile.website), or null. */
 function websiteIn(config: unknown): string | null {
-  const brain = config && typeof config === "object" ? (config as { brain?: unknown }).brain : null;
-  const profile = brain && typeof brain === "object" ? (brain as { profile?: unknown }).profile : null;
-  const site = profile && typeof profile === "object" ? (profile as { website?: unknown }).website : null;
+  const site = valueAt(config, "brain", "profile", "website");
   return typeof site === "string" && site.trim() ? site.trim() : null;
 }
 

@@ -366,13 +366,7 @@ function report(listener: Listener, topic: string, status: string): void {
  * left, and each is a change of its own, so a rule that reads a status reads every one; they share the notice's clock.
  */
 function tell(hearing: Hearing, tenantId: TenantId, message: { event?: string; payload?: unknown }): void {
-  const notice = (message.payload ?? {}) as {
-    table?: unknown;
-    statuses?: unknown;
-    at?: unknown;
-    threads?: unknown;
-    erasure?: unknown;
-  };
+  const notice = recordOrEmpty(message.payload);
   if (typeof notice.table !== "string") return;
   const table = notice.table;
   const event = message.event ?? "*";

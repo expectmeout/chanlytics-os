@@ -87,7 +87,8 @@ export async function getOutreachFacts(
     ...(params.leadId ? { p_lead_id: params.leadId } : {}),
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
-  const outreachFacts = (data ?? {}) as Partial<OutreachFactsRow>;
+  const outreachFacts = recordOrEmpty(data);
+  const mailbox = recordOrEmpty(outreachFacts.mailbox);
   // A database without 00181 answers without it. Read as "never wrote", a business that asked to be left alone would be
   // written to cold: not knowing is a failed read.
   if (typeof outreachFacts.wrote_back !== "boolean")
@@ -102,11 +103,11 @@ export async function getOutreachFacts(
     // the followers leave the lead out, both in SQL.
     stopped: outreachFacts.stopped === true,
     mailbox:
-      outreachFacts.mailbox && typeof outreachFacts.mailbox === "object" && typeof outreachFacts.mailbox.id === "string"
+      typeof mailbox.id === "string"
         ? {
-            id: outreachFacts.mailbox.id,
-            address: typeof outreachFacts.mailbox.address === "string" ? outreachFacts.mailbox.address : "",
-            ...mailboxCapacityFrom(outreachFacts.mailbox),
+            id: mailbox.id,
+            address: typeof mailbox.address === "string" ? mailbox.address : "",
+            ...mailboxCapacityFrom(mailbox),
           }
         : null,
   };
@@ -526,7 +527,7 @@ export async function listReachOutDayDue(db: Db, now: Date, limit: number): Prom
   const { data, error } = await db.rpc("reach_out_day_due", { p_now: now.toISOString(), p_limit: limit });
   if (error) throw new Error(`cannot read the day's reach-out numbers: ${error.message}`);
   return (data ?? []).map((row) => {
-    const numbers = (row.numbers && typeof row.numbers === "object" ? row.numbers : {}) as Record<string, unknown>;
+    const numbers = recordOrEmpty(row.numbers);
     const num = (k: string) => Number(numbers[k] ?? 0) || 0;
     return {
       tenant_id: row.tenant_id,

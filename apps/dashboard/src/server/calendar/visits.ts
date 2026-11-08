@@ -6,10 +6,23 @@
  * (contracts appointmentHolds).
  */
 import "server-only";
-import { AppError, VISIT_REFUSALS, type VisitMark, type VisitWord } from "@chanlytics/contracts";
+import { AppError, VISIT_REFUSALS, type VisitMark, type VisitWord, APPOINTMENT_STATUSES } from "@chanlytics/contracts";
 import { markVisit } from "@chanlytics/db/calendar";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
+import { z } from "zod";
+import { readAnswer } from "@chanlytics/db/shared";
+
+/** What mark_visit answers: its refusal, or the visit, what it was, and the decision it wrote. */
+const VisitAnswer = z
+  .object({
+    error: z.string(),
+    appointment: z.object({ id: z.string(), status: z.enum(APPOINTMENT_STATUSES) }),
+    from: z.string(),
+    decision_id: z.string(),
+    unchanged: z.boolean(),
+  })
+  .partial();
 
 /** What the door answered: the row as it stands now, what it stood at before, and the decision, unless nothing moved. */
 interface VisitMarked {
@@ -31,13 +44,7 @@ export async function markVisitOf(
     undoOf: ctx.undoOf ?? null,
   });
   if (error) throw dbRefusal(error);
-  const item = (data ?? {}) as {
-    error?: string;
-    appointment?: VisitMark;
-    from?: string;
-    decision_id?: string;
-    unchanged?: boolean;
-  };
+  const item = readAnswer("mark_visit", VisitAnswer, data ?? {});
   if (item.error || !item.appointment) {
     // A refusal the sentences lack, or no row and no error: logged raw before the generic sentence, so a new refusal is
     // found in the log rather than by its blandness.

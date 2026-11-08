@@ -1,6 +1,6 @@
 /** Reach out: emails. */
 
-import type { LeadEmailDto, TenantId, ContactId } from "@chanlytics/contracts";
+import { recordOrEmpty, type LeadEmailDto, type TenantId, type ContactId, valueAt } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { emailWordsFrom } from "./sheet";
 import { moveSend, type Db, type ReachOutSendInsert, type ReachOutSendRow, withdrawEmail } from "./reach-out";
@@ -118,7 +118,7 @@ export async function findWrittenEmail(
     .maybeSingle();
   if (error) throw new Error(`cannot read the written email: ${error.message}`);
   if (!data) return null;
-  const to = (data.meta as { email?: { request?: { to?: unknown } } } | null)?.email?.request?.to;
+  const to = valueAt(data.meta, "email", "request", "to");
   return {
     conversation_id: data.conversation_id,
     contact_id: data.contact_id,
@@ -331,13 +331,10 @@ export async function findParentEmail(
     .maybeSingle();
   if (me) throw new Error(`cannot read the step before's email: ${me.message}`);
   if (!m) return null;
-  const otherError = ((m.meta as { email?: Record<string, unknown> } | null)?.email ?? {}) as {
-    message_id?: unknown;
-    subject?: unknown;
-    request?: { subject?: unknown; headers?: Record<string, unknown> };
-  };
-  const refs = otherError.request?.headers?.References;
-  const subject = typeof otherError.subject === "string" ? otherError.subject : otherError.request?.subject;
+  const otherError = recordOrEmpty(valueAt(m.meta, "email"));
+  const refs = valueAt(otherError, "request", "headers", "References");
+  const subject =
+    typeof otherError.subject === "string" ? otherError.subject : valueAt(otherError, "request", "subject");
   return {
     messageId: m.id,
     rfcMessageId: typeof otherError.message_id === "string" && otherError.message_id ? otherError.message_id : null,

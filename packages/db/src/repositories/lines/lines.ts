@@ -7,7 +7,7 @@
  * own door (findLineAccount, apps/edge/lib/sms/sms.ts). A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LINE_FILED_NAMES } from "@chanlytics/contracts";
+import { LINE_FILED_NAMES, recordOrEmpty } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 import type { TenantId } from "@chanlytics/contracts";
@@ -77,8 +77,7 @@ export async function findFiledNames(
   if (error) throw new Error(`cannot read the names the workspace filed: ${error.message}`);
   const named = (key: string): string | null => {
     for (const row of data ?? []) {
-      const facts = row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? row.facts : null;
-      const value = facts ? (facts as Record<string, unknown>)[key] : null;
+      const value = recordOrEmpty(row.facts)[key];
       if (typeof value === "string" && value.trim()) return value.trim();
     }
     return null;

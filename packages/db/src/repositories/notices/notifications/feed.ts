@@ -14,6 +14,7 @@ import {
   type MemberJoined,
   unreadFor,
   type SchemaSet,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { oneOr, type Db } from "./kept";
 import type { TenantId } from "@chanlytics/contracts";
@@ -156,8 +157,7 @@ export async function wasTwinTold(db: Db, tenantId: TenantId, appointmentId: str
     .in("subject_id", ids);
   if (arrived.error) throw new Error(`cannot read how the visit arrived: ${arrived.error.message}`);
   const events = (arrived.data ?? []).flatMap((e) => {
-    const change =
-      e.data && typeof e.data === "object" && !Array.isArray(e.data) ? (e.data as { change?: unknown }).change : null;
+    const change = recordOrEmpty(e.data).change;
     return change === "added" || change === "confirmed" ? [e.id] : [];
   });
   if (!events.length) return false;
@@ -232,9 +232,9 @@ export async function getOlderUnread(
 ): Promise<{ unread: number; holdThreads: string[] }> {
   const { rows, seen, marks } = await bellRowsOf(db, { ...params, readers: [params.reader] });
   const mine = unreadForReader(rows, seen, marks, params.reader);
-  const holdThreads = mine
-    .filter((r) => params.holdKinds.includes(r.kind) && r.subject_type === "conversation" && r.subject_id)
-    .map((r) => r.subject_id as string);
+  const holdThreads = mine.flatMap((r) =>
+    params.holdKinds.includes(r.kind) && r.subject_type === "conversation" && r.subject_id ? [r.subject_id] : [],
+  );
   return { unread: mine.length, holdThreads: [...new Set(holdThreads)] };
 }
 

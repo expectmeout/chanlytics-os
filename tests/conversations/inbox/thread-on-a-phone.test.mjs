@@ -15,6 +15,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -361,12 +362,13 @@ test("a thread swiped back to its list lets go of the list under it, though it h
     h.onTouchMove({ touches: [{ clientX: 140, clientY: 302 }], currentTarget: thread });
     assert.ok(page.marks.has("data-going"), "the list is drawn under it while it moves");
     h.onTouchEnd({ changedTouches: [{ clientX: 260, clientY: 304 }], currentTarget: thread });
-    await new Promise((r) => setTimeout(r, 400));
-    assert.deepEqual(back, [1], "past a third it goes back to its list");
-    assert.ok(
-      !page.marks.has("data-going"),
+    // Its leave, then the close, then a look at whether it has gone: one timer after another, which a busy machine runs
+    // late, so the test waits for the mark and not for a time.
+    await until(
+      () => !page.marks.has("data-going"),
       "REGRESSION: the mark stayed, and the next thread opened over its list, the two showing through each other",
     );
+    assert.deepEqual(back, [1], "past a third it goes back to its list");
 
     // Let go short of a third, it settles back where it stood, and the list under it goes with the mark.
     const kept = threadOn();
@@ -376,10 +378,11 @@ test("a thread swiped back to its list lets go of the list under it, though it h
     // Slowly, so it is no flick.
     await new Promise((r) => setTimeout(r, 200));
     h.onTouchEnd({ changedTouches: [{ clientX: 120, clientY: 301 }], currentTarget: kept });
-    await new Promise((r) => setTimeout(r, 400));
+    await until(
+      () => !page.marks.has("data-going") && kept.style.transform === "",
+      "it settles back, its own rules have it again, and the list under it goes with the mark",
+    );
     assert.deepEqual(back, [1], "short of a third, it stays open");
-    assert.ok(!page.marks.has("data-going"));
-    assert.equal(kept.style.transform, "", "and its own rules have it again");
   } finally {
     Object.assign(globalThis, stubbed);
     globalThis.window.matchMedia = media;

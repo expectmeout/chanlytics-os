@@ -31,6 +31,7 @@ import {
   type SenderLanguage,
   type UnsubscribeView,
   MIN_MS,
+  valueAt,
 } from "@chanlytics/contracts";
 import { offerUnsubscribeWords, STOP_ALL_REFUSALS, type OfferUnsubscribeView } from "./offers-unsubscribe";
 import { env } from "@/server/shared/env";
@@ -234,17 +235,12 @@ async function emailOf(db: SupabaseClient<Database>, tenantId: TenantId, message
     const { data, error } = await findMessageMeta(db, tenantId, messageId);
     if (error) throw new Error(error.message);
     if (!data) return { sender: null, lane: "unread", language: null };
-    const meta = data.meta as {
-      source?: unknown;
-      broadcast_id?: unknown;
-      email?: { request?: { from?: unknown } };
-    } | null;
-    const from = meta?.email?.request?.from;
-    const offer = meta?.source === "broadcast";
+    const from = valueAt(data.meta, "email", "request", "from");
+    const offer = valueAt(data.meta, "source") === "broadcast";
     return {
       sender: typeof from === "string" ? (addressOf(from)?.address ?? null) : null,
       lane: offer ? "offer" : "reach_out",
-      language: offer ? await offerLanguage(db, tenantId, messageId, meta?.broadcast_id) : null,
+      language: offer ? await offerLanguage(db, tenantId, messageId, valueAt(data.meta, "broadcast_id")) : null,
     };
   } catch (e) {
     log.warn("unsubscribe_lane_unread", {

@@ -41,6 +41,7 @@ import {
   ownAddressesOf,
   type OwnAddresses,
   calendarFeedKeyOf,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/shared/with-route";
 import { getTenantFacts } from "@/server/shared/tenant";
@@ -68,9 +69,8 @@ import type { TenantId } from "@chanlytics/contracts";
 export function readSettings(tenantId: TenantId, raw: unknown): { cfg: TenantConfig | null; lostCalendar: boolean } {
   const tenantConfigResult = parseTenantConfigResult(raw);
   if (tenantConfigResult.ok) return { cfg: tenantConfigResult.config, lostCalendar: false };
-  const config = raw as { calendar?: { ical_url?: unknown }; calendar_grant?: { mailbox_id?: unknown } } | null;
-  const named = config?.calendar?.ical_url;
-  const granted = config?.calendar_grant?.mailbox_id;
+  const named = valueAt(raw, "calendar", "ical_url");
+  const granted = valueAt(raw, "calendar_grant", "mailbox_id");
   const lostCalendar =
     (typeof named === "string" && named.trim() !== "") || (typeof granted === "string" && granted.trim() !== "");
   log.error("tenant_config_unreadable", {

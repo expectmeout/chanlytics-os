@@ -8,6 +8,7 @@ import {
   parseTenantConfig,
   wallClockAt,
   type IdeaAbout,
+  valueAt,
 } from "@chanlytics/contracts";
 import { getLeadAllowance, readLeadMonthUsed } from "@chanlytics/db/leads";
 import type { Database } from "@chanlytics/db/types";
@@ -64,13 +65,7 @@ export async function readMonthUsed(
   ]);
   if (error) throw new Error(`lead_month_used: ${error.message}`);
   const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
-  const taken = (kind: "allowance" | "budget") => {
-    const c =
-      data && typeof data === "object"
-        ? (data as Record<string, { used?: unknown; reserved?: unknown } | undefined>)[kind]
-        : null;
-    return n(c?.used) + n(c?.reserved);
-  };
+  const taken = (kind: "allowance" | "budget") => n(valueAt(data, kind, "used")) + n(valueAt(data, kind, "reserved"));
   return { allowance: taken("allowance"), budget: taken("budget"), cap };
 }
 

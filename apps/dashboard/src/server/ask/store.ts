@@ -150,7 +150,7 @@ export function modelTurnOf(
 
 /** How a stored turn's earlier turns reached the model (AskTurnShape.replay), or null: a question, or a turn from before. */
 function replayOf(shape: unknown): AskTurnShape["replay"] | null {
-  const kind = shape && typeof shape === "object" ? (shape as { replay?: unknown }).replay : null;
+  const kind = recordOrEmpty(shape).replay;
   return kind === "live" || kind === "rebuilt" || kind === "none" ? kind : null;
 }
 

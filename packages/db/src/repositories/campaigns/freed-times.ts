@@ -16,6 +16,7 @@ import {
   type FreedTimeCalendar,
   type FreedTimeLine,
   type SequenceMode,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { getSequenceModes } from "./sequences/reads";
@@ -161,8 +162,7 @@ export async function getCancellationsSince(db: Db, tenantId: TenantId, sinceIso
     .gte("created_at", sinceIso)
     .limit(EVENTS_MAX);
   if (error) throw new Error(`cannot read the cancellations: ${error.message}`);
-  const said = (e: { data: unknown }, k: string): unknown =>
-    e.data && typeof e.data === "object" && !Array.isArray(e.data) ? (e.data as Record<string, unknown>)[k] : undefined;
+  const said = (e: { data: unknown }, k: string): unknown => recordOrEmpty(e.data)[k];
   const ids = [
     ...new Set(
       (data ?? [])

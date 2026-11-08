@@ -18,6 +18,7 @@ import {
   type MailboxSendersDto,
   type SenderKind,
   type SenderReading,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { dbLog } from "../../shared/observe";
@@ -85,7 +86,7 @@ export async function listMailboxSendersOf(db: Db, tenantId: TenantId): Promise<
     shown.filter((r) => LEFT_BY_A_READING.has(r.why)).map((r) => r.address),
   );
   return {
-    left: shown.map((r) => ({ ...r, why: r.why as MailboxLeftWhy, about: about.get(r.address) ?? null })),
+    left: shown.map((r) => ({ ...r, about: about.get(r.address) ?? null })),
     said: (said.data ?? []).map((r) => ({ ...r, verdict: r.verdict === "person" ? "person" : "automated" })),
   };
 }
@@ -128,7 +129,7 @@ async function readingsAbout(db: Db, tenantId: TenantId, addresses: string[]): P
   return new Map((data ?? []).flatMap((r) => (r.about ? [[r.address, r.about] as const] : [])));
 }
 
-const isSenderKind = (v: unknown): v is SenderKind => (SENDER_KINDS as readonly unknown[]).includes(v);
+const isSenderKind = (v: unknown): v is SenderKind => isOneOf(SENDER_KINDS, v);
 
 /** What Chanlytics read a sender to be (00495), or null where it has not read them. Throws when it cannot be asked. */
 export async function findSenderReading(db: Db, tenantId: TenantId, address: string): Promise<SenderReading | null> {

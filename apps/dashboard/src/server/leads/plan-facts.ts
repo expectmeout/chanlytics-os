@@ -12,6 +12,14 @@ import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
 import { readNichePrior } from "@chanlytics/db/leads";
 import type { TenantId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "@chanlytics/db/shared";
+
+/** What lead_niche_prior answers: past searches' counts for a kind of business, or null for one never searched. */
+const NichePrior = z
+  .object({ places: z.number().nullable(), matched: z.number().nullable(), with_email: z.number().nullable() })
+  .partial()
+  .nullable();
 
 /** The platform-wide prior for a kind of business, or null when nobody has searched for one. */
 export async function findNichePrior(
@@ -20,8 +28,8 @@ export async function findNichePrior(
 ): Promise<LeadNichePrior | null> {
   const { data, error } = await readNichePrior(ctx.supabase, categoryKey);
   if (error) throw new Error(`lead_niche_prior: ${error.message}`);
-  const p = data && typeof data === "object" ? (data as Partial<LeadNichePrior>) : null;
-  return p && typeof p.places === "number"
+  const p = readAnswer("lead_niche_prior", NichePrior, data);
+  return typeof p?.places === "number"
     ? { places: p.places, matched: p.matched ?? 0, with_email: p.with_email ?? 0 }
     : null;
 }

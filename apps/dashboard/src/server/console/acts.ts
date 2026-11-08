@@ -27,6 +27,7 @@ import {
   type ConsoleAct,
   type ConsoleWhy,
   type PlatformActDto,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
@@ -114,7 +115,7 @@ export async function takeAct<T>(
 const LOG_CSV = 2000;
 
 export const inSet = <T extends string>(set: readonly T[], v: unknown, fallback: T): T =>
-  (set as readonly unknown[]).includes(v) ? (v as T) : fallback;
+  isOneOf(set, v) ? v : fallback;
 
 /** A page of the log, as the contracts read it: one person's or everyone's, one workspace's or all, older than `before`. */
 export async function listConsoleActs(

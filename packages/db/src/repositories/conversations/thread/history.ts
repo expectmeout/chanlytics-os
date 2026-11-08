@@ -107,10 +107,10 @@ function keptTurns<T extends HistoryRow>(rows: T[]): T[] {
 
 export function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[] {
   return keptTurns(rows)
-    .map((m) => ({
+    .map((m): ThreadTurn => ({
       // A call note is the customer's own history on another channel — one
       // agent, so it counts the same as a message.
-      role: (m.sender === "customer" ? "user" : "assistant") as ThreadTurn["role"],
+      role: m.sender === "customer" ? "user" : "assistant",
       content: (m.body ?? "").trim(),
     }))
     .slice(-limit);

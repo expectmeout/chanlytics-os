@@ -11,7 +11,7 @@
  * the list. The PATCH is its owner's: a forbidden UPDATE answers success with no rows in this stack, so the row count
  * is the permission check. The routes declare who may and how often.
  */
-import { heldTenantId } from "@chanlytics/contracts";
+import { heldTenantId, recordOrNull } from "@chanlytics/contracts";
 import {
   getMemberContext,
   requireSecondFactor,
@@ -262,7 +262,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
 }
 
 export async function patchWorkspace(ctx: RouteContext, req: Request, member: Member) {
-  const body = (await req.json().catch(() => null)) as { timezone?: unknown; appointment_word?: unknown } | null;
+  const body = recordOrNull(await req.json().catch(() => null));
   const zone = body?.timezone !== undefined;
   const word = body?.appointment_word;
   if (!zone && word === undefined)

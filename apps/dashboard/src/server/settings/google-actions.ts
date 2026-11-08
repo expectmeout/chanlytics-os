@@ -12,6 +12,7 @@ import {
   parseTenantConfigResult,
   placesQueryOf,
   type GoogleDto,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { getGoogleReadiness, afterGoogle, callEdgeGoogle, stateSecret } from "@/server/connections/google";
 import { load, readerContext } from "@/server/shared/reader";
@@ -117,7 +118,7 @@ export async function replyToGoogleReview(ctx: RouteContext & { params: Params }
     google_refused: "Google did not accept the reply.",
   };
   const id = requireUuid(ctx.params.id, "review");
-  const body = (await req.json().catch(() => ({}))) as { comment?: unknown };
+  const body = recordOrEmpty(await req.json().catch(() => ({})));
   const comment = cleanReply(body.comment);
   if (!comment) throw new AppError("validation", "Write the reply first.", 400);
   const answer = await callEdgeGoogle(
@@ -168,7 +169,7 @@ export async function stopGoogleReviewReply(ctx: RouteContext & { params: Params
 }
 
 export async function searchGoogleFor(ctx: RouteContext, req: Request, member: Member) {
-  const body = (await req.json().catch(() => ({}))) as { query?: unknown };
+  const body = recordOrEmpty(await req.json().catch(() => ({})));
   // A phone number goes whole and with its country, which Google needs to match a listing by its number.
   let query = typeof body.query === "string" ? placesQueryOf(body.query).slice(0, 200) : "";
   let fromFacts = false;

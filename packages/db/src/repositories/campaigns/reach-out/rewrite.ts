@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../../types";
 import { answer, type DoorResult } from "./leads";
 
-import type { SchemaSet, TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet, type TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /**
@@ -80,11 +80,7 @@ export async function sendOpeningsOf(
   return params.sendIds.flatMap((id) => {
     const found = byId.get(id);
     if (!found) return [];
-    const rewriteAsked = found.rewrite_asked;
-    const was =
-      rewriteAsked && typeof rewriteAsked === "object" && !Array.isArray(rewriteAsked)
-        ? (rewriteAsked as { was?: unknown }).was
-        : null;
+    const was = recordOrEmpty(found.rewrite_asked).was;
     const paused = !(
       found.step_id &&
       found.sequence_id &&
