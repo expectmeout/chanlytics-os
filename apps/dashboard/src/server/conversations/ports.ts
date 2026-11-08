@@ -35,7 +35,7 @@ import type {
   SendNowPorts,
   ThreadPorts,
 } from "@chanlytics/core";
-import { conversationPatch } from "@chanlytics/contracts";
+import { conversationPatch, shaped } from "@chanlytics/contracts";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 import {
   cancelPendingAiReply,
@@ -49,7 +49,7 @@ import { takeThreadControl } from "./thread-control";
 import { freezeFirst, freezeReply } from "../connections/email";
 import { getStoredConfig } from "../workspace/config-row";
 import { log } from "@/server/shared/log";
-import { asJson } from "@chanlytics/db/shared";
+import { asJson, readColumn } from "@chanlytics/db/shared";
 
 /**
  * True iff a row changed. An UPDATE that RLS or a vanished row excludes
@@ -224,7 +224,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       return {
         won: false,
         held: held && {
-          response: held.response as unknown as ReplyReceipt | null,
+          response: readColumn("idempotency_keys.response", shaped<ReplyReceipt>().nullable(), held.response),
           created_at: held.created_at,
           request_hash: held.request_hash,
         },

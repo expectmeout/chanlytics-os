@@ -313,7 +313,7 @@ async function writeOwnFields(
     tenantId,
     patch,
     patch.appointment_word ? WORD_ANSWER : OLDEST,
-  )) as unknown as {
+  )) as {
     data: Partial<WorkspaceRow>[] | null;
     error: { message: string; code?: string } | null;
   };

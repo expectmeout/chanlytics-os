@@ -20,8 +20,11 @@ import {
   replyHoldDtoOf,
   type MetricsSummaryDto,
   recordOrNull,
+  shaped,
+  valueAt,
 } from "@chanlytics/contracts";
 import { listFirstReplies, readMetricsSummary } from "@chanlytics/db/reports";
+import { readAnswer } from "@chanlytics/db/shared";
 import type { Database } from "@chanlytics/db/types";
 import { getEmailLine } from "../connections/email";
 import { findBookedSince, findBookingsLately } from "./bookings";
@@ -101,9 +104,13 @@ export async function findMetricsSummary(
   if (res.error) throw new Error(res.error.message);
   // The function's answer, less the day's replies it carries for this server alone (00359): they are counted here and
   // never sent on, so the page's payload is the one it always took.
-  const { replies: carried, ...summary } = (res.data ?? {}) as unknown as MetricsSummaryDto & { replies?: unknown };
+  const { replies: carried, ...summary } = readAnswer(
+    "readMetricsSummary",
+    shaped<MetricsSummaryDto & { replies?: unknown }>(),
+    res.data ?? {},
+  );
   const answered: MetricsSummaryDto | null = res.data ? summary : null;
-  if (!answered || (answered as unknown as { error?: string }).error) return null;
+  if (!answered || valueAt(answered, "error")) return null;
   // A day's replies are the function's own rows where it answers them. Asked of first_replies only where it does not (a
   // dashboard deployed before its migration: either order works), and then after the function, which is the wait every
   // read of Today had beside it.

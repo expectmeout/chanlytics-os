@@ -415,7 +415,7 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
         : spec.query
           ? parse(spec.query, Object.fromEntries([...new URL(req.url).searchParams].filter(([k]) => k !== "workspace")))
           : undefined;
-    const handle = () => spec.handle({ ctx, req, input, ...given } as unknown as Call<S, I>);
+    const handle = () => spec.handle({ ctx, req, input, ...given } as Call<S, I>);
     const bodyOf = async () => body ?? (await req.clone().text());
     return kind === "write" ? onceForKey(ctx, member, req, spec.idempotent === "own", bodyOf, handle) : handle();
   };

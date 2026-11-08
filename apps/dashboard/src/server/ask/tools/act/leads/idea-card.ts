@@ -55,7 +55,7 @@ function ideaAnswer(idea: LeadIdeaDto, card: AskProposal): AskAnswer {
 /** The idea's search as a card: a places plan, or a people plan where the people card finds leads now (00430). */
 async function ideaCard(ctx: RouteContext, tenantId: string, idea: LeadIdeaDto, title: string, now: Date) {
   if (idea.people) {
-    const live = await listLeadCardsLive(ctx.supabase).catch(() => [] as string[]);
+    const live = await listLeadCardsLive(ctx.supabase).catch((): string[] => []);
     if (!live.includes("people_at_companies"))
       throw new AppError(
         "conflict",
