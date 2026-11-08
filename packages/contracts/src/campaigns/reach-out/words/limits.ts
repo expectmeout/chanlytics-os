@@ -1,5 +1,6 @@
 /** Words: limits. */
 
+import { REACH_OUT_LIMITS } from "../../../config/workspace-config/config-rules";
 import { posesAsReply } from "../../../email/subject";
 import { emailIssues } from "../../templates/message-versions/email-rules";
 import type { EmailIssue, EmailProblem, EmailRules } from "../../templates/message-versions/email-rules";
@@ -8,6 +9,12 @@ import { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SUBJECT_MAX, type Rea
 
 /** The whole email as a business reads it, the opening counted at its most (§4.4). */
 export const REACH_OUT_WORDS_MAX = 120;
+
+/** Ask's own words for a step to leads, shorter than the owner may write (drafts/sequence.ts LEAD_RULES): the first. */
+export const ASK_FIRST_WORDS_MAX = 80;
+
+/** Ask's own words for a later step, which answers in the same thread. */
+export const ASK_LATER_WORDS_MAX = 50;
 
 export const OPENING_WORDS_MAX = 40;
 
@@ -23,7 +30,8 @@ export const REACH_OUT_MAILBOXES_MAX = 10;
 
 export const REACH_OUT_NAME_MAX = 80;
 
-export const SIGNED_BY_MAX = 60;
+/** The name a cold email signs with, at most this long: How it reaches out's Signs as holds the same (decision 0113). */
+export const SIGNED_BY_MAX = REACH_OUT_LIMITS.signedBy;
 
 /** The gap's choices on the sheet, in minutes; the database holds 5–120 (00183). */
 export const REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60] as const;

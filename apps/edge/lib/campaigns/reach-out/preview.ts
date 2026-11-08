@@ -179,6 +179,7 @@ export async function previewOne(
     opening,
     from: mailbox && mailbox.state !== "removed" ? mailbox : STAND_IN.from,
     signsWith: previewInput.signsWith,
+    own: workspace.signature,
     unsubscribe: { secret: randomUUID(), origin: STAND_IN.origin },
     parent: null,
   });

@@ -14,6 +14,12 @@ import { formatPhoneDisplay, handoffE164 } from "../shared/phone";
 import { phoneVoiceOf } from "../voice/phone-voices";
 import { PHONE_PACE_WORDS, type PhonePace } from "../voice/phone-pace";
 import { WALK_IN_WORDS, type WalkInsChoice } from "../config/business-tab/choices";
+import {
+  applyReachOutChange,
+  describeReachOutChange,
+  isReachOutChange,
+  type AskReachOutChange,
+} from "../config/workspace-config/reach-out-change";
 
 /** How much of a note's text its card quotes, in characters, before it is cut on a whole word. */
 const NOTE_TEXT_SAID_MAX = 160;
@@ -36,7 +42,9 @@ export type AskSettingsChange =
   /** The booking link {{booking link}} fills (a sequence to leads' step sheet puts it in where it is not set). */
   | { op: "set_booking_link"; link: string }
   | AskFixChange
-  | AskAnswersChange;
+  | AskAnswersChange
+  /** A row of How it reaches out (decision 0113): its reach_out section, as the page's folds write it. */
+  | AskReachOutChange;
 
 /**
  * The changes a rehearsal's fix makes beside the cards' (decision 0069, R4: rehearsal/fix-router.ts): a service already
@@ -109,13 +117,20 @@ const languagesOf = (list: readonly string[]): string[] => [
 
 type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unknown> } & Record<string, unknown>;
 
+/**
+ * A change that writes a section of its own beside the brain, or null: the photo switch is a feature (What it can do's
+ * switch writes it there), and How it reaches out's rows (decision 0113) write the config's reach_out section.
+ */
+type SectionChange = Extract<AskSettingsChange, { op: "set_photos" }> | AskReachOutChange;
+const isSectionChange = (change: AskSettingsChange): change is SectionChange =>
+  change.op === "set_photos" || isReachOutChange(change);
+function sectionChangeOf<C extends Cfg>(config: C, change: SectionChange): C {
+  if (change.op === "set_photos") return { ...config, features: { ...(config.features ?? {}), vision: change.on } };
+  return applyReachOutChange(config, change);
+}
+
 export function applySettingsChange<C extends Cfg>(config: C, change: AskSettingsChange): C {
-  // The photo switch is a feature, beside the brain (What it can do's switch writes it there).
-  if (change.op === "set_photos")
-    return {
-      ...config,
-      features: { ...(config.features ?? {}), vision: change.on },
-    };
+  if (isSectionChange(change)) return sectionChangeOf(config, change);
   if (isAnswersBrainChange(change)) return applyAnswersChange(config, change);
   // The owner's goal is Ask's own section, never the receptionist's profile: set, or taken away when empty.
   if (change.op === "set_goal") {
@@ -372,6 +387,7 @@ export function serviceTail(state: { duration_min?: number; price_note?: string 
 
 /** One line for a card: what the change does, in the person's words. */
 export function describeSettingsChange(change: AskSettingsChange): string {
+  if (isReachOutChange(change)) return describeReachOutChange(change);
   switch (change.op) {
     case "add_closure":
       return change.until

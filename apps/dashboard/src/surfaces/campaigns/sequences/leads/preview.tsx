@@ -35,6 +35,7 @@ import {
   usePreviewName,
   workspaceOf,
   type PreviewLead,
+  reachOutSignatureNow,
 } from "./reads";
 import type { LeadChain } from "./use-chain";
 
@@ -68,6 +69,7 @@ function endingOf(lc: LeadChain, place: number): string | null {
     signature: lc.draft.owner_sends
       ? null
       : (chainFirstSender(lc.chain, lc.draft.mailbox_ids)?.signature?.words ?? null),
+    own: lc.draft.owner_sends ? null : reachOutSignatureNow(),
     first: place === 1,
     body: words.body,
     address: businessAddressOf(),

@@ -12,6 +12,7 @@ import {
   type LeadRowDto,
   type SequenceRecordDto,
   type SlotWorkspace,
+  reachOutSignatureOf,
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import { workspaceName } from "../../../people/person-verbs";
@@ -52,6 +53,11 @@ export function usePreviewLeads(rec: SequenceRecordDto): PreviewLead[] {
 export function businessAddressOf(): string {
   const brain = brainOf(surfaceValue("settings")?.settings);
   return typeof brain.profile?.address === "string" ? brain.profile.address.trim() : "";
+}
+
+/** Sign-off's signature as Settings holds it (decision 0113), which the send puts under the name; null where none is set. */
+export function reachOutSignatureNow(): string | null {
+  return reachOutSignatureOf(surfaceValue("settings")?.settings?.config ?? null);
 }
 
 /** Each lead's row as its page read it, for the tab. */

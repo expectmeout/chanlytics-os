@@ -182,6 +182,7 @@ export {
   draftRefusal,
   isDraftWhy,
   leadReplyNote,
+  replyOfferSteer,
 } from "./reply-draft";
 export type { DraftWhy } from "./reply-draft";
 export {
@@ -231,12 +232,23 @@ export {
   ReachOutPreviewSchema,
   ReachOutReplySaidSchema,
   ReachOutSaidSchema,
+  ReachOutToldQuerySchema,
 } from "./schemas";
 export { ReachOutAddSchema, ReachOutRepliesQuerySchema } from "./schemas";
 export type { ReachOutChainInput } from "./schemas";
 export type { ReachOutReplySaidInput } from "./schemas";
 export type { ReachOutPreviewInput } from "./schemas";
 export type { ReachOutAddInput, ReachOutRepliesQuery } from "./schemas";
+export { reachOutBackingOf, reachOutOfferOf, reachOutSignatureOf, reachOutSignedByOf, reachOutToneOf } from "./section";
+export {
+  REACH_OUT_SETTINGS_WORDS,
+  reachOutRuleLines,
+  REPLY_OFFER_WORDS,
+  replyModeHint,
+  tryCheckLine,
+  writesBackRows,
+} from "./settings";
+export type { ReachOutSettingsDto, ReachOutSettingsMailbox, ReachOutSettingsSequence, WritesBackRow } from "./settings";
 export {
   approvalWordsOf,
   chainHintOf,
@@ -266,6 +278,8 @@ export {
 export type { RunPartVM } from "./sheet/words";
 export { SEND_DAY_FRAME, SEND_WINDOW_MARGIN_MIN, sendWindowsOf, timetable, TIMETABLE_HORIZON_DAYS } from "./timetable";
 export type { Placed, TimetableInput, TimetableResult, TimetableSend, TimetableSender } from "./timetable";
+export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, toldShares, tryPartsOf } from "./told";
+export type { ReachOutToldDto, ToldKind, ToldPart, ToldPartId, TryPart, TrySource } from "./told";
 export { US_STATE_ZONES, zoneOfRegion } from "./us-zones";
 export type { UsStateCode } from "./us-zones";
 export {
@@ -288,6 +302,8 @@ export {
 export type { HeldClaimKind, HoldDoor, ReachOutHold } from "./words/claims";
 export {
   ANGLE_WORDS_MAX,
+  ASK_FIRST_WORDS_MAX,
+  ASK_LATER_WORDS_MAX,
   emailWordCount,
   linkCount,
   linksIn,

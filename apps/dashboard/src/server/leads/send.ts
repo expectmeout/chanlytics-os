@@ -18,6 +18,8 @@ import {
   LEAD_OWN_EMAIL_WORDS as W,
   leadEmailFromOf,
   leadEmailRefusalOf,
+  parseTenantConfig,
+  reachOutSignatureOf,
   REACH_OUT_MONTH_EMAILS,
   SEND_GRACE_MS,
   type LeadEmailWords,
@@ -37,6 +39,7 @@ import {
   mayWorkspaceSpend,
 } from "@chanlytics/db/campaigns";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
+import { getStoredConfig } from "../workspace/config-row";
 import { requestJson } from "../connections/email";
 import { env } from "../shared/env";
 import { schedule } from "../shared/jobs";
@@ -115,7 +118,10 @@ export async function getLeadEmailOffer(
     const db = serviceDb();
     const refused = draftRefusalOf(await draftFactsOf(db, lead.tenant_id, lead.id));
     if (refused) return { ...MAIL_APP, why_not: leadEmailRefusalOf(refused) };
-    const slots = await findLeadSlots(db, lead.tenant_id, lead.id);
+    const [slots, stored] = await Promise.all([
+      findLeadSlots(db, lead.tenant_id, lead.id),
+      getStoredConfig(ctx.supabase, lead.tenant_id),
+    ]);
     // What the send lays under the words (contracts coldEmailOf, the one layout): no link in the text, so none is sealed yet.
     const laid = coldEmailOf({
       filled: { subject: lead.business_name, body: "" },
@@ -127,6 +133,7 @@ export async function getLeadEmailOffer(
       signsWith: "mailbox",
       signedBy: null,
       signature: mailboxSignatureOf(road.from)?.text ?? null,
+      own: reachOutSignatureOf(parseTenantConfig(stored ?? null)),
       unsubscribeUrl: null,
     });
     return { from: road.from.address, why_not: null, foot: [laid.signature, laid.footer].filter(Boolean).join("\n\n") };
@@ -166,9 +173,10 @@ export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWor
   if (!workspace.address) throw new AppError("validation", LEAD_NO_ADDRESS, 422);
   if (await getLeadEmailOnItsWay(db, tenantId, lead.id)) throw wontSend(W.onItsWay);
 
-  const [person, slots] = await Promise.all([
+  const [person, slots, stored] = await Promise.all([
     addReachOutPerson(db, tenantId, lead.id),
     findLeadSlots(db, tenantId, lead.id),
+    getStoredConfig(ctx.supabase, tenantId),
   ]);
   if (!person.ok) throw wontSend(leadEmailRefusalOf(person.refused));
   const to = await findContactEmail(db, tenantId, person.contactId);
@@ -191,6 +199,8 @@ export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWor
     },
     workspace: { businessName: workspace.name, yourName: null, bookingLink: null, address: workspace.address },
     opening: null,
+    // Sign-off's signature under the words (decision 0113), where the mailbox's does not stand.
+    own: reachOutSignatureOf(parseTenantConfig(stored ?? null)),
     signsWith: "mailbox",
     from: road.from,
     unsubscribe: { secret, origin: unsubscribeOrigin() },

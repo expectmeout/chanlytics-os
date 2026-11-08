@@ -49,6 +49,9 @@ export const SET_TABS: readonly SetTab[] = [
   { id: "hours", label: "Hours & booking", icon: "calendar", group: "Business" },
   // What the receptionist says: its voice, what it knows, what it can do, and what it is told.
   { id: "receptionist", label: "How it answers", icon: "chat", group: "Receptionist" },
+  // What a cold email to a business a search found is written from (decision 0113): the offer, the claims, the voice,
+  // the sign-off, where it sends from, what a reply sets off, the rules, what each writer is told, and Try it.
+  { id: "outreach", label: "How it reaches out", icon: "send", group: "Receptionist" },
   // What it may do without you, and every limit it keeps.
   { id: "autonomy", label: "Autonomy", icon: "shield", group: "Receptionist" },
   { id: "team", label: "Team", icon: "users", group: "Workspace" },
@@ -115,9 +118,22 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   phone_pace: "receptionist",
   guardrails: "autonomy",
   escalate_when: "autonomy",
+  // How it reaches out's rows (decision 0113), each one key of the config's reach_out section, and the rows it states.
+  offer: "outreach",
+  who_for: "outreach",
+  fixes: "outreach",
+  proof: "outreach",
+  cold_tone: "outreach",
+  cold_voice: "outreach",
+  signed_by: "outreach",
+  signature: "outreach",
+  sign_phone: "outreach",
+  reply_offer: "outreach",
+  told: "outreach",
+  try_lead: "outreach",
 };
 
-/** The page a row of the business is on: Hours & booking, How it answers, Autonomy, or else Details. */
+/** The page a row of the business is on: Hours & booking, How it answers, How it reaches out, Autonomy, or else Details. */
 export const paneOfRow = (row: string): string => ROW_PANES[row] ?? DETAILS_TAB.id;
 
 /** The address that opens a row of the business, open, on the page that holds it. */
@@ -130,7 +146,15 @@ const sectionOf = (id: string): string => (id.includes("/") ? id.slice(0, id.ind
  * The sections an address may name a row of: the business's pages and Autonomy's, the part Activity opens on, and
  * Connections' (`integrations/left`: the mailbox's "Left in your mailbox", open, which Today's Brought in links to).
  */
-const SECTIONS_WITH_ROWS = new Set(["workspace", "hours", "receptionist", "autonomy", "activity", "integrations"]);
+const SECTIONS_WITH_ROWS = new Set([
+  "workspace",
+  "hours",
+  "receptionist",
+  "outreach",
+  "autonomy",
+  "activity",
+  "integrations",
+]);
 
 /**
  * The row an address names after its section, or null: `workspace/calendar` names the booking tool's row (contracts
