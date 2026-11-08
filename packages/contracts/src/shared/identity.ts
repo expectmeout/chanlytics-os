@@ -40,6 +40,14 @@ export const isTenantId = (value: unknown): value is TenantId => typeof value ==
 /** Whether a value is a person's id, the same way. */
 export const isContactId = (value: unknown): value is ContactId => typeof value === "string" && isUuid(value);
 
+/**
+ * An id the database already holds as a workspace's or a person's, read out of a SQL function's JSON or a row named by hand:
+ * taken as it is, with no check, as the overlay takes a column's (packages/db/src/types.ts). What still tells two ids apart
+ * is the type, which is the point (decision 0112). Not for what comes from outside: that is `isTenantId` or `asTenantId`.
+ */
+export const heldTenantId = (value: string): TenantId => value as TenantId;
+export const heldContactId = (value: string): ContactId => value as ContactId;
+
 /** A tenant id: exactly the strings `isUuid` takes. Anything else throws, because a row that holds it is our fault. */
 export function asTenantId(value: string): TenantId {
   if (!isUuid(value)) throw new TypeError("A tenant id is a uuid.");

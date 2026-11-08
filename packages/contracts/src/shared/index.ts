@@ -97,7 +97,17 @@ export type { Envelope, Err, Ok, PageInfo } from "./envelope";
 export { AppError, bodyRefusal, ERROR_CODES } from "./errors";
 export type { ErrorCode, ErrorDetails, ErrorDetailsByCode } from "./errors";
 export { escapeHtml, linkifyEscaped } from "./html";
-export { asContactId, asTenantId, isContactId, isTenantId, isUuid, SLUG, UUID } from "./identity";
+export {
+  asContactId,
+  asTenantId,
+  heldContactId,
+  heldTenantId,
+  isContactId,
+  isTenantId,
+  isUuid,
+  SLUG,
+  UUID,
+} from "./identity";
 export type { ContactId, TenantId } from "./identity";
 export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./link";
 export { sumOf } from "./numbers";
