@@ -38,6 +38,7 @@ import { load, type ReaderContext } from "../shared/reader";
 import * as facts from "../readers/facts";
 import { person } from "../readers/person";
 import { SHORTER_ASK, WARMER_ASK } from "@/server/shared/model/tones";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How much of a person's history the model is handed: the newest turns, and each one's words cut to a line or two. */
 const TURNS_TOLD = 12;
@@ -72,7 +73,7 @@ interface DraftKnown {
   business: { name: string; tone: string | null; languages: string[]; services: string[]; bookingLink: string | null };
   /** Today, in the business's own words ("Wednesday, October 7"): a note says when it was true. */
   today: string;
-  tenantId: string;
+  tenantId: TenantId;
   userId: string;
 }
 

@@ -27,6 +27,7 @@ import {
 import { chooseLeadAddressee } from "@chanlytics/db/leads";
 import { answerOf, refusalOf } from "./answers";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Ctx = Pick<RouteContext, "supabase">;
 
@@ -51,7 +52,7 @@ export async function addToReachOut(
 /** The sequence a search's Add goes to, or none (00459 lead_search_aim): kept on the search. */
 export async function aimSearch(
   ctx: Ctx,
-  tenantId: string,
+  tenantId: TenantId,
   searchId: string,
   sequenceId: string | null,
 ): Promise<{ search_id: string; adds_to: string | null }> {
@@ -96,7 +97,7 @@ export async function chooseAddressee(
 /** Who is in a reach-out: waiting, writing and done, each at most `limit` lines, with their counts. */
 export async function getChainPeople(
   ctx: Ctx,
-  tenantId: string,
+  tenantId: TenantId,
   rootId: string,
   limit?: number,
 ): Promise<ReachOutChainPeopleDto> {
@@ -111,7 +112,7 @@ export async function getChainPeople(
 }
 
 /** What a reach-out could start from (00426): New message's Write to leads lists them. */
-export async function getReachOutSources(ctx: Ctx, tenantId: string): Promise<{ sources: ReachOutSourceDto[] }> {
+export async function getReachOutSources(ctx: Ctx, tenantId: TenantId): Promise<{ sources: ReachOutSourceDto[] }> {
   const { data, error } = await readReachOutSources(ctx.supabase, tenantId);
   if (error) throw dbRefusal(error);
   return { sources: data };
@@ -143,7 +144,7 @@ export async function leaveOut(
 }
 
 /** Leads' Back today (00426): who asked to hear back on a day that has come, to write to by hand (decision 9). */
-export async function getBackToday(ctx: Ctx, tenantId: string): Promise<{ leads: LeadBackDto[] }> {
+export async function getBackToday(ctx: Ctx, tenantId: TenantId): Promise<{ leads: LeadBackDto[] }> {
   const { data, error } = await listLeadsBackToday(ctx.supabase, tenantId);
   if (error) throw dbRefusal(error);
   return { leads: data };

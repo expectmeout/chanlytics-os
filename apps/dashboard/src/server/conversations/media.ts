@@ -7,6 +7,7 @@ import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
 import { signMediaUrl, signMediaUrls } from "@chanlytics/db/channels";
 import { markRecordingOpened } from "@chanlytics/db/voice";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Stored media, signed for a member (the attachments of a thread, the recordings of a call). The bucket is private and
@@ -22,7 +23,11 @@ const bucketClient = () => serviceDb();
  * Short-lived signed URL for a private media object (an attachment, a call recording) of this workspace. A path outside
  * it is refused as not found, never signed: the member asked for this workspace's object, and there is none.
  */
-export async function findSignedMediaUrl(tenantId: string, storagePath: string, seconds = 300): Promise<string | null> {
+export async function findSignedMediaUrl(
+  tenantId: TenantId,
+  storagePath: string,
+  seconds = 300,
+): Promise<string | null> {
   if (!inWorkspace(tenantId, storagePath)) {
     log.error("signed_media_url_refused", { tenant_id: tenantId });
     throw new AppError("not_found", "This workspace has no such attachment.");
@@ -41,7 +46,7 @@ export async function findSignedMediaUrl(tenantId: string, storagePath: string, 
  * store could not sign does: one bad path must not cost the copy every other link.
  */
 export async function listSignedMediaUrls(
-  tenantId: string,
+  tenantId: TenantId,
   storagePaths: readonly string[],
   seconds: number,
 ): Promise<(string | null)[]> {

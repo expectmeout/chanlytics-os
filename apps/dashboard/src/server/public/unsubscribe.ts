@@ -49,6 +49,7 @@ import {
 } from "./link-page";
 import { findWorkspaceName } from "@chanlytics/db/workspace";
 import { findMessageMeta } from "@chanlytics/db/conversations";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** For tests: the database the page reads and writes through (link-page.ts holds it for both links' pages). */
 export const setUnsubscribeServiceClient = setLinkPageClient;
@@ -181,7 +182,7 @@ function plainText(status: number, body: string): Response {
 }
 
 /** The business's name for the page's words; null when it cannot be read, which the words say without. */
-async function businessName(db: SupabaseClient<Database>, tenantId: string): Promise<string | null> {
+async function businessName(db: SupabaseClient<Database>, tenantId: TenantId): Promise<string | null> {
   try {
     const { data, error } = await findWorkspaceName(db, tenantId);
     return error ? null : (data?.name ?? null);
@@ -204,7 +205,7 @@ interface LinkedEmail {
  */
 async function offerLanguage(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   messageId: string,
   broadcastId: unknown,
 ): Promise<string | null> {
@@ -228,7 +229,7 @@ async function offerLanguage(
  * page then says only what is true of both kinds, and a press of "Stop all messages" is refused in words that say why,
  * never answered as the cold email's page by default. A read that fails is said in the log.
  */
-async function emailOf(db: SupabaseClient<Database>, tenantId: string, messageId: string): Promise<LinkedEmail> {
+async function emailOf(db: SupabaseClient<Database>, tenantId: TenantId, messageId: string): Promise<LinkedEmail> {
   try {
     const { data, error } = await findMessageMeta(db, tenantId, messageId);
     if (error) throw new Error(error.message);
@@ -337,7 +338,7 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
  */
 async function stopAllMessagesPage(
   db: SupabaseClient<Database>,
-  claims: { tenantId: string; contactId: string; messageId: string },
+  claims: { tenantId: TenantId; contactId: ContactId; messageId: string },
   confirmed: boolean,
 ): Promise<Response> {
   const email = await emailOf(db, claims.tenantId, claims.messageId);

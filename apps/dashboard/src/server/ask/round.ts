@@ -4,6 +4,7 @@ import { streamModel, type GatewayCall } from "../shared/model/gateway";
 import type { GatewayBlockStart } from "../shared/model/stream";
 import { openedPicture, pictureBlocks, type ToolPicture } from "./tools/context/tool-defs";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * One model round: the request goes out, the stream comes back, the content
@@ -209,7 +210,7 @@ export function argsOf(roundBlock: RoundBlock): Record<string, unknown> | null {
 }
 
 /** A call whose arguments did not arrive whole (argsOf): the round hit its cap mid-argument, and is told so. */
-export function cutOff(roundBlock: RoundBlock, tenantId: string): { result: string; isError: true } {
+export function cutOff(roundBlock: RoundBlock, tenantId: TenantId): { result: string; isError: true } {
   log.error("ask_tool_input_cut_off", { tool: roundBlock.name, bytes: roundBlock.json.length, tenant_id: tenantId });
   return {
     result: JSON.stringify({

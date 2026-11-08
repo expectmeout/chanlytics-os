@@ -162,7 +162,7 @@ export async function getPlatformWaitlistInvited(
 /** One workspace's identity, for the detail view's heading. */
 export async function findPlatformTenant(
   office: BackOffice,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ id: string; slug: string; name: string; status: string; timezone: string; created_at: string } | null> {
   const { data, error } = await findWorkspaceForConsole(office.db, tenantId);
   if (error) throw new Error(error.message);
@@ -191,7 +191,7 @@ interface PlatformEvent {
  * quiet over-reach a cross-tenant surface has no excuse for. If support ever
  * needs one, it should be a deliberate per-event read with a named field list.
  */
-export async function listPlatformEvents(office: BackOffice, tenantId: string, limit = 40): Promise<PlatformEvent[]> {
+export async function listPlatformEvents(office: BackOffice, tenantId: TenantId, limit = 40): Promise<PlatformEvent[]> {
   const { data, error } = await listWorkspaceEvents(office.db, tenantId, limit);
   if (error) throw new Error(error.message);
   return data ?? [];
@@ -228,9 +228,10 @@ import {
   readPlatformOverview,
   readSweepHealth,
 } from "@chanlytics/db/ops";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
-const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => EdgeBody<"/api/admin/lines">> = {
+const EDGE_OP: Record<PlatformLineAction, (tenantId: TenantId, lineId: string) => EdgeBody<"/api/admin/lines">> = {
   retry: (tenant_id, line_id) => ({ op: "retry", tenant_id, line_id, by: "support" }),
   // `refile` is the same edge operation as an owner's own registration, with the
   // flag that lets it replace a rehearsal or resend a rejected campaign -- the
@@ -271,7 +272,7 @@ function edgeWords(r: PlatformActionResult): string {
 export async function runPlatformLineAct(
   office: BackOffice,
   action: PlatformLineAction,
-  tenantId: string,
+  tenantId: TenantId,
   lineId: string,
   reason: ConsoleWhy,
 ): Promise<PlatformActionResult> {
@@ -340,7 +341,7 @@ function partnerVerbError(r: { code: string; message: string }): AppError {
  */
 export async function findPlatformPartnerStanding(
   office: BackOffice,
-  tenantId: string,
+  tenantId: TenantId,
   standing: string,
   reason: ConsoleWhy,
 ): Promise<{ standing: string; from: string | null; voided: number; matured: number }> {
@@ -448,7 +449,7 @@ export async function resetPlatformPartnerSecondFactor(
  */
 export async function requeuePlatformJob(
   office: BackOffice,
-  tenantId: string,
+  tenantId: TenantId,
   jobId: string,
   reason: ConsoleWhy,
 ): Promise<{ ok: true; job_id: string; kind: string }> {
@@ -460,7 +461,7 @@ export async function requeuePlatformJob(
 /** The requeue itself, its refusals in words: each one is the Admin log's outcome too. */
 async function requeueOnce(
   office: BackOffice,
-  tenantId: string,
+  tenantId: TenantId,
   jobId: string,
 ): Promise<{ ok: true; job_id: string; kind: string }> {
   const result = await requeueFailedJob(office.db, tenantId, jobId, async (kind) => {

@@ -52,6 +52,7 @@ import {
   type CalendarSources,
   unreadFeed,
 } from "./items";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The week before anything is read: the settings' own facts, and a feed that says why it is not read yet. */
 function weekBeforeReading(
@@ -111,7 +112,7 @@ function weekBeforeReading(
  */
 export async function getCalendarSources(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   by: { from: string | null; days: number; around?: "today" | null },
   now: Date,
   opts: {
@@ -194,7 +195,7 @@ const NO_RECORD: {
  */
 async function originsOf(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   leads: ReadonlyMap<string, string>,
 ): Promise<Map<string, VisitOriginDto>> {
   const out = new Map<string, VisitOriginDto>();
@@ -229,7 +230,7 @@ async function originsOf(
  */
 async function withFeedAndPeople(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   read: Omit<CalendarSources, "feed" | "parsed" | "serviceNames" | "people" | "book" | "firsts" | "taken" | "origins">,
   url: string | null,
   profile: BusinessProfile | null,
@@ -291,7 +292,7 @@ async function withFeedAndPeople(
  */
 async function takenBesideTheFeed(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   read: Pick<CalendarSources, "timezone" | "span" | "rules" | "rows">,
   now: Date,
 ): Promise<BusyBlock[]> {
@@ -443,7 +444,7 @@ function withPersonFacts<D extends { items: CalendarItemDto[] }>(
  */
 export async function getCalendarWeek(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   by: { from: string | null; days: number },
   now = new Date(),
   opts: {

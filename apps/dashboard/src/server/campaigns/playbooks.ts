@@ -58,6 +58,7 @@ import { findWhatsappHealth } from "@/server/campaigns/channels-ready";
 import { getAppointmentWord } from "@/server/people/deals";
 import { loadLazily } from "@/server/shared/lazy";
 import { getTenantFacts } from "@/server/shared/tenant";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * Playbooks, read and checked.
@@ -96,9 +97,9 @@ export interface PlaybookTotals {
 /** The proposals out here (0006): who holds one, and when the oldest went. Null with none. A read that fails throws. */
 async function proposalsOut(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ contacts: Set<string>; oldestMs: number } | null> {
-  const rows = await readAllRows<{ id: string; contact_id: string; proposed_at: string }>("deals", (from, to) =>
+  const rows = await readAllRows<{ id: string; contact_id: ContactId; proposed_at: string }>("deals", (from, to) =>
     pageProposalsOut(ctx.supabase, tenantId, from, to),
   );
   if (!rows.length) return null;
@@ -111,7 +112,7 @@ async function proposalsOut(
 /** The proposal follow-ups' touches since the oldest proposal out, no further back than the sweep reads (0006). */
 function followUpTouchesFor(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   out: { oldestMs: number },
 ): Promise<Touch[]> {
@@ -152,7 +153,7 @@ export function poolTouches(
  * touchIndex followUps): whom the run leaves out, and so the Playbooks counts and Ask (0006). None out, none. A read
  * that fails throws. By the proposal's link too (0029): a person's second proposal is owed its own.
  */
-export async function getProposalFollowUps(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpsRead> {
+export async function getProposalFollowUps(ctx: RouteContext, tenantId: TenantId, now: Date): Promise<FollowUpsRead> {
   const out = await proposalsOut(ctx, tenantId);
   if (!out) return noFollowUps();
   const { followUps, followUpKeys } = touchIndex(await followUpTouchesFor(ctx, tenantId, now, out), now);
@@ -194,7 +195,7 @@ function whatsappStops(
  */
 export async function followUpFacts(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   tz: string,
 ): Promise<FollowUpFactsDto | null> {
@@ -273,7 +274,7 @@ const noTotals = (): PlaybookTotals => ({
  * The workspace's moment playbooks, newest first, without what their runs earned: the rows GET playbooks lists, the pools
  * count by, and Ask's shape names. A reach-out's steps are its own sheet's (Reach out, Part 4), never cards here.
  */
-export async function listPlaybookRows(ctx: RouteContext, tenantId: string): Promise<PlaybookDto[]> {
+export async function listPlaybookRows(ctx: RouteContext, tenantId: TenantId): Promise<PlaybookDto[]> {
   // The query is returned as it is built, and runs when it is awaited.
   const read = (
     columns: string,
@@ -408,7 +409,7 @@ function foldTotals(runs: BroadcastDto[]): Map<string, PlaybookTotals> {
  * (playbook_totals, 00374), one call however long its history, or, on a database before it, for one release, the fold
  * over every run it replaced, so either deploy order works.
  */
-async function playbookTotalsOf(ctx: RouteContext, tenantId: string): Promise<Map<string, PlaybookTotals>> {
+async function playbookTotalsOf(ctx: RouteContext, tenantId: TenantId): Promise<Map<string, PlaybookTotals>> {
   const read = await getPlaybookTotals(ctx.supabase, tenantId, HISTORY_ON_CARD);
   if (read === "missing") return foldTotals(await listRuns(ctx, tenantId));
   if (!isPlaybookTotalsDto(read)) throw new Error("playbook_totals answered a shape it does not know");
@@ -416,7 +417,7 @@ async function playbookTotalsOf(ctx: RouteContext, tenantId: string): Promise<Ma
 }
 
 /** The moment playbooks with what their runs earned: GET playbooks' rows (listPlaybookRows), each with its totals. */
-export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promise<PlaybookListRow[]> {
+export async function listPlaybooks(ctx: RouteContext, tenantId: TenantId): Promise<PlaybookListRow[]> {
   const [rows, totals] = await Promise.all([listPlaybookRows(ctx, tenantId), playbookTotalsOf(ctx, tenantId)]);
   return rows.map((r) => ({ ...r, totals: totals.get(r.id) ?? noTotals() }));
 }
@@ -458,7 +459,7 @@ export async function refuseOnArchivedList(
  * new playbook's values are read through), and the business's zone for a change of its end. Each is read only when a
  * change asks it.
  */
-export function playbookPatchPorts(ctx: RouteContext, tenantId: string): CheckPlaybookPatchPorts {
+export function playbookPatchPorts(ctx: RouteContext, tenantId: TenantId): CheckPlaybookPatchPorts {
   return {
     ...templateValuePorts(ctx, tenantId),
     archivedList: (r) => archivedListRefusal(ctx, r),
@@ -482,7 +483,7 @@ export function playbookWriteError(error: { code?: string; message: string }): E
  */
 export function checkPlaybookChannelsInput(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   row: { trigger: string; policy_class: string | null; template_id: string | null; channels: string[] | null },
   value: unknown,
 ): Promise<ConsentChannel[]> {
@@ -497,7 +498,7 @@ export function checkPlaybookChannelsInput(
  */
 export async function checkPlaybookInput(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   body: Record<string, unknown> | null,
   existing: { trigger: string; channels?: string[] | null } | null,
   known?: ZoneAndSettings,
@@ -512,7 +513,7 @@ export async function checkPlaybookInput(
  */
 export async function checkPlaybookMomentInput(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   body: Record<string, unknown> | null,
   known?: ZoneAndSettings,
 ) {
@@ -520,7 +521,7 @@ export async function checkPlaybookMomentInput(
 }
 
 /** What a playbook's check reads of this workspace, beyond its message's: its lists, its deals, its calendar, its word. */
-function playbookCheckPorts(ctx: RouteContext, tenantId: string, known?: ZoneAndSettings): CheckPlaybookPorts {
+function playbookCheckPorts(ctx: RouteContext, tenantId: TenantId, known?: ZoneAndSettings): CheckPlaybookPorts {
   return {
     ...templateValuePorts(ctx, tenantId),
     // A list of this workspace, read under row security: another workspace's list is no list.

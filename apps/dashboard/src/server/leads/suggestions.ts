@@ -70,11 +70,12 @@ import { serviceDb } from "../shared/service-db";
 import { tenantFactsOf } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
 import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ----------------------------------------------------------- what is kept */
 
 interface SuggestionRow {
-  tenant_id: string;
+  tenant_id: TenantId;
   business_line: string;
   by_owner: boolean;
   items: unknown;
@@ -92,14 +93,14 @@ interface SuggestionRow {
  * seam -- `setModelStream`'s twin, and the same rule: tests hand in their own.
  */
 interface IdeaStore {
-  claim: (tenantId: string, line: string) => Promise<string | null>;
-  keep: (tenantId: string, claim: string, row: IdeasKept) => Promise<boolean>;
-  fail: (tenantId: string, claim: string) => Promise<void>;
-  history: (tenantId: string) => Promise<unknown>;
+  claim: (tenantId: TenantId, line: string) => Promise<string | null>;
+  keep: (tenantId: TenantId, claim: string, row: IdeasKept) => Promise<boolean>;
+  fail: (tenantId: TenantId, claim: string) => Promise<void>;
+  history: (tenantId: TenantId) => Promise<unknown>;
   /** The owner's own line, saved with no ideas: unconditional, since it is the owner's word over any write in flight. */
-  saveLine: (tenantId: string, line: string) => Promise<void>;
+  saveLine: (tenantId: TenantId, line: string) => Promise<void>;
   /** New ideas from the same line: what was shown kept to be passed on, and the next write due at once. */
-  again: (tenantId: string) => Promise<void>;
+  again: (tenantId: TenantId) => Promise<void>;
 }
 
 const SERVICE_STORE: IdeaStore = {
@@ -122,7 +123,7 @@ const TEST_STORE: IdeaStore = {
 let ideaStore: IdeaStore = SERVICE_STORE;
 
 /** What a test's writer is handed: the row as it would be kept, for an idea's write and for the owner's line alike. */
-type SuggestionsWriter = (tenantId: string, row: IdeasKept) => Promise<void>;
+type SuggestionsWriter = (tenantId: TenantId, row: IdeasKept) => Promise<void>;
 
 /**
  * Tests hand in a writer of their own (a function: handed every keep and every line saved), or any part of the store;
@@ -144,7 +145,7 @@ export function setSuggestionsWriter(suggestionsWriter: SuggestionsWriter | Part
 }
 
 /** The kept row, when there is one. */
-async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SuggestionRow | null> {
+async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SuggestionRow | null> {
   const { data, error } = await findLeadSuggestions(ctx.supabase, tenantId);
   if (error) throw new Error(error.message);
   return data ?? null;
@@ -195,7 +196,7 @@ const languageOf = (locale: string): IdeaLanguage => locale.trim().slice(0, 35) 
 const IDEA_MEMORY_LINES = 20;
 
 /** What the team told Ask about the business (decision 0070), as the member's own session reads it; none if it cannot. */
-async function memoryOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<string[]> {
+async function memoryOf(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<string[]> {
   return askMemoryLines(ctx.supabase, tenantId, IDEA_MEMORY_LINES).then(
     (lines) => lines.map((l) => l.text),
     () => [],
@@ -206,7 +207,7 @@ async function memoryOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): 
  * Who the workspace's customers are so far (contracts ideaCustomersOf: its people, its leads that became customers, its
  * won deals), read under the member's own session; none where the read fails, and the ideas are written without it.
  */
-async function customersOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<IdeaCustomers | null> {
+async function customersOf(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<IdeaCustomers | null> {
   return getIdeaCustomerRows(ctx.supabase, tenantId).then(ideaCustomersOf, (e: unknown) => {
     log.warn("lead_ideas_customers_unread", { tenant_id: tenantId, error: e });
     return null;
@@ -219,7 +220,7 @@ async function customersOf(ctx: Pick<RouteContext, "supabase">, tenantId: string
  */
 async function roomOf(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
 ): Promise<{ leadsLeft: number; language: IdeaLanguage }> {
   try {
@@ -245,7 +246,7 @@ const previousOf = (kept: SuggestionRow | null, items: LeadIdeaDto[]) => ({
  */
 async function writeIdeas(
   ctx: Pick<RouteContext, "supabase" | "userId">,
-  tenantId: string,
+  tenantId: TenantId,
   input: {
     line: string;
     address: string;
@@ -317,7 +318,7 @@ type IdeasCtx = Pick<RouteContext, "supabase" | "userId">;
  * What the workspace's ideas stand as: the row kept, its ideas, whether they still stand (a round ended, the line saved or a
  * month passed since says not), and how a page is told of them. Read once, by the GET and the POST alike.
  */
-async function ideasKept(ctx: IdeasCtx, tenantId: string) {
+async function ideasKept(ctx: IdeasCtx, tenantId: TenantId) {
   const [kept, newest] = await Promise.all([keptSuggestions(ctx, tenantId), findIdeasBasis(ctx.supabase, tenantId)]);
   const basis = ideaBasisOf(newest);
   const items = keptIdeas(kept);
@@ -343,7 +344,7 @@ async function ideasKept(ctx: IdeasCtx, tenantId: string) {
  * writes nothing and asks no model, so any member's page may read it (the wiring's second audit, S11-8: a page's read kept a
  * row, asked a model and wrote an event).
  */
-export async function getSuggestionsKept(ctx: IdeasCtx, tenantId: string): Promise<LeadSuggestionsDto> {
+export async function getSuggestionsKept(ctx: IdeasCtx, tenantId: TenantId): Promise<LeadSuggestionsDto> {
   const { items, said, standing } = await ideasKept(ctx, tenantId);
   if (standing) return said(items);
   return said(items, { due: true, ...(items.length ? {} : { note: LEAD_SUGGEST_UNAVAILABLE }) });
@@ -357,7 +358,7 @@ export async function getSuggestionsKept(ctx: IdeasCtx, tenantId: string): Promi
  */
 export async function getSuggestionsWritten(
   ctx: IdeasCtx,
-  tenantId: string,
+  tenantId: TenantId,
   opts: { ours?: boolean } = {},
 ): Promise<LeadSuggestionsDto> {
   const { kept, basis, items, byOwner: ownerSaid, madeAt, said, standing } = await ideasKept(ctx, tenantId);
@@ -415,7 +416,7 @@ export async function getSuggestionsWritten(
  */
 export async function setBusinessLine(
   _ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   line: string,
 ): Promise<{ business_line: string }> {
   await ideaStore.saveLine(tenantId, line);
@@ -427,7 +428,7 @@ export async function setBusinessLine(
  * three written now, so the next three are new ones. For a member who may find, as the write is; the claim and every
  * rule after it are the write's.
  */
-export async function listNewIdeas(ctx: IdeasCtx, tenantId: string): Promise<LeadSuggestionsDto> {
+export async function listNewIdeas(ctx: IdeasCtx, tenantId: TenantId): Promise<LeadSuggestionsDto> {
   await ideaStore.again(tenantId);
   return getSuggestionsWritten(ctx, tenantId);
 }
@@ -438,7 +439,7 @@ export async function listNewIdeas(ctx: IdeasCtx, tenantId: string): Promise<Lea
  * write after it writes the line again as the picture grows. What was shown is passed on, as New ideas passes it; the
  * claim and every rule after it are the write's. Saving a line through Edit makes it the owner's again.
  */
-export async function getLineForMe(ctx: IdeasCtx, tenantId: string): Promise<LeadSuggestionsDto> {
+export async function getLineForMe(ctx: IdeasCtx, tenantId: TenantId): Promise<LeadSuggestionsDto> {
   await ideaStore.again(tenantId);
   return getSuggestionsWritten(ctx, tenantId, { ours: true });
 }

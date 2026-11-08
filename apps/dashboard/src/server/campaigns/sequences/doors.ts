@@ -39,6 +39,7 @@ import {
   type StepChangeBody,
   type StepWordsBody,
 } from "./bodies";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A sequence's doors (decision 0060, 00442), as the routes under sequences press them: a new sequence made whole and one
@@ -48,7 +49,7 @@ import {
  * member and writes its decision in its own transaction, and its refusal is said in its own words.
  */
 
-type Sequence = { id: string; tenant_id: string };
+type Sequence = { id: string; tenant_id: TenantId };
 
 /**
  * A door's answer, or its refusal said: a check the body could not see (a step past the twentieth) is the person's to
@@ -73,7 +74,7 @@ const decided = (ctx: RouteContext, decision: { [key: string]: Json }) => ({
  */
 async function valuesOf(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   templateId: string,
   params: unknown,
 ): Promise<ParamSpec[]> {
@@ -108,7 +109,7 @@ async function laterStepOf(ctx: RouteContext, seq: Sequence, stepId: string) {
  * check POST playbooks makes: its moment offered here, its message, values, class, hour and channels), each step after it
  * against its message, then all of it written in one transaction with its decision, kept as a draft or started.
  */
-export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input: NewSequenceBody) {
+export async function makeSequenceNow(ctx: RouteContext, tenantId: TenantId, input: NewSequenceBody) {
   if (input.first.starts === "leads") return makeLeadSequenceNow(ctx, tenantId, input);
   const result = await checkPlaybookInput(ctx, tenantId, input.first, null);
   // Started on a visit moment another sequence already runs on: refused (a draft is kept; its start meets this again).
@@ -159,7 +160,7 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input
  * its list, a draft until Start. Words given are checked as every email is (contracts validateReachOutWords), an empty
  * one left to write; the door judges the member, the list, the copy and the search, and writes its decision.
  */
-async function makeLeadSequenceNow(ctx: RouteContext, tenantId: string, input: NewSequenceBody) {
+async function makeLeadSequenceNow(ctx: RouteContext, tenantId: TenantId, input: NewSequenceBody) {
   const parsed = LEAD_FIRST_BODY.safeParse(input.first);
   if (!parsed.success) throw new AppError("validation", parsed.error.issues[0]?.message ?? "Name it.", 422);
   // What Ask drafted is the decision's, beside what the owner made of it (decision 0078 step 2); never a step's.

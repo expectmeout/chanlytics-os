@@ -5,6 +5,7 @@ import { listChains } from "@/server/campaigns/reach-outs/reach-outs";
 import { saveChain } from "@/server/campaigns/reach-outs/chain-acts";
 import type { Member } from "@/server/shared/route";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A sequence to leads, written on its own record (00459: the draft's record is its editor, the lead-to-sequence canvas's
@@ -16,7 +17,7 @@ import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 export async function saveLeadChainNow(
   ctx: RouteContext,
   member: Member,
-  seq: { id: string; tenant_id: string },
+  seq: { id: string; tenant_id: TenantId },
   input: Omit<ReachOutChainInput, "search_id"> & { source_search_id?: string | null },
 ) {
   const [row] = await listSequenceOverview(ctx.supabase, seq.tenant_id, seq.id);
@@ -37,7 +38,11 @@ export async function saveLeadChainNow(
  * The first email of a sequence to leads still to write, by its place, or null: a draft may keep one, and Start asks for
  * it (the canvas's dock, "Step 2 isn't written yet · Then Start"), so nothing goes out with no words.
  */
-export async function findUnwrittenPlace(ctx: RouteContext, tenantId: string, rootId: string): Promise<number | null> {
+export async function findUnwrittenPlace(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  rootId: string,
+): Promise<number | null> {
   const chain = (await listChains(ctx, tenantId)).find((c) => c.root_id === rootId);
   return chain ? leadFirstUnwritten([...chain.steps].sort((a, b) => a.n - b.n)) : null;
 }

@@ -28,6 +28,7 @@ import { noteRow, str } from "../context/tool-reads";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";
 import { findPersonCard, listDealsOfPerson } from "@chanlytics/db/ask";
+import type { ContactId } from "@chanlytics/contracts";
 
 /**
  * Why a move found no row of theirs to move, and what to name instead. With several open (0029: one per service) it
@@ -76,7 +77,7 @@ function dealBody(
 
 /** What a deal card is asked with: propose_deal's input, below. */
 interface DealInput {
-  contact_id: string;
+  contact_id: ContactId;
   stage: string;
   service?: string;
   amount_cents?: number;

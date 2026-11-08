@@ -46,6 +46,7 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { emailDomain } from "../../connections/email";
 import type { ParsedRead } from "../parsed-feed";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The calendar as the receptionist reads it, for one span of days.
@@ -222,7 +223,7 @@ export function unreadFeed(base: CalendarFeedDto, feed: ParsedRead): CalendarFee
  */
 export async function recordOverSpan(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   tz: string,
   from: string,
   to: string,
@@ -263,7 +264,7 @@ export async function recordOverSpan(
  */
 export async function noticesHealth(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   by: { tool: string | null; name: string | null },
   listed: boolean,
   mailboxRead: () => Promise<MailboxRow | null> = () => findMailboxOfTenant(ctx.supabase, tenantId),

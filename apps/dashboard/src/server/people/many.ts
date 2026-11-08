@@ -6,6 +6,7 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { recordDecision } from "@/server/shared/verbs";
 import { NO_ADDRESS_TO_SORT } from "@/server/people/mailbox-senders";
 import { addBulkNote, listPeopleWith } from "@chanlytics/db/people";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The same change for many people at once, through the door each would go
@@ -23,9 +24,9 @@ interface ManyOutcome {
   skipped: string[];
 }
 
-async function ours<T extends { id: string; tenant_id: string; erased_at: string | null }>(
+async function ours<T extends { id: string; tenant_id: TenantId; erased_at: string | null }>(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   ids: string[],
   columns: string,
 ): Promise<{ rows: T[]; skipped: string[] }> {
@@ -43,12 +44,12 @@ async function ours<T extends { id: string; tenant_id: string; erased_at: string
  */
 export async function setReceptionistMany(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   ids: string[],
   mode: PersonReceptionistMode,
 ): Promise<ManyOutcome> {
   const uniq = [...new Set(ids)];
-  const { rows, skipped } = await ours<{ id: string; tenant_id: string; erased_at: string | null }>(
+  const { rows, skipped } = await ours<{ id: string; tenant_id: TenantId; erased_at: string | null }>(
     ctx,
     tenantId,
     uniq,
@@ -85,7 +86,7 @@ export async function setReceptionistMany(
  */
 export async function appendNotesMany(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   ids: string[],
   line: string,
 ): Promise<ManyOutcome> {
@@ -93,7 +94,7 @@ export async function appendNotesMany(
   const text = line.trim().slice(0, NOTE_LINE_MAX);
   const { rows, skipped } = await ours<{
     id: string;
-    tenant_id: string;
+    tenant_id: TenantId;
     erased_at: string | null;
   }>(ctx, tenantId, uniq, "id, tenant_id, erased_at");
   const failed: ManyOutcome["failed"] = [];
@@ -128,7 +129,7 @@ interface ErasedMany {
  */
 export async function eraseMany(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   ids: string[],
   notAPersonToo: boolean,
 ): Promise<ErasedMany> {

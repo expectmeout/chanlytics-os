@@ -31,6 +31,7 @@ import { linkPageDb, linkPageLookOf } from "../public/link-page";
 import { recordWorkspaceBegun } from "../workspace/create";
 import { log } from "../shared/log";
 import type { RouteContext } from "../shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The service role, where this deployment holds it: the page and sign-up know only the link. */
 type Db = ReturnType<typeof linkPageDb>;
@@ -70,7 +71,7 @@ function claimRefusalOf(reason: PreviewRefusal, message: string): AppError {
 }
 
 /** The preview's use, as the claimer's first-run marks. Best effort: a workspace made theirs is never undone by it. */
-async function markFirstRun(ctx: RouteContext, tenantId: string, row: LeadPreviewRow | null): Promise<void> {
+async function markFirstRun(ctx: RouteContext, tenantId: TenantId, row: LeadPreviewRow | null): Promise<void> {
   const later = row ? previewFirstRunMarks(row) : [];
   if (!later.length) return;
   try {

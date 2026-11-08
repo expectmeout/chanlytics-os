@@ -35,10 +35,11 @@ import { requireUuid } from "../shared/request-guards";
 import { serviceDb } from "../shared/service-db";
 import { type Params, row } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export interface SearchViewRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   created_by: string | null;
   card: string;
   name: string;
@@ -109,7 +110,7 @@ function nearbyOf(value: unknown): LeadArea[] {
 /** One search with its latest round, or a 404 in the product's words. */
 export async function searchRow(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
 ): Promise<SearchViewRow> {
   const { data, error } = await findSearchCard(ctx.supabase, tenantId, id);
@@ -144,7 +145,7 @@ export function morePlanOf(search: Pick<SearchViewRow, "plan">, plan: LeadSearch
   return typeof at === "number" ? { ...plan, version: Math.min(plan.version, at + 1) } : plan;
 }
 
-async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SearchViewRow[]> {
+async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SearchViewRow[]> {
   const { data, error } = await listSearchCards(ctx.supabase, tenantId, 200);
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as SearchViewRow[];
@@ -159,13 +160,13 @@ async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: strin
  */
 export interface LeadRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   business_name: string;
   email: string | null;
   email_state: LeadEmailState;
   stage: LeadStage;
   closed_reason: string | null;
-  contact_id: string | null;
+  contact_id: ContactId | null;
   place_id: string;
   erased_at: string | null;
   blanked_at: string | null;
@@ -184,7 +185,7 @@ export const leadScope = row((ctx: RouteContext, params: Params) => loadLead(ctx
 
 interface LeadSearchScopeRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   plan: unknown;
   removed_at: string | null;
@@ -203,7 +204,7 @@ export const leadSearchScope = row((ctx: RouteContext, params: Params) => loadLe
 /* ------------------------------------------------- what the owner reads -- */
 
 /** The rail's six numbers (lead_list_counts), or zeroes when the workspace has none. */
-export async function listSearchCounts(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<LeadCounts> {
+export async function listSearchCounts(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<LeadCounts> {
   const { data, error } = await readLeadListCounts(ctx.supabase, tenantId);
   if (error) throw new Error(`lead_list_counts: ${error.message}`);
   const leadCounts = (data ?? {}) as Partial<LeadCounts>;
@@ -312,7 +313,7 @@ export function toSearchDto(searchView: SearchViewRow): LeadSearchDto {
 /** Every kept search with its latest round, and the rail's counts: one read of each. */
 export async function getSearches(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ searches: LeadSearchDto[]; counts: LeadCounts; cards_live: string[] }> {
   const [rows, counts, live] = await Promise.all([
     listSearches(ctx, tenantId),
@@ -411,8 +412,8 @@ export async function undoSearch(
  */
 export async function findLeadOfPerson(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Promise<PersonLeadDto | null> {
   const { data, error } = await findNewestLeadOfPerson(ctx.supabase, tenantId, contactId);
   if (error) throw new Error(error.message);

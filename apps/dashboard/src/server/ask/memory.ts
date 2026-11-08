@@ -32,6 +32,7 @@ import { createThread, readRaws, readThread } from "./store";
 import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock } from "./round";
 import type { Msg, TurnInput } from "./loop/turn-head";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The earlier turns a cold question is asked with: counted as turns -- a person's message and what follows it until the
@@ -215,7 +216,7 @@ function rebuiltHistory(messages: AskMessageVM[], turns: TurnInput["history"]): 
 
 /** The question as the route read it, and the search it answers, if any. */
 interface Asked {
-  tenantId: string;
+  tenantId: TenantId;
   threadId: string | null;
   text: string;
   /** The question's scope: a scope, none (`null`, which clears the thread's), or no opinion (undefined: the thread's). */

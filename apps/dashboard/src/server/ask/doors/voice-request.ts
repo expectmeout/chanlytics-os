@@ -3,6 +3,7 @@ import { AppError, type AskLanguage, type AskScope, type PageContext, VOICE_IS_O
 import { requireUuid } from "@/server/shared/request-guards";
 import { edgeReasonOf, edgeRefusalWords, type EdgeAnswer } from "@/server/shared/edge";
 import { contextAsked, SCOPE_KINDS, SURFACES } from "./turn-request";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * POST /api/v1/ask/voice — a voice conversation with Ask begins, as the signed-in member
@@ -53,7 +54,7 @@ export function scopeAsked(raw: unknown): AskScope | null {
   return { kind: askScope.kind, id: askScope.id.slice(0, 120), label: askScope.label.slice(0, 80) };
 }
 
-export function asked(body: Record<string, unknown> | null, tenantId: string): Asked {
+export function asked(body: Record<string, unknown> | null, tenantId: TenantId): Asked {
   const threadId = typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
   const context = contextAsked(body?.context, tenantId);
   const surface =

@@ -34,6 +34,7 @@ import {
   saveAskTurnContent,
 } from "@chanlytics/db/ask";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Ask threads on the session client. RLS (migration 00040) keeps every read
@@ -112,7 +113,7 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
  * thread's morning, read beside it only where it was made before then, must be none (an anti-join the database does,
  * so a year of mornings is left out as surely as one).
  */
-export async function listThreads(ctx: RouteContext, tenantId: string): Promise<AskThreadVM[]> {
+export async function listThreads(ctx: RouteContext, tenantId: TenantId): Promise<AskThreadVM[]> {
   const { data, error } = await listAskThreads(
     ctx.supabase,
     tenantId,
@@ -164,7 +165,7 @@ export async function readThread(
   replays: Array<AskTurnShape["replay"] | null>;
   /** The thread may have more rows than the read returns (MESSAGES_CAP): the oldest would not be here. */
   truncated: boolean;
-  tenantId: string;
+  tenantId: TenantId;
 } | null> {
   const { data: t, error } = await findAskThread(ctx.supabase, id);
   if (error) throw new Error(error.message);
@@ -210,7 +211,7 @@ const scopeColumn = (s: AskScope | null): Json => (s ? { kind: s.kind, id: s.id,
 
 export async function createThread(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   title: string,
   scope: AskScope | null,
 ): Promise<AskThreadVM> {
@@ -227,7 +228,7 @@ export async function createThread(
 export async function appendMessage(
   ctx: RouteContext,
   threadId: string,
-  tenantId: string,
+  tenantId: TenantId,
   role: "user" | "assistant",
   content: Record<string, unknown>,
 ): Promise<{ id: string; created_at: string }> {
@@ -251,7 +252,7 @@ export async function appendMessage(
  */
 export async function keepQuickTurn(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   turn: { text: string; threadId: string | null; answer: AskAnswer; quick: NonNullable<AskIntent>["kind"] },
 ): Promise<{ id: string; title: string }> {
   let thread: { id: string; title: string };

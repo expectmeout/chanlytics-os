@@ -83,6 +83,7 @@ import { getAppointmentWord } from "@/server/people/deals";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
 import { WHATSAPP_ACCOUNT_MISSING, WHATSAPP_NO_TOKEN } from "@/server/campaigns/whatsapp-refusals";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Outcome = "submitted" | "exists" | "synced" | "failed" | "skipped";
 
@@ -109,7 +110,7 @@ const ALREADY_AT_META = /already exist|already in use|duplicate|name.*exists/i;
  * The channels the set is written on: the request's, or every one when it names none. The number is read only where
  * WhatsApp is among them, for WhatsApp's version is made only where there is a number to make it for.
  */
-async function starterChannelsOf(ctx: RouteContext, tenantId: string, value: unknown) {
+async function starterChannelsOf(ctx: RouteContext, tenantId: TenantId, value: unknown) {
   const named = Array.isArray(value)
     ? value.filter((c): c is ConsentChannel => CONSENT_CHANNELS.some((x) => x === c))
     : null;
@@ -134,7 +135,7 @@ interface StartersAsked {
  * which costs nothing. A starter asked for by its key and left out for want of the link is refused in the words a
  * message's values are (core TEMPLATE_VALUE_WORDS), never as "pick at least one".
  */
-async function startersHere(ctx: RouteContext, tenantId: string, keys: unknown): Promise<StarterTemplate[]> {
+async function startersHere(ctx: RouteContext, tenantId: TenantId, keys: unknown): Promise<StarterTemplate[]> {
   const link = await reviewLinkOf(ctx.supabase, tenantId).catch(() => null);
   const offered = startersOffered({ reviewLink: link !== null });
   const request = Array.isArray(keys) ? keys : [];
@@ -151,7 +152,7 @@ export async function addStarterTemplates(ctx: RouteContext, req: Request, membe
  * The starter set, filed for a workspace: the route's body (above), and a new campaign's one starter (withStarterMessage).
  * Everything the route did, with the workspace by its id. Not exported: only this module files starters.
  */
-async function fileStarters(ctx: RouteContext, tenantId: string, body: StartersAsked) {
+async function fileStarters(ctx: RouteContext, tenantId: TenantId, body: StartersAsked) {
   const SAID: Record<string, string> = {
     preview: "Adding templates only works on the production dashboard.",
     no_channel: LIBRARY_WORDS.writeNeedsNumber,
@@ -323,7 +324,7 @@ type WhatsAppVersion = NonNullable<PlaybookMessage["versions"]["whatsapp"]>;
 const NUMBERS = ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const;
 
 /** A moment's name as a refusal says it: an appointment moment's in the workspace's own word (readers/facts.ts). */
-async function momentLabel(ctx: RouteContext, tenantId: string, trig: Trigger): Promise<string> {
+async function momentLabel(ctx: RouteContext, tenantId: TenantId, trig: Trigger): Promise<string> {
   return trig.kind === "visit" ? triggerWords(trig, await getAppointmentWord(ctx, tenantId)).label : trig.label;
 }
 
@@ -335,7 +336,7 @@ async function momentLabel(ctx: RouteContext, tenantId: string, trig: Trigger): 
  * the WhatsApp version on file, where there is one, may yet send: one WhatsApp refused, paused or disabled, or one this
  * product cannot send whole, never will.
  */
-async function heldAtOnce(ctx: RouteContext, tenantId: string, starter: StarterTemplate, purpose: AskedPurpose) {
+async function heldAtOnce(ctx: RouteContext, tenantId: TenantId, starter: StarterTemplate, purpose: AskedPurpose) {
   const [rows, line] = await Promise.all([
     listMessageVersionRows(ctx.supabase, tenantId, { name: starter.name, language: STARTER_LANGUAGE }),
     findWhatsappChannelFacts(ctx.supabase, tenantId),
@@ -417,7 +418,7 @@ function starterChannels(
  */
 export async function checkStarterPlaybook(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   body: Record<string, unknown>,
   known?: ZoneAndSettings,
 ): Promise<StarterJudged> {

@@ -15,8 +15,9 @@ import { requireUuid } from "../../shared/request-guards";
 import { serviceDb } from "../../shared/service-db";
 import type { RouteContext } from "../../shared/with-route";
 import { stepOfSequence } from "./doors";
+import type { TenantId } from "@chanlytics/contracts";
 
-type Sequence = { id: string; tenant_id: string };
+type Sequence = { id: string; tenant_id: TenantId };
 
 export async function saveLeadWords(
   ctx: RouteContext,

@@ -69,6 +69,7 @@ import { listPlatformOverview } from "./platform";
 import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
 import { inSet } from "@/server/console/acts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * How many of each the queue reads: far past what ninety days of a help desk holds. A read that reached it says so in
@@ -85,7 +86,7 @@ type ReportRow = {
   id: string;
   number: number;
   kind: string;
-  tenant_id: string | null;
+  tenant_id: TenantId | null;
   user_id: string | null;
   email: string | null;
   page: string | null;
@@ -137,7 +138,7 @@ async function whoSent(office: BackOffice, userIds: readonly string[]): Promise<
 /** Reports since a moment (or all), newest first, each with who sent it: Support's, Health's, or every kind. */
 export async function listReportsSince(
   office: BackOffice,
-  input: { sinceIso?: string; tenantId?: string; side: ReportSide; limit?: number },
+  input: { sinceIso?: string; tenantId?: TenantId; side: ReportSide; limit?: number },
 ): Promise<SupportReportDto[]> {
   const { data, error } = await listReports(office.db, { ...input, limit: input.limit ?? BOOK_ROWS });
   if (error) throw new Error(error.message);
@@ -169,11 +170,11 @@ const whatOf = (data: unknown): string => {
 /** The setup asks since a moment, each with its workspace's name, who asked and their address. */
 export async function listAsksSince(
   office: BackOffice,
-  input: { sinceIso: string; tenantId?: string; limit?: number },
+  input: { sinceIso: string; tenantId?: TenantId; limit?: number },
 ): Promise<SetupAskDto[]> {
   const { data, error } = await setupAsks(office.db, { ...input, limit: input.limit ?? BOOK_ROWS });
   if (error) throw new Error(error.message);
-  const rows = (data ?? []).filter((e): e is typeof e & { tenant_id: string } => !!e.tenant_id);
+  const rows = (data ?? []).filter((e): e is typeof e & { tenant_id: TenantId } => !!e.tenant_id);
   const ids = [...new Set(rows.map((e) => e.tenant_id))];
   const names = ids.length ? await getTenantNames(office.db, ids) : { data: [], error: null };
   if (names.error) throw new Error(names.error.message);

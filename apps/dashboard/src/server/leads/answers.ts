@@ -14,13 +14,14 @@ import {
 } from "@chanlytics/contracts";
 import { MAPS_CAP_FLOOR_USD } from "@chanlytics/core";
 import { log } from "@/server/shared/log";
+import type { ContactId } from "@chanlytics/contracts";
 
 export interface DoorAnswer {
   error?: string;
   /** lead_set_stage: what the lead is now, and whether this act made a person. */
   stage?: string;
   closed_reason?: string | null;
-  contact_id?: string | null;
+  contact_id?: ContactId | null;
   existed?: boolean;
   converted?: boolean;
   /** lead_bulk: how many leads the act reached. lead_search_remove: how many memberships it blanked. */

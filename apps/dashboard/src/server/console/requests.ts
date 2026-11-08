@@ -27,12 +27,13 @@ import {
 import { takeAct } from "./acts";
 import type { BackOffice } from "../shared/back-office";
 import { NOT_RECORDED } from "@/server/console/words";
+import type { TenantId } from "@chanlytics/contracts";
 
 type RequestRow = {
   id: string;
   number: number;
   kind: string;
-  tenant_id: string | null;
+  tenant_id: TenantId | null;
   slug: string;
   name: string;
   asked_by: string;

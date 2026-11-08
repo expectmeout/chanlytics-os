@@ -22,6 +22,7 @@ import { AppError, normalizeEmail, normalizeLink, whyNotALink, whyNotAnEmail } f
 import { findPersonRow, setPersonEmail, setPersonName, setPersonNotes, setPersonProposal } from "@chanlytics/db/people";
 import type { contactScope } from "@/server/shared/verbs";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import type { ContactId } from "@chanlytics/contracts";
 
 /** Any field alone; an empty string clears it. */
 export const PersonDetailsChange = z
@@ -40,7 +41,7 @@ export const PersonDetailsChange = z
 type ContactRow = Awaited<ReturnType<typeof contactScope.load>>;
 
 interface PersonDetailsAnswer {
-  contact_id: string;
+  contact_id: ContactId;
   name?: string | null;
   notes?: string | null;
   email?: string | null;

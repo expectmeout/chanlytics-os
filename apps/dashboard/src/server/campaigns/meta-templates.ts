@@ -4,6 +4,7 @@ import { MIN_MS } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { serviceDb } from "../shared/service-db";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A sync pages through every template the account holds, a Graph call a page: a minute, as the lines doors get. */
 const SYNC_TIMEOUT_MS = MIN_MS;
@@ -20,7 +21,7 @@ const CREATE_TIMEOUT_MS = 30_000;
  */
 export function recordTemplateEvent(
   db: ReturnType<typeof serviceDb>,
-  tenantId: string,
+  tenantId: TenantId,
   kind: "submitted" | "removed",
   template: { id: string; name: string; language: string },
   by: string,
@@ -44,7 +45,7 @@ type SyncOutcome =
   | { ok: false; reason: EdgeReason; detail?: string };
 
 /** Every template of the workspace's WhatsApp account, upserted; a row Meta does not return is left as it was. */
-export async function syncTemplates(tenantId: string, userId: string): Promise<SyncOutcome> {
+export async function syncTemplates(tenantId: TenantId, userId: string): Promise<SyncOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const answer = await callEdge(
     "/api/admin/whatsapp/templates-sync",
@@ -77,7 +78,7 @@ type TemplateCreateOutcome =
   { ok: true; id: string; metaStatus: string } | { ok: false; reason: EdgeReason; detail?: string };
 
 export async function createTemplate(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   target: {
     name: string;
@@ -119,7 +120,7 @@ export async function createTemplate(
 type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false; reason: EdgeReason; detail?: string };
 
 export async function deleteTemplate(
-  tenantId: string,
+  tenantId: TenantId,
   templateId: string,
   userId: string,
 ): Promise<TemplateDeleteOutcome> {

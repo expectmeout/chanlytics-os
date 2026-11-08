@@ -31,6 +31,7 @@ import { listSearchCounts } from "./searches";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
 import { env } from "../shared/env";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 /* --------------------------------------------------------- a page of rows */
 
@@ -85,7 +86,7 @@ interface LeadPageRow {
   claimed: boolean | null;
   maps_url: string | null;
   rank: number | null;
-  contact_id: string | null;
+  contact_id: ContactId | null;
   contacted_at: string | null;
   converted_at: string | null;
   exported_at: string | null;
@@ -313,7 +314,7 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
 }
 
 /** The searches' names, for the row that says which search found it: one read, whatever the page holds. */
-async function searchNamesOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<Map<string, string>> {
+async function searchNamesOf(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<Map<string, string>> {
   const { data, error } = await listSearchNames(ctx.supabase, tenantId, 200);
   if (error) throw new Error(error.message);
   return new Map(((data ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name]));
@@ -338,7 +339,7 @@ export interface LeadsPageAnswer {
 /** The pile's progress line, read under the caller's row security (00426 lead_pile_counts). */
 async function pileOf(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   searchId: string,
   leadsQuery: LeadsQuery,
 ): Promise<LeadPileCountsDto> {
@@ -359,7 +360,7 @@ async function pileOf(
  */
 async function monthStanding(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date = new Date(),
 ): Promise<LeadMonthDto> {
   const { timezone } = await getTenantFacts(ctx.supabase, tenantId);
@@ -378,7 +379,7 @@ async function monthStanding(
  */
 export async function getLeadsPage(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   leadsQuery: LeadsQuery,
   opts: { month?: boolean } = {},
 ): Promise<LeadsPageAnswer> {
@@ -442,7 +443,7 @@ export async function getLeadsPage(
  */
 async function placesOf(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   leadIds: readonly string[],
 ): Promise<ReadonlyMap<string, SequencePlaceOfDto> | null> {
   const result = await listSequencePlaces(ctx.supabase, tenantId, leadIds).catch(() => null);
@@ -468,7 +469,7 @@ const GONE = () => new AppError("not_found", "That lead is not in your workspace
  */
 export async function getLeadOne(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   leadId: string,
   searchId?: string,
 ): Promise<{ row: LeadRowDto }> {

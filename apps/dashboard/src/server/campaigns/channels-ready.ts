@@ -13,6 +13,7 @@ import type { RouteContext } from "../shared/with-route";
 import { getEmailWire } from "../connections/email-readiness";
 import { log } from "../shared/log";
 import { findConfigRow } from "../workspace/config-row";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Whether this workspace can send a campaign on each channel now (One message, every channel, step 3; contracts
@@ -30,7 +31,7 @@ import { findConfigRow } from "../workspace/config-row";
  */
 export async function getChannelsReady(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   options: { fresh: boolean; withPause: boolean },
 ): Promise<ChannelsReady> {
   // Asked first, so the edge's answer (kept five minutes while all is well, a short while otherwise) overlaps the reads
@@ -82,7 +83,7 @@ export async function getChannelsReady(
  */
 export async function findChannelsReadyOrNull(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   options: { withPause: boolean },
 ): Promise<ChannelsReady | null> {
   try {
@@ -102,7 +103,7 @@ type WhatsappHealth = NumberHealth & { number: string | null };
  * a number Meta has stopped, or whose account has no payment method, carries no campaign, in the sentence the Connections
  * row says) and the number itself; null with no active number. A read that fails throws.
  */
-export async function findWhatsappHealth(ctx: RouteContext, tenantId: string): Promise<WhatsappHealth | null> {
+export async function findWhatsappHealth(ctx: RouteContext, tenantId: TenantId): Promise<WhatsappHealth | null> {
   const wa = await findWhatsappChannelFacts(ctx.supabase, tenantId);
   if (!wa) return null;
   return { ...numberHealthOfConfig(wa.config), number: wa.number };

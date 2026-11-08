@@ -3,6 +3,7 @@ import { nextMonthStart, type MonthSent } from "@chanlytics/contracts";
 import { recordCampaignMonthSent } from "@chanlytics/db/campaigns";
 import { log } from "../shared/log";
 import { serviceDb } from "../shared/service-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * What this workspace's campaigns have sent by email and by text in the calendar month `at` falls in, in its own zone
@@ -13,7 +14,7 @@ import { serviceDb } from "../shared/service-db";
  * A read that fails is said in the log and is null, and the page says nothing of the month rather than a month of
  * nothing: a count that could not be made is not room.
  */
-async function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null> {
+async function monthSentIn(tenantId: TenantId, at: Date): Promise<MonthSent | null> {
   try {
     const db = serviceDb();
     const [email, sms] = await Promise.all([
@@ -31,7 +32,7 @@ async function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null
  * This calendar month's count. `now` is the turn's clock, so the month is the one the page is read in; Ask's broadcast
  * card passes the time its send is set to go, so the month is the one it goes in, as the send screen counts it.
  */
-export function readMonthSentOrNull(tenantId: string, now: Date): Promise<MonthSent | null> {
+export function readMonthSentOrNull(tenantId: TenantId, now: Date): Promise<MonthSent | null> {
   return monthSentIn(tenantId, now);
 }
 
@@ -43,7 +44,7 @@ export function readMonthSentOrNull(tenantId: string, now: Date): Promise<MonthS
  * cannot be read gives no next month at all, and the composer judges every send by this month's, as it did.
  */
 export async function readMonthSentNext(
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   tz: string,
 ): Promise<{ from: number; sent: MonthSent | null } | null> {

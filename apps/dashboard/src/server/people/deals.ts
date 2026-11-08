@@ -35,6 +35,7 @@ import {
 } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { findAppointmentWord } from "@chanlytics/db/workspace";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * What this workspace calls an appointment (tenants.appointment_word, 00458), by contracts' one derivation
@@ -43,7 +44,7 @@ import { findAppointmentWord } from "@chanlytics/db/workspace";
  */
 export async function getAppointmentWord(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<AppointmentWord> {
   const r = await findAppointmentWord(ctx.supabase, tenantId);
   const word = r.error ? null : recordOrNull(r.data)?.appointment_word;
@@ -51,7 +52,7 @@ export async function getAppointmentWord(
 }
 
 /** Whether a deal was ever recorded here (packages/db getDealOnFile), under the member's own RLS. */
-export const hasDealsRead = (ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<boolean> =>
+export const hasDealsRead = (ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<boolean> =>
   getDealOnFile(ctx.supabase, tenantId);
 
 /**
@@ -62,7 +63,7 @@ export const hasDealsRead = (ctx: Pick<RouteContext, "supabase">, tenantId: stri
  */
 export async function findDealPace(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
 ): Promise<DealPaceDto | null> {
   // The one typed read of them, which the edge's playbook sweep reads too (packages/db listYesesSince).
@@ -86,8 +87,8 @@ export { DEAL_DTO_COLUMNS } from "@chanlytics/db/deals";
  */
 export async function findCurrentDeal(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Promise<DealDto | null> {
   try {
     const r = await listDealRowsOf(ctx.supabase, tenantId, contactId);
@@ -136,7 +137,7 @@ const CAME_FROM_ORDER = keysOf(PERSON_CAME_FROM_WORDS);
  */
 export async function readDealReport(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   days: number,
   people: readonly Pick<PersonRowDto, "id" | "came_from">[],
   now = new Date(),
@@ -207,7 +208,7 @@ export async function readDealReport(
  */
 export async function recordDealMove(
   ctx: Pick<RouteContext, "supabase" | "via" | "undoOf">,
-  contactId: string,
+  contactId: ContactId,
   stage: string,
   move: DealMove,
 ): Promise<{ deal: DealDto; from: string | null; decision_id: string }> {

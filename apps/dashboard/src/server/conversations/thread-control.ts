@@ -9,6 +9,7 @@ import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared
 /** A draft rewritten by the model at the edge: as long as its door may take, so a timeout here is the door's own. */
 const STEER_TIMEOUT_MS = MIN_MS;
 import { serviceDb } from "../shared/service-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Who is speaking on a thread right now (00132): a person's hold, taken for
@@ -22,7 +23,7 @@ import { serviceDb } from "../shared/service-db";
  * and a failure throws rather than being read as a hold we do not have.
  */
 export async function takeThreadControl(
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   userId: string,
   seconds: number,

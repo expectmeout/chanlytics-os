@@ -18,6 +18,7 @@ import {
 import { answerOf, refusalOf } from "./answers";
 import type { RouteContext } from "../shared/with-route";
 import { chooseLeadList, importLeadList } from "@chanlytics/db/leads";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Ctx = Pick<RouteContext, "supabase">;
 
@@ -30,7 +31,7 @@ function taken<T>(fn: string, data: unknown, error: { message: string } | null):
 }
 
 /** A file's rows as a search, every address checked first (J2-J6). */
-export async function importLeads(ctx: Ctx, tenantId: string, input: LeadImportInput): Promise<LeadImportAnswer> {
+export async function importLeads(ctx: Ctx, tenantId: TenantId, input: LeadImportInput): Promise<LeadImportAnswer> {
   const { data, error } = await importLeadList(ctx.supabase, {
     p_tenant_id: tenantId,
     p_name: input.name,
@@ -43,7 +44,7 @@ export async function importLeads(ctx: Ctx, tenantId: string, input: LeadImportI
 }
 
 /** Leads already counted, chosen on Leads, as a search a reach-out writes to (J7). */
-export async function chooseLeads(ctx: Ctx, tenantId: string, input: LeadChooseInput): Promise<LeadChooseAnswer> {
+export async function chooseLeads(ctx: Ctx, tenantId: TenantId, input: LeadChooseInput): Promise<LeadChooseAnswer> {
   const { data, error } = await chooseLeadList(ctx.supabase, {
     p_tenant_id: tenantId,
     p_name: input.name,

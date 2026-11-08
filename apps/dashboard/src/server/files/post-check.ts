@@ -15,9 +15,10 @@ import {
   type PostShapeName,
   type PostUndrawable,
 } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** Where a shape of a made file is kept: portrait is the file's original, the others stand beside it. */
-export function postPathOf(tenantId: string, fileId: string, shape: PostShapeName): string {
+export function postPathOf(tenantId: TenantId, fileId: string, shape: PostShapeName): string {
   return `${fileFolderOf(tenantId, fileId)}/${shape === "portrait" ? "original" : shape}.jpg`;
 }
 

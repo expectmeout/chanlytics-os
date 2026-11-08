@@ -41,8 +41,9 @@ import { serviceDb } from "../shared/service-db";
 import { getTenantFacts } from "../shared/tenant";
 import { getChannelsReady, findChannelsReadyOrNull, findWhatsappHealth } from "./channels-ready";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
-export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {
+export function templateValuePorts(ctx: RouteContext, tenantId: TenantId): TemplateValuesPorts {
   return {
     // The message the version names, as every row the workspace holds of it on any channel (a message needs no WhatsApp row).
     message: (id) => listMessageVersionRows(ctx.supabase, tenantId, { id }),
@@ -64,7 +65,7 @@ export function templateValuePorts(ctx: RouteContext, tenantId: string): Templat
  * asks that every person, the template and the playbook are the workspace's, as the insert policies asked of the
  * session. The decision carries the request's `via` and the undo link it named, as recordDecision's did.
  */
-function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
+function assemblePorts(ctx: RouteContext, tenantId: TenantId): AssemblePorts {
   return {
     assemble: async (row, recipients, sendAt, decision) => {
       const created = await assembleBroadcast(serviceDb(), {
@@ -131,7 +132,7 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
  */
 export function createBroadcastPorts(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   options: { fresh: boolean },
 ): CreateBroadcastPorts {
   // The workspace's facts, read once: the zone its people's rows are said in is the zone the send is timed by.
@@ -175,7 +176,7 @@ export function createBroadcastPorts(
   };
 }
 
-export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRunPorts {
+export function approveRunPorts(ctx: RouteContext, tenantId: TenantId): ApproveRunPorts {
   return {
     timezone: async () => (await getTenantFacts(ctx.supabase, tenantId)).timezone,
     // Under the session's own RLS, as the zone above is: a member reads their own workspace's row.
@@ -202,7 +203,7 @@ export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRun
   };
 }
 
-export function cancelBroadcastPorts(ctx: RouteContext, tenantId: string): CancelBroadcastPorts {
+export function cancelBroadcastPorts(ctx: RouteContext, tenantId: TenantId): CancelBroadcastPorts {
   return {
     withdraw: (id) => cancelKindFor(tenantId, "broadcast_send", "broadcast_id", id),
     // The batch door (00442 sequence_batch_cancel): members no longer write a batch's row themselves.

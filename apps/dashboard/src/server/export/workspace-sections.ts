@@ -5,6 +5,7 @@ import type { Database } from "@chanlytics/db/types";
 import { listSignedMediaUrls } from "@/server/conversations/media";
 import { getTeamRoster } from "@/server/workspace/team";
 import { FILE_LINK_SECONDS, type BundleReaders, type BundleTeamMember, type PersonBundleReaders } from "./bundle";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * The readers of the owner's copy beyond the customer record (the wiring's second audit, R14 X1 and X6): the team as the
@@ -14,7 +15,7 @@ import { FILE_LINK_SECONDS, type BundleReaders, type BundleTeamMember, type Pers
  */
 export function workspaceSections(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Pick<BundleReaders, "signFiles" | "team" | "sections"> {
   return {
     signFiles: (paths) => listSignedMediaUrls(tenantId, paths, FILE_LINK_SECONDS),
@@ -48,8 +49,8 @@ export function workspaceSections(
  */
 export function personSections(
   db: SupabaseClient<Database>,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Pick<PersonBundleReaders, "signFiles" | "sections"> {
   return {
     signFiles: (paths) => listSignedMediaUrls(tenantId, paths, FILE_LINK_SECONDS),

@@ -2,6 +2,7 @@ import "server-only";
 import { deployment } from "../shared/env";
 import { MIN_MS } from "@chanlytics/contracts";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** What the browser needs to start signup is read from the edge's environment: a second's work. */
 const SIGNUP_CONFIG_TIMEOUT_MS = 10_000;
@@ -69,7 +70,7 @@ type ConnectOutcome =
  * coexistence: decision 0073, R12) is already registered, and the edge asks Meta for the app's contacts and chats (R21).
  */
 export async function connectWhatsApp(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   body: { code: string; phone_number_id?: string; waba_id?: string; keep_app?: true },
 ): Promise<ConnectOutcome> {
@@ -114,7 +115,7 @@ type StandingCheck = { ok: true; kept: string; canSend: string } | { ok: false; 
  * on the channel (where Connections' row reads it from) and tells the owner if it turned BLOCKED. Answers what was kept and
  * Meta's word for whether the number may send; what Meta said stays on the channel. A preview never asks a real number.
  */
-export async function checkWhatsAppStanding(tenantId: string, userId: string): Promise<StandingCheck> {
+export async function checkWhatsAppStanding(tenantId: TenantId, userId: string): Promise<StandingCheck> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const answer = await callEdge(
     "/api/admin/whatsapp/standing",

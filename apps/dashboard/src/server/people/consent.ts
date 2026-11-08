@@ -30,6 +30,7 @@ import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import type { contactScope } from "@/server/shared/verbs";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** The person a contactScope route acts on, as the scope read them. */
 type ContactRow = Awaited<ReturnType<typeof contactScope.load>>;
@@ -159,7 +160,7 @@ export async function recordOffersConsent(ctx: RouteContext, contact: ContactRow
  */
 export async function recordConsentMany(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   purpose: AskedPurpose,
   input: { ids: string[] } & ConsentInput,
 ): Promise<ManyOutcome> {
@@ -210,9 +211,9 @@ interface SignupAskAnswer {
 const NOBODY_TO_ASK = "There is nobody to ask: they are no longer in this workspace.";
 
 export async function askToConfirmSignup(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
-  contactId: string,
+  contactId: ContactId,
 ): Promise<SignupAskAnswer> {
   if (!edgeConfigured()) throw new AppError("conflict", "Asking them to confirm is not available right now.", 503);
   const answer = await callEdge(

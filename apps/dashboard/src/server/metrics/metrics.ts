@@ -26,6 +26,7 @@ import type { Database } from "@chanlytics/db/types";
 import { getEmailLine } from "../connections/email";
 import { findBookedSince, findBookingsLately } from "./bookings";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The window the day's replies are read over: Today's one day. A longer window carries none (a period's replies are Reports', report_series). */
 const REPLIES_WINDOW_DAYS = 1;
@@ -43,7 +44,7 @@ type RecentReplies = Awaited<ReturnType<typeof listFirstReplies>>;
  * function's answer carried none (a database before 00359). Null when the read failed (logged): the sentence then says the
  * median, as it did.
  */
-function recentReplies(supabase: SupabaseClient<Database>, tenantId: string): Promise<RecentReplies | null> {
+function recentReplies(supabase: SupabaseClient<Database>, tenantId: TenantId): Promise<RecentReplies | null> {
   return listFirstReplies(supabase, tenantId, new Date(Date.now() - REPLIES_LOOKBACK_MS)).catch((e: unknown) => {
     log.error("today_replies_read_failed", { error: e });
     return null;
@@ -80,7 +81,7 @@ function holdSummary(rows: RecentReplies, since: string): MetricsSummaryDto["rep
 /** Null when the function answered nothing, or answered its own error; each caller refuses in its own words. */
 export async function findMetricsSummary(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   days: number,
 ): Promise<MetricsSummaryDto | null> {
   // Together, not waterfalled: one indexed row must not sit behind three

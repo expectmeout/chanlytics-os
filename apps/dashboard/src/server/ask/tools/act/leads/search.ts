@@ -42,6 +42,7 @@ import {
   type ToolContext,
 } from "../../context/tool-defs";
 import { approvalWords, propose, refuse } from "../../context/context";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The ask as the model writes it, field by field, in the flat shape it is shown. The plan's own schema
@@ -169,7 +170,7 @@ async function proposePeopleSearch(
  */
 export async function getPeopleCard(
   ctx: ToolContext["ctx"],
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   plan: LeadPeoplePlan,
   title: string,
