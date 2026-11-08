@@ -50,6 +50,7 @@ import type { Logger } from "../shared/log.js";
 import { findPlanForRelease, listStripeAccountsIn } from "@chanlytics/db/billing";
 import { listWorkspaceStandings } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
+import { logFailure } from "../shared/log.js";
 
 type Db = SupabaseClient<Database>;
 type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -190,11 +191,11 @@ export async function releaseLine(
     // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
     await dropLineCredentials(db, line.id);
   } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
-    return { ok: false, status: 503, error: "write_failed", detail, released };
+    return { ok: false, status: 503, error: "write_failed", detail: logFailure("write", e), released };
   }
   const del = await deleteLineRow(db, tenantId, line.id);
-  if (del.error) return { ok: false, status: 503, error: "write_failed", detail: del.error.message, released };
+  if (del.error)
+    return { ok: false, status: 503, error: "write_failed", detail: logFailure("write", del.error), released };
   await emitEvent(db, tenantId, "line.released", "line", line.id, {
     e164: line.e164,
     provider: choice.name,

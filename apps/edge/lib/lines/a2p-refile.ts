@@ -7,7 +7,7 @@
 import { deleteCampaignRequest, updateCampaignRequest, encodeForm, requestTwilio } from "@chanlytics/channels/lines";
 import type { EdgeErrorCode } from "@chanlytics/contracts";
 import { findLineAccount } from "./sms.js";
-import { logger } from "../shared/log.js";
+import { logger, logFailure } from "../shared/log.js";
 import { listFilingProblems, TWILIO_TIMEOUT_MS, type Db, type LineRow, type RecordRow } from "./a2p-register.js";
 import { saveLineRowBack } from "@chanlytics/db/lines";
 
@@ -105,7 +105,7 @@ export async function unfileMockRegistration(
     last_error: null,
     state_since: new Date().toISOString(),
   });
-  if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
+  if (cleared.error) return { ok: false, error: "write_failed", detail: logFailure("write", cleared.error) };
   return { ok: true, row: cleared.data };
 }
 
@@ -190,7 +190,7 @@ export async function resubmitRejectedCampaign(
     last_error: null,
     state_since: new Date().toISOString(),
   });
-  if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
+  if (cleared.error) return { ok: false, error: "write_failed", detail: logFailure("write", cleared.error) };
   return { ok: true, row: cleared.data };
 }
 
@@ -254,6 +254,6 @@ export async function replaceRejectedCampaign(
     last_error: null,
     state_since: new Date().toISOString(),
   });
-  if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
+  if (cleared.error) return { ok: false, error: "write_failed", detail: logFailure("write", cleared.error) };
   return { ok: true, row: cleared.data };
 }

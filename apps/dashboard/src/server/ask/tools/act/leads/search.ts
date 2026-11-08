@@ -41,7 +41,7 @@ import {
   type ProposalOutcome,
   type ToolContext,
 } from "../../context/tool-defs";
-import { approvalWords, propose, refuse } from "../../context/context";
+import { approvalWords, propose, refuse, refuseThrown } from "../../context/context";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -416,7 +416,7 @@ async function proposeReachOutAdd(
     dry = await addToReachOut(toolContext.ctx, rootId, { lead_ids: ids }, true);
   } catch (e) {
     // A finder-fed reach-out (its search keeps it current), a removed list, a role the door refuses: in its own words.
-    return refuse(e instanceof Error ? e.message : String(e));
+    return refuseThrown(e);
   }
   const addWords = reachOutAddWords(dry, root.name);
   if (!dry.would_add) return refuse(`${addWords.text}. Say so; nothing was proposed`);

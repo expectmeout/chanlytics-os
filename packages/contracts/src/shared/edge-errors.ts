@@ -39,6 +39,7 @@ export const EDGE_ERROR_CODES = [
   "could_not_retire_old_draft",
   "credentials_failed",
   "direct",
+  "door_failed",
   "draft_not_owed",
   "draft_refused",
   "email_off",

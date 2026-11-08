@@ -18,6 +18,7 @@ import { pg } from "../shared/pg.js";
 import { UUID, freedTimeOf, isTenantId } from "@chanlytics/contracts";
 import { findFreedTimeFacts } from "@chanlytics/db/campaigns";
 import { offerFreedTime } from "./freed-time-offer.js";
+import { refuseFailure } from "../shared/log.js";
 
 /**
  * The span offered is the one the cancellation's arrival would offer (core subscribers.ts freedTimeAsked, contracts
@@ -54,6 +55,6 @@ export async function offerFreedTimeNow(
     );
     return json(200, { ok: true, ...offer });
   } catch (e) {
-    return refuse(500, "run_failed", e instanceof Error ? e.message : String(e));
+    return refuseFailure(500, "run_failed", e);
   }
 }

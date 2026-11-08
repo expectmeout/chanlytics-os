@@ -489,6 +489,21 @@ const doorWords = (door: { plainly: string }, sentence: string): string =>
  * 0114). Null for any other, a bare raise among them: it says nothing of what the rule means here, and only a route that
  * knows can say (dbRefusal's `raised`), so it stays the fault it is.
  */
+/** A door's sentence, as a person may read it, for a refusal mapped where it is read (files, the logo). */
+export function doorSentence(reply: { code?: string | null; message: string }): string {
+  const door = reply.code ? DOOR_REFUSALS[reply.code] : undefined;
+  return door ? doorWords(door, reply.message) : reply.message;
+}
+
+/**
+ * What a person may read of a failure a check threw: an AppError's sentence, written for them, or the door's words of a
+ * database failure. Null for anything else, whose text belongs in the log.
+ */
+export function refusalWords(thrown: unknown): string | null {
+  if (thrown instanceof AppError) return thrown.message;
+  return thrown instanceof DbFailure ? (refusalOfDbFailure(thrown)?.message ?? null) : null;
+}
+
 export function refusalOfDbFailure(failure: DbFailure): AppError | null {
   const door = failure.code ? DOOR_REFUSALS[failure.code] : undefined;
   return door ? new AppError(door.code, doorWords(door, failure.dbMessage), door.status) : null;

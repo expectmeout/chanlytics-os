@@ -49,7 +49,7 @@ import {
 import { readAndKeepStanding } from "../whatsapp/number-standing.js";
 import { startWhatsappHistory } from "../imports/history-import.js";
 import { env } from "../shared/env.js";
-import { logger } from "../shared/log.js";
+import { logger, refuseFailure } from "../shared/log.js";
 import { UUID, isTenantId } from "@chanlytics/contracts";
 import {
   findWhatsAppNumberHolder,
@@ -146,7 +146,7 @@ async function writeChannelRow(
       // to somebody else would be a worse answer than the upsert used to give.
       // Who holds the number now, whichever workspace it is: the answer this read exists for.
       const mineNow = await findWhatsAppNumberHolder(db, phoneNumberId);
-      if (mineNow.error) return refuse(503, "read_failed", mineNow.error.message);
+      if (mineNow.error) return refuseFailure(503, "read_failed", mineNow.error);
       if (mineNow.data?.tenant_id === tenantId) {
         log.info("wa_connect_raced_self");
         row = { id: mineNow.data.id };

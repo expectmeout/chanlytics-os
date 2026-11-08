@@ -35,7 +35,7 @@ import { syncProfile } from "./profile-sync.js";
 import { syncMended } from "./sync-notice.js";
 import { readProfileDetails } from "./profile-details.js";
 import { startHistory } from "../imports/history-import.js";
-import { errField, logger } from "../shared/log.js";
+import { errField, logger, logFailure } from "../shared/log.js";
 import {
   deleteGoogleConnection,
   deleteGoogleListingDays,
@@ -153,9 +153,10 @@ export async function connectProfile(
   // `location_name: null` -- so the failure path is not "remove what we just
   // made", it is "put back what was working".
   const prior = await findGoogleConnection(db, tenantId);
-  if (prior.error) return { ok: false, error: "connection_write_failed", detail: prior.error.message };
+  if (prior.error) return { ok: false, error: "connection_write_failed", detail: logFailure("write", prior.error) };
   const saved = await saveGoogleConnection(db, tenantId, row);
-  if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
+  if (saved.error || !saved.data)
+    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error ?? "no answer") };
   try {
     await storeCredentials(db, tenantId, {
       refresh_token: grant.refresh_token,
@@ -244,13 +245,13 @@ export async function bindLocation(
 ): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | EdgeRefusal> {
   if (!loc.place_id) return { ok: false, error: "not_on_maps" };
   const existing = await findGoogleListingPlace(db, conn.tenant_id);
-  if (existing.error) return { ok: false, error: "listing_read_failed", detail: existing.error.message };
+  if (existing.error) return { ok: false, error: "listing_read_failed", detail: logFailure("read", existing.error) };
   if (existing.data && existing.data.place_id !== loc.place_id) {
     // Another place's reviews and days, left under this one, would be said as its own.
     const reviewsGone = await deleteGoogleReviews(db, conn.tenant_id);
-    if (reviewsGone.error) return { ok: false, error: "write_failed", detail: reviewsGone.error.message };
+    if (reviewsGone.error) return { ok: false, error: "write_failed", detail: logFailure("write", reviewsGone.error) };
     const daysGone = await deleteGoogleListingDays(db, conn.tenant_id);
-    if (daysGone.error) return { ok: false, error: "write_failed", detail: daysGone.error.message };
+    if (daysGone.error) return { ok: false, error: "write_failed", detail: logFailure("write", daysGone.error) };
   }
   const listing = await saveGoogleListing(
     db,
@@ -283,7 +284,7 @@ export async function bindLocation(
           check_error: null,
         },
   );
-  if (listing.error) return { ok: false, error: "listing_write_failed", detail: listing.error.message };
+  if (listing.error) return { ok: false, error: "listing_write_failed", detail: logFailure("write", listing.error) };
   const saved = await patchGoogleConnectionBack(db, conn.tenant_id, {
     account_name: loc.account_name,
     account_title: loc.account_title,
@@ -292,7 +293,8 @@ export async function bindLocation(
     last_synced_at: null,
     sync_error: null,
   });
-  if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
+  if (saved.error || !saved.data)
+    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error ?? "no answer") };
   const read = await syncProfile(db, saved.data, tz, now, net);
   // Its hours, services and prices, days closed and words, for Check (decision 0073, R17); its website read after.
   await readProfileDetails(db, saved.data, now, net);

@@ -51,7 +51,7 @@ import { checkListing } from "./listing-check.js";
 import { draftFor, holdReviewReply, replyOnProfile, reviewReplyMode } from "./review-answers.js";
 import { bindLocation, connectProfile, disconnectProfile, getLocations } from "./profile-connection.js";
 import { syncProfile } from "./profile-sync.js";
-import { errField, logger, type Logger } from "../shared/log.js";
+import { errField, logger, type Logger, refuseFailure } from "../shared/log.js";
 import { askForListingPhotos } from "../files/found.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -202,12 +202,12 @@ async function link(googleCall: GoogleCall): Promise<Response> {
     googleCall.tenantId,
     linkRow(details, googleCall.tenantId, googleCall.userId, new Date()),
   );
-  if (saved.error || !saved.data) return refuse(500, "write_failed", saved.error?.message);
+  if (saved.error || !saved.data) return refuseFailure(500, "write_failed", saved.error ?? "no answer");
   // A new listing forgets the old one's reviews and days: they were another place's.
   const reviewsGone = await deleteGoogleReviews(googleCall.db, googleCall.tenantId);
-  if (reviewsGone.error) return refuse(500, "write_failed", reviewsGone.error.message);
+  if (reviewsGone.error) return refuseFailure(500, "write_failed", reviewsGone.error);
   const daysGone = await deleteGoogleListingDays(googleCall.db, googleCall.tenantId);
-  if (daysGone.error) return refuse(500, "write_failed", daysGone.error.message);
+  if (daysGone.error) return refuseFailure(500, "write_failed", daysGone.error);
   // The link asks for the listing's website to be read too (website-read.ts), for Check and its booking page.
   const read = await checkListing(googleCall.db, saved.data, googleCall.tz, { askWebsite: true });
   // A place that changed: what the last one offered and nobody kept leaves the Inbox, as it may be another business's. The
@@ -332,7 +332,7 @@ async function unlink(googleCall: GoogleCall, conn: ConnectionRow | null, row: L
   if (conn) await disconnectProfile(googleCall.db, googleCall.tenantId, googleCall.userId);
   if (!row) return json(200, { ok: true, removed: false });
   const del = await deleteGoogleListing(googleCall.db, googleCall.tenantId);
-  if (del.error) return refuse(500, "write_failed", del.error.message);
+  if (del.error) return refuseFailure(500, "write_failed", del.error);
   await emitEvent(googleCall.db, googleCall.tenantId, "google.unlinked", "listing", null, {
     place_id: row.place_id,
     name: row.name,
@@ -370,11 +370,11 @@ export async function runGoogleOp(auth: Admitted, body: Partial<GoogleBody>): Pr
   const onWorkspace = pick(ON_WORKSPACE, op);
   if (onWorkspace) return onWorkspace(value);
   const conn = await findGoogleConnection(value.db, value.tenantId);
-  if (conn.error) return refuse(503, "read_failed", conn.error.message);
+  if (conn.error) return refuseFailure(503, "read_failed", conn.error);
   const onConnection = pick(ON_CONNECTION, op);
   if (onConnection) return onConnection(value, conn.data);
   const row = await findGoogleListing(value.db, value.tenantId);
-  if (row.error) return refuse(503, "read_failed", row.error.message);
+  if (row.error) return refuseFailure(503, "read_failed", row.error);
   const onListing = pick(ON_LISTING, op);
   if (onListing) return onListing(value, conn.data, row.data);
   return respond(UNKNOWN_GOOGLE_OP);

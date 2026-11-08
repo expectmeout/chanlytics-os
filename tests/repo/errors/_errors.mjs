@@ -202,6 +202,39 @@ export function textHandedOverIn(sf) {
   return out;
 }
 
+/**
+ * Each answer that quotes a reply's failure outright, caught or not: `refuse(503, "read_failed", error.message)`, or a
+ * door's result `{ error: "write_failed", detail: error.message }`. `detail` is shown as it is (edgeRefusalWords), so
+ * the database's sentence reached a person. A provider's refusal (`stripe_refused`) says what the provider said.
+ */
+export function replyTextAnsweredIn(sf) {
+  const out = [];
+  const quotes = (a) => /(?:^|[^\w.])(?:\w+\.)*\w*[Ee]rror\??\.message\b/.test(a.getText(sf));
+  const go = (n) => {
+    if (ts.isCallExpression(n) && ANSWERS.test(n.expression.getText(sf)) && n.arguments.some(quotes)) {
+      let guarded = false;
+      for (let p = n.parent; p && !ts.isSourceFile(p); p = p.parent)
+        if (ts.isIfStatement(p) && /\binstanceof AppError\b/.test(p.expression.getText(sf))) guarded = true;
+      if (!guarded) out.push(lineOf(sf, n));
+    }
+    if (ts.isObjectLiteralExpression(n)) {
+      const prop = (name) => n.properties.find((x) => ts.isPropertyAssignment(x) && x.name.getText(sf) === name);
+      const detail = prop("detail");
+      const code = prop("error") ?? prop("code");
+      if (
+        detail &&
+        code &&
+        /_(read|write)_failed"$|"(read|write)_failed"$/.test(code.initializer.getText(sf)) &&
+        /\.message\b|String\(/.test(detail.initializer.getText(sf))
+      )
+        out.push(lineOf(sf, n));
+    }
+    ts.forEachChild(n, go);
+  };
+  go(sf);
+  return out;
+}
+
 /** `{ file: [lines] }` for each backend module `measure` finds anything in. */
 export function across(measure) {
   const out = {};

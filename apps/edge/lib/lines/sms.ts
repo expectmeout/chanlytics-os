@@ -16,7 +16,7 @@ import { answerObject } from "@chanlytics/channels/shared";
 import { smsStatusUrl, smsRefusalOf, requestTwilio } from "@chanlytics/channels/lines";
 import { lineProviderFromEnv } from "./lines.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
-import { logger, errField, type Logger } from "../shared/log.js";
+import { logger, errField, logFailure, type Logger } from "../shared/log.js";
 import { phoneTail, type EdgeRefusal, DbFailure } from "@chanlytics/contracts";
 import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
 import { findLineByE164, findTextingLineOf, getLineCredentials, putLineCredentials } from "@chanlytics/db/lines";
@@ -136,7 +136,7 @@ export async function refreshLineToken(
   if (!token)
     return { ok: false, error: "no_token", detail: "the provider did not return a token for this subaccount" };
   const { error } = await putLineCredentials(db, line.id, asJson({ auth_token: token }));
-  if (error) return { ok: false, error: "write_failed", detail: `storing the refreshed token: ${error.message}` };
+  if (error) return { ok: false, error: "write_failed", detail: logFailure("write", error) };
   log.info("line_token_refreshed", { subaccount: line.subaccount_sid });
   return { ok: true, account: { sid: line.subaccount_sid, token } };
 }

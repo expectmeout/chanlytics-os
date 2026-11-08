@@ -23,7 +23,7 @@ import {
   type MetaTemplateComponent,
 } from "./meta-templates.js";
 
-import { logger } from "../shared/log.js";
+import { logger, refuseFailure, logFailure } from "../shared/log.js";
 import { UUID, NUMBERED_SLOT, isTenantId, textOrEmpty } from "@chanlytics/contracts";
 import { findWhatsAppAccount } from "@chanlytics/db/channels";
 import {
@@ -127,7 +127,7 @@ export async function createWhatsappTemplate(
     created_by: userId,
   };
   const { data: saved, error } = await saveTemplateRow(db, tenantId, row);
-  if (error || !saved) return refuse(500, "write_failed", error?.message);
+  if (error || !saved) return refuseFailure(500, "write_failed", error ?? "no answer");
   log.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: created.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: created.data.id, meta_status: status });
 }
@@ -192,7 +192,7 @@ export async function deleteWhatsappTemplate(
     return refuse(502, "meta_refused", gone.error);
   }
   const { error } = await deleteTemplateRow(db, tenantId, row.id);
-  if (error) return refuse(500, "write_failed", error.message);
+  if (error) return refuseFailure(500, "write_failed", error);
   log.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
   return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });
 }
@@ -274,7 +274,7 @@ export async function syncTemplates(
 
   const { data: existing, error: readError } = await listWhatsAppTemplateKeys(db, tenantId);
   // A read that failed is not no rows on file: every label would go back to Value 1, and Meta's sample be hidden again.
-  if (readError) return { ok: false, status: 503, code: "read_failed", detail: readError.message };
+  if (readError) return { ok: false, status: 503, code: "read_failed", detail: logFailure("read", readError) };
   const keep = new Map((existing ?? []).map((r) => [`${r.name}|${r.language}`, labelsOf(r.variables)]));
   const now = new Date();
   const rows = listed.templates.map((t) => templateRow(t, tenantId, keep.get(`${t.name}|${t.language}`) ?? [], now));
@@ -293,7 +293,7 @@ export async function syncTemplates(
         variables: jsonCopyOf(r.variables),
       })),
     );
-    if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
+    if (error) return { ok: false, status: 500, code: "write_failed", detail: logFailure("write", error) };
   }
   if (fresh.length) {
     const { error } = await saveTemplateRows(
@@ -306,7 +306,7 @@ export async function syncTemplates(
         hidden_at: now.toISOString(),
       })),
     );
-    if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
+    if (error) return { ok: false, status: 500, code: "write_failed", detail: logFailure("write", error) };
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;
   const marketing = rows.filter((r) => r.meta_status === "approved" && r.category === "marketing").length;

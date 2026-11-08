@@ -31,7 +31,7 @@ import { log } from "@/server/shared/log";
 import { requireUuid } from "@/server/shared/request-guards";
 import { row, type Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
-import type { RouteContext } from "@/server/shared/with-route";
+import { doorSentence, type RouteContext } from "@/server/shared/with-route";
 
 /**
  * How long a picture's address lasts, and a little less for how long a browser keeps being sent to it. Storage's CDN keeps a
@@ -49,9 +49,9 @@ const VIEW_WIDEST = 2000;
 
 /** The door's refusal, in its own words; anything else is ours to say. */
 export function fileDoorRefusal(error: { code?: string; message: string }): AppError {
-  if (error.code === "42501") return new AppError("forbidden", error.message, 403);
-  if (error.code === "22023") return new AppError("validation", error.message);
-  if (error.code === "P0002") return new AppError("not_found", error.message, 404);
+  if (error.code === "42501") return new AppError("forbidden", doorSentence(error), 403);
+  if (error.code === "22023") return new AppError("validation", doorSentence(error));
+  if (error.code === "P0002") return new AppError("not_found", doorSentence(error), 404);
   log.error("db_failed", { code: error.code ?? null, error: error.message });
   return new AppError("internal", W.notSaved, 500);
 }

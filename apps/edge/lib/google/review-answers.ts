@@ -22,7 +22,7 @@ import {
   DbFailure,
 } from "@chanlytics/contracts";
 import { draftReviewReply } from "./review-reply.js";
-import { logger } from "../shared/log.js";
+import { logger, logFailure } from "../shared/log.js";
 import { http } from "../shared/google/places.js";
 import { connectionOf, type ConnectionRow, type Db } from "../shared/google/rows.js";
 import { tokenFor } from "../shared/google/credentials.js";
@@ -71,7 +71,7 @@ export async function draftFor(
   rowId: string,
 ): Promise<{ ok: true; text: string } | EdgeRefusal> {
   const review = await findReviewToAnswer(db, tenantId, rowId);
-  if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
+  if (review.error) return { ok: false, error: "review_read_failed", detail: logFailure("read", review.error) };
   if (!review.data) return { ok: false, error: "no_review" };
   const facts = await reviewFacts(db, tenantId);
   const result = await draftReviewReply(
@@ -278,7 +278,7 @@ export async function holdReviewReply(
   try {
     return { ok: true, held: await writeHeldReply(db, tenantId, rowId, { posts_at: null }, true) };
   } catch (e) {
-    return { ok: false, error: "review_write_failed", detail: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: "review_write_failed", detail: logFailure("write", e) };
   }
 }
 
@@ -293,7 +293,7 @@ export async function replyOnProfile(
   const conn = await connectionOf(db, tenantId);
   if (!conn || !conn.location_name) return { ok: false, error: "not_connected" };
   const review = await findReviewOnGoogle(db, tenantId, rowId);
-  if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
+  if (review.error) return { ok: false, error: "review_read_failed", detail: logFailure("read", review.error) };
   if (!review.data) return { ok: false, error: "no_review" };
   if (review.data.origin !== "profile") return { ok: false, error: "not_from_profile" };
   const token = await tokenFor(db, tenantId, now.getTime());
@@ -313,7 +313,7 @@ export async function replyOnProfile(
   try {
     await markReplied(db, tenantId, rowId, reply);
   } catch (e) {
-    return { ok: false, error: "review_write_failed", detail: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: "review_write_failed", detail: logFailure("write", e) };
   }
   await emitEvent(db, tenantId, "google.replied", "review", rowId, {
     review_id: review.data.review_id,

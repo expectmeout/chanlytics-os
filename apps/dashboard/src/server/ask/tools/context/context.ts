@@ -9,6 +9,7 @@ import {
   PROPOSAL_SPECS,
   type ProposalKindAboveOperator,
 } from "@chanlytics/contracts";
+import { refusalWords } from "@/server/shared/with-route";
 import type { ProposalOutcome } from "./tool-defs";
 
 /**
@@ -38,6 +39,16 @@ export const refuse = (reason: string): ProposalOutcome => ({
   isError: true,
   refusal: reason,
 });
+
+/**
+ * A check's refusal, in its own words. Anything else was written for nobody and goes on up: buildProposal logs it and
+ * says its fixed sentence, so the model is never handed a database's or a library's text to repeat (decision 0114).
+ */
+export function refuseThrown(thrown: unknown): ProposalOutcome {
+  const words = refusalWords(thrown);
+  if (words === null) throw thrown;
+  return refuse(words);
+}
 
 /**
  * A card, from what its builder made of the input. The role it needs and its undo's words are its kind's spec's

@@ -30,7 +30,7 @@ import { findPlaybookForChange } from "@chanlytics/db/campaigns";
 import { playbookPatchPorts } from "../../../campaigns/playbooks";
 import { stepNamed, str } from "../context/tool-reads";
 import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
-import { propose, refuse } from "../context/context";
+import { propose, refuse, refuseThrown } from "../context/context";
 import { paramSpecsOf } from "./playbook/params";
 
 /** Where a playbook's id is read, said as the model calls it. */
@@ -148,7 +148,7 @@ async function proposeChangeOnStep(
       undo: false,
     });
   } catch (e) {
-    return refuse(e instanceof Error ? e.message : String(e));
+    return refuseThrown(e);
   }
   const named: PlaybookPatch = {
     ...(state ? { state } : {}),
@@ -268,7 +268,7 @@ async function proposePlaybookChange(toolContext: ToolContext, input: ChangeAske
   } catch (e) {
     // Core's refusal of the rest of a sequence to leads is the person's sentence; the model is told where it is changed.
     if (leads && e instanceof Error && e.message === REACH_OUT_IS_NOT_A_MOMENT) return refuse(leadsPast(read.id));
-    return refuse(e instanceof Error ? e.message : String(e));
+    return refuseThrown(e);
   }
   const { set, was } = judged;
   if (Object.keys(set).length === 0) return refuse(PLAYBOOK_PATCH_WORDS.same(row.name));

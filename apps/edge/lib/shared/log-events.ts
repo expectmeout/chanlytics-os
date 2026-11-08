@@ -186,6 +186,8 @@ export const LOG_EVENTS = [
   "deliver_stamp_failed",
   "deliver_threw",
   "door_body_unexpected",
+  "door_failed",
+  "door_reply_failed",
   "drafts_sweep",
   "drafts_sweep_ask_failed",
   "drafts_sweep_no_db",
