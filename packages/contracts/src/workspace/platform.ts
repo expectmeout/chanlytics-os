@@ -647,18 +647,18 @@ function sourceWords(source: string): string | null {
   }
 }
 
-export function platformQueue(otherPlatformQueue: PlatformQueue, nowMs = Date.now()): PlatformQueueVM {
+export function platformQueue(queue: PlatformQueue, nowMs = Date.now()): PlatformQueueVM {
   const note = QUEUE_SENDS_NOTHING;
-  if (!otherPlatformQueue.waiting)
+  if (!queue.waiting)
     return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
-  const rows = otherPlatformQueue.waiting.map((r) => ({
+  const rows = queue.waiting.map((r) => ({
     id: r.id,
     email: r.email,
     detail: waitingDetail(r),
     waited: `asked ${agoWords(Date.parse(r.created_at), nowMs)}`,
   }));
-  const total = otherPlatformQueue.total ?? rows.length;
-  const oldest = otherPlatformQueue.waiting[0];
+  const total = queue.total ?? rows.length;
+  const oldest = queue.waiting[0];
   const sentence =
     total === 0
       ? "Nobody is waiting."

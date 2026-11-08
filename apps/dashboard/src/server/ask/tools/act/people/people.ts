@@ -156,8 +156,8 @@ async function proposeAnswers(
     const no = offersYesRefusal(source);
     if (no) return refuse(no);
   }
-  const otherSelected = await readSelected(toolContext, input);
-  if ("refusal" in otherSelected) return refuse(otherSelected.refusal);
+  const chosen = await readSelected(toolContext, input);
+  if ("refusal" in chosen) return refuse(chosen.refusal);
   // Who already has this answer on record (their People row's answer to that question), left as they are and said.
   const rows = new Map((await load(toolContext.rc, audiencePool, undefined)).data.people.map((r) => [r.id, r]));
   const answerOf = (id: string) => {
@@ -165,7 +165,7 @@ async function proposeAnswers(
     return (purpose === "marketing" ? r?.marketing_consent : r?.consent) ?? "unknown";
   };
   const acts = notAlready(
-    otherSelected.ids,
+    chosen.ids,
     (id) => answerOf(id) === consent,
     (n) => `${n === 1 ? "has" : "have"} that answer on record`,
   );
@@ -176,7 +176,7 @@ async function proposeAnswers(
     {
       kind: "answer_many",
       title: `${plural(length, "person's answer", "people's answers")}`,
-      summary: `${plural(length, "person", "people")} (${otherSelected.said}) ${answerSaidOf(purpose, consent)}${how ? ` · ${how}` : ""}`,
+      summary: `${plural(length, "person", "people")} (${chosen.said}) ${answerSaidOf(purpose, consent)}${how ? ` · ${how}` : ""}`,
       payload: {
         ids: acts.ids,
         purpose,

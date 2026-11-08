@@ -76,12 +76,12 @@ export function previewLineOf(dto: LeadPreviewDto, now: Date): LeadPreviewLineVM
   const preview = dto.preview;
   if (!preview)
     return dto.makes ? { words: words.none, tone: "quiet", said: [], make: true, open: null, link: null } : null;
-  const sentence = previewSaidOf(preview.not_right);
+  const phrases = previewSaidOf(preview.not_right);
   const look = (link: string | null): Pick<LeadPreviewLineVM, "open" | "link"> => ({
     open: `/preview/${encodeURIComponent(preview.token)}?look=1`,
     link,
   });
-  const base = { said: sentence, make: false };
+  const base = { said: phrases, make: false };
   if (preview.state === "building") return { ...base, words: words.building, tone: "busy", open: null, link: null };
   if (preview.state === "failed")
     return { ...base, words: words.failed(preview.failed_why), tone: "warn", open: null, link: null };

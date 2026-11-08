@@ -41,10 +41,11 @@ function tryAnswerOf(raw: unknown): TryItAnswer | null {
   if (response.ok !== true || typeof response.text !== "string") return null;
   const then = response.then && typeof response.then === "object" ? (response.then as TryItAnswer["then"]) : null;
   const meta = response.meta && typeof response.meta === "object" ? recordOrEmpty(response.meta) : null;
-  const second = response.booking && typeof response.booking === "object" ? recordOrEmpty(response.booking) : null;
+  const bookingRecord =
+    response.booking && typeof response.booking === "object" ? recordOrEmpty(response.booking) : null;
   const booking =
-    second && typeof second.slot === "string"
-      ? { slot: second.slot, service: typeof second.service === "string" ? second.service : "" }
+    bookingRecord && typeof bookingRecord.slot === "string"
+      ? { slot: bookingRecord.slot, service: typeof bookingRecord.service === "string" ? bookingRecord.service : "" }
       : null;
   return { text: response.text, meta, then: then && typeof then.text === "string" ? then : null, booking };
 }

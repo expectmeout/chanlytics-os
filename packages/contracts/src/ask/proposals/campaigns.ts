@@ -588,14 +588,14 @@ export const MESSAGE_WORDS = {
     filed: readonly { channel: ConsentChannel; state: string }[],
     refused: { channel: ConsentChannel; words: string } | null,
   ): string => {
-    const sentence = filed.map((v) =>
+    const versions = filed.map((v) =>
       v.channel === "whatsapp"
         ? `its WhatsApp version ${whatsappFiledWords(v.state)}`
         : `its ${versionWord(v.channel)} version is ready`,
     );
-    if (sentence.length === 0) return `“${name}” was not filed${refused ? `: ${refused.words}` : ""}`;
+    if (versions.length === 0) return `“${name}” was not filed${refused ? `: ${refused.words}` : ""}`;
     const not = refused ? ` · its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
-    return `“${name}” is in ${CAMPAIGN_ROOMS.library} — ${sentence.join("; ")}${not}`;
+    return `“${name}” is in ${CAMPAIGN_ROOMS.library} — ${versions.join("; ")}${not}`;
   },
   /** The undo's button: the email and text versions it deletes; none where the card writes none. */
   undo: (own: readonly OwnVersionChannel[]): string | null =>

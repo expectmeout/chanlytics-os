@@ -227,11 +227,11 @@ function bodyAsJson(text: string): unknown {
 function parse<T>(schema: ZodType<T>, raw: unknown): T {
   const out = schema.safeParse(raw);
   if (out.success) return out.data;
-  const sentence = out.error.issues.slice(0, 3).map((i) => {
+  const issues = out.error.issues.slice(0, 3).map((i) => {
     const field = i.path.filter((p) => typeof p === "string").join(".");
     return field ? `${field}: ${i.message}` : i.message;
   });
-  const more = out.error.issues.length - sentence.length;
+  const more = out.error.issues.length - issues.length;
   // Every field it refuses, by name, with its first sentence: a form marks the box each belongs to.
   const fields: Record<string, string> = {};
   for (const i of out.error.issues) {
@@ -240,7 +240,7 @@ function parse<T>(schema: ZodType<T>, raw: unknown): T {
   }
   throw new AppError(
     "validation",
-    `${sentence.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`,
+    `${issues.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`,
     400,
     Object.keys(fields).length ? { fields } : undefined,
   );
@@ -273,8 +273,8 @@ const HOLD_MS = 2 * MIN_MS;
 
 /** A request as its key holds it: its method, its path and its body, hashed, so one key is never two requests. */
 async function requestHashOf(req: Request, body: string): Promise<string> {
-  const sentence = new TextEncoder().encode(`${req.method} ${new URL(req.url).pathname}\n${body}`);
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", sentence));
+  const bytes = new TextEncoder().encode(`${req.method} ${new URL(req.url).pathname}\n${body}`);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 

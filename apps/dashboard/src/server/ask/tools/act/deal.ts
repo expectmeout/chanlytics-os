@@ -47,7 +47,7 @@ function whichRowWords(open: number, rows: readonly { service: string | null }[]
  * answer with, never proposed for the route to refuse.
  */
 function dealBody(
-  sentence: {
+  change: {
     stage: string;
     service: string | null;
     amount: number | null;
@@ -59,7 +59,7 @@ function dealBody(
   },
   row: { id: string; version: number } | null,
 ): { body: Record<string, unknown>; wrong: string | null } {
-  const { stage, service, amount, per, note, url, day, reason } = sentence;
+  const { stage, service, amount, per, note, url, day, reason } = change;
   const body = {
     stage,
     ...(service ? { service } : {}),
@@ -160,7 +160,7 @@ async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<
   // (pickCurrentDeal). A read that fails is a card that cannot be checked, never a move proposed against no row.
   const { data: rows, error: dErr } = await listDealsOfPerson(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (dErr) throw new Error(dErr.message);
-  const otherPersonName = personName(c);
+  const contactName = personName(c);
   const named = str(input.service, 80) || null;
   const amount =
     typeof input.amount_cents === "number" && input.amount_cents >= 0 ? Math.round(input.amount_cents) : null;
@@ -169,23 +169,23 @@ async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<
   const moved = dealRowOf(stage, named, rows ?? []);
   if ("result" in moved) return moved;
   const { sameRow, service } = moved;
-  noteRow(toolContext, "person", id, otherPersonName, `clients/${id}`);
+  noteRow(toolContext, "person", id, contactName, `clients/${id}`);
   const words = DEAL_STAGE_WORDS[stage];
   // A proposal's value is said as a client's is (0008), and the card says where the link lives and why they passed.
   const money = amount !== null ? amountWords(amount, per) : null;
-  const otherReason = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
+  const lostReason = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
   // The step as the card says it: "Next step: send the quote, due Fri" (its words clipped; the note keeps them whole).
   const next = stepDay ? `${NOTE_WORDS.next}: ${clipAtWord(stepWords, 80)}, due ${stepDay.near}` : null;
-  const sentence = { stage, service: sameRow ? null : service, amount, per, note, url, day, reason };
-  const { body, wrong } = dealBody(sentence, sameRow);
+  const change = { stage, service: sameRow ? null : service, amount, per, note, url, day, reason };
+  const { body, wrong } = dealBody(change, sameRow);
   if (wrong) return refuse(wrong);
   return propose({
     kind: "deal",
-    title: `${otherPersonName} · ${words}`,
-    summary: [words, service, money, url ? linkHost(url) : null, otherReason, next]
+    title: `${contactName} · ${words}`,
+    summary: [words, service, money, url ? linkHost(url) : null, lostReason, next]
       .filter((x): x is string => !!x)
       .join(" · "),
-    payload: { contact_id: id, ...body, who: otherPersonName },
+    payload: { contact_id: id, ...body, who: contactName },
     ...(stepDay ? { step: { body: stepWords, due_on: stepDay.day } } : {}),
   });
 }

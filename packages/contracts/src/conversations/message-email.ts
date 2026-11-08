@@ -37,14 +37,14 @@ export function emailLeftOutOf(meta: unknown): string | null {
     .map((f) => (f as { filename?: unknown } | null)?.filename)
     .filter((n): n is string => typeof n === "string" && n.trim().length > 0 && !storageNamed(n));
   const total = files.length + unnamed;
-  const sentence: string[] = [];
+  const lines: string[] = [];
   if (total) {
     const rest = total - names.length;
     const listed = names.length ? `: ${names.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
-    sentence.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
+    lines.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
   }
-  if (email.truncated === true) sentence.push("This email was longer than Chanlytics keeps; the rest was left out.");
-  return sentence.length ? sentence.join(" ") : null;
+  if (email.truncated === true) lines.push("This email was longer than Chanlytics keeps; the rest was left out.");
+  return lines.length ? lines.join(" ") : null;
 }
 
 /** How many files an email came with whose names alone were kept (the intake keeps no file): 0 where none, or no email. */
@@ -243,8 +243,8 @@ function footerStart(lines: readonly string[]): number | null {
   while (index < paras.length && worded(paras.at(index) ?? [0, -1]).length === 0) index++;
   const foot = paras.at(index);
   if (!foot) return null;
-  const sentence = worded(foot);
-  if (sentence.length > FOOT_PARA_MAX || !sentence.some((l) => UNSUBSCRIBE.test(l))) return null;
+  const footLines = worded(foot);
+  if (footLines.length > FOOT_PARA_MAX || !footLines.some((l) => UNSUBSCRIBE.test(l))) return null;
   let start = foot[0];
   let addressed = false;
   for (const p of paras.slice(index + 1)) {
@@ -253,7 +253,7 @@ function footerStart(lines: readonly string[]): number | null {
     start = p[0];
     addressed = true;
   }
-  if (!addressed && !sentence.some((l) => FOOT_LINK.test(l))) return null;
+  if (!addressed && !footLines.some((l) => FOOT_LINK.test(l))) return null;
   return lines.slice(0, start).some((l) => HAS_WORDS.test(l)) ? start : null;
 }
 

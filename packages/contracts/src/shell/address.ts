@@ -247,11 +247,11 @@ export function appLink(
   route = "",
   query?: Readonly<Record<string, string | null | undefined>>,
 ): string {
-  const entries = Object.entries(query ?? {})
+  const search = Object.entries(query ?? {})
     .filter((e): e is [string, string] => typeof e[1] === "string")
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
-  if (!slug) return `/${entries ? `?${entries}` : ""}${route ? `#/${route}` : ""}`;
+  if (!slug) return `/${search ? `?${search}` : ""}${route ? `#/${route}` : ""}`;
   const path = workspacePath(slug, route);
-  return entries ? `${path}${path.includes("?") ? "&" : "?"}${entries}` : path;
+  return search ? `${path}${path.includes("?") ? "&" : "?"}${search}` : path;
 }

@@ -254,7 +254,7 @@ export function toSearchDto(searchView: SearchViewRow): LeadSearchDto {
   // A people search's plan is the people card's (00430), never read as a places one.
   const people = peoplePlanOf(searchView.plan);
   const plans = { plan: people ? null : (searchView.plan as LeadSearchPlan), people };
-  const query =
+  const question =
     searchView.question && typeof searchView.question === "object"
       ? (searchView.question as { sentence?: unknown; criterionKey?: unknown; criterion_key?: unknown })
       : null;
@@ -291,8 +291,8 @@ export function toSearchDto(searchView: SearchViewRow): LeadSearchDto {
       state: searchView.state ?? "ended",
       ending: (searchView.ending ?? null) as LeadRoundEnding | null,
       question:
-        query && typeof query.sentence === "string"
-          ? { sentence: query.sentence, criterion_key: questionKeyOf(query) }
+        question && typeof question.sentence === "string"
+          ? { sentence: question.sentence, criterion_key: questionKeyOf(question) }
           : null,
       target: searchView.target ?? 0,
       counted: searchView.counted,

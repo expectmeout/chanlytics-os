@@ -24,9 +24,9 @@ const FIGURES_MAX = 4;
 const TEXT_MAX = 80;
 
 /** The snapshot as the shell may trust it after the bridge: the shapes, the sizes, nothing else. */
-export function parseTodayWidgetSnapshot(otherValue: unknown): TodayWidgetSnapshot | null {
-  if (!otherValue || typeof otherValue !== "object") return null;
-  const items = otherValue as Record<string, unknown>;
+export function parseTodayWidgetSnapshot(raw: unknown): TodayWidgetSnapshot | null {
+  if (!raw || typeof raw !== "object") return null;
+  const items = raw as Record<string, unknown>;
   const text = (x: unknown) => (typeof x === "string" ? x.trim().slice(0, TEXT_MAX) : null);
   const headline = text(items.headline);
   const at = typeof items.at === "string" && !Number.isNaN(Date.parse(items.at)) ? items.at : null;
@@ -43,10 +43,10 @@ export function parseTodayWidgetSnapshot(otherValue: unknown): TodayWidgetSnapsh
   let first: TodayWidgetSnapshot["first"] = null;
   if (items.first !== null && items.first !== undefined) {
     if (typeof items.first !== "object") return null;
-    const otherText = text((items.first as { who?: unknown }).who);
+    const whoText = text((items.first as { who?: unknown }).who);
     const reason = text((items.first as { reason?: unknown }).reason);
-    if (otherText === null || reason === null) return null;
-    first = { who: otherText, reason };
+    if (whoText === null || reason === null) return null;
+    first = { who: whoText, reason };
   }
   return { headline, figures, waiting, first, at };
 }

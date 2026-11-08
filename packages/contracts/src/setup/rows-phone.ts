@@ -99,7 +99,7 @@ interface OwnLineStand {
 
 /** `number` is how the sentences name the line (Start names it; Connections shows the number beside the row and says none). */
 export function ownLineStandOf(line: LineDto, nowMs: number, number: string | null): OwnLineStand | null {
-  const count = number ? ` ${number}` : "";
+  const numberWords = number ? ` ${number}` : "";
   const step = LINE_STEP_WORDS[line.step ?? ""] ?? "working on it";
   const ago = agoWords(Date.parse(line.state_since), nowMs);
   const retry = `verb:retry-line:${line.id}`;
@@ -118,7 +118,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
     // and the retry it withheld is the only thing that would have finished the job.
     return {
       kind: "stuck",
-      sentence: `Setting up${count} stopped while ${step}, ${ago}.`,
+      sentence: `Setting up${numberWords} stopped while ${step}, ${ago}.`,
       details: [
         "It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is",
         "Retry from here — it picks up where it stopped and buys nothing twice",
@@ -129,7 +129,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
   if (line.voice_state === "provisioning") {
     return {
       kind: "setting_up",
-      sentence: `Setting up${count} — ${step}, since ${ago}.`,
+      sentence: `Setting up${numberWords} — ${step}, since ${ago}.`,
       details: ["Usually a minute or two; this page updates by itself"],
       retry: null,
     };
@@ -138,7 +138,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
     // Not a carrier failure and not the owner's to retry: the wall is ours.
     return {
       kind: "credentials",
-      sentence: `Setting up${count} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
+      sentence: `Setting up${numberWords} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
       details: [
         "A retry cannot help until the credentials are restored; we have been told and will finish it with you",
       ],
@@ -148,7 +148,7 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
   if (line.voice_state === "failed") {
     return {
       kind: "stopped",
-      sentence: `Setting up${count} stopped while ${step}. A person at Chanlytics has it.`,
+      sentence: `Setting up${numberWords} stopped while ${step}. A person at Chanlytics has it.`,
       details: ["Retry from here; we have been told"],
       retry,
     };

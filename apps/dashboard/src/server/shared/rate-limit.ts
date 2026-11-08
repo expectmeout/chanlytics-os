@@ -406,11 +406,11 @@ let store: RateStore | null = null;
  * not spend on a ceiling it cannot hold.
  */
 export function memoryByConfiguration(fallback: RateStore, production = isProduction()): RateStore {
-  let sentence = false;
+  let warned = false;
   return {
     async take(bucket, actor, rule, now, strict = false) {
-      if (!sentence) {
-        sentence = true;
+      if (!warned) {
+        warned = true;
         log.error("rate_store_memory_by_configuration", {
           production,
           bucket,

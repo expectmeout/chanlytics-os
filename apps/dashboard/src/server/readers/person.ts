@@ -96,14 +96,14 @@ function cameFrom(row: { created_at: string; data: unknown } | null): PersonDeta
 function beforeOf(row: { before?: unknown } | null): PersonDetailDto["before"] {
   const raw = row?.before;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const second = recordOrEmpty(raw);
+  const record = recordOrEmpty(raw);
   const out: NonNullable<PersonDetailDto["before"]> = {};
-  if (typeof second.via === "string" && second.via) out.via = second.via;
-  if (typeof second.last_visit === "string" && DAY_KEY.test(second.last_visit)) out.last_visit = second.last_visit;
-  if (typeof second.visits === "number" && Number.isFinite(second.visits) && second.visits >= 0)
-    out.visits = second.visits;
-  if (typeof second.birthday === "string" && /^(\d{4}|-)-\d{2}-\d{2}$/.test(second.birthday))
-    out.birthday = second.birthday;
+  if (typeof record.via === "string" && record.via) out.via = record.via;
+  if (typeof record.last_visit === "string" && DAY_KEY.test(record.last_visit)) out.last_visit = record.last_visit;
+  if (typeof record.visits === "number" && Number.isFinite(record.visits) && record.visits >= 0)
+    out.visits = record.visits;
+  if (typeof record.birthday === "string" && /^(\d{4}|-)-\d{2}-\d{2}$/.test(record.birthday))
+    out.birthday = record.birthday;
   return Object.keys(out).length ? out : null;
 }
 

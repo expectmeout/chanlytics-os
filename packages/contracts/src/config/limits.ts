@@ -76,11 +76,11 @@ export interface BudgetDial {
 export function budgetDial(caps: readonly number[], perReply: number | null): BudgetDial {
   const word = (c: number, inReplies: boolean) =>
     c <= 0 ? BUDGET_WORDS.none : inReplies && perReply ? `~${repliesFor(c, perReply)}` : tokensWord(c);
-  const sentence = caps.map((c) => [word(c, true), c] as const);
-  const inReplies = perReply !== null && new Set(sentence.map(([w]) => w)).size === sentence.length;
+  const wordedCaps = caps.map((c) => [word(c, true), c] as const);
+  const inReplies = perReply !== null && new Set(wordedCaps.map(([w]) => w)).size === wordedCaps.length;
   return {
     label: inReplies ? BUDGET_WORDS.inReplies : BUDGET_WORDS.inTokens,
     note: `${perReply ? BUDGET_WORDS.sized(perReply) : BUDGET_WORDS.unsized} ${BUDGET_WORDS.stops}`,
-    steps: inReplies ? sentence : caps.map((c) => [word(c, false), c] as const),
+    steps: inReplies ? wordedCaps : caps.map((c) => [word(c, false), c] as const),
   };
 }

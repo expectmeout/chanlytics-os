@@ -149,10 +149,10 @@ export function campaignOneOf(input: CampaignOneInput): CampaignOneVM {
     const day = batchDayOf(b, tz);
     return day >= from && day <= to;
   });
-  const otherSent = inDays.filter(batchWent);
-  const figures = historyFigures(otherSent);
+  const sentBatches = inDays.filter(batchWent);
+  const figures = historyFigures(sentBatches);
   const points = daysFrom(from, to).map((day) => {
-    const of = otherSent.filter((b) => batchDayOf(b, tz) === day);
+    const of = sentBatches.filter((b) => batchDayOf(b, tz) === day);
     const sent = of.reduce((n, b) => n + batchCount(b, "sent"), 0);
     const replied = of.reduce((n, b) => n + batchCount(b, "replied"), 0);
     const point = dayPointOf(day);
@@ -164,16 +164,16 @@ export function campaignOneOf(input: CampaignOneInput): CampaignOneVM {
       answeredWords: replied === 0 ? "No replies" : plural(replied, "reply", "replies"),
     };
   });
-  const sent = otherSent.reduce((n, b) => n + batchCount(b, "sent"), 0);
-  const replied = otherSent.reduce((n, b) => n + batchCount(b, "replied"), 0);
+  const sent = sentBatches.reduce((n, b) => n + batchCount(b, "sent"), 0);
+  const replied = sentBatches.reduce((n, b) => n + batchCount(b, "replied"), 0);
   const sends = inDays.map((inDay) => {
     const place = inDay.place && input.steps > 1 ? SEQUENCE_HISTORY_WORDS.step(inDay.place) : null;
-    const sentence = historyDayWords(inDay, place);
+    const dayWords = historyDayWords(inDay, place);
     return {
       id: inDay.id,
       state: inDay.state,
       when: historyStamp(Date.parse(inDay.at), tz, input.nowMs),
-      ...sentence,
+      ...dayWords,
       went: batchWent(inDay),
     };
   });
@@ -183,9 +183,9 @@ export function campaignOneOf(input: CampaignOneInput): CampaignOneVM {
     figures,
     points,
     sentAny: sent > 0,
-    byStep: byStepOf(otherSent, input.steps),
+    byStep: byStepOf(sentBatches, input.steps),
     sends,
-    empty: otherSent.length === 0 ? { title: SCOPE_WORDS.nothing(name), body: SCOPE_WORDS.nothingBody } : null,
+    empty: sentBatches.length === 0 ? { title: SCOPE_WORDS.nothing(name), body: SCOPE_WORDS.nothingBody } : null,
     door: { label: SCOPE_WORDS.open, to: sequenceRoute(id, "history") },
   };
 }

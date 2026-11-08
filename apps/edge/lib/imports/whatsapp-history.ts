@@ -217,16 +217,16 @@ async function bringHistory(db: Db, part: Part, values: WaChangeValue[]): Promis
   // Phase n arriving says the n before it are in; all of it says the three are. Never fewer than the row says.
   const partsDone = Math.max(row?.parts_done ?? 0, complete ? HISTORY_PARTS : (phase ?? 0));
   const state = complete || row?.state === "done" ? "done" : "running";
-  for (const items of slice) {
+  for (const read of slice) {
     if (Date.now() >= part.until) {
       // Out of time: what was kept is counted now, and the part is tried again (what it kept is matched, not kept again).
       await note("running", partsDone);
       throw new Error("a history part ran out of time");
     }
-    const result = await keepMessage(db, part.tenantId, items, phase);
+    const result = await keepMessage(db, part.tenantId, read, phase);
     if (result.kept) kept++;
     if (result.newPerson) people++;
-    if (!oldest || items.at < oldest) oldest = items.at;
+    if (!oldest || read.at < oldest) oldest = read.at;
   }
   await note(state, partsDone);
   return { more };

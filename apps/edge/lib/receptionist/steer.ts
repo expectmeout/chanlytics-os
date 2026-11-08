@@ -119,16 +119,16 @@ function replyToOf(meta: unknown): string | undefined {
 async function leadNoteOf(
   db: NonNullable<ReturnType<typeof pg>>,
   message: { tenant_id: TenantId; meta: unknown },
-  personName: { phone: string | null; contactId: ContactId | null },
+  customer: { phone: string | null; contactId: ContactId | null },
   timezone: string,
   channel: InboundChannel,
 ): Promise<string | undefined> {
   try {
     // By the number, or, for a person with none (a DM's), by their own row: as the receptionist reads them (model-turn.ts).
-    const lead = personName.phone
-      ? await readLeadContext(db, message.tenant_id, personName.phone, 1, replyToOf(message.meta))
-      : personName.contactId
-        ? await readLeadContext(db, message.tenant_id, { contactId: personName.contactId }, 1, replyToOf(message.meta))
+    const lead = customer.phone
+      ? await readLeadContext(db, message.tenant_id, customer.phone, 1, replyToOf(message.meta))
+      : customer.contactId
+        ? await readLeadContext(db, message.tenant_id, { contactId: customer.contactId }, 1, replyToOf(message.meta))
         : null;
     if (!lead) return undefined;
     return describeLead(lead, undefined, timezone, channel);

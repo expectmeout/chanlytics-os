@@ -23,8 +23,8 @@ const INSTRUCTION_MAX = 500;
 const DOOR_MS = MIN_MS - 5 * SECOND_MS;
 
 /** What each refusal answers. A word the door has no code of its own for is the writer's, said in `detail`. */
-function refused(otherRefused: Extract<RewriteOutcome, { done: false }>["refused"]): Response {
-  switch (otherRefused) {
+function refused(outcome: Extract<RewriteOutcome, { done: false }>["refused"]): Response {
+  switch (outcome) {
     case "gone":
       return refuse(404, "not_found");
     case "nothing_to_answer":
@@ -35,7 +35,7 @@ function refused(otherRefused: Extract<RewriteOutcome, { done: false }>["refused
     case "older":
       return refuse(409, "draft_not_owed");
     default:
-      return refuse(409, "draft_refused", otherRefused);
+      return refuse(409, "draft_refused", outcome);
   }
 }
 

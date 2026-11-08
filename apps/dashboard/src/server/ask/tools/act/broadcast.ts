@@ -121,14 +121,14 @@ async function broadcastMessage(
   id: string,
   channels: unknown,
 ): Promise<AskedMessage | { refusal: string }> {
-  const otherAskedMessage = await getAskedMessage(toolContext, id);
-  if ("refusal" in otherAskedMessage) return otherAskedMessage;
+  const askedMessage = await getAskedMessage(toolContext, id);
+  if ("refusal" in askedMessage) return askedMessage;
   // A broadcast is the business's news (contracts MessageAbout, decision D1).
   const no =
     channels === undefined || channels === null
-      ? await findWhatsappAloneRefusal(toolContext, otherAskedMessage.message, "ours")
+      ? await findWhatsappAloneRefusal(toolContext, askedMessage.message, "ours")
       : null;
-  return no ? { refusal: no } : otherAskedMessage;
+  return no ? { refusal: no } : askedMessage;
 }
 
 /**
@@ -294,14 +294,14 @@ async function sentMessage(
   const { templateId, step } = named;
   if (step !== null) return { asked: null, step, purpose: stepMessage([]).purpose };
   // The message the route will read, by any of its versions' ids: the same verb, so the same words.
-  const otherBroadcastMessage = await broadcastMessage(toolContext, templateId, named.channels);
-  if ("refusal" in otherBroadcastMessage) return otherBroadcastMessage;
-  const { slots } = otherBroadcastMessage.message;
+  const broadcastWords = await broadcastMessage(toolContext, templateId, named.channels);
+  if ("refusal" in broadcastWords) return broadcastWords;
+  const { slots } = broadcastWords.message;
   if (params.length !== slots)
     return { refusal: `this template takes ${slots} value${slots === 1 ? "" : "s"}, in order` };
   // The same purpose the route will derive, from the same message this function already read. An assistant that proposes
   // a broadcast the route then refuses has wasted the operator's approval.
-  return { asked: otherBroadcastMessage, purpose: otherBroadcastMessage.message.purpose };
+  return { asked: broadcastWords, purpose: broadcastWords.message.purpose };
 }
 
 /**
@@ -348,8 +348,8 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
   if ("refusal" in reach) return refuse(reach.refusal);
   const { count, says, kept, byChannel, leftOutSaid } = reach;
   // A step's message is not filed yet: the card says which step makes it, and quotes the offer its values type.
-  const sentence = messageSaid(sent, params, by);
-  if ("refusal" in sentence) return refuse(sentence.refusal);
+  const messageWords = messageSaid(sent, params, by);
+  if ("refusal" in messageWords) return refuse(messageWords.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it; a step's message is
   // named by the route once it is filed.
   const name =
@@ -359,8 +359,8 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
   const whenWords = goesWords(toolContext, when, open);
   const held = await broadcastHeld(toolContext, by.channels, byChannel, purpose, open.at);
   const subject = asked
-    ? `“${asked.message.name}” · ${whenWords}: ${sentence.says}`
-    : `${sentence.says} · ${whenWords}`;
+    ? `“${asked.message.name}” · ${whenWords}: ${messageWords.says}`
+    : `${messageWords.says} · ${whenWords}`;
   const reaches = `${count} ${count === 1 ? "person" : "people"} who said yes${says}`;
   return propose({
     kind: "broadcast",
@@ -372,7 +372,10 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
       rows: [
         { label: "Reaches", value: sheetWords(reaches) },
         { label: "Goes", value: sheetWords(whenWords) },
-        { label: "Message", value: sheetWords(asked ? `“${asked.message.name}”: ${sentence.says}` : sentence.says) },
+        {
+          label: "Message",
+          value: sheetWords(asked ? `“${asked.message.name}”: ${messageWords.says}` : messageWords.says),
+        },
       ],
     },
     payload: {

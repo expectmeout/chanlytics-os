@@ -270,7 +270,7 @@ export async function ingestEmail(
   const taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation"> =
     claim === "booking_notice" || claim === "forwarding_confirmation" ? "automated" : claim;
 
-  const sentence = answersOf(email);
+  const answers = answersOf(email);
   const kept = await ports.record({
     tenantId: mailbox.tenant_id,
     address,
@@ -278,16 +278,16 @@ export async function ingestEmail(
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
     meta: metaOf(email),
-    optOut: sentence.optOut,
-    optIn: sentence.optIn,
-    unsubscribe: sentence.unsubscribe,
-    optInOffers: sentence.optInOffers,
-    fromThemProven: sentence.fromThemProven,
+    optOut: answers.optOut,
+    optIn: answers.optIn,
+    unsubscribe: answers.unsubscribe,
+    optInOffers: answers.optInOffers,
+    fromThemProven: answers.fromThemProven,
     words: replyTextOf(email.text).slice(0, 80) || null,
   });
   if (!kept.is_new && kept.processed) return "already_handled";
   // Said once the email is known to be new work, so a delivery the provider repeats says it once.
-  if (sentence.unproven)
+  if (answers.unproven)
     emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
 
   // A reply to a reach-out is read for what it means (reply_read), whatever it claims: an automatic reply may still

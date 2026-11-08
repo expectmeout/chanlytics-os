@@ -109,9 +109,9 @@ export function reachLineOf(reachOutReach: ReachOutReachDto, includeUnconfirmed:
   const held = includeUnconfirmed ? 0 : unconfirmed;
   const will = pct(count, reachOutReach.of) ?? 0;
   const heldPct = pct(held, reachOutReach.of) ?? 0;
-  const reason: Array<{ tone: "warn" | "plain"; text: string; door: string | null }> = [];
+  const reasons: Array<{ tone: "warn" | "plain"; text: string; door: string | null }> = [];
   if (unconfirmed > 0)
-    reason.push(
+    reasons.push(
       includeUnconfirmed
         ? {
             tone: "plain",
@@ -125,12 +125,12 @@ export function reachLineOf(reachOutReach: ReachOutReachDto, includeUnconfirmed:
           },
     );
   if (reachOutReach.phone_only > 0)
-    reason.push({ tone: "plain", text: `${reachOutReach.phone_only} by phone only, kept for calls`, door: null });
+    reasons.push({ tone: "plain", text: `${reachOutReach.phone_only} by phone only, kept for calls`, door: null });
   return {
     count,
     of: `of ${reachOutReach.of} on the search`,
     bar: { will, held: heldPct, rest: Math.max(0, 100 - will - heldPct) },
-    why: reason,
+    why: reasons,
   };
 }
 

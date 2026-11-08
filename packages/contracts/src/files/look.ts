@@ -152,10 +152,10 @@ const peopleCountOf = (v: unknown): number | null =>
 
 /** Who it counted: the recognizable never more than the count, and neither if the count is no count. */
 function lookPeopleOf(v: unknown): FilePeople | null {
-  const sentence = isObj(v) ? v : {};
-  const count = peopleCountOf(sentence.count);
+  const record = isObj(v) ? v : {};
+  const count = peopleCountOf(record.count);
   if (count === null) return null;
-  return { count, recognizable: Math.min(peopleCountOf(sentence.recognizable) ?? count, count) };
+  return { count, recognizable: Math.min(peopleCountOf(record.recognizable) ?? count, count) };
 }
 
 /** A pixel box as shares of the picture, or null for anything that is not a box on it. */

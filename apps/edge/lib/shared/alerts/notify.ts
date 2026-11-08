@@ -406,12 +406,12 @@ async function schedulePush(tenantId: TenantId, kept: { id: string; kind: string
  */
 export async function keepOnce(
   tenantId: TenantId,
-  count: Omit<Parameters<typeof recordNotification>[1], "sourceEvent"> & { onceKey: string },
+  notification: Omit<Parameters<typeof recordNotification>[1], "sourceEvent"> & { onceKey: string },
   opts: { push?: boolean } = {},
   db: Db | null = pg(),
 ): Promise<boolean> {
   if (!db) return false;
-  const { onceKey, ...row } = count;
+  const { onceKey, ...row } = notification;
   const sourceEvent = onceKeyId(onceKey);
   try {
     if (await findNotice(db, { tenantId, kind: keptKind(row.kind), sourceEvent })) return true;
@@ -435,10 +435,10 @@ export async function keepOnce(
  */
 export async function keepAndPush(
   tenantId: TenantId,
-  count: Parameters<typeof recordNotification>[1],
+  notification: Parameters<typeof recordNotification>[1],
   db: Db | null = pg(),
 ): Promise<{ id: string; kind: string } | null> {
-  const kept = await recordNotification(tenantId, count, db);
+  const kept = await recordNotification(tenantId, notification, db);
   if (kept) await schedulePush(tenantId, kept, db);
   return kept;
 }

@@ -64,8 +64,8 @@ const MODEL_JSON_TIMEOUT_MS = MIN_MS;
 
 let stream: typeof streamModel = streamModel;
 /** Tests hand in a stream of their own. */
-export function setModelStream(text: typeof streamModel | null): void {
-  stream = text ?? streamModel;
+export function setModelStream(call: typeof streamModel | null): void {
+  stream = call ?? streamModel;
 }
 
 type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
@@ -79,7 +79,7 @@ type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
 async function answerFrom(
   call: ModelJsonCall,
   model: string,
-  otherText: string,
+  modelText: string,
 ): Promise<{ text: string; stop: string | null }> {
   const { schema: json, ...request } = call.request;
   let text = "";
@@ -98,7 +98,7 @@ async function answerFrom(
     else if (ev.type === "error")
       throw new AppError(
         "upstream_anthropic",
-        `The ${otherText} could not be written just now. Try again in a moment.`,
+        `The ${modelText} could not be written just now. Try again in a moment.`,
       );
   }
   return { text, stop };

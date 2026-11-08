@@ -31,15 +31,15 @@ export type MailboxSenderVerdict = SchemaSet<"mailbox_senders.verdict">;
  * alone is never one. Null when it said nothing.
  */
 export function senderVerdictOf(
-  sentence: ReadonlyMap<string, MailboxSenderVerdict>,
+  verdicts: ReadonlyMap<string, MailboxSenderVerdict>,
   address: string,
 ): MailboxSenderVerdict | null {
   const text = address.trim().toLowerCase();
-  const exact = sentence.get(text);
+  const exact = verdicts.get(text);
   if (exact) return exact;
   const labels = text.slice(text.lastIndexOf("@") + 1).split(".");
   for (let i = 0; i < labels.length - 1; i++) {
-    const v = sentence.get(labels.slice(i).join("."));
+    const v = verdicts.get(labels.slice(i).join("."));
     if (v) return v;
   }
   return null;
@@ -89,8 +89,8 @@ export const MAILBOX_LEFT_WHY_WORDS: Readonly<Record<MailboxLeftWhy, string>> = 
 
 /** What a left sender's row says under its name: why, how many, and what Chanlytics read them to want, where it read that. */
 export function mailboxLeftLine(mailboxLeft: Pick<MailboxLeftDto, "why" | "count" | "about">): string {
-  const sentence = [MAILBOX_LEFT_WHY_WORDS[mailboxLeft.why], MAILBOX_SENDERS_WORDS.emails(mailboxLeft.count)];
-  return (mailboxLeft.about ? [...sentence, `“${mailboxLeft.about}”`] : sentence).join(" · ");
+  const phrases = [MAILBOX_LEFT_WHY_WORDS[mailboxLeft.why], MAILBOX_SENDERS_WORDS.emails(mailboxLeft.count)];
+  return (mailboxLeft.about ? [...phrases, `“${mailboxLeft.about}”`] : phrases).join(" · ");
 }
 
 /** The list's words, and "Not a person" on a person's page. */

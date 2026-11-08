@@ -290,11 +290,11 @@ export async function checkOne(
       );
       if (result === "late") return late();
       if ("failed" in result) return failed(result.failed);
-      const otherOpening = parseOpening(result.answer);
-      if (!otherOpening) return failed("unparseable");
-      const verdict = await verdictOn(otherOpening);
+      const parsedOpening = parseOpening(result.answer);
+      if (!parsedOpening) return failed("unparseable");
+      const verdict = await verdictOn(parsedOpening);
       if ("kind" in verdict) return verdict;
-      opening = otherOpening;
+      opening = parsedOpening;
       if (verdict.ok) {
         hold = null;
         detail = null;
@@ -304,7 +304,7 @@ export async function checkOne(
       detail = verdict.detail;
       // One rewrite, told why; a second failure holds (F2).
       if (!verdict.rewrite || round === 1) break;
-      retry = { opening: otherOpening.opening, why: verdict.why };
+      retry = { opening: parsedOpening.opening, why: verdict.why };
       rewritten = true;
     }
   }

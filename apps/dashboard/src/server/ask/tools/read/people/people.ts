@@ -312,10 +312,10 @@ async function readPipeline(toolContext: ToolContext): Promise<unknown> {
     };
   });
   // The people it says, and their deals, are rows an answer may cite, each opened on the person's page.
-  const sentence = new Set(groups.flatMap((g) => g.people.flatMap((p) => [p.contact_id, p.deal_id ?? ""])));
+  const listed = new Set(groups.flatMap((g) => g.people.flatMap((p) => [p.contact_id, p.deal_id ?? ""])));
   noteRows(
     toolContext.read,
-    read.rows.filter((r) => sentence.has(r.id)),
+    read.rows.filter((r) => listed.has(r.id)),
   );
   return {
     route: "clients/pipeline",

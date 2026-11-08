@@ -259,7 +259,7 @@ async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
   const askBrain = async (steer: string | undefined) => {
     const ms = ask.deadline - now();
     if (ms <= 0) throw new Error("reply_draft: no time left for the receptionist");
-    const otherInTime = await inTime(
+    const timed = await inTime(
       brain(
         thread.history,
         theirs,
@@ -275,18 +275,18 @@ async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
       ),
       ms,
     );
-    if (otherInTime.usage) {
+    if (timed.usage) {
       const usage = {
-        ...otherInTime.usage,
+        ...timed.usage,
         source: ask.source === "reach_out" ? "reach_out_reply_draft" : "reply_draft",
-        escalate: otherInTime.escalate,
-        reason: otherInTime.reason ?? null,
+        escalate: timed.escalate,
+        reason: timed.reason ?? null,
       };
       await recordTokens(db, tenantId, ask.conversationId, usage).catch((e: unknown) =>
         log.error("reply_draft_usage_failed", { conversation: ask.conversationId, error: errField(e) }),
       );
     }
-    return otherInTime;
+    return timed;
   };
   let result = await askBrain(change);
   if (noWords(result)) return said("not_drafted");

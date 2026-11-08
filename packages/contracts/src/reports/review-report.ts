@@ -160,8 +160,8 @@ const figureOf = (
   id: string,
   metric: ReportMetric,
   label: string,
-  sentence: Pick<ReportTileVM, "value" | "meta"> & Partial<Pick<ReportTileVM, "spark" | "compare">>,
-): ReportTileVM => ({ id, metric, label, delta: null, spark: [], compare: null, ...sentence });
+  tile: Pick<ReportTileVM, "value" | "meta"> & Partial<Pick<ReportTileVM, "spark" | "compare">>,
+): ReportTileVM => ({ id, metric, label, delta: null, spark: [], compare: null, ...tile });
 
 /** Who answered, in the Answered figure's line: "3 by the receptionist, 2 by you". */
 function whoAnsweredWords(answered: number, receptionist: number): string {

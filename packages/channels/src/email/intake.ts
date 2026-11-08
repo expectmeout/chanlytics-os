@@ -115,9 +115,9 @@ function headersOf(v: unknown): Record<string, string> {
  */
 function senderChecksOf(v: unknown): ReceivedEmail["authentication"] {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
-  const sentence = recordOrEmpty(v);
+  const record = recordOrEmpty(v);
   const word = (x: unknown): string => (typeof x === "string" ? x : "");
-  return { spf: word(sentence.spf), dkim: word(sentence.dkim), dmarc: word(sentence.dmarc) };
+  return { spf: word(record.spf), dkim: word(record.dkim), dmarc: word(record.dmarc) };
 }
 
 /** The fetched email, or null when the answer is not one. Headers as a map or as a list of pairs, whichever the provider sends. */
@@ -216,11 +216,18 @@ const DMARC_SAID_NOTHING: ReadonlySet<string> = new Set(["gray", "unknown", "pro
 export function senderAuthenticated(
   receivedEmail: Pick<ReceivedEmail, "from" | "headers" | "authentication">,
 ): boolean {
-  const sentence = receivedEmail.authentication;
+  const authentication = receivedEmail.authentication;
   const own = receivedEmail.headers.from === undefined ? receivedEmail.from : addressOf(receivedEmail.headers.from);
-  if (!sentence || !oneMailbox(receivedEmail.from) || !oneMailbox(own) || own.address !== receivedEmail.from.address)
+  if (
+    !authentication ||
+    !oneMailbox(receivedEmail.from) ||
+    !oneMailbox(own) ||
+    own.address !== receivedEmail.from.address
+  )
     return false;
-  return sentence.dmarc === "pass" || (sentence.dkim === "pass" && DMARC_SAID_NOTHING.has(sentence.dmarc));
+  return (
+    authentication.dmarc === "pass" || (authentication.dkim === "pass" && DMARC_SAID_NOTHING.has(authentication.dmarc))
+  );
 }
 
 /**

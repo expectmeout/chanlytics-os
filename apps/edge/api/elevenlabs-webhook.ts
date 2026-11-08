@@ -50,14 +50,14 @@ export const POST = door(async function POST(request: Request): Promise<Response
     log.info("elevenlabs_webhook_unknown", { conversation_id: conversationId });
     return json(200, { ok: true });
   }
-  const otherLog = logger({ door: "elevenlabs-webhook", tenant_id: ended.row.tenant_id });
+  const doorLog = logger({ door: "elevenlabs-webhook", tenant_id: ended.row.tenant_id });
   if (ended.kind === "repeated") {
     // The minutes were written at the first delivery; the erase is asked for again, in case it was the step that
     // failed then (a delete of what is gone already is the vendor's 404, a line and no more).
-    otherLog.info("elevenlabs_webhook_repeated", { conversation_id: conversationId });
+    doorLog.info("elevenlabs_webhook_repeated", { conversation_id: conversationId });
     const again = await eraseAskVoiceConversation(conversationId);
     if (again && again.outcome !== "ok" && again.status !== 404) {
-      otherLog.warn("ask_voice_conversation_not_erased", {
+      doorLog.warn("ask_voice_conversation_not_erased", {
         conversation_id: conversationId,
         outcome: again.outcome,
         status: again.status,
@@ -67,7 +67,7 @@ export const POST = door(async function POST(request: Request): Promise<Response
   }
 
   const turns = event.data?.transcript ?? [];
-  otherLog.info("ask_voice_session_ended", {
+  doorLog.info("ask_voice_session_ended", {
     conversation_id: conversationId,
     duration_s: durationS,
     turns: turns.filter((t) => t.role === "agent").length,
@@ -78,7 +78,7 @@ export const POST = door(async function POST(request: Request): Promise<Response
 
   const erased = await eraseAskVoiceConversation(conversationId);
   if (erased && erased.outcome !== "ok") {
-    otherLog.warn("ask_voice_conversation_not_erased", {
+    doorLog.warn("ask_voice_conversation_not_erased", {
       conversation_id: conversationId,
       outcome: erased.outcome,
       status: erased.status,

@@ -264,14 +264,14 @@ function localMs(tz: string, value: unknown): number | null {
   const part = (i: number) => Number(match[i]);
   const result = part(1);
   const mo = part(2);
-  const otherPart = part(3);
+  const dayPart = part(3);
   const hh = part(4);
   const mm = part(5);
-  if (!(mo >= 1 && mo <= 12 && otherPart >= 1 && otherPart <= 31 && hh <= 23 && mm <= 59)) return null;
+  if (!(mo >= 1 && mo <= 12 && dayPart >= 1 && dayPart <= 31 && hh <= 23 && mm <= 59)) return null;
   // A day its month does not have (31 February) is no date: read on, it would roll into the month after.
-  const day = new Date(Date.UTC(result, mo - 1, otherPart));
-  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== otherPart) return null;
-  const ms = localToUtcMs(tz, result, mo, otherPart, hh, mm);
+  const day = new Date(Date.UTC(result, mo - 1, dayPart));
+  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== dayPart) return null;
+  const ms = localToUtcMs(tz, result, mo, dayPart, hh, mm);
   return Number.isFinite(ms) ? ms : null;
 }
 

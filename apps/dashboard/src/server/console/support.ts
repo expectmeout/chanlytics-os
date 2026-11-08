@@ -215,15 +215,15 @@ export async function listAsksSince(
 async function marksSince(office: BackOffice, sinceIso: string): Promise<SupportActDto[]> {
   const { data, error } = await getSupportMarks(office.db, { sinceIso, limit: BOOK_ROWS });
   if (error) throw new Error(error.message);
-  return (data ?? []).flatMap((items) =>
-    items.target_id && (items.target_kind === "report" || items.target_kind === "ask")
+  return (data ?? []).flatMap((act) =>
+    act.target_id && (act.target_kind === "report" || act.target_kind === "ask")
       ? [
           {
-            act: inSet(CONSOLE_ACT_KEYS, items.act, items.act as ConsoleAct),
-            target_kind: items.target_kind,
-            target_id: items.target_id,
-            at: items.at,
-            actor_email: items.actor_email,
+            act: inSet(CONSOLE_ACT_KEYS, act.act, act.act as ConsoleAct),
+            target_kind: act.target_kind,
+            target_id: act.target_id,
+            at: act.at,
+            actor_email: act.actor_email,
           },
         ]
       : [],

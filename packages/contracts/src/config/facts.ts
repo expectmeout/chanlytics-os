@@ -395,7 +395,7 @@ export function changedConfigFields(before: unknown, after: unknown): string[] {
     };
   };
   const result = top(before);
-  const otherTop = top(after);
-  const keys = [...new Set([...Object.keys(result), ...Object.keys(otherTop)])].sort();
-  return keys.filter((k) => JSON.stringify(result[k] ?? null) !== JSON.stringify(otherTop[k] ?? null));
+  const topAfter = top(after);
+  const keys = [...new Set([...Object.keys(result), ...Object.keys(topAfter)])].sort();
+  return keys.filter((k) => JSON.stringify(result[k] ?? null) !== JSON.stringify(topAfter[k] ?? null));
 }

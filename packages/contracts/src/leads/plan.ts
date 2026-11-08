@@ -181,10 +181,10 @@ export function parseLeadsRoute(route: string): {
   };
   const reach = new Set<string>();
   const groups = new Set<string>();
-  for (const otherSeg of segs) {
-    const dash = otherSeg.indexOf("-");
+  for (const segment of segs) {
+    const dash = segment.indexOf("-");
     if (dash < 1) continue;
-    const [seg, val] = [otherSeg.slice(0, dash), otherSeg.slice(dash + 1)];
+    const [seg, val] = [segment.slice(0, dash), segment.slice(dash + 1)];
     if (seg === "s" && UUID.test(val)) out.searchId = val;
     else if (seg === "l" && isOneOf(LEAD_LISTS, val)) out.list = val;
     else if (seg === "c" && isOneOf(LEAD_CLASSES, val)) out.cls = val;
@@ -331,10 +331,10 @@ export function leadPlanAsk(
   // None left is said on the button, which cannot be pressed, rather than "Find 0 leads".
   const label = count < 1 ? "No leads left this month" : `Find ${count} lead${count === 1 ? "" : "s"}`;
   if (!binds || !facts) return { count, label, covers: null };
-  const otherPlanWho = planWho(plan);
+  const planAudience = planWho(plan);
   const covers =
     facts.bound === "budget"
-      ? `Emails for ${otherPlanWho} are hard to find, so this month covers about ${count} more. Find ${count} now?`
+      ? `Emails for ${planAudience} are hard to find, so this month covers about ${count} more. Find ${count} now?`
       : `You have ${count} lead${count === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
   return { count, label, covers };
 }

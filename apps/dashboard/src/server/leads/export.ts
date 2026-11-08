@@ -165,10 +165,10 @@ export async function exportLeads(
       ...(matching === null ? {} : { matching }),
     });
   }
-  const text = [...(from ? [] : [leadsCsvHead()]), ...lines];
+  const rows = [...(from ? [] : [leadsCsvHead()]), ...lines];
   return {
     file: `leads-${safeName(name)}-${dateTag(new Date(), timezone)}.csv`,
-    csv: text.length ? `${text.join("\r\n")}\r\n` : "",
+    csv: rows.length ? `${rows.join("\r\n")}\r\n` : "",
     rows: ids.length,
     next,
     ...(matching === null ? {} : { matching }),

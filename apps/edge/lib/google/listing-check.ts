@@ -58,8 +58,8 @@ export async function checkListing(
   let details: PlaceDetails;
   try {
     details = await readPlace(key, row.place_id);
-  } catch (otherError) {
-    const error = (otherError instanceof Error ? otherError.message : String(otherError)).slice(0, 300);
+  } catch (listingError) {
+    const error = (listingError instanceof Error ? listingError.message : String(listingError)).slice(0, 300);
     // The stamp is NOT moved. It was, briefly, to stop a permanently failing
     // listing holding the head of every hourly page — but `checked_at` is the
     // last SUCCESSFUL read (00069's own comment), and three things read it as

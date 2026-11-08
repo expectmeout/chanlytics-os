@@ -99,18 +99,18 @@ export async function listChains(ctx: RouteContext, tenantId: TenantId): Promise
 
   return roots.map((root) => {
     const chain = chainOf(root, steps);
-    const stepDtos: ReachOutStepDto[] = chain.map((text, count) => {
-      const item = text.template_id ? words.get(text.template_id) : null;
+    const stepDtos: ReachOutStepDto[] = chain.map((step, count) => {
+      const item = step.template_id ? words.get(step.template_id) : null;
       return {
-        id: text.id,
+        id: step.id,
         n: count,
-        after_days: count === 0 ? null : text.after_days,
+        after_days: count === 0 ? null : step.after_days,
         subject: count === 0 ? (item?.subject ?? null) : null,
         body: item?.body ?? "",
-        template_id: text.template_id,
-        hand: handOf(text.hand),
-        state: text.state === "running" ? "running" : "paused",
-        own_words: ownWords.get(text.id) ?? 0,
+        template_id: step.template_id,
+        hand: handOf(step.hand),
+        state: step.state === "running" ? "running" : "paused",
+        own_words: ownWords.get(step.id) ?? 0,
       };
     });
     const search = root.lead_search_id ? searches.get(root.lead_search_id) : undefined;
@@ -311,17 +311,17 @@ export async function findReachOutRun(
       .map((s) => ({ ...heldOf(s), ...(ownOf(s) ? { own: true } : {}) })),
     // A planned send always has its time (00183 reach_out_sends_planned_is_timed); one read without it is not listed
     // with a time it does not have.
-    planned: approvalCounts.planned.flatMap((text) =>
-      text.send_at
+    planned: approvalCounts.planned.flatMap((send) =>
+      send.send_at
         ? [
             {
-              send_id: text.id,
-              lead_id: text.lead_id,
-              business_name: text.lead?.business_name ?? "",
-              send_at: text.send_at,
-              checked: !!text.checked_at,
-              opening: text.opening,
-              ...(ownOf(text) ? { own: true } : {}),
+              send_id: send.id,
+              lead_id: send.lead_id,
+              business_name: send.lead?.business_name ?? "",
+              send_at: send.send_at,
+              checked: !!send.checked_at,
+              opening: send.opening,
+              ...(ownOf(send) ? { own: true } : {}),
             },
           ]
         : [],

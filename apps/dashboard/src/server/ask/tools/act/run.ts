@@ -91,7 +91,7 @@ function proposeLeadsBatch(
     return refuse(
       `an OK sends none of ${reachOutRun.chain_name || run.name}: ${heldByCheckWords(reachOutRun.held.length)}, and each is decided on its own, with action decide by its send_id (${HELD_FROM})`,
     );
-  const sentence = [
+  const phrases = [
     plural(emails, "email", "emails"),
     ...(reachOutRun && reachOutRun.checking > 0 ? [`${reachOutRun.checking} still being checked`] : []),
     ...(reachOutRun && reachOutRun.held.length > 0
@@ -102,7 +102,7 @@ function proposeLeadsBatch(
   return propose({
     kind: "run",
     title: `${approve ? "Approve" : "Skip"} the batch: ${reachOutRun?.chain_name || run.name}`,
-    summary: sentence.join(" · "),
+    summary: phrases.join(" · "),
     payload: { broadcast_id: run.id, verb: input.verb, name: reachOutRun?.chain_name || run.name, people: emails },
   });
 }

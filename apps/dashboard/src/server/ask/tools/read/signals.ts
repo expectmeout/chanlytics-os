@@ -181,7 +181,7 @@ const dealsWithoutAStep: Spot = ({ pool }) => {
 /** Appointments cancelled in the window whose time nothing offered (contracts freedTimesUnoffered, decision 0082). */
 const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
   if (!pb) return null;
-  const sentence = freedTimesUnoffered({
+  const freedTimes = freedTimesUnoffered({
     cancellations,
     calendar: pb.calendar,
     steps: pb.playbooks,
@@ -189,7 +189,7 @@ const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
     nowMs,
     days: NEW_DAYS,
   });
-  return sentence ? { key: "freed_times_unoffered", ...sentence, weight: 2 } : null;
+  return freedTimes ? { key: "freed_times_unoffered", ...freedTimes, weight: 2 } : null;
 };
 
 /** Every spot, in no order of its own: each signal's weight orders them. */

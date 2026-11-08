@@ -507,13 +507,13 @@ async function tellWabaChange(
   db: SupabaseClient<Database>,
   routed: Routed,
   field: string,
-  sentence: WabaWords,
+  wabaWords: WabaWords,
   loadNotifications: (tenantId: TenantId) => Promise<NotificationsConfig | null>,
 ): Promise<"kept" | "alerted"> {
   const described =
     field === "phone_number_quality_update"
-      ? { ...sentence, about: { type: "channel", id: routed.channelId } }
-      : sentence;
+      ? { ...wabaWords, about: { type: "channel", id: routed.channelId } }
+      : wabaWords;
   if (!described.alert) {
     // Never throws: a close that fails is logged and the warning stays until it is read.
     await mendWarnings(db, {

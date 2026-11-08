@@ -135,8 +135,8 @@ export async function findPoolList(
   const def = resolveList(ref, saved);
   if (!def) return null;
   const members = membersOf(def, pool.rows, pool.listCtx, saved);
-  const sentence = archived ? { archived: true as const } : {};
+  const archivedFilter = archived ? { archived: true as const } : {};
   return members.state === "ok"
-    ? { label: def.label, memberIds: [...members.ids], rule: def.rule, ...sentence }
-    : { label: def.label, unknown: listUnknownWords(members.reason, pool.listCtx.calendar), ...sentence };
+    ? { label: def.label, memberIds: [...members.ids], rule: def.rule, ...archivedFilter }
+    : { label: def.label, unknown: listUnknownWords(members.reason, pool.listCtx.calendar), ...archivedFilter };
 }

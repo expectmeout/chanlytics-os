@@ -290,20 +290,20 @@ export async function findLastInboundEmail(
     .maybeSingle();
   if (error) throw new Error(`email: cannot read the email being answered: ${error.message}`);
   if (!data) return null;
-  const otherError = recordOrEmpty(valueAt(data.meta, "email"));
+  const emailError = recordOrEmpty(valueAt(data.meta, "email"));
   const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
   const list = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((r): r is string => typeof r === "string").map((r) => r.toLowerCase()) : [];
   return {
     messageId: data.id,
-    from: str(otherError.from),
-    rfcMessageId: str(otherError.message_id),
-    references: Array.isArray(otherError.references)
-      ? otherError.references.filter((r): r is string => typeof r === "string")
+    from: str(emailError.from),
+    rfcMessageId: str(emailError.message_id),
+    references: Array.isArray(emailError.references)
+      ? emailError.references.filter((r): r is string => typeof r === "string")
       : [],
-    subject: str(otherError.subject),
+    subject: str(emailError.subject),
     // Who it was written to: a mailbox the business connected among them answers it (decision 0073, R13).
-    to: [...list(otherError.to), ...list(otherError.cc)],
+    to: [...list(emailError.to), ...list(emailError.cc)],
   };
 }
 

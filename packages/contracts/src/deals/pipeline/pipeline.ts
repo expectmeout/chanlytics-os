@@ -175,7 +175,7 @@ function dealRow<T extends PipelineSource>(
  */
 function heldRow<T extends PipelineSource>(item: T, endMs: number, tz: string, nowMs: number): PipelineRowBody<T> {
   const heldMs = item.lastVisitMs !== null && Number.isFinite(item.lastVisitMs) ? item.lastVisitMs : endMs;
-  const sentence = visitStateOf(item.lastVisitLine?.mark ?? null, endMs, nowMs);
+  const visitState = visitStateOf(item.lastVisitLine?.mark ?? null, endMs, nowMs);
   return {
     id: item.id,
     group: "consultations",
@@ -186,7 +186,7 @@ function heldRow<T extends PipelineSource>(item: T, endMs: number, tz: string, n
     value: null,
     inStage: daysWords(wholeDaysSince(heldMs, nowMs)),
     chip: {
-      words: `${sentence ? `${sentence.text} ` : ""}${clockNear(heldMs, zoneOf(item, tz), nowMs)} · no proposal yet`,
+      words: `${visitState ? `${visitState.text} ` : ""}${clockNear(heldMs, zoneOf(item, tz), nowMs)} · no proposal yet`,
       tone: "warn",
     },
     // Held, and the proposal is the step now: in warn, as the chip says it, since it waits on the owner.

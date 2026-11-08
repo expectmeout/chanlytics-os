@@ -69,11 +69,11 @@ export const messageSearch: Reader<
     const hits = found.flatMap((item): SaidHit[] => {
       const person = item.contactId ? (named.get(item.contactId) ?? null) : null;
       if (item.kind === "call") {
-        const otherLine = line.get(item.id);
-        if (!otherLine) return [];
+        const messageLine = line.get(item.id);
+        if (!messageLine) return [];
         const personName = callerName({
-          from_e164: otherLine.from_e164,
-          from_raw: otherLine.from_raw,
+          from_e164: messageLine.from_e164,
+          from_raw: messageLine.from_raw,
           contact: person,
         });
         return [
@@ -87,16 +87,16 @@ export const messageSearch: Reader<
       }
       const result = sent.get(item.id);
       if (!result) return [];
-      const otherPersonName = personName(person);
+      const contactName = personName(person);
       const ref: RowRef | null = item.conversationId
         ? {
             kind: "thread",
             id: item.conversationId,
             route: addressOf({ kind: "conversation", id: item.conversationId }),
-            label: otherPersonName,
+            label: contactName,
           }
         : null;
-      return [{ ...item, who: otherPersonName, sent: result, ref }];
+      return [{ ...item, who: contactName, sent: result, ref }];
     });
     // A thread two of its messages matched is one row.
     const rows = [

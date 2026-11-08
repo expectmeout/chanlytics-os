@@ -79,13 +79,13 @@ const pad = (n: number) => String(n).padStart(2, "0");
  * at 6 to 11 is the morning, 12 is noon, 1 to 5 the afternoon; a closing at 1 to 11 is the afternoon or evening).
  */
 function hhmmSaid(
-  otherHour: string | undefined,
+  hourText: string | undefined,
   message: string | undefined,
   ap: string | undefined,
   as: "open" | "close",
 ): string | null {
-  if (otherHour === undefined) return null;
-  let hour = Number(otherHour);
+  if (hourText === undefined) return null;
+  let hour = Number(hourText);
   const min = message ? Number(message) : 0;
   if (!Number.isInteger(hour) || hour > 23 || min > 59) return null;
   const mer = ap?.replace(/\./g, "");

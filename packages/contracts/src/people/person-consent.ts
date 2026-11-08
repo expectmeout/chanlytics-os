@@ -256,10 +256,10 @@ export function whyNotReceive(
     if (!receive.email) return "no_address";
     if (receive.emailSuppressed) return "address_stopped";
   } else if (!receive.phone) return "no_number";
-  const sentence = mayMessageFor(bearingOf(receive.consent), purpose, { proactive: true, channel, about });
-  if (sentence.ok) return null;
+  const verdict = mayMessageFor(bearingOf(receive.consent), purpose, { proactive: true, channel, about });
+  if (verdict.ok) return null;
   // Their own no to email (a press of Unsubscribe) is its own reason: it ends offers by email and leaves everything else.
-  const { reason } = sentence;
+  const { reason } = verdict;
   switch (reason) {
     case "opted_out":
       return "stopped";

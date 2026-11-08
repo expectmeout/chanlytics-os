@@ -129,8 +129,8 @@ export function turnMeter(t0: number) {
  * when fast mode's limit slowed some. Standard where no round said one: an edge older than fast mode, which never sends
  * it, or a turn no round of which came back.
  */
-function speedOfTurn(sentence: ReadonlyArray<ModelSpeed | null>): AskTurnShape["speed"] {
-  const [first, ...rest] = sentence.filter((s): s is ModelSpeed => s !== null);
+function speedOfTurn(speeds: ReadonlyArray<ModelSpeed | null>): AskTurnShape["speed"] {
+  const [first, ...rest] = speeds.filter((s): s is ModelSpeed => s !== null);
   if (first === undefined) return "standard";
   return rest.every((s) => s === first) ? first : "mixed";
 }
@@ -343,14 +343,9 @@ function withoutClaimedWrite(
 export type PlanSaid = { words: string; lead?: PlanLead };
 
 /** A round of cards alone, every one made, that made a plan: its words, its answer; a lone plan's lead leads it. */
-export const roundPlan = (
-  calls: unknown[],
-  acts: unknown[],
-  refused: boolean,
-  sentence: PlanSaid[],
-): PlanSaid | null =>
-  acts.length === calls.length && !refused && sentence.length > 0
-    ? { words: sentence.map((s) => s.words).join(" "), lead: sentence.length === 1 ? sentence.at(0)?.lead : undefined }
+export const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, plans: PlanSaid[]): PlanSaid | null =>
+  acts.length === calls.length && !refused && plans.length > 0
+    ? { words: plans.map((s) => s.words).join(" "), lead: plans.length === 1 ? plans.at(0)?.lead : undefined }
     : null;
 
 /** The answer of cards alone: a plan's words and lead where it made one; messages alone ask for other languages. */
@@ -387,12 +382,8 @@ export function besideActs(
 function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid) {
   const lead = plan.lead;
   const own = answer.do.open;
-  const otherMessageLanguagesNext = messageLanguagesNext(cards, input.facts.languages, input.language);
-  const next = otherMessageLanguagesNext.length
-    ? otherMessageLanguagesNext
-    : answer.do.next.length
-      ? answer.do.next
-      : (lead?.next ?? []);
+  const languagesNext = messageLanguagesNext(cards, input.facts.languages, input.language);
+  const next = languagesNext.length ? languagesNext : answer.do.next.length ? answer.do.next : (lead?.next ?? []);
   if (!lead) return { ...answer, do: { open: own, next } };
   const label = own?.to === lead.open.to ? own.label : lead.open.label;
   return { ...answer, do: { open: { to: lead.open.to, label, now: false }, next } };

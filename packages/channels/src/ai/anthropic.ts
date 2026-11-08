@@ -188,14 +188,14 @@ const neverCame = (a: ProviderReply): boolean => a.outcome === "unknown";
 const modelUnknown = (a: ProviderReply): boolean => a.status === 404;
 
 function messageOf(json: unknown): ModelMessage {
-  const otherJson = recordOrEmpty(json);
-  const content = listOrEmpty(otherJson.content).filter(isModelBlock);
+  const record = recordOrEmpty(json);
+  const content = listOrEmpty(record.content).filter(isModelBlock);
   return {
-    id: typeof otherJson.id === "string" ? otherJson.id : null,
-    model: typeof otherJson.model === "string" ? otherJson.model : null,
-    stop_reason: typeof otherJson.stop_reason === "string" ? otherJson.stop_reason : null,
+    id: typeof record.id === "string" ? record.id : null,
+    model: typeof record.model === "string" ? record.model : null,
+    stop_reason: typeof record.stop_reason === "string" ? record.stop_reason : null,
     content,
-    usage: otherJson.usage && typeof otherJson.usage === "object" ? recordOrEmpty(otherJson.usage) : null,
+    usage: record.usage && typeof record.usage === "object" ? recordOrEmpty(record.usage) : null,
   };
 }
 
@@ -253,10 +253,10 @@ function sentFor(ask: ModelAsk, model: string, slowed: boolean): Sent {
   const fast = speed === "fast" && !slowed && (takes?.fast ?? true);
   const type = valueAt(thinking, "type");
   const thinks = thinking !== undefined && (!takes || isOneOf(takes.thinking, type));
-  const sentence = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
-  const notice = sentence && (takes?.effortMessages ?? true);
+  const asksEffort = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
+  const notice = asksEffort && (takes?.effortMessages ?? true);
   const worded = Array.isArray(asked.messages) && asked.messages.some(isWordsMessage);
-  const folded = sentence && !notice ? foldEffortMessages(asked) : asked;
+  const folded = asksEffort && !notice ? foldEffortMessages(asked) : asked;
   const body = worded && !(takes?.systemMessages ?? true) ? foldWordsMessages(folded) : folded;
   const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA && b !== EFFORT_MESSAGE_BETA);
   return {

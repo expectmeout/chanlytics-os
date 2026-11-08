@@ -209,7 +209,7 @@ async function failBroadcast(
 }
 
 /** A reply's send: the message still claiming to be on its way is marked failed, and its thread flagged for a person. */
-async function settleSend(db: Db, job: TerminalJob, certain: boolean, otherReason?: string): Promise<Settled[]> {
+async function settleSend(db: Db, job: TerminalJob, certain: boolean, failReason?: string): Promise<Settled[]> {
   const reason = certain ? "never_delivered" : "run_interrupted";
   const messageId = idFrom(job.payload, "message_id");
   if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
@@ -222,7 +222,7 @@ async function settleSend(db: Db, job: TerminalJob, certain: boolean, otherReaso
   const { row, error } = await failQueuedSend(db, {
     tenantId: job.tenant_id,
     messageId,
-    error: { reason, note: noteOf(certain, otherReason), ...(certain ? {} : { outcome: "unknown" }) },
+    error: { reason, note: noteOf(certain, failReason), ...(certain ? {} : { outcome: "unknown" }) },
   });
   // A reply that never left is a customer with no answer: the thread is flagged for a person, as a failed
   // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5). A campaign's
@@ -235,7 +235,7 @@ async function settleSend(db: Db, job: TerminalJob, certain: boolean, otherReaso
           job.tenant_id,
           row.conversation_id,
           "send_failed",
-          `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${noteOf(certain, otherReason)}.`,
+          `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${noteOf(certain, failReason)}.`,
         )
       : null;
   return [

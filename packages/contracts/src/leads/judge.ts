@@ -373,38 +373,38 @@ export function parseJudgeAnswer(
   const wanted = [LEAD_KIND_KEY, ...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
   const answers: JudgePlaceAnswer[] = [];
   const seen = new Set<number>();
-  for (const otherPlace of parsed.data.places) {
-    const place = byRef.get(otherPlace.ref);
-    if (!place) return { ok: false, why: `ref ${otherPlace.ref} is not among the places` };
-    if (seen.has(otherPlace.ref)) return { ok: false, why: `ref ${otherPlace.ref} answered twice` };
-    seen.add(otherPlace.ref);
-    const keys = otherPlace.criteria.map((c) => c.key);
+  for (const judgedPlace of parsed.data.places) {
+    const place = byRef.get(judgedPlace.ref);
+    if (!place) return { ok: false, why: `ref ${judgedPlace.ref} is not among the places` };
+    if (seen.has(judgedPlace.ref)) return { ok: false, why: `ref ${judgedPlace.ref} answered twice` };
+    seen.add(judgedPlace.ref);
+    const keys = judgedPlace.criteria.map((c) => c.key);
     for (const k of keys)
-      if (!wanted.includes(k)) return { ok: false, why: `ref ${otherPlace.ref}: unknown criterion ${k}` };
+      if (!wanted.includes(k)) return { ok: false, why: `ref ${judgedPlace.ref}: unknown criterion ${k}` };
     if (new Set(keys).size !== keys.length)
-      return { ok: false, why: `ref ${otherPlace.ref}: a criterion answered twice` };
+      return { ok: false, why: `ref ${judgedPlace.ref}: a criterion answered twice` };
     for (const k of wanted)
-      if (!keys.includes(k)) return { ok: false, why: `ref ${otherPlace.ref}: criterion ${k} not answered` };
+      if (!keys.includes(k)) return { ok: false, why: `ref ${judgedPlace.ref}: criterion ${k} not answered` };
     const have = factKeysOf(place);
-    for (const c of otherPlace.criteria) {
+    for (const c of judgedPlace.criteria) {
       for (const f of c.facts) {
         if (!isOneOf(JUDGE_FACT_KEYS, f))
-          return { ok: false, why: `ref ${otherPlace.ref}: fact ${f} is not on the place` };
+          return { ok: false, why: `ref ${judgedPlace.ref}: fact ${f} is not on the place` };
         // A fail or unknown may cite a fact the place lacks: the absence is the evidence. Only a pass must cite a fact that is there.
         if (c.answer === "pass" && !have.has(f))
-          return { ok: false, why: `ref ${otherPlace.ref}: fact ${f} is not on the place` };
+          return { ok: false, why: `ref ${judgedPlace.ref}: fact ${f} is not on the place` };
       }
     }
     if (
-      otherPlace.email_index !== null &&
-      (otherPlace.email_index < 0 || otherPlace.email_index >= place.emails.length)
+      judgedPlace.email_index !== null &&
+      (judgedPlace.email_index < 0 || judgedPlace.email_index >= place.emails.length)
     )
-      return { ok: false, why: `ref ${otherPlace.ref}: email_index ${otherPlace.email_index} out of range` };
+      return { ok: false, why: `ref ${judgedPlace.ref}: email_index ${judgedPlace.email_index} out of range` };
     answers.push({
-      ref: otherPlace.ref,
-      criteria: otherPlace.criteria.map((c) => ({ key: c.key, answer: c.answer, facts: [...c.facts] })),
-      email_index: otherPlace.email_index,
-      reason: trimWords(otherPlace.reason),
+      ref: judgedPlace.ref,
+      criteria: judgedPlace.criteria.map((c) => ({ key: c.key, answer: c.answer, facts: [...c.facts] })),
+      email_index: judgedPlace.email_index,
+      reason: trimWords(judgedPlace.reason),
     });
   }
   for (const p of places) if (!seen.has(p.ref)) return { ok: false, why: `ref ${p.ref} not answered` };

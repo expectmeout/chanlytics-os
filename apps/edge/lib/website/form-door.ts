@@ -69,8 +69,8 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     log.warn("website_form_refused", { why: "key" });
     return refuse(401, "bad_signature");
   }
-  const otherWebsiteFormPerson = websiteFormPerson(data);
-  if (!otherWebsiteFormPerson) {
+  const person = websiteFormPerson(data);
+  if (!person) {
     log.warn("website_form_refused", { tenant_id: tenantId, why: "no_way_to_reach" });
     return refuse(422, "invalid", "An email address or a phone number is needed.");
   }
@@ -82,9 +82,9 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   try {
     const created = await resolvePerson(db, {
       tenantId,
-      phone: otherWebsiteFormPerson.phone,
-      email: otherWebsiteFormPerson.email,
-      name: otherWebsiteFormPerson.name,
+      phone: person.phone,
+      email: person.email,
+      name: person.name,
       assurance: "found",
       source: "website",
       detail: {
@@ -112,8 +112,8 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
       JSON.stringify([
         tenantId,
         data.form,
-        otherWebsiteFormPerson.email,
-        otherWebsiteFormPerson.phone,
+        person.email,
+        person.phone,
         data.about ?? "",
         data.note ?? "",
         data.at ?? "",
@@ -142,15 +142,15 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     tenantId,
     contactId,
     form: data,
-    email: otherWebsiteFormPerson.email,
+    email: person.email,
     nowMs,
   });
-  const notice = websiteFormNotice(data, { contactId, ...otherWebsiteFormPerson }, { nowMs, tz }, signupAskLine(ask));
+  const notice = websiteFormNotice(data, { contactId, ...person }, { nowMs, tz }, signupAskLine(ask));
   const onceKey = `website_form:${name}`;
-  let otherNotice = false;
+  let noticed = false;
   try {
     const addressing = await loadTenantNotifications(db, tenantId);
-    otherNotice =
+    noticed =
       websiteFormLate(data, nowMs) || addressing.unread
         ? await keepOnce(
             tenantId,
@@ -169,6 +169,6 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   } catch (e) {
     log.error("website_form_failed", { tenant_id: tenantId, step: "notice", error: errField(e) });
   }
-  log.info("website_form_kept", { tenant_id: tenantId, form: data.form, outcome, note, told: otherNotice, ask });
+  log.info("website_form_kept", { tenant_id: tenantId, form: data.form, outcome, note, told: noticed, ask });
   return json(200, { ok: true, kept: true, ...(ask === "asked" ? { confirm: "sent" } : {}) });
 }

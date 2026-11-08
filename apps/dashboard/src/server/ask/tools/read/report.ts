@@ -200,20 +200,20 @@ function reviewsSaid(toolContext: ToolContext, rv: ReviewsReportVM) {
     noteRow(toolContext, "review", r.id, `${r.author} · ${r.stars}`, reviewRoute(r.id));
     return { id: r.id, author: r.author, stars: r.stars, when: r.when, text: r.text.slice(0, 240), replied: r.replied };
   };
-  const sentence = {
+  const figures = {
     head: rv.lines.head,
     // What the figure draws beside its value is its `compare` (no Reviews tile has a percentage); null where history falls short.
     tiles: rv.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.compare })),
   };
   if (rv.source === "places")
     return {
-      ...sentence,
+      ...figures,
       gained: gainedSaid(rv),
       latest: rv.latest.slice(0, 5).map(reviewOf),
       connect: rv.lines.connect,
     };
   return {
-    ...sentence,
+    ...figures,
     // The mix as the card says it (the line holds how many were rated) and its five rows; null where there is none to say.
     stars: rv.stars ? { line: rv.lines.mix, rows: rv.stars.rows.map(shownRow) } : null,
     weekly: weeklySaid(rv),
@@ -328,7 +328,7 @@ async function askedWindow(
     shortcut?: (typeof SHORTCUTS)[number];
   },
 ) {
-  let otherInput: { period?: (typeof REPORT_PERIOD_IDS)[number]; from?: string; to?: string } = {
+  let rangeInput: { period?: (typeof REPORT_PERIOD_IDS)[number]; from?: string; to?: string } = {
     period: input.period,
     from: input.from,
     to: input.to,
@@ -339,11 +339,11 @@ async function askedWindow(
     const today = zoneDayKey(toolContext.rc.now.getTime(), zone);
     const cut = reportShortcuts(today).find((s) => s.id === shortcut.replace(/_/g, "-"));
     if (!cut) return { refusal: "shortcut is yesterday, last_week or last_month" };
-    otherInput = { from: cut.days.from, to: cut.days.to };
+    rangeInput = { from: cut.days.from, to: cut.days.to };
   }
-  if (!otherInput.period && !otherInput.from && !otherInput.to) otherInput = { period: "30d" };
+  if (!rangeInput.period && !rangeInput.from && !rangeInput.to) rangeInput = { period: "30d" };
   try {
-    return { window: await reportWindowFor(toolContext.rc, otherInput) };
+    return { window: await reportWindowFor(toolContext.rc, rangeInput) };
   } catch (e) {
     if (e instanceof AppError) return { refusal: e.message };
     throw e;

@@ -441,8 +441,8 @@ async function placesOf(
   tenantId: TenantId,
   leadIds: readonly string[],
 ): Promise<ReadonlyMap<string, SequencePlaceOfDto> | null> {
-  const result = await listSequencePlaces(ctx.supabase, tenantId, leadIds).catch(() => null);
-  return result ? new Map(result.map((p) => [p.lead_id, p])) : null;
+  const places = await listSequencePlaces(ctx.supabase, tenantId, leadIds).catch(() => null);
+  return places ? new Map(places.map((p) => [p.lead_id, p])) : null;
 }
 
 /** A row with its place, where the places were read: null in no sequence. */

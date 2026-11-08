@@ -138,9 +138,9 @@ export function leadMarksFrom(html: string, origin: string): string[] {
   const head = headOf(html);
   const out: string[] = [];
   // A logo the site says is its logo comes first: schema.org "logo", as a string or as an image object.
-  const sentence = head.match(/"logo"\s*:\s*"([^"]+)"/i) ?? head.match(/"logo"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i);
-  if (sentence) {
-    const url = absolute((sentence[1] ?? "").replace(/\\\//g, "/"), origin);
+  const match = head.match(/"logo"\s*:\s*"([^"]+)"/i) ?? head.match(/"logo"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i);
+  if (match) {
+    const url = absolute((match[1] ?? "").replace(/\\\//g, "/"), origin);
     if (url) out.push(url);
   }
   const linked: { url: string; score: number; at: number }[] = [];

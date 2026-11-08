@@ -52,18 +52,18 @@ async function listCalls(toolContext: ToolContext, input: { filter: string }): P
   }
   return {
     filter,
-    calls: picked.map((items) => ({
-      call_id: items.callId,
-      route: `conversations/cv-${items.callId}`,
-      who: items.who,
-      direction: items.direction,
-      at: items.at,
-      duration: items.duration ?? null,
-      outcome: askCallOutcome(items),
-      ...(abandoned.has(items.callId) ? { abandoned: true } : {}),
-      summary: items.summary.headline,
-      conversation_id: items.threadId ? items.threadId.replace(/^th-/, "") : null,
-      contact_id: items.clientId,
+    calls: picked.map((call) => ({
+      call_id: call.callId,
+      route: `conversations/cv-${call.callId}`,
+      who: call.who,
+      direction: call.direction,
+      at: call.at,
+      duration: call.duration ?? null,
+      outcome: askCallOutcome(call),
+      ...(abandoned.has(call.callId) ? { abandoned: true } : {}),
+      summary: call.summary.headline,
+      conversation_id: call.threadId ? call.threadId.replace(/^th-/, "") : null,
+      contact_id: call.clientId,
     })),
   };
 }

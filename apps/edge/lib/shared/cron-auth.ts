@@ -27,9 +27,9 @@ export async function authorizeCron(
     log.error("cron_key_unavailable", { error: error?.message ?? "no cron_sweep_key in Vault" });
     return refuse(503, "key_unavailable");
   }
-  const items = Buffer.from(presented);
+  const presentedBytes = Buffer.from(presented);
   const result = Buffer.from(expected);
-  if (!presented || items.length !== result.length || !crypto.timingSafeEqual(items, result)) {
+  if (!presented || presentedBytes.length !== result.length || !crypto.timingSafeEqual(presentedBytes, result)) {
     return refuse(401, "unauthorized");
   }
   return null;

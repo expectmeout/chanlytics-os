@@ -221,12 +221,12 @@ export async function askToConfirmSignup(
     { tenant_id: tenantId, user_id: userId, contact_id: contactId },
     { workspace: tenantId, user: userId, timeoutMs: ASK_TIMEOUT_MS },
   );
-  const second = answer.body;
-  if (answer.status === 200 && second?.ok === true) {
-    const request = second.asked === true;
-    const reason = typeof second.why === "string" ? (second.why as SignupAskRefusal) : null;
+  const body = answer.body;
+  if (answer.status === 200 && body?.ok === true) {
+    const request = body.asked === true;
+    const reason = typeof body.why === "string" ? (body.why as SignupAskRefusal) : null;
     return { asked: request, said: signupAskLine(request ? "asked" : reason) ?? NOBODY_TO_ASK };
   }
-  log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: answer.status, reason: second?.why ?? null });
+  log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: answer.status, reason: body?.why ?? null });
   throw new AppError("conflict", "The email asking them to confirm could not be sent. Try again in a minute.", 502);
 }

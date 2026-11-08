@@ -82,24 +82,27 @@ export const readToday: Provider = async (rc, ctx) => {
   const rows: ContextRow[] = [];
   for (const item of idsOf(ctx, "thread", "call", "search")) {
     // The page's own mapping (bridge/ask/context.ts): a search is `q-s-<id>`, a person's row its thread, else the call.
-    const query = vm.queue.rows.find((x) =>
+    const queueRow = vm.queue.rows.find((x) =>
       item.kind === "search"
         ? x.kind === "search" && x.id === `q-s-${item.id}`
         : x.kind !== "search" &&
           (item.kind === "thread" ? x.conversationId === item.id : !x.conversationId && x.callId === item.id),
     );
-    if (!query) continue;
+    if (!queueRow) continue;
     // Each row at its kind's one route, whatever its button opens (the line keeps the button's, a search's question).
     const ref =
       item.kind === "search"
-        ? refOf("search", item.id, query.who, leadsRoute({ searchId: item.id }))
+        ? refOf("search", item.id, queueRow.who, leadsRoute({ searchId: item.id }))
         : item.kind === "thread"
-          ? refOf("thread", item.id, query.who, `inbox/th-${item.id}`)
-          : refOf("call", item.id, query.who, `conversations/cv-${item.id}`);
+          ? refOf("thread", item.id, queueRow.who, `inbox/th-${item.id}`)
+          : refOf("call", item.id, queueRow.who, `conversations/cv-${item.id}`);
     rows.push({
       source: sourceOf(item.kind, item.id),
-      title: query.who,
-      text: line([query.who, query.status[0], query.when, ...query.status.slice(1), query.sentence], query.cta.to),
+      title: queueRow.who,
+      text: line(
+        [queueRow.who, queueRow.status[0], queueRow.when, ...queueRow.status.slice(1), queueRow.sentence],
+        queueRow.cta.to,
+      ),
       ref,
     });
   }
@@ -137,7 +140,7 @@ export const readInbox: Provider = async (rc, ctx) => {
       ref: refOf("thread", item.id, found.who, route),
     });
   }
-  const count = (f: (v: InboxThreadVM) => boolean) => vms.filter(f).length;
+  const countWhere = (f: (v: InboxThreadVM) => boolean) => vms.filter(f).length;
   // The Inbox's own figure (contracts threadWaitsOf): the holds, a hold whose thread could not be read among them, and the
   // replies counting down in your name. It counted the holds alone (R13 X5-2).
   const waits = threadWaitsOf(conversations, escalations, rc.now);
@@ -146,9 +149,9 @@ export const readInbox: Provider = async (rc, ctx) => {
     aggregate: aggregateOf([
       `${pageWithView(ctx)}: ${rows.length} threads on screen`,
       `needs you: ${waits.holds + waits.sends}${waits.sends ? ` (${waits.sends} of them a reply on its way)` : ""}`,
-      `held: ${count((v) => heldDraftWaits(v, rc.now.getTime()))}`,
-      `you have it: ${count((v) => v.takenOver)}`,
-      `snoozed: ${count((v) => v.state === "snoozed")}`,
+      `held: ${countWhere((v) => heldDraftWaits(v, rc.now.getTime()))}`,
+      `you have it: ${countWhere((v) => v.takenOver)}`,
+      `snoozed: ${countWhere((v) => v.state === "snoozed")}`,
       `threads: ${vms.length}`,
     ]),
   };

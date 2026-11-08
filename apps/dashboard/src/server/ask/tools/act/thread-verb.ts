@@ -30,7 +30,7 @@ async function proposeThreadVerb(
   if (error) throw new Error(error.message);
   if (!conv) return refuse("no such conversation in this workspace");
   // As the Inbox names them (personName): a saved name, else their WhatsApp name, else their number as it is printed.
-  const otherPersonName = personName(conv.contacts);
+  const contactName = personName(conv.contacts);
   let escalationId: string | null = null;
   if (verb === "resolve") {
     const { data: esc, error: escErr } = await findOpenEscalationOf(toolContext.ctx.supabase, toolContext.tenantId, id);
@@ -42,9 +42,9 @@ async function proposeThreadVerb(
   if (verb === "hand_back" && !conv.assignee_user_id) return refuse("nobody has taken that thread over");
   // What the thread already is, said, never a card that changes nothing (the operator stress run, 15 Oct 2026).
   if (verb === "take_over" && conv.assignee_user_id === toolContext.ctx.userId)
-    return refuse(`${otherPersonName}'s thread is already taken over by the person asking: say so, and change nothing`);
+    return refuse(`${contactName}'s thread is already taken over by the person asking: say so, and change nothing`);
   if (verb === "archive" && conv.state === "archived")
-    return refuse(`${otherPersonName}'s thread is already archived: say so, and change nothing`);
+    return refuse(`${contactName}'s thread is already archived: say so, and change nothing`);
   let until: string | null = null;
   if (verb === "snooze") {
     const raw = str(input.until, 40);
@@ -65,15 +65,15 @@ async function proposeThreadVerb(
     until = date.toISOString();
   }
   const TITLES: Record<(typeof THREAD_VERBS)[number], string> = {
-    take_over: `Take over ${otherPersonName}'s thread`,
-    hand_back: `Hand ${otherPersonName}'s thread back to the receptionist`,
-    snooze: `Snooze ${otherPersonName}'s thread`,
-    wake: `Wake ${otherPersonName}'s thread`,
-    archive: `Archive ${otherPersonName}'s thread`,
-    resolve: `Resolve ${otherPersonName}'s escalation`,
+    take_over: `Take over ${contactName}'s thread`,
+    hand_back: `Hand ${contactName}'s thread back to the receptionist`,
+    snooze: `Snooze ${contactName}'s thread`,
+    wake: `Wake ${contactName}'s thread`,
+    archive: `Archive ${contactName}'s thread`,
+    resolve: `Resolve ${contactName}'s escalation`,
   };
   // The undo's words are the spec's (contracts ask-proposals/): a wake's card offers none (D8).
-  noteRow(toolContext, "thread", id, otherPersonName, `inbox/th-${id}`);
+  noteRow(toolContext, "thread", id, contactName, `inbox/th-${id}`);
   return propose({
     kind: "thread_verb",
     title: TITLES[verb],
@@ -89,7 +89,7 @@ async function proposeThreadVerb(
               : verb === "archive"
                 ? "Out of the Inbox; it comes back if they write"
                 : "Back in the Inbox now",
-    payload: { conversation_id: id, verb, until, escalation_id: escalationId, who: otherPersonName },
+    payload: { conversation_id: id, verb, until, escalation_id: escalationId, who: contactName },
   });
 }
 

@@ -132,39 +132,39 @@ function wirePorts(
 function emailRequestPort(ctx: JobContext, tenantId: TenantId): BroadcastBatchPorts["emailRequest"] {
   let mailbox: Awaited<ReturnType<typeof findMailboxOfTenant>> | undefined;
   // The same words fail every person of a batch alike: said once for the batch, with the error, so the hold has its reason.
-  let sentence = false;
-  return async (index) => {
+  let warned = false;
+  return async (send) => {
     const domain = ctx.email?.domain;
     if (!domain) return null;
     const campaigns = ctx.email?.campaigns;
-    if (index.offer && !campaigns) return null;
+    if (send.offer && !campaigns) return null;
     mailbox ??= await findMailboxOfTenant(ctx.db, tenantId);
     if (!mailbox) return null;
     try {
       const request = buildEmailRequest({
         identity:
-          index.offer && campaigns
+          send.offer && campaigns
             ? campaignsIdentity(mailbox, campaigns.domain, domain)
             : hostedIdentity(mailbox, domain),
-        to: index.to,
+        to: send.to,
         parent: null,
-        subject: index.subject,
-        body: index.body,
+        subject: send.subject,
+        body: send.body,
         // The foot, where a signature goes: after the words, in the text and in the HTML. An offer's is a campaign's:
         // the one-click unsubscribe rides in its headers and its link in the foot (never the same words twice).
-        signature: index.offer ? null : index.footer,
-        ...(index.offer
+        signature: send.offer ? null : send.footer,
+        ...(send.offer
           ? {
               campaign: {
-                unsubscribeUrl: index.offer.unsubscribeUrl,
-                footer: index.footer,
-                footerHtml: index.offer.footerHtml,
+                unsubscribeUrl: send.offer.unsubscribeUrl,
+                footer: send.footer,
+                footerHtml: send.offer.footerHtml,
               },
             }
           : {}),
         // A program's email, sent on its own schedule: marked auto-generated, so an out-of-office does not answer it.
         actor: "ai",
-        messageId: index.messageId,
+        messageId: send.messageId,
         tenantId,
       });
       // A campaign's email, whether or not it carries an unsubscribe: its bounce or a run that died is the campaign's to
@@ -172,11 +172,11 @@ function emailRequestPort(ctx: JobContext, tenantId: TenantId): BroadcastBatchPo
       return { ...request, tags: [...request.tags, { name: CAMPAIGN_EMAIL_TAG, value: "broadcast" }] };
     } catch (error) {
       // Words no email may carry, or a request the builder refused: the person is held (no_channel), and the log says why.
-      if (!sentence) {
-        sentence = true;
+      if (!warned) {
+        warned = true;
         sendLog.error("broadcast_email_request_failed", {
           tenant_id: tenantId,
-          offer: !!index.offer,
+          offer: !!send.offer,
           error: errField(error),
         });
       }
@@ -191,7 +191,7 @@ function emailRequestPort(ctx: JobContext, tenantId: TenantId): BroadcastBatchPo
  * carry, made the way a reach-out's is. Null where this runtime holds none.
  */
 function unsubscribeUrlPort(ctx: JobContext, tenantId: TenantId): BroadcastBatchPorts["unsubscribeUrl"] {
-  let sentence = false;
+  let warned = false;
   return ({ messageId, contactId }) => {
     const campaigns = ctx.email?.campaigns;
     if (!campaigns) return Promise.resolve(null);
@@ -201,8 +201,8 @@ function unsubscribeUrlPort(ctx: JobContext, tenantId: TenantId): BroadcastBatch
     } catch (e) {
       // An offer with no link out is never sent, so the person is held (no_channel): said once for the batch, with the
       // error, never hidden (a secret the edge cannot seal with is the first suspect).
-      if (!sentence) {
-        sentence = true;
+      if (!warned) {
+        warned = true;
         sendLog.error("broadcast_unsubscribe_unsigned", { tenant_id: tenantId, error: errField(e) });
       }
       return Promise.resolve(null);

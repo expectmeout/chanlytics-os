@@ -74,14 +74,14 @@ export const POST = write({
         : { starter: input.translate.starter as string, from: input.translate.from ?? null };
       const src = await getTranslationSource(ctx, member.tenantId, ref, language);
       if (!src.ok) throw new AppError(src.code, src.message);
-      const otherTranslateTemplate = await translateTemplate(ctx, member.tenantId, { source: src.source, language });
-      if (!otherTranslateTemplate.ok)
+      const translation = await translateTemplate(ctx, member.tenantId, { source: src.source, language });
+      if (!translation.ok)
         throw new AppError(
-          otherTranslateTemplate.reason === "refused" ? "upstream_anthropic" : "validation",
-          otherTranslateTemplate.message,
-          otherTranslateTemplate.reason === "refused" ? 502 : 422,
+          translation.reason === "refused" ? "upstream_anthropic" : "validation",
+          translation.message,
+          translation.reason === "refused" ? 502 : 422,
         );
-      return { draft: otherTranslateTemplate.draft };
+      return { draft: translation.draft };
     }
     const language = input.language ?? "en_US";
     const result = await draftTemplate(ctx, member.tenantId, {

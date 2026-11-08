@@ -62,7 +62,7 @@ export function emailReceiptFrom(payload: unknown): EmailReceipt | null {
   if (!isOneOf(RECEIPT_TYPES, type)) return null;
   if (typeof data.email_id !== "string" || !data.email_id) return null;
   const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const sentence = recordOrEmpty(data.bounce ?? data.failed ?? data.suppressed);
+  const bounce = recordOrEmpty(data.bounce ?? data.failed ?? data.suppressed);
   // The workspace this side tagged the send with, as it comes back.
   const tagged = tagOf(data.tags, "cl_tenant");
   return {
@@ -73,9 +73,9 @@ export function emailReceiptFrom(payload: unknown): EmailReceipt | null {
     messageId: tagOf(data.tags, "cl_message"),
     tenantId: tagged ? heldTenantId(tagged) : null,
     detail: {
-      kind: str(sentence.type) ?? str(sentence.reason),
-      subKind: str(sentence.subType),
-      message: str(sentence.message),
+      kind: str(bounce.type) ?? str(bounce.reason),
+      subKind: str(bounce.subType),
+      message: str(bounce.message),
     },
   };
 }

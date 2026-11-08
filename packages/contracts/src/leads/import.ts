@@ -158,17 +158,17 @@ export function leadImportPlanOf(text: string): {
   const cell = (r: string[], i: number | null): string => (i === null ? "" : (r[i] ?? "").trim());
   const words = (v: string, max: number): string | null =>
     Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
-  const rows = (header ? cells.slice(1) : cells).map((item, count): LeadImportRow => {
-    const carried = (item as { line?: number }).line;
+  const rows = (header ? cells.slice(1) : cells).map((cells, count): LeadImportRow => {
+    const carried = (cells as { line?: number }).line;
     return {
       line: carried ?? count + (header ? 2 : 1),
-      name: words(cell(item, columns.name), 200),
-      email: normalizeEmail(cell(item, columns.email)),
-      phone: normalizePhone(cell(item, columns.phone)),
-      website_host: websiteHostOf(cell(item, columns.website)),
-      city: words(cell(item, columns.city), 120),
-      region: regionOf(cell(item, columns.region)),
-      category: words(cell(item, columns.category), 120),
+      name: words(cell(cells, columns.name), 200),
+      email: normalizeEmail(cell(cells, columns.email)),
+      phone: normalizePhone(cell(cells, columns.phone)),
+      website_host: websiteHostOf(cell(cells, columns.website)),
+      city: words(cell(cells, columns.city), 120),
+      region: regionOf(cell(cells, columns.region)),
+      category: words(cell(cells, columns.category), 120),
     };
   });
   return {
@@ -283,10 +283,8 @@ export interface LeadChooseAnswer {
 }
 
 const leftOut = (parts: [number, string, string][]): string | null => {
-  const sentence = parts
-    .filter(([n]) => n > 0)
-    .map(([n, one, many]) => `${n.toLocaleString()} ${n === 1 ? one : many}`);
-  return sentence.length ? `Left out: ${sentence.join(", ")}.` : null;
+  const phrases = parts.filter(([n]) => n > 0).map(([n, one, many]) => `${n.toLocaleString()} ${n === 1 ? one : many}`);
+  return phrases.length ? `Left out: ${phrases.join(", ")}.` : null;
 };
 
 /** What an import did, in the sheet's summary: what joined, what is being checked, what was left out and why. */

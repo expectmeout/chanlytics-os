@@ -211,12 +211,12 @@ function sentenceOf(overall: ReadonlyMap<PageVital, PageVitalsRowDto>): string {
   const counted = `${loads.toLocaleString("en-US")} page load${loads === 1 ? "" : "s"} in the last ${PAGE_VITALS_READ.days} days`;
   const drawn = overall.get("LCP");
   const tap = overall.get("INP");
-  const sentence = [
+  const phrases = [
     drawn ? `drew the page within ${vitalValueWords("LCP", drawn.p75)}` : null,
     tap ? `answered a tap within ${vitalValueWords("INP", tap.p75)}` : null,
   ].filter(Boolean);
-  return sentence.length
-    ? `Of ${counted}, three in four ${sentence.join(" and ")}.`
+  return phrases.length
+    ? `Of ${counted}, three in four ${phrases.join(" and ")}.`
     : `${counted}; none has drawn its page yet.`;
 }
 

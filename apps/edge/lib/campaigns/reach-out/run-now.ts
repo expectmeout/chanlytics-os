@@ -60,24 +60,24 @@ export async function runPlaybookNow(
     const row = p;
     if (row.trigger !== "lead_first") return refuse(409, "reach_out_step");
     const tz = (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
-    const otherRunReachOutStep = await runReachOutStep(db, row, new Date(), tz, log);
+    const run = await runReachOutStep(db, row, new Date(), tz, log);
     log.info("reach_out_run_now", {
       tenant_id: tenantId,
       playbook_id: playbookId,
       user_id: userId,
-      outcome: otherRunReachOutStep.outcome,
-      reason: otherRunReachOutStep.reason,
-      planned: otherRunReachOutStep.planned,
-      run_id: otherRunReachOutStep.runId,
+      outcome: run.outcome,
+      reason: run.reason,
+      planned: run.planned,
+      run_id: run.runId,
     });
-    if (otherRunReachOutStep.outcome === "failed") return refuse(500, "run_failed", otherRunReachOutStep.reason);
+    if (run.outcome === "failed") return refuse(500, "run_failed", run.reason);
     return json(200, {
       ok: true,
-      outcome: otherRunReachOutStep.outcome,
-      reason: otherRunReachOutStep.reason ?? null,
-      planned: otherRunReachOutStep.planned,
-      run_id: otherRunReachOutStep.runId,
-      run_for: otherRunReachOutStep.runFor,
+      outcome: run.outcome,
+      reason: run.reason ?? null,
+      planned: run.planned,
+      run_id: run.runId,
+      run_for: run.runFor,
     });
   }
 

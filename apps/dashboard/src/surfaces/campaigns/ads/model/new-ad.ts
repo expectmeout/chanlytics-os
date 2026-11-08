@@ -457,7 +457,7 @@ function estimateOf(draft: AdDraft, config: AdsConfig, currency: string): string
   return NEW_AD.step4.estimate({ lo: preset.estimate[0], hi: preset.estimate[1], days: preset.days });
 }
 
-const reachLine = (sentence: ReachSaid): string => [sentence.state, ...sentence.parts].join(" · ");
+const reachLine = (reach: ReachSaid): string => [reach.state, ...reach.parts].join(" · ");
 
 function draftReady(draft: AdDraft, read: AdsRead, needs: readonly StandRowVM[]): NewAdVM["ready"] {
   const rows = accountRows(read, draft.platform);

@@ -105,10 +105,10 @@ function exceptionOf(checks: LeadSheetCheckVM[]): string | null {
   const [only] = unsure;
   const one = only && unsure.length === 1 && !failed.length ? UNSURE_WORDS[only.key as LeadCheckKey] : undefined;
   if (one) return one;
-  const sentence = unsure.flatMap((c) => unsureWordOf(c.key) ?? []);
+  const unsureWords = unsure.flatMap((c) => unsureWordOf(c.key) ?? []);
   return [
     failed.length ? CW.failed(failed.length) : null,
-    unsure.length ? CW.couldntTell(unsure.length, sentence.length === unsure.length ? sentence : []) : null,
+    unsure.length ? CW.couldntTell(unsure.length, unsureWords.length === unsure.length ? unsureWords : []) : null,
   ]
     .filter(Boolean)
     .join(" · ");

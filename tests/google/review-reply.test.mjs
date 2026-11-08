@@ -289,7 +289,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   );
   const model = readCode("apps/edge/lib/google/review-reply.ts");
   assert.ok(
-    model.includes('if (!otherCallModel) return { ok: false, error: "no_model_key" };'),
+    model.includes('if (!modelAnswer) return { ok: false, error: "no_model_key" };'),
     "no key: no draft, said so",
   );
   // The draft op -- Never refused before the review is read, the no-model

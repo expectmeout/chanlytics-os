@@ -206,15 +206,15 @@ const sourceOfWeek = (dto: CalendarWeekDto, link: CalendarFeedHealth, forwarding
 function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs: number, now: Date): CalendarBlockVM {
   const highest = Math.max(Date.parse(item.start), dayStartMs);
   const lowest = Math.min(Date.parse(item.end), dayEndMs);
-  const otherItem = highest === dayStartMs ? 0 : hoursOf(tz, highest);
+  const lastHour = highest === dayStartMs ? 0 : hoursOf(tz, highest);
   const tEnd = lowest === dayEndMs ? 24 : hoursOf(tz, lowest);
   return {
     id: item.id,
-    t: otherItem,
-    dur: Math.max(15, Math.round((tEnd - otherItem) * 60)),
+    t: lastHour,
+    dur: Math.max(15, Math.round((tEnd - lastHour) * 60)),
     title: item.title || "Busy",
     service: serviceWordsOf(item),
-    time: calendarSpanLabel(otherItem, tEnd),
+    time: calendarSpanLabel(lastHour, tEnd),
     person: item.person
       ? {
           id: item.person.id,
@@ -274,20 +274,20 @@ function assignLanes(timed: CalendarBlockVM[]): void {
   const close = () => {
     for (const b of cluster) b.lanes = laneEnds.length;
   };
-  for (const second of timed) {
-    const end = second.t + second.dur / 60;
-    if (second.t >= clusterEnd - 1e-9 && cluster.length) {
+  for (const block of timed) {
+    const end = block.t + block.dur / 60;
+    if (block.t >= clusterEnd - 1e-9 && cluster.length) {
       close();
       cluster = [];
       laneEnds = [];
     }
-    let lane = laneEnds.findIndex((e) => e <= second.t + 1e-9);
+    let lane = laneEnds.findIndex((e) => e <= block.t + 1e-9);
     if (lane === -1) {
       lane = laneEnds.length;
       laneEnds.push(end);
     } else laneEnds[lane] = end;
-    second.lane = lane;
-    cluster.push(second);
+    block.lane = lane;
+    cluster.push(block);
     clusterEnd = Math.max(clusterEnd, end);
   }
   close();

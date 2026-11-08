@@ -134,16 +134,16 @@ export function messageVerdict(issues: readonly CraftIssue[], judged: MessageJud
   const notes: string[] = [];
   let passed = 0;
   let of = 0;
-  for (const mESSAGERUBRIC of MESSAGE_RUBRIC) {
-    const found = judged.verdicts.find((x) => x.id === mESSAGERUBRIC.id);
+  for (const rubricRule of MESSAGE_RUBRIC) {
+    const found = judged.verdicts.find((x) => x.id === rubricRule.id);
     const ok = found?.pass === true;
     const reason = found ? found.why : "the judge gave no verdict";
-    if (mESSAGERUBRIC.hard) {
-      if (!ok) failed.push(`${mESSAGERUBRIC.id}: ${reason}`);
+    if (rubricRule.hard) {
+      if (!ok) failed.push(`${rubricRule.id}: ${reason}`);
     } else {
       of += 1;
       if (ok) passed += 1;
-      else notes.push(`${mESSAGERUBRIC.id}: ${reason}`);
+      else notes.push(`${rubricRule.id}: ${reason}`);
     }
   }
   return { pass: failed.length === 0, failed, soft: { passed, of }, notes };

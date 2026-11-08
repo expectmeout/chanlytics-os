@@ -86,12 +86,13 @@ async function tend(tick: SweepTick, row: MailboxConnectionRow, counts: Counts):
       const t = await getToken(db, current, now);
       if (t.ok) current = await keepGmailSignature(db, current, t.token, log, now);
     }
-    const text = Date.now() < until ? await syncMailbox(db, current, log, now, until) : null;
-    if (!text) return;
-    if (text.outcome === "failed") counts.failed++;
-    else if (text.outcome !== "busy" && text.outcome !== "no_token" && text.outcome !== "later") counts.synced++;
-    counts.replies += text.replies;
-    counts.bounced += text.bounced;
+    const outcome = Date.now() < until ? await syncMailbox(db, current, log, now, until) : null;
+    if (!outcome) return;
+    if (outcome.outcome === "failed") counts.failed++;
+    else if (outcome.outcome !== "busy" && outcome.outcome !== "no_token" && outcome.outcome !== "later")
+      counts.synced++;
+    counts.replies += outcome.replies;
+    counts.bounced += outcome.bounced;
     // Its emails of unknown outcome, looked for in what it sent (mailbox/reconcile.ts).
     if (Date.now() < until) {
       const r = await reconcileMailbox(db, current, log, now, until);

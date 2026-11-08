@@ -212,19 +212,19 @@ function offerPlan(offerRead: OfferRead, world: PlanWorld): { steps: PlanStep[];
       SAY.why.first,
     );
   // What no card carries first, then what the cards show: the answer's detail, cut at 700 characters, keeps the first.
-  const otherWords = OFFER_PLAN_WORDS[world.says];
+  const offerWords = OFFER_PLAN_WORDS[world.says];
   const words = [
     ...offerRead.onSaid,
     ...(offerRead.note.input ? [] : [offerRead.note.said]),
     ...offerRead.pauses.map((p) => p.said),
     ...sendUnseen(offerRead, world),
     // A send WhatsApp's review holds, approved once it is reviewed, as its card says too (plan-steps.ts reviewedStep).
-    ...(awaitsReview(offerRead) && sendWaitsForReview(offerRead.kind, offerRead.on) ? [otherWords.reviewFirst] : []),
+    ...(awaitsReview(offerRead) && sendWaitsForReview(offerRead.kind, offerRead.on) ? [offerWords.reviewFirst] : []),
     offerRead.message.made
-      ? otherWords.writeMessage(offerRead.message.name, offerRead.on)
-      : otherWords.reuseMessage(offerRead.message.name),
+      ? offerWords.writeMessage(offerRead.message.name, offerRead.on)
+      : offerWords.reuseMessage(offerRead.message.name),
     ...(offerRead.note.input ? [offerRead.note.said] : []),
-    ...sendDay(offerRead, otherWords),
+    ...sendDay(offerRead, offerWords),
   ];
   return { steps, words: words.join(" ") };
 }

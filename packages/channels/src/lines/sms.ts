@@ -140,13 +140,13 @@ export function smsKeywordConsent(body: string | null | undefined): CarrierConse
 
 export function mergeConsent(
   carrierConsent: CarrierConsent | null,
-  otherCarrierConsent: CarrierConsent | null,
+  consentRecord: CarrierConsent | null,
 ): CarrierConsent | null {
-  if (!carrierConsent) return otherCarrierConsent;
-  if (!otherCarrierConsent) return carrierConsent;
+  if (!carrierConsent) return consentRecord;
+  if (!consentRecord) return carrierConsent;
   return {
-    optOut: carrierConsent.optOut || otherCarrierConsent.optOut,
-    optIn: carrierConsent.optIn || otherCarrierConsent.optIn,
+    optOut: carrierConsent.optOut || consentRecord.optOut,
+    optIn: carrierConsent.optIn || consentRecord.optIn,
   };
 }
 

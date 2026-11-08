@@ -339,12 +339,12 @@ export const HELD_WHEN_COUNTED = [
  * page gives (HELD_REASONS), and then each reason of HELD_WHEN_COUNTED that `counted` says this run skipped someone for.
  */
 export function finishedRunHeldWhy(counted: readonly string[]): string {
-  const reason = [
+  const reasons = [
     HELD_REASONS.not_opted_in,
     HELD_REASONS.opted_out,
     HELD_REASONS.no_phone,
     HELD_REASONS.human_has_it,
     ...HELD_WHEN_COUNTED.filter((r) => counted.includes(r)).map((r) => HELD_REASONS[r]),
   ];
-  return `${reason.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
+  return `${reasons.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
 }

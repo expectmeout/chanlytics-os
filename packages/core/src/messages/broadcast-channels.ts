@@ -255,8 +255,8 @@ async function emailDelivery(
 ): Promise<Prepared> {
   const version = versionOf(work, "email");
   if (!version) return { held: "no_channel" };
-  const sentence = renderOwnVersion("email", version, input.params, work.b.template_language);
-  if (!sentence.subject) return { held: "no_channel" };
+  const rendered = renderOwnVersion("email", version, input.params, work.b.template_language);
+  if (!rendered.subject) return { held: "no_channel" };
   const messageId = await broadcastEmailId({
     broadcastId: work.b.id,
     contactId: input.c.id,
@@ -292,18 +292,18 @@ async function emailDelivery(
   const request = await work.ports.emailRequest({
     messageId,
     to: input.to,
-    subject: sentence.subject,
-    body: sentence.body,
+    subject: rendered.subject,
+    body: rendered.body,
     ...foot,
   });
   if (!request) return { held: "no_channel" };
   return {
-    delivery: { ...base, channel: "email", body: sentence.body, messageId, email: request },
+    delivery: { ...base, channel: "email", body: rendered.body, messageId, email: request },
     queue: {
       id: messageId,
       conversationId: input.conversationId,
       contactId: input.c.id,
-      body: sentence.body,
+      body: rendered.body,
       request,
       meta: metaOf(work.b),
     },
@@ -363,6 +363,6 @@ export async function prepare(
   if (input.channel === "email") return emailDelivery(work, input, base);
   const version = versionOf(work, "sms");
   if (!version) return { held: "no_channel" };
-  const sentence = renderOwnVersion("sms", version, input.params, b.template_language);
-  return { delivery: { ...base, channel: "sms", body: sentence.body } };
+  const rendered = renderOwnVersion("sms", version, input.params, b.template_language);
+  return { delivery: { ...base, channel: "sms", body: rendered.body } };
 }
