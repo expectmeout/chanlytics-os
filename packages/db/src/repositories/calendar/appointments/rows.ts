@@ -154,10 +154,10 @@ export async function openBookingRequest(
     p_words: bookingRequestOpen.words,
   });
   if (error) throw new Error(`booking_request_open: ${error.message}`);
-  const sentence = (data ?? {}) as { error?: unknown; hold?: unknown; appointment?: { id?: unknown } };
-  if (sentence.error === "too_soon") return { error: "too_soon" };
-  const hold = sentence.hold;
-  const id = sentence.appointment?.id;
+  const answer = (data ?? {}) as { error?: unknown; hold?: unknown; appointment?: { id?: unknown } };
+  if (answer.error === "too_soon") return { error: "too_soon" };
+  const hold = answer.hold;
+  const id = answer.appointment?.id;
   if ((hold !== "opened" && hold !== "changed" && hold !== "refreshed") || typeof id !== "string")
     throw new Error(`booking_request_open: the door answered ${JSON.stringify(data)}`);
   return { hold, appointmentId: id };

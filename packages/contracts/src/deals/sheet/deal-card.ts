@@ -148,9 +148,9 @@ function namesService(title: string, service: string): boolean {
     foldName(s)
       .split(/[^\p{L}\p{N}]+/u)
       .filter(Boolean);
-  const sentence = words(title);
+  const titleWords = words(title);
   const named = words(service);
-  return named.length > 0 && sentence.some((_, i) => named.every((w, j) => sentence[i + j] === w));
+  return named.length > 0 && titleWords.some((_, i) => named.every((w, j) => titleWords[i + j] === w));
 }
 
 /**
@@ -330,14 +330,14 @@ function quietOf(dealPerson: DealPerson, nowMs: number, tz: string): DealQuietVM
       primary: fresh,
     };
   const day = closed.sinceMs === null ? null : clockDate(closed.sinceMs, tz, nowMs);
-  const sentence =
+  const phrases =
     closed.stage === "lost"
       ? [closed.service, day ? `${DEAL_STAGE_WORDS.lost} ${day}` : DEAL_STAGE_WORDS.lost, closed.reason?.words ?? null]
       : [closed.service, day ? `${DEAL_STAGE_WORDS.ended} ${day}` : DEAL_STAGE_WORDS.ended];
   // A consultation since it closed began something new: a new proposal, not the passed one again.
   const again = !fresh && closed.stage === "lost";
   return {
-    words: sentence.filter((x): x is string => !!x).join(" · "),
+    words: phrases.filter((x): x is string => !!x).join(" · "),
     sub,
     act: again ? act("again") : act("propose", { service: consultedService(dealPerson) }),
     dealId: again ? closed.id : null,

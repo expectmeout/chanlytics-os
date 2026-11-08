@@ -15,8 +15,8 @@ export const count = (count: number): string => count.toLocaleString("en-US");
 export const CHIPS_SHOWN = 3;
 
 /** "+30": the rest of a list of chips, said once, wherever a row cuts one. It said "+30 more"; the "more" is the plus. */
-export function chipsMoreWords(otherCount: number): string {
-  return `+${count(otherCount)}`;
+export function chipsMoreWords(moreCount: number): string {
+  return `+${count(moreCount)}`;
 }
 
 export const pluralGrouped = (otherCount: number, one: string, many: string): string =>

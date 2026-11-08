@@ -97,7 +97,7 @@ export const cardsOf = (proposalOutcome: ProposalOutcome): AskProposal[] =>
  */
 export const proposeMany = (
   proposals: AskProposal[],
-  sentence: Record<string, unknown>,
+  fields: Record<string, unknown>,
   words: string | null,
   lead: PlanLead | null,
 ): ProposalOutcome => ({
@@ -108,7 +108,7 @@ export const proposeMany = (
   ...(lead ? { lead } : {}),
   result: JSON.stringify({
     proposed: true,
-    ...sentence,
+    ...fields,
     ...(lead ? { headline: lead.headline } : {}),
     ...(words ? { words } : {}),
     note: "Nothing has happened yet. These are cards the person approves, edits or dismisses; a plan's steps that send nothing are one press, and each send its own after them. Say what you proposed; never say any of it is done.",

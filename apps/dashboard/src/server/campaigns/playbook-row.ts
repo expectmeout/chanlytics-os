@@ -180,16 +180,15 @@ export async function findVisitTwinRefusal(
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;
-  const otherJsonBody = recordOrNull(await readJsonBody(req));
+  const jsonBody = recordOrNull(await readJsonBody(req));
   const now = new Date();
-  const until =
-    (await findUntil(playbookPatchPorts(ctx, tenantId), otherJsonBody?.until, { now, undo: false })) ?? null;
+  const until = (await findUntil(playbookPatchPorts(ctx, tenantId), jsonBody?.until, { now, undo: false })) ?? null;
   // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
-  const { body, starter } = await withStarterMessage(ctx, member, otherJsonBody);
+  const { body, starter } = await withStarterMessage(ctx, member, jsonBody);
   const result = await checkPlaybookInput(ctx, tenantId, body, null);
   const twin =
     (await findVisitTwinRefusal(ctx, tenantId, { trigger: result.trigger })) ??
-    (ctx.via === "ask" ? await findTwinRefusal(ctx, tenantId, result, otherJsonBody?.name, twinRunsWords) : null);
+    (ctx.via === "ask" ? await findTwinRefusal(ctx, tenantId, result, jsonBody?.name, twinRunsWords) : null);
   if (twin) throw new AppError("conflict", twin, 409);
   const { data: made, error } = await startPlaybook(ctx.supabase, {
     tenantId,

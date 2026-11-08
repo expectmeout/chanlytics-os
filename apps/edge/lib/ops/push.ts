@@ -108,13 +108,13 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
         if (result.outcome === "unknown") {
           // It may have been taken (defect 50): the phones may be told already, so nothing here asks again, and the
           // rest are not sent either. Said in the receipts and on the log; the ledger records the job done.
-          const otherReason = `push_outcome_unknown ${result.status || result.error || "no answer"}`;
+          const unknownReason = `push_outcome_unknown ${result.status || result.error || "no answer"}`;
           logger().warn("push_outcome_unknown", {
             batch: index / PUSH_BATCH,
             messages: messages.length - index,
-            why: otherReason,
+            why: unknownReason,
           });
-          receipts.push(...refused(messages.slice(index), otherReason));
+          receipts.push(...refused(messages.slice(index), unknownReason));
           break;
         }
         if (result.status === 0) {

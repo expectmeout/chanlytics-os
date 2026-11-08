@@ -216,13 +216,13 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
   for (const row of rows ?? []) {
     // The workspace first, and only then the take: a line whose workspace cannot be
     // read is left untouched for the next tick rather than taken and abandoned.
-    const rows = await findWorkspaceName(db, row.tenant_id);
-    if (rows.error || !rows.data) {
+    const workspace = await findWorkspaceName(db, row.tenant_id);
+    if (workspace.error || !workspace.data) {
       out.unreadable += 1;
       deps.log.error("lines_sweep_no_workspace", {
         line_id: row.id,
         tenant_id: row.tenant_id,
-        error: rows.error?.message ?? "not found",
+        error: workspace.error?.message ?? "not found",
       });
       continue;
     }
@@ -263,7 +263,7 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
         deps.log.error("lines_sweep_give_up_unwritten", { line_id: taken.id, error: failErr.message });
         continue;
       }
-      await deps.reportFailed(rows.data, { ...taken, voice_state: "failed", last_error: reason }, reason);
+      await deps.reportFailed(workspace.data, { ...taken, voice_state: "failed", last_error: reason }, reason);
       out.gaveUp += 1;
       continue;
     }
@@ -279,13 +279,13 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
 
     if (tries === 0) {
       await deps.alert(
-        `Line stuck · ${rows.data.name}`,
-        `${rows.data.name} (${rows.data.id}) — line ${taken.id} for ${shown} stopped while ${at} and was never marked failed: its setup was cut off mid-run, most likely by the 60-second limit on a slow afternoon at the provider.\n\nIt is being resumed automatically, try 1 of ${MAX_AUTOMATIC_RESUMES}. You hear again only if those do not finish it.`,
+        `Line stuck · ${workspace.data.name}`,
+        `${workspace.data.name} (${workspace.data.id}) — line ${taken.id} for ${shown} stopped while ${at} and was never marked failed: its setup was cut off mid-run, most likely by the 60-second limit on a slow afternoon at the provider.\n\nIt is being resumed automatically, try 1 of ${MAX_AUTOMATIC_RESUMES}. You hear again only if those do not finish it.`,
       );
     }
 
     try {
-      const r = await deps.resume(rows.data, counted.row);
+      const r = await deps.resume(workspace.data, counted.row);
       if (r.ok) out.resumed += 1;
       else out.failed += 1;
     } catch (e) {

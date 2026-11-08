@@ -70,16 +70,16 @@ async function getCalendar(toolContext: ToolContext, input: { day: string; days?
   // A person the calendar names is a row read: the answer may name them, and open their profile. So is a visit the record
   // keeps (its row, VisitMark.id): the answer may cite it as kind visit, and it opens on its day with its sheet.
   for (const day of vm.days)
-    for (const second of [...standing(day.allDay), ...standing(day.blocks)]) {
-      if (second.person)
-        noteRow(toolContext, "person", second.person.id, second.person.name, `clients/${second.person.id}`);
-      if (second.visit?.id)
+    for (const block of [...standing(day.allDay), ...standing(day.blocks)]) {
+      if (block.person)
+        noteRow(toolContext, "person", block.person.id, block.person.name, `clients/${block.person.id}`);
+      if (block.visit?.id)
         noteRow(
           toolContext,
           "visit",
-          second.visit.id,
-          `${second.person?.name ?? second.title} · ${day.long}, ${second.time}`,
-          visitRoute(second.visit.id, day.key),
+          block.visit.id,
+          `${block.person?.name ?? block.title} · ${day.long}, ${block.time}`,
+          visitRoute(block.visit.id, day.key),
         );
     }
   return {

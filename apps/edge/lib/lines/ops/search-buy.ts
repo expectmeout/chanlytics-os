@@ -333,13 +333,13 @@ export function planRecord(
   rawPath: unknown,
   tenantId: TenantId,
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "keep"; path: RegistrationPath; row: RecordDraft } {
-  const second = rawRecord && typeof rawRecord === "object" ? recordOrEmpty(rawRecord) : null;
-  if (!second)
+  const record = rawRecord && typeof rawRecord === "object" ? recordOrEmpty(rawRecord) : null;
+  if (!record)
     return {
       kind: "refuse",
       answer: { status: 400, body: { ok: false, error: "bad_request", detail: "record is required" } },
     };
-  const str = (k: string) => (typeof second[k] === "string" ? second[k].trim() : "");
+  const str = (k: string) => (typeof record[k] === "string" ? record[k].trim() : "");
 
   // WHICH registration this record is for. Taken from the caller when it says,
   // derived from the tax id when it does not.

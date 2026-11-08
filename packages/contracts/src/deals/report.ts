@@ -144,12 +144,12 @@ function sourcesLine(sources: DealReportDto["sources"], clients: number): string
  */
 function reasonsLine(reasons: DealReportDto["reasons"], passed: number): string | null {
   const given = reasons.filter((r) => r.count > 0 && isDealLostReason(r.reason)).sort((a, b) => b.count - a.count);
-  const sentence = given.reduce((s, r) => s + r.count, 0);
-  if (!sentence || !passed) return null;
+  const givenCount = given.reduce((s, r) => s + r.count, 0);
+  if (!givenCount || !passed) return null;
   const top = given[0]?.count ?? 0;
   const tied = given.filter((r) => r.count === top);
   const names = upper(leadAnd(tied.map((r) => DEAL_LOST_REASON_SAID[r.reason])));
-  const none = Math.max(0, passed - sentence);
+  const none = Math.max(0, passed - givenCount);
   if (given.length === 1) {
     if (passed === 1) return `${names} was the reason given for passing.`;
     return `${names} was the ${none ? "only reason" : "reason"} given for passing, ${top} of ${passed}.`;
@@ -204,12 +204,12 @@ export function toDealReportVM(dto: DealReportDto | null | undefined, within: st
             display: `${dto[id]}  ${Math.round((dto[id] / dto.sent) * 100)}%`,
           })),
         };
-  const sentence: [DealReportLineId, string | null][] = [
+  const lineRows: [DealReportLineId, string | null][] = [
     ["median", medianLine(dto.median_days_to_yes, dto.won)],
     ["sources", sourcesLine(dto.sources, dto.won)],
     ["reasons", reasonsLine(dto.reasons, dto.lost)],
     ["open", openLine(dto.open)],
   ];
-  const lines = sentence.flatMap(([id, text]) => (text ? [{ id, text }] : []));
+  const lines = lineRows.flatMap(([id, text]) => (text ? [{ id, text }] : []));
   return { present: true, headline, stock, outcomes, lines };
 }

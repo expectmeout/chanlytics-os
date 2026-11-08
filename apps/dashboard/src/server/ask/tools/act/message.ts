@@ -130,7 +130,7 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsked): Pr
   if (refused) return refuse(refused);
   // The words the card quotes and files: the skill's, else the draft's, on the same channels, values and name.
   const written = await writtenBody(toolContext, input.language, body);
-  const sentence = writtenSays(written, SAID_ROOM);
+  const writtenWords = writtenSays(written, SAID_ROOM);
   const channels = CONSENT_CHANNELS.filter((c) => body.versions[c]);
   const purpose = purposeOfTemplate(body.category);
   // An offer is the business's news; a message about their appointment or proposal is theirs (contracts MessageAbout).
@@ -145,8 +145,8 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsked): Pr
   return propose({
     kind: "message",
     title: MESSAGE_WORDS.title(body.name, body.language),
-    summary: `${sentence.says} · ${follows}`,
-    payload: { ...written, said: sentence.rows, follows },
+    summary: `${writtenWords.says} · ${follows}`,
+    payload: { ...written, said: writtenWords.rows, follows },
   });
 }
 

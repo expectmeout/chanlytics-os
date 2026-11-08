@@ -51,16 +51,18 @@ export function fromAnotherSite(headers: { get(name: string): string | null }): 
 
 export function nativeSignInPlan(body: unknown): NativePlan {
   if (!body || typeof body !== "object") return refusedPlan("no body");
-  const second = recordOrEmpty(body);
-  const provider = isOneOf(NATIVE_PROVIDERS, String(second.provider)) ? (second.provider as NativeProvider) : null;
+  const bodyFields = recordOrEmpty(body);
+  const provider = isOneOf(NATIVE_PROVIDERS, String(bodyFields.provider))
+    ? (bodyFields.provider as NativeProvider)
+    : null;
   if (!provider) return refusedPlan("unknown provider");
-  const token = typeof second.token === "string" ? second.token.trim() : "";
+  const token = typeof bodyFields.token === "string" ? bodyFields.token.trim() : "";
   if (!token) return refusedPlan("no token");
   if (token.length > TOKEN_MAX) return refusedPlan("token too long");
-  const nonce = typeof second.nonce === "string" && second.nonce.trim() ? second.nonce.trim() : undefined;
+  const nonce = typeof bodyFields.nonce === "string" && bodyFields.nonce.trim() ? bodyFields.nonce.trim() : undefined;
   return {
     signIn: { provider, token, nonce },
-    to: safeNext(typeof second.next === "string" ? second.next : null),
+    to: safeNext(typeof bodyFields.next === "string" ? bodyFields.next : null),
     refused: null,
   };
 }

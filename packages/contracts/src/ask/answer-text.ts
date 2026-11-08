@@ -309,9 +309,9 @@ function tableOf(headLine: string, bodyLines: string[]): AnswerBlock {
 
 /** A run of `>` lines as a quote, or a callout where its first line carries an alert's mark (`[!WARNING]`). */
 function quoteOf(lines: string[]): Extract<AnswerBlock, { kind: "quote" | "callout" }> {
-  const sentence = lines.map((l) => QUOTE_LINE.exec(l)?.[1]?.trim() ?? "");
-  const mark = CALLOUT.exec(sentence[0] ?? "");
-  const rest = mark ? [mark[2] ?? "", ...sentence.slice(1)] : sentence;
+  const quoted = lines.map((l) => QUOTE_LINE.exec(l)?.[1]?.trim() ?? "");
+  const mark = CALLOUT.exec(quoted[0] ?? "");
+  const rest = mark ? [mark[2] ?? "", ...quoted.slice(1)] : quoted;
   const runs = rest.filter(Boolean).map(answerRuns);
   if (!mark) return { kind: "quote", lines: runs };
   const tone: AnswerCalloutTone = /^(NOTE|TIP)$/i.test(mark[1] ?? "") ? "note" : "warn";

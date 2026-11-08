@@ -34,7 +34,7 @@ export const POST = write({
     // code rather than refusing -- and "012" a 12, a different area code than
     // the one the owner typed.
     const areaCode = input.area_code === undefined || input.area_code === null ? undefined : String(input.area_code);
-    const first = await callEdgeLines(
+    const edgeAnswer = await callEdgeLines(
       {
         op: "buy",
         tenant_id: member.tenantId,
@@ -44,13 +44,13 @@ export const POST = write({
       },
       EDGE_LINES_TIMEOUT_MS,
     );
-    const body = first.body ?? {};
+    const body = edgeAnswer.body ?? {};
     // The line already being set up is what this press asked for: the server starts the number the workspace chose
     // once its trial or plan does (decision 0091), often before the tab that paid presses, so the line that stands is
     // the answer, not a refusal.
-    if (first.status === 409 && body.error === "line_exists")
+    if (edgeAnswer.status === 409 && body.error === "line_exists")
       return { ok: true, queued: false, line: body.line ?? null, step: null, error: null };
-    if (first.status === 409)
+    if (edgeAnswer.status === 409)
       throw new AppError(
         "conflict",
         body.error === "line_failed_retry"
@@ -58,16 +58,17 @@ export const POST = write({
           : "This workspace already has a line.",
         409,
       );
-    if (first.status === 503 && body.error === "preview") throw new AppError("conflict", LINES_PRODUCTION_ONLY, 409);
-    if (first.status === 503 && body.error === "no_line_provider")
+    if (edgeAnswer.status === 503 && body.error === "preview")
+      throw new AppError("conflict", LINES_PRODUCTION_ONLY, 409);
+    if (edgeAnswer.status === 503 && body.error === "no_line_provider")
       throw new AppError(
         "conflict",
         "Getting a line is not available here yet — ask us and a person at Chanlytics sets it up with you.",
         409,
       );
-    if (first.status === 400)
+    if (edgeAnswer.status === 400)
       throw new AppError("validation", edgeRefusalWords(body) ?? "That number cannot be used.", 400);
-    if (first.status !== 200 && first.status !== 202 && first.status !== 502)
+    if (edgeAnswer.status !== 200 && edgeAnswer.status !== 202 && edgeAnswer.status !== 502)
       throw new AppError("internal", edgeRefusalWords(body) ?? CARRIER_DID_NOT_ANSWER, 502);
     // 202: the saga is on the ledger; the row says the step, and Setup repaints from it.
     return {

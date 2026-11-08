@@ -45,7 +45,7 @@ export function wordsBlock(
   // The search card waiting in this thread for its press, said whole as find would take its plan (contracts
   // waitingSearchWords), so a change said to Ask is that plan changed only there, never planned again from its title.
   const searchCard = waitingSearchWords(input.waiting ?? []);
-  const words = (live: boolean, dataDropped: boolean) => ({
+  const closingBlock = (live: boolean, dataDropped: boolean) => ({
     type: "text" as const,
     text: [
       turnWords({
@@ -59,5 +59,5 @@ export function wordsBlock(
       ...(searchCard ? [searchCard] : []),
     ].join("\n"),
   });
-  return withSkillGuides(words, input.text);
+  return withSkillGuides(closingBlock, input.text);
 }

@@ -62,18 +62,18 @@ export const conversations: Reader<
   async read(rc, { ids: named, said }) {
     const { supabase } = rc.ctx;
     const { tenantId, userId } = rc;
-    const request = said ? await threadsSaying(rc, said) : named;
-    if (request && !request.length) return { data: { conversations: [] }, rows: [], stamp: readerStamp() };
+    const threadIds = said ? await threadsSaying(rc, said) : named;
+    if (threadIds && !threadIds.length) return { data: { conversations: [] }, rows: [], stamp: readerStamp() };
     const threads = () => supabase.from("conversations");
     const listed = () =>
       threads()
         .select(LISTED_CONVERSATION_COLUMNS)
         .eq("tenant_id", tenantId)
         .or(stillListed(rc.now.getTime()), { referencedTable: "contacts" });
-    const { data: convs, error } = await (said && request
-      ? listed().in("id", request)
-      : request
-        ? threads().select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).in("id", request)
+    const { data: convs, error } = await (said && threadIds
+      ? listed().in("id", threadIds)
+      : threadIds
+        ? threads().select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).in("id", threadIds)
         : listed().order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS_MAX));
     if (error) throw new Error(error.message);
     const ids = (convs ?? []).map((c) => c.id);
@@ -97,8 +97,11 @@ export const conversations: Reader<
         list.filter((m) => m.status === "failed").map((m) => m.id),
       );
       if (failed.length) {
-        const reason = new Map((await listFailedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]));
-        for (const list of grouped.values()) for (const m of list) if (reason.has(m.id)) m.error = reason.get(m.id);
+        const errorsByMessage = new Map(
+          (await listFailedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]),
+        );
+        for (const list of grouped.values())
+          for (const m of list) if (errorsByMessage.has(m.id)) m.error = errorsByMessage.get(m.id);
       }
       return grouped;
     };

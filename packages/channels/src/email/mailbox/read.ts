@@ -83,12 +83,12 @@ export function readVerdictOf(
   reason: string | null,
   limit: RegExp,
 ): ReadVerdict {
-  const sentence = { status: providerReply.status, reason, retryAfterMs: providerReply.retryAfterMs ?? null };
+  const failure = { status: providerReply.status, reason, retryAfterMs: providerReply.retryAfterMs ?? null };
   const in400s = providerReply.status >= 400 && providerReply.status < 500;
-  if (providerReply.status === 429 || (in400s && limit.test(reason ?? ""))) return { verdict: "paced", ...sentence };
+  if (providerReply.status === 429 || (in400s && limit.test(reason ?? ""))) return { verdict: "paced", ...failure };
   if (in400s && providerReply.status !== 401 && providerReply.status !== 404 && providerReply.status !== 408)
-    return { verdict: "refused", ...sentence };
-  return { verdict: "again", ...sentence };
+    return { verdict: "refused", ...failure };
+  return { verdict: "again", ...failure };
 }
 
 /**

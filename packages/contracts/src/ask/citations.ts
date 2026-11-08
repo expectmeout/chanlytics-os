@@ -220,9 +220,9 @@ export function groundCitations(citations: AskCitation[], read: AskReadSet): { k
   const kept: AskCitation[] = [];
   let dropped = 0;
   const seen = new Set<string>();
-  for (const sentence of citations) {
-    const landed = sentence.kind === "page" ? movedPageOf(sentence.id) : null;
-    const item = landed === null ? sentence : { ...sentence, id: landed };
+  for (const citation of citations) {
+    const landed = citation.kind === "page" ? movedPageOf(citation.id) : null;
+    const item = landed === null ? citation : { ...citation, id: landed };
     const ok = item.kind === "page" ? isPageRoute(item.id) : read[item.kind].has(item.id);
     const key = `${item.kind}:${item.id}`;
     if (!ok || seen.has(key)) {

@@ -75,9 +75,9 @@ export function leadEmailFromOf<M extends LeadEmailMailbox>(params: {
   const google = params.mailboxes.filter((m) => m.provider === "google");
   const held = google.find((m) => m.id === params.sequenceMailbox);
   const mine = (m: M) => m.connected_by === params.userId;
-  const request = held ? [held] : [...google.filter(mine), ...google.filter((m) => !mine(m))];
-  if (request.length === 0) return { from: null, why: "no_mailbox" };
-  const sending = request.filter((m) => mailboxSendsNow(m, params.nowMs));
+  const candidates = held ? [held] : [...google.filter(mine), ...google.filter((m) => !mine(m))];
+  if (candidates.length === 0) return { from: null, why: "no_mailbox" };
+  const sending = candidates.filter((m) => mailboxSendsNow(m, params.nowMs));
   if (sending.length === 0) return { from: null, why: "not_sending" };
   const from = sending.find((m) => m.used < mailboxDailyCap(m));
   return from ? { from, why: null } : { from: null, why: "day_full" };

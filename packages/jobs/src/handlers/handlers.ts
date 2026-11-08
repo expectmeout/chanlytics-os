@@ -110,14 +110,14 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!devices.length) return;
   // Each reader's bell, counted as the page counts it (packages/db getUnreadOfReaders, by contracts unreadFor); and who of
   // them is in more than one workspace, whose phone is told which business, and keeps its icon's number (R11 S8-7).
-  const notice = [...new Set(devices.map((d) => d.user_id))];
+  const userIds = [...new Set(devices.map((d) => d.user_id))];
   const [badges, names] = await Promise.all([
     getUnreadOfReaders(ctx.db, {
       tenantId: job.tenant_id,
-      readers: notice,
+      readers: userIds,
       fromIso: new Date(Date.now() - BELL_WINDOW_DAYS * DAY_MS).toISOString(),
     }),
-    pushNamesFor(ctx.db, { tenantId: job.tenant_id, userIds: notice }),
+    pushNamesFor(ctx.db, { tenantId: job.tenant_id, userIds: userIds }),
   ]);
   const receipts = await ctx.push.send(
     pushFor(

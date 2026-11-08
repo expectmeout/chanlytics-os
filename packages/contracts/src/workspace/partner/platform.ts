@@ -122,9 +122,9 @@ const REVERSED_WORDS: Record<Exclude<(typeof PARTNER_EARNING_KINDS)[number], "sh
  * it is between the platform and the partner, and the owner's log says only that it was judged (activity.ts).
  */
 export function partnerEventBits(kind: string, record: Record<string, unknown>): string[] {
-  const text = (k: string): string | null => (typeof record[k] === "string" && record[k] ? record[k] : null);
+  const textOf = (k: string): string | null => (typeof record[k] === "string" && record[k] ? record[k] : null);
   const known = (words: Record<string, string>, k: string): string[] => {
-    const sentence = text(k);
+    const sentence = textOf(k);
     const word = sentence !== null && Object.hasOwn(words, sentence) ? (words[sentence] ?? null) : null;
     return word === null ? [] : [word];
   };

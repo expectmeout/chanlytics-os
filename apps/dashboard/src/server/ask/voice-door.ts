@@ -248,38 +248,38 @@ interface Said {
   detail: string;
   retracted: string;
 }
-function grow(sentence: Said, headline: string, detail: string, speak: (s: string) => void): void {
+function grow(spoken: Said, headline: string, detail: string, speak: (s: string) => void): void {
   if (!headline && !detail) {
-    if (sentence.headline) sentence.retracted = sentence.headline;
-    sentence.headline = "";
-    sentence.detail = "";
+    if (spoken.headline) spoken.retracted = spoken.headline;
+    spoken.headline = "";
+    spoken.detail = "";
     return;
   }
-  if (sentence.retracted) {
-    if (headline.startsWith(sentence.retracted)) sentence.headline = sentence.retracted;
+  if (spoken.retracted) {
+    if (headline.startsWith(spoken.retracted)) spoken.headline = spoken.retracted;
     else if (headline) speak(" ");
-    sentence.retracted = "";
+    spoken.retracted = "";
   }
-  if (headline.startsWith(sentence.headline) && headline.length > sentence.headline.length) {
-    speak(headline.slice(sentence.headline.length));
-    sentence.headline = headline;
+  if (headline.startsWith(spoken.headline) && headline.length > spoken.headline.length) {
+    speak(headline.slice(spoken.headline.length));
+    spoken.headline = headline;
   }
-  if (sentence.headline && detail.startsWith(sentence.detail) && detail.length > sentence.detail.length) {
-    speak((sentence.detail ? "" : " ") + detail.slice(sentence.detail.length));
-    sentence.detail = detail;
+  if (spoken.headline && detail.startsWith(spoken.detail) && detail.length > spoken.detail.length) {
+    speak((spoken.detail ? "" : " ") + detail.slice(spoken.detail.length));
+    spoken.detail = detail;
   }
 }
 
 /** The turn, run as the member and spoken as it is written: each read's label, then the Say, then what the final holds that the previews did not, and its list. */
 async function runOwn(admitted: Admitted, text: string, speak: (s: string) => void): Promise<void> {
-  const sentence: Said = { headline: "", detail: "", retracted: "" };
+  const spoken: Said = { headline: "", detail: "", retracted: "" };
   const emit = (ev: AskTurnLine) => {
     if (ev.t === "trace" && ev.text) speak(`${ev.text}… `);
-    else if (ev.t === "say") grow(sentence, ev.headline ?? "", ev.detail ?? "", speak);
+    else if (ev.t === "say") grow(spoken, ev.headline ?? "", ev.detail ?? "", speak);
     else if (ev.t === "final" && ev.message) {
       const answer = ev.message.answer;
-      if (answer) grow(sentence, answer.say.headline, answer.say.detail, speak);
-      if (!sentence.headline) speak(ev.message.text || lineOf("failed", admitted.language));
+      if (answer) grow(spoken, answer.say.headline, answer.say.detail, speak);
+      if (!spoken.headline) speak(ev.message.text || lineOf("failed", admitted.language));
       // The list is never previewed: it is read once the answer lands, after the Say, entry by entry.
       else if (answer?.show.list.entries.length) speak(` ${listSpoken(answer.show.list)}`);
     }
@@ -338,10 +338,10 @@ async function follow(
   const owner = await readVoiceSession(admitted.service, admitted.row.id);
   const since = (Date.parse(owner?.turn_started_at ?? "") || claimedAt) - CLAIM_SKEW_MS;
   const until = claimedAt + ASK_SPOKEN_TURN_BUDGET_MS;
-  const otherSameWords = sameWords(text);
+  const repeated = sameWords(text);
   while (now() < until) {
     const thread = await readThread(admitted.ctx, admitted.row.thread_id);
-    const answer = answerTo(thread?.messages ?? [], otherSameWords, since);
+    const answer = answerTo(thread?.messages ?? [], repeated, since);
     if (answer) {
       speak(answer.answer ? answerSpoken(answer.answer) : answer.text);
       return;

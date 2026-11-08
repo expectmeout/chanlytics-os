@@ -165,21 +165,21 @@ const CASE_MAX_CHARS = 500;
 
 /** The first case the door refuses, in its own words; null where every one is whole. */
 function caseRefusal(cases: readonly EvalCase[]): Response | null {
-  for (const otherCase of cases) {
+  for (const evalCase of cases) {
     if (
-      !otherCase ||
-      typeof otherCase.id !== "string" ||
-      typeof otherCase.text !== "string" ||
-      !otherCase.text.trim() ||
-      otherCase.text.length > CASE_MAX_CHARS
+      !evalCase ||
+      typeof evalCase.id !== "string" ||
+      typeof evalCase.text !== "string" ||
+      !evalCase.text.trim() ||
+      evalCase.text.length > CASE_MAX_CHARS
     ) {
       return refuse(400, "bad_request", `each case needs an id and a text of 1-${CASE_MAX_CHARS} chars`);
     }
     if (
-      otherCase.history &&
-      (!Array.isArray(otherCase.history) ||
-        otherCase.history.length > 12 ||
-        otherCase.history.some(
+      evalCase.history &&
+      (!Array.isArray(evalCase.history) ||
+        evalCase.history.length > 12 ||
+        evalCase.history.some(
           (h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string",
         ))
     ) {

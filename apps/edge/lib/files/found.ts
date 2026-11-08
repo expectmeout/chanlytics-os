@@ -186,12 +186,12 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
   let full = false;
   let at = 0;
   for (; at < items.length && Date.now() < deadline && !full; at += FETCHES_AT_ONCE) {
-    const result = await Promise.all(
+    const fates = await Promise.all(
       items.slice(at, at + FETCHES_AT_ONCE).map((item) => oneFound(db, job, source, item)),
     );
-    kept += result.filter((f) => f === "kept").length;
-    failed += result.filter((f) => f === "failed").length;
-    full = result.includes("full");
+    kept += fates.filter((f) => f === "kept").length;
+    failed += fates.filter((f) => f === "failed").length;
+    full = fates.includes("full");
   }
   const rang = job.payload.rang === true;
   if (kept > 0 && !rang) {

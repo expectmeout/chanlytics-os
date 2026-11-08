@@ -31,11 +31,11 @@ const FOOT = "Codes sent to this line are never answered and never become people
  * code with no time is not said (the time is what tells an owner it is the one they are waiting for). None, none.
  */
 export function codeNotes(codes: readonly LineCodeDto[], nowMs: number): ConnectionNote[] {
-  const sentence = codes.filter((c) => !Number.isNaN(Date.parse(c.at)));
-  if (sentence.length === 0) return [];
+  const dated = codes.filter((c) => !Number.isNaN(Date.parse(c.at)));
+  if (dated.length === 0) return [];
   return [
     // What the owner is waiting for: on the row, never behind a press (ConnectionNote.live).
-    ...sentence.map((c) => ({
+    ...dated.map((c) => ({
       text: `${c.from ? `Code from ${c.from}` : "A code"}: ${c.code} · ${agoWords(Date.parse(c.at), nowMs)}`,
       live: true as const,
     })),

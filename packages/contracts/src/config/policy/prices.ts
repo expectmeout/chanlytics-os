@@ -162,12 +162,9 @@ function rangeTopAfter(text: string, from: number, to: number): string | null {
  */
 export function priceFigures(text: string): string[] {
   const found: string[] = [];
-  for (const pRICEPATTERNS of PRICE_PATTERNS) {
+  for (const pricePattern of PRICE_PATTERNS) {
     for (const match of text.matchAll(
-      new RegExp(
-        pRICEPATTERNS.source,
-        pRICEPATTERNS.flags.includes("g") ? pRICEPATTERNS.flags : `${pRICEPATTERNS.flags}g`,
-      ),
+      new RegExp(pricePattern.source, pricePattern.flags.includes("g") ? pricePattern.flags : `${pricePattern.flags}g`),
     )) {
       // A pattern may stop at the figure's first digit ("$4" of "$45"): the figure is the whole run it touches.
       let from = match.index;

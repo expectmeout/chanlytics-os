@@ -305,9 +305,9 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     return plainText(400, "An unsubscribe says List-Unsubscribe=One-Click.");
   if (stopAll) return stopAllMessagesPage(db, claims, stopAll === "yes");
 
-  let sentence: { business: string | null };
+  let place: { business: string | null };
   try {
-    sentence = await setEmailUnsubscribed(db, {
+    place = await setEmailUnsubscribed(db, {
       tenantId: claims.tenantId,
       contactId: claims.contactId,
       messageId: claims.messageId,
@@ -328,7 +328,7 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     emailOf(db, claims.tenantId, claims.messageId),
     linkPageLookOf(db, claims.tenantId),
   ]);
-  return pageFor(email, sentence.business, "done", look);
+  return pageFor(email, place.business, "done", look);
 }
 
 /**

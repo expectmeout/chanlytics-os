@@ -355,20 +355,20 @@ export function placeRailOf(params: {
   };
   const steps = [...params.steps]
     .sort((a, b) => a.place - b.place)
-    .map((text): PlaceRailStepVM => {
-      const state = stateOf(text);
+    .map((step): PlaceRailStepVM => {
+      const state = stateOf(step);
       const title =
-        params.titles.get(text.place) ??
-        (text.hand ? text.hand.words : text.place === 1 ? words.email : words.followUp);
+        params.titles.get(step.place) ??
+        (step.hand ? step.hand.words : step.place === 1 ? words.email : words.followUp);
       return {
-        id: text.id,
-        place: text.place,
-        day: days.get(text.place) ?? 1,
+        id: step.id,
+        place: step.place,
+        day: days.get(step.place) ?? 1,
         title,
-        how: text.hand ? words.task : params.lens === "preview" ? words.asTheyGet : words.email,
+        how: step.hand ? words.task : params.lens === "preview" ? words.asTheyGet : words.email,
         state: state && state.words ? state : null,
-        wait: text.place > 1 ? scheduleWait(text) : null,
-        hand: !!text.hand,
+        wait: step.place > 1 ? scheduleWait(step) : null,
+        hand: !!step.hand,
       };
     });
   const joined = params.place ? params.place.joined : null;

@@ -176,33 +176,33 @@ export function quickAnswerOf(raw: unknown): AskAnswer | null {
   const rows = recordOrEmpty(result.show).items;
   const items: AskItem[] = [];
   for (const it of (Array.isArray(rows) ? rows : []).slice(0, C.items).map(recordOrEmpty)) {
-    const fieldsItem = recordOrEmpty(it.source);
+    const sourceFields = recordOrEmpty(it.source);
     const title = capTo(it.title, C.title);
-    const to = appRoute(fieldsItem.to);
+    const to = appRoute(sourceFields.to);
     if (
       !title ||
       !to ||
-      typeof fieldsItem.kind !== "string" ||
-      !CITATION_KINDS.has(fieldsItem.kind) ||
-      typeof fieldsItem.id !== "string"
+      typeof sourceFields.kind !== "string" ||
+      !CITATION_KINDS.has(sourceFields.kind) ||
+      typeof sourceFields.id !== "string"
     )
       return null;
-    if (!fieldsItem.id || fieldsItem.id.length > 300) return null;
-    const label = capTo(fieldsItem.label, C.label) || title;
+    if (!sourceFields.id || sourceFields.id.length > 300) return null;
+    const label = capTo(sourceFields.label, C.label) || title;
     const source = {
-      kind: fieldsItem.kind as AskCitationKind,
-      id: fieldsItem.id,
+      kind: sourceFields.kind as AskCitationKind,
+      id: sourceFields.id,
       label,
       to,
-      door: fieldsItem.door !== false,
+      door: sourceFields.door !== false,
     };
     items.push({ title, meta: capTo(it.meta, C.meta), line: capTo(it.line, C.line), source });
   }
-  const otherFields = recordOrEmpty(result.do).open;
-  const openTo = otherFields ? appRoute(recordOrEmpty(otherFields).to) : null;
-  if (otherFields && !openTo) return null;
+  const openFields = recordOrEmpty(result.do).open;
+  const openTo = openFields ? appRoute(recordOrEmpty(openFields).to) : null;
+  if (openFields && !openTo) return null;
   const open: AskOpen | null = openTo
-    ? { to: openTo, label: capTo(recordOrEmpty(otherFields).label, C.label), now: false }
+    ? { to: openTo, label: capTo(recordOrEmpty(openFields).label, C.label), now: false }
     : null;
   return {
     v: 2,

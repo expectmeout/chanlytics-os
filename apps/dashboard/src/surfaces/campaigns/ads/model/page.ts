@@ -528,8 +528,8 @@ function pageModeOf(read: AdsRead): AdsVM["mode"] {
 function pageHead(mode: AdsVM["mode"], p: PageTotals, read: AdsRead): HeadVM {
   if (mode === "v0") return { strong: HEAD.v0Strong, rest: HEAD.v0Rest, money: null };
   if (mode === "none") return { strong: "", rest: HEAD.noAds, money: HEAD.money };
-  const sentence = read.calendar.linked ? HEAD.booked(p.booked, p.touch) : HEAD.touchOnly(p.touch);
-  return { ...sentence, money: HEAD.money };
+  const head = read.calendar.linked ? HEAD.booked(p.booked, p.touch) : HEAD.touchOnly(p.touch);
+  return { ...head, money: HEAD.money };
 }
 
 /** `Harbor Studio ad account · read 9:19 AM`, or how the account is being read; null where there is no account to name. */

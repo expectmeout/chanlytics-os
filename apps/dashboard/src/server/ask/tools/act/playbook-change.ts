@@ -199,7 +199,7 @@ function proposeLeadsState(
   noted: string | null | undefined,
 ): ProposalOutcome {
   const words = PLAYBOOK_PATCH_WORDS;
-  const sentence = [
+  const changes = [
     ...(set.state === "paused" ? [words.paused] : set.state === "running" ? [LIFECYCLE_WORDS.ledger.resume.chain] : []),
     ...(set.name ? [words.name(set.name)] : []),
     ...(set.mode ? [words.mode(set.mode, was.mode ?? set.mode)] : []),
@@ -207,7 +207,7 @@ function proposeLeadsState(
   return propose({
     kind: "playbook_change",
     title: words.title(set, row.name),
-    summary: [...sentence, ...(noted ? [noted] : [])].join(" · "),
+    summary: [...changes, ...(noted ? [noted] : [])].join(" · "),
     payload: {
       playbook_id: row.id,
       playbook_name: row.name,

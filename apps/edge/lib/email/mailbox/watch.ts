@@ -49,25 +49,25 @@ export async function keepWatch(
     const push = gmailPush();
     if (push) {
       if (late()) return false;
-      const otherGmailWatch = await watchGmail(token, push.topic);
-      if (!otherGmailWatch.ok) {
-        log.warn("mailbox_watch_failed", { mailbox: row.id, provider: "google", status: otherGmailWatch.reply.status });
+      const watch = await watchGmail(token, push.topic);
+      if (!watch.ok) {
+        log.warn("mailbox_watch_failed", { mailbox: row.id, provider: "google", status: watch.reply.status });
         return false;
       }
       // The cursor the watch hands back starts the history read only where there was none: a renewal keeps reading on.
       await keepMailboxWatch(db, {
         id: row.id,
         watchId: null,
-        expiresAt: new Date(otherGmailWatch.expiresAt),
-        cursor: row.sync_cursor ? null : otherGmailWatch.historyId,
+        expiresAt: new Date(watch.expiresAt),
+        cursor: row.sync_cursor ? null : watch.historyId,
       });
       return true;
     }
     if (row.sync_cursor) return true;
     if (late()) return false;
-    const otherGmailProfile = await readGmailProfile(token);
-    const historyId = recordOrNull(otherGmailProfile.json)?.historyId;
-    if (otherGmailProfile.outcome !== "ok" || typeof historyId !== "string") return false;
+    const profile = await readGmailProfile(token);
+    const historyId = recordOrNull(profile.json)?.historyId;
+    if (profile.outcome !== "ok" || typeof historyId !== "string") return false;
     // No push: a cursor alone, and a watch date a week on so it is not asked again every tick.
     await keepMailboxWatch(db, {
       id: row.id,
@@ -83,18 +83,18 @@ export async function keepWatch(
     let link: string | null = null;
     for (let page = 0; page < 20; page++) {
       if (late()) return false;
-      const otherGraphDelta = await readGraphDelta(token, link, undefined, new Date(now).toISOString());
-      if (!otherGraphDelta.ok) return false;
-      if (otherGraphDelta.deltaLink) {
+      const delta = await readGraphDelta(token, link, undefined, new Date(now).toISOString());
+      if (!delta.ok) return false;
+      if (delta.deltaLink) {
         await keepMailboxWatch(db, {
           id: row.id,
           watchId: row.watch_id,
           expiresAt: row.watch_expires_at ? new Date(row.watch_expires_at) : new Date(now),
-          cursor: otherGraphDelta.deltaLink,
+          cursor: delta.deltaLink,
         });
         break;
       }
-      link = otherGraphDelta.nextLink;
+      link = delta.nextLink;
       if (!link) return false;
     }
   }
@@ -105,16 +105,16 @@ export async function keepWatch(
   }
   if (late()) return false;
   if (row.watch_id) {
-    const otherGraphRenew = await renewGraph(token, row.watch_id, now);
-    if (otherGraphRenew.ok) {
-      await keepMailboxWatch(db, { id: row.id, watchId: row.watch_id, expiresAt: new Date(otherGraphRenew.expiresAt) });
+    const renewal = await renewGraph(token, row.watch_id, now);
+    if (renewal.ok) {
+      await keepMailboxWatch(db, { id: row.id, watchId: row.watch_id, expiresAt: new Date(renewal.expiresAt) });
       return true;
     }
-    if (!otherGraphRenew.gone) {
+    if (!renewal.gone) {
       log.warn("mailbox_watch_failed", {
         mailbox: row.id,
         provider: "microsoft",
-        status: otherGraphRenew.reply.status,
+        status: renewal.reply.status,
       });
       return false;
     }

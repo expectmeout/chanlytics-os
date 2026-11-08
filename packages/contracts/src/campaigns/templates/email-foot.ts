@@ -134,11 +134,11 @@ export function emailFootHtml(
     );
   }
   const text = business.trim() || result.us;
-  const otherOfferParts = offerParts(address, foot);
+  const parts = offerParts(address, foot);
   return (
     `<p>${escapeHtml(offerWhy(result, text, foot.why))}<br>` +
-    `${escapeHtml(`${text} · ${otherOfferParts.address}`)}<br>` +
-    `<a href="${escapeHtml(otherOfferParts.url)}">${escapeHtml(result.unsubscribe)}</a></p>`
+    `${escapeHtml(`${text} · ${parts.address}`)}<br>` +
+    `<a href="${escapeHtml(parts.url)}">${escapeHtml(result.unsubscribe)}</a></p>`
   );
 }
 

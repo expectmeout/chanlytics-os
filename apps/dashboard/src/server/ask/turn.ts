@@ -220,10 +220,10 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
  */
 function stoppedTurn(
   result: TurnResult,
-  sentence: { headline: string; detail: string } | null,
+  spoken: { headline: string; detail: string } | null,
   language: AskLanguage,
 ): TurnResult {
-  const answer = stoppedAnswer(sentence, language);
+  const answer = stoppedAnswer(spoken, language);
   return {
     ...result,
     answer,
@@ -300,7 +300,7 @@ export async function finishAskTurn(
   emit({ t: "thread", id: turn.id, title: turn.title });
   const t0 = Date.now();
   // The Say as the person last read it: an empty one took the answer back (loop.ts unsay).
-  let sentence: { headline: string; detail: string } | null = null;
+  let spoken: { headline: string; detail: string } | null = null;
   // How they like answers, their own note (the answer canvas, D): a read that fails costs the note, never the turn.
   const style = await load(rc, memberViews, undefined)
     .then((r) => answerStyleOf(r.data))
@@ -326,7 +326,7 @@ export async function finishAskTurn(
     lately: ask.lately ?? "",
     emit: (ev) => {
       if (ev.t === "say")
-        sentence = ev.headline || ev.detail ? { headline: ev.headline ?? "", detail: ev.detail ?? "" } : null;
+        spoken = ev.headline || ev.detail ? { headline: ev.headline ?? "", detail: ev.detail ?? "" } : null;
       emit(ev);
     },
     // One clock for the turn: the tools' today is the readers' today.
@@ -335,7 +335,7 @@ export async function finishAskTurn(
     signal: stop,
   });
   // Stopped, even past its last round: what the person saw is what the thread keeps.
-  const ended = stop?.aborted ? stoppedTurn(ran, sentence, language) : ran;
+  const ended = stop?.aborted ? stoppedTurn(ran, spoken, language) : ran;
   // A next question the thread already asked or offered goes (the answer canvas, item 15): the chips offer what is new.
   const next = nextNotAsked(ended.answer.do.next, offered);
   const result = { ...ended, answer: { ...ended.answer, do: { ...ended.answer.do, next } } };

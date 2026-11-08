@@ -170,8 +170,8 @@ export function threadMoveOf(dto: ConversationDto, escalation: EscalationDto | n
   // Our newest words after the last exchange that failed; a reply someone canceled is not a failure.
   const failed =
     [...chat.slice(last ? chat.indexOf(last) + 1 : 0)].reverse().find((m) => m.status === "failed") ?? null;
-  const otherFailedMove = failedMove(result, escalation, failed, nowMs) ?? heldMove(result, escalation);
-  if (otherFailedMove) return otherFailedMove;
+  const failure = failedMove(result, escalation, failed, nowMs) ?? heldMove(result, escalation);
+  if (failure) return failure;
   const rest = quietMove(dto, last, failed, nowMs);
   const draft = heldDraftOf(dto.messages);
   return draft ? draftMove(draft, rest, nowMs) : rest;

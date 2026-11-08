@@ -192,22 +192,22 @@ const DEFERRED_SAID = "A speed step put off until its number passes its line: ea
 
 /** Each step put off: its page's moves three in four against its line, warn once past it, and not yet where too few. */
 function deferredLines(at: Lookup): PageSpeedPartVM[] {
-  return DEFERRED_STEPS.map((dEFERREDSTEPS) => {
-    const move = at("READY", dEFERREDSTEPS.page, "", "move");
-    const taken = `Taken when ${pageSpeedLabel(dEFERREDSTEPS.page)}'s moves pass ${msWords(dEFERREDSTEPS.line)}, three in four, ${dEFERREDSTEPS.also}`;
+  return DEFERRED_STEPS.map((deferredStep) => {
+    const move = at("READY", deferredStep.page, "", "move");
+    const taken = `Taken when ${pageSpeedLabel(deferredStep.page)}'s moves pass ${msWords(deferredStep.line)}, three in four, ${deferredStep.also}`;
     if (!move)
       return {
-        key: dEFERREDSTEPS.key,
-        label: dEFERREDSTEPS.label,
+        key: deferredStep.key,
+        label: deferredStep.label,
         value: "too few moves",
         tone: "ok",
         hint: `${taken}. Too few moves to say yet.`,
       };
-    const past = move.p75 > dEFERREDSTEPS.line;
+    const past = move.p75 > deferredStep.line;
     return {
-      key: dEFERREDSTEPS.key,
-      label: dEFERREDSTEPS.label,
-      value: `${msWords(move.p75)} of ${msWords(dEFERREDSTEPS.line)}`,
+      key: deferredStep.key,
+      label: deferredStep.label,
+      value: `${msWords(move.p75)} of ${msWords(deferredStep.line)}`,
       tone: past ? "warn" : "ok",
       hint: past ? `${taken}. Past its line: take it.` : `${taken}.`,
     };
@@ -249,7 +249,7 @@ function pageLine(at: Lookup, page: string): PageSpeedPageVM | null {
   const settled = at("SETTLED", page, "", "load");
   const phone = at("READY", page, "", how, "phone");
   const waits = read?.waits_on ?? load?.waits_on ?? null;
-  const sentence = [
+  const phrases = [
     load ? `opened ${msWords(load.p75)}` : null,
     move ? `moved to ${msWords(move.p75)}${held ? `, ${share(held.samples, move.samples)} from held rows` : ""}` : null,
     read ? `${msWords(read.p75)} when it had to read` : null,
@@ -257,7 +257,7 @@ function pageLine(at: Lookup, page: string): PageSpeedPageVM | null {
     waits ? `waits on ${waits}` : null,
     phone ? `on a phone ${msWords(phone.p75)}` : null,
   ].filter(Boolean);
-  const text = sentence.join(" · ");
+  const text = phrases.join(" · ");
   const verdict = speedVerdict(how, lead.p75);
   return {
     page,
@@ -315,8 +315,8 @@ const END_WORDS: Readonly<Record<Exclude<FirstRowsEnd, "page">, string>> = {
 };
 
 /** "styles changed 6, none kept 2": what each word's reports came to, the most first, those with none left out. */
-function saidMostFirst(sentence: readonly (readonly [words: string, samples: number])[]): string {
-  return sentence
+function saidMostFirst(wordSamples: readonly (readonly [words: string, samples: number])[]): string {
+  return wordSamples
     .filter(([, samples]) => samples > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([words, samples]) => `${words} ${samples.toLocaleString("en-US")}`)
@@ -389,16 +389,16 @@ function spotLines(
     .filter((s) => s.metric === metric && s.samples >= SPOT_MIN && (metric !== "CLS" || s.p75 > band[0] / 2))
     .sort((a, b) => b.p75 - a.p75 || `${a.page}.${a.el}`.localeCompare(`${b.page}.${b.el}`))
     .slice(0, shown)
-    .map((text) => {
-      const value = vitalValueWords(metric, text.p75);
-      const verdict: PageVitalVerdict = text.p75 <= band[0] ? "good" : text.p75 <= band[1] ? "needs work" : "poor";
-      const phase = text.phase ? PHASE_WORDS[text.phase] : undefined;
+    .map((spot) => {
+      const value = vitalValueWords(metric, spot.p75);
+      const verdict: PageVitalVerdict = spot.p75 <= band[0] ? "good" : spot.p75 <= band[1] ? "needs work" : "poor";
+      const phase = spot.phase ? PHASE_WORDS[spot.phase] : undefined;
       return {
-        key: `${metric}.${text.page}.${text.el}`,
-        label: `${text.el} on ${pageSpeedLabel(text.page)}`,
+        key: `${metric}.${spot.page}.${spot.el}`,
+        label: `${spot.el} on ${pageSpeedLabel(spot.page)}`,
         value,
         tone: VERDICT_TONES[verdict],
-        hint: `${value} · ${countWords(text.samples, noun)}${phase ? ` · mostly ${phase}` : ""}`,
+        hint: `${value} · ${countWords(spot.samples, noun)}${phase ? ` · mostly ${phase}` : ""}`,
       };
     });
 }

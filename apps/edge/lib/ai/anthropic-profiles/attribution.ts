@@ -112,13 +112,13 @@ async function profileHeldOf(
 /** Whom this call goes as: the decision, the row it comes to, and a profile made if it has none. Never thrown. */
 export async function getAttribution(
   purpose: ModelPurpose,
-  personName: { tenantId: TenantId | null; userId?: string | null },
+  caller: { tenantId: TenantId | null; userId?: string | null },
   key: string,
   deps: ModelDeps,
 ): Promise<AttributionAnswer> {
-  const subject = modelSubjectOf(purpose, personName);
+  const subject = modelSubjectOf(purpose, caller);
   if (!anthropicProfilesOn()) return NO_PROFILE;
-  const log = logger(personName.tenantId ? { tenant_id: personName.tenantId } : {});
+  const log = logger(caller.tenantId ? { tenant_id: caller.tenantId } : {});
   if (subject.kind === "ours") {
     log.error("model_call_ours", { purpose });
     return NO_PROFILE;

@@ -482,9 +482,9 @@ async function takeArrival(
   }
   const inOurs = (!!arrived.threadId && ours.has(arrived.threadId)) || (!!email.threadId && ours.has(email.threadId));
   if (!inOurs && (arrived.report || (arrived.from !== null && REPORTER.test(arrived.from)))) return "dropped";
-  const otherReason = inOurs ? null : await findLeftWhy(email, params.sorting, params.until);
-  if (otherReason) {
-    await noteLeft(db, row.tenant_id, email, otherReason);
+  const leftReason = inOurs ? null : await findLeftWhy(email, params.sorting, params.until);
+  if (leftReason) {
+    await noteLeft(db, row.tenant_id, email, leftReason);
     return "dropped";
   }
   await scheduleJobOnce(db, {
@@ -571,19 +571,19 @@ export async function syncMailbox(
       if (seen.has(first.id)) continue;
       seen.add(first.id);
       try {
-        const otherResult = await takeArrival(
+        const arrival = await takeArrival(
           db,
           { row, token: token.token, ours, own, at, now, log, sorting, until },
           first,
         );
-        if (otherResult === "paced") {
+        if (arrival === "paced") {
           // The provider's pace: what is left waits for the next sync, from the cursor where it was.
           behind = true;
           break;
         }
-        if (otherResult === "unreadable") result.unreadable++;
-        else if (otherResult !== "gone") result.read++;
-        const counted = COUNTED[otherResult];
+        if (arrival === "unreadable") result.unreadable++;
+        else if (arrival !== "gone") result.read++;
+        const counted = COUNTED[arrival];
         if (counted) result[counted]++;
       } catch (err) {
         behind = true;

@@ -61,8 +61,8 @@ export function heardAt(person: PersonRowDto): number | null {
 
 export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): PersonLastContact {
   const result = ts(person.last_message_at);
-  const otherTs = ts(person.last_call_at);
-  if (result === null && otherTs === null) {
+  const lastCallMs = ts(person.last_call_at);
+  if (result === null && lastCallMs === null) {
     return {
       ts: null,
       at: null,
@@ -73,14 +73,14 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
       label: "No contact recorded",
     };
   }
-  if (otherTs !== null && (result === null || otherTs > result)) {
+  if (lastCallMs !== null && (result === null || lastCallMs > result)) {
     // "Phoned" only when THEY did: last_call_at holds the receptionist's own outbound calls too, and the row said
     // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (above) already reads it this way.
-    const theirs = ts(person.last_inbound_call_at) === otherTs;
+    const theirs = ts(person.last_inbound_call_at) === lastCallMs;
     const by = theirs ? "Phoned" : "We called";
-    const when = ago(otherTs, tz, nowMs);
+    const when = ago(lastCallMs, tz, nowMs);
     return {
-      ts: otherTs,
+      ts: lastCallMs,
       at: person.last_call_at,
       kind: "call",
       who: theirs ? "they" : "system",
@@ -89,7 +89,7 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
       label: `${by} · ${when}`,
     };
   }
-  const otherPerson: PersonLastContact["who"] =
+  const lastContact: PersonLastContact["who"] =
     person.last_message_direction === "inbound"
       ? "they"
       : person.last_message_sender === "human"
@@ -101,13 +101,13 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
   // said "Not heard from" beside "Your team replied" for the people a cold email reached (27 Oct 2026).
   const answered = heardAt(person) !== null;
   const verb =
-    otherPerson === "they"
+    lastContact === "they"
       ? "They wrote"
-      : otherPerson === "team"
+      : lastContact === "team"
         ? answered
           ? "Your team replied"
           : "Your team wrote"
-        : otherPerson === "receptionist"
+        : lastContact === "receptionist"
           ? answered
             ? "Receptionist replied"
             : "Receptionist wrote"
@@ -117,7 +117,7 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
     ts: result,
     at: person.last_message_at,
     kind: "message",
-    who: otherPerson,
+    who: lastContact,
     by: verb,
     when,
     label: `${verb} · ${when}`,

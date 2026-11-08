@@ -429,15 +429,15 @@ async function proposeSteps(
   // Each step's place in the plan, in order: silent where it changes only what the workspace keeps and names no send's
   // result; else its own press, after every silent step before it and each step it names.
   const silentAt: boolean[] = [];
-  const stamped = cards.map((card, otherCard) => {
-    const next = otherCard + 1;
+  const stamped = cards.map((card, cardIndex) => {
+    const next = cardIndex + 1;
     const named = [...stepsNamedIn(card.payload)].filter((k) => k >= 1 && k < next);
     // A step that names a send's result cannot go with the silent press: it waits for that send, on its own.
     const silent = !ASK_SENDS.has(card.kind) && named.every((k) => silentAt[k - 1]);
     silentAt.push(silent);
     const waits = silent
       ? []
-      : [...new Set([...silentAt.slice(0, otherCard).flatMap((s, k) => (s ? [k + 1] : [])), ...named])].sort(
+      : [...new Set([...silentAt.slice(0, cardIndex).flatMap((s, k) => (s ? [k + 1] : [])), ...named])].sort(
           (a, b) => a - b,
         );
     return { ...card, plan: { id, step: next, of, silent, after: waits } };

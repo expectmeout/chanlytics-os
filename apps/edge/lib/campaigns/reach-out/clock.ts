@@ -218,16 +218,16 @@ export async function runReachOutClock(
   const again: Replan[] = [];
 
   /* reconcile */
-  for (const query of await listQueuedOutcomes(db, PAGE, tenantId)) {
-    const send = query.send;
-    const error = (query.error ?? null) as {
+  for (const queued of await listQueuedOutcomes(db, PAGE, tenantId)) {
+    const send = queued.send;
+    const error = (queued.error ?? null) as {
       reason?: string;
       provider?: string;
       outcome?: string;
       http_status?: number;
     } | null;
-    if (query.status === "sent" || query.status === "delivered" || query.status === "read") {
-      const at = query.sent_at ?? query.written_at ?? now.toISOString();
+    if (queued.status === "sent" || queued.status === "delivered" || queued.status === "read") {
+      const at = queued.sent_at ?? queued.written_at ?? now.toISOString();
       if (await move(db, send, { state: "sent", sent_at: at })) {
         out.sent += 1;
         // The send is sent whatever the lead's bookkeeping does: a lead that could not be written is said, not undone.
@@ -240,24 +240,24 @@ export async function runReachOutClock(
             }),
         );
       }
-    } else if (query.status === "failed" && error?.outcome === "unknown") {
+    } else if (queued.status === "failed" && error?.outcome === "unknown") {
       // Its receipt settles it (00177's guard lets exactly this row move on). A day with none: it may have gone.
-      if (!query.written_at || now.getTime() - Date.parse(query.written_at) < UNKNOWN_OUTCOME_MS) continue;
+      if (!queued.written_at || now.getTime() - Date.parse(queued.written_at) < UNKNOWN_OUTCOME_MS) continue;
       if (await move(db, send, { state: "failed", reason: "outcome_unknown" })) out.failed += 1;
-    } else if (query.status === "failed" && goesAgain(send, neverLeft(error))) {
+    } else if (queued.status === "failed" && goesAgain(send, neverLeft(error))) {
       again.push({ send: send, wrote: true });
       continue; // counted where it is planned again
-    } else if (query.status === "failed") {
+    } else if (queued.status === "failed") {
       const reason = error?.provider === "bounced" ? "bounced" : "send_failed";
       if (await move(db, send, { state: "failed", reason })) out.failed += 1;
-    } else if (query.status === "canceled") {
+    } else if (queued.status === "canceled") {
       const reason = String(error?.reason ?? "canceled").slice(0, 60);
       if (goesAgain(send, isWaitRefusal(reason))) {
         again.push({ send: send, wrote: true });
         continue;
       }
       if (await move(db, send, { state: "skipped", reason })) out.skipped += 1;
-    } else if (query.status === null) {
+    } else if (queued.status === null) {
       // Its email row is gone: an erasure deletes the person's messages (erase_contact), and the send never goes.
       if (await move(db, send, { state: "skipped", reason: "erased", message_id: null })) out.skipped += 1;
     } else continue; // still queued: its job has not run yet

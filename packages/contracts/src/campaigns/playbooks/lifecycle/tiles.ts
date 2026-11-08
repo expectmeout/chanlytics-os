@@ -115,34 +115,34 @@ export function lifecycleReach(input: LifecycleInput, stages: readonly Lifecycle
   const reach = broadcasts?.reach ?? null;
   // Out, failed, or its people could not be counted: said as that, never a ladder of nothing.
   if (!broadcasts || !reach) return { read: outOf(broadcasts), rungs: null, yes: null, phone: null };
-  const otherReach = LIFECYCLE_WORDS.reach;
+  const reachWords = LIFECYCLE_WORDS.reach;
   const rungs = [
-    rung("people", otherReach.people, reach.people, reach.people, null),
+    rung("people", reachWords.people, reach.people, reach.people, null),
     rung(
       "messages",
-      otherReach.messages,
+      reachWords.messages,
       reach.canHear,
       reach.people,
       opensOf(stages, "messages", []),
       reach.byChannel,
     ),
-    rung("offers", otherReach.offers, reach.saidOffers, reach.people, opensOf(stages, "offers", otherReach.ownOffers)),
+    rung("offers", reachWords.offers, reach.saidOffers, reach.people, opensOf(stages, "offers", reachWords.ownOffers)),
   ];
-  const door: LifecycleAct = { kind: "route", label: otherReach.code, route: GET_YES_ROUTE };
+  const door: LifecycleAct = { kind: "route", label: reachWords.code, route: GET_YES_ROUTE };
   const asks = broadcasts.number.present && broadcasts.optIn.link !== null;
   const [, , offers] = rungs;
   return {
     read: "read",
     rungs,
-    yes: asks ? { note: otherReach.asks, code: door, phrase: broadcasts.optIn.phrase, copy: otherReach.copy } : null,
+    yes: asks ? { note: reachWords.asks, code: door, phrase: broadcasts.optIn.phrase, copy: reachWords.copy } : null,
     // Nobody in People yet: no line of noughts ("0 of 0 can hear you", an amber "0 to offers" about nobody).
     phone:
       reach.people === 0
         ? { words: null, offers: null, yes: null }
         : {
-            words: otherReach.phoneHear(reach.canHear, reach.people),
+            words: reachWords.phoneHear(reach.canHear, reach.people),
             offers: { words: `${reach.saidOffers} to offers`, tone: offers ? offers.tone : "plain" },
-            yes: asks ? { label: otherReach.phoneYes, route: GET_YES_ROUTE } : null,
+            yes: asks ? { label: reachWords.phoneYes, route: GET_YES_ROUTE } : null,
           },
   };
 }
@@ -271,8 +271,8 @@ function momentRow(
   workspacePaused: boolean,
 ): LifecycleComing | null {
   if (lifecyclePlaybook.state !== "running" || lifecyclePlaybook.off || lifecyclePlaybook.listArchived) return null;
-  const otherWhoWill = whoWill(lifecyclePlaybook);
-  if (!otherWhoWill) return null;
+  const audience = whoWill(lifecyclePlaybook);
+  if (!audience) return null;
   if (workspacePaused) {
     const words = LIFECYCLE_WORDS.coming.paused;
     return {
@@ -293,8 +293,8 @@ function momentRow(
     kind: "moment",
     when: { day: next.day, at: next.at },
     what: lifecyclePlaybook.name,
-    why: otherWhoWill.why,
-    pill: otherWhoWill.pill,
+    why: audience.why,
+    pill: audience.pill,
     act: { kind: "open", label: "Open", playbookId: lifecyclePlaybook.id },
     waiting: null,
     atMs: next.atMs,
@@ -362,7 +362,7 @@ function runRow(lifecycleRun: LifecycleRun, name: string, nowMs: number, tz: str
 
 /** An off moment that has people waiting offers to be turned on, in its stage's own words (journey.ts `off`). */
 function offRows(stages: readonly LifecycleStage[], defs: readonly JourneyStage[], nowMs: number): LifecycleComing[] {
-  return stages.flatMap((stage, otherStage) => {
+  return stages.flatMap((stage, stageIndex) => {
     const off = defs.find((d) => d.id === stage.id)?.off;
     if (!off || stage.state !== "off" || stage.act?.kind !== "turn_on" || (stage.people ?? 0) <= 0) return [];
     return [
@@ -375,7 +375,7 @@ function offRows(stages: readonly LifecycleStage[], defs: readonly JourneyStage[
         pill: null,
         act: { kind: "turn_on" as const, label: "Turn on", moment: stage.act.moment },
         waiting: null,
-        atMs: nowMs + COMING_DAYS * DAY_MS + otherStage,
+        atMs: nowMs + COMING_DAYS * DAY_MS + stageIndex,
       },
     ];
   });

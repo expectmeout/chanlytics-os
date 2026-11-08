@@ -28,14 +28,14 @@ const PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.
 export function feedUrlOk(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let otherUrl: URL;
+  let parsedUrl: URL;
   try {
-    otherUrl = new URL(url);
+    parsedUrl = new URL(url);
   } catch {
     return null;
   }
-  if (otherUrl.protocol !== "https:" && otherUrl.protocol !== "http:") return null;
-  const hostname = otherUrl.hostname;
+  if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") return null;
+  const hostname = parsedUrl.hostname;
   if (
     PRIVATE_HOST.test(hostname) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
@@ -43,7 +43,7 @@ export function feedUrlOk(raw: string | null | undefined): string | null {
     PRIVATE_V6.test(hostname)
   )
     return null;
-  return otherUrl.toString();
+  return parsedUrl.toString();
 }
 
 /** A redirect is followed this many times at most: an http to https hop and a host move are what a calendar does. */

@@ -236,8 +236,8 @@ export function leadDb(db: Db): LeadDb {
       return must<RunRow[]>("lead_runs read back", back).map(runOf);
     },
     async round(id) {
-      const rows = await findLeadRound(db, id);
-      const row = must<Database["public"]["Tables"]["lead_rounds"]["Row"] | null>("lead_rounds read", rows);
+      const round = await findLeadRound(db, id);
+      const row = must<Database["public"]["Tables"]["lead_rounds"]["Row"] | null>("lead_rounds read", round);
       if (!row) return null;
       return {
         id: row.id,

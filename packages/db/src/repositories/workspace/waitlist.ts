@@ -24,9 +24,9 @@ export async function addToWaitlist(
 export async function refreshWaitlistRow(
   db: SupabaseClient<Database>,
   email: string,
-  sentence: { business: string | null; source: string | null },
+  meta: { business: string | null; source: string | null },
 ) {
-  return db.from("waitlist").update(sentence).eq("email", email).is("invited_at", null);
+  return db.from("waitlist").update(meta).eq("email", email).is("invited_at", null);
 }
 
 /** Those still waiting, oldest first, and how many there are in all. */

@@ -218,15 +218,15 @@ export const PEOPLE_LISTS: readonly {
   needsViewer?: boolean;
   onProfile?: false;
   test: (vm: PersonRowVM) => boolean;
-}[] = BUILTIN_LISTS.map((bUILTINLISTS) => {
-  const needs = ruleNeeds(bUILTINLISTS.rule);
+}[] = BUILTIN_LISTS.map((builtinList) => {
+  const needs = ruleNeeds(builtinList.rule);
   return {
-    ...bUILTINLISTS,
+    ...builtinList,
     ...(needs.includes("calendar") ? { needsCalendar: true } : {}),
     ...(needs.includes("consult") ? { needsConsultFirst: true } : {}),
     ...(needs.includes("deals") ? { needsDeals: true } : {}),
     ...(needs.includes("viewer") ? { needsViewer: true } : {}),
-    test: (vm: PersonRowVM) => listRuleMatches(bUILTINLISTS.rule, vm),
+    test: (vm: PersonRowVM) => listRuleMatches(builtinList.rule, vm),
   };
 });
 

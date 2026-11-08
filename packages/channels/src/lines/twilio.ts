@@ -127,10 +127,10 @@ export function requestTwilio(
  */
 export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
   // A text to a person is always sent: another call's timeouts never fail it (provider-fetch's breaker).
-  const text = method === "POST" && url.endsWith("/Messages.json");
+  const sendsMessage = method === "POST" && url.endsWith("/Messages.json");
   const first = await requestTwilio(acct, method, url, {
     ...(form ? { form: new URLSearchParams(form).toString() } : {}),
-    ...(text ? { breaker: "count" as const } : {}),
+    ...(sendsMessage ? { breaker: "count" as const } : {}),
   });
   const body =
     first.status === 0

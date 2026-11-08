@@ -116,12 +116,12 @@ const tidyEnd = (s: string): string => s.replace(/[\s,;:—–-]+$/, "");
  * all ran to 20 words or more and two said "not a customer" after the page's own question. A sentence that is the verdict
  * alone keeps its words: that it is a pitch is worth more than how it is said.
  */
-export function pitchKept(otherSentence: string): string {
+export function pitchKept(pitch: string): string {
   // The split keeps each edge between its clauses (CLAUSE_EDGE captures it), so a clause kept is joined as it was written.
   let kept = "";
   let words = 0;
   let edge = "";
-  for (const [i, piece] of otherSentence.trim().split(CLAUSE_EDGE).entries()) {
+  for (const [i, piece] of pitch.trim().split(CLAUSE_EDGE).entries()) {
     if (i % 2) {
       edge = piece;
       continue;
@@ -133,7 +133,7 @@ export function pitchKept(otherSentence: string): string {
     kept = kept ? `${kept}${edge}${clause}` : clause;
     words += parts;
   }
-  const sentence = kept || otherSentence.trim();
+  const sentence = kept || pitch.trim();
   const all = sentence.split(/\s+/);
   const within =
     all.length >= PITCH_WORDS_UNDER ? `${tidyEnd(all.slice(0, PITCH_WORDS_UNDER - 1).join(" "))}…` : tidyEnd(sentence);

@@ -107,8 +107,8 @@ export async function confirmGet(token: string): Promise<Response> {
   const open = opened(token);
   if (open instanceof Response) return open;
   try {
-    const otherConfirmationAsked = await confirmationAsked(open.db, open.claims);
-    return otherConfirmationAsked ? confirmPage(200, "ask", otherConfirmationAsked) : confirmPage(404, "gone", NOBODY);
+    const pending = await confirmationAsked(open.db, open.claims);
+    return pending ? confirmPage(200, "ask", pending) : confirmPage(404, "gone", NOBODY);
   } catch (e) {
     log.error("signup_confirm_failed", {
       tenant_id: open.claims.tenantId,

@@ -47,12 +47,12 @@ const plain = (text: string): TodayBriefSegment => ({ text });
 const bold = (text: string): TodayBriefSegment => ({ text, strong: true });
 
 /** Up to three names in bold, the rest counted: "Ana Reyes, Kenia Duarte and 2 more". `rest` are the ones not named. */
-function names(personName: readonly string[], rest: number): TodayBriefSegment[] {
-  const sentence = personName.slice(0, 3);
-  const left = personName.length - sentence.length + rest;
+function names(peopleNames: readonly string[], rest: number): TodayBriefSegment[] {
+  const shownNames = peopleNames.slice(0, 3);
+  const left = peopleNames.length - shownNames.length + rest;
   const out: TodayBriefSegment[] = [];
-  sentence.forEach((w, i) => {
-    if (i > 0) out.push(plain(i === sentence.length - 1 && !left ? " and " : ", "));
+  shownNames.forEach((w, i) => {
+    if (i > 0) out.push(plain(i === shownNames.length - 1 && !left ? " and " : ", "));
     out.push(bold(w));
   });
   if (left) out.push(plain(` and ${left} more`));

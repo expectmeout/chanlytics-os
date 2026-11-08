@@ -164,8 +164,8 @@ function standingFromGraph(phone: unknown, account: AccountAnswers, wabaId: stri
     const entity = recordOrNull(raw);
     if (!entity) continue;
     const kind = graphText(entity.entity_type) ?? "UNKNOWN";
-    for (const otherError of graphList(entity.errors)) {
-      const error = recordOrNull(otherError);
+    for (const entityError of graphList(entity.errors)) {
+      const error = recordOrNull(entityError);
       const sentence = graphText(error?.error_description);
       if (!error || !sentence) continue;
       problems.push({
@@ -180,7 +180,7 @@ function standingFromGraph(phone: unknown, account: AccountAnswers, wabaId: stri
       if (note && !notes.includes(note)) notes.push(note);
     }
   }
-  const otherGraphRecord = recordOrNull(account.verification);
+  const verification = recordOrNull(account.verification);
   const funding = recordOrNull(account.funding);
   const owner = recordOrNull(recordOrNull(account.owner)?.owner_business_info);
   return {
@@ -189,8 +189,8 @@ function standingFromGraph(phone: unknown, account: AccountAnswers, wabaId: stri
     notes: notes.slice(0, STANDING_LIST_MAX),
     name: graphText(result.verified_name),
     name_status: graphText(result.name_status),
-    verification: graphText(otherGraphRecord?.business_verification_status),
-    limit: graphText(otherGraphRecord?.whatsapp_business_manager_messaging_limit),
+    verification: graphText(verification?.business_verification_status),
+    limit: graphText(verification?.whatsapp_business_manager_messaging_limit),
     has_payment_method: funding ? graphPresent(funding.primary_funding_id) : null,
     owner_business_id: graphText(owner?.id),
     waba_id: wabaId,

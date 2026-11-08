@@ -100,8 +100,8 @@ export function reachRowsOf(
   nowMs: number,
 ): { phone: string; email: string } {
   const day = (t: number) => clockDate(t, tz, nowMs);
-  const otherPhone = REACH_SOURCE_WORDS.phone;
-  const otherEmail = REACH_SOURCE_WORDS.email;
+  const phoneWords = REACH_SOURCE_WORDS.phone;
+  const emailWords = REACH_SOURCE_WORDS.email;
   const called = earliest([firstCalled(contactEvidence), exactFirst(contactEvidence, ["call"])]);
   const wrote = earliest([
     firstWrote(contactEvidence.messages, ["whatsapp", "sms"]),
@@ -109,14 +109,14 @@ export function reachRowsOf(
   ]);
   const phone =
     called !== null && (wrote === null || called <= wrote)
-      ? otherPhone.called(day(called))
+      ? phoneWords.called(day(called))
       : wrote !== null
-        ? otherPhone.wrote(day(wrote))
+        ? phoneWords.wrote(day(wrote))
         : contactEvidence.added?.source === "calendar"
-          ? otherPhone.booking
+          ? phoneWords.booking
           : contactEvidence.listing && samePhone(contactEvidence.listing.phone, contactEvidence.phone)
-            ? otherPhone.listing
-            : otherPhone.none;
+            ? phoneWords.listing
+            : phoneWords.none;
   const address = contactEvidence.email?.trim().toLowerCase() ?? "";
   const emailed = earliest([firstWrote(contactEvidence.messages, ["email"]), exactFirst(contactEvidence, ["email"])]);
   const given = address
@@ -128,12 +128,12 @@ export function reachRowsOf(
     : null;
   const email =
     emailed !== null
-      ? otherEmail.wrote(day(emailed))
+      ? emailWords.wrote(day(emailed))
       : given !== null
-        ? otherEmail.gaveOnCall(day(given))
+        ? emailWords.gaveOnCall(day(given))
         : address && contactEvidence.listing?.email?.trim().toLowerCase() === address
-          ? otherEmail.listing
-          : otherEmail.none;
+          ? emailWords.listing
+          : emailWords.none;
   return { phone, email };
 }
 

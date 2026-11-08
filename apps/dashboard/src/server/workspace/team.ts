@@ -370,9 +370,9 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
     // between the seat and its news is finished by the next one, which finds the seat held (23505) and the ledger without
     // the news. The ledger is asked first, so a read that finds the news there writes none, and a seat that was held from
     // another door while the invitation stayed open is accepted and said once, when it is first signed in to.
-    const sentence = await getSubjectsWith(db, inv.tenant_id, "member.joined", [inv.id]).catch(() => null);
-    if (!sentence) continue;
-    if (!sentence.has(inv.id)) {
+    const recorded = await getSubjectsWith(db, inv.tenant_id, "member.joined", [inv.id]).catch(() => null);
+    if (!recorded) continue;
+    if (!recorded.has(inv.id)) {
       const { error } = await recordEvent(db, inv.tenant_id, "member.joined", "invitation", inv.id, {
         by: userId,
         role: inv.role,

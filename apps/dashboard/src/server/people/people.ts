@@ -158,10 +158,10 @@ export async function* listEveryoneOnce(
 export async function findOnePerson(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
-  personName: string | { thread: string },
+  personOrThread: string | { thread: string },
 ): Promise<PersonRowDto | null> {
   const [row, pols] = await Promise.all([
-    findPersonRow(ctx.supabase, tenantId, personName),
+    findPersonRow(ctx.supabase, tenantId, personOrThread),
     replyPolicies(ctx, tenantId),
   ]);
   return row ? (withReplyModes([row], pols).at(0) ?? null) : null;
@@ -179,9 +179,9 @@ export async function findOnePerson(
 export async function countPeople(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
-  otherQuery: string | null,
+  searchText: string | null,
 ): Promise<number> {
-  const needle = searchNeedle(otherQuery);
+  const needle = searchNeedle(searchText);
   let searchOr: string | null = null;
   if (needle) {
     const digits = needle.replace(/\D/g, "");

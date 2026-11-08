@@ -114,13 +114,13 @@ export function fillerCalendar(nowMs: number, tz: string): string {
  * deployment cannot read falls back to the business's own.
  */
 export function fillerFeedFor(url: string, nowMs = Date.now()): string | null {
-  let otherUrl: URL;
+  let feedUrl: URL;
   try {
-    otherUrl = new URL(url);
+    feedUrl = new URL(url);
   } catch {
     return null;
   }
-  if (otherUrl.pathname !== FILLER_FEED_PATH) return null;
-  const value = otherUrl.searchParams.get("tz") ?? "";
+  if (feedUrl.pathname !== FILLER_FEED_PATH) return null;
+  const value = feedUrl.searchParams.get("tz") ?? "";
   return fillerCalendar(nowMs, value && zoneOk(value) ? value : DEFAULT_TIMEZONE);
 }

@@ -38,7 +38,7 @@ export const GET = read({
     const rc = readerContext(ctx, member);
     // The calendar's one read (readers/calendar.ts), then the board assembled from it: one clock, the read's, for the
     // span, the people and the windows.
-    const text = (
+    const loaded = (
       await load(rc, sources, {
         from: input.from ?? null,
         days: Number(input.days ?? 7),
@@ -46,6 +46,6 @@ export const GET = read({
         around: input.around ?? null,
       })
     ).data;
-    return { calendar: weekFrom(text, text.people, rc.now) };
+    return { calendar: weekFrom(loaded, loaded.people, rc.now) };
   },
 });

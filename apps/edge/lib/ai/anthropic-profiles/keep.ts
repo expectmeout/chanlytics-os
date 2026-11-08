@@ -119,29 +119,29 @@ function actionWords(
 async function readProfile(
   keepTick: KeepTick,
   anthropicProfile: AnthropicProfileRow,
-  sentence: AnthropicProfile,
+  profile: AnthropicProfile,
 ): Promise<void> {
-  if (!sentence.status) return;
+  if (!profile.status) return;
   if (
-    sentence.status === anthropicProfile.enforcement_status &&
-    sameActions(sentence.actions, anthropicProfile.enforcement_actions)
+    profile.status === anthropicProfile.enforcement_status &&
+    sameActions(profile.actions, anthropicProfile.enforcement_actions)
   )
     return;
   await setAnthropicEnforcement(
     keepTick.db,
     anthropicProfile.id,
-    sentence.status,
-    sentence.actions,
+    profile.status,
+    profile.actions,
     new Date().toISOString(),
   );
-  if (anthropicActed(anthropicProfile.enforcement_status) && !anthropicActed(sentence.status))
+  if (anthropicActed(anthropicProfile.enforcement_status) && !anthropicActed(profile.status))
     keepTick.kept.cleared += 1;
-  const newlyActed = !anthropicActed(anthropicProfile.enforcement_status) && anthropicActed(sentence.status);
-  const newlyBanned = !anthropicPaused(anthropicProfile.enforcement_status) && anthropicPaused(sentence.status);
+  const newlyActed = !anthropicActed(anthropicProfile.enforcement_status) && anthropicActed(profile.status);
+  const newlyBanned = !anthropicPaused(anthropicProfile.enforcement_status) && anthropicPaused(profile.status);
   if (!newlyActed && !newlyBanned) return;
   keepTick.kept.acted += 1;
   if (anthropicProfile.leaving) return;
-  const words = actionWords(anthropicProfile, sentence.status, enforcementWords(sentence.status, sentence.actions));
+  const words = actionWords(anthropicProfile, profile.status, enforcementWords(profile.status, profile.actions));
   const key = `anthropic_profile:${anthropicProfile.id}:${newlyBanned ? "banned" : "acted"}`;
   await pageOperator({ db: keepTick.db, ...keepTick.pager }, key, words.subject, words.body).catch((e: unknown) =>
     sweepLog().error("anthropic_profile_unpageable", { row: anthropicProfile.id, error: errField(e) }),
@@ -193,8 +193,8 @@ async function readEnforcement(keepTick: KeepTick, rows: AnthropicProfileRow[]):
     const r = stale ? await settleClaim(keepTick, row, listing) : row;
     if (!r) continue;
     out.push(r);
-    const sentence = r.profile_id ? listing.byId.get(r.profile_id) : undefined;
-    if (sentence) await readProfile(keepTick, r, sentence);
+    const profile = r.profile_id ? listing.byId.get(r.profile_id) : undefined;
+    if (profile) await readProfile(keepTick, r, profile);
   }
   return out;
 }

@@ -430,18 +430,18 @@ function decisionItems({ profile, row, stamp, viewerId, names }: PersonCardConte
  */
 function consentItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
-  for (const otherItems of profile.consent_history ?? []) {
-    const result = ts(otherItems.at);
+  for (const consentChange of profile.consent_history ?? []) {
+    const result = ts(consentChange.at);
     if (result === null) continue;
-    const otherConsentChangeWords = consentChangeWords(otherItems);
+    const changeWords = consentChangeWords(consentChange);
     items.push({
-      id: `c-${otherItems.id}`,
+      id: `c-${consentChange.id}`,
       ts: result,
       ...stamp(result),
       kind: "consent",
-      who: otherConsentChangeWords.who,
-      text: otherConsentChangeWords.text,
-      ...(otherConsentChangeWords.sub ? { sub: otherConsentChangeWords.sub } : {}),
+      who: changeWords.who,
+      text: changeWords.text,
+      ...(changeWords.sub ? { sub: changeWords.sub } : {}),
     });
   }
   return items;

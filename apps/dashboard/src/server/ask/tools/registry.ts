@@ -238,7 +238,7 @@ function flatten(schema: Record<string, unknown>): Record<string, unknown> {
     action: { type: "string", enum: branches.map((b) => b.properties.action?.const) },
   };
   // What each action says of a shared field (the operator, 15 Oct 2026: each input explained on itself), by action.
-  const sentence = new Map<string, Array<[string, string]>>();
+  const optionsByKey = new Map<string, Array<[string, string]>>();
   for (const branch of branches) {
     const named = branch.properties.action?.const;
     const action = typeof named === "string" ? named : "";
@@ -248,11 +248,12 @@ function flatten(schema: Record<string, unknown>): Record<string, unknown> {
       if (k in properties && shapeOf(properties[k]) !== shapeOf(v))
         throw new Error(`ask tools: ${k} is taken by two actions of one tool in two shapes`);
       properties[k] ??= v;
-      if (typeof v.description === "string") sentence.set(k, [...(sentence.get(k) ?? []), [action, v.description]]);
+      if (typeof v.description === "string")
+        optionsByKey.set(k, [...(optionsByKey.get(k) ?? []), [action, v.description]]);
     }
   }
   // A field the actions describe alike says it once; described apart, each action's words, named by its action.
-  for (const [k, words] of sentence) {
+  for (const [k, words] of optionsByKey) {
     const distinct = [...new Set(words.map(([, w]) => w))];
     properties[k] = {
       ...properties[k],
@@ -406,11 +407,11 @@ function parseInput<D extends ReadDef | ActDef>(
   raw: unknown,
   role: MembershipRole,
 ): { ok: true; def: D; data: Record<string, unknown> } | { ok: false; error: string } {
-  const otherAction = actionOf(tool, raw);
-  if (otherAction !== null && Object.prototype.hasOwnProperty.call(tool.actions, otherAction)) {
-    const def = tool.actions[otherAction];
+  const toolAction = actionOf(tool, raw);
+  if (toolAction !== null && Object.prototype.hasOwnProperty.call(tool.actions, toolAction)) {
+    const def = tool.actions[toolAction];
     if (def && !offeredTo(def, role))
-      return { ok: false, error: `${tool.name}: action ${otherAction} is ${WHOSE[needsOf(def)]}` };
+      return { ok: false, error: `${tool.name}: action ${toolAction} is ${WHOSE[needsOf(def)]}` };
   }
   const input = INPUTS.get(role)?.get(tool.name);
   if (!input) {

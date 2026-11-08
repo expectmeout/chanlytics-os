@@ -141,7 +141,7 @@ export function handoffMessage({
   const onDm = ctx.channel === "instagram";
   const name =
     ctx.who?.trim() || (onDm ? "Someone on Instagram" : formatPhoneDisplay(`+${threadId}`) || `+${threadId}`);
-  const otherReason = whyOf(reason);
+  const reasonWords = whyOf(reason);
   // What to do, by the reason's act (a reply to write, a call to return, nothing that may be sent); the pause rides after it.
   const act = HOLD_ACT_WORDS[holdActOf(REASON_OF.get(reason))].notice;
   // The owner of a workspace with both wires connected opens the thread this
@@ -152,7 +152,7 @@ export function handoffMessage({
     kind: "handoff",
     route: ctx.route ?? "inbox",
     about: ctx.about ?? null,
-    subject: `${name} needs a person — ${otherReason}`,
+    subject: `${name} needs a person — ${reasonWords}`,
     body:
       `They wrote: “${userText}”\n` +
       `${botText}\n\n` +
@@ -160,7 +160,7 @@ export function handoffMessage({
       (ctx.pausedHours
         ? `${act.replace(/\.$/, "")} — the receptionist is paused on this thread for ${ctx.pausedHours}h.`
         : act),
-    redactedBody: `A ${where} conversation needed a person (${otherReason}), and nobody could be told.`,
+    redactedBody: `A ${where} conversation needed a person (${reasonWords}), and nobody could be told.`,
   };
 }
 

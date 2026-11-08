@@ -391,13 +391,13 @@ export function reachOutSavedWords(saved: ReachOutSavedDto): {
   to: string;
   label: string;
 } {
-  const sentence = saved.start
+  const startLine = saved.start
     ? startWords(saved.start)
     : { tone: "good" as const, text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
   return run
-    ? { ...sentence, to: runRoute(run), label: RUN_OPEN_WORDS }
-    : { ...sentence, to: sequenceRoute(saved.root_id), label: "Open its sequence" };
+    ? { ...startLine, to: runRoute(run), label: RUN_OPEN_WORDS }
+    : { ...startLine, to: sequenceRoute(saved.root_id), label: "Open its sequence" };
 }
 
 /** The sheet's own labels: its parts, its fields and its acts. */

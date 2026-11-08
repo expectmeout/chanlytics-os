@@ -165,7 +165,7 @@ export async function previewOne(
   });
   const checked = result.kind === "checked" ? result : null;
   const opening = checked?.opening?.opening ?? null;
-  const otherReachOutRequest = reachOutRequest({
+  const request = reachOutRequest({
     tenantId: previewInput.tenantId,
     messageId: randomUUID(),
     contactId: asContactId(randomUUID()),
@@ -187,24 +187,21 @@ export async function previewOne(
   });
   return {
     lead: { id: lead.lead_id, business_name: lead.business_name ?? "", email: lead.email },
-    subject: otherReachOutRequest.ok ? otherReachOutRequest.subject : null,
+    subject: request.ok ? request.subject : null,
     // The words as the business reads them, with the signature under them where the email ends with one (0077).
-    body: otherReachOutRequest.ok
-      ? otherReachOutRequest.signature
-        ? `${otherReachOutRequest.body}
+    body: request.ok
+      ? request.signature
+        ? `${request.body}
 
-${otherReachOutRequest.signature}`
-        : otherReachOutRequest.body
+${request.signature}`
+        : request.body
       : null,
     opening,
     angle: checked?.opening?.angle ?? null,
     hold: checked?.hold ?? null,
     detail: checked?.detail ?? null,
     // An opening the model could not write is said as unavailable, not as a refusal of the words.
-    refused:
-      otherReachOutRequest.ok || (!checked && otherReachOutRequest.reason === "no_opening")
-        ? null
-        : otherReachOutRequest.reason,
+    refused: request.ok || (!checked && request.reason === "no_opening") ? null : request.reason,
     unavailable: !checked,
     tokens: { ...result.tokens },
   };

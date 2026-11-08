@@ -526,8 +526,8 @@ export async function listReachOutDayDue(db: Db, now: Date, limit: number): Prom
   const { data, error } = await db.rpc("reach_out_day_due", { p_now: now.toISOString(), p_limit: limit });
   if (error) throw new Error(`cannot read the day's reach-out numbers: ${error.message}`);
   return (data ?? []).map((row) => {
-    const count = (row.numbers && typeof row.numbers === "object" ? row.numbers : {}) as Record<string, unknown>;
-    const num = (k: string) => Number(count[k] ?? 0) || 0;
+    const numbers = (row.numbers && typeof row.numbers === "object" ? row.numbers : {}) as Record<string, unknown>;
+    const num = (k: string) => Number(numbers[k] ?? 0) || 0;
     return {
       tenant_id: row.tenant_id,
       day: row.day,

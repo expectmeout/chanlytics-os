@@ -605,10 +605,10 @@ async function tellOwner(
 ): Promise<"told" | "owed"> {
   if (!routed) return "told";
   const target = { tenantId: routed.tenantId, ...(await loadTenantNotifications(db, routed.tenantId)) };
-  const otherNotice = await notifyOnceAs(target, { ...notice, onceKey: `call:${call.retellCallId}` });
-  if (otherNotice === "told" && call.fresh && !reachesTenant(target)) await sendOpsMail(target, notice);
-  if (otherNotice !== "told") {
-    logger({ tenant_id: routed.tenantId }).warn("call_notice_owed", { call: call.retellCallId, outcome: otherNotice });
+  const noticed = await notifyOnceAs(target, { ...notice, onceKey: `call:${call.retellCallId}` });
+  if (noticed === "told" && call.fresh && !reachesTenant(target)) await sendOpsMail(target, notice);
+  if (noticed !== "told") {
+    logger({ tenant_id: routed.tenantId }).warn("call_notice_owed", { call: call.retellCallId, outcome: noticed });
     return "owed";
   }
   if (call.id) await markCallNoticeTold(db, routed.tenantId, call.id);

@@ -47,8 +47,8 @@ function octetsOf(address: string): [number, number, number, number] | null {
   return o.every((n) => n <= 255) ? o : null;
 }
 
-function v4IsPublic(value: readonly [number, number, number, number]): boolean {
-  const [a, b, c] = value;
+function v4IsPublic(octets: readonly [number, number, number, number]): boolean {
+  const [a, b, c] = octets;
   if (a === 0 || a === 10 || a === 127) return false; // this network, private, loopback
   if (a === 100 && b >= 64 && b <= 127) return false; // 100.64.0.0/10, carrier-grade NAT
   if (a === 169 && b === 254) return false; // link-local, and the metadata service
@@ -75,11 +75,11 @@ function bytesOfV6(address: string): number[] | null {
   }
   const [left = "", right] = head.split("::");
   const groups = (s: string) => (s ? s.split(":").filter((x) => x !== "") : []);
-  const result = groups(left);
+  const leftGroups = groups(left);
   const items = right === undefined ? [] : groups(right);
-  const zeros = right === undefined ? 0 : 8 - result.length - items.length;
-  if (zeros < 0 || (right === undefined && result.length !== 8)) return null;
-  const all = [...result, ...Array<string>(zeros).fill("0"), ...items];
+  const zeros = right === undefined ? 0 : 8 - leftGroups.length - items.length;
+  if (zeros < 0 || (right === undefined && leftGroups.length !== 8)) return null;
+  const all = [...leftGroups, ...Array<string>(zeros).fill("0"), ...items];
   const bytes: number[] = [];
   for (const g of all) {
     const n = parseInt(g, 16);
@@ -301,6 +301,6 @@ export function publicFetcher(): typeof fetch {
 }
 
 /** For tests only: stand in for the network. Returns the one before, to put back; null restores the guarded one. */
-export function setPublicFetch(item: typeof fetch | null): typeof fetch | null {
-  return standInFetch.set(item) ?? null;
+export function setPublicFetch(fetcher: typeof fetch | null): typeof fetch | null {
+  return standInFetch.set(fetcher) ?? null;
 }

@@ -294,8 +294,8 @@ export function roleGate(
   perm: RolePerm,
   doing?: string | null,
 ): { needs: "owner" | "operator"; title: string; reason: string } | null {
-  const otherRole: Role = isOneOf(ROLES, role) ? role : "viewer";
-  if (ROLE_PERMS[otherRole]?.[perm]) return null;
+  const knownRole: Role = isOneOf(ROLES, role) ? role : "viewer";
+  if (ROLE_PERMS[knownRole]?.[perm]) return null;
   const needs = ROLE_PERMS.operator?.[perm] ? "operator" : "owner";
   const text = doing?.trim() || PERM_DOING[perm] || "do this";
   return {

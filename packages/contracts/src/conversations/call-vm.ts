@@ -124,14 +124,14 @@ function transcriptOf(turns: NonNullable<CallDto["transcript_object"]>): CallVM[
     const after = given.slice(i + 1).find((x) => x != null) ?? null;
     return before != null && after != null ? (before + after) / 2 : (before ?? after);
   });
-  return turns.map((turn, otherTurn) => {
+  return turns.map((turn, turnIndex) => {
     // An injected turn is a whisper: the owner's own words, shown as theirs.
     if (turn.role === "injected") {
       return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content), start: null, end: null };
     }
-    const own = given[otherTurn];
-    const start = starts[otherTurn] ?? null;
-    const next = start == null ? null : (starts.slice(otherTurn + 1).find((x) => x != null && x > start) ?? null);
+    const own = given[turnIndex];
+    const start = starts[turnIndex] ?? null;
+    const next = start == null ? null : (starts.slice(turnIndex + 1).find((x) => x != null && x > start) ?? null);
     const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
     return {
       t: typeof own === "number" ? mmss(own * 1000) : "—",

@@ -321,9 +321,15 @@ export function matchPerson(
       ...replyFactsOf(otherPersonInText),
     };
   const byBusiness = personInText(words, soleAtBusiness(people));
-  const second = byBusiness ? people.find((x) => x.id === byBusiness.id) : undefined;
-  return second
-    ? { id: second.id, name: labelOf(second), via: "business", ...threadOf(second), ...replyFactsOf(second) }
+  const businessPerson = byBusiness ? people.find((x) => x.id === byBusiness.id) : undefined;
+  return businessPerson
+    ? {
+        id: businessPerson.id,
+        name: labelOf(businessPerson),
+        via: "business",
+        ...threadOf(businessPerson),
+        ...replyFactsOf(businessPerson),
+      }
     : null;
 }
 

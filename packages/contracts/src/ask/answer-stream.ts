@@ -32,9 +32,9 @@ function partialField(text: string, key: string): string {
     const item = text[next];
     if (item === '"') break;
     if (item === "\\") {
-      const count = text[next + 1];
-      if (count === undefined) break;
-      if (count === "u") {
+      const nextChar = text[next + 1];
+      if (nextChar === undefined) break;
+      if (nextChar === "u") {
         const hex = text.slice(next + 2, next + 6);
         if (hex.length < 4) break;
         out += String.fromCharCode(parseInt(hex, 16) || 0x20);
@@ -42,17 +42,17 @@ function partialField(text: string, key: string): string {
         continue;
       }
       out +=
-        count === "n"
+        nextChar === "n"
           ? "\n"
-          : count === "t"
+          : nextChar === "t"
             ? "\t"
-            : count === "r"
+            : nextChar === "r"
               ? "\r"
-              : count === "b"
+              : nextChar === "b"
                 ? "\b"
-                : count === "f"
+                : nextChar === "f"
                   ? "\f"
-                  : count;
+                  : nextChar;
       next += 2;
       continue;
     }
@@ -186,9 +186,9 @@ const ASK_STOPPED_WORDS = {
  * written so far under it, as the person read it, its lines kept (a table or a list stays one), the detail on a line of
  * its own when it opens with one. Nothing written yet leaves the headline alone.
  */
-export function stoppedAnswer(sentence: { headline: string; detail: string } | null, language: AskLanguage): AskAnswer {
+export function stoppedAnswer(spoken: { headline: string; detail: string } | null, language: AskLanguage): AskAnswer {
   const a = failedAnswer(ASK_STOPPED_WORDS[language === "es" ? "es" : "en"], language);
-  const own = opensWithBlock(sentence?.detail ?? "");
-  const so = [sentence?.headline, sentence?.detail].filter(Boolean).join(own ? "\n" : " ");
+  const own = opensWithBlock(spoken?.detail ?? "");
+  const so = [spoken?.headline, spoken?.detail].filter(Boolean).join(own ? "\n" : " ");
   return { ...a, say: { ...a.say, detail: clipLines(so, ASK_ANSWER_CAPS.detail) } };
 }

@@ -57,8 +57,8 @@ const numbersIn = (s: string): string[] => s.match(/\p{N}+/gu) ?? [];
  * does not hold to is not refused: it waits for their press.
  */
 function saidByThem(text: string, question: string): boolean {
-  const sentence = new Set(numbersIn(question));
-  if (numbersIn(text).some((n) => !sentence.has(n))) return false;
+  const questionNumbers = new Set(numbersIn(question));
+  if (numbersIn(text).some((n) => !questionNumbers.has(n))) return false;
   const stems = new Set(comparable(question).split(" ").filter(Boolean).map(wordStem));
   const long = comparable(text)
     .split(" ")

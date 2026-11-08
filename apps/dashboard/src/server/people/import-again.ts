@@ -27,15 +27,15 @@ export async function importAgain(
     { tenant_id: tenantId, user_id: userId, source: input.source },
     { workspace: tenantId, user: userId, timeoutMs: AGAIN_TIMEOUT_MS },
   );
-  const second = answer.body;
-  if (answer.status === 200 && second?.ok) return { ok: true };
+  const body = answer.body;
+  if (answer.status === 200 && body?.ok) return { ok: true };
   log.warn("import_again_failed", {
     tenant_id: tenantId,
     source: input.source,
     status: answer.status,
-    reason: second?.error ?? null,
+    reason: body?.error ?? null,
   });
-  const sentence = typeof second?.detail === "string" && second.detail ? second.detail : IMPORT_STOPPED_WORDS.failed;
+  const sentence = typeof body?.detail === "string" && body.detail ? body.detail : IMPORT_STOPPED_WORDS.failed;
   throw new AppError(
     "conflict",
     `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`,

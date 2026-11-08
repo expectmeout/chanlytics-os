@@ -394,7 +394,7 @@ export async function handleMailboxCallback(ctx: RouteContext, req: Request) {
   const code = url.searchParams.get("code") ?? "";
   if (!code) return back("error", "failed");
 
-  const first = await callEdgeMailboxes(
+  const edgeAnswer = await callEdgeMailboxes(
     {
       op: "connect",
       tenant_id: tenantId,
@@ -407,14 +407,14 @@ export async function handleMailboxCallback(ctx: RouteContext, req: Request) {
     },
     55_000,
   );
-  const body = first.body ?? {};
-  if (first.status !== 200 || body.ok !== true) {
+  const body = edgeAnswer.body ?? {};
+  if (edgeAnswer.status !== 200 || body.ok !== true) {
     const reason =
       typeof body.reason === "string"
         ? body.reason
         : typeof body.error === "string"
           ? body.error
-          : `edge_${first.status}`;
+          : `edge_${edgeAnswer.status}`;
     log.warn("mailbox_connect_failed", { tenant_id: tenantId, provider, reason });
     return back("error", reason === "no_oauth_client" ? "not_available" : reason);
   }

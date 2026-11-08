@@ -327,7 +327,7 @@ async function conclude(
   reason: string,
   certain: boolean,
   end: JobEnd,
-  otherReason?: string,
+  reasonWords?: string,
 ): Promise<void> {
   let failed: boolean;
   try {
@@ -348,7 +348,7 @@ async function conclude(
   // says neither (contracts jobNewsWords).
   let resumed: boolean | null;
   try {
-    const settled = await ports.settle(job, certain, otherReason);
+    const settled = await ports.settle(job, certain, reasonWords);
     resumed = settled.some((s) => s.resumed === true && !s.error);
     for (const s of settled) {
       if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });

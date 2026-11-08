@@ -195,9 +195,9 @@ async function rejudged(leadPorts: LeadPorts, round: LeadRoundRow, sites: SiteRe
       plan,
       batch,
       (x, ref) => factsOf(ref, x.clean, reads ? (site.get(x) ?? null) : undefined),
-      (_, request) =>
+      (_, batch) =>
         opIdFor(
-          `rejudge:${round.id}:${round.plan_version}:${request
+          `rejudge:${round.id}:${round.plan_version}:${batch
             .map((x) => x.clean.raw.placeId)
             .sort()
             .join(",")}`,
@@ -210,13 +210,13 @@ async function rejudged(leadPorts: LeadPorts, round: LeadRoundRow, sites: SiteRe
     // A call refused twice leaves its places as they were; the others are committed together.
     const answered = calls.filter((c) => !c.judged.refused);
     if (!answered.length) continue;
-    const notice = answered.flatMap((c) => c.items);
+    const answeredItems = answered.flatMap((c) => c.items);
     const places = answered.flatMap(({ items, judged }) =>
       items.map((x, ref) => place(x, judged.answers.get(ref) ?? null, judged.judgment?.op_id ?? null, judged.model)),
     );
     const judgments = answered.flatMap((c) => (c.judged.judgment ? [c.judged.judgment] : []));
-    out.judged += notice.length;
-    if (!(await commit(notice, places, judgments.length ? judgments : null))) return out;
+    out.judged += answeredItems.length;
+    if (!(await commit(answeredItems, places, judgments.length ? judgments : null))) return out;
   }
   return out;
 }

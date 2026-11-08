@@ -146,10 +146,10 @@ export async function setEmailOffersYes(
     p_evidence: params.evidence,
   });
   if (error) throw new Error(`cannot record the yes to offers by email: ${error.message}`);
-  const sentence = recordOrNull(data);
-  if (sentence?.changed === true) return "recorded";
-  return typeof sentence?.refused === "string" && REFUSALS.has(sentence.refused)
-    ? (sentence.refused as OffersYesOutcome)
+  const answer = recordOrNull(data);
+  if (answer?.changed === true) return "recorded";
+  return typeof answer?.refused === "string" && REFUSALS.has(answer.refused)
+    ? (answer.refused as OffersYesOutcome)
     : "unchanged";
 }
 
@@ -197,10 +197,10 @@ export async function setEmailUnsubscribed(
     p_evidence: params.evidence,
   });
   if (error) throw new Error(`cannot record the unsubscribe: ${error.message}`);
-  const sentence = recordOrNull(data);
+  const answer = recordOrNull(data);
   return {
-    business: typeof sentence?.business === "string" ? sentence.business : null,
-    changed: sentence?.changed === true,
+    business: typeof answer?.business === "string" ? answer.business : null,
+    changed: answer?.changed === true,
   };
 }
 
@@ -218,10 +218,10 @@ export async function stopAllMessages(
     ...(params.messageId ? { p_message_id: params.messageId } : {}),
   });
   if (error) throw new Error(`cannot record that all messages stop: ${error.message}`);
-  const sentence = recordOrNull(data);
+  const answer = recordOrNull(data);
   return {
-    business: typeof sentence?.business === "string" ? sentence.business : null,
-    changed: sentence?.changed === true,
+    business: typeof answer?.business === "string" ? answer.business : null,
+    changed: answer?.changed === true,
   };
 }
 

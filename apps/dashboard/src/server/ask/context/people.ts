@@ -131,8 +131,8 @@ export const readPipeline: Provider = async (rc, ctx) => {
       ref: refOf("person", id, row.name, `clients/${id}`),
     });
   }
-  const otherView = (ctx.view ?? "").replace(/:search$/, "");
-  const view: PipelineView = isPipelineView(otherView) ? otherView : "all";
+  const viewKey = (ctx.view ?? "").replace(/:search$/, "");
+  const view: PipelineView = isPipelineView(viewKey) ? viewKey : "all";
   // What the proposals out and the clients come to: Ask's alone, since the page says counts only (pipelineWorth).
   const worth = pipelineWorth(whole);
   return {

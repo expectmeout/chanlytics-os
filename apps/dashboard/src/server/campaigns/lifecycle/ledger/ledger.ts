@@ -354,14 +354,14 @@ export function lifecycleLedger(at: {
 }): LifecycleLedger {
   const { input, defs, stages } = at;
   const results: LifecycleTileRead = input.report === undefined ? "reading" : input.report === null ? "failed" : "read";
-  const sentence = { period: LEDGER_PERIOD, results, words: LIFECYCLE_WORDS.ledger };
+  const ledger = { period: LEDGER_PERIOD, results, words: LIFECYCLE_WORDS.ledger };
   if (!input.playbooks || !input.shape)
     return {
       groups: [],
       counts: { all: 0, running: 0, needs: 0, paused: 0 },
       tools: false,
       sentOnce: null,
-      ...sentence,
+      ...ledger,
     };
   const from: GroupAt = { input, playbooks: input.playbooks, ready: readyOf(input), word: input.shape.word };
   const journey = defs.flatMap((def) => {
@@ -384,6 +384,6 @@ export function lifecycleLedger(at: {
             open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SEQUENCES_ROUTE },
           }
         : null,
-    ...sentence,
+    ...ledger,
   };
 }

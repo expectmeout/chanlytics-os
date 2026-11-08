@@ -138,8 +138,8 @@ interface StartersAsked {
 async function startersHere(ctx: RouteContext, tenantId: TenantId, keys: unknown): Promise<StarterTemplate[]> {
   const link = await reviewLinkOf(ctx.supabase, tenantId).catch(() => null);
   const offered = startersOffered({ reviewLink: link !== null });
-  const request = Array.isArray(keys) ? keys : [];
-  if (startersOffered({ reviewLink: true }).some((s) => request.includes(s.key) && !offered.includes(s)))
+  const keyList = Array.isArray(keys) ? keys : [];
+  if (startersOffered({ reviewLink: true }).some((s) => keyList.includes(s.key) && !offered.includes(s)))
     throw new AppError("conflict", TEMPLATE_VALUE_WORDS.noReviewLink, 409);
   return offered;
 }

@@ -68,8 +68,8 @@ export function erasureKeys(
       .map(digitsOf)
       .filter(Boolean),
   );
-  const spoken = [...numbers].flatMap((count) => {
-    const shown = formatPhoneDisplay(count);
+  const spoken = [...numbers].flatMap((phoneNumber) => {
+    const shown = formatPhoneDisplay(phoneNumber);
     if (!shown) return [];
     const na = NORTH_AMERICAN.exec(shown);
     if (!na) return [shown];

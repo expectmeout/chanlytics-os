@@ -161,17 +161,17 @@ function leakFactsOf(
 }
 
 function neverBookedLeak({ reports, list, step }: LeakFacts): TodayLeakVM | null {
-  const second = reports ? reports.booking : null;
+  const booking = reports ? reports.booking : null;
   // Five is the floor: two people who did not book is a quiet week, not a leak.
-  if (!(reports && second && second.present && second.pct !== null && second.asked >= 5 && second.pct <= 25))
+  if (!(reports && booking && booking.present && booking.pct !== null && booking.asked >= 5 && booking.pct <= 25))
     return null;
-  const { asked, booked } = second;
+  const { asked, booked } = booking;
   const never = list("asked_never_booked");
   const text =
     booked === 0
       ? `${asked} people wrote or called in the last ${reports.rangeLabel}. Not one of them is on the calendar.`
       : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.rangeLabel} got onto the calendar.`;
-  const math = never ? `${second.headline} · ${never.count} on Asked, never booked` : second.headline;
+  const math = never ? `${booking.headline} · ${never.count} on Asked, never booked` : booking.headline;
   return {
     id: "never-booked",
     tone: "warn",
@@ -343,9 +343,9 @@ function unreachableLeak({ people, list }: LeakFacts): TodayLeakVM | null {
   // to send it to, or the workspace has no channel to send an offer on now (the row's own reason, reachFor's).
   // Only the first is a yes to go and get; the second is said with People's reason, and with no door to the QR,
   // which would ask them for an answer they gave.
-  const sentence = people.rows.filter((r) => r.saidYes.offers);
-  const noNumber = sentence.length > 0;
-  const reason = sentence.some((r) => r.whyNot.offers === "no_channel") ? NO_CHANNEL_REACH : NO_NUMBER_REACH;
+  const offerPeople = people.rows.filter((r) => r.saidYes.offers);
+  const noNumber = offerPeople.length > 0;
+  const reason = offerPeople.some((r) => r.whyNot.offers === "no_channel") ? NO_CHANNEL_REACH : NO_NUMBER_REACH;
   const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
   const math = `${noNumber ? reason : "an offer needs its own yes"} · 0 can receive one`;
   return {

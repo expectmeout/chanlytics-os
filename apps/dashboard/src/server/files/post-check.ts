@@ -79,8 +79,8 @@ export function postWordsProblem(words: string, owner: string, limit: number): s
   if (undrawable) return UNDRAWABLE_TO_MODEL[undrawable](limit);
   if (priceBreach(text, new Set(priceFigures(owner))))
     return "it names a price or a share the owner has not said. Use their figure, or ask them";
-  const sentence = new Set(numbersIn(owner));
-  const stray = numbersIn(text).find((n) => !sentence.has(n));
+  const ownerNumbers = new Set(numbersIn(owner));
+  const stray = numbersIn(text).find((n) => !ownerNumbers.has(n));
   if (stray) return `the number ${stray} is not one the owner has said. Use theirs, or ask them`;
   if (namesMoney(text) && !namesMoney(owner))
     return "it offers money (a discount, a deposit, a payment term) the owner has not offered. Use their words, or ask them";

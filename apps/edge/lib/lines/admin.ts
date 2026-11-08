@@ -215,8 +215,8 @@ async function buy(lineCall: LineCall): Promise<Response> {
   // The spend rule before the row exists, and before the number is even looked at.
   const refused = await spendGate(lineCall, SPEND_NUMBER);
   if (refused) return refused;
-  const otherBuyRequest = buyRequest(lineCall.body.number, lineCall.body.area_code);
-  if (otherBuyRequest.kind === "refuse") return respond(otherBuyRequest.answer);
+  const request = buyRequest(lineCall.body.number, lineCall.body.area_code);
+  if (request.kind === "refuse") return respond(request.answer);
   // ONE LINE PER WORKSPACE. Read here so the owner is answered with the line
   // that stands, or the failed one to retry; KEPT by the database
   // (lines_one_live_per_tenant_idx, 00195), because two buys can both read
@@ -227,8 +227,8 @@ async function buy(lineCall: LineCall): Promise<Response> {
   const plan = planBuy({
     tenantId: lineCall.tenantId,
     provider: lineCall.choice.name,
-    number: otherBuyRequest.number,
-    areaCode: otherBuyRequest.areaCode,
+    number: request.number,
+    areaCode: request.areaCode,
     others: others.data ?? [],
     now,
   });

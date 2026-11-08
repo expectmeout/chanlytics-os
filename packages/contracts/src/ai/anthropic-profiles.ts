@@ -28,11 +28,11 @@ export type ModelSubject =
  */
 export function modelSubjectOf(
   purpose: ModelPurpose,
-  personName: { tenantId: string | null; userId?: string | null },
+  caller: { tenantId: string | null; userId?: string | null },
 ): ModelSubject {
-  const person = personName.userId ? ({ kind: "person", userId: personName.userId } as const) : null;
+  const person = caller.userId ? ({ kind: "person", userId: caller.userId } as const) : null;
   if (person && modelRoute(purpose).attributed === "person") return person;
-  if (personName.tenantId) return { kind: "workspace", tenantId: personName.tenantId };
+  if (caller.tenantId) return { kind: "workspace", tenantId: caller.tenantId };
   return person ?? { kind: "ours" };
 }
 

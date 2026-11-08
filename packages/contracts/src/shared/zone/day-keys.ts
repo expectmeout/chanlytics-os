@@ -148,9 +148,9 @@ export function onOrAfter(key: string, weekday: WeekdayKey): string {
  * the weekday it names ("sábado", "this friday"); null for none. Ask's calendar reads the day it is asked for here.
  */
 export function dayKeyNamed(text: string, todayKey: string): string | null {
-  const otherText = text.trim();
-  if (isDayKey(otherText)) return otherText;
-  const named = dayWordIn(otherText);
+  const trimmed = text.trim();
+  if (isDayKey(trimmed)) return trimmed;
+  const named = dayWordIn(trimmed);
   if (named === "today") return todayKey;
   if (named === "tomorrow") return shiftKey(todayKey, 1);
   return named ? onOrAfter(todayKey, named) : null;

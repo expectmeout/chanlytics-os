@@ -155,15 +155,15 @@ export function parseReviewsPage(json: unknown): GbpReviewsPage {
       const name = nonBlankOrNull(item.name);
       const id = nonBlankOrNull(item.reviewId) ?? (name ? (name.split("/").pop() ?? null) : null);
       if (!name || !id) return null;
-      const otherRecord = recordOrNull(item.reviewer);
+      const reviewer = recordOrNull(item.reviewer);
       const reply = recordOrNull(item.reviewReply);
       return {
         name,
         review_id: id,
         rating: starRatingNumber(item.starRating),
-        author: otherRecord?.isAnonymous === true ? null : nonBlankOrNull(otherRecord?.displayName),
-        author_photo_uri: nonBlankOrNull(otherRecord?.profilePhotoUrl),
-        anonymous: otherRecord?.isAnonymous === true,
+        author: reviewer?.isAnonymous === true ? null : nonBlankOrNull(reviewer?.displayName),
+        author_photo_uri: nonBlankOrNull(reviewer?.profilePhotoUrl),
+        anonymous: reviewer?.isAnonymous === true,
         text: nonBlankOrNull(item.comment),
         created_at: nonBlankOrNull(item.createTime),
         updated_at: nonBlankOrNull(item.updateTime),

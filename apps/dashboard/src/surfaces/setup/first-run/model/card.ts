@@ -281,7 +281,7 @@ const cardRowOf = (vm: SetupVM, id: string): SetupRowVM | null => vm.rows.find((
 /** What the first run has kept so far, a line each (canvas T·a). */
 function keptForYouOf(vm: SetupVM, setupCardWho: SetupCardWho | undefined): string[] {
   const kept = SETUP_CARD_WORDS.kept;
-  const count = vm.want ? (formatPhoneDisplay(vm.want.number) ?? vm.want.number) : null;
+  const numberWords = vm.want ? (formatPhoneDisplay(vm.want.number) ?? vm.want.number) : null;
   return [
     setupCardWho?.business && vm.check.receptionist === "set"
       ? kept.business(setupCardWho.business, vm.check.listed)
@@ -289,12 +289,12 @@ function keptForYouOf(vm: SetupVM, setupCardWho: SetupCardWho | undefined): stri
     setupCardWho?.sounds && vm.receptionistMet ? kept.sounds(setupCardWho.sounds) : null,
     vm.rehearsal.kept ? kept.taught(vm.rehearsal.kept) : null,
     vm.rehearsal.reviewed ? kept.rehearsed : null,
-    vm.want && count
+    vm.want && numberWords
       ? vm.want.way === "keep"
-        ? kept.keeping(count)
+        ? kept.keeping(numberWords)
         : vm.want.way === "move"
-          ? kept.moving(count)
-          : kept.newNumber(count)
+          ? kept.moving(numberWords)
+          : kept.newNumber(numberWords)
       : null,
   ].filter((x): x is string => !!x);
 }

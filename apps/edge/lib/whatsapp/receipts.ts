@@ -68,26 +68,26 @@ export async function recordReceipts(
   // found the row still sent and each raised the failure.
   const once = [...new Map(statuses.map((s) => [`${s.id}\u0000${s.status}`, s])).values()];
   await Promise.all(
-    once.map(async (text) => {
+    once.map(async (statusEntry) => {
       log.info("wa_status", {
-        id: text.id,
-        status: text.status,
-        to_tail: phoneTail(text.recipient_id),
-        errors: text.errors,
+        id: statusEntry.id,
+        status: statusEntry.status,
+        to_tail: phoneTail(statusEntry.recipient_id),
+        errors: statusEntry.errors,
       });
-      const status = receiptStatusOf(text.status);
-      if (!db || !tenantId || !text.id || !status) return;
-      const id = text.id;
-      const error = text.errors ? jsonCopyOf({ errors: text.errors }) : undefined;
+      const status = receiptStatusOf(statusEntry.status);
+      if (!db || !tenantId || !statusEntry.id || !status) return;
+      const id = statusEntry.id;
+      const error = statusEntry.errors ? jsonCopyOf({ errors: statusEntry.errors }) : undefined;
       // The person stopped marketing messages from this business: their answer (recorded below), never a failed send.
-      const stopped = status === "failed" && waStoppedMarketing(text.errors);
+      const stopped = status === "failed" && waStoppedMarketing(statusEntry.errors);
       if (status === "failed" && !stopped) {
         // Before the row moves: a flag that could not be written leaves it as it was, so the redelivery flags it.
         const flagged = await runPgSafe("escalation", () =>
           flagLateFailure(db, tenantId, {
             externalId: id,
             channel: "whatsapp",
-            error: text.errors ? { errors: text.errors } : {},
+            error: statusEntry.errors ? { errors: statusEntry.errors } : {},
           }),
         );
         if (flagged === undefined) {
@@ -96,7 +96,7 @@ export async function recordReceipts(
         }
       }
       await runPgSafe("status", () => recordStatusByExternalId(db, tenantId, id, status, error));
-      await keepCost(log, db, tenantId, id, text);
+      await keepCost(log, db, tenantId, id, statusEntry);
       if (stopped) {
         const recorded = await runPgSafe("offers_stop", () =>
           recordWhatsAppOffersStop(db, { tenantId, externalId: id }),

@@ -86,11 +86,11 @@ async function proposePlaybookChannels(
   }
   if (!channelsChanged(next, result.channels))
     return refuse(`“${result.name}” already goes by ${channelsGoesByWords(was)}: say so, and change nothing`);
-  const otherAskedMessage = await getAskedMessage(toolContext, result.template_id ?? "");
-  if ("refusal" in otherAskedMessage) return refuse(otherAskedMessage.refusal);
+  const askedMessage = await getAskedMessage(toolContext, result.template_id ?? "");
+  if ("refusal" in askedMessage) return refuse(askedMessage.refusal);
   // What the workspace can send on, as the turn already holds it (readers/facts.ts); unread, it is WhatsApp alone.
   const ready = readyOrWhatsApp((await load(toolContext.rc, channelsReady, undefined)).data);
-  const waits = channelsWaitWords(playbookChannelsRead(result, next, otherAskedMessage.message, ready));
+  const waits = channelsWaitWords(playbookChannelsRead(result, next, askedMessage.message, ready));
   // A run that already waits for approval was made with the channels the playbook had (core run-playbook stores them).
   const runKeeps = result.run_waits ? ` · ${LIFECYCLE_WORDS.channels.runKeeps}` : "";
   return propose({

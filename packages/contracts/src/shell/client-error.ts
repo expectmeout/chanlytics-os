@@ -56,14 +56,14 @@ export function clientErrorOf(
   digest?: string | null,
   workspace?: string | null,
 ): ClientErrorInputDto {
-  const otherError = error instanceof Error ? error : new Error(String(error));
+  const asError = error instanceof Error ? error : new Error(String(error));
   const first = (page ?? "").split(/[/?#]/)[0] ?? "";
   return {
     boundary,
     page: PAGE.test(first) ? first : null,
-    name: (otherError.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
-    message: (otherError.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
-    stack: otherError.stack ? otherError.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,
+    name: (asError.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
+    message: (asError.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
+    stack: asError.stack ? asError.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,
     digest: digest ? digest.slice(0, CLIENT_ERROR_LIMITS.digest) : null,
     workspace: workspace && WORKSPACE.test(workspace) ? workspace : null,
   };

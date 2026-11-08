@@ -294,8 +294,8 @@ function turnsOf(dto: CallDto): LiveTurnVM[] {
       if (turn.role === "injected") {
         // The owner's words, not the frame around them -- or the platform's,
         // said as the platform's; injected turns carry no word timing.
-        const sentence = injectedTurn(turn.content);
-        return { speaker: sentence.speaker, text: sentence.text, t: "—" };
+        const injected = injectedTurn(turn.content);
+        return { speaker: injected.speaker, text: injected.text, t: "—" };
       }
       return {
         speaker: turn.role === "agent" ? "agent" : "client",
@@ -348,8 +348,8 @@ function summaryStateOf(context: {
 /** The call's turns, and the last thing the caller said: the last of their turns, else what a list's call carries in their place. */
 function turnsAndLastOf(dto: CallDto): Pick<LiveCallVM, "transcript" | "saidLast"> {
   const transcript = turnsOf(dto);
-  const sentence = [...transcript].reverse().find((t) => t.speaker === "client" && t.text);
-  return { transcript, saidLast: sentence ? sentence.text : (dto.said_last ?? null) };
+  const lastClientTurn = [...transcript].reverse().find((t) => t.speaker === "client" && t.text);
+  return { transcript, saidLast: lastClientTurn ? lastClientTurn.text : (dto.said_last ?? null) };
 }
 
 export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCallVM {

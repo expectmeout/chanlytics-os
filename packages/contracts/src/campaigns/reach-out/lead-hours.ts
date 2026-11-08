@@ -199,15 +199,15 @@ function saidWeekOf(hours: unknown): SaidDay[] | null {
     if (!e || typeof e !== "object") return null;
     const day = dayNameOf((e as { day?: unknown }).day);
     const words = (e as { hours?: unknown }).hours;
-    const sentence = day && typeof words === "string" ? saidDayOf(dayOf(words)) : null;
-    if (!day || !sentence) return null;
-    byDay.set(day, sentence);
+    const saidDay = day && typeof words === "string" ? saidDayOf(dayOf(words)) : null;
+    if (!day || !saidDay) return null;
+    byDay.set(day, saidDay);
   }
   const week: SaidDay[] = [];
   for (const d of DAYS) {
-    const sentence = byDay.get(d);
-    if (!sentence) return null;
-    week.push(sentence);
+    const saidDay = byDay.get(d);
+    if (!saidDay) return null;
+    week.push(saidDay);
   }
   return week;
 }
