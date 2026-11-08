@@ -131,7 +131,7 @@ const STANDING_TEXT_MAX = 300;
 const STANDING_LIST_MAX = 10;
 /** What a read says when Meta answered and the answer holds no word for what the number may do (a Graph result's own sentence, never a refusal's code). */
 const NO_HEALTH_STATUS = "the answer holds no health_status";
-const graphList = (v: unknown): unknown[] => (Array.isArray(v) ? (v as unknown[]) : []);
+const graphList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const graphText = (v: unknown): string | null =>
   typeof v === "string" && v.trim() ? v.trim().slice(0, STANDING_TEXT_MAX) : null;
 

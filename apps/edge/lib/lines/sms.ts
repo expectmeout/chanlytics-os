@@ -130,7 +130,7 @@ export async function refreshLineToken(
     },
   );
   if (result.outcome !== "ok") return refreshRefusal(log, result);
-  const body = answerObject(result) as { auth_token?: unknown } | null;
+  const body = answerObject(result);
   const token = typeof body?.auth_token === "string" && body.auth_token ? body.auth_token : null;
   if (!token)
     return { ok: false, error: "no_token", detail: "the provider did not return a token for this subaccount" };

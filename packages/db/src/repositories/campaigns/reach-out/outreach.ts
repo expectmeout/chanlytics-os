@@ -100,15 +100,10 @@ export async function getOutreachFacts(
     // the followers leave the lead out, both in SQL.
     stopped: outreachFacts.stopped === true,
     mailbox:
-      outreachFacts.mailbox &&
-      typeof outreachFacts.mailbox === "object" &&
-      typeof (outreachFacts.mailbox as { id?: unknown }).id === "string"
+      outreachFacts.mailbox && typeof outreachFacts.mailbox === "object" && typeof outreachFacts.mailbox.id === "string"
         ? {
-            id: (outreachFacts.mailbox as { id: string }).id,
-            address:
-              typeof (outreachFacts.mailbox as { address?: unknown }).address === "string"
-                ? (outreachFacts.mailbox as { address: string }).address
-                : "",
+            id: outreachFacts.mailbox.id,
+            address: typeof outreachFacts.mailbox.address === "string" ? outreachFacts.mailbox.address : "",
             ...mailboxCapacityFrom(outreachFacts.mailbox),
           }
         : null,
@@ -474,7 +469,7 @@ export async function listRepliesFor(
   ]);
   if (leads.error) throw new Error(`cannot read the replies' leads: ${leads.error.message}`);
   if (sends.error) throw new Error(`cannot read the replies' emails: ${sends.error.message}`);
-  const business = new Map((leads.data ?? []).map((l) => [l.id, l.business_name as string | null]));
+  const business = new Map((leads.data ?? []).map((l) => [l.id, l.business_name]));
   const step = new Map((sends.data ?? []).map((s) => [s.id, s]));
   return rows.map(({ lead_id, send_id, ...r }) => ({
     ...r,

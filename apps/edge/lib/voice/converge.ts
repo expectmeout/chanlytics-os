@@ -239,7 +239,7 @@ async function applyOne(
   if (before.is_published === true && working !== null) {
     const draft = await createAgentVersion(cfg, agentId, working);
     if (!draft.ok) return { step: "create_version", status: draft.status, body: draft.body };
-    working = typeof draft.body?.version === "number" ? (draft.body.version as number) : working;
+    working = typeof draft.body?.version === "number" ? draft.body.version : working;
     out.draft_version = working;
   }
   if (shell?.plan.llmPatch) {

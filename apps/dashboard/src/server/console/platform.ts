@@ -107,7 +107,7 @@ export async function getPlatformHealth(office: BackOffice, now = new Date()): P
       () => ({ data: null, error: { message: "unreadable" } }),
     ),
   ]);
-  const rows = (!health.error && Array.isArray(health.data) ? health.data : []) as SweepHealthRow[];
+  const rows = !health.error && Array.isArray(health.data) ? health.data : [];
   const due = !backlog.error && typeof backlog.data === "number" ? backlog.data : null;
   return platformHealthOf(rows, due, now);
 }

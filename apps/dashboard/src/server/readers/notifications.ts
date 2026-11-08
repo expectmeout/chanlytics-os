@@ -74,7 +74,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
             // The holds' threads among them: the bell draws a hold that still waits as its own row (bellOlderOf).
             holdKinds: kindsEndedBy("hold"),
           })
-        : Promise.resolve({ unread: 0, holdThreads: [] as string[] });
+        : Promise.resolve({ unread: 0, holdThreads: [] });
     const [marks, older] = await Promise.all([
       ids.length ? listNotificationMarks(sb, rc.userId, ids) : Promise.resolve({ data: [], error: null }),
       olderRead,

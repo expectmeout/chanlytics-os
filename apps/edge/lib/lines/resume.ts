@@ -150,7 +150,7 @@ export async function countAutomaticResume(
   db: Db,
   row: LineDbRow,
 ): Promise<{ ok: true; row: LineDbRow } | { ok: false; error: string }> {
-  const facts = { ...factsOf(row), automatic_resumes: automaticResumesOf(row) + 1 } as Json;
+  const facts = { ...factsOf(row), automatic_resumes: automaticResumesOf(row) + 1 };
   // Selected and counted: an update that matched nothing (a line that is not this workspace's, a row gone) does not
   // raise, and a try that was not written down is one the bound never sees.
   const { data, error } = await saveLineFacts(db, row, facts);

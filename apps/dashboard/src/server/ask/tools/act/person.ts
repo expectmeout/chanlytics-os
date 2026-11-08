@@ -70,8 +70,7 @@ async function proposePersonMode(
   // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
   if (!offeredTo(modeAction, toolContext.role)) return refuse(proposalBelowNeeds("person_mode"));
   const mode = str(input.mode, 10);
-  if (!(["inherit", ...PERSON_MODES] as string[]).includes(mode))
-    return refuse("mode must be auto, ask, never or inherit");
+  if (!["inherit", ...PERSON_MODES].includes(mode)) return refuse("mode must be auto, ask, never or inherit");
   const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
   const { data: pol, error: polErr } = await findPersonReplyModeRow(

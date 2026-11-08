@@ -239,7 +239,7 @@ const THINKING: ReadonlySet<string> = new Set(THINKING_TYPES);
  * GATEWAY_BETAS lists, each once.
  */
 function extrasOf(r: Partial<GatewayRequest>): Pick<GatewayRequest, "speed" | "thinking" | "betas"> {
-  const type = r.thinking && typeof r.thinking === "object" ? (r.thinking as { type?: unknown }).type : undefined;
+  const type = r.thinking && typeof r.thinking === "object" ? r.thinking.type : undefined;
   const betas = Array.isArray(r.betas) ? [...new Set(r.betas.filter((b) => GATEWAY_BETAS.includes(b)))] : [];
   return {
     ...(r.speed === "fast" ? { speed: "fast" as const } : {}),
@@ -292,7 +292,7 @@ type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
 const MESSAGE_ID = /^msg_[A-Za-z0-9_-]{1,120}$/;
 function diagnosticsOf(raw: unknown): { diagnostics?: { previous_message_id: string | null } } {
   if (!raw || typeof raw !== "object" || !("previous_message_id" in raw)) return {};
-  const id = (raw as { previous_message_id: unknown }).previous_message_id;
+  const id = raw.previous_message_id;
   if (id === null) return { diagnostics: { previous_message_id: null } };
   return typeof id === "string" && MESSAGE_ID.test(id) ? { diagnostics: { previous_message_id: id } } : {};
 }
@@ -393,7 +393,7 @@ export function validateGatewayRequest(
   }
   const oc =
     gatewayRequest.output_config && typeof gatewayRequest.output_config === "object"
-      ? (gatewayRequest.output_config as { effort?: unknown; format?: unknown })
+      ? gatewayRequest.output_config
       : null;
   const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as ModelEffort) : null;
   const ceiling = ceilingOf(purpose, effortInForce(gatewayRequest.messages, effort));

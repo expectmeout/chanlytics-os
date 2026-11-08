@@ -212,8 +212,8 @@ async function retireForTheRewrite(
     messageIds: [old.id],
     reason: { reason: "steered", replaced_by: newId },
   }).then(
-    (ids) => ({ ids, error: null as string | null }),
-    (e: unknown) => ({ ids: [] as string[], error: failed(e) }),
+    (ids) => ({ ids, error: null }),
+    (e: unknown) => ({ ids: [], error: failed(e) }),
   );
   if (retired.ids.length) return null;
   const lost = retired.error === null;

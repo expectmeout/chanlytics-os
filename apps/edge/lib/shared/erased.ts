@@ -30,11 +30,7 @@ async function erasedTombstones(db: Db, tenantId: string, phones: string[]): Pro
   const hashes = [...byHash.keys()];
   const { data, error } = await listErasedByPhone(db, tenantId, hashes);
   if (error) throw new Error(`erased_tombstones: ${error.message}`);
-  for (const row of (data ?? []) as {
-    erased_phone_hash: string | null;
-    erased_at: string | null;
-    erasing_since: string | null;
-  }[]) {
+  for (const row of data ?? []) {
     const phone = row.erased_phone_hash ? byHash.get(row.erased_phone_hash) : undefined;
     if (phone) out.set(phone, { erased_at: row.erased_at, erasing_since: row.erasing_since });
   }
@@ -76,7 +72,7 @@ export async function wasErasedBeforeEmail(
   if (!digest) throw new Error("erased_tombstones: the database made no digest of the address");
   const { data, error } = await listErasedByEmail(db, tenantId, digest);
   if (error) throw new Error(`erased_tombstones: ${error.message}`);
-  return ((data ?? []) as Tombstone[]).some((t) => {
+  return (data ?? []).some((t) => {
     const since = t.erasing_since ?? t.erased_at;
     return !!since && Date.parse(receivedAtIso) < Date.parse(since);
   });

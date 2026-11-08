@@ -103,7 +103,7 @@ function rehearsalOf(read: ReadRow): RehearsalRow {
   return {
     id: read.id,
     tenant_id: read.tenant_id,
-    kind: read.kind as RehearsalRow["kind"],
+    kind: read.kind,
     retell_call_id: read.retell_call_id,
     call_id: read.call_id,
     agent_id: read.agent_id,

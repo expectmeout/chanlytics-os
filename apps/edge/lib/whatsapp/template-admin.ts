@@ -71,9 +71,9 @@ export async function createWhatsappTemplate(
   const name = typeof body.name === "string" ? body.name : "";
   const language = typeof body.language === "string" ? body.language : "";
   const category = typeof body.category === "string" ? body.category.toUpperCase() : "";
-  const components = Array.isArray(body.components) ? (body.components as MetaTemplateComponent[]) : null;
+  const components = Array.isArray(body.components) ? body.components : null;
   const text = typeof body.body === "string" ? body.body : null;
-  const examples = Array.isArray(body.examples) ? (body.examples as unknown[]).map(String) : [];
+  const examples = Array.isArray(body.examples) ? body.examples.map(String) : [];
   // The words a person gave each slot, kept on the row so the composers can say them.
   const labels = Array.isArray(body.labels)
     ? body.labels.map((l: unknown) =>

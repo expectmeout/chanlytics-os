@@ -227,7 +227,7 @@ being read is dropped by a migration.
 | `lead_addresses_suppressed` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts`; SQL `lead_address_suppressed` | The never-again list for addresses (Reach out Part 5, G9): |
 | `lead_allowance` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts`; SQL `lead_check_commit`, `lead_member_move` and 2 more | The leads a workspace may count this month (00512, decision 0090): |
 | `lead_blank` | the server's | the server | SQL `lead_erase`, `leads_erase_on_contact` and 1 more | Removes everything that names or reaches a place, and its memberships' judgments, a reach-out's opening, angle and note written from it, and a preference's example copied from it (00391), a reach-out' |
-| `lead_bulk` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/lead-searches/chosen/route.ts`, `apps/dashboard/app/api/v1/leads/bulk/route.ts` and 3 more | Operator for contacted and not_a_fit; |
+| `lead_bulk` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/lead-searches/chosen/route.ts`, `apps/dashboard/app/api/v1/leads/bulk/route.ts` and 2 more | Operator for contacted and not_a_fit; |
 | `lead_cap` | the server's | the server | SQL `lead_allowance`, `lead_member_move` and 8 more | The lead finder's caps, the one place SQL writes them (00272): |
 | `lead_card_live` | door | a signed-in person, the server | SQL `lead_people_search_create` | Whether a card finds leads now (00430): |
 | `lead_cards_live` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts`; SQL `lead_card_live` | The cards that find leads now (lead_platform.cards_on, 00430): |
@@ -292,7 +292,7 @@ being read is dropped by a migration.
 | `lead_search_rename` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/workbench.ts` | Operator. Renames a search; |
 | `lead_search_undo` | door | a signed-in person, the server | code `apps/dashboard/src/surfaces/leads/surface.ts`, `packages/db/src/repositories/leads/workbench.ts` | Owner (permission find). |
 | `lead_searches_on` | the server's | the server | code `apps/dashboard/src/server/leads/plan-facts.ts`, `apps/edge/lib/leads/db.ts`; SQL `lead_addressee_choose`, `lead_check_again` and 4 more | Whether this workspace may search: |
-| `lead_set_stage` | door | a signed-in person, the server | code `apps/dashboard/src/server/leads/work.ts`, `packages/contracts/src/people/person-page/call.ts` and 1 more; SQL `person_call_logged`, `reach_out_send_decide` | Operator. The one door for a lead's stage, its six call outcomes, "Did you send it?" and Not a fit. |
+| `lead_set_stage` | door | a signed-in person, the server | code `packages/contracts/src/people/person-page/call.ts`, `packages/db/src/repositories/leads/workbench.ts`; SQL `person_call_logged`, `reach_out_send_decide` | Operator. The one door for a lead's stage, its six call outcomes, "Did you send it?" and Not a fit. |
 | `lead_settle_usage` | the server's | the server | SQL `lead_check_commit`, `lead_collect_commit` and 2 more | A run's new usage, settled against the month's budget and both day counters -- the round's own day and the platform_day it reserved in: |
 | `lead_site_key` | the server's | the server | SQL `lead_company_upsert`, `reach_out_record` |  |
 | `lead_site_reads_spent` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | What reading businesses' own sites cost, spent when read (00541): |

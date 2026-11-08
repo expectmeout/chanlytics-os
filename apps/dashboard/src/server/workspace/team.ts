@@ -139,7 +139,7 @@ export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: stri
     role: m.role,
     joined_at: m.joined_at ?? null,
   }));
-  return { members: roster, invites: (invites.data ?? []) as OpenInvite[] };
+  return { members: roster, invites: invites.data ?? [] };
 }
 
 export async function inviteMember(

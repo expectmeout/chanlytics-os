@@ -75,7 +75,7 @@ export async function getDuePlaybooks(
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the playbooks due: ${error.message}`);
-  const rows = (data ?? []) as Array<{ step: Json; timezone: string; due_total: number }>;
+  const rows = data ?? [];
   return {
     // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
     rows: rows.map((r) => ({ step: r.step as StepRow, timezone: r.timezone })),
@@ -131,13 +131,7 @@ export async function getDueCalendars(
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
-  const rows = (data ?? []) as Array<{
-    tenant_id: string;
-    config: Json;
-    timezone: string;
-    due_total: number;
-    failed_since?: string | null;
-  }>;
+  const rows = data ?? [];
   return {
     rows: rows.map((r) => ({
       tenant_id: r.tenant_id,

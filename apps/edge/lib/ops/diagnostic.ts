@@ -170,7 +170,7 @@ async function pagerMemory(): Promise<Section> {
     if (!db) return { pages: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
     const { data, error } = await listOperatorPages(db);
     if (error) return { pages: { error: error.message.slice(0, 200) } };
-    const rows = (data ?? []) as PageRow[];
+    const rows = data ?? [];
     return { pages: { ok: untoldPages(rows).length === 0, untold: untoldPages(rows), conditions: pageStates(rows) } };
   } catch (e) {
     return { pages: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };

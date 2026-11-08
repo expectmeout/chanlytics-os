@@ -352,7 +352,7 @@ export function planRecord(
   // registrationPathOf in contracts for the invariant that makes it so.
   const request = typeof rawPath === "string" ? rawPath : "";
   const path: RegistrationPath = isOneOf(REGISTRATION_PATHS, request)
-    ? (request as RegistrationPath)
+    ? request
     : (registrationPathOf({ ein: str("ein") }) ?? "standard");
 
   // Stored as the path files it: a sole-proprietor record keeps NO tax id, so

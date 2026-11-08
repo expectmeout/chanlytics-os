@@ -56,7 +56,7 @@ export async function sequenceOnCard(
 }
 
 export const isRefusal = <T>(x: T | { refusal: string }): x is { refusal: string } =>
-  !!x && typeof x === "object" && "refusal" in (x as object);
+  !!x && typeof x === "object" && "refusal" in x;
 
 /** The act offered in place of one refused, as this tool's actions name it, for the model. */
 const INSTEAD: Record<SequenceAct, string> = {

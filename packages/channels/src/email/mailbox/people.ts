@@ -56,7 +56,7 @@ async function googlePage(token: string, url: string, field: string, deps?: Deps
   );
   if (response.outcome !== "ok") return { ok: false, reply: response };
   const json = recordOrNull(response.json);
-  const list = Array.isArray(json?.[field]) ? (json[field] as Parameters<typeof googlePersonOf>[0][]) : [];
+  const list = Array.isArray(json?.[field]) ? json[field] : [];
   return {
     ok: true,
     people: list.map(googlePersonOf),

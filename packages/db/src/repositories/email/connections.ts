@@ -106,7 +106,7 @@ export async function connectMailbox(
     p_customer_domain: params.customerDomain,
   });
   if (error) {
-    const hint = (error as { hint?: string }).hint ?? "";
+    const hint = error.hint ?? "";
     if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
     throw new Error(`cannot connect the mailbox: ${error.message}`);
   }
@@ -144,7 +144,7 @@ export async function putMailboxCredentials(
   });
   if (error) {
     // The token changed since it was read (a reconnect stored meanwhile): that one is kept.
-    if ((error as { code?: string }).code === "40001") return "changed";
+    if (error.code === "40001") return "changed";
     throw new Error(`cannot store the mailbox's token: ${error.message}`);
   }
   return "stored";

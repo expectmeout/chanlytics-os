@@ -75,7 +75,7 @@ export async function importAgain(
       if (!connection) continue;
       await startHistory(db, {
         tenantId,
-        source: source as ImportSource,
+        source: source,
         connectionId: connection,
         via: row.via,
         again: true,

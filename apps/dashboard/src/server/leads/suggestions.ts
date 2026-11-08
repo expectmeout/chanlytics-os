@@ -152,7 +152,7 @@ async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: st
 
 /** The ideas a row keeps: each with its words and its kind. One kept before plans were written has none to open. */
 function keptIdeas(kept: SuggestionRow | null): LeadIdeaDto[] {
-  const items = kept && Array.isArray(kept.items) ? (kept.items as Partial<LeadIdeaDto>[]) : [];
+  const items = kept && Array.isArray(kept.items) ? kept.items : [];
   return items
     .flatMap((i) =>
       i && typeof i.words === "string" && typeof i.category_key === "string"

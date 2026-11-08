@@ -106,7 +106,7 @@ export async function findDelivery(
     .eq("subscriber", subscriber)
     .maybeSingle();
   if (error) throw new Error(`event_deliveries: ${error.message}`);
-  return data as DeliveryRow | null;
+  return data;
 }
 
 /** The delivery's verdict after a run: done, failed with why, or paused because its subscription was. */

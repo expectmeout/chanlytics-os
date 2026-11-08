@@ -408,7 +408,7 @@ export async function sweepEndedLines(
   if (tenants.error) throw new Error(`reading workspaces: ${tenants.error.message}`);
   if (lines.error) throw new Error(`reading lines: ${lines.error.message}`);
   const tenantOf = new Map((tenants.data ?? []).map((t) => [t.id, t]));
-  const rows = (lines.data ?? []) as LineDbRow[];
+  const rows = lines.data ?? [];
   /** The owner's own number that forwards to this one, when one does. */
   const forwardedTo = (tenantId: string, e164: string | null) =>
     rows.find(

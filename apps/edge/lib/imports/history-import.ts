@@ -309,7 +309,7 @@ export async function startWhatsappHistory(
   params: { tenantId: string; channelId: string; nowMs: number; log: Logger },
 ): Promise<void> {
   const run = String(params.nowMs);
-  const cursor = { channel: params.channelId, connected_at: new Date(params.nowMs).toISOString() } as Json;
+  const cursor = { channel: params.channelId, connected_at: new Date(params.nowMs).toISOString() };
   try {
     for (const source of ["whatsapp_contacts", "whatsapp_history"] as const) {
       await noteImport(db, {

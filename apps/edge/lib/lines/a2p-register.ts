@@ -478,7 +478,7 @@ function receiptSaver(db: Db, line: LineRow, facts: Record<string, unknown>): A2
       }
     }
     if (touchedFacts) row.facts = facts;
-    const { error } = await saveLineRow(db, line, row as Database["public"]["Tables"]["lines"]["Update"]);
+    const { error } = await saveLineRow(db, line, row);
     if (error) throw new Error(`keeping the registration's receipt: ${error.message}`);
   };
 }

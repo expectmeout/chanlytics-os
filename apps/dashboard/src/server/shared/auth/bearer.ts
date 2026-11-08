@@ -35,7 +35,7 @@ type BearerVerifier = (token: string) => Promise<BearerVerdict>;
 const real: BearerVerifier = async (token) => {
   const supabase = createBearerClient(token);
   const { data, error } = await supabase.auth.getClaims(token);
-  return { supabase, claims: (data?.claims as Record<string, unknown> | undefined) ?? null, error: error ?? null };
+  return { supabase, claims: data?.claims ?? null, error: error ?? null };
 };
 
 let verifier: BearerVerifier = real;

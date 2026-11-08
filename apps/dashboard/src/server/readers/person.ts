@@ -223,7 +223,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       if (!convIds.length) {
         return {
           byConv: new Map<string, MessageDto[]>(),
-          escalations: [] as PersonEscalationDto[],
+          escalations: [],
           decisions: await listPersonDecisions(sb, tenantId, id, []),
         };
       }
@@ -321,7 +321,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       // The booking link, so the profile can text it in one step. The workspace's config, read once in a turn: a read
       // that fails is kept, not thrown here, and checked below, in the route's order.
       load(rc, facts.config, undefined).then(
-        (r) => ({ data: r.data, error: null as Error | null }),
+        (r) => ({ data: r.data, error: null }),
         (e: unknown) => ({ data: null, error: e instanceof Error ? e : new Error(String(e)) }),
       ),
       // Every change to either answer: the ledger rows the doors write, which

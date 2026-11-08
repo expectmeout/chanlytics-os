@@ -78,7 +78,7 @@ export async function mayWorkspaceSpend(db: Db, tenantId: string, kind: SpendKin
   if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   if (tenant.data?.status === "paused" || !billing.data) return false;
-  return maySpend(billing.data.mode as BillingMode, billing.data.status as BillingStatus, kind);
+  return maySpend(billing.data.mode, billing.data.status, kind);
 }
 
 /** The workspace's own words about what it does (business_records.about, 00152), for the writer. */

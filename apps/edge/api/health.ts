@@ -39,7 +39,7 @@ export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ sta
       body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "health_unreadable" },
     };
   }
-  const rows = (Array.isArray(health.data) ? health.data : []) as SweepHealthRow[];
+  const rows = Array.isArray(health.data) ? health.data : [];
   const jobs_backlog = backlog.error ? null : typeof backlog.data === "number" ? backlog.data : null;
   // ONE JUDGEMENT, shared with the back office, so an outside monitor and the
   // person reading the page cannot reach different conclusions from the same

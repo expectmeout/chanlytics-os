@@ -26,7 +26,7 @@ export async function importAgain(
     { tenant_id: tenantId, user_id: userId, source: input.source },
     { workspace: tenantId, user: userId, timeoutMs: AGAIN_TIMEOUT_MS },
   );
-  const second = answer.body as { ok?: boolean; detail?: unknown; error?: unknown } | null;
+  const second = answer.body;
   if (answer.status === 200 && second?.ok) return { ok: true };
   log.warn("import_again_failed", {
     tenant_id: tenantId,

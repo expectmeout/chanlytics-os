@@ -87,7 +87,7 @@ export async function listSequencePlaces(
   const { data, error } = await db.rpc("sequence_places_of", { p_tenant_id: tenantId, p_lead_ids: [...leadIds] });
   if (error) throw new Error(`cannot read where the leads stand: ${error.message}`);
   const rows: unknown = data;
-  return Array.isArray(rows) ? withListedWhyNot(db, tenantId, rows as SequencePlaceOfDto[]) : [];
+  return Array.isArray(rows) ? withListedWhyNot(db, tenantId, rows) : [];
 }
 
 /** What a sequence sent, a batch a row, newest first (00442 sequence_history). */

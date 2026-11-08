@@ -68,7 +68,7 @@ export async function submitDraft(ctx: RouteContext, member: Member, body: Templ
     category: typeof body?.category === "string" ? body.category : "",
     body: typeof body?.body === "string" ? body.body : "",
     footer: typeof body?.footer === "string" ? body.footer : null,
-    examples: Array.isArray(body?.examples) ? (body.examples as unknown[]).map(String) : [],
+    examples: Array.isArray(body?.examples) ? body.examples.map(String) : [],
     // One static URL button, its address the workspace's own booking link. The
     // draft check refuses a value in either half, because a button that takes
     // one needs a parameter `sendTemplate` never sends.
@@ -88,7 +88,7 @@ export async function submitDraft(ctx: RouteContext, member: Member, body: Templ
   if (dup) throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);
 
   const labels = Array.isArray(body?.labels)
-    ? (body.labels as unknown[]).map((l) =>
+    ? body.labels.map((l) =>
         String(l ?? "")
           .trim()
           .slice(0, 40),

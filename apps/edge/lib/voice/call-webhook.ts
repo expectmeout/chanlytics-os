@@ -238,10 +238,10 @@ function readDelivery(raw: string): Delivery | null {
   const callKeys = Object.keys(recordOrEmpty(call));
   if (event === "transcript_updated") {
     if (!call.transcript_with_tool_calls && Array.isArray(top.transcript_with_tool_calls)) {
-      call.transcript_with_tool_calls = top.transcript_with_tool_calls as RetellCall["transcript_with_tool_calls"];
+      call.transcript_with_tool_calls = top.transcript_with_tool_calls;
     }
     if (!call.transcript_object && Array.isArray(top.transcript_object)) {
-      call.transcript_object = top.transcript_object as RetellCall["transcript_object"];
+      call.transcript_object = top.transcript_object;
     }
     if (!call.transcript && typeof top.transcript === "string") call.transcript = top.transcript;
     if (!call.transcript_object && !call.transcript_with_tool_calls && call.transcript) {
@@ -321,7 +321,7 @@ async function routeDelivery(db: Db, input: { agentId: string | null; retellCall
     log.error("retell_call_row_unreadable", { call_id: input.retellCallId, error: error.message });
     return { channel: null, lookupFailed: true };
   }
-  const agentId = (data as { agent_id?: string | null } | null)?.agent_id ?? null;
+  const agentId = data?.agent_id ?? null;
   return agentId ? resolveChannelDetailed(db, "voice", agentId) : { channel: null, lookupFailed: false };
 }
 

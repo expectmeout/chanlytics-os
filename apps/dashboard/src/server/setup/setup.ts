@@ -174,7 +174,7 @@ function teamSection(team: SetupReads["team"], cfg: SetupConfig["cfg"]): SetupDt
       "members" in team && Array.isArray(team.members)
         ? team.members.filter((m) => m.role !== "partner").length
         : (team as { members: number }).members,
-    invitesOpen: "invites" in team ? team.invites.length : (team as { invitesOpen: number }).invitesOpen,
+    invitesOpen: "invites" in team ? team.invites.length : team.invitesOpen,
     alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
     // The partner who sits on the team (0012), by the name the roster already carries: on the member's own
     // read only. The back office reads counts, never the roster, so its team stays three numbers.

@@ -59,7 +59,7 @@ export async function readPartnerAccount(
     getPartnerBroughtCount(ctx.supabase, row.id),
     getPartnerLetters(ctx.supabase),
   ]);
-  return { partner: { ...(row as PartnerDto), brought, letters }, balance };
+  return { partner: { ...row, brought, letters }, balance };
 }
 
 /** Postgres error codes partner_become raises deliberately, mapped to the wire. */

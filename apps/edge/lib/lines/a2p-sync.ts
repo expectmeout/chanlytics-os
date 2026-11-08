@@ -186,7 +186,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   const reason = refusing
     ? (refusalWords({
         brandFailureReason: typeof brand?.failure_reason === "string" ? brand.failure_reason : null,
-        campaignErrors: Array.isArray(usa2p?.errors) ? (usa2p.errors as CampaignError[]) : null,
+        campaignErrors: Array.isArray(usa2p?.errors) ? usa2p.errors : null,
       }) ?? "the carriers sent the registration back")
     : null;
   const notice = await tellThenKeep(db, line, { smsState, mock, reason });

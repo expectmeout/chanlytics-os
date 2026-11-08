@@ -59,7 +59,7 @@ import { holdsOf, sheetWords } from "./playbook-card";
 /** The values a proposal fills the message's slots with: typed text once, or one the job fills per person; or the refusal. */
 function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: string } {
   const specs: ParamSpec[] = [];
-  for (const item of Array.isArray(params) ? (params as unknown[]) : []) {
+  for (const item of Array.isArray(params) ? params : []) {
     const spec = parseParamSpec(item);
     if (!spec) return { refusal: "each value is text, or @first_name, @business_name, @booking_link or @review_link" };
     if (spec.kind !== "text") {

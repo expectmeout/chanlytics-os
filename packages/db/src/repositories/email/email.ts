@@ -389,7 +389,7 @@ export async function stampEmailSent(
     p_rfc_message_id: params.rfcMessageId,
   });
   if (error) throw new Error(`stamp_email_sent: ${error.message}`);
-  const row = (data as Array<{ status: string; conversation_id: string }> | null)?.[0];
+  const row = data?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
 

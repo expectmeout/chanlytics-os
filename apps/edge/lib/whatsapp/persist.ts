@@ -591,7 +591,7 @@ export function pgSink(
             const result = isLinkedMedia(ref)
               ? await fetchLinkedMedia(ref.url, publicFetcher())
               : await whatsappMediaOf(rt, ref, { tenant_id: tenantId, message: ing.message_id });
-            const mediaOut = { ...ref } as Record<string, unknown>;
+            const mediaOut = { ...ref };
             if (result) {
               const ext = MIME_EXT[result.mime || ""] || "bin";
               const path = `${tenantId}/${ing.conversation_id}/${ing.message_id}.${ext}`;

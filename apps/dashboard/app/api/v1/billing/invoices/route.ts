@@ -18,6 +18,6 @@ export const GET = read({
         answer.status === 503 ? 503 : 502,
       );
     }
-    return { invoices: body.invoices as BillingInvoiceDto[] };
+    return { invoices: body.invoices };
   },
 });

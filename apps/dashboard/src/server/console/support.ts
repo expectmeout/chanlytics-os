@@ -141,7 +141,7 @@ export async function listReportsSince(
 ): Promise<SupportReportDto[]> {
   const { data, error } = await listReports(office.db, { ...input, limit: input.limit ?? BOOK_ROWS });
   if (error) throw new Error(error.message);
-  const rows = (data ?? []) as ReportRow[];
+  const rows = data ?? [];
   if (rows.length >= (input.limit ?? BOOK_ROWS)) log.error("platform_console_read_failed", { read: "reports_capped" });
   const person = await whoSent(
     office,

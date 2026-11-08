@@ -532,7 +532,7 @@ async function cookieSession() {
   const { data: verified, error } = await supabase.auth.getClaims();
   return {
     supabase,
-    claims: (verified?.claims as Record<string, unknown> | undefined) ?? null,
+    claims: verified?.claims ?? null,
     error: error ?? null,
   };
 }

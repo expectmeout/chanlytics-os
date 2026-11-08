@@ -1489,8 +1489,9 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   );
   assert.ok(
     // The write is packages/db's (decision 0111): the turn's content, and nothing else.
-    store.includes("saveAskTurnContent(ctx.supabase, messageId, jsonCopyOf({ ...content, proposals: next }))") &&
-      readCode("packages/db/src/repositories/ask/threads.ts").includes('.update({ content }).eq("id", turnId)'),
+    /saveAskTurnContent\(\s*ctx\.supabase,\s*messageId,\s*jsonCopyOf\(\{ \.\.\.content, proposals: next \}\),?\s*\)/.test(
+      store,
+    ) && readCode("packages/db/src/repositories/ask/threads.ts").includes('.update({ content }).eq("id", turnId)'),
     "the one column the grant allows",
   );
   const m = readRaw("supabase/migrations/00041_ask_proposal_outcomes.sql");

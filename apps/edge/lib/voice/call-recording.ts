@@ -237,7 +237,7 @@ export async function copyRecording(
       // like any other, so such a copy ends failed instead of returning for
       // ever; the bucket being down (a 5xx, or no status at all) is not the
       // file's fault and spends none.
-      const status = (error as { status?: unknown }).status;
+      const status = error.status;
       const message = String(error.message).slice(0, 200);
       const refused = typeof status === "number" && status >= 400 && status < 500;
       const slug = `storage_${typeof status === "number" ? status : "unreachable"}`;

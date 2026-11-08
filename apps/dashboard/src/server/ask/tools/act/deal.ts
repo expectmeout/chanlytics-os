@@ -169,7 +169,7 @@ async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<
   if ("result" in moved) return moved;
   const { sameRow, service } = moved;
   noteRow(toolContext, "person", id, otherPersonName, `clients/${id}`);
-  const words = DEAL_STAGE_WORDS[stage as DealStage];
+  const words = DEAL_STAGE_WORDS[stage];
   // A proposal's value is said as a client's is (0008), and the card says where the link lives and why they passed.
   const money = amount !== null ? amountWords(amount, per) : null;
   const otherReason = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;

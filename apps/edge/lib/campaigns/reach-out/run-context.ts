@@ -114,7 +114,7 @@ export async function getReachOutRunContext(
     findWorkspaceZoneStatus(db, row.tenant_id),
     // The one reading of "may this workspace spend on reach-out" (the check asks it too).
     mayWorkspaceSpend(db, row.tenant_id).then(
-      (spend) => ({ spend, error: null as string | null }),
+      (spend) => ({ spend, error: null }),
       (e: unknown) => ({ spend: false, error: e instanceof Error ? e.message : String(e) }),
     ),
     // Its sequence's mode (decision 0064), the one reading the dashboard's chains take too. Cold email never sends on
@@ -124,7 +124,7 @@ export async function getReachOutRunContext(
       (e: unknown) => ({ mode: "ask" as const, error: e instanceof Error ? e.message : String(e) }),
     ),
     stepOf(db, row).then(
-      (s) => ({ s, error: null as string | null }),
+      (s) => ({ s, error: null }),
       (e: unknown) => ({ s: null, error: e instanceof Error ? e.message : String(e) }),
     ),
   ]);
@@ -196,7 +196,7 @@ export async function getReachOutRunContext(
             recipients: run.recipient_count,
             mode: mode,
             reach_out: true,
-          } as Json,
+          },
         });
         // The run is whole already: a decision that could not be written is said, never the run's failure.
         if (error)

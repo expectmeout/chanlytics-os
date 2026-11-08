@@ -106,7 +106,7 @@ export async function listAnthropicProfileRows(db: Db): Promise<AnthropicProfile
   );
   return rows.map((row) => ({
     id: row.id,
-    kind: row.kind as AnthropicProfileKind,
+    kind: row.kind,
     user_id: row.user_id,
     tenant_id: row.tenant_id,
     reference_id: row.reference_id,

@@ -194,7 +194,7 @@ async function consentEventsOf(
       since,
     );
     if (error) throw new Error(error.message);
-    for (const e of (data ?? []) as { id: string; subject_id: string | null; data: unknown; created_at: string }[]) {
+    for (const e of data ?? []) {
       if (e.subject_id) out.push({ id: e.id, contactId: e.subject_id, at: e.created_at, data: e.data });
     }
   }

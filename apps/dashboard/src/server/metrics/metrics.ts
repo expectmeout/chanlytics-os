@@ -108,7 +108,7 @@ export async function findMetricsSummary(
   // dashboard deployed before its migration: either order works), and then after the function, which is the wait every
   // read of Today had beside it.
   // The day's midnight, as the function says it: an answer that names none is not the day's, and carries no bookings.
-  const since = (answered as Partial<MetricsSummaryDto>).window?.since;
+  const since = answered.window?.since;
   const [recent, bookings] = await Promise.all([
     !day ? null : (repliesOf(carried) ?? recentReplies(supabase, tenantId)),
     lately === undefined || !since ? undefined : lately && findBookedSince(supabase, tenantId, lately, since),

@@ -97,7 +97,7 @@ export function leadPipelineOver(wires: LeadWires): Pipeline {
         Array.isArray(leadIds) &&
         leadIds.length > 0 &&
         leadIds.every((x) => typeof x === "string" && UUID.test(x))
-          ? { nonce, leadIds: leadIds as string[] }
+          ? { nonce, leadIds: leadIds }
           : null;
       if ((nonce !== undefined || leadIds !== undefined) && !again)
         throw new Error(
