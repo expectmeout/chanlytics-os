@@ -28,6 +28,7 @@ import { publicFetcher } from "@chanlytics/channels/shared";
 import { fillerFeedFor } from "./filler-calendar";
 import { callEdge, edgeConfigured } from "../shared/edge";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long the edge has to read a calendar through a mailbox's grant: a few pages of each calendar. */
 const GRANT_FEED_MS = 20_000;
@@ -36,7 +37,7 @@ const GRANT_FEED_MS = 20_000;
  * A calendar read through a connected mailbox's grant (decision 0073, R20), as iCal: the edge holds the grant
  * (apps/edge/api/admin/calendar/feed.ts), so the dashboard asks it. Throws a refusal the cache keeps as a failed read.
  */
-async function grantFeedText(tenantId: string): Promise<string> {
+async function grantFeedText(tenantId: TenantId): Promise<string> {
   if (!edgeConfigured()) throw new FeedRefused("unreachable");
   const answer = await callEdge(
     "/api/admin/calendar/feed",
@@ -132,7 +133,7 @@ const asRead = (e: FeedEntry): FeedRead => ({
  * an old week is a double booking -- and neither does a Refresh.
  */
 export async function loadFeed(
-  tenantId: string,
+  tenantId: TenantId,
   url: string,
   opts: { fresh?: boolean; stale?: boolean } = {},
 ): Promise<FeedRead> {
@@ -164,7 +165,7 @@ export async function loadFeed(
 }
 
 /** Fetch the feed now and keep what came back: the text, or why not beside the last good text. */
-async function fetchInto(tenantId: string, url: string, hit: FeedEntry | undefined): Promise<FeedRead> {
+async function fetchInto(tenantId: TenantId, url: string, hit: FeedEntry | undefined): Promise<FeedRead> {
   const now = Date.now();
   try {
     // A calendar read through a mailbox's grant is the edge's to read (decision 0073, R20), and kept here as a link's.
@@ -216,7 +217,7 @@ export function forgetFeeds(): void {
   refreshing.clear();
 }
 
-async function fetchFeed(tenantId: string, url: string): Promise<string | null> {
+async function fetchFeed(tenantId: TenantId, url: string): Promise<string | null> {
   return (await loadFeed(tenantId, url)).text;
 }
 
@@ -280,7 +281,7 @@ function fmtWindow(start: number, end: number, tz: string): string {
  * read, since the bookings a tool emailed are subtracted beside the feed's (00345).
  */
 export async function getOpenings(
-  tenantId: string,
+  tenantId: TenantId,
   by: { day?: string | null; service?: string | null },
   now: Date,
   known: { timezone: string; config: unknown; taken: (daysAhead: number) => Promise<BusyBlock[]> },

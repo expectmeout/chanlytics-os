@@ -4,15 +4,17 @@
  * reads them), and the door the entry goes through (ask_journal_write's keep). Service role throughout: the sweep reads every
  * workspace's day and writes none of its rows.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, recordOrNull } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** One day handed over: its workspace, the day by its clock, the day's span as instants, and how the workspace speaks. */
 export interface AskJournalDueRow {
-  tenant_id: string;
+  tenant_id: TenantId;
   day: string;
   day_from: string;
   day_to: string;
@@ -35,7 +37,7 @@ export async function askJournalDue(db: Db, limit: number): Promise<AskJournalDu
     return text("tenant_id") && text("day")
       ? [
           {
-            tenant_id: text("tenant_id"),
+            tenant_id: heldTenantId(text("tenant_id")),
             day: text("day"),
             day_from: text("day_from"),
             day_to: text("day_to"),
@@ -77,7 +79,7 @@ export interface JournalEventRow {
  */
 export async function askJournalDayRows(
   db: Db,
-  params: { tenantId: string; from: string; to: string; limit: number },
+  params: { tenantId: TenantId; from: string; to: string; limit: number },
 ): Promise<{ decisions: JournalDecisionRow[]; events: JournalEventRow[] }> {
   let events = db
     .from("events")
@@ -126,7 +128,7 @@ export async function getJournalMemberNames(db: Db, userIds: readonly string[]):
  */
 export async function keepAskJournal(
   db: Db,
-  params: { tenantId: string; day: string; text: string | null; rowsRead: number; failed?: boolean },
+  params: { tenantId: TenantId; day: string; text: string | null; rowsRead: number; failed?: boolean },
 ): Promise<{ refused: string | null }> {
   const { data, error } = await db.rpc("ask_journal_write", {
     p_act: "keep",

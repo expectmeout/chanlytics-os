@@ -28,13 +28,14 @@ import {
 import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
 import { runWaitingCounts } from "./reach-out/sheet";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** A run found with nothing to send it: whose it is, and what its owner is told about it. */
 export interface StrandedRun {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   playbook_id: string | null;
   audience: unknown;
@@ -89,7 +90,7 @@ export async function listStrandedRuns(
  * (jobs settle.ts failBroadcast), so its page says so in those words. Only while it is still `scheduled`: a run that a
  * late job started, or its owner stopped, is left as it is. True iff this call moved it. Throws when it cannot be written.
  */
-export async function failStrandedRun(db: Db, params: { tenantId: string; id: string }): Promise<boolean> {
+export async function failStrandedRun(db: Db, params: { tenantId: TenantId; id: string }): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_batches")
     .update({ state: "failed", failure: "run_interrupted", finished_at: new Date().toISOString() })
@@ -129,7 +130,7 @@ async function waitingBy(db: Db, by: "run_for" | "offered_start", limit: number)
 /** A playbook's run waiting for approval, with the zone its day is told in: what the sweep asks of its day. */
 export interface WaitingPlaybookRun {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   state: BroadcastState;
   playbook_id: string;
@@ -194,7 +195,7 @@ export async function listWaitingPlaybookRuns(db: Db, params: { limit: number })
  */
 export async function cancelBroadcastFrom(
   db: Db,
-  params: { tenantId: string; id: string; from: SchemaSet<"sequence_batches.state"> },
+  params: { tenantId: TenantId; id: string; from: SchemaSet<"sequence_batches.state"> },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_batches")
@@ -211,7 +212,7 @@ export async function cancelBroadcastFrom(
 export async function recordSystemDecision(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     subjectType: SchemaSet<"decisions.subject_type">;
     subjectId: string;
     verb: SchemaSet<"decisions.verb">;
@@ -260,7 +261,7 @@ const WAITING_RUN_COLUMNS = "id, name, state, playbook_id:step_id, run_for, audi
  * as waiting on you (contracts runsThatWait, by the verb's own day rule, runHeldEmails and runDraftedEmails) and Ask's
  * today tool names. A read that fails throws.
  */
-export async function listWaitingRuns(db: Db, tenantId: string): Promise<WaitingRunRow[]> {
+export async function listWaitingRuns(db: Db, tenantId: TenantId): Promise<WaitingRunRow[]> {
   const [pending, going] = await Promise.all([
     db
       .from("sequence_batches")
@@ -290,7 +291,7 @@ export async function listWaitingRuns(db: Db, tenantId: string): Promise<Waiting
 }
 
 /** The state of each of these batches, by id, on the session's client: what a card about one is checked against. */
-export async function batchStatesOf(db: Db, tenantId: string, ids: readonly string[]): Promise<Map<string, string>> {
+export async function batchStatesOf(db: Db, tenantId: TenantId, ids: readonly string[]): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
   const { data, error } = await db
     .from("sequence_batches")
@@ -302,7 +303,7 @@ export async function batchStatesOf(db: Db, tenantId: string, ids: readonly stri
 }
 
 /** Which of these sends the check still holds, on the session's client: what a card about one is checked against. */
-export async function getHeldSends(db: Db, tenantId: string, ids: readonly string[]): Promise<Set<string>> {
+export async function getHeldSends(db: Db, tenantId: TenantId, ids: readonly string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   const { data, error } = await db
     .from("sequence_sends")
@@ -330,7 +331,12 @@ export interface GoingRunRow {
  * decides): what goes on its own unless stopped (contracts goingTodayOf, which keeps those on the business's day). A read
  * that fails throws.
  */
-export async function listRunsGoingBetween(db: Db, tenantId: string, from: Date, until: Date): Promise<GoingRunRow[]> {
+export async function listRunsGoingBetween(
+  db: Db,
+  tenantId: TenantId,
+  from: Date,
+  until: Date,
+): Promise<GoingRunRow[]> {
   const { data, error } = await db
     .from("sequence_batches")
     .select("id, name, state, playbook_id:step_id, scheduled_for, recipient_count, audience")
@@ -350,7 +356,7 @@ export async function listRunsGoingBetween(db: Db, tenantId: string, from: Date,
  * holds, so a run approved, sent or stopped is no longer listed as waiting (the wiring's second audit, R13 X5-1). On the
  * session's client (RLS decides). A read that fails throws.
  */
-export async function listRunsNamed(db: Db, tenantId: string, ids: readonly string[]): Promise<WaitingRunRow[]> {
+export async function listRunsNamed(db: Db, tenantId: TenantId, ids: readonly string[]): Promise<WaitingRunRow[]> {
   if (!ids.length) return [];
   const { data, error } = await db
     .from("sequence_batches")

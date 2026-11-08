@@ -42,11 +42,12 @@ import type { ClaimedJob, JobContext } from "@chanlytics/jobs";
 import { readWebsite, type WebsiteReadKept } from "../imports/website-read.js";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The website's reader, as a port: the real one, or a test's. */
-type SiteReader = (db: Db, tenantId: string, url: string, o: { deadline: number }) => Promise<WebsiteReadKept>;
+type SiteReader = (db: Db, tenantId: TenantId, url: string, o: { deadline: number }) => Promise<WebsiteReadKept>;
 
 /** The receptionist from the lead's listing, with what its site said worn; null where the lead gives it no name. */
 async function receptionistFromListing(
@@ -88,7 +89,7 @@ async function receptionistFromListing(
 }
 
 /** The receptionist written on the preview's workspace, through the settings' write schema and its version. */
-async function writeReceptionist(db: Db, tenantId: string, brain: BrainConfig): Promise<void> {
+async function writeReceptionist(db: Db, tenantId: TenantId, brain: BrainConfig): Promise<void> {
   const row = await getTenantConfig(db, tenantId);
   const parsed = row ? parseTenantConfigResult(row.config) : null;
   if (!row || !parsed?.ok) throw new Error("preview_build: the preview's config could not be read");

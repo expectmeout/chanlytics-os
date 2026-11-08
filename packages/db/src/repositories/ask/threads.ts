@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -13,7 +14,7 @@ const TURN_COLUMNS =
   "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, files:content->files, opened:content->opened, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering, shape:content->shape";
 
 /** The member's threads in the workspace, but the mornings' own of the last day (`morningsSince`), newest first. */
-export const listAskThreads = async (db: Db, tenantId: string, morningsSince: string, limit: number) =>
+export const listAskThreads = async (db: Db, tenantId: TenantId, morningsSince: string, limit: number) =>
   db
     .from("ask_threads")
     .select("id, title, scope, last_at, created_at, ask_mornings(made_at)")

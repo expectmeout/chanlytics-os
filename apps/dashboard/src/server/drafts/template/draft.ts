@@ -24,6 +24,7 @@ import { workspaceFacts, type WorkspaceFacts } from "@/server/ask/prompt/stable-
 import { runRound } from "@/server/ask/round";
 import { GatewayRefused } from "@/server/shared/model/gateway";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A template drafted with the assistant.
@@ -145,7 +146,7 @@ type Refused = { ok: false; reason: "refused"; message: string };
 /** The workspace as the model is told it: its name, services and rules, and its booking link. */
 export async function workspaceFor(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ facts: WorkspaceFacts; bookingLink: string | null }> {
   // A configuration that could not be read is none, as it always was: the model is told the name and the zone.
   const [{ name, timezone }, config] = await Promise.all([
@@ -165,7 +166,7 @@ export async function workspaceFor(
  * reviewLinkOf), which the send fills it from and refuses without. A link that could not be read is none here: the
  * draft then leaves the slot out, which costs nothing.
  */
-async function reviewLinkRule(ctx: RouteContext, tenantId: string): Promise<string> {
+async function reviewLinkRule(ctx: RouteContext, tenantId: TenantId): Promise<string> {
   const link = await reviewLinkOf(ctx.supabase, tenantId).catch(() => null);
   return link
     ? "\nThe business's Google listing keeps a review link, so a review_link slot may be used."
@@ -179,7 +180,7 @@ async function reviewLinkRule(ctx: RouteContext, tenantId: string): Promise<stri
  */
 export async function askOnce(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   system: string,
   user: string,
   kind: "draft" | "translation",
@@ -230,7 +231,7 @@ export async function askOnce(
 
 export async function draftTemplate(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: { brief: string; category: TemplateCategoryChoice; language: string },
 ): Promise<DraftOutcome> {
   const brief = input.brief.trim().slice(0, DRAFT_BRIEF_MAX);

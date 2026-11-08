@@ -11,6 +11,7 @@ import {
 import { keepAskMemory } from "@chanlytics/db/ask";
 import { askForJson } from "../../shared/model-json";
 import type { RouteContext } from "../../shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The owner's voice, learned from an email they paste (decision 0078): read once by the model, as data, into up to
@@ -50,7 +51,7 @@ function voiceLineKept(sentence: string): string | null {
 /** The paste, read and kept: the lines kept, in order, and whether memory was full before all of them were. */
 export async function learnVoice(
   ctx: Pick<RouteContext, "supabase" | "userId">,
-  tenantId: string,
+  tenantId: TenantId,
   body: { text: string },
 ): Promise<SequenceVoiceDto> {
   const answer = await askForJson(

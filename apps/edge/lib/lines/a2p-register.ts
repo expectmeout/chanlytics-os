@@ -49,6 +49,7 @@ import { campaignFactsFor } from "./a2p-campaign-facts.js";
 import { CAMPAIGN_NAME_FACT, factsOf, FILED_NAME_FACT } from "./resume.js";
 import { claimLineForFiling, listLineNumbersOf, saveLineRow } from "@chanlytics/db/lines";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 export type LineRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -189,7 +190,7 @@ export async function listFilingProblems(
  * the name the campaign states (X4-5). A read that fails, or settings that do not parse, say none: the check that cannot
  * be made does not refuse a filing.
  */
-async function receptionistNameOf(db: Db, tenantId: string): Promise<string | null> {
+async function receptionistNameOf(db: Db, tenantId: TenantId): Promise<string | null> {
   try {
     const row = await getTenantConfig(db, tenantId);
     return parseTenantConfig(row?.config)?.brain?.business_name ?? null;

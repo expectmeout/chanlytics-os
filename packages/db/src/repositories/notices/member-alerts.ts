@@ -10,12 +10,13 @@ import type { Database, Json } from "../../types";
 import { findMemberEmail } from "./notifications/feed";
 
 import { recordOrNull, type SchemaSet } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** The activity tokens of the phones whose people hold one of `roles` in the workspace (00191), each once. */
 export async function listActivityTokens(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   roles: readonly SchemaSet<"memberships.role">[],
 ): Promise<string[]> {
   const { data: members, error: me } = await db
@@ -79,7 +80,7 @@ const UNDEFINED_COLUMN = "42703";
  * their own phones are what its row policies let them read (memberships_self_select, push_devices_own_select). A read
  * that fails throws, except the one a database without 00372 answers, which reads as no choice yet.
  */
-export async function getMemberAlerts(db: Db, params: { tenantId: string; userId: string }): Promise<MemberAlerts> {
+export async function getMemberAlerts(db: Db, params: { tenantId: TenantId; userId: string }): Promise<MemberAlerts> {
   const [mine, phones] = await Promise.all([
     db
       .from("memberships")
@@ -110,7 +111,7 @@ export async function getMemberAlerts(db: Db, params: { tenantId: string; userId
 /** Save the kinds the caller's phones are not told in one workspace (member_push_off_set): the list as kept. Throws its refusal. */
 export async function setMemberPushOff(
   db: Db,
-  params: { tenantId: string; kinds: readonly string[] },
+  params: { tenantId: TenantId; kinds: readonly string[] },
 ): Promise<string[]> {
   const { data, error } = await db.rpc("member_push_off_set", {
     p_tenant_id: params.tenantId,
@@ -127,7 +128,7 @@ export async function setMemberPushOff(
  */
 export async function listMembersPushed(
   db: Db,
-  params: { tenantId: string; userIds: readonly string[] | null; kind: string },
+  params: { tenantId: TenantId; userIds: readonly string[] | null; kind: string },
 ): Promise<string[]> {
   if (params.userIds && !params.userIds.length) return [];
   const ids = params.userIds ? [...params.userIds] : null;
@@ -152,7 +153,7 @@ export async function listMembersPushed(
  */
 export async function pushNamesFor(
   db: Db,
-  params: { tenantId: string; userIds: readonly string[] },
+  params: { tenantId: TenantId; userIds: readonly string[] },
 ): Promise<{ inMany: ReadonlySet<string>; business: string | null }> {
   if (!params.userIds.length) return { inMany: new Set(), business: null };
   const [members, tenant] = await Promise.all([
@@ -183,7 +184,7 @@ export async function pushNamesFor(
  */
 export async function getMemberViews(
   db: Db,
-  params: { tenantId: string; userId: string },
+  params: { tenantId: TenantId; userId: string },
 ): Promise<Record<string, unknown>> {
   const { data, error } = await db
     .from("memberships")
@@ -201,7 +202,7 @@ export async function getMemberViews(
  * function judges the caller's own membership and the view's size. Ask clears a follow-up its home came back to through
  * it, by the door its follow-up card writes by (PUT views/:page). A write that fails throws.
  */
-export async function setMemberView(db: Db, params: { tenantId: string; page: string; view: Json }): Promise<void> {
+export async function setMemberView(db: Db, params: { tenantId: TenantId; page: string; view: Json }): Promise<void> {
   const { error } = await keepMemberView(db, {
     p_tenant_id: params.tenantId,
     p_page: params.page,
@@ -219,7 +220,7 @@ export const keepMemberView = async (db: Db, args: Database["public"]["Functions
  * member who pressed it, and to no one else). On the service role, which reads every membership and the identity store;
  * null for someone not in the workspace, or an account with no address. A failed read throws.
  */
-export async function findOwnAddressIn(db: Db, params: { tenantId: string; userId: string }): Promise<string | null> {
+export async function findOwnAddressIn(db: Db, params: { tenantId: TenantId; userId: string }): Promise<string | null> {
   const { data, error } = await db
     .from("memberships")
     .select("user_id")

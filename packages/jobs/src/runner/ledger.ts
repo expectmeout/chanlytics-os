@@ -28,6 +28,7 @@ import { WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels/whatsapp";
 import { collectPage, collectPageKey } from "./collect-page";
 import { deliveryPage, deliveryPageKey } from "./delivery-page";
 import { KIND_POLICY, kindPolicyOf, kindsWhere } from "./kinds";
+import type { TenantId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -178,7 +179,7 @@ export const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 
 export interface LedgerRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   kind: string;
   payload: Json;
   due_at: string;

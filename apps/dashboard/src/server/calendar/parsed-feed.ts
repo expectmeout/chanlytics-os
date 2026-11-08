@@ -5,6 +5,7 @@
 import "server-only";
 import { parseIcs, seasonHorizon, type FeedFailure, type ParsedFeed } from "@chanlytics/contracts";
 import { loadFeed } from "@/server/calendar/openings";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The feed parsed once per fetch. The board, a profile, the People list and
@@ -26,7 +27,7 @@ export interface ParsedRead {
 
 /** `fresh`: the board's Refresh (C2). `stale`: a reader that may take the last good read while a new one is fetched (openings.ts). */
 export async function getParsedFeed(
-  tenantId: string,
+  tenantId: TenantId,
   url: string,
   tz: string,
   now: Date,

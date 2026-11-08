@@ -40,13 +40,14 @@ import {
   writeInstagramAccount,
 } from "@chanlytics/db/channels";
 import type { Database } from "@chanlytics/db/types";
-import { UUID, recordOrNull } from "@chanlytics/contracts";
+import { UUID, recordOrNull, isTenantId } from "@chanlytics/contracts";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import type { InstagramSecret } from "./credentials.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -103,8 +104,8 @@ async function step<T>(
  * write that follows would otherwise move a live account, its token and its DMs between workspaces. A read that failed
  * says nothing about who holds it.
  */
-async function heldElsewhere(db: Db, log: Log, tenantId: string, accountId: string): Promise<Response | null> {
-  let holder: { tenant_id: string } | null;
+async function heldElsewhere(db: Db, log: Log, tenantId: TenantId, accountId: string): Promise<Response | null> {
+  let holder: { tenant_id: TenantId } | null;
   try {
     holder = await findInstagramAccountHolder(db, accountId);
   } catch (e) {
@@ -121,7 +122,7 @@ async function heldElsewhere(db: Db, log: Log, tenantId: string, accountId: stri
 async function connect(
   db: Db,
   app: InstagramApp,
-  by: { tenantId: string; userId: string },
+  by: { tenantId: TenantId; userId: string },
   code: string,
 ): Promise<Response> {
   const { tenantId, userId } = by;
@@ -204,7 +205,7 @@ async function connect(
   return json(200, { ok: true, channel_id: row.id, account_id: me.accountId, username: me.username, name: me.name });
 }
 
-async function disconnect(db: Db, tenantId: string, channelId: string): Promise<Response> {
+async function disconnect(db: Db, tenantId: TenantId, channelId: string): Promise<Response> {
   const log = logger({ tenant_id: tenantId, channel_id: channelId });
   if (!(await setInstagramStatus(db, tenantId, channelId, "disabled"))) {
     log.info("ig_disconnect_failed");
@@ -227,7 +228,7 @@ export async function runInstagramOp(auth: Admitted, body: Partial<InstagramBody
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
   const userId = personFor(auth, body.user_id) ?? "";
-  if (!UUID.test(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
+  if (!isTenantId(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   if (op === "connect") {

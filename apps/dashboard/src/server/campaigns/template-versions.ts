@@ -32,6 +32,7 @@ import type { Member } from "@/server/shared/route";
 import { saveReachOutEmail } from "@/server/campaigns/reach-outs/reach-outs";
 import { serviceDb } from "@/server/shared/service-db";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A message's email and text versions (One message, every channel, step 1): written by a member through one door
@@ -89,7 +90,7 @@ interface VersionSaved {
  */
 async function writeVersion(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   versionRequest: VersionRequest,
   slots: number,
 ): Promise<VersionSaved> {
@@ -134,7 +135,7 @@ function beginRefusal(e: { code: string | null; message: string }): AppError {
  */
 async function beginMessage(
   userId: string,
-  tenantId: string,
+  tenantId: TenantId,
   versionRequest: VersionRequest,
   words: { value: VersionWords; warnings: string[] },
   message: { category: "marketing" | "utility"; variables: MessageVariable[]; title: string | null },
@@ -177,7 +178,7 @@ export function refuseWrittenUtility(category: "marketing" | "utility", words: s
  * says, and an offer or news, never about a visit or a proposal. Nobody reviews a message with no WhatsApp row, so only
  * a starter, which Chanlytics writes, may be about a visit. With neither, there is no message.
  */
-async function beginVersion(db: Acting, tenantId: string, versionRequest: VersionRequest): Promise<VersionSaved> {
+async function beginVersion(db: Acting, tenantId: TenantId, versionRequest: VersionRequest): Promise<VersionSaved> {
   const starter = starterByName(versionRequest.name);
   if (starter) {
     const own = starterWords(starter, versionRequest.channel, versionRequest.language);
@@ -211,7 +212,7 @@ async function beginVersion(db: Acting, tenantId: string, versionRequest: Versio
  * say), or, with none, as its first (beginVersion). The one place that tells a message that exists from one that begins:
  * a member's save and the starter set both write through it.
  */
-function writeOrBegin(db: Acting, tenantId: string, v: VersionRequest, held: number | null): Promise<VersionSaved> {
+function writeOrBegin(db: Acting, tenantId: TenantId, v: VersionRequest, held: number | null): Promise<VersionSaved> {
   return held !== null ? writeVersion(db, tenantId, v, held) : beginVersion(db, tenantId, v);
 }
 
@@ -248,7 +249,7 @@ export async function saveVersion(
  */
 export async function fileWrittenVersion(
   db: Acting,
-  tenantId: string,
+  tenantId: TenantId,
   versionRequest: VersionRequest,
   held: number | null,
   message: { category: "marketing" | "utility"; variables: MessageVariable[] },
@@ -278,7 +279,7 @@ export interface StarterVersionResult {
 }
 
 /** The keys of the email and text versions the workspace already holds of these messages: `channel|name|language`. */
-export async function getStartersFiled(db: Db, tenantId: string, names: string[]): Promise<Set<string>> {
+export async function getStartersFiled(db: Db, tenantId: TenantId, names: string[]): Promise<Set<string>> {
   const rows = await listOwnVersionsFiled(db.supabase, tenantId, names);
   return new Set(rows.map((r) => `${r.channel}|${r.name}|${r.language}`));
 }
@@ -304,7 +305,7 @@ function starterWords(s: StarterTemplate, channel: OwnVersionChannel, language: 
  */
 export async function fileStarterVersions(
   db: Acting,
-  tenantId: string,
+  tenantId: TenantId,
   starterTemplate: StarterTemplate,
   language: string,
   filed: Set<string>,

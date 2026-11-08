@@ -27,6 +27,7 @@ import type { Database, Json } from "@chanlytics/db/types";
 import { getToken } from "../email/mailbox/credentials.js";
 import { markSignedOut } from "../email/mailbox/wire.js";
 import type { Part, PartOutcome } from "./history-import.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -67,7 +68,7 @@ async function contactsPageOf(row: MailboxConnectionRow, token: string, page: st
  */
 async function bring(
   db: Db,
-  box: { tenantId: string; own: string; via: string },
+  box: { tenantId: TenantId; own: string; via: string },
   knownPerson: KnownPerson,
 ): Promise<boolean> {
   const { tenantId, own, via } = box;

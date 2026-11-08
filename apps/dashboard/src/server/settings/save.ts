@@ -29,6 +29,7 @@ import { renameWorkspace } from "@/server/workspace/list";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import type { TenantId } from "@chanlytics/contracts";
 
 export async function saveSettings(ctx: RouteContext, req: Request, member: Member) {
   const body = (await req.json().catch(() => null)) as { config?: unknown; version?: number } | null;
@@ -85,7 +86,7 @@ export async function saveSettings(ctx: RouteContext, req: Request, member: Memb
  */
 export async function judgeChangedHandoff(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   next: Pick<TenantConfig, "brain">,
   stored: unknown,
 ): Promise<void> {

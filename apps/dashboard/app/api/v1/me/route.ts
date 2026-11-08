@@ -1,3 +1,4 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { write, account } from "@/server/shared/route";
 import { AppError, cleanDisplayName, recordOrEmpty } from "@chanlytics/contracts";
@@ -63,7 +64,7 @@ export const DELETE = write({
         "Your account could not be deleted. Nothing was changed. Try again, or write to us.",
       );
     }
-    await recordLeft(seats, ctx.userId);
+    await recordLeft(seats.map(heldTenantId), ctx.userId);
     await ctx.supabase.auth.signOut().catch(() => undefined);
     const answer = recordOrEmpty(data);
     const left = Number(answer.workspaces_left_empty ?? 0);

@@ -44,13 +44,14 @@ import { getAttribution, forgetAnthropicProfiles } from "./anthropic-profiles/at
 import { pageOperator } from "../shared/alerts/page-operator.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Who a call is for: the ledger's row, and whom Anthropic is told (contracts modelSubjectOf). A call with no workspace (a
  * platform read) is asked and not written, and goes under no profile: `tenantId` is required, so that is said, never left out.
  */
 export interface ModelCallFor {
-  tenantId: string | null;
+  tenantId: TenantId | null;
   /** What it was about: a conversation, a send, a review, or the lead round a judge's batch was paid in. */
   subjectId?: string | null;
   /** The person who asked, when one did. */
@@ -199,7 +200,7 @@ export async function keepTurn(turn: ModelTurnKept): Promise<boolean> {
  * Whether this workspace may use the model for a purpose a person asks for: not paused, not ended, not unbilled
  * (contracts mayUseModels). A read that fails holds the call: "we could not check" is not "yes".
  */
-export async function mayUseModelFor(purpose: ModelPurpose, tenantId: string | null): Promise<boolean> {
+export async function mayUseModelFor(purpose: ModelPurpose, tenantId: TenantId | null): Promise<boolean> {
   if (!ASKED_BY_A_PERSON.has(purpose) || !tenantId) return true;
   const db = pg();
   if (!db) return true;

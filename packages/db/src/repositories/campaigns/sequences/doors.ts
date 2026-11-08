@@ -5,6 +5,8 @@ import type {
   SequencePlaceOfDto,
   SequenceHistoryDto,
   SequencePeopleDto,
+  TenantId,
+  ContactId,
 } from "@chanlytics/contracts";
 import type { Json } from "../../../types";
 import { answer, type DoorResult } from "../reach-out/leads";
@@ -21,7 +23,7 @@ const REPLIES_IN_CHUNK = 200;
  */
 export async function listLeadRepliesOfBatches(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   batchIds: readonly string[],
 ): Promise<string[]> {
   const out = new Set<string>();
@@ -53,7 +55,7 @@ export async function listLeadRepliesOfBatches(
 /** Who is in a sequence, by where they stand (00442 sequence_people). */
 export async function getSequencePeople(
   db: Db,
-  params: { tenantId: string; sequenceId: string; limit?: number },
+  params: { tenantId: TenantId; sequenceId: string; limit?: number },
 ): Promise<SequencePeopleDto> {
   const { data, error } = await db.rpc("sequence_people", {
     p_tenant_id: params.tenantId,
@@ -67,7 +69,7 @@ export async function getSequencePeople(
 }
 
 /** One lead's place in the sequence it stands in or last was in (00459), its opening and Put back; null in none. */
-export async function findSequencePlace(db: Db, tenantId: string, leadId: string): Promise<SequencePlaceDto | null> {
+export async function findSequencePlace(db: Db, tenantId: TenantId, leadId: string): Promise<SequencePlaceDto | null> {
   const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new Error(`cannot read where the lead stands: ${error.message}`);
   const result = data as SequencePlaceDto | null;
@@ -80,7 +82,7 @@ export async function findSequencePlace(db: Db, tenantId: string, leadId: string
 /** Many leads' places, one row a lead in a sequence (00459 sequence_places_of): Leads' cell and the person page. */
 export async function listSequencePlaces(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   leadIds: readonly string[],
 ): Promise<SequencePlaceOfDto[]> {
   if (leadIds.length === 0) return [];
@@ -93,7 +95,7 @@ export async function listSequencePlaces(
 /** What a sequence sent, a batch a row, newest first (00442 sequence_history). */
 export async function getSequenceHistory(
   db: Db,
-  params: { tenantId: string; sequenceId: string; before?: string | null; limit?: number },
+  params: { tenantId: TenantId; sequenceId: string; before?: string | null; limit?: number },
 ): Promise<SequenceHistoryDto> {
   const { data, error } = await db.rpc("sequence_history", {
     p_tenant_id: params.tenantId,
@@ -142,7 +144,7 @@ export const decided = (d: DoorDecision) => ({
 /** A customer's step after the first added at the end of its sequence, or changed (00442 sequence_step_save). */
 export async function saveSequenceStep(
   db: Db,
-  params: { tenantId: string; sequenceId: string; step: Json } & DoorDecision,
+  params: { tenantId: TenantId; sequenceId: string; step: Json } & DoorDecision,
 ): Promise<DoorResult<SequenceDoorAnswer>> {
   const { data, error } = await db.rpc("sequence_step_save", {
     p_tenant_id: params.tenantId,
@@ -159,7 +161,7 @@ export async function saveSequenceStep(
  */
 export async function keepOnceDraft(
   db: Db,
-  params: { tenantId: string; id: string | null; name: string; once: Json } & DoorDecision,
+  params: { tenantId: TenantId; id: string | null; name: string; once: Json } & DoorDecision,
 ): Promise<DoorResult<SequenceDoorAnswer>> {
   const { data, error } = await db.rpc("sequence_once_keep", {
     p_tenant_id: params.tenantId,
@@ -174,7 +176,7 @@ export async function keepOnceDraft(
 /** One person a customer's call or note step hands over, as the door takes it (00465 sequence_hand_run). */
 export type PeopleHandItem = {
   send_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   words: string;
   source_id: string;
 };
@@ -186,7 +188,7 @@ export type PeopleHandItem = {
  */
 export async function getPeopleHandRun(
   db: Db,
-  params: { tenantId: string; stepId: string; runId: string; day: string; items: PeopleHandItem[] },
+  params: { tenantId: TenantId; stepId: string; runId: string; day: string; items: PeopleHandItem[] },
 ): Promise<{ made: number; already: number }> {
   const { data, error } = await db.rpc("sequence_hand_run", {
     p_tenant_id: params.tenantId,
@@ -203,7 +205,7 @@ export async function getPeopleHandRun(
 /** A customer's step after the first taken away, with the steps after it (00442 sequence_step_remove). */
 export async function removeSequenceStep(
   db: Db,
-  params: { tenantId: string; stepId: string } & DoorDecision,
+  params: { tenantId: TenantId; stepId: string } & DoorDecision,
 ): Promise<DoorResult<SequenceDoorAnswer>> {
   const { data, error } = await db.rpc("sequence_step_remove", {
     p_tenant_id: params.tenantId,
@@ -216,7 +218,7 @@ export async function removeSequenceStep(
 /** A step given another message and the values it takes: at once, or waiting for WhatsApp (00442 sequence_step_words). */
 export async function setSequenceStepWords(
   db: Db,
-  params: { tenantId: string; stepId: string; templateId: string; params?: Json } & DoorDecision,
+  params: { tenantId: TenantId; stepId: string; templateId: string; params?: Json } & DoorDecision,
 ): Promise<DoorResult<SequenceDoorAnswer>> {
   const { data, error } = await db.rpc("sequence_step_words", {
     p_tenant_id: params.tenantId,
@@ -232,7 +234,7 @@ export async function setSequenceStepWords(
 export async function takeOutOfSequence(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     sequenceId: string;
     enrollmentIds: readonly string[];
     /** Leads on its list that nothing has been planned for yet: they come off the list (00455). */
@@ -257,7 +259,7 @@ export async function takeOutOfSequence(
  */
 export async function putBackInSequence(
   db: Db,
-  params: { tenantId: string; sequenceId: string } & DoorDecision,
+  params: { tenantId: TenantId; sequenceId: string } & DoorDecision,
 ): Promise<DoorResult<SequenceDoorAnswer>> {
   const { data, error } = await db.rpc("sequence_return", {
     p_tenant_id: params.tenantId,
@@ -273,7 +275,7 @@ export async function putBackInSequence(
  */
 export async function makeSequence(
   db: Db,
-  params: { tenantId: string; first: Json; then: Json; start: boolean } & DoorDecision,
+  params: { tenantId: TenantId; first: Json; then: Json; start: boolean } & DoorDecision,
 ): Promise<DoorResult<SequenceDoorAnswer>> {
   const { data, error } = await db.rpc("sequence_create", {
     p_tenant_id: params.tenantId,
@@ -299,7 +301,7 @@ export interface SequenceMoveAnswer {
  */
 export async function moveToSequence(
   db: Db,
-  params: { tenantId: string; leadId: string; toRoot: string } & Omit<DoorDecision, "undoOf">,
+  params: { tenantId: TenantId; leadId: string; toRoot: string } & Omit<DoorDecision, "undoOf">,
 ): Promise<DoorResult<SequenceMoveAnswer>> {
   const { data, error } = await db.rpc("sequence_move", {
     p_tenant_id: params.tenantId,

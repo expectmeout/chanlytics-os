@@ -14,6 +14,7 @@ import type { Database } from "@chanlytics/db/types";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
 import { getStoredConfig } from "../workspace/config-row";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * One door's arguments, with null where the owner named nothing.
@@ -52,7 +53,7 @@ export function renewsOnOf(tz: string, now: Date): string {
  */
 export async function readMonthUsed(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   period: string,
 ): Promise<{ allowance: number; budget: number; cap: number }> {
   // The month's whole is the workspace's allowance (00512's lead_allowance: the trial's while on a trial, decision
@@ -106,7 +107,7 @@ function notesWithin(notes: { title: string; text: string }[]): string[] {
  */
 export async function getWorkspaceOffer(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ name: string; address: string; services: string[]; about: IdeaAbout }> {
   const [facts, config] = await Promise.all([
     getTenantFacts(ctx.supabase, tenantId),

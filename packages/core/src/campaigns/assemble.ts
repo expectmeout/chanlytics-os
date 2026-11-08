@@ -1,3 +1,4 @@
+import { heldContactId } from "@chanlytics/contracts";
 import { RECIPIENT_REASON_HEARD } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/log";
 import { MONTH_ALLOWANCE_REASON } from "./allowance";
@@ -52,7 +53,7 @@ async function skipAt(ports: AssemblePorts, id: string, people: readonly string[
   if (people.length === 0) return 0;
   let done: { skipped: readonly string[]; error: string | null };
   try {
-    done = await ports.holdRecipients(id, [...people], reason);
+    done = await ports.holdRecipients(id, people.map(heldContactId), reason);
   } catch (e) {
     done = { skipped: [], error: errField(e) };
   }

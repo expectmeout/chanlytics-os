@@ -17,13 +17,14 @@
 import type { PostgrestQueryBuilder } from "@supabase/postgrest-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Tables = Database["public"]["Tables"];
 
 /** The tables whose every row belongs to one workspace: each has a non-null `tenant_id`. */
 type TenantTable = {
-  [K in keyof Tables]: Tables[K]["Row"] extends { tenant_id: string } ? K : never;
+  [K in keyof Tables]: Tables[K]["Row"] extends { tenant_id: TenantId } ? K : never;
 }[keyof Tables];
 
 /**
@@ -43,7 +44,7 @@ function builderOf<T extends TenantTable>(db: Db, table: T): Builder<T> {
 
 /** One workspace's rows, through the service role. */
 export interface TenantDb {
-  readonly tenantId: string;
+  readonly tenantId: TenantId;
   /** The table's builder, as `db.from` gives it, with every statement it builds scoped to the workspace. */
   from<T extends TenantTable>(table: T): Builder<T>;
 }
@@ -53,7 +54,7 @@ const FILTERED = ["select", "update", "delete"] as const;
 const STAMPED = ["insert", "upsert"] as const;
 
 /** A row stamped with the workspace; one that names another is refused. */
-function stamped(row: unknown, tenantId: string): unknown {
+function stamped(row: unknown, tenantId: TenantId): unknown {
   if (typeof row !== "object" || row === null) return row;
   const named: unknown = Reflect.get(row, "tenant_id");
   if (named !== undefined && named !== tenantId) throw new Error("tenantDb: a row names another workspace");
@@ -61,7 +62,7 @@ function stamped(row: unknown, tenantId: string): unknown {
 }
 
 /** A patch that moves a row to another workspace is refused; naming its own is harmless. */
-function unmoved(patch: unknown, tenantId: string): void {
+function unmoved(patch: unknown, tenantId: TenantId): void {
   if (typeof patch !== "object" || patch === null) return;
   const named: unknown = Reflect.get(patch, "tenant_id");
   if (named !== undefined && named !== tenantId) throw new Error("tenantDb: a patch names another workspace");
@@ -78,7 +79,7 @@ function conflictsOnWorkspace(options: unknown): void {
 }
 
 /** The builder, with its verbs replaced by ones that scope what they build to the workspace. */
-function scoped<B extends object>(builder: B, tenantId: string): B {
+function scoped<B extends object>(builder: B, tenantId: TenantId): B {
   for (const verb of FILTERED) {
     const build: unknown = Reflect.get(builder, verb);
     if (typeof build !== "function") continue;
@@ -111,7 +112,7 @@ function scoped<B extends object>(builder: B, tenantId: string): B {
 }
 
 /** One workspace's rows, through the service role: every statement scoped to `tenantId` before anything else. */
-export function tenantDb(db: Db, tenantId: string): TenantDb {
+export function tenantDb(db: Db, tenantId: TenantId): TenantDb {
   if (!tenantId) throw new Error("tenantDb: a workspace is required");
   return {
     tenantId,

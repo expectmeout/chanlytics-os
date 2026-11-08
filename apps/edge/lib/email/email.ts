@@ -32,6 +32,7 @@ import type { CampaignsBinding, CampaignsLane } from "./campaigns-domain.js";
 import { getOwnRoutes } from "./mailbox/wire.js";
 import { logger, errField, type Logger } from "../shared/log.js";
 import { env } from "../shared/env.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -64,7 +65,7 @@ export function emailCanSend(): boolean {
  */
 export async function findEmailWire(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   campaigns: CampaignsLane | null = null,
 ): Promise<Sender | null | undefined | WireUnavailable> {
   const domain = emailDomain();
@@ -106,7 +107,7 @@ type EmailWaiting = Parameters<NonNullable<JobContext["email"]>["tell"]>[1];
  */
 export const tellOfWaitingEmail =
   (db: Parameters<typeof loadTenantNotifications>[0]) =>
-  async (tenantId: string, note: EmailWaiting): Promise<void> => {
+  async (tenantId: TenantId, note: EmailWaiting): Promise<void> => {
     try {
       const addressing = await loadTenantNotifications(db, tenantId);
       await notify({ tenantId, ...addressing }, emailWaitingMessage(note));
@@ -171,7 +172,7 @@ export function emailIntake(
  */
 export async function findEmailBound(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   offers: CampaignsBinding,
   log: Logger,
 ): Promise<{

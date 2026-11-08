@@ -4,6 +4,7 @@ import type { Database } from "@chanlytics/db/types";
 import { withFirstAlertAddress, withOwnerAlertAddress, type TenantConfig } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { findConfigRow } from "@/server/workspace/config-row";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Give a workspace just made its creator's address as its first alert address
@@ -16,7 +17,7 @@ import { findConfigRow } from "@/server/workspace/config-row";
  */
 export async function giveFirstAlertAddress(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   email: string | null | undefined,
   by: string | null,
 ): Promise<boolean> {
@@ -31,7 +32,7 @@ export async function giveFirstAlertAddress(
  */
 export async function giveOwnerAlertAddress(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   email: string | null | undefined,
   by: string | null,
 ): Promise<boolean> {
@@ -41,7 +42,7 @@ export async function giveOwnerAlertAddress(
 /** The row read, the next config made from it, and the versioned write: false when there was nothing to save. */
 async function saveAlerts(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   by: string | null,
   nextOf: (config: unknown) => TenantConfig | null,
 ): Promise<boolean> {

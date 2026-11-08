@@ -36,6 +36,7 @@ import { askTurnText, type SearchAnswering } from "./prompt/prompt";
 import { workspaceFacts, type WorkspaceFacts } from "./prompt/stable-system";
 import { appendMessage, setProposalOutcome, touchThread } from "./store";
 import { keepRememberCards } from "./companion/remembered";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * One turn of the assistant, kept in one place for its two doors: POST /api/v1/ask (the typed Line) and the voice
@@ -85,7 +86,7 @@ interface AskTurnDone {
 interface PreparedTurn {
   ctx: RouteContext;
   member: Member;
-  tenantId: string;
+  tenantId: TenantId;
   ask: AskTurnAsk;
   thread: { id: string; title: string; scope: AskScope | null };
   scope: AskScope | null;
@@ -145,7 +146,7 @@ const BUSY_WORDS = {
 };
 
 /** The files a question names that are there for the person, in the order they were attached. */
-async function filesAsked(ctx: RouteContext, tenantId: string, ids: readonly string[]): Promise<AttachedFile[]> {
+async function filesAsked(ctx: RouteContext, tenantId: TenantId, ids: readonly string[]): Promise<AttachedFile[]> {
   if (ids.length === 0) return [];
   const found = await getAttached(ctx, tenantId, ids);
   return ids.flatMap((id) => found.get(id) ?? []);
@@ -241,7 +242,7 @@ async function setAsideReplaced(
   ctx: RouteContext,
   cards: Array<Pick<AskMessageVM, "id" | "proposals">>,
   created: AskProposal[],
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<void> {
   const at = Date.now();
   for (const r of searchCardsReplaced(cards, created)) {

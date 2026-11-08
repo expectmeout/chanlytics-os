@@ -21,6 +21,7 @@ import type { Database } from "@chanlytics/db/types";
 import { DAY_MS, DEFAULT_TIMEZONE, timetable, weekHoursOf, zoneOfRegion } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
 import type { Logger } from "../../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -44,7 +45,7 @@ export interface ReplanCounts {
 type Move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>) => Promise<boolean>;
 
 /** A step's pace and mailboxes, and whether its chain's root says its owner sends it (00429), in one read. */
-async function stepAndRootOf(db: Db, tenantId: string, stepId: string, rootId: string) {
+async function stepAndRootOf(db: Db, tenantId: TenantId, stepId: string, rootId: string) {
   const { data, error } = await listChainSteps(db, tenantId, [stepId, rootId]);
   if (error) throw new Error(`the step: ${error.message}`);
   const rows = data ?? [];

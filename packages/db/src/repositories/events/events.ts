@@ -13,6 +13,7 @@ import {
 import type { Database, Json } from "../../types";
 import { dbLog, dbRequestId } from "../../shared/observe";
 import { jsonCopyOf } from "../../shared/json";
+import type { TenantId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -283,7 +284,7 @@ const WABA_WRITE = { category: "system", version: 1 };
  * row of some table (`subjectType`, `subjectId`), or null for nothing but the workspace.
  */
 export function rowOf<K extends EmittedKind>(
-  tenantId: string,
+  tenantId: TenantId,
   kind: K,
   subjectType: ActivitySubjectType | null,
   subjectId: string | null,
@@ -312,7 +313,7 @@ export function rowOf<K extends EmittedKind>(
  */
 export async function recordEvent<K extends EmittedKind>(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   kind: K,
   subjectType: ActivitySubjectType | null,
   subjectId: string | null,
@@ -332,7 +333,7 @@ export async function recordEvent<K extends EmittedKind>(
 /** One event on the ledger, best effort: a write that fails is logged by its kind, never thrown. */
 export async function emitEvent<K extends EmittedKind>(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   kind: K,
   subjectType: ActivitySubjectType | null,
   subjectId: string | null,
@@ -345,7 +346,7 @@ export async function emitEvent<K extends EmittedKind>(
 /** A post on Google, as the ledger last said of it: where it is, or null where it never went or came down since. */
 export async function findFilePosted(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   fileId: string,
 ): Promise<{ name: string; search_url: string | null; at: string } | null> {
   const { data, error } = await db
@@ -374,7 +375,7 @@ export async function findFilePosted(
  */
 export async function getSubjectsWith(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   kind: EmittedKind,
   subjectIds: string[],
 ): Promise<Set<string>> {

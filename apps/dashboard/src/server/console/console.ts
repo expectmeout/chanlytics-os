@@ -45,6 +45,7 @@ import { listConsoleActs } from "./acts";
 import { listAsksSince, listReportsSince, readSupportDueBook } from "./support";
 import { log } from "@/server/shared/log";
 import { claimsNow } from "@/server/console/support";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** Who is asking, as the Console's frame draws them. */
 interface ConsoleMe {
@@ -72,7 +73,7 @@ export async function readSide<T>(text: string, read: () => Promise<T>): Promise
  * Take a workspace for CLAIM_HOURS, or let it go. Not an act on the business, so no reason and no log row: it tells the
  * rest of the team who is on it. A workspace someone else holds is refused with who.
  */
-export async function claimConsole(office: BackOffice, tenantId: string, take: boolean): Promise<ClaimDto | null> {
+export async function claimConsole(office: BackOffice, tenantId: TenantId, take: boolean): Promise<ClaimDto | null> {
   if (!take) {
     const { error } = await letClaimGo(office.db, tenantId, office.userId);
     if (error) throw new AppError("internal", "That could not be saved just now. Try again in a moment.", 503);

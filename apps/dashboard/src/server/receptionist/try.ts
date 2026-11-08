@@ -10,6 +10,7 @@ import {
 } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured, edgeReasonOf } from "../shared/edge";
 import { log } from "../shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Settings › How it answers, Try it: a message an owner writes as a customer would, answered by the receptionist as it
@@ -54,7 +55,7 @@ function tryAnswerOf(raw: unknown): TryItAnswer | null {
  * (decision 0079): the edge's token then names the workspace alone.
  */
 export async function tryReceptionist(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string | null,
   text: string,
   history: readonly TryTurn[],

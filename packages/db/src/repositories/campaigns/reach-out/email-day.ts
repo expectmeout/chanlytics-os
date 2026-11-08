@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -62,7 +63,7 @@ export function mailboxCapacityFrom(data: unknown): MailboxCapacity {
 /** A connected mailbox with a send due, and its workspace. */
 export interface DueMailbox {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
 }
 
 /**
@@ -74,7 +75,7 @@ export async function listDueMailboxes(
   db: Db,
   at: Date,
   limit: number,
-  opts: { tenantId?: string; skipTenants?: Iterable<string>; skipMailboxes?: Iterable<string> } = {},
+  opts: { tenantId?: TenantId; skipTenants?: Iterable<string>; skipMailboxes?: Iterable<string> } = {},
 ): Promise<DueMailbox[]> {
   const { data, error } = await db.rpc("reach_out_due_mailboxes", {
     p_at: at.toISOString(),

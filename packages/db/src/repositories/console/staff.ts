@@ -11,6 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -35,7 +36,7 @@ export async function findTenantBySlug(db: Db, slug: string) {
 }
 
 /** Workspaces' names and addresses by id, for rows that carry only the id. */
-export async function getTenantNames(db: Db, ids: readonly string[]) {
+export async function getTenantNames(db: Db, ids: readonly TenantId[]) {
   return db
     .from("tenants")
     .select("id, slug, name")
@@ -55,7 +56,7 @@ export async function getLiveClaims(db: Db, nowIso: string) {
  */
 export async function takeClaim(
   db: Db,
-  claim: { tenantId: string; userId: string; email: string | null; nowIso: string; untilIso: string },
+  claim: { tenantId: TenantId; userId: string; email: string | null; nowIso: string; untilIso: string },
 ) {
   const cleared = await db
     .from("platform_claims")
@@ -77,12 +78,12 @@ export async function takeClaim(
 }
 
 /** Let a workspace go: the caller's own claim only. */
-export async function letClaimGo(db: Db, tenantId: string, userId: string) {
+export async function letClaimGo(db: Db, tenantId: TenantId, userId: string) {
   return db.from("platform_claims").delete().eq("tenant_id", tenantId).eq("user_id", userId);
 }
 
 /** Who holds a workspace now, when someone does. */
-export async function claimOf(db: Db, tenantId: string, nowIso: string) {
+export async function claimOf(db: Db, tenantId: TenantId, nowIso: string) {
   return db
     .from("platform_claims")
     .select("tenant_id, user_id, email, until")

@@ -12,6 +12,7 @@ import { importPerson, noteImport, recordPersonBeforeNote } from "@chanlytics/db
 import { recordDecision } from "../shared/verbs";
 import { log } from "../shared/log";
 import type { RouteContext } from "../shared/with-route";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * A part of a business's own client list, brought in (POST contacts/import): each line through `import_person`, what a
@@ -69,9 +70,9 @@ interface ImportOut {
 /** What the file says of a person beyond who they are: kept where nothing is. A refusal keeps the person, said in the log. */
 async function keepBefore(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: ImportInput,
-  contactId: string,
+  contactId: ContactId,
   facts: z.infer<typeof Facts>,
 ): Promise<void> {
   const { notes, ...dates } = facts;
@@ -98,7 +99,7 @@ async function keepBefore(
  * after adds to them, and the last says done. A part that stopped says the file stopped. Never a refusal of the rows:
  * they are on file by now, and a ledger that will not take the note is said in the log.
  */
-async function noteThePart(ctx: RouteContext, tenantId: string, input: ImportInput, out: ImportOut): Promise<void> {
+async function noteThePart(ctx: RouteContext, tenantId: TenantId, input: ImportInput, out: ImportOut): Promise<void> {
   if (!input.part) return;
   const { n, of } = input.part;
   try {
@@ -126,7 +127,7 @@ async function noteThePart(ctx: RouteContext, tenantId: string, input: ImportInp
 /** One line through the door: added, found, or the reason it was skipped; a fault the door raises for every row stops the part. */
 async function importLine(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: ImportInput,
   item: z.infer<typeof Row>,
   line: number,
@@ -170,7 +171,7 @@ async function importLine(
  * workspace, with the counts and nothing that names a person; a decision the ledger will not take is logged, never
  * answered as a refusal of rows already on file.
  */
-export async function importPeopleRows(ctx: RouteContext, tenantId: string, input: ImportInput): Promise<ImportOut> {
+export async function importPeopleRows(ctx: RouteContext, tenantId: TenantId, input: ImportInput): Promise<ImportOut> {
   const out: ImportOut = { added: 0, existed: 0, emails_set: 0, skipped: [], failed: [], stopped: false };
   for (const [i, r] of input.rows.entries()) {
     await importLine(ctx, tenantId, input, r, i + 1, out);

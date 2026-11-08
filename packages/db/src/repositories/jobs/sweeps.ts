@@ -27,6 +27,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLAYBOOK_HOURS, type NumberStanding } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -65,7 +66,7 @@ export interface DueStep {
  */
 export async function getDuePlaybooks(
   db: Db,
-  params: { kind: "moment" | "reach_out"; at: Date; limit: number; tenantId?: string },
+  params: { kind: "moment" | "reach_out"; at: Date; limit: number; tenantId?: TenantId },
 ): Promise<DuePage<DueStep>> {
   const { data, error } = await db.rpc("sequence_steps_due", {
     p_kind: params.kind,
@@ -91,7 +92,7 @@ export async function getDuePlaybooks(
  */
 export async function stampPlaybooksTried(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   params: { ids: string[]; at: Date },
 ): Promise<void> {
   if (params.ids.length === 0) return;
@@ -104,7 +105,7 @@ export async function stampPlaybooksTried(
 }
 
 export interface DueCalendar {
-  tenant_id: string;
+  tenant_id: TenantId;
   /** The workspace's configuration as stored; its calendar's address is in it. */
   config: Json;
   /** The zone its feed is read in: the workspace's own (tenants.timezone), UTC when that is a name nobody knows. */
@@ -123,7 +124,7 @@ export interface DueCalendar {
  */
 export async function getDueCalendars(
   db: Db,
-  params: { before: Date; limit: number; tenantId?: string },
+  params: { before: Date; limit: number; tenantId?: TenantId },
 ): Promise<DuePage<DueCalendar>> {
   const { data, error } = await db.rpc("calendars_due", {
     p_before: params.before.toISOString(),
@@ -147,7 +148,7 @@ export async function getDueCalendars(
 /** A connected WhatsApp number as the channel-quality sweep sees it. */
 export interface WhatsappNumber {
   channel_id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   /** Meta's phone number id: the channel's external_id. */
   phone_number_id: string;
   /** The WhatsApp Business Account the number belongs to, which the standing's verification and tier are read from; null where none is on the row. */
@@ -193,7 +194,7 @@ export async function listWhatsappNumbersToRead(db: Db, limit: number): Promise<
  * One workspace's WhatsApp number: its oldest active channel, the one `channelFor` (contracts) picks, as the sweep reads a
  * number. Null where the workspace has none. A read that fails throws.
  */
-export async function findWhatsappNumber(db: Db, tenantId: string): Promise<WhatsappNumber | null> {
+export async function findWhatsappNumber(db: Db, tenantId: TenantId): Promise<WhatsappNumber | null> {
   const { data, error } = await db
     .from("tenant_channels")
     .select("id, tenant_id, external_id, waba_id, number_e164, config")
@@ -225,7 +226,7 @@ type ChannelQualityKept = (typeof KEPT_ANSWERS)[number];
  */
 export async function keepChannelQuality(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   channelId: string,
   rating: string,
 ): Promise<ChannelQualityKept> {
@@ -248,7 +249,7 @@ export async function keepChannelQuality(
  */
 export async function keepChannelStanding(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   channelId: string,
   standing: NumberStanding,
 ): Promise<(typeof KEPT_ANSWERS)[number]> {

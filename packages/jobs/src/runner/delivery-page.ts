@@ -1,3 +1,4 @@
+import type { TenantId } from "@chanlytics/contracts";
 /**
  * The platform's page for a change's delivery that failed for good (00334, decision 0032): the ledger's words to the
  * operator, under one condition key, whichever way it failed. The tick pages it when the job's last try fails (ledger
@@ -25,7 +26,7 @@ export function deliveryPageKey(job: { payload: unknown }): string {
 
 /** What the page says: the job and its workspace, what it carried (the relay's payload, 00334), why it stopped, and where to look. */
 export function deliveryPage(
-  job: { id: string; tenant_id: string; payload: unknown },
+  job: { id: string; tenant_id: TenantId; payload: unknown },
   reason: string,
   wreckage: string | null = null,
 ): { subject: string; body: string } {

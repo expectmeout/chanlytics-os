@@ -10,7 +10,7 @@
  * standing, or a workspace that could not be read, throws, so the delivery tries again; every other outcome is an answer.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FreedTimeOffer } from "@chanlytics/contracts";
+import type { FreedTimeOffer, TenantId } from "@chanlytics/contracts";
 import type { FreedTimeRun } from "@chanlytics/core";
 import { findFreedTimeBatch, findFreedTimeStep } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
@@ -25,7 +25,7 @@ type Db = SupabaseClient<Database>;
  */
 export async function offerFreedTime(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   freed: FreedTimeRun,
   now: Date = new Date(),
   load: typeof loadTenantRunContext = loadTenantRunContext,
@@ -61,7 +61,7 @@ export async function offerFreedTime(
  */
 async function madeMeanwhile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   stepId: string,
   appointmentId: string,
   error: string,

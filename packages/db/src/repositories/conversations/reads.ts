@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** What a message is read with, where a list of them is mapped (the dashboard's MessageDto). */
@@ -55,7 +55,7 @@ export const pageMessagesOfThreads = async (db: Db, conversationIds: string[], f
     .range(from, to);
 
 /** One of the workspace's threads as its export names it: its person. */
-export const findThreadForExport = async (db: Db, tenantId: string, conversationId: string) =>
+export const findThreadForExport = async (db: Db, tenantId: TenantId, conversationId: string) =>
   db
     .from("conversations")
     .select("id, tenant_id, contacts (id, display_name, wa_profile_name, phone_e164, email)")
@@ -66,8 +66,8 @@ export const findThreadForExport = async (db: Db, tenantId: string, conversation
 /** One page (`from` to `to`) of the workspace's threads, or one person's, oldest first. */
 export const pageThreadRows = async (
   db: Db,
-  tenantId: string,
-  contactId: string | undefined,
+  tenantId: TenantId,
+  contactId: ContactId | undefined,
   from: number,
   to: number,
 ) => {
@@ -84,8 +84,8 @@ export const pageThreadRows = async (
 /** One page (`from` to `to`) of the workspace's consent changes, or one person's, oldest first. */
 export const pageConsentChanges = async (
   db: Db,
-  tenantId: string,
-  contactId: string | undefined,
+  tenantId: TenantId,
+  contactId: ContactId | undefined,
   from: number,
   to: number,
 ) => {
@@ -107,7 +107,7 @@ const HOLD_READ_COLUMNS =
 /** The workspace's holds in `state` for any reason but `handBack`'s, newest first, `limit` of them. */
 export const listHoldsWaiting = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   state: SchemaSet<"escalations.state">,
   handBack: readonly SchemaSet<"escalations.reason">[],
   limit: number,
@@ -124,7 +124,7 @@ export const listHoldsWaiting = async (
 /** The workspace's holds in `state` handed back for one of `handBack`'s reasons, newest first, `limit` of them. */
 export const listHoldsHandedBack = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   state: SchemaSet<"escalations.state">,
   handBack: readonly SchemaSet<"escalations.reason">[],
   limit: number,
@@ -143,11 +143,11 @@ export const findMessageState = async (db: Db, messageId: string) =>
   db.from("messages").select("id, tenant_id, conversation_id, status").eq("id", messageId).maybeSingle();
 
 /** One of the workspace's messages' media, or none. */
-export const findMessageMediaRow = async (db: Db, tenantId: string, messageId: string) =>
+export const findMessageMediaRow = async (db: Db, tenantId: TenantId, messageId: string) =>
   db.from("messages").select("id, media").eq("id", messageId).eq("tenant_id", tenantId).maybeSingle();
 
 /** One of the workspace's messages' meta, or none. */
-export const findMessageMeta = async (db: Db, tenantId: string, messageId: string) =>
+export const findMessageMeta = async (db: Db, tenantId: TenantId, messageId: string) =>
   db.from("messages").select("meta").eq("id", messageId).eq("tenant_id", tenantId).maybeSingle();
 
 /** A hold resolved by a member, only while open: its id back, none when it was not open. */
@@ -164,7 +164,7 @@ export const linkHoldDecision = async (db: Db, escalationId: string, decisionId:
   db.from("escalations").update({ decision_id: decisionId }).eq("id", escalationId);
 
 /** The workspace's WhatsApp template of a name and language as a reply sends it, or none. */
-export const findTemplateForReply = async (db: Db, tenantId: string, name: string, language: string) =>
+export const findTemplateForReply = async (db: Db, tenantId: TenantId, name: string, language: string) =>
   db
     .from("templates")
     .select("name, language, body_preview, meta_status, category, variables")

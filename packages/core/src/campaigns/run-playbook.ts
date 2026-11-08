@@ -1,3 +1,4 @@
+import { heldContactId } from "@chanlytics/contracts";
 import {
   batchModeOf,
   campaignEnded,
@@ -360,7 +361,7 @@ async function runPeopleHand(run: Run, hand: StepHand): Promise<RunOutcome> {
     const items = await Promise.all(
       handed.map(async (person) => ({
         send_id: await sendIdFor(runId, person.id),
-        contact_id: person.id,
+        contact_id: heldContactId(person.id),
         // Their own name, or their WhatsApp one: never the row's fallback (a number, an address, "Unknown"), which a
         // call to "ana@example.com" would read; with neither, "them" (personHandWords).
         words: personHandWords(hand.kind, person.givenName || person.waName || "", hand.words),
@@ -674,7 +675,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     },
     // Each person on the channel the pick gave them (reachFor): written on their row, which the sender goes by.
     recipients: eligible.map((person) => ({
-      contact_id: person.id,
+      contact_id: heldContactId(person.id),
       facts: facts(person),
       channel: channelOf[person.id] ?? "whatsapp",
     })),

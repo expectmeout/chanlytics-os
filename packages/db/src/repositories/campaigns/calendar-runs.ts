@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -33,7 +34,7 @@ const SEND_LEAD_MS = 2 * DAY_MS;
  */
 export async function listRunsInSpan(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   span: { fromIso: string; toIso: string; fromDay: string; toDay: string },
 ): Promise<SpanRunRow[]> {
   const sendsFrom = new Date(Date.parse(span.fromIso) - SEND_LEAD_MS).toISOString();
@@ -76,7 +77,7 @@ export type MomentScheduleRow = Pick<
 >;
 
 /** Every campaign's schedule columns, and nothing more: the board forecasts from these alone. */
-export async function listMomentSchedules(db: Db, tenantId: string): Promise<MomentScheduleRow[]> {
+export async function listMomentSchedules(db: Db, tenantId: TenantId): Promise<MomentScheduleRow[]> {
   return readAllRows<MomentScheduleRow>("calendar_moment_schedules", (from, to) =>
     db
       .from("sequence_steps")

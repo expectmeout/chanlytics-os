@@ -1,3 +1,4 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import "server-only";
 
 /**
@@ -31,6 +32,7 @@ import { linkPageDb, linkPageLookOf } from "../public/link-page";
 import { recordWorkspaceBegun } from "../workspace/create";
 import { log } from "../shared/log";
 import type { RouteContext } from "../shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The service role, where this deployment holds it: the page and sign-up know only the link. */
 type Db = ReturnType<typeof linkPageDb>;
@@ -70,7 +72,7 @@ function claimRefusalOf(reason: PreviewRefusal, message: string): AppError {
 }
 
 /** The preview's use, as the claimer's first-run marks. Best effort: a workspace made theirs is never undone by it. */
-async function markFirstRun(ctx: RouteContext, tenantId: string, row: LeadPreviewRow | null): Promise<void> {
+async function markFirstRun(ctx: RouteContext, tenantId: TenantId, row: LeadPreviewRow | null): Promise<void> {
   const later = row ? previewFirstRunMarks(row) : [];
   if (!later.length) return;
   try {
@@ -92,12 +94,12 @@ export async function claimPreviewFor(ctx: RouteContext, token: string) {
   // What follows every workspace made (recordWorkspaceBegun), with the first run's marks its preview earned kept on the
   // workspace (decision 0091) as well as on the claimer's own view.
   const marks = used ? previewFirstRunMarks(used) : [];
-  await recordWorkspaceBegun(ctx, workspace.id, {
+  await recordWorkspaceBegun(ctx, heldTenantId(workspace.id), {
     by: "claimed",
     notify: ctx.email ?? "",
     alertTo: ctx.email ?? null,
     marks,
   });
-  await markFirstRun(ctx, workspace.id, used);
+  await markFirstRun(ctx, heldTenantId(workspace.id), used);
   return { workspace };
 }

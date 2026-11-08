@@ -15,10 +15,11 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 import { recordOrEmpty } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 export interface SubscribeOptions {
   /** The workspace the tab shows: its topic is the one joined. A tab with none joins nothing. */
-  tenantId?: string;
+  tenantId?: TenantId;
   /** Observability: called with SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED. */
   onStatus?: (status: string) => void;
 }
@@ -250,7 +251,7 @@ export function watchedEvents(): Array<{ table: string; events: Event[] }> {
  * UTC): absent from a notice sent before 00408.
  */
 type OnChange = (
-  row: { tenant_id: string; status?: string; erasure?: true },
+  row: { tenant_id: TenantId; status?: string; erasure?: true },
   table: string,
   event: string,
   at?: string,
@@ -323,7 +324,7 @@ export function subscribeWorkspaceChanges(
 
 async function join(
   client: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   topic: string,
   hearing: Hearing,
   heard: Map<string, Hearing>,
@@ -364,7 +365,7 @@ function report(listener: Listener, topic: string, status: string): void {
  * told by (`at`) where it carries one. A call's notice, and a message update's, carries the statuses its statement
  * left, and each is a change of its own, so a rule that reads a status reads every one; they share the notice's clock.
  */
-function tell(hearing: Hearing, tenantId: string, message: { event?: string; payload?: unknown }): void {
+function tell(hearing: Hearing, tenantId: TenantId, message: { event?: string; payload?: unknown }): void {
   const notice = (message.payload ?? {}) as {
     table?: unknown;
     statuses?: unknown;
@@ -416,7 +417,7 @@ export const CATCH_UP_MOST = 200;
  */
 export async function getNoticesSince(
   client: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   since: string,
 ): Promise<{ notices: ToldNotice[]; whole: boolean }> {
   const { data, error } = await client.rpc("workspace_notices_since", { p_tenant_id: tenantId, p_since: since });

@@ -7,16 +7,17 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Args<F extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][F]["Args"];
 
 /** One of the workspace's searches as its card reads it, or none. */
-export const findSearchCard = async (db: Db, tenantId: string, searchId: string) =>
+export const findSearchCard = async (db: Db, tenantId: TenantId, searchId: string) =>
   db.from("lead_searches_view").select("*").eq("tenant_id", tenantId).eq("id", searchId).maybeSingle();
 
 /** The workspace's searches not removed, newest first, `limit` of them. */
-export const listSearchCards = async (db: Db, tenantId: string, limit: number) =>
+export const listSearchCards = async (db: Db, tenantId: TenantId, limit: number) =>
   db
     .from("lead_searches_view")
     .select("*")
@@ -26,7 +27,7 @@ export const listSearchCards = async (db: Db, tenantId: string, limit: number) =
     .limit(limit);
 
 /** The workspace's searches' names, `limit` of them. */
-export const listSearchNames = async (db: Db, tenantId: string, limit: number) =>
+export const listSearchNames = async (db: Db, tenantId: TenantId, limit: number) =>
   db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).limit(limit);
 
 /** A lead's own row as a press on it is checked, or none. */
@@ -52,7 +53,7 @@ export const countKeptMembers = async (db: Db, searchId: string) =>
     .is("blanked_at", null);
 
 /** The newest lead found of a person, not erased or blanked, or none. */
-export const findNewestLeadOfPerson = async (db: Db, tenantId: string, contactId: string) =>
+export const findNewestLeadOfPerson = async (db: Db, tenantId: TenantId, contactId: ContactId) =>
   db
     .from("leads")
     .select("id, business_name, found_at")
@@ -73,7 +74,7 @@ export const findLeadDraftFacts = async (db: Db, leadId: string) =>
     .maybeSingle();
 
 /** The workspace's kept suggestions of who to look for, or none. */
-export const findLeadSuggestions = async (db: Db, tenantId: string) =>
+export const findLeadSuggestions = async (db: Db, tenantId: TenantId) =>
   db
     .from("lead_suggestions")
     .select("tenant_id, business_line, by_owner, items, made_at, basis, failed_at, passed")
@@ -81,14 +82,14 @@ export const findLeadSuggestions = async (db: Db, tenantId: string) =>
     .maybeSingle();
 
 /** The workspace's searches' and lists' counts (lead_list_counts). */
-export const readLeadListCounts = async (db: Db, tenantId: string) =>
+export const readLeadListCounts = async (db: Db, tenantId: TenantId) =>
   db.rpc("lead_list_counts", { p_tenant_id: tenantId });
 
 /** One page of the leads workbench (leads_page). */
 export const readLeadsPage = async (db: Db, args: Args<"leads_page">) => db.rpc("leads_page", args);
 
 /** What the workspace's finding spent in a month (lead_month_used). */
-export const readLeadMonthUsed = async (db: Db, tenantId: string, period: string) =>
+export const readLeadMonthUsed = async (db: Db, tenantId: TenantId, period: string) =>
   db.rpc("lead_month_used", { p_tenant_id: tenantId, p_period: period });
 
 /** What finding a kind of business tends to cost (lead_niche_prior). */
@@ -126,7 +127,7 @@ export const undoLeadSearchRemoval = async (db: Db, searchId: string) =>
   db.rpc("lead_search_undo", { p_search_id: searchId });
 
 /** Leads marked exported (lead_export_mark). */
-export const markLeadsExported = async (db: Db, tenantId: string, leadIds: string[]) =>
+export const markLeadsExported = async (db: Db, tenantId: TenantId, leadIds: string[]) =>
   db.rpc("lead_export_mark", { p_tenant_id: tenantId, p_ids: leadIds });
 
 /** A new search begun (lead_search_create). */

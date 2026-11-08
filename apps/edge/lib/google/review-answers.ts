@@ -32,6 +32,7 @@ import {
   patchGoogleReview,
   saveHeldReviewReply,
 } from "@chanlytics/db/google";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The drafts one sync may write under the auto mode: twice the replies it posts, so a review the model could not
@@ -41,12 +42,12 @@ import {
 const REVIEW_DRAFTS_PER_SYNC = 2 * REVIEW_AUTO_REPLIES_PER_SYNC;
 
 /** The Autonomy row for reviews. No row reads as ask: a draft on request, nothing posted alone. */
-export async function reviewReplyMode(db: Db, tenantId: string): Promise<ReviewReplyMode> {
+export async function reviewReplyMode(db: Db, tenantId: TenantId): Promise<ReviewReplyMode> {
   return reviewReplyModeOf(await listPolicies(db, tenantId));
 }
 
 /** What the receptionist knows about the business when it writes under a review: the name, the tone, the languages, the services — from the same profile the WhatsApp brain speaks from. */
-async function reviewFacts(db: Db, tenantId: string): Promise<ReviewReplyFacts> {
+async function reviewFacts(db: Db, tenantId: TenantId): Promise<ReviewReplyFacts> {
   const [t, c] = await Promise.all([findWorkspaceName(db, tenantId), findConfigRow(db, tenantId)]);
   if (t.error) throw new Error(t.error.message);
   if (c.error) throw new Error(c.error.message);
@@ -65,7 +66,7 @@ async function reviewFacts(db: Db, tenantId: string): Promise<ReviewReplyFacts> 
 /** A draft for one review on record, for a person to send. Never posts. */
 export async function draftFor(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rowId: string,
 ): Promise<{ ok: true; text: string } | EdgeRefusal> {
   const review = await findReviewToAnswer(db, tenantId, rowId);
@@ -113,7 +114,7 @@ const nothingAnswered = (): ReviewAnswers => ({ answered: [], drafted: [] });
 /** A reply posted, on the row: the review answered, and the reply it held cleared. Throws what the write refused. */
 async function markReplied(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rowId: string,
   reply: { reply_text: string | null; replied_at: string | null },
 ): Promise<void> {
@@ -133,7 +134,7 @@ async function markReplied(
  */
 async function writeHeldReply(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rowId: string,
   set: { draft_text?: string; drafted_at?: string; posts_at: string | null },
   timed = false,
@@ -270,7 +271,7 @@ async function answerNewReviews(
  */
 export async function holdReviewReply(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rowId: string,
 ): Promise<{ ok: true; held: boolean } | EdgeRefusal> {
   try {
@@ -283,7 +284,7 @@ export async function holdReviewReply(
 /** An answer to a review, on Google and on the row. The ledger entry is the dashboard's. */
 export async function replyOnProfile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rowId: string,
   comment: string,
   now = new Date(),

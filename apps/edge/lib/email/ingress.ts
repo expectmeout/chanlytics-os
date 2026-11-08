@@ -33,6 +33,7 @@ import {
   type SvixHeaders,
 } from "@chanlytics/channels/email";
 import type { LogEvent } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -56,7 +57,7 @@ type ResendVerdict =
   | { kind: "ignore"; log: LogEvent; unroutable: number }
   /** What became of an email we sent. */
   | { kind: "receipt"; receipt: EmailReceipt }
-  | { kind: "intake"; receivedId: string; jobs: Array<{ tenantId: string; mailboxId: string }>; unroutable: number };
+  | { kind: "intake"; receivedId: string; jobs: Array<{ tenantId: TenantId; mailboxId: string }>; unroutable: number };
 
 export async function planResendEvent(resendIngressInput: ResendIngressInput): Promise<ResendVerdict> {
   // Each secret on its own: one that is set wrong (a bare whsec_) refuses only what it would have proven.
@@ -85,7 +86,7 @@ export async function planResendEvent(resendIngressInput: ResendIngressInput): P
   const ours = event.recipients
     .map((r) => platformRecipient(r, resendIngressInput.domain))
     .filter((r): r is NonNullable<typeof r> => r !== null);
-  const jobs = new Map<string, { tenantId: string; mailboxId: string }>();
+  const jobs = new Map<string, { tenantId: TenantId; mailboxId: string }>();
   let unroutable = 0;
   for (const to of ours) {
     const mailbox = await findMailbox(resendIngressInput.db, to);

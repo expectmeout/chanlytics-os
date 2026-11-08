@@ -28,13 +28,14 @@ import {
   listListingDaysSince,
   listRecentReviews,
 } from "@chanlytics/db/google";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The reviews a screen shows; the rest are on Google. */
 const REVIEWS_SHOWN = 20;
 /** Days of snapshots the longest report period reads, with one to spare. */
 const DAYS_KEPT = 92;
 
-export async function findListing(db: SupabaseClient<Database>, tenantId: string): Promise<GoogleListingDto | null> {
+export async function findListing(db: SupabaseClient<Database>, tenantId: TenantId): Promise<GoogleListingDto | null> {
   const { data, error } = await findListingCard(db, tenantId);
   if (error) throw new Error(error.message);
   return data;
@@ -46,7 +47,7 @@ export async function findListing(db: SupabaseClient<Database>, tenantId: string
  */
 export async function findListingFacts(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ name: string; address: string | null; facts: GoogleListingFacts | null } | null> {
   const { data, error } = await findGoogleListingFacts(db, tenantId);
   if (error) throw new Error(error.message);
@@ -55,7 +56,7 @@ export async function findListingFacts(
 
 export async function findConnection(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<GoogleConnectionDto | null> {
   const { data, error } = await findConnectionCard(db, tenantId);
   if (error) throw new Error(error.message);
@@ -70,7 +71,7 @@ export async function findConnection(
  */
 export async function getGoogle(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   now: number,
 ): Promise<Omit<GoogleReadDto, "reply_mode">> {
   const sinceDay = new Date(now - DAYS_KEPT * DAY_MS).toISOString().slice(0, 10);

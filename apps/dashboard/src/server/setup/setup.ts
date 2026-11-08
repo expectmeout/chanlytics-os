@@ -29,6 +29,7 @@ import {
 } from "@chanlytics/contracts";
 import { dbRefusal } from "@/server/shared/with-route";
 import { requestsFrom, setupReads, type SetupViewer } from "./channel-rows";
+import type { TenantId } from "@chanlytics/contracts";
 
 type SetupReads = Awaited<ReturnType<typeof setupReads>>;
 
@@ -294,7 +295,7 @@ function activationsSection(activations: SetupReads["activations"]): SetupDto["a
  */
 export async function setupDtoFor(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   viewer: SetupViewer,
   now = new Date(),
 ): Promise<SetupDto> {
@@ -338,7 +339,7 @@ export async function setupDtoFor(
  */
 export async function saveSetupChoices(
   ctx: { supabase: SupabaseClient<Database> },
-  tenantId: string,
+  tenantId: TenantId,
   input: { phone?: unknown; whatsapp?: string; marks?: string[]; version?: number },
 ): Promise<{ choices: SetupWorkspaceChoicesDto }> {
   // Not by phone (decision 0091) is kept as the number's choice is, so one key says how calls reach the business.

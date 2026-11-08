@@ -16,7 +16,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
 import type { Database } from "@chanlytics/db/types";
-import type { CalendarPerson } from "@chanlytics/contracts";
+import type { CalendarPerson, TenantId } from "@chanlytics/contracts";
 
 interface AddedFromCalendar {
   seen: number;
@@ -30,7 +30,7 @@ interface AddedFromCalendar {
 
 export async function addPeopleFromCalendar(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   rows: CalendarPerson[],
 ): Promise<AddedFromCalendar> {
   const out: AddedFromCalendar = { seen: rows.length, added: 0, named: 0, erased: 0, emailed: 0 };

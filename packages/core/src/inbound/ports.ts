@@ -27,6 +27,8 @@ import type {
   NotificationsConfig,
   PolicyLimits,
   SendPurpose,
+  TenantId,
+  ContactId,
 } from "@chanlytics/contracts";
 // TYPES ONLY, and only these: the one inbound shape is the channels package's
 // and the verb speaks it, but a value from channels would be a provider
@@ -99,7 +101,7 @@ export interface InboundLog {
  * which is the one door that loads it.
  */
 export interface InboundRuntime {
-  tenantId: string;
+  tenantId: TenantId;
   /** The workspace's address word (tenants.slug), when the runtime read it: an alert mail links the workspace's page by it. */
   slug?: string | null;
   /** null = this tenant's receptionist does not speak (unconfigured persona —
@@ -143,7 +145,7 @@ export interface InboundRuntime {
 export interface InboundHandoff {
   target: {
     /** The tenant this message is ABOUT. */
-    tenantId: string | null;
+    tenantId: TenantId | null;
     /** That tenant's configured notification settings, when we could read them. */
     notifications: NotificationsConfig | null;
     /** True when this tenant is the env-default one, whose owner IS the address in LEAD_TO. */
@@ -168,7 +170,7 @@ export interface InboundHandoff {
  * version its prompt was composed from). The purpose is the receptionist's own unless a draft says otherwise.
  */
 export interface BrainCall {
-  tenantId: string | null;
+  tenantId: TenantId | null;
   /** The conversation it answers: the ledger's subject, and what the turn is kept under (decision 0039). */
   subjectId?: string | null;
   /** tenant_config.version the prompt was composed from; null when it could not be read. */
@@ -283,7 +285,7 @@ export interface InboundPorts {
      */
     read(
       db: InboundDb,
-      tenantId: string,
+      tenantId: TenantId,
       phoneE164: string,
       historyLimit?: number,
       answering?: string,
@@ -294,13 +296,13 @@ export interface InboundPorts {
      */
     readById?(
       db: InboundDb,
-      tenantId: string,
-      contactId: string,
+      tenantId: TenantId,
+      contactId: ContactId,
       historyLimit?: number,
       answering?: string,
     ): Promise<LeadContext>;
     /** People → profile → "Receptionist for …": this person's own mode, or null. */
-    personReplyMode(db: InboundDb, tenantId: string, contactId: string): Promise<string | null>;
+    personReplyMode(db: InboundDb, tenantId: TenantId, contactId: ContactId): Promise<string | null>;
     /**
      * This person's answer about offers and how it was given, or null where there is no such person: what a START's
      * confirmation on WhatsApp reads to say a STOP ended their yes (reply-gates.ts). Absent in an adapter that has
@@ -308,8 +310,8 @@ export interface InboundPorts {
      */
     offersAnswer?(
       db: InboundDb,
-      tenantId: string,
-      contactId: string,
+      tenantId: TenantId,
+      contactId: ContactId,
     ): Promise<{ marketingConsent: string | null; marketingConsentSource: string | null } | null>;
     /**
      * That context in a line or two, for the model. A VALUE from the db package
@@ -325,7 +327,7 @@ export interface InboundPorts {
    * none: the confirmation is then in the workspace's name.
    */
   filing?: {
-    names(db: InboundDb, tenantId: string): Promise<{ campaign: string | null; brand: string | null }>;
+    names(db: InboundDb, tenantId: TenantId): Promise<{ campaign: string | null; brand: string | null }>;
   };
   calendar: {
     openings(rt: InboundRuntime, now?: Date): Promise<string | null>;
@@ -343,16 +345,16 @@ export interface InboundPorts {
   };
   budget: {
     /** A rolling day of this workspace's model usage; it may stop counting at `stopAt`. */
-    tokensLast24h(db: InboundDb, tenantId: string, stopAt?: number): Promise<number>;
+    tokensLast24h(db: InboundDb, tenantId: TenantId, stopAt?: number): Promise<number>;
   };
   /** The Postgres bookkeeping of one message: ingest, the memory, the held draft, the sink. */
   persist: {
     /** The rows as memory, or an UNKNOWN thread when they cannot be produced. */
-    thread(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null): Promise<ThreadState>;
+    thread(db: InboundDb | null, tenantId: TenantId | null, ing: IngestResult | null): Promise<ThreadState>;
     /** Persist first, on the message's own wire. Null when there is nothing to record for; IngestFailed when the write FAILED. */
     ingest(
       db: InboundDb | null,
-      tenantId: string | null,
+      tenantId: TenantId | null,
       n: InboundMessage & { channel: InboundChannel },
       /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
       line?: string | null,
@@ -361,7 +363,7 @@ export interface InboundPorts {
     ): Promise<IngestResult | null>;
     sink(
       db: InboundDb | null,
-      tenantId: string | null,
+      tenantId: TenantId | null,
       ing: IngestResult | null,
       rt?: InboundRuntime | null,
       channel?: InboundChannel,
@@ -373,7 +375,7 @@ export interface InboundPorts {
      * message of the thread holds it. Absent in an adapter that has none: the turn is then always held.
      */
     turn?: {
-      claim(db: InboundDb, tenantId: string, conversationId: string, messageId: string): Promise<boolean>;
+      claim(db: InboundDb, tenantId: TenantId, conversationId: string, messageId: string): Promise<boolean>;
       holds(db: InboundDb, conversationId: string, messageId: string): Promise<boolean>;
     };
     /**
@@ -381,11 +383,11 @@ export interface InboundPorts {
      * after a runner died mid-turn, asks before it speaks. Absent in an adapter that keeps no such mark: then nothing is
      * known to have answered it.
      */
-    answered?(db: InboundDb | null, tenantId: string | null, ing: IngestResult): Promise<boolean>;
+    answered?(db: InboundDb | null, tenantId: TenantId | null, ing: IngestResult): Promise<boolean>;
     /** The reply written as a DRAFT and scheduled to fire; null when it could not be queued. */
     queueReply(
       db: InboundDb | null,
-      tenantId: string | null,
+      tenantId: TenantId | null,
       ing: IngestResult | null,
       toPhone: string,
       body: string,

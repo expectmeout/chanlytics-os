@@ -38,6 +38,7 @@ import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { bucket, fileDoorRefusal } from "./file";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long the address of an upload's first bytes is good for, and how long reading them may take. */
 const HEAD_LINK_S = 60;
@@ -148,7 +149,7 @@ async function firstBytesOf(path: string): Promise<{ head: Uint8Array; size: num
  * A file Storage can't decode at all answers 500 in both places (real upload, 5 Nov 2026), the same as an outage, so it is
  * kept too: one tile that says its name, which its owner can delete, against refusing every HEIC while Storage is down.
  */
-async function decoderRefuses(path: string, tenantId: string, mime: FileMime, size: number): Promise<boolean> {
+async function decoderRefuses(path: string, tenantId: TenantId, mime: FileMime, size: number): Promise<boolean> {
   const say = (status: string) => log.info("file_decoder_answered", { tenant_id: tenantId, status, mime, bytes: size });
   const link = await bucket().createSignedUrl(path, HEAD_LINK_S, {
     transform: { width: DECODE_WIDTH, resize: "contain" },
@@ -180,7 +181,7 @@ async function decoderRefuses(path: string, tenantId: string, mime: FileMime, si
 async function provenImage(
   read: { head: Uint8Array; size: number },
   path: string,
-  tenantId: string,
+  tenantId: TenantId,
   mime: FileMime,
 ): Promise<{ width: number | null; height: number | null } | { refused: string }> {
   const seen = imageHeaderOf(read.head);

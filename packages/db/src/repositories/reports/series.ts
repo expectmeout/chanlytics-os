@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import type { JsonObject } from "../events/events";
 import { isMissingDoor } from "../../shared/missing-door";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -36,7 +37,7 @@ export class ReportWindowNotReadable extends Error {
 }
 
 /** A function's arguments for a window: its last day named only where it is not today, so a period reads as it always did. */
-const windowArgs = (tenantId: string, w: ReportWindow) =>
+const windowArgs = (tenantId: TenantId, w: ReportWindow) =>
   w.end === null ? { p_tenant_id: tenantId, p_days: w.days } : { p_tenant_id: tenantId, p_days: w.days, p_end: w.end };
 
 /** A refusal that says the function taking a last day is not on this database, for a window that names one. */
@@ -44,7 +45,7 @@ const notReadable = (w: ReportWindow, error: { code?: string | null }): boolean 
   w.end !== null && isMissingDoor({ code: error.code ?? null });
 
 /** The receptionist's numbers day by day for the window and the same number of days before it (`report_series`, 00304). */
-export async function reportSeries(db: Db, tenantId: string, window: ReportWindow): Promise<Json> {
+export async function reportSeries(db: Db, tenantId: TenantId, window: ReportWindow): Promise<Json> {
   const { data, error } = await db.rpc("report_series", windowArgs(tenantId, window));
   if (error) {
     if (notReadable(window, error)) throw new ReportWindowNotReadable("report_series");
@@ -54,7 +55,7 @@ export async function reportSeries(db: Db, tenantId: string, window: ReportWindo
 }
 
 /** What the broadcasts and playbooks sent, day by day for the window and the same number before, and the window by source (`campaign_series`, 00251). */
-export async function getCampaignSeries(db: Db, tenantId: string, window: ReportWindow): Promise<Json> {
+export async function getCampaignSeries(db: Db, tenantId: TenantId, window: ReportWindow): Promise<Json> {
   const { data, error } = await db.rpc("campaign_series", windowArgs(tenantId, window));
   if (error) {
     if (notReadable(window, error)) throw new ReportWindowNotReadable("campaign_series");
@@ -71,7 +72,7 @@ export async function getCampaignSeries(db: Db, tenantId: string, window: Report
  * every read answers it, and the lens draws the listing alone (the function itself never answers null). A window that
  * names its last day on a database without 00360 is the same answer, for the same reason. Any other failure throws.
  */
-export async function findReviewsLedger(db: Db, tenantId: string, window: ReportWindow): Promise<Json | null> {
+export async function findReviewsLedger(db: Db, tenantId: TenantId, window: ReportWindow): Promise<Json | null> {
   const { data, error } = await db.rpc("reviews_ledger", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
@@ -89,7 +90,7 @@ export async function findReviewsLedger(db: Db, tenantId: string, window: Report
  * same reason: the one function takes the last day, so a database without it has no function at all. Any other failure
  * throws.
  */
-export async function findReceptionistSeries(db: Db, tenantId: string, window: ReportWindow): Promise<Json | null> {
+export async function findReceptionistSeries(db: Db, tenantId: TenantId, window: ReportWindow): Promise<Json | null> {
   const { data, error } = await db.rpc("receptionist_series", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
@@ -108,7 +109,7 @@ export async function findReceptionistSeries(db: Db, tenantId: string, window: R
  * that names its last day is the same answer, for the same reason: the one function takes the last day, so a database
  * without it has no function at all. Any other failure throws.
  */
-export async function findPeopleSeries(db: Db, tenantId: string, window: ReportWindow): Promise<Json | null> {
+export async function findPeopleSeries(db: Db, tenantId: TenantId, window: ReportWindow): Promise<Json | null> {
   const { data, error } = await db.rpc("people_series", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
@@ -127,7 +128,7 @@ export async function findPeopleSeries(db: Db, tenantId: string, window: ReportW
  * same answer, for the same reason: the one function takes the last day, so a database without it has no function at all.
  * Any other failure throws.
  */
-export async function findCampaignLedger(db: Db, tenantId: string, window: ReportWindow): Promise<Json | null> {
+export async function findCampaignLedger(db: Db, tenantId: TenantId, window: ReportWindow): Promise<Json | null> {
   const { data, error } = await db.rpc("campaign_ledger", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
@@ -144,7 +145,7 @@ export async function findCampaignLedger(db: Db, tenantId: string, window: Repor
  * production on the owner's word, either deploy order works), and the lens then draws its other parts and none of the
  * stuck ones (the function itself never answers null). Any other failure throws.
  */
-export async function findCampaignStuck(db: Db, tenantId: string): Promise<Json | null> {
+export async function findCampaignStuck(db: Db, tenantId: TenantId): Promise<Json | null> {
   const { data, error } = await db.rpc("campaign_stuck", { p_tenant_id: tenantId });
   if (error) {
     if (isMissingDoor(error)) return null;
@@ -160,7 +161,7 @@ export async function findCampaignStuck(db: Db, tenantId: string): Promise<Json 
  */
 export async function readReachOutReport(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   window: ReportWindow,
 ): Promise<{ ok: true; data: Json } | { ok: false; code: string; message: string }> {
   const { data, error } = await db.rpc("reach_out_report", windowArgs(tenantId, window));
@@ -195,19 +196,23 @@ function answerOrMissing(
  * What each moment playbook's runs earned, with its newest `history` runs (`playbook_totals`, 00374): one jsonb by
  * playbook id, which PostgREST's row cap never cuts; contracts' isPlaybookTotalsDto reads it.
  */
-export async function getPlaybookTotals(db: Db, tenantId: string, history: number): Promise<JsonObject | "missing"> {
+export async function getPlaybookTotals(db: Db, tenantId: TenantId, history: number): Promise<JsonObject | "missing"> {
   const { data, error } = await db.rpc("playbook_totals", { p_tenant_id: tenantId, p_history: history });
   return answerOrMissing("playbook_totals", data, error);
 }
 
 /** Each run's people, receipts and replies, by run id (`run_counts`, 00374): what Sent, a run's sheet and a card say. */
-export async function runCounts(db: Db, tenantId: string, runIds: readonly string[]): Promise<JsonObject | "missing"> {
+export async function runCounts(
+  db: Db,
+  tenantId: TenantId,
+  runIds: readonly string[],
+): Promise<JsonObject | "missing"> {
   const { data, error } = await db.rpc("run_counts", { p_tenant_id: tenantId, p_run_ids: [...runIds] });
   return answerOrMissing("run_counts", data, error);
 }
 
 /** How many of each message went out, and when the latest did, by name (`template_sends`, 00374). */
-export async function getTemplateSends(db: Db, tenantId: string): Promise<JsonObject | "missing"> {
+export async function getTemplateSends(db: Db, tenantId: TenantId): Promise<JsonObject | "missing"> {
   const { data, error } = await db.rpc("template_sends", { p_tenant_id: tenantId });
   return answerOrMissing("template_sends", data, error);
 }
@@ -221,7 +226,7 @@ export async function getTemplateSends(db: Db, tenantId: string): Promise<JsonOb
  */
 export async function getReachOutChainTotals(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   window: ReportWindow,
 ): Promise<JsonObject | "missing"> {
   const { data, error } = await db.rpc("reach_out_chain_totals", windowArgs(tenantId, window));

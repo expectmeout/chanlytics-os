@@ -19,6 +19,7 @@ import { MIN_MS, recordOrEmpty } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -42,7 +43,7 @@ interface RehearsalFixRow {
 /** A rehearsal as the doors read it. */
 export interface RehearsalRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   kind: "call" | "typed" | "call_review";
   retell_call_id: string | null;
   call_id: string | null;
@@ -123,7 +124,7 @@ function rehearsalOf(read: ReadRow): RehearsalRow {
 }
 
 /** One rehearsal of the workspace, by its id; null when it has none by that id. A read that fails throws. */
-export async function findRehearsalById(db: Db, tenantId: string, id: string): Promise<RehearsalRow | null> {
+export async function findRehearsalById(db: Db, tenantId: TenantId, id: string): Promise<RehearsalRow | null> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("rehearsals")
     .select(REHEARSAL_COLUMNS)
@@ -148,7 +149,7 @@ export async function findRehearsalByCall(db: Db, retellCallId: string): Promise
 }
 
 /** The review of a real call, where it has one. */
-export async function callReviewOf(db: Db, tenantId: string, callId: string): Promise<RehearsalRow | null> {
+export async function callReviewOf(db: Db, tenantId: TenantId, callId: string): Promise<RehearsalRow | null> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("rehearsals")
     .select(REHEARSAL_COLUMNS)
@@ -169,7 +170,7 @@ export async function callReviewOf(db: Db, tenantId: string, callId: string): Pr
  */
 export async function getRehearsalSpokenMs(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   options: { since: string | null; now: Date; runningMs: number; callMs: number; except: string | null },
 ): Promise<{ spentMs: number; running: boolean }> {
   let items = tenantDb(db, tenantId).from("rehearsals").select("created_at, ended_at, seconds").eq("kind", "call");
@@ -195,7 +196,7 @@ export async function getRehearsalSpokenMs(
  */
 export async function findRehearsalTally(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ reviewed: number; kept: number; last_at: string | null }> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("rehearsals")
@@ -216,7 +217,7 @@ export async function findRehearsalTally(
  * The call id a workspace's start holds while it asks the provider: one a workspace, so a second start at the same
  * moment is the row's unique key (`rehearsals_retell_call_id_key`), never a second call beside the first.
  */
-const startingCallId = (tenantId: string) => `starting:${tenantId}`;
+const startingCallId = (tenantId: TenantId) => `starting:${tenantId}`;
 
 /** How long a start may hold its reservation: the call door's own most (vercel.json, 60 s) and a margin. */
 const START_HELD_MS = 2 * MIN_MS;
@@ -228,7 +229,7 @@ const START_HELD_MS = 2 * MIN_MS;
  */
 export async function reserveRehearsalCall(
   db: Db,
-  row: { id: string; tenantId: string; createdBy: string | null; now: Date },
+  row: { id: string; tenantId: TenantId; createdBy: string | null; now: Date },
 ): Promise<boolean> {
   const held = startingCallId(row.tenantId);
   const result = tenantDb(db, row.tenantId);
@@ -251,7 +252,7 @@ export async function reserveRehearsalCall(
 }
 
 /** A reservation no call came of, given back: the minutes refused it, or the provider made no call. */
-export async function releaseRehearsalCall(db: Db, tenantId: string, id: string): Promise<void> {
+export async function releaseRehearsalCall(db: Db, tenantId: TenantId, id: string): Promise<void> {
   const { error } = await tenantDb(db, tenantId)
     .from("rehearsals")
     .delete()
@@ -265,7 +266,7 @@ export async function keepRehearsalCall(
   db: Db,
   row: {
     id: string;
-    tenantId: string;
+    tenantId: TenantId;
     retellCallId: string;
     agentId: string;
     configVersion: number | null;
@@ -293,7 +294,7 @@ export async function keepRehearsalCall(
  */
 export async function writeRehearsalTranscript(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   retellCallId: string,
   turns: readonly RehearsalTurnRow[],
   startedAt: string | null,
@@ -311,7 +312,7 @@ export async function writeRehearsalTranscript(
 /** A spoken rehearsal ended: its whole transcript, its seconds (what the free minutes count), and why it ended. */
 export async function endRehearsal(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   retellCallId: string,
   input: {
     turns: readonly RehearsalTurnRow[];
@@ -340,7 +341,7 @@ export async function endRehearsal(
 export async function keepTypedRehearsal(
   db: Db,
   row: {
-    tenantId: string;
+    tenantId: TenantId;
     turns: readonly RehearsalTurnRow[];
     configVersion: number | null;
     instructions: string;
@@ -367,7 +368,7 @@ export async function keepTypedRehearsal(
 export async function keepCallReview(
   db: Db,
   row: {
-    tenantId: string;
+    tenantId: TenantId;
     callId: string;
     agentId: string | null;
     configVersion: number | null;
@@ -395,7 +396,7 @@ export async function keepCallReview(
 }
 
 /** The review, kept on its rehearsal, so a second look costs nothing. */
-export async function keepRehearsalReview(db: Db, tenantId: string, id: string, review: Json): Promise<void> {
+export async function keepRehearsalReview(db: Db, tenantId: TenantId, id: string, review: Json): Promise<void> {
   const { error } = await tenantDb(db, tenantId)
     .from("rehearsals")
     .update({ review, reviewed_at: new Date().toISOString() })
@@ -411,7 +412,7 @@ export async function keepRehearsalReview(db: Db, tenantId: string, id: string, 
  */
 export async function keepRehearsalFix(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
   fix: Omit<RehearsalFixRow, "at">,
 ): Promise<number> {
@@ -429,7 +430,7 @@ export async function keepRehearsalFix(
 /** The workspace's receptionist at Retell, made before any number: null where none was. A read that fails throws. */
 export async function findVoiceAgent(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ agentId: string; llmId: string | null } | null> {
   const { data, error } = await tenantDb(db, tenantId).from("voice_agents").select("agent_id, llm_id").maybeSingle();
   if (error) throw new Error(`cannot read the workspace's voice agent: ${error.message}`);
@@ -439,7 +440,7 @@ export async function findVoiceAgent(
 /** The agent kept on the workspace: once, the first made (a second made at once loses, and is the caller's to adopt). */
 export async function keepVoiceAgent(
   db: Db,
-  args: { tenantId: string; agentId: string; llmId: string | null },
+  args: { tenantId: TenantId; agentId: string; llmId: string | null },
 ): Promise<{ agentId: string; llmId: string | null }> {
   const result = tenantDb(db, args.tenantId);
   const { error } = await result
@@ -468,7 +469,7 @@ export async function listVoiceAgentsBeforeANumber(db: Db): Promise<string[]> {
  * Every agent a voice line answers in now, across workspaces (an active voice channel's external id): what the health
  * sweep holds to the shell once a day (lib/voice/watch/voice-watch.ts, decision 0092). A read that fails throws.
  */
-export async function listActiveVoiceAgents(db: Db): Promise<Array<{ tenantId: string; agentId: string }>> {
+export async function listActiveVoiceAgents(db: Db): Promise<Array<{ tenantId: TenantId; agentId: string }>> {
   const { data, error } = await platformWide(db)
     .from("tenant_channels")
     .select("tenant_id, external_id")
@@ -479,7 +480,7 @@ export async function listActiveVoiceAgents(db: Db): Promise<Array<{ tenantId: s
 }
 
 /** A workspace's settings as they stood at one version (tenant_config_versions, 00402); null when that version is not kept. */
-export async function findConfigAtVersion(db: Db, tenantId: string, version: number): Promise<Json | null> {
+export async function findConfigAtVersion(db: Db, tenantId: TenantId, version: number): Promise<Json | null> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("tenant_config_versions")
     .select("config")

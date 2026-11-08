@@ -16,6 +16,7 @@ import {
   type ReviewToAnswer,
 } from "@chanlytics/contracts";
 import { callModel } from "../ai/model.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type DraftResult =
   | { ok: true; text: string; usage: { input_tokens: number; output_tokens: number } | null }
@@ -23,7 +24,7 @@ type DraftResult =
 
 /** Who the draft is for: the workspace the ledger writes it to, and the review it answers. */
 export interface ReviewDraftFor {
-  tenantId: string;
+  tenantId: TenantId;
   reviewId?: string | null;
 }
 

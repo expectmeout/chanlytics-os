@@ -29,6 +29,7 @@ import type { SitePage } from "@chanlytics/channels/website";
 import type { LeadWires } from "./wires.js";
 import { errField, logger } from "../shared/log.js";
 import { findHomePage, PAGE_READS, sitePagesReadable } from "../shared/public-page.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The image read is channels' (site-reads.ts): one reading of a picture a business's own site names, which the
@@ -92,9 +93,9 @@ const MARK_AGAIN_ALLOWANCE_MS = 20 * SECOND_MS;
 async function settleMarkReads(
   db: SupabaseClient<Database>,
   sites: SiteReads,
-  leads: readonly { tenant_id: string; website_host: string }[],
+  leads: readonly { tenant_id: TenantId; website_host: string }[],
 ): Promise<void> {
-  const byTenant = new Map<string, Set<string>>();
+  const byTenant = new Map<TenantId, Set<string>>();
   for (const { tenant_id, website_host } of leads) {
     if (!sites.asked(website_host)) continue;
     byTenant.set(tenant_id, (byTenant.get(tenant_id) ?? new Set()).add(website_host));

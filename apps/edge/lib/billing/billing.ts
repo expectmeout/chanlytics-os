@@ -25,10 +25,11 @@ import {
   type BillingRow,
   type Db,
 } from "./subscription.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 export async function getInvoices(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ ok: true; invoices: BillingInvoiceDto[] } | { ok: false; error: BillingFailure; detail?: string }> {
   const client = stripe();
   if (!client) return { ok: false, error: "not_ready" };
@@ -59,7 +60,7 @@ export async function getInvoices(
 /** Read the subscription from Stripe now and apply it: the Refresh button, and the safety net when a delivery was missed. */
 export async function syncFor(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
   const client = stripe();
@@ -92,7 +93,7 @@ export async function syncFor(
 /** A paused subscription, resumed: Stripe bills from now; the webhook turns the receptionist back on, and the sync here does not wait for it. */
 export async function resumeFor(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
   by: string | null = null,
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
@@ -124,7 +125,7 @@ export async function resumeFor(
  */
 export async function startPlanNowFor(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
   by: string | null = null,
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
@@ -251,7 +252,13 @@ const CLAIMED: ClaimState = "claimed";
 const APPLIED: ClaimState = "applied";
 
 /** The id written: true when this delivery is the first, false when the id is on record. */
-async function insertClaim(db: Db, id: string, type: string, tenantId: string | null, lease: string): Promise<boolean> {
+async function insertClaim(
+  db: Db,
+  id: string,
+  type: string,
+  tenantId: TenantId | null,
+  lease: string,
+): Promise<boolean> {
   const { error } = await insertBillingClaim(db, { id, type, tenant_id: tenantId, state: CLAIMED, lease_until: lease });
   if (!error) return true;
   if (error.code === "23505") return false;
@@ -286,7 +293,7 @@ export async function keepEvent(
   db: Db,
   id: string,
   type: string,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   now = new Date(),
 ): Promise<EventClaim> {
   const lease = new Date(now.getTime() + BILLING_EVENT_LEASE_MS).toISOString();
@@ -310,7 +317,7 @@ export async function keepEvent(
  * the same reading (applySubscription is idempotent, and its own compare-and-
  * set absorbs the race), so the row is left to the retry.
  */
-export async function completeEvent(db: Db, id: string, lease: string, tenantId: string | null): Promise<boolean> {
+export async function completeEvent(db: Db, id: string, lease: string, tenantId: TenantId | null): Promise<boolean> {
   const up = await completeBillingEvent(db, id, lease);
   if (up.error) throw new Error(up.error.message);
   if (up.data?.length) return true;

@@ -24,6 +24,7 @@ import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import { remadeLogo } from "@chanlytics/channels/files";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A day: a replaced picture has a new name, so only a removed one is held this long in a browser that saw it. */
 const CACHE_S = String(24 * 60 * 60);
@@ -40,7 +41,7 @@ export function logoDoorRefusal(error: { code?: string; message: string }): AppE
 }
 
 /** A file no workspace wears any more, removed; a failure is said, never thrown: the save it follows stands. */
-async function removeFile(tenantId: string, path: string, reason: "replaced" | "refused" | "removed"): Promise<void> {
+async function removeFile(tenantId: TenantId, path: string, reason: "replaced" | "refused" | "removed"): Promise<void> {
   const { error } = await bucket()
     .remove([path])
     .catch((e: unknown) => ({ error: { message: String(e instanceof Error ? e.message : e) } }));

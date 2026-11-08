@@ -36,6 +36,7 @@
  * The switch fails closed on its own value: any set value but an explicit off ("0", "false", "off", "no") is the
  * signature-only mode, so "true" or "yes", typed by someone who meant to close the doors, closes them.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import { stripKey, verifyRetellSignature } from "@chanlytics/channels/voice";
 import { emitEvent } from "@chanlytics/db/events";
 import { MIN_MS } from "@chanlytics/contracts";
@@ -145,7 +146,7 @@ export function voiceDoorAuth(
 }
 
 /** The platform's own workspace id, under which provider-wide evidence is kept (as the call webhook keeps its own). */
-const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
+const PLATFORM_TENANT = heldTenantId("00000000-0000-0000-0000-000000000000");
 
 /** How often one instance keeps a row for the same door, credential and verdict: once a minute is evidence enough. */
 const DOOR_EVIDENCE_EVERY_MS = MIN_MS;

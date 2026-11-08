@@ -11,6 +11,7 @@ import { seenBy, type SeenOf } from "@chanlytics/contracts";
 import { markContactSeen, markContact } from "@chanlytics/db/people";
 import { log } from "@/server/shared/log";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** The door is not there yet (the dashboard deployed before 00349), or nobody is signed in on this client (a reader run for Ask by the service). */
 const NO_READING = new Set(["PGRST202", "42883", "28000"]);
@@ -22,9 +23,9 @@ const NO_READING = new Set(["PGRST202", "42883", "28000"]);
  */
 export async function getSeenOfPeople(
   ctx: RouteContext,
-  tenantId: string,
-  contactIds: readonly string[],
-): Promise<(contactId: string) => SeenOf> {
+  tenantId: TenantId,
+  contactIds: readonly ContactId[],
+): Promise<(contactId: ContactId) => SeenOf> {
   if (!contactIds.length) return seenBy(null);
   try {
     return seenBy(await markContactSeen(ctx.supabase, tenantId, contactIds));
@@ -46,7 +47,7 @@ export async function getSeenOfPeople(
  */
 export async function markPersonSeen(
   ctx: RouteContext,
-  contactId: string,
+  contactId: ContactId,
   did: { seen: boolean; heardAt: string | null },
 ) {
   try {

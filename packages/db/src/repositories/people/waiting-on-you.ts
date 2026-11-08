@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { standingOfThread, type SchemaSet } from "@chanlytics/contracts";
 import type { Database } from "../../types";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -18,7 +19,7 @@ const IN_CHUNK = 200;
 
 interface ThreadRow {
   id: string;
-  contact_id: string;
+  contact_id: ContactId;
   state: string;
   paused_until: string | null;
   assignee_user_id: string | null;
@@ -33,7 +34,7 @@ const THREAD_COLUMNS = "id, contact_id, state, paused_until, assignee_user_id, l
  */
 export async function listThreadsBy(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   key: "id" | "contact_id",
   ids: readonly string[],
 ): Promise<ThreadRow[]> {
@@ -53,7 +54,7 @@ export async function listThreadsBy(
 /** The open hold of each of these threads, by thread: its reason, which says whether it waits on anyone. */
 async function openHoldsOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   threadIds: readonly string[],
 ): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
@@ -71,7 +72,12 @@ async function openHoldsOf(
 }
 
 /** Of these threads, the ones that wait on a person now (contracts standingOfThread's needs_you). */
-async function waitingOf(db: Db, tenantId: string, threads: readonly ThreadRow[], nowMs: number): Promise<ThreadRow[]> {
+async function waitingOf(
+  db: Db,
+  tenantId: TenantId,
+  threads: readonly ThreadRow[],
+  nowMs: number,
+): Promise<ThreadRow[]> {
   if (!threads.length) return [];
   // Every thread's hold is read, not only a flagged thread's: an open hold that waits on someone flags a thread whatever its
   // column says (standingOf), and one that waits on nobody (a STOP) flags none.
@@ -93,7 +99,7 @@ async function waitingOf(db: Db, tenantId: string, threads: readonly ThreadRow[]
 /** Of these threads, the ids of those that wait on a person now: a campaign run's replies (the run's sheet). */
 export async function getThreadIdsWaitingOnYou(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   threadIds: readonly string[],
   nowMs: number,
 ): Promise<Set<string>> {
@@ -108,8 +114,8 @@ export async function getThreadIdsWaitingOnYou(
  */
 export async function getPersonIdsWaitingOnYou(
   db: Db,
-  tenantId: string,
-  contactIds: readonly string[],
+  tenantId: TenantId,
+  contactIds: readonly ContactId[],
   nowMs: number,
 ): Promise<Set<string>> {
   if (!contactIds.length) return new Set();
@@ -143,7 +149,7 @@ interface ClosedHold {
  */
 export async function listLastClosedHolds(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationIds: readonly string[],
 ): Promise<ClosedHold[]> {
   const newest = new Map<string, ClosedHold>();
@@ -174,7 +180,7 @@ const DONE_READ_MAX = 1000;
  */
 export async function getTodayDoneCount(
   db: Db,
-  params: { tenantId: string; since: string; verbs: readonly SchemaSet<"decisions.verb">[] },
+  params: { tenantId: TenantId; since: string; verbs: readonly SchemaSet<"decisions.verb">[] },
 ): Promise<number> {
   const [counted, undos] = await Promise.all([
     db

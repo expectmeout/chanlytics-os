@@ -5,6 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type ReviewInsert = Database["public"]["Tables"]["google_reviews"]["Insert"];
@@ -16,7 +17,7 @@ type ReviewUpdate = Database["public"]["Tables"]["google_reviews"]["Update"];
  */
 export const deleteGoogleReviews = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   which: { origin?: "places" | "profile"; seenBefore?: string | null; only?: readonly string[] } = {},
 ) => {
   let q = db.from("google_reviews").delete().eq("tenant_id", tenantId);
@@ -27,11 +28,11 @@ export const deleteGoogleReviews = async (
 };
 
 /** One page (`from` to `to`, by review id) of the ids of the workspace's reviews. */
-export const pageGoogleReviewIds = async (db: Db, tenantId: string, from: number, to: number) =>
+export const pageGoogleReviewIds = async (db: Db, tenantId: TenantId, from: number, to: number) =>
   db.from("google_reviews").select("review_id").eq("tenant_id", tenantId).order("review_id").range(from, to);
 
 /** One page (`from` to `to`, by review id) of the workspace's reviews with their replies and where each was read. */
-export const pageGoogleReviewReplies = async (db: Db, tenantId: string, from: number, to: number) =>
+export const pageGoogleReviewReplies = async (db: Db, tenantId: TenantId, from: number, to: number) =>
   db
     .from("google_reviews")
     .select("review_id, replied_at, reply_text, origin")
@@ -40,11 +41,11 @@ export const pageGoogleReviewReplies = async (db: Db, tenantId: string, from: nu
     .range(from, to);
 
 /** The workspace's reviews kept, each written over its own row (one a review id). */
-export const saveGoogleReviews = async (db: Db, tenantId: string, rows: ReviewInsert[]) =>
+export const saveGoogleReviews = async (db: Db, tenantId: TenantId, rows: ReviewInsert[]) =>
   tenantDb(db, tenantId).from("google_reviews").upsert(rows, { onConflict: "tenant_id,review_id" });
 
 /** One of the workspace's reviews, as a reply is written for it, or none. */
-export const findReviewToAnswer = async (db: Db, tenantId: string, rowId: string) =>
+export const findReviewToAnswer = async (db: Db, tenantId: TenantId, rowId: string) =>
   db
     .from("google_reviews")
     .select("id, rating, author, body, published_at")
@@ -53,11 +54,11 @@ export const findReviewToAnswer = async (db: Db, tenantId: string, rowId: string
     .maybeSingle();
 
 /** One of the workspace's reviews, as Google knows it (its review id and where it was read), or none. */
-export const findReviewOnGoogle = async (db: Db, tenantId: string, rowId: string) =>
+export const findReviewOnGoogle = async (db: Db, tenantId: TenantId, rowId: string) =>
   db.from("google_reviews").select("id, review_id, origin").eq("tenant_id", tenantId).eq("id", rowId).maybeSingle();
 
 /** One of the workspace's reviews changed. */
-export const patchGoogleReview = async (db: Db, tenantId: string, rowId: string, set: ReviewUpdate) =>
+export const patchGoogleReview = async (db: Db, tenantId: TenantId, rowId: string, set: ReviewUpdate) =>
   db.from("google_reviews").update(set).eq("id", rowId).eq("tenant_id", tenantId);
 
 /**
@@ -66,7 +67,7 @@ export const patchGoogleReview = async (db: Db, tenantId: string, rowId: string,
  */
 export const saveHeldReviewReply = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rowId: string,
   set: ReviewUpdate,
   timed: boolean,
@@ -76,7 +77,7 @@ export const saveHeldReviewReply = async (
 };
 
 /** The workspace's newest profile reviews with no reply, `limit` of them. */
-export const listUnrepliedProfileReviews = async (db: Db, tenantId: string, limit: number) =>
+export const listUnrepliedProfileReviews = async (db: Db, tenantId: TenantId, limit: number) =>
   db
     .from("google_reviews")
     .select("id, review_id, origin, rating, author, body, published_at, reply_text, draft_text, posts_at")
@@ -87,7 +88,7 @@ export const listUnrepliedProfileReviews = async (db: Db, tenantId: string, limi
     .limit(limit);
 
 /** The workspace's newest reviews, `limit` of them, with the reply the receptionist holds and when it goes. */
-export const listRecentReviews = async (db: Db, tenantId: string, limit: number) =>
+export const listRecentReviews = async (db: Db, tenantId: TenantId, limit: number) =>
   db
     .from("google_reviews")
     .select(

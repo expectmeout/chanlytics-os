@@ -15,6 +15,7 @@ import { readAllRows } from "@chanlytics/db/shared";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 import { log } from "@/server/shared/log";
 import { stillListed } from "./going";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * Everyone who has written to or phoned a workspace, with the reply mode in
@@ -80,7 +81,7 @@ function searchNeedle(q: string | null | undefined): string {
 
 export async function listPeople(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   page: PeoplePage = {},
 ): Promise<PersonRowDto[]> {
   // The policies with the rows, not after them: they are the workspace's, and a page waited a round trip for them.
@@ -98,7 +99,7 @@ export async function listPeople(
  * the CSV and Ask's people tool said the wrong mode. The workspace's own row first (its subject is null), then by id:
  * one whole order, so no page repeats or skips a row, and the row everyone without their own follows is on the first.
  */
-function replyPolicies(ctx: Pick<RouteContext, "supabase">, tenantId: string) {
+function replyPolicies(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId) {
   return readAllRows("reply policies", (from, to) => pageReplyRules(ctx.supabase, tenantId, from, to)).catch(
     (e: unknown) => {
       log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
@@ -131,7 +132,7 @@ function withReplyModes(rows: PersonRowDto[], pols: Awaited<ReturnType<typeof re
  * them from "that is everyone". Every read that means all of them goes through
  * here, or, for a copy that has no next pass, through listEveryoneOnce.
  */
-export async function listEveryone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
+export async function listEveryone(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<PersonRowDto[]> {
   const [rows, pols] = await Promise.all([listEveryoneIn(ctx.supabase, tenantId), replyPolicies(ctx, tenantId)]);
   return withReplyModes(rows, pols);
 }
@@ -142,7 +143,7 @@ export async function listEveryone(ctx: Pick<RouteContext, "supabase">, tenantId
  */
 export async function* listEveryoneOnce(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
 ): AsyncGenerator<PersonRowDto[]> {
   // Read beside the first page, as everyone() reads them; a read that fails is none, so it never rejects.
   const pols = replyPolicies(ctx, tenantId);
@@ -156,7 +157,7 @@ export async function* listEveryoneOnce(
  */
 export async function findOnePerson(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   personName: string | { thread: string },
 ): Promise<PersonRowDto | null> {
   const [row, pols] = await Promise.all([
@@ -177,7 +178,7 @@ export async function findOnePerson(
  */
 export async function countPeople(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   otherQuery: string | null,
 ): Promise<number> {
   const needle = searchNeedle(otherQuery);
@@ -204,9 +205,9 @@ export async function countPeople(
  */
 export async function addPerson(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   params: { phone: string | null; email: string | null; name: string; source: string },
-): Promise<{ contact_id: string; existed: boolean }> {
+): Promise<{ contact_id: ContactId; existed: boolean }> {
   const { data, error } = await addPersonByHand(ctx.supabase, { tenantId, ...params });
   if (error || !data) throw dbRefusal(error ?? { message: "add_person answered without a person" });
   return data;

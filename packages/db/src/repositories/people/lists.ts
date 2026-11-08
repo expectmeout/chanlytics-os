@@ -26,6 +26,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { readAllRows, type Page } from "../../shared/paged";
 import { saysMissing } from "../../shared/missing-door";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -45,7 +46,7 @@ export interface SavedListRow {
 /** A list as a verb acts on it: the workspace it belongs to is the one its role is judged in. */
 export interface ListRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   /** A smart list's rule, or null for a list kept by hand: nobody is put on or taken off a rule by hand. */
   rule: unknown;
@@ -87,7 +88,7 @@ type ListCols = { id: string; name: string; rule?: unknown; archived_at?: string
 
 async function listRows(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ id: string; name: string; rule: unknown; archived_at: string | null }[]> {
   const rows = await readWithFallback(
     (columns) =>
@@ -109,10 +110,10 @@ async function listRows(
 }
 
 /** Every saved list of one workspace with every id on it, by name. Scoped by tenant, not by row security alone. */
-export async function listSavedLists(db: Db, tenantId: string): Promise<SavedListRow[]> {
+export async function listSavedLists(db: Db, tenantId: TenantId): Promise<SavedListRow[]> {
   const [lists, members] = await Promise.all([
     listRows(db, tenantId),
-    readAllRows<{ segment_id: string; contact_id: string }>("segment_members", (from, to) =>
+    readAllRows<{ segment_id: string; contact_id: ContactId }>("segment_members", (from, to) =>
       db
         .from("segment_members")
         .select("segment_id, contact_id")
@@ -139,14 +140,14 @@ export async function listSavedLists(db: Db, tenantId: string): Promise<SavedLis
 
 /** Every id on one list. */
 export async function listMemberIds(db: Db, listId: string): Promise<string[]> {
-  const rows = await readAllRows<{ contact_id: string }>("segment_members", (from, to) =>
+  const rows = await readAllRows<{ contact_id: ContactId }>("segment_members", (from, to) =>
     db.from("segment_members").select("contact_id").eq("segment_id", listId).order("contact_id").range(from, to),
   );
   return rows.map((m) => m.contact_id);
 }
 
 /** One saved list of this workspace with every id on it, or null when it has no such list: what a send to it enrols. */
-export async function findSavedList(db: Db, tenantId: string, id: string): Promise<SavedListRow | null> {
+export async function findSavedList(db: Db, tenantId: TenantId, id: string): Promise<SavedListRow | null> {
   const data = await readWithFallback(async (columns) => {
     const { data, error } = (await db
       .from("segments")
@@ -171,7 +172,7 @@ export async function findSavedList(db: Db, tenantId: string, id: string): Promi
 export async function listRow(db: Db, id: string): Promise<ListRow | null> {
   const data = await readWithFallback(async (columns) => {
     const { data, error } = (await db.from("segments").select(columns).eq("id", id).maybeSingle()) as {
-      data: (ListCols & { tenant_id: string }) | null;
+      data: (ListCols & { tenant_id: TenantId }) | null;
       error: { message: string } | null;
     };
     if (error) throw new Error(`segments: ${error.message}`);
@@ -194,7 +195,7 @@ export async function listRow(db: Db, id: string): Promise<ListRow | null> {
  */
 export async function createList(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   name: string,
   userId: string,
   rule: Json | null = null,
@@ -226,7 +227,7 @@ export async function setListRule(db: Db, id: string, rule: Json): Promise<{ err
 export async function addToList(
   db: Db,
   list: Pick<ListRow, "id" | "tenant_id">,
-  contactIds: readonly string[],
+  contactIds: readonly ContactId[],
   userId: string,
 ): Promise<{ error: WriteError | null }> {
   const rows = contactIds.map((contact_id) => ({
@@ -245,7 +246,7 @@ export async function addToList(
 export async function dropFromList(
   db: Db,
   listId: string,
-  contactIds: readonly string[],
+  contactIds: readonly ContactId[],
 ): Promise<{ error: WriteError | null }> {
   const { error } = await db
     .from("segment_members")
@@ -278,7 +279,7 @@ export async function archiveList(
 /** The playbooks that name a list: what archiving it pauses. */
 export async function listPlaybooksOnList(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   listId: string,
 ): Promise<{ id: string; name: string; state: string }[]> {
   const { data, error } = await db

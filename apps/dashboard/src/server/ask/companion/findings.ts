@@ -17,6 +17,7 @@ import type { Member } from "../../shared/route";
 import { listBroadcasts } from "../../campaigns/broadcasts/broadcasts";
 import { log } from "../../shared/log";
 import { buildProposal, newToolContext } from "../tools";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * What Ask noticed, as Today draws it (decision 0087; contracts ask/memory/findings.ts says what counts). Read on each
@@ -31,7 +32,7 @@ interface SequencesRead {
 }
 
 /** The workspace's sequences and recent batches: a read that fails costs what Ask noticed, never the morning. */
-export async function getSequencesAndRuns(ctx: RouteContext, tenantId: string): Promise<SequencesRead> {
+export async function getSequencesAndRuns(ctx: RouteContext, tenantId: TenantId): Promise<SequencesRead> {
   try {
     const [sequences, { broadcasts }] = await Promise.all([
       listSequencesAtAGlance(ctx.supabase, tenantId),

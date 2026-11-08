@@ -50,6 +50,7 @@ import type { RouteContext } from "../shared/with-route";
 import { linkHostOf } from "../../link-host";
 import { getWorkspaceOffer } from "./allowance";
 import type { LeadRow } from "./searches";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Ctx = Pick<RouteContext, "supabase" | "userId">;
 
@@ -89,7 +90,7 @@ const MAIL_APP: LeadEmailOffer = { from: null, why_not: null, foot: null };
  * Why the workspace can't send a cold email now, as a sequence's run is held (its billing, its month's allowance), and
  * what no send can do without (the seal for its way out). Null when it can.
  */
-async function workspaceRefusal(tenantId: string, nowMs: number): Promise<string | null> {
+async function workspaceRefusal(tenantId: TenantId, nowMs: number): Promise<string | null> {
   if (!env.UNSUBSCRIBE_SECRET) return W.noUnsubscribe;
   const db = serviceDb();
   const [may, sent] = await Promise.all([

@@ -72,6 +72,7 @@ import { checkedWordsOf } from "@chanlytics/channels/email";
 import { notifyHeldRuns, type HeldNoticeSend } from "./held-notice.js";
 import type { LogEvent, Logger } from "../../shared/log.js";
 import { once } from "./once.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 export {
   CHECK_CALLS_UNTIL_MS,
@@ -233,7 +234,7 @@ export async function checkSends(params: {
   now: Date;
   started: number;
   log: Logger;
-  tenantId?: string;
+  tenantId?: TenantId;
   sendIds?: string[];
   /** Hears each step a send's check takes, as it takes it (00505: a pressed rewrite says them). */
   onStep?: (sendId: string, step: RewriteStep) => void;
@@ -293,7 +294,7 @@ export async function checkSends(params: {
   out.read = rows.length;
 
   /* each workspace's gates, before any call (R2, R12); the day's ceiling is taken one attempt at a time, below */
-  const byTenant = new Map<string, UncheckedSend[]>();
+  const byTenant = new Map<TenantId, UncheckedSend[]>();
   for (const u of rows) byTenant.set(u.send.tenant_id, [...(byTenant.get(u.send.tenant_id) ?? []), u]);
   const go: UncheckedSend[] = [];
   const later = { check_after: new Date(now.getTime() + CHECK_GATE_WAIT_MS).toISOString() };

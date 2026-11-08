@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { asDraftedFrom, type AsDrafted } from "@chanlytics/contracts";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -23,7 +24,7 @@ export interface SequenceMake {
  */
 export async function listSequenceMakes(
   db: Db,
-  params: { tenantId: string; ids?: readonly string[]; by?: string; since?: string; limit: number },
+  params: { tenantId: TenantId; ids?: readonly string[]; by?: string; since?: string; limit: number },
 ): Promise<SequenceMake[]> {
   if (params.ids && params.ids.length === 0) return [];
   let query = db

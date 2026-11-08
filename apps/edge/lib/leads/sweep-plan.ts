@@ -33,6 +33,7 @@ import {
   type LeadRoundState,
 } from "@chanlytics/contracts";
 import { nextStepOf, type StepRun } from "@chanlytics/core";
+import type { TenantId } from "@chanlytics/contracts";
 
 export const RUN_MAX_AGE_MS = 45 * MIN_MS;
 export const STARTING_STALE_MS = 10 * MIN_MS;
@@ -53,7 +54,7 @@ const LIVE_RUN_STATES: ReadonlySet<string> = new Set(["claimed", "starting", "ru
 
 export interface SweepRunRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   round_id: string;
   purpose: string;
   state: string;
@@ -74,7 +75,7 @@ export interface SweepRunRow {
 
 export interface SweepRoundRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   state: LeadRoundState;
   purpose: LeadRoundPurpose;
   ending_pending: LeadRoundEnding | null;
@@ -93,21 +94,21 @@ export interface SweepRoundJobs {
 
 /** A job that carries a quiet round on (core nextStepOf), written by the sweep. */
 export type CarryAction =
-  | { kind: "carry_start"; roundId: string; tenantId: string; resume: boolean }
-  | { kind: "carry_collect"; runId: string; tenantId: string; seq: string }
-  | { kind: "carry_check"; roundId: string; tenantId: string };
+  | { kind: "carry_start"; roundId: string; tenantId: TenantId; resume: boolean }
+  | { kind: "carry_collect"; runId: string; tenantId: TenantId; seq: string }
+  | { kind: "carry_check"; roundId: string; tenantId: TenantId };
 
 type SweepAction =
   | CarryAction
-  | { kind: "collect"; runId: string; tenantId: string; seq: string }
-  | { kind: "abort"; runId: string; tenantId: string; apifyRunId: string; seq: string }
+  | { kind: "collect"; runId: string; tenantId: TenantId; seq: string }
+  | { kind: "abort"; runId: string; tenantId: TenantId; apifyRunId: string; seq: string }
   | { kind: "give_up"; runId: string; apifyRunId: string; owner: string }
   | { kind: "reconcile"; runId: string }
   | { kind: "mark_unknown"; runId: string; owner: string }
   | { kind: "orphan"; runId: string; owner: string }
   | { kind: "release_lease"; runId: string; owner: string; gen: number }
-  | { kind: "end_question"; roundId: string; tenantId: string }
-  | { kind: "end_stuck"; roundId: string; tenantId: string; ending: LeadRoundEnding; since: string };
+  | { kind: "end_question"; roundId: string; tenantId: TenantId }
+  | { kind: "end_stuck"; roundId: string; tenantId: TenantId; ending: LeadRoundEnding; since: string };
 
 /** The seq of a collect the sweep writes to carry a round on: its own word, so the carry-ons can be counted. */
 export const carrySeq = (now: number): string => `r${Math.floor(now / MIN_MS)}`;

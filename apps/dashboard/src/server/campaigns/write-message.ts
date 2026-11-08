@@ -49,6 +49,7 @@ import { MESSAGE_VALUES_WORDS, fileWrittenVersion, refuseWrittenUtility } from "
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A message as it is written whole: its name and language, its kind, a version per channel, and the values they fill.
@@ -92,7 +93,7 @@ const NOT_FILED = "This version could not be filed just now. Write it again from
  * The words a refusal says, or, for a fault, the plain sentence, the fault itself logged: the answer still arrives (the
  * versions before it are filed), so the route never sees it and its route_failed line is never written.
  */
-function filingWords(e: unknown, tenantId: string, channel: ConsentChannel): string {
+function filingWords(e: unknown, tenantId: TenantId, channel: ConsentChannel): string {
   if (e instanceof AppError && e.code !== "internal") return e.message;
   log.error("message_version_not_filed", { tenant_id: tenantId, channel, error: e });
   return NOT_FILED;
@@ -163,7 +164,7 @@ export function checkMessage(body: WriteMessageBody): void {
  */
 export async function getMessageOnFile(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   body: Pick<WriteMessageBody, "name" | "language">,
 ): Promise<boolean> {
   return (
@@ -181,7 +182,7 @@ export async function getMessageOnFile(
  */
 export async function findHeldValues(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   body: WriteMessageBody,
 ): Promise<number | null> {
   const held = await findHeldMessage(ctx.supabase, tenantId, body.name, body.language);

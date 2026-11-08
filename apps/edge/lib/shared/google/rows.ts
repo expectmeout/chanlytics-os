@@ -9,6 +9,7 @@ import { lensRoute, reviewRoute } from "@chanlytics/contracts";
 import { reviewRowsByGoogleId } from "@chanlytics/db/notices";
 import type { Database } from "@chanlytics/db/types";
 import { findGoogleConnection } from "@chanlytics/db/google";
+import type { TenantId } from "@chanlytics/contracts";
 
 export type ListingRow = Database["public"]["Tables"]["google_listings"]["Row"];
 export type ConnectionRow = Database["public"]["Tables"]["google_connections"]["Row"];
@@ -43,7 +44,7 @@ export function connectionForClient(connection: ConnectionRow) {
   };
 }
 
-async function connectionOf(db: Db, tenantId: string): Promise<ConnectionRow | null> {
+async function connectionOf(db: Db, tenantId: TenantId): Promise<ConnectionRow | null> {
   const { data, error } = await findGoogleConnection(db, tenantId);
   if (error) throw new Error(error.message);
   return data;
@@ -55,7 +56,7 @@ async function connectionOf(db: Db, tenantId: string): Promise<ConnectionRow | n
  * it, which the first notices were kept about. A read that fails answers none, and the notice is then kept as it was: the bell is
  * best effort, and a sync that has written its reviews must not fail for it.
  */
-function reviewRowIds(db: Db, tenantId: string, googleIds: readonly string[]): Promise<Map<string, string>> {
+function reviewRowIds(db: Db, tenantId: TenantId, googleIds: readonly string[]): Promise<Map<string, string>> {
   return reviewRowsByGoogleId(db, tenantId, googleIds).catch(() => new Map<string, string>());
 }
 

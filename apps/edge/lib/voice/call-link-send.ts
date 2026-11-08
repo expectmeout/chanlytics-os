@@ -34,6 +34,7 @@ import { emitEvent } from "@chanlytics/db/events";
 import { findTextLineFacts } from "@chanlytics/db/campaigns";
 import { NO_LINK_DETAILS, senderWords, type AskedPurpose } from "@chanlytics/contracts";
 import type { Logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -51,7 +52,7 @@ export const onTheCall = (isCaller: boolean) => ({ proactive: !isCaller, about: 
 
 /** Where a refused send is said and recorded: the thread it would have joined, the call that asked, the modes read. */
 export interface RefusedAt {
-  tenantId: string;
+  tenantId: TenantId;
   conversationId: string;
   callId: string | undefined;
   publishedNumber: string | null;

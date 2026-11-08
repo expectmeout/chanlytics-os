@@ -65,6 +65,7 @@ import { mendWarnings } from "../shared/alerts/notify.js";
 import { startMailboxHistory } from "../imports/history-import.js";
 import { errField, type Logger } from "../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -143,7 +144,7 @@ async function giveBack(provider: MailboxProvider, token: string): Promise<void>
 }
 
 /** Whether a host is the business's own customer domain: its website's, or taken to be when it has none on file. */
-async function isCustomerDomain(db: Db, tenantId: string, host: string): Promise<boolean> {
+async function isCustomerDomain(db: Db, tenantId: TenantId, host: string): Promise<boolean> {
   const w = await findWorkspaceNameAndConfig(db, tenantId).catch(() => null);
   const site = siteHost(parseTenantConfig(w?.config)?.brain?.profile?.website ?? null);
   if (!site) return true;
@@ -177,7 +178,7 @@ const hostOf = (address: string): string => address.slice(address.lastIndexOf("@
 export async function runMailboxConnect(
   mailboxPorts: MailboxPorts,
   input: {
-    tenantId: string;
+    tenantId: TenantId;
     userId: string | null;
     provider: MailboxProvider;
     code: string;
@@ -344,7 +345,7 @@ export async function removeMailbox(
 }
 
 /** A mailbox's held or signed-out warning closed by the change that mends it (contracts NOTICE_MENDS). */
-const mendMailbox = (db: MailboxPorts["db"], tenantId: string, id: string, change: string) =>
+const mendMailbox = (db: MailboxPorts["db"], tenantId: TenantId, id: string, change: string) =>
   mendWarnings(db, { tenantId, by: { change }, subject: { type: "mailbox_connection", id }, keptId: null });
 
 /** Its owner's pause, and its end: only from the states it can be paused or unpaused from. */

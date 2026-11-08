@@ -6,7 +6,7 @@
  * and its own words (DoorResult), as the workbench's doors do. A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { DraftLeadFacts } from "@chanlytics/contracts";
+import type { DraftLeadFacts, TenantId, ContactId } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { leadSends, type ReachOutSendRow } from "./reach-out";
 import { answer, type DoorResult } from "./leads";
@@ -16,7 +16,7 @@ type Db = SupabaseClient<Database>;
 /** Up to `limit` due sends of reach-outs their owners send, claimed to be drafted: a step after the first before a first email. */
 export async function claimDrafts(
   db: Db,
-  params: { at: Date; limit: number; tenantId: string | null },
+  params: { at: Date; limit: number; tenantId: TenantId | null },
 ): Promise<ReachOutSendRow[]> {
   if (!Number.isInteger(params.limit) || Number.isNaN(params.at.getTime()))
     throw new Error(`cannot claim the drafts due: a limit is a whole number (${params.limit})`);
@@ -44,7 +44,7 @@ export interface DraftLoad {
  */
 export async function loadChainDraft(
   db: Db,
-  params: { tenantId: string; rootId: string; runFor: string },
+  params: { tenantId: TenantId; rootId: string; runFor: string },
 ): Promise<DraftLoad> {
   const [runs, open] = await Promise.all([
     db
@@ -80,7 +80,7 @@ export async function loadChainDraft(
  * One lead's facts as the send door would judge them (00429 reach_out_draft_facts, contracts draftRefusalOf), on the
  * service role: asked before a draft is handed over. Null for a lead gone.
  */
-export async function draftFactsOf(db: Db, tenantId: string, leadId: string): Promise<DraftLeadFacts | null> {
+export async function draftFactsOf(db: Db, tenantId: TenantId, leadId: string): Promise<DraftLeadFacts | null> {
   const { data, error } = await db.rpc("reach_out_draft_facts", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new Error(`cannot read the draft's lead: ${error.message}`);
   return (data as DraftLeadFacts | null) ?? null;
@@ -89,7 +89,7 @@ export async function draftFactsOf(db: Db, tenantId: string, leadId: string): Pr
 /** A draft waiting for its owner, with its lead's facts (null for a lead gone). */
 export interface DraftWaitingRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   lead_id: string;
   broadcast_id: string;
   drafted_at: string;
@@ -104,7 +104,7 @@ export async function listDraftsWaiting(
   db: Db,
   params: {
     limit: number;
-    tenantId?: string | null;
+    tenantId?: TenantId | null;
     runId?: string | null;
     /** The last draft a page read: the next page starts after it. */
     after?: { drafted_at: string; id: string } | null;
@@ -129,7 +129,7 @@ export interface OwnerSendFacts {
 /** For each send named, its owner's facts: the run it waits in while drafted, and whether it was sent on their word. */
 export async function getOwnerSendFacts(
   db: Db,
-  params: { tenantId: string; sendIds: readonly string[] },
+  params: { tenantId: TenantId; sendIds: readonly string[] },
 ): Promise<Map<string, OwnerSendFacts>> {
   if (params.sendIds.length === 0) return new Map();
   const { data, error } = await db
@@ -152,7 +152,7 @@ export interface SendSaidAnswer {
   state: string;
   reason?: string | null;
   message_id?: string | null;
-  contact_id?: string | null;
+  contact_id?: ContactId | null;
   conversation_id?: string | null;
   /** What would refuse the email now, said beside its record (it went all the same): null when nothing would. */
   since?: string | null;
@@ -191,7 +191,7 @@ export interface ReplySaidAnswer {
  */
 export async function replySaid(
   db: Db,
-  params: { tenantId: string; userId: string; leadId: string; reading: Json; plan: Json; note: string },
+  params: { tenantId: TenantId; userId: string; leadId: string; reading: Json; plan: Json; note: string },
 ): Promise<DoorResult<ReplySaidAnswer>> {
   const { data, error } = await db.rpc("reach_out_reply_said", {
     p_tenant_id: params.tenantId,
@@ -215,7 +215,7 @@ export interface LeadReplyFacts {
 /** A lead's reply facts, on the member's own session (RLS decides); null for a lead the workspace does not hold. */
 export async function findLeadReplyFacts(
   db: Db,
-  params: { tenantId: string; leadId: string },
+  params: { tenantId: TenantId; leadId: string },
 ): Promise<LeadReplyFacts | null> {
   const { data, error } = await db
     .from("leads")

@@ -27,8 +27,8 @@ import {
   parseTenantConfigResult,
   spokenDuration,
   youAreLiveEmail,
-  UUID,
   recordOrNull,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { findConfigRow, findWorkspaceCard, findWorkspaceNamed } from "@chanlytics/db/workspace";
 import { findChannelNumber } from "@chanlytics/db/channels";
@@ -42,7 +42,7 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
 
   const [tenant, voice, kept, cfg, call, whatsapp] = await Promise.all([
     findWorkspaceCard(db, tenantId),
@@ -106,7 +106,7 @@ export async function sendAlertTest(auth: Admitted, body: Partial<{ tenant_id?: 
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
 
   const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };
   const to = target.notifications?.escalation_emails ?? [];

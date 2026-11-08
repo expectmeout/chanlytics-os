@@ -23,6 +23,7 @@ import { listFilesNamedBy } from "@chanlytics/db/files";
 import type { RouteContext } from "../shared/with-route";
 import type { AskedPicture } from "../ask/tools/context/tool-defs";
 import type { FileCopy } from "./copies";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A file as a question says it, as it is now: a video's length, where it stands, its frame's shape and what was heard besides. */
 export type AttachedFile = Pick<FileDto, "id" | "name" | "line"> &
@@ -42,7 +43,7 @@ export const fileIdsOf = (raw: unknown): string[] =>
 /** The files of these ids that are still there for the caller. */
 export async function getAttached(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   ids: readonly string[],
 ): Promise<ReadonlyMap<string, AttachedFile>> {
   const rows = await listFilesNamedBy(ctx.supabase, tenantId, ids);

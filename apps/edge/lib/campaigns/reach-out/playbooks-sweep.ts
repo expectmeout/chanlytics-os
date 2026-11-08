@@ -83,6 +83,7 @@ import {
 import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * When the moments stop for the tick: what is not started stays due and runs next hour, as a moment is due all day from
@@ -228,7 +229,7 @@ async function tellSkipped(
 async function runMoments(tick: Tick, page: DuePage<DueStep>) {
   const { db, now, L, out } = tick;
   // By workspace, each with the zone the page judged it in: a workspace is read once for all its playbooks.
-  const byTenant = new Map<string, { tz: string; rows: PlaybookRow[] }>();
+  const byTenant = new Map<TenantId, { tz: string; rows: PlaybookRow[] }>();
   for (const { step: playbook, timezone } of page.rows) {
     const t = byTenant.get(playbook.tenant_id) ?? { tz: timezone, rows: [] };
     t.rows.push(playbook as PlaybookRow);
@@ -236,7 +237,7 @@ async function runMoments(tick: Tick, page: DuePage<DueStep>) {
   }
   // A stamp that fails leaves the moment where it was: the next tick tries it first again, and nothing is lost but
   // its turn, which the log says.
-  const tried = async (tenantId: string, rows: PlaybookRow[]) => {
+  const tried = async (tenantId: TenantId, rows: PlaybookRow[]) => {
     await stampPlaybooksTried(db, tenantId, { ids: rows.map((p) => p.id), at: now }).catch((e: unknown) =>
       L.error("playbooks_stamp_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) }),
     );

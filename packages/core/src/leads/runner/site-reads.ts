@@ -14,6 +14,7 @@ import { siteWordsOf } from "../../website/site-words";
 import type { CleanPlace } from "../clean";
 import type { LeadPorts } from "../ports";
 import { LeadRetry } from "./rules";
+import type { TenantId } from "@chanlytics/contracts";
 
 const sitesLog = logger();
 
@@ -118,7 +119,7 @@ export async function findSiteFact(
  */
 export async function settleSiteReads(
   leadPorts: Pick<LeadPorts, "db">,
-  round: { id: string; tenant_id: string },
+  round: { id: string; tenant_id: TenantId },
   sites: SiteReads,
 ): Promise<void> {
   const reads = sites.count();

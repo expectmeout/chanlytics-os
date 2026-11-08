@@ -42,6 +42,7 @@ import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { drawPoster } from "./video-sheet.js";
 import { streamKeys } from "./video-keys.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -122,7 +123,7 @@ export async function findClaudeCopy(db: Db, row: FileRow): Promise<ClaudeCopy |
 }
 
 /** What the look is told of the business: its name, and its services in its own words. */
-async function lookBusinessOf(db: Db, tenantId: string): Promise<{ business: string; services: string[] }> {
+async function lookBusinessOf(db: Db, tenantId: TenantId): Promise<{ business: string; services: string[] }> {
   const result = await findWorkspaceNameAndConfig(db, tenantId);
   const services = parseTenantConfig(result.config)?.brain?.profile?.services ?? [];
   return {

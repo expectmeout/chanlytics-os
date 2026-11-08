@@ -21,17 +21,18 @@ import { errorMessage } from "../shared/admin-door.js";
 import { pg } from "../shared/pg.js";
 import { errField, logger } from "../shared/log.js";
 import { lineCodesFrom, type ProviderAccount } from "@chanlytics/channels/lines";
-import { LINE_CODES_WITHIN_MS, UUID } from "@chanlytics/contracts";
+import { LINE_CODES_WITHIN_MS, isTenantId } from "@chanlytics/contracts";
 import { findOwnLine } from "@chanlytics/db/lines";
 import type { Database } from "@chanlytics/db/types";
 import { findLineAccount } from "./sms.js";
 import { lineProviderFromEnv } from "./lines.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The workspace's own line, its number and the account it is read as, or null where there is nothing to read: no line, one that has
  * no number yet (provisioning has not reached it, so no text can have been sent to it) or one whose account cannot be had.
  */
-async function ownLineAccount(db: SupabaseClient<Database>, tenantId: string) {
+async function ownLineAccount(db: SupabaseClient<Database>, tenantId: TenantId) {
   const line = await findOwnLine(db, tenantId);
   const acct: ProviderAccount | null = line ? await findLineAccount(db, line) : null;
   return line && line.e164 && acct ? { line, number: line.e164, acct } : null;
@@ -40,7 +41,7 @@ async function ownLineAccount(db: SupabaseClient<Database>, tenantId: string) {
 /** GET /api/admin/lines/codes: the codes sent to the token's workspace's own line lately. */
 export async function readLineCodes(auth: Admitted): Promise<Response> {
   const tenantId = tokenWorkspace(auth);
-  if (!tenantId || !UUID.test(tenantId)) return refuse(400, "bad_tenant");
+  if (!tenantId || !isTenantId(tenantId)) return refuse(400, "bad_tenant");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const held = await ownLineAccount(db, tenantId).catch((e: unknown) =>
