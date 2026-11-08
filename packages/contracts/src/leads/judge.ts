@@ -436,23 +436,34 @@ export function sha256Hex(text: string): string {
   const view = new DataView(padded.buffer);
   view.setUint32(padded.length - 8, Math.floor(bitLen / 0x100000000));
   view.setUint32(padded.length - 4, bitLen >>> 0);
-  const item = new Uint32Array([
+  const state = new Uint32Array([
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
   ]);
-  const otherItem = new Uint32Array(64);
+  const schedule = new Uint32Array(64);
   const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n));
+  // Every index below is inside its array (8 words of state, 64 of the schedule, 64 constants): a read of one says so.
+  const at = (words: ArrayLike<number>, i: number): number => words[i] ?? 0;
   for (let off = 0; off < padded.length; off += 64) {
-    for (let i = 0; i < 16; i++) otherItem[i] = view.getUint32(off + i * 4);
+    for (let i = 0; i < 16; i++) schedule[i] = view.getUint32(off + i * 4);
     for (let i = 16; i < 64; i++) {
-      const s0 = rotr(otherItem[i - 15], 7) ^ rotr(otherItem[i - 15], 18) ^ (otherItem[i - 15] >>> 3);
-      const s1 = rotr(otherItem[i - 2], 17) ^ rotr(otherItem[i - 2], 19) ^ (otherItem[i - 2] >>> 10);
-      otherItem[i] = (otherItem[i - 16] + s0 + otherItem[i - 7] + s1) >>> 0;
+      const w15 = at(schedule, i - 15);
+      const w2 = at(schedule, i - 2);
+      const s0 = rotr(w15, 7) ^ rotr(w15, 18) ^ (w15 >>> 3);
+      const s1 = rotr(w2, 17) ^ rotr(w2, 19) ^ (w2 >>> 10);
+      schedule[i] = (at(schedule, i - 16) + s0 + at(schedule, i - 7) + s1) >>> 0;
     }
-    let [a, b, c, d, e, f, g, hh] = item;
+    let a = at(state, 0);
+    let b = at(state, 1);
+    let c = at(state, 2);
+    let d = at(state, 3);
+    let e = at(state, 4);
+    let f = at(state, 5);
+    let g = at(state, 6);
+    let hh = at(state, 7);
     for (let index = 0; index < 64; index++) {
       const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       const ch = (e & f) ^ (~e & g);
-      const t1 = (hh + S1 + ch + K[index] + otherItem[index]) >>> 0;
+      const t1 = (hh + S1 + ch + at(K, index) + at(schedule, index)) >>> 0;
       const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
       const maj = (a & b) ^ (a & c) ^ (b & c);
       const t2 = (S0 + maj) >>> 0;
@@ -465,16 +476,10 @@ export function sha256Hex(text: string): string {
       b = a;
       a = (t1 + t2) >>> 0;
     }
-    item[0] = (item[0] + a) >>> 0;
-    item[1] = (item[1] + b) >>> 0;
-    item[2] = (item[2] + c) >>> 0;
-    item[3] = (item[3] + d) >>> 0;
-    item[4] = (item[4] + e) >>> 0;
-    item[5] = (item[5] + f) >>> 0;
-    item[6] = (item[6] + g) >>> 0;
-    item[7] = (item[7] + hh) >>> 0;
+    const worked = [a, b, c, d, e, f, g, hh];
+    for (let i = 0; i < 8; i++) state[i] = (at(state, i) + at(worked, i)) >>> 0;
   }
-  return [...item].map((x) => x.toString(16).padStart(8, "0")).join("");
+  return [...state].map((x) => x.toString(16).padStart(8, "0")).join("");
 }
 
 /** The judge's operation id for one batch: sha256 hex of `${runId}:${fromOffset}:${batch}`, so a replayed page finds its answer and pays nothing (E4). */
