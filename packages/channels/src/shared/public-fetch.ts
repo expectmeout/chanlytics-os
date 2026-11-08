@@ -23,6 +23,7 @@ import https from "node:https";
 import net from "node:net";
 import { pipeline, Readable, Transform } from "node:stream";
 import zlib from "node:zlib";
+import { globalSlot } from "@chanlytics/contracts";
 
 /** One address a name resolved to. */
 export interface Resolved {
@@ -284,8 +285,7 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
  * module in one process sees the same one (a suite loads the server's modules through its own loader, which evaluates
  * this file again). Nothing in production sets it.
  */
-const STAND_IN = Symbol.for("chanlytics.publicFetch.standIn");
-type Holder = { [STAND_IN]?: typeof fetch | null };
+const standInFetch = globalSlot<typeof fetch | null>("chanlytics.publicFetch.standIn");
 
 let guarded: typeof fetch | null = null;
 
@@ -294,7 +294,7 @@ let guarded: typeof fetch | null = null;
  * (`setPublicFetch`, as `setPg` and `setBearerVerifier` are the other seams the suites stand in for.)
  */
 export function publicFetcher(): typeof fetch {
-  const standIn = (globalThis as Holder)[STAND_IN];
+  const standIn = standInFetch.get();
   if (standIn) return standIn;
   guarded ??= publicFetch();
   return guarded;
@@ -302,8 +302,5 @@ export function publicFetcher(): typeof fetch {
 
 /** For tests only: stand in for the network. Returns the one before, to put back; null restores the guarded one. */
 export function setPublicFetch(item: typeof fetch | null): typeof fetch | null {
-  const holder = globalThis as Holder;
-  const before = holder[STAND_IN] ?? null;
-  holder[STAND_IN] = item;
-  return before;
+  return standInFetch.set(item) ?? null;
 }

@@ -1,3 +1,4 @@
+import { globalSlot } from "@chanlytics/contracts";
 /**
  * What packages/db asks of the process it runs in: somewhere to write a line, and the name of the request it serves.
  *
@@ -41,8 +42,7 @@ export interface DbObserver {
 /** The header a request's name rides to the database in: PostgREST hands it to SQL as request.headers. */
 export const DB_REQUEST_HEADER = "x-chanlytics-request-id";
 
-const OBSERVER_SLOT: unique symbol = Symbol.for("chanlytics.db.observer");
-const observerHolder = globalThis as { [OBSERVER_SLOT]?: DbObserver };
+const observerSlot = globalSlot<DbObserver>("chanlytics.db.observer");
 
 /**
  * Until an app hands its logger in (a script, a test of db alone): the logger's envelope, one JSON line per call.
@@ -66,22 +66,22 @@ const FALLBACK: DbObserver = {
 
 /** Hand db the process's logger and request store. The edge and the dashboard call it once, as their logger loads. */
 export function observeDb(observer: DbObserver): void {
-  observerHolder[OBSERVER_SLOT] = observer;
+  observerSlot.set(observer);
 }
 
 /** Where db's lines go. */
 export function dbLog(): DbLog {
-  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).log;
+  return (observerSlot.get() ?? FALLBACK).log;
 }
 
 /** The request being served, when the process has said. */
 export function dbRequestId(): string | null {
-  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).requestId();
+  return (observerSlot.get() ?? FALLBACK).requestId();
 }
 
 /** One call's time, told to the process that asked to hear it. */
 function dbTimed(ms: number): void {
-  (observerHolder[OBSERVER_SLOT] ?? FALLBACK).timed?.(ms);
+  (observerSlot.get() ?? FALLBACK).timed?.(ms);
 }
 
 /** What one call to the database touched: a table and how (`read`, `INSERT`, `UPDATE`, `DELETE`), or a SQL function (`rpc:<name>`, `call`). */
@@ -121,7 +121,7 @@ export function touchOfCall(input: string | URL | Request, init?: RequestInit): 
 
 /** One call's touch, told to the process that asked to hear it. */
 function dbTouched(input: string | URL | Request, init?: RequestInit): void {
-  const observer = observerHolder[OBSERVER_SLOT] ?? FALLBACK;
+  const observer = observerSlot.get() ?? FALLBACK;
   if (!observer.touched) return;
   const touch = touchOfCall(input, init);
   if (touch) observer.touched(touch.table, touch.how);

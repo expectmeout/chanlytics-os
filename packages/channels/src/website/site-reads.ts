@@ -14,7 +14,7 @@
  */
 import { logger } from "@chanlytics/log";
 import { answerObject, fetchFromProvider } from "../shared/provider-fetch";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, globalSlot } from "@chanlytics/contracts";
 
 /** Who is asking, for a site that wants to know: the platform's own reader, with the page that says what it does. */
 const BOT_USER_AGENT = "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)";
@@ -258,8 +258,7 @@ export async function readFirecrawlCredits(
   };
 }
 
-const READER_STAND_IN = Symbol.for("chanlytics.sitePageReader.standIn");
-type ReaderHolder = { [READER_STAND_IN]?: SitePageReader | null };
+const standInReader = globalSlot<SitePageReader | null>("chanlytics.sitePageReader.standIn");
 
 /**
  * The reader every server-side read of a business's page goes through: Firecrawl's with the key, a test's where one
@@ -267,33 +266,26 @@ type ReaderHolder = { [READER_STAND_IN]?: SitePageReader | null };
  * be made.
  */
 export function sitePageReader(key: string | null | undefined): SitePageReader | null {
-  const standIn = (globalThis as ReaderHolder)[READER_STAND_IN];
+  const standIn = standInReader.get();
   if (standIn) return standIn;
   return key ? firecrawlReader(key) : null;
 }
 
 /** For tests only: stand in for the provider. Returns the one before, to put back; null puts the provider back. */
 export function setSitePageReader(sitePageReader: SitePageReader | null): SitePageReader | null {
-  const holder = globalThis as ReaderHolder;
-  const before = holder[READER_STAND_IN] ?? null;
-  holder[READER_STAND_IN] = sitePageReader;
-  return before;
+  return standInReader.set(sitePageReader) ?? null;
 }
 
-const MAPPER_STAND_IN = Symbol.for("chanlytics.siteMapper.standIn");
-type MapperHolder = { [MAPPER_STAND_IN]?: SiteMapper | null };
+const standInMapper = globalSlot<SiteMapper | null>("chanlytics.siteMapper.standIn");
 
 /** The map every read of a site's other pages goes through: a test's where one stands in, else the provider's with the key. */
 export function siteMapper(key: string | null | undefined): SiteMapper | null {
-  const standIn = (globalThis as MapperHolder)[MAPPER_STAND_IN];
+  const standIn = standInMapper.get();
   if (standIn) return standIn;
   return key ? firecrawlMapper(key) : null;
 }
 
 /** For tests only: stand in for the provider's map. Returns the one before, to put back; null puts the provider back. */
 export function setSiteMapper(siteMapper: SiteMapper | null): SiteMapper | null {
-  const holder = globalThis as MapperHolder;
-  const before = holder[MAPPER_STAND_IN] ?? null;
-  holder[MAPPER_STAND_IN] = siteMapper;
-  return before;
+  return standInMapper.set(siteMapper) ?? null;
 }

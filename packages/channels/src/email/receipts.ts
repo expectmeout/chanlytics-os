@@ -2,7 +2,7 @@
  * What became of an email we sent: the provider's signed receipt, read (emailReceiptFrom), and what it changes for the
  * row and the address (emailReceiptEffect). The request whose tags a receipt names is request.ts.
  */
-import { UUID, recordOrNull } from "@chanlytics/contracts";
+import { UUID, recordOrNull, isOneOf, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { addressesOf, messageIdHeader } from "./header-values";
 
 /* ---------------------------------------------------------------- receipts
@@ -15,7 +15,7 @@ import { addressesOf, messageIdHeader } from "./header-values";
 
 export type EmailReceiptType =
   "sent" | "delivered" | "delivery_delayed" | "bounced" | "complained" | "failed" | "suppressed";
-const RECEIPT_TYPES: ReadonlySet<string> = new Set<EmailReceiptType>([
+const RECEIPT_TYPES = [
   "sent",
   "delivered",
   "delivery_delayed",
@@ -23,7 +23,7 @@ const RECEIPT_TYPES: ReadonlySet<string> = new Set<EmailReceiptType>([
   "complained",
   "failed",
   "suppressed",
-]);
+] as const satisfies readonly EmailReceiptType[];
 
 export interface EmailReceipt {
   type: EmailReceiptType;
@@ -43,32 +43,26 @@ export interface EmailReceipt {
 /** Tags as the webhook carries them (a map) or as the request sent them (a list of pairs): one reader for both. */
 function tagOf(tags: unknown, name: string): string | null {
   const v = Array.isArray(tags)
-    ? (tags.find((t) => recordOrNull(t)?.name === name) as { value?: unknown } | undefined)?.value
-    : tags && typeof tags === "object"
-      ? (tags as Record<string, unknown>)[name]
-      : undefined;
+    ? valueAt(
+        tags.find((t) => valueAt(t, "name") === name),
+        "value",
+      )
+    : valueAt(tags, name);
   return typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null;
 }
 
 /** A receipt, or null for any other event or shape. */
 export function emailReceiptFrom(payload: unknown): EmailReceipt | null {
-  const item = payload as { type?: unknown; data?: Record<string, unknown> } | null;
-  if (
-    !item ||
-    typeof item.type !== "string" ||
-    !item.type.startsWith("email.") ||
-    !item.data ||
-    typeof item.data !== "object"
-  )
-    return null;
+  const item = recordOrNull(payload);
+  const data = recordOrNull(item?.data);
+  if (!item || typeof item.type !== "string" || !item.type.startsWith("email.") || !data) return null;
   const type = item.type.slice("email.".length);
-  if (!RECEIPT_TYPES.has(type)) return null;
-  const data = item.data;
+  if (!isOneOf(RECEIPT_TYPES, type)) return null;
   if (typeof data.email_id !== "string" || !data.email_id) return null;
   const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const sentence = (data.bounce ?? data.failed ?? data.suppressed ?? {}) as Record<string, unknown>;
+  const sentence = recordOrEmpty(data.bounce ?? data.failed ?? data.suppressed);
   return {
-    type: type as EmailReceiptType,
+    type,
     providerId: data.email_id,
     rfcMessageId: messageIdHeader(str(data.message_id)),
     to: addressesOf(data.to),

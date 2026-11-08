@@ -53,6 +53,9 @@ import {
   usageOf,
   NO_USAGE,
   recordOrEmpty,
+  isOneOf,
+  listOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { ModelPurpose, ModelSpeed, ModelUsage } from "@chanlytics/contracts";
 import { fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
@@ -66,6 +69,9 @@ export interface ModelBlock {
   text?: string;
   [k: string]: unknown;
 }
+
+/** A block of an answer's content: an object naming its type, the rest of it as the API wrote it. */
+const isModelBlock = (block: unknown): block is ModelBlock => typeof valueAt(block, "type") === "string";
 
 /** The API's message, as much of it as the callers read. */
 export interface ModelMessage {
@@ -161,9 +167,8 @@ function headersFor(key: string, betas: string[] | undefined, profileId: string 
 
 /** The API's error message from its body, or the network's words. */
 function errorOf(a: ProviderReply): string {
-  const j = a.json as { error?: { message?: unknown; type?: unknown } } | null;
-  const m = j && typeof j === "object" && j.error && typeof j.error.message === "string" ? j.error.message : null;
-  return m ?? a.error ?? `status ${a.status}`;
+  const m = valueAt(a.json, "error", "message");
+  return (typeof m === "string" ? m : null) ?? a.error ?? `status ${a.status}`;
 }
 
 /**
@@ -171,8 +176,8 @@ function errorOf(a: ProviderReply): string {
  * "timeout" for a try that ran out of time, "network" for an answer that never came, or the status it answered.
  */
 function errorTypeOf(a: ProviderReply): string {
-  const j = a.json as { error?: { type?: unknown } } | null;
-  if (j && typeof j === "object" && j.error && typeof j.error.type === "string" && j.error.type) return j.error.type;
+  const type = valueAt(a.json, "error", "type");
+  if (typeof type === "string" && type) return type;
   if (a.error === "timeout") return "timeout";
   return a.status ? `status_${a.status}` : "network";
 }
@@ -183,8 +188,8 @@ const neverCame = (a: ProviderReply): boolean => a.outcome === "unknown";
 const modelUnknown = (a: ProviderReply): boolean => a.status === 404;
 
 function messageOf(json: unknown): ModelMessage {
-  const otherJson = json && typeof json === "object" ? recordOrEmpty(json) : {};
-  const content = Array.isArray(otherJson.content) ? (otherJson.content as ModelBlock[]) : [];
+  const otherJson = recordOrEmpty(json);
+  const content = listOrEmpty(otherJson.content).filter(isModelBlock);
   return {
     id: typeof otherJson.id === "string" ? otherJson.id : null,
     model: typeof otherJson.model === "string" ? otherJson.model : null,
@@ -243,11 +248,11 @@ interface Sent {
 function sentFor(ask: ModelAsk, model: string, slowed: boolean): Sent {
   const takes = modelTakes(model);
   const { speed, thinking: named, ...asked } = ask.body;
-  const effort = (asked.output_config as { effort?: unknown } | undefined)?.effort;
+  const effort = valueAt(asked.output_config, "effort");
   const thinking = named ?? routeThinkingFor(ask.purpose, model, effort) ?? undefined;
   const fast = speed === "fast" && !slowed && (takes?.fast ?? true);
-  const type = thinking && typeof thinking === "object" ? (thinking as { type?: unknown }).type : undefined;
-  const thinks = thinking !== undefined && (!takes || (takes.thinking as readonly unknown[]).includes(type));
+  const type = valueAt(thinking, "type");
+  const thinks = thinking !== undefined && (!takes || isOneOf(takes.thinking, type));
   const sentence = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
   const notice = sentence && (takes?.effortMessages ?? true);
   const worded = Array.isArray(asked.messages) && asked.messages.some(isWordsMessage);

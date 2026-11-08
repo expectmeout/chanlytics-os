@@ -40,7 +40,7 @@
  */
 import { logger } from "@chanlytics/log";
 
-import { jittered, recordOrEmpty } from "@chanlytics/contracts";
+import { jittered, recordOrEmpty, globalSlot } from "@chanlytics/contracts";
 
 /** Every provider a call leaves for: the breaker keeps one state per name. */
 const PROVIDER_NAMES = [
@@ -132,14 +132,16 @@ interface Breaker {
   openUntil: number;
 }
 /** One state for the process: a registered symbol, so every inlined copy of this module reads and writes the same. */
-const BREAKER_SLOT: unique symbol = Symbol.for("chanlytics.provider-breakers");
+
 interface Breakers {
   held: Map<Provider, Breaker>;
   /** How many times each provider's breaker has opened in this instance, kept when it closes: the outage's count. */
   opened: Map<Provider, number>;
 }
-const breakerHolder = globalThis as { [BREAKER_SLOT]?: Breakers };
-const breakers: Breakers = (breakerHolder[BREAKER_SLOT] ??= { held: new Map(), opened: new Map() });
+const breakers = globalSlot<Breakers>("chanlytics.provider-breakers").keep(() => ({
+  held: new Map(),
+  opened: new Map(),
+}));
 const breakerMap = breakers.held;
 const breakerLog = logger();
 

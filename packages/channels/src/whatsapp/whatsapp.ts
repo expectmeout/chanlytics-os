@@ -3,7 +3,7 @@
  * canonical events and performs sends. No persistence, no decisions — the edge
  * wires this to the repositories. Config is passed in; env is never read here.
  */
-import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, recordOrEmpty } from "@chanlytics/contracts";
+import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { REFERRAL_ID_MAX } from "./first-touch";
 import { asksToStop } from "../inbound/stop-request";
 import { answerObject, fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
@@ -134,8 +134,7 @@ const digitsOf = (v: string | undefined): string => (v ?? "").replace(/\D/g, "")
 function historyWordsOf(m: WaHistoryMessage): string | null {
   const t = m.type ?? "";
   if (t === "text") return m.text?.body?.trim() || null;
-  const box = t ? (Reflect.get(m, t) as unknown) : null;
-  const caption = box && typeof box === "object" ? (Reflect.get(box, "caption") as unknown) : null;
+  const caption = t ? valueAt(m, t, "caption") : null;
   return typeof caption === "string" && caption.trim() ? caption.trim() : null;
 }
 
@@ -503,9 +502,7 @@ const WA_STOPPED_MARKETING = 131050;
 /** Whether a receipt's `errors` say the person stopped marketing messages from this business. Never throws. */
 export function waStoppedMarketing(errors: unknown): boolean {
   if (!Array.isArray(errors)) return false;
-  return errors.some(
-    (e) => e !== null && typeof e === "object" && Number((e as { code?: unknown }).code) === WA_STOPPED_MARKETING,
-  );
+  return errors.some((e) => Number(valueAt(e, "code")) === WA_STOPPED_MARKETING);
 }
 
 /* -------------------------------- sends -------------------------------- */
@@ -577,15 +574,17 @@ async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
   });
   if (response.status === 0)
     return { ok: false, wamid: null, status: 0, errorBody: response.error ?? "no answer", outcome: response.outcome };
-  const out = (answerObject(response) ?? {}) as { messages?: Array<{ id?: string }>; error?: { code?: unknown } };
+  const out = recordOrEmpty(answerObject(response));
+  const wamid = valueAt(out, "messages", 0, "id");
+  const code = valueAt(out, "error", "code");
   const ok = response.outcome === "ok";
   const sent: SendResult = {
     ok,
-    wamid: out.messages?.[0]?.id ?? null,
+    wamid: typeof wamid === "string" ? wamid : null,
     status: response.status,
     errorBody: ok ? undefined : JSON.stringify(out).slice(0, 200),
     // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
-    code: !ok && typeof out.error?.code === "number" ? out.error.code : null,
+    code: !ok && typeof code === "number" ? code : null,
   };
   return { ...sent, outcome: graphThrottled(sent) ? "retryable" : response.outcome };
 }
@@ -672,8 +671,8 @@ export async function fetchMediaBytes(
     // No answer at all is said as the thrown fetch was; Graph's own no is a null, as it was.
     if (metaRes.status === 0) logger().error("media_fetch_failed", { media_id: providerMediaId, error: metaRes.error });
     if (metaRes.outcome !== "ok") return null;
-    const meta = (answerObject(metaRes) ?? {}) as { url?: string; mime_type?: string };
-    if (!meta.url) return null;
+    const meta = recordOrEmpty(answerObject(metaRes));
+    if (typeof meta.url !== "string" || !meta.url) return null;
 
     const binRes = await fetch(meta.url, {
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
@@ -691,7 +690,7 @@ export async function fetchMediaBytes(
       logger().error("media_too_large_after_read", { media_id: providerMediaId, bytes: bytes.byteLength });
       return null;
     }
-    return { bytes, mime: meta.mime_type ?? binRes.headers.get("content-type") };
+    return { bytes, mime: typeof meta.mime_type === "string" ? meta.mime_type : binRes.headers.get("content-type") };
   } catch (e) {
     // A timeout or network fault must return, not throw: the caller stores a
     // 'failed' fetch_state and the conversation still reaches a human.

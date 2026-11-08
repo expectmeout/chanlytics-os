@@ -11,7 +11,7 @@
 import { answerObject, fetchFromProvider, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import { deleteCampaignRequest } from "./a2p/brand-campaign";
 import type { AvailableNumber, LineProvider, ProviderAccount, ReceivedText } from "./lines";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, listOrEmpty, valueAt } from "@chanlytics/contracts";
 
 export interface TwilioAnswer {
   /** The HTTP status, or 0 when no answer came (the body then says why, as `error`). */
@@ -255,9 +255,7 @@ async function searchLocal(http: TwilioHttp, acct: ProviderAccount, input: { are
     PageSize: String(Math.min(Math.max(input.limit, 1), 30)),
   }).toString()}`;
   const reply = need(await http(acct, "GET", url), "search numbers");
-  const rows = Array.isArray(reply.available_phone_numbers)
-    ? (reply.available_phone_numbers as Record<string, unknown>[])
-    : [];
+  const rows = listOrEmpty(reply.available_phone_numbers).map(recordOrEmpty);
   return rows
     .map((row): AvailableNumber | null => {
       const e164 = str(row, "phone_number");
@@ -301,13 +299,9 @@ async function ownedNumber(http: TwilioHttp, acct: ProviderAccount, e164: string
   );
   if (result.status === 404) return null;
   const reply = need(result, "list owned numbers");
-  const list = Array.isArray((reply as { incoming_phone_numbers?: unknown }).incoming_phone_numbers)
-    ? (reply as { incoming_phone_numbers: unknown[] }).incoming_phone_numbers
-    : [];
-  for (const row of list) {
-    if (!row || typeof row !== "object") continue;
-    const sid = str(row as Record<string, unknown>, "sid");
-    if (sid) return { sid, e164: str(row as Record<string, unknown>, "phone_number") ?? e164 };
+  for (const row of listOrEmpty(valueAt(reply, "incoming_phone_numbers")).map(recordOrEmpty)) {
+    const sid = str(row, "sid");
+    if (sid) return { sid, e164: str(row, "phone_number") ?? e164 };
   }
   return null;
 }
