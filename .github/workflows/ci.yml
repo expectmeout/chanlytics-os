@@ -340,7 +340,8 @@ jobs:
       # ESLint's cache (tooling/scripts/checks/lint.mjs): a file whose content and config are as main last linted them
       # is not linted again, which takes the job from about four minutes to seconds. Main's own run after a merge lints
       # every file afresh (LINT_CACHE=0: a typed rule can turn on an unchanged file when a type it reads moved) and its
-      # result is the cache a pull request starts from; a pull request's run saves its own for its next push.
+      # result is the cache a pull request starts from; a pull request's run saves its own for its next push. A pull
+      # request that moves a shared type lints every file too: lint.mjs's openCache empties a cache stamped over others.
       - uses: actions/cache@v6
         with:
           path: node_modules/.cache/eslint

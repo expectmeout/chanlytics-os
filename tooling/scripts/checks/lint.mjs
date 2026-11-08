@@ -18,7 +18,8 @@
  *
  * A warning is still a defect. It is counted so the build can be strict about the next one, not because it is fine.
  */
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -48,9 +49,10 @@ function sortWarnings(counts) {
  * ESLint's cache. A file whose content and the config are as they were last time is not linted again: its result,
  * warnings and all, comes from the cache (by content, so a fresh checkout in CI hits too). A typed rule can turn on a
  * file that did not change when a type it reads did, and the cache cannot see that, so `LINT_CACHE=0` lints every file
- * afresh: main's own run after a merge does (ci.yml), and its result is the cache the pull requests start from. Afresh
- * is the cache emptied first and kept on, never turned off: ESLint deletes its cache file when the cache is off, and
- * main then left the pull requests none (16 Oct 2026: four minutes of lint on every one).
+ * afresh: main's own run after a merge does (ci.yml), and its result is the cache the pull requests start from. A run
+ * whose shared types moved starts afresh by itself (openCache). Afresh is the cache emptied first and kept on, never
+ * turned off: ESLint deletes its cache file when the cache is off, and main then left the pull requests none (16 Oct
+ * 2026: four minutes of lint on every one).
  */
 export function cacheOptions(env = process.env, group = "") {
   return {
@@ -62,6 +64,54 @@ export function cacheOptions(env = process.env, group = "") {
   };
 }
 const CACHE_ROOT = path.join(ROOT, "node_modules/.cache/eslint");
+
+/**
+ * What many files' types rest on: a change to one can turn a typed rule on a file that did not change. #2190 typed a
+ * row's state as its closed set, a template string in a file it never touched then read `never`, and the pull request's
+ * lint passed from the cache; only main's fresh run said so, after the merge. A type in a domain's own module is not
+ * here, so main's fresh run still answers for those: 37 of the last 200 merges touch these (8 Nov 2026), and naming the
+ * domains' too would lint nearly every pull request in full.
+ */
+export const SHARED_TYPES = [
+  ":(glob)**/tsconfig*.json",
+  "packages/contracts/src/schema-sets.generated.ts",
+  "packages/contracts/src/shared",
+  "packages/db/src/database.types.ts",
+  "packages/db/src/types.ts",
+];
+const STAMP_FILE = "shared-types.stamp";
+
+/** One fingerprint of those files as they stand on disk, each by its path and its content. */
+export function sharedTypesStamp(root = ROOT, sources = SHARED_TYPES) {
+  const hash = createHash("sha256");
+  execFileSync("git", ["ls-files", "-z", "--", ...sources], { cwd: root, encoding: "utf8" })
+    .split("\0")
+    .filter((file) => file && fs.existsSync(path.join(root, file)))
+    .sort()
+    .forEach((file) =>
+      hash
+        .update(file)
+        .update("\0")
+        .update(fs.readFileSync(path.join(root, file))),
+    );
+  return hash.digest("hex");
+}
+
+/**
+ * The cache for a run: emptied when main asks for it afresh, or when the shared types are not the ones it was last
+ * written over. The stamp lives in the cache, so CI's restored cache brings main's with it. It answers what to call once
+ * every group has finished, which leaves the stamp: a run that ended before that proves nothing, and the next starts empty.
+ */
+export function openCache({ env = process.env, root = ROOT, cacheRoot = CACHE_ROOT, sources = SHARED_TYPES } = {}) {
+  const stamp = sharedTypesStamp(root, sources);
+  const file = path.join(cacheRoot, STAMP_FILE);
+  const stamped = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
+  if (cacheOptions(env).fresh || stamped !== stamp) fs.rmSync(cacheRoot, { recursive: true, force: true });
+  return () => {
+    fs.mkdirSync(cacheRoot, { recursive: true });
+    fs.writeFileSync(file, stamp);
+  };
+}
 
 /**
  * The tree in groups, each linted in a process of its own, one after another. typescript-eslint's project service is
@@ -136,7 +186,7 @@ function runGroup(group, { fix, env }) {
 
 /** The messages ESLint found, the warnings counted by file and rule, and the most heap each group used. */
 export async function lintTree({ fix = false, env = process.env } = {}) {
-  if (cacheOptions(env).fresh) fs.rmSync(CACHE_ROOT, { recursive: true, force: true });
+  const leaveStamp = openCache({ env });
   const results = [];
   const peaks = {};
   for (const group of groupArgs()) {
@@ -144,6 +194,7 @@ export async function lintTree({ fix = false, env = process.env } = {}) {
     results.push(...found.results);
     peaks[group.name] = found.peakMB;
   }
+  leaveStamp();
   const now = {};
   for (const r of results) {
     for (const m of r.messages) {
