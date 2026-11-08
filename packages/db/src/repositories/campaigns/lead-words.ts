@@ -5,7 +5,7 @@
  * under row security. A read that fails throws: an email never falls back to the step's words because a read did not land.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { LeadEmailText, LeadStepWordsDto, TenantId } from "@chanlytics/contracts";
+import { valueAt, type LeadEmailText, type LeadStepWordsDto, type TenantId } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
 import { answer, type DoorResult } from "./reach-out/leads";
@@ -98,7 +98,7 @@ export async function findLeadSentEmail(
     .maybeSingle();
   if (message.error) throw new Error(`cannot read the email: ${message.error.message}`);
   if (!message.data) return null;
-  const subject = (message.data.meta as { email?: { subject?: unknown } } | null)?.email?.subject;
+  const subject = valueAt(message.data.meta, "email", "subject");
   return { subject: typeof subject === "string" ? subject : null, body: message.data.body ?? "" };
 }
 

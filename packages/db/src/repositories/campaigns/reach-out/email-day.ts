@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
-import type { TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty, textOrEmpty, type TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -39,7 +39,7 @@ export async function getMailboxCapacity(db: Db, mailboxId: string, at: Date): P
 
 /** The capacity as the database answered it (alone, or inside the door's facts): a count it left out is a failed read. */
 export function mailboxCapacityFrom(data: unknown): MailboxCapacity {
-  const mailboxCapacity = (data ?? {}) as Partial<MailboxCapacity>;
+  const mailboxCapacity = recordOrEmpty(data);
   if (
     typeof mailboxCapacity.used !== "number" ||
     typeof mailboxCapacity.sent_days !== "number" ||
@@ -47,7 +47,7 @@ export function mailboxCapacityFrom(data: unknown): MailboxCapacity {
   )
     throw new Error("cannot read the mailbox's day: the database answered without its counts");
   return {
-    state: String(mailboxCapacity.state ?? ""),
+    state: textOrEmpty(mailboxCapacity.state),
     clean_since: typeof mailboxCapacity.clean_since === "string" ? mailboxCapacity.clean_since : null,
     resting_until: typeof mailboxCapacity.resting_until === "string" ? mailboxCapacity.resting_until : null,
     daily_cap: mailboxCapacity.daily_cap,

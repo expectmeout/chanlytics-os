@@ -13,6 +13,8 @@ import type { JsonObject } from "../../events/events";
 import { readAllRows } from "../../../shared/paged";
 import { jsonCopyOf } from "../../../shared/json";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "../../../shared/read-json";
 
 type Db = SupabaseClient<Database>;
 
@@ -162,6 +164,9 @@ export type HandItem = {
   source_id: string;
 };
 
+/** What a hand step's run door answers: how many sends it made, and how many the run already held. */
+const HandRunAnswer = z.object({ made: z.number(), already: z.number() }).partial();
+
 /**
  * A hand step's run for its day, written whole (00228 reach_out_hand_run): the run, a handed send for each lead, and
  * each lead's dated step for the team. How many were made, and how many the run had already.
@@ -178,7 +183,7 @@ export async function handRun(
     p_items: params.items,
   });
   if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
-  const item = (data ?? {}) as { made?: number; already?: number };
+  const item = readAnswer("reach_out_hand_run", HandRunAnswer, data ?? {});
   return { made: item.made ?? 0, already: item.already ?? 0 };
 }
 

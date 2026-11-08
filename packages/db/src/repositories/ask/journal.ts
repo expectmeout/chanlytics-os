@@ -4,7 +4,7 @@
  * reads them), and the door the entry goes through (ask_journal_write's keep). Service role throughout: the sweep reads every
  * workspace's day and writes none of its rows.
  */
-import { heldTenantId } from "@chanlytics/contracts";
+import { heldTenantId, recordOrEmpty } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, recordOrNull } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
@@ -29,7 +29,7 @@ export async function askJournalDue(db: Db, limit: number): Promise<AskJournalDu
   const days = (data && typeof data === "object" && !Array.isArray(data) ? data.days : null) ?? [];
   if (!Array.isArray(days)) return [];
   return days.flatMap((day) => {
-    const item = (day && typeof day === "object" && !Array.isArray(day) ? day : {}) as Record<string, Json | undefined>;
+    const item = recordOrEmpty(day);
     const text = (k: string): string => {
       const v = item[k];
       return typeof v === "string" ? v : "";

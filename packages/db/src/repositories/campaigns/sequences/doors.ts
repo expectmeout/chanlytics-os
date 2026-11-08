@@ -12,6 +12,8 @@ import type { Json } from "../../../types";
 import { answer, type DoorResult } from "../reach-out/leads";
 import { putBackOf, withListedWhyNot, withOneLeadsOpening, withOpenings, withPlaceWhyNot } from "../sequence-waiting";
 import type { Db } from "./reads";
+import { z } from "zod";
+import { readAnswer } from "../../../shared/read-json";
 
 /** How many ids one `in` list carries: two hundred keeps the URL short (the run reader's own chunk). */
 const REPLIES_IN_CHUNK = 200;
@@ -181,6 +183,9 @@ export type PeopleHandItem = {
   source_id: string;
 };
 
+/** What a call or note step's run door answers: how many sends it made, and how many the run already held. */
+const PeopleHandRunAnswer = z.object({ made: z.number(), already: z.number() }).partial();
+
 /**
  * A customer's call or note step's run for its day, written whole (00465 sequence_hand_run): the run, a handed send for
  * each person, each person's dated step for the team, and their place moved past the step. How many were made, and how
@@ -198,7 +203,7 @@ export async function getPeopleHandRun(
     p_items: params.items,
   });
   if (error) throw new Error(`cannot write the call or note step's run: ${error.message}`);
-  const item = (data ?? {}) as { made?: number; already?: number };
+  const item = readAnswer("sequence_hand_run", PeopleHandRunAnswer, data ?? {});
   return { made: item.made ?? 0, already: item.already ?? 0 };
 }
 

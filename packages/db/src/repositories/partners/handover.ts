@@ -2,7 +2,7 @@
 
 import type { Db } from "./partner";
 import { saysMissing, isMissingFunction } from "../../shared/missing-door";
-import { recordOrEmpty, textOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, textOrEmpty, recordOrNull } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 
 /* ------------------------------------------------------------------------------------------------ handovers */
@@ -227,9 +227,9 @@ export interface WorkspacePartner {
 export async function getWorkspacePartner(db: Db, tenantId: TenantId): Promise<HandoverResult<WorkspacePartner>> {
   const { data, error } = await db.rpc("workspace_partner", { p_tenant: tenantId });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  const value = (data ?? {}) as Record<string, Record<string, unknown> | null>;
-  const partner = value.partner ?? null;
-  const invitation = value.invitation ?? null;
+  const value = recordOrEmpty(data);
+  const partner = recordOrNull(value.partner);
+  const invitation = recordOrNull(value.invitation);
   return {
     ok: true,
     value: {

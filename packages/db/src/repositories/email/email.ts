@@ -43,7 +43,7 @@ import { ingestInbound, stoppedNow, type IngestResult } from "../channels/ingest
 import { setEmailOffersYes, setEmailUnsubscribed } from "../campaigns/email-offers";
 import { stampEmailFromMailbox } from "./connections";
 import { dbLog } from "../../shared/observe";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -290,7 +290,7 @@ export async function findLastInboundEmail(
     .maybeSingle();
   if (error) throw new Error(`email: cannot read the email being answered: ${error.message}`);
   if (!data) return null;
-  const otherError = (data.meta as { email?: Record<string, unknown> } | null)?.email ?? {};
+  const otherError = recordOrEmpty(valueAt(data.meta, "email"));
   const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
   const list = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((r): r is string => typeof r === "string").map((r) => r.toLowerCase()) : [];
@@ -327,7 +327,7 @@ export async function findLastOutboundEmailSubject(
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`email: cannot read the last email sent: ${error.message}`);
-  const subject = (data?.meta as { email?: { subject?: unknown } } | null)?.email?.subject;
+  const subject = valueAt(data?.meta, "email", "subject");
   return typeof subject === "string" && subject.trim() ? subject : null;
 }
 
@@ -355,14 +355,14 @@ export async function findAnsweredReachOutEmail(
   if (error) throw new Error(`email: cannot read the reach-out being answered: ${error.message}`);
   const left = new Set(["sent", "delivered", "read"]);
   const sent = (data ?? []).flatMap((match) => {
-    const meta = (match.meta ?? {}) as { source?: unknown; email?: { message_id?: unknown; request?: unknown } };
-    if (meta.source !== "reach_out" || !left.has(String(match.status))) return [];
-    const req = recordOrEmpty(meta.email?.request);
+    if (valueAt(match.meta, "source") !== "reach_out" || !left.has(String(match.status))) return [];
+    const req = recordOrEmpty(valueAt(match.meta, "email", "request"));
+    const rfc = valueAt(match.meta, "email", "message_id");
     const replyTo = Array.isArray(req.reply_to) && typeof req.reply_to[0] === "string" ? req.reply_to[0] : null;
     return [
       {
         messageId: match.id,
-        rfc: typeof meta.email?.message_id === "string" ? meta.email.message_id : null,
+        rfc: typeof rfc === "string" ? rfc : null,
         from: typeof req.from === "string" ? req.from : null,
         replyTo,
       },
@@ -432,9 +432,11 @@ export async function findSentEmail(
     .maybeSingle();
   if (error) throw new Error(`sent email request: ${error.message}`);
   if (!data) return null;
-  const meta = (data.meta ?? null) as { email?: { request?: unknown }; reach_out?: { lead_id?: unknown } } | null;
-  const lead = meta?.reach_out?.lead_id;
-  return { request: meta?.email?.request ?? null, leadId: typeof lead === "string" && lead ? lead : null };
+  const lead = valueAt(data.meta, "reach_out", "lead_id");
+  return {
+    request: valueAt(data.meta, "email", "request") ?? null,
+    leadId: typeof lead === "string" && lead ? lead : null,
+  };
 }
 
 /**
@@ -473,8 +475,8 @@ export async function recordEmailNo(
     .eq("direction", "outbound")
     .maybeSingle();
   if (error) throw new Error(`email receipt: cannot read message ${params.messageId}: ${error.message}`);
-  const meta = (data?.meta ?? {}) as { email?: { request?: { from?: unknown } } };
-  const from = typeof meta.email?.request?.from === "string" ? meta.email.request.from : null;
+  const sentFrom = valueAt(data?.meta, "email", "request", "from");
+  const from = typeof sentFrom === "string" ? sentFrom : null;
   const contactId = data?.contact_id ?? null;
   if (!contactId) return { contactId: null, from };
   const result = await db.rpc("set_email_marketing", {

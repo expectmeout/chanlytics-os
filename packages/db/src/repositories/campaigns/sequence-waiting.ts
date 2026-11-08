@@ -5,7 +5,7 @@
  * security, as sequences.ts's readers are.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { wordsNeedOpening } from "@chanlytics/contracts";
+import { wordsNeedOpening, valueAt, recordOrNull } from "@chanlytics/contracts";
 import type {
   SequencePlaceDto,
   SequencePlaceOfDto,
@@ -163,8 +163,8 @@ export async function putBackOf(
     .limit(1);
   if (error) throw new Error(`cannot read the leave to put back: ${error.message}`);
   const [leave] = data ?? [];
-  const sentence = leave ? (leave.payload as { left?: unknown; put_back?: { why?: unknown } } | null) : null;
-  return leave && sentence && sentence.left === 1 && sentence.put_back?.why === place.place.why
+  const sentence = leave ? recordOrNull(leave.payload) : null;
+  return leave && sentence && sentence.left === 1 && valueAt(sentence, "put_back", "why") === place.place.why
     ? { decision_id: leave.id }
     : null;
 }

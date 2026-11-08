@@ -15,7 +15,7 @@
  *   - `findVoiceAgent` / `keepVoiceAgent`: the agent before the number. The service role alone.
  * Every statement on a workspace's table goes through `tenantDb`, so none can reach another workspace's row by an id.
  */
-import { MIN_MS, recordOrEmpty } from "@chanlytics/contracts";
+import { MIN_MS, recordOrEmpty, listOrEmpty, isOneOf } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
@@ -29,7 +29,7 @@ interface RehearsalTurnRow {
   content: string;
 }
 
-const ROLES: ReadonlySet<unknown> = new Set(["agent", "user", "tool"]);
+const ROLES = ["agent", "user", "tool"] as const;
 
 /** One change kept from a rehearsal, as its row keeps it: the op, the field it landed in, its line, the version, when. */
 interface RehearsalFixRow {
@@ -66,16 +66,12 @@ const REHEARSAL_COLUMNS =
   "id, tenant_id, kind, retell_call_id, call_id, agent_id, config_version, instructions, transcript, started_at, ended_at, seconds, end_reason, review, reviewed_at, fixes, created_by, created_at";
 
 const rehearsalTurnsOf = (value: unknown): RehearsalTurnRow[] =>
-  Array.isArray(value)
-    ? value.flatMap((t) =>
-        t &&
-        typeof t === "object" &&
-        ROLES.has((t as { role?: unknown }).role) &&
-        typeof (t as { content?: unknown }).content === "string"
-          ? [{ role: (t as RehearsalTurnRow).role, content: (t as RehearsalTurnRow).content }]
-          : [],
-      )
-    : [];
+  listOrEmpty(value).flatMap((item) => {
+    const turn = recordOrEmpty(item);
+    return isOneOf(ROLES, turn.role) && typeof turn.content === "string"
+      ? [{ role: turn.role, content: turn.content }]
+      : [];
+  });
 
 /** The fixes a row keeps, each with the five words a fix carries; anything else in the column is left out. */
 const rehearsalFixesOf = (value: unknown): RehearsalFixRow[] =>

@@ -13,6 +13,14 @@ import type { Database, Json } from "../../types";
 import { readAllRowsByKey } from "../../shared/paged";
 import { getErasureDigests } from "../people/pages";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "../../shared/read-json";
+
+/** What people_erase_begin answers: who is going, and who has no address to say automated. An empty side may be null. */
+const EraseBeginAnswer = z
+  .object({ going: z.array(z.string()).nullable(), no_address: z.array(z.string()).nullable() })
+  .partial()
+  .nullable();
 
 type Db = SupabaseClient<Database>;
 
@@ -125,7 +133,7 @@ export async function listMediaPaths(db: Db, contactId: ContactId): Promise<stri
 
 /** The `storage_path` each stored value names, where it names one. */
 function storagePathsOf(stored: readonly unknown[]): string[] {
-  return stored.map((s) => (s as { storage_path?: string } | null)?.storage_path).filter((p): p is string => !!p);
+  return stored.map((s) => recordOrEmpty(s).storage_path).filter((p): p is string => typeof p === "string" && !!p);
 }
 
 /* ---- the block, before anything is destroyed ---- */
@@ -182,7 +190,7 @@ export async function beginPeopleErasure(
     p_not_a_person: params.notAPerson,
   });
   if (error) throw new Error(`people_erase_begin: ${error.message}`);
-  const answer = data as { going?: string[]; no_address?: string[] } | null;
+  const answer = readAnswer("people_erase_begin", EraseBeginAnswer, data);
   return { going: answer?.going ?? [], noAddress: answer?.no_address ?? [] };
 }
 

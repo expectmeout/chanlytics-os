@@ -9,6 +9,8 @@ import type { Database, Json } from "../../types";
 import type { LeadViewCountsDto, TenantId, ContactId } from "@chanlytics/contracts";
 import { readAllRows } from "../../shared/paged";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
+import { z } from "zod";
+import { readAnswer } from "../../shared/read-json";
 
 type Db = SupabaseClient<Database>;
 
@@ -293,6 +295,11 @@ export async function keepLeadPrices(db: Db, prices: LeadPricesSeen, at: Date): 
   if (error) throw new Error(`cannot keep the lead sources' prices: ${error.message}`);
 }
 
+/** What lead_people_search_create answers: the search and its round, or the door's refusal and its sentence. */
+const PeopleSearchMade = z
+  .object({ search_id: z.string(), round_id: z.string(), error: z.string(), sentence: z.string() })
+  .partial();
+
 /**
  * A people search (00430 lead_people_search_create), as the member signed in: the plan, where it was made, the estimate
  * the route worked out and the Ask thread it was planned in. The door's own refusals ({error, sentence}) come back as
@@ -310,13 +317,21 @@ export async function createLeadPeopleSearch(
     ...(params.threadId ? { p_thread_id: params.threadId } : {}),
   });
   if (error) throw new Error(`lead_people_search_create: ${error.message}`);
-  return (data ?? {}) as { search_id?: string; round_id?: string; error?: string; sentence?: string };
+  return readAnswer("lead_people_search_create", PeopleSearchMade, data ?? {});
 }
+
+/** What lead_company_upsert answers: the page's three counts; a round gone answers none of them. */
+const CompaniesKept = z.object({ made: z.number(), held: z.number(), left_out: z.number() }).partial();
 
 /** What the addressee door answers (00430 lead_addressee_choose): the choice made, or the door's refusal by its code. */
 type LeadAddresseeAnswer =
   | { ok: true; addressee: number; email_state: string; version: number }
   | { ok?: undefined; error: string; sentence?: string };
+
+const LeadAddresseeAnswerShape: z.ZodType<LeadAddresseeAnswer> = z.union([
+  z.object({ ok: z.literal(true), addressee: z.number(), email_state: z.string(), version: z.number() }),
+  z.object({ ok: z.undefined().optional(), error: z.string(), sentence: z.string().optional() }),
+]);
 
 /**
  * The owner's choice of who a company lead's reach-out writes to (00430 lead_addressee_choose), as the member signed in:
@@ -329,7 +344,10 @@ export async function chooseLeadAddressee(
 ): Promise<{ data: LeadAddresseeAnswer; error: null } | { data: null; error: { code?: string; message: string } }> {
   const { data, error } = await db.rpc("lead_addressee_choose", { p_lead_id: params.leadId, p_person: params.person });
   if (error) return { data: null, error };
-  return { data: (data ?? { error: "no_answer" }) as LeadAddresseeAnswer, error: null };
+  return {
+    data: readAnswer("lead_addressee_choose", LeadAddresseeAnswerShape, data ?? { error: "no_answer" }),
+    error: null,
+  };
 }
 
 /**
@@ -343,7 +361,7 @@ export async function upsertLeadCompany(
 ): Promise<{ made: number; held: number; left_out: number }> {
   const { data, error } = await db.rpc("lead_company_upsert", { p_round_id: roundId, p_companies: companies });
   if (error) throw new Error(`lead_company_upsert: ${error.message}`);
-  const r = (data ?? {}) as { made?: number; held?: number; left_out?: number };
+  const r = readAnswer("lead_company_upsert", CompaniesKept, data ?? {});
   return { made: r.made ?? 0, held: r.held ?? 0, left_out: r.left_out ?? 0 };
 }
 

@@ -9,6 +9,7 @@ import {
   type ContactConsentChangedData,
   type PlatformActedData,
   type WabaEventKind,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { dbLog, dbRequestId } from "../../shared/observe";
@@ -360,7 +361,7 @@ export async function findFilePosted(
     .maybeSingle();
   if (error) throw new Error(`file posted: ${error.message}`);
   if (data?.kind !== "file.posted") return null;
-  const sentence = data.data as { post_name?: unknown; search_url?: unknown };
+  const sentence = recordOrEmpty(data.data);
   if (typeof sentence.post_name !== "string") return null;
   return {
     name: sentence.post_name,

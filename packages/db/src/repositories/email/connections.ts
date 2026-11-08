@@ -10,6 +10,11 @@ import type { Database, Json } from "../../types";
 
 import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "../../shared/read-json";
+
+/** What mailbox_connection_connect answers: the mailbox's row, and whether this call made it. */
+const ConnectAnswer = z.object({ id: z.string(), made: z.boolean(), state: z.string() }).partial();
 type Db = SupabaseClient<Database>;
 export type MailboxConnectionRow = Database["public"]["Tables"]["mailbox_connections"]["Row"];
 type Patch = Database["public"]["Tables"]["mailbox_connections"]["Update"];
@@ -111,7 +116,7 @@ export async function connectMailbox(
     if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
     throw new Error(`cannot connect the mailbox: ${error.message}`);
   }
-  const item = (data ?? {}) as { id?: string; made?: boolean; state?: string };
+  const item = readAnswer("mailbox_connection_connect", ConnectAnswer, data ?? {});
   if (!item.id) throw new Error("cannot connect the mailbox: no row came back");
   return { ok: true, id: item.id, made: item.made === true, state: String(item.state ?? "connected") };
 }

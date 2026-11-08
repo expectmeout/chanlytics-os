@@ -8,6 +8,7 @@ import {
   isSequenceMode,
   type SequenceEvidenceDto,
   type SequenceMode,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import type {
   ReachOutFedBy,
@@ -271,7 +272,7 @@ export async function findSequenceOfPart(db: Db, tenantId: TenantId, id: string)
   if (batch.error) throw new Error(`cannot read the batch's sequence: ${batch.error.message}`);
   if (step.error) throw new Error(`cannot read the step's sequence: ${step.error.message}`);
   const of = (r: unknown): string | null => {
-    const v = r && typeof r === "object" ? (r as { sequence_id?: unknown }).sequence_id : null;
+    const v = recordOrEmpty(r).sequence_id;
     return typeof v === "string" ? v : null;
   };
   return of(batch.data) ?? of(step.data);

@@ -4,6 +4,17 @@ import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "../../../shared/read-json";
+
+/** What booking_request_open answers: a refusal, or the hold it opened and the appointment held. */
+const BookingRequestOpened = z
+  .object({
+    error: z.string(),
+    hold: z.enum(["opened", "changed", "refreshed"]),
+    appointment: z.object({ id: z.string() }).partial(),
+  })
+  .partial();
 
 export type Db = SupabaseClient<Database>;
 
@@ -154,7 +165,7 @@ export async function openBookingRequest(
     p_words: bookingRequestOpen.words,
   });
   if (error) throw new Error(`booking_request_open: ${error.message}`);
-  const sentence = (data ?? {}) as { error?: unknown; hold?: unknown; appointment?: { id?: unknown } };
+  const sentence = readAnswer("booking_request_open", BookingRequestOpened, data ?? {});
   if (sentence.error === "too_soon") return { error: "too_soon" };
   const hold = sentence.hold;
   const id = sentence.appointment?.id;

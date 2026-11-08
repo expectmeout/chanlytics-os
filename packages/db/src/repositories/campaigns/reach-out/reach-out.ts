@@ -3,8 +3,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
 import { withdrawQueued } from "../../conversations/control";
-import { recordOrEmpty, textOrEmpty } from "@chanlytics/contracts";
+import { heldContactId, recordOrEmpty, textOrEmpty } from "@chanlytics/contracts";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "../../../shared/read-json";
 
 export type Db = SupabaseClient<Database>;
 
@@ -66,6 +68,11 @@ export type PersonForSend =
   | { ok: true; contactId: ContactId; conversationId: string; made: boolean }
   | { ok: false; refused: "lead_gone" | "lead_closed" | "no_address" | "already_yours" | "erased" };
 
+/** What reach_out_person answers: the person a send is for, or the door's word for why there is none. */
+const ReachOutPersonAnswer = z
+  .object({ refused: z.string(), contact_id: z.string(), conversation_id: z.string(), made: z.boolean() })
+  .partial();
+
 /**
  * The person a first send needs, made once (00184 reach_out_person, through resolve_person since 00344): never a lead
  * converted by it, and never a person who asked to be forgotten (`erased`: the door's PE001, said in the door's answer).
@@ -73,7 +80,7 @@ export type PersonForSend =
 export async function addReachOutPerson(db: Db, tenantId: TenantId, leadId: string): Promise<PersonForSend> {
   const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new Error(`cannot make the person this send is for: ${error.message}`);
-  const row = (data ?? {}) as { refused?: string; contact_id?: ContactId; conversation_id?: string; made?: boolean };
+  const row = readAnswer("reach_out_person", ReachOutPersonAnswer, data ?? {});
   if (
     row.refused === "lead_gone" ||
     row.refused === "lead_closed" ||
@@ -84,7 +91,12 @@ export async function addReachOutPerson(db: Db, tenantId: TenantId, leadId: stri
     return { ok: false, refused: row.refused };
   if (!row.contact_id || !row.conversation_id)
     throw new Error("cannot make the person this send is for: no person came back");
-  return { ok: true, contactId: row.contact_id, conversationId: row.conversation_id, made: row.made === true };
+  return {
+    ok: true,
+    contactId: heldContactId(row.contact_id),
+    conversationId: row.conversation_id,
+    made: row.made === true,
+  };
 }
 
 /** Up to `limit` due sends of a running chain from one mailbox, claimed under its lock within `cap` (00424, C7). */

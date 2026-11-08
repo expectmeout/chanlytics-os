@@ -12,6 +12,8 @@ import {
   SIGNUP_CONFIRM_SOURCE,
   type SignupAskFacts,
   type SchemaSet,
+  recordOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -146,8 +148,7 @@ export async function findConfirmationEmail(
     .maybeSingle();
   if (error) throw new Error(`cannot read the sign-up's confirmation email: ${error.message}`);
   if (!data) return null;
-  const request = (data.meta as { email?: { request?: { from?: unknown; to?: unknown } } } | null)?.email?.request;
-  const to =
-    Array.isArray(request?.to) && typeof request.to[0] === "string" ? request.to[0].trim().toLowerCase() : null;
-  return { contactId: data.contact_id, from: typeof request?.from === "string" ? request.from : null, to };
+  const request = recordOrEmpty(valueAt(data.meta, "email", "request"));
+  const to = Array.isArray(request.to) && typeof request.to[0] === "string" ? request.to[0].trim().toLowerCase() : null;
+  return { contactId: data.contact_id, from: typeof request.from === "string" ? request.from : null, to };
 }

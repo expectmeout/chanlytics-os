@@ -6,7 +6,13 @@
  * caller may not touch is P0002), for the route to answer.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AskJournalDayDto, AskMemoryLineDto, AskMemorySource, TenantId } from "@chanlytics/contracts";
+import {
+  recordOrEmpty,
+  type AskJournalDayDto,
+  type AskMemoryLineDto,
+  type AskMemorySource,
+  type TenantId,
+} from "@chanlytics/contracts";
 import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
@@ -53,9 +59,9 @@ export async function askJournalDays(db: Db, tenantId: TenantId, limit: number):
 
 /** A door's jsonb answer, read: the line, or its refusal. */
 function doorAnswer(fn: string, data: unknown): AskMemoryDoor {
-  const d = (data && typeof data === "object" ? data : {}) as { memory?: unknown; again?: unknown; error?: unknown };
+  const d = recordOrEmpty(data);
   if (typeof d.error === "string") return { refused: d.error };
-  const m = (d.memory && typeof d.memory === "object" ? d.memory : {}) as { id?: unknown; text?: unknown };
+  const m = recordOrEmpty(d.memory);
   if (typeof m.id !== "string") throw new Error(`${fn}: answered no line`);
   return { id: m.id, text: typeof m.text === "string" ? m.text : "", again: d.again === true };
 }
