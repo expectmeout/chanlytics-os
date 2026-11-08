@@ -13,6 +13,7 @@ import {
   normalizePhone,
   parseTenantConfig,
   whyNotForward,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { writeLineForwarding } from "@chanlytics/db/workspace";
@@ -24,11 +25,7 @@ import type { Member } from "@/server/shared/route";
 const NO_TEST_PHONE: string | null = null;
 
 export async function setLineForwarding(ctx: RouteContext, req: Request, member: Member) {
-  const body = (await req.json().catch(() => ({}))) as {
-    number?: unknown;
-    carrier?: unknown;
-    mode?: unknown;
-  };
+  const body = recordOrEmpty(await req.json().catch(() => ({})));
   const number = typeof body.number === "string" ? normalizePhone(body.number) : null;
   if (!number) throw new AppError("validation", "Give the number you keep, with its area code.", 400);
   if (!isCarrier(body.carrier)) throw new AppError("validation", "Pick your carrier.", 400);

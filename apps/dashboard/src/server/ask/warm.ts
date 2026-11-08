@@ -60,7 +60,8 @@ export async function warmAskModel(
   // Kept before the model is asked, so two warms a moment apart are one; forgotten again if this one fails.
   warmedAt.delete(key);
   warmedAt.set(key, Date.now());
-  if (warmedAt.size > WARMED_CAP) warmedAt.delete(warmedAt.keys().next().value as string);
+  const oldest = warmedAt.keys().next();
+  if (warmedAt.size > WARMED_CAP && !oldest.done) warmedAt.delete(oldest.value);
   try {
     const rc = readerContext(ctx, member, undefined, { keep: true });
     const [{ facts }, shape] = await Promise.all([getTurnFacts(rc), ports.shape(rc).catch(() => "")]);

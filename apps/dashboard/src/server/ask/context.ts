@@ -172,7 +172,8 @@ export async function buildContext(rc: ReaderContext, context: PageContext): Pro
   // Deleted first, so a new write goes to the back; past the cap, the oldest write goes.
   kept.delete(key);
   kept.set(key, { at: Date.now(), built });
-  if (kept.size > CONTEXT_CACHE_CAP) kept.delete(kept.keys().next().value as string);
+  const oldest = kept.keys().next();
+  if (kept.size > CONTEXT_CACHE_CAP && !oldest.done) kept.delete(oldest.value);
   // A build a read failed in is not a page: the next warm or question reads again.
   void built.then(
     (r) => {

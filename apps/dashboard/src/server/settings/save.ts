@@ -19,6 +19,7 @@ import {
   whyNotAHandoff,
   withStoredKeysKept,
   type TenantConfig,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { findFiledNames } from "@chanlytics/db/lines";
 import { putTenantConfig } from "@chanlytics/db/workspace";
@@ -32,7 +33,7 @@ import type { Member } from "@/server/shared/route";
 import type { TenantId } from "@chanlytics/contracts";
 
 export async function saveSettings(ctx: RouteContext, req: Request, member: Member) {
-  const body = (await req.json().catch(() => null)) as { config?: unknown; version?: number } | null;
+  const body = recordOrNull(await req.json().catch(() => null));
   if (!body || typeof body.version !== "number") {
     throw new AppError("validation", "Body must be { config, version }.");
   }

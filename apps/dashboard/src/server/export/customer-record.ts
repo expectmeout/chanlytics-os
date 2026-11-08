@@ -1,5 +1,5 @@
 /** One customer's whole record, as the export writes it. */
-import type { ContactId } from "@chanlytics/contracts";
+import { recordOrEmpty, type ContactId } from "@chanlytics/contracts";
 import type { MessageDto, TenantId } from "@chanlytics/contracts";
 import { mediaPublic, toCallDto } from "@/server/conversations/dto";
 import { consentChangeOf, type BundleReaders } from "@/server/export/bundle";
@@ -61,7 +61,6 @@ export function customerRecord(
 
 /** Where a message's file is kept, once the store holds it; none for one still fetching or never fetched. */
 export function storedPathOf(media: unknown): string | null {
-  if (!media || typeof media !== "object") return null;
-  const m = media as { storage_path?: unknown; fetch_state?: unknown };
+  const m = recordOrEmpty(media);
   return m.fetch_state === "stored" && typeof m.storage_path === "string" ? m.storage_path : null;
 }

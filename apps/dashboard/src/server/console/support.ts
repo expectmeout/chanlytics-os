@@ -1,4 +1,4 @@
-import { heldTenantId } from "@chanlytics/contracts";
+import { heldTenantId, recordOrEmpty } from "@chanlytics/contracts";
 import "server-only";
 
 /**
@@ -159,12 +159,12 @@ export async function listReportsSince(
 
 /** The member an ask's event names as who asked (setup_request writes their id as `by`). */
 const askerOf = (data: unknown): string | null => {
-  const by = data && typeof data === "object" && !Array.isArray(data) ? (data as { by?: unknown }).by : null;
+  const by = recordOrEmpty(data).by;
   return typeof by === "string" && UUID.test(by) ? by : null;
 };
 
 const whatOf = (data: unknown): string => {
-  const subject = data && typeof data === "object" && !Array.isArray(data) ? (data as { what?: unknown }).what : null;
+  const subject = recordOrEmpty(data).what;
   return typeof subject === "string" ? subject : "";
 };
 

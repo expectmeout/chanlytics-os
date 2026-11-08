@@ -18,7 +18,14 @@
  * it: an undo puts back what was there at the write, never what a card read when it was proposed.
  */
 import { z } from "zod";
-import { AppError, normalizeEmail, normalizeLink, whyNotALink, whyNotAnEmail } from "@chanlytics/contracts";
+import {
+  AppError,
+  normalizeEmail,
+  normalizeLink,
+  whyNotALink,
+  whyNotAnEmail,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import { findPersonRow, setPersonEmail, setPersonName, setPersonNotes, setPersonProposal } from "@chanlytics/db/people";
 import type { contactScope } from "@/server/shared/verbs";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
@@ -67,7 +74,8 @@ function linkToStore(typed: string): string | null {
 /** What a door stored, by the field it answers with. 23505 is its own word for "another person here already has that address" (dbRefusal: a conflict). */
 function whatTheDoorStored<F extends string>(answer: { data: unknown; error: unknown }, field: F): string | null {
   if (answer.error) throw dbRefusal(answer.error);
-  return ((answer.data ?? {}) as Partial<Record<F, string | null>>)[field] ?? null;
+  const stored = recordOrEmpty(answer.data)[field];
+  return typeof stored === "string" ? stored : null;
 }
 
 export async function setPersonDetails(

@@ -1,5 +1,5 @@
 /** The verbs on many people at once: their receptionist mode, a note appended to each, and their erasure. */
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, recordOrEmpty } from "@chanlytics/contracts";
 import type { ContactId } from "@chanlytics/contracts";
 import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
 import { beginPeopleErasure } from "@chanlytics/db/erasure";
@@ -104,7 +104,8 @@ export async function appendNotesMany(
   let done = 0;
   for (const row of rows) {
     const { data, error } = await addBulkNote(ctx.supabase, row.id, text);
-    const refused = (data as { error?: string } | null)?.error;
+    const said = recordOrEmpty(data).error;
+    const refused = typeof said === "string" ? said : null;
     if (error || refused) {
       failed.push({ id: row.id, message: error?.message ?? NOTE_REFUSALS[refused ?? ""] ?? "Could not add the note." });
       continue;

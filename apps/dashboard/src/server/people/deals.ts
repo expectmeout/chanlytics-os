@@ -8,7 +8,7 @@ import {
   pageDealReport,
   recordDeal,
 } from "@chanlytics/db/deals";
-import { readAllRows } from "@chanlytics/db/shared";
+import { readAllRows, readAnswer } from "@chanlytics/db/shared";
 import {
   AppError,
   DAY_MS,
@@ -32,10 +32,17 @@ import {
   type PersonRowDto,
   recordOrNull,
   keysOf,
+  shaped,
 } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { findAppointmentWord } from "@chanlytics/db/workspace";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { z } from "zod";
+
+/** What record_deal answers: its refusal, or the deal, where it stood before, and the decision it wrote. */
+const DealAnswer = z
+  .object({ error: z.string(), deal: shaped<DealDto>(), from: z.string().nullable(), decision_id: z.string() })
+  .partial();
 
 /**
  * What this workspace calls an appointment (tenants.appointment_word, 00458), by contracts' one derivation
@@ -220,7 +227,7 @@ export async function recordDealMove(
     undoOf: ctx.undoOf ?? null,
   });
   if (error) throw dbRefusal(error);
-  const item = (data ?? {}) as { error?: string; deal?: DealDto; from?: string | null; decision_id?: string };
+  const item = readAnswer("record_deal", DealAnswer, data ?? {});
   if (item.error || !item.deal) {
     // A key the sentences lack, or no deal and no error: an answer this verb does not know. Logged raw before the
     // generic sentence, so a new refusal is found in the log rather than by its blandness.

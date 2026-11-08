@@ -108,7 +108,8 @@ class ReaderCache {
       if (this.kept.get(text)?.read === read) this.kept.delete(text);
     });
     // Bounded first-in-first-out by write: past the cap, the oldest write goes.
-    if (this.kept.size > READER_CACHE_CAP) this.kept.delete(this.kept.keys().next().value as string);
+    const oldest = this.kept.keys().next();
+    if (this.kept.size > READER_CACHE_CAP && !oldest.done) this.kept.delete(oldest.value);
     return read;
   }
 

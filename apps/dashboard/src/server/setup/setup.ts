@@ -30,6 +30,19 @@ import {
 import { dbRefusal } from "@/server/shared/with-route";
 import { requestsFrom, setupReads, type SetupViewer } from "./channel-rows";
 import type { TenantId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "@chanlytics/db/shared";
+
+/** What setup_choice_set answers: its refusal, or the choices as kept. A number's choice is the door's own to shape. */
+const SetupChoices = z
+  .object({
+    error: z.string(),
+    phone: z.unknown(),
+    whatsapp: z.string().nullable(),
+    marks: z.array(z.string()).nullable(),
+    version: z.number(),
+  })
+  .partial();
 
 type SetupReads = Awaited<ReturnType<typeof setupReads>>;
 
@@ -360,13 +373,7 @@ export async function saveSetupChoices(
     ...(input.version === undefined ? {} : { p_version: input.version }),
   });
   if (error) throw dbRefusal(error, { code: "forbidden", status: 403 });
-  const row = (data ?? {}) as {
-    error?: string;
-    phone?: unknown;
-    whatsapp?: string | null;
-    marks?: string[];
-    version?: number;
-  };
+  const row = readAnswer("setup_choice_set", SetupChoices, data ?? {});
   if (row.error === "stale")
     throw new AppError("conflict", "Another tab changed what was chosen. Look again, then choose.", 409);
   return {

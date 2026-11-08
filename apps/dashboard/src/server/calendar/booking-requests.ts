@@ -16,6 +16,18 @@ import {
 import { answerBookingRequest, openRequestOfThread } from "@chanlytics/db/calendar";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
+import { z } from "zod";
+import { readAnswer } from "@chanlytics/db/shared";
+
+/** What booking_request_answer answers: its refusal, or the appointment, its hold, and the decision it wrote. */
+const BookingAnswer = z
+  .object({
+    error: z.string(),
+    appointment: z.object({ id: z.string(), status: z.string() }),
+    hold: z.enum(["resolved", "reply"]).nullable(),
+    decision_id: z.string(),
+  })
+  .partial();
 
 /** What the door answered: the row as it stands, what became of the thread's hold, the decision, and the reply drafted. */
 interface RequestAnswered {
@@ -42,12 +54,7 @@ export async function answerRequestOf(
     replyWords: booked ? null : BOOKING_REQUEST_WORDS.cant(slotShort(startMs, row.timezone), row.service),
   });
   if (error) throw dbRefusal(error);
-  const item = (data ?? {}) as {
-    error?: string;
-    appointment?: { id: string; status: string };
-    hold?: "resolved" | "reply" | null;
-    decision_id?: string;
-  };
+  const item = readAnswer("booking_request_answer", BookingAnswer, data ?? {});
   if (item.error || !item.appointment) {
     // A refusal the sentences lack, or no row and no error: logged raw before the generic sentence.
     const sentence = bookingRequestRefusalOf(item.error);

@@ -8,6 +8,7 @@ import {
   type PersonCallBody,
   type PersonNoteDto,
   type PersonNoteTeamDto,
+  shaped,
 } from "@chanlytics/contracts";
 import {
   addPersonNote,
@@ -24,6 +25,16 @@ import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
 import { readTeamRoster } from "@chanlytics/db/workspace";
 import type { ContactId, TenantId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "@chanlytics/db/shared";
+
+/** What a note door answers: its refusal, the note, or the id it removed. A row's many fields are the table's own. */
+const NoteAnswer = z.object({ error: z.string(), note: shaped<NoteRow>(), removed: z.string() }).partial();
+
+/** What person_call_logged answers beside the note: the step it dated and the lead it moved, each where there is one. */
+const CallLoggedAnswer = z
+  .object({ step: shaped<NoteRow>().nullable(), lead: shaped<CallLead>().nullable() })
+  .partial();
 
 type Ctx = Pick<RouteContext, "supabase">;
 
@@ -157,7 +168,7 @@ export function noteAnswer(
   error: { code?: string; message: string } | null,
 ): { note?: NoteRow; removed?: string } {
   if (error) throw dbRefusal(error);
-  const item = (data ?? {}) as { error?: string; note?: NoteRow; removed?: string };
+  const item = readAnswer(door, NoteAnswer, data ?? {});
   if (item.note || item.removed) return { note: item.note, removed: item.removed };
   if (!(item.error && NOTE_REFUSALS[item.error])) {
     log.error("note_door_unknown_answer", { door, error: item.error ?? null });
@@ -225,7 +236,7 @@ export async function logCall(
     closesCallBack: input.closes_call_back === true,
   });
   const { note } = noteAnswer("person_call_logged", data, error);
-  const item = (data ?? {}) as { step?: NoteRow | null; lead?: CallLead | null };
+  const item = readAnswer("person_call_logged", CallLoggedAnswer, data ?? {});
   return {
     note: note ? writtenNote(ctx, note) : null,
     step: item.step ? writtenNote(ctx, item.step) : null,

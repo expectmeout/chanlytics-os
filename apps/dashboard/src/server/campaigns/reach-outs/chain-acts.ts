@@ -25,6 +25,8 @@ import {
   type ReachOutSaidOutcome,
   type ReachOutSavedDto,
   type ReachOutStartDto,
+  recordOrEmpty,
+  finiteOrZero,
 } from "@chanlytics/contracts";
 import {
   decideSendDoor,
@@ -292,8 +294,7 @@ export async function recheckRun(
 ): Promise<{ broadcast_id: string; rechecked: number }> {
   const { data, error } = await recheckReachOutRun(ctx.supabase, broadcastId);
   if (error) throw reachOutRefusal(error);
-  const r = data as { rechecked?: number } | null;
-  return { broadcast_id: broadcastId, rechecked: r?.rechecked ?? 0 };
+  return { broadcast_id: broadcastId, rechecked: finiteOrZero(recordOrEmpty(data).rechecked) };
 }
 
 export type SendRow = ReachOutRunSend;

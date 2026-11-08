@@ -28,6 +28,13 @@ import { recordSettingsChanged } from "@/server/workspace/settings-write";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
+import { z } from "zod";
+import { readAnswer } from "@chanlytics/db/shared";
+
+/** What fact_suggestion_answer answers: its refusal, or the suggestion as it now stands. */
+const FactAnswer = z
+  .object({ error: z.string(), suggestion: z.object({ id: z.string(), state: z.enum(["kept", "dismissed"]) }) })
+  .partial();
 
 /** What an answer did: the suggestion as it stands, the settings version a Keep wrote (or found it in), and its words. */
 interface FactAnswered {
@@ -84,7 +91,7 @@ export async function answerFactOf(
     configVersion: kept ? kept.version : null,
   });
   if (error) throw dbRefusal(error);
-  const item = (data ?? {}) as { error?: string; suggestion?: { id: string; state: "kept" | "dismissed" } };
+  const item = readAnswer("fact_suggestion_answer", FactAnswer, data ?? {});
   if (item.error === "answered") throw new AppError("conflict", FACT_SUGGEST_WORDS.answered, 409);
   if (item.error || !item.suggestion) {
     log.error("fact_answer_failed", { tenant_id: member.tenantId, step: "door", error: item.error ?? null });

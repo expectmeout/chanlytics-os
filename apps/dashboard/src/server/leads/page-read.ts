@@ -23,6 +23,8 @@ import {
   type LeadViewCountsDto,
   type SequencePlaceOfDto,
   recordOrNull,
+  recordOrEmpty,
+  listOrEmpty,
 } from "@chanlytics/contracts";
 import { getLeadPileCounts, listSequencePlaces } from "@chanlytics/db/campaigns";
 import { getLeadViewCounts, listSearchNames, readLeadOne, readLeadsPage } from "@chanlytics/db/leads";
@@ -111,8 +113,7 @@ interface LeadPageRow {
  * member stayed in review, none for a lead with no address.
  */
 function reasonsOf(judgment: unknown, emailState: string): string[] {
-  const j = judgment && typeof judgment === "object" ? (judgment as { reasons?: unknown }) : null;
-  const raw = Array.isArray(j?.reasons) ? j.reasons.filter((x): x is string => typeof x === "string") : [];
+  const raw = listOrEmpty(recordOrEmpty(judgment).reasons).filter((x): x is string => typeof x === "string");
   return raw.map((x) => (x.startsWith("email:") ? `email:${emailState}` : x));
 }
 
@@ -130,13 +131,9 @@ interface Judged {
  */
 function judgedBy(judgment: unknown): Map<string, Judged> {
   const out = new Map<string, Judged>();
-  const json =
-    judgment && typeof judgment === "object"
-      ? (judgment as { answer?: { criteria?: unknown; reason?: unknown; fit?: unknown; facts?: unknown } | null })
-      : null;
-  const answer = json?.answer && typeof json.answer === "object" ? json.answer : null;
+  const answer = recordOrNull(recordOrEmpty(judgment).answer);
   const criteria = Array.isArray(answer?.criteria)
-    ? (answer.criteria as { key?: unknown; answer?: unknown; facts?: unknown }[])
+    ? listOrEmpty(answer.criteria).map(recordOrEmpty)
     : typeof answer?.fit === "string"
       ? [{ key: LEAD_KIND_KEY, answer: answer.fit, facts: answer.facts }]
       : [];
@@ -233,9 +230,7 @@ function checksOf(leadPage: LeadPageRow): LeadCheck[] {
 }
 
 function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): LeadRowDto {
-  const others = Array.isArray(leadPage.email_alternates)
-    ? (leadPage.email_alternates as { email?: unknown; why?: unknown }[])
-    : [];
+  const others = listOrEmpty(leadPage.email_alternates).map(recordOrEmpty);
   return {
     id: leadPage.lead_id,
     search_id: leadPage.search_id,
@@ -317,7 +312,7 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
 async function searchNamesOf(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<Map<string, string>> {
   const { data, error } = await listSearchNames(ctx.supabase, tenantId, 200);
   if (error) throw new Error(error.message);
-  return new Map(((data ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name]));
+  return new Map((data ?? []).map((s) => [s.id, s.name]));
 }
 
 export interface LeadsPageAnswer {
