@@ -29,6 +29,8 @@ import { IDS_PER_READ } from "../people/pages";
 import { dbLog } from "../../shared/observe";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
 import { asJson, jsonCopyOf } from "../../shared/json";
+import { readAnswer } from "../../shared/read-json";
+import { z } from "zod";
 
 type Db = SupabaseClient<Database>;
 
@@ -74,6 +76,17 @@ export interface IngestCallResult {
   conversation_id: string | null;
 }
 
+/** What ingest_call answers, as IngestCallResult says it. */
+const IngestCallAnswer: z.ZodType<IngestCallResult> = z.object({
+  call_id: z.string(),
+  is_new: z.boolean(),
+  recording_state: z.string().nullable(),
+  recording_attempts: z.number().nullable().optional(),
+  skipped: z.boolean().optional(),
+  contact_id: z.string().nullable(),
+  conversation_id: z.string().nullable(),
+});
+
 export async function ingestCall(
   db: Db,
   tenantId: string,
@@ -112,7 +125,7 @@ export async function ingestCall(
     p_analysis: asJson(callInput.analysis ?? null),
   });
   if (error) throw new Error(`ingest_call: ${error.message}`);
-  return data as unknown as IngestCallResult;
+  return readAnswer("ingest_call", IngestCallAnswer, data);
 }
 
 /**

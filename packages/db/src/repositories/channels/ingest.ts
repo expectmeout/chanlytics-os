@@ -4,7 +4,9 @@
  * dedupe; everything else is plain row work.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
 import { resolvePerson } from "../people/people";
+import { readAnswer } from "../../shared/read-json";
 import { withdrawAiDrafts } from "../conversations/control";
 import {
   conversationPatch,
@@ -84,6 +86,19 @@ export interface IngestResult {
   dnc?: boolean | null;
 }
 
+/** What ingest_inbound answers, as IngestResult says it. */
+const IngestAnswer: z.ZodType<IngestResult> = z.object({
+  message_id: z.string(),
+  conversation_id: z.string(),
+  contact_id: z.string(),
+  is_new: z.boolean(),
+  processed: z.boolean(),
+  state: z.string(),
+  paused_until: z.string().nullable(),
+  consent: z.string().nullable().optional(),
+  dnc: z.boolean().nullable().optional(),
+});
+
 /**
  * They have said stop, and it stands: a yes to offers that arrives now is not recorded (stoppedNow, read from the
  * ingest's own answer, which is the row after this message was applied). The way back in from a STOP is START, never
@@ -112,7 +127,7 @@ export async function ingestInbound(db: Db, inboundParams: IngestInboundParams):
     p_opt_in: inboundParams.optIn ?? false,
   });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
-  const out = data as unknown as IngestResult;
+  const out = readAnswer("ingest_inbound", IngestAnswer, data);
 
   if (!out?.contact_id) return out;
 
