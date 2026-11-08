@@ -203,7 +203,7 @@ async function link(googleCall: GoogleCall): Promise<Response> {
     googleCall.tenantId,
     linkRow(details, googleCall.tenantId, googleCall.userId, new Date()),
   );
-  if (saved.error || !saved.data) return refuseFailure(500, "write_failed", saved.error ?? "no answer");
+  if (saved.error || !saved.data) return refuseFailure(500, "write_failed", saved.error);
   // A new listing forgets the old one's reviews and days: they were another place's.
   const reviewsGone = await deleteGoogleReviews(googleCall.db, googleCall.tenantId);
   if (reviewsGone.error) return refuseFailure(500, "write_failed", reviewsGone.error);

@@ -666,7 +666,7 @@ test("past status and search every op needs a database and a workspace on record
   use(world(), new Map(), { "tenants.select": { message: "permission denied for table tenants" } });
   assert.deepEqual(await answer(await knock({ op: "refresh" })), [
     503,
-    { ok: false, error: "read_failed", detail: "That could not be read just now. Try again in a moment." },
+    { ok: false, error: "read_failed", detail: "Could not read that just now. Try again in a moment." },
   ]);
   assert.equal(net.calls.length, 0, "Google heard none of it");
 });
@@ -1454,7 +1454,7 @@ test("connect refuses -- and gives the grant back -- when Google refuses the cod
     {
       ok: false,
       error: "credentials_failed",
-      detail: "That could not be saved just now. Try again in a moment.",
+      detail: "Could not save that just now. Try again in a moment.",
     },
   ]);
   assert.deepEqual(tables.google_connections, [], "without the token the row is a lie: removed");

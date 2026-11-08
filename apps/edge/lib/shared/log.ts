@@ -137,9 +137,9 @@ export function adminDoor<A extends unknown[]>(
 
 /** What a caller reads of a read, a write or a run that failed: a try-again, never the database's or a library's text. */
 const FAILURE_WORDS = {
-  read: "That could not be read just now. Try again in a moment.",
-  write: "That could not be saved just now. Try again in a moment.",
-  run: "That could not be run just now. Try again in a moment.",
+  read: "Could not read that just now. Try again in a moment.",
+  write: "Could not save that just now. Try again in a moment.",
+  run: "Could not run that just now. Try again in a moment.",
 } as const;
 
 /** The codes a door refuses a failure of its own with, each said in the words of what it was doing. */
@@ -155,7 +155,8 @@ export function logFailure(kind: keyof typeof FAILURE_WORDS, failure: unknown): 
   oneLogger<LogEvent>().error("door_reply_failed", {
     kind,
     ...(typeof code === "string" ? { db_code: code } : {}),
-    error: failure instanceof Error ? failure : textOrEmpty(valueAt(failure, "message")) || String(failure),
+    error:
+      failure instanceof Error ? failure : textOrEmpty(valueAt(failure, "message")) || String(failure ?? "no answer"),
   });
   return FAILURE_WORDS[kind];
 }

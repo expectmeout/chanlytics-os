@@ -157,7 +157,7 @@ export async function connectProfile(
   if (prior.error) return { ok: false, error: "connection_write_failed", detail: logFailure("write", prior.error) };
   const saved = await saveGoogleConnection(db, tenantId, row);
   if (saved.error || !saved.data)
-    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error ?? "no answer") };
+    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error) };
   try {
     await storeCredentials(db, tenantId, {
       refresh_token: grant.refresh_token,
@@ -295,7 +295,7 @@ export async function bindLocation(
     sync_error: null,
   });
   if (saved.error || !saved.data)
-    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error ?? "no answer") };
+    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error) };
   const read = await syncProfile(db, saved.data, tz, now, net);
   // Its hours, services and prices, days closed and words, for Check (decision 0073, R17); its website read after.
   await readProfileDetails(db, saved.data, now, net);

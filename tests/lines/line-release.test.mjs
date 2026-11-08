@@ -196,7 +196,7 @@ test("a credentials read that fails is a refusal: the carrier is not skipped pas
     ok: false,
     status: 503,
     error: "read_failed",
-    detail: "That could not be read just now. Try again in a moment.",
+    detail: "Could not read that just now. Try again in a moment.",
     released: {},
   });
   assert.deepEqual(
@@ -637,7 +637,7 @@ test("Vault refusing to drop the token: a refusal and the row stays, and the nex
     ok: false,
     status: 503,
     error: "write_failed",
-    detail: "That could not be saved just now. Try again in a moment.",
+    detail: "Could not save that just now. Try again in a moment.",
     released: { number: "PN0001", trunk: "TK0001", channel_disabled: VOICE },
   });
   assert.deepEqual(

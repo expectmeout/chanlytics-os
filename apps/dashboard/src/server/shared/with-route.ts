@@ -276,17 +276,19 @@ export function answerOfThrow(
       headers: refusalHeaders(error),
     };
   }
-  const refused = error instanceof DbFailure ? refusalOfDbFailure(error) : null;
-  if (refused) {
-    // The database's own sentence and what was being done stay in the line: a refusal can be a door's rule or a bug.
-    log.warn("route_refused", {
-      route: at.route,
-      code: refused.code,
-      db_code: (error as DbFailure).code,
-      error: (error as DbFailure).message,
-      ms: Date.now() - at.started,
-    });
-    return { status: refused.status, body: err(refused.code, refused.message), headers: {} };
+  if (error instanceof DbFailure) {
+    const refused = refusalOfDbFailure(error);
+    if (refused) {
+      // The database's own sentence and what was being done stay in the line: a refusal can be a door's rule or a bug.
+      log.warn("route_refused", {
+        route: at.route,
+        code: refused.code,
+        db_code: error.code,
+        error: error.message,
+        ms: Date.now() - at.started,
+      });
+      return { status: refused.status, body: err(refused.code, refused.message), headers: {} };
+    }
   }
   // The error itself, so the line carries its stack; the workspace rides from the request (getMemberContext).
   log.error("route_failed", {
@@ -495,10 +497,15 @@ const doorWords = (door: { plainly: string }, sentence: string): string =>
  * 0114). Null for any other, a bare raise among them: it says nothing of what the rule means here, and only a route that
  * knows can say (dbRefusal's `raised`), so it stays the fault it is.
  */
-/** A door's sentence, as a person may read it, for a refusal mapped where it is read (files, the logo). */
-export function doorSentence(reply: { code?: string | null; message: string }): string {
-  const door = reply.code ? DOOR_REFUSALS[reply.code] : undefined;
-  return door ? doorWords(door, reply.message) : reply.message;
+/**
+ * A write door's refusal, in its words, of the three it raises on purpose: who may not, what it cannot take, and what is
+ * not there. Null for any other, which the door that asks words for itself (files, the logo).
+ */
+export function writeDoorRefusal(reply: { code?: string | null; message: string }): AppError | null {
+  const code = reply.code;
+  if (code !== "42501" && code !== "22023" && code !== "P0002") return null;
+  const door = DOOR_REFUSALS[code];
+  return door ? new AppError(door.code, doorWords(door, reply.message), door.status) : null;
 }
 
 /**

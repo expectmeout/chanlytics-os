@@ -99,9 +99,9 @@ export function errField(error: unknown): string {
   return error instanceof Error ? errText(error) : String(error);
 }
 
-/** Writes down a failure something chose to go on past: `what` was being done, and what went wrong. */
-export function logKeptGoing(what: string, failure: unknown): void {
-  emit("warn", "kept_going", { what, error: errField(failure) });
+/** Writes down a failure something chose to go on past: what was being done (`doing`), and what went wrong. */
+export function logKeptGoing(doing: string, failure: unknown): void {
+  emit("warn", "kept_going", { what: doing, error: errField(failure) });
 }
 
 /**
@@ -109,11 +109,11 @@ export function logKeptGoing(what: string, failure: unknown): void {
  * can do without, a copy of a record, a page to the platform (decision 0114). `.catch(() => null)` made a failed read
  * look the same as "nothing there" and a failed write the same as done, with no line anywhere. The answer is `fallback`.
  */
-export function logAndGoOn(what: string): (failure: unknown) => undefined;
-export function logAndGoOn<F>(what: string, fallback: F): (failure: unknown) => F;
-export function logAndGoOn(what: string, fallback?: unknown): (failure: unknown) => unknown {
+export function logAndGoOn(doing: string): (failure: unknown) => undefined;
+export function logAndGoOn<F>(doing: string, fallback: F): (failure: unknown) => F;
+export function logAndGoOn(doing: string, fallback?: unknown): (failure: unknown) => unknown {
   return (failure) => {
-    logKeptGoing(what, failure);
+    logKeptGoing(doing, failure);
     return fallback;
   };
 }

@@ -146,12 +146,12 @@ const draftChannelOf = (c: string | null): InboundChannel => (c === "sms" || c =
 async function draftAddressOf(
   db: NonNullable<ReturnType<typeof pg>>,
   channel: InboundChannel,
-  m: { tenant_id: TenantId; contact_id: ContactId | null },
+  message: { tenant_id: TenantId; contact_id: ContactId | null },
   phone: string | null,
 ): Promise<string | null> {
   if (channel !== "instagram") return phone;
-  return m.contact_id
-    ? findInstagramId(db, m.tenant_id, m.contact_id).catch(logAndGoOn("findInstagramId", null))
+  return message.contact_id
+    ? findInstagramId(db, message.tenant_id, message.contact_id).catch(logAndGoOn("findInstagramId", null))
     : null;
 }
 

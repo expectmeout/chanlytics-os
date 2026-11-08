@@ -500,11 +500,15 @@ async function correctReceptionist(
  * Read at the call's start, where its prompt was composed (call-start.ts): a call that runs past midnight on an offer's
  * last day is judged by what the caller's receptionist was told, the offer's note and its price included.
  */
-async function allowedOnCall(db: Db, routed: RoutedChannel, n: NormalizedCall): Promise<ReadonlySet<string> | null> {
-  if (!spokenBreach(n.transcriptObject, null)) return null;
+async function allowedOnCall(
+  db: Db,
+  routed: RoutedChannel,
+  normalized: NormalizedCall,
+): Promise<ReadonlySet<string> | null> {
+  if (!spokenBreach(normalized.transcriptObject, null)) return null;
   try {
     const rt = await loadTenantRuntime(db, routed);
-    const composedAt = n.startedAtIso ? new Date(n.startedAtIso) : new Date();
+    const composedAt = normalized.startedAtIso ? new Date(normalized.startedAtIso) : new Date();
     return rt.loadFailed ? null : priceAllowance(rt.brain, rt.timezone, composedAt);
   } catch (e) {
     logKeptGoing("a call's allowance", e);

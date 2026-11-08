@@ -75,12 +75,12 @@ export function dbLog(): DbLog {
 }
 
 /** Writes a failure db chose to go on past through its own port: as packages/log's logAndGoOn, which db does not import. */
-export function dbLogAndGoOn(what: string): (failure: unknown) => undefined;
-export function dbLogAndGoOn<F>(what: string, fallback: F): (failure: unknown) => F;
-export function dbLogAndGoOn(what: string, fallback?: unknown): (failure: unknown) => unknown {
+export function dbLogAndGoOn(doing: string): (failure: unknown) => undefined;
+export function dbLogAndGoOn<F>(doing: string, fallback: F): (failure: unknown) => F;
+export function dbLogAndGoOn(doing: string, fallback?: unknown): (failure: unknown) => unknown {
   return (failure) => {
     dbLog().warn("kept_going", {
-      what,
+      what: doing,
       error: failure instanceof Error ? `${failure.name}: ${failure.message}` : String(failure),
     });
     return fallback;

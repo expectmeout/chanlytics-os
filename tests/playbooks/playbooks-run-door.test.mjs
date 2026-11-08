@@ -576,7 +576,7 @@ test("what else makes a person's run off, each recorded with its reason: a templ
   workspace(w.tables, A, "auto");
   assert.deepEqual(await answer(await knock(press)), [
     500,
-    { ok: false, error: "read_failed", detail: "That could not be read just now. Try again in a moment." },
+    { ok: false, error: "read_failed", detail: "Could not read that just now. Try again in a moment." },
   ]);
   assert.deepEqual(w.peopleRead(), [], "a playbook that cannot be read is answered before the workspace is");
 

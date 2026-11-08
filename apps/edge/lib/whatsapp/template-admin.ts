@@ -127,7 +127,7 @@ export async function createWhatsappTemplate(
     created_by: userId,
   };
   const { data: saved, error } = await saveTemplateRow(db, tenantId, row);
-  if (error || !saved) return refuseFailure(500, "write_failed", error ?? "no answer");
+  if (error || !saved) return refuseFailure(500, "write_failed", error);
   log.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: created.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: created.data.id, meta_status: status });
 }

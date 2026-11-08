@@ -70,16 +70,16 @@ test("a read or a write a door could not do says a try-again, and the failure's 
       503,
       "read_failed",
       { code: "57014", message: SECRET_TEXT },
-      "That could not be read just now. Try again in a moment.",
+      "Could not read that just now. Try again in a moment.",
     ],
-    [503, "query_failed", new Error(SECRET_TEXT), "That could not be read just now. Try again in a moment."],
+    [503, "query_failed", new Error(SECRET_TEXT), "Could not read that just now. Try again in a moment."],
     [
       500,
       "write_failed",
       { code: "23505", message: SECRET_TEXT },
-      "That could not be saved just now. Try again in a moment.",
+      "Could not save that just now. Try again in a moment.",
     ],
-    [500, "run_failed", new Error(SECRET_TEXT), "That could not be run just now. Try again in a moment."],
+    [500, "run_failed", new Error(SECRET_TEXT), "Could not run that just now. Try again in a moment."],
   ]) {
     const { out: res, lines } = await run(() => refuseFailure(status, code, failure));
     assert.equal(res.status, status);
@@ -94,6 +94,6 @@ test("a read or a write a door could not do says a try-again, and the failure's 
 
 test("logFailure gives a door's own result its words, whatever it was handed", async () => {
   const { out, lines } = await run(() => logFailure("write", "no answer"));
-  assert.equal(out, "That could not be saved just now. Try again in a moment.");
+  assert.equal(out, "Could not save that just now. Try again in a moment.");
   assert.equal(lines[0].error, "no answer");
 });

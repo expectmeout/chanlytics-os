@@ -86,6 +86,10 @@ export type ErrorDetails<C extends ErrorCode = ErrorCode> = C extends keyof Erro
  */
 const APP_ERROR = Symbol.for("@chanlytics/contracts:AppError");
 
+/** Whether `value` carries `mark`: what `instanceof` asks of a class every copy of this module must recognise. */
+const carries = (value: unknown, mark: symbol): boolean =>
+  typeof value === "object" && value !== null && Object.hasOwn(value, mark);
+
 export class AppError<C extends ErrorCode = ErrorCode> extends Error {
   readonly code: C;
   readonly status: number;
@@ -103,7 +107,7 @@ export class AppError<C extends ErrorCode = ErrorCode> extends Error {
 
   /** `e instanceof AppError` is true for an AppError made by any copy of this class (see APP_ERROR). */
   static override [Symbol.hasInstance](value: unknown): value is AppError {
-    return typeof value === "object" && value !== null && (value as { [APP_ERROR]?: unknown })[APP_ERROR] === true;
+    return carries(value, APP_ERROR);
   }
 }
 
@@ -137,7 +141,7 @@ export class DbFailure extends Error {
 
   /** `e instanceof DbFailure` is true for a DbFailure made by any copy of this class. */
   static override [Symbol.hasInstance](value: unknown): value is DbFailure {
-    return typeof value === "object" && value !== null && (value as { [DB_FAILURE]?: unknown })[DB_FAILURE] === true;
+    return carries(value, DB_FAILURE);
   }
 }
 
