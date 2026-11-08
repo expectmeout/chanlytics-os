@@ -1,6 +1,6 @@
 /** The edge's doors for the calendar, as the dashboard knocks on them (decision 0109). */
 import { z } from "zod";
-import { DOOR_ID, edgeDoor } from "../shared/edge/door";
+import { DOOR_ID, doorAnswer, edgeDoor } from "../shared/edge/door";
 
 /** POST /api/admin/calendar/feed: the calendar a mailbox reads, as text, between two moments (the season's, when unsaid). */
 export const CALENDAR_FEED_DOOR = edgeDoor(
@@ -11,10 +11,12 @@ export const CALENDAR_FEED_DOOR = edgeDoor(
     from: z.number().optional(),
     to: z.number().optional(),
   }),
+  doorAnswer({ text: z.string() }),
 );
 
 /** POST /api/admin/calendar/freed-time: a cancelled appointment's time, offered now. */
 export const FREED_TIME_DOOR = edgeDoor(
   "/api/admin/calendar/freed-time",
   z.object({ tenant_id: DOOR_ID.optional(), user_id: DOOR_ID.optional(), appointment_id: DOOR_ID.optional() }),
+  doorAnswer({ offered: z.boolean(), people: z.number(), waits: z.boolean(), why: z.string() }),
 );

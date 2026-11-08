@@ -71,5 +71,7 @@ type _EdgeAnswer = [
 function _readsAnEdgeAnswer(body: EdgeAnswerBody): boolean {
   // @ts-expect-error a code the edge renamed, compared where the dashboard reads it, no longer compiles
   void (body.error === "no_line_providers");
+  // @ts-expect-error a field no door declares is no field of an answer: the door's `doorAnswer` says what can be read
+  void body.anything_at_all;
   return body.error === "no_line_provider" || body.error === "edge_unreachable" || body.error === "preview";
 }

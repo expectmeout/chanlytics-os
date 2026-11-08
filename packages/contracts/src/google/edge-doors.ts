@@ -3,7 +3,8 @@
  * apps/edge/lib/google/admin.ts; each reads the fields it needs and refuses the rest in its own words.
  */
 import { z } from "zod";
-import { DOOR_ID, edgeDoor } from "../shared/edge/door";
+import type { GoogleCandidateDto } from "./listing";
+import { DOOR_ID, doorAnswer, edgeDoor, shaped } from "../shared/edge/door";
 
 /** POST /api/admin/google: the listing searched, linked and read, the profile connected, a review answered, a post made. */
 export const GOOGLE_DOOR = edgeDoor(
@@ -27,5 +28,25 @@ export const GOOGLE_DOOR = edgeDoor(
     /** Whether a post asks for a call. */
     call: z.boolean().optional(),
     post_name: z.string().optional(),
+  }),
+  doorAnswer({
+    removed: z.boolean(),
+    revoked: z.boolean(),
+    listing: z.unknown(),
+    read: z.object({ ok: z.boolean(), fresh: z.number(), counted: z.number(), error: z.string() }).partial(),
+    locations: z.unknown(),
+    connection: z.unknown(),
+    text: z.string(),
+    mode: z.string(),
+    pending: z.boolean(),
+    replied_at: z.string().nullable(),
+    reply_text: z.string().nullable(),
+    held: z.boolean(),
+    candidates: shaped<GoogleCandidateDto[]>(),
+    ready: z.object({ places: z.boolean(), profile: z.boolean(), audience: z.string().nullable() }).partial(),
+    profile: z.object({ client_id: z.string(), redirect_uri: z.string() }).partial().nullable(),
+    name: z.string(),
+    search_url: z.string().nullable(),
+    state: z.string().nullable(),
   }),
 );
