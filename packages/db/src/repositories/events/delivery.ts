@@ -1,7 +1,7 @@
 /** Events: delivery. */
 
 import { personName, type ActivationMilestone } from "@chanlytics/contracts";
-import type { Json } from "../../database.types";
+import type { Json } from "../../types";
 import { dbLog } from "../../shared/observe";
 import { recordEvent, rowOf, type Db, type EventData } from "./events";
 import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";
@@ -106,7 +106,7 @@ export async function findDelivery(
     .eq("subscriber", subscriber)
     .maybeSingle();
   if (error) throw new Error(`event_deliveries: ${error.message}`);
-  return data as DeliveryRow | null;
+  return data;
 }
 
 /** The delivery's verdict after a run: done, failed with why, or paused because its subscription was. */

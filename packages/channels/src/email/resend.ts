@@ -27,6 +27,7 @@ import { fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
 import { receivedEmailFrom, type ReceivedEmail } from "./intake";
 import { mailDomainsFrom, resendLimitOf, type MailDomainFacts } from "./provider-answers";
 import type { EmailRequest } from "./request";
+import { recordOrNull } from "@chanlytics/contracts";
 
 export interface ResendConfig {
   apiKey: string;
@@ -150,7 +151,7 @@ async function postEmail(
     breaker: "count",
   });
   if (result.status >= 200 && result.status < 300) {
-    const id = (result.json as { id?: unknown } | null)?.id;
+    const id = recordOrNull(result.json)?.id;
     // Accepted with no id is still accepted: the words are with the provider,
     // and the receipt finds the row by its tag, not by this id.
     return {

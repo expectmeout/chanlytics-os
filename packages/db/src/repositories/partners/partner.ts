@@ -1,8 +1,11 @@
 /** Partner: partner. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import { z } from "zod";
+import { SCHEMA_SETS } from "@chanlytics/contracts";
+import type { Database } from "../../types";
 import { isMissingFunction } from "../../shared/missing-door";
+import { readAnswer } from "../../shared/read-json";
 
 export type Db = SupabaseClient<Database>;
 
@@ -17,6 +20,16 @@ export type PartnerPublicRow = Pick<
   PartnerRow,
   "id" | "code" | "status" | "share_bp" | "terms_accepted_at" | "created_at"
 >;
+
+/** The row partner_become answers: the caller's partner row, its public columns. */
+const PartnerPublicAnswer = z.object({
+  id: z.string(),
+  code: z.string(),
+  status: z.enum(SCHEMA_SETS["partners.status"]),
+  share_bp: z.number(),
+  terms_accepted_at: z.string().nullable(),
+  created_at: z.string(),
+});
 
 /** The error a database 00202 has not reached answers a read of the table with. */
 const noTable = (message: string): boolean =>
@@ -120,7 +133,7 @@ export async function becomePartner(
 ): Promise<{ ok: true; row: PartnerPublicRow } | { ok: false; code: string; message: string }> {
   const { data, error } = await db.rpc("partner_become", { p_code: code });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  return { ok: true, row: data as unknown as PartnerPublicRow };
+  return { ok: true, row: readAnswer("partner_become", PartnerPublicAnswer, data) };
 }
 
 export type PartnerOverviewRow = Database["public"]["Functions"]["partner_overview"]["Returns"][number];
@@ -202,21 +215,31 @@ export async function setPartnerStanding(
     p_why: reason,
   });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  return {
-    ok: true,
-    value: data as unknown as { standing: string; from: string | null; voided: number; matured: number },
-  };
+  return { ok: true, value: readAnswer("partner_standing_set", StandingAnswer, data) };
 }
 
+/** What partner_standing_set answers: the standing now and before, and the earnings it voided or matured. */
+const StandingAnswer = z.object({
+  standing: z.string(),
+  from: z.string().nullable(),
+  voided: z.number(),
+  matured: z.number(),
+});
+
 /** What partner_payout_mark answers: paid, or not and why (changed: what is payable moved since it was read). */
-export type PartnerPayoutAnswer = {
-  paid: boolean;
-  changed?: boolean;
-  total_cents: number;
-  currency: string;
-  earnings?: number;
-  payout_id?: string;
-};
+const PayoutAnswer = z.object({
+  paid: z.boolean(),
+  changed: z.boolean().optional(),
+  // A bigint sum in SQL: JSON may carry it as a number or as its digits.
+  total_cents: z.union([z.number(), z.string()]),
+  currency: z.string(),
+  earnings: z.number().optional(),
+  payout_id: z.string().optional(),
+});
+export type PartnerPayoutAnswer = Omit<z.output<typeof PayoutAnswer>, "total_cents"> & { total_cents: number };
+
+/** What partner_status_set answers: the status now and before, and the seats it holds. */
+const StatusAnswer = z.object({ status: z.string(), from: z.string(), seats: z.number() });
 
 /**
  * A platform admin records a payout sent by hand (00205, 00207 partner_payout_mark). `expectedCents` is what the
@@ -236,7 +259,7 @@ export async function markPartnerPaid(
     ...(expectedCents === undefined ? {} : { p_expected_cents: expectedCents }),
   });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  const payoutAnswer = data as unknown as PartnerPayoutAnswer;
+  const payoutAnswer = readAnswer("partner_payout_mark", PayoutAnswer, data);
   return { ok: true, value: { ...payoutAnswer, total_cents: Number(payoutAnswer.total_cents) } };
 }
 
@@ -249,7 +272,7 @@ export async function setPartnerStatus(
 ): Promise<PartnerVerbResult<{ status: string; from: string; seats: number }>> {
   const { data, error } = await db.rpc("partner_status_set", { p_partner: partnerId, p_status: status, p_why: reason });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  return { ok: true, value: data as unknown as { status: string; from: string; seats: number } };
+  return { ok: true, value: readAnswer("partner_status_set", StatusAnswer, data) };
 }
 
 /**

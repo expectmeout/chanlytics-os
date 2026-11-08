@@ -1,8 +1,9 @@
 /** Reach out: reach out. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../../database.types";
+import type { Database } from "../../../types";
 import { withdrawQueued } from "../../conversations/control";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -241,9 +242,7 @@ export async function listFinishableRuns(db: Db, limit: number, tenantId?: strin
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the runs to finish: ${error.message}`);
-  return ((data ?? []) as unknown[]).map((r) =>
-    typeof r === "string" ? r : String((r as Record<string, unknown>).reach_out_finishable ?? ""),
-  );
+  return (data ?? []).map((r) => (typeof r === "string" ? r : String(recordOrEmpty(r).reach_out_finishable ?? "")));
 }
 
 /** Which of these email ids have a row, a hundred at a time (an id list rides in the request's address). */

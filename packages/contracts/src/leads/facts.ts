@@ -32,8 +32,8 @@ export function leadTodayLine(hours: { day: string; hours: string }[], tz: strin
   const hoursOn = (weekday: string) => hours.find((x) => weekdayNamed(x.day) === weekday)?.hours.trim() ?? null;
   const { hh, mm } = clockInZone(tz, nowMs);
   const at = hh + mm / 60;
-  const clock = (hh: string, mm: string | undefined, ap: string) =>
-    `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
+  const clock = (hh: string | undefined, mm: string | undefined, ap: string | undefined) =>
+    `${hh ?? ""}${mm && mm !== "00" ? `:${mm}` : ""} ${(ap ?? "").toUpperCase()}`;
   // A night that runs past midnight belongs to the day it began: at 1 AM, a bar that opened at 5 PM "to 2 AM" is open.
   // Yesterday is the calendar's, never now less 24 hours, which in the first hour of the day after the clocks go
   // forward is the day before yesterday.
@@ -68,12 +68,12 @@ export function leadHoursShort(text: string): string {
   const result = text.trim();
   if (/^open 24 hours$/i.test(result)) return "24 hours";
   if (/^closed/i.test(result)) return "Closed";
-  const at = (h: string, mm: string | undefined) => (mm && mm !== "00" ? `${h}:${mm}` : h);
+  const at = (h: string | undefined, mm: string | undefined) => (mm && mm !== "00" ? `${h ?? ""}:${mm}` : (h ?? ""));
   const ranges = result.split(/\s*,\s*/).map((part) => {
     const m = part.match(CLOCK);
     if (!m) return null;
-    const a1 = m[3].toUpperCase();
-    const a2 = m[6].toUpperCase();
+    const a1 = (m[3] ?? "").toUpperCase();
+    const a2 = (m[6] ?? "").toUpperCase();
     const wraps = hourOf(m[4], m[5], m[6]) <= hourOf(m[1], m[2], m[3]);
     if (!wraps && a1 === "AM" && a2 === "PM") return `${at(m[1], m[2])}–${at(m[4], m[5])}`;
     if (!wraps && a1 === a2) return `${at(m[1], m[2])}–${at(m[4], m[5])} ${a2}`;

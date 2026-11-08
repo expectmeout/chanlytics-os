@@ -24,6 +24,8 @@ import {
   type RecordFiling,
   type RegistrationPath,
   US_AREA_CODE,
+  recordOrEmpty,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { lineForClient, type LineProviderChoice } from "../lines.js";
 import { factsOf, FILED_NAME_FACT, retryRequestedBy, type LineDbRow } from "../resume.js";
@@ -330,7 +332,7 @@ export function planRecord(
   rawPath: unknown,
   tenantId: string,
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "keep"; path: RegistrationPath; row: RecordDraft } {
-  const second = rawRecord && typeof rawRecord === "object" ? (rawRecord as Record<string, unknown>) : null;
+  const second = rawRecord && typeof rawRecord === "object" ? recordOrEmpty(rawRecord) : null;
   if (!second)
     return {
       kind: "refuse",
@@ -349,8 +351,8 @@ export function planRecord(
   // field, and it is exact for a record that has already been saved: see
   // registrationPathOf in contracts for the invariant that makes it so.
   const request = typeof rawPath === "string" ? rawPath : "";
-  const path: RegistrationPath = (REGISTRATION_PATHS as readonly string[]).includes(request)
-    ? (request as RegistrationPath)
+  const path: RegistrationPath = isOneOf(REGISTRATION_PATHS, request)
+    ? request
     : (registrationPathOf({ ein: str("ein") }) ?? "standard");
 
   // Stored as the path files it: a sole-proprietor record keeps NO tax id, so

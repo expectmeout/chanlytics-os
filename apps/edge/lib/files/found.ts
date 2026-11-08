@@ -16,6 +16,7 @@ import {
   filePathOf,
   type FileMime,
   type FileShows,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels/files";
 import { RESPONSE_MAX_BYTES, publicFetcher } from "@chanlytics/channels/shared";
@@ -130,7 +131,7 @@ export async function keepFoundFile(
 function itemsOf(raw: unknown): FoundFile[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((i: unknown) => {
-    const o = (i ?? {}) as { url?: unknown; ref?: unknown };
+    const o = recordOrEmpty(i);
     if (typeof o.url !== "string" || !o.url) return [];
     return [{ url: o.url, ref: typeof o.ref === "string" ? o.ref : o.url }];
   });

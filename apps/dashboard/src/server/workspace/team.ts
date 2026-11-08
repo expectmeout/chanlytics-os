@@ -21,7 +21,13 @@ import {
 } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AppError, type InvitationsAcceptedDto, type JoinedWorkspaceDto } from "@chanlytics/contracts";
+import {
+  AppError,
+  type InvitationsAcceptedDto,
+  type JoinedWorkspaceDto,
+  type MembershipRole,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import { getTenantFacts } from "../shared/tenant";
 import { requireSecondFactor, type RouteContext } from "../shared/with-route";
@@ -53,14 +59,6 @@ interface TeamMember {
   /** When they joined the workspace (team_roster's `joined_at`, 00068); null where the read did not say. */
   joined_at: string | null;
   isMe?: boolean;
-}
-
-interface OpenInvite {
-  id: string;
-  email: string;
-  role: string;
-  created_at: string;
-  expires_at: string;
 }
 
 /**
@@ -95,7 +93,7 @@ async function teamCall(
 ): Promise<Record<string, unknown>> {
   const { data, error } = await call;
   if (error) throw teamRefusal(error);
-  const answer = (data ?? {}) as Record<string, unknown>;
+  const answer = recordOrEmpty(data);
   // A card kept from a stale tab, or a header nobody should have sent: the change is kept without the link.
   if (answer.undo_dropped === true) log.error("decision_undo_of_unknown", { undo_of: undoOf, verb });
   return answer;
@@ -133,7 +131,7 @@ export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: stri
     role: m.role,
     joined_at: m.joined_at ?? null,
   }));
-  return { members: roster, invites: (invites.data ?? []) as OpenInvite[] };
+  return { members: roster, invites: invites.data ?? [] };
 }
 
 export async function inviteMember(
@@ -330,7 +328,7 @@ export async function leaveTeam(ctx: TeamCtx, tenantId: string, svc: SupabaseCli
 interface InviteToAccept {
   id: string;
   tenant_id: string;
-  role: string;
+  role: MembershipRole;
 }
 
 /**

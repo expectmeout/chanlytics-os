@@ -20,8 +20,11 @@
  * send job that would send it, wherever the withdrawal starts (a reply, a call-back, a pause, a steer, a take-over).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { dbLog } from "../../shared/observe";
+import { readAnswer } from "../../shared/read-json";
+import { z } from "zod";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -37,7 +40,8 @@ export type ControlHolder = { kind: "person"; userId: string } | { kind: "call";
  */
 export const CALL_CONTROL_S = 15 * 60;
 
-export type ControlOutcome = "claimed" | "renewed" | "held" | "gone";
+const CONTROL_OUTCOMES = ["claimed", "renewed", "held", "gone"] as const;
+export type ControlOutcome = (typeof CONTROL_OUTCOMES)[number];
 
 /**
  * Take the hold, or renew one this holder already has.
@@ -57,9 +61,9 @@ export async function claimControl(
     p_by: params.holder.kind === "person" ? params.holder.userId : null,
     p_ref: params.holder.kind === "call" ? params.holder.callId : null,
     p_seconds: params.seconds,
-  } as never);
+  });
   if (error) throw new Error(`claim_conversation_control: ${error.message}`);
-  return data as unknown as ControlOutcome;
+  return readAnswer("claim_conversation_control", z.enum(CONTROL_OUTCOMES), data);
 }
 
 /**
@@ -77,7 +81,7 @@ export async function releaseControl(
     p_kind: params.holder.kind,
     p_by: params.holder.kind === "person" ? params.holder.userId : null,
     p_ref: params.holder.kind === "call" ? params.holder.callId : null,
-  } as never);
+  });
   if (error) throw new Error(`release_conversation_control: ${error.message}`);
   return data === true;
 }
@@ -236,7 +240,7 @@ export async function replyAnywayThread(db: Db, memberMove: MemberMove): Promise
 /** The decision a door's answer names, where it moved a row. */
 function decisionIdOf(data: unknown): string | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const id = (data as Record<string, unknown>).decision_id;
+  const id = recordOrEmpty(data).decision_id;
   return typeof id === "string" ? id : null;
 }
 

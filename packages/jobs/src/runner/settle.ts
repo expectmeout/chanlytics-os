@@ -21,12 +21,16 @@
 import {
   IMPORT_SOURCES,
   IMPORT_STOPPED_WORDS,
+  isOneOf,
+  REPLY_DRAFT_KINDS,
   PER_MAILBOX_SOURCES,
   isCampaignEmail,
   type ImportSource,
   type JobKind,
   FILE_LOOK_EDITION,
   VIDEO_LOOK_EDITION,
+  type SchemaSet,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/log";
 import { recordConversationDraftFailed } from "@chanlytics/db/ask";
@@ -150,7 +154,7 @@ async function noteMailboxTrouble(
 /** How many fresh runs this job is already the result of. Absent reads as none. */
 function resumesOf(payload: unknown): number {
   if (typeof payload !== "object" || payload === null) return 0;
-  const v = (payload as Record<string, unknown>).resumes;
+  const v = recordOrEmpty(payload).resumes;
   return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
 }
 
@@ -166,7 +170,8 @@ async function howFar(
   tenantId: string,
   broadcastId: string,
 ): Promise<{ reached: number; remaining: number; error?: string }> {
-  const of = (state: string) => countBroadcastSends(db, { tenantId, broadcastId }, { state });
+  const of = (state: SchemaSet<"sequence_sends.state">) =>
+    countBroadcastSends(db, { tenantId, broadcastId }, { state });
   const [sent, queued] = await Promise.all([of("sent"), of("queued")]);
   const error = sent.error?.message ?? queued.error?.message;
   return { reached: sent.count ?? 0, remaining: queued.count ?? 0, ...(error ? { error } : {}) };
@@ -413,7 +418,8 @@ async function settleDelivery(db: Db, job: TerminalJob, certain: boolean, reason
 async function settleDraft(db: Db, job: TerminalJob): Promise<Settled[]> {
   const conversationId = idFrom(job.payload, "conversation_id");
   const kind = idFrom(job.payload, "draft_kind");
-  if (!conversationId || !kind) return [{ what: "draft", changed: false, error: "no thread or kind on the job" }];
+  if (!conversationId || !isOneOf(REPLY_DRAFT_KINDS, kind))
+    return [{ what: "draft", changed: false, error: "no thread or kind on the job" }];
   const moved = await recordConversationDraftFailed(db, {
     tenantId: job.tenant_id,
     conversationId,

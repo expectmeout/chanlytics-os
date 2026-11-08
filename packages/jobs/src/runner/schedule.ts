@@ -13,7 +13,7 @@
  */
 import { cancelScheduledJobs, hasRequeuedCopy, insertJob, insertJobOnce, readJobToRequeue } from "@chanlytics/db/jobs";
 import type { Json } from "@chanlytics/db/types";
-import { JOB_KINDS, type JobKind } from "@chanlytics/contracts";
+import { JOB_KINDS, type JobKind, recordOrEmpty, recordOrNull } from "@chanlytics/contracts";
 import { logger, requestId } from "@chanlytics/log";
 import { kindPolicyOf } from "./kinds";
 import { SPEAKS_TO_A_PERSON, type Db } from "./ledger";
@@ -42,7 +42,7 @@ export function payloadRefusal(kind: string, payload: unknown): string | null {
   const policy = kindPolicyOf(kind);
   if (!policy) return null;
   if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return "the payload is not an object";
-  const p = payload as Record<string, unknown>;
+  const p = recordOrEmpty(payload);
   const missing = policy.ids.filter((id) => typeof p[id] !== "string" || p[id] === "");
   return missing.length ? `the payload names no ${missing.join(", ")}` : null;
 }
@@ -178,7 +178,7 @@ export async function requeueFailedJob(
   if (!row) return { outcome: "not_found" };
   if (row.state !== "failed") return { outcome: "not_failed", state: row.state };
   if (row.kind === "event_deliver") {
-    const subscriber = (row.payload as { subscriber?: unknown } | null)?.subscriber;
+    const subscriber = recordOrNull(row.payload)?.subscriber;
     return { outcome: "redrive", subscriber: typeof subscriber === "string" ? subscriber : "" };
   }
   if (SPEAKS_TO_A_PERSON.has(row.kind) || row.spoke_at) return { outcome: "speaks_to_a_person", kind: row.kind };

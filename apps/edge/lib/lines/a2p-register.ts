@@ -13,7 +13,7 @@
  * of a filed line in a2p-refile.ts, and the status read in a2p-sync.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { answerObject } from "@chanlytics/channels/shared";
 import {
   runA2PSaga,
@@ -48,6 +48,7 @@ import { env } from "../shared/env.js";
 import { campaignFactsFor } from "./a2p-campaign-facts.js";
 import { CAMPAIGN_NAME_FACT, factsOf, FILED_NAME_FACT } from "./resume.js";
 import { claimLineForFiling, listLineNumbersOf, saveLineRow } from "@chanlytics/db/lines";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 export type Db = SupabaseClient<Database>;
 export type LineRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -477,7 +478,7 @@ function receiptSaver(db: Db, line: LineRow, facts: Record<string, unknown>): A2
       }
     }
     if (touchedFacts) row.facts = facts;
-    const { error } = await saveLineRow(db, line, row as Database["public"]["Tables"]["lines"]["Update"]);
+    const { error } = await saveLineRow(db, line, row);
     if (error) throw new Error(`keeping the registration's receipt: ${error.message}`);
   };
 }
@@ -553,7 +554,7 @@ async function settleFiling(
     reg_step: result.ok ? null : result.step,
     last_error: result.ok || waiting ? null : result.error,
     state_since: new Date().toISOString(),
-    facts: kept as Json,
+    facts: jsonCopyOf(kept),
   });
   // The filing happened whatever the row says; a row that could not take it is said, and the next status read writes it.
   if (written.error) log.error("line_state_write_failed", { line_id: filing.line.id, error: written.error.message });

@@ -8,7 +8,7 @@
  * deals as a card names one (openDealsOf: Ask's step, which stands on the deal it names).
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { readAllRows } from "../../shared/paged";
 
 type Db = SupabaseClient<Database>;

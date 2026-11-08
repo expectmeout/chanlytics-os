@@ -17,11 +17,10 @@ import {
   toLeadRowVM,
   visitStands,
   type CalendarBlockVM,
-  type LeadClass,
-  type LeadList,
   type PersonRowDto,
   type PersonRowVM,
   type PipelineView,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { load, type ReaderContext } from "../../shared/reader";
 import * as facts from "../../readers/facts";
@@ -198,8 +197,8 @@ export const readCalendar: Provider = async (rc, ctx) => {
 function leadsQueryOf(ctx: { route: string; view?: string | null }) {
   const parsed = parseLeadsRoute(ctx.route);
   const [list, cls] = (ctx.view ?? "").split("/");
-  const onList = (LEAD_LISTS as readonly string[]).includes(list) ? (list as LeadList) : (parsed?.list ?? "all");
-  const onClass = (LEAD_CLASSES as readonly string[]).includes(cls) ? (cls as LeadClass) : (parsed?.cls ?? null);
+  const onList = isOneOf(LEAD_LISTS, list) ? list : (parsed?.list ?? "all");
+  const onClass = isOneOf(LEAD_CLASSES, cls) ? cls : (parsed?.cls ?? null);
   return { list: onList, cls: onClass, searchId: parsed?.searchId ?? null };
 }
 

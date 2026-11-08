@@ -11,13 +11,14 @@ import {
   SIGNUP_CONFIRM_MS,
   SIGNUP_CONFIRM_SOURCE,
   type SignupAskFacts,
+  type SchemaSet,
 } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
 /** A row an ask counts by: one that left or is about to. A cancelled one never reached anybody. */
-const ASKING = ["queued", "sent", "delivered", "read"];
+const ASKING: SchemaSet<"messages.status">[] = ["queued", "sent", "delivered", "read"];
 
 /** The workspace's asks since a moment, as a count; `extra` narrows them (to one address, to the failed). */
 async function asksSince(

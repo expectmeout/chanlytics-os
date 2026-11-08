@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { log } from "@/server/shared/log";
-import { MEMBERSHIP_ROLES, roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
+import { MEMBERSHIP_ROLES, roleAtLeast, type MembershipRole, recordOrEmpty } from "@chanlytics/contracts";
 import {
   NO_ACTION,
   needsOf,
@@ -142,7 +142,7 @@ const takesAction = (t: Tool<unknown>): boolean => !Object.prototype.hasOwnPrope
 
 /** The action a call names, as it arrived: a string, where the tool takes an action; else none. */
 function actionOf(t: Tool<unknown>, raw: unknown): string | null {
-  const a = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>).action : undefined;
+  const a = raw && typeof raw === "object" && !Array.isArray(raw) ? recordOrEmpty(raw).action : undefined;
   return takesAction(t) && typeof a === "string" ? a : null;
 }
 
@@ -182,7 +182,7 @@ const KEY_ORDER = ["type", "enum", "items", "properties", "required", "additiona
 function normalise(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(normalise);
   if (!node || typeof node !== "object") return node;
-  const record: Record<string, unknown> = { ...(node as Record<string, unknown>) };
+  const record: Record<string, unknown> = { ...recordOrEmpty(node) };
   delete record.$schema;
   if (record.minimum === Number.MIN_SAFE_INTEGER) delete record.minimum;
   if (record.maximum === Number.MAX_SAFE_INTEGER) delete record.maximum;
@@ -259,7 +259,7 @@ function shapeOf(node: unknown): string {
       ? v.map(strip)
       : v && typeof v === "object"
         ? Object.fromEntries(
-            Object.entries(v as Record<string, unknown>)
+            Object.entries(recordOrEmpty(v))
               .filter(([k]) => k !== "description")
               .map(([k, x]) => [k, strip(x)]),
           )
@@ -346,7 +346,7 @@ function withoutNulls(schema: z.ZodType, value: unknown): unknown {
   if (schema instanceof z.ZodObject && value && typeof value === "object" && !Array.isArray(value)) {
     const shape = schema.shape as Record<string, z.ZodType>;
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    for (const [k, v] of Object.entries(recordOrEmpty(value))) {
       const field = shape[k];
       if (v === null && field && takesAbsent(field) && !field.safeParse(null).success) continue;
       out[k] = field ? withoutNulls(field, v) : v;
@@ -374,7 +374,7 @@ function othersFields(
       a === action || !offered.includes(a) ? [] : Object.keys(d.input.shape),
     ),
   );
-  return Object.entries(raw as Record<string, unknown>)
+  return Object.entries(recordOrEmpty(raw))
     .filter(([k, v]) => k !== "action" && v !== null && !(k in own) && others.has(k))
     .map(([k]) => k)
     .sort();
@@ -415,7 +415,7 @@ function parseInput<D extends ReadDef | ActDef>(
       .join("; ");
     return { ok: false, error: `${tool.name}: ${issues}` };
   }
-  const data = parsed.data as Record<string, unknown>;
+  const data = recordOrEmpty(parsed.data);
   if (!takesAction(tool)) return { ok: true, def: tool.actions[NO_ACTION], data };
   const { action, ...rest } = data as { action: string };
   const stray = othersFields(tool, action, raw, offeredActions(tool, role));
@@ -437,7 +437,7 @@ export async function runTool(toolContext: ToolContext, run: ToolRun): Promise<T
     const isError = !!(
       out &&
       typeof out === "object" &&
-      "error" in (out as Record<string, unknown>) &&
+      "error" in recordOrEmpty(out) &&
       Object.keys(out as object).length <= 2
     );
     const pictures = (out as { [PICTURES]?: ToolOutcome["pictures"] } | null)?.[PICTURES];

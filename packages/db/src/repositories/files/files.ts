@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FILES_MAX, FILES_BUCKET, type FileKind, type FileShelfFilter } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
@@ -243,7 +243,7 @@ export async function listFilesToLookAgain(
       .lt("looked_at", args.triedBefore);
   const [young, older] = await Promise.all([
     args.young === false
-      ? Promise.resolve({ data: [] as { id: string; tenant_id: string }[], error: null })
+      ? Promise.resolve({ data: [], error: null })
       : tried()
           .in("look_status", ["waiting", "failed"])
           .gte("created_at", args.bornAfter)

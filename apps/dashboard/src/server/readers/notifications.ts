@@ -19,6 +19,7 @@ import {
   pushOffOf,
   unreadFor,
   zoneDayKey,
+  isOneOf,
 } from "@chanlytics/contracts";
 import {
   findBellSeen,
@@ -73,7 +74,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
             // The holds' threads among them: the bell draws a hold that still waits as its own row (bellOlderOf).
             holdKinds: kindsEndedBy("hold"),
           })
-        : Promise.resolve({ unread: 0, holdThreads: [] as string[] });
+        : Promise.resolve({ unread: 0, holdThreads: [] });
     const [marks, older] = await Promise.all([
       ids.length ? listNotificationMarks(sb, rc.userId, ids) : Promise.resolve({ data: [], error: null }),
       olderRead,
@@ -127,9 +128,7 @@ export const memberAlerts: Reader<undefined, MemberAlertsDto> = {
     const out: MemberAlertsDto = {
       push_off: pushOffOf(row.pushOff),
       phones: row.phones
-        .filter((p): p is typeof p & { platform: PushPlatform } =>
-          (PUSH_PLATFORMS as readonly string[]).includes(p.platform),
-        )
+        .filter((p): p is typeof p & { platform: PushPlatform } => isOneOf(PUSH_PLATFORMS, p.platform))
         .map((p) => ({ platform: p.platform, app_version: p.app_version, last_seen_at: p.last_seen_at })),
       choosable: row.choosable,
     };

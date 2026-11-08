@@ -6,8 +6,9 @@
  * is not "yes".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
+import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 export type MailboxConnectionRow = Database["public"]["Tables"]["mailbox_connections"]["Row"];
 type Patch = Database["public"]["Tables"]["mailbox_connections"]["Update"];
@@ -96,7 +97,7 @@ export async function connectMailbox(
 ): Promise<{ ok: true; id: string; made: boolean; state: string } | { ok: false; refused: ConnectRefusal }> {
   const { data, error } = await db.rpc("mailbox_connection_connect", {
     p_tenant_id: params.tenantId,
-    p_user_id: params.userId as string,
+    p_user_id: params.userId,
     p_provider: params.provider,
     p_account: params.account,
     p_address: params.address,
@@ -105,7 +106,7 @@ export async function connectMailbox(
     p_customer_domain: params.customerDomain,
   });
   if (error) {
-    const hint = (error as { hint?: string }).hint ?? "";
+    const hint = error.hint ?? "";
     if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
     throw new Error(`cannot connect the mailbox: ${error.message}`);
   }
@@ -120,7 +121,7 @@ export async function connectMailbox(
  */
 export async function patchMailboxConnection(
   db: Db,
-  params: { tenantId: string; id: string; from?: readonly string[]; patch: Patch },
+  params: { tenantId: string; id: string; from?: readonly SchemaSet<"mailbox_connections.state">[]; patch: Patch },
 ): Promise<MailboxConnectionRow | null> {
   let q = db.from("mailbox_connections").update(params.patch).eq("tenant_id", params.tenantId).eq("id", params.id);
   if (params.from?.length) q = q.in("state", [...params.from]);
@@ -143,7 +144,7 @@ export async function putMailboxCredentials(
   });
   if (error) {
     // The token changed since it was read (a reconnect stored meanwhile): that one is kept.
-    if ((error as { code?: string }).code === "40001") return "changed";
+    if (error.code === "40001") return "changed";
     throw new Error(`cannot store the mailbox's token: ${error.message}`);
   }
   return "stored";
@@ -182,7 +183,7 @@ export async function getMailboxCounts(
 }> {
   const { data, error } = await db.rpc("mailbox_connection_counts", { p_mailbox_id: id, p_since: since });
   if (error) throw new Error(`cannot count the mailbox's emails: ${error.message}`);
-  const item = (data ?? {}) as Record<string, unknown>;
+  const item = recordOrEmpty(data);
   const n = (k: string): number => Math.max(0, Number(item[k] ?? 0) || 0);
   if (typeof item.sent !== "number")
     throw new Error("cannot count the mailbox's emails: the database answered no count");
@@ -214,9 +215,9 @@ export async function stampEmailFromMailbox(
   const { data, error } = await db.rpc("stamp_email_from_mailbox", {
     p_tenant_id: params.tenantId,
     p_message_id: params.messageId,
-    p_provider_id: params.providerId as string,
-    p_rfc_message_id: params.rfcMessageId as string,
-    p_thread_id: params.threadId as string,
+    p_provider_id: params.providerId,
+    p_rfc_message_id: params.rfcMessageId,
+    p_thread_id: params.threadId,
     p_mailbox_id: params.mailboxId,
   });
   if (error) throw new Error(`cannot stamp the email the mailbox sent: ${error.message}`);

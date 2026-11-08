@@ -20,8 +20,8 @@ import {
   pickCurrentDeal,
   stepDayOf,
   whyNotALink,
-  type DealStage,
   UUID,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { noteRow, str } from "../context/tool-reads";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
@@ -96,7 +96,7 @@ function checkedDeal(toolContext: ToolContext, input: DealInput) {
   const id = str(input.contact_id, 40);
   const stage = str(input.stage, 10);
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
-  if (!(DEAL_STAGES as readonly string[]).includes(stage)) return refuse("stage must be proposed, won, lost or ended");
+  if (!isOneOf(DEAL_STAGES, stage)) return refuse("stage must be proposed, won, lost or ended");
   // The proposal's link, judged by the one normalizer the route uses, and a reason only for a pass (0008). The rest of
   // what the door takes (a real day, the sets) is its own schema's, read once the card's body is built (below).
   const typedLink = str(input.proposal_url, 600);
@@ -162,13 +162,13 @@ async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<
   const named = str(input.service, 80) || null;
   const amount =
     typeof input.amount_cents === "number" && input.amount_cents >= 0 ? Math.round(input.amount_cents) : null;
-  const per = (DEAL_PERS as readonly string[]).includes(str(input.per, 10)) ? str(input.per, 10) : null;
+  const per = isOneOf(DEAL_PERS, str(input.per, 10)) ? str(input.per, 10) : null;
   const note = str(input.note, 200);
   const moved = dealRowOf(stage, named, rows ?? []);
   if ("result" in moved) return moved;
   const { sameRow, service } = moved;
   noteRow(toolContext, "person", id, otherPersonName, `clients/${id}`);
-  const words = DEAL_STAGE_WORDS[stage as DealStage];
+  const words = DEAL_STAGE_WORDS[stage];
   // A proposal's value is said as a client's is (0008), and the card says where the link lives and why they passed.
   const money = amount !== null ? amountWords(amount, per) : null;
   const otherReason = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;

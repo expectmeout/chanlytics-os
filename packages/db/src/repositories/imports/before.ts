@@ -9,8 +9,10 @@
  * (person_before_note), each on the member's session.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
+import { recordOrEmpty } from "@chanlytics/contracts";
+import { asJson } from "../../shared/json";
 
 type Db = SupabaseClient<Database>;
 
@@ -58,7 +60,7 @@ export async function keepBefore(db: Db, beforeMessage: BeforeMessage): Promise<
     p_meta: beforeMessage.meta ?? {},
   });
   if (error) throw Object.assign(new Error(`ingest_before: ${error.message}`), { code: error.code });
-  const row = (data ?? {}) as Record<string, unknown>;
+  const row = recordOrEmpty(data);
   if (row.erased === true)
     return { kept: false, erased: true, conversationId: null, contactId: null, newPerson: false };
   return {
@@ -133,7 +135,7 @@ export async function recordPersonBeforeNote(
   const { error } = await db.rpc("person_before_note", {
     p_tenant_id: tenantId,
     p_contact_id: contactId,
-    p_before: before as Json,
+    p_before: asJson(before),
     p_notes: notes ?? undefined,
   });
   if (error) throw new Error(error.message);

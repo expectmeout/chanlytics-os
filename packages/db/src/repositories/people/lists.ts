@@ -23,7 +23,7 @@
  * the same for playbooks' list_id (00155).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { readAllRows, type Page } from "../../shared/paged";
 import { saysMissing } from "../../shared/missing-door";
 

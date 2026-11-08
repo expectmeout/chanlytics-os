@@ -16,7 +16,7 @@
  *   watchGmail      the mailbox's changes published to the Pub/Sub topic; it lapses after seven days unless renewed.
  *   stopGmailWatch       the watch ended, when the mailbox is removed.
  */
-import { DAY_MS } from "@chanlytics/contracts";
+import { DAY_MS, listOrEmpty, recordOrEmpty, recordOrNull, valueAt } from "@chanlytics/contracts";
 import { b64url } from "../../google/oauth";
 import { fetchFromProvider, type ProviderReply, type SendOutcome } from "../../shared/provider-fetch";
 import {
@@ -41,9 +41,9 @@ const auth = (token: string, json = false): Record<string, string> => ({
 
 /** Gmail's own word for why a call was refused, when it gave one (error.errors[0].reason, or error.status). */
 function gmailReasonOf(r: Pick<ProviderReply, "json">): string | null {
-  const e = (r.json as { error?: { status?: unknown; errors?: Array<{ reason?: unknown }> } } | null)?.error;
-  const reason = e?.errors?.[0]?.reason;
-  return typeof reason === "string" ? reason : typeof e?.status === "string" ? e.status : null;
+  const reason = valueAt(r.json, "error", "errors", 0, "reason");
+  const status = valueAt(r.json, "error", "status");
+  return typeof reason === "string" ? reason : typeof status === "string" ? status : null;
 }
 
 /**
@@ -68,7 +68,7 @@ export function gmailRestUntil(providerReply: Pick<ProviderReply, "json" | "text
 
 /** Gmail's words for a refusal: its error's message, else the body as it came. */
 function gmailWordsOf(r: Pick<ProviderReply, "json" | "text">): string {
-  const message = (r.json as { error?: { message?: unknown } } | null)?.error?.message;
+  const message = valueAt(r.json, "error", "message");
   return typeof message === "string" ? `${message} ${r.text ?? ""}` : (r.text ?? "");
 }
 
@@ -119,7 +119,7 @@ export async function sendGmail(
     },
     deps,
   );
-  const json = reply.json as { id?: unknown; threadId?: unknown } | null;
+  const json = recordOrNull(reply.json);
   return {
     ok: reply.outcome === "ok" && typeof json?.id === "string",
     status: reply.status,
@@ -146,8 +146,8 @@ export async function findGmailThread(
   );
   if (response.outcome !== "ok")
     throw new Error(`gmail list: ${gmailReasonOf(response) ?? response.error ?? response.status}`);
-  const first = (response.json as { messages?: Array<{ id?: unknown; threadId?: unknown }> } | null)?.messages?.[0];
-  return typeof first?.id === "string" && typeof first.threadId === "string"
+  const first = recordOrEmpty(valueAt(response.json, "messages", 0));
+  return typeof first.id === "string" && typeof first.threadId === "string"
     ? { id: first.id, threadId: first.threadId }
     : null;
 }
@@ -163,9 +163,8 @@ export async function listGmailSentIds(token: string, id: string, deps?: Deps): 
   );
   if (response.outcome !== "ok")
     throw new Error(`gmail get: ${gmailReasonOf(response) ?? response.error ?? response.status}`);
-  const headers = (response.json as { payload?: { headers?: Array<{ name?: unknown; value?: unknown }> } } | null)
-    ?.payload?.headers;
-  const item = (headers ?? []).find((x) => typeof x.name === "string" && x.name.toLowerCase() === "message-id");
+  const headers = listOrEmpty(valueAt(response.json, "payload", "headers")).map(recordOrEmpty);
+  const item = headers.find((x) => typeof x.name === "string" && x.name.toLowerCase() === "message-id");
   return { messageId: typeof item?.value === "string" ? item.value : null };
 }
 
@@ -195,7 +194,7 @@ export async function readGmailSignature(
   );
   if (response.status === 404) return { ok: true, html: null };
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const html = (response.json as { signature?: unknown } | null)?.signature;
+  const html = recordOrNull(response.json)?.signature;
   return { ok: true, html: typeof html === "string" && html.trim() ? html : null };
 }
 
@@ -246,17 +245,13 @@ export async function readGmailHistory(
     deps,
   );
   if (response.outcome !== "ok") return { ok: false, expired: response.status === 404, reply: response };
-  const json = response.json as {
-    history?: Array<{ messagesAdded?: Array<{ message?: { id?: unknown; threadId?: unknown; labelIds?: unknown } }> }>;
-    historyId?: unknown;
-    nextPageToken?: unknown;
-  } | null;
+  const json = recordOrNull(response.json);
   const added: Array<{ id: string; threadId: string; labels: string[] }> = [];
-  for (const h of json?.history ?? [])
-    for (const a of h.messagesAdded ?? []) {
-      const m = a.message;
-      const labels = Array.isArray(m?.labelIds) ? m.labelIds.filter((l): l is string => typeof l === "string") : [];
-      if (typeof m?.id === "string" && typeof m.threadId === "string")
+  for (const h of listOrEmpty(json?.history))
+    for (const a of listOrEmpty(valueAt(h, "messagesAdded"))) {
+      const m = recordOrEmpty(valueAt(a, "message"));
+      const labels = listOrEmpty(m.labelIds).filter((l): l is string => typeof l === "string");
+      if (typeof m.id === "string" && typeof m.threadId === "string")
         added.push({ id: m.id, threadId: m.threadId, labels });
     }
   return {
@@ -313,7 +308,7 @@ export async function watchGmail(
     },
     deps,
   );
-  const json = response.json as { historyId?: unknown; expiration?: unknown } | null;
+  const json = recordOrNull(response.json);
   const exp = Number(json?.expiration);
   if (response.outcome !== "ok" || typeof json?.historyId !== "string" || !Number.isFinite(exp))
     return { ok: false, reply: response };
@@ -339,7 +334,7 @@ export async function listGmailReports(token: string, afterSec: number, deps?: D
   );
   if (response.outcome !== "ok")
     throw new Error(`gmail reports: ${gmailReasonOf(response) ?? response.error ?? response.status}`);
-  const list = (response.json as { messages?: Array<{ id?: unknown }> } | null)?.messages ?? [];
+  const list = listOrEmpty(valueAt(response.json, "messages")).map(recordOrEmpty);
   return list.flatMap((m) => (typeof m.id === "string" ? [{ id: m.id }] : []));
 }
 
@@ -360,12 +355,9 @@ async function gmailHeadersOf(
   );
   if (response.outcome !== "ok")
     throw new Error(`gmail get: ${gmailReasonOf(response) ?? response.error ?? response.status}`);
-  const json = response.json as {
-    threadId?: unknown;
-    payload?: { headers?: Array<{ name?: unknown; value?: unknown }> };
-  } | null;
+  const json = recordOrNull(response.json);
   const headers: Record<string, string> = {};
-  for (const h of json?.payload?.headers ?? [])
+  for (const h of listOrEmpty(valueAt(json, "payload", "headers")).map(recordOrEmpty))
     if (typeof h.name === "string" && typeof h.value === "string") headers[h.name.toLowerCase()] = h.value;
   return { threadId: typeof json?.threadId === "string" ? json.threadId : null, headers };
 }
@@ -394,7 +386,7 @@ export async function findGmailSent(
     );
     if (response.outcome !== "ok")
       throw new Error(`gmail list: ${gmailReasonOf(response) ?? response.error ?? response.status}`);
-    const found = (response.json as { messages?: Array<{ id?: unknown }> } | null)?.messages ?? [];
+    const found = listOrEmpty(valueAt(response.json, "messages")).map(recordOrEmpty);
     return found.flatMap((m) => (typeof m.id === "string" ? [m.id] : []));
   };
   const names = ["Message-ID", "X-Google-Original-Message-ID", "Subject"] as const;

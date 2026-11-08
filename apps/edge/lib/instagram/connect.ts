@@ -40,7 +40,7 @@ import {
   writeInstagramAccount,
 } from "@chanlytics/db/channels";
 import type { Database } from "@chanlytics/db/types";
-import { UUID } from "@chanlytics/contracts";
+import { UUID, recordOrNull } from "@chanlytics/contracts";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
@@ -152,8 +152,7 @@ async function connect(
     "subscribe",
     callInstagram(instagramSubscribeRequest(long.accessToken, me.accountId)),
     (j) => {
-      if ((j as { success?: unknown } | null)?.success !== true)
-        throw new Error("Instagram did not confirm the subscription");
+      if (recordOrNull(j)?.success !== true) throw new Error("Instagram did not confirm the subscription");
       return true;
     },
   );

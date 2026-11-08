@@ -39,6 +39,7 @@ import { findThreadDraftFacts } from "@chanlytics/db/ask";
 import { upsertEscalation } from "../runner/escalate";
 import { senderLeftAt } from "./reply-draft";
 import type { ClaimedJob, JobContext } from "../runner/context";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 /** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email | to_instagram, body?, template?, purpose? (marketing, or outreach: a cold email), proactive? } */
 export async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
@@ -88,7 +89,7 @@ export async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<vo
       // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and
       // the ledger claims the new one when it is due. Said in the log, since the tick sees only a job done.
       retry: async (dueAt, payload) => {
-        await ctx.schedule("outbound_send", dueAt, payload as Json);
+        await ctx.schedule("outbound_send", dueAt, payload);
         logger().warn("outbound_send_rescheduled", {
           tenant_id: job.tenant_id,
           job: job.id,
@@ -109,7 +110,7 @@ export async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<v
     {
       ...(ctx.provisionLine ? { provision: ctx.provisionLine } : {}),
       // The saga stops between two provider calls at the job's deadline, and the rest is one more job of this kind.
-      next: (payload) => ctx.schedule("line_provision", new Date(), payload as Json),
+      next: (payload) => ctx.schedule("line_provision", new Date(), jsonCopyOf(payload)),
       deadline: ctx.deadline,
     },
     { payload: job.payload },

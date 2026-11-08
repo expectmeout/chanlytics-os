@@ -29,7 +29,7 @@
 import { json, refuse } from "../shared/http.js";
 import { notify } from "../shared/alerts/notify.js";
 import { pageOperator } from "../shared/alerts/page-operator.js";
-import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "./sweep-health.js";
+import { chooseSweepAlerts, describeSweepTrouble } from "./sweep-health.js";
 import { listWhatsappWithoutReceipts, describeSilentReceipts } from "../whatsapp/receipts-watch.js";
 import { checkMailDomain, describeCampaignsDomainTrouble, describeMailDomainTrouble } from "../email/mail-domain.js";
 import { campaignsDomain } from "../email/campaigns-domain.js";
@@ -87,7 +87,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     L.error("sweep_health_query_failed", { error: error.message });
     return refuse(500, "query_failed");
   }
-  const rows = (data ?? []) as unknown as SweepHealthRow[];
+  const rows = data ?? [];
   const plan = chooseSweepAlerts(rows, Date.now());
 
   let delivered = false;

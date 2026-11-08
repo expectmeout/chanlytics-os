@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto } from "@chanlytics/contracts";
+import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto, recordOrEmpty } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeBody } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { listLinesForPage } from "@chanlytics/db/lines";
@@ -94,7 +94,7 @@ const LINE_CODES_TIMEOUT_MS = 12_000;
 /** A code as the edge answered it, in the shape the page holds, or nothing: what is not a code is dropped and never mended. */
 function lineCodeOf(c: unknown): LineCodeDto | null {
   if (c === null || typeof c !== "object") return null;
-  const { code, from, at } = c as Record<string, unknown>;
+  const { code, from, at } = recordOrEmpty(c);
   return typeof code === "string" && typeof at === "string"
     ? { code, from: typeof from === "string" ? from : null, at }
     : null;

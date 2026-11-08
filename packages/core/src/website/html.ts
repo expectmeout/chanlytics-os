@@ -8,7 +8,8 @@
 export function attrsOf(tag: string): Record<string, string> {
   const out: Record<string, string> = {};
   const re = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s">]+))/g;
-  for (let m = re.exec(tag); m; m = re.exec(tag)) out[m[1].toLowerCase()] = (m[2] ?? m[3] ?? m[4] ?? "").trim();
+  for (let m = re.exec(tag); m; m = re.exec(tag))
+    if (m[1]) out[m[1].toLowerCase()] = (m[2] ?? m[3] ?? m[4] ?? "").trim();
   return out;
 }
 

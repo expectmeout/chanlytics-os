@@ -32,7 +32,7 @@ import {
   type ServerNotificationKind,
 } from "../today/notifications/feed-input";
 import { runWaitsOnYou, type RunDays, type WaitingRun } from "./waits";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, keysOf } from "../shared/unknown";
 
 /**
  * What one surface holds of the subjects a waiting row is about, and when it read them. A surface read BEFORE a notice was kept
@@ -166,7 +166,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */
 export function kindsEndedBy(source: WaitSource): ServerNotificationKind[] {
-  return (Object.keys(NOTICE_ENDS) as ServerNotificationKind[]).filter((k) => NOTICE_ENDS[k].ends === source);
+  return keysOf(NOTICE_ENDS).filter((k) => NOTICE_ENDS[k].ends === source);
 }
 
 /** The slice of a bell row the rule reads. */

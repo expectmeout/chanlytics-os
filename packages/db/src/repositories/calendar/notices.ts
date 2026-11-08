@@ -11,7 +11,7 @@
  * A failed read or write throws, so the caller's retry meets it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 export type AppointmentNoticeRow = Database["public"]["Tables"]["appointment_notices"]["Row"];

@@ -5,9 +5,17 @@
  * write, the facts a draft is decided by and the sweep's list are the service role's.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { answerWireOf, isOptedOutContact, REACH_OUT_REPLY_DAYS, type MessageDto } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import {
+  answerWireOf,
+  isOptedOutContact,
+  REACH_OUT_REPLY_DAYS,
+  type MessageDto,
+  type SchemaSet,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
 import { findReachOutReply } from "../campaigns/reach-out/outreach";
+import { asJson } from "../../shared/json";
 
 type Db = SupabaseClient<Database>;
 
@@ -134,9 +142,8 @@ type WireRow = Pick<MessageDto, "type" | "channel" | "direction" | "sender" | "m
 
 /** An email's subject and sender as the intake keeps them on the message (core email-ingest metaOf). */
 function emailOf(meta: unknown): { subject: string | null; name: string | null; address: string | null } {
-  const email =
-    meta && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>).email : null;
-  const e = email && typeof email === "object" && !Array.isArray(email) ? (email as Record<string, unknown>) : {};
+  const email = meta && typeof meta === "object" && !Array.isArray(meta) ? recordOrEmpty(meta).email : null;
+  const e = recordOrEmpty(email);
   const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   return { subject: text(e.subject), name: text(e.from_name), address: text(e.from) };
 }
@@ -241,7 +248,7 @@ export async function claimConversationDraft(
     p_conversation_id: details.conversationId,
     p_kind: details.kind,
     // None for a call back nothing was written on: the door reads it as SQL's null.
-    p_for_message_id: details.forMessageId as string,
+    p_for_message_id: details.forMessageId,
     p_rules: details.rules,
     p_source: details.source,
     ...(details.again ? { p_again: true } : {}),
@@ -276,7 +283,7 @@ export async function writeConversationDraft(
     p_conversation_id: details.conversationId,
     p_kind: details.kind,
     // None for a call back nothing was written on: the door reads it as SQL's null.
-    p_for_message_id: details.forMessageId as string,
+    p_for_message_id: details.forMessageId,
     p_state: details.state,
     p_words: details.words,
     p_source: details.source,
@@ -287,13 +294,13 @@ export async function writeConversationDraft(
   });
   if (error) throw new Error(`conversation_draft_write: ${error.message}`);
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const item = data as Record<string, unknown>;
+  const item = recordOrEmpty(data);
   const text = (v: unknown) => (typeof v === "string" ? v : null);
   return {
     conversation_id: text(item.conversation_id) ?? details.conversationId,
     kind: text(item.kind) ?? details.kind,
     for_message_id: text(item.for_message_id),
-    words: (item.words ?? {}) as Json,
+    words: asJson(item.words ?? {}),
     made_at: text(item.made_at) ?? new Date().toISOString(),
     state: text(item.state),
     source: text(item.source),
@@ -306,7 +313,7 @@ export async function writeConversationDraft(
 /** A thread's claim let go: its hold was answered before the draft was written, so nothing stands for it. */
 export async function dropConversationDraft(
   db: Db,
-  details: { tenantId: string; conversationId: string; kind: string },
+  details: { tenantId: string; conversationId: string; kind: SchemaSet<"conversation_drafts.kind"> },
 ): Promise<void> {
   const { error } = await db
     .from("conversation_drafts")
@@ -324,7 +331,13 @@ export async function dropConversationDraft(
  */
 export async function recordConversationDraftFailed(
   db: Db,
-  details: { tenantId: string; conversationId: string; kind: string; forMessageId: string | null; whyFailed: string },
+  details: {
+    tenantId: string;
+    conversationId: string;
+    kind: SchemaSet<"conversation_drafts.kind">;
+    forMessageId: string | null;
+    whyFailed: string;
+  },
 ): Promise<boolean> {
   const held = db
     .from("conversation_drafts")

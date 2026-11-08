@@ -13,7 +13,6 @@ import {
   WORKSPACE_LOGOS_BUCKET,
   filePathOf,
   recordOrNull,
-  type FileMime,
 } from "@chanlytics/contracts";
 import { findWorkspaceLook } from "@chanlytics/db/look";
 import type { Database } from "@chanlytics/db/types";
@@ -90,7 +89,7 @@ async function logoRead(tenantId: string, path: string): Promise<string | null> 
 }
 
 async function photoRead(file: FileMemberRow): Promise<Buffer> {
-  const path = filePathOf(file.tenant_id, file.id, file.mime as FileMime);
+  const path = filePathOf(file.tenant_id, file.id, file.mime);
   const read = await bucket().download(path, { transform: { width: PHOTO_READ_WIDTH, resize: "contain" } });
   if (read.error || !read.data) {
     log.error("file_post_read_failed", { tenant_id: file.tenant_id, error: read.error?.message ?? "no bytes" });

@@ -4,9 +4,10 @@
  * purpose: the sweep is the platform's. Each answer is the database's as it came; the sweep says a failure in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** What the sweep reads of a run. */
@@ -14,7 +15,7 @@ const SWEEP_RUN_COLUMNS =
   "id, tenant_id, round_id, purpose, term, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at";
 
 /** Runs in any of `states`. */
-export const listRunsInStates = async (db: Db, states: string[]) =>
+export const listRunsInStates = async (db: Db, states: SchemaSet<"lead_runs.state">[]) =>
   platformWide(db).from("lead_runs").select(SWEEP_RUN_COLUMNS).in("state", states);
 
 /** Runs a runner holds the lease of. */
@@ -33,13 +34,23 @@ export const listOpenRounds = async (db: Db) =>
     .neq("state", "ended");
 
 /** These runs' collect jobs in any of `states`; with `carriesOnly`, only the ones the sweep wrote (seq `r…`). */
-export const listCollectJobs = async (db: Db, runIds: string[], states: string[], carriesOnly: boolean) => {
+export const listCollectJobs = async (
+  db: Db,
+  runIds: string[],
+  states: SchemaSet<"jobs.state">[],
+  carriesOnly: boolean,
+) => {
   const q = db.from("jobs").select("payload, state, created_at").eq("kind", "lead_collect").in("state", states);
   return (carriesOnly ? q.like("payload->>seq", "r%") : q).in("payload->>run_id", runIds);
 };
 
 /** These rounds' own jobs of `kinds`, in any of `states`. */
-export const listRoundJobs = async (db: Db, roundIds: string[], kinds: string[], states: string[]) =>
+export const listRoundJobs = async (
+  db: Db,
+  roundIds: string[],
+  kinds: SchemaSet<"jobs.kind">[],
+  states: SchemaSet<"jobs.state">[],
+) =>
   db
     .from("jobs")
     .select("kind, payload, state, created_at")

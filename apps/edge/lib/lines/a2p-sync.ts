@@ -6,13 +6,7 @@
  * a2p-register.ts.
  */
 import { answerObject } from "@chanlytics/channels/shared";
-import {
-  smsStateFor,
-  registrationVerdict,
-  refusalWords,
-  requestTwilio,
-  type CampaignError,
-} from "@chanlytics/channels/lines";
+import { smsStateFor, registrationVerdict, refusalWords, requestTwilio } from "@chanlytics/channels/lines";
 import { formatPhoneDisplay, type EdgeErrorCode } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { logger } from "../shared/log.js";
@@ -67,7 +61,7 @@ async function askRegistration(line: LineRow, acct: { sid: string; token: string
 async function keepAnswer(
   db: Db,
   line: LineRow,
-  answer: { smsState: string; mock: LineRow["reg_mock"]; reason: string | null },
+  answer: { smsState: LineRow["sms_state"]; mock: LineRow["reg_mock"]; reason: string | null },
 ): Promise<void> {
   const { smsState, mock, reason } = answer;
   const moved = smsState !== line.sms_state;
@@ -186,7 +180,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   const reason = refusing
     ? (refusalWords({
         brandFailureReason: typeof brand?.failure_reason === "string" ? brand.failure_reason : null,
-        campaignErrors: Array.isArray(usa2p?.errors) ? (usa2p.errors as CampaignError[]) : null,
+        campaignErrors: Array.isArray(usa2p?.errors) ? usa2p.errors : null,
       }) ?? "the carriers sent the registration back")
     : null;
   const notice = await tellThenKeep(db, line, { smsState, mock, reason });

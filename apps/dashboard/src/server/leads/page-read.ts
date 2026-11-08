@@ -22,10 +22,11 @@ import {
   type LeadStage,
   type LeadViewCountsDto,
   type SequencePlaceOfDto,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { getLeadPileCounts, listSequencePlaces } from "@chanlytics/db/campaigns";
 import { getLeadViewCounts, listSearchNames, readLeadOne, readLeadsPage } from "@chanlytics/db/leads";
-import { type DoorArgs, readMonthUsed, renewsOnOf } from "./allowance";
+import { readMonthUsed, renewsOnOf } from "./allowance";
 import { listSearchCounts } from "./searches";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
@@ -204,7 +205,7 @@ function checksOf(leadPage: LeadPageRow): LeadCheck[] {
     });
   }
   // A place the screen left out before the judge (decision 0085) was read by the second model, never by Claude.
-  const screened = isSystemOneModel((leadPage.judgment as { model?: unknown } | null)?.model);
+  const screened = isSystemOneModel(recordOrNull(leadPage.judgment)?.model);
   for (const [key, read] of judgedBy(leadPage.judgment)) {
     // A seen check is measured, never read: a plan key that shared its name would say it twice.
     if (SEEN_CHECKS.has(key)) continue;
@@ -398,7 +399,7 @@ export async function getLeadsPage(
       p_after_id: leadsQuery.after_id ?? null,
       ...(leadsQuery.pile_list ? { p_list_id: leadsQuery.pile_list } : {}),
       ...(filters ? { p_filters: filters } : {}),
-    } as DoorArgs<"leads_page">),
+    }),
     searchNamesOf(ctx, tenantId),
     first ? listSearchCounts(ctx, tenantId) : Promise.resolve(null),
     // The month rides the first page, as the counts do: the workbench says what a press costs without a read of
@@ -418,7 +419,7 @@ export async function getLeadsPage(
       : Promise.resolve(null),
   ]);
   if (answer.error) throw new Error(`leads_page: ${answer.error.message}`);
-  const raw = (Array.isArray(answer.data) ? answer.data : []) as unknown as LeadPageRow[];
+  const raw = Array.isArray(answer.data) ? answer.data : [];
   const last = raw[raw.length - 1];
   const places = await placesOf(
     ctx,

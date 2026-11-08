@@ -10,8 +10,9 @@ import {
   type PlatformActedData,
   type WabaEventKind,
 } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { dbLog, dbRequestId } from "../../shared/observe";
+import { jsonCopyOf } from "../../shared/json";
 
 export type Db = SupabaseClient<Database>;
 
@@ -300,7 +301,7 @@ export function rowOf<K extends EmittedKind>(
     version: write.version,
     subject_type: subjectType,
     subject_id: subjectId,
-    data: data as Json,
+    data: jsonCopyOf(data),
     ...(requestId ? { request_id: requestId } : {}),
   };
 }

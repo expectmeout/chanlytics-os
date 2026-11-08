@@ -29,7 +29,7 @@ import { emitEvent } from "@chanlytics/db/events";
 import { listEveryoneIn, listSavedLists } from "@chanlytics/db/people";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { recordOver } from "@chanlytics/db/calendar";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   runPlaybook as runOverPorts,
   type FreedTimeRun,
@@ -74,6 +74,7 @@ import { listFeedItems } from "../../calendar/availability.js";
 import { findCampaignsDomainVerified } from "../../email/campaigns-domain.js";
 import { emailCanSend } from "../../email/email.js";
 import { findConfigRow, findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 type Db = SupabaseClient<Database>;
 
@@ -264,14 +265,14 @@ export async function loadTenantRunContext(
     // workspace off and carry on (api/cron/playbooks.ts); a throw would end the tick for every workspace after it.
     // How far back: contracts PLAYBOOK_TOUCH_WINDOW_MS, which the Playbooks page's follow-up count reads by too.
     listTouchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS), now).then(
-      (data) => ({ data, error: null as string | null }),
+      (data) => ({ data, error: null }),
       (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
     ),
     findConfigRow(db, tenantId),
     // Every list the workspace keeps: a playbook on one runs on who is on it now. Unreadable is this tenant's
     // error, never a list of nobody.
     listSavedLists(db, tenantId).then(
-      (data) => ({ data, error: null as string | null }),
+      (data) => ({ data, error: null }),
       (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
     ),
     // The workspace's last year of yeses, for its pace (contracts dealPaceFrom): when a proposal waits for the
@@ -285,7 +286,7 @@ export async function loadTenantRunContext(
     // What runs on each visit moment: a reminder a twin already sent for a visit is not sent again (core twinsOf). An
     // unreadable list is this tenant's error, as the touches' is: read as none, a twin would remind everyone twice.
     listRunningStepsOn(db, tenantId, VISIT_TRIGGERS).then(
-      (data) => ({ data, error: null as string | null }),
+      (data) => ({ data, error: null }),
       (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
     ),
     // Whether a deal was ever recorded here (packages/db getDealOnFile), the read the dashboard's lists take too: a list
@@ -421,7 +422,7 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
             template_name: row.template_name,
             template_language: row.template_language,
             params: row.params,
-            audience: row.audience as unknown as Json,
+            audience: jsonCopyOf(row.audience),
             state: row.state,
             scheduled_for: row.scheduled_for,
             recipient_count: row.recipient_count,

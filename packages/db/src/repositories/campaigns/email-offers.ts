@@ -9,8 +9,15 @@
  * here is how a person is judged: that is contracts' mayMessageFor, which reads what these keep.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { offerPauseOf, type OfferCounts, type OfferPause, type OfferPauseReason } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import {
+  offerPauseOf,
+  type OfferCounts,
+  type OfferPause,
+  type OfferPauseReason,
+  recordOrEmpty,
+  recordOrNull,
+} from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
@@ -78,7 +85,7 @@ export async function pauseEmailOffers(
 export async function getEmailOfferCounts(db: Db, params: { tenantId: string; host: string }): Promise<OfferCounts> {
   const { data, error } = await db.rpc("email_offer_counts", { p_tenant_id: params.tenantId, p_host: params.host });
   if (error) throw new Error(`cannot count the offers by email: ${error.message}`);
-  const item = (data ?? {}) as Record<string, unknown>;
+  const item = recordOrEmpty(data);
   const n = (k: string): number => (typeof item[k] === "number" ? item[k] : 0);
   return {
     complaintSample: n("complaint_sample"),
@@ -138,7 +145,7 @@ export async function setEmailOffersYes(
     p_evidence: params.evidence,
   });
   if (error) throw new Error(`cannot record the yes to offers by email: ${error.message}`);
-  const sentence = (data ?? null) as { changed?: unknown; refused?: unknown } | null;
+  const sentence = recordOrNull(data);
   if (sentence?.changed === true) return "recorded";
   return typeof sentence?.refused === "string" && REFUSALS.has(sentence.refused)
     ? (sentence.refused as OffersYesOutcome)
@@ -189,7 +196,7 @@ export async function setEmailUnsubscribed(
     p_evidence: params.evidence,
   });
   if (error) throw new Error(`cannot record the unsubscribe: ${error.message}`);
-  const sentence = (data ?? null) as { business?: unknown; changed?: unknown } | null;
+  const sentence = recordOrNull(data);
   return {
     business: typeof sentence?.business === "string" ? sentence.business : null,
     changed: sentence?.changed === true,
@@ -210,7 +217,7 @@ export async function stopAllMessages(
     ...(params.messageId ? { p_message_id: params.messageId } : {}),
   });
   if (error) throw new Error(`cannot record that all messages stop: ${error.message}`);
-  const sentence = (data ?? null) as { business?: unknown; changed?: unknown } | null;
+  const sentence = recordOrNull(data);
   return {
     business: typeof sentence?.business === "string" ? sentence.business : null,
     changed: sentence?.changed === true,

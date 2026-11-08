@@ -1,7 +1,13 @@
 /** Retell: calls. */
 
 import type { SchemaSet } from "@chanlytics/contracts";
-import { callOutcomeWords, isE164, MISSED_CALL_LINE, UNCONNECTED_DIAL_LINE } from "@chanlytics/contracts";
+import {
+  callOutcomeWords,
+  isE164,
+  MISSED_CALL_LINE,
+  UNCONNECTED_DIAL_LINE,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import { answerObject, fetchFromProvider, type ProviderReply } from "../../shared/provider-fetch";
 
 const API = "https://api.retellai.com";
@@ -89,7 +95,7 @@ export interface NormalizedCall {
 }
 
 function plainObject(v: unknown): Record<string, unknown> | null {
-  return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  return v !== null && typeof v === "object" && !Array.isArray(v) ? recordOrEmpty(v) : null;
 }
 
 function toStatus(text: string | undefined): NormalizedCall["status"] {
@@ -418,7 +424,7 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
   const str = (k: string) => (typeof result[k] === "string" ? result[k] : null);
   const num = (k: string) => (typeof result[k] === "number" ? result[k] : null);
   const bool = (k: string) => (typeof result[k] === "boolean" ? result[k] : null);
-  const engine = (result.response_engine ?? {}) as Record<string, unknown>;
+  const engine = recordOrEmpty(result.response_engine);
   return {
     agent_id: str("agent_id") ?? agentId,
     agent_name: str("agent_name"),
@@ -448,7 +454,7 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     enable_backchannel: bool("enable_backchannel"),
     handbook_config:
       result.handbook_config && typeof result.handbook_config === "object" && !Array.isArray(result.handbook_config)
-        ? (result.handbook_config as Record<string, unknown>)
+        ? recordOrEmpty(result.handbook_config)
         : null,
   };
 }

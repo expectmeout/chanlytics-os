@@ -5,7 +5,13 @@
 import { buildEmailRequest, campaignsIdentity, hostedIdentity, type EmailRequest } from "@chanlytics/channels/email";
 import { signUnsubscribeToken, unsubscribeUrl } from "@chanlytics/channels/tokens";
 import { errField, logger } from "@chanlytics/log";
-import { CAMPAIGN_EMAIL_TAG, HELD_WHEN_COUNTED, OUTCOME_UNKNOWN, parseTenantConfig } from "@chanlytics/contracts";
+import {
+  CAMPAIGN_EMAIL_TAG,
+  HELD_WHEN_COUNTED,
+  OUTCOME_UNKNOWN,
+  parseTenantConfig,
+  type SchemaSet,
+} from "@chanlytics/contracts";
 import {
   deliver,
   isWireUnavailable,
@@ -65,7 +71,7 @@ async function countRecipients(
   db: SupabaseClient<Database>,
   tenantId: string,
   broadcastId: string,
-  state?: string,
+  state?: SchemaSet<"sequence_sends.state">,
   reason?: string,
 ): Promise<number> {
   const { count, error } = await countBroadcastSends(

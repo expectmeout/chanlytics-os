@@ -1,5 +1,5 @@
 import "server-only";
-import { MODEL_EFFORTS, MODEL_SPEEDS, askModelProfile, type AskModelProfile } from "@chanlytics/contracts";
+import { MODEL_EFFORTS, MODEL_SPEEDS, askModelProfile, type AskModelProfile, isOneOf } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { env } from "../shared/env";
 
@@ -24,8 +24,8 @@ export function askModel(): AskModelProfile {
   const unread =
     (name !== null && profile.id !== name) ||
     (effort !== null && profile.effort !== effort) ||
-    (speed !== null && !(MODEL_SPEEDS as readonly string[]).includes(speed)) ||
-    (draft !== null && draft !== "off" && !(MODEL_EFFORTS as readonly string[]).includes(draft)) ||
+    (speed !== null && !isOneOf(MODEL_SPEEDS, speed)) ||
+    (draft !== null && draft !== "off" && !isOneOf(MODEL_EFFORTS, draft)) ||
     (answer !== null && answer !== "on" && answer !== "off");
   const sentence = `${name}|${effort}|${speed}|${draft}|${answer}`;
   if (unread && warnedFor !== sentence) {

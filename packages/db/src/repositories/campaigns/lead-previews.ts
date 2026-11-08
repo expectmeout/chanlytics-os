@@ -12,7 +12,7 @@
  */
 import type { PreviewTriedDto } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;

@@ -14,7 +14,6 @@ import {
   boxShown,
   filePathOf,
   zoomSizeOf,
-  type FileMime,
   type ZoomBox,
   type ZoomSize,
   type ZoomWont,
@@ -38,7 +37,7 @@ export interface Zoomed {
 
 /** The photo's bytes to cut from, and whether they are the original (whose size may sit on its side) or Storage's upright copy. */
 async function sourceOf(file: FileMemberRow): Promise<{ bytes: Buffer; original: boolean } | null> {
-  const mime = file.mime as FileMime;
+  const mime = file.mime;
   const path = filePathOf(file.tenant_id, file.id, mime);
   const whole = FILE_TYPES[mime] !== "heic" && (file.bytes ?? 0) <= ORIGINAL_MOST_BYTES;
   const read = whole

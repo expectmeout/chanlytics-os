@@ -26,7 +26,14 @@ import {
   type WaHistoryRead,
   type WaSyncedContact,
 } from "@chanlytics/channels/whatsapp";
-import { DAY_MS, HOUR_MS, IMPORT_STOPPED_WORDS, normalizePhone, type ImportSource } from "@chanlytics/contracts";
+import {
+  DAY_MS,
+  HOUR_MS,
+  IMPORT_STOPPED_WORDS,
+  normalizePhone,
+  type ImportSource,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
 import { importCursorOf, listImports, keepBefore, noteImport } from "@chanlytics/db/imports";
 import { findProviderEvent } from "@chanlytics/db/events";
@@ -67,7 +74,7 @@ interface AskCursor {
 }
 
 function askCursorOf(raw: Json | null): AskCursor {
-  const c = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const c = recordOrEmpty(raw);
   const text = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
   return { channel: text(c.channel), connectedAt: text(c.connected_at), requestId: text(c.request_id) };
 }

@@ -7,7 +7,7 @@
  * Each read that fails THROWS (or answers `failed`): "we could not read it" is never "there is none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
@@ -69,7 +69,14 @@ export async function writeInstagramAccount(
   db: Db,
   fields: { tenantId: string; accountId: string; config: Json },
 ): Promise<{ id: string } | "taken" | { failed: string }> {
-  const row = {
+  const row: {
+    tenant_id: string;
+    kind: "instagram";
+    external_id: string;
+    number_e164: null;
+    waba_id: null;
+    config: Json;
+  } = {
     tenant_id: fields.tenantId,
     kind: "instagram",
     external_id: fields.accountId,

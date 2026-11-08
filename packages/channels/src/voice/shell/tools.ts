@@ -8,6 +8,7 @@ import {
   MIN_MS,
   POLICY_COVERS,
   SECOND_MS,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 
 /** The prompt body. Both placeholders are mandatory; a test pins them. */
@@ -192,7 +193,7 @@ export const normalizedText = (s: string | null | undefined) => (s ?? "").replac
 function stableJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
   if (value && typeof value === "object") {
-    const o = value as Record<string, unknown>;
+    const o = recordOrEmpty(value);
     return `{${Object.keys(o)
       .sort()
       .map((k) => `${JSON.stringify(k)}:${stableJson(o[k])}`)
@@ -214,7 +215,7 @@ export function subsetEqual(live: unknown, desired: unknown): boolean {
   if (Array.isArray(desired)) return stableJson(live) === stableJson(desired);
   if (desired && typeof desired === "object") {
     if (!live || typeof live !== "object" || Array.isArray(live)) return false;
-    return Object.entries(desired as Record<string, unknown>).every(([k, v]) =>
+    return Object.entries(recordOrEmpty(desired)).every(([k, v]) =>
       subsetEqual((live as Record<string, unknown>)[k], v),
     );
   }
@@ -319,7 +320,7 @@ type AnalysisField = (typeof CALL_ANALYSIS_FIELDS)[number];
 
 /** The live field is ours, unchanged: same name, type, description, choices and examples. */
 export function sameAnalysisField(live: Record<string, unknown>, want: AnalysisField): boolean {
-  const w = want as unknown as Record<string, unknown>;
+  const w = recordOrEmpty(want);
   return (
     live.name === w.name &&
     live.type === w.type &&

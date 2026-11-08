@@ -6,13 +6,18 @@
  * throws, except where a database before a migration is said to read as before.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { findMemberEmail } from "./notifications/feed";
 
+import { recordOrNull, type SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** The activity tokens of the phones whose people hold one of `roles` in the workspace (00191), each once. */
-export async function listActivityTokens(db: Db, tenantId: string, roles: readonly string[]): Promise<string[]> {
+export async function listActivityTokens(
+  db: Db,
+  tenantId: string,
+  roles: readonly SchemaSet<"memberships.role">[],
+): Promise<string[]> {
   const { data: members, error: me } = await db
     .from("memberships")
     .select("user_id, push_off")
@@ -43,7 +48,7 @@ export async function forgetEveryPhone(db: Db): Promise<number | null> {
     if (error.code === "PGRST202") return null;
     throw new Error(`cannot forget the phones: ${error.message}`);
   }
-  const forgotten = (data as { forgotten?: unknown } | null)?.forgotten;
+  const forgotten = recordOrNull(data)?.forgotten;
   return typeof forgotten === "number" ? forgotten : 0;
 }
 

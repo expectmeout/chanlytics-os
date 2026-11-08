@@ -137,7 +137,7 @@ async function proposeListDelete(toolContext: ToolContext, input: { list_id: str
 async function proposeHandList(toolContext: ToolContext, name: string, texts: string[]): Promise<ProposalOutcome> {
   if (texts.length > LIST_BATCH_MAX)
     return refuse(`a new list kept by hand starts with at most ${LIST_BATCH_MAX}; put the rest on it after`);
-  const person = texts.length ? await readSelected(toolContext, { ids: texts }) : { ids: [] as string[] };
+  const person = texts.length ? await readSelected(toolContext, { ids: texts }) : { ids: [] };
   if ("refusal" in person) return refuse(person.refusal);
   const pool = person.ids.length ? (await load(toolContext.rc, audiencePool, undefined)).data : null;
   const byId = new Map((pool?.rows ?? []).map((r) => [r.id, r.name]));

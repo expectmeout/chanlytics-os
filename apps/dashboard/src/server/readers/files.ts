@@ -33,20 +33,20 @@ export function fileDtoOf(fileMember: FileMemberRow): FileDto {
   const look = recordOrNull(fileMember.look);
   return {
     id: fileMember.id,
-    kind: fileMember.kind as FileDto["kind"],
-    status: fileMember.status as FileDto["status"],
-    source: fileMember.source as FileDto["source"],
+    kind: fileMember.kind,
+    status: fileMember.status,
+    source: fileMember.source,
     name: fileMember.name,
     bytes: fileMember.bytes,
     width: fileMember.width,
     height: fileMember.height,
     seconds: fileMember.seconds,
-    media_status: fileMember.media_status as FileDto["media_status"],
+    media_status: fileMember.media_status,
     sound_said: fileMember.sound_said,
-    shows: fileMember.shows as FileDto["shows"],
-    who_in_it: fileMember.who_in_it as FileDto["who_in_it"],
+    shows: fileMember.shows,
+    who_in_it: fileMember.who_in_it,
     people: filePeopleOf(look?.people),
-    look_status: fileMember.look_status as FileDto["look_status"],
+    look_status: fileMember.look_status,
     line: typeof look?.line === "string" ? look.line : null,
     issues: Array.isArray(look?.issues) ? look.issues.filter((i): i is string => typeof i === "string") : [],
     looks_like_stock: look?.looks_like_stock === true,
@@ -90,20 +90,8 @@ export const filesTallied: Reader<
   name: "filesTallied",
   async read(rc) {
     const rows = await listFilesTallied(rc.ctx.supabase, rc.tenantId);
-    return {
-      data: {
-        files: rows.map((r) => ({
-          status: r.status as FileDto["status"],
-          shows: r.shows as FileDto["shows"],
-          source: r.source as FileDto["source"],
-          look_status: r.look_status as FileDto["look_status"],
-          created_at: r.created_at,
-          kind: r.kind as FileDto["kind"],
-        })),
-      },
-      rows: [],
-      stamp: readerStamp(),
-    };
+    // The read selects these six columns and no more, each typed as the file's own: the rows are the answer.
+    return { data: { files: rows }, rows: [], stamp: readerStamp() };
   },
 };
 

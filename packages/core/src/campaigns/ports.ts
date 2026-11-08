@@ -7,15 +7,16 @@
  */
 import type {
   Audience,
+  BroadcastState,
   ChannelsReady,
+  DealPaceVM,
   DecisionSubject,
   DecisionVerb,
+  ListRef,
+  Membership,
   NumberHealth,
   ParamSpec,
   PersonRowVM,
-  DealPaceVM,
-  ListRef,
-  Membership,
   PersonVisitsDto,
   TenantId,
 } from "@chanlytics/contracts";
@@ -353,7 +354,7 @@ export interface TemplateValuesPorts {
 export interface BroadcastRef {
   id: string;
   tenant_id: TenantId;
-  state: string;
+  state: BroadcastState;
   name: string;
   recipient_count: number | null;
   playbook_id: string | null;
@@ -424,6 +425,6 @@ export interface CancelBroadcastPorts {
   /** The scheduled send withdrawn from the ledger; how many jobs. */
   withdraw(broadcastId: string): Promise<number>;
   /** → canceled, only from the state the row was read in. True iff a row changed. */
-  cancel(broadcastId: string, fromState: string): Promise<boolean>;
+  cancel(broadcastId: string, fromState: BroadcastState): Promise<boolean>;
   record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
 }

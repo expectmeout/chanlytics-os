@@ -4,7 +4,7 @@
  * person_note_suggest, which refuses rather than raises: once per source (`source_id`), at most three waiting per person.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

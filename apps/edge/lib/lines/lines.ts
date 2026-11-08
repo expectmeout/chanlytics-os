@@ -28,7 +28,7 @@ import {
   type ProvisionSecrets,
 } from "@chanlytics/channels/voice";
 import { ensureVoiceAgent } from "./voice-agent.js";
-import { lineDtoOf, type LineDto } from "@chanlytics/contracts";
+import { lineDtoOf, type LineDto, recordOrEmpty } from "@chanlytics/contracts";
 import { env } from "../shared/env.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import {
@@ -42,6 +42,7 @@ import {
   takeRoutingRow,
 } from "@chanlytics/db/lines";
 import { findChannelConfig } from "@chanlytics/db/channels";
+import { asJson } from "@chanlytics/db/shared";
 
 export interface LineProviderChoice {
   name: LineProviderName;
@@ -129,7 +130,7 @@ export function linePorts(
         return data && typeof data === "object" && !Array.isArray(data) ? data : {};
       },
       async putSecrets(s) {
-        const { error } = await putLineCredentials(db, line.id, s as unknown as Json);
+        const { error } = await putLineCredentials(db, line.id, asJson(s));
         if (error) throw new Error(`keeping the line's credentials: ${error.message}`);
       },
     },
@@ -313,7 +314,7 @@ export async function releaseRoutingRows(
       if (row.error) return stop(`reading the routing row: ${row.error.message}`);
       const cfg =
         row.data?.config && typeof row.data.config === "object" && !Array.isArray(row.data.config)
-          ? (row.data.config as Record<string, unknown>)
+          ? recordOrEmpty(row.data.config)
           : {};
       // `lines.e164` is nullable -- a line killed before its purchase answered
       // has none -- and writing that null would erase the number the row

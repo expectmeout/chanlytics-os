@@ -173,10 +173,10 @@
       "default": "./src/shared/index.ts"
     },
     "./types": {
-      "types": "./src/database.types.ts",
+      "types": "./src/types.ts",
       "bundled": "./dist/types.js",
-      "import": "./src/database.types.ts",
-      "default": "./src/database.types.ts"
+      "import": "./src/types.ts",
+      "default": "./src/types.ts"
     },
     "./voice": {
       "types": "./src/repositories/voice/index.ts",

@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import {
+  isOneOf,
   POLICY_CLASSES,
   POLICY_CLASS_WORDS,
   POLICY_MODES,
@@ -43,12 +44,11 @@ async function proposePolicy(
   const cls = str(input.class, 20);
   const mode = str(input.mode, 10);
   const conf = typeof input.min_confidence === "number" ? input.min_confidence : null;
-  if (!(POLICY_CLASSES as readonly string[]).includes(cls))
+  if (!isOneOf(POLICY_CLASSES, cls))
     return refuse("class must be reply, booking, faq, reengage, campaign, reviews, follow_up or money");
   if (cls === "money") return refuse("money stays owner-only by charter; that row is locked");
   if (cls === "outreach") return refuse("a reach-out's runs are set where reach-outs are made, not here");
-  if (mode && !(POLICY_MODES as readonly string[]).includes(mode))
-    return refuse("mode must be auto, veto, ask or never");
+  if (mode && !isOneOf(POLICY_MODES, mode)) return refuse("mode must be auto, veto, ask or never");
   // What each class may be set to is one rule, the Autonomy page's (contracts POLICY_CLASS_MODES), in its words.
   const notOffered = mode ? policyModeRefusal(cls as PolicyClass, mode as PolicyMode) : null;
   if (notOffered) return refuse(notOffered);

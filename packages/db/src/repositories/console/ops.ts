@@ -3,7 +3,12 @@
  * fails throws, with the database's own words, so the door can say what it could not read.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import { z } from "zod";
+import type { Database } from "../../types";
+import { readColumn } from "../../shared/read-json";
+
+/** A metric's numbers by what they count (a job's kind, a channel): what each of the three JSON columns holds. */
+const COUNTS = z.record(z.string(), z.number()).nullable();
 
 type Db = SupabaseClient<Database>;
 
@@ -72,9 +77,9 @@ export async function listPlatformDay(db: Db, day: string): Promise<PlatformDayP
           {
             ...row,
             name,
-            job_lag_ms: row.job_lag_ms as Record<string, number> | null,
-            dead_letters: row.dead_letters as Record<string, number> | null,
-            intake_lag_ms: row.intake_lag_ms as Record<string, number> | null,
+            job_lag_ms: readColumn("platform_metrics.job_lag_ms", COUNTS, row.job_lag_ms),
+            dead_letters: readColumn("platform_metrics.dead_letters", COUNTS, row.dead_letters),
+            intake_lag_ms: readColumn("platform_metrics.intake_lag_ms", COUNTS, row.intake_lag_ms),
           },
         ];
   });

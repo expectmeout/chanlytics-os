@@ -4,7 +4,7 @@
  * workspaceLogoSrc, which the caller applies with its own deployment's storage origin.
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { saysMissing } from "../../shared/missing-door";
 
 type Db = SupabaseClient<Database>;

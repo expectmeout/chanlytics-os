@@ -7,7 +7,7 @@
  * Workspace scope: makes the service-role client, which bypasses RLS and holds no statement; each caller filters by tenant_id.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../database.types";
+import type { Database } from "../types";
 import { namedFetch } from "./observe";
 
 /**

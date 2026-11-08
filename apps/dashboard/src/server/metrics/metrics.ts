@@ -13,7 +13,14 @@
  * Today count the same lines, say the same speed and the same bookings.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HOUR_MS, emailWires, holdOf, replyHoldDtoOf, type MetricsSummaryDto } from "@chanlytics/contracts";
+import {
+  HOUR_MS,
+  emailWires,
+  holdOf,
+  replyHoldDtoOf,
+  type MetricsSummaryDto,
+  recordOrNull,
+} from "@chanlytics/contracts";
 import { listFirstReplies, readMetricsSummary } from "@chanlytics/db/reports";
 import type { Database } from "@chanlytics/db/types";
 import { getEmailLine } from "../connections/email";
@@ -51,7 +58,7 @@ function recentReplies(supabase: SupabaseClient<Database>, tenantId: string): Pr
 function repliesOf(answered: unknown): RecentReplies | null {
   if (!Array.isArray(answered)) return null;
   return answered.flatMap((response: unknown) => {
-    const row = response as { asked_at?: unknown; s?: unknown; hold?: unknown } | null;
+    const row = recordOrNull(response);
     return row && typeof row.asked_at === "string" && typeof row.s === "number" && Number.isFinite(row.s)
       ? [
           {
@@ -101,7 +108,7 @@ export async function findMetricsSummary(
   // dashboard deployed before its migration: either order works), and then after the function, which is the wait every
   // read of Today had beside it.
   // The day's midnight, as the function says it: an answer that names none is not the day's, and carries no bookings.
-  const since = (answered as Partial<MetricsSummaryDto>).window?.since;
+  const since = answered.window?.since;
   const [recent, bookings] = await Promise.all([
     !day ? null : (repliesOf(carried) ?? recentReplies(supabase, tenantId)),
     lately === undefined || !since ? undefined : lately && findBookedSince(supabase, tenantId, lately, since),

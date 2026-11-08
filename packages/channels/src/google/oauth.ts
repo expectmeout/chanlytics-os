@@ -13,7 +13,7 @@
  * run it without a network.
  */
 import type { PlacesRequest } from "./places";
-import { MIN_MS, utf8Bytes } from "@chanlytics/contracts";
+import { MIN_MS, utf8Bytes, recordOrEmpty } from "@chanlytics/contracts";
 
 export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -100,7 +100,7 @@ export interface TokenGrant {
 }
 
 export function parseTokenResponse(json: unknown): TokenGrant {
-  const value = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+  const value = json && typeof json === "object" ? recordOrEmpty(json) : {};
   const access = typeof value.access_token === "string" ? value.access_token : "";
   if (!access)
     throw new Error(

@@ -24,6 +24,7 @@ import {
   type SubscriptionFacts,
   MIN_MS,
   UUID,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { ringOnce, tellOnce } from "./notices.js";
 import { logger, errField } from "../shared/log.js";
@@ -144,8 +145,7 @@ async function readPrice(stripe: Stripe, id: string): Promise<BillingPriceDto | 
     const p = await stripe.prices.retrieve(id, { expand: ["product"] });
     const product = p.product && typeof p.product === "object" && "name" in p.product ? p.product.name : null;
     const iv = String(p.recurring?.interval ?? "");
-    const interval =
-      iv === "day" || iv === "week" || iv === "month" || iv === "year" ? (iv as BillingPriceDto["interval"]) : null;
+    const interval = iv === "day" || iv === "week" || iv === "month" || iv === "year" ? iv : null;
     return { id: p.id, currency: p.currency, unit_amount: p.unit_amount, interval, product_name: product };
   } catch (e) {
     logger().error("billing_price_unreadable", { error: errField(e) });
@@ -177,7 +177,7 @@ export function subscriptionFacts(sub: Stripe.Subscription): SubscriptionFacts {
     sub.default_payment_method && typeof sub.default_payment_method === "object" ? sub.default_payment_method : null;
   return {
     id: sub.id,
-    status: (BILLING_STATUSES as readonly string[]).includes(sub.status) ? (sub.status as BillingStatus) : "none",
+    status: isOneOf(BILLING_STATUSES, sub.status) ? sub.status : "none",
     price_id: item?.price?.id ?? null,
     current_period_end: unixIso(item?.current_period_end),
     trial_end: unixIso(sub.trial_end),
@@ -231,7 +231,7 @@ export async function applySubscription(
   const planned = planBilling(
     {
       mode: row.mode === "direct" ? "direct" : "stripe",
-      status: (row.status as BillingStatus) ?? "none",
+      status: row.status ?? "none",
       tenant_status: tenant?.status ?? "active",
     },
     facts,
@@ -353,7 +353,7 @@ export async function endFor(
   if (!(await leftEmpty(db, tenantId)))
     return { ok: false, error: "not_paused", detail: "Someone is still in this workspace: its owner ends its plan." };
   const row = await accountOf(db, tenantId);
-  const status = (row?.status as BillingStatus | undefined) ?? "none";
+  const status = row?.status ?? "none";
   if (!row || row.mode === "direct" || !row.stripe_subscription_id || PLAN_ENDED.has(status))
     return { ok: true, status };
   try {

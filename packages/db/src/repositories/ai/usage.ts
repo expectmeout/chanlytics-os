@@ -23,14 +23,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mayUseModels, RETENTION_DAYS } from "@chanlytics/contracts";
-import type {
-  AiUsageBody,
-  BillingMode,
-  BillingStatus,
-  ModelTurnRequest,
-  ModelTurnResponse,
-} from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { AiUsageBody, ModelTurnRequest, ModelTurnResponse } from "@chanlytics/contracts";
+import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;
@@ -49,7 +43,7 @@ export async function mayWorkspaceUseModels(db: Db, tenantId: string): Promise<b
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   // Every workspace has a billing row since 00073 (the ones before it on `direct`): none is not a yes.
   if (!tenant.data || !billing.data) return false;
-  return mayUseModels(billing.data.mode as BillingMode, billing.data.status as BillingStatus, {
+  return mayUseModels(billing.data.mode, billing.data.status, {
     paused: tenant.data.status === "paused",
     ended: !!tenant.data.left_empty_at,
   });

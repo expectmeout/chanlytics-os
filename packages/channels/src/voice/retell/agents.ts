@@ -259,12 +259,8 @@ export async function getRetellLlm(
       result.default_dynamic_variables && typeof result.default_dynamic_variables === "object"
         ? (result.default_dynamic_variables as Record<string, string>)
         : null,
-    general_tools: Array.isArray(result.general_tools)
-      ? (result.general_tools as Array<Record<string, unknown> & { type: string; name: string }>)
-      : null,
-    knowledge_base_ids: Array.isArray(result.knowledge_base_ids)
-      ? (result.knowledge_base_ids as unknown[]).map(String)
-      : null,
+    general_tools: Array.isArray(result.general_tools) ? result.general_tools : null,
+    knowledge_base_ids: Array.isArray(result.knowledge_base_ids) ? result.knowledge_base_ids.map(String) : null,
   };
 }
 

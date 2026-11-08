@@ -38,11 +38,12 @@
  * it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { ingestInbound, stoppedNow, type IngestResult } from "../channels/ingest";
 import { setEmailOffersYes, setEmailUnsubscribed } from "../campaigns/email-offers";
 import { stampEmailFromMailbox } from "./connections";
 import { dbLog } from "../../shared/observe";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 export type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
@@ -355,7 +356,7 @@ export async function findAnsweredReachOutEmail(
   const sent = (data ?? []).flatMap((match) => {
     const meta = (match.meta ?? {}) as { source?: unknown; email?: { message_id?: unknown; request?: unknown } };
     if (meta.source !== "reach_out" || !left.has(String(match.status))) return [];
-    const req = (meta.email?.request ?? {}) as { from?: unknown; reply_to?: unknown };
+    const req = recordOrEmpty(meta.email?.request);
     const replyTo = Array.isArray(req.reply_to) && typeof req.reply_to[0] === "string" ? req.reply_to[0] : null;
     return [
       {
@@ -386,9 +387,9 @@ export async function stampEmailSent(
     p_message_id: params.messageId,
     p_provider_id: params.providerId,
     p_rfc_message_id: params.rfcMessageId,
-  } as never);
+  });
   if (error) throw new Error(`stamp_email_sent: ${error.message}`);
-  const row = (data as Array<{ status: string; conversation_id: string }> | null)?.[0];
+  const row = data?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
 
@@ -406,7 +407,7 @@ export async function stampEmailLeftAs(
     p_message_id: params.messageId,
     p_left_as: params.leftAs,
     p_why: params.why,
-  } as never);
+  });
   if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
   return data === true;
 }

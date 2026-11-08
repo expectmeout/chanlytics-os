@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { personName } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { DELIVERED } from "../conversations/thread/history";
 
 type Db = SupabaseClient<Database>;

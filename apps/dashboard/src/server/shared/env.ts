@@ -23,6 +23,7 @@
  */
 import { z } from "zod";
 import { publicEnv } from "../../lib/public-env";
+import { isOneOf, keysOf } from "@chanlytics/contracts";
 
 /** Blank is unset: Vercel stores an emptied variable as "", and whitespace around a pasted value is never meant. */
 const blankAsUnset = (value: unknown): unknown => (typeof value === "string" ? value.trim() || undefined : value);
@@ -158,9 +159,7 @@ function readOne<K extends Name>(name: K): DashboardEnv[K] {
 /** The environment, typed: each property reads its variable when it is asked for. */
 export const env: DashboardEnv = Object.defineProperties(
   {},
-  Object.fromEntries(
-    (Object.keys(SCHEMA) as Name[]).map((name) => [name, { get: () => readOne(name), enumerable: true }]),
-  ),
+  Object.fromEntries(keysOf(SCHEMA).map((name) => [name, { get: () => readOne(name), enumerable: true }])),
 ) as DashboardEnv;
 
 /**
@@ -197,12 +196,11 @@ export function problemsIn(source: Readonly<Record<string, string | undefined>>)
   const production = source.VERCEL_ENV?.trim() === "production";
   const missing: string[] = [];
   const malformed: string[] = [];
-  for (const name of Object.keys(SCHEMA) as Name[]) {
+  for (const name of keysOf(SCHEMA)) {
     const raw = source[name];
     const parsed = SCHEMA[name].safeParse(raw);
     if (!parsed.success) malformed.push(name);
-    else if (production && parsed.data === undefined && (REQUIRED_IN_PRODUCTION as readonly string[]).includes(name))
-      missing.push(name);
+    else if (production && parsed.data === undefined && isOneOf(REQUIRED_IN_PRODUCTION, name)) missing.push(name);
   }
   // Production speaks to its edge and prints its address over https only.
   if (production) {
@@ -214,7 +212,7 @@ export function problemsIn(source: Readonly<Record<string, string | undefined>>)
 
 /** This process's problems: every variable read once, now. */
 export function bootProblems(): EnvProblems {
-  const snapshot = Object.fromEntries((Object.keys(SCHEMA) as Name[]).map((name) => [name, READ[name]()]));
+  const snapshot = Object.fromEntries(keysOf(SCHEMA).map((name) => [name, READ[name]()]));
   return problemsIn(snapshot);
 }
 

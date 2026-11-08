@@ -35,7 +35,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { isAutomatedSend, isCampaignEmail, MIN_MS, HOUR_MS } from "@chanlytics/contracts";
+import { isAutomatedSend, isCampaignEmail, MIN_MS, HOUR_MS, type SchemaSet } from "@chanlytics/contracts";
 import type { EscalationOutcome } from "@chanlytics/jobs";
 import { toldFromItsEvent } from "@chanlytics/core";
 import type { logger } from "../shared/log.js";
@@ -100,7 +100,7 @@ const ORPHAN_NOTE = "no job was left to send this";
  * and when no job will, the second question below fails it and flags its thread. A reply that failed, or was
  * withdrawn, is no answer.
  */
-const ANSWER_STATES = ["queued", "sent", "delivered", "read"];
+const ANSWER_STATES: SchemaSet<"messages.status">[] = ["queued", "sent", "delivered", "read"];
 
 /** The deadman endpoint's own collaborators, passed in so the sweep is one function over ports. */
 interface UnfinishedPorts {

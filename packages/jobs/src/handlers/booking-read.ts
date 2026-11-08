@@ -11,6 +11,8 @@ import {
   bookingNoticeOf,
   bookingToolName,
   isNoticeHold,
+  recordOrNull,
+  isOneOf,
 } from "@chanlytics/contracts";
 import {
   readBookingNotice,
@@ -45,8 +47,8 @@ import { MAX_ATTEMPTS } from "../runner/ledger";
 /** The closed sets as the tables hold them (00345): a row the verb cannot read as one is a failed read, not a missing one. */
 const STATUSES: readonly AppointmentStatus[] = ["proposed", "booked", "kept", "missed", "cancelled"];
 const OUTCOMES: readonly NoticeOutcome[] = ["booked", "changed", "cancelled", "held", "dismissed"];
-const isStatus = (v: string): v is AppointmentStatus => (STATUSES as readonly string[]).includes(v);
-const isOutcome = (v: string): v is NoticeOutcome => (OUTCOMES as readonly string[]).includes(v);
+const isStatus = (v: string): v is AppointmentStatus => isOneOf(STATUSES, v);
+const isOutcome = (v: string): v is NoticeOutcome => isOneOf(OUTCOMES, v);
 
 /**
  * A booking tool's email, read into the calendar, on the ledger: a visit booked, moved or cancelled, on the
@@ -69,7 +71,7 @@ async function sayBooking(
 
 /** The row as the verb reads it: its life and its key, nothing it does not move. */
 function stored(appointment: AppointmentRow): StoredAppointment {
-  if (!isStatus(appointment.status)) throw new Error(`booking_read: an appointment is ${appointment.status}`);
+  if (!isStatus(appointment.status)) throw new Error(`booking_read: an appointment is ${String(appointment.status)}`);
   return {
     id: appointment.id,
     status: appointment.status,
@@ -99,9 +101,9 @@ function byClientStartOf(db: JobContext["db"], tool: string): BookingNoticePorts
 
 /** The ledger's row as the verb reads it. */
 function ledgerOf(row: AppointmentNoticeRow): NoticeLedgerEntry {
-  if (!isOutcome(row.outcome)) throw new Error(`booking_read: a notice became ${row.outcome}`);
+  if (!isOutcome(row.outcome)) throw new Error(`booking_read: a notice became ${String(row.outcome)}`);
   if (row.hold_reason !== null && !isNoticeHold(row.hold_reason))
-    throw new Error(`booking_read: a notice is held for ${row.hold_reason}`);
+    throw new Error(`booking_read: a notice is held for ${String(row.hold_reason)}`);
   return { outcome: row.outcome, holdReason: row.hold_reason, appointmentId: row.appointment_id };
 }
 
@@ -241,7 +243,7 @@ export async function runBookingRead(ctx: JobContext, job: ClaimedJob): Promise<
     // A read that threw. A row the table refuses (a check, 23514) will be refused again, and the last try has no next:
     // either way the delivery is kept on the ledger as held, so a person sees a booking email that went unread and
     // can press Read again, where a failed job alone would be all there was of it. Any other throw is the next try's.
-    const refused = (err as { code?: unknown } | null)?.code === "23514";
+    const refused = recordOrNull(err)?.code === "23514";
     if (!refused && (job.attempts ?? 1) < MAX_ATTEMPTS) throw err;
     const reason = refused ? "unreadable" : "no_model";
     // The reader failed: news. A write that failed after it answered is not "the reader was unavailable" (the visit may

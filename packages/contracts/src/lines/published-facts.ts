@@ -13,6 +13,7 @@
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import type { BusinessRecordDto } from "./business-record";
+import { keysOf } from "../shared/unknown";
 
 /** A column of the business on record that an owner fills (the row's own clock is not one). */
 export type BusinessRecordColumn = Exclude<keyof BusinessRecordDto, "updated_at">;
@@ -46,7 +47,7 @@ export type PublishedRecordColumn = {
   [K in BusinessRecordColumn]: (typeof PUBLISHED_FACTS)[K] extends true ? K : never;
 }[BusinessRecordColumn];
 
-const RECORD_COLUMNS = Object.keys(PUBLISHED_FACTS) as BusinessRecordColumn[];
+const RECORD_COLUMNS = keysOf(PUBLISHED_FACTS);
 const PUBLISHED = new Set<string>(RECORD_COLUMNS.filter((c) => PUBLISHED_FACTS[c]));
 
 /** Whether a column of the record is on the business's public page. */

@@ -20,7 +20,7 @@
  * reads it back in matches it too (idempotency-claim.db.test.mjs proves both).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

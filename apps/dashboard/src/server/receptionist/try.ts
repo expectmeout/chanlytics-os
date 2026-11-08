@@ -1,5 +1,14 @@
 import "server-only";
-import { AppError, MIN_MS, TRY_IT_WORDS, tryItVM, type TryItAnswer, type TryItVM } from "@chanlytics/contracts";
+import {
+  AppError,
+  MIN_MS,
+  TRY_IT_WORDS,
+  tryItVM,
+  type TryItAnswer,
+  type TryItVM,
+  recordOrEmpty,
+  recordOrNull,
+} from "@chanlytics/contracts";
 import { callEdge, edgeConfigured, edgeReasonOf } from "../shared/edge";
 import { log } from "../shared/log";
 
@@ -28,12 +37,11 @@ interface TryTurn {
 /** A field of the door's answer, read as the box reads it: the shape is the edge's, so nothing in it is taken on trust. */
 function tryAnswerOf(raw: unknown): TryItAnswer | null {
   if (!raw || typeof raw !== "object") return null;
-  const response = raw as Record<string, unknown>;
+  const response = recordOrEmpty(raw);
   if (response.ok !== true || typeof response.text !== "string") return null;
   const then = response.then && typeof response.then === "object" ? (response.then as TryItAnswer["then"]) : null;
-  const meta = response.meta && typeof response.meta === "object" ? (response.meta as Record<string, unknown>) : null;
-  const second =
-    response.booking && typeof response.booking === "object" ? (response.booking as Record<string, unknown>) : null;
+  const meta = response.meta && typeof response.meta === "object" ? recordOrEmpty(response.meta) : null;
+  const second = response.booking && typeof response.booking === "object" ? recordOrEmpty(response.booking) : null;
   const booking =
     second && typeof second.slot === "string"
       ? { slot: second.slot, service: typeof second.service === "string" ? second.service : "" }
@@ -58,7 +66,7 @@ export async function tryReceptionist(
     { tenant_id: tenantId, cases: [{ id: "try", text, history: [...history] }] },
     { workspace: tenantId, user: userId, timeoutMs: TRY_TIMEOUT_MS },
   );
-  const results = (result.body as { results?: unknown } | null)?.results;
+  const results = recordOrNull(result.body)?.results;
   const answer = result.status === 200 && Array.isArray(results) ? tryAnswerOf(results[0]) : null;
   if (answer) return tryItVM(answer);
   const reason = edgeReasonOf(result);

@@ -22,6 +22,7 @@ import {
 } from "@chanlytics/channels/voice";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import { findVoiceRouting } from "@chanlytics/db/lines";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 interface VoiceAgent {
   llmId: string;
@@ -76,7 +77,7 @@ export async function createVoiceAgent(
         detail: `${options.agentId} is not readable with this key`,
         partial: { llmId, llmVersion },
       };
-    const engine = (agentRaw.response_engine ?? {}) as Record<string, unknown>;
+    const engine = recordOrEmpty(agentRaw.response_engine);
     if (engine.type !== "retell-llm" || typeof engine.llm_id !== "string") {
       return {
         ok: false,
@@ -161,9 +162,7 @@ export async function ensureVoiceAgent(
   if (data?.external_id) {
     const agentRaw = await getAgentRaw(cfg, data.external_id);
     const item =
-      data.config && typeof data.config === "object" && !Array.isArray(data.config)
-        ? (data.config as Record<string, unknown>)
-        : {};
+      data.config && typeof data.config === "object" && !Array.isArray(data.config) ? recordOrEmpty(data.config) : {};
     return {
       agentId: data.external_id,
       llmId: typeof item.llm_id === "string" ? item.llm_id : null,

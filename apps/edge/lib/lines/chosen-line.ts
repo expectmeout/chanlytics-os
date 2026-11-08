@@ -97,9 +97,7 @@ export async function startChosenLine(
     const plan = planChosenLine({
       want: choices ? setupPhoneWantOf({ phone: choices.phone }) : null,
       noCalls: !!choices && callsNotByPhone({ phone: choices.phone }),
-      billing: billing.data
-        ? { mode: billing.data.mode as BillingMode, status: billing.data.status as BillingStatus }
-        : null,
+      billing: billing.data ? { mode: billing.data.mode, status: billing.data.status } : null,
       lines: lines.data ?? [],
       asked: (asked.data ?? []).length > 0,
     });

@@ -13,6 +13,7 @@ import {
   tallyWords,
   SEQUENCES_ROUTE,
   runRoute,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type {
   ChannelsReady,
@@ -59,7 +60,7 @@ function chainHeldOf(
   let count = 0;
   let runId: string | null = null;
   for (const r of broadcasts.rows) {
-    if (reachOutRootOf(r.audience) !== rootId || !(RUN_GOING_STATES as readonly string[]).includes(r.state)) continue;
+    if (reachOutRootOf(r.audience) !== rootId || !isOneOf(RUN_GOING_STATES, r.state)) continue;
     const held = typeof r.held === "number" ? r.held : 0;
     if (held > 0) {
       count += held;

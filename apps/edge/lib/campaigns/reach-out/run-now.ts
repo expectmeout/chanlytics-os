@@ -29,7 +29,6 @@ import { logger } from "../../shared/log.js";
 import { runReachOutStep } from "./run-step.js";
 import { findStepRow, getSequenceModes } from "@chanlytics/db/campaigns";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
-import type { ReachOutRow } from "./run-context.js";
 import { UUID, CAMPAIGNS_PAUSED_WORDS, DEFAULT_TIMEZONE } from "@chanlytics/contracts";
 
 export async function runPlaybookNow(
@@ -57,8 +56,8 @@ export async function runPlaybookNow(
   if (!p) return refuse(404, "not_found");
   // A reach-out's root runs its first step now through the sweep's own step runner (Part 4, R13): the sheet's Start.
   // Its answer says what happened, with its reason (R14); a later step runs on its day only.
-  if ((p as { kind?: string }).kind === "reach_out") {
-    const row = p as ReachOutRow;
+  if (p.kind === "reach_out") {
+    const row = p;
     if (row.trigger !== "lead_first") return refuse(409, "reach_out_step");
     const tz = (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
     const otherRunReachOutStep = await runReachOutStep(db, row, new Date(), tz, log);

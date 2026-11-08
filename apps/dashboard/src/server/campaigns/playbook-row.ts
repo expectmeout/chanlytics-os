@@ -24,6 +24,8 @@ import {
   twinRunsWords,
   visitTwinWords,
   type PlaybookPatch,
+  recordOrNull,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, playbookNameAsked, findUntil } from "@chanlytics/core";
 import { emitEvent } from "@chanlytics/db/events";
@@ -148,7 +150,7 @@ export async function findVisitTwinRefusal(
   tenantId: string,
   on: { id?: string | null; trigger: string },
 ): Promise<string | null> {
-  if (!VISIT_TRIGGERS.includes(on.trigger)) return null;
+  if (!isOneOf(VISIT_TRIGGERS, on.trigger)) return null;
   const running = await listRunningStepsOn(ctx.supabase, tenantId, [on.trigger]);
   const twin = running.find((s) => s.id !== (on.id ?? null));
   return twin ? visitTwinWords(twin.name) : null;
@@ -178,7 +180,7 @@ export async function findVisitTwinRefusal(
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;
-  const otherJsonBody = (await readJsonBody(req)) as Record<string, unknown> | null;
+  const otherJsonBody = recordOrNull(await readJsonBody(req));
   const now = new Date();
   const until =
     (await findUntil(playbookPatchPorts(ctx, tenantId), otherJsonBody?.until, { now, undo: false })) ?? null;
@@ -257,7 +259,7 @@ async function patchPlaybook(ctx: RouteContext, record: Record<string, unknown>,
   if (!read) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   // The table's check holds a state to the two; one it does not know is no row a change is judged against.
   if (!isPlaybookState(read.state))
-    throw new Error(`playbook ${playbook.id} holds a state the check does not: ${read.state}`);
+    throw new Error(`playbook ${playbook.id} holds a state the check does not: ${String(read.state)}`);
   const row = { ...read, state: read.state };
   const { set, was } = await checkPlaybookPatch(playbookPatchPorts(ctx, playbook.tenant_id), row, record, {
     now: new Date(),

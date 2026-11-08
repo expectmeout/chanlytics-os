@@ -5,7 +5,7 @@
  * run on the session client, so RLS decides what comes back; the page's rows are leads_page's, read by the dashboard.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import type { LeadViewCountsDto } from "@chanlytics/contracts";
 import { readAllRows } from "../../shared/paged";
 import { platformWide, tenantDb } from "../../shared/tenant-db";

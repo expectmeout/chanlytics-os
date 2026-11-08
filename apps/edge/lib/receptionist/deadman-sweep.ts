@@ -135,7 +135,7 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
     L.error("deadman_query_failed", { error: error.message });
     return json(500, { ok: false });
   }
-  const candidates = (data ?? []) as unknown as Candidate[];
+  const candidates = data ?? [];
   if (candidates.length === 0) return json(200, { ok: true, flagged: 0, ...fields });
 
   // One addressing lookup per TENANT, not per escalation: a backlog is usually

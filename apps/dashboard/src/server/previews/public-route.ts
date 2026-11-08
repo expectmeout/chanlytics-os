@@ -7,7 +7,7 @@ import "server-only";
  * shared limiter (preview_ip; a call's own, preview_call_ip), a body read for what it is, the token as the only authority, and one envelope back.
  */
 import { NextResponse } from "next/server";
-import { AppError, err, ok } from "@chanlytics/contracts";
+import { AppError, err, ok, recordOrEmpty } from "@chanlytics/contracts";
 import { isSameOrigin } from "../shared/request-guards";
 import { takeRate, type RateBucket } from "../shared/rate-limit";
 import { refusalHeaders } from "../shared/with-route";
@@ -26,7 +26,7 @@ async function fieldsOf(req: Request): Promise<Record<string, unknown>> {
   if (text.length > BODY_MAX_BYTES) throw new AppError("validation", "That is too long.", 413);
   try {
     const parsed: unknown = JSON.parse(text || "{}");
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+    return parsed && typeof parsed === "object" ? recordOrEmpty(parsed) : {};
   } catch {
     return {};
   }

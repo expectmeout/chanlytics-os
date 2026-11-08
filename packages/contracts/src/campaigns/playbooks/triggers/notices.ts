@@ -152,7 +152,9 @@ export function triggerOf(id: string): (typeof PLAYBOOK_TRIGGERS)[number] | null
  * The moments a visit decides (the reminder the day before, the thank-you the day after): owed once per visit, so no two
  * sequences run on one of them (the routes refuse a second, the run skips whom a twin reached; sequences/words/next.ts).
  */
-export const VISIT_TRIGGERS: readonly string[] = PLAYBOOK_TRIGGERS.filter((t) => t.kind === "visit").map((t) => t.id);
+export const VISIT_TRIGGERS: readonly (typeof PLAYBOOK_TRIGGERS)[number]["id"][] = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind === "visit",
+).map((t) => t.id);
 
 /**
  * Whether a moment is offered in a workspace (0006): every one, a proposal's too, since every workspace has deals

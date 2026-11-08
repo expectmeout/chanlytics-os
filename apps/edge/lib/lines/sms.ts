@@ -8,7 +8,7 @@
  * Cross-workspace: an inbound text names only the number it reached, so its line is found by that number.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { LineSecrets, ProviderAccount } from "@chanlytics/channels/lines";
 import type { ProviderReply } from "@chanlytics/channels/shared";
 import type { SendResult } from "@chanlytics/channels/whatsapp";
@@ -20,6 +20,7 @@ import { logger, errField, type Logger } from "../shared/log.js";
 import { phoneTail, type EdgeRefusal } from "@chanlytics/contracts";
 import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
 import { findLineByE164, findTextingLineOf, getLineCredentials, putLineCredentials } from "@chanlytics/db/lines";
+import { asJson } from "@chanlytics/db/shared";
 
 type Db = SupabaseClient<Database>;
 const SUBACCOUNT_READ_TIMEOUT_MS = 15000;
@@ -129,11 +130,11 @@ export async function refreshLineToken(
     },
   );
   if (result.outcome !== "ok") return refreshRefusal(log, result);
-  const body = answerObject(result) as { auth_token?: unknown } | null;
+  const body = answerObject(result);
   const token = typeof body?.auth_token === "string" && body.auth_token ? body.auth_token : null;
   if (!token)
     return { ok: false, error: "no_token", detail: "the provider did not return a token for this subaccount" };
-  const { error } = await putLineCredentials(db, line.id, { auth_token: token } as unknown as Json);
+  const { error } = await putLineCredentials(db, line.id, asJson({ auth_token: token }));
   if (error) return { ok: false, error: "write_failed", detail: `storing the refreshed token: ${error.message}` };
   log.info("line_token_refreshed", { subaccount: line.subaccount_sid });
   return { ok: true, account: { sid: line.subaccount_sid, token } };

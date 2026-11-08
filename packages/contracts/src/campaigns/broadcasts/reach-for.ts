@@ -24,6 +24,7 @@ import { type NotReceived, type ReceiveRow, whyNotReceive } from "../../people/p
 import { triggerOf } from "../playbooks/triggers/notices";
 import { type EmailOffers, emailOffersOpen, type OfferFacts, OFFERS_BY_EMAIL_WORDS } from "./email-offers";
 import { whatsappOffersOpen } from "./whatsapp-offers";
+import { keysOf } from "../../shared/unknown";
 
 /** Whether the workspace can send on a channel now, and if not the sentence that says why. */
 export interface ChannelReady {
@@ -249,9 +250,7 @@ const HELD_ORDER: Record<HeldOn, number> = {
 };
 
 /** Every reason a person is held, in that order: the strictest of several is the one reachFor keeps, and a page lists them so. */
-export const HELD_ON: readonly HeldOn[] = (Object.keys(HELD_ORDER) as HeldOn[]).sort(
-  (a, b) => HELD_ORDER[a] - HELD_ORDER[b],
-);
+export const HELD_ON: readonly HeldOn[] = keysOf(HELD_ORDER).sort((a, b) => HELD_ORDER[a] - HELD_ORDER[b]);
 
 /**
  * The channels a campaign ticks that can carry its message now, in the product's order: the workspace can send on each,

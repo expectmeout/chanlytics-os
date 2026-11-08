@@ -22,12 +22,15 @@
  * select, and what the row keeps of the provider's payload is an allowlist (scrub_call_raw, 00530) members may not
  * select at all. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
-import type { SchemaSet } from "@chanlytics/contracts";
+import { recordOrNull, type SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
 import { dbLog } from "../../shared/observe";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
+import { asJson, jsonCopyOf } from "../../shared/json";
+import { readAnswer } from "../../shared/read-json";
+import { z } from "zod";
 
 type Db = SupabaseClient<Database>;
 
@@ -73,6 +76,17 @@ export interface IngestCallResult {
   conversation_id: string | null;
 }
 
+/** What ingest_call answers, as IngestCallResult says it. */
+const IngestCallAnswer: z.ZodType<IngestCallResult> = z.object({
+  call_id: z.string(),
+  is_new: z.boolean(),
+  recording_state: z.string().nullable(),
+  recording_attempts: z.number().nullable().optional(),
+  skipped: z.boolean().optional(),
+  contact_id: z.string().nullable(),
+  conversation_id: z.string().nullable(),
+});
+
 export async function ingestCall(
   db: Db,
   tenantId: string,
@@ -98,20 +112,20 @@ export async function ingestCall(
     p_in_voicemail: callInput.inVoicemail,
     p_summary: callInput.summary,
     p_transcript: callInput.transcript,
-    p_transcript_obj: (callInput.transcriptObject ?? null) as Json,
+    p_transcript_obj: asJson(callInput.transcriptObject ?? null),
     // The provider URL is NOT written to the row: calls is in the realtime
     // publication, so every column reaches every member's browser, and the
     // REST layer's care in stripping it was being undone one layer down. A
     // retry asks the provider for a fresh URL by call id.
-    p_recording: (callInput.recordingUrl ? { fetch_state: "pending" } : null) as Json,
+    p_recording: asJson(callInput.recordingUrl ? { fetch_state: "pending" } : null),
     p_public_log_url: callInput.publicLogUrl,
-    p_cost: (callInput.cost ?? null) as Json,
-    p_latency: (callInput.latency ?? null) as Json,
-    p_raw: (raw ?? {}) as Json,
-    p_analysis: (callInput.analysis ?? null) as Json,
-  } as never);
+    p_cost: asJson(callInput.cost ?? null),
+    p_latency: asJson(callInput.latency ?? null),
+    p_raw: asJson(raw ?? {}),
+    p_analysis: asJson(callInput.analysis ?? null),
+  });
   if (error) throw new Error(`ingest_call: ${error.message}`);
-  return data as unknown as IngestCallResult;
+  return readAnswer("ingest_call", IngestCallAnswer, data);
 }
 
 /**
@@ -220,7 +234,7 @@ export async function setCallRecording(
 ): Promise<void> {
   const { data, error } = await db
     .from("calls")
-    .update({ recording: recording as Json })
+    .update({ recording: jsonCopyOf(recording) })
     .eq("id", callId)
     .eq("tenant_id", tenantId)
     .select("id");
@@ -563,7 +577,7 @@ export async function callSecondsSince(db: Db, tenantId: string, sinceIso: strin
     .limit(10000);
   if (error) throw new Error(`cannot read the month's call seconds: ${error.message}`);
   return (data ?? []).reduce((n, r) => {
-    const s = (r.data as { seconds?: unknown } | null)?.seconds;
+    const s = recordOrNull(r.data)?.seconds;
     return n + (typeof s === "number" && Number.isFinite(s) ? s : 0);
   }, 0);
 }

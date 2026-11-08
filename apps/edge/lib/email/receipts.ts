@@ -50,7 +50,7 @@ import {
 } from "@chanlytics/db/email";
 import type { Database } from "@chanlytics/db/types";
 import { emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "@chanlytics/channels/email";
-import { isCampaignEmail } from "@chanlytics/contracts";
+import { isCampaignEmail, recordOrNull } from "@chanlytics/contracts";
 import { judgeOfferGates } from "./offer-gates.js";
 import { upsertEscalation } from "@chanlytics/jobs";
 
@@ -125,6 +125,6 @@ export async function applyEmailReceipt(db: Db, emailReceipt: EmailReceipt, nowI
 
 /** The From of a frozen request as a row keeps it; null when it keeps none. */
 function requestFromOf(request: unknown): string | null {
-  const from = (request as { from?: unknown } | null | undefined)?.from;
+  const from = recordOrNull(request)?.from;
   return typeof from === "string" ? from : null;
 }

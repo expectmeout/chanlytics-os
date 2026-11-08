@@ -968,7 +968,7 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
   // listed kind is stored as itself is run in notify-transport.test.mjs.
   assert.ok(
-    readCode("apps/edge/lib/shared/alerts/notify.ts").includes("new Set(SERVER_NOTIFICATION_KINDS)") &&
+    readCode("apps/edge/lib/shared/alerts/notify.ts").includes("isOneOf(SERVER_NOTIFICATION_KINDS, kind)") &&
       ["calendar_people", "review"].every((k) => SERVER_NOTIFICATION_KINDS.includes(k)),
     "the kind is kept, not folded into alert",
   );

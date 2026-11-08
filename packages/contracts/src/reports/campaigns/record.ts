@@ -21,7 +21,7 @@ import { standingOfThread } from "../../conversations/standing";
 import { runApprovalRefusal } from "../../campaigns/playbooks/approval";
 import { nextOpenMoment } from "../../campaigns/playbooks/schedule";
 import { zoneDayKey } from "../../shared/clock";
-import { isCount, recordOrNull } from "../../shared/unknown";
+import { isCount, recordOrNull, valueAt } from "../../shared/unknown";
 
 /** The most rows campaign_stuck lists in each list: the SQL's `limit 500` (00406). A list this long may have been cut. */
 const CAMPAIGN_ROWS_LISTED = 500;
@@ -201,15 +201,13 @@ export interface CampaignLedgerDto {
 /* ---------------------------------------------------------------- the guards */
 
 /** The value at the keys down `path`, through objects only: one gap and it is not there. */
-const valueAt = (from: Record<string, unknown>, path: readonly string[]): unknown =>
-  path.reduce<unknown>((at, key) => recordOrNull(at)?.[key], from);
 
 const isObjectAt = (from: Record<string, unknown>, path: readonly string[]): boolean =>
-  recordOrNull(valueAt(from, path)) !== null;
+  recordOrNull(valueAt(from, ...path)) !== null;
 
 /** A list whose every row is an object: the fold reads a row's keys, and a null row would make it throw. */
 function isRowsAt(from: Record<string, unknown>, path: readonly string[]): boolean {
-  const rows = valueAt(from, path);
+  const rows = valueAt(from, ...path);
   return Array.isArray(rows) && rows.every((row) => recordOrNull(row) !== null);
 }
 

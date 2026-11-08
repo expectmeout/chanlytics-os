@@ -25,6 +25,8 @@ import {
   type AskMorningCard,
   type AskMorningDto,
   type AskProposal,
+  recordOrEmpty,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { askCardsTold, getMemberViews } from "@chanlytics/db/notices";
 import { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "@chanlytics/db/ask";
@@ -118,7 +120,7 @@ async function aroundMorning(
 function morningSay(answer: Json | null): { headline: string; detail: string } {
   const say =
     answer && typeof answer === "object" && !Array.isArray(answer) && answer.say && typeof answer.say === "object"
-      ? (answer.say as Record<string, unknown>)
+      ? recordOrEmpty(answer.say)
       : {};
   return {
     headline: typeof say.headline === "string" ? say.headline : "",
@@ -248,7 +250,7 @@ export async function getMorningQuestion(
 
 /** The language a morning is asked in: the page's, where it names one Ask speaks; else English. */
 export function morningLanguage(raw: unknown): AskLanguage {
-  return typeof raw === "string" && (ASK_LANGUAGES as readonly string[]).includes(raw) ? (raw as AskLanguage) : "en";
+  return typeof raw === "string" && isOneOf(ASK_LANGUAGES, raw) ? raw : "en";
 }
 
 /**

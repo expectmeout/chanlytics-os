@@ -27,7 +27,6 @@ import {
   withdrawMemberMessage,
 } from "@chanlytics/db/conversations";
 import { findLastInboundEmail, findLastOutboundEmailSubject } from "@chanlytics/db/email";
-import type { Json } from "@chanlytics/db/types";
 import type {
   CancelSendPorts,
   EscalationPorts,
@@ -50,6 +49,7 @@ import { takeThreadControl } from "./thread-control";
 import { freezeFirst, freezeReply } from "../connections/email";
 import { getStoredConfig } from "../workspace/config-row";
 import { log } from "@/server/shared/log";
+import { asJson } from "@chanlytics/db/shared";
 
 /**
  * True iff a row changed. An UPDATE that RLS or a vanished row excludes
@@ -304,7 +304,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
         tenantId,
         key,
         requestHash,
-        response: response as unknown as Json,
+        response: asJson(response),
         stamp,
       }),
     hash: (s) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 32),

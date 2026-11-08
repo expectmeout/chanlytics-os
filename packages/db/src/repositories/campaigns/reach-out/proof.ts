@@ -4,7 +4,7 @@
  * side by side and never read back row by row, so a step that sent thousands costs what one that sent ten does.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../../database.types";
+import type { Database } from "../../../types";
 
 type Db = SupabaseClient<Database>;
 

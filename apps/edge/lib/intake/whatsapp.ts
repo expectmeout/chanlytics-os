@@ -42,7 +42,7 @@
  *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
 import { metaSignatureValid, META_SIGNATURE_HEADER, type WaChangeValue } from "@chanlytics/channels/whatsapp";
-import { phoneTail, pauseMsOf, WAITING_REASONS } from "@chanlytics/contracts";
+import { phoneTail, pauseMsOf, WAITING_REASONS, recordOrEmpty } from "@chanlytics/contracts";
 import { WABA_FIELDS, accountOf, handleWabaChange, findNotifications } from "../whatsapp/waba-events.js";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
@@ -221,7 +221,7 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
           // What the notice was addressed to; which account it is about is the function's to say (a partner's notice is
           // addressed to the partner's portfolio and names the account itself).
           const entryId = String(entry.id || "");
-          const value = result as unknown as Record<string, unknown>;
+          const value = recordOrEmpty(result);
           const outcome = await handleWabaChange(db, entryId, { field, value }, (tid) => findNotifications(db, tid));
           L.info("wa_waba_event", { field, waba_id: accountOf(entryId, value)?.waba ?? null, outcome });
           continue;

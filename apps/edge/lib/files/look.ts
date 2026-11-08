@@ -30,7 +30,6 @@ import {
   soundTurnSaidOf,
   videoSheetPlanOf,
   type FileLookRead,
-  type FileMime,
 } from "@chanlytics/contracts";
 import { deleteClaudeFile, uploadClaudeFile } from "@chanlytics/channels/ai";
 import { imageHeaderOf } from "@chanlytics/core";
@@ -86,7 +85,7 @@ export async function findClaudeCopy(db: Db, row: FileRow): Promise<ClaudeCopy |
   const signed =
     row.kind === "video"
       ? await filesBucket(db).createSignedUrl(fileMadePathOf(row.tenant_id, row.id, "sheet"), COPY_URL_S)
-      : await filesBucket(db).createSignedUrl(filePathOf(row.tenant_id, row.id, row.mime as FileMime), COPY_URL_S, {
+      : await filesBucket(db).createSignedUrl(filePathOf(row.tenant_id, row.id, row.mime), COPY_URL_S, {
           transform: { width: FILE_COPY_SIDE, height: FILE_COPY_SIDE, resize: "contain", quality: COPY_QUALITY },
         });
   if (signed.error || !signed.data?.signedUrl) {

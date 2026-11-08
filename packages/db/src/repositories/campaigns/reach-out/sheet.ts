@@ -8,9 +8,10 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { RUN_GOING_STATES, versionWords } from "@chanlytics/contracts";
-import type { Database, Json } from "../../../database.types";
+import type { Database, Json } from "../../../types";
 import type { JsonObject } from "../../events/events";
 import { readAllRows } from "../../../shared/paged";
+import { jsonCopyOf } from "../../../shared/json";
 
 type Db = SupabaseClient<Database>;
 
@@ -210,7 +211,7 @@ export async function saveReachOutChain(
   const { data, error } = await db.rpc("reach_out_save", {
     p_tenant_id: params.tenantId,
     p_user_id: params.userId,
-    p_chain: params.chain as Json,
+    p_chain: jsonCopyOf(params.chain),
     p_decision: params.decision?.payload ?? null,
     ...(params.decision?.via ? { p_via: params.decision.via } : {}),
     ...(params.decision?.undoOf ? { p_undo_of: params.decision.undoOf } : {}),

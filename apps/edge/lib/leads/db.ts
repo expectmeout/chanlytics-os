@@ -32,8 +32,8 @@ import {
   asContactId,
   asTenantId,
   type LeadRoundEnding,
-  type LeadRunState,
   type LeadSearchPlan,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import type {
   CollectCommitResult,
@@ -75,8 +75,8 @@ async function inParts<T>(ids: string[], read: (part: string[]) => Promise<T[]>)
 const runOf = (r: RunRow): LeadRunRow => ({
   ...r,
   tenant_id: asTenantId(r.tenant_id),
-  purpose: r.purpose as LeadRunRow["purpose"],
-  state: r.state as LeadRunState,
+  purpose: r.purpose,
+  state: r.state,
   cap_usd: r.cap_usd === null ? null : Number(r.cap_usd),
   usage_usd: Number(r.usage_usd),
 });
@@ -126,12 +126,12 @@ export function leadDb(db: Db): LeadDb {
     const byId = new Map(leads.map((l) => [l.id, l]));
     return members.map((member): LeadMemberRow => {
       const found = byId.get(member.lead_id);
-      const json = member.judgment as { term?: unknown } | null;
+      const json = recordOrNull(member.judgment);
       return {
         lead_id: member.lead_id,
-        class: member.class as LeadMemberRow["class"],
+        class: member.class,
         excluded_by: member.excluded_by,
-        fit: member.fit as LeadMemberRow["fit"],
+        fit: member.fit,
         reason: member.reason,
         distance_m: member.distance_m,
         counted: member.counted,
@@ -140,7 +140,7 @@ export function leadDb(db: Db): LeadDb {
         lng: found?.lng ?? null,
         phone: found?.phone_e164 ?? null,
         email: found?.email ?? null,
-        email_state: (found?.email_state ?? "none") as LeadMemberRow["email_state"],
+        email_state: found?.email_state ?? "none",
         term: typeof json?.term === "string" ? json.term : null,
         place_id: found?.place_id ?? null,
         // The owner's own decision (00140's member doors) or a lead worked in any way lead_search_undo reads as
@@ -242,15 +242,15 @@ export function leadDb(db: Db): LeadDb {
         tenant_id: asTenantId(row.tenant_id),
         search_id: row.search_id,
         seq: row.seq,
-        purpose: row.purpose as LeadRoundRow["purpose"],
+        purpose: row.purpose,
         plan: row.plan as unknown as LeadSearchPlan,
         plan_version: row.plan_version,
         target: row.target,
-        state: row.state as LeadRoundRow["state"],
-        ending: row.ending as LeadRoundRow["ending"],
-        ending_pending: row.ending_pending as LeadRoundRow["ending_pending"],
+        state: row.state,
+        ending: row.ending,
+        ending_pending: row.ending_pending,
         question: row.question as unknown as LeadRoundRow["question"],
-        answered: row.answered as LeadRoundRow["answered"],
+        answered: row.answered,
         waiting_since: row.waiting_since,
         allowance_reserved: row.allowance_reserved,
         allowance_used: row.allowance_used,

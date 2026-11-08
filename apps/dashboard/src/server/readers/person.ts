@@ -10,9 +10,10 @@ import {
   readyOrWhatsApp,
   type MessageDto,
   type PersonDetailDto,
-  type PersonEscalationDto,
   type PersonReachDto,
   DAY_KEY,
+  recordOrEmpty,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { writeReachOf } from "@/server/new-conversation/write-reach";
 import { SMS_FOOTER } from "@chanlytics/channels/lines";
@@ -76,7 +77,7 @@ function personMessages(rc: ReaderContext, convIds: string[]) {
 /** Where they came from, as the profile says it: the door's contact.added row for them, when there is one. */
 function cameFrom(row: { created_at: string; data: unknown } | null): PersonDetailDto["added"] {
   if (!row) return undefined;
-  const data = row.data as { source?: unknown; title?: unknown } | null;
+  const data = recordOrNull(row.data);
   return {
     at: row.created_at,
     source: String(data?.source ?? "manual"),
@@ -91,7 +92,7 @@ function cameFrom(row: { created_at: string; data: unknown } | null): PersonDeta
 function beforeOf(row: { before?: unknown } | null): PersonDetailDto["before"] {
   const raw = row?.before;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const second = raw as Record<string, unknown>;
+  const second = recordOrEmpty(raw);
   const out: NonNullable<PersonDetailDto["before"]> = {};
   if (typeof second.via === "string" && second.via) out.via = second.via;
   if (typeof second.last_visit === "string" && DAY_KEY.test(second.last_visit)) out.last_visit = second.last_visit;
@@ -221,7 +222,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       if (!convIds.length) {
         return {
           byConv: new Map<string, MessageDto[]>(),
-          escalations: [] as PersonEscalationDto[],
+          escalations: [],
           decisions: await listPersonDecisions(sb, tenantId, id, []),
         };
       }
@@ -319,7 +320,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       // The booking link, so the profile can text it in one step. The workspace's config, read once in a turn: a read
       // that fails is kept, not thrown here, and checked below, in the route's order.
       load(rc, facts.config, undefined).then(
-        (r) => ({ data: r.data, error: null as Error | null }),
+        (r) => ({ data: r.data, error: null }),
         (e: unknown) => ({ data: null, error: e instanceof Error ? e : new Error(String(e)) }),
       ),
       // Every change to either answer: the ledger rows the doors write, which

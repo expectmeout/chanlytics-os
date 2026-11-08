@@ -4,7 +4,7 @@
  * each naming the workspace. Each answer is the database's as it came.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../../database.types";
+import type { Database } from "../../../types";
 
 type Db = SupabaseClient<Database>;
 

@@ -58,6 +58,7 @@ import {
   putChannelCredentials,
   setChannelStatus,
 } from "@chanlytics/db/channels";
+import { asJson } from "@chanlytics/db/shared";
 
 interface ConnectBody {
   tenant_id?: string;
@@ -392,7 +393,7 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
   if (row instanceof Response) return row;
 
   // 6. The token, in Vault, through the one door that writes a credential.
-  const secret = { access_token: token, phone_id: phoneNumberId, pin, waba_id: wabaId } as unknown as Json;
+  const secret = asJson({ access_token: token, phone_id: phoneNumberId, pin, waba_id: wabaId });
   const { error: credErr } = await putChannelCredentials(db, row.id, secret);
   if (credErr) {
     log.info("wa_connect_credentials_failed", { error: credErr.message });

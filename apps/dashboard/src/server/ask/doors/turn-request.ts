@@ -7,6 +7,7 @@ import {
   type AskScope,
   type LeadSearchPlan,
   type PageContext,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { after } from "next/server";
 import type { Member } from "@/server/shared/route";
@@ -141,7 +142,7 @@ export async function answeringOf(ctx: RouteContext, tenantId: string, raw: unkn
   const id = raw && typeof raw === "object" ? (raw as { search_id?: unknown }).search_id : undefined;
   if (id === undefined) return null;
   const row = await searchRow(ctx, tenantId, requireUuid(id, "search"));
-  const query = row.question as { sentence?: unknown } | null;
+  const query = recordOrNull(row.question);
   return {
     search_id: row.id,
     name: row.name,

@@ -3,7 +3,7 @@
  * for the owner over the last days, by the intent the model stamped, with what became of each. Under the caller's RLS.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

@@ -40,6 +40,7 @@ import {
   type ModelPurpose,
   type ModelSpeed,
   type ThinkingType,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
@@ -238,7 +239,7 @@ const THINKING: ReadonlySet<string> = new Set(THINKING_TYPES);
  * GATEWAY_BETAS lists, each once.
  */
 function extrasOf(r: Partial<GatewayRequest>): Pick<GatewayRequest, "speed" | "thinking" | "betas"> {
-  const type = r.thinking && typeof r.thinking === "object" ? (r.thinking as { type?: unknown }).type : undefined;
+  const type = r.thinking && typeof r.thinking === "object" ? r.thinking.type : undefined;
   const betas = Array.isArray(r.betas) ? [...new Set(r.betas.filter((b) => GATEWAY_BETAS.includes(b)))] : [];
   return {
     ...(r.speed === "fast" ? { speed: "fast" as const } : {}),
@@ -291,7 +292,7 @@ type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
 const MESSAGE_ID = /^msg_[A-Za-z0-9_-]{1,120}$/;
 function diagnosticsOf(raw: unknown): { diagnostics?: { previous_message_id: string | null } } {
   if (!raw || typeof raw !== "object" || !("previous_message_id" in raw)) return {};
-  const id = (raw as { previous_message_id: unknown }).previous_message_id;
+  const id = raw.previous_message_id;
   if (id === null) return { diagnostics: { previous_message_id: null } };
   return typeof id === "string" && MESSAGE_ID.test(id) ? { diagnostics: { previous_message_id: id } } : {};
 }
@@ -303,7 +304,7 @@ function diagnosticsOf(raw: unknown): { diagnostics?: { previous_message_id: str
  */
 function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, unknown> } | null | "bad" {
   if (raw === undefined) return null;
-  const f = raw as { type?: unknown; schema?: unknown } | null;
+  const f = recordOrNull(raw);
   if (!f || f.type !== "json_schema" || !f.schema || typeof f.schema !== "object" || Array.isArray(f.schema))
     return "bad";
   return { type: "json_schema", schema: f.schema as Record<string, unknown> };
@@ -373,7 +374,7 @@ export function validateGatewayRequest(
   }
   // A system message says an effort (contracts ai/effort.ts) or the operator's words, text alone (ai/words-message.ts):
   // nothing else rides in the messages as an instruction.
-  const system = (m: unknown) => (m as { role?: unknown } | null)?.role === "system";
+  const system = (m: unknown) => recordOrNull(m)?.role === "system";
   if (gatewayRequest.messages.some((m) => system(m) && !isEffortMessage(m) && !isWordsMessage(m))) {
     return badRequest("messages: a system message carries an effort or the operator's words alone");
   }
@@ -392,7 +393,7 @@ export function validateGatewayRequest(
   }
   const oc =
     gatewayRequest.output_config && typeof gatewayRequest.output_config === "object"
-      ? (gatewayRequest.output_config as { effort?: unknown; format?: unknown })
+      ? gatewayRequest.output_config
       : null;
   const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as ModelEffort) : null;
   const ceiling = ceilingOf(purpose, effortInForce(gatewayRequest.messages, effort));

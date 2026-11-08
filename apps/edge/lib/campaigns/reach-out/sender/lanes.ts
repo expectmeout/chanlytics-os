@@ -42,6 +42,7 @@ import { reachOutDraft, reachOutRequest, reachOutWords } from "@chanlytics/chann
 import { REPLAN_GIVE_UP_MS, type Replan } from "../replan.js";
 import type { Logger } from "../../../shared/log.js";
 import { once } from "../once.js";
+import { asJson } from "@chanlytics/db/shared";
 
 export type Db = SupabaseClient<Database>;
 
@@ -449,7 +450,7 @@ export async function sendFromMailbox(
     type: "text",
     body: result.body,
     status: "queued",
-    meta: meta as unknown as Json,
+    meta: asJson(meta),
   });
   if (wrote === "exists") {
     // Written between the read above and this insert: that one is this send's.

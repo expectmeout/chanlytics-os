@@ -18,7 +18,7 @@ import {
   type SupabaseClient,
   type UserResponse,
 } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 /** The public project URL and anon key, as the dashboard's environment holds them: either may be unset on a laptop. */
 interface PublicKeyConfig {

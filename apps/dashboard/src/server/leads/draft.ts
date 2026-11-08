@@ -76,15 +76,7 @@ function writerLines(config: ReturnType<typeof parseTenantConfig>): string[] {
 async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): Promise<string[]> {
   const { data, error } = await findLeadDraftFacts(ctx.supabase, lead.id);
   if (error) throw new Error(error.message);
-  const item = (data ?? null) as {
-    business_name?: string;
-    category?: string | null;
-    city?: string | null;
-    region?: string | null;
-    website_host?: string | null;
-    rating?: number | null;
-    reviews?: number | null;
-  } | null;
+  const item = data ?? null;
   const out = [item?.business_name ?? lead.business_name];
   if (item?.category) out.push(item.category);
   const where = [item?.city, item?.region].filter(Boolean).join(", ");

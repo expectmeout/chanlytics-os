@@ -4,8 +4,9 @@
  * the member's own client, each naming the workspace. Each answer is the database's as it came.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** What a call is read with: the dashboard maps it (toCallDto), and the recording's URL never leaves the server. */
@@ -23,7 +24,7 @@ export const findCallRow = async (db: Db, tenantId: string, callId: string) =>
 export const listCallRows = async (
   db: Db,
   tenantId: string,
-  narrow: { conversationId?: string; status?: string; ids?: string[]; transcriptLike?: string },
+  narrow: { conversationId?: string; status?: SchemaSet<"calls.status">; ids?: string[]; transcriptLike?: string },
   limit: number,
 ) => {
   let query = db

@@ -11,7 +11,6 @@
  */
 import { check, collect, startRound, type LeadPorts } from "@chanlytics/core";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
-import type { Json } from "@chanlytics/db/types";
 import { UUID } from "@chanlytics/contracts";
 import { leadDb } from "./db.js";
 import { leadWires, type LeadWires } from "./wires.js";
@@ -19,6 +18,7 @@ import { storeLeadMark } from "./marks.js";
 import { tellLeadQuestion } from "./tell.js";
 import { recordPageSourceRefused } from "./sources.js";
 import { logger } from "../shared/log.js";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 const SEQ = /^[a-z0-9.]{1,40}$/;
 
@@ -53,7 +53,7 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
         tenantId: job.tenant_id,
         kind,
         dueAt: new Date(Date.now() + runAfterSeconds * 1000),
-        payload: payload as Json,
+        payload: jsonCopyOf(payload),
       });
     },
     // A round that stopped to ask waits a day on a person: the workspace's own addresses hear of it (the row is the
@@ -96,7 +96,7 @@ export function leadPipelineOver(wires: LeadWires): Pipeline {
         Array.isArray(leadIds) &&
         leadIds.length > 0 &&
         leadIds.every((x) => typeof x === "string" && UUID.test(x))
-          ? { nonce, leadIds: leadIds as string[] }
+          ? { nonce, leadIds: leadIds }
           : null;
       if ((nonce !== undefined || leadIds !== undefined) && !again)
         throw new Error(

@@ -13,6 +13,7 @@ import {
   type BookingVia,
   type MemberJoined,
   unreadFor,
+  type SchemaSet,
 } from "@chanlytics/contracts";
 import { oneOr, type Db } from "./kept";
 
@@ -329,7 +330,7 @@ export async function closeMendedNotices(
   db: Db,
   params: {
     tenantId: string;
-    warnings: ReadonlyArray<{ kind: string; title: RegExp; sameSubject: boolean }>;
+    warnings: ReadonlyArray<{ kind: SchemaSet<"notifications.kind">; title: RegExp; sameSubject: boolean }>;
     subject: { type: string; id: string } | null;
     keptId: string | null;
     nowMs: number;

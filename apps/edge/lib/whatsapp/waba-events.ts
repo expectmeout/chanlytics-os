@@ -42,6 +42,7 @@ import {
 import { logger, errField, type Logger } from "../shared/log.js";
 import { findChannelConfig, listNumbersOfWaba, patchChannelRow } from "@chanlytics/db/channels";
 import { findConfigRow } from "@chanlytics/db/workspace";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
 export async function findNotifications(
@@ -376,12 +377,12 @@ async function keepRating(
     unknown
   >;
   const kept = await patchChannelRow(db, routed.tenantId, routed.channelId, {
-    config: {
+    config: jsonCopyOf({
       ...cfg,
       messaging_limit: value.current_limit,
       quality_event: value.event ?? null,
       quality_at: new Date().toISOString(),
-    } as unknown as Json,
+    }),
   });
   if (kept.error) failed("write", kept.error.message);
 }

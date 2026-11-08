@@ -8,6 +8,7 @@ import {
   ACTIVITY_NOISE_PREFIXES,
   ACTIVITY_PROBLEM_KINDS,
   DECISION_VERBS,
+  isOneOf,
   activityFamilyKinds,
   activityLines,
   activityRowOfDecision,
@@ -26,6 +27,8 @@ import {
   type ActivityRowDto,
   messageRoute,
   DAY_KEY,
+  type DecisionVerb,
+  type SchemaSet,
 } from "@chanlytics/contracts";
 import { getActivitySubjects } from "@chanlytics/db/events";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -127,15 +130,14 @@ const newestFirst = (a: Cut, b: Cut): number => {
  * list is a ledger with nothing to say, which is not read at all.
  */
 interface Narrowed {
-  verbs: string[] | null;
+  verbs: DecisionVerb[] | null;
   kinds: string[] | null;
 }
 
-const VERBS = new Set<string>(DECISION_VERBS);
-
 function narrowedTo(activityFilter: ActivityFilter): Narrowed {
   // A kind by name is asked of both ledgers as it always was: a kind this build does not know is still a row.
-  if (activityFilter.kind) return { verbs: [activityFilter.kind], kinds: [activityFilter.kind] };
+  const { kind } = activityFilter;
+  if (kind) return { verbs: isOneOf(DECISION_VERBS, kind) ? [kind] : [], kinds: [kind] };
   const named = activityFilter.family
     ? activityFamilyKinds(activityFilter.family).filter(
         (k) => activityFilter.family === "records" || !isActivityNoise(k),
@@ -144,13 +146,16 @@ function narrowedTo(activityFilter: ActivityFilter): Narrowed {
       ? [...ACTIVITY_PROBLEM_KINDS]
       : null;
   if (!named) return { verbs: null, kinds: null };
-  return { verbs: named.filter((k) => VERBS.has(k)), kinds: named.filter((k) => !VERBS.has(k)) };
+  return {
+    verbs: named.filter((k) => isOneOf(DECISION_VERBS, k)),
+    kinds: named.filter((k) => !isOneOf(DECISION_VERBS, k)),
+  };
 }
 
-const isActor = (v: string): v is ActivityActor => (ACTIVITY_ACTORS as readonly string[]).includes(v);
+const isActor = (v: string): v is ActivityActor => isOneOf(ACTIVITY_ACTORS, v);
 
 /** The stored hand each actor that is not a member is: the receptionist is `ai`, the system `system`. */
-const ACTOR_TYPE: Record<ActivityActor, string> = { receptionist: "ai", system: "system" };
+const ACTOR_TYPE: Record<ActivityActor, SchemaSet<"decisions.actor_type">> = { receptionist: "ai", system: "system" };
 
 /** What one read is asked for: the workspace, the filter as parsed, and what it resolves to. */
 interface Ask {

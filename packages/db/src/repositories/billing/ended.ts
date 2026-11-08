@@ -4,9 +4,10 @@
  * database's as it came.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** What the release reads of a plan: its status, its dates and its last failed payment. */
@@ -14,7 +15,7 @@ const RELEASE_COLUMNS =
   "tenant_id, mode, status, trial_end, current_period_end, cancel_at, last_payment_failed_at, updated_at";
 
 /** Every Stripe account in one of `statuses`, whichever workspace's: the sweep's page. */
-export const listStripeAccountsIn = async (db: Db, statuses: readonly string[]) =>
+export const listStripeAccountsIn = async (db: Db, statuses: readonly SchemaSet<"billing_accounts.status">[]) =>
   platformWide(db)
     .from("billing_accounts")
     .select(RELEASE_COLUMNS)

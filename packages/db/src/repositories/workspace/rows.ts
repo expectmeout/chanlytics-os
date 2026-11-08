@@ -3,7 +3,7 @@
  * its settings row as stored. Each answer is the database's as it came; the caller says a failed read in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

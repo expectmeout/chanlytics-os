@@ -22,6 +22,7 @@ import {
   type PrivacyRequestDto,
   type RequestKind,
   type RequestStep,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { takeAct } from "./acts";
 import type { BackOffice } from "../shared/back-office";
@@ -49,7 +50,7 @@ function requestStepsOf(raw: unknown): Partial<Record<RequestStep, string>> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: Partial<Record<RequestStep, string>> = {};
   for (const [k, v] of Object.entries(raw)) {
-    if ((REQUEST_STEP_KEYS as readonly string[]).includes(k) && typeof v === "string") out[k as RequestStep] = v;
+    if (isOneOf(REQUEST_STEP_KEYS, k) && typeof v === "string") out[k] = v;
   }
   return out;
 }
@@ -58,9 +59,7 @@ function requestDto(request: RequestRow): PrivacyRequestDto {
   return {
     id: request.id,
     number: request.number,
-    kind: (REQUEST_KINDS as readonly string[]).includes(request.kind)
-      ? (request.kind as RequestKind)
-      : "delete_workspace",
+    kind: isOneOf(REQUEST_KINDS, request.kind) ? request.kind : "delete_workspace",
     tenant_id: request.tenant_id,
     slug: request.slug,
     name: request.name,

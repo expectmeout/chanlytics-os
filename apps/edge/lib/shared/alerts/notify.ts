@@ -34,12 +34,13 @@ import {
 } from "@chanlytics/db/notices";
 import { findWorkspaceNamed } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
-import type { NotificationsConfig } from "@chanlytics/contracts";
+import type { NotificationsConfig, ServerNotificationKind } from "@chanlytics/contracts";
 import {
   EMAIL_ALWAYS_KINDS,
   SERVER_NOTIFICATION_KINDS,
   appLink,
   emailsFor,
+  isOneOf,
   isPushKind,
   noticeRoute,
   openItLine,
@@ -281,10 +282,10 @@ export function reachesTenant(target: NotifyTarget): boolean {
  * (contracts schema-sets.ts, against the set generated from the database), so
  * the table and this cannot disagree again.
  */
-const KEPT_KINDS: ReadonlySet<string> = new Set(SERVER_NOTIFICATION_KINDS);
 
 /** The kind a row is kept as: the one asked for when the table keeps it, a plain alert otherwise. */
-const keptKind = (kind: string | undefined): string => (kind && KEPT_KINDS.has(kind) ? kind : "alert");
+const keptKind = (kind: string | undefined): ServerNotificationKind =>
+  isOneOf(SERVER_NOTIFICATION_KINDS, kind) ? kind : "alert";
 
 /**
  * Keep the alert as a row the workspace can read on its bell, whether or not
@@ -569,7 +570,7 @@ async function keepThenMail(
     // kind the receptionist must reach someone with (a hold's). News (a customer's STOP, an unsubscribe) is the bell's alone:
     // a note to the platform for each would be the operator's inbox filling with a business's opt-outs. A mail owed from a
     // try when somebody was on file is owed no more.
-    if (mails && platformCopy && (EMAIL_ALWAYS_KINDS as readonly string[]).includes(msg.kind ?? "")) {
+    if (mails && platformCopy && isOneOf(EMAIL_ALWAYS_KINDS, msg.kind ?? "")) {
       await mailNotice(target, msg, ports, db);
     }
     if (earlier) await owedNoMore(db, tenantId, kept);

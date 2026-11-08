@@ -3,11 +3,11 @@
  * can be put into the turn before the model asks for it (the way server/ask/cross-page.ts reads another page ahead).
  */
 import { CUSTOMER_MESSAGE_SKILL } from "./customer-message/skill";
-import { guideBlock, type AskSkill } from "@chanlytics/contracts";
+import { guideBlock, type AskSkill, keysOf } from "@chanlytics/contracts";
 
 const ASK_SKILLS = { customer_message: CUSTOMER_MESSAGE_SKILL } as const satisfies Record<string, AskSkill>;
 export type AskSkillId = keyof typeof ASK_SKILLS;
-export const ASK_SKILL_IDS = Object.keys(ASK_SKILLS) as AskSkillId[];
+export const ASK_SKILL_IDS = keysOf(ASK_SKILLS);
 
 /**
  * A skill's guide, as a block of Ask's turn (skill.ts guideBlock): what the prefetch puts in when skillsAsked names it,

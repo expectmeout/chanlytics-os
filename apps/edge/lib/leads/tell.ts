@@ -13,7 +13,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { appLink, leadQuestionMail, leadQuestionRoute } from "@chanlytics/contracts";
+import { appLink, leadQuestionMail, leadQuestionRoute, recordOrNull } from "@chanlytics/contracts";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { sendOpsMail, reachesTenant, type NotifyPorts } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
@@ -31,7 +31,7 @@ export async function tellLeadQuestion(
   try {
     const { data: r, error: rErr } = await findRoundToTell(db, roundId);
     if (rErr) throw new Error(`cannot read the round: ${rErr.message}`);
-    const query = r?.question as { sentence?: unknown } | null | undefined;
+    const query = recordOrNull(r?.question);
     // Answered, stopped or ended since: there is nothing left to ask.
     if (!r || r.state !== "waiting_on_owner" || typeof query?.sentence !== "string") return false;
     const target = { tenantId: r.tenant_id, ...(await loadTenantNotifications(db, r.tenant_id)) };

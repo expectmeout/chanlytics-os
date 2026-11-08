@@ -57,7 +57,6 @@ import {
   unpublishedLatestNote,
   newDraftNote,
   voiceNumberBinding,
-  type LiveAgentSettings,
 } from "@chanlytics/channels/voice";
 import { resolveChannel } from "@chanlytics/db/channels";
 import { listVoiceAgentsBeforeANumber } from "@chanlytics/db/facts";
@@ -124,7 +123,7 @@ async function workspaceLocales(agentId: string): Promise<{ locales: string[] } 
 async function planOne(agentId: string, before: Record<string, unknown>) {
   const spoken = await workspaceLocales(agentId);
   const opts = "locales" in spoken ? { locales: spoken.locales } : {};
-  const plan = planAgentSettings(before as unknown as LiveAgentSettings, opts);
+  const plan = planAgentSettings(before, opts);
   const out: Record<string, unknown> = {
     agent_id: agentId,
     version: before.version ?? null,
@@ -210,7 +209,7 @@ async function readBack(cfg: { apiKey: string }, agentId: string, opts: { locale
   return {
     version: after.version ?? null,
     is_published: after.is_published ?? null,
-    drift: planAgentSettings(after as unknown as LiveAgentSettings, opts).drift,
+    drift: planAgentSettings(after, opts).drift,
   };
 }
 
@@ -239,7 +238,7 @@ async function applyOne(
   if (before.is_published === true && working !== null) {
     const draft = await createAgentVersion(cfg, agentId, working);
     if (!draft.ok) return { step: "create_version", status: draft.status, body: draft.body };
-    working = typeof draft.body?.version === "number" ? (draft.body.version as number) : working;
+    working = typeof draft.body?.version === "number" ? draft.body.version : working;
     out.draft_version = working;
   }
   if (shell?.plan.llmPatch) {

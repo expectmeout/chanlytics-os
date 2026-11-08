@@ -10,6 +10,7 @@ import {
   previewVersionsOf,
   reachOutExampleLead,
   stepTestMail,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import {
   findLeadSlots,
@@ -136,7 +137,7 @@ export async function sendStepTest(
     { tenant_id: seq.tenant_id, user_id: ctx.userId, subject: mail.subject, text: mail.text },
     { workspace: seq.tenant_id, user: ctx.userId, timeoutMs: TEST_TIMEOUT_MS },
   );
-  const body = (answer.body ?? {}) as { sent?: unknown; to?: unknown; why?: unknown };
+  const body = recordOrEmpty(answer.body);
   if (answer.status === 200 && body.sent === true && typeof body.to === "string") return { to: body.to };
   if (answer.status === 200 && body.why === "no_address") throw new AppError("conflict", W.noAddress, 409);
   log.error("step_test_failed", { tenant_id: seq.tenant_id, status: answer.status, error: answer.body?.error });

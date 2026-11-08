@@ -59,7 +59,7 @@ export async function readPartnerAccount(
     getPartnerBroughtCount(ctx.supabase, row.id),
     getPartnerLetters(ctx.supabase),
   ]);
-  return { partner: { ...(row as PartnerDto), brought, letters }, balance };
+  return { partner: { ...row, brought, letters }, balance };
 }
 
 /** Postgres error codes partner_become raises deliberately, mapped to the wire. */
@@ -83,7 +83,7 @@ export async function becomeAPartner(
     if (mapped) throw new AppError(mapped.code, result.message, mapped.status);
     throw new Error(result.message);
   }
-  return { partner: result.row as PartnerDto };
+  return { partner: result.row };
 }
 
 export async function setPartnerLettersOf(

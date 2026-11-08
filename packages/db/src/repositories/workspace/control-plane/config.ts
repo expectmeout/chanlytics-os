@@ -1,9 +1,17 @@
 /** Control plane: config. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { openToCustomersOf, type BillingMode, type BillingStatus, type OpenToCustomers } from "@chanlytics/contracts";
-import type { Database, Json } from "../../../database.types";
+import {
+  openToCustomersOf,
+  type BillingMode,
+  type BillingStatus,
+  type OpenToCustomers,
+  type SchemaSet,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
+import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
+import { jsonCopyOf } from "../../../shared/json";
 
 export type Db = SupabaseClient<Database>;
 
@@ -81,7 +89,11 @@ export async function putTenantConfig(
 ): Promise<PutTenantConfigResult> {
   const { data, error } = await db
     .from("tenant_config")
-    .update({ config: config as Json, version: expectedVersion + 1, ...(updatedBy ? { updated_by: updatedBy } : {}) })
+    .update({
+      config: jsonCopyOf(config),
+      version: expectedVersion + 1,
+      ...(updatedBy ? { updated_by: updatedBy } : {}),
+    })
     .eq("tenant_id", tenantId)
     .eq("version", expectedVersion)
     .select("tenant_id, config, version, updated_at, updated_by")
@@ -91,7 +103,7 @@ export async function putTenantConfig(
 
   // Zero rows: the door writes what the table would not show this member, and tells an absent row from a losing race.
   const door = await db
-    .rpc("tenant_config_write", { p_tenant_id: tenantId, p_config: config as Json, p_version: expectedVersion })
+    .rpc("tenant_config_write", { p_tenant_id: tenantId, p_config: jsonCopyOf(config), p_version: expectedVersion })
     .maybeSingle();
   if (!door.error) {
     const w = door.data;
@@ -149,8 +161,8 @@ export async function listPolicies(db: Db, tenantId: string): Promise<PolicyReco
 export async function setPolicyMode(
   db: Db,
   tenantId: string,
-  policyClass: string,
-  mode: string,
+  policyClass: SchemaSet<"policies.class">,
+  mode: SchemaSet<"policies.mode">,
   /**
    * Merged into the existing limits, never replacing them.
    *
@@ -172,7 +184,7 @@ export async function setPolicyMode(
       .maybeSingle();
     // A read that failed is not a row with no limits: merging over nothing would write every other setting away.
     if (readError) throw new Error(`setPolicyMode: ${readError.message}`);
-    merged = { ...((current?.limits as Record<string, unknown>) ?? {}), ...limits };
+    merged = { ...(recordOrEmpty(current?.limits) ?? {}), ...limits };
   }
   const { data, error } = await db
     .from("policies")
@@ -269,7 +281,7 @@ export async function replyTokensSince(
       .range(from, from + USAGE_PAGE - 1);
     if (error) throw new Error(`replyTokensSince: ${error.message}`);
     for (const r of data ?? []) {
-      const d = (r.data ?? {}) as Record<string, unknown>;
+      const d = recordOrEmpty(r.data);
       replies += 1;
       tokens += n(d.input_tokens) + n(d.output_tokens);
     }
@@ -316,7 +328,7 @@ export async function setPersonReplyMode(
   db: Db,
   tenantId: string,
   contactId: string,
-  mode: string | null,
+  mode: SchemaSet<"policies.mode"> | null,
 ): Promise<string | null> {
   if (mode === null) {
     const { data, error } = await db

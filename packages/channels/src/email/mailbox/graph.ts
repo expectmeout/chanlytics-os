@@ -4,7 +4,7 @@
  * message read, what changed in the inbox since a delta link, and the subscription that tells the edge when something
  * did. Every call returns what it came to and never throws (provider-fetch.ts).
  */
-import { DAY_MS } from "@chanlytics/contracts";
+import { DAY_MS, listOrEmpty, recordOrEmpty, recordOrNull, valueAt } from "@chanlytics/contracts";
 import { fetchFromProvider, type ProviderReply, type SendOutcome } from "../../shared/provider-fetch";
 import { FIND_SENT_SLACK_MS, MAILBOX_READ_MS, readVerdictOf, type FoundSent, type ReadVerdict } from "./read";
 
@@ -30,7 +30,7 @@ const auth = (token: string, type?: string): Record<string, string> => ({
 
 /** Graph's own word for why a call was refused (error.code), when it gave one. */
 function graphReasonOf(r: Pick<ProviderReply, "json">): string | null {
-  const code = (r.json as { error?: { code?: unknown } } | null)?.error?.code;
+  const code = valueAt(r.json, "error", "code");
   return typeof code === "string" ? code : null;
 }
 
@@ -71,12 +71,7 @@ export async function readGraphMe(
     { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
     deps,
   );
-  const json = response.json as {
-    id?: unknown;
-    mail?: unknown;
-    userPrincipalName?: unknown;
-    displayName?: unknown;
-  } | null;
+  const json = recordOrNull(response.json);
   if (response.outcome !== "ok" || typeof json?.id !== "string") return null;
   const address =
     typeof json.mail === "string" && json.mail
@@ -152,7 +147,7 @@ export async function sendGraph(
     },
     deps,
   );
-  const item = draft.json as { id?: unknown; internetMessageId?: unknown; conversationId?: unknown } | null;
+  const item = recordOrNull(draft.json);
   if (draft.outcome !== "ok" || typeof item?.id !== "string")
     return {
       ok: false,
@@ -243,25 +238,16 @@ export async function readGraphDelta(
   );
   if (response.outcome !== "ok")
     return { ok: false, expired: response.status === 410 || /SyncStateNotFound/i.test(response.text), reply: response };
-  const json = response.json as {
-    value?: Array<{
-      id?: unknown;
-      conversationId?: unknown;
-      from?: { emailAddress?: { address?: unknown } };
-      "@removed"?: unknown;
-    }>;
-    "@odata.nextLink"?: unknown;
-    "@odata.deltaLink"?: unknown;
-  } | null;
+  const json = recordOrNull(response.json);
   return {
     ok: true,
-    added: (json?.value ?? [])
-      .filter((v) => typeof v.id === "string" && !v["@removed"])
-      .map((v) => ({
-        id: v.id as string,
-        threadId: typeof v.conversationId === "string" ? v.conversationId : null,
-        from: typeof v.from?.emailAddress?.address === "string" ? v.from.emailAddress.address.toLowerCase() : null,
-      })),
+    added: listOrEmpty(json?.value)
+      .map(recordOrEmpty)
+      .flatMap((v) =>
+        typeof v.id === "string" && !v["@removed"]
+          ? [{ id: v.id, threadId: typeof v.conversationId === "string" ? v.conversationId : null, from: senderOf(v) }]
+          : [],
+      ),
     nextLink: typeof json?.["@odata.nextLink"] === "string" ? json["@odata.nextLink"] : null,
     deltaLink: typeof json?.["@odata.deltaLink"] === "string" ? json["@odata.deltaLink"] : null,
   };
@@ -293,7 +279,7 @@ export async function subscribeGraph(
     },
     deps,
   );
-  const json = response.json as { id?: unknown; expirationDateTime?: unknown } | null;
+  const json = recordOrNull(response.json);
   const exp = typeof json?.expirationDateTime === "string" ? Date.parse(json.expirationDateTime) : NaN;
   if (response.outcome !== "ok" || typeof json?.id !== "string" || !Number.isFinite(exp))
     return { ok: false, reply: response };
@@ -320,7 +306,8 @@ export async function renewGraph(
     },
     deps,
   );
-  const exp = Date.parse((response.json as { expirationDateTime?: string } | null)?.expirationDateTime ?? "");
+  const expires = valueAt(response.json, "expirationDateTime");
+  const exp = Date.parse(typeof expires === "string" ? expires : "");
   if (response.outcome !== "ok" || !Number.isFinite(exp))
     return { ok: false, gone: response.status === 404, reply: response };
   return { ok: true, expiresAt: exp };
@@ -342,7 +329,13 @@ type Listed = {
   internetMessageId?: unknown;
   isDraft?: unknown;
   subject?: unknown;
-  toRecipients?: Array<{ emailAddress?: { address?: unknown } }>;
+  toRecipients?: unknown;
+};
+
+/** The sender's address of a listed message, lower-cased, or null. */
+const senderOf = (message: unknown): string | null => {
+  const address = valueAt(message, "from", "emailAddress", "address");
+  return typeof address === "string" ? address.toLowerCase() : null;
 };
 
 /** A page of messages, as Graph lists them; throws when Graph could not be asked. */
@@ -355,8 +348,7 @@ async function graphList(token: string, path: string, deps?: Deps): Promise<List
   );
   if (response.outcome !== "ok")
     throw new Error(`graph list: ${graphReasonOf(response) ?? response.error ?? response.status}`);
-  const value = (response.json as { value?: unknown } | null)?.value;
-  return Array.isArray(value) ? (value as Listed[]) : [];
+  return listOrEmpty(recordOrNull(response.json)?.value).map(recordOrEmpty);
 }
 
 const odataString = (s: string): string => `'${s.replace(/'/g, "''")}'`;
@@ -399,8 +391,8 @@ export async function findGraphSent(
     !!subject &&
     typeof m.subject === "string" &&
     m.subject.trim().toLowerCase() === subject &&
-    (m.toRecipients ?? []).some((r) => {
-      const address = r.emailAddress?.address;
+    listOrEmpty(m.toRecipients).some((r) => {
+      const address = valueAt(r, "emailAddress", "address");
       return typeof address === "string" && address.toLowerCase() === to;
     });
   const recent = (field: string) => `$filter=${encodeURIComponent(`${field} ge ${since}`)}&$top=25&${select}`;
@@ -431,14 +423,13 @@ export async function listGraphJunkSince(
   );
   if (response.outcome !== "ok")
     throw new Error(`graph junk: ${graphReasonOf(response) ?? response.error ?? response.status}`);
-  const value = (response.json as { value?: unknown } | null)?.value;
-  return (Array.isArray(value) ? (value as Array<Listed & { from?: { emailAddress?: { address?: unknown } } }>) : [])
-    .filter((v) => typeof v.id === "string")
-    .map((v) => ({
-      id: v.id as string,
-      threadId: typeof v.conversationId === "string" ? v.conversationId : null,
-      from: typeof v.from?.emailAddress?.address === "string" ? v.from.emailAddress.address.toLowerCase() : null,
-    }));
+  return listOrEmpty(recordOrNull(response.json)?.value)
+    .map(recordOrEmpty)
+    .flatMap((v) =>
+      typeof v.id === "string"
+        ? [{ id: v.id, threadId: typeof v.conversationId === "string" ? v.conversationId : null, from: senderOf(v) }]
+        : [],
+    );
 }
 
 export async function unsubscribeGraph(token: string, id: string, deps?: Deps): Promise<ProviderReply> {

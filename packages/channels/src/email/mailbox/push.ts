@@ -6,7 +6,7 @@
  * signature or its clientState is checked; what a push says is only "read this mailbox now": the sync reads the rest.
  */
 import { createHash, timingSafeEqual } from "node:crypto";
-import { HOUR_MS } from "@chanlytics/contracts";
+import { HOUR_MS, listOrEmpty, recordOrEmpty, recordOrNull, valueAt } from "@chanlytics/contracts";
 import { fetchFromProvider } from "../../shared/provider-fetch";
 import { unb64url } from "../../google/oauth";
 
@@ -21,7 +21,10 @@ const CERTS_READ_MS = 5_000;
 /** The clock's slack on a token's times. */
 const SKEW_S = 300;
 
-type Jwk = JsonWebKey & { kid?: string };
+type Jwk = JsonWebKey & { kid: string };
+
+/** A key as Google lists one: named, and of a kind; the rest is the platform's to refuse when the key is imported. */
+const isJwk = (k: unknown): k is Jwk => typeof valueAt(k, "kid") === "string" && typeof valueAt(k, "kty") === "string";
 let keys: { at: number; until: number; byKid: Map<string, Jwk> } | null = null;
 
 const utf8 = new TextDecoder();
@@ -35,10 +38,14 @@ async function googleKeys(now: number, deps?: Deps, fresh = false): Promise<Map<
     { timeoutMs: CERTS_READ_MS, idempotent: true, tries: 2 },
     deps,
   );
-  const list = (fromProvider.json as { keys?: Jwk[] } | null)?.keys;
+  const list = valueAt(fromProvider.json, "keys");
   if (fromProvider.outcome !== "ok" || !Array.isArray(list)) return keys?.byKid ?? null;
   const maxAge = Number(/max-age=(\d+)/.exec(fromProvider.headers?.get("cache-control") ?? "")?.[1]);
-  const byKid = new Map(list.filter((k) => typeof k.kid === "string").map((k) => [k.kid as string, k]));
+  const byKid = new Map(
+    listOrEmpty(list)
+      .filter(isJwk)
+      .map((k) => [k.kid, k]),
+  );
   keys = { at: now, until: now + (Number.isFinite(maxAge) && maxAge > 0 ? maxAge * 1000 : KEYS_KEPT_MS), byKid };
   return byKid;
 }
@@ -65,8 +72,8 @@ export async function verifyGooglePushToken(
   let header: { alg?: unknown; kid?: unknown };
   let claims: { iss?: unknown; aud?: unknown; exp?: unknown; iat?: unknown; email?: unknown; email_verified?: unknown };
   try {
-    header = JSON.parse(utf8.decode(unb64url(head))) as typeof header;
-    claims = JSON.parse(utf8.decode(unb64url(body))) as typeof claims;
+    header = recordOrEmpty(JSON.parse(utf8.decode(unb64url(head))));
+    claims = recordOrEmpty(JSON.parse(utf8.decode(unb64url(body))));
   } catch {
     return { ok: false, why: "malformed" };
   }
@@ -97,10 +104,10 @@ export async function verifyGooglePushToken(
 
 /** A Gmail push's message: the mailbox that changed, and its history id then. Null for a body that is not one. */
 export function gmailPushOf(body: unknown): { address: string; historyId: string | null } | null {
-  const data = (body as { message?: { data?: unknown } } | null)?.message?.data;
+  const data = valueAt(body, "message", "data");
   if (typeof data !== "string" || !data) return null;
   try {
-    const m = JSON.parse(utf8.decode(unb64url(data))) as { emailAddress?: unknown; historyId?: unknown };
+    const m = recordOrEmpty(JSON.parse(utf8.decode(unb64url(data))));
     if (typeof m.emailAddress !== "string" || !m.emailAddress.includes("@")) return null;
     const h = m.historyId;
     return {
@@ -114,11 +121,11 @@ export function gmailPushOf(body: unknown): { address: string; historyId: string
 
 /** Graph's notifications: each subscription that says it changed, with the clientState it carries. */
 export function graphNotificationsOf(body: unknown): Array<{ subscriptionId: string; clientState: string | null }> {
-  const value = (body as { value?: unknown } | null)?.value;
+  const value = recordOrNull(body)?.value;
   if (!Array.isArray(value)) return [];
   const out: Array<{ subscriptionId: string; clientState: string | null }> = [];
-  for (const n of value as Array<{ subscriptionId?: unknown; clientState?: unknown }>)
-    if (typeof n?.subscriptionId === "string" && n.subscriptionId)
+  for (const n of value.map(recordOrEmpty))
+    if (typeof n.subscriptionId === "string" && n.subscriptionId)
       out.push({
         subscriptionId: n.subscriptionId,
         clientState: typeof n.clientState === "string" ? n.clientState : null,

@@ -18,6 +18,7 @@ import {
   type PersonCampaignDto,
   type RecipientState,
   type RunAnswer,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { readAllRows } from "@chanlytics/db/shared";
 import { runCounts } from "@chanlytics/db/reports";
@@ -193,7 +194,7 @@ async function consentEventsOf(
       since,
     );
     if (error) throw new Error(error.message);
-    for (const e of (data ?? []) as { id: string; subject_id: string | null; data: unknown; created_at: string }[]) {
+    for (const e of data ?? []) {
       if (e.subject_id) out.push({ id: e.id, contactId: e.subject_id, at: e.created_at, data: e.data });
     }
   }
@@ -350,7 +351,7 @@ export async function listPersonRuns(
   for (const row of rows) {
     const run = runs.get(row.broadcast_id);
     if (!run) continue;
-    const label = (run.audience as { label?: unknown } | null)?.label;
+    const label = recordOrNull(run.audience)?.label;
     out.push({
       broadcast_id: row.broadcast_id,
       name: run.name,

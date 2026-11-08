@@ -1,3 +1,4 @@
+import { recordOrEmpty, recordOrNull } from "@chanlytics/contracts";
 /**
  * Two answers the provider gives a call, read: what a refusal means for the next send (resendLimitOf), and what it
  * thinks of the mail domain (mailDomainsFrom). The calls themselves are ./email-resend.ts.
@@ -60,12 +61,12 @@ const capabilityOf = (v: unknown): MailCapability => (v === "enabled" || v === "
 
 /** The domains in a list answer; null when the answer is not a list of domains at all, which is not the same as "no domains". */
 export function mailDomainsFrom(body: unknown): MailDomainFacts[] | null {
-  const rows = (body as { data?: unknown } | null)?.data;
+  const rows = recordOrNull(body)?.data;
   if (!Array.isArray(rows)) return null;
   const out: MailDomainFacts[] = [];
   for (const row of rows) {
-    const item = (row ?? {}) as Record<string, unknown>;
-    const caps = (item.capabilities ?? {}) as Record<string, unknown>;
+    const item = recordOrEmpty(row);
+    const caps = recordOrEmpty(item.capabilities);
     if (typeof item.name !== "string" || !item.name) continue;
     out.push({
       name: item.name.trim().toLowerCase(),

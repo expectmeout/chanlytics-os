@@ -20,9 +20,8 @@ import {
   labelsOf,
   listTemplates,
   templateRow,
-  type MetaTemplateComponent,
 } from "./meta-templates.js";
-import type { Json } from "@chanlytics/db/types";
+
 import { logger } from "../shared/log.js";
 import { UUID, NUMBERED_SLOT } from "@chanlytics/contracts";
 import { findWhatsAppAccount } from "@chanlytics/db/channels";
@@ -33,6 +32,7 @@ import {
   saveTemplateRow,
   saveTemplateRows,
 } from "@chanlytics/db/campaigns";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 const NAME = /^[a-z0-9_]{1,512}$/;
 
@@ -70,9 +70,9 @@ export async function createWhatsappTemplate(
   const name = typeof body.name === "string" ? body.name : "";
   const language = typeof body.language === "string" ? body.language : "";
   const category = typeof body.category === "string" ? body.category.toUpperCase() : "";
-  const components = Array.isArray(body.components) ? (body.components as MetaTemplateComponent[]) : null;
+  const components = Array.isArray(body.components) ? body.components : null;
   const text = typeof body.body === "string" ? body.body : null;
-  const examples = Array.isArray(body.examples) ? (body.examples as unknown[]).map(String) : [];
+  const examples = Array.isArray(body.examples) ? body.examples.map(String) : [];
   // The words a person gave each slot, kept on the row so the composers can say them.
   const labels = Array.isArray(body.labels)
     ? body.labels.map((l: unknown) =>
@@ -116,18 +116,18 @@ export async function createWhatsappTemplate(
   }));
   const row = {
     tenant_id: tenantId,
-    channel: "whatsapp",
+    channel: "whatsapp" as const,
     name,
     language,
     meta_status: status,
     category: mapCategory(created.data.category ?? category),
     meta_id: created.data.id,
-    components: components as unknown as Json,
+    components: jsonCopyOf(components),
     body_preview: text,
-    variables: variables as unknown as Json,
+    variables: jsonCopyOf(variables),
     rejected_reason: null,
     synced_at: new Date().toISOString(),
-    source: "chanlytics",
+    source: "chanlytics" as const,
     created_by: userId,
   };
   const { data: saved, error } = await saveTemplateRow(db, tenantId, row);
@@ -293,8 +293,8 @@ export async function syncTemplates(
       tenantId,
       known.map((r) => ({
         ...r,
-        components: r.components as unknown as Json,
-        variables: r.variables as unknown as Json,
+        components: jsonCopyOf(r.components),
+        variables: jsonCopyOf(r.variables),
       })),
     );
     if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
@@ -305,8 +305,8 @@ export async function syncTemplates(
       tenantId,
       fresh.map((r) => ({
         ...r,
-        components: r.components as unknown as Json,
-        variables: r.variables as unknown as Json,
+        components: jsonCopyOf(r.components),
+        variables: jsonCopyOf(r.variables),
         hidden_at: now.toISOString(),
       })),
     );

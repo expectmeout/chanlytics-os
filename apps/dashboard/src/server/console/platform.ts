@@ -51,7 +51,7 @@ import {
   type PlatformPartnerWorkspaceDto,
   type PlatformQueue,
   type PlatformTenantDto,
-  type SweepHealthRow,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import type { BackOffice } from "../shared/back-office";
@@ -106,7 +106,7 @@ export async function getPlatformHealth(office: BackOffice, now = new Date()): P
       () => ({ data: null, error: { message: "unreadable" } }),
     ),
   ]);
-  const rows = (!health.error && Array.isArray(health.data) ? health.data : []) as SweepHealthRow[];
+  const rows = !health.error && Array.isArray(health.data) ? health.data : [];
   const due = !backlog.error && typeof backlog.data === "number" ? backlog.data : null;
   return platformHealthOf(rows, due, now);
 }
@@ -310,7 +310,7 @@ export async function findPlatformPartners(
   return getPlatformPartners(office.session).then(
     (r) => ({
       balances: r.balances,
-      workspaces: r.workspaces.map((w) => ({ ...w, checks: (w.checks ?? null) as Record<string, unknown> | null })),
+      workspaces: r.workspaces.map((w) => ({ ...w, checks: recordOrNull(w.checks) })),
     }),
     () => null,
   );

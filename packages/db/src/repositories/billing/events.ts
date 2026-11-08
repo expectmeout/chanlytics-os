@@ -15,7 +15,7 @@
  * workspace.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;

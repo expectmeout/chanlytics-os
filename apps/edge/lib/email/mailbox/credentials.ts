@@ -17,7 +17,7 @@ import {
   type MailboxRequest,
 } from "@chanlytics/channels/email";
 import { fetchFromProvider } from "@chanlytics/channels/shared";
-import { MIN_MS, type MailboxProvider } from "@chanlytics/contracts";
+import { MIN_MS, type MailboxProvider, recordOrEmpty } from "@chanlytics/contracts";
 import { mailboxClient } from "./config.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -56,7 +56,7 @@ export async function grantOf(
       return { ok: false, why: e instanceof Error ? e.message : String(e), answered: true };
     }
   }
-  const json = (item.json ?? {}) as { error?: unknown; error_description?: unknown };
+  const json = recordOrEmpty(item.json);
   const error = typeof json.error === "string" ? json.error : (item.error ?? `status ${item.status}`);
   return { ok: false, why: error, answered: item.status >= 400 && item.status < 500 };
 }

@@ -23,7 +23,7 @@ import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { findOffersEmailReach, listRunningStepsOn } from "@chanlytics/db/campaigns";
 import { findRehearsalTally } from "@chanlytics/db/facts";
 import { findConfigRow } from "../workspace/config-row";
-import { emailOffersOpen, offerPauseOf, parseTenantConfig, type SetupDto } from "@chanlytics/contracts";
+import { emailOffersOpen, offerPauseOf, parseTenantConfig, type SetupDto, recordOrNull } from "@chanlytics/contracts";
 import { getCalendarWeek } from "../calendar/week/week";
 import { getTeamRoster } from "../workspace/team";
 import { listLines, getLinesStatus } from "../connections/lines";
@@ -71,8 +71,7 @@ async function teamCounts(
  * for, from setup.requested events that arrive newest first (00123).
  */
 export function requestsFrom(rows: ReadonlyArray<{ created_at: string; data: unknown }> | null): SetupDto["requests"] {
-  const newest = (text: string) =>
-    (rows ?? []).find((r) => (r.data as { what?: unknown } | null)?.what === text)?.created_at ?? null;
+  const newest = (text: string) => (rows ?? []).find((r) => recordOrNull(r.data)?.what === text)?.created_at ?? null;
   return {
     line: newest("line"),
     port: newest("port"),

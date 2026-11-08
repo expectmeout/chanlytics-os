@@ -41,6 +41,7 @@ import {
   markLeadRunUnknown,
   releaseLeadRun,
 } from "@chanlytics/db/leads";
+import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
@@ -52,9 +53,8 @@ const SWEEP_DEADLINE_MS = 50_000;
 
 type RunRead = Omit<SweepRunRow, "part" | "collect_scheduled" | "collects_failed"> & { term: string | null };
 /** The kinds of a round's own jobs, read by the round they name. */
-const ROUND_JOB_KINDS = ["lead_round_start", "lead_check"];
+const ROUND_JOB_KINDS: SchemaSet<"jobs.kind">[] = ["lead_round_start", "lead_check"];
 type JobRead = { kind?: string; payload: unknown; state: string; created_at: string };
-type JobRows = { data: JobRead[] | null; error: { message: string } | null };
 
 /** Rows in parts of RUNS_IN_CHUNK ids, one read each: an `.in()` rides the request line. */
 async function inChunks<T>(ids: string[], read: (part: string[]) => Promise<T[]>): Promise<T[]> {
@@ -85,40 +85,28 @@ async function sweepRows(
     // and only the sweep carries it on (00140's trigger_leads_sweep).
     listOpenRounds(db),
   ]);
-  const rounds = rowsOf(open as { data: SweepRoundRow[] | null; error: { message: string } | null });
+  const rounds = rowsOf(open);
   const roundIds = rounds.map((r) => r.id);
-  const ofRounds = await inChunks(roundIds, async (part) =>
-    rowsOf(
-      (await listRunsOfRounds(db, part)) as {
-        data: RunRead[] | null;
-        error: { message: string } | null;
-      },
-    ),
-  );
+  const ofRounds = await inChunks(roundIds, async (part) => rowsOf(await listRunsOfRounds(db, part)));
   const byId = new Map<string, RunRead>();
-  for (const r of [
-    ...rowsOf(live as { data: RunRead[] | null; error: { message: string } | null }),
-    ...rowsOf(leased as { data: RunRead[] | null; error: { message: string } | null }),
-    ...ofRounds,
-  ])
-    byId.set(r.id, r);
+  for (const r of [...rowsOf(live), ...rowsOf(leased), ...ofRounds]) byId.set(r.id, r);
   // These runs' collects, coming, failed for good (a failed row is kept 90 days, 00215) or the sweep's own carry-ons,
   // read for these runs alone, never the ledger's whole history, a part at a time under the gateway's line.
   // A run polls every 15 seconds while it runs, so its finished collects are read only where the sweep wrote them.
-  const collectsOf = (states: string[], part: string[], carriesOnly: boolean) =>
+  const collectsOf = (states: SchemaSet<"jobs.state">[], part: string[], carriesOnly: boolean) =>
     listCollectJobs(db, part, states, carriesOnly);
   const collects = await inChunks([...byId.keys()], async (part) => [
-    ...rowsOf((await collectsOf(["scheduled", "fired", "failed"], part, false)) as JobRows),
-    ...rowsOf((await collectsOf(["done"], part, true)) as JobRows),
+    ...rowsOf(await collectsOf(["scheduled", "fired", "failed"], part, false)),
+    ...rowsOf(await collectsOf(["done"], part, true)),
   ]);
   const roundJobsRead = await inChunks(roundIds, async (part) =>
-    rowsOf((await listRoundJobs(db, part, ROUND_JOB_KINDS, ["scheduled", "fired", "failed", "done"])) as JobRows),
+    rowsOf(await listRoundJobs(db, part, ROUND_JOB_KINDS, ["scheduled", "fired", "failed", "done"])),
   );
   return assemble([...byId.values()], rounds, collects, roundJobsRead);
 }
 
 const payloadOf = (j: JobRead): Record<string, unknown> =>
-  j.payload !== null && typeof j.payload === "object" ? (j.payload as Record<string, unknown>) : {};
+  j.payload !== null && typeof j.payload === "object" ? recordOrEmpty(j.payload) : {};
 const isOpen = (state: string): boolean => state === "scheduled" || state === "fired";
 
 /** The read rows as the planner takes them: each run's part of its round, its collects, and each round's own jobs. */
@@ -203,7 +191,7 @@ function sweepPorts(
     webhookBase: wires.webhookBase,
     webhookToken: wires.webhookToken,
     schedule: async (kind, payload, runAfterSeconds) => {
-      const row = runs.find((r) => r.id === (payload as { run_id?: string }).run_id);
+      const row = runs.find((r) => r.id === payload.run_id);
       if (row)
         await scheduleJobOnce(db, {
           tenantId: row.tenant_id,

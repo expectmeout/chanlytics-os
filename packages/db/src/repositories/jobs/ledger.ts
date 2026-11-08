@@ -5,8 +5,9 @@
  * it came; the runner says its failures in its own words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type JobsUpdate = Database["public"]["Tables"]["jobs"]["Update"];
 type JobsInsert = Database["public"]["Tables"]["jobs"]["Insert"];
@@ -37,7 +38,7 @@ export const insertJobOnce = async (db: Db, row: JobsInsert) => db.from("jobs").
  */
 export const cancelScheduledJobs = async (
   db: Db,
-  params: { tenantId: string; kind: string; payloadKey: string; payloadValue: string },
+  params: { tenantId: string; kind: SchemaSet<"jobs.kind">; payloadKey: string; payloadValue: string },
 ) =>
   db
     .from("jobs")
@@ -63,7 +64,12 @@ export const countLiveBroadcastJobs = async (
     .neq("id", params.besides);
 
 /** The live jobs of `kind` (scheduled or fired) naming any of these messages, with `dueSince` only those due after it. */
-export const listLiveJobsNaming = async (db: Db, kind: string, messageIds: string[], dueSince?: string) => {
+export const listLiveJobsNaming = async (
+  db: Db,
+  kind: SchemaSet<"jobs.kind">,
+  messageIds: string[],
+  dueSince?: string,
+) => {
   const query = db
     .from("jobs")
     .select("payload")

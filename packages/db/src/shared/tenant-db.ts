@@ -16,7 +16,7 @@
  */
 import type { PostgrestQueryBuilder } from "@supabase/postgrest-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../database.types";
+import type { Database } from "../types";
 
 type Db = SupabaseClient<Database>;
 type Tables = Database["public"]["Tables"];

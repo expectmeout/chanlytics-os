@@ -27,6 +27,7 @@ import {
   SKILL_CRAFT_PURPOSES,
   type ModelEffort,
   type SkillCraftPurpose,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { GatewayRefused, streamModel, type GatewayCall } from "./model/gateway";
 
@@ -43,7 +44,7 @@ export const JSON_MODEL = MODEL_ROUTES.lead_json.model;
  */
 const SKILL_MODEL = MODEL_ROUTES.ask.model;
 const isCraft = (purpose: ModelJsonCall["purpose"]): purpose is SkillCraftPurpose =>
-  (SKILL_CRAFT_PURPOSES as readonly string[]).includes(purpose);
+  isOneOf(SKILL_CRAFT_PURPOSES, purpose);
 
 /**
  * The model a purpose asks: the ideas for a new search their own route's (lead_suggest, 00398), a skill's craft call

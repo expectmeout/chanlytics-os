@@ -30,6 +30,8 @@ import {
   type DealReportDto,
   type PersonCameFrom,
   type PersonRowDto,
+  recordOrNull,
+  keysOf,
 } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { findAppointmentWord } from "@chanlytics/db/workspace";
@@ -44,7 +46,7 @@ export async function getAppointmentWord(
   tenantId: string,
 ): Promise<AppointmentWord> {
   const r = await findAppointmentWord(ctx.supabase, tenantId);
-  const word = r.error ? null : (r.data as { appointment_word?: unknown } | null)?.appointment_word;
+  const word = r.error ? null : recordOrNull(r.data)?.appointment_word;
   return appointmentWordOf(typeof word === "string" ? word : null);
 }
 
@@ -90,7 +92,7 @@ export async function findCurrentDeal(
   try {
     const r = await listDealRowsOf(ctx.supabase, tenantId, contactId);
     if (r.error || !r.data) return null;
-    return pickCurrentDeal(r.data as unknown as DealDto[]);
+    return pickCurrentDeal(r.data);
   } catch {
     return null;
   }
@@ -120,7 +122,7 @@ function countByKey<K extends string>(keys: readonly (K | null)[], order: readon
     .sort((a, b) => b.count - a.count || order.indexOf(a.key) - order.indexOf(b.key));
 }
 
-const CAME_FROM_ORDER = Object.keys(PERSON_CAME_FROM_WORDS) as PersonCameFrom[];
+const CAME_FROM_ORDER = keysOf(PERSON_CAME_FROM_WORDS);
 
 /**
  * Reports' Deals numbers (0004, 0008), from one read of the workspace's deals under the member's own RLS. One cohort

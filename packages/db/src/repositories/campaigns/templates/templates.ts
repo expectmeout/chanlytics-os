@@ -20,8 +20,9 @@ import {
   type Holds,
   type OwnVersionChannel,
   type Within,
+  type SchemaSet,
 } from "@chanlytics/contracts";
-import type { Database } from "../../../database.types";
+import type { Database } from "../../../types";
 
 type Db = SupabaseClient<Database>;
 
@@ -79,7 +80,7 @@ type _MessageVersionRowIsACampaignMessageRow = Holds<Within<MessageVersionRow, C
 export async function listTemplates(
   db: Db,
   tenantId: string,
-  channel: string | null = "whatsapp",
+  channel: SchemaSet<"templates.channel"> | null = "whatsapp",
 ): Promise<Array<TemplateRow & Pick<MessageVersionRow, "id" | "channel">>> {
   const ofTenant = db
     .from("templates")
@@ -96,7 +97,11 @@ export async function listTemplates(
  * (contracts bookingTemplate, templateBlocked). `listTemplates` stays the lighter read, for those that only need the
  * row's own columns. A read that fails THROWS, as it does.
  */
-export async function listTemplatesToSend(db: Db, tenantId: string, channel = "whatsapp"): Promise<TemplateToSend[]> {
+export async function listTemplatesToSend(
+  db: Db,
+  tenantId: string,
+  channel: SchemaSet<"templates.channel"> = "whatsapp",
+): Promise<TemplateToSend[]> {
   const { data, error } = await db
     .from("templates")
     .select("name, language, category, meta_status, body_preview, title, variables, components")

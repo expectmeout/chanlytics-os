@@ -143,7 +143,7 @@ function proposedSpecs(
   params: unknown,
   tpl: { name: string; language: string; variables: unknown },
 ): { specs: ParamSpec[] } | { refusal: string } {
-  const given = Array.isArray(params) ? (params as unknown[]) : [];
+  const given = Array.isArray(params) ? params : [];
   if (given.length) return paramSpecsOf(given);
   const specs = defaultParamSpecs({ name: tpl.name, variables: tpl.variables });
   const labels = slotLabels({ name: tpl.name, language: tpl.language, variables: tpl.variables });

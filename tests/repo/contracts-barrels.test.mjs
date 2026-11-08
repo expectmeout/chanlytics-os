@@ -263,9 +263,12 @@ test("export * is written nowhere in a package's or an app's source but a root's
 /** The backend's app trees, where a root is a table of contents; each package's `src` is one too. */
 const BACKEND_TREES = ["apps/dashboard/src/server", "apps/edge/lib"];
 const PACKAGE_SRC = /^packages\/[^/]+\/src(?=\/)/;
-/** What a backend root holds beside its folders. Contracts' own is PLUMBING, above. */
+/**
+ * What a backend root holds beside its folders. Contracts' own is PLUMBING, above. db's `./types` entry is types.ts, the
+ * generated database.types.ts read through the closed sets (decision 0112), with the type test that proves it beside it.
+ */
 const ROOT_ENTRIES = {
-  "packages/db/src": ["realtime.ts", "database.types.ts"],
+  "packages/db/src": ["realtime.ts", "database.types.ts", "types.ts", "types.type-test.ts"],
   "packages/log/src": ["index.ts", "logger.ts", "redact.ts", "request.ts"],
 };
 const isRootEntry = (tree, name) =>

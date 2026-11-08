@@ -10,6 +10,7 @@ import {
   type ResolvedFacts,
   type TenantConfig,
   type RehearsalDto,
+  recordOrEmpty,
   ASK_MEMORY_LIMITS,
   REACH_OUT_DRAFTS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
@@ -65,7 +66,7 @@ export function withHiddenFeed(role: string, incoming: unknown, stored: unknown)
   const storedUrl = (stored as { calendar?: { ical_url?: unknown } } | null)?.calendar?.ical_url;
   const sent = (incoming as { calendar?: { ical_url?: unknown } }).calendar?.ical_url;
   if (typeof storedUrl !== "string" || typeof sent !== "string" || sent !== maskFeedUrl(storedUrl)) return incoming;
-  return { ...(incoming as Record<string, unknown>), calendar: (stored as { calendar: unknown }).calendar };
+  return { ...recordOrEmpty(incoming), calendar: (stored as { calendar: unknown }).calendar };
 }
 
 /**

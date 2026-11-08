@@ -11,12 +11,11 @@ import {
   SECOND_FACTOR_WORDS,
   SESSION_ENDED,
   SERVED_AT_HEADER,
-  type BillingMode,
-  type BillingStatus,
   type ErrorCode,
   type Role,
   type SpendWords,
   UUID,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
@@ -209,7 +208,7 @@ function answerOf<T>(
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
       const undoOfHeader = req.headers.get("x-undo-of");
       const undoOf = undoOfHeader && UUID.test(undoOfHeader) ? undoOfHeader : undefined;
-      const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const metadata = recordOrEmpty(user.user_metadata);
       const live = async (): Promise<SessionLiveness> => {
         // The cookie's client reads its own session; a bearer's is asked over the token the header carried.
         const request = await (bearer ? supabase.auth.getUser(bearer) : supabase.auth.getUser());
@@ -376,7 +375,7 @@ async function resolveMember(
   const row = membership.tenants;
   return {
     tenantId: membership.tenant_id,
-    role: membership.role as MemberContext["role"],
+    role: membership.role,
     ...(typeof row?.timezone === "string" ? { facts: tenantFactsOf(row) } : {}),
     ...(typeof row?.slug === "string" && row.slug ? { slug: row.slug } : {}),
   };
@@ -521,7 +520,7 @@ export async function requireSpend(
   if (error) throw new AppError("internal", "Billing could not be read just now. Try again in a moment.", 503);
   if (!data)
     throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
-  const reason = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus, doing);
+  const reason = whyCannotSpend(data.mode, data.status, doing);
   if (reason) throw new AppError("payment_required", reason, 402);
 }
 
@@ -531,7 +530,7 @@ async function cookieSession() {
   const { data: verified, error } = await supabase.auth.getClaims();
   return {
     supabase,
-    claims: (verified?.claims as Record<string, unknown> | undefined) ?? null,
+    claims: verified?.claims ?? null,
     error: error ?? null,
   };
 }

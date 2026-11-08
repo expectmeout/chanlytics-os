@@ -17,6 +17,7 @@ import {
   type AskSettingsChange,
   type FixChange,
   type ReviewDto,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { keepRehearsalFix, findRehearsalById } from "@chanlytics/db/facts";
 import { listPolicies, putTenantConfig } from "@chanlytics/db/workspace";
@@ -265,7 +266,7 @@ export async function keepRehearsalChange(
   if (!before) throw new AppError("conflict", FIX_WORDS.moved, 409);
   const notes = parseTenantConfig(before.config ?? null)?.brain?.profile?.notes ?? [];
   if (input.change.op === "add_note" && notes.length >= 10) throw new AppError("validation", FIX_WORDS.notesFull);
-  const changed = applySettingsChange((before.config ?? {}) as Record<string, unknown>, input.change);
+  const changed = applySettingsChange(recordOrEmpty(before.config), input.change);
   const parsed = TenantConfigWriteSchema.safeParse(changed);
   if (!parsed.success) {
     log.error("rehearsal_keep_failed", {

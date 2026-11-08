@@ -3,7 +3,7 @@
  * it came; the caller decides what it means.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;

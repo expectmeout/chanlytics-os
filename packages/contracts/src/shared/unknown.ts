@@ -49,6 +49,13 @@ export const recordOrEmpty = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
 /**
+ * A record's own keys, as the record's key type: `Object.keys` answers `string[]` for any object, since an object may
+ * hold more than its type says. For a table the code writes itself (a `Record<K, V>` literal), it holds no more.
+ */
+export const keysOf = <R extends object>(record: R): (keyof R & string)[] =>
+  Object.keys(record) as (keyof R & string)[];
+
+/**
  * Whether a value is a list. A value typed as a list of something keeps that type where this holds, as a stored list
  * read back may not be one: Array.isArray would say yes and make each of its items `any`.
  */
@@ -56,6 +63,17 @@ export const isList = (value: unknown): value is readonly unknown[] => Array.isA
 
 /** A list, or an empty one: its items unread, each for the reader to check. */
 export const listOrEmpty = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+/**
+ * What a value holds at a path, a key of a record or an index of a list at each step, or undefined where a step finds
+ * neither: `valueAt(answer, "messages", 0, "id")`. A provider's answer is read this way, each leaf then checked, so no
+ * shape is told to the checker on the way down.
+ */
+export const valueAt = (value: unknown, ...path: readonly (string | number)[]): unknown =>
+  path.reduce<unknown>(
+    (at, step) => (typeof step === "number" ? listOrEmpty(at)[step] : recordOrEmpty(at)[step]),
+    value,
+  );
 
 /** A plain object (never an array), as a type guard: what a provider's JSON is read from, field by field. */
 export const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
@@ -73,3 +91,32 @@ export const lineOrNull = (text: string | null | undefined): string | null => {
   const t = (text ?? "").replace(/[\r\n]+/g, " ").trim();
   return t ? t.slice(0, 200) : null;
 };
+
+/**
+ * A value kept on globalThis under a registered symbol, so every copy of a module sees one: core and jobs inline their
+ * own copies of db and channels, and a port, a breaker or a test's stand-in handed to one copy would be unseen by the
+ * others. Each kept its own `globalThis as { [SLOT]?: T }`, the checker told the slot's type at every read (decision
+ * 0112); the slot says it here, once.
+ */
+/** One slot: what it holds, `set` (answering what it held before, to put back), and `keep` (made once, then kept). */
+export interface GlobalSlot<T> {
+  get(): T | undefined;
+  set(value: T | undefined): T | undefined;
+  keep(make: () => T): T;
+}
+
+/** The slot `Symbol.for(key)` names. Its type is the caller's word: one key is read by one module and its copies. */
+export function globalSlot<T>(key: string): GlobalSlot<T> {
+  const symbol = Symbol.for(key);
+  // globalThis has no index signature; the slot is ours alone, so what it holds is what `set` and `keep` put there.
+  const holder = globalThis as { [slot: symbol]: T | undefined };
+  return {
+    get: () => holder[symbol],
+    set: (value) => {
+      const before = holder[symbol];
+      holder[symbol] = value;
+      return before;
+    },
+    keep: (make) => (holder[symbol] ??= make()),
+  };
+}

@@ -16,8 +16,16 @@
  * (recordSystemDecision), so a missed day's run waits on nobody (the wiring's second audit, S7-3).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_TIMEZONE, RUN_GOING_STATES, isReachOutRun } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import {
+  DEFAULT_TIMEZONE,
+  RUN_GOING_STATES,
+  isReachOutRun,
+  type SchemaSet,
+  type BroadcastState,
+  recordOrNull,
+  isOneOf,
+} from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
 import { runWaitingCounts } from "./reach-out/sheet";
 
@@ -69,7 +77,7 @@ export async function listStrandedRuns(
   if (jobs.error) throw new Error(`stranded runs: cannot read their jobs: ${jobs.error.message}`);
   const live = new Set(
     (jobs.data ?? []).map((j) => {
-      const id = (j.payload as { broadcast_id?: unknown } | null)?.broadcast_id;
+      const id = recordOrNull(j.payload)?.broadcast_id;
       return typeof id === "string" ? id : "";
     }),
   );
@@ -123,7 +131,7 @@ export interface WaitingPlaybookRun {
   id: string;
   tenant_id: string;
   name: string;
-  state: string;
+  state: BroadcastState;
   playbook_id: string;
   /** The day it was made for; null for a freed time's batch, which has none (decision 0082). */
   run_for: string | null;
@@ -186,7 +194,7 @@ export async function listWaitingPlaybookRuns(db: Db, params: { limit: number })
  */
 export async function cancelBroadcastFrom(
   db: Db,
-  params: { tenantId: string; id: string; from: string },
+  params: { tenantId: string; id: string; from: SchemaSet<"sequence_batches.state"> },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_batches")
@@ -202,7 +210,13 @@ export async function cancelBroadcastFrom(
 /** A decision the system made, with nobody's hand on it (actor_type `system`): its id. Throws when it cannot be written. */
 export async function recordSystemDecision(
   db: Db,
-  params: { tenantId: string; subjectType: string; subjectId: string; verb: string; payload: Json },
+  params: {
+    tenantId: string;
+    subjectType: SchemaSet<"decisions.subject_type">;
+    subjectId: string;
+    verb: SchemaSet<"decisions.verb">;
+    payload: Json;
+  },
 ): Promise<string> {
   const { data, error } = await db
     .from("decisions")
@@ -225,7 +239,7 @@ export async function recordSystemDecision(
 export interface WaitingRunRow {
   id: string;
   name: string;
-  state: string;
+  state: BroadcastState;
   playbook_id: string | null;
   run_for: string | null;
   audience: unknown;
@@ -304,7 +318,7 @@ export async function getHeldSends(db: Db, tenantId: string, ids: readonly strin
 export interface GoingRunRow {
   id: string;
   name: string;
-  state: string;
+  state: BroadcastState;
   playbook_id: string | null;
   scheduled_for: string | null;
   recipient_count: number;
@@ -345,9 +359,7 @@ export async function listRunsNamed(db: Db, tenantId: string, ids: readonly stri
     .in("id", [...ids]);
   if (error) throw new Error(`cannot read the runs the notices name: ${error.message}`);
   const rows = data ?? [];
-  const reaching = rows.filter(
-    (r) => isReachOutRun(r.audience) && (RUN_GOING_STATES as readonly string[]).includes(r.state),
-  );
+  const reaching = rows.filter((r) => isReachOutRun(r.audience) && isOneOf(RUN_GOING_STATES, r.state));
   const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
   return rows.map((r) => {
     const w = waiting?.get(r.id);

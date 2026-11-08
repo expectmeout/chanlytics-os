@@ -36,8 +36,8 @@
  * Cross-workspace: only listReachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { conversationPatch, type SchemaSet } from "@chanlytics/contracts";
-import type { Database, Json } from "../../../database.types";
+import { conversationPatch, type SchemaSet, recordOrEmpty } from "@chanlytics/contracts";
+import type { Database, Json } from "../../../types";
 import { mailboxCapacityFrom, type MailboxCapacity } from "./email-day";
 import { getErasureDigests } from "../../people/pages";
 import { isMissingFunction } from "../../../shared/missing-door";
@@ -100,15 +100,10 @@ export async function getOutreachFacts(
     // the followers leave the lead out, both in SQL.
     stopped: outreachFacts.stopped === true,
     mailbox:
-      outreachFacts.mailbox &&
-      typeof outreachFacts.mailbox === "object" &&
-      typeof (outreachFacts.mailbox as { id?: unknown }).id === "string"
+      outreachFacts.mailbox && typeof outreachFacts.mailbox === "object" && typeof outreachFacts.mailbox.id === "string"
         ? {
-            id: (outreachFacts.mailbox as { id: string }).id,
-            address:
-              typeof (outreachFacts.mailbox as { address?: unknown }).address === "string"
-                ? (outreachFacts.mailbox as { address: string }).address
-                : "",
+            id: outreachFacts.mailbox.id,
+            address: typeof outreachFacts.mailbox.address === "string" ? outreachFacts.mailbox.address : "",
             ...mailboxCapacityFrom(outreachFacts.mailbox),
           }
         : null,
@@ -206,7 +201,7 @@ export async function findReachOutReply(
   });
   if (error && isMissingFunction(error)) return null;
   if (error) throw new Error(`cannot read whose reply this is: ${error.message}`);
-  const value = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  const value = data && typeof data === "object" && !Array.isArray(data) ? recordOrEmpty(data) : null;
   const sendId = textOf(value?.send_id);
   const leadId = textOf(value?.lead_id);
   const conversationId = textOf(value?.conversation_id);
@@ -298,7 +293,7 @@ export async function markReplyDraft(
     p_state: params.state,
     p_draft: params.draft,
     p_why: params.why,
-  } as never);
+  });
   if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
   return data === true;
 }
@@ -331,7 +326,7 @@ export async function applyReplyReading(
     p_days: params.days,
   });
   if (error) throw new Error(`cannot apply the reply's reading: ${error.message}`);
-  const value = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  const value = recordOrEmpty(data);
   return value.applied === true;
 }
 
@@ -474,7 +469,7 @@ export async function listRepliesFor(
   ]);
   if (leads.error) throw new Error(`cannot read the replies' leads: ${leads.error.message}`);
   if (sends.error) throw new Error(`cannot read the replies' emails: ${sends.error.message}`);
-  const business = new Map((leads.data ?? []).map((l) => [l.id, l.business_name as string | null]));
+  const business = new Map((leads.data ?? []).map((l) => [l.id, l.business_name]));
   const step = new Map((sends.data ?? []).map((s) => [s.id, s]));
   return rows.map(({ lead_id, send_id, ...r }) => ({
     ...r,

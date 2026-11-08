@@ -102,7 +102,7 @@ async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNot
       (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
     );
   if (error) return null;
-  return ((data ?? []) as { member_user_id: string; display_name: string | null; email: string | null }[]).map((m) => ({
+  return (data ?? []).map((m) => ({
     id: m.member_user_id,
     name: memberWords(m).name,
     me: m.member_user_id === ctx.userId,
@@ -133,7 +133,7 @@ export async function getPersonNotes(
   }
   const names = new Map((team ?? []).map((m) => [m.id, m.name]));
   return {
-    notes: ((rows.data ?? []) as NoteRow[]).map((n) => toNoteDto(n, names, ctx.userId)),
+    notes: (rows.data ?? []).map((n) => toNoteDto(n, names, ctx.userId)),
     ...(team ? { team } : {}),
   };
 }

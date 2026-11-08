@@ -40,7 +40,7 @@
  */
 import { logger } from "@chanlytics/log";
 
-import { jittered } from "@chanlytics/contracts";
+import { jittered, recordOrEmpty, globalSlot, valueAt } from "@chanlytics/contracts";
 
 /** Every provider a call leaves for: the breaker keeps one state per name. */
 const PROVIDER_NAMES = [
@@ -132,14 +132,16 @@ interface Breaker {
   openUntil: number;
 }
 /** One state for the process: a registered symbol, so every inlined copy of this module reads and writes the same. */
-const BREAKER_SLOT: unique symbol = Symbol.for("chanlytics.provider-breakers");
+
 interface Breakers {
   held: Map<Provider, Breaker>;
   /** How many times each provider's breaker has opened in this instance, kept when it closes: the outage's count. */
   opened: Map<Provider, number>;
 }
-const breakerHolder = globalThis as { [BREAKER_SLOT]?: Breakers };
-const breakers: Breakers = (breakerHolder[BREAKER_SLOT] ??= { held: new Map(), opened: new Map() });
+const breakers = globalSlot<Breakers>("chanlytics.provider-breakers").keep(() => ({
+  held: new Map(),
+  opened: new Map(),
+}));
 const breakerMap = breakers.held;
 const breakerLog = logger();
 
@@ -194,8 +196,9 @@ function outcomeOfStatus(status: number): SendOutcome {
 function outcomeOfThrow(e: unknown): { outcome: SendOutcome; error: string } {
   const err = e instanceof Error ? e : new Error(String(e));
   if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
-  const cause = (err as { cause?: { code?: unknown } }).cause;
-  const code = typeof cause?.code === "string" ? cause.code : (err as { code?: unknown }).code;
+  const cause = err.cause;
+  const causeCode = valueAt(cause, "code");
+  const code = typeof causeCode === "string" ? causeCode : valueAt(err, "code");
   const words =
     typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
   return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words };
@@ -359,6 +362,6 @@ export async function fetchFromProvider(
 /** An answer's JSON as an object, or null: what most adapters read. */
 export function answerObject(providerReply: ProviderReply): Record<string, unknown> | null {
   return providerReply.json !== null && typeof providerReply.json === "object" && !Array.isArray(providerReply.json)
-    ? (providerReply.json as Record<string, unknown>)
+    ? recordOrEmpty(providerReply.json)
     : null;
 }

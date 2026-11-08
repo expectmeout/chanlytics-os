@@ -5,7 +5,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SCHEMA_SETS } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
+import { asJson } from "../../shared/json";
 
 type Db = SupabaseClient<Database>;
 
@@ -40,7 +41,7 @@ export async function keepProviderEvent(db: Db, keptDelivery: KeptDelivery): Pro
   const { error } = await db
     .from("provider_events")
     .upsert(
-      { ...keptDelivery, headers: keptDelivery.headers as Json, verified: true },
+      { ...keptDelivery, headers: asJson(keptDelivery.headers), verified: true },
       { onConflict: "provider,provider_event_id", ignoreDuplicates: true },
     );
   return { error: error?.message ?? null };

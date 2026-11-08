@@ -7,7 +7,7 @@ import { FALLBACK_DEFAULTS, isProductFallback } from "../workspace-config/fallba
 import { notesInForce } from "../workspace-config/compose";
 import { closureDatesLabel } from "../../calendar/words/labels";
 import { CHIPS_SHOWN, chipsMoreWords, count } from "./counts";
-import { isList } from "../../shared/unknown";
+import { isList, keysOf } from "../../shared/unknown";
 
 /* ---- How it answers ---- */
 
@@ -195,7 +195,7 @@ export interface FallbacksWordsVM {
 export function fallbacksWords(
   fallbacks: Partial<Record<keyof typeof FALLBACK_DEFAULTS, string | null>> | null | undefined,
 ): FallbacksWordsVM {
-  const keys = Object.keys(FALLBACK_DEFAULTS) as (keyof typeof FALLBACK_DEFAULTS)[];
+  const keys = keysOf(FALLBACK_DEFAULTS);
   const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
   const differ = keys.filter((k) => {
     const t = typeof f[k] === "string" ? f[k].trim() : "";

@@ -16,7 +16,7 @@
  * accounts cannot be read. Its lines carry `sweep: "instagram_tokens"`, and the tick ends in one ig_tokens_swept.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DAY_MS } from "@chanlytics/contracts";
+import { DAY_MS, recordOrEmpty } from "@chanlytics/contracts";
 import {
   callInstagram,
   instagramErrorOf,
@@ -53,7 +53,7 @@ const tokenRefused = (status: number, code: number | null): boolean => code === 
 
 /** The workspace told once that its account must be connected again: its row is the Connections row's to say too. */
 async function tellLapsed(db: Db, row: InstagramAccountRow, log: Logger): Promise<void> {
-  const config = (row.config ?? {}) as { username?: unknown };
+  const config = recordOrEmpty(row.config);
   const handle =
     typeof config.username === "string" && config.username ? `@${config.username}` : "Your Instagram account";
   const target = await loadTenantNotifications(db, row.tenant_id);

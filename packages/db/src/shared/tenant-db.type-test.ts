@@ -7,7 +7,7 @@
  * reaches it and nothing runs it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../database.types";
+import type { Database } from "../types";
 import { tenantDb } from "./tenant-db";
 
 declare const db: SupabaseClient<Database>;

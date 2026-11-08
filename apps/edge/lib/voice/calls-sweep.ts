@@ -67,7 +67,6 @@ import {
   getCall,
   normalizeCall,
   callSummaryLine,
-  type NormalizedCall,
   type RetellCall,
   type RetellCallRead,
 } from "@chanlytics/channels/voice";
@@ -390,7 +389,7 @@ async function writeMissingNotes(db: ProviderLeg["db"], log: Logger) {
     notes.candidates++;
     const line = callSummaryLine({
       direction: row.direction === "outbound" ? "outbound" : "inbound",
-      status: row.status as NormalizedCall["status"],
+      status: row.status,
       durationMs: row.duration_ms,
       summary: row.summary,
       inVoicemail: row.in_voicemail,

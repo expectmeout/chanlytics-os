@@ -4,7 +4,9 @@
  * dedupe; everything else is plain row work.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
 import { resolvePerson } from "../people/people";
+import { readAnswer } from "../../shared/read-json";
 import { withdrawAiDrafts } from "../conversations/control";
 import {
   conversationPatch,
@@ -14,7 +16,7 @@ import {
   type PurposeBearing,
   HOUR_MS,
 } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
 import { dbLog } from "../../shared/observe";
 import { noChannelColumns, noRelationshipColumn } from "../campaigns/channels";
@@ -84,6 +86,19 @@ export interface IngestResult {
   dnc?: boolean | null;
 }
 
+/** What ingest_inbound answers, as IngestResult says it. */
+const IngestAnswer: z.ZodType<IngestResult> = z.object({
+  message_id: z.string(),
+  conversation_id: z.string(),
+  contact_id: z.string(),
+  is_new: z.boolean(),
+  processed: z.boolean(),
+  state: z.string(),
+  paused_until: z.string().nullable(),
+  consent: z.string().nullable().optional(),
+  dnc: z.boolean().nullable().optional(),
+});
+
 /**
  * They have said stop, and it stands: a yes to offers that arrives now is not recorded (stoppedNow, read from the
  * ingest's own answer, which is the row after this message was applied). The way back in from a STOP is START, never
@@ -110,9 +125,9 @@ export async function ingestInbound(db: Db, inboundParams: IngestInboundParams):
     p_meta: inboundParams.meta ?? {},
     p_opt_out: inboundParams.optOut ?? false,
     p_opt_in: inboundParams.optIn ?? false,
-  } as never);
+  });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
-  const out = data as unknown as IngestResult;
+  const out = readAnswer("ingest_inbound", IngestAnswer, data);
 
   if (!out?.contact_id) return out;
 
@@ -233,11 +248,11 @@ async function keepOffersYes(db: Db, inboundParams: IngestInboundParams, out: In
     message_external_id: inboundParams.messageExternalId,
     words: (inboundParams.body ?? "").slice(0, 80) || null,
   };
-  let { error } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence } as never);
+  let { error } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence });
   // A database that has not been given 00110 yet has no p_evidence, and PostgREST refuses the call by naming the
   // parameters it could not match. The answer is recorded without its proof rather than not at all; any other refusal is
   // the caller's.
-  if (error && /p_evidence/.test(error.message)) ({ error } = await db.rpc("set_marketing_consent", args as never));
+  if (error && /p_evidence/.test(error.message)) ({ error } = await db.rpc("set_marketing_consent", args));
   if (error) throw new Error(error.message);
 }
 

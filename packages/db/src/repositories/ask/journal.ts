@@ -5,8 +5,8 @@
  * workspace's day and writes none of its rows.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, recordOrNull } from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
@@ -136,6 +136,6 @@ export async function keepAskJournal(
     p_rows_read: params.failed ? -1 : params.rowsRead,
   });
   if (error) throw new Error(`ask_journal_write keep: ${error.message}`);
-  const refused = (data as { error?: unknown } | null)?.error;
+  const refused = recordOrNull(data)?.error;
   return { refused: typeof refused === "string" ? refused : null };
 }

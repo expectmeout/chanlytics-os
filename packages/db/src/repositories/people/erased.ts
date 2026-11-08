@@ -4,7 +4,7 @@
  * failure in its words ("we could not check" is not "nobody").
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

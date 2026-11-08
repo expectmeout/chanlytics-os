@@ -4,8 +4,9 @@
  * ever fetched. The edge's sync (lib/email/mailbox/sync.ts) asks these as the service role.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import type { MailboxConnectionRow } from "./connections";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -129,7 +130,7 @@ export async function keepOwnerEmail(
     p_reasons: [...params.settles],
   });
   if (error) throw new Error(`cannot keep the owner's email: ${error.message}`);
-  const out = (data ?? {}) as { kept?: unknown; why?: unknown; resolved?: unknown };
+  const out = recordOrEmpty(data);
   if (out.kept === true) return { kept: true, resolved: typeof out.resolved === "number" ? out.resolved : 0 };
   return { kept: false, why: out.why === "already" ? "already" : "not_known" };
 }

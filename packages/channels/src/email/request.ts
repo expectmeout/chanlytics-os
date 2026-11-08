@@ -28,6 +28,7 @@ import {
   linkifyEscaped,
   posesAsReply,
   replySubject,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { messageIdHeader, oneLine } from "./header-values";
 
@@ -286,7 +287,7 @@ export function buildEmailRequest(emailRequestInput: EmailRequestInput): EmailRe
 /** Is this stored value a request the wire may send? The row's meta is JSON; the wire trusts its shape, not its type. */
 export function isEmailRequest(value: unknown): value is EmailRequest {
   if (!value || typeof value !== "object") return false;
-  const item = value as Record<string, unknown>;
+  const item = recordOrEmpty(value);
   const strings = (x: unknown): x is string[] =>
     Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
   return (

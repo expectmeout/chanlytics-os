@@ -457,7 +457,7 @@ export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./shared/
 export { sumOf } from "./shared/numbers";
 export { areaCodeOf, E164, formatPhoneDisplay, formatPhoneLocal, FORWARD_IS_HANDOFF, HANDOFF_FORWARDS_BACK, handoffE164, normalizePhone, phoneAsWritten, phoneDialable, phoneTail, samePhone, shortCode, US_AREA_CODE, whyNotAHandoff, whyNotAPhone, whyNotForward } from "./shared/phone";
 export { agoShort, agoWords, dateFormat, DAY_MS, HOUR_MS, jittered, MIN_MS, SECOND_MS, spanLabel, spanUnits, timezoneCity, VIEW_CHANGE_MS, waitedLabel, WEEK_MS, isoMs, numberFormat } from "./shared/time";
-export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull, entryOf, isCount, isList, isObjectRecord, isOneOf, listOrEmpty, recordOrEmpty, textOrEmpty } from "./shared/unknown";
+export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull, entryOf, globalSlot, isCount, isList, isObjectRecord, isOneOf, keysOf, listOrEmpty, recordOrEmpty, textOrEmpty, valueAt } from "./shared/unknown";
 export { clipAtWord, ANSWER_JSON_ONLY, CONTROL_CHARS, NUMBERED_SLOT, plural, TRY_AGAIN_IN_A_MINUTE, VOICE_IS_OFF, capitalize, joinWords, possessive } from "./shared/words";
 export { DAY_KEY, dayKeyNamed, dayWordIn, isDayKey, mondayOf, monthLabelOf, monthSpan, onOrAfter, shiftKey, shiftMonth, weekdayNamed, zoneMidnight } from "./shared/zone/day-keys";
 export { clockInZone, dayInZone, dayPlusInZone, localToUtcMs, usableZone, WEEKDAY_KEYS, zoneOffsetMs, zoneParts } from "./shared/zone/math";

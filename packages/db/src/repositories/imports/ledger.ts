@@ -6,9 +6,11 @@
  * on a workspace's table goes through `tenantDb`, so none can reach another workspace's row.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 
+import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
+import { asJson } from "../../shared/json";
 type Db = SupabaseClient<Database>;
 
 /** One source's row, as the page reads it (contracts imports/ledger.ts ImportRowDto). */
@@ -72,7 +74,7 @@ export async function noteImport(db: Db, importNote: ImportNote): Promise<void> 
     p_tenant_id: importNote.tenantId,
     p_source: importNote.source,
     p_state: importNote.state,
-    p_counts: (importNote.counts ?? {}) as Json,
+    p_counts: asJson(importNote.counts ?? {}),
     p_add: importNote.add ?? false,
     p_parts_done: importNote.partsDone ?? undefined,
     p_parts_total: importNote.partsTotal ?? undefined,
@@ -97,9 +99,7 @@ export interface ImportRunRow {
 
 /** The mailbox a row's cursor names, as the parts write it; null where it names none. */
 const namedIn = (cursor: unknown): unknown =>
-  cursor && typeof cursor === "object" && !Array.isArray(cursor)
-    ? (cursor as Record<string, unknown>).connection
-    : null;
+  cursor && typeof cursor === "object" && !Array.isArray(cursor) ? recordOrEmpty(cursor).connection : null;
 
 /**
  * A source's row, as the part that reads it next finds it: the mailbox's own (for what a mailbox brings), else the row
@@ -109,7 +109,7 @@ const namedIn = (cursor: unknown): unknown =>
 export async function importRowOf(
   db: Db,
   tenantId: string,
-  source: string,
+  source: SchemaSet<"imports.source">,
   connectionId: string | null = null,
 ): Promise<ImportRunRow | null> {
   const result = tenantDb(db, tenantId)
@@ -140,7 +140,7 @@ export async function importRowOf(
 export async function importCursorOf(
   db: Db,
   tenantId: string,
-  source: string,
+  source: SchemaSet<"imports.source">,
   connectionId: string | null = null,
 ): Promise<Json | null> {
   return (await importRowOf(db, tenantId, source, connectionId))?.job_cursor ?? null;

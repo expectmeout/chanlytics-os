@@ -6,8 +6,10 @@ import {
   type NameableContact,
   type PersonDecisionDto,
   type PersonRowDto,
+  recordOrEmpty,
+  recordOrNull,
 } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { readAllRowsByKey } from "../../shared/paged";
 import { listThreadsBy } from "./waiting-on-you";
 import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";
@@ -76,7 +78,7 @@ export async function listPersonDecisions(
     .order("id", { ascending: false })
     .limit(PERSON_DECISIONS);
   if (error) throw new Error(`person decisions: ${error.message}`);
-  return (data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null }));
+  return (data ?? []).map((d) => ({ ...d, payload: recordOrNull(d.payload) }));
 }
 
 /**
@@ -380,13 +382,12 @@ export async function findKeptPerson(db: Db, tenantId: string, contactId: string
  * committed by then, and the route answers that something went wrong, never a page with nobody on it.
  */
 function mergedOf(value: unknown): MergedPeople {
-  const otherValue =
-    value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  const otherValue = recordOrEmpty(value);
   const word = (k: string): string => (typeof otherValue[k] === "string" ? otherValue[k] : "");
   if (!word("contact_id") || !word("merged")) throw new Error("merge_people answered without the two records");
   const counts =
     otherValue.counts && typeof otherValue.counts === "object" && !Array.isArray(otherValue.counts)
-      ? (otherValue.counts as Record<string, unknown>)
+      ? recordOrEmpty(otherValue.counts)
       : {};
   const out: Record<string, number | string> = {};
   for (const [k, n] of Object.entries(counts)) if (typeof n === "number" || typeof n === "string") out[k] = n;
@@ -416,7 +417,7 @@ export interface PersonNameAnswer {
 
 /** A door's answer read key by key; the first of `doneKeys` that is true says it was done. */
 function nameAnswerOf(v: unknown, doneKey: "named" | "undone" | "declined"): PersonNameAnswer {
-  const o = v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  const o = recordOrEmpty(v);
   return {
     done: o[doneKey] === true,
     name: typeof o.name === "string" ? o.name : null,
@@ -452,7 +453,7 @@ export async function declinePersonName(db: Db, personId: string, messageId: str
 export async function joinPersonToLead(db: Db, personId: string, leadId: string): Promise<{ leadId: string }> {
   const { data, error } = await db.rpc("person_join_lead", { p_contact_id: personId, p_lead_id: leadId });
   if (error) throw error;
-  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  const o = recordOrEmpty(data);
   return { leadId: typeof o.lead_id === "string" ? o.lead_id : leadId };
 }
 
@@ -460,6 +461,6 @@ export async function joinPersonToLead(db: Db, personId: string, leadId: string)
 export async function leavePersonLead(db: Db, personId: string): Promise<{ left: boolean }> {
   const { data, error } = await db.rpc("person_leave_lead", { p_contact_id: personId });
   if (error) throw error;
-  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  const o = recordOrEmpty(data);
   return { left: o.left === true };
 }

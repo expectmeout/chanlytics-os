@@ -23,7 +23,6 @@ import {
   reviewLinkOf,
   isWorkspacePaused,
 } from "@chanlytics/db/campaigns";
-import type { Json } from "@chanlytics/db/types";
 import type {
   ApproveRunPorts,
   AssemblePorts,
@@ -40,6 +39,7 @@ import { getStoredConfig } from "../workspace/config-row";
 import { serviceDb } from "../shared/service-db";
 import { getTenantFacts } from "../shared/tenant";
 import { getChannelsReady, findChannelsReadyOrNull, findWhatsappHealth } from "./channels-ready";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {
   return {
@@ -84,7 +84,7 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
               ? {
                   list: {
                     token: row.audience.list.token,
-                    rule: row.audience.list.rule as Json,
+                    rule: jsonCopyOf(row.audience.list.rule),
                     counted_at: row.audience.list.counted_at,
                   },
                 }

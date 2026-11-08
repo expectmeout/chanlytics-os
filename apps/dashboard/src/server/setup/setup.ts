@@ -21,14 +21,11 @@ import {
   WORKSPACE_MARKS,
   type SetupWorkspaceChoicesDto,
   type SetupDto,
-  type CapabilityKind,
   IMPORT_SOURCES,
   BUSINESS_READ_SOURCES,
   businessReadFactsOf,
-  type BusinessReadSource,
   IMPORT_STATES,
-  type ImportSource,
-  type ImportState,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { dbRefusal } from "@/server/shared/with-route";
 import { requestsFrom, setupReads, type SetupViewer } from "./channel-rows";
@@ -173,7 +170,7 @@ function teamSection(team: SetupReads["team"], cfg: SetupConfig["cfg"]): SetupDt
       "members" in team && Array.isArray(team.members)
         ? team.members.filter((m) => m.role !== "partner").length
         : (team as { members: number }).members,
-    invitesOpen: "invites" in team ? team.invites.length : (team as { invitesOpen: number }).invitesOpen,
+    invitesOpen: "invites" in team ? team.invites.length : team.invitesOpen,
     alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
     // The partner who sits on the team (0012), by the name the roster already carries: on the member's own
     // read only. The back office reads counts, never the roster, so its team stays three numbers.
@@ -256,8 +253,8 @@ function billingSection({ billingRow, billingReady }: SetupReads): SetupDto["bil
 /** The ledger's rows, as contracts' closed sets read them: a source or state the page does not know is left out. */
 function importsSection(rows: NonNullable<SetupReads["imports"]>): NonNullable<SetupDto["imports"]> {
   return rows.flatMap((r) =>
-    (IMPORT_SOURCES as readonly string[]).includes(r.source) && (IMPORT_STATES as readonly string[]).includes(r.state)
-      ? [{ ...r, source: r.source as ImportSource, state: r.state as ImportState }]
+    isOneOf(IMPORT_SOURCES, r.source) && isOneOf(IMPORT_STATES, r.state)
+      ? [{ ...r, source: r.source, state: r.state }]
       : [],
   );
 }
@@ -265,10 +262,10 @@ function importsSection(rows: NonNullable<SetupReads["imports"]>): NonNullable<S
 /** What the profile and the website said, each read for what it is (contracts businessReadFactsOf). */
 function readsSection(rows: NonNullable<SetupReads["reads"]>): NonNullable<SetupDto["reads"]> {
   return rows.flatMap((row) =>
-    (BUSINESS_READ_SOURCES as readonly string[]).includes(row.source)
+    isOneOf(BUSINESS_READ_SOURCES, row.source)
       ? [
           {
-            source: row.source as BusinessReadSource,
+            source: row.source,
             facts: businessReadFactsOf(row.facts),
             read_from: row.read_from,
             read_at: row.read_at,
@@ -281,7 +278,7 @@ function readsSection(rows: NonNullable<SetupReads["reads"]>): NonNullable<Setup
 
 function activationsSection(activations: SetupReads["activations"]): SetupDto["activations"] {
   return (activations.data ?? []).map((a) => ({
-    capability: a.capability as CapabilityKind,
+    capability: a.capability,
     activated_at: a.activated_at,
     activated_by: a.activated_by,
     deactivated_at: a.deactivated_at,
@@ -352,7 +349,7 @@ export async function saveSetupChoices(
       ? null
       : setupPhoneWantOf({ phone: input.phone });
   if (input.phone && !phone) throw new AppError("validation", "That number cannot be kept: choose it again.");
-  const marks = (input.marks ?? []).filter((m) => (WORKSPACE_MARKS as readonly string[]).includes(m));
+  const marks = (input.marks ?? []).filter((m) => isOneOf(WORKSPACE_MARKS, m));
   const { data, error } = await setSetupChoices(ctx.supabase, {
     p_tenant_id: tenantId,
     ...(phone ? { p_phone: { ...phone } } : {}),

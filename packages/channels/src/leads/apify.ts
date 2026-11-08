@@ -262,7 +262,7 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
         headers: headers(false),
       });
       const record = recordOrNull(recordOrNull(body)?.data);
-      const infos = Array.isArray(record?.pricingInfos) ? (record.pricingInfos as unknown[]) : [];
+      const infos = Array.isArray(record?.pricingInfos) ? record.pricingInfos : [];
       const events =
         recordOrNull(recordOrNull(recordOrNull(infos[infos.length - 1])?.pricingPerEvent)?.actorChargeEvents) ?? {};
       const out: Record<string, number> = {};

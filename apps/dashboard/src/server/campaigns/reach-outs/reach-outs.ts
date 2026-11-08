@@ -24,6 +24,7 @@ import {
   type ReachOutMailboxFacts,
   type ReachOutRunDto,
   type ReachOutStepDto,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import {
   listDraftsWaiting,
@@ -197,7 +198,7 @@ const mailboxFactsOf = (message: {
  */
 function mailboxChoiceOf(mailboxConnection: MailboxConnectionRow, ids: string[], nowMs: number): ReachOutMailboxChoice {
   const words = mailboxSignatureOf(mailboxConnection)?.text ?? null;
-  const read = (mailboxConnection.dns ?? {}) as Record<string, unknown>;
+  const read = recordOrEmpty(mailboxConnection.dns);
   const dns: ReachOutMailboxChoice["dns"] = {};
   for (const k of ["spf", "dkim", "dmarc"] as const) if (read[k] === "found" || read[k] === "missing") dns[k] = read[k];
   return {
@@ -364,7 +365,7 @@ async function draftsRefusedOf(tenantId: string, runId: string, rows: readonly S
 /** A draft as it was handed over (00429 reach_out_sends.draft): its address, subject and words, or null when not whole. */
 function draftOf(v: unknown): { to: string; subject: string; text: string; follow_up: boolean } | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
-  const d = v as Record<string, unknown>;
+  const d = recordOrEmpty(v);
   // A step after the first names the email it answers (parent_id): a follow-up.
   return typeof d.to === "string" && typeof d.subject === "string" && typeof d.text === "string"
     ? { to: d.to, subject: d.subject, text: d.text, follow_up: typeof d.parent_id === "string" }

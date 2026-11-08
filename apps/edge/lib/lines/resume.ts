@@ -22,9 +22,15 @@
  *
  * Cross-workspace: the lines sweep resumes every workspace's stuck line; a take acts on a row its caller holds.
  */
-import { PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, LINE_FILED_NAMES, formatPhoneDisplay } from "@chanlytics/contracts";
+import {
+  PROVISIONING_DEADLINE_MS,
+  LINE_STEP_WORDS,
+  LINE_FILED_NAMES,
+  formatPhoneDisplay,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { Logger } from "../shared/log.js";
 import { claimFailedLine, claimStuckLine, listStuckLines, saveLineFacts, saveLineRow } from "@chanlytics/db/lines";
 import { findWorkspaceName } from "@chanlytics/db/workspace";
@@ -72,9 +78,7 @@ export const CAMPAIGN_NAME_FACT = LINE_FILED_NAMES.campaign;
 
 /** A line's facts as an object to read or spread into a write: anything else stored there (null, an array) is none. */
 export const factsOf = (row: Pick<LineDbRow, "facts">): Record<string, unknown> =>
-  row.facts && typeof row.facts === "object" && !Array.isArray(row.facts)
-    ? { ...(row.facts as Record<string, unknown>) }
-    : {};
+  row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? { ...recordOrEmpty(row.facts) } : {};
 
 /** The automatic tries this line has had since a person last pressed Retry. */
 export function automaticResumesOf(row: Pick<LineDbRow, "facts">): number {
@@ -146,7 +150,7 @@ export async function countAutomaticResume(
   db: Db,
   row: LineDbRow,
 ): Promise<{ ok: true; row: LineDbRow } | { ok: false; error: string }> {
-  const facts = { ...factsOf(row), automatic_resumes: automaticResumesOf(row) + 1 } as Json;
+  const facts = { ...factsOf(row), automatic_resumes: automaticResumesOf(row) + 1 };
   // Selected and counted: an update that matched nothing (a line that is not this workspace's, a row gone) does not
   // raise, and a try that was not written down is one the bound never sees.
   const { data, error } = await saveLineFacts(db, row, facts);

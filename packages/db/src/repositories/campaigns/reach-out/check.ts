@@ -5,7 +5,7 @@
  * writes a send.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../../database.types";
+import type { Database } from "../../../types";
 import { leadSends, type ReachOutSendRow } from "./reach-out";
 
 type Db = SupabaseClient<Database>;
@@ -92,7 +92,7 @@ export async function listUncheckedSends(
     ...(params.sendIds ? { p_send_ids: params.sendIds } : {}),
   });
   if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
-  return ((data ?? []) as Array<Record<string, unknown>>).map((item) => {
+  return (data ?? []).map((item) => {
     const send = item.send as ReachOutSendRow;
     return {
       send,
@@ -135,7 +135,7 @@ export async function readReachOutRecord(
     p_lead_id: params.leadId,
   });
   if (error) throw new Error(`cannot read the business's record: ${error.message}`);
-  const row = ((data ?? []) as Array<Record<string, unknown>>)[0];
+  const row = (data ?? [])[0];
   return row ? recordOf(row) : null;
 }
 

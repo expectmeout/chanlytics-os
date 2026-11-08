@@ -68,6 +68,7 @@ import {
   type JobNews,
   type MemberJoined,
   type OptOutPerson,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { holdNotice, type HoldFacts } from "../deliver/hold-notice";
 import { errField, logger } from "@chanlytics/log";
@@ -208,7 +209,7 @@ type FreedTimeAsked = FreedTimeOffer | { offered: false; why: FreedTimeRefusal |
 
 /** What an `appointment.changed` event says, as a freed time reads it; null where it names no change. */
 function freedTimeEventOf(data: unknown): FreedTimeEvent | null {
-  const d = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  const d = recordOrEmpty(data);
   if (typeof d.change !== "string") return null;
   const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
   return { change: d.change, by: text(d.by), source: text(d.source), was_at: text(d.was_at) };
@@ -264,7 +265,7 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
   reach_out_booked: async (event, ports) => {
     if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return;
     const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : {};
-    const { change, source } = data as Record<string, unknown>;
+    const { change, source } = recordOrEmpty(data);
     if (typeof change !== "string" || !BOOKS.has(change) || source === "calendar_feed") return;
     await ports.bookedFromAppointment(event.tenant_id, event.subject_id);
   },

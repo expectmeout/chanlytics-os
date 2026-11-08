@@ -20,7 +20,7 @@ import { agoShort } from "../shared/time";
 // nothing of the bell's feed.
 import type { ServerNotificationKind } from "./notifications/feed-input";
 import { BELL_LIST_ROWS, BELL_WINDOW_DAYS, type PushKind } from "./push";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, keysOf } from "../shared/unknown";
 
 /**
  * How each kept kind reaches the owner, beyond the row on the bell: by email as well, or on the bell alone.
@@ -82,9 +82,9 @@ export type EmailedNotificationKind = {
 export type BellNotificationKind = Exclude<ServerNotificationKind, EmailedNotificationKind>;
 
 /** Every kind the edge emails. */
-export const EMAILED_NOTIFICATION_KINDS: readonly EmailedNotificationKind[] = (
-  Object.keys(NOTIFICATION_DELIVERY) as ServerNotificationKind[]
-).filter((k): k is EmailedNotificationKind => NOTIFICATION_DELIVERY[k] === "email");
+export const EMAILED_NOTIFICATION_KINDS: readonly EmailedNotificationKind[] = keysOf(NOTIFICATION_DELIVERY).filter(
+  (k): k is EmailedNotificationKind => NOTIFICATION_DELIVERY[k] === "email",
+);
 
 /**
  * Whether a notice of this kind is a kind that is emailed. A kind the table does not know is kept as a plain alert

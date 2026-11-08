@@ -14,7 +14,7 @@ import {
   subscribeGraph,
   unsubscribeGraph,
 } from "@chanlytics/channels/email";
-import { HOUR_MS } from "@chanlytics/contracts";
+import { HOUR_MS, recordOrNull } from "@chanlytics/contracts";
 import { keepMailboxWatch, type MailboxConnectionRow } from "@chanlytics/db/email";
 import type { Database } from "@chanlytics/db/types";
 import { gmailPush, graphPush } from "./config.js";
@@ -66,7 +66,7 @@ export async function keepWatch(
     if (row.sync_cursor) return true;
     if (late()) return false;
     const otherGmailProfile = await readGmailProfile(token);
-    const historyId = (otherGmailProfile.json as { historyId?: unknown } | null)?.historyId;
+    const historyId = recordOrNull(otherGmailProfile.json)?.historyId;
     if (otherGmailProfile.outcome !== "ok" || typeof historyId !== "string") return false;
     // No push: a cursor alone, and a watch date a week on so it is not asked again every tick.
     await keepMailboxWatch(db, {

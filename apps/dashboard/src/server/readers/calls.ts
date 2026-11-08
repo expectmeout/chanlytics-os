@@ -1,5 +1,5 @@
 import "server-only";
-import { addressOf, callerName, type CallDto } from "@chanlytics/contracts";
+import { addressOf, callerName, type CallDto, type SchemaSet } from "@chanlytics/contracts";
 import { listedCall, toCallDto } from "../conversations/dto";
 import { readerStamp, type Reader, type RowRef } from "../shared/reader";
 import { isGoing } from "../people/going";
@@ -20,7 +20,7 @@ const anywhere = (words: string): string => `%${words.replace(/[\\%_]/g, (ch) =>
  * names them.
  */
 export const calls: Reader<
-  { conversationId?: string; status?: string; ids?: string[]; q?: string; listed?: boolean },
+  { conversationId?: string; status?: SchemaSet<"calls.status">; ids?: string[]; q?: string; listed?: boolean },
   { calls: CallDto[] }
 > = {
   name: "calls",

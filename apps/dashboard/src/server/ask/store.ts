@@ -12,6 +12,8 @@ import {
   citationRoute,
   storedAnswer,
   v1FromAnswer,
+  recordOrEmpty,
+  listOrEmpty,
 } from "@chanlytics/contracts";
 import type { AskTurnShape } from "./shape";
 import { withFilesAttached, withFilesOpened } from "@/server/files/line";
@@ -32,6 +34,7 @@ import {
   patchAskThread,
   saveAskTurnContent,
 } from "@chanlytics/db/ask";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 /**
  * Ask threads on the session client. RLS (migration 00040) keeps every read
@@ -75,7 +78,7 @@ export function toThreadVM(thread: ThreadRow): AskThreadVM {
  * spec 7.6); one made before has the v1 fields only, and the Line reads it through answerFromV1.
  */
 export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
-  const content = (message.content ?? {}) as Record<string, unknown>;
+  const content = recordOrEmpty(message.content);
   const cites = Array.isArray(content.citations) ? (content.citations as AskMessageVM["citations"]) : [];
   const files = fileIdsOf(content.files);
   const answer =
@@ -91,13 +94,13 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
     at: message.created_at,
     atMs: Date.parse(message.created_at) || 0,
     citations: cites.map((x) => ({ ...x, to: x.to || citationRoute(x) })),
-    followups: Array.isArray(content.followups) ? (content.followups as string[]) : [],
+    followups: listOrEmpty(content.followups).filter((f): f is string => typeof f === "string"),
     navigate:
       content.navigate && typeof content.navigate === "object" ? (content.navigate as AskMessageVM["navigate"]) : null,
     proposals: Array.isArray(content.proposals) ? (content.proposals as AskMessageVM["proposals"]) : [],
     language: content.language === "es" || content.language === "en" ? content.language : "other",
     ungrounded: content.ungrounded === true,
-    tools: Array.isArray(content.tools) ? (content.tools as string[]) : [],
+    tools: listOrEmpty(content.tools).filter((t): t is string => typeof t === "string"),
     latencyMs: typeof content.latency_ms === "number" ? content.latency_ms : null,
     rounds: typeof content.rounds === "number" ? content.rounds : null,
     failed: content.failed === true,
@@ -132,7 +135,7 @@ export function modelTurnOf(
   named: NamedFiles = NONE_NAMED,
 ): { role: "user" | "assistant"; text: string } {
   const vm = toMessageVM(message);
-  const content = (message.content ?? {}) as Record<string, unknown>;
+  const content = recordOrEmpty(message.content);
   const sentence = askTurnText(vm.text, vm.role === "user" ? answeringOf(content.answering) : null);
   const namedOf = (ids: unknown) => fileIdsOf(ids).map((id) => named.get(id) ?? null);
   return {
@@ -234,7 +237,7 @@ export async function appendMessage(
     tenant_id: tenantId,
     user_id: ctx.userId,
     role,
-    content: content as Json,
+    content: jsonCopyOf(content),
   });
   if (error) throw new Error(`ask message: ${error.message}`);
   return data;
@@ -307,7 +310,7 @@ export async function setProposalOutcome(
   const { data: m, error } = await findAskTurnContent(ctx.supabase, messageId);
   if (error) throw new Error(error.message);
   if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
-  const content = (m.content ?? {}) as Record<string, unknown>;
+  const content = recordOrEmpty(m.content);
   const proposals = Array.isArray(content.proposals) ? (content.proposals as AskProposal[]) : [];
   const idx = proposals.findIndex((p) => p.id === proposalId);
   if (idx < 0) throw new AppError("not_found", "No such card on that turn.", 404);
@@ -320,10 +323,11 @@ export async function setProposalOutcome(
   const next = proposals.map((p, i) => (i === idx ? { ...p, outcome } : p));
   // Read whole and written back whole, never by path: the turn as the model was sent it (content.raw) stays beside
   // the card's outcome.
-  const { data: upd, error: uerr } = await saveAskTurnContent(ctx.supabase, messageId, {
-    ...content,
-    proposals: next,
-  } as unknown as Json);
+  const { data: upd, error: uerr } = await saveAskTurnContent(
+    ctx.supabase,
+    messageId,
+    jsonCopyOf({ ...content, proposals: next }),
+  );
   if (uerr) throw new Error(uerr.message);
   if (!upd?.length) throw new AppError("not_found", "That turn is not yours.", 404);
   return next[idx];

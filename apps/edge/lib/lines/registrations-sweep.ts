@@ -24,6 +24,7 @@ import { syncRegistration } from "./a2p-sync.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 import { findBusinessOnRecord, findLineRow, listLinesAwaitingCarriers } from "@chanlytics/db/lines";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const REGISTRATIONS_PER_TICK = 20;
 
@@ -36,7 +37,7 @@ const REGISTRATIONS_PER_TICK = 20;
  * reads as a brand approved with nothing filed, which for a waiting line means "file it now", and a filing is a new
  * vetting fee that is its owner's to spend (the replace door), never the sweep's.
  */
-const ASKED = ["registering", "approved", "rejected"];
+const ASKED: SchemaSet<"lines.sms_state">[] = ["registering", "approved", "rejected"];
 export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response> {
   // Every line the carriers still hold, LEAST RECENTLY ASKED ABOUT first, so a
   // backlog drains in order. BOTH waiting states: a line that reaches

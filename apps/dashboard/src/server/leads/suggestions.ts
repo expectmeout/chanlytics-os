@@ -61,7 +61,6 @@ import {
   saveIdeasLine,
 } from "@chanlytics/db/leads";
 import { askMemoryLines } from "@chanlytics/db/ask";
-import type { Json } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
 import { readMonthUsed, getWorkspaceOffer } from "./allowance";
 import { findNichePrior } from "./plan-facts";
@@ -69,6 +68,7 @@ import { askForJson } from "../shared/model-json";
 import { serviceDb } from "../shared/service-db";
 import { tenantFactsOf } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
+import { asJson } from "@chanlytics/db/shared";
 
 /* ----------------------------------------------------------- what is kept */
 
@@ -309,7 +309,6 @@ async function writeIdeas(
 }
 
 /** The ideas and what was passed on, as the row keeps them: through JSON, so a plan's shape is the row's. */
-const asJson = (v: unknown): Json => JSON.parse(JSON.stringify(v)) as Json;
 
 type IdeasCtx = Pick<RouteContext, "supabase" | "userId">;
 

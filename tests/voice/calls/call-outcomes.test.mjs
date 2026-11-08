@@ -369,7 +369,7 @@ test("the wiring: the door files the four columns and keeps them across retries,
   );
   assert.match(
     readCode("packages/db/src/repositories/voice/calls.ts"),
-    /p_analysis: \(?\(callInput\.analysis \?\? null\) as Json\)?,/,
+    /p_analysis: asJson\(callInput\.analysis \?\? null\),/,
   );
   // With the columns it reads them by, packages/db's (decision 0111).
   const dto = readCode(

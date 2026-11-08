@@ -12,6 +12,7 @@ import {
   REGISTRATION_PATHS,
   type BusinessRecordDto,
   type RegistrationPath,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { findBusinessOnRecord, listLineNumbersOf } from "@chanlytics/db/lines";
 import { findWorkspacePublicSlug } from "@chanlytics/db/workspace";
@@ -71,7 +72,7 @@ export async function saveBusinessRecord(ctx: RouteContext, req: Request, member
   // and one of those answers files the sole-proprietor brand — one number,
   // about a message a second, and no way to withdraw it.
   const request = typeof body.path === "string" ? body.path : "";
-  if (request && !(REGISTRATION_PATHS as readonly string[]).includes(request)) {
+  if (request && !isOneOf(REGISTRATION_PATHS, request)) {
     throw new AppError("validation", "That is not a registration we file.", 400);
   }
   const path = (request || registrationPathOf(record) || "standard") as RegistrationPath;

@@ -21,7 +21,7 @@ import {
   planReachOutRun,
 } from "@chanlytics/db/campaigns";
 import { emitEvent } from "@chanlytics/db/events";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "@chanlytics/core";
 import { DEFAULT_TIMEZONE, handOf, waitEndsWords, runRoute } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
@@ -29,6 +29,7 @@ import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { logger } from "../../shared/log.js";
 import { findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
+import { asJson } from "@chanlytics/db/shared";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -113,7 +114,7 @@ export async function getReachOutRunContext(
     findWorkspaceZoneStatus(db, row.tenant_id),
     // The one reading of "may this workspace spend on reach-out" (the check asks it too).
     mayWorkspaceSpend(db, row.tenant_id).then(
-      (spend) => ({ spend, error: null as string | null }),
+      (spend) => ({ spend, error: null }),
       (e: unknown) => ({ spend: false, error: e instanceof Error ? e.message : String(e) }),
     ),
     // Its sequence's mode (decision 0064), the one reading the dashboard's chains take too. Cold email never sends on
@@ -123,7 +124,7 @@ export async function getReachOutRunContext(
       (e: unknown) => ({ mode: "ask" as const, error: e instanceof Error ? e.message : String(e) }),
     ),
     stepOf(db, row).then(
-      (s) => ({ s, error: null as string | null }),
+      (s) => ({ s, error: null }),
       (e: unknown) => ({ s: null, error: e instanceof Error ? e.message : String(e) }),
     ),
   ]);
@@ -170,7 +171,7 @@ export async function getReachOutRunContext(
     // What a reach-out its owner sends holds, of the day and in all: its day's share and its owner's pile.
     draftLoad: (rootId, runFor) => loadChainDraft(db, { tenantId, rootId, runFor }),
     planRun: async (run, sends) => {
-      const { data, error } = await planReachOutRun(db, run as unknown as Json, sends as unknown as Json);
+      const { data, error } = await planReachOutRun(db, asJson(run), asJson(sends));
       if (error) throw new Error(`cannot plan the step's run: ${error.message}`);
       const item = (data ?? {}) as { id?: string; exists?: boolean };
       if (item.exists) return "exists";
@@ -195,7 +196,7 @@ export async function getReachOutRunContext(
             recipients: run.recipient_count,
             mode: mode,
             reach_out: true,
-          } as Json,
+          },
         });
         // The run is whole already: a decision that could not be written is said, never the run's failure.
         if (error)
