@@ -35,7 +35,7 @@
  *
  * Cross-workspace: only listReachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
  */
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conversationPatch, type SchemaSet, recordOrEmpty } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
@@ -86,7 +86,7 @@ export async function getOutreachFacts(
     p_from: params.from,
     ...(params.leadId ? { p_lead_id: params.leadId } : {}),
   });
-  if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the outreach facts");
   const outreachFacts = recordOrEmpty(data);
   const mailbox = recordOrEmpty(outreachFacts.mailbox);
   // A database without 00181 answers without it. Read as "never wrote", a business that asked to be left alone would be
@@ -128,7 +128,7 @@ export async function getAddressesSuppressed(db: Db, tenantId: TenantId, address
   if (!items.length) return new Set();
   const { data, error } = await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenantId, p_addresses: items });
   if (error && isMissingFunction(error)) return addressesHeldBefore00220(db, tenantId, items);
-  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the never-again list");
   return new Set((data ?? []).filter((a): a is string => typeof a === "string"));
 }
 
@@ -141,7 +141,7 @@ async function addressesHeldBefore00220(db: Db, tenantId: TenantId, texts: strin
     .eq("tenant_id", tenantId)
     .eq("kind", "email")
     .in("hash", [...byHash.keys()]);
-  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the never-again list");
   return new Set((data ?? []).flatMap((r) => byHash.get(r.hash) ?? []));
 }
 
@@ -203,7 +203,7 @@ export async function findReachOutReply(
     p_days: params.days,
   });
   if (error && isMissingFunction(error)) return null;
-  if (error) throw new Error(`cannot read whose reply this is: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read whose reply this is");
   const value = data && typeof data === "object" && !Array.isArray(data) ? recordOrEmpty(data) : null;
   const sendId = textOf(value?.send_id);
   const leadId = textOf(value?.lead_id);
@@ -272,7 +272,7 @@ export async function replyReadingOf(
     .eq("tenant_id", params.tenantId)
     .eq("message_id", params.messageId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the reply's reading");
   return data ?? null;
 }
 
@@ -298,7 +298,7 @@ export async function markReplyDraft(
     p_draft: params.draft,
     p_why: params.why,
   });
-  if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot mark the reply's draft");
   return data === true;
 }
 
@@ -309,7 +309,7 @@ export async function takeReplyRead(db: Db, params: { tenantId: TenantId; cap: n
     p_cap: params.cap,
     p_at: params.at.toISOString(),
   });
-  if (error) throw new Error(`cannot take the day's read: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot take the day's read");
   return data === true;
 }
 
@@ -329,7 +329,7 @@ export async function applyReplyReading(
     p_reread: params.reread,
     p_days: params.days,
   });
-  if (error) throw new Error(`cannot apply the reply's reading: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot apply the reply's reading");
   const value = recordOrEmpty(data);
   return value.applied === true;
 }
@@ -347,7 +347,7 @@ export async function claimReplyTell(
     p_message_id: params.messageId,
     p_stale_before: params.staleBefore.toISOString(),
   });
-  if (error) throw new Error(`cannot claim the reply's notice: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot claim the reply's notice");
   return typeof data === "string" && data !== "" ? data : null;
 }
 
@@ -364,7 +364,7 @@ export async function markReplyTold(
     p_message_id: params.messageId,
     p_claimed_at: params.claim,
   });
-  if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot mark the reply's notice told");
 }
 
 /* ---- what the intake opened, the reading closes (packages/core reply-read.ts closeWhatTheIntakeOpened) ---- */
@@ -389,7 +389,7 @@ export async function resolveEscalationByReason(
     .eq("reason", params.reason)
     .eq("state", "open")
     .select("id");
-  if (error) throw new Error(`cannot resolve the thread's flag: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot resolve the thread's flag");
   return !!data && data.length > 0;
 }
 
@@ -409,7 +409,7 @@ export async function archiveConversation(
     .eq("id", params.conversationId)
     .neq("state", "archived")
     .select("id");
-  if (error) throw new Error(`cannot archive the thread: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot archive the thread");
   return !!data && data.length > 0;
 }
 
@@ -456,7 +456,7 @@ export async function listRepliesFor(
     .gte("read_at", params.since);
   if (params.conversationId) query = query.eq("conversation_id", params.conversationId);
   const { data, error } = await query.order("read_at", { ascending: false }).limit(params.limit);
-  if (error) throw new Error(`cannot read the replies: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the replies");
   const rows = data ?? [];
   const ids = (k: "lead_id" | "send_id") => [...new Set(rows.map((r) => r[k]).filter((v): v is string => !!v))];
   const [leads, sends] = await Promise.all([
@@ -471,8 +471,8 @@ export async function listRepliesFor(
           .in("id", ids("send_id"))
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (leads.error) throw new Error(`cannot read the replies' leads: ${leads.error.message}`);
-  if (sends.error) throw new Error(`cannot read the replies' emails: ${sends.error.message}`);
+  if (leads.error) throw new DbFailure(leads.error, "cannot read the replies' leads");
+  if (sends.error) throw new DbFailure(sends.error, "cannot read the replies' emails");
   const business = new Map((leads.data ?? []).map((l) => [l.id, l.business_name]));
   const step = new Map((sends.data ?? []).map((s) => [s.id, s]));
   return rows.map(({ lead_id, send_id, ...r }) => ({
@@ -493,21 +493,21 @@ export async function replyReadingRefOf(
     .select("message_id, tenant_id")
     .eq("message_id", messageId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the reply: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the reply");
   return data ? { id: data.message_id, tenant_id: data.tenant_id } : null;
 }
 
 /** Whether the caller may undo this reading (00222 reach_out_reply_undoable): null when they may, else why not. */
 export async function replyUndoableOf(db: Db, messageId: string): Promise<string | null> {
   const { data, error } = await db.rpc("reach_out_reply_undoable", { p_message_id: messageId });
-  if (error) throw new Error(`cannot ask whether the reply can be undone: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot ask whether the reply can be undone");
   return typeof data === "string" && data ? data : null;
 }
 
 /** "Read as no · undo" (00222 reach_out_reply_undo), as the caller. A refusal throws the door's error, its code kept. */
 export async function undoReplyReading(db: Db, messageId: string): Promise<Json> {
   const { data, error } = await db.rpc("reach_out_reply_undo", { p_message_id: messageId });
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -525,7 +525,7 @@ export interface ReachOutDayDue {
  */
 export async function listReachOutDayDue(db: Db, now: Date, limit: number): Promise<ReachOutDayDue[]> {
   const { data, error } = await db.rpc("reach_out_day_due", { p_now: now.toISOString(), p_limit: limit });
-  if (error) throw new Error(`cannot read the day's reach-out numbers: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the day's reach-out numbers");
   return (data ?? []).map((row) => {
     const numbers = recordOrEmpty(row.numbers);
     const num = (k: string) => Number(numbers[k] ?? 0) || 0;

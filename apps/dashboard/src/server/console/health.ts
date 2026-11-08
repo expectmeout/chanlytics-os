@@ -50,6 +50,7 @@ import {
   type JobKind,
   type LedgerNowDto,
   type OperatorPageDto,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { readSide } from "./console";
 import { listPlatformDays } from "./day-counts";
@@ -65,7 +66,7 @@ const HEALTH_ROWS = { workspaces: 2000, failedJobs: 200, pages: 100, clientError
 
 /** A read's rows, or its failure thrown for side() to say. */
 const healthRowsOf = <T>(r: { data: T | null; error: { message: string } | null }): T => {
-  if (r.error) throw new Error(r.error.message);
+  if (r.error) throw new DbFailure(r.error);
   if (r.data === null) throw new Error("no answer");
   return r.data;
 };

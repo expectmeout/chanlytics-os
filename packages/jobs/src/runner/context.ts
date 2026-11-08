@@ -15,6 +15,7 @@ import type {
 } from "@chanlytics/core";
 import type { Database, Json } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DbFailure } from "@chanlytics/contracts";
 
 /** What a thread's draft needs of the edge: the writer, and the reader of what a sender is. */
 export type ReplyDraftEdge = {
@@ -334,6 +335,6 @@ export interface ClaimedJob {
 export const errText = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 export function must<T>(text: string, row: { data: T; error: { message: string } | null }): T {
-  if (row.error) throw new Error(`${text}: ${row.error.message}`);
+  if (row.error) throw new DbFailure(row.error, `${text}`);
   return row.data;
 }

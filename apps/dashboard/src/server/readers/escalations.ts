@@ -4,6 +4,7 @@ import {
   OPEN_HOLDS_READ_MAX,
   type EscalationDto,
   type EscalationState,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { openRequestsOfThreads } from "@chanlytics/db/calendar";
 import { readerStamp, type Reader } from "../shared/reader";
@@ -63,8 +64,8 @@ export const escalations: Reader<
       listHoldsWaiting(supabase, tenantId, state, HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX),
       listHoldsHandedBack(supabase, tenantId, state, HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX),
     ]);
-    if (waiting.error) throw new Error(waiting.error.message);
-    if (handBack.error) throw new Error(handBack.error.message);
+    if (waiting.error) throw new DbFailure(waiting.error);
+    if (handBack.error) throw new DbFailure(handBack.error);
     // The column is text under a CHECK; the contract names the two states, so the client reads the enum, not a string.
     const now = rc.now.getTime();
     const escalations: Array<EscalationDto & { conversation_id: string }> = [

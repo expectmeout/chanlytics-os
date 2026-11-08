@@ -16,6 +16,7 @@ import {
   partnerCodeFromCookie,
   WORKSPACE_MARKS,
   isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { createWorkspaceFn, getMembershipCount, setSetupChoices } from "@chanlytics/db/workspace";
 import { z } from "zod";
@@ -94,7 +95,7 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
     // so they are passed through rather than replaced with something vaguer.
     const mapped = RAISED[error.code ?? ""];
     if (mapped) throw new AppError(mapped.code, error.message, mapped.status);
-    throw new Error(error.message);
+    throw new DbFailure(error);
   }
   // A call that raised nothing answers one row; none is the database's fault, not a workspace to hand over.
   if (!data) throw new Error("create_workspace answered no row");

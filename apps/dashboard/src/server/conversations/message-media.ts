@@ -4,7 +4,7 @@
  * Response.redirect()'s headers are immutable and the route's wrapper stamps its own. Signing is media.ts's. The route
  * declares who may.
  */
-import { AppError, recordOrEmpty } from "@chanlytics/contracts";
+import { AppError, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/shared/request-guards";
 import { findSignedMediaUrl } from "@/server/conversations/media";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -14,7 +14,7 @@ import { findMessageMediaRow } from "@chanlytics/db/conversations";
 export async function findMessageMedia(ctx: RouteContext & { params: Params }, member: Member) {
   const id = requireUuid(ctx.params.id, "message");
   const { data, error } = await findMessageMediaRow(ctx.supabase, member.tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "Message not found.");
   const media = recordOrEmpty(data.media);
   if (typeof media.storage_path !== "string" || !media.storage_path || media.fetch_state !== "stored") {

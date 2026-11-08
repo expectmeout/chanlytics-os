@@ -14,6 +14,7 @@ import {
   type SchemaSet,
   recordOrEmpty,
   valueAt,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -31,7 +32,7 @@ async function asksSince(
   extra: (q: ReturnType<typeof base>) => ReturnType<typeof base>,
 ): Promise<number> {
   const { count, error } = await extra(base(db, tenantId, sinceMs));
-  if (error) throw new Error(`cannot count the sign-up confirmations: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count the sign-up confirmations");
   return count ?? 0;
 }
 
@@ -95,9 +96,9 @@ export async function findSignupAskFacts(
     asksSince(db, params.tenantId, dayAgo, (q) => q.neq("status", "canceled")),
     asksSince(db, params.tenantId, dayAgo, (q) => q.eq("status", "failed")),
   ]);
-  if (person.error) throw new Error(`cannot read the person a sign-up asks: ${person.error.message}`);
-  if (open.error) throw new Error(`cannot read the person's open sign-up confirmation: ${open.error.message}`);
-  if (last.error) throw new Error(`cannot read the person's last sign-up confirmation: ${last.error.message}`);
+  if (person.error) throw new DbFailure(person.error, "cannot read the person a sign-up asks");
+  if (open.error) throw new DbFailure(open.error, "cannot read the person's open sign-up confirmation");
+  if (last.error) throw new DbFailure(last.error, "cannot read the person's last sign-up confirmation");
   const meta = (last.data?.meta ?? null) as { signup_confirm?: { form?: Json } } | null;
   const data = person.data;
   const gone = !data || !!data.erased_at || !!data.erasing_since || !!data.merged_into_contact_id;
@@ -146,7 +147,7 @@ export async function findConfirmationEmail(
     .eq("direction", "outbound")
     .eq("meta->>source", SIGNUP_CONFIRM_SOURCE)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the sign-up's confirmation email: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the sign-up's confirmation email");
   if (!data) return null;
   const request = recordOrEmpty(valueAt(data.meta, "email", "request"));
   const to = Array.isArray(request.to) && typeof request.to[0] === "string" ? request.to[0].trim().toLowerCase() : null;

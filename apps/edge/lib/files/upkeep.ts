@@ -18,6 +18,7 @@ import {
   WEEK_MS,
   fileFolderOf,
   recordOrNull,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { deleteClaudeFile } from "@chanlytics/channels/ai";
 import { deleteStreamVideo, readStreamVideo } from "@chanlytics/channels/files";
@@ -83,11 +84,11 @@ async function purgeFile(db: Db, job: ClaimedJob): Promise<void> {
   }
   const folder = fileFolderOf(job.tenant_id, fileId);
   const listed = await filesBucket(db).list(folder);
-  if (listed.error) throw new Error(`file_purge: ${listed.error.message}`);
+  if (listed.error) throw new DbFailure(listed.error, "file_purge");
   const paths = (listed.data ?? []).map((f) => `${folder}/${f.name}`);
   if (paths.length) {
     const gone = await filesBucket(db).remove(paths);
-    if (gone.error) throw new Error(`file_purge: ${gone.error.message}`);
+    if (gone.error) throw new DbFailure(gone.error, "file_purge");
   }
   if (!row) {
     if (paths.length) logger({ tenant_id: job.tenant_id }).info("file_never_filed", { file: fileId });

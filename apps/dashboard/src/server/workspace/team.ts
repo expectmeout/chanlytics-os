@@ -27,6 +27,7 @@ import {
   type JoinedWorkspaceDto,
   type MembershipRole,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import { getTenantFacts } from "../shared/tenant";
@@ -83,7 +84,7 @@ function teamRefusal(error: { code?: string; message: string }): Error {
   if (error.message === "last_owner") return new AppError("conflict", ONLY_OWNER, 409);
   if (error.message === "self_remove")
     return new AppError("conflict", "You cannot remove yourself. Ask another owner.", 409);
-  return new Error(error.message);
+  return new DbFailure(error);
 }
 
 /** A team function's answer; a refusal thrown in the owner's words. An undo whose decision is unknown is said once. */
@@ -121,8 +122,8 @@ export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: Tena
     // workspaces, so it never needed a privileged client.
     listOpenInvitations(db, tenantId),
   ]);
-  if (members.error) throw new Error(members.error.message);
-  if (invites.error) throw new Error(invites.error.message);
+  if (members.error) throw new DbFailure(members.error);
+  if (invites.error) throw new DbFailure(invites.error);
 
   const roster: TeamMember[] = (members.data ?? []).map((m) => ({
     membershipId: m.membership_id,

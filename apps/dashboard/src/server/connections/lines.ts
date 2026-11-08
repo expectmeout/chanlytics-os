@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto, recordOrEmpty } from "@chanlytics/contracts";
+import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { listLinesForPage } from "@chanlytics/db/lines";
@@ -19,7 +19,7 @@ import type { TenantId } from "@chanlytics/contracts";
  */
 export async function listLines(db: SupabaseClient<Database>, tenantId: TenantId): Promise<LineDto[]> {
   const { data, error } = await listLinesForPage(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []).map((r) => lineDtoOf(r));
 }
 

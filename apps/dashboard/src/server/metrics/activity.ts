@@ -1,4 +1,4 @@
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import type { ContactId } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
@@ -189,7 +189,7 @@ async function decisionsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[
     },
     ACTIVITY_PAGE + 1 + TIE_SLACK,
   );
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []).map(activityRowOfDecision);
 }
 
@@ -215,7 +215,7 @@ async function eventsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[]> 
     },
     ACTIVITY_PAGE + 1 + TIE_SLACK,
   );
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (
     (data ?? [])
       // Belt and braces for a database that answers the like() differently: the rule, in code too.
@@ -251,8 +251,8 @@ async function subjectsOf(ctx: RouteContext, tenantId: TenantId, person: Contact
     listThreadIdsOfPerson(sb, tenantId, person),
     listCallIdsOfPerson(sb, tenantId, person),
   ]);
-  if (convs.error) throw new Error(convs.error.message);
-  if (calls.error) throw new Error(calls.error.message);
+  if (convs.error) throw new DbFailure(convs.error);
+  if (calls.error) throw new DbFailure(calls.error);
   return [person, ...(convs.data ?? []).map((c) => c.id), ...(calls.data ?? []).map((k) => k.id)];
 }
 

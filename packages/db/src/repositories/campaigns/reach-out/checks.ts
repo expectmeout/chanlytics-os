@@ -1,6 +1,6 @@
 /** Reach out: checks. */
 
-import { maySpend, type SpendKind } from "@chanlytics/contracts";
+import { maySpend, type SpendKind, DbFailure } from "@chanlytics/contracts";
 import { recordEvent } from "../../events/events";
 import type { Db, ReachOutSendRow } from "./reach-out";
 import type { TenantId } from "@chanlytics/contracts";
@@ -20,7 +20,7 @@ export async function recordLeadWritten(
     .eq("tenant_id", params.tenantId)
     .eq("id", params.leadId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead a send wrote to");
   // A lead blanked or erased since keeps nothing of what was written to it, as the owner's Sent writes it (00429).
   if (!lead || lead.blanked_at || lead.erased_at) return false;
   const { data: moved, error: e2 } = await db
@@ -61,7 +61,7 @@ export async function recordCheck(
     .is("checked_at", null)
     .eq("check_gen", params.gen)
     .select("id");
-  if (error) throw new Error(`cannot record the send's check: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot record the send's check");
   return (data ?? []).length === 1;
 }
 
@@ -76,8 +76,8 @@ export async function mayWorkspaceSpend(db: Db, tenantId: TenantId, kind: SpendK
     db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
   ]);
-  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
-  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.error) throw new DbFailure(tenant.error, "cannot read the workspace");
+  if (billing.error) throw new DbFailure(billing.error, "cannot read the workspace's billing");
   if (tenant.data?.status === "paused" || !billing.data) return false;
   return maySpend(billing.data.mode, billing.data.status, kind);
 }
@@ -85,6 +85,6 @@ export async function mayWorkspaceSpend(db: Db, tenantId: TenantId, kind: SpendK
 /** The workspace's own words about what it does (business_records.about, 00152), for the writer. */
 export async function findWorkspaceAbout(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
-  if (error) throw new Error(`cannot read the business record: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the business record");
   return data?.about?.trim() || null;
 }

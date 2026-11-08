@@ -27,7 +27,7 @@
  *
  * Cross-workspace: a limit counts per person or network, never per workspace; rate_hits holds no tenant_id.
  */
-import { AppError, MIN_MS, HOUR_MS, SECOND_MS, waitWords, recordOrEmpty } from "@chanlytics/contracts";
+import { AppError, MIN_MS, HOUR_MS, SECOND_MS, waitWords, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isProduction } from "@/server/shared/env";
@@ -375,7 +375,7 @@ export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallbac
           p_limit: rule.limit,
           p_window_ms: rule.windowMs,
         });
-        if (error) throw new Error(error.message);
+        if (error) throw new DbFailure(error);
         const value = recordOrEmpty(data);
         if (value.allowed === true) return { allowed: true };
         if (value.allowed === false)

@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -22,7 +23,7 @@ export async function listFirstReplies(
   since: Date,
 ): Promise<{ asked_at: string; s: number; hold: number }[]> {
   const { data, error } = await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: since.toISOString() });
-  if (error) throw new Error(`first_replies: ${error.message}`);
+  if (error) throw new DbFailure(error, "first_replies");
   return (data ?? []).flatMap((r) =>
     Number.isFinite(r.ai_seconds)
       ? [

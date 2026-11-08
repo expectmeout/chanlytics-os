@@ -1,6 +1,6 @@
 /** Billing: subscription. */
 
-import { isTenantId } from "@chanlytics/contracts";
+import { isTenantId, DbFailure } from "@chanlytics/contracts";
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
@@ -114,14 +114,14 @@ export function stripeLivemode(): boolean | null {
 
 export async function accountOf(db: Db, tenantId: TenantId): Promise<BillingRow | null> {
   const { data, error } = await findBillingAccount(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
 /** The workspace's switch, when its last member left it (00262), and the zone its bells say a day in; null for none. */
 async function tenantState(db: Db, tenantId: TenantId) {
   const { data, error } = await findWorkspaceStanding(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -203,7 +203,7 @@ export async function findTenant(
   if (!customerId) return null;
   // Stripe names its customer, not the workspace: the account is found across workspaces by that id, by design.
   const { data, error } = await findBillingAccountOfCustomer(db, customerId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 

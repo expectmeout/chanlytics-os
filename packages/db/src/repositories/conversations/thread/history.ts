@@ -10,6 +10,7 @@ import {
   proposalLinkOf,
   type SchemaSet,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import { saysMissing } from "../../../shared/missing-door";
@@ -158,9 +159,9 @@ export async function readThreadState(
       .limit(1),
   ]);
 
-  if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
-  if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
-  if (texted.error) throw new Error(`readThreadState/texted: ${texted.error.message}`);
+  if (recent.error) throw new DbFailure(recent.error, "readThreadState/history");
+  if (replies.error) throw new DbFailure(replies.error, "readThreadState/replies");
+  if (texted.error) throw new DbFailure(texted.error, "readThreadState/texted");
 
   const history = assembleHistory(recent.data ?? [], historyLimit);
 
@@ -395,7 +396,7 @@ async function turnsBefore(db: Db, tenantId: TenantId, conversationId: string, l
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
     .limit(answering ? Math.max(limit * 3, 24) + 1 : limit * 3); // photos and dropped drafts never hide a returner
-  if (error) throw new Error(`readLeadContext/history: ${error.message}`);
+  if (error) throw new DbFailure(error, "readLeadContext/history");
   const before = (rows ?? []).filter((m) => m.id !== answering);
   const newest = keptTurns(before).at(-1);
   const lastTurnAt = newest ? new Date(effectiveAt(newest)).toISOString() : null;

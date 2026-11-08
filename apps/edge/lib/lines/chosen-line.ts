@@ -19,6 +19,7 @@ import {
   type BillingMode,
   type BillingStatus,
   type SetupPhoneWant,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { findSetupAsked, setupChoicesOf } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
@@ -92,9 +93,9 @@ export async function startChosenLine(
       listLinesOf(db, tenantId),
       findSetupAsked(db, tenantId, ["line", "port"]),
     ]);
-    if (billing.error) throw new Error(billing.error.message);
-    if (lines.error) throw new Error(lines.error.message);
-    if (asked.error) throw new Error(asked.error.message);
+    if (billing.error) throw new DbFailure(billing.error);
+    if (lines.error) throw new DbFailure(lines.error);
+    if (asked.error) throw new DbFailure(asked.error);
     const plan = planChosenLine({
       want: choices ? setupPhoneWantOf({ phone: choices.phone }) : null,
       noCalls: !!choices && callsNotByPhone({ phone: choices.phone }),

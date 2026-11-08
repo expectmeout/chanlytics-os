@@ -17,6 +17,7 @@ import {
   type FreedTimeLine,
   type SequenceMode,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { getSequenceModes } from "./sequences/reads";
@@ -54,9 +55,9 @@ export async function findFreedTimeFacts(
     db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle(),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
-  if (appt.error) throw new Error(`freed_time_facts: the appointment: ${appt.error.message}`);
-  if (tenant.error) throw new Error(`freed_time_facts: the workspace: ${tenant.error.message}`);
-  if (cfg.error) throw new Error(`freed_time_facts: the config: ${cfg.error.message}`);
+  if (appt.error) throw new DbFailure(appt.error, "freed_time_facts: the appointment");
+  if (tenant.error) throw new DbFailure(tenant.error, "freed_time_facts: the workspace");
+  if (cfg.error) throw new DbFailure(cfg.error, "freed_time_facts: the config");
   if (!appt.data) return null;
   const profile = parseTenantConfig(cfg.data?.config ?? null)?.brain?.profile;
   const rules = profile?.booking_rules ?? null;
@@ -73,7 +74,7 @@ export async function findFreedTimeFacts(
     .lt("starts_at", new Date(span.to).toISOString())
     .order("starts_at", { ascending: true })
     .limit(SPAN_MAX);
-  if (standing.error) throw new Error(`freed_time_facts: what stands: ${standing.error.message}`);
+  if (standing.error) throw new DbFailure(standing.error, "freed_time_facts: what stands");
   return {
     row: {
       id: appt.data.id,
@@ -111,7 +112,7 @@ export async function findFreedTimeStep(
     .eq("tenant_id", tenantId)
     .eq("trigger", FREED_MOMENT)
     .order("created_at", { ascending: true });
-  if (error) throw new Error(`cannot read the step that offers a freed time: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the step that offers a freed time");
   const steps = data ?? [];
   const running = steps.find((s) => s.state === "running");
   if (!running) return { state: steps.length ? "paused" : "none" };
@@ -136,7 +137,7 @@ export async function findFreedTimeBatch(
     .eq("step_id", stepId)
     .eq("offered_from", appointmentId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the batch a freed time made: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the batch a freed time made");
   return data ? { id: data.id, people: data.recipient_count, waits: data.state === "pending_approval" } : null;
 }
 
@@ -161,7 +162,7 @@ export async function getCancellationsSince(db: Db, tenantId: TenantId, sinceIso
     .in("data->>change", ["cancelled", "vanished"])
     .gte("created_at", sinceIso)
     .limit(EVENTS_MAX);
-  if (error) throw new Error(`cannot read the cancellations: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the cancellations");
   const said = (e: { data: unknown }, k: string): unknown => recordOrEmpty(e.data)[k];
   const ids = [
     ...new Set(

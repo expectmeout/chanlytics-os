@@ -2,7 +2,7 @@
  * One call as a text file (app/api/v1/calls/:id/export): the transcript and the analysis, for the business's own
  * records. The export is written to the ledger as a decision. The route declares who may and how often.
  */
-import { AppError } from "@chanlytics/contracts";
+import { AppError, DbFailure } from "@chanlytics/contracts";
 import { toCallDto } from "@/server/conversations/dto";
 import { requireUuid } from "@/server/shared/request-guards";
 import { getTenantFacts } from "@/server/shared/tenant";
@@ -17,7 +17,7 @@ export async function exportCall(ctx: RouteContext & { params: Params }, member:
   const { supabase, userId, params } = ctx;
   const id = requireUuid(params.id, "call");
   const { data, error } = await findCallRow(supabase, member.tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "Call not found.");
   const call = toCallDto(data);
   const { name, timezone } = await getTenantFacts(supabase, member.tenantId);

@@ -17,7 +17,7 @@ import { smsStatusUrl, smsRefusalOf, requestTwilio } from "@chanlytics/channels/
 import { lineProviderFromEnv } from "./lines.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import { logger, errField, type Logger } from "../shared/log.js";
-import { phoneTail, type EdgeRefusal } from "@chanlytics/contracts";
+import { phoneTail, type EdgeRefusal, DbFailure } from "@chanlytics/contracts";
 import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
 import { findLineByE164, findTextingLineOf, getLineCredentials, putLineCredentials } from "@chanlytics/db/lines";
 import { asJson } from "@chanlytics/db/shared";
@@ -33,14 +33,14 @@ export type SmsLine = Pick<
 /** The line a text arrived on, by the number Twilio says it was sent to. */
 export async function findLineByNumber(db: Db, e164: string): Promise<SmsLine | null> {
   const { data, error } = await findLineByE164(db, e164);
-  if (error) throw new Error(`reading the line for ${e164}: ${error.message}`);
+  if (error) throw new DbFailure(error, `reading the line for ${e164}`);
   return data ?? null;
 }
 
 /** The line a workspace texts from: the one with a Messaging Service, newest first. */
 async function smsLineForTenant(db: Db, tenantId: TenantId): Promise<SmsLine | null> {
   const { data, error } = await findTextingLineOf(db, tenantId);
-  if (error) throw new Error(`reading the texting line: ${error.message}`);
+  if (error) throw new DbFailure(error, "reading the texting line");
   return data ?? null;
 }
 
@@ -48,7 +48,7 @@ async function smsLineForTenant(db: Db, tenantId: TenantId): Promise<SmsLine | n
 export async function findLineAccount(db: Db, line: SmsLine): Promise<ProviderAccount | null> {
   if (!line.subaccount_sid) return null;
   const { data, error } = await getLineCredentials(db, line.id);
-  if (error) throw new Error(`reading the line's credentials: ${error.message}`);
+  if (error) throw new DbFailure(error, "reading the line's credentials");
   const s = (data && typeof data === "object" && !Array.isArray(data) ? data : {}) as LineSecrets;
   return s.auth_token ? { sid: line.subaccount_sid, token: s.auth_token } : null;
 }

@@ -8,6 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -19,7 +20,7 @@ type Db = SupabaseClient<Database>;
  */
 export async function isWorkspacePaused(db: Db, tenantId: TenantId): Promise<boolean> {
   const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
-  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace");
   return data?.status === "paused";
 }
 
@@ -37,6 +38,6 @@ export async function reviewLinkOf(db: Db, tenantId: TenantId): Promise<string |
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error && error.code === "42703" && error.message.includes("new_review_uri")) return null;
-  if (error) throw new Error(`cannot read the workspace's review link: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace's review link");
   return data?.new_review_uri?.trim() || null;
 }

@@ -3,7 +3,7 @@
  * ingest_inbound is the atomic concurrency gate (RPC) and the receptionist's
  * dedupe; everything else is plain row work.
  */
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { resolvePerson } from "../people/people";
@@ -128,7 +128,7 @@ export async function ingestInbound(db: Db, inboundParams: IngestInboundParams):
     p_opt_out: inboundParams.optOut ?? false,
     p_opt_in: inboundParams.optIn ?? false,
   });
-  if (error) throw new Error(`ingest_inbound: ${error.message}`);
+  if (error) throw new DbFailure(error, "ingest_inbound");
   const out = readAnswer("ingest_inbound", IngestAnswer, data);
 
   if (!out?.contact_id) return out;
@@ -193,7 +193,7 @@ async function answerKept(
   const { data, error } = await (
     purpose === "marketing" ? request.eq("data->>purpose", "marketing") : request.is("data->>purpose", null)
   ).limit(1);
-  if (error) throw new Error(`answer_kept: ${error.message}`);
+  if (error) throw new DbFailure(error, "answer_kept");
   return (data ?? []).length > 0;
 }
 
@@ -218,7 +218,7 @@ async function keepYesOnChannel(db: Db, inboundParams: IngestInboundParams, out:
   // nothing is kept per channel there yet, so there is nothing to repair.
   const missing =
     error?.code === "PGRST202" || /Could not find the function public\.note_yes_on_channel/.test(error?.message ?? "");
-  if (error && !missing) throw new Error(error.message);
+  if (error && !missing) throw new DbFailure(error);
 }
 
 /**
@@ -255,7 +255,7 @@ async function keepOffersYes(db: Db, inboundParams: IngestInboundParams, out: In
   // parameters it could not match. The answer is recorded without its proof rather than not at all; any other refusal is
   // the caller's.
   if (error && /p_evidence/.test(error.message)) ({ error } = await db.rpc("set_marketing_consent", args));
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
 }
 
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
@@ -265,7 +265,7 @@ export async function markProcessed(db: Db, tenantId: TenantId, messageId: strin
     p_tenant_id: tenantId,
     p_message_id: messageId,
   });
-  if (error) throw new Error(`mark_processed: ${error.message}`);
+  if (error) throw new DbFailure(error, "mark_processed");
 }
 
 /**
@@ -288,7 +288,7 @@ export async function stampHandled(
     p_handled: handled,
     ...(intent ? { p_intent: intent } : {}),
   });
-  if (error) throw new Error(`message_stamp_handled: ${error.message}`);
+  if (error) throw new DbFailure(error, "message_stamp_handled");
 }
 
 export async function recordOutbound(
@@ -333,7 +333,7 @@ export async function recordOutbound(
   if (error) {
     // duplicate wamid (retry) is benign
     if (error.code === "23505") return null;
-    throw new Error(`record_outbound: ${error.message}`);
+    throw new DbFailure(error, "record_outbound");
   }
   // A queued draft or a failed row has not gone out. The event that says a
   // message did is the send moment first_replies reads (00035) and the line the
@@ -376,7 +376,7 @@ export async function getOrCreateContact(
     .eq("tenant_id", tenantId)
     .eq("id", created.contact_id)
     .single();
-  if (error || !data) throw new Error(`get_or_create_contact reselect: ${error?.message}`);
+  if (error || !data) throw new DbFailure(error ?? { message: "no answer" }, "get_or_create_contact reselect");
   return data;
 }
 
@@ -539,7 +539,7 @@ export async function resolveOutboundTargetForContact(
         .eq("id", params.contactId)
         .maybeSingle()
     : first;
-  if (error) throw new Error(`resolve_outbound_target_for_contact: ${error.message}`);
+  if (error) throw new DbFailure(error, "resolve_outbound_target_for_contact");
   if (!data || data.erased_at || data.merged_into_contact_id) return null;
   return threadOf(db, params.tenantId, data, params.touch);
 }
@@ -596,7 +596,7 @@ export async function countSentToday(
     .eq("direction", "outbound")
     .gte("created_at", since)
     .contains("meta", { source: params.source });
-  if (error) throw new Error(`count_sent_today: ${error.message}`);
+  if (error) throw new DbFailure(error, "count_sent_today");
   return count ?? 0;
 }
 
@@ -618,7 +618,7 @@ export async function linkSentOnCall(
     .eq("direction", "outbound")
     .neq("status", "failed")
     .contains("meta", { source: params.source, call_id: params.callId });
-  if (error) throw new Error(`link_sent_on_call: ${error.message}`);
+  if (error) throw new DbFailure(error, "link_sent_on_call");
   return (count ?? 0) > 0;
 }
 
@@ -651,7 +651,7 @@ export async function findMessageByExternalId(db: Db, tenantId: TenantId, extern
     .eq("tenant_id", tenantId)
     .eq("external_id", externalId)
     .maybeSingle();
-  if (error) throw new Error(`findMessageByExternalId: ${error.message}`);
+  if (error) throw new DbFailure(error, "findMessageByExternalId");
   if (!data) return null;
   return {
     messageId: data.id,
@@ -675,7 +675,7 @@ export async function keepMessageCost(db: Db, tenantId: TenantId, externalId: st
     p_external_id: externalId,
     p_pricing: pricing,
   });
-  if (error) throw new Error(`message_keep_cost: ${error.message}`);
+  if (error) throw new DbFailure(error, "message_keep_cost");
   return data === true;
 }
 

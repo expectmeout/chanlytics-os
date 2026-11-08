@@ -5,7 +5,7 @@
  * `Db`, from here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { lensRoute, reviewRoute } from "@chanlytics/contracts";
+import { lensRoute, reviewRoute, DbFailure } from "@chanlytics/contracts";
 import { reviewRowsByGoogleId } from "@chanlytics/db/notices";
 import type { Database } from "@chanlytics/db/types";
 import { findGoogleConnection } from "@chanlytics/db/google";
@@ -46,7 +46,7 @@ export function connectionForClient(connection: ConnectionRow) {
 
 async function connectionOf(db: Db, tenantId: TenantId): Promise<ConnectionRow | null> {
   const { data, error } = await findGoogleConnection(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 

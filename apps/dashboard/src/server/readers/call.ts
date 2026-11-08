@@ -1,5 +1,5 @@
 import "server-only";
-import { AppError, addressOf, callerName, personName, type CallDto } from "@chanlytics/contracts";
+import { AppError, addressOf, callerName, personName, type CallDto, DbFailure } from "@chanlytics/contracts";
 import { toCallDto } from "../conversations/dto";
 import { requireUuid } from "../shared/request-guards";
 import { readerStamp, type Reader, type RowRef } from "../shared/reader";
@@ -22,7 +22,7 @@ export const call: Reader<{ id: string }, { call: CallDto }> = {
   async read(rc, { id }) {
     const callId = requireUuid(id, "call");
     const { data, error } = await findCallRow(rc.ctx.supabase, rc.tenantId, callId);
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     if (!data) throw new AppError("not_found", "Call not found.", 404);
     const dto = toCallDto(data);
     const rows: RowRef[] = [

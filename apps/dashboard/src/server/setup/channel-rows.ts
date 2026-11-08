@@ -23,7 +23,14 @@ import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { findOffersEmailReach, listRunningStepsOn } from "@chanlytics/db/campaigns";
 import { findRehearsalTally } from "@chanlytics/db/facts";
 import { findConfigRow } from "../workspace/config-row";
-import { emailOffersOpen, offerPauseOf, parseTenantConfig, type SetupDto, recordOrNull } from "@chanlytics/contracts";
+import {
+  emailOffersOpen,
+  offerPauseOf,
+  parseTenantConfig,
+  type SetupDto,
+  recordOrNull,
+  DbFailure,
+} from "@chanlytics/contracts";
 import { getCalendarWeek } from "../calendar/week/week";
 import { getTeamRoster } from "../workspace/team";
 import { listLines, getLinesStatus } from "../connections/lines";
@@ -62,8 +69,8 @@ async function teamCounts(
     countTeamMembers(supabase, tenantId),
     countOpenInvites(supabase, tenantId),
   ]);
-  if (members.error) throw new Error(members.error.message);
-  if (invites.error) throw new Error(invites.error.message);
+  if (members.error) throw new DbFailure(members.error);
+  if (invites.error) throw new DbFailure(invites.error);
   return { members: members.count ?? 0, invitesOpen: invites.count ?? 0 };
 }
 
@@ -314,7 +321,7 @@ export async function setupReads(
   ] = await askSetup(supabase, tenantId, viewer, now);
   // A count that could not be read is not a zero: read as one, the row says nobody has said yes.
   for (const read of [channels, lastMsg, lastCall, templates, yes, offersSaid, offersReach, requested, activations])
-    if (read.error) throw new Error(read.error.message);
+    if (read.error) throw new DbFailure(read.error);
   return {
     cfgRow,
     channels,

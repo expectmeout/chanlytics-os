@@ -9,6 +9,7 @@ import { getSequenceModes } from "./sequences/reads";
 import type { Database } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
 import { saysMissing } from "../../shared/missing-door";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -31,7 +32,7 @@ export async function findWhatsappChannelFacts(
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`whatsapp_channel_config: ${error.message}`);
+  if (error) throw new DbFailure(error, "whatsapp_channel_config");
   if (!data) return null;
   const cfg = data.config;
   return {
@@ -57,7 +58,7 @@ export async function findTextLineFacts(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`text_line_facts: ${error.message}`);
+  if (error) throw new DbFailure(error, "text_line_facts");
   return data ?? null;
 }
 
@@ -70,7 +71,7 @@ export async function listPlaybookChannels(db: Db, playbookId: string): Promise<
   const { data, error } = await db.from("sequence_steps").select("channels").eq("id", playbookId).maybeSingle();
   if (error) {
     if (/channels/.test(error.message) && saysMissing(error.message)) return null;
-    throw new Error(`playbook_channels: ${error.message}`);
+    throw new DbFailure(error, "playbook_channels");
   }
   return data?.channels ?? null;
 }
@@ -99,7 +100,7 @@ export async function findPlaybookForChannels(
     .eq("tenant_id", tenantId)
     .eq("id", playbookId)
     .maybeSingle();
-  if (error) throw new Error(`playbook_for_channels: ${error.message}`);
+  if (error) throw new DbFailure(error, "playbook_for_channels");
   if (!data) return null;
   const waiting = await db
     .from("sequence_batches")
@@ -108,7 +109,7 @@ export async function findPlaybookForChannels(
     .eq("step_id", playbookId)
     .eq("state", "pending_approval")
     .limit(1);
-  if (waiting.error) throw new Error(`playbook_for_channels: ${waiting.error.message}`);
+  if (waiting.error) throw new DbFailure(waiting.error, "playbook_for_channels");
   return { ...data, run_waits: (waiting.data ?? []).length > 0 };
 }
 
@@ -155,7 +156,7 @@ export async function findPlaybookForChange(
     .eq("tenant_id", tenantId)
     .eq("id", playbookId)
     .maybeSingle();
-  if (error) throw new Error(`playbook_for_change: ${error.message}`);
+  if (error) throw new DbFailure(error, "playbook_for_change");
   if (!data) return null;
   const waiting = await db
     .from("sequence_batches")
@@ -164,7 +165,7 @@ export async function findPlaybookForChange(
     .eq("step_id", playbookId)
     .eq("state", "pending_approval")
     .limit(1);
-  if (waiting.error) throw new Error(`playbook_for_change: ${waiting.error.message}`);
+  if (waiting.error) throw new DbFailure(waiting.error, "playbook_for_change");
   const [w] = waiting.data ?? [];
   // Its sequence's mode (decision 0064): what a change of it is judged against, and what a resume says.
   const mode = (await getSequenceModes(db, tenantId, [data.sequence_id])).get(data.sequence_id) ?? "ask";
@@ -193,7 +194,7 @@ export async function listRunningTwins(
     .eq("state", "running")
     .eq("trigger", on.trigger)
     .eq("template_id", on.templateId);
-  if (error) throw new Error(`running_twins: ${error.message}`);
+  if (error) throw new DbFailure(error, "running_twins");
   // The same list, or none on both: a moment's playbooks name no list, a list's name exactly one of the two.
   return (data ?? [])
     .filter((p) => (p.list_id ?? null) === on.listId && (p.list_key ?? null) === on.listKey)
@@ -217,7 +218,7 @@ export async function followUpOnFile(
     .eq("tenant_id", tenantId)
     .eq("trigger", trigger)
     .limit(1);
-  if (error) throw new Error(`follow_up_on_file: ${error.message}`);
+  if (error) throw new DbFailure(error, "follow_up_on_file");
   return (data ?? []).length > 0;
 }
 
@@ -266,7 +267,7 @@ export async function listQueuedRecipients(
     .eq("state", "queued")
     .order("contact_id")
     .limit(params.limit);
-  if (error) throw new Error(`queued_recipients: ${error.message}`);
+  if (error) throw new DbFailure(error, "queued_recipients");
   // A customer's send names its person (sequence_sends_someone).
   return (data ?? []).flatMap((r) => (r.contact_id ? [{ ...r, contact_id: r.contact_id }] : []));
 }
@@ -292,7 +293,7 @@ export async function runGoesByOthers(
     ? of.in("channel", ["sms", "email"])
     : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
   if (noChannelColumns(error)) return than === "email";
-  if (error) throw new Error(`run_goes_by_others: ${error.message}`);
+  if (error) throw new DbFailure(error, "run_goes_by_others");
   return (count ?? 0) > 0;
 }
 
@@ -312,7 +313,7 @@ export async function recordCampaignMonthSent(
     p_channel: channel,
     ...(at ? { p_at: at.toISOString() } : {}),
   });
-  if (error) throw new Error(`cannot count the month's ${channel} campaign messages: ${error.message}`);
+  if (error) throw new DbFailure(error, `cannot count the month's ${channel} campaign messages`);
   if (typeof data !== "number")
     throw new Error(`cannot count the month's ${channel} campaign messages: the database answered no count`);
   return data;

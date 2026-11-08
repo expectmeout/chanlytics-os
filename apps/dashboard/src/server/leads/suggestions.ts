@@ -46,6 +46,7 @@ import {
   type IdeaSearch,
   type LeadIdeaDto,
   type LeadSuggestionsDto,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   askForIdeasAgain,
@@ -146,7 +147,7 @@ export function setSuggestionsWriter(suggestionsWriter: SuggestionsWriter | Part
 /** The kept row, when there is one. */
 async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SuggestionRow | null> {
   const { data, error } = await findLeadSuggestions(ctx.supabase, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? null;
 }
 

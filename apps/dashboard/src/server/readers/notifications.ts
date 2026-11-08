@@ -20,6 +20,7 @@ import {
   unreadFor,
   zoneDayKey,
   isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   findBellSeen,
@@ -52,8 +53,8 @@ export const notifications: Reader<undefined, NotificationsDto> = {
       listBellRows(sb, tenantId, since, BELL_LIST_ROWS),
       findBellSeen(sb, tenantId, rc.userId),
     ]);
-    if (rows.error) throw new Error(rows.error.message);
-    if (seen.error) throw new Error(seen.error.message);
+    if (rows.error) throw new DbFailure(rows.error);
+    if (seen.error) throw new DbFailure(seen.error);
     // The marks for THESE notifications. Read in parallel it could name no ids,
     // so it fetched every mark this person has ever left, in every workspace
     // they belong to -- a row per notification per user, kept for ever, to
@@ -79,7 +80,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
       ids.length ? listNotificationMarks(sb, rc.userId, ids) : Promise.resolve({ data: [], error: null }),
       olderRead,
     ]);
-    if (marks.error) throw new Error(marks.error.message);
+    if (marks.error) throw new DbFailure(marks.error);
     const byId = new Map((marks.data ?? []).map((m) => [m.notification_id, m]));
     const notifications: NotificationDto[] = (rows.data ?? []).map((row) => {
       const found = byId.get(row.id);

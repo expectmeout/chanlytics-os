@@ -18,6 +18,7 @@ import {
   recordOrEmpty,
   textOrEmpty,
   valueAt,
+  DbFailure,
 } from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
@@ -269,6 +270,18 @@ export function answerOfThrow(
       headers: refusalHeaders(error),
     };
   }
+  const refused = error instanceof DbFailure ? refusalOfDbFailure(error) : null;
+  if (refused) {
+    // The database's own sentence and what was being done stay in the line: a refusal can be a door's rule or a bug.
+    log.warn("route_refused", {
+      route: at.route,
+      code: refused.code,
+      db_code: (error as DbFailure).code,
+      error: (error as DbFailure).message,
+      ms: Date.now() - at.started,
+    });
+    return { status: refused.status, body: err(refused.code, refused.message), headers: {} };
+  }
   // The error itself, so the line carries its stack; the workspace rides from the request (getMemberContext).
   log.error("route_failed", {
     route: at.route,
@@ -351,7 +364,7 @@ async function resolveMember(
   opts: { defaultAllowed?: boolean },
 ): Promise<MemberContext> {
   const { data, error } = await listMyMemberships(ctx.supabase, ctx.userId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
 
   const rows = data ?? [];
   // A request that names no workspace, from an account that holds two, is
@@ -449,15 +462,37 @@ export function requireRole(member: MemberContext, atLeast: Role): void {
  * a thing that is not there (P0002), a second of what only one may exist (23505), who may not (42501), and what it
  * cannot take (22023). A rule a door keeps with a bare `raise exception` (P0001) is answered as the route says.
  */
-const DOOR_REFUSALS: Readonly<Record<string, { code: ErrorCode; status: number }>> = {
-  P0002: { code: "not_found", status: 404 },
-  "23505": { code: "conflict", status: 409 },
-  "42501": { code: "forbidden", status: 403 },
-  "22023": { code: "validation", status: 400 },
+const DOOR_REFUSALS: Readonly<Record<string, { code: ErrorCode; status: number; plainly: string }>> = {
+  P0002: { code: "not_found", status: 404, plainly: "That could not be found." },
+  "23505": { code: "conflict", status: 409, plainly: "That already exists." },
+  "42501": { code: "forbidden", status: 403, plainly: "You do not have permission to do that." },
+  "22023": { code: "validation", status: 400, plainly: "That could not be saved as it is." },
   // A door's own code (00263 import_person, 00331 create_person): this person asked to be forgotten. A conflict, in
   // the door's words, as a taken number is; never the 503 a code nobody named would answer.
-  PE001: { code: "conflict", status: 409 },
+  PE001: { code: "conflict", status: 409, plainly: "This person asked not to be kept." },
 };
+
+/**
+ * Postgres's own sentences for those codes, where no door wrote one: a plain insert that met a constraint, a policy that
+ * refused a row, a strict read that found none. They name a constraint or a table, so a person reads the code's plain
+ * words instead, and the log keeps the sentence.
+ */
+const POSTGRES_OWN_WORDS =
+  /^(?:duplicate key value violates |new row violates row-level security |permission denied for |must be owner of |query returned (?:no rows|more than one row))/;
+
+/** What a person reads of a door's refusal: its own sentence, unless Postgres wrote it. */
+const doorWords = (door: { plainly: string }, sentence: string): string =>
+  POSTGRES_OWN_WORDS.test(sentence) ? door.plainly : sentence;
+
+/**
+ * A database failure nothing above read, as a person is answered, when its code is one a door raises on purpose (decision
+ * 0114). Null for any other, a bare raise among them: it says nothing of what the rule means here, and only a route that
+ * knows can say (dbRefusal's `raised`), so it stays the fault it is.
+ */
+export function refusalOfDbFailure(failure: DbFailure): AppError | null {
+  const door = failure.code ? DOOR_REFUSALS[failure.code] : undefined;
+  return door ? new AppError(door.code, doorWords(door, failure.dbMessage), door.status) : null;
+}
 
 /**
  * A database failure, as a route answers it. A door's own refusal keeps the door's words, at the status its SQLSTATE
@@ -474,8 +509,11 @@ export function dbRefusal(
   const said = valueAt(thrown, "code");
   const code = typeof said === "string" ? said : null;
   const message = textOrEmpty(valueAt(thrown, "message"));
-  const door = code === "P0001" ? raised : code ? DOOR_REFUSALS[code] : undefined;
-  if (door) return new AppError(door.code, message, door.status);
+  // Only the database's sentence, never the label a DbFailure wrote ahead of it for the log.
+  const sentence = thrown instanceof DbFailure ? thrown.dbMessage : message;
+  if (code === "P0001") return new AppError(raised.code, sentence, raised.status);
+  const door = code ? DOOR_REFUSALS[code] : undefined;
+  if (door) return new AppError(door.code, doorWords(door, sentence), door.status);
   log.error("db_failed", { code, error: message });
   return new AppError("internal", "Something went wrong.", 503);
 }

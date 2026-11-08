@@ -11,6 +11,7 @@ import {
   OUTCOME_UNKNOWN,
   parseTenantConfig,
   type SchemaSet,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   deliver,
@@ -80,7 +81,7 @@ async function countRecipients(
     { tenantId, broadcastId },
     { ...(state ? { state } : {}), ...(reason ? { reason } : {}) },
   );
-  if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
+  if (error) throw new DbFailure(error, `broadcast_send: cannot count ${state ?? "all"} recipients`);
   return count ?? 0;
 }
 
@@ -258,7 +259,7 @@ function peoplePorts(
     // The batch's people in one read, not one read per person.
     contacts: async (ids) => {
       const { data, error } = await listBatchPeople(db, tenantId, ids);
-      if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
+      if (error) throw new DbFailure(error, "broadcast_send: cannot read the people");
       return new Map((data ?? []).map((c) => [c.id, c]));
     },
     // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
@@ -367,7 +368,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
     {
       broadcast: async (id) => {
         const { data, error } = await findBroadcastRun(db, { tenantId: job.tenant_id, broadcastId: id });
-        if (error) throw new Error(`broadcast_send: cannot read broadcast ${id}: ${error.message}`);
+        if (error) throw new DbFailure(error, `broadcast_send: cannot read broadcast ${id}`);
         return withTemplate(data);
       },
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read

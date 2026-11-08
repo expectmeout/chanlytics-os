@@ -9,6 +9,7 @@ import {
   type PersonNoteDto,
   type PersonNoteTeamDto,
   shaped,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   addPersonNote,
@@ -153,7 +154,7 @@ export async function getPersonNotes(
 /** The note a door acts on, read under RLS and on this person: a note on anyone else is a 404. */
 export async function noteOn(ctx: RouteContext, contactId: ContactId, noteId: string): Promise<NoteRow> {
   const { data, error } = await findPersonNote(ctx.supabase, contactId, noteId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", NOTE_REFUSALS.not_found, 404);
   return data;
 }

@@ -11,7 +11,7 @@
  * the list. The PATCH is its owner's: a forbidden UPDATE answers success with no rows in this stack, so the row count
  * is the permission check. The routes declare who may and how often.
  */
-import { heldTenantId, recordOrNull } from "@chanlytics/contracts";
+import { heldTenantId, recordOrNull, DbFailure } from "@chanlytics/contracts";
 import {
   getMemberContext,
   requireSecondFactor,
@@ -167,7 +167,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
     rolesOf(supabase, userId),
     readSettled(getMemberContext(ctx, preferred, { defaultAllowed: true })),
   ]);
-  if (tenants.error) throw new Error(tenants.error.message);
+  if (tenants.error) throw new DbFailure(tenants.error);
   // The name they gave is the chrome's, never the boot's to fail for: a read that fails is logged and reads as none.
   if (profileRead.error)
     log.error("db_failed", { code: profileRead.error.code ?? null, error: profileRead.error.message });
@@ -223,7 +223,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   }
 
   // The caller's role in each workspace (0012): one read of their own memberships, RLS-scoped.
-  if (mine.error) throw new Error(mine.error.message);
+  if (mine.error) throw new DbFailure(mine.error);
   const roleOf = new Map((mine.data ?? []).map((m) => [m.tenant_id, m.role]));
   const listed = data.map((w) => ({ ...w, role: roleOf.get(heldTenantId(w.id)) ?? null }));
 
@@ -283,7 +283,7 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
   // the owner's to choose again, in the words a zone nobody knows is refused in, not a failure of ours.
   if (error?.code === "22023" && patch.timezone)
     throw new AppError("validation", `${patch.timezone} is not a timezone this system knows.`);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   // A forbidden UPDATE comes back successful with zero rows in this stack, so
   // the row count IS the permission check. Without this an owner whose policy
   // or grant went missing would be told the zone was saved and see the old one
@@ -338,7 +338,7 @@ export async function renameWorkspace(
   const was = await findWorkspaceNamed(ctx.supabase, member.tenantId);
   if (!was || was.name === cleaned.name) return null;
   const { data, error } = await writeOwnFields(ctx, member.tenantId, { name: cleaned.name });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data?.length) throw new AppError("forbidden", "That workspace's name could not be changed.", 403);
   await emitEvent(serviceDb(), member.tenantId, "settings.changed", "workspace", member.tenantId, {
     fields: ["name"],

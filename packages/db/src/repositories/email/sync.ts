@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import type { MailboxConnectionRow } from "./connections";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -24,7 +24,7 @@ export async function takeMailboxSync(db: Db, id: string, at: Date, leaseMs: num
     .neq("state", "removed")
     .or(`sync_lease_until.is.null,sync_lease_until.lt.${at.toISOString()}`)
     .select("id");
-  if (error) throw new Error(`cannot take the mailbox's sync: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot take the mailbox's sync");
   return (data ?? []).length > 0;
 }
 
@@ -44,7 +44,7 @@ export async function endMailboxSync(
         : {}),
     })
     .eq("id", params.id);
-  if (error) throw new Error(`cannot end the mailbox's sync: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot end the mailbox's sync");
 }
 
 /** The watch the provider holds for the mailbox: Graph's subscription id (Gmail has none) and when it lapses. */
@@ -60,13 +60,13 @@ export async function keepMailboxWatch(
       ...(params.cursor ? { sync_cursor: params.cursor } : {}),
     })
     .eq("id", params.id);
-  if (error) throw new Error(`cannot keep the mailbox's watch: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot keep the mailbox's watch");
 }
 
 /** One connection by its id, whichever workspace's: a job or a push names it by id alone. */
 export async function findMailboxConnectionById(db: Db, id: string): Promise<MailboxConnectionRow | null> {
   const { data, error } = await db.from("mailbox_connections").select("*").eq("id", id).maybeSingle();
-  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the mailbox");
   return data;
 }
 
@@ -84,7 +84,7 @@ export async function findSentEmailIdByMessageId(
     .eq("direction", "outbound")
     .eq("meta->email->>message_id", rfcMessageId)
     .limit(1);
-  if (error) throw new Error(`cannot find the email the report is about: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot find the email the report is about");
   return data?.[0]?.id ?? null;
 }
 
@@ -95,7 +95,7 @@ export async function getKnownThreads(db: Db, tenantId: TenantId, threadIds: str
     p_tenant_id: tenantId,
     p_thread_ids: [...new Set(threadIds)],
   });
-  if (error) throw new Error(`cannot read which threads are the workspace's: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read which threads are the workspace's");
   return new Set(data ?? []);
 }
 
@@ -130,7 +130,7 @@ export async function keepOwnerEmail(
     p_meta: params.meta,
     p_reasons: [...params.settles],
   });
-  if (error) throw new Error(`cannot keep the owner's email: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot keep the owner's email");
   const out = recordOrEmpty(data);
   if (out.kept === true) return { kept: true, resolved: typeof out.resolved === "number" ? out.resolved : 0 };
   return { kept: false, why: out.why === "already" ? "already" : "not_known" };

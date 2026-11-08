@@ -107,6 +107,40 @@ export class AppError<C extends ErrorCode = ErrorCode> extends Error {
   }
 }
 
+/** What a failed reply from the database carries, as its client says it: the sentence, and its code where it has one. */
+export interface DbReplyFailure {
+  readonly message: string;
+  readonly code?: string | null | undefined;
+}
+
+const DB_FAILURE = Symbol.for("@chanlytics/contracts:DbFailure");
+
+/**
+ * A reply from the database that failed, raised with what it knows. `throw new Error(error.message)` kept the sentence
+ * and left the code behind, in some 900 places, so nothing above could tell a door's own refusal ("Contact not found.",
+ * P0002) from a database that is down: every one reached a person as "Something went wrong." (decision 0114). The label
+ * says what was being done, written ahead of the database's sentence as `label: message`; `dbMessage` is the database's
+ * sentence alone, the only part a refusal may quote, and `cause` the reply itself. Marked as AppError is, so every copy
+ * of this module recognises every other.
+ */
+export class DbFailure extends Error {
+  readonly code: string | null;
+  readonly dbMessage: string;
+
+  constructor(reply: DbReplyFailure, label?: string) {
+    super(label === undefined ? reply.message : `${label}: ${reply.message}`, { cause: reply });
+    this.name = "DbFailure";
+    this.code = reply.code ?? null;
+    this.dbMessage = reply.message;
+    Object.defineProperty(this, DB_FAILURE, { value: true });
+  }
+
+  /** `e instanceof DbFailure` is true for a DbFailure made by any copy of this class. */
+  static override [Symbol.hasInstance](value: unknown): value is DbFailure {
+    return typeof value === "object" && value !== null && (value as { [DB_FAILURE]?: unknown })[DB_FAILURE] === true;
+  }
+}
+
 const DEFAULT_STATUS: Record<ErrorCode, number> = {
   unauthorized: 401,
   forbidden: 403,

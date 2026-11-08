@@ -17,6 +17,7 @@ import {
   parseTenantConfig,
   reachOutToneOf,
   siteHost,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { getAddressesSuppressed } from "@chanlytics/db/campaigns";
 import { getStoredConfig } from "../workspace/config-row";
@@ -75,7 +76,7 @@ function writerLines(config: ReturnType<typeof parseTenantConfig>): string[] {
 /** What this lead is, in the words the card saw: never a guess, and never the name of whoever fetched it. */
 async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): Promise<string[]> {
   const { data, error } = await findLeadDraftFacts(ctx.supabase, lead.id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const item = data ?? null;
   const out = [item?.business_name ?? lead.business_name];
   if (item?.category) out.push(item.category);

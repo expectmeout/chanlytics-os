@@ -23,6 +23,7 @@ const { withRoute, dbRefusal } = await import(at("apps/dashboard/src/server/shar
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const notifications = await import(at("apps/dashboard/app/api/v1/notifications/route.ts"));
+const { DbFailure } = await import("@chanlytics/contracts");
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -74,6 +75,105 @@ test("a definer door's refusal keeps its words, at the status its SQLSTATE says"
       `${code} is the door speaking, not a failure`,
     );
   }
+});
+
+/** A handler whose repository raised the reply it got, labelled for the log (decision 0114). */
+const failing = (reply, label) =>
+  withRoute(async () => {
+    throw new DbFailure(reply, label);
+  });
+
+test("a database failure nothing read is answered by its code, in the door's words without the log's label", async () => {
+  for (const [code, want] of [
+    ["P0002", { status: 404, code: "not_found" }],
+    ["23505", { status: 409, code: "conflict" }],
+    ["42501", { status: 403, code: "forbidden" }],
+    ["22023", { status: 400, code: "validation" }],
+    ["PE001", { status: 409, code: "conflict" }],
+  ]) {
+    const words = `The door's own sentence for ${code}.`;
+    const a = await answer(failing({ code, message: words }, "erase_contact"));
+    assert.equal(a.status, want.status, code);
+    assert.deepEqual(a.body.error, { code: want.code, message: words }, code);
+    const line = a.lines.find((l) => l.event === "route_refused");
+    assert.equal(line?.code, want.code, `${code}: the refusal is logged as one`);
+    assert.equal(line?.db_code, code, "with the database's code");
+    assert.equal(line?.error, `erase_contact: ${words}`, "and what was being done");
+    assert.equal(
+      a.lines.some((l) => l.event === "route_failed"),
+      false,
+      `${code} is the door speaking, not a fault`,
+    );
+  }
+});
+
+test("Postgres's own sentence is never a person's to read: the code's plain words, and the sentence in the log", async () => {
+  for (const [code, raw, words] of [
+    ["23505", 'duplicate key value violates unique constraint "contacts_phone_key"', "That already exists."],
+    [
+      "42501",
+      'new row violates row-level security policy for table "contacts"',
+      "You do not have permission to do that.",
+    ],
+    ["42501", "permission denied for table contacts", "You do not have permission to do that."],
+    ["P0002", "query returned no rows", "That could not be found."],
+  ]) {
+    for (const a of [
+      await answer(failing({ code, message: raw }, "saving")),
+      await answer(throwing({ code, message: raw })),
+    ]) {
+      assert.equal(a.body.error.message, words, raw);
+      assert.equal(JSON.stringify(a.body).includes(raw), false, "the raw text never reaches the browser");
+    }
+    const line = (await answer(failing({ code, message: raw }, "saving"))).lines.find(
+      (l) => l.event === "route_refused",
+    );
+    assert.equal(line?.error, `saving: ${raw}`);
+  }
+});
+
+test("any other database failure stays the fault it is: 500, the words every fault gets, its text and stack in the log", async () => {
+  for (const reply of [
+    { code: "57014", message: RAW },
+    { code: "23514", message: 'new row for relation "contacts" violates check constraint "contacts_email_check"' },
+    // A bare raise says nothing of what the rule means here, and only a route that knows can say (dbRefusal's `raised`).
+    { code: "P0001", message: "scrub_ask_for_contact: owner role required" },
+    { message: "TypeError: fetch failed" },
+  ]) {
+    const a = await answer(failing(reply, "reading"));
+    assert.equal(a.status, 500, reply.message);
+    assert.deepEqual(a.body.error, { code: "internal", message: "Something went wrong." }, reply.message);
+    assert.equal(JSON.stringify(a.body).includes(reply.message), false, "the raw text never reaches the browser");
+    const line = a.lines.find((l) => l.event === "route_failed");
+    assert.equal(line?.error, `DbFailure: reading: ${reply.message}`);
+    assert.match(line?.error_stack ?? "", /^at /, "the line says where it was raised");
+  }
+});
+
+test("dbRefusal reads a DbFailure's own sentence, never the label a repository wrote ahead of it", async () => {
+  const refused = dbRefusal(new DbFailure({ code: "P0002", message: "Contact not found." }, "erase_contact"));
+  assert.deepEqual([refused.code, refused.status, refused.message], ["not_found", 404, "Contact not found."]);
+  const raised = dbRefusal(new DbFailure({ code: "P0001", message: "Already asked." }, "ask"), {
+    code: "conflict",
+    status: 409,
+  });
+  assert.deepEqual([raised.code, raised.status, raised.message], ["conflict", 409, "Already asked."]);
+});
+
+test("a DbFailure says what it is in the words it was raised with, and keeps the reply it came from", () => {
+  const reply = { code: "P0002", message: "Contact not found.", details: null, hint: null };
+  const plain = new DbFailure(reply);
+  assert.equal(plain.message, "Contact not found.", "the same sentence a bare re-raise said");
+  const labelled = new DbFailure(reply, "erase_contact");
+  assert.equal(labelled.message, "erase_contact: Contact not found.", "the same sentence a labelled re-raise said");
+  assert.equal(labelled.dbMessage, "Contact not found.");
+  assert.equal(labelled.code, "P0002");
+  assert.equal(labelled.cause, reply);
+  assert.equal(labelled.name, "DbFailure");
+  assert.ok(labelled instanceof Error);
+  assert.equal(new DbFailure({ message: "no row" }).code, null, "a reply with no code has none");
+  assert.equal(JSON.stringify(Object.keys(labelled)).includes("Symbol"), false, "the mark is no field a log writes");
+  assert.equal(new Error("x") instanceof DbFailure, false);
 });
 
 test("a bare raise (P0001) is answered as the route says, and only it", async () => {

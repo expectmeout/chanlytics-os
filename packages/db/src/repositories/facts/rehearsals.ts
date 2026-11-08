@@ -15,7 +15,7 @@
  *   - `findVoiceAgent` / `keepVoiceAgent`: the agent before the number. The service role alone.
  * Every statement on a workspace's table goes through `tenantDb`, so none can reach another workspace's row by an id.
  */
-import { MIN_MS, recordOrEmpty, listOrEmpty, isOneOf } from "@chanlytics/contracts";
+import { MIN_MS, recordOrEmpty, listOrEmpty, isOneOf, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
@@ -126,7 +126,7 @@ export async function findRehearsalById(db: Db, tenantId: TenantId, id: string):
     .select(REHEARSAL_COLUMNS)
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the rehearsal: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the rehearsal");
   return data ? rehearsalOf(data) : null;
 }
 
@@ -140,7 +140,7 @@ export async function findRehearsalByCall(db: Db, retellCallId: string): Promise
     .select(REHEARSAL_COLUMNS)
     .eq("retell_call_id", retellCallId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the rehearsal of a call: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the rehearsal of a call");
   return data ? rehearsalOf(data) : null;
 }
 
@@ -154,7 +154,7 @@ export async function callReviewOf(db: Db, tenantId: TenantId, callId: string): 
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the call's review: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the call's review");
   return data ? rehearsalOf(data) : null;
 }
 
@@ -173,7 +173,7 @@ export async function getRehearsalSpokenMs(
   if (options.since) query = query.gte("created_at", options.since);
   if (options.except) query = query.neq("id", options.except);
   const { data, error } = await query;
-  if (error) throw new Error(`cannot read the rehearsals' minutes: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the rehearsals' minutes");
   let spentMs = 0;
   let running = false;
   for (const r of data ?? []) {
@@ -199,7 +199,7 @@ export async function findRehearsalTally(
     .select("created_at, reviewed_at, fixes")
     .order("created_at", { ascending: false })
     .limit(500);
-  if (error) throw new Error(`cannot read the rehearsals: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the rehearsals");
   const rows = data ?? [];
   return {
     reviewed: rows.filter((r) => r.reviewed_at !== null).length,
@@ -234,7 +234,7 @@ export async function reserveRehearsalCall(
     .delete()
     .eq("retell_call_id", held)
     .lt("created_at", new Date(row.now.getTime() - START_HELD_MS).toISOString());
-  if (stale.error) throw new Error(`cannot clear a start left behind: ${stale.error.message}`);
+  if (stale.error) throw new DbFailure(stale.error, "cannot clear a start left behind");
   const { error } = await result.from("rehearsals").insert({
     id: row.id,
     tenant_id: row.tenantId,
@@ -243,7 +243,7 @@ export async function reserveRehearsalCall(
     created_by: row.createdBy,
   });
   if (error?.code === "23505") return false;
-  if (error) throw new Error(`cannot reserve the rehearsal: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot reserve the rehearsal");
   return true;
 }
 
@@ -254,7 +254,7 @@ export async function releaseRehearsalCall(db: Db, tenantId: TenantId, id: strin
     .delete()
     .eq("id", id)
     .eq("retell_call_id", startingCallId(tenantId));
-  if (error) throw new Error(`cannot give the rehearsal back: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot give the rehearsal back");
 }
 
 /** The reserved rehearsal, named for the call the provider made: its call id, the agent, and what it was told. */
@@ -280,7 +280,7 @@ export async function keepRehearsalCall(
     .eq("id", row.id)
     .eq("retell_call_id", startingCallId(row.tenantId))
     .select("id");
-  if (error) throw new Error(`cannot keep the rehearsal: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot keep the rehearsal");
   if (!data?.length) throw new Error("cannot keep the rehearsal: its reservation is gone");
 }
 
@@ -301,7 +301,7 @@ export async function writeRehearsalTranscript(
     .eq("retell_call_id", retellCallId)
     .is("ended_at", null)
     .select("id");
-  if (error) throw new Error(`cannot write the rehearsal's words: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot write the rehearsal's words");
   return (data ?? []).length > 0;
 }
 
@@ -329,7 +329,7 @@ export async function endRehearsal(
     })
     .eq("retell_call_id", retellCallId)
     .select("id");
-  if (error) throw new Error(`cannot end the rehearsal: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot end the rehearsal");
   return (data ?? []).length > 0;
 }
 
@@ -356,7 +356,7 @@ export async function keepTypedRehearsal(
     })
     .select("id")
     .single();
-  if (error) throw new Error(`cannot keep the typed rehearsal: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot keep the typed rehearsal");
   return data.id;
 }
 
@@ -387,7 +387,7 @@ export async function keepCallReview(
     })
     .select("id")
     .single();
-  if (error) throw new Error(`cannot keep the call's review: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot keep the call's review");
   return data.id;
 }
 
@@ -397,7 +397,7 @@ export async function keepRehearsalReview(db: Db, tenantId: TenantId, id: string
     .from("rehearsals")
     .update({ review, reviewed_at: new Date().toISOString() })
     .eq("id", id);
-  if (error) throw new Error(`cannot keep the review: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot keep the review");
 }
 
 /**
@@ -417,7 +417,7 @@ export async function keepRehearsalFix(
     p_rehearsal_id: id,
     p_fix: { op: fix.op, field: fix.field, said: fix.said, version: fix.version },
   });
-  if (error) throw new Error(`cannot keep the fix: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot keep the fix");
   return data;
 }
 
@@ -429,7 +429,7 @@ export async function findVoiceAgent(
   tenantId: TenantId,
 ): Promise<{ agentId: string; llmId: string | null } | null> {
   const { data, error } = await tenantDb(db, tenantId).from("voice_agents").select("agent_id, llm_id").maybeSingle();
-  if (error) throw new Error(`cannot read the workspace's voice agent: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace's voice agent");
   return data ? { agentId: data.agent_id, llmId: data.llm_id } : null;
 }
 
@@ -445,7 +445,7 @@ export async function keepVoiceAgent(
       { tenant_id: args.tenantId, agent_id: args.agentId, llm_id: args.llmId },
       { onConflict: "tenant_id", ignoreDuplicates: true },
     );
-  if (error) throw new Error(`cannot keep the workspace's voice agent: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot keep the workspace's voice agent");
   const kept = await findVoiceAgent(db, args.tenantId);
   if (!kept) throw new Error("the workspace's voice agent was not kept");
   return kept;
@@ -457,7 +457,7 @@ export async function keepVoiceAgent(
  */
 export async function listVoiceAgentsBeforeANumber(db: Db): Promise<string[]> {
   const { data, error } = await platformWide(db).from("voice_agents").select("agent_id");
-  if (error) throw new Error(`cannot read the voice agents: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the voice agents");
   return (data ?? []).map((r) => r.agent_id);
 }
 
@@ -471,7 +471,7 @@ export async function listActiveVoiceAgents(db: Db): Promise<Array<{ tenantId: T
     .select("tenant_id, external_id")
     .eq("kind", "voice")
     .eq("status", "active");
-  if (error) throw new Error(`cannot read the voice lines: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the voice lines");
   return (data ?? []).flatMap((r) => (r.external_id ? [{ tenantId: r.tenant_id, agentId: r.external_id }] : []));
 }
 
@@ -482,6 +482,6 @@ export async function findConfigAtVersion(db: Db, tenantId: TenantId, version: n
     .select("config")
     .eq("version", version)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the settings at version ${version}: ${error.message}`);
+  if (error) throw new DbFailure(error, `cannot read the settings at version ${version}`);
   return data?.config ?? null;
 }

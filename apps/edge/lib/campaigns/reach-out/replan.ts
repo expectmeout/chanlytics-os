@@ -18,7 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { listChainSteps, listLeadClocks, moveSend, type ReachOutSendRow } from "@chanlytics/db/campaigns";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
-import { DAY_MS, DEFAULT_TIMEZONE, timetable, weekHoursOf, zoneOfRegion } from "@chanlytics/contracts";
+import { DAY_MS, DEFAULT_TIMEZONE, timetable, weekHoursOf, zoneOfRegion, DbFailure } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
 import type { Logger } from "../../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
@@ -47,7 +47,7 @@ type Move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>) => Promise<boo
 /** A step's pace and mailboxes, and whether its chain's root says its owner sends it (00429), in one read. */
 async function stepAndRootOf(db: Db, tenantId: TenantId, stepId: string, rootId: string) {
   const { data, error } = await listChainSteps(db, tenantId, [stepId, rootId]);
-  if (error) throw new Error(`the step: ${error.message}`);
+  if (error) throw new DbFailure(error, "the step");
   const rows = data ?? [];
   return {
     step: rows.find((p) => p.id === stepId) ?? null,

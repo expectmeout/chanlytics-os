@@ -14,6 +14,7 @@ import {
   v1FromAnswer,
   recordOrEmpty,
   listOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { AskTurnShape } from "./shape";
 import { withFilesAttached, withFilesOpened } from "@/server/files/line";
@@ -121,7 +122,7 @@ export async function listThreads(ctx: RouteContext, tenantId: TenantId): Promis
     new Date(Date.now() - DAY_MS).toISOString(),
     THREADS_CAP,
   );
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []).map(toThreadVM);
 }
 
@@ -169,7 +170,7 @@ export async function readThread(
   tenantId: TenantId;
 } | null> {
   const { data: t, error } = await findAskThread(ctx.supabase, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!t) return null;
   // The newest MESSAGES_CAP rows, newest first (the id breaks a tie in the clock, so every read agrees), then put back
   // in the order they were written: a thread past thirty turns reopens on its latest, and its history ends at the last.
@@ -203,7 +204,7 @@ export async function readThread(
  */
 export async function readRaws(ctx: RouteContext, ids: string[]): Promise<Map<string, unknown>> {
   const { data, error } = await listAskTurnsRaw(ctx.supabase, ids);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return new Map((data ?? []).map((r) => [r.id, r.raw]));
 }
 
@@ -222,7 +223,7 @@ export async function createThread(
     title,
     scope: scopeColumn(scope),
   });
-  if (error) throw new Error(`ask thread: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask thread");
   return toThreadVM(data);
 }
 
@@ -240,7 +241,7 @@ export async function appendMessage(
     role,
     content: jsonCopyOf(content),
   });
-  if (error) throw new Error(`ask message: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask message");
   return data;
 }
 
@@ -309,7 +310,7 @@ export async function setProposalOutcome(
   outcome: AskProposalOutcome,
 ): Promise<AskProposal> {
   const { data: m, error } = await findAskTurnContent(ctx.supabase, messageId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
   const content = recordOrEmpty(m.content);
   const proposals = Array.isArray(content.proposals) ? (content.proposals as AskProposal[]) : [];
@@ -337,6 +338,6 @@ export async function setProposalOutcome(
 
 export async function deleteThread(ctx: RouteContext, id: string): Promise<void> {
   const { data, error } = await deleteAskThread(ctx.supabase, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data?.length) throw new AppError("not_found", "That thread is not yours or is already gone.", 404);
 }

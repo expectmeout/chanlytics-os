@@ -19,6 +19,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -47,7 +48,7 @@ async function sectionRows(
   q: PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
 ): Promise<Record<string, unknown>[]> {
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []) as Record<string, unknown>[];
 }
 
@@ -279,7 +280,7 @@ async function columnIds<K extends string>(
   key: K,
 ): Promise<string[]> {
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []).map((r) => r[key]);
 }
 
@@ -376,7 +377,7 @@ function personSendSections(
       .eq("tenant_id", tenantId)
       .eq("id", contactId)
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     return data?.lead_id ?? null;
   });
   return {

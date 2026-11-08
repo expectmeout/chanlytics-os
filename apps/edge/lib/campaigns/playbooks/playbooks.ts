@@ -69,6 +69,7 @@ import {
   DEFAULT_TIMEZONE,
   VISIT_TRIGGERS,
   runRoute,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { listFeedItems } from "../../calendar/availability.js";
 import { findCampaignsDomainVerified } from "../../email/campaigns-domain.js";
@@ -390,7 +391,7 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
       alreadyRan: async (playbookId, runFor) => {
         const { data, error } = await findRunFor(db, tenantId, playbookId, runFor);
         // A run that cannot be read is not one that never ran: answered false, it would send the day twice.
-        if (error) throw new Error(`cannot read whether the playbook ran: ${error.message}`);
+        if (error) throw new DbFailure(error, "cannot read whether the playbook ran");
         return !!data;
       },
       // A customer's step after the first (decision 0060, D6): who it is due to, and the door that takes out those it

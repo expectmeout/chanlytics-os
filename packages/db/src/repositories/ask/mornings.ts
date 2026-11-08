@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
-import { recordOrEmpty, type TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty, type TenantId, DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -40,7 +40,7 @@ export async function askMorningWrite(
     ...(askMorningAct.act === "thread" ? { p_thread_id: askMorningAct.threadId } : {}),
     ...(askMorningAct.act === "answered" ? { p_cards: askMorningAct.cards } : {}),
   });
-  if (error) throw new Error(`ask_morning_write: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_morning_write");
   const item = recordOrEmpty(data);
   if (typeof item.error === "string") return { refused: item.error };
   return {
@@ -66,7 +66,7 @@ export async function askMorningOf(
     .eq("user_id", userId)
     .eq("day", day)
     .maybeSingle();
-  if (error) throw new Error(`ask_mornings: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_mornings");
   return data ? { thread_id: data.thread_id ?? null, cards: data.cards ?? null, made_at: data.made_at } : null;
 }
 
@@ -94,7 +94,7 @@ export async function askMorningsSince(db: Db, tenantId: TenantId, since: string
     .not("thread_id", "is", null)
     .order("day", { ascending: false })
     .limit(MORNINGS_READ);
-  if (error) throw new Error(`ask_mornings: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_mornings");
   const threads = (mornings ?? []).flatMap((m) => (m.thread_id ? [m.thread_id] : []));
   if (threads.length === 0) return [];
   const { data: answers, error: read } = await db
@@ -134,7 +134,7 @@ export async function askFirstAnswer(
     .order("id", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`ask_messages: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_messages");
   if (!data) return null;
   return {
     id: data.id,

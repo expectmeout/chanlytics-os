@@ -1,4 +1,4 @@
-import { isContactId } from "@chanlytics/contracts";
+import { isContactId, DbFailure } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -54,7 +54,7 @@ async function personOnCard(toolContext: ToolContext, contactId: string): Promis
   const id = str(contactId, 40);
   if (!isContactId(id)) return refuse("contact_id must be an id a read returned");
   const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
   // As People names them (personName). What the page shows in place of a name of their own is that, minus the typed name.
   const contactName = personName(c);

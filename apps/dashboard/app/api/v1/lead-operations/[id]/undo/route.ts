@@ -3,6 +3,7 @@ import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, refusalOf } from "@/server/leads/leads";
 import { undoLeadAct } from "@/server/leads/search-acts";
+import { DbFailure } from "@chanlytics/contracts";
 
 const Body = z.object({ version: z.number().int().min(0) });
 
@@ -22,7 +23,7 @@ export const POST = write({
   handle: async ({ ctx, input }) => {
     const opId = requireUuid(ctx.params.id, "operation");
     const { data, error } = await undoLeadAct(ctx, { p_op_id: opId, p_version: input.version });
-    if (error) throw new Error(`lead_undo: ${error.message}`);
+    if (error) throw new DbFailure(error, "lead_undo");
     const answer = answerOf(data);
     const refused = refusalOf(answer);
     if (refused) throw refused;

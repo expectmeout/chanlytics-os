@@ -19,6 +19,7 @@ import {
   type EdgeRefusal,
   type ReviewReplyFacts,
   type ReviewReplyMode,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { draftReviewReply } from "./review-reply.js";
 import { logger } from "../shared/log.js";
@@ -49,8 +50,8 @@ export async function reviewReplyMode(db: Db, tenantId: TenantId): Promise<Revie
 /** What the receptionist knows about the business when it writes under a review: the name, the tone, the languages, the services — from the same profile the WhatsApp brain speaks from. */
 async function reviewFacts(db: Db, tenantId: TenantId): Promise<ReviewReplyFacts> {
   const [t, c] = await Promise.all([findWorkspaceName(db, tenantId), findConfigRow(db, tenantId)]);
-  if (t.error) throw new Error(t.error.message);
-  if (c.error) throw new Error(c.error.message);
+  if (t.error) throw new DbFailure(t.error);
+  if (c.error) throw new DbFailure(c.error);
   const brain = parseTenantConfig(c.data?.config)?.brain ?? null;
   const profile = brain?.profile;
   return {
@@ -124,7 +125,7 @@ async function markReplied(
     drafted_at: null,
     posts_at: null,
   });
-  if (up.error) throw new Error(up.error.message);
+  if (up.error) throw new DbFailure(up.error);
 }
 
 /**
@@ -140,7 +141,7 @@ async function writeHeldReply(
   timed = false,
 ): Promise<boolean> {
   const up = await saveHeldReviewReply(db, tenantId, rowId, set, timed);
-  if (up.error) throw new Error(up.error.message);
+  if (up.error) throw new DbFailure(up.error);
   return (up.data ?? []).length > 0;
 }
 
@@ -186,7 +187,7 @@ async function answerNewReviews(
   // left to read it (doesWorkspaceAnswerOnItsOwn says which).
   if (!(await doesWorkspaceAnswerOnItsOwn(db, conn.tenant_id))) return nothingAnswered();
   const unreplied = await listUnrepliedProfileReviews(db, conn.tenant_id, 20);
-  if (unreplied.error) throw new Error(unreplied.error.message);
+  if (unreplied.error) throw new DbFailure(unreplied.error);
   const rows: Unreplied[] = unreplied.data ?? [];
   if (!rows.length) return nothingAnswered();
   // A held reply whose time came goes first, under Holds it alone: one stopped has no time, and Ask me posts nothing alone.

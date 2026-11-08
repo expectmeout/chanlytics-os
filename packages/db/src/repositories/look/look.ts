@@ -6,7 +6,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { saysMissing } from "../../shared/missing-door";
-import { recordOrEmpty, type TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty, type TenantId, DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -24,9 +24,9 @@ const lacksAccent = (message: string): boolean => /\baccent\b/.test(message) && 
 export async function findWorkspaceLook(db: Db, tenantId: TenantId): Promise<WorkspaceLookRow | null> {
   const r = await db.from("tenants").select("name, slug, logo_path, accent").eq("id", tenantId).maybeSingle();
   if (!r.error) return r.data ? { ...r.data, accent: r.data.accent ?? null } : null;
-  if (!lacksAccent(r.error.message)) throw new Error(`cannot read the workspace's look: ${r.error.message}`);
+  if (!lacksAccent(r.error.message)) throw new DbFailure(r.error, "cannot read the workspace's look");
   const older = await db.from("tenants").select("name, slug, logo_path").eq("id", tenantId).maybeSingle();
-  if (older.error) throw new Error(`cannot read the workspace's look: ${older.error.message}`);
+  if (older.error) throw new DbFailure(older.error, "cannot read the workspace's look");
   return older.data ? { ...older.data, accent: null } : null;
 }
 
@@ -53,7 +53,7 @@ export async function wearFoundLook(
     p_logo_path: params.logoPath ?? "",
     p_accent: params.accent ?? "",
   });
-  if (error) throw new Error(`wear_found_look: ${error.message}`);
+  if (error) throw new DbFailure(error, "wear_found_look");
   const item = recordOrEmpty(data);
   return { logo: item.logo === true, accent: item.accent === true };
 }

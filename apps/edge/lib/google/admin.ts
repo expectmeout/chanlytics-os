@@ -36,7 +36,7 @@ import { emitEvent } from "@chanlytics/db/events";
 import { setFileListingAside } from "@chanlytics/db/files";
 import { findLinkedPlace } from "@chanlytics/db/imports";
 import type { Database } from "@chanlytics/db/types";
-import { DEFAULT_TIMEZONE, UUID } from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, UUID, DbFailure } from "@chanlytics/contracts";
 import type { PlaceDetails } from "@chanlytics/channels/google";
 import { googleReadiness, placesKey, profilePublic } from "../shared/google/config.js";
 import {
@@ -159,14 +159,14 @@ async function workspaceCall(body: GoogleBody): Promise<{ ok: true; value: Googl
 /** The listing as the dashboard sees it, read now. */
 async function listingNow(c: GoogleCall): Promise<ListingView> {
   const r = await findGoogleListing(c.db, c.tenantId);
-  if (r.error) throw new Error(`cannot read the listing: ${r.error.message}`);
+  if (r.error) throw new DbFailure(r.error, "cannot read the listing");
   return r.data ? listingForClient(r.data) : null;
 }
 
 /** The connection as the dashboard sees it, read now. */
 async function connectionNow(c: GoogleCall) {
   const r = await findGoogleConnection(c.db, c.tenantId);
-  if (r.error) throw new Error(`cannot read the Google connection: ${r.error.message}`);
+  if (r.error) throw new DbFailure(r.error, "cannot read the Google connection");
   return r.data ? connectionForClient(r.data) : null;
 }
 

@@ -14,7 +14,7 @@
  */
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 
 export interface SubscribeOptions {
@@ -415,7 +415,7 @@ export async function getNoticesSince(
   since: string,
 ): Promise<{ notices: ToldNotice[]; whole: boolean }> {
   const { data, error } = await client.rpc("workspace_notices_since", { p_tenant_id: tenantId, p_since: since });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   const rows = data ?? [];
   const notices = rows.slice(0, CATCH_UP_MOST).flatMap((row): ToldNotice[] => {
     const p = recordOrEmpty(row.payload);

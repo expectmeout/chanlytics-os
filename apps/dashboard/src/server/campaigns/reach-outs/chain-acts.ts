@@ -27,6 +27,7 @@ import {
   type ReachOutStartDto,
   recordOrEmpty,
   finiteOrZero,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   decideSendDoor,
@@ -77,7 +78,7 @@ export function reachOutRefusal(pgError: PgError): Error {
     case "23503":
       return new AppError("conflict", sentence ?? REACH_OUT_REFUSALS.exists, 409);
     default:
-      return new Error(pgError.message);
+      return new DbFailure(pgError);
   }
 }
 

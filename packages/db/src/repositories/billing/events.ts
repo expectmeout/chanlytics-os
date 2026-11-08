@@ -17,6 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -31,7 +32,7 @@ export async function keepInvoiceAmount(
     p_amount_cents: amountCents,
     p_currency: currency,
   });
-  if (error) throw new Error(`billing_event_keep_amount: ${error.message}`);
+  if (error) throw new DbFailure(error, "billing_event_keep_amount");
   return data === true;
 }
 

@@ -9,6 +9,7 @@ import {
   type LeadsCheckAgainInput,
   type LeadStageInput,
   stageArgs,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { answerOf, type DoorAnswer, refusalOf } from "./answers";
@@ -72,7 +73,7 @@ export async function setStage(
     p_lead_id: lead.id,
     ...stageArgs(input),
   });
-  if (error) throw new Error(`lead_set_stage: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_set_stage");
   const answer = answerOf(data);
   const refused = refusalOf(answer);
   if (refused) throw refused;
@@ -107,7 +108,7 @@ export async function bulkStage(
       ? { p_ids: input.ids, ...(input.search_id ? { p_search_id: input.search_id } : {}) }
       : { p_ids: null, p_view: input.view }),
   });
-  if (error) throw new Error(`lead_bulk: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_bulk");
   const answer = answerOf(data);
   // Keep over a selection stops when the month's leads run out: what was kept before that stays kept, and the
   // sentence rides the toast instead of refusing an act that half happened. With nothing done it is a refusal.
@@ -152,7 +153,7 @@ export async function checkAgain(
   input: LeadsCheckAgainInput,
 ): Promise<{ scheduled: number; skipped: number; toast: string }> {
   const { data, error } = await askLeadsChecked(ctx.supabase, { p_tenant_id: tenantId, p_lead_ids: input.ids });
-  if (error) throw new Error(`lead_check_again: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_check_again");
   const answer = answerOf(data);
   const refused = refusalOf(answer);
   if (refused) throw refused;
@@ -181,7 +182,7 @@ export async function eraseLead(
   lead: LeadRow,
 ): Promise<{ erased: true; already: boolean }> {
   const { data, error } = await eraseLeadRow(ctx.supabase, lead.id);
-  if (error) throw new Error(`lead_erase: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_erase");
   const a = answerOf(data);
   const refused = refusalOf(a);
   if (refused) throw refused;

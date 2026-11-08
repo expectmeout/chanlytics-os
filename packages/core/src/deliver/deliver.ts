@@ -43,6 +43,7 @@ import {
   type DeliveryRefusal,
   type MessageAbout,
   type SendPurpose,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   pauseEmailOffersFor,
@@ -306,8 +307,7 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, delivery: Delivery):
     conversationId: delivery.conversationId,
     relationship: isOfferByEmail(delivery),
   });
-  if (error)
-    throw new Error(`deliver: cannot read the wire for conversation ${delivery.conversationId}: ${error.message}`);
+  if (error) throw new DbFailure(error, `deliver: cannot read the wire for conversation ${delivery.conversationId}`);
   if (!data) throw new Error(`deliver: no conversation ${delivery.conversationId} in workspace ${delivery.tenantId}`);
   // The wire's columns are chosen at run time, past the client's typed parser: the row is the columns findWireRow names.
   const row = data as unknown as {
@@ -511,7 +511,7 @@ async function overtakenByHuman(db: Db, delivery: Delivery): Promise<string | nu
     after: mine.created_at,
     limit: 10,
   });
-  if (error) throw new Error(`deliver: cannot read the thread for ${delivery.messageId}: ${error.message}`);
+  if (error) throw new DbFailure(error, `deliver: cannot read the thread for ${delivery.messageId}`);
   // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
   // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
   // Which sends those are is said once (contracts isAutomatedSend, with its SQL twin).
@@ -607,7 +607,7 @@ async function leftAs(db: Db, delivery: Delivery, sent: SendResult): Promise<voi
 async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise<boolean> {
   if (!d.messageId) return false;
   const { data, error } = await finalizeQueuedMessage(db, d.messageId, patch);
-  if (error) throw new Error(`deliver: cannot finalize message ${d.messageId}: ${error.message}`);
+  if (error) throw new DbFailure(error, `deliver: cannot finalize message ${d.messageId}`);
   return !!data && data.length > 0;
 }
 
@@ -787,7 +787,7 @@ export async function getTemplatePurpose(
     name: template.name,
     language: template.language,
   });
-  if (error) throw new Error(`deliver: cannot read template ${template.name}: ${error.message}`);
+  if (error) throw new DbFailure(error, `deliver: cannot read template ${template.name}`);
   return purposeOfTemplate(data?.category);
 }
 

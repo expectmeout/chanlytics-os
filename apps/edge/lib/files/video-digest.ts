@@ -36,6 +36,7 @@ import {
   type SoundNote,
   type SoundWords,
   type VideoDigestStep,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   askStreamAudio,
@@ -77,7 +78,7 @@ const heardFor = (row: FileRow): HeardFor => ({ tenantId: row.tenant_id, fileId:
 /** Which of what is made of the video the folder already holds. */
 async function madeOf(d: Digest): Promise<Set<string>> {
   const listed = await filesBucket(d.db).list(fileFolderOf(d.row.tenant_id, d.row.id));
-  if (listed.error) throw new Error(`video_digest: ${listed.error.message}`);
+  if (listed.error) throw new DbFailure(listed.error, "video_digest");
   return new Set((listed.data ?? []).map((f) => f.name));
 }
 
@@ -86,7 +87,7 @@ async function keepMade(d: Digest, which: FileMadeOfVideo, bytes: Uint8Array): P
     contentType: FILE_MADE_OF_VIDEO_MIMES[which],
     upsert: true,
   });
-  if (upload.error) throw new Error(`video_digest: ${which} not kept: ${upload.error.message}`);
+  if (upload.error) throw new DbFailure(upload.error, `video_digest: ${which} not kept`);
 }
 
 /** One part of what was heard, kept, with the list's words for the whole as it now stands. */
@@ -191,7 +192,7 @@ async function audioStep(digest: Digest, sound: FileSound): Promise<VideoDigestS
 async function audioBytesOf(d: Digest): Promise<Uint8Array> {
   const read = await filesBucket(d.db).download(fileMadePathOf(d.row.tenant_id, d.row.id, "audio"));
   if (read.error || !read.data)
-    throw new Error(`video_digest: the kept sound could not be read: ${read.error?.message}`);
+    throw new DbFailure(read.error ?? { message: "no answer" }, "video_digest: the kept sound could not be read");
   return new Uint8Array(await read.data.arrayBuffer());
 }
 

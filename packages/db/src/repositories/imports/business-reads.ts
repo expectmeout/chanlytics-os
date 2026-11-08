@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -24,7 +25,7 @@ export async function listBusinessReads(db: Db, tenantId: TenantId): Promise<Bus
   const { data, error } = await tenantDb(db, tenantId)
     .from("business_reads")
     .select("source, facts, read_from, read_at, error");
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? [];
 }
 
@@ -50,7 +51,7 @@ export async function keepBusinessRead(
     },
     { onConflict: "tenant_id,source" },
   );
-  if (error) throw new Error(`business_reads: ${error.message}`);
+  if (error) throw new DbFailure(error, "business_reads");
 }
 
 /**
@@ -59,7 +60,7 @@ export async function keepBusinessRead(
  */
 export async function findListingFactsStored(db: Db, tenantId: TenantId): Promise<Json | null> {
   const { data, error } = await tenantDb(db, tenantId).from("google_listings").select("facts").maybeSingle();
-  if (error) throw new Error(`google_listings: ${error.message}`);
+  if (error) throw new DbFailure(error, "google_listings");
   return data ? (data.facts ?? null) : null;
 }
 
@@ -74,12 +75,12 @@ export async function patchListing(
   patch: Database["public"]["Tables"]["google_listings"]["Update"],
 ): Promise<void> {
   const { error } = await tenantDb(db, tenantId).from("google_listings").update(patch);
-  if (error) throw new Error(`google_listings: ${error.message}`);
+  if (error) throw new DbFailure(error, "google_listings");
 }
 
 /** The place the workspace's listing is linked to (google_listings.place_id), when one is: what the owner said was theirs. */
 export async function findLinkedPlace(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await tenantDb(db, tenantId).from("google_listings").select("place_id").maybeSingle();
-  if (error) throw new Error(`google_listings: ${error.message}`);
+  if (error) throw new DbFailure(error, "google_listings");
   return data?.place_id ?? null;
 }

@@ -25,6 +25,7 @@ import {
   recordOrNull,
   recordOrEmpty,
   listOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { getLeadPileCounts, listSequencePlaces } from "@chanlytics/db/campaigns";
 import { getLeadViewCounts, listSearchNames, readLeadOne, readLeadsPage } from "@chanlytics/db/leads";
@@ -311,7 +312,7 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
 /** The searches' names, for the row that says which search found it: one read, whatever the page holds. */
 async function searchNamesOf(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<Map<string, string>> {
   const { data, error } = await listSearchNames(ctx.supabase, tenantId, 200);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return new Map((data ?? []).map((s) => [s.id, s.name]));
 }
 
@@ -344,7 +345,7 @@ async function pileOf(
     listId: leadsQuery.pile_list ?? null,
     ...(leadsQuery.class ? { cls: leadsQuery.class } : {}),
   });
-  if (error) throw new Error(`lead_pile_counts: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_pile_counts");
   return data;
 }
 
@@ -414,7 +415,7 @@ export async function getLeadsPage(
         }).catch(() => null)
       : Promise.resolve(null),
   ]);
-  if (answer.error) throw new Error(`leads_page: ${answer.error.message}`);
+  if (answer.error) throw new DbFailure(answer.error, "leads_page");
   const raw = Array.isArray(answer.data) ? answer.data : [];
   const last = raw[raw.length - 1];
   const places = await placesOf(

@@ -19,6 +19,7 @@ import {
   reversePartnerEarning,
 } from "@chanlytics/db/partners";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -50,7 +51,7 @@ export async function markCard(db: Db, tenantId: TenantId, fingerprint: string |
     log.warn("partner_card_mark_skipped", { tenant_id: tenantId, error: error.message });
     return;
   }
-  throw new Error(`billing_card_mark: ${error.message}`);
+  throw new DbFailure(error, "billing_card_mark");
 }
 
 /** Whether a partner brought this workspace: the question asked before anything costs a call to Stripe. */
@@ -58,7 +59,7 @@ export async function isAttributed(db: Db, tenantId: TenantId): Promise<boolean>
   const { data, error } = await findWorkspacePartner(db, tenantId);
   if (error) {
     if (notYet(error)) return false;
-    throw new Error(`partner_tenants: ${error.message}`);
+    throw new DbFailure(error, "partner_tenants");
   }
   return !!data;
 }
@@ -98,7 +99,7 @@ export async function earnFromInvoice(
       log.warn("partner_earning_skipped", { tenant_id: tenantId, invoice: inv.id, error: error.message });
       return { skipped: true };
     }
-    throw new Error(`partner_earn: ${error.message}`);
+    throw new DbFailure(error, "partner_earn");
   }
   if (!data) return null;
   const earned = Number((data as { earned_cents?: number }).earned_cents ?? 0);
@@ -145,7 +146,7 @@ export async function reverseForInvoice(
       log.warn("partner_earning_skipped", { invoice: invoiceId, kind, error: error.message });
       return { skipped: true };
     }
-    throw new Error(`partner_reverse: ${error.message}`);
+    throw new DbFailure(error, "partner_reverse");
   }
   if (!data) return null;
   const earned = Number((data as { earned_cents?: number }).earned_cents ?? 0);

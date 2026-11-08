@@ -19,6 +19,7 @@ import {
   templateUsage,
   type MessageRead,
   type TemplateSends,
+  DbFailure,
 } from "@chanlytics/contracts";
 // The database's count of the same sends (00374); contracts' templateSends is the fold it replaced, read below for a
 // database before it.
@@ -58,7 +59,7 @@ async function everyRow<T>(
   const out: T[] = [];
   for (;;) {
     const { data, error } = await page(out.length, out.length + TEMPLATES_PAGE - 1);
-    if (error) throw new Error(`${text}: ${error.message}`);
+    if (error) throw new DbFailure(error, `${text}`);
     out.push(...(data ?? []));
     if ((data ?? []).length < TEMPLATES_PAGE) return out;
   }
@@ -109,7 +110,7 @@ async function templateSendsRead(
 async function templatesOf(rc: ReaderContext, all: boolean) {
   const tenantId = rc.tenantId;
   const { data, error } = await listTemplatesForPage(rc.ctx.supabase, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   // The message as the customer receives it -- heading, footer, buttons -- and
   // why this product cannot send it, if it cannot. Meta's array stays behind:
   // three composers digging the same shapes out of it would put Meta's schema
@@ -154,7 +155,7 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
     templateSendsRead(rc, runs),
     listSequenceNames(rc.ctx.supabase, tenantId),
   ]);
-  if (pb.error) throw new Error(pb.error.message);
+  if (pb.error) throw new DbFailure(pb.error);
   // A campaign past its last day by the business's day (the turn's zone) sends nothing more: said so, never its clock (S1-3).
   // A zone that cannot be read judges none ended: what sends each still reads.
   const zone = await load(rc, facts.facts, undefined).then(

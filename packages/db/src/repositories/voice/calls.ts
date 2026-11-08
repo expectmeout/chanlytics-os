@@ -22,7 +22,7 @@
  * select, and what the row keeps of the provider's payload is an allowlist (scrub_call_raw, 00530) members may not
  * select at all. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
-import { heldContactId, recordOrEmpty, valueAt } from "@chanlytics/contracts";
+import { heldContactId, recordOrEmpty, valueAt, DbFailure } from "@chanlytics/contracts";
 import { recordOrNull, type SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
@@ -126,7 +126,7 @@ export async function ingestCall(
     p_raw: asJson(raw ?? {}),
     p_analysis: asJson(callInput.analysis ?? null),
   });
-  if (error) throw new Error(`ingest_call: ${error.message}`);
+  if (error) throw new DbFailure(error, "ingest_call");
   return readAnswer("ingest_call", IngestCallAnswer, data);
 }
 
@@ -168,7 +168,7 @@ export async function stampCallConfigVersion(
     .eq("retell_call_id", retellCallId)
     .is("config_version", null)
     .select("id");
-  if (error) throw new Error(`stampCallConfigVersion: ${error.message}`);
+  if (error) throw new DbFailure(error, "stampCallConfigVersion");
   return (data ?? []).length > 0;
 }
 
@@ -191,7 +191,7 @@ export async function callForReview(
     .eq("tenant_id", tenantId)
     .eq("id", callId)
     .maybeSingle();
-  if (error) throw new Error(`callForReview: ${error.message}`);
+  if (error) throw new DbFailure(error, "callForReview");
   return data ?? null;
 }
 
@@ -212,7 +212,7 @@ export async function listCallers(
       .select("id, from_e164, from_raw")
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IDS_PER_READ));
-    if (error) throw new Error(`listCallers: ${error.message}`);
+    if (error) throw new DbFailure(error, "listCallers");
     out.push(...(data ?? []));
   }
   return out;
@@ -307,7 +307,7 @@ export async function claimCallNotification(db: Db, tenantId: TenantId, callId: 
     .eq("tenant_id", tenantId)
     .is("notified_at", null)
     .select("id");
-  if (error) throw new Error(`claim_call_notification: ${error.message}`);
+  if (error) throw new DbFailure(error, "claim_call_notification");
   return (data?.length ?? 0) > 0;
 }
 
@@ -323,7 +323,7 @@ export async function claimCallActivity(db: Db, tenantId: TenantId, callId: stri
     .eq("tenant_id", tenantId)
     .is("activity_started_at", null)
     .select("id");
-  if (error) throw new Error(`claim_call_activity: ${error.message}`);
+  if (error) throw new DbFailure(error, "claim_call_activity");
   return (data?.length ?? 0) > 0;
 }
 
@@ -335,7 +335,7 @@ export async function findCallerName(db: Db, tenantId: TenantId, contactId: Cont
     .eq("tenant_id", tenantId)
     .eq("id", contactId)
     .maybeSingle();
-  if (error) throw new Error(`caller_name: ${error.message}`);
+  if (error) throw new DbFailure(error, "caller_name");
   return (data?.display_name || data?.wa_profile_name || "").trim() || null;
 }
 
@@ -377,7 +377,7 @@ export async function listCallsOwedAnAnalysis(
     .or("summary.is.null,outcome.eq.callback_needed")
     .order("ended_at", { ascending: true })
     .limit(params.limit);
-  if (error) throw new Error(`cannot read the calls owed an analysis: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the calls owed an analysis");
   return data ?? [];
 }
 
@@ -395,7 +395,7 @@ export async function claimGuardCorrection(db: Db, tenantId: TenantId, callId: s
     .eq("tenant_id", tenantId)
     .is("guard_corrected_at", null)
     .select("id");
-  if (error) throw new Error(`claim_guard_correction: ${error.message}`);
+  if (error) throw new DbFailure(error, "claim_guard_correction");
   return (data?.length ?? 0) > 0;
 }
 
@@ -433,7 +433,7 @@ export async function listCallsOwedANotice(
     .gt("notified_at", new Date(params.nowMs - params.toMs).toISOString())
     .order("notified_at", { ascending: true })
     .limit(params.limit);
-  if (error) throw new Error(`cannot read the calls owed a notice: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the calls owed a notice");
   return data ?? [];
 }
 
@@ -444,8 +444,8 @@ export async function findCanaryLine(db: Db, tenantId: TenantId): Promise<{ ours
     db.from("tenants").select("ours").eq("id", tenantId).maybeSingle(),
     t.from("lines").select("e164").eq("voice_state", "answering").not("e164", "is", null).limit(1).maybeSingle(),
   ]);
-  if (tenant.error) throw new Error(`cannot read the canary's workspace: ${tenant.error.message}`);
-  if (line.error) throw new Error(`cannot read the canary's line: ${line.error.message}`);
+  if (tenant.error) throw new DbFailure(tenant.error, "cannot read the canary's workspace");
+  if (line.error) throw new DbFailure(line.error, "cannot read the canary's line");
   return { ours: tenant.data?.ours === true, e164: line.data?.e164 ?? null };
 }
 
@@ -487,7 +487,7 @@ export async function listVoiceDoorKnocks(db: Db, sinceIso: string): Promise<Rec
     .gte("created_at", sinceIso)
     .order("created_at", { ascending: false })
     .limit(1000);
-  if (error) throw new Error(`cannot read the voice doors' evidence: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the voice doors' evidence");
   const doors: Record<string, VoiceDoorKnocks> = {};
   for (const r of data ?? []) {
     const d = recordOrEmpty(r.data);
@@ -521,7 +521,7 @@ export async function getCanaryCallFacts(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the canary's call: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the canary's call");
   const doors = await listVoiceDoorKnocks(db, params.sinceIso);
   if (!row) return { call: null, doors };
   let held = false;
@@ -560,7 +560,7 @@ export async function listRetellCallIds(db: Db, tenantId: TenantId, contactId: C
     .from("calls")
     .select("retell_call_id")
     .eq("contact_id", contactId);
-  if (error) throw new Error(`cannot read the person's calls: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the person's calls");
   return (data ?? []).map((r) => r.retell_call_id);
 }
 
@@ -577,7 +577,7 @@ export async function callSecondsSince(db: Db, tenantId: TenantId, sinceIso: str
     .eq("kind", "usage.voice_seconds")
     .gte("created_at", sinceIso)
     .limit(10000);
-  if (error) throw new Error(`cannot read the month's call seconds: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the month's call seconds");
   return (data ?? []).reduce((n, r) => {
     const s = recordOrNull(r.data)?.seconds;
     return n + (typeof s === "number" && Number.isFinite(s) ? s : 0);

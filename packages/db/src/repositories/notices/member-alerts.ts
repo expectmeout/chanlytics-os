@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { findMemberEmail } from "./notifications/feed";
 
-import { recordOrNull, type SchemaSet } from "@chanlytics/contracts";
+import { recordOrNull, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
@@ -47,7 +47,7 @@ export async function forgetEveryPhone(db: Db): Promise<number | null> {
   const { data, error } = await db.rpc("push_devices_forget_all");
   if (error) {
     if (error.code === "PGRST202") return null;
-    throw new Error(`cannot forget the phones: ${error.message}`);
+    throw new DbFailure(error, "cannot forget the phones");
   }
   const forgotten = recordOrNull(data)?.forgotten;
   return typeof forgotten === "number" ? forgotten : 0;
@@ -60,7 +60,7 @@ export async function forgetActivityTokens(db: Db, tokens: readonly string[]): P
     .from("push_devices")
     .update({ activity_token: null })
     .in("activity_token", [...tokens]);
-  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot forget the gone activity tokens");
 }
 
 /** What a member chose for their phones in one workspace, and their phones, as Settings › Notifications reads them. */
@@ -94,9 +94,9 @@ export async function getMemberAlerts(db: Db, params: { tenantId: TenantId; user
       .eq("user_id", params.userId)
       .order("last_seen_at", { ascending: false, nullsFirst: false }),
   ]);
-  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
+  if (phones.error) throw new DbFailure(phones.error, "cannot read your phones");
   if (mine.error && mine.error.code !== UNDEFINED_COLUMN)
-    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
+    throw new DbFailure(mine.error, "cannot read your alert choices");
   return {
     pushOff: mine.error ? [] : (mine.data?.push_off ?? []),
     phones: (phones.data ?? []).map((d) => ({
@@ -117,7 +117,7 @@ export async function setMemberPushOff(
     p_tenant_id: params.tenantId,
     p_kinds: [...params.kinds],
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return data ?? [];
 }
 
@@ -137,12 +137,11 @@ export async function listMembersPushed(
     : await db.from("memberships").select("user_id, push_off").eq("tenant_id", params.tenantId);
   if (!chosen.error)
     return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(params.kind)).map((m) => m.user_id);
-  if (chosen.error.code !== UNDEFINED_COLUMN)
-    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
+  if (chosen.error.code !== UNDEFINED_COLUMN) throw new DbFailure(chosen.error, "cannot read who is in the workspace");
   // Before 00372: everyone named, or everyone in the workspace, as before there was a choice.
   if (ids) return ids;
   const all = await db.from("memberships").select("user_id").eq("tenant_id", params.tenantId);
-  if (all.error) throw new Error(`cannot read who is in the workspace: ${all.error.message}`);
+  if (all.error) throw new DbFailure(all.error, "cannot read who is in the workspace");
   return (all.data ?? []).map((m) => m.user_id);
 }
 
@@ -163,8 +162,8 @@ export async function pushNamesFor(
       .in("user_id", [...params.userIds]),
     db.from("tenants").select("name").eq("id", params.tenantId).maybeSingle(),
   ]);
-  if (members.error) throw new Error(`cannot read whose workspaces these are: ${members.error.message}`);
-  if (tenant.error) throw new Error(`cannot read the workspace's name: ${tenant.error.message}`);
+  if (members.error) throw new DbFailure(members.error, "cannot read whose workspaces these are");
+  if (tenant.error) throw new DbFailure(tenant.error, "cannot read the workspace's name");
   const workspaces = new Map<string, Set<string>>();
   for (const m of members.data ?? []) {
     const own = workspaces.get(m.user_id) ?? new Set<string>();
@@ -192,7 +191,7 @@ export async function getMemberViews(
     .eq("tenant_id", params.tenantId)
     .eq("user_id", params.userId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const views = data?.views;
   return views && typeof views === "object" && !Array.isArray(views) ? views : {};
 }
@@ -208,7 +207,7 @@ export async function setMemberView(db: Db, params: { tenantId: TenantId; page: 
     p_page: params.page,
     p_view: params.view,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
 }
 
 /** The same write, its answer as the door gave it (every page's views), for the route that says its refusals itself. */
@@ -227,6 +226,6 @@ export async function findOwnAddressIn(db: Db, params: { tenantId: TenantId; use
     .eq("tenant_id", params.tenantId)
     .eq("user_id", params.userId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read who is in the workspace: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read who is in the workspace");
   return data ? findMemberEmail(db, params.userId) : null;
 }

@@ -9,6 +9,7 @@ import {
   type AppointmentStatus,
   type FeedAppointmentRow,
   isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Json } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
@@ -24,7 +25,7 @@ export async function findAppointmentWorkspace(
   id: string,
 ): Promise<{ id: string; tenant_id: TenantId } | null> {
   const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();
-  if (error) throw new Error(`appointment_workspace: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_workspace");
   return data ?? null;
 }
 
@@ -68,7 +69,7 @@ export async function listAppointmentsForClient(
     .or(or)
     .order("starts_at", { ascending: true })
     .limit(50);
-  if (error) throw new Error(`appointments_for_client: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointments_for_client");
   return data ?? [];
 }
 
@@ -153,7 +154,7 @@ export async function findPeopleWithEarlierVisits(
     .lte("ends_at", beforeIso)
     .or(or)
     .limit(EARLIER_OF_MANY_MAX);
-  if (error) throw new Error(`people_with_earlier_visits: ${error.message}`);
+  if (error) throw new DbFailure(error, "people_with_earlier_visits");
   const rows = data ?? [];
   if (rows.length >= EARLIER_OF_MANY_MAX) return null;
   const theirs = (p: (typeof people)[number]) =>
@@ -183,7 +184,7 @@ export async function scrubAppointments(
     p_contact_id: params.contactId,
     p_needles: [...params.needles],
   });
-  if (error) throw new Error(`appointments_scrub: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointments_scrub");
   return typeof data === "number" ? data : 0;
 }
 
@@ -200,7 +201,7 @@ export async function findContactIdByPhone(db: Db, tenantId: TenantId, phone: st
     .is("merged_into_contact_id", null)
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`contact_by_phone: ${error.message}`);
+  if (error) throw new DbFailure(error, "contact_by_phone");
   return data?.id ?? null;
 }
 
@@ -215,7 +216,7 @@ export async function findContactIdByEmail(db: Db, tenantId: TenantId, email: st
     .is("merged_into_contact_id", null)
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`contact_by_email: ${error.message}`);
+  if (error) throw new DbFailure(error, "contact_by_email");
   return data?.id ?? null;
 }
 
@@ -266,7 +267,7 @@ export async function syncFeedAppointments(
     p_to: params.window.to.toISOString(),
     p_now: (params.now ?? new Date()).toISOString(),
   });
-  if (error) throw Object.assign(new Error(`appointments_feed_sync: ${error.message}`), { code: error.code });
+  if (error) throw new DbFailure(error, "appointments_feed_sync");
   const value = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
   return {
     added: count(value, "added"),
@@ -307,7 +308,7 @@ export async function getAppointmentStates(
       .eq("source", "calendar_feed")
       .in("external_id", feedKeys.slice(index, index + KEYS_PER_READ));
     if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
-    if (error) throw new Error(`appointments: ${error.message}`);
+    if (error) throw new DbFailure(error, "appointments");
     for (const r of data ?? []) put(r.external_id, r);
   }
   for (let i = 0; i < ids.length; i += KEYS_PER_READ) {
@@ -316,7 +317,7 @@ export async function getAppointmentStates(
       .select("id, status, starts_at, vanished_at, updated_at")
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + KEYS_PER_READ));
-    if (error) throw new Error(`appointments: ${error.message}`);
+    if (error) throw new DbFailure(error, "appointments");
     for (const r of data ?? []) put(recordKeyOf(r.id), r);
   }
   return out;
@@ -332,6 +333,6 @@ export async function recordReachOutBookedFrom(db: Db, tenantId: TenantId, appoi
     p_tenant_id: tenantId,
     p_appointment_id: appointmentId,
   });
-  if (error) throw new Error(`reach_out_booked_from: ${error.message}`);
+  if (error) throw new DbFailure(error, "reach_out_booked_from");
   return typeof data === "number" ? data : 0;
 }

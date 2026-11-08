@@ -49,6 +49,7 @@ import {
   saveGoogleConnection,
   saveGoogleListing,
 } from "@chanlytics/db/google";
+import { DbFailure } from "@chanlytics/contracts";
 
 const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 
@@ -326,11 +327,11 @@ export async function disconnectProfile(
   }
   // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
   const dropped = await dropGoogleCredentials(db, tenantId);
-  if (dropped.error) throw new Error(dropped.error.message);
+  if (dropped.error) throw new DbFailure(dropped.error);
   const gone = await deleteGoogleReviews(db, tenantId, { origin: "profile" });
-  if (gone.error) throw new Error(gone.error.message);
+  if (gone.error) throw new DbFailure(gone.error);
   const del = await deleteGoogleConnection(db, tenantId);
-  if (del.error) throw new Error(del.error.message);
+  if (del.error) throw new DbFailure(del.error);
   // A notice that it had stopped syncing is about nothing now.
   await syncMended(db, tenantId, "google_connection.removed");
   await emitEvent(db, tenantId, "google.disconnected", "listing", null, {

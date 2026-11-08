@@ -1,4 +1,4 @@
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import type { ContactId } from "@chanlytics/contracts";
 import "server-only";
 import {
@@ -240,7 +240,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
           .order("created_at", { ascending: false }),
         listPersonDecisions(sb, tenantId, id, convIds),
       ]);
-      if (escs.error) throw new Error(escs.error.message);
+      if (escs.error) throw new DbFailure(escs.error);
       return { byConv: groupMessages(msgs), escalations: escs.data ?? [], decisions: decided };
     });
     // Their appointments on the owner's calendar, when one is connected: the feed is read now, and matched to them once
@@ -365,20 +365,20 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       businessAndSigners(rc, tenantId, id, rowRead),
     ]);
     if (!row) throw await notHere(sb, tenantId, id);
-    if (history.error) throw new Error(history.error.message);
-    if (own.error) throw new Error(own.error.message);
+    if (history.error) throw new DbFailure(history.error);
+    if (own.error) throw new DbFailure(own.error);
     // Checked like the other seven. A dropped error here reads as "this
     // workspace has no booking link", which is indistinguishable on the page
     // from one that never set one -- so the "text them the link" step simply
     // vanishes for a workspace that has it configured.
-    if (cfg.error) throw cfg.error;
-    if (added.error) throw new Error(added.error.message);
+    if (cfg.error) throw new DbFailure(cfg.error);
+    if (added.error) throw new DbFailure(added.error);
     const fromConfig = configFacts(cfg.data?.config);
-    if (idents.error) throw new Error(idents.error.message);
-    if (personPol.error) throw new Error(personPol.error.message);
-    if (wsPol.error) throw new Error(wsPol.error.message);
-    if (convs.error) throw new Error(convs.error.message);
-    if (calls.error) throw new Error(calls.error.message);
+    if (idents.error) throw new DbFailure(idents.error);
+    if (personPol.error) throw new DbFailure(personPol.error);
+    if (wsPol.error) throw new DbFailure(wsPol.error);
+    if (convs.error) throw new DbFailure(convs.error);
+    if (calls.error) throw new DbFailure(calls.error);
     const { byConv, escalations, decisions } = thread;
 
     const person: PersonDetailDto = {

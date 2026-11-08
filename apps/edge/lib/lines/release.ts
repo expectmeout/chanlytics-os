@@ -22,6 +22,7 @@ import {
   receptionistOn,
   type EdgeErrorCode,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   LINE_RELEASE_REPORT_DAYS,
@@ -306,7 +307,7 @@ async function keepFacts(
   text: string,
 ): Promise<void> {
   const up = await saveLineFacts(db, row, facts);
-  if (up.error) throw new Error(`keeping ${text}: ${up.error.message}`);
+  if (up.error) throw new DbFailure(up.error, `keeping ${text}`);
 }
 
 /** When the warning for this end was first asked for and did not go (lines.facts.release_warning_tried), or null. */
@@ -400,13 +401,13 @@ export async function sweepEndedLines(
   let warningsAsked = 0;
   // The sweep's page: every workspace whose plan has ended, by design.
   const bills = await listStripeAccountsIn(db, ENDED_STATUSES);
-  if (bills.error) throw new Error(`reading billing: ${bills.error.message}`);
+  if (bills.error) throw new DbFailure(bills.error, "reading billing");
   const byTenant = new Map((bills.data ?? []).map((b) => [b.tenant_id, b]));
   if (!byTenant.size) return out;
   const ids = [...byTenant.keys()];
   const [tenants, lines] = await Promise.all([listWorkspaceStandings(db, ids), listLinesOfWorkspaces(db, ids)]);
-  if (tenants.error) throw new Error(`reading workspaces: ${tenants.error.message}`);
-  if (lines.error) throw new Error(`reading lines: ${lines.error.message}`);
+  if (tenants.error) throw new DbFailure(tenants.error, "reading workspaces");
+  if (lines.error) throw new DbFailure(lines.error, "reading lines");
   const tenantOf = new Map((tenants.data ?? []).map((t) => [t.id, t]));
   const rows = lines.data ?? [];
   /** The owner's own number that forwards to this one, when one does. */
@@ -465,7 +466,7 @@ export async function sweepEndedLines(
     if (out.released + out.failed >= MAX_RELEASES_PER_TICK) continue;
     // Read again, just before: a workspace that resumed a moment ago keeps its number.
     const fresh = await findPlanForRelease(db, row.tenant_id);
-    if (fresh.error) throw new Error(`reading billing: ${fresh.error.message}`);
+    if (fresh.error) throw new DbFailure(fresh.error, "reading billing");
     const again = lineReleaseStep(fresh.data, afterDays, warnedOf(row), now);
     if (again.step !== "release") continue;
     const release = await ports.release(row.tenant_id, row, new Date(again.endedAt).toISOString());

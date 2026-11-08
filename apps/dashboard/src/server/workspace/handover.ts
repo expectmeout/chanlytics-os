@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inviteUserByEmail } from "@chanlytics/db/auth";
 import type { Database } from "@chanlytics/db/types";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, DbFailure } from "@chanlytics/contracts";
 import { deployment } from "../shared/env";
 import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
 import { serviceDb } from "../shared/service-db";
@@ -57,7 +57,7 @@ export async function sendHandoverInvite(
   const svc = ports.svc ?? serviceDb();
   try {
     const { data: existing, error } = await lookupUserForInvite(svc, tenantId, email);
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     if (!existing) {
       const { error: mailErr } = await inviteUserByEmail(svc, email);
       if (!mailErr) return true;

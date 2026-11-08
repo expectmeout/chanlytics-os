@@ -25,6 +25,7 @@ import {
   reviewDraftsBell,
   reviewRoute,
   type EdgeRefusal,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { keepOnce, recordNotification } from "../shared/alerts/notify.js";
 import { errField, logger, type Logger } from "../shared/log.js";
@@ -87,7 +88,7 @@ async function letReviewsGo(
   which: { seenBefore?: string | null; only?: readonly string[] } = {},
 ): Promise<void> {
   const gone = await deleteGoogleReviews(db, tenantId, { origin, ...which });
-  if (gone.error) throw new Error(gone.error.message);
+  if (gone.error) throw new DbFailure(gone.error);
 }
 
 /** The reviews a read listed, each written over the profile's row of it (one per review id), stamped with the read. */
@@ -117,7 +118,7 @@ async function keepReviews(
       last_seen_at: review.last_seen_at,
     })),
   );
-  if (up.error) throw new Error(up.error.message);
+  if (up.error) throw new DbFailure(up.error);
 }
 
 /**
@@ -206,7 +207,7 @@ async function keepReviewLink(
   let wrote;
   try {
     wrote = await patchGoogleListingAtPlace(db, conn.tenant_id, place, { new_review_uri: link });
-    if (wrote.error) throw new Error(wrote.error.message);
+    if (wrote.error) throw new DbFailure(wrote.error);
   } catch (e) {
     L.warn("google_review_link_write_failed", { error: errField(e) });
     return;
@@ -285,11 +286,11 @@ export async function syncProfile(
   if (plan.prune) await letReviewsGo(db, conn.tenant_id, "profile", { seenBefore: plan.synced_at });
   if (plan.listing) {
     const l = await patchGoogleListing(db, conn.tenant_id, plan.listing);
-    if (l.error) throw new Error(l.error.message);
+    if (l.error) throw new DbFailure(l.error);
   }
   if (plan.day) {
     const d = await saveGoogleListingDay(db, conn.tenant_id, plan.day);
-    if (d.error) throw new Error(d.error.message);
+    if (d.error) throw new DbFailure(d.error);
   }
   // The new reviews told before the stamp, so a bell that could not be kept is asked for again (ringNewReviews).
   await ringNewReviews(db, conn, plan);
@@ -298,7 +299,7 @@ export async function syncProfile(
     sync_error: null,
     reviews_complete: plan.complete,
   });
-  if (done.error) throw new Error(done.error.message);
+  if (done.error) throw new DbFailure(done.error);
   // A notice of a breakage closes once a sync works: asked where one could be open (sync-notice.ts syncMended).
   if (wasFailing || first) await syncMended(db, conn.tenant_id, "google_connection.synced");
   // The first sync is history, never answered. After that, the row's mode answers what came in on duty (decision 0064:
