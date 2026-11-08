@@ -412,12 +412,12 @@ test("a ledger that cannot be claimed from is a 503 carrying the error, said as 
   await listening(async (log) => {
     assert.deepEqual(
       await answer(await knock()),
-      [503, { ok: false, error: "query_failed", detail: "Error: claim_due_jobs: connection refused" }],
+      [503, { ok: false, error: "query_failed" }],
       "the 503 is what sweep_health() reads as the database's problem",
     );
     assert.deepEqual(
       log.said("jobs_tick_failed").map((l) => [l.stream, l.sweep, l.error]),
-      [["error", "jobs", "Error: claim_due_jobs: connection refused"]],
+      [["error", "jobs", "DbFailure: claim_due_jobs: connection refused"]],
     );
     assert.deepEqual(log.said("jobs_tick"), [], "and no heartbeat is reported");
   });
@@ -808,7 +808,7 @@ test("a mailbox that could not be read unbinds email's wire and nothing else: a 
       ]);
       assert.deepEqual(
         log.said("email_wire_unavailable").map((l) => [l.stream, l.tenant_id, l.error]),
-        [["error", ws.T, "Error: mailbox: connection reset"]],
+        [["error", ws.T, "DbFailure: mailbox: connection reset"]],
         "said once, under its own name",
       );
     });
@@ -1045,7 +1045,7 @@ test("the relay runs first in every tick (00334): what it relayed rides on the h
     assert.equal((await answer(await knock()))[0], 200, "the tick goes on");
     assert.deepEqual(
       log.said("events_relay_failed").map((l) => [l.stream, l.sweep, l.error]),
-      [["error", "jobs", "Error: relay_events: the outbox is away"]],
+      [["error", "jobs", "DbFailure: relay_events: the outbox is away"]],
     );
     assert.deepEqual(
       log.said("jobs_tick").map((l) => [l.relayed, l.claimed]),

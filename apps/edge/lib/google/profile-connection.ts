@@ -190,7 +190,7 @@ export async function connectProfile(
     // connection.
     const otherAccount = claims.sub != null && prior.data?.google_sub !== claims.sub;
     if (!restored || otherAccount) await net(revokeRequest(grant.refresh_token)).catch(() => null);
-    return { ok: false, error: "credentials_failed", detail: error instanceof Error ? error.message : String(error) };
+    return { ok: false, error: "credentials_failed", detail: logFailure("write", error) };
   }
   await emitEvent(db, tenantId, "google.connected", "listing", null, {
     email: claims.email,

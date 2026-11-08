@@ -172,7 +172,7 @@ async function writingCall(
     read = await findWorkspaceCard(ws.db, ws.tenantId);
   } catch (e) {
     // This door answers a read that throws as one that failed; the Google and billing doors let it throw.
-    return stop(refuse(503, "read_failed", errorMessage(e)));
+    return stop(refuseFailure(503, "read_failed", e));
   }
   const tenant = workspaceRow(read);
   if (!tenant.ok) return tenant;
@@ -270,7 +270,7 @@ async function retry(lineCall: LineCall): Promise<Response> {
   try {
     taken = await claimLineForResume(lineCall.db, read.row, now.getTime(), plan.by);
   } catch (e) {
-    return refuse(503, "write_failed", errorMessage(e));
+    return refuseFailure(503, "write_failed", e);
   }
   if (!taken) return respond(retryTakenAnswer(read.row));
   return queue(lineCall, taken, plan.by, now);
@@ -311,7 +311,7 @@ async function record(lineCall: LineCall): Promise<Response> {
   try {
     before = await findBusinessOnRecord(lineCall.db, lineCall.tenantId);
   } catch (e) {
-    return refuse(503, "read_failed", errorMessage(e));
+    return refuseFailure(503, "read_failed", e);
   }
   const up = await saveBusinessOnRecord(lineCall.db, lineCall.tenantId, plan.row);
   if (up.error) return refuseFailure(503, "write_failed", up.error);
@@ -342,7 +342,7 @@ async function register(lineCall: LineCall): Promise<Response> {
   try {
     onRecord = await findBusinessOnRecord(lineCall.db, lineCall.tenantId);
   } catch (e) {
-    return refuse(503, "read_failed", errorMessage(e));
+    return refuseFailure(503, "read_failed", e);
   }
   if (!onRecord) {
     const marked = await saveLineRow(

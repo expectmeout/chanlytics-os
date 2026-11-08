@@ -16,7 +16,7 @@ import { json } from "../shared/http.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { platformFrom, post } from "../shared/alerts/notify.js";
-import { logger, errField } from "../shared/log.js";
+import { logger, logFailure } from "../shared/log.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { getHandoverInvite } from "@chanlytics/db/partners";
 import { handoverInviteEmail, isTenantId } from "@chanlytics/contracts";
@@ -36,7 +36,7 @@ export async function sendHandoverInvite(auth: Admitted, body: Partial<{ tenant_
   try {
     invite = await getHandoverInvite(db, tenantId);
   } catch (e) {
-    return json(503, { ok: false, error: "read_failed", detail: errField(e) });
+    return json(503, { ok: false, error: "read_failed", detail: logFailure("read", e) });
   }
   // Accepted, declined, expired or never handed over: there is nobody waiting to be told.
   if (!invite) return json(404, { ok: false, error: "no_open_handover" });

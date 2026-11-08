@@ -313,6 +313,6 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
     // it. A ledger that cannot be claimed from is a database problem, and a 503
     // is what sweep_health() reads as one.
     L.error("jobs_tick_failed", { error: errField(e) });
-    return refuse(503, "query_failed", errField(e));
+    return refuse(503, "query_failed");
   }
 }

@@ -637,7 +637,7 @@ test("Vault refusing to drop the token: a refusal and the row stays, and the nex
     ok: false,
     status: 503,
     error: "write_failed",
-    detail: "dropping the line's token: vault unavailable",
+    detail: "That could not be saved just now. Try again in a moment.",
     released: { number: "PN0001", trunk: "TK0001", channel_disabled: VOICE },
   });
   assert.deepEqual(

@@ -253,7 +253,7 @@ export function edgeRefusals(files) {
       if (
         ts.isCallExpression(n) &&
         ts.isIdentifier(n.expression) &&
-        n.expression.text === "refuse" &&
+        (n.expression.text === "refuse" || n.expression.text === "refuseFailure") &&
         n.arguments[1] &&
         ts.isStringLiteral(n.arguments[1]) &&
         ts.isNumericLiteral(n.arguments[0])

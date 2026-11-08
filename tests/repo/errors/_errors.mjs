@@ -181,7 +181,10 @@ export function textHandedOverIn(sf) {
   const judge = (handler, body) => {
     const name = caughtName(handler);
     if (!name) return;
-    const reads = (a) => new RegExp(`\\b${name}\\.message\\b|String\\(${name}\\)|\\$\\{${name}\\}`).test(a.getText(sf));
+    const reads = (a) =>
+      new RegExp(
+        `\\b${name}\\.message\\b|String\\(${name}\\)|\\$\\{${name}\\}|errField\\(${name}\\)|errText\\(${name}\\)`,
+      ).test(a.getText(sf));
     within(body, (n) => {
       if (!ts.isCallExpression(n) && !ts.isNewExpression(n)) return;
       const callee = `${ts.isNewExpression(n) ? "new " : ""}${n.expression.getText(sf)}`;

@@ -514,7 +514,10 @@ test("sync, a read of the rows on file that fails: answered as failed, with no r
     log.restore();
     m.restore();
   }
-  assert.deepEqual(got, [503, { ok: false, error: "read_failed", detail: "connection reset" }]);
+  assert.deepEqual(got, [
+    503,
+    { ok: false, error: "read_failed", detail: "That could not be read just now. Try again in a moment." },
+  ]);
   assert.deepEqual(writes(db, "templates"), [], "REGRESSION: a read that failed emptied what the sync keeps");
   assert.deepEqual(tables.templates, before, "the rows are exactly as they were");
 });

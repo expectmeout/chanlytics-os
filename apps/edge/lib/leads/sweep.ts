@@ -228,7 +228,7 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
     ({ runs, rounds, roundJobs } = await sweepRows(db));
   } catch (e) {
     L.error("leads_sweep_read_failed", { error: errField(e) });
-    return refuse(503, "read_failed", errField(e));
+    return refuse(503, "read_failed");
   }
 
   const actions = planLeadSweep({ runs, rounds, roundJobs }, now);

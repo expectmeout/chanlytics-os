@@ -166,10 +166,8 @@ export async function releaseLine(
     }
     const creds = await getLineCredentials(db, line.id);
     // A read that failed is not a line with no token: going on would skip the carrier and forget a number still billed.
-    if (creds.error) {
-      const detail = `reading the line's credentials: ${creds.error.message}`;
-      return { ok: false, status: 503, error: "read_failed", detail, released };
-    }
+    if (creds.error)
+      return { ok: false, status: 503, error: "read_failed", detail: logFailure("read", creds.error), released };
     const token =
       creds.data && typeof creds.data === "object" && !Array.isArray(creds.data)
         ? (creds.data as { auth_token?: string }).auth_token
@@ -186,7 +184,8 @@ export async function releaseLine(
   }
   const rows = await releaseRoutingRows(db, tenantId, line);
   Object.assign(released, rows.released);
-  if (!rows.ok) return { ok: false, status: 503, error: "write_failed", detail: rows.error, released };
+  if (!rows.ok)
+    return { ok: false, status: 503, error: "write_failed", detail: logFailure("write", rows.error), released };
   try {
     // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
     await dropLineCredentials(db, line.id);

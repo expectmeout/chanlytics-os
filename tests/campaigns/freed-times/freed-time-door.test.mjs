@@ -196,5 +196,5 @@ test("a read that fails is a 500 that names it: the visit could not be read, or 
   world({ faults: { "appointments.select": { message: "the read timed out" } } });
   const [status, body] = await answer(await knock(press));
   assert.deepEqual([status, body.ok, body.error], [500, false, "run_failed"]);
-  assert.match(body.detail, /the read timed out/);
+  assert.equal(body.detail, "That could not be run just now. Try again in a moment.", "the text is the log's");
 });

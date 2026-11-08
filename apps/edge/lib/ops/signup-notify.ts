@@ -19,7 +19,7 @@ import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { notify } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
-import { logger, errField, refuseFailure } from "../shared/log.js";
+import { logger, refuseFailure } from "../shared/log.js";
 import { getHandoverInvite } from "@chanlytics/db/partners";
 import { isTenantId } from "@chanlytics/contracts";
 import { findNewWorkspace } from "@chanlytics/db/workspace";
@@ -49,7 +49,7 @@ export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise
   try {
     waiting = await getHandoverInvite(db, tenantId);
   } catch (e) {
-    return refuse(503, "read_failed", errField(e));
+    return refuseFailure(503, "read_failed", e);
   }
   const person = waiting
     ? `was set up by partner ${waiting.partnerCode}, for its owner to accept.\n` +

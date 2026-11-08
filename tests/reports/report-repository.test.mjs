@@ -203,7 +203,7 @@ test("findReceptionistSeries is null where the database does not have the functi
           W,
           window,
         ),
-        /^Error: receptionist_series: boom$/,
+        /^DbFailure: receptionist_series: boom$/,
         `${code}`,
       );
 });
@@ -235,7 +235,7 @@ test("peopleSeries is null where the database does not have the function yet (00
     for (const window of [live(30), ended(20, "2026-09-20")])
       await assert.rejects(
         findPeopleSeries(dbWith({ people_series: { data: null, error: { message: "boom", code } } }).db, W, window),
-        /^Error: people_series: boom$/,
+        /^DbFailure: people_series: boom$/,
         `${code}`,
       );
 });
@@ -267,7 +267,7 @@ test("findCampaignLedger is null where the database does not have the function y
     for (const window of [live(30), ended(20, "2026-09-20")])
       await assert.rejects(
         findCampaignLedger(dbWith({ campaign_ledger: { data: null, error: { message: "boom", code } } }).db, W, window),
-        /^Error: campaign_ledger: boom$/,
+        /^DbFailure: campaign_ledger: boom$/,
         `${code}`,
       );
 });
@@ -289,7 +289,7 @@ test("findCampaignStuck is null where the database does not have the function ye
   for (const code of ["XX000", "42501", "08006", undefined])
     await assert.rejects(
       findCampaignStuck(dbWith({ campaign_stuck: { data: null, error: { message: "boom", code } } }).db, W),
-      /^Error: campaign_stuck: boom$/,
+      /^DbFailure: campaign_stuck: boom$/,
       `${code}`,
     );
 });

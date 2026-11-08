@@ -87,6 +87,10 @@ test("textHandedOverIn: a caught failure's own text answered to whoever asked", 
     [1],
   );
   assert.deepEqual(lines(textHandedOverIn, "p.catch((e) => json(500, { ok: false, detail: String(e) }));"), [1]);
+  assert.deepEqual(
+    lines(textHandedOverIn, 'try { f(); } catch (e) { return refuse(503, "read_failed", errField(e)); }'),
+    [1],
+  );
   // An AppError's sentence was written for a person; a log line is no answer.
   assert.deepEqual(
     lines(textHandedOverIn, "try { f(); } catch (e) { if (e instanceof AppError) return refuse(e.message); throw e; }"),
