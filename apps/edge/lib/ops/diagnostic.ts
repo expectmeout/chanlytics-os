@@ -11,8 +11,7 @@ import { pg } from "../shared/pg.js";
 import { getMigrationsLine } from "./migration-head.js";
 import { getBrainSummary } from "../ai/budget.js";
 import { securitySwitchesHere } from "../shared/security-switches.js";
-import type { SweepHealthRow } from "./sweep-health.js";
-import { pageStates, untoldPages, type PageRow } from "../shared/alerts/page-operator.js";
+import { pageStates, untoldPages } from "../shared/alerts/page-operator.js";
 import { breakerStates, fetchFromProvider } from "@chanlytics/channels/shared";
 import {
   getAgent,

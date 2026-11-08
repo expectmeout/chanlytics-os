@@ -61,7 +61,6 @@ import {
   saveIdeasLine,
 } from "@chanlytics/db/leads";
 import { askMemoryLines } from "@chanlytics/db/ask";
-import type { Json } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
 import { readMonthUsed, getWorkspaceOffer } from "./allowance";
 import { findNichePrior } from "./plan-facts";
@@ -152,7 +151,7 @@ async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: st
 
 /** The ideas a row keeps: each with its words and its kind. One kept before plans were written has none to open. */
 function keptIdeas(kept: SuggestionRow | null): LeadIdeaDto[] {
-  const items = kept && Array.isArray(kept.items) ? kept.items : [];
+  const items = kept && Array.isArray(kept.items) ? (kept.items as Partial<LeadIdeaDto>[]) : [];
   return items
     .flatMap((i) =>
       i && typeof i.words === "string" && typeof i.category_key === "string"

@@ -19,7 +19,6 @@ import {
   type NewWrittenMessage,
 } from "@chanlytics/contracts";
 import { createBroadcast } from "@chanlytics/core";
-import type { Json } from "@chanlytics/db/types";
 import { keepOnceDraft } from "@chanlytics/db/campaigns";
 import { getMessageOnFile, writeMessage } from "@/server/campaigns/write-message";
 import { load, readerContext } from "@/server/shared/reader";

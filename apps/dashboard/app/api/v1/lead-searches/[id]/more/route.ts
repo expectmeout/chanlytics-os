@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { LeadSearchPlanSchema, SPEND_LEADS } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db/types";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, estimateForRound, morePlanOf, refusalOf, searchRow } from "@/server/leads/leads";

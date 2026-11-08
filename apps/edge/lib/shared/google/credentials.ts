@@ -5,7 +5,6 @@
  * before it expires. The connection that first stores them is
  * profile-connection.ts.
  */
-import type { Json } from "@chanlytics/db/types";
 import {
   type tokenExchangeRequest,
   tokenRefreshRequest,

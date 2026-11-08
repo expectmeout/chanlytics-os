@@ -27,7 +27,6 @@ import {
   withdrawMemberMessage,
 } from "@chanlytics/db/conversations";
 import { findLastInboundEmail, findLastOutboundEmailSubject } from "@chanlytics/db/email";
-import type { Json } from "@chanlytics/db/types";
 import type {
   CancelSendPorts,
   EscalationPorts,

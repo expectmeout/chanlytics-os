@@ -61,14 +61,6 @@ interface TeamMember {
   isMe?: boolean;
 }
 
-interface OpenInvite {
-  id: string;
-  email: string;
-  role: string;
-  created_at: string;
-  expires_at: string;
-}
-
 /**
  * A team change and its row on the ledger, in one transaction (00277: team_change_role, team_remove, team_join,
  * team_invite).

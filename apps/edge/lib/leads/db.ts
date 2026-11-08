@@ -32,7 +32,6 @@ import {
   asContactId,
   asTenantId,
   type LeadRoundEnding,
-  type LeadRunState,
   type LeadSearchPlan,
   recordOrNull,
 } from "@chanlytics/contracts";

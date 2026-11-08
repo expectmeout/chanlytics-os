@@ -16,7 +16,6 @@ import {
   fileNameOf,
   filePathOf,
   recordOrNull,
-  type FileMime,
   type FileShows,
 } from "@chanlytics/contracts";
 import { postPathOf } from "./post-check";

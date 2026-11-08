@@ -13,6 +13,7 @@ import {
   storedAnswer,
   v1FromAnswer,
   recordOrEmpty,
+  listOrEmpty,
 } from "@chanlytics/contracts";
 import type { AskTurnShape } from "./shape";
 import { withFilesAttached, withFilesOpened } from "@/server/files/line";
@@ -78,7 +79,7 @@ export function toThreadVM(thread: ThreadRow): AskThreadVM {
  */
 export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
   const content = recordOrEmpty(message.content);
-  const cites = Array.isArray(content.citations) ? content.citations : [];
+  const cites = Array.isArray(content.citations) ? (content.citations as AskMessageVM["citations"]) : [];
   const files = fileIdsOf(content.files);
   const answer =
     content.v === 2 && content.answer && typeof content.answer === "object" && (content.answer as AskAnswer).v === 2
@@ -93,13 +94,13 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
     at: message.created_at,
     atMs: Date.parse(message.created_at) || 0,
     citations: cites.map((x) => ({ ...x, to: x.to || citationRoute(x) })),
-    followups: Array.isArray(content.followups) ? content.followups : [],
+    followups: listOrEmpty(content.followups).filter((f): f is string => typeof f === "string"),
     navigate:
       content.navigate && typeof content.navigate === "object" ? (content.navigate as AskMessageVM["navigate"]) : null,
-    proposals: Array.isArray(content.proposals) ? content.proposals : [],
+    proposals: Array.isArray(content.proposals) ? (content.proposals as AskMessageVM["proposals"]) : [],
     language: content.language === "es" || content.language === "en" ? content.language : "other",
     ungrounded: content.ungrounded === true,
-    tools: Array.isArray(content.tools) ? content.tools : [],
+    tools: listOrEmpty(content.tools).filter((t): t is string => typeof t === "string"),
     latencyMs: typeof content.latency_ms === "number" ? content.latency_ms : null,
     rounds: typeof content.rounds === "number" ? content.rounds : null,
     failed: content.failed === true,
@@ -310,7 +311,7 @@ export async function setProposalOutcome(
   if (error) throw new Error(error.message);
   if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
   const content = recordOrEmpty(m.content);
-  const proposals = Array.isArray(content.proposals) ? content.proposals : [];
+  const proposals = Array.isArray(content.proposals) ? (content.proposals as AskProposal[]) : [];
   const idx = proposals.findIndex((p) => p.id === proposalId);
   if (idx < 0) throw new AppError("not_found", "No such card on that turn.", 404);
   const current = proposals[idx].outcome;

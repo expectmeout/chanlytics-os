@@ -26,7 +26,7 @@ import {
 } from "@chanlytics/contracts";
 import { getLeadPileCounts, listSequencePlaces } from "@chanlytics/db/campaigns";
 import { getLeadViewCounts, listSearchNames, readLeadOne, readLeadsPage } from "@chanlytics/db/leads";
-import { type DoorArgs, readMonthUsed, renewsOnOf } from "./allowance";
+import { readMonthUsed, renewsOnOf } from "./allowance";
 import { listSearchCounts } from "./searches";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";

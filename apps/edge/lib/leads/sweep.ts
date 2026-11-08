@@ -55,7 +55,6 @@ type RunRead = Omit<SweepRunRow, "part" | "collect_scheduled" | "collects_failed
 /** The kinds of a round's own jobs, read by the round they name. */
 const ROUND_JOB_KINDS: SchemaSet<"jobs.kind">[] = ["lead_round_start", "lead_check"];
 type JobRead = { kind?: string; payload: unknown; state: string; created_at: string };
-type JobRows = { data: JobRead[] | null; error: { message: string } | null };
 
 /** Rows in parts of RUNS_IN_CHUNK ids, one read each: an `.in()` rides the request line. */
 async function inChunks<T>(ids: string[], read: (part: string[]) => Promise<T[]>): Promise<T[]> {

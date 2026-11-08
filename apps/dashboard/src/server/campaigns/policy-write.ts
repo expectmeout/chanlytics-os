@@ -16,8 +16,6 @@ import {
   REPLY_DELAY_MIN_MS,
   REPLY_DELAY_MAX_MS,
   policyModeRefusal,
-  type PolicyClass,
-  type PolicyMode,
 } from "@chanlytics/contracts";
 import { listPolicies, setPolicyMode } from "@chanlytics/db/workspace";
 import { recordEvent } from "@chanlytics/db/events";

@@ -58,7 +58,6 @@ import {
   getAgentRaw,
   planAgentSettings,
   voiceShellDrift,
-  type LiveAgentSettings,
   type ProvisionSecrets,
   type RetellConfig,
   type VoiceProvisionPlan,

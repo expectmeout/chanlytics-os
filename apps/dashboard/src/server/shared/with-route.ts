@@ -11,8 +11,6 @@ import {
   SECOND_FACTOR_WORDS,
   SESSION_ENDED,
   SERVED_AT_HEADER,
-  type BillingMode,
-  type BillingStatus,
   type ErrorCode,
   type Role,
   type SpendWords,

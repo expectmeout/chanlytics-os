@@ -20,9 +20,8 @@ import {
   labelsOf,
   listTemplates,
   templateRow,
-  type MetaTemplateComponent,
 } from "./meta-templates.js";
-import type { Json } from "@chanlytics/db/types";
+
 import { logger } from "../shared/log.js";
 import { UUID, NUMBERED_SLOT } from "@chanlytics/contracts";
 import { findWhatsAppAccount } from "@chanlytics/db/channels";

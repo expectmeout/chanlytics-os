@@ -67,7 +67,6 @@ import {
   getCall,
   normalizeCall,
   callSummaryLine,
-  type NormalizedCall,
   type RetellCall,
   type RetellCallRead,
 } from "@chanlytics/channels/voice";

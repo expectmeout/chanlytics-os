@@ -10,7 +10,6 @@ import {
   readyOrWhatsApp,
   type MessageDto,
   type PersonDetailDto,
-  type PersonEscalationDto,
   type PersonReachDto,
   DAY_KEY,
   recordOrEmpty,

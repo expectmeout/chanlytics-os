@@ -13,7 +13,6 @@ import {
   WORKSPACE_LOGOS_BUCKET,
   filePathOf,
   recordOrNull,
-  type FileMime,
 } from "@chanlytics/contracts";
 import { findWorkspaceLook } from "@chanlytics/db/look";
 import type { Database } from "@chanlytics/db/types";

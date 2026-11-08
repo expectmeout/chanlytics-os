@@ -8,6 +8,7 @@ import {
   type PersonDoubtDto,
   type PersonSignerDto,
   type SeenMarksDto,
+  listOrEmpty,
 } from "@chanlytics/contracts";
 import type { Json } from "../../types";
 import { getPersonIdsWaitingOnYou } from "./waiting-on-you";
@@ -247,7 +248,7 @@ export async function markContactSeen(db: Db, tenantId: string, contactIds: read
   const { data, error } = await db.rpc("contact_seen", { p_tenant_id: tenantId, p_contact_ids: [...contactIds] });
   if (error) throw error;
   const value = recordOrEmpty(data);
-  const marks = Array.isArray(value.marks) ? value.marks : [];
+  const marks = listOrEmpty(value.marks).map(recordOrEmpty);
   return {
     floor_at: stampOf(value.floor_at),
     marks: marks

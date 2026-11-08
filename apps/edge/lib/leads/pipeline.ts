@@ -11,7 +11,6 @@
  */
 import { check, collect, startRound, type LeadPorts } from "@chanlytics/core";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
-import type { Json } from "@chanlytics/db/types";
 import { UUID } from "@chanlytics/contracts";
 import { leadDb } from "./db.js";
 import { leadWires, type LeadWires } from "./wires.js";
