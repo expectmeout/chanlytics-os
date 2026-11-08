@@ -127,6 +127,6 @@ export interface BookingNoticePorts {
     tenantId: TenantId,
     client: NoticeClient,
     visit: { title: string; uid: string; startMs: number },
-  ): Promise<string | null>;
+  ): Promise<ContactId | null>;
   now(): number;
 }

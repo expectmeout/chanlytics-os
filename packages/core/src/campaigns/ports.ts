@@ -103,7 +103,7 @@ export interface AssemblePorts {
    */
   holdRecipients(
     broadcastId: string,
-    contactIds: string[],
+    contactIds: ContactId[],
     reason: string,
   ): Promise<{ skipped: readonly string[]; error: string | null }>;
 }

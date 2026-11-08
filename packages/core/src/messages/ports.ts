@@ -165,7 +165,7 @@ export interface RecipientRow {
   attempt?: number;
 }
 export interface ContactRow {
-  id: string;
+  id: ContactId;
   phone_e164: string | null;
   /** Their email address as stored, which the door compares a frozen request's To with; null or absent with none. */
   email?: string | null;
@@ -234,7 +234,7 @@ export interface BroadcastBatchPorts {
   /** Up to `limit` people still queued; throws when it cannot be read. */
   batch(id: string, limit: number): Promise<RecipientRow[]>;
   /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */
-  contacts(contactIds: string[]): Promise<Map<string, ContactRow>>;
+  contacts(contactIds: ContactId[]): Promise<Map<string, ContactRow>>;
   /**
    * The appointments a visit run's recipients were drawn for, by the key the calendar keeps each under (decision 0002,
    * contracts appointmentKeyOf), one read for the batch; a key with no row is absent. Absent where the runtime keeps no
@@ -314,7 +314,7 @@ export interface BroadcastBatchPorts {
    * not check" read as "never sent" is exactly the second send this exists
    * to stop.
    */
-  alreadySent(id: string, contactIds: string[]): Promise<Map<string, { id: string; sentAt: string | null }>>;
+  alreadySent(id: string, contactIds: ContactId[]): Promise<Map<string, { id: string; sentAt: string | null }>>;
   /**
    * Whether any person on the run, whatever their state, goes another way than `than` (a recipient row's channel): the
    * run's own question when one channel is held for everyone on it. WhatsApp's template not being approved holds the run's

@@ -1,3 +1,4 @@
+import { heldContactId } from "@chanlytics/contracts";
 import {
   AppError,
   AUDIENCE_KINDS,
@@ -399,7 +400,7 @@ export async function createBroadcast(
       channels: [...how.channels],
     },
     recipients: enrolled.map((e) => ({
-      contact_id: e.row.id,
+      contact_id: heldContactId(e.row.id),
       facts: out.has(e.row.id) ? { ...LEFT_OUT_FACTS } : null,
       channel: e.channel,
     })),

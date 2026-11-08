@@ -42,6 +42,7 @@
  *                     .changed, .refreshed; 00538) asks whether it is owed a draft (core conversations/reply-draft.ts),
  *                     and the job that writes it. The row's claim is the once-only, so a second run schedules nothing.
  */
+import { heldContactId } from "@chanlytics/contracts";
 import {
   bookingArriving,
   bookingChanged,
@@ -294,11 +295,12 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     // Only a no the customer or a provider gave: a yes, a member's own record and a merge are news to nobody.
     const sentence = optOutOf(event.data);
     if (!sentence) return;
-    const person = await ports.optOutPerson(event.tenant_id, event.subject_id);
+    const subject = heldContactId(event.subject_id);
+    const person = await ports.optOutPerson(event.tenant_id, subject);
     if (!person) return;
     const notice = await ports.optOutTold(event.tenant_id, {
       eventId: event.id,
-      contactId: event.subject_id,
+      contactId: subject,
       at: event.created_at,
     });
     if (notice) return;
