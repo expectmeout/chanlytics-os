@@ -130,7 +130,8 @@ export function hoursFromGoogle(periods: readonly GooglePeriod[] | null | undefi
   for (const day of DAYS) {
     const list = (shifts.get(day) ?? []).sort((a, b) => a.open.localeCompare(b.open));
     if (unsure.has(day) || !list.length) continue;
-    const created: Hours = list.length === 1 ? { open: list[0].open, close: list[0].close } : { intervals: list };
+    const [only] = list;
+    const created: Hours = list.length === 1 && only ? { open: only.open, close: only.close } : { intervals: list };
     if (dayProblems(created, day).length) unsure.add(day);
     else hours[day] = created;
   }

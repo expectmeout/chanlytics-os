@@ -136,7 +136,8 @@ async function getThread(
   const vm = toInboxThreadVM(dto, esc, toolContext.timezone, toolContext.now);
   // The thread and its person as the reader gave them, and the thread again where Conversations opens it.
   noteRows(toolContext.read, r.rows);
-  noteRow(toolContext, "conversation", id, r.rows[0].label, `conversations/${id}`);
+  const who = r.rows[0]?.label ?? "";
+  noteRow(toolContext, "conversation", id, who, `conversations/${id}`);
   return {
     conversation_id: id,
     route: `inbox/th-${id}`,
@@ -145,7 +146,7 @@ async function getThread(
     // Named as the Inbox row names them, which is the reader's row: the route's payload carries no email, so its view
     // model would call a person reached only by email "Unknown" where the Inbox names them by their address. The
     // reader's first row is the thread.
-    who: r.rows[0].label,
+    who,
     channel: vm.replyVia,
     state: threadState(vm),
     escalation: esc ? { id: esc.id, reason: reasonLabelOf(esc.reason), details: esc.details } : null,
@@ -197,8 +198,8 @@ function wordsToFind(words: string): boolean {
       groups.push([]);
       continue;
     }
-    if (/[\p{L}\p{N}]/u.test(m[3] ?? m[2]))
-      groups[groups.length - 1].push(m[3] !== undefined ? !m[3].startsWith("-") : m[1] !== "-");
+    if (/[\p{L}\p{N}]/u.test(m[3] ?? m[2] ?? ""))
+      groups.at(-1)?.push(m[3] !== undefined ? !m[3].startsWith("-") : m[1] !== "-");
   }
   const kept = groups.filter((g) => g.length > 0);
   return kept.length > 0 && kept.every((g) => g.some(Boolean));

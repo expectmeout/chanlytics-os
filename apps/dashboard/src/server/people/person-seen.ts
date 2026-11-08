@@ -58,6 +58,6 @@ export async function markPersonSeen(
       marked_at: mark.marked_at,
     };
   } catch (e) {
-    throw dbRefusal(e as { code?: string | null; message: string });
+    throw dbRefusal(e);
   }
 }

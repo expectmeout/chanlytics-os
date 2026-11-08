@@ -24,7 +24,7 @@ const BUDGETS = JSON.parse(
 ) as { cold: Record<string, number>; move: Record<string, number> };
 
 /** The pages a night opens cold, and each one's address, as the frame moves to it (the hash the shell still takes). */
-const COLD: Record<string, string> = {
+const COLD = {
   today: "/#/today",
   inbox: "/#/inbox",
   people: "/#/clients",
@@ -37,7 +37,7 @@ test.describe("each page is drawn with its rows within its budget", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
 
   for (const [name, address] of Object.entries(COLD)) {
-    const budget = BUDGETS.cold[name];
+    const budget = BUDGETS.cold[name] ?? 0;
     test(`${name}, cold: within ${budget} ms`, async ({ browser }) => {
       const page = await (await browser.newContext()).newPage();
       await signIn(page);
@@ -68,7 +68,7 @@ test.describe("each page is drawn with its rows within its budget", () => {
           await drawnIn(page, "today", seen);
         }
         const before = await timesDrawn(page, name);
-        await placeRow(page, PLACE[name]).click();
+        await placeRow(page, PLACE[name] ?? name).click();
         onToday = false;
         const ms = await drawnIn(page, name, before);
         expect(ms, `${name} drawn with its rows ${ms} ms after the press`).toBeLessThanOrEqual(budget);

@@ -258,7 +258,7 @@ export function liquid(make: () => GlCanvas | null): Liquid | null {
       // copied in the same task it was drawn, before the browser may clear the drawing buffer
       into.setTransform(1, 0, 0, 1, 0, 0);
       into.clearRect(0, 0, w, h);
-      into.drawImage(canvas as unknown as CanvasImageSource, 0, canvas.height - h, w, h, 0, 0, w, h);
+      into.drawImage(canvas as CanvasImageSource, 0, canvas.height - h, w, h, 0, 0, w, h);
       return true;
     },
     release() {

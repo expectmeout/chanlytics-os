@@ -8,6 +8,7 @@ import { liveOverride } from "@/surfaces/live/surface";
 import { settingsOverride } from "./surfaces/settings";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
+import type { TEAM_ROLES } from "@chanlytics/contracts";
 import type { ApiOptions, ApiResult, Input, Params, RouteKey } from "../client/api";
 import type { Api } from "../client/api";
 import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
@@ -63,7 +64,7 @@ export async function handOverCall(callId: string): Promise<VerbResult> {
 export function composedPrompt(
   channel: "whatsapp" | "voice" = "whatsapp",
 ): { text: string; now: string; tz: string | null } | null {
-  const w = window as unknown as { __SETTINGS?: { prompt?: PromptPreviewDto | null } };
+  const w = window as Window & { __SETTINGS?: { prompt?: PromptPreviewDto | null } };
   const prompt = w.__SETTINGS?.prompt;
   if (!prompt) return null;
   return { text: prompt[channel], now: prompt.now, tz: prompt.tz };
@@ -90,7 +91,7 @@ async function teamInvite(email: string, role: "operator" | "viewer"): Promise<V
   return api()("POST team/invite", { body: { email, role }, once: true });
 }
 
-async function teamSetRole(membershipId: string, role: string): Promise<VerbResult> {
+async function teamSetRole(membershipId: string, role: (typeof TEAM_ROLES)[number]): Promise<VerbResult> {
   return api()("PATCH team/[id]", { params: { id: membershipId }, body: { role } });
 }
 

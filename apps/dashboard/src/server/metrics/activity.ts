@@ -68,7 +68,7 @@ const ACTIVITY_MAX_READS = 5;
  * and where the last page ended.
  */
 export const ActivityQuerySchema = z.object({
-  person: z.string().uuid().optional(),
+  person: z.uuid().optional(),
   kind: z
     .string()
     .max(60)

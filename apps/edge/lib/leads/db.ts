@@ -25,6 +25,7 @@ import {
   recordLeadSiteReadsSpent,
   upsertLeadCompany,
 } from "@chanlytics/db/leads";
+import { readColumn } from "@chanlytics/db/shared";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import {
@@ -34,6 +35,7 @@ import {
   type LeadRoundEnding,
   type LeadSearchPlan,
   recordOrNull,
+  shaped,
 } from "@chanlytics/contracts";
 import type {
   CollectCommitResult,
@@ -87,7 +89,7 @@ const runOf = (r: RunRow): LeadRunRow => ({
  * detached `db.rpc` throws against a real client (gate G3).
  */
 function callsOn(db: Db) {
-  const rpc: Rpc = (fn, args) => (db as unknown as { rpc: Rpc }).rpc(fn, args);
+  const rpc: Rpc = (fn, args) => (db as { rpc: Rpc }).rpc(fn, args);
   const bool = async (name: string, args: Record<string, unknown>): Promise<boolean> =>
     must<unknown>(name, await rpc(name, args)) === true;
   const json = async <T>(name: string, args: Record<string, unknown>): Promise<T> =>
@@ -243,13 +245,17 @@ export function leadDb(db: Db): LeadDb {
         search_id: row.search_id,
         seq: row.seq,
         purpose: row.purpose,
-        plan: row.plan as unknown as LeadSearchPlan,
+        plan: readColumn("lead_rounds.plan", shaped<LeadSearchPlan>(), row.plan),
         plan_version: row.plan_version,
         target: row.target,
         state: row.state,
         ending: row.ending,
         ending_pending: row.ending_pending,
-        question: row.question as unknown as LeadRoundRow["question"],
+        question: readColumn(
+          "lead_rounds.question",
+          shaped<NonNullable<LeadRoundRow["question"]>>().nullable(),
+          row.question,
+        ),
         answered: row.answered,
         waiting_since: row.waiting_since,
         allowance_reserved: row.allowance_reserved,

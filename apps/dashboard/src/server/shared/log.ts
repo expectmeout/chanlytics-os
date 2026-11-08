@@ -121,6 +121,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "deal_pace_read_failed",
   "decision_undo_of_unknown",
   "draft_malformed",
+  "edge_answer_unexpected",
   "end_call_unrecorded",
   "env_invalid",
   "env_unreadable",

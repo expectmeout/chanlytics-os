@@ -1,6 +1,6 @@
 import "server-only";
 import { deployment } from "../shared/env";
-import type { EdgeAnswerCode } from "@chanlytics/contracts";
+import type { EdgeAnswerBody, EdgeAnswerCode } from "@chanlytics/contracts";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeAnswer, type EdgeReason } from "../shared/edge";
 
 /** A live call waits on nobody: the edge's own call to the provider is bounded at 8 s (voice-retell), this just above. */
@@ -9,7 +9,7 @@ const LIVE_CALL_TIMEOUT_MS = 15_000;
 /** Why a live call was not reached: the edge's code, with the provider's status when the door gave one ("provider 404"). */
 type LiveCallOutcome = { ok: true } | { ok: false; reason: EdgeReason | `${EdgeAnswerCode} ${number}` };
 
-function unreached(r: EdgeAnswer): LiveCallOutcome {
+function unreached(r: EdgeAnswer<EdgeAnswerBody & { status?: number }>): LiveCallOutcome {
   const status = typeof r.body?.status === "number" ? r.body.status : null;
   const reason = edgeReasonOf(r);
   return { ok: false, reason: status && r.body?.error ? `${r.body.error} ${status}` : reason };

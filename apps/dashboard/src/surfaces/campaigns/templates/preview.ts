@@ -88,9 +88,9 @@ export function templatePreviewValues(
   const values: string[] = [];
   vars.forEach((v, i) => {
     const at = typeof v?.position === "number" && v.position >= 1 ? v.position - 1 : i;
-    const kind = kinds[i];
-    const label =
-      labels[i] && !/^Value [0-9]+$/.test(labels[i]) ? labels[i] : (OWN_SLOT_LABEL.get(kind) ?? `Value ${at + 1}`);
+    const kind = kinds[i] ?? "text";
+    const named = labels[i];
+    const label = named && !/^Value [0-9]+$/.test(named) ? named : (OWN_SLOT_LABEL.get(kind) ?? `Value ${at + 1}`);
     const words = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
     if (words !== null) values[at] = words;
   });

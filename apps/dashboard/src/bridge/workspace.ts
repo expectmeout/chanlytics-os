@@ -40,7 +40,7 @@ export function pathWorkspace(pathname: string): string | null {
   const m = /^\/w\/([^/?#]+)/.exec(pathname);
   if (!m) return null;
   try {
-    return decodeURIComponent(m[1]) || null;
+    return decodeURIComponent(m[1] ?? "") || null;
   } catch {
     return null;
   }

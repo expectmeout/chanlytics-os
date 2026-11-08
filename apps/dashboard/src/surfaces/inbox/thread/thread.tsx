@@ -68,7 +68,7 @@ import { conversationsData } from "../store";
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
 const ixNewestSaid = (timeline: TlEntry[] | null | undefined) => {
   const tl = timeline || [];
-  for (let i = tl.length - 1; i >= 0; i--) if (tl[i].type === "msg") return i;
+  for (let i = tl.length - 1; i >= 0; i--) if (tl[i]?.type === "msg") return i;
   return -1;
 };
 

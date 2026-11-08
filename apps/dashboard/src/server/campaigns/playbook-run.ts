@@ -42,19 +42,7 @@ export async function runPlaybookNow(
   );
   if (answer.status === 503 && answer.body?.error === "edge_unreachable")
     return { ok: false, reason: "edge_unreachable" };
-  const body = (answer.body ?? {}) as {
-    ok?: boolean;
-    outcome?: string;
-    eligible?: number;
-    broadcast_id?: string;
-    skipped?: string;
-    scheduled_for?: unknown;
-    moved_from?: unknown;
-    reason?: unknown;
-    planned?: unknown;
-    run_id?: unknown;
-    detail?: string;
-  };
+  const body = answer.body ?? {};
   if (
     edgeAnswered(answer) &&
     body.ok &&
@@ -100,14 +88,7 @@ export async function offerFreedNow(
     { tenant_id: tenantId, user_id: userId, appointment_id: appointmentId },
     { workspace: tenantId, user: userId, timeoutMs: RUN_TIMEOUT_MS },
   );
-  const body = (answer.body ?? {}) as {
-    ok?: boolean;
-    offered?: boolean;
-    people?: number;
-    waits?: boolean;
-    why?: string;
-    detail?: string;
-  };
+  const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok)
     return body.offered
       ? { ok: true, offered: true, people: body.people ?? 0, waits: body.waits === true }

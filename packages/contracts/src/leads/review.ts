@@ -280,7 +280,7 @@ export function leadMapPlot(
   const spanM = Math.round(half * 2);
   const into = (m: { e: number; s: number }) => ({ x: 0.5 + m.e / (half * 2), y: 0.5 + m.s / (half * 2) });
   return {
-    pins: placed.map((r, i) => ({ id: r.id, ...into(metres[i]) })),
+    pins: placed.map((r) => ({ id: r.id, ...into(at(r.point)) })),
     ring: area?.center && area.radius_m ? { ...into(at(area.center)), r: area.radius_m / (half * 2) } : null,
     spanM,
     tooWide: !area?.center && spanM > LEAD_MAP_MAX_SPAN_M,

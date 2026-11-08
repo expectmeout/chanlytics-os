@@ -179,13 +179,13 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await line.getByTestId("ask-input").press("Enter");
     if (!turn) {
       await expect.poll(() => asked.length, { message: "the question is asked, once" }).toBe(1);
-      expect(asked[0].text).toBe(SETUP_LEFT);
-      expect(asked[0].surface, "on the first run's own surface").toBe("start");
-      expect(asked[0].context?.surface, "with the page it is asked on").toBe("start");
-      expect(asked[0].context?.route).toMatch(/^start/);
+      expect(asked[0]?.text).toBe(SETUP_LEFT);
+      expect(asked[0]?.surface, "on the first run's own surface").toBe("start");
+      expect(asked[0]?.context?.surface, "with the page it is asked on").toBe("start");
+      expect(asked[0]?.context?.route).toMatch(/^start/);
       return;
     }
-    const first = JSON.parse((await (await turn).text()).split("\n")[0]) as { t: string; id: string };
+    const first = JSON.parse((await (await turn).text()).split("\n")[0] ?? "") as { t: string; id: string };
     expect(first.t, "the stream opens with its conversation").toBe("thread");
     try {
       const say = line.getByTestId("ask-say");

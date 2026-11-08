@@ -112,7 +112,7 @@ async function postShownFirst(
   let bytes: Buffer;
   try {
     const row = await getPhoto(toolContext.ctx, plan);
-    const material = await postMaterialFrom(toolContext.ctx, toolContext.tenantId, row, async () => config);
+    const material = await postMaterialFrom(toolContext.ctx, toolContext.tenantId, row, () => Promise.resolve(config));
     bytes = await postDrawn(plan, material, "portrait", true);
   } catch (e) {
     if (e instanceof AppError) return refuse(`${name}: ${e.message}`);

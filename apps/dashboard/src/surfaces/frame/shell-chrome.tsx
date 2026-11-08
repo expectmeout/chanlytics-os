@@ -295,7 +295,7 @@ const frameTop = (s: ChromeAt, glass: boolean) => {
     <div className="frame-top" data-chrome="">
       {glass && <span className="pg-dateline-slot" id="pg-dateline" />}
       <Bar
-        crumbs={(glass ? [] : s.crumbs) as never[]}
+        crumbs={(glass ? [] : s.crumbs) as Parameters<typeof Topbar>[0]["crumbs"]}
         theme={s.theme}
         themePref={s.themePref}
         onTheme={s.onTheme}

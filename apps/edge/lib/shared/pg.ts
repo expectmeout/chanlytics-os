@@ -29,8 +29,9 @@ export function pg(): SupabaseClient<Database> | null {
   if (injectedDb) return injectedDb;
   if (!pgEnabled()) return null;
   dbClient ??= createServiceClient({
-    url: env.SUPABASE_URL!,
-    serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY!,
+    // pgEnabled holds both, so neither is blank here.
+    url: env.SUPABASE_URL ?? "",
+    serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   });
   return dbClient;
 }

@@ -32,18 +32,18 @@ export async function getWhatsappSignupConfig(asker: { workspace: string; user: 
     method: "GET",
     timeoutMs: SIGNUP_CONFIG_TIMEOUT_MS,
   });
-  const json = answer.body as (SignupConfig & { ok?: boolean }) | null;
+  const json = answer.body;
   if (!edgeAnswered(answer) || !json?.ok) {
     const sentence =
       typeof answer.body?.detail === "string" && answer.status >= 503 ? answer.body.detail : `edge ${answer.status}`;
     return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: sentence, keep_app: false };
   }
   return {
-    app_id: json.app_id,
-    config_id: json.config_id,
-    graph_version: json.graph_version,
-    ready: json.ready,
-    reason: json.reason,
+    app_id: json.app_id ?? null,
+    config_id: json.config_id ?? null,
+    graph_version: json.graph_version ?? "v25.0",
+    ready: json.ready === true,
+    reason: json.reason ?? null,
     keep_app: json.keep_app === true,
   };
 }
@@ -79,18 +79,7 @@ export async function connectWhatsApp(
     { tenant_id: tenantId, user_id: userId, ...body },
     { workspace: tenantId, user: userId, timeoutMs: CONNECT_TIMEOUT_MS },
   );
-  const result = (answer.body ?? {}) as {
-    ok?: boolean;
-    channel_id?: string;
-    phone_number_id?: string;
-    waba_id?: string;
-    ids_from?: string;
-    number_e164?: string | null;
-    verified_name?: string | null;
-    quality_rating?: string | null;
-    registration?: string;
-    detail?: string;
-  };
+  const result = answer.body ?? {};
   if (edgeAnswered(answer) && result.ok && result.channel_id) {
     return {
       ok: true,
@@ -121,7 +110,7 @@ export async function checkWhatsAppStanding(tenantId: string, userId: string): P
     { tenant_id: tenantId, user_id: userId },
     { workspace: tenantId, user: userId, timeoutMs: STANDING_TIMEOUT_MS },
   );
-  const body = (answer.body ?? {}) as { ok?: boolean; kept?: string; can_send?: string; detail?: string };
+  const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok && typeof body.kept === "string" && typeof body.can_send === "string")
     return { ok: true, kept: body.kept, canSend: body.can_send };
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };

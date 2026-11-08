@@ -334,11 +334,14 @@ const WARN_EVERY_MS = MIN_MS;
 export function memoryStore(): RateStore & { reset(): void } {
   const hits = new Map<string, number[]>();
   return {
-    async take(bucket, actor, rule, now) {
+    take(bucket, actor, rule, now) {
       const key = `${bucket}:${actor}`;
       const recent = (hits.get(key) ?? []).filter((t) => now - t < rule.windowMs);
       if (recent.length >= rule.limit) {
-        return { allowed: false, retryAfterS: Math.max(1, Math.ceil((recent[0] + rule.windowMs - now) / 1000)) };
+        return Promise.resolve({
+          allowed: false,
+          retryAfterS: Math.max(1, Math.ceil(((recent[0] ?? now) + rule.windowMs - now) / 1000)),
+        });
       }
       recent.push(now);
       hits.set(key, recent);
@@ -347,7 +350,7 @@ export function memoryStore(): RateStore & { reset(): void } {
           if (!times.some((t) => now - t < FORGET_AFTER_MS)) hits.delete(k);
         }
       }
-      return { allowed: true };
+      return Promise.resolve({ allowed: true });
     },
     reset() {
       hits.clear();

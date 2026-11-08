@@ -499,7 +499,7 @@ test("the pages: titles not names, the starter set in Settings, the message as t
   assert.ok(
     b.includes("const c = choices[i] || BC_TEXT;") &&
       b.includes("const s = (sources[tplId] || BC_NONE)[i];") &&
-      b.includes("return c.includes(s) ? s : c[0];"),
+      b.includes('return s && c.includes(s) ? s : (c[0] ?? "text");'),
     "a starter's slots come filled in, each with what it may take",
   );
   // The Templates composer (moved from templates-real.jsx): its form and its module, read as one.

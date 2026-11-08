@@ -4,7 +4,7 @@ import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, refusalOf, recordLeadPutBack } from "@/server/leads/leads";
 import { putLeadBack } from "@/server/leads/search-acts";
 
-const Body = z.object({ search_id: z.string().uuid() });
+const Body = z.object({ search_id: z.uuid() });
 
 /**
  * POST /api/v1/leads/:id/put-back: the owner's override of an exclusion,

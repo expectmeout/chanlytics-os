@@ -50,7 +50,7 @@ async function proposePolicy(
   if (cls === "outreach") return refuse("a reach-out's runs are set where reach-outs are made, not here");
   if (mode && !isOneOf(POLICY_MODES, mode)) return refuse("mode must be auto, veto, ask or never");
   // What each class may be set to is one rule, the Autonomy page's (contracts POLICY_CLASS_MODES), in its words.
-  const notOffered = mode ? policyModeRefusal(cls as PolicyClass, mode as PolicyMode) : null;
+  const notOffered = mode ? policyModeRefusal(cls, mode as PolicyMode) : null;
   if (notOffered) return refuse(notOffered);
   if (conf !== null && (cls !== "reply" || conf < 0 || conf > 1))
     return refuse("the confidence dial is 0 to 1 and applies to reply");
@@ -62,11 +62,11 @@ async function proposePolicy(
     mode: row?.mode ?? null,
     conf: (row?.limits as { min_confidence?: number } | null)?.min_confidence ?? null,
   };
-  const held = classHolds(cls as PolicyClass, { mode, conf }, row ? was : null);
+  const held = classHolds(cls, { mode, conf }, row ? was : null);
   if (held?.all) return refuse(`${held.words}: say so, and change nothing`);
   // The Autonomy page's own words for the row and the mode, never a class id.
   const summary = [
-    mode ? `${POLICY_CLASS_WORDS[cls as PolicyClass].name}: ${POLICY_MODE_WORDS[mode as PolicyMode].chip}` : null,
+    mode ? `${POLICY_CLASS_WORDS[cls].name}: ${POLICY_MODE_WORDS[mode as PolicyMode].chip}` : null,
     conf !== null ? `confidence dial ${Math.round(conf * 100)}%` : null,
   ]
     .filter(Boolean)

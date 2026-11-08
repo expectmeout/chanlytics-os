@@ -379,8 +379,10 @@ function watchOverlays(win: BridgeWindow, post: Post): Overlays {
   let refused: OverlayNode | null = null;
   const top = (): OverlayNode | null => {
     const all = doc.querySelectorAll ? Array.from(doc.querySelectorAll(OVERLAY_SELECTOR)) : [];
-    for (let i = all.length - 1; i >= 0; i--)
-      if (!deaf.has(all[i]) && all[i].getClientRects().length > 0) return all[i];
+    for (let i = all.length - 1; i >= 0; i--) {
+      const node = all[i];
+      if (node && !deaf.has(node) && node.getClientRects().length > 0) return node;
+    }
     return null;
   };
   let open = false;

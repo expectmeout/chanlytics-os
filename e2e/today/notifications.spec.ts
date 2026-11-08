@@ -51,7 +51,7 @@ test.describe("The bell on a real workspace", () => {
     expect(ops[0], "it begins where the popover stood, whole").toBeGreaterThan(0.9);
     for (let i = 1; i < ops.length; i += 1)
       expect(ops[i], `frame ${i} of ${ops.length}: ${ops.map((o) => o.toFixed(2)).join(" ")}`).toBeLessThanOrEqual(
-        ops[i - 1] + 0.001,
+        (ops[i - 1] ?? 0) + 0.001,
       );
     await expect(page.locator(".tbn-pop")).toHaveCount(0);
   });

@@ -16,7 +16,15 @@
  * and never onto the row's facts.
  */
 import type { SchemaSet } from "@chanlytics/contracts";
-import { RETELL_ORIGINATION, isValidSipPassword, sipPassword, sipUsername, subaccountName, trunkDomain } from "./lines";
+import {
+  RETELL_ORIGINATION,
+  isValidSipPassword,
+  sipPassword,
+  sipUsername,
+  subaccountName,
+  trunkDomain,
+  columnWritten,
+} from "./lines";
 import type { LineProvider, ProviderAccount } from "./lines";
 
 export type LineStep = SchemaSet<"lines.step">;
@@ -297,10 +305,11 @@ async function numberStep(run: LineRun): Promise<void> {
   // it again and be refused for ever, because the account already owns it.
   //
   // Idempotent now, which is the property every other step already had.
-  const held = await ports.provider.ownedNumber(run.sub(), run.line.e164!);
+  const held = await ports.provider.ownedNumber(run.sub(), columnWritten(run.line, "e164"));
   if (!held) run.room();
   const bought =
-    held ?? (await ports.provider.buyNumber(run.sub(), run.line.e164!, `${ports.tenant.name} · Chanlytics`));
+    held ??
+    (await ports.provider.buyNumber(run.sub(), columnWritten(run.line, "e164"), `${ports.tenant.name} · Chanlytics`));
   await run.save({ number_sid: bought.sid, e164: bought.e164 });
 }
 
@@ -358,14 +367,14 @@ async function ensureSipCredential(run: LineRun, acct: ProviderAccount): Promise
   await run.once(
     "credential",
     async () => {
-      const lost = await ports.provider.findCredential(acct, run.line.credential_list_sid!, username);
+      const lost = await ports.provider.findCredential(acct, columnWritten(run.line, "credential_list_sid"), username);
       if (lost) {
         run.room();
-        await ports.provider.deleteCredential(acct, run.line.credential_list_sid!, lost.sid);
+        await ports.provider.deleteCredential(acct, columnWritten(run.line, "credential_list_sid"), lost.sid);
       }
       return null;
     },
-    () => ports.provider.addCredential(acct, run.line.credential_list_sid!, username, password),
+    () => ports.provider.addCredential(acct, columnWritten(run.line, "credential_list_sid"), username, password),
   );
   await run.putSecrets({ sip_username: username, sip_password: password });
 }
@@ -375,7 +384,11 @@ async function ensureCredentialListAttached(run: LineRun, acct: ProviderAccount)
   if (run.line.facts.credential_list_attached === true) return;
   const { ports } = run;
   run.room();
-  await ports.provider.attachCredentialList(acct, run.line.trunk_sid!, run.line.credential_list_sid!);
+  await ports.provider.attachCredentialList(
+    acct,
+    columnWritten(run.line, "trunk_sid"),
+    columnWritten(run.line, "credential_list_sid"),
+  );
   await run.fact("credential_list_attached", true);
 }
 
@@ -385,9 +398,9 @@ async function ensureOrigination(run: LineRun, acct: ProviderAccount): Promise<v
   const { ports } = run;
   const once = await run.once(
     "origination",
-    () => ports.provider.findOrigination(acct, run.line.trunk_sid!, RETELL_ORIGINATION),
+    () => ports.provider.findOrigination(acct, columnWritten(run.line, "trunk_sid"), RETELL_ORIGINATION),
     () =>
-      ports.provider.addOrigination(acct, run.line.trunk_sid!, {
+      ports.provider.addOrigination(acct, columnWritten(run.line, "trunk_sid"), {
         sipUrl: RETELL_ORIGINATION,
         friendlyName: "Retell",
       }),
@@ -400,7 +413,7 @@ async function ensureNumberAttached(run: LineRun, acct: ProviderAccount): Promis
   if (run.line.facts.number_attached === true) return;
   const { ports } = run;
   run.room();
-  await ports.provider.attachNumber(acct, run.line.trunk_sid!, run.line.number_sid!);
+  await ports.provider.attachNumber(acct, columnWritten(run.line, "trunk_sid"), columnWritten(run.line, "number_sid"));
   await run.fact("number_attached", true);
 }
 
@@ -418,11 +431,11 @@ async function importStep(run: LineRun): Promise<void> {
   if (!run.secrets.sip_username || !run.secrets.sip_password)
     throw new Error("the SIP credential is missing from the vault");
   const body = retellImportBody({
-    e164: run.line.e164!,
-    terminationUri: run.line.termination_uri!,
+    e164: columnWritten(run.line, "e164"),
+    terminationUri: columnWritten(run.line, "termination_uri"),
     username: run.secrets.sip_username,
     password: run.secrets.sip_password,
-    agentId: run.line.retell_agent_id!,
+    agentId: columnWritten(run.line, "retell_agent_id"),
     pinned: run.line.facts.agent_pinned === true,
     nickname: ports.nickname,
     inboundWebhookUrl: ports.inboundWebhookUrl,
@@ -458,7 +471,11 @@ async function messagingStep(run: LineRun): Promise<void> {
   }
   if (run.line.facts.number_in_service !== true) {
     run.room();
-    await ports.provider.addNumberToService(acct, run.line.messaging_service_sid!, run.line.number_sid!);
+    await ports.provider.addNumberToService(
+      acct,
+      columnWritten(run.line, "messaging_service_sid"),
+      columnWritten(run.line, "number_sid"),
+    );
     await run.fact("number_in_service", true);
   }
 }
@@ -468,17 +485,17 @@ async function channelStep(run: LineRun): Promise<void> {
   const { ports } = run;
   if (typeof run.line.facts.channel_id !== "string") {
     const c = await ports.channel.ensure({
-      agentId: run.line.retell_agent_id!,
-      e164: run.line.e164!,
+      agentId: columnWritten(run.line, "retell_agent_id"),
+      e164: columnWritten(run.line, "e164"),
       lineId: run.line.id,
     });
     await run.fact("channel_id", c.channelId);
   }
   if (typeof run.line.facts.sms_channel_id !== "string") {
     const s = await ports.smsChannel.ensure({
-      e164: run.line.e164!,
+      e164: columnWritten(run.line, "e164"),
       lineId: run.line.id,
-      serviceSid: run.line.messaging_service_sid!,
+      serviceSid: columnWritten(run.line, "messaging_service_sid"),
     });
     await run.fact("sms_channel_id", s.channelId);
   }

@@ -6,6 +6,7 @@ import {
   isE164,
   MISSED_CALL_LINE,
   UNCONNECTED_DIAL_LINE,
+  listOrEmpty,
   recordOrEmpty,
 } from "@chanlytics/contracts";
 import { answerObject, fetchFromProvider, type ProviderReply } from "../../shared/provider-fetch";
@@ -437,7 +438,7 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     // a key rides there at all is kept as a fact, so the planner can retire it.
     webhook_url: str("webhook_url")?.split("?")[0] ?? null,
     webhook_url_keyed: /[?&]key=/.test(str("webhook_url") ?? ""),
-    webhook_events: Array.isArray(result.webhook_events) ? (result.webhook_events as unknown[]).map(String) : null,
+    webhook_events: Array.isArray(result.webhook_events) ? listOrEmpty(result.webhook_events).map(String) : null,
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),
     data_storage_retention_days: num("data_storage_retention_days"),
@@ -445,7 +446,7 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     end_call_after_silence_ms: num("end_call_after_silence_ms"),
     opt_in_signed_url: bool("opt_in_signed_url"),
     post_call_analysis_data: Array.isArray(result.post_call_analysis_data)
-      ? (result.post_call_analysis_data as unknown[])
+      ? listOrEmpty(result.post_call_analysis_data)
       : null,
     reminder_trigger_ms: num("reminder_trigger_ms"),
     reminder_max_count: num("reminder_max_count"),

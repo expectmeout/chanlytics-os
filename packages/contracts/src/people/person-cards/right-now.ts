@@ -23,7 +23,7 @@ import { ourWireOfThreads, proposalSending, proposalSent, replyChannelOfThreads,
 import { REPLY_VIA, REPLY_WIRE } from "../person-words";
 import { replyWindow } from "../../config/policy/prices";
 import { windowClockOf } from "../../config/policy/reply-limits";
-import { messageAt, type MessageDto } from "../../conversations/thread-dto";
+import { messageAt } from "../../conversations/thread-dto";
 import { messageText, messageWords } from "../../conversations/message-words";
 import { reasonShort, reasonSummaryOf } from "../../conversations/escalations";
 import { neverConnected } from "../../conversations/call-dto";
@@ -279,7 +279,8 @@ export function lastExchangeOf({ profile, stamp }: PersonCardContext): PersonLas
   let reply: PersonLastExchange["reply"] = null;
   if (latestConv) {
     for (let index = latestConv.messages.length - 1; index >= 0; index--) {
-      const message: MessageDto = latestConv.messages[index];
+      const message = latestConv.messages[index];
+      if (!message) continue;
       if (message.type === "call_summary") continue;
       const result = ts(messageAt(message));
       if (result === null) continue;

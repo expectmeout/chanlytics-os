@@ -308,6 +308,7 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, delivery: Delivery):
   if (error)
     throw new Error(`deliver: cannot read the wire for conversation ${delivery.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${delivery.conversationId} in workspace ${delivery.tenantId}`);
+  // The wire's columns are chosen at run time, past the client's typed parser: the row is the columns findWireRow names.
   const row = data as unknown as {
     paused_until: string | null;
     control_kind?: string | null;
@@ -499,7 +500,8 @@ function refusalFor(
  * thread: it retires nothing.
  */
 async function overtakenByHuman(db: Db, delivery: Delivery): Promise<string | null> {
-  const { data: mine, error: mineErr } = await findMessageWrittenAt(db, delivery.tenantId, delivery.messageId!);
+  if (!delivery.messageId) return null;
+  const { data: mine, error: mineErr } = await findMessageWrittenAt(db, delivery.tenantId, delivery.messageId);
   if (mineErr) throw new Error(`deliver: cannot read message ${delivery.messageId}: ${mineErr.message}`);
   if (!mine) return null;
   const { data: newer, error } = await listPersonRepliesAfter(db, {
@@ -585,11 +587,11 @@ async function fromMailbox(db: Db, delivery: Delivery, sent: SendResult): Promis
  * thrown, the way a failed finalize is.
  */
 async function leftAs(db: Db, delivery: Delivery, sent: SendResult): Promise<void> {
-  if (!sent.leftAs) return;
+  if (!sent.leftAs || !delivery.messageId) return;
   const reason = sent.leftAsWhy ?? null;
   await stampEmailLeftAs(db, {
     tenantId: delivery.tenantId,
-    messageId: delivery.messageId!,
+    messageId: delivery.messageId,
     leftAs: sent.leftAs,
     why: reason,
   }).catch((e: unknown) => {
@@ -602,7 +604,8 @@ async function leftAs(db: Db, delivery: Delivery, sent: SendResult): Promise<voi
 }
 
 async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise<boolean> {
-  const { data, error } = await finalizeQueuedMessage(db, d.messageId!, patch);
+  if (!d.messageId) return false;
+  const { data, error } = await finalizeQueuedMessage(db, d.messageId, patch);
   if (error) throw new Error(`deliver: cannot finalize message ${d.messageId}: ${error.message}`);
   return !!data && data.length > 0;
 }

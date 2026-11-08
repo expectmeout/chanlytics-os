@@ -101,7 +101,7 @@ async function listRows(
             .eq("tenant_id", tenantId)
             .order("name")
             .order("id")
-            .range(from, to) as unknown as PromiseLike<Page<ListCols>>,
+            .range(from, to) as PromiseLike<Page<ListCols>>,
       ),
     "id, name",
   );
@@ -153,7 +153,7 @@ export async function findSavedList(db: Db, tenantId: string, id: string): Promi
       .select(columns)
       .eq("id", id)
       .eq("tenant_id", tenantId)
-      .maybeSingle()) as unknown as { data: ListCols | null; error: { message: string } | null };
+      .maybeSingle()) as { data: ListCols | null; error: { message: string } | null };
     if (error) throw new Error(`segments: ${error.message}`);
     return data;
   }, "id, name");
@@ -170,7 +170,7 @@ export async function findSavedList(db: Db, tenantId: string, id: string): Promi
 /** The list a verb acts on, read under row security alone: one the caller cannot see is no list. */
 export async function listRow(db: Db, id: string): Promise<ListRow | null> {
   const data = await readWithFallback(async (columns) => {
-    const { data, error } = (await db.from("segments").select(columns).eq("id", id).maybeSingle()) as unknown as {
+    const { data, error } = (await db.from("segments").select(columns).eq("id", id).maybeSingle()) as {
       data: (ListCols & { tenant_id: string }) | null;
       error: { message: string } | null;
     };

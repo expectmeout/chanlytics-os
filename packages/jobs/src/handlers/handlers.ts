@@ -9,6 +9,8 @@ import {
   DAY_MS,
   EVENT_SUBSCRIBERS,
   type EventSubscriber,
+  entryOf,
+  recordOrEmpty,
   textOrEmpty,
 } from "@chanlytics/contracts";
 import { requestIdShaped } from "@chanlytics/channels/tokens";
@@ -169,14 +171,10 @@ async function pushReceipts(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.push) throw new Error("push_receipts: this runtime holds no push transport");
   const raw = job.payload.tickets;
   const tickets: PushTicket[] = Array.isArray(raw)
-    ? raw.flatMap((t) =>
-        t &&
-        typeof t === "object" &&
-        typeof (t as PushTicket).id === "string" &&
-        typeof (t as PushTicket).to === "string"
-          ? [{ id: (t as PushTicket).id, to: (t as PushTicket).to }]
-          : [],
-      )
+    ? raw.flatMap((t: unknown) => {
+        const { id, to } = recordOrEmpty(t);
+        return typeof id === "string" && typeof to === "string" ? [{ id, to }] : [];
+      })
     : [];
   if (!tickets.length) return;
   const receipts = await ctx.push.receipts(tickets.map((t) => t.id));
@@ -398,7 +396,7 @@ const HANDLERS: Record<JobKind, Handler> = {
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<DispatchOutcome> {
   // The row's kind is text; a kind this build does not declare is unknown, and the tick keeps it for the runner that
   // knows it (ledger UNKNOWN_KIND_WAIT_MS), failing it as never run only once it has been due a day.
-  const handler = (HANDLERS as Record<string, Handler | undefined>)[job.kind];
+  const handler = entryOf(HANDLERS, job.kind);
   if (!handler) return "unknown_kind";
   // A delivery to a subscriber this build does not know is a row a newer deploy wrote (00334): kept, as a kind is.
   if (job.kind === "event_deliver" && !subscriberNamed(job.payload.subscriber)) return "unknown_kind";

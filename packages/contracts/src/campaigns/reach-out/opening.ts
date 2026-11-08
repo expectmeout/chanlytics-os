@@ -184,7 +184,7 @@ export function openingUserContent(params: {
     ...recordLines(params.record),
     "",
     ...(params.record.what_you_asked
-      ? [fenceLine("What the owner searched for (not about this business)", params.record.what_you_asked)!]
+      ? [fenceLine("What the owner searched for (not about this business)", params.record.what_you_asked) ?? ""]
       : []),
     `The owner's business: ${params.workspace.name}`,
     ...(params.workspace.what_we_do ? [`What they do: ${params.workspace.what_we_do}`] : []),

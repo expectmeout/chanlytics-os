@@ -71,6 +71,6 @@ export function withAlertAddress<S extends { escalation_emails?: readonly string
   return {
     ok: true,
     changed: has !== on,
-    notifications: { ...(notifications ?? ({} as S)), escalation_emails: next },
+    notifications: { ...((notifications ?? {}) as S), escalation_emails: next },
   };
 }

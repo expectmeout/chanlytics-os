@@ -78,7 +78,7 @@ export function channelFor<T extends ChannelPickable>(rows: readonly T[], kind: 
   if (mine.length === 0) return null;
   const on = mine.filter(channelIsOn);
   const pool = on.length > 0 ? on : mine;
-  return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? pool[0];
+  return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? null;
 }
 
 export type ChannelHealth = "receiving" | "quiet" | "off" | "unused";
@@ -133,17 +133,18 @@ function ago(ms: number, nowMs: number, tz: string): string {
  * (people.ts) label what a MESSAGE arrived on; the Connections titles name the
  * product ("WhatsApp Business"). This one names the wire.
  */
-export const CHANNEL_KIND_WORDS: Record<string, string> = {
+export const CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
   sms: "Texting",
   email: "Email",
   instagram: "Instagram",
 };
+const wordOfKind: Record<string, string | undefined> = CHANNEL_KIND_WORDS;
 
 /** The word for a wire; an unknown kind is capitalised rather than shouted as a column value. */
 export function channelKindWords(kind: string): string {
-  return CHANNEL_KIND_WORDS[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1);
+  return wordOfKind[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1);
 }
 
 /**

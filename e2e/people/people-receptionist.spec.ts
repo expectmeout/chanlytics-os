@@ -54,9 +54,9 @@ test.describe("Receptionist mode for one person", () => {
 
     await segs.nth(2).click();
     await expect.poll(() => seen.length).toBe(1);
-    expect(seen[0].method).toBe("PUT");
-    expect(seen[0].url).toContain("workspace=");
-    expect(seen[0].body).toEqual({ mode: "never" });
+    expect(seen[0]?.method).toBe("PUT");
+    expect(seen[0]?.url).toContain("workspace=");
+    expect(seen[0]?.body).toEqual({ mode: "never" });
     await expect(page.getByText("Receptionist for")).toBeVisible();
   });
 });

@@ -149,15 +149,16 @@ export function mountStreets(
         const at = ring.marker.getLngLat();
         for (const [w, s] of [squareBounds({ lat: at.lat, lng: at.lng }, ring.radiusM * 2)]) points.push(w, s);
       }
-      const bounds = points.length
+      const [first] = points;
+      const bounds = first
         ? points.reduce<[[number, number], [number, number]]>(
             (b, [lng, lat]) => [
               [Math.min(b[0][0], lng), Math.min(b[0][1], lat)],
               [Math.max(b[1][0], lng), Math.max(b[1][1], lat)],
             ],
             [
-              [points[0][0], points[0][1]],
-              [points[0][0], points[0][1]],
+              [first[0], first[1]],
+              [first[0], first[1]],
             ],
           )
         : squareBounds(center, spanM);

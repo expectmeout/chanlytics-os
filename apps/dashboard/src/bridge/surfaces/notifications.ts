@@ -30,6 +30,6 @@ export const notificationsOverride: SurfaceOverride = {
   ...declareReads("notifications", { reads: ["notification"], fresh: "live" }),
   apply: async () => {
     const dto = await read("GET notifications");
-    (window as unknown as { __NOTIFICATIONS?: NotificationsSurface }).__NOTIFICATIONS = { dto, fetchedAt: Date.now() };
+    (window as Window & { __NOTIFICATIONS?: NotificationsSurface }).__NOTIFICATIONS = { dto, fetchedAt: Date.now() };
   },
 };

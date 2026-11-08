@@ -259,9 +259,9 @@ async function* recordsBundle(
       case "files":
         return linked(readers, files, linksExpire);
       case "calls":
-        return paged(readers.calls, page);
+        return paged(readers.calls.bind(readers), page);
       case "consent_history":
-        return paged(readers.consentHistory, page);
+        return paged(readers.consentHistory.bind(readers), page);
       default:
         return shape.own(section, page);
     }
@@ -314,7 +314,7 @@ async function* withMessages(
     }
     for (const c of convs) yield { ...c, messages: by.get(c.id) ?? [] };
   };
-  for await (const c of paged(readers.conversations, size.page)) {
+  for await (const c of paged(readers.conversations.bind(readers), size.page)) {
     held.push(c);
     if (held.length < size.batch) continue;
     yield* written(held);

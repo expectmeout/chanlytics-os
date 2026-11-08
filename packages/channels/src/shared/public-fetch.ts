@@ -43,7 +43,7 @@ const resolveByLookup: Resolve = async (host) => {
 function octetsOf(address: string): [number, number, number, number] | null {
   const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(address);
   if (!m) return null;
-  const o = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])] as [number, number, number, number];
+  const o: [number, number, number, number] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
   return o.every((n) => n <= 255) ? o : null;
 }
 

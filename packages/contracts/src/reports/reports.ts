@@ -66,7 +66,7 @@ export function speedOf(
   }
   const point = (chunk: readonly string[]): ReportSpeedPointVM => {
     const items = chunk.flatMap((d) => byDay.get(d) ?? []).sort((a, b) => a - b);
-    const first = chunk[0];
+    const first = chunk[0] ?? "";
     const p50 = quantile(items, 0.5);
     const p90 = quantile(items, 0.9);
     return {
@@ -83,7 +83,8 @@ export function speedOf(
   if (days.length <= 14) return { unit: "day", points: days.map((d) => point([d])) };
   const weeks: string[][] = [];
   for (let end = days.length; end > 0; end -= 7) weeks.unshift(days.slice(Math.max(0, end - 7), end));
-  if (weeks.length > 1 && weeks[0].length < 4) weeks.splice(0, 2, [...weeks[0], ...weeks[1]]);
+  const [one, two] = weeks;
+  if (one && two && one.length < 4) weeks.splice(0, 2, [...one, ...two]);
   return { unit: "week", points: weeks.map(point) };
 }
 
@@ -101,7 +102,7 @@ const listWords = (names: readonly string[], last: "or" | "and"): string =>
 function rhythmLine(week: ReportWeekVM): string | null {
   if (!week.current.some((v) => v > 0)) return null;
   const avg = week.unit === "average";
-  const name = (i: number): string => (avg ? `${week.long[i]}s` : week.long[i]);
+  const name = (i: number): string => (avg ? `${week.long[i] ?? ""}s` : (week.long[i] ?? ""));
   const idle = week.current.flatMap((v, i) => (v === 0 ? [i] : []));
   if (idle.length >= 4)
     return `Only on ${listWords(
@@ -322,7 +323,7 @@ function peopleOf({ current, previous, points, tot, prev }: PeriodFacts): Report
     max: Math.max(1, ...points.map((p) => p.newPeople)),
     prior: peopleBefore,
     cumulative: {
-      points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
+      points: points.map((p, i) => ({ ...p, total: peopleRun[i] ?? 0 })),
       prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null,
     },
   };

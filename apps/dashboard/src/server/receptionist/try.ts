@@ -7,7 +7,6 @@ import {
   type TryItAnswer,
   type TryItVM,
   recordOrEmpty,
-  recordOrNull,
 } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured, edgeReasonOf } from "../shared/edge";
 import { log } from "../shared/log";
@@ -66,7 +65,7 @@ export async function tryReceptionist(
     { tenant_id: tenantId, cases: [{ id: "try", text, history: [...history] }] },
     { workspace: tenantId, user: userId, timeoutMs: TRY_TIMEOUT_MS },
   );
-  const results = recordOrNull(result.body)?.results;
+  const results = result.body?.results;
   const answer = result.status === 200 && Array.isArray(results) ? tryAnswerOf(results[0]) : null;
   if (answer) return tryItVM(answer);
   const reason = edgeReasonOf(result);

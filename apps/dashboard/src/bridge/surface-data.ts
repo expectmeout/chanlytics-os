@@ -290,7 +290,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
   // The workspace actually being VIEWED, as resolved by the server — not `[0]`, which was whichever tenant happened
   // to sort first and could differ from the one the data below it came from.
   current: () => {
-    const w = window as unknown as { __WORKSPACES?: Workspace[]; __ACTIVE_WORKSPACE?: string };
+    const w = window as Window & { __WORKSPACES?: Workspace[]; __ACTIVE_WORKSPACE?: string };
     return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? null;
   },
   apply: async () => {
@@ -308,7 +308,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       api().forget();
       data = await read("GET workspaces");
     }
-    const w = window as unknown as {
+    const w = window as Window & {
       __WORKSPACES?: Workspace[];
       __ME?: Me;
       __ACTIVE_WORKSPACE?: string;
@@ -390,7 +390,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
  * run, `#/start`, which is written as its path); nothing, and a switch opens on Today.
  */
 export function switchWorkspace(id: string, knownSlug?: string, after = ""): void {
-  const target = (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.find((t) => t.id === id);
+  const target = (window as Window & { __WORKSPACES?: Workspace[] }).__WORKSPACES?.find((t) => t.id === id);
   const slug = target?.slug ?? knownSlug ?? id;
   const here = getActiveWorkspace();
   if (here === slug || here === id) return;

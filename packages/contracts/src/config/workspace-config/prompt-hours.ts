@@ -71,7 +71,7 @@ function dayText(h: Hours | undefined): string {
   const spans = dayIntervals(h);
   if (spans.length) {
     const open = joinList(spans.map((x) => `${x.open}–${x.close}`));
-    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}–${x.open}`);
+    const gaps = spans.slice(1).map((x, i) => `${spans[i]?.close ?? ""}–${x.open}`);
     return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
   }
   const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
@@ -86,9 +86,15 @@ export function hoursRuns(hours: Record<string, Hours> | undefined): HoursRun[] 
   const out: HoursRun[] = [];
   let index = 0;
   while (index < spans.length) {
+    const first = spans[index];
+    if (!first) break;
+    let last = first;
     let j = index;
-    while (j + 1 < spans.length && spans[j + 1].text === spans[index].text) j++;
-    out.push({ from: spans[index].day, to: spans[j].day, text: spans[index].text });
+    for (let next = spans[j + 1]; next?.text === first.text; next = spans[j + 1]) {
+      last = next;
+      j++;
+    }
+    out.push({ from: first.day, to: last.day, text: first.text });
     index = j + 1;
   }
   return out;

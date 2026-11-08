@@ -128,11 +128,11 @@ export function capabilityStatus(
   const words = live
     ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.`
     : activated && !ready
-      ? `Activated, but not ready: ${blockers[0].words}`
+      ? `Activated, but not ready: ${blockers[0]?.words ?? ""}`
       : ready && tested
         ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.`
         : ready
           ? "Ready. Try it from your own phone, then activate it."
-          : blockers[0].words;
+          : (blockers[0]?.words ?? "");
   return { kind, ready, blockers, tested, activated, live, words };
 }

@@ -175,13 +175,9 @@ export function languageName(code: string): string {
   const known = templateLanguage(code);
   if (known) return known.name;
   const base = String(code ?? "").split(/[-_]/)[0];
-  const Names = (
-    Intl as unknown as {
-      DisplayNames?: new (locales: string[], options: { type: "language" }) => { of(code: string): string | undefined };
-    }
-  ).DisplayNames;
   try {
-    const name = base && Names ? new Names(["en"], { type: "language" }).of(base) : undefined;
+    // A browser without Intl.DisplayNames throws here, and the catch says the code as it came.
+    const name = base ? new Intl.DisplayNames(["en"], { type: "language" }).of(base) : undefined;
     return name && name !== base ? name : String(code ?? "");
   } catch {
     return String(code ?? "");
@@ -193,10 +189,11 @@ export function languageName(code: string): string {
  * three-letter code ("english", "und", ""): a reader's guess is never a language until it names one.
  */
 export function languageBase(code: string | null | undefined): string | null {
-  const base = String(code ?? "")
-    .trim()
-    .split(/[-_]/)[0]
-    .toLowerCase();
+  const base =
+    String(code ?? "")
+      .trim()
+      .split(/[-_]/)[0]
+      ?.toLowerCase() ?? "";
   return /^[a-z]{2,3}$/.test(base) && base !== "und" ? base : null;
 }
 
@@ -217,7 +214,7 @@ export function languageTag(code: string, among: readonly string[] = []): string
       keyOf(c) !== keyOf(code) &&
       String(c ?? "")
         .split(/[-_]/)[0]
-        .toLowerCase() === base.toLowerCase(),
+        ?.toLowerCase() === base.toLowerCase(),
   );
   return clash && region ? `${base.toUpperCase()}-${region.toUpperCase()}` : base.toUpperCase();
 }

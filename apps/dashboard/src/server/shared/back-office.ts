@@ -56,13 +56,9 @@ export async function getBackOffice(ctx: RouteContext): Promise<BackOffice> {
   const state = await staffState(ctx);
   if (state === "none") throw new AppError("not_found", "No such page.", 404);
   if (state === "needs_second_factor") throw new AppError("mfa_required", SECOND_FACTOR_WORDS.staffRequired, 403);
-  return {
-    db: serviceDb(),
-    session: ctx.supabase,
-    role: state,
-    userId: ctx.userId,
-    email: ctx.email ?? null,
-  } as BackOffice;
+  const office = { db: serviceDb(), session: ctx.supabase, role: state, userId: ctx.userId, email: ctx.email ?? null };
+  // The handle is made here alone (its brand): a route that has none was never let in.
+  return office as BackOffice;
 }
 
 /**

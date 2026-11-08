@@ -12,7 +12,6 @@ import {
   parseTenantConfigResult,
   placesQueryOf,
   type GoogleDto,
-  type GoogleCandidateDto,
 } from "@chanlytics/contracts";
 import { getGoogleReadiness, afterGoogle, callEdgeGoogle, stateSecret } from "@/server/connections/google";
 import { load, readerContext } from "@/server/shared/reader";
@@ -206,7 +205,7 @@ export async function searchGoogleFor(ctx: RouteContext, req: Request, member: M
       502,
     );
   }
-  const candidates = (Array.isArray(result.candidates) ? result.candidates : []) as GoogleCandidateDto[];
+  const candidates = Array.isArray(result.candidates) ? result.candidates : [];
   return {
     query,
     from_facts: fromFacts,

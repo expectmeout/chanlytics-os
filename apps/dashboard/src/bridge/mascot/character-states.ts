@@ -28,8 +28,11 @@ import {
 
 /** A choice by a roll: each row is the top of its band of the roll and what happens there; the last row takes the rest. */
 type Band<T> = readonly [number, T];
-const under = <T>(bands: readonly Band<T>[], r: number): T =>
-  (bands.find(([top]) => r < top) ?? bands[bands.length - 1])[1];
+const under = <T>(bands: readonly Band<T>[], r: number): T => {
+  const row = bands.find(([top]) => r < top) ?? bands.at(-1);
+  if (!row) throw new Error("a choice by a roll holds no rows");
+  return row[1];
+};
 
 const turnOne = (st: Core, k: number, dir: number, amp = 1, delay = 0): void =>
   move(st, "turn", { whoStep: k, dir, amp, delay, dur: amp > 1 ? 0.85 : 0.62 });
@@ -264,20 +267,23 @@ export function join(st: Core): Core {
     (b.x - px) ** 2 + (b.y - py) ** 2 + (2 * (b.lift - (RING_LIFT.far + RING_LIFT.near * z))) ** 2;
   const overlapping = (a: Body, b: Body) => Math.abs(a.out.x - b.out.x) < 0.9 && Math.abs(a.out.y - b.out.y) < 0.9;
   const cost = (pairing: number[]) => {
+    const placed = bodies.flatMap((body, i) => {
+      const point = points[pairing[i] ?? 0];
+      return point ? [{ body, point }] : [];
+    });
     let sum = 0;
-    for (let i = 0; i < 3; i++) {
-      sum += apart(bodies[i], points[pairing[i]]);
-      for (let j = i + 1; j < 3; j++) {
-        const traded =
-          (bodies[i].out.layer - bodies[j].out.layer) * (points[pairing[i]][2] - points[pairing[j]][2]) < 0;
-        if (traded && overlapping(bodies[i], bodies[j])) sum += 10;
+    placed.forEach(({ body, point }, i) => {
+      sum += apart(body, point);
+      for (const other of placed.slice(i + 1)) {
+        const traded = (body.out.layer - other.body.out.layer) * (point[2] - other.point[2]) < 0;
+        if (traded && overlapping(body, other.body)) sum += 10;
       }
-    }
+    });
     return sum;
   };
-  let best = PAIRINGS[0];
+  let best = PAIRINGS[0] ?? [];
   for (const pairing of PAIRINGS) if (cost(pairing) < cost(best)) best = pairing;
-  bodies.forEach((b, i) => (b.phase = JOIN[best[i]]));
+  bodies.forEach((b, i) => (b.phase = JOIN[best[i] ?? 0] ?? 0));
   st.orbPhase = 0;
   st.orbBoost = 0;
   return st;
@@ -300,10 +306,11 @@ function release(st: Core, next: CharacterState): void {
       .sort((a, b) => a.x - b.x)
       .forEach((b, k) => (b.step = k));
   } else if (next === "listening") {
-    near[0].step = 1;
-    const sides = near.slice(1).sort((a, b) => a.x - b.x);
-    sides[0].step = 0;
-    sides[1].step = 2;
+    const [front, ...sides] = near;
+    if (front) front.step = 1;
+    const [left, right] = sides.sort((a, b) => a.x - b.x);
+    if (left) left.step = 0;
+    if (right) right.step = 2;
   } else near.forEach((b, k) => (b.step = 2 - k));
   for (const b of st.bodies) {
     const o = b.out;

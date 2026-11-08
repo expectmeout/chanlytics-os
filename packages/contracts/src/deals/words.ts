@@ -70,7 +70,7 @@ export const DEAL_ACT_WORDS: Record<DealActId, string> = {
 };
 
 /** What the door can answer, in a sentence the page shows at the control. */
-export const DEAL_REFUSALS: Record<string, string> = {
+const DEAL_REFUSAL_WORDS = {
   not_found: "Person not found.",
   bad_stage: "That is not a stage a deal can be in.",
   bad_per: "An amount is once, a month or a year.",
@@ -85,3 +85,4 @@ export const DEAL_REFUSALS: Record<string, string> = {
   bad_reason: "A reason for passing is price, timing, went elsewhere, no reply, not a fit or other.",
   bad_clear: "Only the link, the valid-until day, the amount or the note can be emptied.",
 };
+export const DEAL_REFUSALS: typeof DEAL_REFUSAL_WORDS & Record<string, string> = DEAL_REFUSAL_WORDS;

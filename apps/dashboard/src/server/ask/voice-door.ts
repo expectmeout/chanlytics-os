@@ -20,7 +20,7 @@ import { log } from "@/server/shared/log";
 import { isRetryableAuthError } from "../shared/auth/errors";
 import { verifyBearer } from "../shared/auth/bearer";
 import { takeRate } from "../shared/rate-limit";
-import type { Member } from "../shared/route";
+import { mint, type Member } from "../shared/route";
 import { serviceDb } from "../shared/service-db";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
 import { titleFromQuestion } from "./prompt/prompt";
@@ -228,7 +228,7 @@ async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps):
   };
   try {
     const m = await getMemberContext(ctx, row.tenant_id);
-    return { kind: "admitted", row, ctx, member: { tenantId: m.tenantId, role: m.role } as Member, language, service };
+    return { kind: "admitted", row, ctx, member: mint({ tenantId: m.tenantId, role: m.role }), language, service };
   } catch (e) {
     if (e instanceof AppError) return over(`member_${e.code}`);
     // The database could not be asked: the row is kept and the person hears to try again, never a status, which the
@@ -318,7 +318,7 @@ function answerTo(messages: ThreadMessages, text: string, since: number): Thread
   for (let i = messages.length - 1; i > 0; i--) {
     const m = messages[i];
     const q = messages[i - 1];
-    if (m.role !== "assistant" || q.role !== "user") continue;
+    if (m?.role !== "assistant" || q?.role !== "user") continue;
     if (q.atMs < since) return null;
     if (sameWords(q.text) === text) return m;
   }

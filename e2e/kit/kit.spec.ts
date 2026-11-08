@@ -122,10 +122,12 @@ async function eachRun(
   const groups = new Map<string, Run[]>();
   for (const run of runs)
     groups.set(`${run.width} ${run.reduced}`, [...(groups.get(`${run.width} ${run.reduced}`) ?? []), run]);
-  for (const [first, ...rest] of groups.values()) {
+  for (const group of groups.values()) {
+    const [first] = group;
+    if (!first) continue;
     const { context, page } = await open(browser, baseURL, first.width, first.reduced);
     try {
-      for (const run of [first, ...rest]) {
+      for (const run of group) {
         await show(page, run.theme, run.look);
         await visit(page, run);
       }

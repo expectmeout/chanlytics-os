@@ -384,11 +384,13 @@ export function bellSections<T extends BellNoteLike>(rows: readonly T[], older =
     const byKind = new Map<string, T[]>();
     for (const r of list) {
       const k = r.kind && AWAY_NOUN[r.kind] ? r.kind : `@${idOf(r)}`;
-      if (!byKind.has(k)) {
-        byKind.set(k, []);
+      let held = byKind.get(k);
+      if (!held) {
+        held = [];
+        byKind.set(k, held);
         order.push(k);
       }
-      byKind.get(k)!.push(r);
+      held.push(r);
     }
     const lines: Array<BellLineVM<T>> = [];
     for (const key of order) {
@@ -398,9 +400,11 @@ export function bellSections<T extends BellNoteLike>(rows: readonly T[], older =
         for (const r of members) lines.push({ key: idOf(r), row: r, count: 1, title: null, members: [r] });
         continue;
       }
+      const row = members[0];
+      if (!row) continue;
       lines.push({
         key: `${label}:${key}`,
-        row: members[0],
+        row,
         count: members.length,
         title: groupTitle(members, noun, idOf),
         members,

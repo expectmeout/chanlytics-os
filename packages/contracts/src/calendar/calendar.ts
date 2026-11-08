@@ -394,7 +394,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
 
   const days: CalendarDayVM[] = dto.days.map((day) => {
     const { y, m, d: dd } = keyParts(day.key);
-    const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
+    const weekday = (DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] ?? "").toLowerCase();
     const closure =
       dto.closures.find((c) => c.date <= day.key && day.key <= (c.until && c.until >= c.date ? c.until : c.date)) ??
       null;
@@ -423,7 +423,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     });
     return {
       key: day.key,
-      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
+      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] ?? "",
       date: shortDate(day.key),
       long: longDate(day.key),
       dayNum: String(dd),

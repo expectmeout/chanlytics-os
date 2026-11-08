@@ -79,7 +79,7 @@ export function platformPartnerStanding(partnerWorkspace: PlatformPartnerWorkspa
       : ""
     : ": judged once it has paid";
   return {
-    by: (BY_ORIGIN[partnerWorkspace.origin ?? "link"] ?? BY_ORIGIN.link)(partnerWorkspace.code),
+    by: (BY_ORIGIN[partnerWorkspace.origin ?? "link"] ?? BY_ORIGIN.link)?.(partnerWorkspace.code) ?? "",
     standing: `${label}${owner}${reason}`,
     tone:
       partnerWorkspace.standing === "review"
@@ -260,7 +260,7 @@ function letterLines(news: PartnerLetterNews): string[] {
   }
   for (const kind of PARTNER_REVERSAL_KINDS) {
     const of = news.written.filter((w) => w.kind === kind);
-    if (of.length) lines.push(REVERSAL_LINES[kind](countOf(of), money(of)));
+    if (of.length) lines.push(REVERSAL_LINES[kind]?.(countOf(of), money(of)) ?? "");
   }
   const matured = nonZero(news.matured);
   if (matured.length) lines.push(`${money(matured)} became payable.`);

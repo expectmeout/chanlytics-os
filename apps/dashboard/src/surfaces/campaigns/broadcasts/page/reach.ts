@@ -214,7 +214,7 @@ export function bcSlotChoicesOf({
   const srcOf = (i: number) => {
     const c = choices[i] || BC_TEXT;
     const s = (sources[tplId] || BC_NONE)[i];
-    return c.includes(s) ? s : c[0];
+    return s && c.includes(s) ? s : (c[0] ?? "text");
   };
   const exampleOf = (kind: ParamSourceKind) =>
     kind === "first_name"
@@ -335,15 +335,15 @@ export function bcSlotWordsOf({
       return { ...s, [tplId]: next };
     });
     // Typing over the business name starts from it, as on a playbook.
-    if (kind === "text" && was === "business_name" && !typed[i].trim() && data.businessName)
+    if (kind === "text" && was === "business_name" && !typed[i]?.trim() && data.businessName)
       setTyped(i, data.businessName);
   };
-  const filled = vars.map((v, i) => (srcOf(i) === "text" ? typed[i] : exampleOf(srcOf(i))));
+  const filled = vars.map((v, i) => (srcOf(i) === "text" ? (typed[i] ?? "") : exampleOf(srcOf(i))));
   // The preview shows an unfilled slot by its name, never as {{n}}.
   const previewValues = vars.map((v, i) =>
-    srcOf(i) === "text" ? typed[i].trim() || `[${labels[i]}]` : exampleOf(srcOf(i)),
+    srcOf(i) === "text" ? typed[i]?.trim() || `[${labels[i] ?? ""}]` : exampleOf(srcOf(i)),
   );
-  const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
+  const specs = vars.map((v, i) => (srcOf(i) === "text" ? (typed[i] ?? "").trim() : { kind: srcOf(i) }));
   // Nothing stops it, and it is not already on its way. What is said while something does is the same call's answer: one
   // reading, of who it sends to at the time it goes (the time picked, else now), for the one act the foot draws.
   const say = bcStopOf({
@@ -434,14 +434,14 @@ export function bcPreviewOf({
   Pick<BcReach, "tpl"> &
   Pick<BcSlotWords, "shown"> &
   Pick<BcSlotChoices, "vars" | "srcOf">): BcPreview {
-  const person = people.length ? people[Math.min(who, people.length - 1)] : null;
+  const person = people[Math.min(who, people.length - 1)] ?? null;
   const channel = person ? cmChannelOfPerson(person) : null;
   // What this person really reads. A first-name slot takes THEIR name, and the
   // words the wire uses when nobody has one -- "Hi there" (contracts
   // resolveParams) -- had never been shown to anybody before a send.
   const forPerson = !person
     ? shown
-    : vars.map((v, i) => (srcOf(i) === "first_name" ? person.firstName || "there" : shown[i]));
+    : vars.map((v, i) => (srcOf(i) === "first_name" ? person.firstName || "there" : (shown[i] ?? "")));
   const noName = !!person && !person.refusal && !person.firstName;
   const personNote = !person
     ? null

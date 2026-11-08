@@ -140,6 +140,17 @@ export interface SmsSendResult {
 }
 
 /** Where Twilio sends a line's calls: Retell's SIP front door (Retell's Twilio guide). */
+/**
+ * A column an earlier step of a saga wrote, read by a later one: each step runs only once the one before it has written
+ * what it needs (saga.ts, a2p-saga.ts), so a column that is not there is a saga run out of order, said by its name
+ * before any provider is asked, never handed on empty.
+ */
+export function columnWritten<T, K extends keyof T>(row: T, column: K): NonNullable<T[K]> {
+  const value = row[column];
+  if (value === null || value === undefined) throw new Error(`line saga: ${String(column)} is not written yet`);
+  return value;
+}
+
 export const RETELL_ORIGINATION = "sip:sip.retellai.com";
 
 /** What the page states as fact before billing exists (plan §8). */

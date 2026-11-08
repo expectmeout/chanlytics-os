@@ -43,7 +43,7 @@ export async function drawnIn(page: Page, name: string, after = 0): Promise<numb
     .poll(
       async () => {
         const own = (await readies(page)).filter((r) => r.page === name && !r.part);
-        ms = own.length > after ? own[own.length - 1].ms : -1;
+        ms = own.length > after ? (own.at(-1)?.ms ?? -1) : -1;
         return ms >= 0;
       },
       { timeout: 30_000, message: `${name} says it was drawn` },

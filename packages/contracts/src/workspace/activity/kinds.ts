@@ -20,7 +20,7 @@ import { listOrEmpty } from "../../shared/unknown";
 
 /** "line.texting_approved" → "Line · texting approved", for a kind the table above does not name (a channel.* field, or a new one). */
 export function humanize(kind: string): string {
-  const [family, rest] = kind.split(".", 2);
+  const [family = "", rest] = kind.split(".", 2);
   const tail = (rest ?? "").replace(/_/g, " ");
   return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` · ${tail}` : ""}`;
 }

@@ -155,7 +155,7 @@ function historyMessageOf(waHistoryMessage: WaHistoryMessage, thread: string, bu
   };
 }
 
-const noticesOf = (v: unknown): WaGraphNotice[] => (Array.isArray(v) ? v : []);
+const noticesOf = (v: unknown): WaGraphNotice[] => (Array.isArray(v) ? (v as WaGraphNotice[]) : []);
 
 /**
  * A `history` change read: every chunk's chats as messages, each named by its chat (a business-sent one by its `to`),
@@ -384,7 +384,7 @@ export function normalizeInbound(waRawMessage: WaRawMessage, value: WaChangeValu
   };
 
   const body = typed
-    ? waRawMessage.text!.body!
+    ? (waRawMessage.text?.body ?? "")
     : chosen
       ? chosen.label || chosen.id
       : kind === "reaction"

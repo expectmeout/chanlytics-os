@@ -35,6 +35,7 @@ import {
 import { brandRequest, campaignRequest, type CampaignFacts } from "./a2p/brand-campaign";
 import { EMPTY_A2P_STATE, nextA2PStep, type A2PState, type A2PStep } from "./a2p/steps";
 import { isBrandNotReady } from "./a2p/verdict";
+import { columnWritten } from "./lines";
 
 export interface A2PAnswer {
   status: number;
@@ -133,7 +134,7 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
             soleProp ? starterEndUserRequest(a2PPorts.record) : businessEndUserRequest(a2PPorts.record),
             soleProp ? "recording who you are" : "recording the business",
           );
-          const send = await a2PPorts.send(assignRequest(state.profileSid!, id));
+          const send = await a2PPorts.send(assignRequest(columnWritten(state, "profileSid"), id));
           if (!ok(send))
             throw new Error(twilioRefusal(send, soleProp ? "attaching your details" : "attaching the business"));
           await save({ businessSid: id });
@@ -141,7 +142,7 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
         }
         case "representative": {
           const id = await need(representativeEndUserRequest(a2PPorts.record), "recording the person who signs");
-          const a = await a2PPorts.send(assignRequest(state.profileSid!, id));
+          const a = await a2PPorts.send(assignRequest(columnWritten(state, "profileSid"), id));
           if (!ok(a)) throw new Error(twilioRefusal(a, "attaching the person who signs"));
           await save({ representativeSid: id });
           break;
@@ -153,16 +154,19 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
           break;
         case "document": {
           const id = await need(
-            supportingDocumentRequest({ legalName: a2PPorts.record.legalName, addressSid: state.addressSid! }),
+            supportingDocumentRequest({
+              legalName: a2PPorts.record.legalName,
+              addressSid: columnWritten(state, "addressSid"),
+            }),
             "attaching the address",
           );
-          const a = await a2PPorts.send(assignRequest(state.profileSid!, id));
+          const a = await a2PPorts.send(assignRequest(columnWritten(state, "profileSid"), id));
           if (!ok(a)) throw new Error(twilioRefusal(a, "attaching the address document"));
           await save({ documentSid: id });
           break;
         }
         case "primary": {
-          const a = await a2PPorts.send(assignRequest(state.profileSid!, a2PPorts.primaryProfileSid));
+          const a = await a2PPorts.send(assignRequest(columnWritten(state, "profileSid"), a2PPorts.primaryProfileSid));
           if (!ok(a)) throw new Error(twilioRefusal(a, "naming us as the provider"));
           await save({ primaryAssigned: true });
           break;
@@ -173,10 +177,10 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
           // A sole proprietor has one end user and no representative, so
           // there is one thing to refresh rather than two.
           const refresh = soleProp
-            ? ([[state.businessSid!, starterAttributes(a2PPorts.record)]] as const)
+            ? ([[columnWritten(state, "businessSid"), starterAttributes(a2PPorts.record)]] as const)
             : ([
-                [state.businessSid!, businessAttributes(a2PPorts.record)],
-                [state.representativeSid!, representativeAttributes(a2PPorts.record)],
+                [columnWritten(state, "businessSid"), businessAttributes(a2PPorts.record)],
+                [columnWritten(state, "representativeSid"), representativeAttributes(a2PPorts.record)],
               ] as const);
           for (const [sid, a] of refresh) {
             const up = await a2PPorts.send(updateEndUserRequest(sid, a));
@@ -184,7 +188,7 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
           }
           const ev = await a2PPorts.send(
             evaluateRequest(
-              state.profileSid!,
+              columnWritten(state, "profileSid"),
               soleProp ? A2P_POLICIES.starterCustomerProfile : A2P_POLICIES.secondaryCustomerProfile,
             ),
           );
@@ -194,7 +198,7 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
             throw new Error(
               `the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`,
             );
-          const sub = await a2PPorts.send(submitProfileRequest(state.profileSid!));
+          const sub = await a2PPorts.send(submitProfileRequest(columnWritten(state, "profileSid")));
           if (!ok(sub)) throw new Error(twilioRefusal(sub, "submitting the profile"));
           await save({ profileSubmitted: true });
           break;
@@ -222,7 +226,7 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
                 }),
             soleProp ? "recording your mobile for the carriers' code" : "recording the company type",
           );
-          for (const objectSid of [endUser, state.profileSid!]) {
+          for (const objectSid of [endUser, columnWritten(state, "profileSid")]) {
             const a = await a2PPorts.send(trustProductAssignRequest(bundle, objectSid));
             if (!ok(a)) throw new Error(twilioRefusal(a, "attaching to the messaging profile"));
           }
@@ -237,8 +241,8 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
           await save({
             brandSid: await need(
               brandRequest({
-                customerProfileBundleSid: state.profileSid!,
-                a2pProfileBundleSid: state.a2pProfileSid!,
+                customerProfileBundleSid: columnWritten(state, "profileSid"),
+                a2pProfileBundleSid: columnWritten(state, "a2pProfileSid"),
                 brandType: brandTypeFor(a2PPorts.record),
                 mock: a2PPorts.mock,
                 skipVetting: a2PPorts.skipVetting,
@@ -252,7 +256,7 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
             campaignSid: await need(
               campaignRequest({
                 ...a2PPorts.campaign,
-                brandSid: state.brandSid!,
+                brandSid: columnWritten(state, "brandSid"),
                 messagingServiceSid: a2PPorts.messagingServiceSid,
                 useCase: a2PPorts.useCase,
               }),

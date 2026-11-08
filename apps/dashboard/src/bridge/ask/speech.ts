@@ -237,7 +237,7 @@ const clipRefusal = (e: unknown): string =>
   e instanceof Error && e.message ? e.message : "Ask's voice could not be reached just now.";
 
 export function askSpeech(win: Window, deps: SpeechDeps) {
-  const w = win as unknown as SpeechWindow;
+  const w = win as Window & SpeechWindow;
   /** The device's doors, or null where one is missing (a stand-in window, a browser without object URLs). */
   const device = (): Device | null =>
     typeof w.Audio === "function" && typeof w.URL?.createObjectURL === "function" && typeof w.Blob === "function"

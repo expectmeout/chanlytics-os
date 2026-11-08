@@ -26,7 +26,7 @@ export function sayAsWritten(input: TurnInput, tc: ToolContext, offer: Offer, me
     if (json && firstKey === null) {
       const k = /^\s*\{\s*"([^"]*)"/.exec(soFar);
       if (k) {
-        firstKey = k[1];
+        firstKey = k[1] ?? "";
         if (firstKey !== "say")
           log.warn("ask_say_not_first", { first: firstKey.slice(0, 40), tenant_id: input.tenantId });
       }

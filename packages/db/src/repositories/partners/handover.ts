@@ -2,7 +2,7 @@
 
 import type { Db } from "./partner";
 import { saysMissing, isMissingFunction } from "../../shared/missing-door";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, textOrEmpty } from "@chanlytics/contracts";
 
 /* ------------------------------------------------------------------------------------------------ handovers */
 
@@ -55,7 +55,11 @@ export async function resendHandover(db: Db, tenantId: string, email: string): P
   const v = recordOrEmpty(data);
   return {
     ok: true,
-    value: { email: String(v.email ?? email), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") },
+    value: {
+      email: textOrEmpty(v.email ?? email),
+      sentAt: textOrEmpty(v.sent_at),
+      expiresAt: textOrEmpty(v.expires_at),
+    },
   };
 }
 
@@ -202,7 +206,7 @@ export async function invitePartner(
   const v = recordOrEmpty(data);
   return {
     ok: true,
-    value: { code: String(v.code ?? code), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") },
+    value: { code: textOrEmpty(v.code ?? code), sentAt: textOrEmpty(v.sent_at), expiresAt: textOrEmpty(v.expires_at) },
   };
 }
 
@@ -230,18 +234,18 @@ export async function getWorkspacePartner(db: Db, tenantId: string): Promise<Han
     value: {
       partner: partner
         ? {
-            code: String(partner.code ?? ""),
-            origin: String(partner.origin ?? ""),
-            since: String(partner.since ?? ""),
+            code: textOrEmpty(partner.code),
+            origin: textOrEmpty(partner.origin),
+            since: textOrEmpty(partner.since),
             seated: partner.seated === true,
           }
         : null,
       invitation: invitation
         ? {
-            code: String(invitation.code ?? ""),
-            sentAt: String(invitation.sent_at ?? ""),
-            expiresAt: String(invitation.expires_at ?? ""),
-            declinedAt: invitation.declined_at ? String(invitation.declined_at) : null,
+            code: textOrEmpty(invitation.code),
+            sentAt: textOrEmpty(invitation.sent_at),
+            expiresAt: textOrEmpty(invitation.expires_at),
+            declinedAt: textOrEmpty(invitation.declined_at) || null,
           }
         : null,
     },
