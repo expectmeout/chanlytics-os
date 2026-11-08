@@ -100,6 +100,27 @@ export const BOOKING_LINK_MAX = 500;
 /** The owner's goal in their own words, at most this long: what Ask weighs every plan against (the operator, 15 Oct 2026). */
 export const ASK_GOAL_MAX = 200;
 
+/**
+ * The most each row of How it reaches out holds (decision 0113): the config's `reach_out` section is built from these,
+ * and the page's refusals say them. `signedBy` is the one a sequence's own sign-off is held to too (SIGNED_BY_MAX).
+ */
+export const REACH_OUT_LIMITS = {
+  offer: 300,
+  whoFor: 120,
+  fixes: 200,
+  claim: 140,
+  claims: 5,
+  tone: 200,
+  signedBy: 60,
+  signature: 160,
+  signatureLines: 3,
+  phone: 40,
+} as const;
+
+/** What an answer to a lead who wrote back offers (decision 0113): your booking link, a call with you, or the answer alone. */
+export const REPLY_OFFERS = ["booking_link", "call", "answer"] as const;
+export type ReplyOffer = (typeof REPLY_OFFERS)[number];
+
 /** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` (business-tab/fold-limits.ts) says what each one refuses in. */
 export type ProfileLimitKey =
   | "tone"

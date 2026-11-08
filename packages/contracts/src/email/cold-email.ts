@@ -40,6 +40,8 @@ export function coldEmailOf(params: {
   signedBy: string | null;
   /** The signature of the mailbox it leaves from; null where it has none, or where the owner's own mail app adds theirs. */
   signature: string | null;
+  /** Sign-off's signature (decision 0113), under the name where the mailbox's does not stand; null where none is set. */
+  own: string | null;
   /** The send's one-click way out; null where the email says its way out in words alone. */
   unsubscribeUrl: string | null;
 }): ColdEmail {
@@ -48,6 +50,7 @@ export function coldEmailOf(params: {
     signsWith: params.signsWith,
     signedBy: params.signedBy,
     signature: params.signature,
+    own: params.own,
     first,
     body: params.written,
     address: params.address,

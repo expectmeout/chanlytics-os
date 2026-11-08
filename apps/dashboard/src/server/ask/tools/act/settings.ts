@@ -2,6 +2,9 @@ import "server-only";
 import { z } from "zod";
 import {
   ASK_ANSWERS_ROWS,
+  type ASK_REACH_OUT_ROWS,
+  isReachOutChange,
+  REPLY_OFFERS,
   ASK_GOAL_MAX,
   ASK_STYLE_MAX,
   AskSettingsChangeSchema,
@@ -52,6 +55,15 @@ const SETTINGS_TITLE: Record<Exclude<z.infer<typeof AskSettingsChangeSchema>["op
   set_assistant_name: "Its name",
   set_phone_pace: "How fast it speaks",
   set_walk_ins: "Walk-ins",
+  set_offer: "What you offer",
+  set_who_for: "Who it's for",
+  set_fixes: "What you fix for them",
+  add_claim: "A claim you stand behind",
+  remove_claim: "A claim taken away",
+  set_cold_tone: "How cold emails sound",
+  set_signed_by: "Who cold emails sign as",
+  set_signature: "Your signature",
+  set_reply_offer: "What an answer to a lead offers",
 };
 
 /** What the model sent for what the receptionist knows, its fields copied as each op takes them. */
@@ -115,6 +127,34 @@ function answersChangeOf(raw: Record<string, unknown>): Record<string, unknown> 
 }
 
 /**
+ * A row of How it reaches out as its change (decision 0113): the answers action's row takes its words as `text`, so each
+ * op's own field is that, or the op's own field where a caller sent it (a tone or a name in How it answers' fields too).
+ */
+function reachOutChangeOf(raw: Record<string, unknown>): Record<string, unknown> {
+  const said = (field: string): string => {
+    const value = typeof raw.text === "string" ? raw.text : raw[field];
+    return typeof value === "string" ? value : "";
+  };
+  switch (raw.op) {
+    case "set_offer":
+    case "set_reply_offer":
+      return { op: raw.op, offer: said("offer") };
+    case "set_who_for":
+      return { op: raw.op, who_for: said("who_for") };
+    case "set_fixes":
+      return { op: raw.op, fixes: said("fixes") };
+    case "set_cold_tone":
+      return { op: raw.op, tone: said("tone") };
+    case "set_signed_by":
+      return { op: raw.op, name: said("name") };
+    case "set_signature":
+      return { op: raw.op, signature: said("signature") };
+    default:
+      return { op: raw.op, claim: said("claim") };
+  }
+}
+
+/**
  * A note's card says which note, as Ask calls it ("Parking note"): "Remember this" read as Ask's own memory, whose card
  * asks the same, and an answer told to name a card by its title had no title to name it by (the weekly run, 2 November 2026).
  */
@@ -130,7 +170,14 @@ async function proposeSettings(
   const raw = input.change && typeof input.change === "object" ? recordOrEmpty(input.change) : null;
   if (!raw) return refuse("change is required");
   const answers = typeof raw.op === "string" && raw.op in ASK_ANSWERS_ROWS;
-  const parsed = AskSettingsChangeSchema.safeParse(answers ? answersChangeOf(raw) : knowsChangeOf(raw));
+  // How it reaches out's rows (decision 0113): its fields as each op takes them, judged by the same schema.
+  const parsed = AskSettingsChangeSchema.safeParse(
+    typeof raw.op === "string" && isReachOutChange({ op: raw.op })
+      ? reachOutChangeOf(raw)
+      : answers
+        ? answersChangeOf(raw)
+        : knowsChangeOf(raw),
+  );
   if (!parsed.success)
     return refuse(`change rejected: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
   const change = parsed.data;
@@ -194,24 +241,44 @@ const ANSWERS_OPS = [
   "set_walk_ins",
 ] as const satisfies readonly (keyof typeof ASK_ANSWERS_ROWS)[];
 
+/**
+ * The ops of How it reaches out (decision 0113), in the same row: each takes its words as `text`. One sentence of the
+ * answers action's words says them, where an action of their own (its object, its schema, its examples) put the owner's
+ * tools block over ASK_TOOLS_CHARS_CEILING.
+ */
+const REACH_OUT_OPS = [
+  "set_offer",
+  "set_who_for",
+  "set_fixes",
+  "add_claim",
+  "remove_claim",
+  "set_cold_tone",
+  "set_signed_by",
+  "set_signature",
+  "set_reply_offer",
+] as const satisfies readonly (keyof typeof ASK_REACH_OUT_ROWS)[];
+
 /** The voices a line may speak in, as the model is told them: a name and what the provider says of it. */
 const VOICES_SAID = PHONE_VOICES.map((v) => `${v.name} (${v.says})`).join(", ");
 /** The three messages, by the key the model sends and when each goes out. */
 const MESSAGES_SAID = FALLBACK_ROWS.map((r) => `${r.key} (${r.label.toLowerCase()})`).join(", ");
 /** The paces, by the key the model sends and how the owner says each. */
 const PACES_SAID = PHONE_PACES.map((p) => `${p} (${PHONE_PACE_WORDS.options[p].toLowerCase()})`).join(", ");
+/** What an answer to a lead may offer, by the key the model sends (How it reaches out, decision 0113). */
+const REPLY_OFFERS_SAID = REPLY_OFFERS.join(", ");
 /** Walk-ins, by the key the model sends and what each tells customers. */
 const WALK_INS_SAID = WALK_INS_CHOICES.map((w) => `${w} (${WALK_IN_WORDS.options[w].label.toLowerCase()})`).join(", ");
 
 /**
  * A row of How it answers as a card (the Settings wiring review, item 14, 18 Oct 2026): every row the page has, through
- * the one handler and the one card, judged by the same schema op by op.
+ * the one handler and the one card, judged by the same schema op by op; and a row of How it reaches out the same way
+ * (decision 0113), its words as `text`.
  */
 const answersAction = actAction({
   kind: "settings",
   input: z.object({
     row: z.object({
-      op: z.enum(ANSWERS_OPS),
+      op: z.enum([...ANSWERS_OPS, ...REACH_OUT_OPS]),
       tone: z.string().optional(),
       languages: z.array(z.string()).optional(),
       greeting: z.string().optional(),
@@ -232,7 +299,7 @@ const answersAction = actAction({
     { row: { op: "set_phone_pace", pace: "a_bit_slower" } },
   ],
   label: "Preparing a change to how it answers",
-  words: `Action answers takes one row object, a row of How it answers and what it becomes: set_tone (tone, how it sounds in a line; empty takes it away), set_languages (languages, the whole list it speaks, which replaces the one it has; empty for none), set_phone_greeting (greeting, the line callers hear first, {business} for the name; empty for the standard one; a line that never says it is automated has the product's clause added when spoken), set_phone_voice (voice, one of ${VOICES_SAID}), set_transfer_number (number, with its country code like +1 212 555 0143, a line a person answers; empty and it takes a message instead), add_own_words (text, added after the owner's own words, which it reads on every reply), set_message (which, one of ${MESSAGES_SAID}, and text, with {business}, {booking link} and {phone} filled as it goes out; empty for the product's wording), set_photos (on, whether it looks at the photos customers send on WhatsApp), set_assistant_name (name, the name it introduces itself by, at most 40 characters, said beside "the automated assistant", which always stays; empty for none), set_phone_pace (pace on calls, one of ${PACES_SAID}), set_walk_ins (walk_ins, one of ${WALK_INS_SAID}; unset says nothing of walk-ins). Read workspace.settings first for what each row holds now: a list replaces, so keep the languages they did not ask to drop. Call it when they want it to sound, speak, greet, put callers through or answer differently, be called something, speak faster or slower, or say whether walk-ins are taken. ${approvalWords("settings")}.`,
+  words: `Action answers takes one row object, a row of How it answers and what it becomes: set_tone (tone, how it sounds in a line; empty takes it away), set_languages (languages, the whole list it speaks, which replaces the one it has; empty for none), set_phone_greeting (greeting, the line callers hear first, {business} for the name; empty for the standard one; a line that never says it is automated has the product's clause added when spoken), set_phone_voice (voice, one of ${VOICES_SAID}), set_transfer_number (number, with its country code like +1 212 555 0143, a line a person answers; empty and it takes a message instead), add_own_words (text, added after the owner's own words, which it reads on every reply), set_message (which, one of ${MESSAGES_SAID}, and text, with {business}, {booking link} and {phone} filled as it goes out; empty for the product's wording), set_photos (on, whether it looks at the photos customers send on WhatsApp), set_assistant_name (name, the name it introduces itself by, at most 40 characters, said beside "the automated assistant", which always stays; empty for none), set_phone_pace (pace on calls, one of ${PACES_SAID}), set_walk_ins (walk_ins, one of ${WALK_INS_SAID}; unset says nothing of walk-ins). A row of How it reaches out, its cold emails, takes its words as text: set_offer, set_who_for, set_fixes, add_claim or remove_claim (a true sentence word for word: a number comes only from one), set_cold_tone, set_signed_by, set_signature (no link), set_reply_offer (${REPLY_OFFERS_SAID}: what an answer to a lead offers); empty takes it away. Read workspace.settings first for what each row holds now: a list replaces, so keep the languages they did not ask to drop. Call it when they want it to sound, speak, greet, put callers through or answer differently, be called something, speak faster or slower, say whether walk-ins are taken, or change how cold emails read. ${approvalWords("settings")}.`,
   build: (t, input) => proposeSettings(t, { change: input.row }),
 });
 
@@ -284,13 +351,14 @@ const answerStyleAction = actAction({
 
 /**
  * What the workspace is set to (D11, the operator, 15 Oct 2026): a change the receptionist follows (change, once the one
- * definition), how it answers (answers, a row each of the page's, item 14), what it may do alone for a class of message
+ * definition), how it answers and how it reaches out (answers, a row each of the pages', item 14 and decision 0113), what
+ * it may do alone for a class of message
  * (autonomy, once propose_autonomy) and the owner's goal for Ask (goal).
  */
 export const propose_settings = defineActions({
   name: "propose_settings",
   description:
-    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, name, languages, what callers hear, how fast it speaks and who they reach, walk-ins, your own words, the messages when it can't answer, photos), what it may do alone for a class of message (autonomy), or the business's goal for you.",
+    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, name, languages, what callers hear, how fast it speaks and who they reach, walk-ins, your own words, the messages when it can't answer, photos), how it reaches out (its cold emails), what it may do alone for a class of message (autonomy), or the business's goal for you.",
   actions: {
     change: actAction({
       ...settingsAct,

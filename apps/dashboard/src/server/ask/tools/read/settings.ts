@@ -52,6 +52,25 @@ function howItAnswersOf(cfg: ReturnType<typeof parseTenantConfig>) {
   };
 }
 
+/**
+ * How it reaches out as it stands (decision 0113): what a card of propose_settings' reach_out changes, read first so a
+ * claim added never repeats one there and one taken away is named as it is written. Null where a row is not set: each
+ * writer then reads what it read before (the goal or what the business does, the receptionist's tone).
+ */
+function howItReachesOutOf(cfg: ReturnType<typeof parseTenantConfig>) {
+  const section = cfg?.reach_out;
+  return {
+    offer: section?.offer ?? null,
+    who_for: section?.who_for ?? null,
+    fixes: section?.fixes ?? null,
+    claims: section?.proof ?? [],
+    tone: section?.tone ?? null,
+    signed_by: section?.signed_by ?? null,
+    signature: section?.signature ?? null,
+    reply_offer: section?.reply_offer ?? "booking_link",
+  };
+}
+
 async function getSettings(toolContext: ToolContext): Promise<unknown> {
   // The facts the receptionist runs on, composed from the turn's reads -- never the settings page's own read
   // (readers/settings.ts), whose prompt preview fetches the calendar feed and reads the Autonomy rows again, which a
@@ -88,6 +107,7 @@ async function getSettings(toolContext: ToolContext): Promise<unknown> {
     calendar_connected: facts.hasCalendar,
     vision: facts.visionOn,
     answers: howItAnswersOf(cfg),
+    reach_out: howItReachesOutOf(cfg),
     notifications: cfg?.notifications
       ? {
           escalation_emails:

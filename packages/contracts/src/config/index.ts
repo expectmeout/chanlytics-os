@@ -197,9 +197,17 @@ export {
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   PROFILE_LIMITS,
+  REACH_OUT_LIMITS,
+  REPLY_OFFERS,
 } from "./workspace-config/config-rules";
 export { BOOKING_RULE_BOUNDS } from "./workspace-config/config-rules";
-export type { BookingRuleKey, GuardrailKey, GuardrailsInForce, ProfileLimitKey } from "./workspace-config/config-rules";
+export type {
+  BookingRuleKey,
+  GuardrailKey,
+  GuardrailsInForce,
+  ProfileLimitKey,
+  ReplyOffer,
+} from "./workspace-config/config-rules";
 export {
   CalendarConfigSchema,
   configReceptionistOf,
@@ -218,6 +226,7 @@ export type {
   CalendarGrantConfig,
   FeaturesConfig,
   NotificationsConfig,
+  ReachOutConfig,
   ReceptionistState,
   TenantConfig,
   TenantConfigParse,
@@ -267,6 +276,13 @@ export { allowedPrices, priceAllowance } from "./workspace-config/price-allowanc
 export type { AllowedPrice } from "./workspace-config/price-allowance";
 export { hoursRuns } from "./workspace-config/prompt-hours";
 export type { HoursRun } from "./workspace-config/prompt-hours";
+export {
+  applyReachOutChange,
+  ASK_REACH_OUT_ROWS,
+  describeReachOutChange,
+  isReachOutChange,
+} from "./workspace-config/reach-out-change";
+export type { AskReachOutChange } from "./workspace-config/reach-out-change";
 export {
   hasProfile,
   instructionsDraft,

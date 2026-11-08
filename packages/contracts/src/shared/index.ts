@@ -110,6 +110,7 @@ export {
   HANDOFF_FORWARDS_BACK,
   handoffE164,
   normalizePhone,
+  phoneAsWritten,
   phoneDialable,
   phoneTail,
   samePhone,

@@ -51,6 +51,8 @@ interface RequestInput {
   opening: string | null;
   /** How its sequence ends its emails (00492, decision 0077): its name, or this mailbox's signature (coldEndingOf). */
   signsWith: ReachOutSignsWith;
+  /** Sign-off's signature (decision 0113), under the name where the mailbox's does not stand; null where none is set. */
+  own: string | null;
   /** The mailbox it leaves from, and what that mailbox signs with (00487, channels mailboxSignatureOf). */
   from: {
     address: string;
@@ -165,7 +167,7 @@ export function reachOutDraft(
   const address = draftInput.workspace.address?.trim() ?? "";
   if (!business || !address) return { ok: false, reason: "no_business_address" };
   if (draftInput.parent && !draftInput.parent.subject?.trim()) return { ok: false, reason: "no_subject" };
-  // Never a mailbox's signature: the owner's own mail app adds theirs.
+  // Never a mailbox's signature, nor Sign-off's: the owner's own mail app adds theirs.
   const email = coldEmailOf({
     filled: words,
     before: draftInput.parent?.subject ?? null,
@@ -176,6 +178,7 @@ export function reachOutDraft(
     signsWith: draftInput.signsWith,
     signedBy: draftInput.workspace.yourName,
     signature: null,
+    own: null,
     unsubscribeUrl: null,
   });
   return { ok: true, subject: email.subject, body: email.body, text: emailTextOf(email) };
@@ -217,6 +220,7 @@ export function reachOutRequest(
     signsWith: requestInput.signsWith,
     signedBy: requestInput.workspace.yourName,
     signature: mailboxSignatureOf(requestInput.from)?.text ?? null,
+    own: requestInput.own,
     unsubscribeUrl: url,
   });
   let request: EmailRequest;
