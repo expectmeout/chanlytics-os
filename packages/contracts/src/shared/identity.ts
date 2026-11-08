@@ -41,9 +41,10 @@ export const isTenantId = (value: unknown): value is TenantId => typeof value ==
 export const isContactId = (value: unknown): value is ContactId => typeof value === "string" && isUuid(value);
 
 /**
- * An id the database already holds as a workspace's or a person's, read out of a SQL function's JSON or a row named by hand:
- * taken as it is, with no check, as the overlay takes a column's (packages/db/src/types.ts). What still tells two ids apart
- * is the type, which is the point (decision 0112). Not for what comes from outside: that is `isTenantId` or `asTenantId`.
+ * An id the database already holds as a workspace's or a person's, read out of a SQL function's JSON or a row named by hand, or
+ * one a door's schema has checked and zod does not carry: taken as it is, with no check, as the overlay takes a column's
+ * (packages/db/src/types.ts). What still tells two ids apart is the type, which is the point (decision 0112). Not for what comes
+ * from outside unchecked: that is `isTenantId` or `asTenantId`.
  */
 export const heldTenantId = (value: string): TenantId => value as TenantId;
 export const heldContactId = (value: string): ContactId => value as ContactId;
