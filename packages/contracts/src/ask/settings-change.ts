@@ -118,6 +118,12 @@ const languagesOf = (list: readonly string[]): string[] => [
 type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unknown> } & Record<string, unknown>;
 
 export function applySettingsChange<C extends Cfg>(config: C, change: AskSettingsChange): C {
+  // How it reaches out's rows (decision 0113) write their own section of the config, never the brain.
+  return isReachOutChange(change) ? applyReachOutChange(config, change) : applyWorkspaceChange(config, change);
+}
+
+/** Every other change: the brain, its profile, Ask's goal and the photo switch. */
+function applyWorkspaceChange<C extends Cfg>(config: C, change: Exclude<AskSettingsChange, AskReachOutChange>): C {
   // The photo switch is a feature, beside the brain (What it can do's switch writes it there).
   if (change.op === "set_photos")
     return {
@@ -125,7 +131,6 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
       features: { ...(config.features ?? {}), vision: change.on },
     };
   if (isAnswersBrainChange(change)) return applyAnswersChange(config, change);
-  if (isReachOutChange(change)) return applyReachOutChange(config, change);
   // The owner's goal is Ask's own section, never the receptionist's profile: set, or taken away when empty.
   if (change.op === "set_goal") {
     const ask = { ...((config.ask as Record<string, unknown> | undefined) ?? {}) };

@@ -17,13 +17,13 @@ import {
   REACH_OUT_REFUSAL_WORDS,
   reachOutToneOf,
   siteHost,
-  unbackedNumbers,
 } from "@chanlytics/contracts";
 import { getAddressesSuppressed } from "@chanlytics/db/campaigns";
 import { getStoredConfig } from "../workspace/config-row";
 import { getWorkspaceOffer } from "./allowance";
 import { getLeadEmailOffer, type LeadEmailOffer } from "./send";
 import type { LeadRow } from "./searches";
+import { unbackedNumbers } from "../campaigns/sequences/numbers";
 import { askForJson } from "../shared/model-json";
 import { serviceDb } from "../shared/service-db";
 import type { RouteContext } from "../shared/with-route";
@@ -59,13 +59,13 @@ const UNBACKED_AGAIN =
 
 /** What How it reaches out says of the writer (decision 0113), as data: each line only where the owner wrote it. */
 function writerLines(config: ReturnType<typeof parseTenantConfig>): string[] {
-  const r = config?.reach_out;
+  const section = config?.reach_out;
   const tone = reachOutToneOf(config);
-  const claims = (r?.proof ?? []).map((c) => `- ${fencedInline("record", c)}`);
+  const claims = (section?.proof ?? []).map((c) => `- ${fencedInline("record", c)}`);
   return [
-    r?.offer?.trim() ? `What it offers them: ${fencedInline("record", r.offer.trim())}` : null,
-    r?.who_for?.trim() ? `Who it writes to: ${fencedInline("record", r.who_for.trim())}` : null,
-    r?.fixes?.trim() ? `What it fixes for them: ${fencedInline("record", r.fixes.trim())}` : null,
+    section?.offer?.trim() ? `What it offers them: ${fencedInline("record", section.offer.trim())}` : null,
+    section?.who_for?.trim() ? `Who it writes to: ${fencedInline("record", section.who_for.trim())}` : null,
+    section?.fixes?.trim() ? `What it fixes for them: ${fencedInline("record", section.fixes.trim())}` : null,
     claims.length ? `What it can prove, one at most, word for word:\n${claims.join("\n")}` : null,
     tone ? `How it sounds: ${fencedInline("record", tone)}` : null,
   ].filter((l): l is string => l !== null);
@@ -173,7 +173,8 @@ export async function draftFor(
     unbackedNumbers(`${a.subject}\n${a.body}`, backing).length > 0;
   const first = await ask(input.previous, null);
   const answer = unbacked(first) ? await ask(first, UNBACKED_AGAIN) : first;
-  if (unbacked(answer)) throw new AppError("validation", REACH_OUT_REFUSAL_WORDS.unbacked, 422);
+  // Not written, as an ask the model would not answer is (LEAD_ASKED_NOT_WRITTEN): a conflict, on its own status.
+  if (unbacked(answer)) throw new AppError("conflict", REACH_OUT_REFUSAL_WORDS.unbacked);
   const mailFoot = leadDraftFooter(offer.name, offer.address);
   const body = `${answer.body}${mailFoot}`;
   return {

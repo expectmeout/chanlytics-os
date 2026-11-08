@@ -58,5 +58,5 @@ async function openingTold(rc: ReaderContext): Promise<ReachOutToldDto> {
 }
 
 /** GET settings/reach-out/told: the words' writer's or the opening's, as composed for this workspace now. */
-export const reachOutTold = (rc: ReaderContext, kind: "words" | "opening"): Promise<ReachOutToldDto> =>
+export const readReachOutTold = (rc: ReaderContext, kind: "words" | "opening"): Promise<ReachOutToldDto> =>
   kind === "words" ? wordsTold(rc) : openingTold(rc);

@@ -4,7 +4,7 @@
  * kept read (frame/pane-reads.ts), begun before the pane is drawn and read again behind it.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import type { ReachOutSettingsDto } from "@chanlytics/contracts";
+import { textOrEmpty, type ReachOutSettingsDto } from "@chanlytics/contracts";
 import type { FrameFlash } from "../../frame-verbs";
 import type { BtSaver } from "../business/gestures/common";
 import type { Brain, Config } from "../business/save";
@@ -21,6 +21,10 @@ export interface OutreachShared {
 }
 
 /** A card of the page: its title, its line, a mark at its head's end where it has one, and its rows. */
+/** What the section holds under a key, trimmed, or null where nothing is: what a row states at rest. */
+export const storedReachOut = (shared: OutreachShared, key: string): string | null =>
+  textOrEmpty(shared.config.reach_out?.[key]).trim() || null;
+
 export const OutreachCard = ({
   id,
   title,

@@ -1,7 +1,7 @@
 import { ReachOutToldQuerySchema } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/shared/route";
 import { readerContext } from "@/server/shared/reader";
-import { reachOutTold } from "@/server/drafts/reach-out-told";
+import { readReachOutTold } from "@/server/drafts/reach-out-told";
 
 /**
  * GET /api/v1/settings/reach-out/told?kind=words|opening — What it's told on How it reaches out (decision 0113): a cold
@@ -12,5 +12,5 @@ export const GET = read({
   scope: workspace,
   rate: "aggregate",
   query: ReachOutToldQuerySchema,
-  handle: ({ ctx, member, input }) => reachOutTold(readerContext(ctx, member), input.kind),
+  handle: ({ ctx, member, input }) => readReachOutTold(readerContext(ctx, member), input.kind),
 });

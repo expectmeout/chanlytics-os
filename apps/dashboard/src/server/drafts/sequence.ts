@@ -227,7 +227,7 @@ export function draftAskedParts(known: DraftKnown, ask: NewDraftAsk): ToldPart[]
     ask.audience ? `audience ${ask.audience}` : null,
     ask.who ? `who: ${ask.who.label}` : null,
   ].filter(Boolean);
-  const o = ownerParts(known);
+  const owner = ownerParts(known);
   const business = `The business: ${known.business}. Its day and time now: ${known.localNow.replace("T", " ")}.`;
   const sources = [
     lines(
@@ -253,7 +253,7 @@ export function draftAskedParts(known: DraftKnown, ask: NewDraftAsk): ToldPart[]
         )
       : "The business has no message it can send yet: write the ones its steps need.",
   ];
-  const asked = [
+  const askLines = [
     chosen.length ? `The owner already chose: ${chosen.join("; ")}. Keep these.` : null,
     `What the owner says it should do: ${ask.words.trim()}`,
     ask.previous
@@ -261,12 +261,12 @@ export function draftAskedParts(known: DraftKnown, ask: NewDraftAsk): ToldPart[]
       : null,
   ];
   return [
-    toldPart("offer", partText([business, ...o.offer])),
-    toldPart("proof", partText(o.proof)),
-    toldPart("writes", partText(o.writes)),
-    toldPart("examples", partText(o.examples)),
+    toldPart("offer", partText([business, ...owner.offer])),
+    toldPart("proof", partText(owner.proof)),
+    toldPart("writes", partText(owner.writes)),
+    toldPart("examples", partText(owner.examples)),
     toldPart("sources", partText(sources)),
-    toldPart("asked", partText(asked)),
+    toldPart("asked", partText(askLines)),
   ];
 }
 

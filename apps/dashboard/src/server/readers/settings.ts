@@ -228,7 +228,7 @@ export const rehearsal: Reader<{ id: string }, RehearsalDto> = {
 /* ------------------------------------------------------------ How it reaches out (decision 0113) */
 
 /** A chain's first step where it is an email with words: what Try it writes, and what the drafter reads. */
-const firstEmailOf = (chain: ReachOutChainDto) => {
+const openingEmailOf = (chain: ReachOutChainDto) => {
   const first = chain.steps[0];
   return first && !first.hand && first.body.trim() ? first : null;
 };
@@ -236,9 +236,9 @@ const firstEmailOf = (chain: ReachOutChainDto) => {
 /** The newest running sequence to leads whose first step is an email: Try it's words, and Signs as' first guess. */
 export function newestLeadSequence(chains: readonly ReachOutChainDto[]): ReachOutSettingsSequence | null {
   const chain = chains
-    .filter((c) => c.state === "running" && firstEmailOf(c))
+    .filter((c) => c.state === "running" && openingEmailOf(c))
     .reduce<ReachOutChainDto | null>((best, c) => (!best || c.created_at > best.created_at ? c : best), null);
-  const first = chain ? firstEmailOf(chain) : null;
+  const first = chain ? openingEmailOf(chain) : null;
   if (!chain || !first) return null;
   const second = chain.steps[1];
   return {
@@ -305,7 +305,7 @@ export function mailboxShown(
 }
 
 /** One part of the read, which may fail alone: the page draws the rest, and the failure is logged. */
-async function partOf<T>(read: Promise<T>, part: string, tenantId: string, otherwise: T): Promise<T> {
+async function partOrElse<T>(read: Promise<T>, part: string, tenantId: string, otherwise: T): Promise<T> {
   try {
     return await read;
   } catch (e) {
@@ -323,19 +323,24 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
   name: "reach_out_settings",
   async read(rc) {
     const db = rc.ctx.supabase;
-    const t = rc.tenantId;
+    const tenantId = rc.tenantId;
     const [row, facts, mailboxes, sent, memory, chains, policies, about] = await Promise.all([
-      partOf(load(rc, readers.config, undefined), "config", t, null),
-      partOf(load(rc, readers.facts, undefined), "facts", t, null),
-      partOf(listMailboxConnectionsWithDays(db, t, rc.now), "mailboxes", t, []),
-      readReachOutMonthOrNull(t, rc.now),
-      partOf(askMemoryLines(db, t, ASK_MEMORY_LIMITS.liveMax), "memory", t, []),
-      partOf(listChains(rc.ctx, t), "chains", t, []),
-      partOf(listPolicies(db, t), "policies", t, []),
-      partOf(findWorkspaceAbout(db, t), "about", t, null),
+      partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
+      partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
+      partOrElse(listMailboxConnectionsWithDays(db, tenantId, rc.now), "mailboxes", tenantId, []),
+      readReachOutMonthOrNull(tenantId, rc.now),
+      partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
+      partOrElse(listChains(rc.ctx, tenantId), "chains", tenantId, []),
+      partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
+      partOrElse(findWorkspaceAbout(db, tenantId), "about", tenantId, null),
     ]);
     const claims = parseTenantConfig(row?.data?.config)?.reach_out?.proof ?? [];
-    const counted = await partOf(countSentByStep(db, t, stepsCarrying(claims, chains)), "counts", t, new Map());
+    const counted = await partOrElse(
+      countSentByStep(db, tenantId, stepsCarrying(claims, chains)),
+      "counts",
+      tenantId,
+      new Map(),
+    );
     return {
       data: {
         mailbox: mailboxShown(mailboxes, rc.now.getTime(), facts?.data.timezone ?? "UTC"),

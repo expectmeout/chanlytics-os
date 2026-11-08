@@ -238,7 +238,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     noneAct: "Start one in New",
     legend: { them: "Their listing", proof: "Your proof", words: "Your words" },
     checked: "Checked: nothing guessed, no link, no price",
-    held: (why: string) => `Held for you: ${why}`,
+    held: (reason: string) => `Held for you: ${reason}`,
     unavailable: "It could not be written just now. Write another.",
     leans: (facts: string) => `The line about them leans on ${facts}`,
     next: (days: number) => `Then, ${days} day${days === 1 ? "" : "s"} later, if they don't reply`,

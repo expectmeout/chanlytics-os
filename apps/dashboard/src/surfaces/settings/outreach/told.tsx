@@ -26,11 +26,11 @@ import { RecordRow } from "../../kit/record/row";
 import { RecordSheet } from "../../kit/record/sheet";
 import { OutreachCard } from "./card";
 
-const W = REACH_OUT_SETTINGS_WORDS.told;
+const TOLD_CARD = REACH_OUT_SETTINGS_WORDS.told;
 const KINDS: { value: ToldKind; label: string }[] = [
-  { value: "words", label: W.kinds.words },
-  { value: "opening", label: W.kinds.opening },
-  { value: "reply", label: W.kinds.reply },
+  { value: "words", label: TOLD_CARD.kinds.words },
+  { value: "opening", label: TOLD_CARD.kinds.opening },
+  { value: "reply", label: TOLD_CARD.kinds.reply },
 ];
 
 /** A part's parts, as the server composed them for this workspace, or the answer's, which no read composes. */
@@ -53,12 +53,12 @@ function useToldParts(open: boolean, kind: ToldKind): ToldPart[] | null {
 }
 
 /** A part's line: its name, whose words they are, and its share as one thin bar where one is true. */
-const partLine = (p: ToldPart, share: number | null) => (
+const partLine = (part: ToldPart, share: number | null) => (
   <>
-    <span className="bt-disc-name" id={`ro-told-label-${p.id}`}>
-      {p.label}
+    <span className="bt-disc-name" id={`ro-told-label-${part.id}`}>
+      {part.label}
     </span>
-    <span className="bt-disc-sub">{p.note}</span>
+    <span className="bt-disc-sub">{part.note}</span>
     {share !== null ? (
       <Meter
         size="sm"
@@ -68,28 +68,28 @@ const partLine = (p: ToldPart, share: number | null) => (
           { share: Math.max(0, 100 - share), tone: "rest" },
         ]}
         aria-label={`About ${share}% of what it reads`}
-        data-testid={`rec-told-share-${p.id}`}
+        data-testid={`rec-told-share-${part.id}`}
       />
     ) : null}
   </>
 );
 
 /** A part's door back to the row of this page that writes it, or to the page that holds it. */
-const partDoor = (p: ToldPart, close: () => void, canEdit: boolean) => {
-  if (p.row && canEdit)
+const partDoor = (part: ToldPart, close: () => void, canEdit: boolean) => {
+  if (part.row && canEdit)
     return (
-      <LinkButton onClick={() => recFolds.request(p.row ?? "")} data-testid={`rec-told-door-${p.id}`}>
+      <LinkButton onClick={() => recFolds.request(part.row ?? "")} data-testid={`rec-told-door-${part.id}`}>
         Change
       </LinkButton>
     );
-  if (p.door)
+  if (part.door)
     return (
       <LinkButton
         onClick={() => {
           close();
-          navigate(p.door ?? "");
+          navigate(part.door ?? "");
         }}
-        data-testid={`rec-told-door-${p.id}`}
+        data-testid={`rec-told-door-${part.id}`}
       >
         Open
       </LinkButton>
@@ -100,7 +100,7 @@ const partDoor = (p: ToldPart, close: () => void, canEdit: boolean) => {
 /** What a part opens onto: its way to the row or page that writes it, its words, or that it is each reply's own. */
 function partBody(p: ToldPart, close: () => void, canEdit: boolean) {
   const door = partDoor(p, close, canEdit);
-  if (!p.text) return door ?? <p className="bt-fold-note">{W.everyTime}</p>;
+  if (!p.text) return door ?? <p className="bt-fold-note">{TOLD_CARD.everyTime}</p>;
   return (
     <>
       {door}
@@ -117,17 +117,17 @@ export function ToldCard({ canEdit }: { canEdit: boolean }) {
   const parts = useToldParts(fold.open, kind);
   const shares = parts ? toldShares(parts) : null;
   return (
-    <OutreachCard id="told" title={W.title} sub={W.sub}>
+    <OutreachCard id="told" title={TOLD_CARD.title} sub={TOLD_CARD.sub}>
       <RecordRow
         id="told"
-        label={W.title}
-        value={W.value}
-        act={{ label: W.open, icon: "chevron", onClick: () => fold.request() }}
+        label={TOLD_CARD.title}
+        value={TOLD_CARD.value}
+        act={{ label: TOLD_CARD.open, icon: "chevron", onClick: () => fold.request() }}
       />
       {fold.open ? (
         <RecordSheet
           id="told"
-          title={W.title}
+          title={TOLD_CARD.title}
           onClose={fold.close}
           tools={
             <RecordToggleGroup<ToldKind>
@@ -149,7 +149,7 @@ export function ToldCard({ canEdit }: { canEdit: boolean }) {
         >
           <div className="bt-prompt bt-stack">
             <p className="bt-fold-note" data-testid="rec-told-hint">
-              {W.hints[kind]}
+              {TOLD_CARD.hints[kind]}
             </p>
             {parts === null ? (
               <p className="bt-fold-note">…</p>
@@ -165,7 +165,7 @@ export function ToldCard({ canEdit }: { canEdit: boolean }) {
                 </RecordDisclosure>
               ))
             )}
-            {kind === "opening" ? <p className="bt-fold-note">{W.foot}</p> : null}
+            {kind === "opening" ? <p className="bt-fold-note">{TOLD_CARD.foot}</p> : null}
           </div>
         </RecordSheet>
       ) : null}

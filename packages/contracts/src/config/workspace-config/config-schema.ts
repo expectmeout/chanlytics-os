@@ -138,17 +138,16 @@ const AskConfigSchema = z.object({ goal: z.string().max(ASK_GOAL_MAX).optional()
  * The sequence's drafter, the check's opening writer and the reply drafter read it; where a field is absent each reads
  * what it read before (reach-out/settings.ts). Never `outreach`: that is Autonomy's policy class.
  */
-const L = REACH_OUT_LIMITS;
 export const ReachOutConfigSchema = z
   .object({
-    offer: z.string().max(L.offer).optional(),
-    who_for: z.string().max(L.whoFor).optional(),
-    fixes: z.string().max(L.fixes).optional(),
-    proof: z.array(z.string().max(L.claim)).max(L.claims).optional(),
-    tone: z.string().max(L.tone).optional(),
-    signed_by: z.string().max(L.signedBy).optional(),
-    signature: z.string().max(L.signature).optional(),
-    phone: z.string().max(L.phone).optional(),
+    offer: z.string().max(REACH_OUT_LIMITS.offer).optional(),
+    who_for: z.string().max(REACH_OUT_LIMITS.whoFor).optional(),
+    fixes: z.string().max(REACH_OUT_LIMITS.fixes).optional(),
+    proof: z.array(z.string().max(REACH_OUT_LIMITS.claim)).max(REACH_OUT_LIMITS.claims).optional(),
+    tone: z.string().max(REACH_OUT_LIMITS.tone).optional(),
+    signed_by: z.string().max(REACH_OUT_LIMITS.signedBy).optional(),
+    signature: z.string().max(REACH_OUT_LIMITS.signature).optional(),
+    phone: z.string().max(REACH_OUT_LIMITS.phone).optional(),
     // A word a newer build offers reads as none (the booking link, as before), never a config that cannot be parsed.
     reply_offer: z.enum(REPLY_OFFERS).optional().catch(undefined),
   })

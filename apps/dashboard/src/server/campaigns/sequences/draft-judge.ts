@@ -15,7 +15,6 @@ import {
   newWaitOf,
   numberedValues,
   slugTemplateName,
-  unbackedNumbers,
   validateReachOutWords,
   violatesNoPrices,
   newListOf,
@@ -38,6 +37,7 @@ import {
 import type { PoolRead } from "@/lib/campaign-channels";
 import { carriersOf, newChecksOf, newReachOf, twinOf, type NewCounts, type NewRunning } from "@/lib/new-checks";
 import { checkMessage } from "../write-message";
+import { unbackedNumbers } from "./numbers";
 
 /**
  * Ask's answer to New, judged (decision 0065): only what this workspace offers and holds is kept, within each audience's

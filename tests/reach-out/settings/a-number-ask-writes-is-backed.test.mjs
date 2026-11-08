@@ -5,11 +5,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { unbackedNumbers } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { leadEmail } = await import("../../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
+const { unbackedNumbers } = await import("../../../apps/dashboard/src/server/campaigns/sequences/numbers.ts");
 
 test("a number nothing backs is named, once, as written", () => {
   assert.deepEqual(unbackedNumbers("We clean 40 clinics and 1,204 rooms, 1,204 a week", ["We clean 40 clinics"]), [

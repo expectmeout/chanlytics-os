@@ -14,6 +14,7 @@ import {
   replyModeHint,
   writesBackRows,
   type ReplyOffer,
+  textOrEmpty,
 } from "@chanlytics/contracts";
 import { gate, navigate } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
@@ -24,7 +25,7 @@ import { RecordRow } from "../../kit/record/row";
 import { BtFold } from "../business/gestures/fold";
 import { OutreachCard, type OutreachShared } from "./card";
 
-const W = REACH_OUT_SETTINGS_WORDS;
+const SENDS_CARDS = REACH_OUT_SETTINGS_WORDS;
 
 /** The lock a row of code's carries where an act would stand. */
 const Always = () => (
@@ -40,8 +41,8 @@ export function SendsFromCard(shared: OutreachShared) {
   return (
     <OutreachCard
       id="sends-from"
-      title={W.sendsFrom.title}
-      sub={W.sendsFrom.sub}
+      title={SENDS_CARDS.sendsFrom.title}
+      sub={SENDS_CARDS.sendsFrom.sub}
       mark={
         mailbox ? (
           <StatePill kind="tone" value={mailbox.tone} label={mailbox.pill} testid="rec-sends-from-pill" />
@@ -50,43 +51,46 @@ export function SendsFromCard(shared: OutreachShared) {
     >
       <RecordRow
         id="send_mailbox"
-        label={W.sendsFrom.mailbox}
+        label={SENDS_CARDS.sendsFrom.mailbox}
         value={mailbox ? `${mailbox.address} · ${mailbox.provider === "google" ? "Google" : mailbox.provider}` : null}
-        empty={W.sendsFrom.none}
+        empty={SENDS_CARDS.sendsFrom.none}
         hint={mailbox ? (mailbox.ramp ?? mailbox.day) : null}
-        act={{ label: W.sendsFrom.connections, icon: "chevron", onClick: () => navigate("admin/integrations") }}
+        act={{
+          label: SENDS_CARDS.sendsFrom.connections,
+          icon: "chevron",
+          onClick: () => navigate("admin/integrations"),
+        }}
       />
       {/* A month that could not be counted is said nowhere, never as a month of nothing (campaigns/month-sent.ts). */}
       {read?.month.sent === null ? null : (
         <RecordRow
           id="send_month"
-          label={W.sendsFrom.month}
-          value={read ? W.sendsFrom.monthValue(read.month.sent, read.month.of) : null}
+          label={SENDS_CARDS.sendsFrom.month}
+          value={read ? SENDS_CARDS.sendsFrom.monthValue(read.month.sent, read.month.of) : null}
           empty="…"
         />
       )}
       <RecordRow
         id="send_by_hand"
-        label={W.sendsFrom.byHand}
-        value={read ? W.sendsFrom.byHandValue(read.by_hand_per_day) : null}
+        label={SENDS_CARDS.sendsFrom.byHand}
+        value={read ? SENDS_CARDS.sendsFrom.byHandValue(read.by_hand_per_day) : null}
         empty="…"
-        act={{ label: W.sendsFrom.toSend, icon: "chevron", onClick: () => navigate(TO_SEND_ROUTE) }}
+        act={{ label: SENDS_CARDS.sendsFrom.toSend, icon: "chevron", onClick: () => navigate(TO_SEND_ROUTE) }}
       />
     </OutreachCard>
   );
 }
 
 const isReplyOffer = (value: string): value is ReplyOffer => REPLY_OFFERS.some((o) => o === value);
-const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
 
 /** When a lead writes back: what each reading sets off, and what the answer to an interested one offers. */
 export function WritesBackCard(shared: OutreachShared) {
-  const chosen = textOf(shared.config.reach_out?.reply_offer);
+  const chosen = textOrEmpty(shared.config.reach_out?.reply_offer);
   const offer = isReplyOffer(chosen) ? chosen : undefined;
   const mode = shared.read?.reply_mode ?? "ask";
   const [first, ...fixed] = writesBackRows(offer, mode);
   return (
-    <OutreachCard id="writes-back" title={W.writesBack.title} sub={W.writesBack.sub}>
+    <OutreachCard id="writes-back" title={SENDS_CARDS.writesBack.title} sub={SENDS_CARDS.writesBack.sub}>
       {first ? (
         <BtFold
           canEdit={shared.canEdit}
@@ -103,19 +107,19 @@ export function WritesBackCard(shared: OutreachShared) {
               <span className="rec-row-hint" data-testid="rec-reply-mode">
                 {replyModeHint(mode) ?? ""}{" "}
                 <LinkButton onClick={() => navigate("admin/autonomy")} data-testid="rec-reply-mode-door">
-                  {W.writesBack.modeDoor} <Icon name="chevron" size={11} />
+                  {SENDS_CARDS.writesBack.modeDoor} <Icon name="chevron" size={11} />
                 </LinkButton>
               </span>
             ),
           }}
-          body={(f) => (
+          body={(fields) => (
             <RecordToggleGroup<string>
               id="ro-reply-offer"
               labelledBy="rec-fold-reply_offer-label"
-              value={textOf(f.draft) || "booking_link"}
+              value={textOrEmpty(fields.draft) || "booking_link"}
               options={REPLY_OFFERS.map((o) => ({ value: o, label: REPLY_OFFER_WORDS[o].choice }))}
-              onChange={(v) => f.update(() => v, ["reply_offer"])}
-              readOnly={f.readOnly}
+              onChange={(v) => fields.update(() => v, ["reply_offer"])}
+              readOnly={fields.readOnly}
               testid="rec-reply-offer-choice"
             />
           )}
@@ -135,11 +139,11 @@ export function RulesCard() {
   return (
     <OutreachCard
       id="rules"
-      title={W.rules.title}
-      sub={W.rules.sub}
+      title={SENDS_CARDS.rules.title}
+      sub={SENDS_CARDS.rules.sub}
       mark={
-        <span className="ro-always-mark">
-          <Icon name="lock" size={11} /> {W.rules.mark}
+        <span className="ro-always-lock">
+          <Icon name="lock" size={11} /> {SENDS_CARDS.rules.mark}
         </span>
       }
     >

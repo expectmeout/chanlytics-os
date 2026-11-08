@@ -3,8 +3,7 @@
  * in a claim on How it reaches out, or in the business's name. What a slot fills in is the slot's ({{opening}}'s numbers
  * are its record's, read by the opening's own reader), and a time claims nothing about anyone.
  */
-import { slotsOut } from "../../templates/slot-sets";
-import { REACH_OUT_SLOT_SET } from "./slots";
+import { REACH_OUT_SLOT_SET, slotsOut } from "@chanlytics/contracts";
 
 const NUMBER = /\d[\d,]*(?:\.\d+)?/g;
 
@@ -15,7 +14,7 @@ const TIME_AFTER = /^[\s-]?(?:minutes?|mins?|hours?|hrs?|seconds?|secs?|days?|we
 const valueOf = (written: string): number => Number(written.replace(/,/g, ""));
 
 /** Each number in the text as written, with what stands either side of it. */
-function numbersIn(text: string): { written: string; before: string; after: string }[] {
+function figuresIn(text: string): { written: string; before: string; after: string }[] {
   return [...text.matchAll(NUMBER)].map((m) => {
     const at = m.index ?? 0;
     const written = m[0].replace(/,$/, "");
@@ -25,7 +24,7 @@ function numbersIn(text: string): { written: string; before: string; after: stri
 
 /** Every number's value in the texts that back one. */
 function backedValues(backing: readonly string[]): Set<number> {
-  return new Set(backing.flatMap((text) => numbersIn(text).map((n) => valueOf(n.written))));
+  return new Set(backing.flatMap((text) => figuresIn(text).map((n) => valueOf(n.written))));
 }
 
 /** A clock's time, or a number of minutes, hours, days or weeks: no claim. */
@@ -39,7 +38,7 @@ const isTime = (n: { before: string; after: string }): boolean =>
 export function unbackedNumbers(body: string, backing: readonly string[]): string[] {
   const backed = backedValues(backing);
   const out: string[] = [];
-  for (const n of numbersIn(slotsOut(REACH_OUT_SLOT_SET, body))) {
+  for (const n of figuresIn(slotsOut(REACH_OUT_SLOT_SET, body))) {
     if (isTime(n) || backed.has(valueOf(n.written)) || out.includes(n.written)) continue;
     out.push(n.written);
   }

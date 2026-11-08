@@ -4,6 +4,9 @@ import { readMonthSent, recordCampaignMonthSent } from "@chanlytics/db/campaigns
 import { log } from "../shared/log";
 import { serviceDb } from "../shared/service-db";
 
+/** The client a count is made with: the service role's, the one the counts' functions are granted to. */
+type CountsDb = Parameters<typeof readMonthSent>[0];
+
 /**
  * What this workspace's campaigns have sent by email and by text in the calendar month `at` falls in, in its own zone
  * (packages/db recordCampaignMonthSent): what its allowance (contracts CAMPAIGN_MONTH_ALLOWANCE) has spent, which the Campaigns head
@@ -27,10 +30,7 @@ function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null> {
  * A month's count, made by the service role (each is a function only it may call) after the route's own scope has named
  * the workspace: the one place this module takes that client. A count that fails is said in the log and is null.
  */
-async function countedOrNull<T>(
-  tenantId: string,
-  count: (db: ReturnType<typeof serviceDb>) => Promise<T>,
-): Promise<T | null> {
+async function countedOrNull<T>(tenantId: string, count: (db: CountsDb) => Promise<T>): Promise<T | null> {
   try {
     return await count(serviceDb());
   } catch (e) {

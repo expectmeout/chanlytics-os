@@ -136,7 +136,6 @@ export { openingToldParts, reachOutExampleRecord, replyToldParts, TOLD_KINDS, to
 export { US_STATE_ZONES, zoneOfRegion } from "./campaigns/reach-out/us-zones";
 export { CHAIN_MIN_LISTINGS, chainOf, customerDomainOf, heldClaimOf, HOLD_DOOR_WORDS, holdDoors, HOLDS_INCLUDED_FOR_CHAIN, holdWords, isReachOutHold, OPENING_CLAIM_KINDS, openingClaimWords, REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED, REACH_OUT_HOLDS, reachOutCountryOf } from "./campaigns/reach-out/words/claims";
 export { ANGLE_WORDS_MAX, emailWordCount, linkCount, linksIn, OPENING_CHARS_MAX, OPENING_WORDS_MAX, REACH_OUT_AFTER_DAYS, REACH_OUT_GAP_MINUTES, REACH_OUT_NAME_MAX, REACH_OUT_STEPS_MAX, REACH_OUT_WORDS_MAX, reachOutRules, reachOutSlotFault, shoutingLine, SIGNED_BY_MAX, slotCount, validateReachOutWords, wordCount, wordsIssueWords, wordsNeedOpening } from "./campaigns/reach-out/words/limits";
-export { unbackedNumbers } from "./campaigns/reach-out/words/numbers";
 export { chainIssueWords, checkOpening, factValue, isOpeningFactKey, isOpeningProblem, OPENING_FACT_KEYS, OPENING_PROBLEMS, openingProblemWords, validateReachOutChain } from "./campaigns/reach-out/words/opening";
 export { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SLOTS, REACH_OUT_SUBJECT_MAX } from "./campaigns/reach-out/words/slots";
 export { SEQUENCE_ACT_REASONS, SEQUENCE_ACT_WHY, SEQUENCE_ACT_WORDS, SEQUENCE_ACTS, sequenceActsOf, sequenceResumeAsk } from "./campaigns/sequences/acts";
@@ -171,7 +170,7 @@ export { bookingTemplate, compareTemplates, defaultTemplate, groupTemplates, sta
 export { exampleParams, exampleParamsFor, firstNameOf, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARAM_SOURCES, paramLabel, paramSaid, parseParamSpec, parseParamSpecs, playbooksStillSending, resolveParams, testParamsOf } from "./campaigns/templates/params";
 export { footerOf, refusedWords, sendableTemplates, templateBlocked, templateFooter, templateLinkButton, templateParts } from "./campaigns/templates/parts";
 export { SENDER_WORDS, senderLanguage, senderWords } from "./campaigns/templates/sender-words";
-export { fillSlots, numberedSlots, slotValueOf, slotWritten, slotMentions, slotOutside } from "./campaigns/templates/slot-sets";
+export { fillSlots, numberedSlots, slotValueOf, slotWritten, slotMentions, slotOutside, slotsOut } from "./campaigns/templates/slot-sets";
 export { defaultParamSpecs, defaultSlotKinds, guessSlotKind, slotChoices, slotLabels, templateSlots } from "./campaigns/templates/slots";
 export { starterByKey, starterByName, starterDraft, starterEmailText, starterForTrigger, startersForTrigger, starterSmsText, startersOffered, starterText } from "./campaigns/templates/starter-lookup";
 export { messageLanguageCode, STARTER_LANGUAGES } from "./campaigns/templates/starter-templates/shapes";

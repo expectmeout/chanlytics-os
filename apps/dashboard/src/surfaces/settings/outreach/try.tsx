@@ -25,14 +25,14 @@ import { RecordRow } from "../../kit/record/row";
 import { RecordSheet } from "../../kit/record/sheet";
 import { OutreachCard } from "./card";
 
-const W = REACH_OUT_SETTINGS_WORDS.try;
+const TRY_CARD = REACH_OUT_SETTINGS_WORDS.try;
 
 /** A tried email, or what stood in its way, by the business it was asked for. */
 type Tried = { at: number; preview: ReachOutPreviewDto | null; refused: string | null };
 
 /** One email for the business at `at`, written as the sequence would write it now. */
 async function previewAt(seq: NonNullable<ReachOutSettingsDto["sequence"]>, at: number, signedBy: string | null) {
-  const r = await api()("POST reach-outs/preview", {
+  const answer = await api()("POST reach-outs/preview", {
     body: {
       search_id: seq.search_id ?? "",
       index: at,
@@ -44,23 +44,23 @@ async function previewAt(seq: NonNullable<ReachOutSettingsDto["sequence"]>, at: 
       language: "en",
     },
   });
-  return r.ok ? { preview: r.data.preview, refused: null } : { preview: null, refused: r.message };
+  return answer.ok ? { preview: answer.data.preview, refused: null } : { preview: null, refused: answer.message };
 }
 
 /** The tried email in its parts, each marked by where it came from. */
 const TriedEmail = ({ preview, claims }: { preview: ReachOutPreviewDto; claims: readonly string[] }) => (
   <div className="ro-try-mail" data-testid="rec-try-mail">
     <p className="ro-try-head">
-      <span>{W.to}</span> {preview.lead?.email}
+      <span>{TRY_CARD.to}</span> {preview.lead?.email}
       <br />
-      <span>{W.subject}</span> <b>{preview.subject}</b>
+      <span>{TRY_CARD.subject}</span> <b>{preview.subject}</b>
     </p>
     <p className="ro-try-body">
       {tryPartsOf(preview.body ?? "", preview.opening, claims).map((p, i) =>
         p.source === "words" ? (
           <span key={i}>{p.text}</span>
         ) : (
-          <mark key={i} className={`ro-mark ro-mark-${p.source}`} data-testid={`rec-try-mark-${p.source}`}>
+          <mark key={i} className={`ro-from ro-from-${p.source}`} data-testid={`rec-try-mark-${p.source}`}>
             {p.text}
           </mark>
         ),
@@ -84,106 +84,35 @@ export function TryCard({
   const seq = read?.sequence?.search_id ? read.sequence : null;
   const [at, setAt] = useState(0);
   const [round, setRound] = useState(0);
-  const [tried, setTried] = useState<Tried | null>(null);
-  useEffect(() => {
-    if (!fold.open || !seq) return;
-    let live = true;
-    setTried(null);
-    previewAt(seq, at, signedBy).then(
-      (r) => {
-        if (live) setTried({ at, ...r });
-      },
-      () => {
-        if (live) setTried({ at, preview: null, refused: W.unavailable });
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [fold.open, seq, at, round, signedBy]);
-  const preview = tried?.preview ?? null;
-  const why = preview?.refused ?? preview?.detail ?? null;
+  const tried = useTried(fold.open, seq, at, round, signedBy);
   return (
-    <OutreachCard id="try" title={W.title} sub={W.sub}>
+    <OutreachCard id="try" title={TRY_CARD.title} sub={TRY_CARD.sub}>
       <RecordRow
         id="try_lead"
-        label={W.key}
-        value={W.value}
-        act={{ label: W.act, icon: "chevron", onClick: () => fold.request() }}
+        label={TRY_CARD.key}
+        value={TRY_CARD.value}
+        act={{ label: TRY_CARD.act, icon: "chevron", onClick: () => fold.request() }}
       />
       {fold.open ? (
         <RecordSheet
           id="try_lead"
-          title={W.title}
+          title={TRY_CARD.title}
           onClose={fold.close}
-          foot={
-            seq ? (
-              <span data-foot-pair>
-                <Button size="sm" onClick={() => setRound((n) => n + 1)} data-testid="rec-try-again">
-                  {W.rewrite}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={() => {
-                    fold.close();
-                    navigate(sequenceRoute(seq.root_id));
-                  }}
-                  data-testid="rec-try-open"
-                >
-                  {W.open}
-                </Button>
-              </span>
-            ) : null
-          }
+          foot={seq ? <TryFoot seq={seq} again={() => setRound((n) => n + 1)} close={fold.close} /> : null}
           testid="rec-try-sheet"
         >
           <div className="bt-stack" data-testid="rec-try-body">
             {!seq ? (
-              <>
-                <p className="bt-fold-note" data-testid="rec-try-none">
-                  {W.none}
-                </p>
-                {/* Held to its own width: the stack would stretch it across the sheet. */}
-                <span>
-                  <Button size="sm" onClick={() => navigate(newForLeadsRoute())} data-testid="rec-try-new">
-                    {W.noneAct}
-                  </Button>
-                </span>
-              </>
+              <TryNone />
             ) : !tried ? (
               <p className="bt-fold-note">…</p>
             ) : (
-              <>
-                <p className="ro-try-lead" data-testid="rec-try-lead">
-                  <b>{preview?.lead?.business_name ?? seq.name}</b>
-                  <Button
-                    size="sm"
-                    variant="quiet"
-                    onClick={() => setAt((n) => Math.min(n + 1, REACH_OUT_PREVIEW_INDEX_MAX))}
-                    data-testid="rec-try-another"
-                  >
-                    {W.another}
-                  </Button>
-                </p>
-                <p className="ro-legend" aria-hidden="true">
-                  <mark className="ro-mark ro-mark-them">{W.legend.them}</mark>{" "}
-                  <mark className="ro-mark ro-mark-proof">{W.legend.proof}</mark> <span>{W.legend.words}</span>
-                </p>
-                {preview?.body ? <TriedEmail preview={preview} claims={claims} /> : null}
-                <p className="bt-fold-note" data-testid="rec-try-check">
-                  {tried.refused ?? (preview?.unavailable ? W.unavailable : why ? W.held(why) : W.checked)}
-                </p>
-                {preview?.angle ? <p className="bt-fold-note">{W.leans(preview.angle)}</p> : null}
-                {seq.next ? (
-                  <p className="bt-fold-note" data-testid="rec-try-next">
-                    <b>{W.next(seq.next.after_days)}</b>
-                    <br />
-                    {seq.next.body.split("\n")[0]}
-                  </p>
-                ) : null}
-                <p className="bt-fold-note">{W.hint}</p>
-              </>
+              <TriedBody
+                seq={seq}
+                tried={tried}
+                claims={claims}
+                another={() => setAt((n) => Math.min(n + 1, REACH_OUT_PREVIEW_INDEX_MAX))}
+              />
             )}
           </div>
         </RecordSheet>
@@ -191,3 +120,119 @@ export function TryCard({
     </OutreachCard>
   );
 }
+
+type TriedSequence = NonNullable<ReachOutSettingsDto["sequence"]>;
+
+/** The email tried for the business at `at`, asked again whenever the sheet opens, another is asked for, or a rewrite. */
+function useTried(
+  open: boolean,
+  seq: TriedSequence | null,
+  at: number,
+  round: number,
+  signedBy: string | null,
+): Tried | null {
+  const [tried, setTried] = useState<Tried | null>(null);
+  useEffect(() => {
+    if (!open || !seq) return;
+    let live = true;
+    setTried(null);
+    previewAt(seq, at, signedBy).then(
+      (answer) => {
+        if (live) setTried({ at, ...answer });
+      },
+      () => {
+        if (live) setTried({ at, preview: null, refused: TRY_CARD.unavailable });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [open, seq, at, round, signedBy]);
+  return tried;
+}
+
+/** With no running sequence to leads there is nothing to try: say to start one. */
+const TryNone = () => (
+  <>
+    <p className="bt-fold-note" data-testid="rec-try-none">
+      {TRY_CARD.none}
+    </p>
+    {/* Held to its own width: the stack would stretch it across the sheet. */}
+    <span>
+      <Button size="sm" onClick={() => navigate(newForLeadsRoute())} data-testid="rec-try-new">
+        {TRY_CARD.noneAct}
+      </Button>
+    </span>
+  </>
+);
+
+/** The sheet's foot: write it again, or open the sequence it was written from. */
+const TryFoot = ({ seq, again, close }: { seq: TriedSequence; again: () => void; close: () => void }) => (
+  <span data-foot-pair>
+    <Button size="sm" onClick={again} data-testid="rec-try-again">
+      {TRY_CARD.rewrite}
+    </Button>
+    <Button
+      size="sm"
+      variant="primary"
+      onClick={() => {
+        close();
+        navigate(sequenceRoute(seq.root_id));
+      }}
+      data-testid="rec-try-open"
+    >
+      {TRY_CARD.open}
+    </Button>
+  </span>
+);
+
+/** What the preview's check said: why it was held, that it could not be written, or that it passed. */
+function checkLine(tried: Tried): string {
+  const preview = tried.preview;
+  const reason = preview?.refused ?? preview?.detail ?? null;
+  if (tried.refused) return tried.refused;
+  if (preview?.unavailable) return TRY_CARD.unavailable;
+  return reason ? TRY_CARD.held(reason) : TRY_CARD.checked;
+}
+
+/** The tried email: whose it is, where each line came from, what the check said, and the step after it. */
+const TriedBody = ({
+  seq,
+  tried,
+  claims,
+  another,
+}: {
+  seq: TriedSequence;
+  tried: Tried;
+  claims: readonly string[];
+  another: () => void;
+}) => {
+  const preview = tried.preview;
+  return (
+    <>
+      <p className="ro-try-lead" data-testid="rec-try-lead">
+        <b>{preview?.lead?.business_name ?? seq.name}</b>
+        <Button size="sm" variant="quiet" onClick={another} data-testid="rec-try-another">
+          {TRY_CARD.another}
+        </Button>
+      </p>
+      <p className="ro-legend" aria-hidden="true">
+        <mark className="ro-from ro-from-them">{TRY_CARD.legend.them}</mark>{" "}
+        <mark className="ro-from ro-from-proof">{TRY_CARD.legend.proof}</mark> <span>{TRY_CARD.legend.words}</span>
+      </p>
+      {preview?.body ? <TriedEmail preview={preview} claims={claims} /> : null}
+      <p className="bt-fold-note" data-testid="rec-try-check">
+        {checkLine(tried)}
+      </p>
+      {preview?.angle ? <p className="bt-fold-note">{TRY_CARD.leans(preview.angle)}</p> : null}
+      {seq.next ? (
+        <p className="bt-fold-note" data-testid="rec-try-next">
+          <b>{TRY_CARD.next(seq.next.after_days)}</b>
+          <br />
+          {seq.next.body.split("\n")[0]}
+        </p>
+      ) : null}
+      <p className="bt-fold-note">{TRY_CARD.hint}</p>
+    </>
+  );
+};

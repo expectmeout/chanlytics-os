@@ -4,7 +4,7 @@
  * with, writes and refuses). A row with nothing set says what the writers read in its place, in the dim ink of a fact
  * not yet the owner's, and why: what the business does, else its goal (contracts reachOutOfferOf).
  */
-import { REACH_OUT_LIMITS, REACH_OUT_SETTINGS_WORDS, reachOutOfferOf } from "@chanlytics/contracts";
+import { REACH_OUT_LIMITS, REACH_OUT_SETTINGS_WORDS, reachOutOfferOf, textOrEmpty } from "@chanlytics/contracts";
 import { gate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
@@ -12,23 +12,19 @@ import { Icon } from "../../kit/icon/icon";
 import { RecordBox, RecordField } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
 import { BtFold } from "../business/gestures/fold";
-import { OutreachCard, type OutreachShared } from "./card";
+import { OutreachCard, storedReachOut, type OutreachShared } from "./card";
 
-const W = REACH_OUT_SETTINGS_WORDS;
+const OFFER_CARDS = REACH_OUT_SETTINGS_WORDS;
 type Fields = Parameters<Parameters<typeof BtFold>[0]["body"]>[0];
 
-const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
-const stored = (shared: OutreachShared, key: string): string | null =>
-  textOf(shared.config.reach_out?.[key]).trim() || null;
-
 /** One box of words, named by its fold's label on screen (rec-fold-<id>-label), as the voice's box is. */
-const WordsBox = ({ id, rows, placeholder, f }: { id: string; rows: number; placeholder: string; f: Fields }) => (
+const OfferBox = ({ id, rows, placeholder, f }: { id: string; rows: number; placeholder: string; f: Fields }) => (
   <RecordField
     id={`ro-${id}`}
     label={null}
     aria-labelledby={`rec-fold-${id}-label`}
     rows={rows}
-    value={textOf(f.draft)}
+    value={textOrEmpty(f.draft)}
     onChange={(v) => f.update(() => v, [id])}
     problem={f.problems[id] || null}
     placeholder={placeholder}
@@ -40,22 +36,29 @@ const WordsBox = ({ id, rows, placeholder, f }: { id: string; rows: number; plac
 /** A row of words: what is set, or what the writers read where nothing is, and a box to change it. */
 const wordsFold = (
   shared: OutreachShared,
-  p: { id: string; label: string; rows: number; placeholder: string; fallback?: string | null; from?: string | null },
+  spec: {
+    id: string;
+    label: string;
+    rows: number;
+    placeholder: string;
+    fallback?: string | null;
+    from?: string | null;
+  },
 ) => (
   <BtFold
     canEdit={shared.canEdit}
     flash={shared.flash}
     saver={shared.saver}
-    id={p.id}
-    label={p.label}
+    id={spec.id}
+    label={spec.label}
     channel={null}
-    gate={gate("settings", `change ${p.label.toLowerCase()}`)}
+    gate={gate("settings", `change ${spec.label.toLowerCase()}`)}
     row={{
-      value: stored(shared, p.id),
-      empty: p.fallback ? <span className="rec-row-empty">{p.fallback}</span> : W.offer.empty,
-      hint: p.fallback ? p.from : null,
+      value: storedReachOut(shared, spec.id),
+      empty: spec.fallback ? <span className="rec-row-empty">{spec.fallback}</span> : OFFER_CARDS.offer.empty,
+      hint: spec.fallback ? spec.from : null,
     }}
-    body={(f) => <WordsBox id={p.id} rows={p.rows} placeholder={p.placeholder} f={f} />}
+    body={(f) => <OfferBox id={spec.id} rows={spec.rows} placeholder={spec.placeholder} f={f} />}
   />
 );
 
@@ -63,12 +66,12 @@ const wordsFold = (
 export function OfferCard(shared: OutreachShared) {
   const about = shared.read?.about ?? null;
   const fallback = shared.config.reach_out?.offer ? null : reachOutOfferOf(shared.config, about);
-  const from = about?.trim() ? W.offer.fromAbout : W.offer.fromGoal;
+  const from = about?.trim() ? OFFER_CARDS.offer.fromAbout : OFFER_CARDS.offer.fromGoal;
   return (
-    <OutreachCard id="offer" title={W.offer.title} sub={W.offer.sub}>
+    <OutreachCard id="offer" title={OFFER_CARDS.offer.title} sub={OFFER_CARDS.offer.sub}>
       {wordsFold(shared, {
         id: "offer",
-        label: W.offer.offer,
+        label: OFFER_CARDS.offer.offer,
         rows: 3,
         placeholder: "After-hours cleaning for dental offices, so every morning starts spotless.",
         fallback,
@@ -76,13 +79,13 @@ export function OfferCard(shared: OutreachShared) {
       })}
       {wordsFold(shared, {
         id: "who_for",
-        label: W.offer.whoFor,
+        label: OFFER_CARDS.offer.whoFor,
         rows: 1,
         placeholder: "Dental and medical clinics in Austin",
       })}
       {wordsFold(shared, {
         id: "fixes",
-        label: W.offer.fixes,
+        label: OFFER_CARDS.offer.fixes,
         rows: 2,
         placeholder: "Cleaners who come in during opening hours, or miss rooms",
       })}
@@ -92,39 +95,39 @@ export function OfferCard(shared: OutreachShared) {
 
 /** The claims as the fold edits them: one box a claim, a remove beside each, and an add while there is room. */
 const ProofRows = ({ f }: { f: Fields }) => {
-  const claims = Array.isArray(f.draft) ? f.draft.map(textOf) : [];
+  const claims = Array.isArray(f.draft) ? f.draft.map(textOrEmpty) : [];
   const put = (next: string[], keys: string[]) => f.update(() => next, keys);
   return (
     <div className="ro-claims" data-testid="rec-proof-rows">
-      {claims.map((claim, i) => (
-        <div className="ro-claim" key={i} data-testid={`rec-claim-${i}`}>
+      {claims.map((claim, index) => (
+        <div className="ro-claim" key={index} data-testid={`rec-claim-${index}`}>
           <RecordBox
-            id={`ro-claim-${i}`}
-            label={`Claim ${i + 1}`}
+            id={`ro-claim-${index}`}
+            label={`Claim ${index + 1}`}
             rows={2}
             value={claim}
             placeholder="We clean 40 clinics across Austin today."
             onChange={(v) =>
               put(
-                claims.map((c, j) => (j === i ? v : c)),
-                [`claim-${i}`],
+                claims.map((c, j) => (j === index ? v : c)),
+                [`claim-${index}`],
               )
             }
-            problem={f.problems[`claim-${i}`] || null}
+            problem={f.problems[`claim-${index}`] || null}
             readOnly={f.readOnly}
           />
           <Button
             variant="quiet"
             size="sm"
             iconOnly
-            aria-label={`Remove claim ${i + 1}`}
+            aria-label={`Remove claim ${index + 1}`}
             {...f.press(() =>
               put(
-                claims.filter((_, j) => j !== i),
+                claims.filter((_, j) => j !== index),
                 ["proof"],
               ),
             )}
-            data-testid={`rec-claim-remove-${i}`}
+            data-testid={`rec-claim-remove-${index}`}
           >
             <Icon name="x" size={12} />
           </Button>
@@ -132,7 +135,7 @@ const ProofRows = ({ f }: { f: Fields }) => {
       ))}
       {claims.length < REACH_OUT_LIMITS.claims ? (
         <Button size="sm" {...f.press(() => put([...claims, ""], ["proof"]))} data-testid="rec-proof-add">
-          <Icon name="plus" size={12} /> {W.proof.add}
+          <Icon name="plus" size={12} /> {OFFER_CARDS.proof.add}
         </Button>
       ) : null}
       <FieldError id="ro-proof-problem" message={f.problems.proof || null} testid="rec-proof-problem" />
@@ -146,16 +149,16 @@ const ProofRows = ({ f }: { f: Fields }) => {
  * each row's Change open the one fold of the list.
  */
 export function ProofCard(shared: OutreachShared) {
-  const claims = (shared.config.reach_out?.proof ?? []).map(textOf).filter((c) => c.trim());
+  const claims = (shared.config.reach_out?.proof ?? []).map(textOrEmpty).filter((c) => c.trim());
   const sends = (text: string) => shared.read?.claims.find((c) => c.text === text)?.sends ?? 0;
   return (
-    <OutreachCard id="proof" title={W.proof.title} sub={W.proof.sub}>
+    <OutreachCard id="proof" title={OFFER_CARDS.proof.title} sub={OFFER_CARDS.proof.sub}>
       <BtFold
         canEdit={shared.canEdit}
         flash={shared.flash}
         saver={shared.saver}
         id="proof"
-        label={W.proof.title}
+        label={OFFER_CARDS.proof.title}
         channel={null}
         gate={gate("settings", "change the claims it may make")}
         rest={({ request, can }) => (
@@ -166,19 +169,19 @@ export function ProofCard(shared: OutreachShared) {
                 id={i === 0 ? "proof" : `proof-${i}`}
                 label={claim}
                 stacked
-                value={<span data-testid={`rec-row-proof-${i}-meta`}>{W.proof.count(sends(claim))}</span>}
+                value={<span data-testid={`rec-row-proof-${i}-meta`}>{OFFER_CARDS.proof.count(sends(claim))}</span>}
                 act={shared.canEdit && can ? { label: "Change", icon: "pencil", onClick: () => request() } : null}
               />
             ))}
             {shared.canEdit && can && claims.length < REACH_OUT_LIMITS.claims ? (
               <RecordRow
                 id={claims.length ? "proof-add" : "proof"}
-                label={W.proof.add}
-                act={{ label: W.proof.add, icon: "plus", onClick: () => request() }}
+                label={OFFER_CARDS.proof.add}
+                act={{ label: OFFER_CARDS.proof.add, icon: "plus", onClick: () => request() }}
               />
             ) : null}
             <p className="bt-fold-note" data-testid="rec-proof-foot">
-              {W.proof.foot}
+              {OFFER_CARDS.proof.foot}
             </p>
           </>
         )}

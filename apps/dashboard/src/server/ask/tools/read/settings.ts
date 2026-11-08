@@ -58,16 +58,16 @@ function howItAnswersOf(cfg: ReturnType<typeof parseTenantConfig>) {
  * writer then reads what it read before (the goal or what the business does, the receptionist's tone).
  */
 function howItReachesOutOf(cfg: ReturnType<typeof parseTenantConfig>) {
-  const r = cfg?.reach_out;
+  const section = cfg?.reach_out;
   return {
-    offer: r?.offer ?? null,
-    who_for: r?.who_for ?? null,
-    fixes: r?.fixes ?? null,
-    claims: r?.proof ?? [],
-    tone: r?.tone ?? null,
-    signed_by: r?.signed_by ?? null,
-    signature: r?.signature ?? null,
-    reply_offer: r?.reply_offer ?? "booking_link",
+    offer: section?.offer ?? null,
+    who_for: section?.who_for ?? null,
+    fixes: section?.fixes ?? null,
+    claims: section?.proof ?? [],
+    tone: section?.tone ?? null,
+    signed_by: section?.signed_by ?? null,
+    signature: section?.signature ?? null,
+    reply_offer: section?.reply_offer ?? "booking_link",
   };
 }
 

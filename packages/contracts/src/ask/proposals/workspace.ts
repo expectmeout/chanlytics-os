@@ -71,8 +71,8 @@ export const settingsSpec: ProposalSpecAboveOperator = {
     receipt: () => "Previous settings are back",
   },
   // A change to How it answers opens there, on its row (the Settings wiring review, item 14); the rest on Details.
-  open: (p) => {
-    const change = p.payload.change as AskSettingsChange | undefined;
+  open: (proposal) => {
+    const change = proposal.payload.change as AskSettingsChange | undefined;
     // How it reaches out's opens there, on its row (decision 0113).
     if (change && isReachOutChange(change)) return `admin/outreach/${ASK_REACH_OUT_ROWS[change.op]}`;
     const op = change?.op;

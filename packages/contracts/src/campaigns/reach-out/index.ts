@@ -341,7 +341,6 @@ export {
   wordsNeedOpening,
 } from "./words/limits";
 export type { WordsIssue, WordsProblem } from "./words/limits";
-export { unbackedNumbers } from "./words/numbers";
 export {
   chainIssueWords,
   checkOpening,
