@@ -13,6 +13,7 @@ import type { Json } from "../../types";
 import { getPersonIdsWaitingOnYou } from "./waiting-on-you";
 import { IDS_PER_READ, type Db } from "./pages";
 import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * Got it (canvas A, Up next): the member a note is for marks it read, through the door as the signed-in member (it
@@ -32,7 +33,7 @@ const PEOPLE_AT_A_LEAD = 20;
  * Everyone who works at one lead (contacts.lead_id, 0052), the most recently in touch first, under the caller's row
  * security and the workspace's own filter. Living people only: not erased, not merged into another.
  */
-export async function listPeopleAtLead(db: Db, tenantId: string, leadId: string): Promise<PersonAtLeadDto[]> {
+export async function listPeopleAtLead(db: Db, tenantId: TenantId, leadId: string): Promise<PersonAtLeadDto[]> {
   const { data, error } = await db
     .from("contacts")
     .select("id, display_name, wa_profile_name, phone_e164, email, name_source")
@@ -66,7 +67,7 @@ export async function listPeopleAtLead(db: Db, tenantId: string, leadId: string)
  * The signers of the replies this person wrote that are still offered or were adopted, the newest first: the notice and
  * its undo. A signer is its reply's writer's alone (0052), never the lead's person a colleague answered for.
  */
-export async function listSigners(db: Db, tenantId: string, personId: string): Promise<PersonSignerDto[]> {
+export async function listSigners(db: Db, tenantId: TenantId, personId: string): Promise<PersonSignerDto[]> {
   const { data, error } = await db
     .from("sequence_replies")
     .select("message_id, signer_name, signer_title, signer_state, read_at, intent, claim")
@@ -96,7 +97,7 @@ export async function listSigners(db: Db, tenantId: string, personId: string): P
 
 /** What a door hands resolve_person (00342, 00344): the identity as it saw it, and how sure it is of it. */
 export interface ResolvePersonInput {
-  tenantId: string;
+  tenantId: TenantId;
   /** The provider's identity: its channel and id, both or neither. */
   channel?: "whatsapp" | "voice" | "sms" | "email" | "instagram" | null;
   external?: string | null;
@@ -113,7 +114,7 @@ export interface ResolvePersonInput {
 
 /** What the door answers. */
 export interface ResolvedPerson {
-  contact_id: string;
+  contact_id: ContactId;
   outcome: "new" | "matched" | "filled";
   existed: boolean;
   matched_by: "identity" | "phone" | "email" | "race" | null;
@@ -171,7 +172,7 @@ export const PERSON_FORGOTTEN = "PE001";
  * record as People names a row. Read under the caller's row security. A database before the table answers none, so
  * either deploy order shows a page.
  */
-export async function openDoubtsOf(db: Db, tenantId: string, contactId: string): Promise<PersonDoubtDto[]> {
+export async function openDoubtsOf(db: Db, tenantId: TenantId, contactId: ContactId): Promise<PersonDoubtDto[]> {
   const { data, error } = await db
     .from("person_doubts")
     .select("id, contact_id, other_id, seen, created_at")
@@ -205,10 +206,10 @@ export async function openDoubtsOf(db: Db, tenantId: string, contactId: string):
 /** A doubt by id, when it names this person on either side (read under the caller's row security); null when it does not. */
 export async function findDoubtOn(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
   doubtId: string,
-): Promise<{ id: string; contact_id: string; other_id: string; settled_as: string | null } | null> {
+): Promise<{ id: string; contact_id: ContactId; other_id: string; settled_as: string | null } | null> {
   const { data, error } = await db
     .from("person_doubts")
     .select("id, contact_id, other_id, settled_as")
@@ -243,7 +244,11 @@ const stampOf = (v: unknown): string | null => (typeof v === "string" ? v : null
  * The caller's rows only, by the door's own rule. A read that fails THROWS, and the reader decides what a list says
  * of a reading it could not have (readers/seen.ts: nothing is then called new).
  */
-export async function markContactSeen(db: Db, tenantId: string, contactIds: readonly string[]): Promise<SeenMarksDto> {
+export async function markContactSeen(
+  db: Db,
+  tenantId: TenantId,
+  contactIds: readonly string[],
+): Promise<SeenMarksDto> {
   const { data, error } = await db.rpc("contact_seen", { p_tenant_id: tenantId, p_contact_ids: [...contactIds] });
   if (error) throw error;
   const value = recordOrEmpty(data);
@@ -269,9 +274,9 @@ export async function markContactSeen(db: Db, tenantId: string, contactIds: read
  */
 export async function markContact(
   db: Db,
-  contactId: string,
+  contactId: ContactId,
   mark: { seen: boolean; heardAt: string | null },
-): Promise<{ contact_id: string; seen_at: string | null; unread_at: string | null; marked_at: string | null }> {
+): Promise<{ contact_id: ContactId; seen_at: string | null; unread_at: string | null; marked_at: string | null }> {
   const { data, error } = await db.rpc("contact_mark", {
     p_contact_id: contactId,
     p_seen: mark.seen,
@@ -296,7 +301,7 @@ export async function markContact(
 export async function recordConsent(
   db: Db,
   params: {
-    contactId: string;
+    contactId: ContactId;
     purpose: "conversational" | "marketing";
     consent: string;
     source: string;
@@ -332,8 +337,8 @@ export async function recordConsent(
  */
 export async function addPersonByHand(
   db: Db,
-  params: { tenantId: string; phone: string | null; email: string | null; name: string; source: string },
-): Promise<{ data: { contact_id: string; existed: boolean } | null; error: PostgrestError | null }> {
+  params: { tenantId: TenantId; phone: string | null; email: string | null; name: string; source: string },
+): Promise<{ data: { contact_id: ContactId; existed: boolean } | null; error: PostgrestError | null }> {
   const { data, error } = params.email
     ? await db.rpc("add_person", {
         p_tenant_id: params.tenantId,

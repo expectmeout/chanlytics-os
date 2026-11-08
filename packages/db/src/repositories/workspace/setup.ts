@@ -4,6 +4,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Args<F extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][F]["Args"];
@@ -12,7 +13,7 @@ type Args<F extends keyof Database["public"]["Functions"]> = Database["public"][
 export const requestSetup = async (db: Db, args: Args<"setup_request">) => db.rpc("setup_request", args);
 
 /** Whether the workspace asked for help with any of `whats` (a `setup.requested` event): one id, or none. */
-export const findSetupAsked = async (db: Db, tenantId: string, whats: string[]) =>
+export const findSetupAsked = async (db: Db, tenantId: TenantId, whats: string[]) =>
   db
     .from("events")
     .select("id")

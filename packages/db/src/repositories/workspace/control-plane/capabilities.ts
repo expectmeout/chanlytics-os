@@ -5,6 +5,7 @@ import { hasPublicPages, openToCustomersOf, recordOrEmpty } from "@chanlytics/co
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
 import type { Db } from "./config";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The workspaces whose first run chose a number to buy (setup_choices.phone, 00513): what the lines sweep asks the
@@ -27,7 +28,7 @@ export async function listWorkspacesWithANumberChosen(db: Db): Promise<string[]>
 }
 
 /** capability_activate (00514), on the member's session: the row and its event in one write; `first` of any channel. */
-export async function activateCapabilityFn(db: Db, tenantId: string, capability: string, note: string | null) {
+export async function activateCapabilityFn(db: Db, tenantId: TenantId, capability: string, note: string | null) {
   return db.rpc("capability_activate", {
     p_tenant_id: tenantId,
     p_capability: capability,
@@ -36,7 +37,7 @@ export async function activateCapabilityFn(db: Db, tenantId: string, capability:
 }
 
 /** capability_deactivate (00514), on the member's session: {error: not_activated} when none stood. */
-export async function deactivateCapabilityFn(db: Db, tenantId: string, capability: string) {
+export async function deactivateCapabilityFn(db: Db, tenantId: TenantId, capability: string) {
   return db.rpc("capability_deactivate", { p_tenant_id: tenantId, p_capability: capability });
 }
 
@@ -71,7 +72,7 @@ export async function listTrialingWorkspaceIds(db: Db): Promise<string[]> {
 const TRIAL_PAGE = 500;
 
 /** What a workspace has used of what a trial includes (00512's trial_use): its calls' seconds and its replies. */
-export async function getTrialUse(db: Db, tenantId: string): Promise<{ callSeconds: number; replies: number }> {
+export async function getTrialUse(db: Db, tenantId: TenantId): Promise<{ callSeconds: number; replies: number }> {
   const { data, error } = await db.rpc("trial_use", { p_tenant_id: tenantId });
   if (error) throw new Error(`trial_use: ${error.message}`);
   const o = recordOrEmpty(data);
@@ -84,7 +85,7 @@ export async function getTrialUse(db: Db, tenantId: string): Promise<{ callSecon
  * links to its own (the business record's form, the wiring's second audit X4-4); null when it has none. A paused workspace
  * keeps its pages, so its billing is not read. A read that fails throws.
  */
-export async function findWorkspacePublicSlug(db: Db, tenantId: string): Promise<string | null> {
+export async function findWorkspacePublicSlug(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db
     .from("tenants")
     .select("slug, status, left_empty_at")
@@ -97,14 +98,14 @@ export async function findWorkspacePublicSlug(db: Db, tenantId: string): Promise
 }
 
 /** The workspace's name and its address, for a message that names it and links to it; null when there is no such workspace. A read that fails throws. */
-export async function findWorkspaceNamed(db: Db, tenantId: string): Promise<{ name: string; slug: string } | null> {
+export async function findWorkspaceNamed(db: Db, tenantId: TenantId): Promise<{ name: string; slug: string } | null> {
   const { data, error } = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the workspace: ${error.message}`);
   return data ? { name: data.name, slug: data.slug } : null;
 }
 
 /** The zone a workspace keeps its clock in (`tenants.timezone`); null when there is no such workspace. A read that fails throws. */
-export async function findWorkspaceZone(db: Db, tenantId: string): Promise<string | null> {
+export async function findWorkspaceZone(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the workspace's zone: ${error.message}`);
   return data?.timezone ?? null;
@@ -154,7 +155,7 @@ export async function writeLineForwarding(db: Db, args: LineForwardingArgs) {
  * caller's settings permission, the workspace's own folder, the change's event in the same transaction. An empty path
  * clears it. The address it held before, or the database's refusal.
  */
-export async function setWorkspaceLogo(db: Db, tenantId: string, path: string) {
+export async function setWorkspaceLogo(db: Db, tenantId: TenantId, path: string) {
   return db.rpc("set_workspace_logo", { p_tenant_id: tenantId, p_logo_path: path });
 }
 
@@ -212,7 +213,7 @@ export type PlaybookToStart = Required<
  */
 export async function startPlaybook(
   db: Db,
-  params: { tenantId: string; playbook: PlaybookToStart; decision: Json; via: string | null; undoOf: string | null },
+  params: { tenantId: TenantId; playbook: PlaybookToStart; decision: Json; via: string | null; undoOf: string | null },
 ): Promise<{ data: { id: string; decisionId: string } | null; error: PostgrestError | null }> {
   const { data, error } = await db.rpc("start_playbook", {
     p_tenant_id: params.tenantId,
@@ -242,7 +243,7 @@ export async function startPlaybook(
 export async function writePlaybookChange(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     playbookId: string;
     set: Json;
     decision: Json;

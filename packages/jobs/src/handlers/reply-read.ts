@@ -30,6 +30,7 @@ import type { Json } from "@chanlytics/db/types";
 import { logger } from "@chanlytics/log";
 import type { ClaimedJob, JobContext } from "../runner/context";
 import { FUNCTION_CEILING_MS, LEASE_SECONDS, type Db } from "../runner/ledger";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The plan as the door takes it: every field contracts' readingPlan answers, as JSON. */
 function planJson(plan: ReadingPlan): Json {
@@ -96,7 +97,7 @@ function draftMarkOf(m: DraftMark): { state: DraftMark["state"]; draft: string |
  */
 async function keepReachOutDraft(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   details: { conversationId: string; messageId: string; text: string; subject: string | null; used: readonly string[] },
 ): Promise<void> {
   const row = { tenantId, conversationId: details.conversationId, kind: "reply", forMessageId: details.messageId };
@@ -117,7 +118,7 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
   const messageId = typeof job.payload.message_id === "string" ? job.payload.message_id : "";
   if (!messageId) throw new Error("reply_read: payload.message_id is required");
   const { db } = ctx;
-  const where = (tenantId: string, id: string) => ({ tenantId, messageId: id });
+  const where = (tenantId: TenantId, id: string) => ({ tenantId, messageId: id });
   const outcome = await readReply(
     {
       reply: async (tenantId, id) => {

@@ -51,11 +51,12 @@ import { carriedBy, nextBatch } from "./batch-carry";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, RUN_INTERRUPTED, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";
+import type { TenantId } from "@chanlytics/contracts";
 
 export interface TerminalJob {
   id: string;
   kind: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   payload: unknown;
 }
 
@@ -135,7 +136,7 @@ function idFrom(payload: unknown, key: string): string | null {
  */
 async function noteMailboxTrouble(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   mailboxId: string | null,
 ): Promise<{ mailbox?: "marked" | "gone" | "failed" }> {
   if (!mailboxId) return {};
@@ -167,7 +168,7 @@ function resumesOf(payload: unknown): number {
  */
 async function howFar(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   broadcastId: string,
 ): Promise<{ reached: number; remaining: number; error?: string }> {
   const of = (state: SchemaSet<"sequence_sends.state">) =>

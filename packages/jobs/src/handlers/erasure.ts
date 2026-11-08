@@ -51,11 +51,12 @@ import type { Json } from "@chanlytics/db/types";
 import { errText, type ClaimedJob, type JobContext } from "../runner/context";
 import type { Db } from "../runner/ledger";
 import { scheduleJobOnce } from "../runner/schedule";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The person an erasure acts on, as the route's scope or the finish's own read found them: live, or erased and re-driven. */
 interface ErasurePerson {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   phone_e164: string | null;
   email: string | null;
   erased_at: string | null;
