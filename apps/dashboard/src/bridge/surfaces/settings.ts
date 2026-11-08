@@ -307,7 +307,7 @@ export const settingsOverride: SurfaceOverride = {
               words: templateUseWords(u),
               note: templateUseNote(u),
               unused: templateUnused(u),
-              sequence: u.sequences?.length === 1 ? u.sequences[0] : null,
+              sequence: u.sequences?.length === 1 ? (u.sequences[0] ?? null) : null,
               // Running is on and not past its last day (S1-3).
               running: u.playbooks.some((p) => !p.paused && !p.ended),
             },

@@ -381,10 +381,10 @@ export function beatWave(st: Core, v: number): void {
 export function levelAt(st: Core, t: number): number {
   for (let n = st.hist.length - 1; n >= 0; n--) {
     const a = st.hist[n];
-    if (a.t <= t) {
+    if (a && a.t <= t) {
       const b = st.hist[n + 1];
       return b && b.t > a.t ? a.v + (b.v - a.v) * ((t - a.t) / (b.t - a.t)) : a.v;
     }
   }
-  return st.hist.length ? st.hist[0].v : 0;
+  return st.hist[0]?.v ?? 0;
 }

@@ -550,8 +550,8 @@ export function RoRunDock(p: { d: BroadcastDetailDto; sheet: RunSheet | null; ac
 export function roRunHead(d: BroadcastDetailDto, sheet: RunSheet | null, phone = false) {
   const vm = reachOuts.run(d);
   if (!vm) return null;
-  const pos = sheet && sheet.position;
-  const place = pos && pos[1] > 1 ? `${pos[0]} of ${pos[1]}` : null;
+  const [at = 0, of = 0] = sheet?.position ?? [];
+  const place = of > 1 ? `${at} of ${of}` : null;
   const parts = (
     phone ? [place, vm.who, vm.step] : [vm.labels.toLeads, vm.who, vm.step, place ? `${place} waiting` : null]
   ).filter((x): x is string => !!x);

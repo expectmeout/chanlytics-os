@@ -191,11 +191,11 @@ const AskShow = ({
         {a.show.items.length ? (
           <div className="ask-items">
             {a.show.items.map((it, k) =>
-              itemMove[k] >= 0 ? (
+              (itemMove[k] ?? -1) >= 0 ? (
                 <LinePress
                   key={k}
                   kind="row"
-                  {...moveProps(itemMove[k], "ask-item")}
+                  {...moveProps(itemMove[k] ?? -1, "ask-item")}
                   onClick={() => onNav(it.source.to)}
                   data-testid="ask-item"
                 >
@@ -278,7 +278,7 @@ export const AskAnswer = ({
             {cardsTogether(cards || []).map((g) =>
               "plan" in g ? (
                 <AskPlan
-                  key={`plan:${g.plan[0].plan?.id}`}
+                  key={`plan:${g.plan[0]?.plan?.id}`}
                   cards={g.plan}
                   messageId={messageId}
                   t={t}

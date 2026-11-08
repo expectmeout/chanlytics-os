@@ -287,7 +287,8 @@ export function focusFromWords(words: string, rows: Row[]): AskScope | null {
     label: (r.label ?? "").slice(0, 80) || `this ${r.kind}`,
   });
   const n = placeOf(said);
-  if (n !== null && scoped[n - 1]) return asScope(scoped[n - 1]);
+  const placed = n === null ? undefined : scoped[n - 1];
+  if (placed) return asScope(placed);
   let best: Row | null = null;
   const plain = words.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   for (const r of scoped) {
@@ -295,7 +296,7 @@ export function focusFromWords(words: string, rows: Row[]): AskScope | null {
     if (name.length < 3) continue;
     const at = said.indexOf(name);
     if (at < 0) continue;
-    const before = at === 0 ? " " : said[at - 1];
+    const before = said[at - 1] ?? " ";
     const after = said[at + name.length] ?? " ";
     // Whole: "Ana" is not named by "Banana".
     if (/[a-z0-9]/.test(before) || /[a-z0-9]/.test(after)) continue;

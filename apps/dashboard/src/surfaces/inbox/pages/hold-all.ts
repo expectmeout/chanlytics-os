@@ -44,6 +44,7 @@ export const ixHoldAll = async (
   answers.forEach((r, i) => {
     if (r && r.ok) return;
     const t = real[i];
+    if (!t) return;
     state[ixDraftKey(t)] = { ...(state[ixDraftKey(t)] || {}), held: false };
     refused.push({ id: t.id, who: t.who, message: (r && r.message) || null });
   });

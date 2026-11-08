@@ -184,7 +184,7 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
       const box = to.closest ? to.closest(".ask-line") : null;
       const slid =
         box && window.getComputedStyle
-          ? parseFloat(String(window.getComputedStyle(box).translate || "0").split(" ")[0]) || 0
+          ? parseFloat(String(window.getComputedStyle(box).translate || "0").split(" ")[0] ?? "") || 0
           : 0;
       const fit = MASCOT.fitSide;
       const dx = a.left + a.width / 2 - (b.left - slid + b.width / 2);
