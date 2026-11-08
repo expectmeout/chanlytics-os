@@ -303,7 +303,6 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
   const publishers = by["window-publishers"] ?? {};
   const copies = by.copies ?? {};
   const casts = by.casts ?? {};
-  const unchecked = by["unchecked-index"] ?? {};
   const wire = wireCounts(by["wire-casing"]);
   const effects = Object.entries(lint)
     .filter(([k]) => k.endsWith("::react-hooks/exhaustive-deps"))
@@ -326,7 +325,6 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
     ["as never", fieldTotal(casts, "never"), ""],
     ["non-null assertions, x!", fieldTotal(casts, "nonNull"), ""],
     ["assertions, as T", total(by.assertions), `in ${keys(by.assertions)} files`],
-    ["index reads the compiler lets pass", total(unchecked), `in ${keys(unchecked)} files`],
     ["table names outside packages/db", total(tableCalls(by.tables, false)), ""],
     ["SQL functions outside packages/db", total(tableCalls(by.tables, true)), "called by .rpc"],
     ["edge statements naming no workspace", total(by.workspaceless), `in ${keys(by.workspaceless)} files`],

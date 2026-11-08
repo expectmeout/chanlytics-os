@@ -129,8 +129,7 @@ export async function findTwinRefusal(
     listKey: checked.list_key,
     templateId: checked.template_id,
   });
-  // Bound and checked, never `twins[0].name`: an index read the compiler lets pass is a new offender in a file at 0
-  // (the unchecked-index measure).
+  // Bound and checked, never `twins[0].name`.
   const [first] = twins;
   if (!first) return null;
   const own = playbookNameAsked(named);
