@@ -6,6 +6,7 @@
 import {
   REACH_OUT_LIMITS,
   REACH_OUT_REFUSAL_WORDS,
+  reachOutPhoneProblem,
   reachOutSignatureProblem,
   textOrEmpty,
 } from "@chanlytics/contracts";
@@ -103,7 +104,11 @@ const PROBLEMS_OF: { [F in ReachOutFoldName]?: (draft: unknown) => Problems } = 
   fixes: (draft) => longer("fixes", draft, REACH_OUT_LIMITS.fixes),
   cold_tone: (draft) => longer("cold_tone", draft, REACH_OUT_LIMITS.tone),
   signed_by: (draft) => longer("signed_by", draft, REACH_OUT_LIMITS.signedBy),
-  sign_phone: (draft) => longer("sign_phone", draft, REACH_OUT_LIMITS.phone),
+  sign_phone: (draft) => {
+    const tooLong = longer("sign_phone", draft, REACH_OUT_LIMITS.phone);
+    if (tooLong.sign_phone) return tooLong;
+    return reachOutPhoneProblem(trimmed(draft)) ? { sign_phone: REACH_OUT_REFUSAL_WORDS.phone } : {};
+  },
   signature: (draft) => {
     const problem = reachOutSignatureProblem(trimmed(draft));
     if (problem === "too_long") return longer("signature", draft, REACH_OUT_LIMITS.signature);

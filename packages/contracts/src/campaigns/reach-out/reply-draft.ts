@@ -99,7 +99,9 @@ export function draftExcerpt(draft: string): string {
  * member's change is (drafts/writer.ts), never in the receptionist's own prompt.
  */
 export function replyOfferSteer(offer: string | null | undefined): string | null {
-  if (offer === "call") return "Offer a short call in the next few days, at a time that suits them, and no link.";
+  // No time of its own: told as the member's words, a time here would let a drafted promise of one past the follow-up
+  // check (drafts/writer.ts).
+  if (offer === "call") return "Offer a short call at a time that suits them, and no link.";
   if (offer === "answer") return "Answer what they asked and offer nothing more: no link and no call.";
   return null;
 }

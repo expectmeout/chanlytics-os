@@ -17,6 +17,10 @@ import {
   reachOutRuleLines,
   writesBackRows,
   replyModeHint,
+  reachOutPhoneProblem,
+  SEND_DAY_FRAME,
+  ASK_FIRST_WORDS_MAX,
+  ASK_LATER_WORDS_MAX,
 } from "@chanlytics/contracts";
 
 test("the section parses, leaves out a key it does not know, and holds its limits", () => {
@@ -88,7 +92,7 @@ test("the rules the page states are the numbers the code keeps", () => {
 });
 
 test("what a reply sets off: five rows, one of them the owner's to change", () => {
-  const rows = writesBackRows("call", "ask");
+  const rows = writesBackRows("call", "ask", true);
   assert.deepEqual(
     rows.map((r) => [r.id, r.fixed]),
     [
@@ -103,15 +107,43 @@ test("what a reply sets off: five rows, one of them the owner's to change", () =
     rows[0].value,
     "Your sequence stops for them. An answer is drafted for you to send, offering a call with you",
   );
-  assert.equal(writesBackRows(undefined, "ask")[0].value.endsWith("offering your booking link"), true);
+  assert.equal(writesBackRows(undefined, "ask", true)[0].value.endsWith("offering your booking link"), true);
   // Only a quiet Replies row stops the draft (contracts draftRefusal); whatever else it is set to, a person sends it.
   for (const mode of ["ask", "veto", "auto"])
     assert.equal(replyModeHint(mode), "Drafted while Autonomy › Replies is on. Only you send it.", mode);
 });
 
 test("with Autonomy's Replies quiet, the rows say nothing is drafted: a phone hides a filled row's hint", () => {
-  const quiet = writesBackRows("call", "never");
+  const quiet = writesBackRows("call", "never", true);
   assert.equal(quiet[0].value, "Your sequence stops for them. Nothing is drafted while Autonomy › Replies stays quiet");
   assert.equal(quiet[1].value, "A step on Today says to write again on the day they named");
   assert.equal(replyModeHint("never"), null, "the row says it; the hint would say it twice");
+});
+
+test("a phone in the signature is a number someone can be reached on, written as people write one", () => {
+  for (const ok of ["(512) 555-0142", "+44 20 7946 0958", "512.555.0142 ext. 4", ""])
+    assert.equal(reachOutPhoneProblem(ok), null, ok);
+  for (const bad of ["call me", "555", "brightline.example.com", "512-555-0142 or email"])
+    assert.equal(reachOutPhoneProblem(bad), "not_a_phone", bad);
+});
+
+test("with no booking link set, the answer to a lead offers none, and the row says so rather than promising one", () => {
+  const without = writesBackRows("booking_link", "ask", false);
+  assert.equal(
+    without[0].value,
+    "Your sequence stops for them. An answer is drafted for you to send, answering what they asked: there is no booking link to offer yet",
+  );
+  assert.equal(writesBackRows(undefined, "ask", false)[0].value, without[0].value, "unset is the booking link");
+  // A call or the answer alone never needed one.
+  assert.match(writesBackRows("call", "ask", false)[0].value, /offering a call with you$/);
+  assert.match(writesBackRows("booking_link", "ask", true)[0].value, /offering your booking link$/);
+});
+
+test("the rule lines read the window and Ask's word counts from the numbers the code keeps", () => {
+  const rules = reachOutRuleLines();
+  assert.equal(
+    rules[4],
+    `Arrives ${SEND_DAY_FRAME.from / 60} to ${SEND_DAY_FRAME.to / 60 - 12} their time, while they're open`,
+  );
+  assert.ok(rules[3].endsWith(`Ask keeps its own to ${ASK_FIRST_WORDS_MAX}, follow-ups to ${ASK_LATER_WORDS_MAX}`));
 });

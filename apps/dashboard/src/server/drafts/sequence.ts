@@ -10,6 +10,8 @@
  */
 import "server-only";
 import {
+  ASK_FIRST_WORDS_MAX,
+  ASK_LATER_WORDS_MAX,
   ASK_MEMORY_LIMITS,
   DATA_NOT_INSTRUCTIONS,
   sentAsDrafted,
@@ -76,10 +78,10 @@ const SERVICES_SAID = 12;
 
 /** What a step to leads keeps to, said once: a draft is written under it, and an email written again (rewrite.ts). */
 export const LEAD_RULES = [
-  "A step to leads is an email in the business's own words, the same words for every business it goes to: `subject` on the first only; `body` at most 80 words on the first, starting with {{opening}} on a line of its own (one line about them, written for each business later from its record), and at most 50 on a later one, which answers in the same thread. The words themselves claim and suppose nothing about the business they go to, not how busy it is, its calls, what it has or what it wants: only the opening says anything about them. Use only {{opening}}, {{business}}, {{first name}}, {{city}}, {{your name}}, {{your business}}, and {{booking link}} after the first only. No link, price or exclamation mark in the first.",
+  `A step to leads is an email in the business's own words, the same words for every business it goes to: \`subject\` on the first only; \`body\` at most ${ASK_FIRST_WORDS_MAX} words on the first, starting with {{opening}} on a line of its own (one line about them, written for each business later from its record), and at most ${ASK_LATER_WORDS_MAX} on a later one, which answers in the same thread. The words themselves claim and suppose nothing about the business they go to, not how busy it is, its calls, what it has or what it wants: only the opening says anything about them. Use only {{opening}}, {{business}}, {{first name}}, {{city}}, {{your name}}, {{your business}}, and {{booking link}} after the first only. No link, price or exclamation mark in the first.`,
   "Write a step to leads in the owner's own voice: the first emails they started before (their length, greeting, how they open, ask and sign off) and the lines Ask remembers about how they write come first: where one shows what Ask drafted beside what they sent, what they changed is how they want it, and what wrote back is what worked, where it went to enough businesses to tell (a few sends say nothing either way); you never copy a sentence of them; where there is neither, plain and short. Say what the business offers as it says it itself, from what it does and its services, never more. You may say who the email goes to as the owner's own act (\"I'm writing to a few auto shops in {{city}}\"), never as a fact about the business.",
   "Never a price, a discount or a date in any words you write.",
-  "A number about the owner's own business (how many customers, how long, a result) stands in the words only inside one of the claims it can prove, word for word; where there are none, write no such number.",
+  "A number about the owner's own business (how many customers, how long, a result) stands in the words only inside one of the claims it can prove, word for word, or as the owner said it in what they asked for; where there is neither, write no such number.",
 ];
 
 const RULES = [

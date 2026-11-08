@@ -79,9 +79,8 @@ test("the sender's workspace carries Sign-off's signature with its phone, and no
 test("what an answer to a lead offers: nothing said for the booking link, a call, or the answer alone", () => {
   assert.equal(replyOfferSteer(undefined), null);
   assert.equal(replyOfferSteer("booking_link"), null);
-  assert.equal(
-    replyOfferSteer("call"),
-    "Offer a short call in the next few days, at a time that suits them, and no link.",
-  );
+  // No time of its own: the steer is told as the owner's words, and a time there would let a drafted promise of one
+  // past the follow-up check (drafts/writer.ts promisesAFollowUpTime).
+  assert.equal(replyOfferSteer("call"), "Offer a short call at a time that suits them, and no link.");
   assert.equal(replyOfferSteer("answer"), "Answer what they asked and offer nothing more: no link and no call.");
 });

@@ -18,7 +18,7 @@ import {
   tryCheckLine,
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
-import { navigate } from "../../frame-verbs";
+import { gate, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
@@ -92,7 +92,13 @@ export function TryCard({
         id="try_lead"
         label={TRY_CARD.key}
         value={TRY_CARD.value}
-        act={{ label: TRY_CARD.act, icon: "chevron", onClick: () => fold.request() }}
+        act={{
+          label: TRY_CARD.act,
+          icon: "chevron",
+          onClick: () => fold.request(),
+          // The trial is written by the preview door, which spends Ask's day and takes an operator (route-policy.json).
+          gate: gate("approve", "write a trial email"),
+        }}
       />
       {fold.open ? (
         <RecordSheet

@@ -286,13 +286,24 @@ export function leadEmail(
   return holds ? item : { subject: first ? item.subject : null, body: "" };
 }
 
+/**
+ * What may back a number in a lead's step (decision 0113): each claim the owner stands behind, the business's name, and
+ * what the owner typed into New, which Ask is told (drafts/sequence.ts) and may repeat as the owner's own words.
+ */
+export function draftBackingOf(
+  known: Pick<DraftKnown, "business" | "proof">,
+  ask: Pick<NewDraftAsk, "words">,
+): string[] {
+  return [...(known.proof ?? []), known.business, ask.words].filter((text) => text.trim());
+}
+
 /** A call's or a note's words, kept where they say something to do. */
 const handWords = (a: NewDraftAnswerStep): string => a.words.replace(/\s+/g, " ").trim().slice(0, HAND_WORDS_MAX);
 
 function judgeStep(
   newDraftAnswerStep: NewDraftAnswerStep,
   index: number,
-  params: { audience: NewAudience; known: DraftKnown; moment: KnownMoment | null; name: string },
+  params: { audience: NewAudience; known: DraftKnown; moment: KnownMoment | null; name: string; backing: string[] },
 ): Judged {
   const first = index === 0;
   const base = {
@@ -306,8 +317,7 @@ function judgeStep(
     return { step: { ...base, does: newDraftAnswerStep.does, message: null, email: null, hand } };
   }
   if (params.audience === "leads") {
-    const backing = [...(params.known.proof ?? []), params.known.business];
-    const email = leadEmail(newDraftAnswerStep, first, backing);
+    const email = leadEmail(newDraftAnswerStep, first, params.backing);
     return { step: { ...base, does: "message", message: null, email, hand: "" } };
   }
   const message = peopleMessage(newDraftAnswerStep, first, params.known, params.moment);
@@ -318,7 +328,14 @@ function judgeStep(
 /** The steps kept, at most the audience's, a once's one; a call or a note only as the last. */
 function judgeSteps(
   answer: NewDraftAnswer,
-  params: { audience: NewAudience; kind: NewKind; known: DraftKnown; moment: KnownMoment | null; name: string },
+  params: {
+    audience: NewAudience;
+    kind: NewKind;
+    known: DraftKnown;
+    moment: KnownMoment | null;
+    name: string;
+    backing: string[];
+  },
 ): { steps: NewStep[]; cannot: string[] } {
   const max = params.kind === "once" ? 1 : NEW_STEPS_MAX[params.audience];
   const steps: NewStep[] = [];
@@ -434,7 +451,8 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
   const moment =
     personName?.kind === "moment" ? (known.moments.find((m) => m.trigger === personName.trigger) ?? null) : null;
   const name = (answer.name.trim() || personName?.label || NEW_WORDS.title).slice(0, 80);
-  const { steps, cannot } = judgeSteps(answer, { audience, kind, known, moment, name });
+  const backing = draftBackingOf(known, ask);
+  const { steps, cannot } = judgeSteps(answer, { audience, kind, known, moment, name, backing });
   const sentence = answer.cannot.trim();
   if (steps.length === 0) throw new AppError("validation", sentence || cannot[0] || NEW_WORDS.cannot.nothingFits, 422);
   const first = steps[0]?.message ?? null;

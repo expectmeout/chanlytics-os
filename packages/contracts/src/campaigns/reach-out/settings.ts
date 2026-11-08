@@ -1,82 +1,18 @@
 /**
- * How it reaches out (decision 0113): Settings' page of what a cold email is written from, and what each writer reads
- * where the owner has said nothing yet. The section is the config's (`reach_out`, config-schema.ts); the page's words,
- * its rules and its read are here, so the page, Ask and the writers say one thing.
- *
- * Each writer reads the section with a fallback that is what it read before the page existed: the offer is what the
- * business does (business_records.about) and then the owner's goal; the tone is the receptionist's; the sign-off is
- * what the caller already knew. A workspace that never opens the page is written for exactly as before.
+ * How it reaches out (decision 0113): Settings' page of what a cold email is written from. The section is the config's
+ * (`reach_out`, config-schema.ts), and what each writer reads of it is section.ts; the page's words, its rules and its
+ * read are here, so the page and Ask say one thing. Apart, since a contracts module rides whole into every page that
+ * imports it: a lead's card reads the signature, and needs none of the page's words.
  */
 import { REACH_OUT_LIMITS, type ReplyOffer } from "../../config/workspace-config/config-rules";
 import { MAILBOX_RAMP } from "../../email/mailbox-standing";
 import { mayDraftReply } from "./reply-draft";
 import { REACH_OUT_REPLY_DAYS } from "./replies/intents";
-import { REACH_OUT_WORDS_MAX, linksIn } from "./words/limits";
+import { SEND_DAY_FRAME } from "./timetable";
+import { ASK_FIRST_WORDS_MAX, ASK_LATER_WORDS_MAX, REACH_OUT_WORDS_MAX } from "./words/limits";
 
-/** The config as the readers here take it: any parsed config, or a part of one. */
-interface ReachOutReadable {
-  reach_out?: {
-    offer?: string;
-    tone?: string;
-    signed_by?: string;
-    signature?: string;
-    phone?: string;
-    proof?: readonly string[];
-    reply_offer?: ReplyOffer;
-  };
-  ask?: { goal?: string };
-  brain?: { profile?: { tone?: string } };
-}
-
-const filled = (text: string | null | undefined): string | null => text?.trim() || null;
-
-/** What a cold email offers: the owner's words on the page, else what the business does, else its goal. */
-export function reachOutOfferOf(config: ReachOutReadable | null | undefined, about: string | null): string | null {
-  return filled(config?.reach_out?.offer) ?? filled(about) ?? filled(config?.ask?.goal);
-}
-
-/** The tone a cold email is written in: its own, else the receptionist's. */
-export function reachOutToneOf(config: ReachOutReadable | null | undefined): string | null {
-  return filled(config?.reach_out?.tone) ?? filled(config?.brain?.profile?.tone);
-}
-
-/** The name a new sequence signs with: the page's, else what the caller knew (the member's first name, the last sequence's). */
-export function reachOutSignedByOf(
-  config: ReachOutReadable | null | undefined,
-  otherwise: string | null,
-): string | null {
-  return filled(config?.reach_out?.signed_by) ?? filled(otherwise);
-}
-
-/**
- * What Sign-off puts under the name a cold email signs with: the Signature row's lines, the phone as the last; null where
- * both are empty. Every email Chanlytics sends carries it through the one ending rule (rules.ts coldEndingOf), which
- * keeps a mailbox's own signature in its place where the sequence signs with the mailbox.
- */
-export function reachOutSignatureOf(config: ReachOutReadable | null | undefined): string | null {
-  const lines = [...(config?.reach_out?.signature ?? "").split(/\r\n|\r|\n/), config?.reach_out?.phone ?? ""]
-    .map((line) => line.trim())
-    .filter(Boolean);
-  return lines.length ? lines.join("\n") : null;
-}
-
-/** What may back a number in a step's own words: each claim the owner stands behind, and the business's name. */
-export function reachOutBackingOf(config: ReachOutReadable | null | undefined, businessName: string | null): string[] {
-  const claims = (config?.reach_out?.proof ?? []).map((c) => c.trim()).filter(Boolean);
-  const name = filled(businessName);
-  return name ? [...claims, name] : claims;
-}
-
-export type SignatureProblem = "too_long" | "too_many_lines" | "link";
-
-/** What is wrong with a signature: longer than its limit, past its lines, or a link (the foot's link is code's). */
-export function reachOutSignatureProblem(text: string): SignatureProblem | null {
-  const t = text.trim();
-  if (!t) return null;
-  if (t.length > REACH_OUT_LIMITS.signature) return "too_long";
-  if (t.split(/\r\n|\r|\n/).length > REACH_OUT_LIMITS.signatureLines) return "too_many_lines";
-  return linksIn(t).length > 0 ? "link" : null;
-}
+/** A whole hour of the day, from minutes past midnight, as a clock face says it: 9, 5. */
+const clockHour = (minutes: number): number => ((Math.floor(minutes / 60) + 11) % 12) + 1;
 
 /** The rules every cold email keeps, as the page states them: read from the numbers the code keeps. */
 export function reachOutRuleLines(): string[] {
@@ -86,8 +22,8 @@ export function reachOutRuleLines(): string[] {
     "Says only what their listing or website shows, never a guess",
     "No prices, discounts or dates",
     "No link in the first email, one at most after",
-    `Under ${REACH_OUT_WORDS_MAX} words, no line in capitals. Ask keeps its own to 80, follow-ups to 50`,
-    "Arrives 9 to 5 their time, while they're open",
+    `Under ${REACH_OUT_WORDS_MAX} words, no line in capitals. Ask keeps its own to ${ASK_FIRST_WORDS_MAX}, follow-ups to ${ASK_LATER_WORDS_MAX}`,
+    `Arrives ${clockHour(SEND_DAY_FRAME.from)} to ${clockHour(SEND_DAY_FRAME.to)} their time, while they're open`,
     `A new mailbox sends ${first} a day, then ${later.join(", ")} and ${lastRise}, a week apart`,
     `Listens ${REACH_OUT_REPLY_DAYS} days for a reply, and stops the moment one comes`,
   ];
@@ -108,13 +44,18 @@ export interface WritesBackRow {
   fixed: boolean;
 }
 
+/** What an answer offering the booking link ends with where How it answers has none: the answer, and no link. */
+const NO_BOOKING_LINK = "answering what they asked: there is no booking link to offer yet";
+
 /**
  * What a reply from a lead sets off, by what it was read as (contracts readingPlan, replies/reading.ts): the one table
  * of effects, said as the page says it. Only what the answer offers is the owner's to choose. With Autonomy's Replies
- * quiet nothing is drafted (mayDraftReply), and the rows say so themselves: a phone hides a filled row's hint.
+ * quiet nothing is drafted (mayDraftReply), and the rows say so themselves: a phone hides a filled row's hint. The
+ * booking link is offered only where the receptionist has one (drafts/writer.ts), so with none the row says so.
  */
-export function writesBackRows(offer: ReplyOffer | undefined, mode: string): WritesBackRow[] {
-  const ends = REPLY_OFFER_WORDS[offer ?? "booking_link"].ends;
+export function writesBackRows(offer: ReplyOffer | undefined, mode: string, hasBookingLink: boolean): WritesBackRow[] {
+  const chosen = offer ?? "booking_link";
+  const ends = chosen === "booking_link" && !hasBookingLink ? NO_BOOKING_LINK : REPLY_OFFER_WORDS[chosen].ends;
   const drafted = mayDraftReply(mode);
   const later = "A step on Today says to write again on the day they named";
   return [
@@ -152,6 +93,7 @@ export const REACH_OUT_REFUSAL_WORDS = {
   tooLong: (max: number) => `Keep it under ${max} characters.`,
   claims: `Up to ${REACH_OUT_LIMITS.claims} claims.`,
   signature: `${REACH_OUT_LIMITS.signatureLines} lines at most, and no link.`,
+  phone: "A phone number, as people write one: its digits, with spaces, dashes or brackets.",
   unbacked:
     "Not written: it kept saying a number about your business that none of your claims backs. Add it to Proof you stand behind, on How it reaches out.",
 } as const;

@@ -157,6 +157,24 @@ test("the rail lists it under Receptionist, after How it answers, and its rows o
   assert.equal(settingsRowRoute("offer"), "admin/outreach/offer");
 });
 
+test("Try it is the role's to press as the preview door is: a viewer's press is refused, and nothing opens", () => {
+  // The door that writes the trial takes an operator and spends Ask's day (route-policy.json reach-outs/preview); the
+  // stand-in refuses what a viewer may not approve, as the frame's gate does, its handler spread over the act's.
+  const before = globalThis.window.gate;
+  globalThis.window.gate = (action, doing) =>
+    action === "approve" ? { "aria-disabled": true, "data-refused": doing, onClick: () => {} } : {};
+  try {
+    let tree = page();
+    const act = byTestId(tree, "rec-row-act-try_lead");
+    assert.equal(act.props["data-refused"], "write a trial email");
+    press(act);
+    tree = redrawTab();
+    assert.equal(byTestId(tree, "rec-try-none"), null, "the sheet stays shut");
+  } finally {
+    globalThis.window.gate = before;
+  }
+});
+
 test("Try it with no running sequence to leads says to start one, and asks the preview door nothing", () => {
   const asked = [];
   globalThis.window.fetch = (url) => {

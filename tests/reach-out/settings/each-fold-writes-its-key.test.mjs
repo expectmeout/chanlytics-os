@@ -104,3 +104,10 @@ test("a fold opens on what the section holds, never on what a writer reads in it
   const bare = { brain: STORED.brain };
   for (const fold of FOLDS) assert.deepEqual(S.draftOf(fold, bare), fold === "proof" ? [] : "", fold);
 });
+
+test("the phone's fold refuses words that are no phone number, under its box", () => {
+  assert.deepEqual(S.problemsOf("sign_phone", "call me"), {
+    sign_phone: "A phone number, as people write one: its digits, with spaces, dashes or brackets.",
+  });
+  assert.deepEqual(S.problemsOf("sign_phone", "(512) 555-0142"), {});
+});

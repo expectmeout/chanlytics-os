@@ -8,7 +8,8 @@ import assert from "node:assert/strict";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
-const { leadEmail } = await import("../../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
+const { draftBackingOf, leadEmail } =
+  await import("../../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
 const { unbackedNumbers } = await import("../../../apps/dashboard/src/server/campaigns/sequences/numbers.ts");
 
 test("a number nothing backs is named, once, as written", () => {
@@ -38,4 +39,18 @@ test("a step Ask drafted with a number no claim backs is left for the owner to w
   };
   assert.equal(leadEmail(words, true, []).body, "");
   assert.equal(leadEmail(words, true, ["We clean 40 clinics across Austin."]).body, words.body);
+});
+
+test("what the owner typed into New backs a number Ask repeats from it, as a claim does", () => {
+  const known = { business: "Brightline Cleaning", proof: ["We clean 40 clinics across Austin today."] };
+  const ask = { words: "Mention we've cleaned offices for 12 years" };
+  assert.deepEqual(draftBackingOf(known, ask), [
+    "We clean 40 clinics across Austin today.",
+    "Brightline Cleaning",
+    "Mention we've cleaned offices for 12 years",
+  ]);
+  const step = { subject: "Evening cleaning", body: "{{opening}}\n\n12 years of night shifts, and 40 clinics today." };
+  assert.equal(leadEmail(step, true, draftBackingOf(known, ask)).body, step.body);
+  // Without the owner's line, the 12 is nobody's: the step is left for the owner to write.
+  assert.equal(leadEmail(step, true, draftBackingOf(known, { words: "Email the clinics" })).body, "");
 });

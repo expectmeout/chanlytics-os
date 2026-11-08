@@ -88,7 +88,7 @@ export function WritesBackCard(shared: OutreachShared) {
   const chosen = textOrEmpty(shared.config.reach_out?.reply_offer);
   const offer = isReplyOffer(chosen) ? chosen : undefined;
   const mode = shared.read?.reply_mode ?? "ask";
-  const [first, ...fixed] = writesBackRows(offer, mode);
+  const [first, ...fixed] = writesBackRows(offer, mode, !!shared.brain.booking_link?.trim());
   return (
     <OutreachCard id="writes-back" title={SENDS_CARDS.writesBack.title} sub={SENDS_CARDS.writesBack.sub}>
       {first ? (

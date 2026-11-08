@@ -10,6 +10,12 @@ import { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SUBJECT_MAX, type Rea
 /** The whole email as a business reads it, the opening counted at its most (§4.4). */
 export const REACH_OUT_WORDS_MAX = 120;
 
+/** Ask's own words for a step to leads, shorter than the owner may write (drafts/sequence.ts LEAD_RULES): the first. */
+export const ASK_FIRST_WORDS_MAX = 80;
+
+/** Ask's own words for a later step, which answers in the same thread. */
+export const ASK_LATER_WORDS_MAX = 50;
+
 export const OPENING_WORDS_MAX = 40;
 
 /** An opening's length in characters, as a send stores it (00197 reach_out_sends.opening): forty words fit well within. */

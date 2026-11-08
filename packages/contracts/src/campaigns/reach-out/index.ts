@@ -240,27 +240,25 @@ export type { ReachOutReplySaidInput } from "./schemas";
 export type { ReachOutPreviewInput } from "./schemas";
 export type { ReachOutAddInput, ReachOutRepliesQuery } from "./schemas";
 export {
-  REACH_OUT_REFUSAL_WORDS,
-  REACH_OUT_SETTINGS_WORDS,
   reachOutBackingOf,
   reachOutOfferOf,
-  reachOutRuleLines,
+  reachOutPhoneProblem,
   reachOutSignatureOf,
   reachOutSignatureProblem,
   reachOutSignedByOf,
   reachOutToneOf,
+} from "./section";
+export type { PhoneProblem, SignatureProblem } from "./section";
+export {
+  REACH_OUT_REFUSAL_WORDS,
+  REACH_OUT_SETTINGS_WORDS,
+  reachOutRuleLines,
   REPLY_OFFER_WORDS,
   replyModeHint,
   tryCheckLine,
   writesBackRows,
 } from "./settings";
-export type {
-  ReachOutSettingsDto,
-  ReachOutSettingsMailbox,
-  ReachOutSettingsSequence,
-  SignatureProblem,
-  WritesBackRow,
-} from "./settings";
+export type { ReachOutSettingsDto, ReachOutSettingsMailbox, ReachOutSettingsSequence, WritesBackRow } from "./settings";
 export {
   approvalWordsOf,
   chainHintOf,
@@ -322,6 +320,8 @@ export {
 export type { HeldClaimKind, HoldDoor, ReachOutHold } from "./words/claims";
 export {
   ANGLE_WORDS_MAX,
+  ASK_FIRST_WORDS_MAX,
+  ASK_LATER_WORDS_MAX,
   emailWordCount,
   linkCount,
   linksIn,

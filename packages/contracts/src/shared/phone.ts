@@ -83,6 +83,19 @@ export function phoneDialable(raw: string | null | undefined): boolean {
   return /^[2-9]/.test(area) && /^[2-9]/.test(exchange) && !n11(area) && !n11(exchange);
 }
 
+/** An extension written after a number: "ext. 4", "x12". */
+const EXTENSION = /\s*(?:ext\.?|x)\s*\d{1,6}$/i;
+
+/**
+ * A number as a person writes one for others to read and dial (a cold email's signature, decision 0113): its digits,
+ * with spaces, dashes, dots, brackets and a leading plus, an extension after it, and nothing else; what is left is a
+ * number normalizePhone takes. Words beside it ("or email") are a second thing, not a phone.
+ */
+export function phoneAsWritten(text: string): boolean {
+  const number = text.trim().replace(EXTENSION, "");
+  return /^\+?[\d\s().-]+$/.test(number) && normalizePhone(number) !== null;
+}
+
 export function whyNotAPhone(raw: string | null | undefined): string | null {
   if (normalizePhone(raw)) return null;
   const digits = String(raw ?? "").replace(/[^\d]/g, "");
