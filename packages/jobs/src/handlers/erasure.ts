@@ -23,6 +23,8 @@
  * the block, Storage and the scrubs granted to it alone; the job hands the service role's for both, which erase_contact
  * and the Ask scrub admit for a person whose block an owner's press wrote (00501).
  */
+import type { ContactId } from "@chanlytics/contracts";
+import { heldContactId } from "@chanlytics/contracts";
 import { AppError, MIN_MS } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/log";
 import { scrubAppointments } from "@chanlytics/db/calendar";
@@ -55,7 +57,7 @@ import type { TenantId } from "@chanlytics/contracts";
 
 /** The person an erasure acts on, as the route's scope or the finish's own read found them: live, or erased and re-driven. */
 interface ErasurePerson {
-  id: string;
+  id: ContactId;
   tenant_id: TenantId;
   phone_e164: string | null;
   email: string | null;
@@ -566,7 +568,7 @@ async function scrubAppointmentsBestEffort(
 export async function finishErasure(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const contactId = job.payload.contact_id;
   if (typeof contactId !== "string") throw new Error("erasure_finish: the payload names no contact");
-  const contact = await findErasableContact(ctx.db, contactId);
+  const contact = await findErasableContact(ctx.db, heldContactId(contactId));
   if (!contact || contact.tenant_id !== job.tenant_id) {
     logger().warn("erasure_finish_nobody", { tenant_id: job.tenant_id, job: job.id, contact: contactId });
     return;
