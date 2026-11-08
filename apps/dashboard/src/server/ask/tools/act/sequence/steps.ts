@@ -119,11 +119,8 @@ async function stepMessage(
 /** The fields of a step after the first, as the step door takes them. */
 export const STEP_FIELDS = {
   after_days: z.number().int().min(1).max(90).describe("Days after the step before it, 1 to 90."),
-  only_if: z
-    .array(z.enum(FOLLOW_UP_CONDITIONS))
-    .optional()
-    .describe("What must still hold for it to go: no_booking, no_reply."),
-  name: z.string().optional().describe("The step's name on the page."),
+  only_if: z.array(z.enum(FOLLOW_UP_CONDITIONS)).optional().describe("What must still hold for it to go."),
+  name: z.string().optional().describe("Its name on the page."),
   params: z.array(z.string()).optional().describe("The message's values in order, as action moment takes them."),
 };
 

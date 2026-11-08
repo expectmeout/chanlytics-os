@@ -97,7 +97,7 @@ export const autonomyAction = actAction({
     // The classes the Autonomy pane draws: a reach-out's is set where reach-outs are made (Part 4).
     class: z
       .enum(POLICY_CLASSES.filter((c) => c !== "outreach") as [string, ...string[]])
-      .describe("The class of message: reply, booking, faq, reengage, campaign, reviews, or follow_up."),
+      .describe("The class of message."),
     mode: z
       .enum(POLICY_MODES)
       .optional()
@@ -112,7 +112,7 @@ export const autonomyAction = actAction({
     { class: "reply", min_confidence: 0.8 },
   ],
   label: "Preparing an autonomy change",
-  words: `Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or the reply to a review, so a person can stop it), and a mode a class does not take is refused in that page's words. For reengage, campaign and follow_up the row is what a NEW sequence starts as (decision 0064): each existing sequence keeps its own mode, changed by propose_sequence's change with its mode; a sequence that should not send is paused, so those rows take no never. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.`,
+  words: `Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want it to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its Autonomy row offers (veto holds a reply, or the reply to a review, so a person can stop it); a mode a class does not take is refused in that page's words. For reengage, campaign and follow_up the row is what a NEW sequence starts as (decision 0064): each existing sequence keeps its own mode, changed by propose_sequence's change with its mode, and a sequence that should not send is paused, so those rows take no never. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.`,
   build: (t, input) =>
     proposePolicy(t, { class: input.class, mode: input.mode ?? "", min_confidence: input.min_confidence }),
 });

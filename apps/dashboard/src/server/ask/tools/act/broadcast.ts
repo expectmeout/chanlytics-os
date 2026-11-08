@@ -408,18 +408,9 @@ export const broadcastAction = actAction({
       audience_kind: "everyone",
       params: ["@first_name", "20% off until Friday"],
     },
-    { template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70", audience_kind: "list", audience_id: "quiet", params: [] },
-    {
-      template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
-      audience_kind: "saved",
-      audience_id: "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b",
-      params: ["@first_name"],
-      scheduled_for: "2026-10-03T15:00:00-04:00",
-      name: "October offer",
-    },
   ],
   label: "Preparing a send",
   words:
-    "Action once takes template_id, one message (the id of any of its versions, as sequences with action lists lists it), and proposes sending it to an audience, everyone whose yes covers it (a reminder or a confirmation the yes to messages, an offer or news the yes to offers) or any list sequences with action lists names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the message's values in order (typed text, or @first_name, @business_name, @booking_link or @review_link, the link its Google listing keeps for a review, to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), an optional name, and optional channels (whatsapp, sms, email; whatsapp when none is named, so for a message that holds email or text name the channels its `channels` in sequences with action lists say it holds): each person is reached once, on the first it can, and a channel the workspace cannot send on, or the message has no version for, is refused.",
+    "Action once takes template_id, one message (any of its versions' ids, as sequences with action lists lists it), and proposes sending it to an audience: everyone whose yes covers it (a reminder or a confirmation the yes to messages, an offer or news the yes to offers) or any list sequences with action lists names (audience_kind everyone; list for a People list, its id as audience_id; saved for one of the workspace's own, with its audience_id); params are the message's values in order (typed text, or @first_name, @business_name, @booking_link or @review_link, filled per person); scheduled_for, optional, is an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date); name is optional; channels, optional (whatsapp, sms, email; whatsapp when none is named, so for a message that holds email or text name the channels its `channels` in sequences with action lists say it holds): each person is reached once, on the first it can, and a channel the workspace cannot send on, or the message has no version for, is refused.",
   build: proposeBroadcast,
 });

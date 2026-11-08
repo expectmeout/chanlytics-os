@@ -79,7 +79,7 @@ export const propose_call = defineActions({
       examples: [{ call_id: "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", text: "Offer Saturday at 10." }],
       label: "Preparing a whisper",
       words:
-        "Action whisper takes call_id and text: a sentence only the phone receptionist hears, worked into its next answer to the caller. It shapes what the receptionist says next and never reaches the caller as written.",
+        "Action whisper takes call_id and text, a sentence only the phone receptionist hears, worked into its next answer to the caller; it never reaches the caller as written.",
       build: proposeWhisper,
     }),
     hand_over: actAction({

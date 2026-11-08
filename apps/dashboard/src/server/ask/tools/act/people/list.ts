@@ -227,7 +227,7 @@ export const propose_list = defineActions({
   description: [
     [
       "Propose a list on People, as a card the person asking approves, by action: a new list, one that keeps itself current by its rule or one kept by hand with the people they name, one of the workspace's own renamed or its rule changed, or one taken down. Nothing is made until they approve.",
-      "A list is an audience a sequence or a send can go to, and a line on People's rail; who is on it is counted over everyone in People, as a send counts it, and the card says how many are on it today.",
+      "A list is an audience a sequence or a send can go to, and a line on People's rail; who is on it is counted over everyone in People, as a send counts, and the card says how many are on it today.",
       "A rule is written in the list vocabulary:",
     ].join(" "),
     ...LIST_RULE_LINES,
@@ -255,19 +255,6 @@ export const propose_list = defineActions({
       examples: [
         { name: "Lapsed regulars", all: [{ field: "last_visit", op: "more_than", days: 60 }], cannot: "regulars" },
         {
-          name: "Texters who said yes",
-          all: [
-            {
-              any: [
-                { field: "channel", op: "is", channel: "sms" },
-                { field: "channel", op: "is", channel: "whatsapp" },
-              ],
-            },
-            { field: "said_yes", op: "is", to: "offers", yes: true },
-          ],
-          cannot: "",
-        },
-        {
           name: "Family",
           ids: ["a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"],
           cannot: "",
@@ -275,16 +262,22 @@ export const propose_list = defineActions({
       ],
       label: "Preparing a list",
       words:
-        "Action make takes name and either all (its rule) and cannot, for a new list that keeps itself current, or ids, for a new list kept by hand that starts with the people a read returned ([] for an empty one they fill on People), as People's New list makes one. Call it when they want a group of people kept together, to look at or to send to later: by a rule where what they describe is one, by hand where they name the people.",
+        "Action make takes name and either all (its rule) and cannot, for a new list that keeps itself current, or ids, for a new list kept by hand that starts with the people a read returned ([] for an empty one they fill on People). Call it when they want a group of people kept together, to look at or to send to later: by a rule where what they describe is one, by hand where they name the people.",
       build: proposeList,
     }),
     change: actAction({
       kind: "list_change",
       input: z.object({
         list_id: LIST_ID,
-        name: z.string().optional().describe("Its new name."),
+        name: z
+          .string()
+          .optional()
+          .describe(`What People calls the list, at most ${LIST_NAME_MAX} characters, one no list of theirs has.`),
         all: ALL.optional(),
-        cannot: z.string().optional().describe("What the new rule cannot say, in a few words."),
+        cannot: z
+          .string()
+          .optional()
+          .describe("What they asked that the rule cannot say, in a few words; empty when nothing was left out."),
       }),
       examples: [{ list_id: "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b", name: "Regulars (90 days)" }],
       label: "Preparing the list change",
