@@ -15,6 +15,7 @@ import {
   toldPart,
   toldShares,
   leadReplyNote,
+  tryCheckLine,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -107,5 +108,30 @@ test("Try it marks the line written for them and each claim where they stand, an
   assert.deepEqual(
     tryPartsOf("No claim here.", null, ["A claim the words do not carry."]).map((p) => p.source),
     ["words"],
+  );
+});
+
+test("what Try it says under the email: the check's verdict, a hold, that it could not be written, or no lead there", () => {
+  const preview = (over) => ({
+    lead: { id: "l1", business_name: "Lakeside Bakery", email: "hello@example.com" },
+    refused: null,
+    detail: null,
+    unavailable: false,
+    ...over,
+  });
+  assert.equal(tryCheckLine({ refused: null, preview: preview({}) }), "Checked: nothing guessed, no link, no price");
+  assert.equal(
+    tryCheckLine({ refused: null, preview: preview({ refused: "It guessed" }) }),
+    "Held for you: It guessed",
+  );
+  assert.equal(
+    tryCheckLine({ refused: null, preview: preview({ unavailable: true }) }),
+    "It could not be written just now. Write another.",
+  );
+  assert.equal(tryCheckLine({ refused: "The search is gone", preview: null }), "The search is gone");
+  // Past the search's last lead the door answers no lead at all: never "checked", since nothing was written.
+  assert.equal(
+    tryCheckLine({ refused: null, preview: preview({ lead: null }) }),
+    "That was the last lead in the search. Another lead starts over.",
   );
 });

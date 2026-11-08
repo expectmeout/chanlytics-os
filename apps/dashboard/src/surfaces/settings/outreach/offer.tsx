@@ -73,7 +73,7 @@ export function OfferCard(shared: OutreachShared) {
         id: "offer",
         label: OFFER_CARDS.offer.offer,
         rows: 3,
-        placeholder: "After-hours cleaning for dental offices, so every morning starts spotless.",
+        placeholder: OFFER_CARDS.offer.placeholders.offer,
         fallback,
         from,
       })}
@@ -81,13 +81,13 @@ export function OfferCard(shared: OutreachShared) {
         id: "who_for",
         label: OFFER_CARDS.offer.whoFor,
         rows: 1,
-        placeholder: "Dental and medical clinics in Austin",
+        placeholder: OFFER_CARDS.offer.placeholders.whoFor,
       })}
       {wordsFold(shared, {
         id: "fixes",
         label: OFFER_CARDS.offer.fixes,
         rows: 2,
-        placeholder: "Cleaners who come in during opening hours, or miss rooms",
+        placeholder: OFFER_CARDS.offer.placeholders.fixes,
       })}
     </OutreachCard>
   );
@@ -103,10 +103,10 @@ const ProofRows = ({ f }: { f: Fields }) => {
         <div className="ro-claim" key={index} data-testid={`rec-claim-${index}`}>
           <RecordBox
             id={`ro-claim-${index}`}
-            label={`Claim ${index + 1}`}
+            label={OFFER_CARDS.proof.claim(index + 1)}
             rows={2}
             value={claim}
-            placeholder="We clean 40 clinics across Austin today."
+            placeholder={OFFER_CARDS.proof.placeholder}
             onChange={(v) =>
               put(
                 claims.map((c, j) => (j === index ? v : c)),
@@ -120,7 +120,7 @@ const ProofRows = ({ f }: { f: Fields }) => {
             variant="quiet"
             size="sm"
             iconOnly
-            aria-label={`Remove claim ${index + 1}`}
+            aria-label={OFFER_CARDS.proof.remove(index + 1)}
             {...f.press(() =>
               put(
                 claims.filter((_, j) => j !== index),

@@ -124,7 +124,7 @@ export function WritesCard(shared: OutreachShared & { again: () => void }) {
         key: "tone",
         label: WRITES_CARDS.writes.tone,
         rows: 2,
-        placeholder: "Direct and friendly, no small talk",
+        placeholder: WRITES_CARDS.writes.tonePlaceholder,
         empty: receptionist ?? WRITES_CARDS.offer.empty,
         hint: receptionist ? WRITES_CARDS.writes.toneFrom : WRITES_CARDS.writes.toneHint,
       })}
@@ -177,7 +177,7 @@ export function SignOffCard(shared: OutreachShared) {
         key: "signed_by",
         label: WRITES_CARDS.signOff.signedBy,
         rows: 1,
-        placeholder: "Maya",
+        placeholder: WRITES_CARDS.signOff.placeholders.signedBy,
         empty: fromSequence ?? WRITES_CARDS.offer.empty,
         hint: fromSequence ? WRITES_CARDS.signOff.signedByFrom : WRITES_CARDS.signOff.signedByHint,
       })}
@@ -186,15 +186,16 @@ export function SignOffCard(shared: OutreachShared) {
         key: "signature",
         label: WRITES_CARDS.signOff.signature,
         rows: 3,
-        placeholder: "Maya Ortiz, Owner, Brightline Cleaning",
+        placeholder: WRITES_CARDS.signOff.placeholders.signature,
         empty: WRITES_CARDS.signOff.signatureNone,
+        hint: WRITES_CARDS.signOff.signatureHint,
       })}
       {keyFold(shared, {
         id: "sign_phone",
         key: "phone",
         label: WRITES_CARDS.signOff.phone,
         rows: 1,
-        placeholder: "(512) 555-0148",
+        placeholder: WRITES_CARDS.signOff.placeholders.phone,
         empty: WRITES_CARDS.signOff.phoneNone,
       })}
       <RecordRow

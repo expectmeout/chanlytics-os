@@ -15,6 +15,7 @@ import {
   tryPartsOf,
   type ReachOutPreviewDto,
   type ReachOutSettingsDto,
+  tryCheckLine,
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import { navigate } from "../../frame-verbs";
@@ -111,7 +112,10 @@ export function TryCard({
                 seq={seq}
                 tried={tried}
                 claims={claims}
-                another={() => setAt((n) => Math.min(n + 1, REACH_OUT_PREVIEW_INDEX_MAX))}
+                // Past the search's last lead (no lead came back), Another starts over at the first.
+                another={() =>
+                  setAt((n) => (tried.preview?.lead === null ? 0 : Math.min(n + 1, REACH_OUT_PREVIEW_INDEX_MAX)))
+                }
               />
             )}
           </div>
@@ -185,15 +189,6 @@ const TryFoot = ({ seq, again, close }: { seq: TriedSequence; again: () => void;
   </span>
 );
 
-/** What the preview's check said: why it was held, that it could not be written, or that it passed. */
-function checkLine(tried: Tried): string {
-  const preview = tried.preview;
-  const reason = preview?.refused ?? preview?.detail ?? null;
-  if (tried.refused) return tried.refused;
-  if (preview?.unavailable) return TRY_CARD.unavailable;
-  return reason ? TRY_CARD.held(reason) : TRY_CARD.checked;
-}
-
 /** The tried email: whose it is, where each line came from, what the check said, and the step after it. */
 const TriedBody = ({
   seq,
@@ -221,7 +216,7 @@ const TriedBody = ({
       </p>
       {preview?.body ? <TriedEmail preview={preview} claims={claims} /> : null}
       <p className="bt-fold-note" data-testid="rec-try-check">
-        {checkLine(tried)}
+        {tryCheckLine(tried)}
       </p>
       {preview?.angle ? <p className="bt-fold-note">{TRY_CARD.leans(preview.angle)}</p> : null}
       {seq.next ? (

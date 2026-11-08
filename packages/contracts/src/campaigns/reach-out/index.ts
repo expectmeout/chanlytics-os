@@ -245,11 +245,13 @@ export {
   reachOutBackingOf,
   reachOutOfferOf,
   reachOutRuleLines,
+  reachOutSignatureOf,
   reachOutSignatureProblem,
   reachOutSignedByOf,
   reachOutToneOf,
   REPLY_OFFER_WORDS,
   replyModeHint,
+  tryCheckLine,
   writesBackRows,
 } from "./settings";
 export type {

@@ -170,6 +170,34 @@ test("Try it with no running sequence to leads says to start one, and asks the p
   assert.ok(!asked.some((u) => u.includes("reach-outs/preview")), "no sequence, no email written");
 });
 
+test("a claim's row says how many emails carried it, from the page's own read", async () => {
+  const dto = {
+    mailbox: null,
+    month: { sent: 0, of: 2000 },
+    by_hand_per_day: 30,
+    claims: [{ text: REACH_OUT.proof[0], sends: 9 }],
+    voice: [],
+    sequence: null,
+    reply_mode: "ask",
+    about: null,
+  };
+  globalThis.window.fetch = (url) =>
+    Promise.resolve(
+      String(url).includes("settings/reach-out")
+        ? new Response(JSON.stringify({ ok: true, data: dto }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        : new Response(JSON.stringify({ ok: false }), { status: 500 }),
+    );
+  // The page's own read, kept for the tab (frame/pane-reads.ts): landed, the cards draw from it at once.
+  const { reachOutSettingsRead } = await import("../../../apps/dashboard/src/surfaces/settings/frame/pane-reads.ts");
+  const landed = await reachOutSettingsRead.read();
+  assert.equal(landed.ok, true, JSON.stringify(landed));
+  const tree = page();
+  assert.equal(textOf(byTestId(tree, "rec-row-proof-0-meta")), "In 9 emails");
+});
+
 test("What it's told opens on the drafter's words, and an answer's parts carry no share", () => {
   let tree = page();
   press(byTestId(tree, "rec-row-act-told"));

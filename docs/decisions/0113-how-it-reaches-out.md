@@ -29,7 +29,10 @@ The name a sequence signs with was typed on each one. And a number about the own
    claims), a cold email's tone, the name it signs with, a signature, a phone, and what an answer to a lead offers.
 3. **Each writer reads it, and falls back to what it read before.** The drafter is told the offer in the goal's place, who, what it fixes and the
    claims as data; the opening writer the offer, else what the business does; both the cold tone, else the receptionist's; the reply drafter what
-   an answer offers, as a member's steer. A workspace that never opens the page is written for as before.
+   an answer offers, as a member's steer. Sign-off's signature and phone go under the name of every email Chanlytics
+   sends, through the one ending rule (`coldEndingOf`): a mailbox's own signature stands in its place where a sequence
+   signs with the mailbox, and an email the owner sends from their own mail app carries none, since that app adds theirs.
+   A workspace that never opens the page is written for as before.
 4. **A number Ask writes about the owner's business stands only in a claim** (or the business's name), word for word. The words the owner types
    are theirs and never judged: a step Ask drafts with an unbacked number is left for the owner to write, as a price is; a rewrite keeps the
    numbers the owner's email already said; the lead peek's draft asks once more, then refuses in words. A time claims nothing.

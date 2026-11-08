@@ -19,6 +19,8 @@ interface ReachOutReadable {
     offer?: string;
     tone?: string;
     signed_by?: string;
+    signature?: string;
+    phone?: string;
     proof?: readonly string[];
     reply_offer?: ReplyOffer;
   };
@@ -44,6 +46,18 @@ export function reachOutSignedByOf(
   otherwise: string | null,
 ): string | null {
   return filled(config?.reach_out?.signed_by) ?? filled(otherwise);
+}
+
+/**
+ * What Sign-off puts under the name a cold email signs with: the Signature row's lines, the phone as the last; null where
+ * both are empty. Every email Chanlytics sends carries it through the one ending rule (rules.ts coldEndingOf), which
+ * keeps a mailbox's own signature in its place where the sequence signs with the mailbox.
+ */
+export function reachOutSignatureOf(config: ReachOutReadable | null | undefined): string | null {
+  const lines = [...(config?.reach_out?.signature ?? "").split(/\r\n|\r|\n/), config?.reach_out?.phone ?? ""]
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length ? lines.join("\n") : null;
 }
 
 /** What may back a number in a step's own words: each claim the owner stands behind, and the business's name. */
@@ -155,18 +169,27 @@ export const REACH_OUT_SETTINGS_WORDS = {
     empty: "Not set",
     fromAbout: "Read from what your business does, until you write it here.",
     fromGoal: "Read from your goal on Details, until you write it here.",
+    placeholders: {
+      offer: "After-hours cleaning for dental offices, so every morning starts spotless.",
+      whoFor: "Dental and medical clinics in Austin",
+      fixes: "Cleaners who come in during opening hours, or miss rooms",
+    },
   },
   proof: {
     title: "Proof you stand behind",
     sub: "The only claims it may make about you",
     add: "Add a claim",
     foot: "One per email, word for word. It never makes one up.",
+    placeholder: "We clean 40 clinics across Austin today.",
+    claim: (n: number) => `Claim ${n}`,
+    remove: (n: number) => `Remove claim ${n}`,
     count: (sends: number) => (sends > 0 ? `In ${sends} email${sends === 1 ? "" : "s"}` : "Not used yet"),
   },
   writes: {
     title: "How it writes",
     sub: "Your voice in cold emails",
     tone: "Tone",
+    tonePlaceholder: "Direct and friendly, no small talk",
     toneHint: "Cold emails only. How it answers keeps its own.",
     toneFrom: "The receptionist's, until you set one for cold emails.",
     voice: "How you write",
@@ -183,6 +206,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
     signedByFrom: "From your newest sequence, until you set it here.",
     signatureNone: "Not added",
     signature: "Signature",
+    signatureHint: "Under its name, in every email Chanlytics sends. One you send yourself gets your mail app's.",
+    placeholders: { signedBy: "Maya", signature: "Maya Ortiz, Owner, Brightline Cleaning", phone: "(512) 555-0148" },
     phone: "Phone in the signature",
     phoneNone: "Not added",
     foot: "At the bottom",
@@ -214,6 +239,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
     sub: "What each writer reads, and its share",
     value: "Three writers: the sequence's words, the line about each business, and an answer to a reply",
     everyTime: "Each reply's own: read as it arrives, so there are no words to show here.",
+    which: "Which writer",
+    share: (percent: number) => `About ${percent}% of what it reads`,
     open: "Open",
     kinds: { words: "The words", opening: "The line about them", reply: "An answer" },
     hints: {
@@ -240,6 +267,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     checked: "Checked: nothing guessed, no link, no price",
     held: (reason: string) => `Held for you: ${reason}`,
     unavailable: "It could not be written just now. Write another.",
+    pastEnd: "That was the last lead in the search. Another lead starts over.",
     leans: (facts: string) => `The line about them leans on ${facts}`,
     next: (days: number) => `Then, ${days} day${days === 1 ? "" : "s"} later, if they don't reply`,
     hint: "Nothing is sent or kept. It spends Ask's day as a lead's draft does.",
@@ -248,6 +276,20 @@ export const REACH_OUT_SETTINGS_WORDS = {
     subject: "Subject",
   },
 } as const;
+
+/** What Try it says under the tried email, from what came back: the check's verdict, a hold, or why there is no email. */
+export function tryCheckLine(tried: {
+  refused: string | null;
+  preview: { lead: unknown; refused: string | null; detail: string | null; unavailable: boolean } | null;
+}): string {
+  const words = REACH_OUT_SETTINGS_WORDS.try;
+  if (tried.refused) return tried.refused;
+  if (!tried.preview || tried.preview.unavailable) return words.unavailable;
+  // Past the search's last lead the door answers no lead at all: nothing was written, so nothing was checked.
+  if (tried.preview.lead === null) return words.pastEnd;
+  const reason = tried.preview.refused ?? tried.preview.detail;
+  return reason ? words.held(reason) : words.checked;
+}
 
 /** A mailbox as Where it sends from shows it: Connections' own words for where it stands (mailboxWords). */
 export interface ReachOutSettingsMailbox {

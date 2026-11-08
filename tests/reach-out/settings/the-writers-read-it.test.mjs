@@ -66,6 +66,16 @@ test("the opening writer reads the offer where the owner wrote one, else what th
   assert.deepEqual(after.opening, { name: "Brightline Cleaning", what_we_do: "Evening cleaning", tone: "Direct" });
 });
 
+test("the sender's workspace carries Sign-off's signature with its phone, and none where the rows are empty", async () => {
+  const none = await checkWorkspaceOf(workspaceDb({ brain: brainWith({}) }), T);
+  assert.equal(none.signature, null);
+  const signed = await checkWorkspaceOf(
+    workspaceDb({ brain: brainWith({}), reach_out: { signature: "Maya Ortiz\nOwner", phone: "(512) 555-0142" } }),
+    T,
+  );
+  assert.equal(signed.signature, "Maya Ortiz\nOwner\n(512) 555-0142");
+});
+
 test("what an answer to a lead offers: nothing said for the booking link, a call, or the answer alone", () => {
   assert.equal(replyOfferSteer(undefined), null);
   assert.equal(replyOfferSteer("booking_link"), null);

@@ -71,7 +71,7 @@ const partLine = (part: ToldPart, share: number | null) => (
           { share, color: "var(--ink-dim)" },
           { share: Math.max(0, 100 - share), tone: "rest" },
         ]}
-        aria-label={`About ${share}% of what it reads`}
+        aria-label={TOLD_CARD.share(share)}
         data-testid={`rec-told-share-${part.id}`}
       />
     ) : null}
@@ -135,7 +135,7 @@ export function ToldCard({ canEdit }: { canEdit: boolean }) {
           onClose={fold.close}
           tools={
             <RecordToggleGroup<ToldKind>
-              label="Which writer"
+              label={TOLD_CARD.which}
               value={kind}
               options={KINDS}
               onChange={setKind}

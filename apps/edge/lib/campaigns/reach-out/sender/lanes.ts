@@ -286,6 +286,8 @@ export interface Made {
   parent: ParentEmail | null;
   /** How its sequence ends its emails (00492, decision 0077). */
   signsWith: "name" | "mailbox";
+  /** Sign-off's signature (decision 0113), under the name where the mailbox's does not stand; null where none is set. */
+  own: string | null;
   /** The lead's preview its words carry as {{their preview}} (decision 0079): its first send starts its thirty days. */
   previewId: string | null;
 }
@@ -408,6 +410,7 @@ export async function sendFromMailbox(
     opening,
     from: turn.go,
     signsWith: match.signsWith,
+    own: match.own,
     unsubscribe: { secret: tick.lane.unsubscribeSecret, origin: tick.lane.unsubscribeOrigin },
     parent: match.parent,
   });

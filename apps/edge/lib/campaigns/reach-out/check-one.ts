@@ -30,6 +30,7 @@ import {
   parseOpening,
   parseReading,
   parseTenantConfig,
+  reachOutSignatureOf,
   reachOutToneOf,
   readingSystemPrompt,
   readingUserContent,
@@ -403,6 +404,8 @@ export interface CheckWorkspace {
   businessName: string | null;
   address: string | null;
   bookingLink: string | null;
+  /** Sign-off's signature with its phone (decision 0113): under the name of every email the sender and the preview lay out. */
+  signature: string | null;
 }
 
 export async function checkWorkspaceOf(db: Db, tenantId: string): Promise<CheckWorkspace> {
@@ -418,5 +421,6 @@ export async function checkWorkspaceOf(db: Db, tenantId: string): Promise<CheckW
     businessName: name,
     address: brain?.profile?.address?.trim() || null,
     bookingLink: brain?.booking_link?.trim() || null,
+    signature: reachOutSignatureOf(config),
   };
 }

@@ -73,6 +73,7 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
     // How it ends, as the send ends it (0077): the signature of the first mailbox the sequence writes from.
     signsWith: chain.signs_with ?? "name",
     signature: chainFirstSender(chain)?.signature?.words ?? null,
+    own: business.signature,
   });
   if ("why" in mail) throw new AppError("validation", mail.why, 422);
   return mail;

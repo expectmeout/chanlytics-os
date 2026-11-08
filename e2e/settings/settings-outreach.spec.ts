@@ -46,7 +46,8 @@ test.describe("Settings › How it reaches out on a real workspace", () => {
     await openPage(page);
     for (const id of CARDS) await expect(page.getByTestId(id)).toBeVisible();
     await page.getByTestId("rec-row-act-offer").click();
-    const box = page.getByTestId("rec-offer-box");
+    // The kit puts the field's test id on its wrapper; the words go into the box inside it.
+    const box = page.getByTestId("rec-offer-box").locator("textarea, input");
     await expect(box).toBeVisible();
     await box.fill("Evening cleaning for clinics");
     await page.getByTestId("rec-fold-cancel-offer").click();
