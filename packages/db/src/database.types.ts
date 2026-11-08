@@ -11335,6 +11335,13 @@ export type Database = {
         }
         Returns: Json
       }
+      sequence_sent_by_step: {
+        Args: { p_step_ids: string[]; p_tenant_id: string }
+        Returns: {
+          sent: number
+          step_id: string
+        }[]
+      }
       sequence_stale_sends: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {

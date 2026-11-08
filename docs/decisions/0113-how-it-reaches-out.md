@@ -48,6 +48,9 @@ The name a sequence signs with was typed on each one. And a number about the own
    its schema, its examples) put the owner's tools over `ASK_TOOLS_CHARS_CEILING`. Its jump is _Reaching out_ (a jump is three words at most),
    found by the page's own name too.
 
+**The claims' counts (00567):** each claim's "In N emails" is one read of the sends, however many steps carry it (`sequence_sent_by_step`, under the
+caller's row security), where it was one count a step.
+
 ## Calls made, and how to undo them
 
 - Under Receptionist, beside How it answers. Undo: a group of its own, Outreach (one line in `settings/frame/tabs.ts`).

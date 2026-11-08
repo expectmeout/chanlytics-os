@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 174 | 174 |
-| reader | 72 | 0 |
+| reader | 73 | 0 |
 | the server's | 315 | 271 |
 | computed column | 3 | 0 |
 | trigger | 99 | 69 |
-| all | 663 | 514 |
+| all | 664 | 514 |
 
 ## Called by nothing
 
@@ -613,6 +613,7 @@ being read is dropped by a migration.
 | `sequence_sends_move_enrollment` | trigger | the server | trigger `sequence_sends_enrol on sequence_sends`, `sequence_sends_move_enrollment on sequence_sends` |  |
 | `sequence_sends_on_erase` | trigger | the server | trigger `contacts_erase_clears_run_words on contacts` | When a person is erased, the words each batch kept for them (a visit's time, service and calendar key, a proposal's link) are cleared; |
 | `sequence_sends_place` | trigger | the server | trigger `sequence_sends_place on sequence_sends` |  |
+| `sequence_sent_by_step` | reader | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/proof.ts` | How many emails each step sent (decision 0113, 00567): |
 | `sequence_stale_sends` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/reach-out.ts` | A lead's planned sends due since before p_before in batches that go ahead, of a running step of a running sequence, oldest first, at most p_limit (00186). |
 | `sequence_state_of` | the server's | the server | SQL `sequence_steps_say_sequence` |  |
 | `sequence_step_remove` | reader | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/server/ask/tools/act/sequence/sequence.ts` and 5 more | A customer's step after the first taken away (0060), with the steps after it; |
