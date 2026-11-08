@@ -39,11 +39,15 @@ const CONTENT_TYPE: Record<MarkKind, string> = {
   ico: "image/x-icon",
 };
 
-const u16be = (b: Uint8Array, i: number) => (b[i] << 8) | b[i + 1];
-const u16le = (b: Uint8Array, i: number) => b[i] | (b[i + 1] << 8);
-const u24le = (b: Uint8Array, i: number) => b[i] | (b[i + 1] << 8) | (b[i + 2] << 16);
-const u32be = (b: Uint8Array, i: number) => ((b[i] << 24) >>> 0) + ((b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]);
-const u32le = (b: Uint8Array, i: number) => ((b[i + 3] << 24) >>> 0) + ((b[i + 2] << 16) | (b[i + 1] << 8) | b[i]);
+/** A byte, or 0 past the end: what the shifts below read of a missing byte, said. */
+const byteAt = (b: Uint8Array, i: number): number => b[i] ?? 0;
+const u16be = (b: Uint8Array, i: number) => (byteAt(b, i) << 8) | byteAt(b, i + 1);
+const u16le = (b: Uint8Array, i: number) => byteAt(b, i) | (byteAt(b, i + 1) << 8);
+const u24le = (b: Uint8Array, i: number) => byteAt(b, i) | (byteAt(b, i + 1) << 8) | (byteAt(b, i + 2) << 16);
+const u32be = (b: Uint8Array, i: number) =>
+  ((byteAt(b, i) << 24) >>> 0) + ((byteAt(b, i + 1) << 16) | (byteAt(b, i + 2) << 8) | byteAt(b, i + 3));
+const u32le = (b: Uint8Array, i: number) =>
+  ((byteAt(b, i + 3) << 24) >>> 0) + ((byteAt(b, i + 2) << 16) | (byteAt(b, i + 1) << 8) | byteAt(b, i));
 const ascii = (b: Uint8Array, i: number, n: number) => String.fromCharCode(...b.subarray(i, i + n));
 
 function png(b: Uint8Array): [number, number] | null {
@@ -82,7 +86,7 @@ function jpg(bytes: Uint8Array): [number, number] | null {
   let index = 2;
   while (index + 3 < bytes.length) {
     if (bytes[index] !== 0xff) return null;
-    const marker = bytes[index + 1];
+    const marker = bytes[index + 1] ?? 0;
     if (marker === 0xff) {
       index += 1; // a fill byte
       continue;

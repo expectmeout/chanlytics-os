@@ -160,7 +160,7 @@ async function rejudged(leadPorts: LeadPorts, round: LeadRoundRow, sites: SiteRe
     await markPlaces(
       leadPorts,
       sites,
-      places.filter((pl, i) => xs[i].m.class === "excluded" && pl.member.class !== "excluded").map((pl) => pl.place),
+      places.filter((pl, i) => xs[i]?.m.class === "excluded" && pl.member.class !== "excluded").map((pl) => pl.place),
       markUntil(leadPorts, false),
     );
     const res = await leadPorts.db.roundRejudge(round.id, round.plan_version, places, judgment);

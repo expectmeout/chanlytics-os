@@ -52,6 +52,7 @@ export function zctaCenter(zip: string): LatLng | null {
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     const row = rows[mid];
+    if (!row) return null;
     if (row[0] === text) return { lat: row[1], lng: row[2] };
     if (row[0] < text) lo = mid + 1;
     else hi = mid - 1;
@@ -62,7 +63,8 @@ export function zctaCenter(zip: string): LatLng | null {
 const median = (xs: number[]): number => {
   const s = [...xs].sort((a, b) => a - b);
   const m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  const at = (i: number): number => s[i] ?? 0;
+  return s.length % 2 ? at(m) : (at(m - 1) + at(m)) / 2;
 };
 
 /** The median of the points, coordinate by coordinate: robust to one listing geocoded on the wrong coast. */
@@ -78,7 +80,7 @@ export const RADIUS_MAX_M = 60_000;
 export function radiusFromSpread(center: LatLng, points: LatLng[]): number {
   if (!points.length) return RADIUS_MIN_M;
   const ds = points.map((p) => haversineM(center, p)).sort((a, b) => a - b);
-  const q3 = ds[Math.min(ds.length - 1, Math.floor(ds.length * 0.75))];
+  const q3 = ds[Math.min(ds.length - 1, Math.floor(ds.length * 0.75))] ?? 0;
   return Math.max(RADIUS_MIN_M, Math.min(RADIUS_MAX_M, q3 * 2));
 }
 
