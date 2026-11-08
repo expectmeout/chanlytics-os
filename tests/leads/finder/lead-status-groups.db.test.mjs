@@ -524,12 +524,16 @@ const sent = (v, n, tag, day) => `
               from public.leads l where l.tenant_id = ${v} and l.place_id like 'ChIJfixture-${tag}-%'))
     into answer;`;
 
+/** What a bounded read cost, said on every run, so a pass shows its numbers as a failure does. */
+const blocksSaid = (seen) =>
+  `blocks ${seen.small} then ${seen.large}; by heap and index ${JSON.stringify(seen.small_by)} then ${JSON.stringify(seen.large_by)}`;
+
 const DECLARE = `
   declare
     t uuid; t_t uuid; t_s uuid; t_r uuid; o uuid; o_t uuid; o_s uuid; o_r uuid;
     ids uuid[]; before bigint; before_by jsonb; cost jsonb := '{}'; answer jsonb;`;
 
-test("the read stays put beside a neighbour's sends", { skip }, () => {
+test("the read stays put beside a neighbour's sends", { skip }, (t) => {
   const tables = ["sequence_sends", "sequence_enrollments"];
   const seen = rolledBack(`${DECLARE}
     begin
@@ -543,6 +547,7 @@ test("the read stays put beside a neighbour's sends", { skip }, () => {
       ${measured(tables, "large", "perform count(*) from public.lead_status_groups(t, ids);")}
       seen := cost;
     end;`);
+  t.diagnostic(blocksSaid(seen));
   assert.ok(seen.small > 0, "the sends are read at all");
   assert.ok(
     seen.large <= seen.small * 1.5 + 5,
@@ -550,7 +555,7 @@ test("the read stays put beside a neighbour's sends", { skip }, () => {
   );
 });
 
-test("the read stays put beside its own workspace's other sends", { skip }, () => {
+test("the read stays put beside its own workspace's other sends", { skip }, (t) => {
   const tables = ["sequence_sends", "sequence_enrollments"];
   const seen = rolledBack(`${DECLARE}
     begin
@@ -564,6 +569,7 @@ test("the read stays put beside its own workspace's other sends", { skip }, () =
       ${measured(tables, "large", "perform count(*) from public.lead_status_groups(t, ids);")}
       seen := cost;
     end;`);
+  t.diagnostic(blocksSaid(seen));
   assert.ok(seen.small > 0, "the sends are read at all");
   assert.ok(
     seen.large <= seen.small * 1.3 + 10,
