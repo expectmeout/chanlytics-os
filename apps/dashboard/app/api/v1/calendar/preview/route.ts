@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, recordOrNull } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { readJsonBody } from "@/server/shared/request-guards";
 import { getTenantFacts } from "@/server/shared/tenant";
@@ -16,7 +16,7 @@ export const POST = write({
   role: "operator",
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
-    const body = (await readJsonBody(req)) as { url?: unknown } | null;
+    const body = recordOrNull(await readJsonBody(req));
     const url = typeof body?.url === "string" ? body.url.trim() : "";
     if (!url) throw new AppError("validation", "Paste the calendar's iCal address first.");
     const { timezone } = await getTenantFacts(ctx.supabase, member.tenantId);

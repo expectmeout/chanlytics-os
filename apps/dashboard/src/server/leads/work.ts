@@ -71,7 +71,7 @@ export async function setStage(
   const { data, error } = await moveLeadStage(ctx.supabase, {
     p_lead_id: lead.id,
     ...stageArgs(input),
-  } as DoorArgs<"lead_set_stage">);
+  });
   if (error) throw new Error(`lead_set_stage: ${error.message}`);
   const answer = answerOf(data);
   const refused = refusalOf(answer);
@@ -106,7 +106,7 @@ export async function bulkStage(
     ...(input.by === "ids"
       ? { p_ids: input.ids, ...(input.search_id ? { p_search_id: input.search_id } : {}) }
       : { p_ids: null, p_view: input.view }),
-  } as DoorArgs<"lead_bulk">);
+  });
   if (error) throw new Error(`lead_bulk: ${error.message}`);
   const answer = answerOf(data);
   // Keep over a selection stops when the month's leads run out: what was kept before that stays kept, and the

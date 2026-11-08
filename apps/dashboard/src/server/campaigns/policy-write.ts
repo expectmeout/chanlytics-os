@@ -161,7 +161,7 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
   // the rule the Autonomy pane draws its dots by (contracts policyModeOffered, over POLICY_CLASS_MODES). Veto is
   // offered wherever something waits to be stopped: a reply in the hold window, a playbook run thirty minutes out, a
   // reach-out's later run (Reach out, Part 3).
-  const refusal = policyModeRefusal(cls as PolicyClass, mode as PolicyMode);
+  const refusal = policyModeRefusal(cls, mode);
   if (refusal) throw new AppError("validation", refusal);
 
   // The wait, in ms. Clamped at the boundary as well as in the reader: a value

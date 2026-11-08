@@ -399,7 +399,7 @@ export async function getLeadsPage(
       p_after_id: leadsQuery.after_id ?? null,
       ...(leadsQuery.pile_list ? { p_list_id: leadsQuery.pile_list } : {}),
       ...(filters ? { p_filters: filters } : {}),
-    } as DoorArgs<"leads_page">),
+    }),
     searchNamesOf(ctx, tenantId),
     first ? listSearchCounts(ctx, tenantId) : Promise.resolve(null),
     // The month rides the first page, as the counts do: the workbench says what a press costs without a read of

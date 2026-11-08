@@ -35,6 +35,7 @@ import {
   type StaffRole,
   type SupportBookDto,
   type SupportReportDto,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { listPlatformEvents, listPlatformOverview, findPlatformPartners, getPlatformWaitlist } from "./platform";
 import type { BackOffice } from "../shared/back-office";
@@ -230,7 +231,7 @@ export async function findInConsole(office: BackOffice, query: string): Promise<
     throw new AppError("internal", "Find could not search just now. Try again in a moment.", 503);
   }
   return (data ?? [])
-    .filter((r): r is typeof r & { kind: FindRowDto["kind"] } => (FIND_KINDS as readonly string[]).includes(r.kind))
+    .filter((r): r is typeof r & { kind: FindRowDto["kind"] } => isOneOf(FIND_KINDS, r.kind))
     .slice(0, FIND_LIMITS.rows)
     .map((r) => ({
       kind: r.kind,

@@ -35,6 +35,7 @@ import {
   normalizeEmail,
   type MailboxProvider,
   TRY_AGAIN_IN_A_MINUTE,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { mailboxDtoOf } from "@chanlytics/channels/email";
 import { bringInSender } from "../imports/mail-history.js";
@@ -126,7 +127,7 @@ async function connectOp(
 ): Promise<Response> {
   const provider = stringOf(body.provider) as MailboxProvider;
   const code = stringOf(body.code);
-  if (!(MAILBOX_PROVIDERS as readonly string[]).includes(provider) || !code || code.length > 4_096)
+  if (!isOneOf(MAILBOX_PROVIDERS, provider) || !code || code.length > 4_096)
     return refuse(400, "bad_request", "provider and code are required");
   // A Reconnect names the mailbox it is for (the dashboard's signed state carried it there and back).
   const reconnecting = stringOf(body.mailbox_id);

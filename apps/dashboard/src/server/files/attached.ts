@@ -57,7 +57,7 @@ export async function getAttached(
           ...file,
           kind: "video",
           seconds: row.seconds,
-          media_status: row.media_status as FileDto["media_status"],
+          media_status: row.media_status,
           width: row.width,
           height: row.height,
           sound: fileSoundOf(row.sound),

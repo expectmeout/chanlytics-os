@@ -26,6 +26,7 @@ import {
   type AskMorningDto,
   type AskProposal,
   recordOrEmpty,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { askCardsTold, getMemberViews } from "@chanlytics/db/notices";
 import { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "@chanlytics/db/ask";
@@ -249,7 +250,7 @@ export async function getMorningQuestion(
 
 /** The language a morning is asked in: the page's, where it names one Ask speaks; else English. */
 export function morningLanguage(raw: unknown): AskLanguage {
-  return typeof raw === "string" && (ASK_LANGUAGES as readonly string[]).includes(raw) ? (raw as AskLanguage) : "en";
+  return typeof raw === "string" && isOneOf(ASK_LANGUAGES, raw) ? (raw as AskLanguage) : "en";
 }
 
 /**

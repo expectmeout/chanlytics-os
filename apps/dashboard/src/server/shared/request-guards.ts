@@ -92,8 +92,8 @@ export function requireUuidList(value: string | undefined, text: string, max: nu
  * the result, so a malformed body produced a message about a missing field
  * rather than about the body.
  */
-export async function readJsonBody<T = unknown>(request: Request): Promise<T> {
-  const raw = await request.json().catch(() => undefined);
+export async function readJsonBody(request: Request): Promise<unknown> {
+  const raw: unknown = await request.json().catch(() => undefined);
   if (raw === undefined) throw new AppError("validation", "Expected a JSON body.");
-  return raw as T;
+  return raw;
 }

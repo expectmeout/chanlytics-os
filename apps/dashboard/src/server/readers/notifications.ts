@@ -19,6 +19,7 @@ import {
   pushOffOf,
   unreadFor,
   zoneDayKey,
+  isOneOf,
 } from "@chanlytics/contracts";
 import {
   findBellSeen,
@@ -127,9 +128,7 @@ export const memberAlerts: Reader<undefined, MemberAlertsDto> = {
     const out: MemberAlertsDto = {
       push_off: pushOffOf(row.pushOff),
       phones: row.phones
-        .filter((p): p is typeof p & { platform: PushPlatform } =>
-          (PUSH_PLATFORMS as readonly string[]).includes(p.platform),
-        )
+        .filter((p): p is typeof p & { platform: PushPlatform } => isOneOf(PUSH_PLATFORMS, p.platform))
         .map((p) => ({ platform: p.platform, app_version: p.app_version, last_seen_at: p.last_seen_at })),
       choosable: row.choosable,
     };

@@ -8,6 +8,7 @@ import {
   type AppointmentState,
   type AppointmentStatus,
   type FeedAppointmentRow,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type { Json } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
@@ -277,7 +278,7 @@ export async function syncFeedAppointments(
 /** Keys one read names: a key is the calendar's UID and a start, and a UID may run to hundreds of characters. */
 const KEYS_PER_READ = 25;
 
-const isStatus = (s: string): s is AppointmentStatus => (APPOINTMENT_STATUSES as readonly string[]).includes(s);
+const isStatus = (s: string): s is AppointmentStatus => isOneOf(APPOINTMENT_STATUSES, s);
 
 export async function getAppointmentStates(
   db: Db,

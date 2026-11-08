@@ -25,6 +25,7 @@ import {
   type RegistrationPath,
   US_AREA_CODE,
   recordOrEmpty,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { lineForClient, type LineProviderChoice } from "../lines.js";
 import { factsOf, FILED_NAME_FACT, retryRequestedBy, type LineDbRow } from "../resume.js";
@@ -350,7 +351,7 @@ export function planRecord(
   // field, and it is exact for a record that has already been saved: see
   // registrationPathOf in contracts for the invariant that makes it so.
   const request = typeof rawPath === "string" ? rawPath : "";
-  const path: RegistrationPath = (REGISTRATION_PATHS as readonly string[]).includes(request)
+  const path: RegistrationPath = isOneOf(REGISTRATION_PATHS, request)
     ? (request as RegistrationPath)
     : (registrationPathOf({ ein: str("ein") }) ?? "standard");
 

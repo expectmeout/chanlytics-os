@@ -23,6 +23,7 @@ import {
   type WriteWay,
   UUID,
   proposalBelowNeeds,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { load } from "../../../shared/reader";
 import { openDealsOf } from "@chanlytics/db/deals";
@@ -118,7 +119,7 @@ async function proposePersonNote(
   const body = typeof input.body === "string" ? input.body.trim() : "";
   if (!body) return refuse("body must be the note's words");
   if (body.length > NOTE_MAX) return refuse(`body is ${body.length} characters; a note is at most ${NOTE_MAX}`);
-  if (!(NOTE_FOR as readonly string[]).includes(input.for)) return refuse("for must be receptionist or team");
+  if (!isOneOf(NOTE_FOR, input.for)) return refuse("for must be receptionist or team");
   const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
   return propose({

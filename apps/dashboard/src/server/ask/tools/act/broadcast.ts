@@ -29,6 +29,7 @@ import {
   type ParamSpec,
   type PersonRowVM,
   UUID,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { readCampaignHowOf } from "@chanlytics/core";
 import { readMonthSentOrNull } from "../../../campaigns/month-sent";
@@ -322,8 +323,7 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
   // An earlier step of Ask's plan's message, named by its token (context.ts stepNamed), or an id the reads returned.
   const step = stepNamed(toolContext, templateId);
   if (step === null && !UUID.test(templateId)) return refuse(`template_id must be an id ${AUDIENCES_CALL} returned`);
-  if (!(AUDIENCE_KINDS as readonly string[]).includes(kind))
-    return refuse("audience_kind must be everyone, list or saved");
+  if (!isOneOf(AUDIENCE_KINDS, kind)) return refuse("audience_kind must be everyone, list or saved");
   if (kind === "list" && !BUILTIN_LISTS.some((l) => l.id === audienceId))
     return refuse(`audience_id must be a People list id, as ${AUDIENCES_CALL} names them`);
   if (kind === "saved" && !(audienceId && UUID.test(audienceId)))

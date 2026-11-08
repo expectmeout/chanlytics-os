@@ -23,6 +23,7 @@ import {
   type SchemaSet,
   type BroadcastState,
   recordOrNull,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
@@ -358,9 +359,7 @@ export async function listRunsNamed(db: Db, tenantId: string, ids: readonly stri
     .in("id", [...ids]);
   if (error) throw new Error(`cannot read the runs the notices name: ${error.message}`);
   const rows = data ?? [];
-  const reaching = rows.filter(
-    (r) => isReachOutRun(r.audience) && (RUN_GOING_STATES as readonly string[]).includes(r.state),
-  );
+  const reaching = rows.filter((r) => isReachOutRun(r.audience) && isOneOf(RUN_GOING_STATES, r.state));
   const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
   return rows.map((r) => {
     const w = waiting?.get(r.id);

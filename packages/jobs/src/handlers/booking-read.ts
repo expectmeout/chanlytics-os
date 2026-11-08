@@ -12,6 +12,7 @@ import {
   bookingToolName,
   isNoticeHold,
   recordOrNull,
+  isOneOf,
 } from "@chanlytics/contracts";
 import {
   readBookingNotice,
@@ -46,8 +47,8 @@ import { MAX_ATTEMPTS } from "../runner/ledger";
 /** The closed sets as the tables hold them (00345): a row the verb cannot read as one is a failed read, not a missing one. */
 const STATUSES: readonly AppointmentStatus[] = ["proposed", "booked", "kept", "missed", "cancelled"];
 const OUTCOMES: readonly NoticeOutcome[] = ["booked", "changed", "cancelled", "held", "dismissed"];
-const isStatus = (v: string): v is AppointmentStatus => (STATUSES as readonly string[]).includes(v);
-const isOutcome = (v: string): v is NoticeOutcome => (OUTCOMES as readonly string[]).includes(v);
+const isStatus = (v: string): v is AppointmentStatus => isOneOf(STATUSES, v);
+const isOutcome = (v: string): v is NoticeOutcome => isOneOf(OUTCOMES, v);
 
 /**
  * A booking tool's email, read into the calendar, on the ledger: a visit booked, moved or cancelled, on the

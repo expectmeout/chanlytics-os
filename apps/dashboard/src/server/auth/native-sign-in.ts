@@ -1,5 +1,5 @@
 import { safeNext } from "./oauth-callback";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, isOneOf } from "@chanlytics/contracts";
 
 /**
  * The native app's sign-in, decided without a network: what to sign in and where to land. Pure, so the route stays
@@ -52,9 +52,7 @@ export function fromAnotherSite(headers: { get(name: string): string | null }): 
 export function nativeSignInPlan(body: unknown): NativePlan {
   if (!body || typeof body !== "object") return refusedPlan("no body");
   const second = recordOrEmpty(body);
-  const provider = (NATIVE_PROVIDERS as readonly string[]).includes(String(second.provider))
-    ? (second.provider as NativeProvider)
-    : null;
+  const provider = isOneOf(NATIVE_PROVIDERS, String(second.provider)) ? (second.provider as NativeProvider) : null;
   if (!provider) return refusedPlan("unknown provider");
   const token = typeof second.token === "string" ? second.token.trim() : "";
   if (!token) return refusedPlan("no token");

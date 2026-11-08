@@ -44,8 +44,8 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
     for (const row of data) {
       messages.push({
         id: row.id,
-        direction: row.direction as MessageDto["direction"],
-        sender: row.sender as MessageDto["sender"],
+        direction: row.direction,
+        sender: row.sender,
         type: row.type,
         body: row.body,
         media: mediaPublic(row.media),

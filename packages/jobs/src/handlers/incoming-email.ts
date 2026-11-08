@@ -88,7 +88,7 @@ export async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<vo
       // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and
       // the ledger claims the new one when it is due. Said in the log, since the tick sees only a job done.
       retry: async (dueAt, payload) => {
-        await ctx.schedule("outbound_send", dueAt, payload as Json);
+        await ctx.schedule("outbound_send", dueAt, payload);
         logger().warn("outbound_send_rescheduled", {
           tenant_id: job.tenant_id,
           job: job.id,

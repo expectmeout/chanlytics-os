@@ -24,6 +24,7 @@ import {
   twinRunsWords,
   visitTwinWords,
   type PlaybookPatch,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, playbookNameAsked, findUntil } from "@chanlytics/core";
 import { emitEvent } from "@chanlytics/db/events";
@@ -178,7 +179,7 @@ export async function findVisitTwinRefusal(
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;
-  const otherJsonBody = (await readJsonBody(req)) as Record<string, unknown> | null;
+  const otherJsonBody = recordOrNull(await readJsonBody(req));
   const now = new Date();
   const until =
     (await findUntil(playbookPatchPorts(ctx, tenantId), otherJsonBody?.until, { now, undo: false })) ?? null;

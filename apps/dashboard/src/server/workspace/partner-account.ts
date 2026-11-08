@@ -83,7 +83,7 @@ export async function becomeAPartner(
     if (mapped) throw new AppError(mapped.code, result.message, mapped.status);
     throw new Error(result.message);
   }
-  return { partner: result.row as PartnerDto };
+  return { partner: result.row };
 }
 
 export async function setPartnerLettersOf(

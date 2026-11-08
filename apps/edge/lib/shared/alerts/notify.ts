@@ -570,7 +570,7 @@ async function keepThenMail(
     // kind the receptionist must reach someone with (a hold's). News (a customer's STOP, an unsubscribe) is the bell's alone:
     // a note to the platform for each would be the operator's inbox filling with a business's opt-outs. A mail owed from a
     // try when somebody was on file is owed no more.
-    if (mails && platformCopy && (EMAIL_ALWAYS_KINDS as readonly string[]).includes(msg.kind ?? "")) {
+    if (mails && platformCopy && isOneOf(EMAIL_ALWAYS_KINDS, msg.kind ?? "")) {
       await mailNotice(target, msg, ports, db);
     }
     if (earlier) await owedNoMore(db, tenantId, kept);

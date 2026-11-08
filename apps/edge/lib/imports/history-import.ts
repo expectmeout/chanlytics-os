@@ -28,6 +28,7 @@ import {
   type ImportSource,
   type MailboxHistory,
   type MailboxProvider,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { grantHolds } from "@chanlytics/channels/email";
 import { importRowOf, listImports, noteImport } from "@chanlytics/db/imports";
@@ -81,8 +82,7 @@ const RUNNERS: Readonly<Partial<Record<ImportSource, Runner>>> = {
 
 const runnerOf = (source: ImportSource): Runner | null => RUNNERS[source] ?? null;
 
-const isSource = (v: unknown): v is ImportSource =>
-  typeof v === "string" && (IMPORT_SOURCES as readonly string[]).includes(v);
+const isSource = (v: unknown): v is ImportSource => typeof v === "string" && isOneOf(IMPORT_SOURCES, v);
 
 /** A part's place, as its payload carries it: the run (a connect's "1", or Try again's moment) and its number. */
 function seqOf(raw: unknown): { run: string; n: number } {

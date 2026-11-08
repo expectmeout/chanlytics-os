@@ -377,7 +377,7 @@ async function resolveMember(
   const row = membership.tenants;
   return {
     tenantId: membership.tenant_id,
-    role: membership.role as MemberContext["role"],
+    role: membership.role,
     ...(typeof row?.timezone === "string" ? { facts: tenantFactsOf(row) } : {}),
     ...(typeof row?.slug === "string" && row.slug ? { slug: row.slug } : {}),
   };
@@ -522,7 +522,7 @@ export async function requireSpend(
   if (error) throw new AppError("internal", "Billing could not be read just now. Try again in a moment.", 503);
   if (!data)
     throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
-  const reason = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus, doing);
+  const reason = whyCannotSpend(data.mode, data.status, doing);
   if (reason) throw new AppError("payment_required", reason, 402);
 }
 

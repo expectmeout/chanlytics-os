@@ -5,7 +5,7 @@
  * what to which list. The names and rules are judged by lists.ts in the words the edit route uses; the routes declare
  * who may and how often, and the list is the row (listScope), found under RLS.
  */
-import { AppError, ruleNeedsViewer, asListRule, ruleLists } from "@chanlytics/contracts";
+import { AppError, ruleNeedsViewer, asListRule, ruleLists, recordOrNull } from "@chanlytics/contracts";
 import { readJsonBody } from "@/server/shared/request-guards";
 import {
   createList,
@@ -30,7 +30,7 @@ import { pauseStepRow } from "@chanlytics/db/campaigns";
 type SavedListRow = Awaited<ReturnType<typeof listScope.load>>;
 
 export async function createSavedList(ctx: RouteContext, req: Request, member: Member) {
-  const body = (await readJsonBody(req)) as { name?: unknown; rule?: unknown } | null;
+  const body = recordOrNull(await readJsonBody(req));
   const name = cleanListName(body?.name);
   // A rule may read the workspace's other lists (in_list): they are read to check it can (cleanListRule).
   const rule = cleanListRule(body?.rule, body?.rule != null ? await listSavedLists(ctx.supabase, member.tenantId) : []);
@@ -51,13 +51,7 @@ export async function createSavedList(ctx: RouteContext, req: Request, member: M
 
 export async function changeSavedList(ctx: RouteContext, req: Request, list: SavedListRow) {
   const id = list.id;
-  const body = (await readJsonBody(req)) as {
-    name?: unknown;
-    add?: unknown;
-    remove?: unknown;
-    rule?: unknown;
-    archived?: unknown;
-  } | null;
+  const body = recordOrNull(await readJsonBody(req));
   const add = cleanIdList(body?.add, "add");
   const remove = cleanIdList(body?.remove, "remove");
   const rename = body?.name !== undefined ? cleanListName(body.name) : null;

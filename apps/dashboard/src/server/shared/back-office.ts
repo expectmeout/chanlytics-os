@@ -2,7 +2,14 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getStaffState } from "@chanlytics/db/console";
 import type { Database } from "@chanlytics/db/types";
-import { AppError, SECOND_FACTOR_WORDS, STAFF_STATES, type StaffRole, type StaffState } from "@chanlytics/contracts";
+import {
+  AppError,
+  SECOND_FACTOR_WORDS,
+  STAFF_STATES,
+  type StaffRole,
+  type StaffState,
+  isOneOf,
+} from "@chanlytics/contracts";
 import type { RouteContext } from "./with-route";
 import { serviceDb } from "./service-db";
 
@@ -35,7 +42,7 @@ export interface BackOffice {
 async function staffState(ctx: RouteContext): Promise<StaffState> {
   const { data, error } = await getStaffState(ctx.supabase);
   if (error) throw new AppError("internal", "Could not check that just now — try again in a moment.", 503);
-  return (STAFF_STATES as readonly string[]).includes(String(data)) ? (data as StaffState) : "none";
+  return isOneOf(STAFF_STATES, String(data)) ? (data as StaffState) : "none";
 }
 
 /**

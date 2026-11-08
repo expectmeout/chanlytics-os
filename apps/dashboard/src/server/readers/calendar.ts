@@ -149,7 +149,7 @@ export const calendarRuns: Reader<
       runs: rows.map((row) => ({
         id: row.id,
         name: row.name,
-        state: row.state as BroadcastState,
+        state: row.state,
         scheduled_for: row.scheduled_for,
         started_at: row.started_at,
         finished_at: row.finished_at,

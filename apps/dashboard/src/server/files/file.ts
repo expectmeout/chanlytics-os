@@ -130,7 +130,7 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
     if (file.media_status !== "ready") throw new AppError("not_found", W.video.gettingReady, 404);
   }
   const requested = url.searchParams.get("w");
-  const mime = file.mime as FileMime;
+  const mime = file.mime;
   // A made file holds a shape each; anything else has its one picture, whatever is asked.
   const shape = file.source === "made" ? POST_SHAPES.find((s) => s === url.searchParams.get("shape")) : undefined;
   const path =

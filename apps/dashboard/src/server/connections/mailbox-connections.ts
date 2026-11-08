@@ -27,6 +27,7 @@ import {
   type MailboxConnectionDto,
   type MailboxHistory,
   type MailboxProvider,
+  isOneOf,
 } from "@chanlytics/contracts";
 import {
   mailboxAdminConsentUrl,
@@ -120,8 +121,7 @@ let readyCache: { at: number; ready: MailboxReadiness } | null = null;
 /** A "none offered" answer is kept briefly: a client set a minute ago must not hide Connect for five. */
 const NOT_READY_TTL_MS = 30_000;
 
-const isProvider = (v: unknown): v is MailboxProvider =>
-  typeof v === "string" && (MAILBOX_PROVIDERS as readonly string[]).includes(v);
+const isProvider = (v: unknown): v is MailboxProvider => typeof v === "string" && isOneOf(MAILBOX_PROVIDERS, v);
 
 /**
  * The providers a business may connect here, as the edge says (cached per lambda, as lines' and Google's readiness

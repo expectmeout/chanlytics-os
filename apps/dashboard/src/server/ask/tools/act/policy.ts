@@ -48,8 +48,7 @@ async function proposePolicy(
     return refuse("class must be reply, booking, faq, reengage, campaign, reviews, follow_up or money");
   if (cls === "money") return refuse("money stays owner-only by charter; that row is locked");
   if (cls === "outreach") return refuse("a reach-out's runs are set where reach-outs are made, not here");
-  if (mode && !(POLICY_MODES as readonly string[]).includes(mode))
-    return refuse("mode must be auto, veto, ask or never");
+  if (mode && !isOneOf(POLICY_MODES, mode)) return refuse("mode must be auto, veto, ask or never");
   // What each class may be set to is one rule, the Autonomy page's (contracts POLICY_CLASS_MODES), in its words.
   const notOffered = mode ? policyModeRefusal(cls as PolicyClass, mode as PolicyMode) : null;
   if (notOffered) return refuse(notOffered);

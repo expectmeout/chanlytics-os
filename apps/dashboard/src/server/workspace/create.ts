@@ -15,6 +15,7 @@ import {
   InviteCodeSchema,
   partnerCodeFromCookie,
   WORKSPACE_MARKS,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { createWorkspaceFn, getMembershipCount, setSetupChoices } from "@chanlytics/db/workspace";
 import { z } from "zod";
@@ -133,9 +134,7 @@ export async function recordWorkspaceBegun(
   if (how.by === "created" || how.by === "claimed")
     await giveFirstAlertAddress(ctx.supabase, tenantId, how.alertTo, ctx.userId);
   else await giveOwnerAlertAddress(ctx.supabase, tenantId, how.alertTo, ctx.userId);
-  const marks = (how.marks ?? []).filter((m): m is (typeof WORKSPACE_MARKS)[number] =>
-    (WORKSPACE_MARKS as readonly string[]).includes(m),
-  );
+  const marks = (how.marks ?? []).filter((m): m is (typeof WORKSPACE_MARKS)[number] => isOneOf(WORKSPACE_MARKS, m));
   if (marks.length) {
     const { error } = await setSetupChoices(ctx.supabase, { p_tenant_id: tenantId, p_marks: marks });
     if (error) log.error("workspace_marks_not_kept", { tenant_id: tenantId, error: error.message });

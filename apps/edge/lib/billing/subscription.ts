@@ -24,6 +24,7 @@ import {
   type SubscriptionFacts,
   MIN_MS,
   UUID,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { ringOnce, tellOnce } from "./notices.js";
 import { logger, errField } from "../shared/log.js";
@@ -177,7 +178,7 @@ export function subscriptionFacts(sub: Stripe.Subscription): SubscriptionFacts {
     sub.default_payment_method && typeof sub.default_payment_method === "object" ? sub.default_payment_method : null;
   return {
     id: sub.id,
-    status: (BILLING_STATUSES as readonly string[]).includes(sub.status) ? (sub.status as BillingStatus) : "none",
+    status: isOneOf(BILLING_STATUSES, sub.status) ? (sub.status as BillingStatus) : "none",
     price_id: item?.price?.id ?? null,
     current_period_end: unixIso(item?.current_period_end),
     trial_end: unixIso(sub.trial_end),

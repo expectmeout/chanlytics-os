@@ -78,7 +78,7 @@ export const escalations: Reader<
         id,
         reason,
         details,
-        state: held as EscalationDto["state"],
+        state: held,
         created_at,
         conversation_id,
       }));

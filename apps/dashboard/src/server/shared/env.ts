@@ -23,6 +23,7 @@
  */
 import { z } from "zod";
 import { publicEnv } from "../../lib/public-env";
+import { isOneOf } from "@chanlytics/contracts";
 
 /** Blank is unset: Vercel stores an emptied variable as "", and whitespace around a pasted value is never meant. */
 const blankAsUnset = (value: unknown): unknown => (typeof value === "string" ? value.trim() || undefined : value);
@@ -201,8 +202,7 @@ export function problemsIn(source: Readonly<Record<string, string | undefined>>)
     const raw = source[name];
     const parsed = SCHEMA[name].safeParse(raw);
     if (!parsed.success) malformed.push(name);
-    else if (production && parsed.data === undefined && (REQUIRED_IN_PRODUCTION as readonly string[]).includes(name))
-      missing.push(name);
+    else if (production && parsed.data === undefined && isOneOf(REQUIRED_IN_PRODUCTION, name)) missing.push(name);
   }
   // Production speaks to its edge and prints its address over https only.
   if (production) {
