@@ -517,6 +517,6 @@ export function leadsStanding(
       `${counts.ready} ${LEAD_STAGE_WORDS.ready.toLowerCase()}`,
       `${count} ${count === 1 ? "search" : "searches"}`,
     ],
-    needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0].id } : null,
+    needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0]?.id ?? "" } : null,
   };
 }

@@ -506,7 +506,7 @@ export interface FirstRunWho {
 /** "2 of 5 · Your receptionist": where a step stands in the first run, said the one way (the phone's header, sign-up's name screen). */
 export function firstRunKicker(key: FirstRunStepKey): string {
   const i = FIRST_RUN_STEPS.findIndex((s) => s.key === key);
-  return `${i + 1} of ${FIRST_RUN_STEPS.length} · ${FIRST_RUN_STEPS[i].name}`;
+  return `${i + 1} of ${FIRST_RUN_STEPS.length} · ${FIRST_RUN_STEPS[i]?.name ?? ""}`;
 }
 
 /** The step a first-run address asks for: Find is the business step's, an old step's word the step that does its work. */
@@ -620,6 +620,18 @@ type StepsDone = Record<FirstRunStepKey, boolean>;
  * Where the workspace is in the first run, and what the step on screen draws. `at` is the address's step (or `find`,
  * the business step with Find asked for); `who` is who is looking, for Find: nobody may link without it.
  */
+/** The step a first run shows: the one asked for by name unless it is still ahead, else the one it stands on. */
+function shownStep(
+  steps: FirstRunStepVM[],
+  asked: string | null | undefined,
+  current: FirstRunStepKey,
+): FirstRunStepVM {
+  const shown =
+    steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
+  if (!shown) throw new Error("the first run holds no steps");
+  return shown;
+}
+
 export function firstRunOf(vm: SetupVM, at?: string | null, firstRunWho?: FirstRunWho): FirstRunVM {
   const done = Object.fromEntries(FIRST_RUN_STEP_KEYS.map((k) => [k, stepDone(vm, k)])) as StepsDone;
   const open = FIRST_RUN_STEPS.find((s) => !done[s.key]);
@@ -634,8 +646,7 @@ export function firstRunOf(vm: SetupVM, at?: string | null, firstRunWho?: FirstR
     to: def.key === current ? FIRST_RUN_ROUTE : firstRunStepRoute(def.key),
   }));
   const { asked, findAsked } = stepAskedOf(at);
-  const shown =
-    steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
+  const shown = shownStep(steps, asked, current);
   // Find, while an owner can link a listing: Google searchable and nothing linked (Setup's `findable`), and not put
   // off, unless Find was asked for by name.
   const google = rowOf(vm, "google");
@@ -668,7 +679,7 @@ export function firstRunOf(vm: SetupVM, at?: string | null, firstRunWho?: FirstR
     phoneLine: firstRunKicker(shown.key),
     progress: Math.round((shown.number / FIRST_RUN_STEPS.length) * 100),
     primaryRow: primary ? primary.id : null,
-    back: shown.number > 1 ? steps[shown.number - 2].to : null,
+    back: shown.number > 1 ? (steps[shown.number - 2]?.to ?? null) : null,
     onward: face.onward,
     find,
     findDone: find && findAsked ? shown.to : null,

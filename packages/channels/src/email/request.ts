@@ -253,8 +253,9 @@ export function buildEmailRequest(emailRequestInput: EmailRequestInput): EmailRe
     signature: emailRequestInput.signature,
     footer: emailRequestInput.campaign?.footer,
   });
-  const footerHtml = emailRequestInput.campaign?.footerHtml?.trim() || null;
-  if (footerHtml && !footerHtml.includes(`href="${escapeHtml(emailRequestInput.campaign!.unsubscribeUrl.trim())}"`))
+  const campaign = emailRequestInput.campaign;
+  const footerHtml = campaign?.footerHtml?.trim() || null;
+  if (campaign && footerHtml && !footerHtml.includes(`href="${escapeHtml(campaign.unsubscribeUrl.trim())}"`))
     throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
   const drawn = emailRequestInput.html?.trim() || null;
   if (drawn && emailRequestInput.campaign) throw new Error("buildEmailRequest: a campaign's HTML is the builder's");

@@ -302,7 +302,7 @@ function barsOf({ start, step }: RunFacts, stamps: (string | null)[]): number[] 
     const t = s ? Date.parse(s) : NaN;
     if (!Number.isFinite(t)) continue;
     const i = Math.floor((t - start) / step);
-    if (i >= 0 && i < RUN_REPORT_STEPS) out[i] += 1;
+    if (i >= 0 && i < RUN_REPORT_STEPS) out[i] = (out[i] ?? 0) + 1;
   }
   return out;
 }
@@ -359,9 +359,9 @@ function personWordsOf(
   if (reportRecipient.state === "skipped") return sentence || reportRecipient.reason || "held back";
   if (reportRecipient.state === "failed") return sentence || SEND_REFUSED_WORDS[via];
   if (reportRecipient.state === "queued") return cutOff ?? "not sent yet";
-  if (reportRecipient.consent_after === "opted_out") return quote ? `${quote} — ${answer}` : answer!;
+  if (reportRecipient.consent_after === "opted_out") return quote ? `${quote} — ${answer}` : (answer ?? "");
   if (quote) return quote;
-  if (reportRecipient.consent_after === "opted_in") return answer!;
+  if (reportRecipient.consent_after === "opted_in") return answer ?? "";
   if (reportRecipient.message_status === "failed") return NOT_DELIVERED_WORDS[via];
   if (hiThere) return "greeted “Hi there” — no name on file";
   return receiptWords(reportRecipient, clock);

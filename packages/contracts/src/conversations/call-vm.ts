@@ -115,7 +115,7 @@ export function callOutcomeFor(
 function transcriptOf(turns: NonNullable<CallDto["transcript_object"]>): CallVM["transcript"] {
   const given = turns.map((turn) => (turn.role === "injected" ? null : (turn.start ?? turn.words?.[0]?.start ?? null)));
   const starts = given.map((s, i) => {
-    if (s != null || turns[i].role === "injected") return s;
+    if (s != null || turns[i]?.role === "injected") return s;
     const before =
       given
         .slice(0, i)
@@ -130,7 +130,7 @@ function transcriptOf(turns: NonNullable<CallDto["transcript_object"]>): CallVM[
       return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content), start: null, end: null };
     }
     const own = given[otherTurn];
-    const start = starts[otherTurn];
+    const start = starts[otherTurn] ?? null;
     const next = start == null ? null : (starts.slice(otherTurn + 1).find((x) => x != null && x > start) ?? null);
     const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
     return {

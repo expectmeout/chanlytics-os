@@ -113,7 +113,7 @@ export function sendingEndsAt(tz: string, now: Date): Date | null {
  * after it — never past the last hour a message may go out.
  */
 export function runDueNow(
-  playbook: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">,
+  playbook: { state: string } & Pick<PlaybookDto, "run_hour" | "last_run_for">,
   tz: string,
   now: Date,
 ): boolean {

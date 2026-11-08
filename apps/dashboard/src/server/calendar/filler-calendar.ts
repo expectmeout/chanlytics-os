@@ -86,9 +86,9 @@ export function fillerCalendar(nowMs: number, tz: string): string {
     // Six a day, from a slot list that rotates with the day so no two days look alike.
     const start = (result.d + ahead) % SLOTS.length;
     for (let count = 0; count < 6; count++) {
-      const slot = SLOTS[(start + count) % SLOTS.length];
-      const [service, minutes] = SERVICES[(result.d + count) % SERVICES.length];
-      const [name, last2] = PEOPLE[(result.d * 3 + count) % PEOPLE.length];
+      const slot = SLOTS[(start + count) % SLOTS.length] ?? 0;
+      const [service = "", minutes = 0] = SERVICES[(result.d + count) % SERVICES.length] ?? [];
+      const [name = "", last2 = ""] = PEOPLE[(result.d * 3 + count) % PEOPLE.length] ?? [];
       const end = slot + minutes;
       const stamp = (mins: number) =>
         `${result.y}${pad(result.m)}${pad(result.d)}T${pad(Math.floor(mins / 60))}${pad(mins % 60)}00`;

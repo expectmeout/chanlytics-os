@@ -1,13 +1,11 @@
 {
   "//": [
     "Next resolves for the dashboard, so the base's bundler resolution stands. Next leaves a tsconfig that extends",
-    "another alone (it rewrote this one's jsx before). noUncheckedIndexedAccess waits here until the dashboard's index",
-    "reads are guarded: check:debt counts them (the unchecked-index measure). The harness page that runs the kit's",
+    "another alone (it rewrote this one's jsx before). The harness page that runs the kit's",
     "components with behaviour of their own is compiled here too (tooling/scripts/e2e-harness/kit-behaves.tsx and the entries it",
     "imports), so a props change it no longer meets fails typecheck: no CI job runs its browser spec. It imports the kit by",
     "its .ts path, which allowImportingTsExtensions lets stand (noEmit is on). The browser specs are compiled here too",
-    "(e2e/, decision 0112): they drive the dashboard, and a spec a rename broke failed only at night, in a browser. Their",
-    "index reads are the unchecked-index measure's, as the dashboard's own are."
+    "(e2e/, decision 0112): they drive the dashboard, and a spec a rename broke failed only at night, in a browser."
   ],
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
@@ -18,7 +16,6 @@
     "jsx": "preserve",
     "allowImportingTsExtensions": true,
     "incremental": true,
-    "noUncheckedIndexedAccess": false,
     "plugins": [
       {
         "name": "next"

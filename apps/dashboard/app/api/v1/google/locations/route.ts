@@ -15,12 +15,13 @@ import { edgeRefusalWords } from "@/server/shared/edge";
 const ACCOUNT = /^accounts\/[\w-]{1,64}$/;
 const LOCATION = /^locations\/[\w-]{1,64}$/;
 
-const REASON_WORDS: Record<string, string> = {
+const REASONS = {
   not_connected: "Connect a Google account first.",
   no_such_location: "That location is not one this Google account manages. Pick again from the list.",
   not_on_maps: "That location is not on Google Maps yet. Verify it in your Business Profile first.",
   no_credentials: "The connection to Google was lost. Connect again.",
 };
+const REASON_WORDS: typeof REASONS & Record<string, string> = REASONS;
 
 function locations(raw: unknown): GoogleLocationDto[] {
   return (Array.isArray(raw) ? raw : [])

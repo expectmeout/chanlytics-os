@@ -118,7 +118,7 @@ async function rowsScroll(body: Locator): Promise<boolean> {
       return still;
     })
     .toBe(true);
-  const [scroll, client] = was.split(" ").map(Number);
+  const [scroll = 0, client = 0] = was.split(" ").map(Number);
   return scroll > client;
 }
 
@@ -1442,7 +1442,7 @@ test.describe("Settings › Business on a real workspace", () => {
       expect(took, "one save, sent once").toHaveLength(1);
       const expected = JSON.parse(JSON.stringify(read));
       expected.brain.profile = { ...(expected.brain.profile ?? {}), tone: words };
-      expect(took[0].config, "the save sent more than the voice").toEqual(expected);
+      expect(took[0]?.config, "the save sent more than the voice").toEqual(expected);
       expect(await scrolled(), "the page behind the sheet scrolled").toBe(top);
 
       // A fold with the widest fields, as a sheet: quiet and made for a finger too. The hours are Hours & booking's.

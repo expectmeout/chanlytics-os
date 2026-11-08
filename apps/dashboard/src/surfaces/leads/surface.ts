@@ -76,7 +76,8 @@ interface LeadCallOptions {
  * leaves stale from `refresh-map.ts` rather than from the caller.
  */
 export function leadCall<O>(key: string, opts: LeadCallOptions = {}): Promise<ApiResult<O>> {
-  return api()(key as RouteKey, opts as never) as unknown as Promise<ApiResult<O>>;
+  // The route is named at run time, so the one client's per-route types cannot follow it: O is the route's, by its caller.
+  return api()(key as RouteKey, opts as never) as Promise<ApiResult<O>>;
 }
 
 /** A read the runner treats as the surface's own: a refusal throws, the way `api.ts`'s `read` does. */

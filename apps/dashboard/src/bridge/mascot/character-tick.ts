@@ -67,12 +67,14 @@ function voice(st: Core, dt: number): void {
   if (st.hist.length > 120) st.hist.shift();
 }
 
+const AXES = [0, 1] as const;
+
 // where it looks: at you, when you are near, or wherever a glance takes it; and the perk and the press
 function gazeAt(st: Core, dt: number): void {
   st.pointerAge += dt;
   const seen = st.pointer !== null && st.pointerAge < 2.5;
   const gt = seen && st.pointer ? st.pointer.g : st.fidgetGaze;
-  for (let c = 0; c < 2; c++) {
+  for (const c of AXES) {
     st.gazeV[c] += (36 * (gt[c] - st.gaze[c]) - 12 * st.gazeV[c]) * dt;
     st.gaze[c] += st.gazeV[c] * dt;
   }
@@ -88,7 +90,7 @@ function springs(st: Core, dt: number): void {
   for (const b of st.bodies) {
     const want = pose(st.state, b.step, st.level, spread);
     const tl = want.lift + (0.25 * st.perk - 0.4 * st.pressed) * st.blend.idle;
-    const w = FOLLOW[clamp(b.step, 0, 2)];
+    const w = FOLLOW[clamp(b.step, 0, 2)] ?? 0;
     for (let k = 0; k < steps && h > 0; k++) {
       b.vx += (w * w * (want.x - b.x) - 2 * Z_POS * w * b.vx) * h;
       b.x += b.vx * h;
@@ -125,8 +127,8 @@ function breathe(st: Core): void {
     const sway = 0.65 * Math.sin(clock * 1.6) + 0.35 * Math.sin(clock * 0.97 + 2);
     b.ox += blend.listening * (k - 1) * 0.02 * sway;
     // parallax: the top of the stack moves most toward where it looks
-    b.ox += st.gaze[0] * [0.03, 0.05, 0.07][k] * glance;
-    b.oy += st.gaze[1] * [0.025, 0.04, 0.055][k] * glance;
+    b.ox += st.gaze[0] * ([0.03, 0.05, 0.07][k] ?? 0) * glance;
+    b.oy += st.gaze[1] * ([0.025, 0.04, 0.055][k] ?? 0) * glance;
     b.orot += st.gaze[0] * 0.03 * glance;
   }
 }

@@ -15,6 +15,6 @@ export async function mergeRecords(ctx: RouteContext, keep: string, merge: strin
   try {
     return await mergePeople(ctx.supabase, keep, merge);
   } catch (e) {
-    throw dbRefusal(e as { code?: string | null; message: string });
+    throw dbRefusal(e);
   }
 }

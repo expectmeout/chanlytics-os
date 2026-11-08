@@ -18,12 +18,7 @@ export const POST = write({
       throw new AppError("not_found", "No listing is linked yet. Find it on Setup first.", 404);
     if (answer.status === 503 && body.error === "no_places_key")
       throw new AppError("conflict", "Reading listings is not available here yet.", 409);
-    const read = (body.read && typeof body.read === "object" ? body.read : null) as {
-      ok?: boolean;
-      fresh?: number;
-      counted?: number;
-      error?: string;
-    } | null;
+    const read = body.read ?? null;
     if (answer.status !== 200 || body.ok !== true)
       throw new AppError(
         "internal",

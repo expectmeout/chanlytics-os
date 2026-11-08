@@ -21,7 +21,7 @@ async function asDoor<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (e) {
-    throw dbRefusal(e as { code?: string | null; message: string });
+    throw dbRefusal(e);
   }
 }
 

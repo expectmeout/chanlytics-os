@@ -232,7 +232,8 @@ function askWrittenOf(
     title,
     body: versions.whatsapp?.body ?? versions.sms?.body ?? versions.email?.body ?? "",
     channels,
-    params: slots.map((s) => ({ kind: s.kind }) as ParamSpec),
+    // A slot the draft fills by hand has no words yet; the rest are filled from the person when it sends.
+    params: slots.map((s): ParamSpec => (s.kind === "text" ? { kind: "text", value: "" } : { kind: s.kind })),
     // As a held message is: an offer is what a yes to offers hears (draft.ts offeredOf, purpose marketing).
     offer: !utility,
     written,

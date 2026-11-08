@@ -30,6 +30,7 @@ import {
   FILE_LOOK_EDITION,
   VIDEO_LOOK_EDITION,
   type SchemaSet,
+  entryOf,
   recordOrEmpty,
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/log";
@@ -269,7 +270,7 @@ async function settleIntake(db: Db, job: TerminalJob): Promise<Settled[]> {
   const mailbox = await noteMailboxTrouble(db, job.tenant_id, idFrom(job.payload, "mailbox_id"));
   const { data, error } = await findEmailThreadOf(db, { tenantId: job.tenant_id, externalId: receivedId });
   if (error) return [{ what: "email", changed: false, ...mailbox, error: error.message }];
-  const conversationId = (data as { conversation_id?: string | null } | null)?.conversation_id ?? null;
+  const conversationId = data?.conversation_id ?? null;
   if (!conversationId) return [{ what: "email", changed: false, ...mailbox }];
   // The same hold the intake would have raised, in words that say what
   // actually happened rather than blaming the receptionist for not answering.
@@ -522,12 +523,12 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
  * row, because the caller's job is to tell an owner the truth and "we could not check" is part of the truth.
  */
 export async function settleJob(db: Db, job: TerminalJob, certain: boolean, reason?: string): Promise<Settled[]> {
-  const settler = (SETTLERS as Record<string, Settler | null | undefined>)[job.kind];
+  const settler = entryOf(SETTLERS, job.kind);
   if (!settler) return [];
   try {
     return await settler(db, job, certain, reason);
   } catch (e) {
-    const subject = (WHAT_OF as Record<string, Settled["what"] | undefined>)[job.kind] ?? "delivery";
+    const subject = entryOf(WHAT_OF, job.kind) ?? "delivery";
     return [{ what: subject, changed: false, error: e instanceof Error ? e.message : String(e) }];
   }
 }

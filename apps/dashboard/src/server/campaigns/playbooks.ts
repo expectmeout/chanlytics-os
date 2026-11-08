@@ -235,7 +235,8 @@ export async function followUpFacts(
   const held: Record<string, string> = {};
   const heard: Record<string, string[]> = {};
   const latest = (m: Record<string, string>, t: Touch) => {
-    if (!m[t.contact_id] || Date.parse(t.at) > Date.parse(m[t.contact_id])) m[t.contact_id] = t.at;
+    const held = m[t.contact_id];
+    if (!held || Date.parse(t.at) > Date.parse(held)) m[t.contact_id] = t.at;
   };
   // Only who holds a proposal out: the rows the facts are for.
   for (const t of followUps) if (out.contacts.has(t.contact_id)) latest(t.sent ? had : t.held ? held : queued, t);
@@ -279,7 +280,7 @@ export async function listPlaybookRows(ctx: RouteContext, tenantId: string): Pro
     columns: string,
     moments = true,
   ): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }> =>
-    listStepsWith(ctx.supabase, tenantId, columns, moments) as unknown as ReturnType<typeof read>;
+    listStepsWith(ctx.supabase, tenantId, columns, moments) as ReturnType<typeof read>;
   // A database 00168 has not reached has no list_key, and one 00155 has not reached no list_id: read again without
   // them, and no playbook runs on a People list (or on any list).
   let { data: rows, error } = await read(COLUMNS);
@@ -304,7 +305,7 @@ export async function listPlaybookRows(ctx: RouteContext, tenantId: string): Pro
     (rows ?? []).map((r) => String(r.sequence_id)),
   );
   return (rows ?? []).map((r) => ({
-    ...(r as unknown as Omit<PlaybookDto, "params" | "trigger" | "policy_class" | "state" | "mode">),
+    ...(r as Omit<PlaybookDto, "params" | "trigger" | "policy_class" | "state" | "mode">),
     mode: modes.get(String(r.sequence_id)) ?? "ask",
     list_id: (r.list_id as string | null | undefined) ?? null,
     list_key: (r.list_key as string | null | undefined) ?? null,

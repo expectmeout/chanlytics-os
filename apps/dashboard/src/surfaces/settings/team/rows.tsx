@@ -42,7 +42,7 @@ export interface RowActs {
   lastOwner: (m: TeamPerson) => boolean;
   /** Why alerts may not be turned off for this member, or null where they may. */
   alertsHeld: (m: TeamPerson) => string | null;
-  pickRole: (m: TeamPerson, role: string) => void;
+  pickRole: (m: TeamPerson, role: (typeof TEAM_ROLES)[number]) => void;
   setAlerts: (m: TeamPerson, on: boolean) => void;
   arm: (ask: TeamAsk) => void;
   answer: (yes: boolean) => void;

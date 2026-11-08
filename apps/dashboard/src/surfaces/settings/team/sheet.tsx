@@ -8,7 +8,7 @@
  * asked on the row once the sheet closes, as they are on a desk.
  */
 import { useState } from "react";
-import { TEAM_ROLES, roleSays } from "@chanlytics/contracts";
+import { TEAM_ROLES, isOneOf, roleSays } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordSwitch } from "../../kit/record/field";
@@ -42,7 +42,7 @@ function endOf(p: TeamPerson, k: RowActs) {
 }
 
 export function PersonSheet({ person: p, k, onClose }: { person: TeamPerson; k: RowActs; onClose: () => void }) {
-  const [role, setRole] = useState<string>(p.role);
+  const [role, setRole] = useState<TeamRole>(isOneOf(TEAM_ROLES, p.role) ? p.role : "viewer");
   const [alerts, setAlerts] = useState(p.alerts);
   const mayRole = k.canManage && !p.isMe && p.kind === "member" && p.role !== "partner";
   const mayAlerts = k.mayAlerts && p.kind === "member" && !!p.email;

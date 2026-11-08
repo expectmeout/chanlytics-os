@@ -243,7 +243,8 @@ export function followUpStandOf(
   if (reachFor(person, purposeOfPlaybook("follow_up"), how).channel === null) return null;
   if (followUpFacts.purpose === "marketing" && reachFor(person, "marketing", how).channel === null) return null;
   const when = (m: Record<string, string>): number | null => {
-    const ms = m[person.id] ? Date.parse(m[person.id]) : Number.NaN;
+    const at = m[person.id];
+    const ms = at ? Date.parse(at) : Number.NaN;
     return Number.isFinite(ms) ? ms : null;
   };
   // One follow-up per proposal: this proposal's went, or is in a run on its way, or waiting for a person.

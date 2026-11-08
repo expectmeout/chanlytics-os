@@ -208,7 +208,7 @@ export function runMoves(st: Core): Core {
   st.spreadAdd = 0;
   for (let n = st.moves.length - 1; n >= 0; n--) {
     const a = st.moves[n];
-    if (MOVES[a.kind](st, a, st.clock - a.t0)) st.moves.splice(n, 1);
+    if (a && MOVES[a.kind](st, a, st.clock - a.t0)) st.moves.splice(n, 1);
   }
   return st;
 }

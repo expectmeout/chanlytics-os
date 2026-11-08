@@ -44,6 +44,7 @@ export function writeAuthCookies(
   headers?: Record<string, string> | null,
 ): void {
   for (const { name, value, options } of cookies) {
+    // What the auth library hands is what a response's cookies take, and neither names the other's type.
     sink.cookies.set(name, value, options as never);
   }
   for (const [name, value] of Object.entries(headers ?? {})) {

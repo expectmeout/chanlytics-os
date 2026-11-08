@@ -16,6 +16,7 @@ import {
   type CampaignStuckRawDto,
   type ReachOutChainTotalsDto,
   type ReachOutReportDto,
+  shaped,
 } from "@chanlytics/contracts";
 import {
   findCampaignLedger,
@@ -25,6 +26,7 @@ import {
   type ReportWindow,
 } from "@chanlytics/db/reports";
 import { findWhatsappChannelFacts } from "@chanlytics/db/campaigns";
+import { readAnswer } from "@chanlytics/db/shared";
 import { log } from "@/server/shared/log";
 import { getReachOutReport } from "./reach-out-report";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
@@ -47,7 +49,11 @@ export const campaignReport: Reader<ReportWindow, { report: CampaignReportDto }>
   async read(rc, window) {
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
-    const report = (await getWindow(getCampaignSeries(ctx.supabase, tenantId, window))) as unknown as CampaignReportDto;
+    const report = readAnswer(
+      "campaign_series",
+      shaped<CampaignReportDto>().nullable(),
+      await getWindow(getCampaignSeries(ctx.supabase, tenantId, window)),
+    );
     if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
     return { data: { report }, rows: [], stamp: readerStamp() };
   },

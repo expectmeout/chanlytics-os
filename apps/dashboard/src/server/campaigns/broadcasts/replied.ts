@@ -12,8 +12,9 @@ import {
   type BroadcastDto,
   type BroadcastState,
   recordOrEmpty,
+  shaped,
 } from "@chanlytics/contracts";
-import { readAllRows } from "@chanlytics/db/shared";
+import { readAllRows, readColumn } from "@chanlytics/db/shared";
 import { runCounts } from "@chanlytics/db/reports";
 import { getThreadIdsWaitingOnYou } from "@chanlytics/db/people";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -303,9 +304,13 @@ export function toDto(broadcast: BroadcastRow, counts: BroadcastCounts): Broadca
     template_name: broadcast.template_name,
     template_language: broadcast.template_language,
     params: parseParamSpecs(broadcast.params),
-    audience: (broadcast.audience && typeof broadcast.audience === "object"
-      ? broadcast.audience
-      : { kind: "everyone", id: null, label: "" }) as unknown as Audience,
+    audience: readColumn(
+      "broadcasts.audience",
+      shaped<Audience>(),
+      broadcast.audience && typeof broadcast.audience === "object"
+        ? broadcast.audience
+        : { kind: "everyone", id: null, label: "" },
+    ),
     state: broadcast.state as BroadcastState,
     scheduled_for: broadcast.scheduled_for,
     started_at: broadcast.started_at,
@@ -336,7 +341,7 @@ async function peopleOnRuns(ctx: RouteContext, tenantId: string, ids: string[]):
     const chunk = ids.slice(index, index + IN_CHUNK);
     const people = (await readAllRows("run recipients", (from, to) =>
       pagePeopleOnRuns(ctx.supabase, tenantId, chunk, from, to),
-    )) as unknown as RecipientRow[];
+    )) as RecipientRow[];
     // Pushed one at a time: spread into one push, a long history throws past about 120,000 rows.
     for (const person of people) out.push(person);
   }
@@ -370,7 +375,8 @@ async function foldCounts(ctx: RouteContext, tenantId: string, ids: string[]): P
     const convIds = [...new Set([...threadsOf.values()].flatMap((threads) => [...threads.keys()]))];
     const inbound = await inboundOn(ctx, tenantId, convIds, since, false);
     for (const [broadcastId, threads] of threadsOf) {
-      counts.get(broadcastId)!.replied = firstReplies(threads, inbound).size;
+      const count = counts.get(broadcastId);
+      if (count) count.replied = firstReplies(threads, inbound).size;
     }
   }
   return counts;

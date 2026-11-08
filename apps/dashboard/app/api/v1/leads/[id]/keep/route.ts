@@ -4,7 +4,7 @@ import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, refusalOf, recordLeadKept } from "@/server/leads/leads";
 import { keepFoundLead } from "@/server/leads/search-acts";
 
-const Body = z.object({ search_id: z.string().uuid() });
+const Body = z.object({ search_id: z.uuid() });
 
 /**
  * POST /api/v1/leads/:id/keep: the owner keeps a place from Needs review. It

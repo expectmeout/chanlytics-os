@@ -146,7 +146,7 @@ function reasonsLine(reasons: DealReportDto["reasons"], passed: number): string 
   const given = reasons.filter((r) => r.count > 0 && isDealLostReason(r.reason)).sort((a, b) => b.count - a.count);
   const sentence = given.reduce((s, r) => s + r.count, 0);
   if (!sentence || !passed) return null;
-  const top = given[0].count;
+  const top = given[0]?.count ?? 0;
   const tied = given.filter((r) => r.count === top);
   const names = upper(leadAnd(tied.map((r) => DEAL_LOST_REASON_SAID[r.reason])));
   const none = Math.max(0, passed - sentence);

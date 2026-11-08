@@ -12,6 +12,7 @@ import {
   requestedBookingOf,
   slotShort,
   BOOKING_REQUEST_WORDS,
+  fallbackMessages,
 } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta } from "@chanlytics/contracts";
 import { photoUserText } from "./vision";
@@ -149,9 +150,11 @@ export async function takeModelTurn(
   bodyText: string,
   photo: { mime: string; base64: string } | null,
 ): Promise<Turn> {
-  const { ports, db, rt, thread, n, fallbacks, L, channel } = at;
+  const { ports, db, rt, thread, n, L, channel } = at;
   // A persona is certain here: the mode in force held every message of a workspace without one (./reply-gates.ts).
   const brainCfg = at.brainCfg as BrainConfig;
+  // The words a turn falls back on, which the context makes from the same config this turn runs on.
+  const fallbacks = at.fallbacks ?? fallbackMessages(brainCfg, rt?.known);
   let replyText: string;
   let escalate: boolean;
   let escalationReason: string;
@@ -190,7 +193,7 @@ export async function takeModelTurn(
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens. A text is told it answers texts (compose.ts).
         resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known),
-        fallbacks!.error,
+        fallbacks.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
         // it was answering too, from nothing — it had a table of hours and no
@@ -220,7 +223,7 @@ export async function takeModelTurn(
       bookingRequest = done.bookingRequest ?? null;
     } catch (e) {
       L.error("brain_failed", { error: errField(e) });
-      replyText = fallbacks!.error;
+      replyText = fallbacks.error;
       escalate = true;
       escalationReason = "brain_error";
     }
@@ -230,7 +233,7 @@ export async function takeModelTurn(
     // person, and the platform is paged once per window (noModelPlan says
     // why). A canned greeting passed off as an answer would be the quiet
     // failure this replaces.
-    fallback = noModelPlan(fallbacks!);
+    fallback = noModelPlan(fallbacks);
     replyText = fallback.replyText;
     escalate = fallback.escalate;
     escalationReason = fallback.escalationReason;

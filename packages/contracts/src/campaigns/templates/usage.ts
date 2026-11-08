@@ -145,7 +145,7 @@ export function templateUsage(src: TemplateUseSource): Record<string, TemplateUs
 const sayList = (parts: string[]): string =>
   parts.length < 2 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 
-const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const capital = (s: string): string => (s ? (s[0] ?? "").toUpperCase() + s.slice(1) : s);
 
 /** A step as the owner knows it: its sequence's name, and its place where the sequence has more than one step. */
 const sequenceStepWords = (p: TemplateUse["playbooks"][number]): string =>

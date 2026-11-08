@@ -77,7 +77,7 @@ function fillDetails(text: string, values: Record<FallbackDetail, string | null>
       // Sentence by sentence, so a detail the workspace lacks takes only its own sentence with it.
       return line
         .split(/(?<=[.!?])\s+/)
-        .filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])]))
+        .filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1] ?? "")]))
         .map((s) => s.replace(DETAIL, (_, name: string) => values[detailOf(name)] as string))
         .join(" ");
     })

@@ -72,7 +72,7 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
     });
   const otherItem = BOOKING_DEFAULTS;
   return {
-    line: joined ? `${joined[0].toUpperCase()}${joined.slice(1)}` : null,
+    line: joined ? `${(joined[0] ?? "").toUpperCase()}${joined.slice(1)}` : null,
     notes: notes.length ? notes.join(" ") : null,
     none: `The calendar's own — at least ${pluralGrouped(otherItem.lead_hours, "hour's", "hours'")} notice, up to ${pluralGrouped(otherItem.max_days_ahead, "day", "days")} ahead, in ${count(otherItem.slot_min)}-minute slots`,
   };

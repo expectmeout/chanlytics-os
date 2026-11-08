@@ -59,8 +59,8 @@ test.describe("Delete this person", () => {
     await del.click();
 
     await expect.poll(() => seen.length).toBe(1);
-    expect(seen[0].method).toBe("DELETE");
-    expect(seen[0].url).toContain("workspace=");
+    expect(seen[0]?.method).toBe("DELETE");
+    expect(seen[0]?.url).toContain("workspace=");
     // Back on the list afterwards. Its standing line is the head's sentence on a desk (page/people-head.tsx; the rail's
     // own line is a phone's), so the list itself is the proof.
     await expect.poll(() => routeOf(page.url())).toBe("clients");

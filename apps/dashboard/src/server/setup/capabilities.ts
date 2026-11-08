@@ -5,7 +5,14 @@
  * declared here for the route to name as its input. The routes declare who may and how often.
  */
 import { z } from "zod";
-import { AppError, CAPABILITY_KINDS, capabilityStatus, type CapabilityKind, isOneOf } from "@chanlytics/contracts";
+import {
+  AppError,
+  CAPABILITY_KINDS,
+  capabilityStatus,
+  type CapabilityKind,
+  isOneOf,
+  textOrEmpty,
+} from "@chanlytics/contracts";
 import { activateCapabilityFn, deactivateCapabilityFn } from "@chanlytics/db/workspace";
 import { dbRefusal } from "@/server/shared/with-route";
 import { setupDtoFor } from "@/server/setup/setup";
@@ -20,7 +27,7 @@ export const ActivateBody = z.object({
 });
 
 function kindOf(raw: unknown): CapabilityKind {
-  const k = String(raw ?? "");
+  const k = textOrEmpty(raw);
   if (!isOneOf(CAPABILITY_KINDS, k)) throw new AppError("not_found", "No such capability.", 404);
   return k;
 }

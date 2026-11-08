@@ -114,7 +114,7 @@ test.describe("Today on a real workspace", () => {
     // named by its metric in data-figure).
     await expect(
       page.getByTestId("reports-tiles").locator('[data-figure="customer_messages"] .figure-value'),
-    ).toContainText(m![2]);
+    ).toContainText(String(m?.[2]));
   });
 
   test("the day beside the work: its note, the bar, the rest of it; its door is the Calendar", async ({ page }) => {

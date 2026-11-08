@@ -115,9 +115,9 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     await reply.click();
     await page.getByRole("menuitemradio", { name: /Asks you/ }).click();
     await expect.poll(() => seen.length).toBe(1);
-    expect(seen[0].method).toBe("PUT");
-    expect(seen[0].url).toContain("workspace=");
-    expect(seen[0].body).toEqual({ class: "reply", mode: "ask" });
+    expect(seen[0]?.method).toBe("PUT");
+    expect(seen[0]?.url).toContain("workspace=");
+    expect(seen[0]?.body).toEqual({ class: "reply", mode: "ask" });
   });
 
   test("Hours & booking asks once what happens when someone wants to book, its three answers each saying what it does", async ({

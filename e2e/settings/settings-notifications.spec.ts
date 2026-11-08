@@ -75,9 +75,9 @@ test.describe("Settings → Notifications on a real workspace", () => {
     await page.getByTestId("ntf-email-edit").getByRole("button", { name: "Add" }).click();
 
     await expect.poll(() => seen.length).toBe(1);
-    expect(typeof seen[0].version).toBe("number");
-    expect(seen[0].url).toContain("workspace=");
-    expect(seen[0].config?.notifications?.escalation_emails).toContain("e2e-alert@example.invalid");
+    expect(typeof seen[0]?.version).toBe("number");
+    expect(seen[0]?.url).toContain("workspace=");
+    expect(seen[0]?.config?.notifications?.escalation_emails).toContain("e2e-alert@example.invalid");
     await expect(page.getByText("will be alerted from the next one")).toBeVisible();
   });
 
@@ -91,7 +91,7 @@ test.describe("Settings → Notifications on a real workspace", () => {
     await expect(tick).toHaveAttribute("aria-pressed", "true");
     await tick.click();
     await expect.poll(() => seen.length).toBe(1);
-    expect(seen[0].config?.notifications?.email_off).toEqual(["call"]);
+    expect(seen[0]?.config?.notifications?.email_off).toEqual(["call"]);
     await expect(tick).toHaveAttribute("aria-pressed", "false");
   });
 });

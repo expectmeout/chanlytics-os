@@ -168,9 +168,10 @@ export function reachOutAddHandStep(reachOutDraft: ReachOutDraft, kind: HandKind
 export function reachOutSetHandWords(reachOutDraft: ReachOutDraft, index: number, words: string): ReachOutDraft {
   const s = reachOutDraft.steps[index];
   if (!s?.hand) return reachOutDraft;
+  const { kind } = s.hand;
   return {
     ...reachOutDraft,
-    steps: reachOutDraft.steps.map((x, j) => (j === index ? { ...x, hand: { kind: s.hand!.kind, words } } : x)),
+    steps: reachOutDraft.steps.map((x, j) => (j === index ? { ...x, hand: { kind, words } } : x)),
   };
 }
 /** The draft without its last step; the first email always stays. */
@@ -233,7 +234,7 @@ export function reachOutDraftIssues(reachOutDraft: ReachOutDraft, has: { booking
     const words = chainIssueWords(i);
     if (i.step === null) (i.field === "signed_by" ? out.signed_by : out.chain).push(words);
     else if (i.field === "subject" || i.field === "body" || i.field === "after_days")
-      steps[i.step][i.field].push(words);
+      steps[i.step]?.[i.field].push(words);
   }
   return out;
 }

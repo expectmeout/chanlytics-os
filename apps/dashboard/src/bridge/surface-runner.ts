@@ -102,7 +102,7 @@ const pageReadsIn = (win: Window): Promise<void> => {
   const reads = [...pageReads];
   pageReads.clear();
   if (reads.length === 0) return Promise.resolve();
-  const cap = (win as unknown as { __routeWaitMs?: number }).__routeWaitMs ?? ROUTE_WAIT_MS;
+  const cap = (win as Window & { __routeWaitMs?: number }).__routeWaitMs ?? ROUTE_WAIT_MS;
   return Promise.race([Promise.allSettled(reads).then(() => undefined), new Promise<void>((r) => setTimeout(r, cap))]);
 };
 
@@ -292,7 +292,7 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
 // `__WORKSPACES[0]` it was constant for a member of two workspaces, and the
 // guard that exists to stop one tenant's rows being restored under
 // another's name would never have fired.
-const viewedWorkspace = () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null;
+const viewedWorkspace = () => (window as Window & { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null;
 
 function signOutOnUnauthorized(run: SurfaceRun): void {
   // Cached customer data must never outlive the session allowed to see it, and a read landing before the page unloads

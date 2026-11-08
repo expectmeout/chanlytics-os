@@ -148,7 +148,8 @@ export function stepDays(nowMs: number, tz: string): StepDayChoice[] {
   add(dayPlus(today, 1), "Tomorrow");
   // Monday to Friday, the days after tomorrow up to Friday; a weekend's Friday has passed.
   const toFriday = wd >= 1 && wd <= 5 ? 5 - wd : -1;
-  for (let i = 2; i <= toFriday; i++) add(dayPlus(today, i), WEEKDAYS[weekdayOf(dayPlus(today, i))].slice(0, 3));
+  for (let i = 2; i <= toFriday; i++)
+    add(dayPlus(today, i), (WEEKDAYS[weekdayOf(dayPlus(today, i))] ?? "").slice(0, 3));
   add(dayPlus(today, wd === 0 ? 1 : 8 - wd), "Next week");
   out.push({ key: "pick", label: "Pick a day", title: "Choose any day" });
   return out;

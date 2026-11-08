@@ -23,7 +23,6 @@ import {
   type AskedPurpose,
   type SignupAskRefusal,
   recordOrEmpty,
-  recordOrNull,
 } from "@chanlytics/contracts";
 import { listPeopleStanding, recordConsent } from "@chanlytics/db/people";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
@@ -220,7 +219,7 @@ export async function askToConfirmSignup(
     { tenant_id: tenantId, user_id: userId, contact_id: contactId },
     { workspace: tenantId, user: userId, timeoutMs: ASK_TIMEOUT_MS },
   );
-  const second = recordOrNull(answer.body);
+  const second = answer.body;
   if (answer.status === 200 && second?.ok === true) {
     const request = second.asked === true;
     const reason = typeof second.why === "string" ? (second.why as SignupAskRefusal) : null;

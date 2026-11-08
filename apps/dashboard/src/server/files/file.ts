@@ -15,7 +15,6 @@ import {
   fileMadePathOf,
   fileNameOf,
   filePathOf,
-  recordOrNull,
   type FileShows,
 } from "@chanlytics/contracts";
 import { postPathOf } from "./post-check";
@@ -176,7 +175,7 @@ export async function playFile(
     { tenant_id: file.tenant_id, id: file.id },
     { workspace: file.tenant_id, user: ctx.userId, timeoutMs: PLAY_MS },
   );
-  const reply = recordOrNull(answer.body);
+  const reply = answer.body;
   if (answer.status !== 200 || typeof reply?.player_url !== "string" || typeof reply.expires_at !== "string") {
     log.warn("file_play_failed", { tenant_id: file.tenant_id, status: answer.status });
     throw new AppError("internal", W.video.cantPlay);

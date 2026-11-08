@@ -516,7 +516,7 @@ export function installNotifications(
     },
     sections: (list) => bellSections(list, older()),
   };
-  (win as unknown as { __notifs?: BellApi }).__notifs = api;
+  (win as Window & { __notifs?: BellApi }).__notifs = api;
   installed = api;
   return api;
 }
@@ -527,7 +527,7 @@ export const bellNow = (): BellApi | null => installed;
 
 /** The browser's Notification, where it has one. */
 const notificationOf = (win: Window): typeof Notification | undefined =>
-  (win as unknown as { Notification?: typeof Notification }).Notification;
+  (win as Window & { Notification?: typeof Notification }).Notification;
 
 /**
  * Wake the device for the rows that are new since the last look: three at most, only while the app is not in view and the

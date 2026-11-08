@@ -224,7 +224,9 @@ export async function sweepUnfinished(unfinishedPorts: UnfinishedPorts): Promise
   const tell = async (tenantId: string, n: NotifyMessage): Promise<boolean> => {
     if (!addressing.has(tenantId))
       addressing.set(tenantId, await unfinishedPorts.loadTenantNotifications(unfinishedPorts.db, tenantId));
-    const target: NotifyTarget = { tenantId, ...addressing.get(tenantId)! };
+    const address = addressing.get(tenantId);
+    if (!address) return false;
+    const target: NotifyTarget = { tenantId, ...address };
     if (!unfinishedPorts.reachesTenant(target)) return false;
     return unfinishedPorts.notify(target, n);
   };
@@ -245,7 +247,7 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
     BATCH,
   );
   if (inErr) throw new Error(`unfinished: cannot read inbound messages: ${inErr.message}`);
-  const found = (inbound ?? []) as unknown as InboundRow[];
+  const found = (inbound ?? []) as InboundRow[];
   const answering = await textsInHand(p.db, found, now);
   const rows = found.filter((r) => !answering.has(r.id));
   const first = rows[0];
@@ -315,7 +317,7 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
     BATCH,
   );
   if (qErr) throw new Error(`unfinished: cannot read queued replies: ${qErr.message}`);
-  const stuck = (queued ?? []) as unknown as QueuedRow[];
+  const stuck = (queued ?? []) as QueuedRow[];
   if (!stuck.length) return;
   const live = await liveJobsNaming(
     p.db,

@@ -262,7 +262,7 @@ const CALL_NOTE_PREFIX =
  * held draft looks exactly like a message the customer has already read, so an
  * operator would either ignore it or apologise for something that never went out.
  */
-export function isHeldDraft(message: MessageDto): boolean {
+export function isHeldDraft(message: Pick<MessageDto, "status" | "sender">): boolean {
   return message.status === "queued" && message.sender === "ai";
 }
 

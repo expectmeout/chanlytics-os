@@ -145,7 +145,7 @@ export const warmPeopleMap = (): void => peopleMap.warm();
 
 /** The member looking, as the workspace surface named them at boot; null before it lands. */
 export function viewerId(): string | null {
-  return (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
+  return (window as Window & { __ME?: { id?: string | null } }).__ME?.id ?? null;
 }
 
 /**

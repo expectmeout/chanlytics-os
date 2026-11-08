@@ -198,7 +198,7 @@ export function parseFrame(frame: string): GatewayEvent | null {
   if (!data) return null;
   let ev: RawEvent;
   try {
-    ev = JSON.parse(data);
+    ev = JSON.parse(data) as RawEvent;
   } catch {
     return null;
   }

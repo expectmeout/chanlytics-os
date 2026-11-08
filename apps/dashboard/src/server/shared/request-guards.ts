@@ -1,4 +1,4 @@
-import { AppError, UUID } from "@chanlytics/contracts";
+import { AppError, UUID, textOrEmpty } from "@chanlytics/contracts";
 
 /**
  * The checks every mutating request should pass before anything reads a
@@ -56,7 +56,7 @@ export function isSameOrigin(request: Request): boolean {
  * it.
  */
 export function requireUuid(value: unknown, text = "record"): string {
-  const s = String(value ?? "");
+  const s = textOrEmpty(value);
   if (!UUID.test(s)) throw new AppError("not_found", `That ${text} does not exist.`, 404);
   return s;
 }

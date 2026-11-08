@@ -251,7 +251,7 @@ export function personLeadOf(
     ? {
         id: personDetail.lead.id,
         name: personDetail.lead.business_name || base.name,
-        found: ts(personDetail.lead.found_at) !== null ? clockDate(ts(personDetail.lead.found_at)!, tz, nowMs) : "—",
+        found: ((at) => (at !== null ? clockDate(at, tz, nowMs) : "—"))(ts(personDetail.lead.found_at)),
         to: leadsRoute({ peek: personDetail.lead.id }),
       }
     : null;

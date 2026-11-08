@@ -188,7 +188,7 @@ export async function setPolicyMode(
   }
   const { data, error } = await db
     .from("policies")
-    .update(merged ? { mode, limits: merged as never } : { mode })
+    .update(merged ? { mode, limits: jsonCopyOf(merged) } : { mode })
     .eq("tenant_id", tenantId)
     .eq("class", policyClass)
     .is("subject_type", null)

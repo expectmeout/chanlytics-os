@@ -362,7 +362,8 @@ export const start: Provider = async (rc, ctx) => {
 };
 
 /** Any other page: its address, and nothing read. */
-export const readOther: Provider = async (_rc, ctx) => ({
-  rows: [],
-  aggregate: aggregateOf([`${pageWithView(ctx)}: ${ctx.route || "the page"}`, "nothing on it is read here"]),
-});
+export const readOther: Provider = (_rc, ctx) =>
+  Promise.resolve({
+    rows: [],
+    aggregate: aggregateOf([`${pageWithView(ctx)}: ${ctx.route || "the page"}`, "nothing on it is read here"]),
+  });
