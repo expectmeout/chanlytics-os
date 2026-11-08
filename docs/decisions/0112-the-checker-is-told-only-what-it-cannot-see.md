@@ -1,6 +1,6 @@
 # 0112 · The checker is told only what it cannot see
 
-**Status:** Accepted by Ruben, 7 November 2026 ("Approve all seven"). Its first part landed as #2185 (7 November). Its second is built on
+**Status:** Accepted by Ruben, 7 November 2026 ("Approve all seven"). Its first part is built and merged (#2185, 7 November). Its second is built on
 `types/layer-7-part-2`, 8 November 2026, after layer 8 (#2186): points 2 and 3 across the backend, point 4 in report-only, point 5 for core.
 Point 7 (the ids) is built apart and not yet whole; the held rules in layer 8's files, the strict four, the dashboard's and the specs' index
 reads and the edge answers' schema are still owed. No migration; nothing changes for a customer but three readings of a value from outside,
