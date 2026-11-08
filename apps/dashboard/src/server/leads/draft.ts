@@ -23,7 +23,7 @@ import { getStoredConfig } from "../workspace/config-row";
 import { getWorkspaceOffer } from "./allowance";
 import { getLeadEmailOffer, type LeadEmailOffer } from "./send";
 import type { LeadRow } from "./searches";
-import { unbackedNumbers } from "../campaigns/sequences/numbers";
+import { numberBacking, unbackedNumbers } from "../campaigns/sequences/numbers";
 import { askForJson } from "../shared/model-json";
 import { serviceDb } from "../shared/service-db";
 import type { RouteContext } from "../shared/with-route";
@@ -157,7 +157,7 @@ export async function draftFor(
     );
   // A number about the writer stands only in a claim it can prove (decision 0113), and one about them in their facts:
   // one more try without it, then no draft.
-  const backing = [...(config?.reach_out?.proof ?? []), offer.name, ...facts];
+  const backing = numberBacking(config?.reach_out?.proof, offer.name, facts);
   const unbacked = (a: { subject: string; body: string }) =>
     unbackedNumbers(`${a.subject}\n${a.body}`, backing).length > 0;
   const first = await ask(input.previous, null);

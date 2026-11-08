@@ -351,7 +351,7 @@ function stepWordsOf(
   const box = leadWordsInBox({ words: step.written, lead, workspace, opening: line });
   const first = step.stepWritten.subject !== null;
   const ending = coldEndingOf({
-    signsWith: chain.signs_with ?? "name",
+    signsWith: chain.signs_with,
     signedBy: chain.signed_by,
     // An email its owner sends ends with the name alone: their mail app adds their signature.
     signature: chain.owner_sends ? null : (chainFirstSender(chain)?.signature?.words ?? null),

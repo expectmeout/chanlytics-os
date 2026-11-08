@@ -115,6 +115,7 @@ export {
   openingAskedOf,
   openingSystemPrompt,
   openingUserContent,
+  openingUserLines,
   openingVerdict,
   parseOpening,
   parseReading,
@@ -182,6 +183,7 @@ export {
   draftRefusal,
   isDraftWhy,
   leadReplyNote,
+  REPLY_MODE_UNSET,
   replyOfferSteer,
 } from "./reply-draft";
 export type { DraftWhy } from "./reply-draft";
@@ -239,7 +241,13 @@ export type { ReachOutChainInput } from "./schemas";
 export type { ReachOutReplySaidInput } from "./schemas";
 export type { ReachOutPreviewInput } from "./schemas";
 export type { ReachOutAddInput, ReachOutRepliesQuery } from "./schemas";
-export { reachOutBackingOf, reachOutOfferOf, reachOutSignatureOf, reachOutSignedByOf, reachOutToneOf } from "./section";
+export {
+  openingWorkspaceOf,
+  reachOutOfferOf,
+  reachOutSignatureOf,
+  reachOutSignedByOf,
+  reachOutToneOf,
+} from "./section";
 export {
   REACH_OUT_SETTINGS_WORDS,
   reachOutRuleLines,

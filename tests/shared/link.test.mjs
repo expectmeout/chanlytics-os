@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { linkHost, normalizeLink, whyNotALink } from "@chanlytics/contracts";
+import { linkHost, normalizeLink, webAddressesIn, whyNotALink } from "@chanlytics/contracts";
 
 test("normalizeLink keeps a web address as typed, trimmed, and supplies a missing https://", () => {
   assert.equal(normalizeLink("  https://docs.example.com/p/42 "), "https://docs.example.com/p/42");
@@ -50,4 +50,14 @@ test("linkHost is the host without its www., for a row that says where the propo
   assert.equal(linkHost("https://www.docs.example.com/p/42"), "docs.example.com");
   assert.equal(linkHost("https://Docs.Example.com/P/42"), "docs.example.com");
   assert.equal(linkHost("not a link"), "not a link");
+});
+
+test("the web addresses a reader sees in words: with a scheme, a www. or a bare name.tld, and never an email address", () => {
+  assert.deepEqual(webAddressesIn("See https://a.example/x and www.b.example or c.example/book then RJCapital.io"), [
+    "https://a.example/x",
+    "www.b.example",
+    "c.example/book",
+    "RJCapital.io",
+  ]);
+  assert.deepEqual(webAddressesIn("St.Louis, Dr.Smith, a 4.9 rating, hi@a.example"), []);
 });

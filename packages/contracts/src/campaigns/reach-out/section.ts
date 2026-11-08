@@ -5,28 +5,28 @@
  * already knew. A workspace that never opens the page is written for exactly as before. The page's own words are
  * settings.ts.
  */
-import type { ReplyOffer } from "../../config/workspace-config/config-rules";
+import type { ReachOutConfig } from "../../config/workspace-config/reach-out-schema";
+import type { OpeningWorkspace } from "./opening";
 
 /** The config as the readers here take it: any parsed config, or a part of one. */
 interface ReachOutReadable {
-  reach_out?: {
-    offer?: string;
-    tone?: string;
-    signed_by?: string;
-    signature?: string;
-    phone?: string;
-    proof?: readonly string[];
-    reply_offer?: ReplyOffer;
-  };
+  reach_out?: ReachOutConfig;
   ask?: { goal?: string };
   brain?: { profile?: { tone?: string } };
 }
 
 const filled = (text: string | null | undefined): string | null => text?.trim() || null;
 
-/** What a cold email offers: the owner's words on the page, else what the business does, else its goal. */
+/** What the business does, as a cold email says it: the owner's words on the page, else its own description. */
+const whatItDoesOf = (config: ReachOutReadable | null | undefined, about: string | null): string | null =>
+  filled(config?.reach_out?.offer) ?? filled(about);
+
+/**
+ * What a cold email offers, as the page says it and the drafter is told it apart: what the business does, else its goal.
+ * The line about each business is told less (openingWorkspaceOf).
+ */
 export function reachOutOfferOf(config: ReachOutReadable | null | undefined, about: string | null): string | null {
-  return filled(config?.reach_out?.offer) ?? filled(about) ?? filled(config?.ask?.goal);
+  return whatItDoesOf(config, about) ?? filled(config?.ask?.goal);
 }
 
 /** The tone a cold email is written in: its own, else the receptionist's. */
@@ -54,9 +54,15 @@ export function reachOutSignatureOf(config: ReachOutReadable | null | undefined)
   return lines.length ? lines.join("\n") : null;
 }
 
-/** What may back a number in a step's own words: each claim the owner stands behind, and the business's name. */
-export function reachOutBackingOf(config: ReachOutReadable | null | undefined, businessName: string | null): string[] {
-  const claims = (config?.reach_out?.proof ?? []).map((c) => c.trim()).filter(Boolean);
-  const name = filled(businessName);
-  return name ? [...claims, name] : claims;
+/**
+ * The owner's side of what the line about each business is told (contracts openingUserContent), for the check that writes
+ * it and for What it's told, which shows it: their name, what they do, their tone. Never the goal: it is what they are
+ * working toward, and the line says what they do.
+ */
+export function openingWorkspaceOf(
+  name: string,
+  config: ReachOutReadable | null | undefined,
+  about: string | null,
+): OpeningWorkspace {
+  return { name, what_we_do: whatItDoesOf(config, about), tone: reachOutToneOf(config) };
 }

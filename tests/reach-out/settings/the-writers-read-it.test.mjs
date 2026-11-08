@@ -64,6 +64,8 @@ test("the opening writer reads the offer where the owner wrote one, else what th
     T,
   );
   assert.deepEqual(after.opening, { name: "Brightline Cleaning", what_we_do: "Evening cleaning", tone: "Direct" });
+  const goal = await checkWorkspaceOf(workspaceDb({ brain: brainWith({}), ask: { goal: "Twenty clients" } }), T);
+  assert.equal(goal.opening.what_we_do, null, "a goal is not what they do");
 });
 
 test("the sender's workspace carries Sign-off's signature with its phone, and none where the rows are empty", async () => {

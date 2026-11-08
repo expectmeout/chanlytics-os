@@ -10,7 +10,8 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { draftBackingOf, leadEmail } =
   await import("../../../apps/dashboard/src/server/campaigns/sequences/draft-judge.ts");
-const { unbackedNumbers } = await import("../../../apps/dashboard/src/server/campaigns/sequences/numbers.ts");
+const { numberBacking, unbackedNumbers } =
+  await import("../../../apps/dashboard/src/server/campaigns/sequences/numbers.ts");
 
 test("a number nothing backs is named, once, as written", () => {
   assert.deepEqual(unbackedNumbers("We clean 40 clinics and 1,204 rooms, 1,204 a week", ["We clean 40 clinics"]), [
@@ -53,4 +54,12 @@ test("what the owner typed into New backs a number Ask repeats from it, as a cla
   assert.equal(leadEmail(step, true, draftBackingOf(known, ask)).body, step.body);
   // Without the owner's line, the 12 is nobody's: the step is left for the owner to write.
   assert.equal(leadEmail(step, true, draftBackingOf(known, { words: "Email the clinics" })).body, "");
+});
+
+test("what backs a number is one list: the claims, the business's name, and what this writing was asked from", () => {
+  assert.deepEqual(
+    numberBacking([" We clean 40 clinics. ", " "], "Brightline", ["Mention 12 years", "", null, undefined]),
+    ["We clean 40 clinics.", "Brightline", "Mention 12 years"],
+  );
+  assert.deepEqual(numberBacking(undefined, "Brightline"), ["Brightline"]);
 });

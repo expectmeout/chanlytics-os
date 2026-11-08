@@ -14,6 +14,8 @@ import {
   ASK_MEMORY_LIMITS,
   REACH_OUT_DRAFTS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
+  REPLY_MODE_UNSET,
+  mailboxIsLive,
   mailboxSendsNow,
   mailboxWords,
   parseTenantConfig,
@@ -252,7 +254,7 @@ export function newestLeadSequence(chains: readonly ReachOutChainDto[]): ReachOu
     search_id: chain.search?.id ?? null,
     include_unconfirmed: chain.include_unconfirmed,
     signed_by: chain.signed_by,
-    signs_with: chain.signs_with ?? "name",
+    signs_with: chain.signs_with,
     mailbox_id: chain.mailbox_ids[0] ?? null,
     first: { subject: first.subject, body: first.body },
     next:
@@ -295,7 +297,7 @@ export function mailboxShown(
   nowMs: number,
   tz: string,
 ): ReachOutSettingsMailbox | null {
-  const live = mailboxes.filter((m) => m.state !== "removed");
+  const live = mailboxes.filter(mailboxIsLive);
   const shown = live.find((m) => mailboxSendsNow(m, nowMs)) ?? live.at(0);
   if (!shown) return null;
   const words = mailboxWords(shown, nowMs, tz);
@@ -354,7 +356,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         claims: claimCounts(claims, chains, counted),
         voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),
         sequence: newestLeadSequence(chains),
-        reply_mode: policies.find((p) => p.class === "reply")?.mode ?? "ask",
+        reply_mode: policies.find((p) => p.class === "reply")?.mode ?? REPLY_MODE_UNSET,
         about,
       },
       rows: [],

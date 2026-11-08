@@ -5,7 +5,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mailboxConnectionDtoOf } from "@chanlytics/contracts";
+import { mailboxConnectionDtoOf, mailboxIsLive } from "@chanlytics/contracts";
+import { countSentByStep } from "@chanlytics/db/campaigns";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -89,6 +90,26 @@ test("a claim counts the sent emails of the steps that carry it, word for word, 
   );
 });
 
+test("the steps' counts are one read, each step once, and with no step to count nothing is asked", async () => {
+  const asked = [];
+  const db = fakeDb(
+    {},
+    {},
+    {
+      sequence_sent_by_step: (args) => {
+        asked.push(args);
+        return [{ step_id: "a", sent: 12 }];
+      },
+    },
+  );
+  const T = "11111111-1111-4111-8111-111111111111";
+  const counts = await countSentByStep(db, T, ["a", "b", "a"]);
+  assert.deepEqual([...counts], [["a", 12]]);
+  assert.deepEqual(asked, [{ p_tenant_id: T, p_step_ids: ["a", "b"] }]);
+  assert.equal((await countSentByStep(db, T, [])).size, 0);
+  assert.equal(asked.length, 1, "no step, no read");
+});
+
 test("the mailbox shown is the first that sends now, said as Connections says it", () => {
   // A mailbox as Connections is told of it: its row, through contracts' own builder (mailboxConnectionDtoOf).
   const box = (id, state) =>
@@ -121,6 +142,8 @@ test("the mailbox shown is the first that sends now, said as Connections says it
   assert.equal(shown.address, "maya@example.com");
   assert.equal(typeof shown.pill, "string");
   assert.equal(mailboxShown([box("gone", "removed")], Date.now(), "UTC"), null);
+  assert.equal(mailboxIsLive(box("gone", "removed")), false);
+  assert.equal(mailboxIsLive(box("paused", "paused")), true);
 });
 
 test("the month's first emails are the service role's count, and a count that fails is none, never a zero", async () => {
