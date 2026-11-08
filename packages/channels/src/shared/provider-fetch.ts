@@ -311,8 +311,8 @@ async function once(provider: Provider, url: string, call: ProviderCall, deps: R
       error: null,
       tries,
     };
-  } catch (otherError) {
-    const { outcome, error } = outcomeOfThrow(otherError);
+  } catch (failure) {
+    const { outcome, error } = outcomeOfThrow(failure);
     providerReply = {
       outcome,
       status: 0,

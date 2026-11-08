@@ -57,10 +57,10 @@ async function personOnCard(toolContext: ToolContext, contactId: string): Promis
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
   // As People names them (personName). What the page shows in place of a name of their own is that, minus the typed name.
-  const otherPersonName = personName(c);
+  const contactName = personName(c);
   const shows = c.wa_profile_name || c.phone_e164 || c.email ? personName({ ...c, display_name: null }) : null;
-  noteRow(toolContext, "person", id, otherPersonName, addressOf({ kind: "person", id }));
-  return { id, who: otherPersonName, name: c.display_name ?? null, email: c.email ?? null, shows };
+  noteRow(toolContext, "person", id, contactName, addressOf({ kind: "person", id }));
+  return { id, who: contactName, name: c.display_name ?? null, email: c.email ?? null, shows };
 }
 const refused = (p: CardPerson | ProposalOutcome): p is ProposalOutcome => "result" in p;
 

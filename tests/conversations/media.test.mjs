@@ -229,7 +229,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
   );
   assert.ok(
     wa.includes(
-      "const sentence = await sayUnreadable(thread.pausedUntil);\n      await sink.processed(handledOf(sentence.way));",
+      "const outcome = await sayUnreadable(thread.pausedUntil);\n      await sink.processed(handledOf(outcome.way));",
     ),
     "a photo that could not be fetched is handed over, not answered from its caption",
   );

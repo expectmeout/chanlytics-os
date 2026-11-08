@@ -70,11 +70,11 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
       const t = x.trim();
       return /[.!?…]$/.test(t) ? t : `${t}.`;
     });
-  const otherItem = BOOKING_DEFAULTS;
+  const defaults = BOOKING_DEFAULTS;
   return {
     line: joined ? `${(joined[0] ?? "").toUpperCase()}${joined.slice(1)}` : null,
     notes: notes.length ? notes.join(" ") : null,
-    none: `The calendar's own — at least ${pluralGrouped(otherItem.lead_hours, "hour's", "hours'")} notice, up to ${pluralGrouped(otherItem.max_days_ahead, "day", "days")} ahead, in ${count(otherItem.slot_min)}-minute slots`,
+    none: `The calendar's own — at least ${pluralGrouped(defaults.lead_hours, "hour's", "hours'")} notice, up to ${pluralGrouped(defaults.max_days_ahead, "day", "days")} ahead, in ${count(defaults.slot_min)}-minute slots`,
   };
 }
 

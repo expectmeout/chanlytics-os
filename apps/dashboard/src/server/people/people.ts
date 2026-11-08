@@ -179,9 +179,9 @@ export async function findOnePerson(
 export async function countPeople(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
-  otherQuery: string | null,
+  searchText: string | null,
 ): Promise<number> {
-  const needle = searchNeedle(otherQuery);
+  const needle = searchNeedle(searchText);
   let searchOr: string | null = null;
   if (needle) {
     const digits = needle.replace(/\D/g, "");

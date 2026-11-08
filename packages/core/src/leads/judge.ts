@@ -223,15 +223,15 @@ export async function judgeInCalls<T>(
   const calls: T[][] = [];
   for (let i = 0; i < items.length; i += size) calls.push(items.slice(i, i + size));
   return Promise.all(
-    calls.map(async (call, otherCall) => ({
+    calls.map(async (call, callIndex) => ({
       items: call,
       judged: await judgeBatch(
         judge,
         plan,
         call.map((x, ref) => facts(x, ref)),
-        opIdOf(otherCall, call),
+        opIdOf(callIndex, call),
         round,
-        otherCall,
+        callIndex,
         mayAskAgain,
       ),
     })),

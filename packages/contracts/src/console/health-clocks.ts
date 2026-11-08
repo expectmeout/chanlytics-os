@@ -274,7 +274,7 @@ export function pagesOf(
       const lastMs = Date.parse(item.last_at);
       const alertedMs = item.alerted_at ? Date.parse(item.alerted_at) : null;
       const id = /^model_failures:(.+)$/.exec(item.key)?.[1] ?? null;
-      const otherItem = id ? byId.get(id) : undefined;
+      const clock = id ? byId.get(id) : undefined;
       return {
         key: item.key,
         words: pageKeyWords(item.key),
@@ -285,8 +285,8 @@ export function pagesOf(
         lastMailed: alertedMs ? when(alertedMs) : null,
         recent: nowMs - lastMs <= DAY_MS,
         alertedToday: alertedMs !== null && nowMs - alertedMs <= DAY_MS,
-        where: otherItem ? otherItem.name : PLATFORM_WHERE,
-        ours: otherItem?.ours ?? false,
+        where: clock ? clock.name : PLATFORM_WHERE,
+        ours: clock?.ours ?? false,
       };
     }),
   };

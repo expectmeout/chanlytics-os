@@ -249,10 +249,10 @@ async function offerForNews(
   nowMs: number,
 ): Promise<FreedTimeOffer | null> {
   try {
-    const otherFreedTimeAsked = await freedTimeAsked(event, ports, nowMs);
-    if (!otherFreedTimeAsked) return null;
-    if (otherFreedTimeAsked.offered) return otherFreedTimeAsked;
-    return otherFreedTimeAsked.why === "nobody" ? { offered: false, why: "nobody" } : null;
+    const freedAsked = await freedTimeAsked(event, ports, nowMs);
+    if (!freedAsked) return null;
+    if (freedAsked.offered) return freedAsked;
+    return freedAsked.why === "nobody" ? { offered: false, why: "nobody" } : null;
   } catch (e) {
     logger().warn("freed_time_offer_unasked", { tenant_id: event.tenant_id, event_id: event.id, error: errField(e) });
     return null;

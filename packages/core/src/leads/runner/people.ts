@@ -241,8 +241,8 @@ async function judgedPage(
     ),
   );
   const out: JudgedPage = { kept: [], judgments: [], leftOut: 0, refused: null };
-  batches.forEach((batch, otherBatch) => {
-    const json = judged[otherBatch];
+  batches.forEach((batch, batchIndex) => {
+    const json = judged[batchIndex];
     if (!json) return;
     if (json.judgment) out.judgments.push(json.judgment);
     if (json.refused) out.refused = json.why ?? "refused";

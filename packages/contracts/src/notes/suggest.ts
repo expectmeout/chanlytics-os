@@ -200,11 +200,11 @@ const wordSet = (s: string) =>
 /** How much of the shorter one the other says: 1 is the same words. */
 export function noteOverlap(first: string, second: string): number {
   const result = wordSet(first);
-  const otherWordSet = wordSet(second);
-  if (!result.size || !otherWordSet.size) return 0;
+  const secondWords = wordSet(second);
+  if (!result.size || !secondWords.size) return 0;
   let both = 0;
-  for (const w of result) if (otherWordSet.has(w)) both += 1;
-  return both / Math.min(result.size, otherWordSet.size);
+  for (const w of result) if (secondWords.has(w)) both += 1;
+  return both / Math.min(result.size, secondWords.size);
 }
 
 export type NoteCheck = { ok: true; body: string; kind: NoteSuggestKind } | { ok: false; why: string };

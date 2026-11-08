@@ -83,8 +83,8 @@ export async function syncFor(
       sub = list.data[0] ?? null;
     }
     if (!sub) return { ok: false, error: "no_subscription" };
-    const otherApplySubscription = await applySubscription(db, row, sub, "sync", now);
-    return { ok: true, status: otherApplySubscription.status };
+    const applied = await applySubscription(db, row, sub, "sync", now);
+    return { ok: true, status: applied.status };
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
   }

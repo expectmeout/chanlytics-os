@@ -70,7 +70,7 @@ function skillRead(skill: string): unknown {
 
 async function readGuide(toolContext: ToolContext, input: { skill?: string | undefined }): Promise<unknown> {
   if (input.skill) return skillRead(input.skill);
-  const otherKindsAsked = kindsAsked(toolContext);
+  const kinds = kindsAsked(toolContext);
   const setup = await load(toolContext.rc, connections, undefined).then(
     (r) => r.data.setup,
     unread(toolContext, "guide", "setup"),
@@ -108,7 +108,7 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
       page: p.page,
       route: p.route,
       for: p.for,
-      ask_can: [...new Set(p.verbs.flatMap((k) => otherKindsAsked.get(k) ?? []))],
+      ask_can: [...new Set(p.verbs.flatMap((k) => kinds.get(k) ?? []))],
       on_the_page_only: p.pageOnly.map((x) => `${x.what}: ${x.why}`),
     })),
     setup: setup

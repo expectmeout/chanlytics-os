@@ -236,18 +236,18 @@ export function unmarkedVisitsOf(
   day: string,
 ): TodayVisitAskVM[] {
   const todayVisitAsks: TodayVisitAskVM[] = [];
-  for (const second of [...frame.blocks].sort((x, y) => x.t - y.t)) {
-    if (!second.person || !second.visit || !second.visit.id || !second.start || !second.end) continue;
-    const to = visitDoor(frame.key, second.visit.id);
+  for (const block of [...frame.blocks].sort((x, y) => x.t - y.t)) {
+    if (!block.person || !block.visit || !block.visit.id || !block.start || !block.end) continue;
+    const to = visitDoor(frame.key, block.visit.id);
     const line = visitLineOfBlock(
       {
-        id: second.id,
-        title: second.title,
-        time: second.time,
-        start: second.start,
-        end: second.end,
-        visit: { id: second.visit.id, status: second.visit.status },
-        person: second.person,
+        id: block.id,
+        title: block.title,
+        time: block.time,
+        start: block.start,
+        end: block.end,
+        visit: { id: block.visit.id, status: block.visit.status },
+        person: block.person,
       },
       nowMs,
       day,
@@ -256,8 +256,8 @@ export function unmarkedVisitsOf(
     if (line.unmarked)
       todayVisitAsks.push({
         line,
-        markId: second.visit.id,
-        person: { id: second.person.id, name: second.person.name },
+        markId: block.visit.id,
+        person: { id: block.person.id, name: block.person.name },
         to,
       });
   }

@@ -155,33 +155,32 @@ export function messageCraftIssues(
   // What the message may hold: the draft's words, and the owner's own where a turn asked (a figure they gave is theirs).
   const draft = [craftAllWords(messageBrief.message.draft), ownerWords(messageBrief)].filter(Boolean).join("\n");
   const length = messageBrief.message.values.length;
-  for (const cRAFTCHANNELS of CRAFT_CHANNELS) {
-    const text = craftWordsOf(craftVersions, cRAFTCHANNELS);
+  for (const craftChannel of CRAFT_CHANNELS) {
+    const text = craftWordsOf(craftVersions, craftChannel);
     if (!text) continue;
     const outside = placeholdersOf(text).filter((p) => p < 1 || p > length);
-    if (cRAFTCHANNELS !== "whatsapp" && outside.length)
+    if (craftChannel !== "whatsapp" && outside.length)
       out.push({
-        channel: cRAFTCHANNELS,
+        channel: craftChannel,
         code: "values",
         words: `values it was not given: ${outside.map((p) => `{{${p}}}`).join(" ")}`,
       });
     if (/[{}]/.test(craftWithoutSlots(text)))
-      out.push({ channel: cRAFTCHANNELS, code: "braces", words: "braces that are not a value" });
-    if (cRAFTCHANNELS === "whatsapp" && craftVersions.whatsapp)
+      out.push({ channel: craftChannel, code: "braces", words: "braces that are not a value" });
+    if (craftChannel === "whatsapp" && craftVersions.whatsapp)
       out.push(...craftWhatsappIssues(craftVersions.whatsapp.body, messageBrief));
-    if (cRAFTCHANNELS === "email" && craftVersions.email) out.push(...craftEmailIssues(craftVersions.email));
-    if (cRAFTCHANNELS === "sms" && craftVersions.sms)
-      out.push(...craftTextIssues(craftVersions.sms.body, messageBrief));
+    if (craftChannel === "email" && craftVersions.email) out.push(...craftEmailIssues(craftVersions.email));
+    if (craftChannel === "sms" && craftVersions.sms) out.push(...craftTextIssues(craftVersions.sms.body, messageBrief));
     if (
       messageBrief.message.category === "utility" &&
       (priceFigures(text).length > 0 || namesMoney(text) || CRAFT_FREE.test(text))
     )
       out.push({
-        channel: cRAFTCHANNELS,
+        channel: craftChannel,
         code: "promotes",
         words: "a price, a discount or a free thing in a utility message",
       });
-    out.push(...craftBeyondDraft(cRAFTCHANNELS, text, draft, messageBrief));
+    out.push(...craftBeyondDraft(craftChannel, text, draft, messageBrief));
   }
   return out;
 }

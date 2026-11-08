@@ -23,20 +23,20 @@ const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]+\]$/;
 
 /** What PUT /api/v1/me/devices accepts, or why not, in one sentence. */
 export function parseDevice(body: unknown): { ok: true; device: PushDevice } | { ok: false; reason: string } {
-  const second = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const token = typeof second.token === "string" ? second.token.trim() : "";
+  const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const token = typeof record.token === "string" ? record.token.trim() : "";
   if (!token) return { ok: false, reason: "A device needs its push token." };
   if (token.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
-  const platform = isOneOf(PUSH_PLATFORMS, second.platform) ? second.platform : null;
+  const platform = isOneOf(PUSH_PLATFORMS, record.platform) ? record.platform : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
   if (!EXPO_PUSH_TOKEN.test(token)) return { ok: false, reason: "That is not a push token the service hands out." };
   const version =
-    typeof second.app_version === "string" && second.app_version.trim()
-      ? second.app_version.trim().slice(0, VERSION_MAX)
+    typeof record.app_version === "string" && record.app_version.trim()
+      ? record.app_version.trim().slice(0, VERSION_MAX)
       : null;
   // The Live Activity's push-to-start token (00191), when the phone has one: iOS 17.2 and later, never Android.
   const activity =
-    typeof second.activity_token === "string" && second.activity_token.trim() ? second.activity_token.trim() : null;
+    typeof record.activity_token === "string" && record.activity_token.trim() ? record.activity_token.trim() : null;
   if (activity && activity.length > TOKEN_MAX)
     return { ok: false, reason: "That activity token is longer than any we know." };
   return { ok: true, device: { token, platform, app_version: version, activity_token: activity } };

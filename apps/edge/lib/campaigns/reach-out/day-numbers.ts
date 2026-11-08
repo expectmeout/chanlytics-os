@@ -36,22 +36,22 @@ export async function tellReachOutDays(db: Db, now: Date, log: Logger, deadlineM
       log.warn("reach_out_day_failed", { error: e instanceof Error ? e.message : String(e) });
       return notice;
     }
-    for (const otherRow of due) {
-      const words = reachOutDayWords(otherRow.numbers);
+    for (const dueRow of due) {
+      const words = reachOutDayWords(dueRow.numbers);
       const row = await recordNotification(
-        otherRow.tenant_id,
+        dueRow.tenant_id,
         {
           kind: "reach_out_day",
           title: words.title,
           body: words.body,
           route: REACH_OUT_DAY_ROUTE,
-          about: { type: "reach_out_day", id: otherRow.day },
+          about: { type: "reach_out_day", id: dueRow.day },
         },
         db,
       );
       if (!row) continue;
       notice += 1;
-      log.info("reach_out_day_told", { tenant_id: otherRow.tenant_id, day: otherRow.day, ...otherRow.numbers });
+      log.info("reach_out_day_told", { tenant_id: dueRow.tenant_id, day: dueRow.day, ...dueRow.numbers });
     }
     if (due.length < REACH_OUT_DAY_PAGE) break;
   }

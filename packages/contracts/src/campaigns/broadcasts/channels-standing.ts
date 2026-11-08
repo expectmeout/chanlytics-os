@@ -41,8 +41,8 @@ const NO_DOOR: readonly string[] = [
 ];
 
 /** A reason as a line's words: the sentence the readiness carries, without its full stop, after the channel's name. */
-function closedWords(channel: ConsentChannel, otherReason: string | null): string {
-  const reason = (otherReason ?? "").replace(/\.$/, "");
+function closedWords(channel: ConsentChannel, closedReason: string | null): string {
+  const reason = (closedReason ?? "").replace(/\.$/, "");
   return reason ? `${VERSION_CHANNEL_WORDS[channel]}: ${reason}` : `${VERSION_CHANNEL_WORDS[channel]} is off`;
 }
 

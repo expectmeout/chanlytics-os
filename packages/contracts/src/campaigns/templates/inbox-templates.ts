@@ -334,10 +334,10 @@ export function inboxTemplateParts(
   const vars = listOrEmpty(target.variables).map(recordOrEmpty);
   // A slot's place in the words: the variable's own position where it says one, else its order.
   const valueAt = new Map<number, TemplatePart>();
-  slots.forEach((slot, otherSlot) => {
-    const given = vars[otherSlot]?.position;
-    const pos = typeof given === "number" ? given : otherSlot + 1;
-    const label = labels[otherSlot] ?? `Value ${otherSlot + 1}`;
+  slots.forEach((slot, slotIndex) => {
+    const given = vars[slotIndex]?.position;
+    const pos = typeof given === "number" ? given : slotIndex + 1;
+    const label = labels[slotIndex] ?? `Value ${slotIndex + 1}`;
     const words =
       slot.kind === "first_name"
         ? facts.firstName || "there"
@@ -350,7 +350,7 @@ export function inboxTemplateParts(
               : null;
     valueAt.set(
       pos,
-      blank && otherSlot === blank.at ? { blank: blank.label } : { words: words ?? `[${label}]`, filled: true },
+      blank && slotIndex === blank.at ? { blank: blank.label } : { words: words ?? `[${label}]`, filled: true },
     );
   });
   const parts: TemplatePart[] = [];

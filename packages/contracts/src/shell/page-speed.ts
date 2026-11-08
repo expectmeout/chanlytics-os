@@ -192,22 +192,22 @@ const DEFERRED_SAID = "A speed step put off until its number passes its line: ea
 
 /** Each step put off: its page's moves three in four against its line, warn once past it, and not yet where too few. */
 function deferredLines(at: Lookup): PageSpeedPartVM[] {
-  return DEFERRED_STEPS.map((dEFERREDSTEPS) => {
-    const move = at("READY", dEFERREDSTEPS.page, "", "move");
-    const taken = `Taken when ${pageSpeedLabel(dEFERREDSTEPS.page)}'s moves pass ${msWords(dEFERREDSTEPS.line)}, three in four, ${dEFERREDSTEPS.also}`;
+  return DEFERRED_STEPS.map((deferredStep) => {
+    const move = at("READY", deferredStep.page, "", "move");
+    const taken = `Taken when ${pageSpeedLabel(deferredStep.page)}'s moves pass ${msWords(deferredStep.line)}, three in four, ${deferredStep.also}`;
     if (!move)
       return {
-        key: dEFERREDSTEPS.key,
-        label: dEFERREDSTEPS.label,
+        key: deferredStep.key,
+        label: deferredStep.label,
         value: "too few moves",
         tone: "ok",
         hint: `${taken}. Too few moves to say yet.`,
       };
-    const past = move.p75 > dEFERREDSTEPS.line;
+    const past = move.p75 > deferredStep.line;
     return {
-      key: dEFERREDSTEPS.key,
-      label: dEFERREDSTEPS.label,
-      value: `${msWords(move.p75)} of ${msWords(dEFERREDSTEPS.line)}`,
+      key: deferredStep.key,
+      label: deferredStep.label,
+      value: `${msWords(move.p75)} of ${msWords(deferredStep.line)}`,
       tone: past ? "warn" : "ok",
       hint: past ? `${taken}. Past its line: take it.` : `${taken}.`,
     };

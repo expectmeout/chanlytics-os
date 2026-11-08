@@ -40,7 +40,7 @@ import type { TenantId } from "@chanlytics/contracts";
 export async function findPersonVisits(
   ctx: RouteContext,
   tenantId: TenantId,
-  otherPerson: PersonLike | PromiseLike<PersonLike | null>,
+  personOrPromise: PersonLike | PromiseLike<PersonLike | null>,
   now = new Date(),
 ): Promise<PersonVisitsDto | null> {
   const calendar = findCalendar(ctx, tenantId);
@@ -55,11 +55,11 @@ export async function findPersonVisits(
   });
   // The record beside the feed (0002's readers): a booking's visits join theirs, a cancelled one leaves, a word rides.
   const recordRead = calendar.then(({ url }) => (url ? findPoolRecord(ctx, tenantId, now) : null));
-  const earlierRead = earlierRowsOf(ctx, tenantId, calendar, otherPerson, now);
+  const earlierRead = earlierRowsOf(ctx, tenantId, calendar, personOrPromise, now);
   const [{ url, lostCalendar, timezone, source, own, profile }, feed, person, record, earlierRows] = await Promise.all([
     calendar,
     feedRead,
-    otherPerson,
+    personOrPromise,
     recordRead,
     earlierRead,
   ]);

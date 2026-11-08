@@ -176,22 +176,22 @@ export function peopleNeedsOf(
   rows: readonly SequencePersonDto[],
   at: { timezone: string; now: number },
 ): SequenceNeedsVM {
-  const held = rows.flatMap((otherRow): SequenceHeldVM[] => {
-    const reason = otherRow.why;
-    if (otherRow.group !== "held" || !otherRow.send_id || !isReachOutHold(reason)) return [];
+  const held = rows.flatMap((heldRow): SequenceHeldVM[] => {
+    const reason = heldRow.why;
+    if (heldRow.group !== "held" || !heldRow.send_id || !isReachOutHold(reason)) return [];
     const row: SequenceHeldVM = {
-      id: otherRow.send_id,
-      name: otherRow.name ?? SEQUENCE_PEOPLE_WORDS.someone,
-      leadId: otherRow.lead_id,
-      place: otherRow.place,
-      why: heldWhyOf(reason, otherRow.hold_detail),
-      opening: markedOpeningOf(otherRow.opening, { reason, detail: otherRow.hold_detail }),
+      id: heldRow.send_id,
+      name: heldRow.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+      leadId: heldRow.lead_id,
+      place: heldRow.place,
+      why: heldWhyOf(reason, heldRow.hold_detail),
+      opening: markedOpeningOf(heldRow.opening, { reason, detail: heldRow.hold_detail }),
       reason,
       // Its answers as a run's screen offers them, one rule (contracts heldAnswersOf): Take out at step 1.
-      answers: heldAnswersOf({ reason, detail: otherRow.hold_detail }, otherRow.place),
-      batchId: otherRow.batch_id,
+      answers: heldAnswersOf({ reason, detail: heldRow.hold_detail }, heldRow.place),
+      batchId: heldRow.batch_id,
     };
-    return [otherRow.own ? { ...heldOwnWordsOf(row), opening: null } : row];
+    return [heldRow.own ? { ...heldOwnWordsOf(row), opening: null } : row];
   });
   const handed = rows.filter((r) => r.group === "to_send" && r.send_id && r.lead_id);
   const toSend = handed.flatMap((item) =>
@@ -464,8 +464,8 @@ export function historyFigures(
   batches: readonly SequenceBatchDto[],
   of: { starts?: string; channels?: readonly string[] } = {},
 ): SequenceHistoryFigure[] {
-  const otherSent = batches.filter(batchWent);
-  const sum = (k: "sent" | "delivered" | "read" | "replied") => otherSent.reduce((n, b) => n + (b.counts[k] ?? 0), 0);
+  const sentBatches = batches.filter(batchWent);
+  const sum = (k: "sent" | "delivered" | "read" | "replied") => sentBatches.reduce((n, b) => n + (b.counts[k] ?? 0), 0);
   const sent = sum("sent");
   const delivered = sum("delivered");
   const read = sum("read");

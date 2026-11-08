@@ -189,16 +189,16 @@ const joined = (...parts: (string | null | undefined)[]): string => parts.filter
 const countOfPeople = (n: number): string => groupedPlural(n, "person", "people");
 
 /** What the mailbox brought: the emails from people (so far, while it reads), since when, and any it could not read. */
-function mailSaysOf(otherImport: ImportRowDto, tz: string): string {
-  const counts = otherImport.counts;
+function mailSaysOf(importRow: ImportRowDto, tz: string): string {
+  const counts = importRow.counts;
   const messageCount = counts.messages ?? 0;
   const read = messageCount
-    ? `${groupedPlural(messageCount, "email")}${otherImport.state === "done" ? "" : " so far"}`
+    ? `${groupedPlural(messageCount, "email")}${importRow.state === "done" ? "" : " so far"}`
     : null;
   return joined(
-    read ?? (otherImport.state === "done" ? "No email from people" : "Reading your inbox"),
+    read ?? (importRow.state === "done" ? "No email from people" : "Reading your inbox"),
     counts.asked ? IMPORT_WORDS.asked(counts.asked) : null,
-    since(otherImport.oldest, tz),
+    since(importRow.oldest, tz),
     counts.unreadable ? `${counts.unreadable.toLocaleString("en-US")} couldn't be read` : null,
   );
 }
@@ -353,11 +353,11 @@ export function whatsappPartsOf(otherImport: ImportRowDto | null | undefined, tz
   if (!otherImport || otherImport.source !== "whatsapp_history" || otherImport.state === "failed") return [];
   const words = WHATSAPP_PART_WORDS;
   const from = otherImport.started_at ? Date.parse(otherImport.started_at) : NaN;
-  return words.parts.map((part, otherPart) => {
+  return words.parts.map((part, partIndex) => {
     const state: WhatsappPartVM["state"] =
-      otherImport.state === "done" || otherImport.parts_done > otherPart
+      otherImport.state === "done" || otherImport.parts_done > partIndex
         ? "done"
-        : otherImport.parts_done === otherPart && otherImport.state === "running"
+        : otherImport.parts_done === partIndex && otherImport.state === "running"
           ? "running"
           : "next";
     const back = Number.isFinite(from)

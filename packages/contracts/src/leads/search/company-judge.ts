@@ -154,22 +154,22 @@ export function parseCompanyJudgeAnswer(
   const byRef = new Map(companies.map((c) => [c.ref, c]));
   const seen = new Set<number>();
   const answers: CompanyFitAnswer[] = [];
-  for (const otherCompany of parsed.data.companies) {
-    const company = byRef.get(otherCompany.ref);
-    if (!company) return { ok: false, why: `ref ${otherCompany.ref} is not among the companies` };
-    if (seen.has(otherCompany.ref)) return { ok: false, why: `ref ${otherCompany.ref} answered twice` };
-    seen.add(otherCompany.ref);
-    for (const f of otherCompany.facts) {
-      if (!isOneOf(COMPANY_FACT_KEYS, f)) return { ok: false, why: `ref ${otherCompany.ref}: fact ${f}` };
+  for (const judgedCompany of parsed.data.companies) {
+    const company = byRef.get(judgedCompany.ref);
+    if (!company) return { ok: false, why: `ref ${judgedCompany.ref} is not among the companies` };
+    if (seen.has(judgedCompany.ref)) return { ok: false, why: `ref ${judgedCompany.ref} answered twice` };
+    seen.add(judgedCompany.ref);
+    for (const f of judgedCompany.facts) {
+      if (!isOneOf(COMPANY_FACT_KEYS, f)) return { ok: false, why: `ref ${judgedCompany.ref}: fact ${f}` };
       const v = company[f];
-      if (otherCompany.fit === "pass" && (v === null || v === ""))
-        return { ok: false, why: `ref ${otherCompany.ref}: fact ${f} is not there` };
+      if (judgedCompany.fit === "pass" && (v === null || v === ""))
+        return { ok: false, why: `ref ${judgedCompany.ref}: fact ${f} is not there` };
     }
     answers.push({
-      ref: otherCompany.ref,
-      fit: otherCompany.fit,
-      facts: [...otherCompany.facts],
-      reason: trimWords(otherCompany.reason),
+      ref: judgedCompany.ref,
+      fit: judgedCompany.fit,
+      facts: [...judgedCompany.facts],
+      reason: trimWords(judgedCompany.reason),
     });
   }
   for (const c of companies) if (!seen.has(c.ref)) return { ok: false, why: `ref ${c.ref} not answered` };

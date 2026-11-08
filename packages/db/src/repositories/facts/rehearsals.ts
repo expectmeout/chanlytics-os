@@ -80,9 +80,9 @@ const rehearsalTurnsOf = (value: unknown): RehearsalTurnRow[] =>
 /** The fixes a row keeps, each with the five words a fix carries; anything else in the column is left out. */
 const rehearsalFixesOf = (value: unknown): RehearsalFixRow[] =>
   Array.isArray(value)
-    ? value.flatMap((otherValue: unknown) => {
-        if (!otherValue || typeof otherValue !== "object") return [];
-        const { op, field, said, version, at } = recordOrEmpty(otherValue);
+    ? value.flatMap((item: unknown) => {
+        if (!item || typeof item !== "object") return [];
+        const { op, field, said, version, at } = recordOrEmpty(item);
         return typeof op === "string" &&
           typeof field === "string" &&
           typeof said === "string" &&

@@ -360,12 +360,12 @@ export function scheduleStepFacts(
   word: AppointmentWord,
   ctx: ScheduleCtx,
 ): { label: string; value: string; tone?: "warn" }[] {
-  const otherFacts = SCHEDULE_WORDS.facts;
+  const factWords = SCHEDULE_WORDS.facts;
   const facts: { label: string; value: string; tone?: "warn" }[] = [
-    { label: otherFacts.goes, value: goesWords(row, step, word) },
+    { label: factWords.goes, value: goesWords(row, step, word) },
   ];
   const person = step.place > 1 ? keptFor(step) : null;
-  if (person) facts.push({ label: otherFacts.only, value: `Those who ${person}` });
+  if (person) facts.push({ label: factWords.only, value: `Those who ${person}` });
   const by = step.hand
     ? SCHEDULE_WORDS.byTask
     : row.starts === "leads"
@@ -373,17 +373,17 @@ export function scheduleStepFacts(
         ? "Email, from your own inbox"
         : "Email, from your connected mailboxes"
       : sequenceChannelsWords(step.channels);
-  if (by) facts.push({ label: otherFacts.by, value: by });
+  if (by) facts.push({ label: factWords.by, value: by });
   const state = scheduleStepState(row, step, ctx);
   if (state && state.tone !== "done")
     facts.push({
-      label: otherFacts.now,
+      label: factWords.now,
       value: state.words,
       ...(state.tone === "need" ? { tone: "warn" as const } : {}),
     });
   if (!step.hand)
     facts.push({
-      label: otherFacts.last30,
+      label: factWords.last30,
       value:
         step.sent > 0
           ? `${plural(step.sent, "sent", "sent")} · ${plural(step.replied, "replied", "replied")}`

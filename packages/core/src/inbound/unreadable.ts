@@ -53,19 +53,19 @@ export function seeingOf(at: Answering) {
     if (Date.now() <= pausedUntilNow) {
       // A person has the thread: nothing is said, and the message is held for them as words are (00454). Set aside with
       // nobody told, it waited unseen past the pause (the closed-loop audit of 17 Oct 2026, B).
-      const otherEscalate = sink.escalate(
+      const escalated = sink.escalate(
         "wrote_while_held",
         `They sent a ${n.rawType} message while your team had this thread. Open it and answer them, or hand the thread back.`,
       );
       await Promise.all([
-        otherEscalate,
-        tell(otherEscalate, {
+        escalated,
+        tell(escalated, {
           said: `[${n.rawType} message]`,
           answered: "(no reply sent — a person on your team has this thread)",
           why: "wrote while held",
         }),
       ]);
-      return { pausedUntil: 0, way: { escalation: escalationOf(await otherEscalate), reply: "none" } };
+      return { pausedUntil: 0, way: { escalation: escalationOf(await escalated), reply: "none" } };
     }
     // The acknowledgement is the receptionist speaking, so it obeys the
     // same rule as every reply: only when the mode in force lets it speak.

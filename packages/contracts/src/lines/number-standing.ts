@@ -78,15 +78,15 @@ export function standingFromConfig(value: unknown): NumberStanding | null {
   const canSend = textOrNull(result?.can_send);
   if (!result || !canSend) return null;
   const problems = listOrEmpty(result.problems).flatMap((item): StandingProblem[] => {
-    const otherHeldObject = recordOrNull(item);
-    const sentence = textOrNull(otherHeldObject?.said);
-    if (!otherHeldObject || !sentence) return [];
+    const held = recordOrNull(item);
+    const sentence = textOrNull(held?.said);
+    if (!held || !sentence) return [];
     return [
       {
-        entity: textOrNull(otherHeldObject.entity) ?? "UNKNOWN",
-        code: typeof otherHeldObject.code === "number" ? otherHeldObject.code : null,
+        entity: textOrNull(held.entity) ?? "UNKNOWN",
+        code: typeof held.code === "number" ? held.code : null,
         said: sentence,
-        fix: textOrNull(otherHeldObject.fix),
+        fix: textOrNull(held.fix),
       },
     ];
   });
@@ -334,10 +334,10 @@ export function nameDecisionWords(
     };
   const declined = status === "DECLINED" ? nameWords(status, name) : null;
   if (!declined) return null;
-  const otherReason = textOrNull(reason);
+  const reasonText = textOrNull(reason);
   const sentence =
-    otherReason && otherReason !== "UNKNOWN" && otherReason !== "NONE"
-      ? ` Meta's reason: ${otherReason.toLowerCase().replace(/_/g, " ")}.`
+    reasonText && reasonText !== "UNKNOWN" && reasonText !== "NONE"
+      ? ` Meta's reason: ${reasonText.toLowerCase().replace(/_/g, " ")}.`
       : "";
   return { subject: "WhatsApp display name declined", body: `${declined}${sentence}`, alert: true };
 }

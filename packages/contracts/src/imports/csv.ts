@@ -11,15 +11,8 @@ export type CsvCell = string | number | boolean | null | undefined;
  * One rule for every file the product writes: the route's export of everyone (apps/dashboard/src/server/export.ts)
  * and the page's export of a selection (clients-a.jsx, through window.__csvCell), which quoted and nothing more.
  */
-export function csvCell(otherCsvCell: CsvCell): string {
-  let text =
-    otherCsvCell == null
-      ? ""
-      : typeof otherCsvCell === "boolean"
-        ? otherCsvCell
-          ? "yes"
-          : "no"
-        : String(otherCsvCell);
+export function csvCell(cell: CsvCell): string {
+  let text = cell == null ? "" : typeof cell === "boolean" ? (cell ? "yes" : "no") : String(cell);
   if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

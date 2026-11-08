@@ -382,12 +382,8 @@ export function besideActs(
 function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid) {
   const lead = plan.lead;
   const own = answer.do.open;
-  const otherMessageLanguagesNext = messageLanguagesNext(cards, input.facts.languages, input.language);
-  const next = otherMessageLanguagesNext.length
-    ? otherMessageLanguagesNext
-    : answer.do.next.length
-      ? answer.do.next
-      : (lead?.next ?? []);
+  const languagesNext = messageLanguagesNext(cards, input.facts.languages, input.language);
+  const next = languagesNext.length ? languagesNext : answer.do.next.length ? answer.do.next : (lead?.next ?? []);
   if (!lead) return { ...answer, do: { open: own, next } };
   const label = own?.to === lead.open.to ? own.label : lead.open.label;
   return { ...answer, do: { open: { to: lead.open.to, label, now: false }, next } };

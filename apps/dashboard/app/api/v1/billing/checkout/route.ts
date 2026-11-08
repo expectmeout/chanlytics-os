@@ -27,7 +27,7 @@ export const POST = write({
     embedded: z.boolean().optional(),
   }),
   handle: async ({ ctx, input, member }) => {
-    const first = await callEdgeBilling(
+    const edgeAnswer = await callEdgeBilling(
       {
         op: "checkout",
         tenant_id: member.tenantId,
@@ -38,20 +38,20 @@ export const POST = write({
       },
       25_000,
     );
-    const body = first.body ?? {};
+    const body = edgeAnswer.body ?? {};
     if (
-      first.status === 200 &&
+      edgeAnswer.status === 200 &&
       body.ok === true &&
       typeof body.client_secret === "string" &&
       typeof body.publishable_key === "string"
     )
       return { client_secret: body.client_secret, publishable_key: body.publishable_key };
-    if (first.status !== 200 || body.ok !== true || typeof body.url !== "string") {
+    if (edgeAnswer.status !== 200 || body.ok !== true || typeof body.url !== "string") {
       const reason = typeof body.error === "string" ? body.error : "failed";
       throw new AppError(
-        first.status === 409 ? "conflict" : first.status === 503 ? "upstream_auth" : "internal",
+        edgeAnswer.status === 409 ? "conflict" : edgeAnswer.status === 503 ? "upstream_auth" : "internal",
         BILLING_SAID[reason] ?? `Checkout could not be opened (${reason}).`,
-        first.status === 409 ? 409 : first.status === 503 ? 503 : 502,
+        edgeAnswer.status === 409 ? 409 : edgeAnswer.status === 503 ? 503 : 502,
       );
     }
     return { url: body.url };

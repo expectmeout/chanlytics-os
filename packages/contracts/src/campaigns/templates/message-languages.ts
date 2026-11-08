@@ -130,8 +130,8 @@ export function templateUntranslatable(target: {
   if (target.header) return "it has a heading";
   const buttons = target.buttons ?? [];
   if (buttons.length > 1) return "it has more than one button";
-  const second = buttons[0];
-  if (second && second.kind !== "url")
-    return second.kind === "reply" ? "it has a reply button" : "it has a button that calls";
+  const firstButton = buttons[0];
+  if (firstButton && firstButton.kind !== "url")
+    return firstButton.kind === "reply" ? "it has a reply button" : "it has a button that calls";
   return null;
 }

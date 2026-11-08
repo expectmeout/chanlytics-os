@@ -407,11 +407,11 @@ function parseInput<D extends ReadDef | ActDef>(
   raw: unknown,
   role: MembershipRole,
 ): { ok: true; def: D; data: Record<string, unknown> } | { ok: false; error: string } {
-  const otherAction = actionOf(tool, raw);
-  if (otherAction !== null && Object.prototype.hasOwnProperty.call(tool.actions, otherAction)) {
-    const def = tool.actions[otherAction];
+  const toolAction = actionOf(tool, raw);
+  if (toolAction !== null && Object.prototype.hasOwnProperty.call(tool.actions, toolAction)) {
+    const def = tool.actions[toolAction];
     if (def && !offeredTo(def, role))
-      return { ok: false, error: `${tool.name}: action ${otherAction} is ${WHOSE[needsOf(def)]}` };
+      return { ok: false, error: `${tool.name}: action ${toolAction} is ${WHOSE[needsOf(def)]}` };
   }
   const input = INPUTS.get(role)?.get(tool.name);
   if (!input) {

@@ -338,10 +338,10 @@ async function follow(
   const owner = await readVoiceSession(admitted.service, admitted.row.id);
   const since = (Date.parse(owner?.turn_started_at ?? "") || claimedAt) - CLAIM_SKEW_MS;
   const until = claimedAt + ASK_SPOKEN_TURN_BUDGET_MS;
-  const otherSameWords = sameWords(text);
+  const repeated = sameWords(text);
   while (now() < until) {
     const thread = await readThread(admitted.ctx, admitted.row.thread_id);
-    const answer = answerTo(thread?.messages ?? [], otherSameWords, since);
+    const answer = answerTo(thread?.messages ?? [], repeated, since);
     if (answer) {
       speak(answer.answer ? answerSpoken(answer.answer) : answer.text);
       return;

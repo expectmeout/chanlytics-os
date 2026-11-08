@@ -24,10 +24,10 @@ import { capitalize } from "../../shared/words";
  * CHECK_RELEASE_AFTER_MS), so nobody presses for what is coming anyway.
  */
 export function heldWhyOf(reason: ReachOutHold, detail: string | null): string {
-  const otherReason = capitalize(holdWords(reason, detail));
+  const reasonLine = capitalize(holdWords(reason, detail));
   return reason === "check_unavailable" && !detail
-    ? `${otherReason}; it tries again on its own within the hour`
-    : otherReason;
+    ? `${reasonLine}; it tries again on its own within the hour`
+    : reasonLine;
 }
 
 /** Taking a lead out of the sequence their place stands in: the leave verb, which Put back undoes. */

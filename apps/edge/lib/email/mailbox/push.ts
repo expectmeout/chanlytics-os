@@ -105,10 +105,10 @@ export async function receiveGraphPush(request: Request): Promise<Response> {
   // asked to read now (Postgres calls it on its own, at most once a minute), and the push is answered at once.
   if (trusted.length > 0)
     try {
-      const otherRequestMailboxesSweep = await requestMailboxesSweep(db, new Date());
+      const sweepAsked = await requestMailboxesSweep(db, new Date());
       log.info("mailbox_pushed", {
         provider: "microsoft",
-        outcome: otherRequestMailboxesSweep ? "clock_asked" : "clock_asked_lately",
+        outcome: sweepAsked ? "clock_asked" : "clock_asked_lately",
       });
     } catch (e) {
       log.error("mailbox_push_failed", { provider: "microsoft", error: errField(e) });

@@ -161,17 +161,17 @@ function leakFactsOf(
 }
 
 function neverBookedLeak({ reports, list, step }: LeakFacts): TodayLeakVM | null {
-  const second = reports ? reports.booking : null;
+  const booking = reports ? reports.booking : null;
   // Five is the floor: two people who did not book is a quiet week, not a leak.
-  if (!(reports && second && second.present && second.pct !== null && second.asked >= 5 && second.pct <= 25))
+  if (!(reports && booking && booking.present && booking.pct !== null && booking.asked >= 5 && booking.pct <= 25))
     return null;
-  const { asked, booked } = second;
+  const { asked, booked } = booking;
   const never = list("asked_never_booked");
   const text =
     booked === 0
       ? `${asked} people wrote or called in the last ${reports.rangeLabel}. Not one of them is on the calendar.`
       : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.rangeLabel} got onto the calendar.`;
-  const math = never ? `${second.headline} · ${never.count} on Asked, never booked` : second.headline;
+  const math = never ? `${booking.headline} · ${never.count} on Asked, never booked` : booking.headline;
   return {
     id: "never-booked",
     tone: "warn",

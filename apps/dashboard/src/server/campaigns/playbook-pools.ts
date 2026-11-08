@@ -442,22 +442,19 @@ export async function triggerPools(
     ready: readyOrWhatsApp(from.ready),
     caps: splitCaps(from.playbooks ?? []),
   });
-  for (const mOMENTTRIGGERS of MOMENT_TRIGGERS) {
+  for (const momentTrigger of MOMENT_TRIGGERS) {
     // A moment the calendar names (a visit, or the Lapsed list) is not counted when the calendar could not be read;
     // one of the workspace's lists is counted per list, below.
-    if (
-      mOMENTTRIGGERS.kind === "saved" ||
-      ((mOMENTTRIGGERS.kind === "visit" || mOMENTTRIGGERS.id === "lapsed") && !pv)
-    ) {
-      pools[mOMENTTRIGGERS.id] = null;
+    if (momentTrigger.kind === "saved" || ((momentTrigger.kind === "visit" || momentTrigger.id === "lapsed") && !pv)) {
+      pools[momentTrigger.id] = null;
       continue;
     }
     // A proposal's moment is not counted where who already had a follow-up could not be read.
-    if (mOMENTTRIGGERS.kind === "deal" && !followUps) {
-      pools[mOMENTTRIGGERS.id] = null;
+    if (momentTrigger.kind === "deal" && !followUps) {
+      pools[momentTrigger.id] = null;
       continue;
     }
-    pools[mOMENTTRIGGERS.id] = count(mOMENTTRIGGERS.id, null, null);
+    pools[momentTrigger.id] = count(momentTrigger.id, null, null);
   }
   Object.assign(
     pools,

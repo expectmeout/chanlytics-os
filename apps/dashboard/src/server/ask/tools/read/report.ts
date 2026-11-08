@@ -328,7 +328,7 @@ async function askedWindow(
     shortcut?: (typeof SHORTCUTS)[number];
   },
 ) {
-  let otherInput: { period?: (typeof REPORT_PERIOD_IDS)[number]; from?: string; to?: string } = {
+  let rangeInput: { period?: (typeof REPORT_PERIOD_IDS)[number]; from?: string; to?: string } = {
     period: input.period,
     from: input.from,
     to: input.to,
@@ -339,11 +339,11 @@ async function askedWindow(
     const today = zoneDayKey(toolContext.rc.now.getTime(), zone);
     const cut = reportShortcuts(today).find((s) => s.id === shortcut.replace(/_/g, "-"));
     if (!cut) return { refusal: "shortcut is yesterday, last_week or last_month" };
-    otherInput = { from: cut.days.from, to: cut.days.to };
+    rangeInput = { from: cut.days.from, to: cut.days.to };
   }
-  if (!otherInput.period && !otherInput.from && !otherInput.to) otherInput = { period: "30d" };
+  if (!rangeInput.period && !rangeInput.from && !rangeInput.to) rangeInput = { period: "30d" };
   try {
-    return { window: await reportWindowFor(toolContext.rc, otherInput) };
+    return { window: await reportWindowFor(toolContext.rc, rangeInput) };
   } catch (e) {
     if (e instanceof AppError) return { refusal: e.message };
     throw e;

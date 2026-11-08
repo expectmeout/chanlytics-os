@@ -74,11 +74,11 @@ export function reportFacts(
 
   // The one busiest weekday: a tie names none, and neither does a report of one day, whose only day is no busier than
   // any other (Yesterday, Month on the 1st). A week is said as days, a longer period as weekdays.
-  const second = vm.days > 1 ? vm.week.busiest : null;
+  const busiestDay = vm.days > 1 ? vm.week.busiest : null;
   const hours = vm.hours;
   const peak =
     hours && hours.peak !== null ? `peak ${reportHourWords(hours.peak)} to ${reportHourWords(hours.peak + 2)}` : "";
-  if (second !== null) {
+  if (busiestDay !== null) {
     const closed = hours && hours.closed ? `${hours.closed} while you were closed` : "";
     out.push({
       id: "busiest",
@@ -86,8 +86,8 @@ export function reportFacts(
       icon: "calendar",
       text:
         vm.week.unit === "average"
-          ? `${vm.week.long[second]}s are your busiest day`
-          : `${vm.week.long[second]} was your busiest day`,
+          ? `${vm.week.long[busiestDay]}s are your busiest day`
+          : `${vm.week.long[busiestDay]} was your busiest day`,
       sub: [peak, closed].filter(Boolean).join(", "),
       door: null,
     });
@@ -104,7 +104,7 @@ export function reportFacts(
       sub: "",
       door: { label: "Open Settings", to: "admin/hours" },
     });
-  } else if (second === null && hours && hours.closed) {
+  } else if (busiestDay === null && hours && hours.closed) {
     out.push({
       id: "closed",
       tone: "",

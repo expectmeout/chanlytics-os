@@ -90,39 +90,33 @@ function edgeRefusal(edgeAnswer: EdgeAnswer, words: { failed: string; noPersona?
  */
 export async function startRehearsal(tenantId: TenantId, userId: string | null): Promise<RehearsalStartDto> {
   if (!edgeConfigured()) throw new AppError("conflict", REHEARSE_WORDS.talk.notLive, 409);
-  const first = await callEdge(
+  const answer = await callEdge(
     "/api/admin/rehearsal/call",
     { tenant_id: tenantId, ...(userId ? { user_id: userId } : {}) },
     { workspace: tenantId, user: userId, timeoutMs: START_TIMEOUT_MS },
   );
-  const second = first.body;
-  if (
-    first.status === 200 &&
-    second?.ok &&
-    second.call &&
-    second.allowance &&
-    typeof second.rehearsal_id === "string"
-  ) {
+  const body = answer.body;
+  if (answer.status === 200 && body?.ok && body.call && body.allowance && typeof body.rehearsal_id === "string") {
     return {
-      rehearsal_id: second.rehearsal_id,
-      call: second.call,
-      max_ms: typeof second.max_ms === "number" ? second.max_ms : 0,
-      allowance: second.allowance,
-      handoff: typeof second.handoff === "string" ? second.handoff : null,
+      rehearsal_id: body.rehearsal_id,
+      call: body.call,
+      max_ms: typeof body.max_ms === "number" ? body.max_ms : 0,
+      allowance: body.allowance,
+      handoff: typeof body.handoff === "string" ? body.handoff : null,
     };
   }
-  const reason = edgeReasonOf(first);
-  log.warn("rehearsal_start_failed", { tenant_id: tenantId, reason, status: first.status });
+  const reason = edgeReasonOf(answer);
+  log.warn("rehearsal_start_failed", { tenant_id: tenantId, reason, status: answer.status });
   if (reason === "rehearsal_minutes_used") {
-    const window = second?.allowance?.window ?? "before_plan";
+    const window = body?.allowance?.window ?? "before_plan";
     throw new AppError(
       "conflict",
-      second?.allowance?.why === "running" ? REHEARSE_WORDS.running : REHEARSE_WORDS.used(window),
+      body?.allowance?.why === "running" ? REHEARSE_WORDS.running : REHEARSE_WORDS.used(window),
       409,
-      { allowance: second?.allowance ?? null },
+      { allowance: body?.allowance ?? null },
     );
   }
-  throw edgeRefusal(first, { failed: REHEARSE_WORDS.talk.failed });
+  throw edgeRefusal(answer, { failed: REHEARSE_WORDS.talk.failed });
 }
 
 /** The agent is one provider call, or none where it is kept already. */
@@ -140,8 +134,8 @@ export async function makeAgent(tenantId: TenantId, userId: string): Promise<{ m
     { tenant_id: tenantId, user_id: userId },
     { workspace: tenantId, user: userId, timeoutMs: AGENT_TIMEOUT_MS },
   );
-  const second = answer.body;
-  if (answer.status === 200 && second?.ok) return { made: true };
+  const body = answer.body;
+  if (answer.status === 200 && body?.ok) return { made: true };
   log.warn("rehearsal_start_failed", { tenant_id: tenantId, reason: edgeReasonOf(answer), status: answer.status });
   return { made: false };
 }
@@ -164,9 +158,9 @@ export async function reviewRehearsal(
     { tenant_id: tenantId, user_id: userId, ...of },
     { workspace: tenantId, user: userId, timeoutMs: REVIEW_TIMEOUT_MS },
   );
-  const second = answer.body;
-  if (answer.status === 200 && second?.ok && typeof second.rehearsal_id === "string" && second.review)
-    return { rehearsal_id: second.rehearsal_id, review: second.review };
+  const body = answer.body;
+  if (answer.status === 200 && body?.ok && typeof body.rehearsal_id === "string" && body.review)
+    return { rehearsal_id: body.rehearsal_id, review: body.review };
   log.warn("rehearsal_review_failed", { tenant_id: tenantId, reason: edgeReasonOf(answer), status: answer.status });
   if (answer.status === 404) throw new AppError("not_found", "Rehearsal not found.");
   throw edgeRefusal(answer, { failed: REVIEW_WORDS.failed });
@@ -193,10 +187,10 @@ export async function routeRehearsalFix(
     { tenant_id: tenantId, user_id: userId, ...fixAsked, rule: fixAsked.rule ?? undefined },
     { workspace: tenantId, user: userId, timeoutMs: FIX_TIMEOUT_MS },
   );
-  const second = answer.body;
-  if (answer.status === 200 && second?.ok) {
+  const body = answer.body;
+  if (answer.status === 200 && body?.ok) {
     // The edge's change, read as Keep takes it (FixChangeSchema): one Keep would refuse says nothing to change.
-    const change = second.change ? FixChangeSchema.safeParse(second.change) : null;
+    const change = body.change ? FixChangeSchema.safeParse(body.change) : null;
     if (!change?.success) return { change: null, words: FIX_WORDS.notRouted };
     return { change: change.data, field: fixField(change.data), line: fixLine(change.data) };
   }
@@ -258,8 +252,8 @@ export async function keepRehearsalChange(
     channel: "whatsapp" | "voice";
   },
 ): Promise<{ version: number; field: string; line: string; now_reads: NowReadsDto | null; fixes: number }> {
-  const otherRehearsalById = await findRehearsalById(ctx.supabase, member.tenantId, input.rehearsal_id);
-  if (!otherRehearsalById) throw new AppError("not_found", "Rehearsal not found.");
+  const rehearsal = await findRehearsalById(ctx.supabase, member.tenantId, input.rehearsal_id);
+  if (!rehearsal) throw new AppError("not_found", "Rehearsal not found.");
   const before = await findConfigRow(ctx.supabase, member.tenantId);
   if (!before) throw new AppError("conflict", FIX_WORDS.moved, 409);
   const notes = parseTenantConfig(before.config ?? null)?.brain?.profile?.notes ?? [];
@@ -284,10 +278,10 @@ export async function keepRehearsalChange(
   const field = fixField(input.change);
   const line = fixLine(input.change);
   // Its door's count once kept (two Keeps at once each count the other's); the count read with the rehearsal if not.
-  let fixes = (Array.isArray(otherRehearsalById.fixes) ? otherRehearsalById.fixes.length : 0) + 1;
+  let fixes = (Array.isArray(rehearsal.fixes) ? rehearsal.fixes.length : 0) + 1;
   try {
     // Through its door, as the member (00481): it asks that they may change the settings, and stamps the moment.
-    fixes = await keepRehearsalFix(ctx.supabase, member.tenantId, otherRehearsalById.id, {
+    fixes = await keepRehearsalFix(ctx.supabase, member.tenantId, rehearsal.id, {
       op: input.change.op,
       field,
       said: line,
