@@ -155,7 +155,7 @@ function historyMessageOf(waHistoryMessage: WaHistoryMessage, thread: string, bu
   };
 }
 
-const noticesOf = (v: unknown): WaGraphNotice[] => (Array.isArray(v) ? v : []);
+const noticesOf = (v: unknown): WaGraphNotice[] => (Array.isArray(v) ? (v as WaGraphNotice[]) : []);
 
 /**
  * A `history` change read: every chunk's chats as messages, each named by its chat (a business-sent one by its `to`),
