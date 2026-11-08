@@ -19,9 +19,10 @@ import { platformFrom, post } from "../shared/alerts/notify.js";
 import { logger, errField } from "../shared/log.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { getHandoverInvite } from "@chanlytics/db/partners";
-import { handoverInviteEmail, UUID } from "@chanlytics/contracts";
+import { handoverInviteEmail, UUID, isTenantId } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
-export async function sendHandoverInvite(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
+export async function sendHandoverInvite(auth: Admitted, body: Partial<{ tenant_id?: TenantId }>): Promise<Response> {
   const log = logger();
   const from = platformFrom();
   if (!from) return json(503, { ok: false, error: "no_sender" });
@@ -30,7 +31,7 @@ export async function sendHandoverInvite(auth: Admitted, body: Partial<{ tenant_
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!UUID.test(tenantId)) return json(400, { ok: false, error: "bad_tenant", detail: "tenant_id is required" });
+  if (!isTenantId(tenantId)) return json(400, { ok: false, error: "bad_tenant", detail: "tenant_id is required" });
 
   let invite;
   try {

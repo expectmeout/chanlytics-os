@@ -39,12 +39,14 @@ import {
   replyDelayMs,
   fallbackMessages,
   UUID,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { smsBody } from "@chanlytics/channels/lines";
 import { brainCallOf, generateReply } from "../ai/receptionist-brain.js";
 import { queueDraft } from "../ai/draft-queue.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 const MAX_CHARS = 500;
 
@@ -116,8 +118,8 @@ function replyToOf(meta: unknown): string | undefined {
  */
 async function leadNoteOf(
   db: NonNullable<ReturnType<typeof pg>>,
-  message: { tenant_id: string; meta: unknown },
-  personName: { phone: string | null; contactId: string | null },
+  message: { tenant_id: TenantId; meta: unknown },
+  personName: { phone: string | null; contactId: ContactId | null },
   timezone: string,
   channel: InboundChannel,
 ): Promise<string | undefined> {
@@ -143,7 +145,7 @@ const draftChannelOf = (c: string | null): InboundChannel => (c === "sms" || c =
 async function draftAddressOf(
   db: NonNullable<ReturnType<typeof pg>>,
   channel: InboundChannel,
-  m: { tenant_id: string; contact_id: string | null },
+  m: { tenant_id: TenantId; contact_id: ContactId | null },
   phone: string | null,
 ): Promise<string | null> {
   if (channel !== "instagram") return phone;
@@ -165,7 +167,7 @@ function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, work
 function refusedBeforeRead(auth: Admitted): Response | null {
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
   const workspace = tokenWorkspace(auth);
-  if (auth.via !== "token" || (workspace && UUID.test(workspace))) return null;
+  if (auth.via !== "token" || (workspace && isTenantId(workspace))) return null;
   return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
 }
 
@@ -202,7 +204,7 @@ function wordsForTheWire(channel: InboundChannel, text: string, textedBefore: bo
  */
 async function retireForTheRewrite(
   db: NonNullable<ReturnType<typeof pg>>,
-  old: { id: string; tenant_id: string },
+  old: { id: string; tenant_id: TenantId },
   newId: string,
 ): Promise<Response | null> {
   // Through the one door (00387): the old draft and its send job, only while no run has claimed it.

@@ -44,6 +44,7 @@ import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels/tokens";
 import { UUID } from "@chanlytics/contracts";
 import { env } from "./env.js";
 import { logger } from "./log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** What a door says when the credential that knocked names no workspace. */
 export const NAMES_NO_WORKSPACE = "this door acts only for a workspace its credential names, and this one names none";
@@ -140,7 +141,7 @@ export async function authorizeAdmin(
 export function workspaceFor(
   auth: Admitted,
   bodyTenant: unknown,
-): { ok: true; tenantId: string | null } | { ok: false; response: Response } {
+): { ok: true; tenantId: TenantId | null } | { ok: false; response: Response } {
   const fromBody = typeof bodyTenant === "string" && bodyTenant.trim() ? bodyTenant.trim() : null;
   if (auth.workspace && fromBody && fromBody !== auth.workspace) {
     return { ok: false, response: refuse(403, "workspace_mismatch") };

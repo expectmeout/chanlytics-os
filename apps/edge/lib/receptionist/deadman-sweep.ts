@@ -58,6 +58,7 @@ import { sweepStrandedRuns } from "./stranded-runs.js";
 import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "@chanlytics/contracts";
 import type { SweepTick } from "../ops/sweep-door.js";
 import { listDeadmanCandidates, markDeadmanAlerted } from "@chanlytics/db/conversations";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long a customer may wait on a human before this is a problem. */
 const UNANSWERED_AFTER = "2 hours";
@@ -73,7 +74,7 @@ const UNANSWERED_AFTER = "2 hours";
 
 interface Candidate {
   escalation_id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   conversation_id: string;
   reason: string;
   details: string | null;

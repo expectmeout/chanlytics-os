@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { keepProviderEvent, type DeliveryProvider } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import { logger } from "./log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -41,7 +42,7 @@ export async function keepDelivery(
     id: string;
     door: string;
     url: string;
-    tenantId: string | null;
+    tenantId: TenantId | null;
     headers: Record<string, string>;
     body: string;
   },

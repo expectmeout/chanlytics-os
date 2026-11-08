@@ -65,8 +65,10 @@ import {
   type ReviewDto,
   type RehearsalTurn,
   ANSWER_JSON_ONLY,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { rehearsalRouting } from "../voice/rehearsal-call.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -108,7 +110,7 @@ export function blockFinder(instructions: string, channel: "whatsapp" | "voice",
 
 /** The judgement: one model call over the exchanges, its answer checked. Null when the workspace may not pay for it. */
 async function judge(options: {
-  tenantId: string;
+  tenantId: TenantId;
   userId: string | null;
   subjectId: string;
   turns: readonly RehearsalTurn[];
@@ -191,7 +193,7 @@ const reviewed = (id: string, review: unknown) => json(200, { ok: true, rehearsa
 export async function reviewConversation(
   auth: Admitted,
   body: Partial<{
-    tenant_id: string;
+    tenant_id: TenantId;
     user_id: string;
     rehearsal_id: string;
     call_id: string;
@@ -204,7 +206,7 @@ export async function reviewConversation(
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const userId = personFor(auth, body.user_id);
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -244,7 +246,7 @@ export async function reviewConversation(
 /** What a review is asked inside: the database, the workspace, who asked, its runtime, and the brain it read. */
 interface ReviewWorld {
   db: Db;
-  tenantId: string;
+  tenantId: TenantId;
   userId: string | null;
   rt: TenantRuntime;
   brain: NonNullable<TenantRuntime["brain"]>;
@@ -355,7 +357,7 @@ function fixAskOf(rt: TenantRuntime, kind: FixKind, words: string, rule: string 
 export async function routeCorrection(
   auth: Admitted,
   body: Partial<{
-    tenant_id: string;
+    tenant_id: TenantId;
     user_id: string;
     kind: string;
     words: string;
@@ -368,7 +370,7 @@ export async function routeCorrection(
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   if (!isFixKind(body.kind)) return refuse(400, "bad_request", "kind: one of the review's fix kinds");
   const words = typeof body.words === "string" ? body.words.trim().slice(0, TURN_MAX_CHARS) : "";
   const db = pg();

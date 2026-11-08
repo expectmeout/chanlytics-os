@@ -67,6 +67,7 @@ import { relayEvents } from "@chanlytics/db/events";
 import { isWorkspaceOurs } from "@chanlytics/db/console";
 import type { SweepTick } from "./sweep-door.js";
 import { recordOrEmpty } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** This many failures in one heartbeat are the platform's, not any owner's. */
 const MASS_FAILURE_PAGE = 10;
@@ -108,7 +109,7 @@ function replyLateBody(worstMs: number): string {
  */
 const pagerOf =
   (db: SweepTick["db"]) =>
-  async (key: string, subject: string, body: string, tenantId?: string | null): Promise<unknown> =>
+  async (key: string, subject: string, body: string, tenantId?: TenantId | null): Promise<unknown> =>
     tenantId && (await isWorkspaceOurs(db, tenantId)) ? "ours" : pageOperator({ db }, key, subject, body);
 
 /**
@@ -143,7 +144,7 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
  * WireUnavailable): the reply waits for a heartbeat that can read the vault. Email's wire is bound to the workspace's own
  * addresses (its hosted mailbox, each mailbox it connected): it sends a frozen request only when it leaves as one.
  */
-async function phoneWires(db: SweepTick["db"], tenantId: string) {
+async function phoneWires(db: SweepTick["db"], tenantId: TenantId) {
   const line = await findSmsSenderForTenant(db, tenantId);
   return {
     whatsapp: await findWhatsappWireForTenant(db, tenantId),

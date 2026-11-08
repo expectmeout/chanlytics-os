@@ -19,8 +19,9 @@ import { logger } from "../shared/log.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { getPartnerInviteMail } from "@chanlytics/db/partners";
 import { partnerInviteEmail } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
-export async function sendPartnerInvite(auth: Admitted, body: Partial<{ tenant_id: string }>): Promise<Response> {
+export async function sendPartnerInvite(auth: Admitted, body: Partial<{ tenant_id: TenantId }>): Promise<Response> {
   const log = logger();
   const from = platformFrom();
   if (!from) return json(503, { ok: false, error: "no_sender" });

@@ -15,13 +15,14 @@ import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The lead's preview, made where there is none and its build scheduled while it is building; or why not. */
 export async function askPreview(
   db: Db,
-  params: { tenantId: string; leadId: string; by: string | null },
+  params: { tenantId: TenantId; leadId: string; by: string | null },
 ): Promise<PreviewDoor<PreviewMade>> {
   if (env.LEAD_PREVIEWS !== "on") return { ok: false, reason: "refused", message: "Previews are switched off." };
   const lead = await findLeadForPreview(db, params.tenantId, params.leadId);
@@ -48,7 +49,7 @@ export async function askPreview(
  * person, answered as the preview's id, state and link's token; or its door's refusal in its own words. With the switch
  * off it is refused, and nothing is made.
  */
-export async function makePreviewFor(auth: Admitted, body: Partial<{ tenant_id: string; lead_id: string }>) {
+export async function makePreviewFor(auth: Admitted, body: Partial<{ tenant_id: TenantId; lead_id: string }>) {
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const ws = workspaceFor(auth, body.tenant_id);

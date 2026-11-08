@@ -21,6 +21,7 @@ import { json, refuse } from "../shared/http.js";
 import { env } from "../shared/env.js";
 import { errField, type Logger } from "../shared/log.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -41,7 +42,7 @@ type Swept = "ended" | "held" | "failed";
 
 async function endOne(
   db: Db,
-  row: { id: string; tenant_id: string; preview_tenant_id: string | null },
+  row: { id: string; tenant_id: TenantId; preview_tenant_id: string | null },
   provider: PreviewProvider,
   log: Logger,
 ): Promise<Swept> {

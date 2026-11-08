@@ -31,12 +31,20 @@ import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { findOpenings, takesRequests } from "../calendar/availability.js";
-import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, UUID } from "@chanlytics/contracts";
+import {
+  resolveSystemPrompt,
+  describeNow,
+  fallbackMessages,
+  priceAllowance,
+  UUID,
+  isTenantId,
+} from "@chanlytics/contracts";
 import { holdPlan, layerTwo } from "@chanlytics/core";
 import { findOldestActiveChannel, type RoutedChannel } from "@chanlytics/db/channels";
 import { brainCallOf, generateReply, type BrainReply } from "../ai/receptionist-brain.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 const MAX_CASES = 6;
 
@@ -142,7 +150,10 @@ function thenOf(rt: TenantRuntime, brainCfg: NonNullable<TenantRuntime["brain"]>
  * where it holds two), else the workspace's chat before it has a line, loaded by the workspace (campaigns/reach-out/reply-draft.ts
  * builds its mailbox's the same way: a kind that is not WhatsApp binds no number and reads every setting by the tenant).
  */
-async function routedFor(db: NonNullable<ReturnType<typeof pg>>, tenantId: string): Promise<RoutedChannel | undefined> {
+async function routedFor(
+  db: NonNullable<ReturnType<typeof pg>>,
+  tenantId: TenantId,
+): Promise<RoutedChannel | undefined> {
   const routed = await findOldestActiveChannel(db, tenantId, "whatsapp").catch(() => undefined);
   if (routed !== null) return routed;
   return {
@@ -187,7 +198,7 @@ function caseRefusal(cases: readonly EvalCase[]): Response | null {
 
 export async function evaluateCases(
   auth: Admitted,
-  body: Partial<{ tenant_id?: string; cases?: EvalCase[] }>,
+  body: Partial<{ tenant_id?: TenantId; cases?: EvalCase[] }>,
   brain?: EvalBrainPort | null,
 ): Promise<Response> {
   const log = logger();
@@ -198,7 +209,7 @@ export async function evaluateCases(
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const cases = Array.isArray(body.cases) ? body.cases : [];
-  if (!UUID.test(tenantId) || !cases.length || cases.length > MAX_CASES) {
+  if (!isTenantId(tenantId) || !cases.length || cases.length > MAX_CASES) {
     return refuse(400, "bad_request", `tenant_id and 1-${MAX_CASES} cases required`);
   }
   const badCase = caseRefusal(cases);

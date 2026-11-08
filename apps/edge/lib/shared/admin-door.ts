@@ -8,10 +8,11 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { UUID, type DoorRead, type EdgeDoor, type EdgeErrorCode } from "@chanlytics/contracts";
+import { UUID, type DoorRead, type EdgeDoor, type EdgeErrorCode, isTenantId } from "@chanlytics/contracts";
 import { json, refuse } from "./http.js";
 import { logger } from "./log.js";
 import { pg } from "./pg.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -60,11 +61,11 @@ export async function readBody<D extends EdgeDoor>(source: Request | string, doo
 }
 
 /** The database and the workspace an op acts on: no database is a 503, an id that is not a workspace's a 400. */
-export function workspaceOf(tenantId: unknown): { ok: true; db: Db; tenantId: string } | Refused {
+export function workspaceOf(tenantId: unknown): { ok: true; db: Db; tenantId: TenantId } | Refused {
   const db = pg();
   if (!db) return stop(refuse(503, "no_database"));
   const id = typeof tenantId === "string" ? tenantId.trim() : "";
-  if (!UUID.test(id)) return stop(refuse(400, "bad_tenant", "tenant_id (a workspace id) is required"));
+  if (!isTenantId(id)) return stop(refuse(400, "bad_tenant", "tenant_id (a workspace id) is required"));
   return { ok: true, db, tenantId: id };
 }
 

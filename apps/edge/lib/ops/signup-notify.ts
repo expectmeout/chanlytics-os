@@ -21,11 +21,12 @@ import { notify } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
 import { getHandoverInvite } from "@chanlytics/db/partners";
-import { UUID } from "@chanlytics/contracts";
+import { UUID, isTenantId } from "@chanlytics/contracts";
 import { findNewWorkspace } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 interface Body {
-  tenant_id?: string;
+  tenant_id?: TenantId;
   email?: string;
 }
 
@@ -39,7 +40,7 @@ export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
-  if (!UUID.test(tenantId) || !email) return refuse(400, "bad_request", "tenant_id and email are required");
+  if (!isTenantId(tenantId) || !email) return refuse(400, "bad_request", "tenant_id and email are required");
   const tenant = await findNewWorkspace(db, tenantId);
   if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");

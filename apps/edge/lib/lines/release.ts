@@ -49,6 +49,7 @@ import type { Database } from "@chanlytics/db/types";
 import type { Logger } from "../shared/log.js";
 import { findPlanForRelease, listStripeAccountsIn } from "@chanlytics/db/billing";
 import { listWorkspaceStandings } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -148,7 +149,7 @@ export async function releaseLine(
   db: Db,
   choice: LineProviderChoice,
   retell: RetellConfig | null,
-  tenantId: string,
+  tenantId: TenantId,
   row: LineDbRow,
   event: Record<string, unknown> = {},
 ): Promise<LineReleaseResult> {
@@ -217,14 +218,14 @@ const MAX_RELEASES_PER_TICK = 2;
 const MAX_WARNINGS_PER_TICK = 10;
 
 interface EndedLinesPorts {
-  release(tenantId: string, row: LineDbRow, endedAt: string): Promise<LineReleaseResult>;
+  release(tenantId: TenantId, row: LineDbRow, endedAt: string): Promise<LineReleaseResult>;
   /**
    * The bell and the workspace's alert addresses. With `once`, told once under that name (notifyOnce): a retry finds the
    * row and sends only the mail it owes. `told` is the owner told in full; `reached` whether the workspace has anyone the
    * mail can address at all.
    */
   tell(
-    tenantId: string,
+    tenantId: TenantId,
     msg: { subject: string; body: string; once?: string },
   ): Promise<{ told: boolean; reached: boolean }>;
   /** The platform's mailbox, for a warning nobody can be mailed: whether it went. */
@@ -410,7 +411,7 @@ export async function sweepEndedLines(
   const tenantOf = new Map((tenants.data ?? []).map((t) => [t.id, t]));
   const rows = lines.data ?? [];
   /** The owner's own number that forwards to this one, when one does. */
-  const forwardedTo = (tenantId: string, e164: string | null) =>
+  const forwardedTo = (tenantId: TenantId, e164: string | null) =>
     rows.find(
       (r) =>
         r.tenant_id === tenantId &&

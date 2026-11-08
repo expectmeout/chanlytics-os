@@ -21,6 +21,7 @@ import { phoneTail, type EdgeRefusal } from "@chanlytics/contracts";
 import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
 import { findLineByE164, findTextingLineOf, getLineCredentials, putLineCredentials } from "@chanlytics/db/lines";
 import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 const SUBACCOUNT_READ_TIMEOUT_MS = 15000;
@@ -37,7 +38,7 @@ export async function findLineByNumber(db: Db, e164: string): Promise<SmsLine | 
 }
 
 /** The line a workspace texts from: the one with a Messaging Service, newest first. */
-async function smsLineForTenant(db: Db, tenantId: string): Promise<SmsLine | null> {
+async function smsLineForTenant(db: Db, tenantId: TenantId): Promise<SmsLine | null> {
   const { data, error } = await findTextingLineOf(db, tenantId);
   if (error) throw new Error(`reading the texting line: ${error.message}`);
   return data ?? null;
@@ -189,7 +190,7 @@ export function smsSenderFor(line: SmsLine, acct: ProviderAccount): SmsSender | 
  * may well be there, so the wire could not be bound (core WireUnavailable), and a reply waits for a heartbeat that
  * can read it instead of failing for good and flagging a thread over a blip.
  */
-export async function findSmsSenderForTenant(db: Db, tenantId: string): Promise<SmsSender | null | WireUnavailable> {
+export async function findSmsSenderForTenant(db: Db, tenantId: TenantId): Promise<SmsSender | null | WireUnavailable> {
   try {
     const line = await smsLineForTenant(db, tenantId);
     if (!line) return null;
