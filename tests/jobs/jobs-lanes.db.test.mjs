@@ -281,3 +281,95 @@ test(
     assert.deepEqual(other, ["a's next batch", "b's batch"], "only bulk work running holds a workspace's bulk place");
   },
 );
+
+/** Workspaces a and b, before the ledger is taken: their backlog is written while no other suite waits on the writing. */
+const TWO_WORKSPACES = `
+  insert into public.tenants (slug, name) values ('backlog-a-' || gen_random_uuid(), 'Backlog A') returning id into a;
+  insert into public.tenants (slug, name) values ('backlog-b-' || gen_random_uuid(), 'Backlog B') returning id into b;`;
+
+/** `n` bulk jobs of a workspace, all due long ago, the oldest named `backlog`: what a claim has to choose among. */
+const backlogOf = (ws, n) => `
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+    select ${ws}, 'broadcast_send', now() - make_interval(secs => 100 + i),
+           jsonb_build_object('label', 'backlog', 'broadcast_id', gen_random_uuid())
+      from generate_series(1, ${n}) i;
+  analyze public.jobs;`;
+
+/** ALONE's two moves, leaving out this case's own workspaces, whose backlog is the point. */
+const OTHERS_OUT_OF_REACH = `
+  lock table public.jobs in share row exclusive mode;
+  update public.jobs set due_at = now() + interval '100 years'
+   where state = 'scheduled' and due_at <= now() and tenant_id not in (a, b);
+  update public.jobs set lease_until = now() + interval '100 years'
+   where state = 'fired' and lease_until < now() and tenant_id not in (a, b);`;
+
+const LEDGER_RELATIONS = `(select 'public.jobs'::regclass::oid as oid
+  union all select i.indexrelid from pg_index i where i.indrelid = 'public.jobs'::regclass)`;
+const LEDGER_BLOCKS = `(select sum(coalesce(pg_stat_get_xact_blocks_fetched(x.oid), 0))::bigint from ${LEDGER_RELATIONS} x)`;
+const LEDGER_BLOCKS_BY = `(select jsonb_object_agg(x.oid::regclass::text, coalesce(pg_stat_get_xact_blocks_fetched(x.oid), 0))
+  from ${LEDGER_RELATIONS} x)`;
+
+/** What three claims cost beside a backlog of `n`, one at a time as the runner takes them: blocks, by relation, and milliseconds. */
+function claimsBeside(n) {
+  return rolledBack(`
+    a uuid; b uuid; k integer; before bigint; before_by jsonb; started timestamptz;
+    begin
+      ${TWO_WORKSPACES}
+      ${backlogOf("a", n)}
+      ${OTHERS_OUT_OF_REACH}
+      perform set_config('enable_seqscan', 'off', true);
+      before := ${LEDGER_BLOCKS};
+      before_by := ${LEDGER_BLOCKS_BY};
+      started := clock_timestamp();
+      for k in 1..3 loop
+        perform public.claim_due_jobs(1, 90);
+      end loop;
+      seen := jsonb_build_object(
+        'ms', round(extract(epoch from clock_timestamp() - started) * 1000),
+        'blocks', ${LEDGER_BLOCKS} - before,
+        'by', (select coalesce(jsonb_object_agg(r.key, r.value::bigint - (before_by ->> r.key)::bigint), '{}')
+                 from jsonb_each_text(${LEDGER_BLOCKS_BY}) r
+                where r.value::bigint > (before_by ->> r.key)::bigint));`);
+}
+
+test(
+  "taking a job costs the same beside 50,000 waiting as beside 1,000: a backlog never slows its own draining",
+  { skip },
+  (t) => {
+    const small = claimsBeside(1_000);
+    const large = claimsBeside(50_000);
+    t.diagnostic(
+      `three claims: ${small.blocks} blocks, ${small.ms} ms beside 1,000; ${large.blocks} blocks, ${large.ms} ms beside 50,000; ` +
+        `by heap and index ${JSON.stringify(small.by)} then ${JSON.stringify(large.by)}`,
+    );
+    assert.ok(small.blocks > 0, "the ledger is read at all");
+    assert.ok(
+      large.blocks <= small.blocks * 1.5 + 30,
+      `three claims read ${small.blocks} blocks beside 1,000 waiting and ${large.blocks} beside 50,000: a claim that walks the backlog ` +
+        `slows as work piles up, when the ledger most needs to drain (by heap and index: ${JSON.stringify(large.by)})`,
+    );
+  },
+);
+
+test(
+  "beside 50,000 waiting, a reply still goes first, then someone waiting, then a workspace with nothing running",
+  { skip },
+  () => {
+    const { claimed } = rolledBack(`
+    a uuid; b uuid; k integer; l text; claimed jsonb := '[]';
+    begin
+      ${TWO_WORKSPACES}
+      ${backlogOf("a", 50_000)}
+      ${job("a's running batch", { kind: "broadcast_send", due: 200_000, fired: 5, lease: 60 })}
+      ${OTHERS_OUT_OF_REACH}
+      ${job("a reply", { kind: "inbound_answer", payload: { message_id: "11111111-1111-4111-8111-111111111111" } })}
+      ${job("someone waiting", { ws: "b", kind: "preview_build" })}
+      ${job("next door's batch", { ws: "b", kind: "broadcast_send" })}
+      for k in 1..4 loop
+        select j.payload ->> 'label' into l from public.claim_due_jobs(1, 90) j;
+        claimed := claimed || to_jsonb(l);
+      end loop;
+      seen := jsonb_build_object('claimed', claimed);`);
+    assert.deepEqual(claimed, ["a reply", "someone waiting", "next door's batch", "backlog"]);
+  },
+);
