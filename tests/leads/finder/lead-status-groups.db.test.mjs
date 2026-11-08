@@ -469,13 +469,25 @@ const blocksOf = (tables) => {
     union all select i.indexrelid from pg_index i where i.indrelid in (${oids})) x)`;
 };
 
-/** What `read` cost those tables, in blocks, with fresh statistics and sequential scans off. */
+/** The same blocks, by the heap or index that read them: what a test says when its bound is passed. */
+const blocksByRelation = (tables) => {
+  const oids = tables.map((t) => `'public.${t}'::regclass`).join(", ");
+  return `(select coalesce(jsonb_object_agg(c.relname, coalesce(pg_stat_get_xact_blocks_fetched(c.oid), 0)), '{}') from pg_class c
+    where c.oid in (${oids}) or c.oid in (select i.indexrelid from pg_index i where i.indrelid in (${oids})))`;
+};
+
+/** What `read` cost those tables, in blocks, with fresh statistics and sequential scans off; `<name>_by` says where. */
 const measured = (tables, name, read) => `
   analyze public.sequence_sends, public.sequence_enrollments, public.lead_search_members, public.leads;
   perform set_config('enable_seqscan', 'off', true);
   before := ${blocksOf(tables)};
+  before_by := ${blocksByRelation(tables)};
   ${read}
   cost := cost || jsonb_build_object('${name}', ${blocksOf(tables)} - before);
+  cost := cost || jsonb_build_object('${name}_by', (
+    select coalesce(jsonb_object_agg(k.key, k.value::bigint - coalesce((before_by->>k.key)::bigint, 0)), '{}')
+      from jsonb_each_text(${blocksByRelation(tables)}) k
+     where k.value::bigint > coalesce((before_by->>k.key)::bigint, 0)));
   perform set_config('enable_seqscan', 'on', true);`;
 
 /** A workspace with a template, a search and a first step, in the DO block's variables `<v>`, `<v>_t`, `<v>_s`, `<v>_r`. */
@@ -515,7 +527,7 @@ const sent = (v, n, tag, day) => `
 const DECLARE = `
   declare
     t uuid; t_t uuid; t_s uuid; t_r uuid; o uuid; o_t uuid; o_s uuid; o_r uuid;
-    ids uuid[]; before bigint; cost jsonb := '{}'; answer jsonb;`;
+    ids uuid[]; before bigint; before_by jsonb; cost jsonb := '{}'; answer jsonb;`;
 
 test("the read stays put beside a neighbour's sends", { skip }, () => {
   const tables = ["sequence_sends", "sequence_enrollments"];
@@ -534,7 +546,7 @@ test("the read stays put beside a neighbour's sends", { skip }, () => {
   assert.ok(seen.small > 0, "the sends are read at all");
   assert.ok(
     seen.large <= seen.small * 1.5 + 5,
-    `read ${seen.small} blocks beside 1,000 sends and ${seen.large} beside 3,000: a read that walks the platform's sends grows with them`,
+    `read ${seen.small} blocks beside 1,000 sends and ${seen.large} beside 3,000: a read that walks the platform's sends grows with them (by heap and index: ${JSON.stringify(seen.small_by)} then ${JSON.stringify(seen.large_by)})`,
   );
 });
 
@@ -555,7 +567,7 @@ test("the read stays put beside its own workspace's other sends", { skip }, () =
   assert.ok(seen.small > 0, "the sends are read at all");
   assert.ok(
     seen.large <= seen.small * 1.3 + 10,
-    `read ${seen.small} blocks for 20 leads beside 3,000 other sends of their workspace and ${seen.large} beside 9,000: a read that walks the workspace's sends grows with them`,
+    `read ${seen.small} blocks for 20 leads beside 3,000 other sends of their workspace and ${seen.large} beside 9,000: a read that walks the workspace's sends grows with them (by heap and index: ${JSON.stringify(seen.small_by)} then ${JSON.stringify(seen.large_by)})`,
   );
 });
 
