@@ -10,7 +10,7 @@
  * Cross-workspace: the Console's own reads; the service-role client exists only behind backOffice(ctx)'s admin check.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

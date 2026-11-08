@@ -6,9 +6,10 @@
  * it came.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type LineUpdate = Database["public"]["Tables"]["lines"]["Update"];
 type LineKey = { id: string; tenant_id: string };
@@ -136,7 +137,11 @@ export const insertLineRow = async (db: Db, tenantId: string, row: Database["pub
  * Lines whose filing the carriers are still deciding (`states`), a refused one only with its campaign on file, whichever
  * workspace's, the longest unasked first: the registration sweep's page.
  */
-export const listLinesAwaitingCarriers = async (db: Db, states: readonly string[], limit: number) =>
+export const listLinesAwaitingCarriers = async (
+  db: Db,
+  states: readonly SchemaSet<"lines.sms_state">[],
+  limit: number,
+) =>
   platformWide(db)
     .from("lines")
     .select("*")

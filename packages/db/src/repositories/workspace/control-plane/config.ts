@@ -1,8 +1,14 @@
 /** Control plane: config. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { openToCustomersOf, type BillingMode, type BillingStatus, type OpenToCustomers } from "@chanlytics/contracts";
-import type { Database, Json } from "../../../database.types";
+import {
+  openToCustomersOf,
+  type BillingMode,
+  type BillingStatus,
+  type OpenToCustomers,
+  type SchemaSet,
+} from "@chanlytics/contracts";
+import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
 
 export type Db = SupabaseClient<Database>;
@@ -149,8 +155,8 @@ export async function listPolicies(db: Db, tenantId: string): Promise<PolicyReco
 export async function setPolicyMode(
   db: Db,
   tenantId: string,
-  policyClass: string,
-  mode: string,
+  policyClass: SchemaSet<"policies.class">,
+  mode: SchemaSet<"policies.mode">,
   /**
    * Merged into the existing limits, never replacing them.
    *
@@ -316,7 +322,7 @@ export async function setPersonReplyMode(
   db: Db,
   tenantId: string,
   contactId: string,
-  mode: string | null,
+  mode: SchemaSet<"policies.mode"> | null,
 ): Promise<string | null> {
   if (mode === null) {
     const { data, error } = await db

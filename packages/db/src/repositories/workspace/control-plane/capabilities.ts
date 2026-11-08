@@ -2,7 +2,7 @@
 
 import type { PostgrestError } from "@supabase/supabase-js";
 import { hasPublicPages, openToCustomersOf } from "@chanlytics/contracts";
-import type { Database, Json } from "../../../database.types";
+import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
 import type { Db } from "./config";
 

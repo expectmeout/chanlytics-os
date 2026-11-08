@@ -1,7 +1,7 @@
 /** Partner: partner. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { isMissingFunction } from "../../shared/missing-door";
 
 export type Db = SupabaseClient<Database>;

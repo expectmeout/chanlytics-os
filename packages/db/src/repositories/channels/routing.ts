@@ -4,8 +4,8 @@
  * Cross-workspace: a webhook finds its workspace by the provider's id (kind, external_id) on tenant_channels.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
-import { MIN_MS } from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
+import { MIN_MS, type SchemaSet } from "@chanlytics/contracts";
 import { dbLog } from "../../shared/observe";
 
 export interface RoutedChannel {
@@ -41,7 +41,7 @@ export interface ChannelLookup {
 
 export async function resolveChannelDetailed(
   db: SupabaseClient<Database>,
-  kind: string,
+  kind: SchemaSet<"tenant_channels.kind">,
   externalId: string,
 ): Promise<ChannelLookup> {
   const key = `${kind}:${externalId}`;
@@ -96,7 +96,7 @@ function routedOf(row: {
 export async function findOldestActiveChannel(
   db: SupabaseClient<Database>,
   tenantId: string,
-  kind: string,
+  kind: SchemaSet<"tenant_channels.kind">,
 ): Promise<RoutedChannel | null> {
   const { data, error } = await db
     .from("tenant_channels")
@@ -114,7 +114,7 @@ export async function findOldestActiveChannel(
 /** The common case: callers that cannot act on the distinction. */
 export async function resolveChannel(
   db: SupabaseClient<Database>,
-  kind: string,
+  kind: SchemaSet<"tenant_channels.kind">,
   externalId: string,
 ): Promise<RoutedChannel | null> {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
@@ -223,7 +223,11 @@ export const listWorkspaceChannels = async (db: SupabaseClient<Database>, tenant
   db.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId);
 
 /** The number of the workspace's oldest active channel of `kind`, as the database answered. */
-export const findChannelNumber = async (db: SupabaseClient<Database>, tenantId: string, kind: string) =>
+export const findChannelNumber = async (
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  kind: SchemaSet<"tenant_channels.kind">,
+) =>
   db
     .from("tenant_channels")
     .select("number_e164")

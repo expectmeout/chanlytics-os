@@ -46,7 +46,7 @@ export async function setLineForwarding(ctx: RouteContext, req: Request, member:
     // No phone to test from is asked any more (8 Oct 2026; surfaces/setup/rows/forwarding.tsx says why), and one an
     // older page still sends is not read. The function keeps the argument until a migration drops it: null is "none
     // named", and clears one an earlier save left. Its generated type is `string`; the function takes null.
-    p_test_from: NO_TEST_PHONE as string,
+    p_test_from: NO_TEST_PHONE,
   });
   if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
   // Where a business's calls go changed on a member's word: the ledger says who and which calls, never the number.

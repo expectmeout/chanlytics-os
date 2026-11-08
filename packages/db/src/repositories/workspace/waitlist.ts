@@ -7,7 +7,7 @@
  * the only reader.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 /** A person asks for a place. The row is stored as given: the caller lower-cases the address the unique index reads. */
 export async function addToWaitlist(

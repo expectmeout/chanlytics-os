@@ -26,7 +26,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLAYBOOK_HOURS, type NumberStanding } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

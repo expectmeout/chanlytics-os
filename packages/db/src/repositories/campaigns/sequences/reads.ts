@@ -10,7 +10,7 @@ import {
   type SequenceMode,
 } from "@chanlytics/contracts";
 import type { ReachOutFedBy, SequenceOneOffDto, SequenceRowDto, SequenceStepDto } from "@chanlytics/contracts";
-import type { Database } from "../../../database.types";
+import type { Database } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
 import { withReadyCounts } from "../sequence-waiting";
 

@@ -5,15 +5,16 @@
  * settings, and the row repointed or switched off. Each answer is the database's as it came.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type ChannelInsert = Database["public"]["Tables"]["tenant_channels"]["Insert"];
 type ChannelUpdate = Database["public"]["Tables"]["tenant_channels"]["Update"];
 
 /** The routing row a kind and a provider's key hold, whichever workspace's it is. */
-export const findRoutingRowByKey = async (db: Db, kind: string, externalId: string) =>
+export const findRoutingRowByKey = async (db: Db, kind: SchemaSet<"tenant_channels.kind">, externalId: string) =>
   platformWide(db)
     .from("tenant_channels")
     .select("id, tenant_id, status")
@@ -24,7 +25,7 @@ export const findRoutingRowByKey = async (db: Db, kind: string, externalId: stri
 /** A routing row taken over, pinned to the workspace and state it was read in: none back means another claimed it first. */
 export const takeRoutingRow = async (
   db: Db,
-  was: { id: string; tenantId: string; status: string },
+  was: { id: string; tenantId: string; status: SchemaSet<"tenant_channels.status"> },
   patch: ChannelUpdate,
 ) =>
   platformWide(db)
@@ -60,7 +61,7 @@ export const patchRoutingRow = async (db: Db, tenantId: string, channelId: strin
   db.from("tenant_channels").update(patch).eq("id", channelId).eq("tenant_id", tenantId);
 
 /** The kinds of the workspace's active routing rows among `kinds`: where a customer can write in. */
-export const listActiveRoutingKinds = async (db: Db, tenantId: string, kinds: string[]) =>
+export const listActiveRoutingKinds = async (db: Db, tenantId: string, kinds: SchemaSet<"tenant_channels.kind">[]) =>
   db.from("tenant_channels").select("kind").eq("tenant_id", tenantId).eq("status", "active").in("kind", kinds);
 
 /** The workspace's oldest active voice row: its agent and the agent's config. */

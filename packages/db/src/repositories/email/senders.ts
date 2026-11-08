@@ -19,7 +19,7 @@ import {
   type SenderKind,
   type SenderReading,
 } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { dbLog } from "../../shared/observe";
 
 type Db = SupabaseClient<Database>;
@@ -101,7 +101,7 @@ export async function sortMailboxSender(
     p_tenant_id: params.tenantId,
     p_sender: params.sender,
     // A null verdict takes it back: the door reads it as SQL's null.
-    p_verdict: params.verdict as string,
+    p_verdict: params.verdict,
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
 }

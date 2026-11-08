@@ -8,8 +8,8 @@
  * A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { standingOfThread } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import { standingOfThread, type SchemaSet } from "@chanlytics/contracts";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
@@ -174,7 +174,7 @@ const DONE_READ_MAX = 1000;
  */
 export async function getTodayDoneCount(
   db: Db,
-  params: { tenantId: string; since: string; verbs: readonly string[] },
+  params: { tenantId: string; since: string; verbs: readonly SchemaSet<"decisions.verb">[] },
 ): Promise<number> {
   const [counted, undos] = await Promise.all([
     db

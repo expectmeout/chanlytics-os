@@ -6,7 +6,7 @@ import type {
   SequenceHistoryDto,
   SequencePeopleDto,
 } from "@chanlytics/contracts";
-import type { Json } from "../../../database.types";
+import type { Json } from "../../../types";
 import { answer, type DoorResult } from "../reach-out/leads";
 import { putBackOf, withListedWhyNot, withOneLeadsOpening, withOpenings, withPlaceWhyNot } from "../sequence-waiting";
 import type { Db } from "./reads";

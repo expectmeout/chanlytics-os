@@ -8,8 +8,9 @@
  * (claimQueuedSend, releaseQueuedSend) and the failure a run that did not finish leaves on it (failQueuedSend).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /**
@@ -58,7 +59,7 @@ export async function hasRequeuedCopy(db: Db, tenantId: string, jobId: string): 
 /** The jobs of one kind that failed for good since a moment, oldest first: what the Console runs again together. */
 export async function listFailedJobsOfKind(
   db: Db,
-  input: { kind: string; sinceIso: string; limit: number },
+  input: { kind: SchemaSet<"jobs.kind">; sinceIso: string; limit: number },
 ): Promise<{ id: string; tenant_id: string }[]> {
   const { data, error } = await db
     .from("jobs")

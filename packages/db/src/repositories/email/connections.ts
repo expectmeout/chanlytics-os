@@ -6,8 +6,9 @@
  * is not "yes".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 export type MailboxConnectionRow = Database["public"]["Tables"]["mailbox_connections"]["Row"];
 type Patch = Database["public"]["Tables"]["mailbox_connections"]["Update"];
@@ -96,7 +97,7 @@ export async function connectMailbox(
 ): Promise<{ ok: true; id: string; made: boolean; state: string } | { ok: false; refused: ConnectRefusal }> {
   const { data, error } = await db.rpc("mailbox_connection_connect", {
     p_tenant_id: params.tenantId,
-    p_user_id: params.userId as string,
+    p_user_id: params.userId,
     p_provider: params.provider,
     p_account: params.account,
     p_address: params.address,
@@ -120,7 +121,7 @@ export async function connectMailbox(
  */
 export async function patchMailboxConnection(
   db: Db,
-  params: { tenantId: string; id: string; from?: readonly string[]; patch: Patch },
+  params: { tenantId: string; id: string; from?: readonly SchemaSet<"mailbox_connections.state">[]; patch: Patch },
 ): Promise<MailboxConnectionRow | null> {
   let q = db.from("mailbox_connections").update(params.patch).eq("tenant_id", params.tenantId).eq("id", params.id);
   if (params.from?.length) q = q.in("state", [...params.from]);
@@ -214,9 +215,9 @@ export async function stampEmailFromMailbox(
   const { data, error } = await db.rpc("stamp_email_from_mailbox", {
     p_tenant_id: params.tenantId,
     p_message_id: params.messageId,
-    p_provider_id: params.providerId as string,
-    p_rfc_message_id: params.rfcMessageId as string,
-    p_thread_id: params.threadId as string,
+    p_provider_id: params.providerId,
+    p_rfc_message_id: params.rfcMessageId,
+    p_thread_id: params.threadId,
     p_mailbox_id: params.mailboxId,
   });
   if (error) throw new Error(`cannot stamp the email the mailbox sent: ${error.message}`);

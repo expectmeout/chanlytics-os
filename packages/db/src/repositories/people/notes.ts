@@ -5,7 +5,7 @@
  * Adding one is addPersonNote, beside the person's page (pages.ts).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 type Args<F extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][F]["Args"];

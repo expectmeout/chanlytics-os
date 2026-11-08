@@ -4,8 +4,9 @@
  * Each answer is the database's as it came.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** A narrowing every activity read takes: a window, a cursor it reads through, and the subjects it is about. */
@@ -20,7 +21,11 @@ interface Window {
 export const listActivityDecisions = async (
   db: Db,
   tenantId: string,
-  narrow: Window & { verbs?: string[]; actorType?: string; actorUserId?: string },
+  narrow: Window & {
+    verbs?: SchemaSet<"decisions.verb">[];
+    actorType?: SchemaSet<"decisions.actor_type">;
+    actorUserId?: string;
+  },
   limit: number,
 ) => {
   let query = db
@@ -31,7 +36,8 @@ export const listActivityDecisions = async (
     .order("id", { ascending: false })
     .limit(limit);
   if (narrow.verbs)
-    query = narrow.verbs.length === 1 ? query.eq("verb", narrow.verbs[0] ?? "") : query.in("verb", narrow.verbs);
+    query =
+      narrow.verbs.length === 1 && narrow.verbs[0] ? query.eq("verb", narrow.verbs[0]) : query.in("verb", narrow.verbs);
   if (narrow.actorType) query = query.eq("actor_type", narrow.actorType);
   if (narrow.actorUserId) query = query.eq("actor_user_id", narrow.actorUserId);
   if (narrow.from) query = query.gte("created_at", narrow.from);

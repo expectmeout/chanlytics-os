@@ -8,7 +8,7 @@
  * lost, never an error for a page that is closing; a read that fails leaves the back office's other cards standing.
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 type Fns = Database["public"]["Functions"];

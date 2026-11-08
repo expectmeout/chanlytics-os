@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conversationPatch } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { emitEvent } from "../events/events";
 import { dbLog } from "../../shared/observe";
 import { settleByEcho } from "../conversations/control";

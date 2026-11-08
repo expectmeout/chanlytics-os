@@ -8,7 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { RUN_GOING_STATES, versionWords } from "@chanlytics/contracts";
-import type { Database, Json } from "../../../database.types";
+import type { Database, Json } from "../../../types";
 import type { JsonObject } from "../../events/events";
 import { readAllRows } from "../../../shared/paged";
 

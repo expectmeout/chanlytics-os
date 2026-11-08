@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FILES_MAX, FILES_BUCKET, type FileKind, type FileShelfFilter } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

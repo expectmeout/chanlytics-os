@@ -6,7 +6,7 @@
  * edge's run-now door), and the hourly sweep leaves its playbooks alone (00245 playbooks_due).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

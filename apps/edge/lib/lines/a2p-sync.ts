@@ -67,7 +67,7 @@ async function askRegistration(line: LineRow, acct: { sid: string; token: string
 async function keepAnswer(
   db: Db,
   line: LineRow,
-  answer: { smsState: string; mock: LineRow["reg_mock"]; reason: string | null },
+  answer: { smsState: LineRow["sms_state"]; mock: LineRow["reg_mock"]; reason: string | null },
 ): Promise<void> {
   const { smsState, mock, reason } = answer;
   const moved = smsState !== line.sms_state;

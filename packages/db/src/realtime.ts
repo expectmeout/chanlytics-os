@@ -13,7 +13,7 @@
  * runners in one tab share it, and the last to leave removes it.
  */
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./database.types";
+import type { Database } from "./types";
 
 export interface SubscribeOptions {
   /** The workspace the tab shows: its topic is the one joined. A tab with none joins nothing. */

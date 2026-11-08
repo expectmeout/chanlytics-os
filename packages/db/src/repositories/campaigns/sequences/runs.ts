@@ -5,7 +5,7 @@
  * Each answer is the database's as it came; the caller says a failure in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../../database.types";
+import type { Database, Json } from "../../../types";
 import { platformWide } from "../../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;

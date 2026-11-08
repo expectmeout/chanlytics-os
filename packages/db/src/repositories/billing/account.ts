@@ -18,7 +18,7 @@
  * Not under repositories/: that folder is at its size, and the billing domain's second module earns this folder.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];

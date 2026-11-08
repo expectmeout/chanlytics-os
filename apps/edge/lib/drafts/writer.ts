@@ -45,6 +45,7 @@ import {
   type PromptWire,
   type ReplyDraftWhy,
   ANSWER_JSON_ONLY,
+  type ChannelKind,
 } from "@chanlytics/contracts";
 import { describeLead, readLeadContext, readThreadState } from "@chanlytics/db/conversations";
 import { listMailboxConnectionsOf, findMailboxOfTenant } from "@chanlytics/db/email";
@@ -87,7 +88,7 @@ const standIn = (tenantId: string, id: string, externalId: string): RoutedChanne
  * The channel a draft's runtime is loaded by: for an email, the workspace's hosted mailbox, else the first it connected
  * (0056); for a chat, its oldest active channel of the wire; else whichever it has. Null with none at all.
  */
-async function channelFor(db: Db, tenantId: string, wire: string): Promise<RoutedChannel | null> {
+async function channelFor(db: Db, tenantId: string, wire: ChannelKind): Promise<RoutedChannel | null> {
   const mailbox = async (): Promise<RoutedChannel | null> => {
     const hosted = await findMailboxOfTenant(db, tenantId);
     if (hosted) return standIn(tenantId, hosted.id, hosted.local_part);

@@ -10,7 +10,7 @@ import {
   type PlatformActedData,
   type WabaEventKind,
 } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { dbLog, dbRequestId } from "../../shared/observe";
 
 export type Db = SupabaseClient<Database>;

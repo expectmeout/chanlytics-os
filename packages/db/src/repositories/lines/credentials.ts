@@ -3,7 +3,7 @@
  * the door's as it came; the caller says a failure in its words. Giving them back is dropLineCredentials (lines.ts).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

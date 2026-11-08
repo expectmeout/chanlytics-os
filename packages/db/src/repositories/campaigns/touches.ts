@@ -33,7 +33,7 @@ import {
   localDate,
   parseParamSpecs,
 } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
 import { findWorkspaceZone } from "../workspace/control-plane/capabilities";
 

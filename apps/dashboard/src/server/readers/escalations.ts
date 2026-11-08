@@ -1,5 +1,10 @@
 import "server-only";
-import { HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX, type EscalationDto } from "@chanlytics/contracts";
+import {
+  HAND_BACK_REASONS,
+  OPEN_HOLDS_READ_MAX,
+  type EscalationDto,
+  type EscalationState,
+} from "@chanlytics/contracts";
 import { openRequestsOfThreads } from "@chanlytics/db/calendar";
 import { readerStamp, type Reader } from "../shared/reader";
 import { isGoing } from "../people/going";
@@ -47,7 +52,7 @@ async function withRequests(
  * cited by its thread.
  */
 export const escalations: Reader<
-  { state: string },
+  { state: EscalationState },
   { escalations: Array<EscalationDto & { conversation_id: string }> }
 > = {
   name: "escalations",

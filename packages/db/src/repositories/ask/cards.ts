@@ -5,8 +5,9 @@
  * the database's as it came; the tool says a failure in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** One of the workspace's people as a card names them, or none. */
@@ -39,7 +40,7 @@ export const findPersonReplyModeRow = async (db: Db, tenantId: string, contactId
     .maybeSingle();
 
 /** The workspace's own rule of a class: its mode and limits, or none. */
-export const findWorkspaceRule = async (db: Db, tenantId: string, ruleClass: string) =>
+export const findWorkspaceRule = async (db: Db, tenantId: string, ruleClass: SchemaSet<"policies.class">) =>
   db
     .from("policies")
     .select("mode, limits")

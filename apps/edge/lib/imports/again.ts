@@ -6,7 +6,7 @@
  * workspace, through the mailbox its cursor names. The clients' file is the browser's: it is added again from People,
  * never here. A source this deployment brings in no other way is refused by name.
  */
-import { IMPORT_SOURCES, UUID, parseTenantConfig, type ImportSource } from "@chanlytics/contracts";
+import { IMPORT_SOURCES, isOneOf, UUID, parseTenantConfig, type ImportSource } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { importCursorOf, listImports, type ImportLedgerRow } from "@chanlytics/db/imports";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
@@ -35,9 +35,9 @@ export async function importAgain(
   const tenantId = ws.tenantId ?? "";
   if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const source = body.source;
-  if (typeof source !== "string" || !(IMPORT_SOURCES as readonly string[]).includes(source))
+  if (!isOneOf(IMPORT_SOURCES, source))
     return refuse(400, "bad_request", "source is one of the imports ledger's sources");
-  if (source !== "google_photos" && !THROUGH_A_MAILBOX.includes(source as ImportSource))
+  if (source !== "google_photos" && !THROUGH_A_MAILBOX.includes(source))
     return refuse(409, "unavailable", "this source is brought in again where it was first brought in");
   const db = pg();
   if (!db) return refuse(503, "no_database");

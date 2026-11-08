@@ -4,8 +4,9 @@
  * and the holds waiting. Read on the member's own client. Each answer is the database's as it came.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** What a message is read with, where a list of them is mapped (the dashboard's MessageDto). */
@@ -107,8 +108,8 @@ const HOLD_READ_COLUMNS =
 export const listHoldsWaiting = async (
   db: Db,
   tenantId: string,
-  state: string,
-  handBack: readonly string[],
+  state: SchemaSet<"escalations.state">,
+  handBack: readonly SchemaSet<"escalations.reason">[],
   limit: number,
 ) =>
   db
@@ -124,8 +125,8 @@ export const listHoldsWaiting = async (
 export const listHoldsHandedBack = async (
   db: Db,
   tenantId: string,
-  state: string,
-  handBack: readonly string[],
+  state: SchemaSet<"escalations.state">,
+  handBack: readonly SchemaSet<"escalations.reason">[],
   limit: number,
 ) =>
   db

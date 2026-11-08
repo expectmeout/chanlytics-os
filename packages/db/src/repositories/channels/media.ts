@@ -3,7 +3,7 @@
  * stored at a path, and paths removed. Each answer is storage's as it came; the caller says a failure in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

@@ -6,7 +6,7 @@
  * Cross-workspace: requests about any workspace, and about one already deleted; only the Console's admin check reaches them.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

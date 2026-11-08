@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MIN_MS } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
 
 type Db = SupabaseClient<Database>;

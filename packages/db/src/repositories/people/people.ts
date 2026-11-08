@@ -2,7 +2,7 @@
 
 import type { PostgrestError } from "@supabase/supabase-js";
 import type { DoubtSeen, PersonAtLeadDto, PersonDoubtDto, PersonSignerDto, SeenMarksDto } from "@chanlytics/contracts";
-import type { Json } from "../../database.types";
+import type { Json } from "../../types";
 import { getPersonIdsWaitingOnYou } from "./waiting-on-you";
 import { IDS_PER_READ, type Db } from "./pages";
 import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";

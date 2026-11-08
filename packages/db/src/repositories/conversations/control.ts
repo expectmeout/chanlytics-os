@@ -20,7 +20,7 @@
  * send job that would send it, wherever the withdrawal starts (a reply, a call-back, a pause, a steer, a take-over).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { dbLog } from "../../shared/observe";
 
 type Db = SupabaseClient<Database>;

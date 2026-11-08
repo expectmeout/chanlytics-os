@@ -7,7 +7,7 @@ import {
   type PersonDecisionDto,
   type PersonRowDto,
 } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { readAllRowsByKey } from "../../shared/paged";
 import { listThreadsBy } from "./waiting-on-you";
 import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";

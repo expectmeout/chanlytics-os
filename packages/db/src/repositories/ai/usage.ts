@@ -30,7 +30,7 @@ import type {
   ModelTurnRequest,
   ModelTurnResponse,
 } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;

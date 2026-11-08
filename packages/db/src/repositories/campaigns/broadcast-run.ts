@@ -5,8 +5,9 @@
  * the job says its failures in its own words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type Run = { tenantId: string; broadcastId: string };
 
@@ -53,7 +54,11 @@ export const failInterruptedBroadcast = async (db: Db, run: Run, at: string) =>
     .select("id");
 
 /** How many of the broadcast's people stand in a state (all of them when none is named), and for a reason when named. */
-export function countBroadcastSends(db: Db, run: Run, where: { state?: string; reason?: string } = {}) {
+export function countBroadcastSends(
+  db: Db,
+  run: Run,
+  where: { state?: SchemaSet<"sequence_sends.state">; reason?: string } = {},
+) {
   let query = db
     .from("sequence_sends")
     .select("contact_id", { count: "exact", head: true })

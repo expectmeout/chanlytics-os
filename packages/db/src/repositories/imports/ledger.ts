@@ -6,9 +6,10 @@
  * on a workspace's table goes through `tenantDb`, so none can reach another workspace's row.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** One source's row, as the page reads it (contracts imports/ledger.ts ImportRowDto). */
@@ -109,7 +110,7 @@ const namedIn = (cursor: unknown): unknown =>
 export async function importRowOf(
   db: Db,
   tenantId: string,
-  source: string,
+  source: SchemaSet<"imports.source">,
   connectionId: string | null = null,
 ): Promise<ImportRunRow | null> {
   const result = tenantDb(db, tenantId)
@@ -140,7 +141,7 @@ export async function importRowOf(
 export async function importCursorOf(
   db: Db,
   tenantId: string,
-  source: string,
+  source: SchemaSet<"imports.source">,
   connectionId: string | null = null,
 ): Promise<Json | null> {
   return (await importRowOf(db, tenantId, source, connectionId))?.job_cursor ?? null;

@@ -116,7 +116,7 @@ export async function createWhatsappTemplate(
   }));
   const row = {
     tenant_id: tenantId,
-    channel: "whatsapp",
+    channel: "whatsapp" as const,
     name,
     language,
     meta_status: status,
@@ -127,7 +127,7 @@ export async function createWhatsappTemplate(
     variables: variables as unknown as Json,
     rejected_reason: null,
     synced_at: new Date().toISOString(),
-    source: "chanlytics",
+    source: "chanlytics" as const,
     created_by: userId,
   };
   const { data: saved, error } = await saveTemplateRow(db, tenantId, row);

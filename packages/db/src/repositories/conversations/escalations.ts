@@ -2,7 +2,7 @@
  * An escalation as the member signed in can see it: read under row-level security, so one in another workspace is none.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

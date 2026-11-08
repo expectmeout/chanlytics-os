@@ -8,7 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LINE_FILED_NAMES } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 
 // No `type Db` alias here, as the repositories write one: the declaration bundler numbers every module's alias (`Db$x`), and a

@@ -66,7 +66,13 @@ async function replanOwnerSends(
         params.out.gave_up += 1;
       continue;
     }
-    const patch = { state: "planned", send_at: params.now.toISOString(), mailbox_id: null, attempts, message_id: null };
+    const patch = {
+      state: "planned" as const,
+      send_at: params.now.toISOString(),
+      mailbox_id: null,
+      attempts,
+      message_id: null,
+    };
     if (await params.move(s, { ...patch, claimed_at: null })) params.out.replanned += 1;
   }
 }

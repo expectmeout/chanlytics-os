@@ -5,13 +5,20 @@
  * is the platform's. Each answer is the database's as it came; the sweep says a failure in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** Customers' messages on `channels` made between `after` and `before` and never taken up, the oldest first. */
-export const listUnansweredInbound = async (db: Db, channels: string[], after: string, before: string, limit: number) =>
+export const listUnansweredInbound = async (
+  db: Db,
+  channels: SchemaSet<"messages.channel">[],
+  after: string,
+  before: string,
+  limit: number,
+) =>
   platformWide(db)
     .from("messages")
     .select("id, tenant_id, conversation_id, body, created_at, meta")
@@ -25,7 +32,12 @@ export const listUnansweredInbound = async (db: Db, channels: string[], after: s
     .limit(limit);
 
 /** The receptionist's or the team's replies in `states` on these threads since `since`. */
-export const listRepliesSince = async (db: Db, conversationIds: string[], states: string[], since: string) =>
+export const listRepliesSince = async (
+  db: Db,
+  conversationIds: string[],
+  states: SchemaSet<"messages.status">[],
+  since: string,
+) =>
   platformWide(db)
     .from("messages")
     .select("conversation_id, created_at, meta")

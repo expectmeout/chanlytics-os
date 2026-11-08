@@ -10,6 +10,7 @@
 import { z } from "zod";
 import {
   AppError,
+  isOneOf,
   POLICY_CLASSES,
   POLICY_MODES,
   REPLY_DELAY_MIN_MS,
@@ -136,7 +137,7 @@ function wholeDial(cls: string, value: number | undefined, dial: (typeof WHOLE_D
 
 export async function changePolicy(ctx: RouteContext, input: z.infer<typeof PolicyChange>, member: Member) {
   const cls = input.class;
-  if (!(POLICY_CLASSES as readonly string[]).includes(cls)) throw new AppError("validation", "Unknown policy class.");
+  if (!isOneOf(POLICY_CLASSES, cls)) throw new AppError("validation", "Unknown policy class.");
   // A delay edit carries no mode: the row keeps the one it has. Requiring the
   // client to resend it meant a stale page changing the hold window could
   // silently flip Replies to whatever mode that page had loaded. Every dial
@@ -155,7 +156,7 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     if (!current) throw new AppError("not_found", "Policy row not found.", 404);
     mode = current.mode;
   }
-  if (!(POLICY_MODES as readonly string[]).includes(mode)) throw new AppError("validation", "Unknown mode.");
+  if (!isOneOf(POLICY_MODES, mode)) throw new AppError("validation", "Unknown mode.");
   // A switch nothing enforces is a switch that lies: each class offers only the modes the runtime honours for it, by
   // the rule the Autonomy pane draws its dots by (contracts policyModeOffered, over POLICY_CLASS_MODES). Veto is
   // offered wherever something waits to be stopped: a reply in the hold window, a playbook run thirty minutes out, a

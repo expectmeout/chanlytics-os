@@ -11,7 +11,7 @@
  * Cross-workspace: Support reads every workspace's reports and asks; only the Console's admin check reaches the reads.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

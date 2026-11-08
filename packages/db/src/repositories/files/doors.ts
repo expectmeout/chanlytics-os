@@ -4,8 +4,19 @@
  * file_start holds a place on the ledger and nothing else, and file_found is the one door every road keeps a file by.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FileLook, FileShows, FileStatus, HeardBy, SoundNote, SoundPart, SoundWords } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import {
+  isOneOf,
+  recordOrEmpty,
+  type FileLook,
+  type FileShows,
+  type FileStatus,
+  type HeardBy,
+  type SoundNote,
+  type SoundPart,
+  type SoundWords,
+} from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
+import { asJson } from "../../shared/json";
 
 type Db = SupabaseClient<Database>;
 
@@ -18,7 +29,7 @@ export async function startFile(db: Db, tenantId: string, id: string) {
 export type FileFate = { fate: "kept" | "here" | "full"; file_id: string | null };
 
 function fateOf(data: unknown): FileFate {
-  const o = (data ?? {}) as { fate?: unknown; file_id?: unknown };
+  const o = recordOrEmpty(data);
   if (o.fate !== "kept" && o.fate !== "here" && o.fate !== "full") throw new Error("file found: no fate answered");
   return { fate: o.fate, file_id: typeof o.file_id === "string" ? o.file_id : null };
 }
@@ -51,14 +62,14 @@ export async function recordFileFound(
     p_id: args.id,
     p_status: args.status,
     p_source: args.source,
-    p_source_ref: args.sourceRef as string,
+    p_source_ref: args.sourceRef,
     p_name: args.name,
     p_mime: args.mime,
     p_bytes: args.bytes,
     p_fingerprint: args.fingerprint,
-    p_width: args.width as number,
-    p_height: args.height as number,
-    p_shows: args.shows as string,
+    p_width: args.width,
+    p_height: args.height,
+    p_shows: args.shows,
     p_edition: args.edition,
     ...(args.actor ? { p_actor: args.actor } : {}),
   });
@@ -151,8 +162,8 @@ export async function keepFileLook(
     p_status: args.status,
     p_edition: args.edition,
     p_look: args.look,
-    p_name: args.name as string,
-    p_shows: args.shows as string,
+    p_name: args.name,
+    p_shows: args.shows,
   });
   if (error) throw new Error(`file look: ${error.message}`);
 }
@@ -208,11 +219,11 @@ export async function beginFileVideo(
     p_mime: video.mime,
     p_bytes: video.bytes,
     p_fingerprint: video.fingerprint,
-    p_seconds: video.seconds as number,
+    p_seconds: video.seconds,
     ...(video.actor ? { p_actor: video.actor } : {}),
   });
   if (error) throw new Error(`file video begin: ${error.message}`);
-  const answer = (data ?? {}) as { fate?: unknown; file_id?: unknown; media_ref?: unknown };
+  const answer = recordOrEmpty(data);
   if (answer.fate !== "kept" && answer.fate !== "here" && answer.fate !== "full" && answer.fate !== "minutes")
     throw new Error("file video begin: no fate answered");
   return {
@@ -235,14 +246,13 @@ export type MediaFate = {
   file_id: string | null;
 };
 
-const MEDIA_FATES = new Set<MediaFate["fate"]>(["ready", "failed", "repeated", "gone", "unknown"]);
+const MEDIA_FATES = ["ready", "failed", "repeated", "gone", "unknown"] as const satisfies readonly MediaFate["fate"][];
 
 function mediaFateOf(data: unknown, door: string): MediaFate {
-  const o = (data ?? {}) as { fate?: unknown; tenant_id?: unknown; file_id?: unknown };
-  if (typeof o.fate !== "string" || !MEDIA_FATES.has(o.fate as MediaFate["fate"]))
-    throw new Error(`${door}: no fate answered`);
+  const o = recordOrEmpty(data);
+  if (!isOneOf(MEDIA_FATES, o.fate)) throw new Error(`${door}: no fate answered`);
   return {
-    fate: o.fate as MediaFate["fate"],
+    fate: o.fate,
     tenant_id: typeof o.tenant_id === "string" ? o.tenant_id : null,
     file_id: typeof o.file_id === "string" ? o.file_id : null,
   };
@@ -258,9 +268,9 @@ export async function markFileMediaReady(
 ): Promise<MediaFate> {
   const { data, error } = await db.rpc("file_media_ready", {
     p_media_ref: media.mediaRef,
-    p_seconds: media.seconds as number,
-    p_width: media.width as number,
-    p_height: media.height as number,
+    p_seconds: media.seconds,
+    p_width: media.width,
+    p_height: media.height,
   });
   if (error) throw new Error(`file media ready: ${error.message}`);
   return mediaFateOf(data, "file media ready");
@@ -300,9 +310,9 @@ export async function keepFileSound(
     p_id: entry.id,
     p_part: entry.part,
     // As the jsonb holds it: what was heard, read in code already (contracts sound.ts), its fields and nothing else.
-    p_value: JSON.parse(JSON.stringify(entry.value)) as Json,
+    p_value: asJson(entry.value),
     p_by: entry.by ? { model: entry.by.model, at: entry.by.at } : null,
-    p_said: entry.said as string,
+    p_said: entry.said,
   });
   if (error) throw new Error(`file sound keep: ${error.message}`);
 }

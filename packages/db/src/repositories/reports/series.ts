@@ -15,7 +15,7 @@
  * `ReportWindowNotReadable`, which the reader says in words, never a count of some other days.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import type { JsonObject } from "../events/events";
 import { isMissingDoor } from "../../shared/missing-door";
 

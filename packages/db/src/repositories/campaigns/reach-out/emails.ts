@@ -1,7 +1,7 @@
 /** Reach out: emails. */
 
 import type { LeadEmailDto } from "@chanlytics/contracts";
-import type { Database, Json } from "../../../database.types";
+import type { Database, Json } from "../../../types";
 import { emailWordsFrom } from "./sheet";
 import { moveSend, type Db, type ReachOutSendInsert, type ReachOutSendRow, withdrawEmail } from "./reach-out";
 

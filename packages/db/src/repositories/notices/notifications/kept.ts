@@ -1,8 +1,8 @@
 /** Notifications: kept. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HOUR_MS, MIN_MS, type OptOutPerson, UUID } from "@chanlytics/contracts";
-import type { Database } from "../../../database.types";
+import { HOUR_MS, MIN_MS, type OptOutPerson, UUID, type SchemaSet } from "@chanlytics/contracts";
+import type { Database } from "../../../types";
 import { DELIVERED } from "../../conversations/thread/history";
 
 export type Db = SupabaseClient<Database>;
@@ -62,7 +62,7 @@ export async function findNotice(
   params: {
     tenantId: string;
     sourceEvent?: string | null;
-    kind: string;
+    kind: SchemaSet<"notifications.kind">;
     subjectType?: string | null;
     subjectId?: string | null;
     /** The notice's title as kept: a retry of the same notice says the same, so a different notice about the subject is not taken for it. */
@@ -116,7 +116,7 @@ export async function recordMailSent(
  */
 export async function wasNoticeKept(
   db: Db,
-  params: { tenantId: string; kind: string; subjectType: string; subjectId: string },
+  params: { tenantId: string; kind: SchemaSet<"notifications.kind">; subjectType: string; subjectId: string },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("notifications")

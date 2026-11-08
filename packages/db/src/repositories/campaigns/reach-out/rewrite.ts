@@ -5,7 +5,7 @@
  * its own words (DoorResult), as the workbench's doors do. A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../../database.types";
+import type { Database, Json } from "../../../types";
 import { answer, type DoorResult } from "./leads";
 
 type Db = SupabaseClient<Database>;

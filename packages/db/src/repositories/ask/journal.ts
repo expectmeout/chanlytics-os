@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

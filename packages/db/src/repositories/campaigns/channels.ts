@@ -4,9 +4,9 @@
  * and routes and the edge's playbook runs read them here, so both ask the same rows.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ConsentChannel, SequenceMode } from "@chanlytics/contracts";
+import type { ConsentChannel, SchemaSet, SequenceMode } from "@chanlytics/contracts";
 import { getSequenceModes } from "./sequences/reads";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
 import { saysMissing } from "../../shared/missing-door";
 
@@ -179,7 +179,12 @@ export async function findPlaybookForChange(
 export async function listRunningTwins(
   db: Db,
   tenantId: string,
-  on: { trigger: string; listId: string | null; listKey: string | null; templateId: string },
+  on: {
+    trigger: SchemaSet<"sequence_steps.trigger">;
+    listId: string | null;
+    listKey: string | null;
+    templateId: string;
+  },
 ): Promise<{ id: string; name: string }[]> {
   const { data, error } = await db
     .from("sequence_steps")
@@ -201,7 +206,11 @@ export async function listRunningTwins(
  * proposed (Ask's card) or a starter is filed for one (POST playbooks), so the index is the last word and never the first.
  * Under the caller's row security. Throws on a failed read.
  */
-export async function followUpOnFile(db: Db, tenantId: string, trigger: string): Promise<boolean> {
+export async function followUpOnFile(
+  db: Db,
+  tenantId: string,
+  trigger: SchemaSet<"sequence_steps.trigger">,
+): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_steps")
     .select("id")

@@ -38,7 +38,7 @@
  * it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { ingestInbound, stoppedNow, type IngestResult } from "../channels/ingest";
 import { setEmailOffersYes, setEmailUnsubscribed } from "../campaigns/email-offers";
 import { stampEmailFromMailbox } from "./connections";

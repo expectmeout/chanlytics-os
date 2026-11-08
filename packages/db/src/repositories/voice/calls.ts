@@ -24,7 +24,7 @@
  */
 import type { SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
 import { dbLog } from "../../shared/observe";
 import { platformWide, tenantDb } from "../../shared/tenant-db";

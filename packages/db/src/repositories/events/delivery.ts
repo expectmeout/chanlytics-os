@@ -1,7 +1,7 @@
 /** Events: delivery. */
 
 import { personName, type ActivationMilestone } from "@chanlytics/contracts";
-import type { Json } from "../../database.types";
+import type { Json } from "../../types";
 import { dbLog } from "../../shared/observe";
 import { recordEvent, rowOf, type Db, type EventData } from "./events";
 import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";

@@ -21,7 +21,12 @@ import {
 } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AppError, type InvitationsAcceptedDto, type JoinedWorkspaceDto } from "@chanlytics/contracts";
+import {
+  AppError,
+  type InvitationsAcceptedDto,
+  type JoinedWorkspaceDto,
+  type MembershipRole,
+} from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import { getTenantFacts } from "../shared/tenant";
 import { requireSecondFactor, type RouteContext } from "../shared/with-route";
@@ -330,7 +335,7 @@ export async function leaveTeam(ctx: TeamCtx, tenantId: string, svc: SupabaseCli
 interface InviteToAccept {
   id: string;
   tenant_id: string;
-  role: string;
+  role: MembershipRole;
 }
 
 /**

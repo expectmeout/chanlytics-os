@@ -37,7 +37,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conversationPatch, type SchemaSet } from "@chanlytics/contracts";
-import type { Database, Json } from "../../../database.types";
+import type { Database, Json } from "../../../types";
 import { mailboxCapacityFrom, type MailboxCapacity } from "./email-day";
 import { getErasureDigests } from "../../people/pages";
 import { isMissingFunction } from "../../../shared/missing-door";

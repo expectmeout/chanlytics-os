@@ -11,8 +11,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 // The closed set is contracts' (ask/ask.ts VOICE_END_REASONS): the route takes it from there, the row type reads it
 // from here, and 00300's CHECK holds the table to the same words.
-import { isVoiceEndReason, type VoiceEndReason } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import { isVoiceEndReason, type VoiceEndReason, type SchemaSet } from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
@@ -30,7 +30,7 @@ export interface VoiceSessionRow {
   surface: string | null;
   scope: Json | null;
   context: Json | null;
-  language: string;
+  language: SchemaSet<"ask_voice_sessions.language">;
   /** The turn the door is running or last ran, keyed to what was said (the claim, below). */
   turn_key: string | null;
   turn_started_at: string | null;

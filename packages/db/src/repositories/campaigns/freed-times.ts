@@ -17,7 +17,7 @@ import {
   type FreedTimeLine,
   type SequenceMode,
 } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { getSequenceModes } from "./sequences/reads";
 
 type Db = SupabaseClient<Database>;

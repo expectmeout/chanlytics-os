@@ -1,7 +1,7 @@
 /** Reach out: reach out. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../../database.types";
+import type { Database } from "../../../types";
 import { withdrawQueued } from "../../conversations/control";
 
 export type Db = SupabaseClient<Database>;

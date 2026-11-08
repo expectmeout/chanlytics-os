@@ -4,7 +4,7 @@
  * ever fetched. The edge's sync (lib/email/mailbox/sync.ts) asks these as the service role.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import type { MailboxConnectionRow } from "./connections";
 
 type Db = SupabaseClient<Database>;

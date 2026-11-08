@@ -30,7 +30,7 @@ import {
   type ModelStanding,
   type ProfiledSubject,
 } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
 
 type Db = SupabaseClient<Database>;

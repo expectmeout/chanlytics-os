@@ -4,7 +4,7 @@
  * purpose: the sweep is the platform's. Each answer is the database's as it came; the sweep says a failure in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;

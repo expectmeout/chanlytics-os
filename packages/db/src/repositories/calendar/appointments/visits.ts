@@ -9,7 +9,7 @@ import {
   type AppointmentStatus,
   type FeedAppointmentRow,
 } from "@chanlytics/contracts";
-import type { Json } from "../../../database.types";
+import type { Json } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
 import { clientFilter, type AppointmentRow, type Db } from "./rows";
 

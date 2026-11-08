@@ -14,7 +14,7 @@ import {
   type PurposeBearing,
   HOUR_MS,
 } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
 import { dbLog } from "../../shared/observe";
 import { noChannelColumns, noRelationshipColumn } from "../campaigns/channels";

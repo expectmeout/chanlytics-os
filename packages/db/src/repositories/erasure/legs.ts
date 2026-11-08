@@ -7,9 +7,9 @@
  * notes, turns and visits are their own repositories'. A read or a write that fails throws: a leg that could not be
  * made is the caller's to stop on, never one that ran with nothing.
  */
-import { formatPhoneDisplay, normalizeEmail } from "@chanlytics/contracts";
+import { formatPhoneDisplay, normalizeEmail, type SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 import { readAllRowsByKey } from "../../shared/paged";
 import { getErasureDigests } from "../people/pages";
 
@@ -249,7 +249,7 @@ export async function scrubErasedJobs(
   /** Every spelling of the person's number, and their address: an email send carries `to_email`, never a number. */
   identifiers: readonly string[],
   /** Only these states; every state when absent (after erase_contact has canceled what was scheduled). */
-  states?: readonly string[],
+  states?: readonly SchemaSet<"jobs.state">[],
 ): Promise<number> {
   const rows = await readAllRowsByKey<{ id: string; payload: unknown }>(
     "scrub_jobs_read",

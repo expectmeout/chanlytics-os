@@ -5,8 +5,14 @@
  * write, the facts a draft is decided by and the sweep's list are the service role's.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { answerWireOf, isOptedOutContact, REACH_OUT_REPLY_DAYS, type MessageDto } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import {
+  answerWireOf,
+  isOptedOutContact,
+  REACH_OUT_REPLY_DAYS,
+  type MessageDto,
+  type SchemaSet,
+} from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
 import { findReachOutReply } from "../campaigns/reach-out/outreach";
 
 type Db = SupabaseClient<Database>;
@@ -241,7 +247,7 @@ export async function claimConversationDraft(
     p_conversation_id: details.conversationId,
     p_kind: details.kind,
     // None for a call back nothing was written on: the door reads it as SQL's null.
-    p_for_message_id: details.forMessageId as string,
+    p_for_message_id: details.forMessageId,
     p_rules: details.rules,
     p_source: details.source,
     ...(details.again ? { p_again: true } : {}),
@@ -276,7 +282,7 @@ export async function writeConversationDraft(
     p_conversation_id: details.conversationId,
     p_kind: details.kind,
     // None for a call back nothing was written on: the door reads it as SQL's null.
-    p_for_message_id: details.forMessageId as string,
+    p_for_message_id: details.forMessageId,
     p_state: details.state,
     p_words: details.words,
     p_source: details.source,
@@ -306,7 +312,7 @@ export async function writeConversationDraft(
 /** A thread's claim let go: its hold was answered before the draft was written, so nothing stands for it. */
 export async function dropConversationDraft(
   db: Db,
-  details: { tenantId: string; conversationId: string; kind: string },
+  details: { tenantId: string; conversationId: string; kind: SchemaSet<"conversation_drafts.kind"> },
 ): Promise<void> {
   const { error } = await db
     .from("conversation_drafts")
@@ -324,7 +330,13 @@ export async function dropConversationDraft(
  */
 export async function recordConversationDraftFailed(
   db: Db,
-  details: { tenantId: string; conversationId: string; kind: string; forMessageId: string | null; whyFailed: string },
+  details: {
+    tenantId: string;
+    conversationId: string;
+    kind: SchemaSet<"conversation_drafts.kind">;
+    forMessageId: string | null;
+    whyFailed: string;
+  },
 ): Promise<boolean> {
   const held = db
     .from("conversation_drafts")

@@ -10,7 +10,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { offerPauseOf, type OfferCounts, type OfferPause, type OfferPauseReason } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

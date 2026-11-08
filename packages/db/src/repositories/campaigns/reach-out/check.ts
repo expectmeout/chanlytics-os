@@ -5,7 +5,7 @@
  * writes a send.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../../database.types";
+import type { Database } from "../../../types";
 import { leadSends, type ReachOutSendRow } from "./reach-out";
 
 type Db = SupabaseClient<Database>;

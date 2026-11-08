@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { wordsNeedOpening } from "@chanlytics/contracts";
 import type { SequencePlaceDto, SequencePlaceOfDto, SequencePlaceRowDto, SequenceRowDto } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { leadStepKey, getLeadWordsOfLeads } from "./lead-words";
 
 type Db = SupabaseClient<Database>;

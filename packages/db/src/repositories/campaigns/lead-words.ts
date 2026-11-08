@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LeadEmailText, LeadStepWordsDto } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
 import { answer, type DoorResult } from "./reach-out/leads";
 

@@ -7,7 +7,7 @@
  * through `answerFactSuggestion` (fact_suggestion_answer): the note itself is the settings write's.
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 

@@ -1,8 +1,16 @@
 /** Thread: history. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type DealFacts, DAY_MS, dealIsOpen, pickCurrentDeal, proposalLinkOf } from "@chanlytics/contracts";
-import type { Database } from "../../../database.types";
+import {
+  type DealFacts,
+  DAY_MS,
+  dealIsOpen,
+  isOneOf,
+  pickCurrentDeal,
+  proposalLinkOf,
+  type SchemaSet,
+} from "@chanlytics/contracts";
+import type { Database } from "../../../types";
 import { saysMissing } from "../../../shared/missing-door";
 import { dbLog } from "../../../shared/observe";
 
@@ -33,7 +41,7 @@ export interface PgThreadState {
 /** Outbound rows only count as memory once they actually left. A canceled or
  *  failed send was never seen by the customer, so it must not appear in the
  *  model's context as something "we said". */
-export const DELIVERED = ["sent", "delivered", "read"];
+export const DELIVERED: SchemaSet<"messages.status">[] = ["sent", "delivered", "read"];
 
 /**
  * Voice notes moved in from before the database, as ordinary assistant turns.
@@ -88,7 +96,7 @@ function keptTurns<T extends HistoryRow>(rows: T[]): T[] {
   const kept = rows.filter((m) => {
     const body = (m.body ?? "").trim();
     if (!body) return false;
-    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
+    if (m.direction === "outbound" && !isOneOf(DELIVERED, m.status)) return false;
     if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
     return true;
   });
