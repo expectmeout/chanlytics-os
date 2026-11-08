@@ -1,7 +1,7 @@
 /**
  * How many emails each step sent (decision 0113): what How it reaches out counts beside a claim, as the emails whose
- * step's words carry it. Sent alone: a planned, held or skipped send never reached anyone. One count a step, asked
- * side by side and never read back row by row, so a step that sent thousands costs what one that sent ten does.
+ * step's words carry it. Sent alone: a planned, held or skipped send never reached anyone. One read however many steps
+ * (00567 sequence_sent_by_step), under the caller's row security; a step that sent nothing is not in the map.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
@@ -13,17 +13,9 @@ export async function countSentByStep(
   tenantId: string,
   stepIds: readonly string[],
 ): Promise<Map<string, number>> {
-  const counts = await Promise.all(
-    [...new Set(stepIds)].map(async (stepId) => {
-      const { count, error } = await db
-        .from("sequence_sends")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId)
-        .eq("step_id", stepId)
-        .eq("state", "sent");
-      if (error) throw new Error(`cannot count a step's sent emails: ${error.message}`);
-      return [stepId, count ?? 0] as const;
-    }),
-  );
-  return new Map(counts);
+  const ids = [...new Set(stepIds)];
+  if (ids.length === 0) return new Map();
+  const { data, error } = await db.rpc("sequence_sent_by_step", { p_tenant_id: tenantId, p_step_ids: ids });
+  if (error) throw new Error(`cannot count the steps' sent emails: ${error.message}`);
+  return new Map((data ?? []).map((row) => [row.step_id, row.sent]));
 }

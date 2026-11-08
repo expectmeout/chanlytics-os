@@ -31156,6 +31156,30 @@ end $$;
 
 
 --
+-- Name: sequence_sent_by_step(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) RETURNS TABLE(step_id uuid, sent bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  select s.step_id, count(*)
+    from public.sequence_sends s
+   where s.tenant_id = p_tenant_id
+     and s.step_id = any (p_step_ids)
+     and s.state = 'sent'
+   group by s.step_id
+$$;
+
+
+--
+-- Name: FUNCTION sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) IS 'How many emails each step sent (decision 0113, 00567): one read of the sends, what How it reaches out counts beside a claim, under the row security of whoever asks. Sent alone: a planned, held or skipped send never reached anyone; a step that sent nothing is not in the answer.';
+
+
+--
 -- Name: sequence_stale_sends(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -54294,6 +54318,15 @@ GRANT ALL ON FUNCTION public.sequence_sends_on_erase() TO service_role;
 
 REVOKE ALL ON FUNCTION public.sequence_sends_place() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_sends_place() TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) TO service_role;
 
 
 --
