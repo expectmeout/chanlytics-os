@@ -42,6 +42,7 @@ import {
   takeRoutingRow,
 } from "@chanlytics/db/lines";
 import { findChannelConfig } from "@chanlytics/db/channels";
+import { asJson } from "@chanlytics/db/shared";
 
 export interface LineProviderChoice {
   name: LineProviderName;
@@ -129,7 +130,7 @@ export function linePorts(
         return data && typeof data === "object" && !Array.isArray(data) ? data : {};
       },
       async putSecrets(s) {
-        const { error } = await putLineCredentials(db, line.id, s as unknown as Json);
+        const { error } = await putLineCredentials(db, line.id, asJson(s));
         if (error) throw new Error(`keeping the line's credentials: ${error.message}`);
       },
     },

@@ -25,6 +25,7 @@ import {
   visitTwinWords,
   type PlaybookPatch,
   recordOrNull,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, playbookNameAsked, findUntil } from "@chanlytics/core";
 import { emitEvent } from "@chanlytics/db/events";
@@ -149,7 +150,7 @@ export async function findVisitTwinRefusal(
   tenantId: string,
   on: { id?: string | null; trigger: string },
 ): Promise<string | null> {
-  if (!VISIT_TRIGGERS.includes(on.trigger)) return null;
+  if (!isOneOf(VISIT_TRIGGERS, on.trigger)) return null;
   const running = await listRunningStepsOn(ctx.supabase, tenantId, [on.trigger]);
   const twin = running.find((s) => s.id !== (on.id ?? null));
   return twin ? visitTwinWords(twin.name) : null;

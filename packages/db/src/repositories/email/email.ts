@@ -387,7 +387,7 @@ export async function stampEmailSent(
     p_message_id: params.messageId,
     p_provider_id: params.providerId,
     p_rfc_message_id: params.rfcMessageId,
-  } as never);
+  });
   if (error) throw new Error(`stamp_email_sent: ${error.message}`);
   const row = (data as Array<{ status: string; conversation_id: string }> | null)?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
@@ -407,7 +407,7 @@ export async function stampEmailLeftAs(
     p_message_id: params.messageId,
     p_left_as: params.leftAs,
     p_why: params.why,
-  } as never);
+  });
   if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
   return data === true;
 }

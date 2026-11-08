@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../../types";
 import { answer, type DoorResult } from "./leads";
 
+import type { SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /**
@@ -101,7 +102,7 @@ export async function sendOpeningsOf(db: Db, params: { tenantId: string; sendIds
 }
 
 /** A send of a step that still goes, or went: one skipped or failed says nothing of what a lead gets. */
-const SENDS_THAT_GO = ["planned", "held", "claimed", "queued", "drafted", "sent"];
+const SENDS_THAT_GO: SchemaSet<"sequence_sends.state">[] = ["planned", "held", "claimed", "queued", "drafted", "sent"];
 
 /** The listing's own fields a lead's opening is said from where none is written (contracts FactListing, leadFactOf). */
 interface LeadListing {

@@ -41,7 +41,7 @@ import {
   markLeadRunUnknown,
   releaseLeadRun,
 } from "@chanlytics/db/leads";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
@@ -53,7 +53,7 @@ const SWEEP_DEADLINE_MS = 50_000;
 
 type RunRead = Omit<SweepRunRow, "part" | "collect_scheduled" | "collects_failed"> & { term: string | null };
 /** The kinds of a round's own jobs, read by the round they name. */
-const ROUND_JOB_KINDS = ["lead_round_start", "lead_check"];
+const ROUND_JOB_KINDS: SchemaSet<"jobs.kind">[] = ["lead_round_start", "lead_check"];
 type JobRead = { kind?: string; payload: unknown; state: string; created_at: string };
 type JobRows = { data: JobRead[] | null; error: { message: string } | null };
 
@@ -106,7 +106,7 @@ async function sweepRows(
   // These runs' collects, coming, failed for good (a failed row is kept 90 days, 00215) or the sweep's own carry-ons,
   // read for these runs alone, never the ledger's whole history, a part at a time under the gateway's line.
   // A run polls every 15 seconds while it runs, so its finished collects are read only where the sweep wrote them.
-  const collectsOf = (states: string[], part: string[], carriesOnly: boolean) =>
+  const collectsOf = (states: SchemaSet<"jobs.state">[], part: string[], carriesOnly: boolean) =>
     listCollectJobs(db, part, states, carriesOnly);
   const collects = await inChunks([...byId.keys()], async (part) => [
     ...rowsOf((await collectsOf(["scheduled", "fired", "failed"], part, false)) as JobRows),

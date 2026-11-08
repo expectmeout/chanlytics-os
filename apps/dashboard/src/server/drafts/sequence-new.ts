@@ -30,6 +30,7 @@ import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
 import type { NewMakeBody } from "../campaigns/sequences/bodies";
 import { discardBySequenceDoor, makeSequenceNow } from "../campaigns/sequences/doors";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 type Step = NewMakeBody["steps"][number];
 
@@ -224,9 +225,7 @@ async function makePeopleOnce(ctx: RouteContext, member: Member, newMake: NewMak
       id: newMake.draft_id ?? null,
       name: newMake.name,
       // New's {who, at, channels, step} (contracts NewOnceKept), as the column holds it.
-      once: JSON.parse(
-        JSON.stringify({ who: newMake.who, at: newMake.at, channels: newMake.channels, step: filed }),
-      ) as Json,
+      once: jsonCopyOf({ who: newMake.who, at: newMake.at, channels: newMake.channels, step: filed }),
     });
     if (kept.error) throw dbRefusal(kept.error);
     return madeOf(kept.data, "once", false);

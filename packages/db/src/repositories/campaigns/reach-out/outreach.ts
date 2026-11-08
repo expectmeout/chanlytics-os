@@ -298,7 +298,7 @@ export async function markReplyDraft(
     p_state: params.state,
     p_draft: params.draft,
     p_why: params.why,
-  } as never);
+  });
   if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
   return data === true;
 }

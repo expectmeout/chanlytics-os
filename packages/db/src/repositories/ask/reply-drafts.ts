@@ -15,6 +15,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { findReachOutReply } from "../campaigns/reach-out/outreach";
+import { asJson } from "../../shared/json";
 
 type Db = SupabaseClient<Database>;
 
@@ -299,7 +300,7 @@ export async function writeConversationDraft(
     conversation_id: text(item.conversation_id) ?? details.conversationId,
     kind: text(item.kind) ?? details.kind,
     for_message_id: text(item.for_message_id),
-    words: (item.words ?? {}) as Json,
+    words: asJson(item.words ?? {}),
     made_at: text(item.made_at) ?? new Date().toISOString(),
     state: text(item.state),
     source: text(item.source),

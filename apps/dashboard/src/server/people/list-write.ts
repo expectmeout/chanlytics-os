@@ -25,6 +25,7 @@ import { recordDecision, type listScope } from "@/server/shared/verbs";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
 import { pauseStepRow } from "@chanlytics/db/campaigns";
+import { asJson } from "@chanlytics/db/shared";
 
 /** The saved list a listScope route acts on, as the scope read it (RLS: one the caller cannot see is a 404). */
 type SavedListRow = Awaited<ReturnType<typeof listScope.load>>;
@@ -43,7 +44,7 @@ export async function createSavedList(ctx: RouteContext, req: Request, member: M
   await recordDecision(ctx, member.tenantId, "list", list.id, "make_list", {
     name: list.name,
     kept: rule ? "rule" : "hand",
-    ...(rule ? { rule: rule as unknown as Json } : {}),
+    ...(rule ? { rule: asJson(rule) } : {}),
   });
   const created: SavedListDto = { id: list.id, name: list.name, ids: [], rule, archived_at: null };
   return created;
@@ -112,7 +113,7 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
     if (error) throw new Error(error.message);
     await recordDecision(ctx, tenantId, "list", id, "change_list_rule", {
       name: rename ?? list.name,
-      rule: rule as unknown as Json,
+      rule: asJson(rule),
     });
   }
   if (remove.length) {

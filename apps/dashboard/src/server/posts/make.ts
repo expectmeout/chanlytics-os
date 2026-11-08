@@ -35,6 +35,7 @@ import { bucket, fileDoorRefusal } from "../files/file";
 import { composePost } from "./compose";
 import { POST_SIZES } from "./layout";
 import { getMaterial, type PostMaterial } from "./material";
+import { asJson } from "@chanlytics/db/shared";
 
 /** What a press sends, as both routes take it. A card made before layouts names none, and draws as it did. */
 export const postPlanInput = z.object({
@@ -176,7 +177,7 @@ export async function makePost(
     look: {
       line: `A post saying "${plan.line}", made from ${file.name}.`,
       text_seen: [plan.over, plan.line, plan.under].filter((w): w is string => !!w),
-      ...(look?.people ? { people: look.people as Json } : {}),
+      ...(look?.people ? { people: asJson(look.people) } : {}),
     },
     whoInIt: plan.people_agreed ? "agreed" : file.who_in_it,
     made: { from: file.id, plan },

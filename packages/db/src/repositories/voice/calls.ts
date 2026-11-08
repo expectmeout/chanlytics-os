@@ -28,6 +28,7 @@ import type { Database, Json } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
 import { dbLog } from "../../shared/observe";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
+import { asJson, jsonCopyOf } from "../../shared/json";
 
 type Db = SupabaseClient<Database>;
 
@@ -98,18 +99,18 @@ export async function ingestCall(
     p_in_voicemail: callInput.inVoicemail,
     p_summary: callInput.summary,
     p_transcript: callInput.transcript,
-    p_transcript_obj: (callInput.transcriptObject ?? null) as Json,
+    p_transcript_obj: asJson(callInput.transcriptObject ?? null),
     // The provider URL is NOT written to the row: calls is in the realtime
     // publication, so every column reaches every member's browser, and the
     // REST layer's care in stripping it was being undone one layer down. A
     // retry asks the provider for a fresh URL by call id.
-    p_recording: (callInput.recordingUrl ? { fetch_state: "pending" } : null) as Json,
+    p_recording: asJson(callInput.recordingUrl ? { fetch_state: "pending" } : null),
     p_public_log_url: callInput.publicLogUrl,
-    p_cost: (callInput.cost ?? null) as Json,
-    p_latency: (callInput.latency ?? null) as Json,
-    p_raw: (raw ?? {}) as Json,
-    p_analysis: (callInput.analysis ?? null) as Json,
-  } as never);
+    p_cost: asJson(callInput.cost ?? null),
+    p_latency: asJson(callInput.latency ?? null),
+    p_raw: asJson(raw ?? {}),
+    p_analysis: asJson(callInput.analysis ?? null),
+  });
   if (error) throw new Error(`ingest_call: ${error.message}`);
   return data as unknown as IngestCallResult;
 }
@@ -220,7 +221,7 @@ export async function setCallRecording(
 ): Promise<void> {
   const { data, error } = await db
     .from("calls")
-    .update({ recording: recording as Json })
+    .update({ recording: jsonCopyOf(recording) })
     .eq("id", callId)
     .eq("tenant_id", tenantId)
     .select("id");

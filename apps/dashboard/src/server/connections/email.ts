@@ -49,6 +49,7 @@ import type { EmailReplyPorts } from "@chanlytics/core";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 import { listMailboxConnectionsWithDays, findMailboxesLeftToday, getMailboxesReadiness } from "./mailbox-connections";
 import { env } from "../shared/env";
+import { asJson } from "@chanlytics/db/shared";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
 export function emailDomain(): string | null {
@@ -197,7 +198,7 @@ export function replyFromOf(item: Awaited<ReturnType<typeof replyIdentityOf>>): 
 }
 
 /** A request rides in the row's Json as it is (channels email.ts): one shape, written as JSON. */
-export const requestJson = (emailRequest: EmailRequest): Json => emailRequest as unknown as Json;
+export const requestJson = (emailRequest: EmailRequest): Json => asJson(emailRequest);
 
 /**
  * A person's own reply, as the request it leaves as. A reply from a mailbox the

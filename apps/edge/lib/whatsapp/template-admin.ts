@@ -33,6 +33,7 @@ import {
   saveTemplateRow,
   saveTemplateRows,
 } from "@chanlytics/db/campaigns";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 const NAME = /^[a-z0-9_]{1,512}$/;
 
@@ -122,9 +123,9 @@ export async function createWhatsappTemplate(
     meta_status: status,
     category: mapCategory(created.data.category ?? category),
     meta_id: created.data.id,
-    components: components as unknown as Json,
+    components: jsonCopyOf(components),
     body_preview: text,
-    variables: variables as unknown as Json,
+    variables: jsonCopyOf(variables),
     rejected_reason: null,
     synced_at: new Date().toISOString(),
     source: "chanlytics" as const,
@@ -293,8 +294,8 @@ export async function syncTemplates(
       tenantId,
       known.map((r) => ({
         ...r,
-        components: r.components as unknown as Json,
-        variables: r.variables as unknown as Json,
+        components: jsonCopyOf(r.components),
+        variables: jsonCopyOf(r.variables),
       })),
     );
     if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
@@ -305,8 +306,8 @@ export async function syncTemplates(
       tenantId,
       fresh.map((r) => ({
         ...r,
-        components: r.components as unknown as Json,
-        variables: r.variables as unknown as Json,
+        components: jsonCopyOf(r.components),
+        variables: jsonCopyOf(r.variables),
         hidden_at: now.toISOString(),
       })),
     );

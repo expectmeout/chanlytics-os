@@ -22,11 +22,12 @@ import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { errField, logger } from "../shared/log.js";
 import { recordDmInbound, resumeDmInbound } from "../whatsapp/inbound.js";
 import { instagramCarrier, getInstagramCredentials } from "./credentials.js";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 type Db = SupabaseClient<Database>;
 
 /** A value as the ledger keeps it: what JSON carries of it, which is all a job's payload holds. */
-const asKept = (value: unknown): Json => JSON.parse(JSON.stringify(value)) as Json;
+const asKept = jsonCopyOf;
 
 /** The routed account as its Vault read takes it: its row's id, and its reference there. */
 const accountRow = (routed: RoutedChannel) => ({ id: routed.channelId, credentials_ref: routed.credentialsRef });

@@ -61,6 +61,7 @@ import {
 } from "@chanlytics/contracts";
 import { logger, errField } from "../shared/log.js";
 import { findPersonEmailRow, setPersonEmail } from "@chanlytics/db/people";
+import { asJson, jsonCopyOf } from "@chanlytics/db/shared";
 
 /**
  * Postgres-sourced thread state, or an UNKNOWN thread when it cannot be
@@ -218,7 +219,7 @@ export async function runPgIngest(
       type: inboundMessage.type,
       body: inboundMessage.body,
       channelTs: inboundMessage.channelTsIso,
-      media: inboundMessage.media ? (inboundMessage.media as unknown as Json) : null,
+      media: inboundMessage.media ? asJson(inboundMessage.media) : null,
       meta: {
         raw_type: inboundMessage.rawType,
         // K3: the line it came in on and the ad it came from ride in the row's meta, where the database's own trigger
@@ -607,7 +608,7 @@ export function pgSink(
             // `fetch_state: "pending"` forever: the bytes are in storage, the
             // Inbox shows an attachment that is still downloading, and no
             // reconciliation can tell it from a genuinely in-flight fetch.
-            const { error: rowErr } = await saveMessageMedia(db, tenantId, ing.message_id, mediaOut as Json);
+            const { error: rowErr } = await saveMessageMedia(db, tenantId, ing.message_id, jsonCopyOf(mediaOut));
             if (rowErr) throw new Error(rowErr.message);
             return result;
           })

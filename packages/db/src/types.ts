@@ -4,7 +4,8 @@
  * `kind` is then `"person" | "workspace"` where it is read, not a `string` to assert, and a write of a word the set does
  * not hold stops compiling (decision 0112). And a SQL function's arguments take null: Postgres hands any argument to a
  * function that is not STRICT as null, and the generator types each as never null, so a null was asserted away at each
- * call. Every other column, view and function is the generated type, unchanged.
+ * call; and a function that answers a table's rows answers them typed as that table's are. Every other column, view and
+ * function is the generated type, unchanged.
  */
 import type { SchemaSet, SchemaSetKey } from "@chanlytics/contracts";
 import type { Database as Generated, Json } from "./database.types";
@@ -25,9 +26,18 @@ type Narrowed<T extends string, R> = { [C in keyof R]: Closed<`${T}.${C & string
 type NullableArgs<A> = A extends Record<string, unknown> ? { [K in keyof A]: A[K] | null } : A;
 
 type GeneratedFunctions = Generated["public"]["Functions"];
+/** A function's answer: rows of a table (the generator's `SetofOptions.to`) typed as that table's are, else as generated. */
+type ClosedReturns<Fn> = Fn extends { Returns: infer Answer; SetofOptions: { to: infer T extends string } }
+  ? Answer extends readonly (infer Row)[]
+    ? Narrowed<T, Row>[]
+    : Narrowed<T, Answer>
+  : Fn extends { Returns: infer Answer }
+    ? Answer
+    : never;
+
 /** One function, each of its overloads apart (a function the generator lists twice is a union of them). */
 type OpenFunction<Fn> = Fn extends unknown
-  ? { [P in keyof Fn]: P extends "Args" ? NullableArgs<Fn[P]> : Fn[P] }
+  ? { [P in keyof Fn]: P extends "Args" ? NullableArgs<Fn[P]> : P extends "Returns" ? ClosedReturns<Fn> : Fn[P] }
   : never;
 type OpenFunctions = { [F in keyof GeneratedFunctions]: OpenFunction<GeneratedFunctions[F]> };
 

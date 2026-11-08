@@ -74,6 +74,7 @@ import { listFeedItems } from "../../calendar/availability.js";
 import { findCampaignsDomainVerified } from "../../email/campaigns-domain.js";
 import { emailCanSend } from "../../email/email.js";
 import { findConfigRow, findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 type Db = SupabaseClient<Database>;
 
@@ -421,7 +422,7 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
             template_name: row.template_name,
             template_language: row.template_language,
             params: row.params,
-            audience: row.audience as unknown as Json,
+            audience: jsonCopyOf(row.audience),
             state: row.state,
             scheduled_for: row.scheduled_for,
             recipient_count: row.recipient_count,

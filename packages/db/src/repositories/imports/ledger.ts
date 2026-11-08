@@ -10,6 +10,7 @@ import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 
 import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
+import { asJson } from "../../shared/json";
 type Db = SupabaseClient<Database>;
 
 /** One source's row, as the page reads it (contracts imports/ledger.ts ImportRowDto). */
@@ -73,7 +74,7 @@ export async function noteImport(db: Db, importNote: ImportNote): Promise<void> 
     p_tenant_id: importNote.tenantId,
     p_source: importNote.source,
     p_state: importNote.state,
-    p_counts: (importNote.counts ?? {}) as Json,
+    p_counts: asJson(importNote.counts ?? {}),
     p_add: importNote.add ?? false,
     p_parts_done: importNote.partsDone ?? undefined,
     p_parts_total: importNote.partsTotal ?? undefined,

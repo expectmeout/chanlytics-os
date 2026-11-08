@@ -29,6 +29,7 @@ import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { logger } from "../../shared/log.js";
 import { findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
+import { asJson } from "@chanlytics/db/shared";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -170,7 +171,7 @@ export async function getReachOutRunContext(
     // What a reach-out its owner sends holds, of the day and in all: its day's share and its owner's pile.
     draftLoad: (rootId, runFor) => loadChainDraft(db, { tenantId, rootId, runFor }),
     planRun: async (run, sends) => {
-      const { data, error } = await planReachOutRun(db, run as unknown as Json, sends as unknown as Json);
+      const { data, error } = await planReachOutRun(db, asJson(run), asJson(sends));
       if (error) throw new Error(`cannot plan the step's run: ${error.message}`);
       const item = (data ?? {}) as { id?: string; exists?: boolean };
       if (item.exists) return "exists";

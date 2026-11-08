@@ -39,6 +39,7 @@ import { findThreadDraftFacts } from "@chanlytics/db/ask";
 import { upsertEscalation } from "../runner/escalate";
 import { senderLeftAt } from "./reply-draft";
 import type { ClaimedJob, JobContext } from "../runner/context";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 /** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email | to_instagram, body?, template?, purpose? (marketing, or outreach: a cold email), proactive? } */
 export async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
@@ -109,7 +110,7 @@ export async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<v
     {
       ...(ctx.provisionLine ? { provision: ctx.provisionLine } : {}),
       // The saga stops between two provider calls at the job's deadline, and the rest is one more job of this kind.
-      next: (payload) => ctx.schedule("line_provision", new Date(), payload as Json),
+      next: (payload) => ctx.schedule("line_provision", new Date(), jsonCopyOf(payload)),
       deadline: ctx.deadline,
     },
     { payload: job.payload },

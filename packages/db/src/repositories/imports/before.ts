@@ -12,6 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 import { recordOrEmpty } from "@chanlytics/contracts";
+import { asJson } from "../../shared/json";
 
 type Db = SupabaseClient<Database>;
 
@@ -134,7 +135,7 @@ export async function recordPersonBeforeNote(
   const { error } = await db.rpc("person_before_note", {
     p_tenant_id: tenantId,
     p_contact_id: contactId,
-    p_before: before as Json,
+    p_before: asJson(before),
     p_notes: notes ?? undefined,
   });
   if (error) throw new Error(error.message);

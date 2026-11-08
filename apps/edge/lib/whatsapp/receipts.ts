@@ -22,6 +22,7 @@ import { phoneTail } from "@chanlytics/contracts";
 import { logger, type Logger } from "../shared/log.js";
 import { flagLateFailure } from "../shared/late-failure.js";
 import { runPgSafe } from "./persist.js";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 type Receipt = NonNullable<WaChangeValue["statuses"]>[number];
 
@@ -31,7 +32,6 @@ function receiptStatusOf(s: string | undefined): "sent" | "delivered" | "read" |
 }
 
 /** What Meta sent as `errors`, as the JSON it is: the body was parsed from JSON, so the round trip changes nothing and tells the compiler what the parse knew. */
-const asJson = (v: unknown): Json => JSON.parse(JSON.stringify(v)) as Json;
 
 /**
  * What Meta says the message cost, kept beside the status the receipt just moved. The pricing is read here, key by key,
@@ -77,7 +77,7 @@ export async function recordReceipts(
       const status = receiptStatusOf(text.status);
       if (!db || !tenantId || !text.id || !status) return;
       const id = text.id;
-      const error = text.errors ? asJson({ errors: text.errors }) : undefined;
+      const error = text.errors ? jsonCopyOf({ errors: text.errors }) : undefined;
       // The person stopped marketing messages from this business: their answer (recorded below), never a failed send.
       const stopped = status === "failed" && waStoppedMarketing(text.errors);
       if (status === "failed" && !stopped) {

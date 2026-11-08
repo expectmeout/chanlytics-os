@@ -11,6 +11,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
+import { jsonCopyOf } from "../../../shared/json";
 
 export type Db = SupabaseClient<Database>;
 
@@ -88,7 +89,11 @@ export async function putTenantConfig(
 ): Promise<PutTenantConfigResult> {
   const { data, error } = await db
     .from("tenant_config")
-    .update({ config: config as Json, version: expectedVersion + 1, ...(updatedBy ? { updated_by: updatedBy } : {}) })
+    .update({
+      config: jsonCopyOf(config),
+      version: expectedVersion + 1,
+      ...(updatedBy ? { updated_by: updatedBy } : {}),
+    })
     .eq("tenant_id", tenantId)
     .eq("version", expectedVersion)
     .select("tenant_id, config, version, updated_at, updated_by")
@@ -98,7 +103,7 @@ export async function putTenantConfig(
 
   // Zero rows: the door writes what the table would not show this member, and tells an absent row from a losing race.
   const door = await db
-    .rpc("tenant_config_write", { p_tenant_id: tenantId, p_config: config as Json, p_version: expectedVersion })
+    .rpc("tenant_config_write", { p_tenant_id: tenantId, p_config: jsonCopyOf(config), p_version: expectedVersion })
     .maybeSingle();
   if (!door.error) {
     const w = door.data;

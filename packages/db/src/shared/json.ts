@@ -25,3 +25,11 @@ export type Jsonable<T> = T extends string | number | boolean | null
  * one of `Json`'s members, so this says it here, once, for every value `Jsonable` holds.
  */
 export const asJson = <T>(value: T & Jsonable<T>): Json => value as Json;
+
+/**
+ * A copy of any value as JSON keeps it: what JSON.stringify writes, read back (a Date as its string, a function and an
+ * undefined field left out). For a value whose type says nothing (a provider's body, a model's answer) on its way to a
+ * column; one whose type is known goes through `asJson`, which checks it instead of copying it.
+ */
+export const jsonCopyOf = (value: unknown): Json =>
+  value === undefined ? null : (JSON.parse(JSON.stringify(value)) as Json);

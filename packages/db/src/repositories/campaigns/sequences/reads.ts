@@ -9,7 +9,13 @@ import {
   type SequenceEvidenceDto,
   type SequenceMode,
 } from "@chanlytics/contracts";
-import type { ReachOutFedBy, SequenceOneOffDto, SequenceRowDto, SequenceStepDto } from "@chanlytics/contracts";
+import type {
+  ReachOutFedBy,
+  SchemaSet,
+  SequenceOneOffDto,
+  SequenceRowDto,
+  SequenceStepDto,
+} from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
 import { withReadyCounts } from "../sequence-waiting";
@@ -313,7 +319,7 @@ async function lastRunSkipped(db: Db, tenantId: string, stepId: string): Promise
 }
 
 /** The states of a lead's send that say its email was written: reach_out_remove's own, besides one skipped once drafted. */
-const WRITTEN_SEND_STATES = ["claimed", "queued", "sent", "failed", "drafted"];
+const WRITTEN_SEND_STATES: SchemaSet<"sequence_sends.state">[] = ["claimed", "queued", "sent", "failed", "drafted"];
 
 /**
  * What a sequence has done that its head's acts turn on (0072), under the caller's row security. `ran`: whether it ever
@@ -431,7 +437,7 @@ export async function getLeadsFedBy(db: Db, tenantId: string, searchId: string):
 export async function listRunningStepsOn(
   db: Db,
   tenantId: string,
-  triggers: readonly string[],
+  triggers: readonly SchemaSet<"sequence_steps.trigger">[],
 ): Promise<{ id: string; name: string; trigger: string }[]> {
   if (triggers.length === 0) return [];
   const { data, error } = await db

@@ -33,6 +33,7 @@ import { answerDm } from "../instagram/dm-answer.js";
 import { pg } from "../shared/pg.js";
 import { handleInbound, recordWhatsappInbound, resumeWhatsappInbound } from "../whatsapp/inbound.js";
 import { realPorts, type InboundPorts } from "../whatsapp/ports.js";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 type Db = SupabaseClient<Database>;
 
@@ -53,7 +54,7 @@ const envelopeOf = (value: WaChangeValue): WaChangeValue => ({
 });
 
 /** A value as the ledger keeps it: what JSON carries of it, which is all a job's payload holds. */
-const asKept = (value: unknown): Json => JSON.parse(JSON.stringify(value)) as Json;
+const asKept = jsonCopyOf;
 
 /**
  * A message as the webhook takes it: answered here, in Meta's request, unless the edge names its workspace for the

@@ -20,6 +20,7 @@ import type { Database, Json } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 /**
  * A voice conversation's session (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.1, §3.3, §6): the row
@@ -115,7 +116,7 @@ interface VoiceSessionStart {
 }
 
 /** A page's context as the column holds it: the schema's own fields, as JSON (an absent field is absent, not undefined). */
-const contextColumn = (c: PageContext | null): Json => (c ? (JSON.parse(JSON.stringify(c)) as Json) : null);
+const contextColumn = (c: PageContext | null): Json => (c ? jsonCopyOf(c) : null);
 /** A scope as the column holds it: its three fields, or none (store.ts holds the thread's the same way). */
 const scopeColumn = (s: AskScope | null): Json => (s ? { kind: s.kind, id: s.id, label: s.label } : null);
 

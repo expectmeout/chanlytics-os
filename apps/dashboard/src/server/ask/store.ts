@@ -33,6 +33,7 @@ import {
   patchAskThread,
   saveAskTurnContent,
 } from "@chanlytics/db/ask";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 /**
  * Ask threads on the session client. RLS (migration 00040) keeps every read
@@ -235,7 +236,7 @@ export async function appendMessage(
     tenant_id: tenantId,
     user_id: ctx.userId,
     role,
-    content: content as Json,
+    content: jsonCopyOf(content),
   });
   if (error) throw new Error(`ask message: ${error.message}`);
   return data;
@@ -321,10 +322,11 @@ export async function setProposalOutcome(
   const next = proposals.map((p, i) => (i === idx ? { ...p, outcome } : p));
   // Read whole and written back whole, never by path: the turn as the model was sent it (content.raw) stays beside
   // the card's outcome.
-  const { data: upd, error: uerr } = await saveAskTurnContent(ctx.supabase, messageId, {
-    ...content,
-    proposals: next,
-  } as unknown as Json);
+  const { data: upd, error: uerr } = await saveAskTurnContent(
+    ctx.supabase,
+    messageId,
+    jsonCopyOf({ ...content, proposals: next }),
+  );
   if (uerr) throw new Error(uerr.message);
   if (!upd?.length) throw new AppError("not_found", "That turn is not yours.", 404);
   return next[idx];

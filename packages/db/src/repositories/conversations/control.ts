@@ -58,7 +58,7 @@ export async function claimControl(
     p_by: params.holder.kind === "person" ? params.holder.userId : null,
     p_ref: params.holder.kind === "call" ? params.holder.callId : null,
     p_seconds: params.seconds,
-  } as never);
+  });
   if (error) throw new Error(`claim_conversation_control: ${error.message}`);
   return data as unknown as ControlOutcome;
 }
@@ -78,7 +78,7 @@ export async function releaseControl(
     p_kind: params.holder.kind,
     p_by: params.holder.kind === "person" ? params.holder.userId : null,
     p_ref: params.holder.kind === "call" ? params.holder.callId : null,
-  } as never);
+  });
   if (error) throw new Error(`release_conversation_control: ${error.message}`);
   return data === true;
 }

@@ -18,6 +18,7 @@ import { profileClient } from "./config.js";
 import { http } from "./places.js";
 import type { Db } from "./rows.js";
 import { getGoogleCredentials, putGoogleCredentials } from "@chanlytics/db/google";
+import { asJson } from "@chanlytics/db/shared";
 
 /** An access token is refreshed this long before it expires. */
 const TOKEN_SLACK_MS = MIN_MS;
@@ -50,7 +51,7 @@ async function storeCredentials(
   ifRefreshToken: string | null = null,
 ): Promise<"kept" | "changed"> {
   const put = (cas: boolean) =>
-    putGoogleCredentials(db, tenantId, storedCredentials as unknown as Json, cas ? ifRefreshToken : null);
+    putGoogleCredentials(db, tenantId, asJson(storedCredentials), cas ? ifRefreshToken : null);
   let { error } = await put(true);
   if (error?.code === NO_SUCH_FUNCTION && ifRefreshToken) ({ error } = await put(false));
   if (error?.code === TOKEN_CHANGED && ifRefreshToken) return "changed";
