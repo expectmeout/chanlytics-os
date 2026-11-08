@@ -11,6 +11,7 @@
  * the list. The PATCH is its owner's: a forbidden UPDATE answers success with no rows in this stack, so the row count
  * is the permission check. The routes declare who may and how often.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import {
   getMemberContext,
   requireSecondFactor,
@@ -224,7 +225,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   // The caller's role in each workspace (0012): one read of their own memberships, RLS-scoped.
   if (mine.error) throw new Error(mine.error.message);
   const roleOf = new Map((mine.data ?? []).map((m) => [m.tenant_id, m.role]));
-  const listed = data.map((w) => ({ ...w, role: roleOf.get(w.id) ?? null }));
+  const listed = data.map((w) => ({ ...w, role: roleOf.get(heldTenantId(w.id)) ?? null }));
 
   // A STALE PREFERENCE, and nothing else. getMemberContext throws two things:
   // an AppError("not_found") when the named workspace is not one of this

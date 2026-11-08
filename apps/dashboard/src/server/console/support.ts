@@ -1,3 +1,4 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import "server-only";
 
 /**
@@ -230,7 +231,7 @@ async function marksSince(office: BackOffice, sinceIso: string): Promise<Support
 }
 
 /** When each of these workspaces' forwarded numbers last passed its test call. */
-async function signalsOf(office: BackOffice, tenantIds: readonly string[]): Promise<Record<string, AskSignalsDto>> {
+async function signalsOf(office: BackOffice, tenantIds: readonly TenantId[]): Promise<Record<string, AskSignalsDto>> {
   if (!tenantIds.length) return {};
   const { data, error } = await isForwardingVerified(office.db, tenantIds);
   if (error) throw new Error(error.message);
@@ -265,7 +266,7 @@ async function supportBook(
     claimsNow(office, new Date(now).toISOString()),
     tenants ?? listPlatformOverview(office),
   ]);
-  const forwarded = [...new Set(asks.filter((a) => a.what === "forwarding").map((a) => a.tenant_id))];
+  const forwarded = [...new Set(asks.filter((a) => a.what === "forwarding").map((a) => heldTenantId(a.tenant_id)))];
   return { reports, asks, acts, claims, tenants: rows, signals: await signalsOf(office, forwarded) };
 }
 

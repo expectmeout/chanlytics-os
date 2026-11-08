@@ -1,3 +1,4 @@
+import { isContactId } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -21,7 +22,6 @@ import {
   whyNotAPhone,
   whyNotAnEmail,
   type WriteWay,
-  UUID,
   proposalBelowNeeds,
   isOneOf,
 } from "@chanlytics/contracts";
@@ -36,7 +36,7 @@ import type { ContactId } from "@chanlytics/contracts";
 
 /** The person a card names, as every action of this tool reads them: the name the card calls them, and the profile's. */
 interface CardPerson {
-  id: string;
+  id: ContactId;
   who: string;
   /** The profile's own two fields as they stand: what a details card changes, and what its undo sets back. */
   name: string | null;
@@ -50,9 +50,9 @@ interface CardPerson {
  * the model's words. One read of the profile for every action of this tool, and the person into the turn's read set,
  * so an answer may cite them. This workspace's alone: RLS shows a member everyone in every workspace they belong to.
  */
-async function personOnCard(toolContext: ToolContext, contactId: ContactId): Promise<CardPerson | ProposalOutcome> {
+async function personOnCard(toolContext: ToolContext, contactId: string): Promise<CardPerson | ProposalOutcome> {
   const id = str(contactId, 40);
-  if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
+  if (!isContactId(id)) return refuse("contact_id must be an id a read returned");
   const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
@@ -66,7 +66,7 @@ const refused = (p: CardPerson | ProposalOutcome): p is ProposalOutcome => "resu
 
 async function proposePersonMode(
   toolContext: ToolContext,
-  input: { contact_id: ContactId; mode: string },
+  input: { contact_id: string; mode: string },
 ): Promise<ProposalOutcome> {
   // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
   if (!offeredTo(modeAction, toolContext.role)) return refuse(proposalBelowNeeds("person_mode"));
@@ -113,7 +113,7 @@ const NOTE_READERS: Record<NoteFor, (who: string) => string> = {
 
 async function proposePersonNote(
   toolContext: ToolContext,
-  input: { contact_id: ContactId; body: string; for: NoteFor },
+  input: { contact_id: string; body: string; for: NoteFor },
 ): Promise<ProposalOutcome> {
   // As the route takes it: trimmed, something, and no longer than the table holds -- refused, never cut.
   const body = typeof input.body === "string" ? input.body.trim() : "";
@@ -140,7 +140,7 @@ const STEP_FOR = ["anyone", "me"] as const;
  */
 async function stepDeal(
   toolContext: ToolContext,
-  personId: string,
+  personId: ContactId,
   service: string | null,
 ): Promise<{ id: string; service: string | null } | null | ProposalOutcome> {
   const open = await openDealsOf(toolContext.ctx.supabase, toolContext.tenantId, personId);
@@ -166,7 +166,7 @@ async function stepDeal(
 async function proposePersonStep(
   toolContext: ToolContext,
   input: {
-    contact_id: ContactId;
+    contact_id: string;
     what: string;
     due_on: string;
     step_for?: (typeof STEP_FOR)[number];
@@ -207,7 +207,7 @@ async function proposePersonStep(
 
 async function proposePersonDetails(
   toolContext: ToolContext,
-  input: { contact_id: ContactId; name?: string; email?: string },
+  input: { contact_id: string; name?: string; email?: string },
 ): Promise<ProposalOutcome> {
   if (input.name === undefined && input.email === undefined) return refuse("details takes name, email or both");
   // As the route takes them: a name trimmed and cut at 80, its spaces one as the door keeps it; an address judged by
@@ -260,7 +260,7 @@ const SOURCE_IDS = CONSENT_SOURCES.map((x) => x.id) as [string, ...string[]];
 async function proposeAnswer(
   toolContext: ToolContext,
   input: {
-    contact_id: ContactId;
+    contact_id: string;
     question: keyof typeof QUESTIONS;
     answer: keyof typeof ANSWERS;
     how?: string;
@@ -322,7 +322,7 @@ function proposeAdd(_t: ToolContext, input: { phone?: string; email?: string; na
 /** Two records of one person made one (POST contacts/:id/merge): the owner's, and it cannot be undone. */
 async function proposeMerge(
   toolContext: ToolContext,
-  input: { contact_id: ContactId; other_id: string },
+  input: { contact_id: string; other_id: string },
 ): Promise<ProposalOutcome> {
   if (!offeredTo(mergeAction, toolContext.role)) return refuse(proposalBelowNeeds("person_merge"));
   if (str(input.contact_id, 40) === str(input.other_id, 40)) return refuse("they are the same record");
@@ -345,7 +345,7 @@ async function proposeMerge(
  */
 /** A first message as the model asks it (propose_person action message). */
 interface MessageAsk {
-  contact_id: ContactId;
+  contact_id: string;
   wire?: "whatsapp" | "sms" | "email";
   text?: string;
   subject?: string;

@@ -1,5 +1,6 @@
 /** Broadcasts: broadcasts. */
 
+import { heldContactId } from "@chanlytics/contracts";
 import "server-only";
 import {
   AppError,
@@ -183,7 +184,7 @@ function sendsOf(rows: RecipientRow[]): AnswerSend[] {
 async function consentEventsOf(
   ctx: RouteContext,
   tenantId: TenantId,
-  contactIds: string[],
+  contactIds: ContactId[],
   since: string,
 ): Promise<AnswerEvent[]> {
   const out: AnswerEvent[] = [];
@@ -225,7 +226,7 @@ async function consentAfter(
   const sentMs = sends.map((s) => Date.parse(s.sentAt)).filter(Number.isFinite);
   if (sentMs.length === 0) return out;
   // Someone who does not stand answers nothing (the rule), so their events are not read.
-  const people = [...new Set(sends.filter((s) => s.live).map((s) => s.contactId))];
+  const people = [...new Set(sends.filter((s) => s.live).map((s) => heldContactId(s.contactId)))];
   const since = new Date(Math.min(...sentMs)).toISOString();
   for (const a of answersToRuns(sends, await consentEventsOf(ctx, tenantId, people, since))) {
     if (a.runId === runId) out.set(a.contactId, { consent: a.consent, purpose: a.purpose, at: a.at });

@@ -432,7 +432,7 @@ export async function listSeats(db: SupabaseClient<Database>, userId: string): P
  * sees a seat go rather than a name vanish from the roster with no trace. Who they were is not kept: the account is
  * gone, and the id names no row. As the service role: their own session ended with the account.
  */
-export async function recordLeft(tenantIds: readonly string[], userId: string): Promise<void> {
+export async function recordLeft(tenantIds: readonly TenantId[], userId: string): Promise<void> {
   const db = serviceDb();
   for (const tenantId of tenantIds)
     await emitEvent(db, tenantId, "member.left", "workspace", tenantId, { by: userId, how: "account_deleted" });

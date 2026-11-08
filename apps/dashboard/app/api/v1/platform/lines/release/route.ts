@@ -1,3 +1,4 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import { write, platform } from "@/server/shared/route";
 import { LINE_ACTS, LineActSchema } from "@chanlytics/contracts";
 import { runPlatformLineAct } from "@/server/console/platform";
@@ -24,7 +25,7 @@ export const POST = write({
   act: LINE_ACTS.release,
   input: LineActSchema,
   handle: async ({ office, input }) => {
-    const r = await runPlatformLineAct(office, "release", input.tenant_id, input.line_id, input.why);
+    const r = await runPlatformLineAct(office, "release", heldTenantId(input.tenant_id), input.line_id, input.why);
     // The edge's own answer, unchanged. A 409 from it is a real fact about the
     // line -- "the line is answering, not failed", "already_registered" -- and
     // rewording it here would put a second opinion between support and the truth.

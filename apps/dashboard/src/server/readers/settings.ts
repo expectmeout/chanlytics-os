@@ -310,7 +310,7 @@ export function mailboxShown(
 }
 
 /** One part of the read, which may fail alone: the page draws the rest, and the failure is logged. */
-async function partOrElse<T>(read: Promise<T>, part: string, tenantId: string, otherwise: T): Promise<T> {
+async function partOrElse<T>(read: Promise<T>, part: string, tenantId: TenantId, otherwise: T): Promise<T> {
   try {
     return await read;
   } catch (e) {

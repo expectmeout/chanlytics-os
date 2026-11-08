@@ -5,6 +5,7 @@
  * service role — scheduling a job, calling the edge — go through the
  * server-only service module at the call sites.
  */
+import { asContactId } from "@chanlytics/contracts";
 import {
   AppError,
   asTenantId,
@@ -43,7 +44,7 @@ import {
   recordDecisionRow,
   resolveOpenHolds,
 } from "@chanlytics/db/workspace";
-import type { ContactId, TenantId } from "@chanlytics/contracts";
+import type { ContactId } from "@chanlytics/contracts";
 
 export interface VerbConversation {
   id: string;
@@ -144,7 +145,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
 export const conversationScope = row((ctx, params) => loadConversation(ctx, String(params.id ?? "")));
 
 interface VerbContact {
-  id: string;
+  id: ContactId;
   tenant_id: TenantId;
   marketing_consent: string | null;
 }
@@ -156,7 +157,7 @@ interface VerbContact {
  * body. Both consent doors take their row from here.
  */
 async function loadContact(ctx: RouteContext, id: string): Promise<VerbContact> {
-  const contactId = requireUuid(id, "contact");
+  const contactId = asContactId(requireUuid(id, "contact"));
   const { data: contact, error } = await findPersonScope(ctx.supabase, contactId);
   if (error) throw new Error(error.message);
   if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
@@ -358,7 +359,7 @@ export async function cancelPendingAiReply(
 }
 
 interface VerbErasure {
-  id: string;
+  id: ContactId;
   tenant_id: TenantId;
   phone_e164: string | null;
   email: string | null;
@@ -372,7 +373,7 @@ interface VerbErasure {
  * (contactScope). Read under RLS, so one the caller cannot see is a 404.
  */
 async function loadErasable(ctx: RouteContext, id: string): Promise<VerbErasure> {
-  const contactId = requireUuid(id, "contact");
+  const contactId = asContactId(requireUuid(id, "contact"));
   const { data, error } = await findErasableScope(ctx.supabase, contactId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Contact not found.");

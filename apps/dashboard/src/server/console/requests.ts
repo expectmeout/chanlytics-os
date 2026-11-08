@@ -1,3 +1,4 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import "server-only";
 
 /**
@@ -136,7 +137,7 @@ export async function stepConsoleRequest(
   const on = {
     act: input.step === "close" ? ("request_close" as const) : ("request_step" as const),
     why: input.why,
-    tenantId: current.tenant_id,
+    tenantId: current.tenant_id === null ? null : heldTenantId(current.tenant_id),
     target: "request" as const,
     targetId: current.id,
   };

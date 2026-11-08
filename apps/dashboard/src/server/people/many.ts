@@ -1,4 +1,6 @@
 /** The verbs on many people at once: their receptionist mode, a note appended to each, and their erasure. */
+import { heldContactId } from "@chanlytics/contracts";
+import type { ContactId } from "@chanlytics/contracts";
 import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
 import { beginPeopleErasure } from "@chanlytics/db/erasure";
 import { setPersonReplyMode } from "@chanlytics/db/workspace";
@@ -27,7 +29,7 @@ interface ManyOutcome {
 async function ours<T extends { id: string; tenant_id: TenantId; erased_at: string | null }>(
   ctx: RouteContext,
   tenantId: TenantId,
-  ids: string[],
+  ids: ContactId[],
   columns: string,
 ): Promise<{ rows: T[]; skipped: string[] }> {
   const { data, error } = await listPeopleWith(ctx.supabase, ids, columns);
@@ -49,8 +51,8 @@ export async function setReceptionistMany(
   ids: string[],
   mode: PersonReceptionistMode,
 ): Promise<ManyOutcome> {
-  const uniq = [...new Set(ids)];
-  const { rows, skipped } = await ours<{ id: string; tenant_id: TenantId; erased_at: string | null }>(
+  const uniq = [...new Set(ids)].map(heldContactId);
+  const { rows, skipped } = await ours<{ id: ContactId; tenant_id: TenantId; erased_at: string | null }>(
     ctx,
     tenantId,
     uniq,
@@ -91,10 +93,10 @@ export async function appendNotesMany(
   ids: string[],
   line: string,
 ): Promise<ManyOutcome> {
-  const uniq = [...new Set(ids)];
+  const uniq = [...new Set(ids)].map(heldContactId);
   const text = line.trim().slice(0, NOTE_LINE_MAX);
   const { rows, skipped } = await ours<{
-    id: string;
+    id: ContactId;
     tenant_id: TenantId;
     erased_at: string | null;
   }>(ctx, tenantId, uniq, "id, tenant_id, erased_at");

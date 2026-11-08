@@ -24,7 +24,7 @@ const NO_READING = new Set(["PGRST202", "42883", "28000"]);
 export async function getSeenOfPeople(
   ctx: RouteContext,
   tenantId: TenantId,
-  contactIds: readonly string[],
+  contactIds: readonly ContactId[],
 ): Promise<(contactId: ContactId) => SeenOf> {
   if (!contactIds.length) return seenBy(null);
   try {

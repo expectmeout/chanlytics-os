@@ -1,3 +1,5 @@
+import { heldContactId } from "@chanlytics/contracts";
+import type { ContactId } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -243,7 +245,7 @@ function rangeOf(f: ActivityFilter, timezone: string): Ask["range"] {
 }
 
 /** A person's subjects: themselves, and their threads and calls (a decision on a conversation names the conversation). */
-async function subjectsOf(ctx: RouteContext, tenantId: TenantId, person: string): Promise<string[]> {
+async function subjectsOf(ctx: RouteContext, tenantId: TenantId, person: ContactId): Promise<string[]> {
   const sb = ctx.supabase;
   const [convs, calls] = await Promise.all([
     listThreadIdsOfPerson(sb, tenantId, person),
@@ -299,7 +301,7 @@ export async function getActivityLog(
   const zone = getTenantFacts(sb, tenantId).then((t) => t.timezone);
   zone.catch(() => {});
   const [subjects, zoneFirst] = await Promise.all([
-    activityFilter.person ? subjectsOf(ctx, tenantId, activityFilter.person) : null,
+    activityFilter.person ? subjectsOf(ctx, tenantId, heldContactId(activityFilter.person)) : null,
     activityFilter.day || activityFilter.from || activityFilter.to ? zone : null,
   ]);
   const range = zoneFirst ? rangeOf(activityFilter, zoneFirst) : null;

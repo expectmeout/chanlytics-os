@@ -1,3 +1,4 @@
+import { heldContactId } from "@chanlytics/contracts";
 import "server-only";
 import {
   DAY_MS,
@@ -51,7 +52,7 @@ const REPLY_TOKENS_DAYS = 7;
  */
 async function ownModes(db: ReaderContext["ctx"]["supabase"], tenantId: TenantId): Promise<OwnModesDto> {
   const rows = await listPeopleOnTheirOwnMode(db, tenantId);
-  const newest = rows.slice(0, OWN_MODE_NAMED).map((r) => r.id);
+  const newest = rows.slice(0, OWN_MODE_NAMED).map((r) => heldContactId(r.id));
   const people = newest.length ? await listNamesOfPeople(db, tenantId, newest) : [];
   return ownModesOf(rows, new Map(people.map((p) => [p.id, personName(p)])));
 }

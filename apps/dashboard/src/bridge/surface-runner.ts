@@ -9,6 +9,7 @@
  * ./surface-status, which is pure and unit-tested; everything here is the
  * side-effecting half.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db/realtime";
 import { activateOverride, readRefusedFor, readSlot, readWasPartial, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
@@ -706,7 +707,7 @@ function joinWorkspaceFeed(run: SurfaceRun, joinFeed: JoinLiveFeed, feed: FeedWa
     (row, table, event, at, threads) =>
       hear(run, { table, event, row, ...(at ? { at } : {}), ...(threads ? { threads } : {}) }),
     {
-      tenantId: ws ?? undefined,
+      tenantId: ws ? heldTenantId(ws) : undefined,
       onStatus: (status) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", ws, status);
         // What a rejoin catches up from: the first word of trouble since the feed was last heard joined.

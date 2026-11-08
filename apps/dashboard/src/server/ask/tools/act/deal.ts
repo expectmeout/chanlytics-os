@@ -1,3 +1,4 @@
+import { asContactId } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -27,7 +28,6 @@ import { noteRow, str } from "../context/tool-reads";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";
 import { findPersonCard, listDealsOfPerson } from "@chanlytics/db/ask";
-import type { ContactId } from "@chanlytics/contracts";
 
 /**
  * Why a move found no row of theirs to move, and what to name instead. With several open (0029: one per service) it
@@ -76,7 +76,7 @@ function dealBody(
 
 /** What a deal card is asked with: propose_deal's input, below. */
 interface DealInput {
-  contact_id: ContactId;
+  contact_id: string;
   stage: string;
   service?: string;
   amount_cents?: number;
@@ -151,7 +151,8 @@ function dealRowOf<Row extends { stage: string; service: string | null; created_
 async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<ProposalOutcome> {
   const checked = checkedDeal(toolContext, input);
   if ("result" in checked) return checked;
-  const { id, stage, url, day, reason, stepWords, stepDay } = checked;
+  const { id: asked, stage, url, day, reason, stepWords, stepDay } = checked;
+  const id = asContactId(asked);
   const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");

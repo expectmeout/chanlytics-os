@@ -1,3 +1,4 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import "server-only";
 
 /**
@@ -93,12 +94,12 @@ export async function claimPreviewFor(ctx: RouteContext, token: string) {
   // What follows every workspace made (recordWorkspaceBegun), with the first run's marks its preview earned kept on the
   // workspace (decision 0091) as well as on the claimer's own view.
   const marks = used ? previewFirstRunMarks(used) : [];
-  await recordWorkspaceBegun(ctx, workspace.id, {
+  await recordWorkspaceBegun(ctx, heldTenantId(workspace.id), {
     by: "claimed",
     notify: ctx.email ?? "",
     alertTo: ctx.email ?? null,
     marks,
   });
-  await markFirstRun(ctx, workspace.id, used);
+  await markFirstRun(ctx, heldTenantId(workspace.id), used);
   return { workspace };
 }
