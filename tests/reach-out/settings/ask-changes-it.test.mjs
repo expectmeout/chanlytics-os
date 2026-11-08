@@ -1,7 +1,8 @@
 /**
  * Ask changes How it reaches out by a card (decision 0113): each op judged by the one change schema, applied to the
  * config's reach_out section as the page's own folds write it, said in the card's one line, and opened on its row. The
- * card is proposed by propose_settings' answers action, its row's words as `text`, run here through the real registry.
+ * card is proposed by propose_settings' answers action, each op's own field as the schema names it (8 Nov 2026: its
+ * words rode as `text` while the owner's tools stood at their ceiling), run here through the real registry.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -74,7 +75,7 @@ const { buildProposal, newToolContext } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/ask/tools/index.ts")).href
 );
 
-test("Ask's answers action carries a row of How it reaches out, its words as text, to the change its card holds", async () => {
+test("Ask's answers action carries a row of How it reaches out, each op's own field, to the change its card holds", async () => {
   const t = newToolContext(
     { supabase: fakeDb({}, {}, {}), userId: "u1", email: "ada@example.com", params: {} },
     "11111111-1111-4111-8111-111111111111",
@@ -87,24 +88,44 @@ test("Ask's answers action carries a row of How it reaches out, its words as tex
     assert.equal(out.isError, false, out.result);
     return out.proposal;
   };
-  const claim = await card({ op: "add_claim", text: "We clean 40 clinics across Austin today." });
+  const claim = await card({ op: "add_claim", claim: "We clean 40 clinics across Austin today." });
   assert.deepEqual(claim.payload.change, { op: "add_claim", claim: "We clean 40 clinics across Austin today." });
   assert.equal(claim.title, "A claim you stand behind");
   assert.equal(claim.summary, describeSettingsChange(claim.payload.change));
-  assert.deepEqual((await card({ op: "set_reply_offer", text: "call" })).payload.change, {
+  assert.deepEqual((await card({ op: "set_reply_offer", offer: "call" })).payload.change, {
     op: "set_reply_offer",
     offer: "call",
   });
-  // A tone or a name sent in How it answers' own field is taken too, and an emptied row is a change.
+  assert.deepEqual((await card({ op: "set_who_for", who_for: "Clinics with two or more rooms" })).payload.change, {
+    op: "set_who_for",
+    who_for: "Clinics with two or more rooms",
+  });
+  assert.deepEqual((await card({ op: "set_signature", signature: "Maya, Brightline" })).payload.change, {
+    op: "set_signature",
+    signature: "Maya, Brightline",
+  });
+  // The tone and the name ride the fields How it answers' rows already had, and an emptied row is a change; a field
+  // another row takes is left out of the change.
   assert.deepEqual((await card({ op: "set_cold_tone", tone: "Plain" })).payload.change, {
     op: "set_cold_tone",
     tone: "Plain",
   });
-  assert.deepEqual((await card({ op: "set_offer", text: "" })).payload.change, { op: "set_offer", offer: "" });
-  // What the schema refuses is refused in its words, never proposed.
-  const fax = await buildProposal(t, "propose_settings", {
-    action: "answers",
-    row: { op: "set_reply_offer", text: "fax" },
+  assert.deepEqual((await card({ op: "set_signed_by", name: "Maya" })).payload.change, {
+    op: "set_signed_by",
+    name: "Maya",
   });
-  assert.equal(fax.isError, true);
+  assert.deepEqual((await card({ op: "set_offer", offer: "", tone: "Plain" })).payload.change, {
+    op: "set_offer",
+    offer: "",
+  });
+  // What the schema refuses is refused in its words, naming the field, never proposed: a value it does not list, a row
+  // with its field left out, and a row's words sent as text, which no row of How it reaches out takes.
+  const refused = async (row) => {
+    const out = await buildProposal(t, "propose_settings", { action: "answers", row });
+    assert.equal(out.isError, true, out.result);
+    return JSON.parse(out.result).error;
+  };
+  assert.match(await refused({ op: "set_reply_offer", offer: "fax" }), /^change rejected: offer: /);
+  assert.match(await refused({ op: "set_offer" }), /^change rejected: offer: /);
+  assert.match(await refused({ op: "add_claim", text: "We clean 40 clinics." }), /^change rejected: claim: /);
 });

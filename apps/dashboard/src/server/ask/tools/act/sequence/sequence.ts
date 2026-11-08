@@ -43,8 +43,8 @@ const STEP_ID = z.string().describe("A step's id, from sequences with action seq
 export const propose_sequence = defineActions({
   name: "propose_sequence",
   description:
-    "Propose what sends on its own, as a card the person approves (every such thing is a sequence): a message sent once, a sequence at a moment of the customer journey or on a list, a whole new sequence with its steps, a step added, changed, taken away or given new words, a draft started, a sequence let go of or ended, people taken out, a batch waiting for an OK approved or skipped, a sequence paused, resumed, renamed or retimed, its channels, a new saved message, and cold email to leads.",
-  tail: `For an offer, a promotion or a whole setup, call propose_plan with action offer instead. Read sequences first: action list and action sequence for what exists and its ids, action lists for who can be sent and the messages a send may use, action moments for the moments offered. When nobody can be sent a message, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to, or no channel that can carry it now (the lists read says which); never propose a send to nobody. A starter the workspace does not hold yet is added at the card's Approve, a typed value left blank is refused in words, and a second running sequence on the same moment, list and message is refused unless they name it apart. A person reads campaign or sequence, never playbook or broadcast; the fields keep those names.`,
+    "Propose what sends on its own, as a card the person approves (every such thing is a sequence): a message sent once, a sequence at a journey moment or on a list, a new sequence with its steps, a step added, changed, removed or reworded, a draft started, a sequence let go of or ended, people taken out, a waiting batch approved or skipped, a sequence paused, resumed, renamed or retimed, its channels, a new saved message, and cold email to leads.",
+  tail: `For an offer, a promotion or a whole setup, call propose_plan with action offer instead. Read sequences first: action list and action sequence for what exists and its ids, action lists for who can be sent and the messages a send may use, action moments for the moments offered. When nobody can be sent a message, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to, or no channel that can carry it now (the lists read says which); never propose a send to nobody. A starter the workspace lacks is added at Approve, a typed value left blank is refused in words, and a second running sequence on the same moment, list and message is refused unless they name it apart. A person reads campaign or sequence, never playbook or broadcast; the fields keep those names.`,
   actions: {
     once: broadcastAction,
     moment: playbookAction,
@@ -65,7 +65,7 @@ export const propose_sequence = defineActions({
         },
       ],
       label: "Preparing a sequence",
-      words: `Action make proposes a whole new sequence to customers: first, its first step exactly as action moment takes it (a moment or a list, its message by template_id, its clock and channels), then up to ${SEQUENCE_DRAFT_THEN_MAX} steps after it (each a wait, what must still hold, its message), and start (true starts it once approved, false keeps it as a draft). Write each message first with action message where the Library has none, in a plan.`,
+      words: `Action make proposes a whole new sequence to customers: first, its first step exactly as action moment takes it (a moment or a list, its message by template_id, its clock and channels), then up to ${SEQUENCE_DRAFT_THEN_MAX} steps after it (each a wait, what must still hold, its message), and start (true starts it once approved, false keeps it a draft). Where the Library lacks a message, write it first with action message, in a plan.`,
       build: proposeMake,
     }),
     step: actAction({
@@ -73,7 +73,7 @@ export const propose_sequence = defineActions({
       input: z.object({
         sequence_id: SEQUENCE_ID,
         step_id: STEP_ID.optional(),
-        template_id: z.string().optional().describe("A new step's message."),
+        template_id: z.string().optional().describe("The step's message."),
         after_days: STEP_FIELDS.after_days.optional(),
         only_if: STEP_FIELDS.only_if,
         channels: z.array(z.enum(CONSENT_CHANNELS)).optional().describe("The channels the step goes by."),
@@ -107,7 +107,7 @@ export const propose_sequence = defineActions({
       input: z.object({
         sequence_id: SEQUENCE_ID,
         step_id: STEP_ID,
-        template_id: z.string().describe("The message the step sends from now."),
+        template_id: z.string().describe("The step's message."),
         params: STEP_FIELDS.params,
       }),
       examples: [
@@ -162,14 +162,14 @@ export const propose_sequence = defineActions({
       kind: "sequence_send_decide",
       input: z.object({
         sequence_id: SEQUENCE_ID,
-        send_id: z.string().describe("A held email's send_id, from sequences with action sequence (waiting_on_you)."),
-        decision: z.enum(REACH_OUT_DECISIONS).describe("include, rewrite, skip or not_a_fit."),
+        send_id: z.string().describe("The email's send_id, from sequences with action sequence (waiting_on_you)."),
+        decision: z.enum(REACH_OUT_DECISIONS),
         change: z
           .string()
           .max(LEAD_REWRITE_CHANGE_MAX)
           .optional()
           .describe(
-            "Only with rewrite: what should change in the opening, in the words the person used; none where they said none.",
+            "With rewrite: what should change in the opening, in the person's words; none where they said none.",
           ),
       }),
       examples: [
@@ -181,17 +181,15 @@ export const propose_sequence = defineActions({
       ],
       label: "Preparing the held email",
       words:
-        "Action decide answers an email the check held: include lets it go as it is, rewrite writes its opening again at once (as the person says, with change) and can be undone, skip leaves it out of this batch, not_a_fit sets its business aside. Only a rewrite is undone.",
+        "Action decide answers an email the check held: include lets it go as it is, rewrite writes its opening again at once (as the person says, with change), skip leaves it out of this batch, not_a_fit sets its business aside. Only a rewrite is undone.",
       build: proposeSendDecide,
     }),
     sent_by_hand: actAction({
       kind: "sequence_send_said",
       input: z.object({
         sequence_id: SEQUENCE_ID,
-        send_id: z
-          .string()
-          .describe("The send_id of an email handed over to send by hand, from sequences with action sequence."),
-        outcome: z.enum(REACH_OUT_SAID_OUTCOMES).describe("sent or not_sent."),
+        send_id: z.string().describe("The email's send_id, from sequences with action sequence (waiting_on_you)."),
+        outcome: z.enum(REACH_OUT_SAID_OUTCOMES),
       }),
       examples: [
         {
@@ -202,7 +200,7 @@ export const propose_sequence = defineActions({
       ],
       label: "Preparing what became of the email",
       words:
-        "Action sent_by_hand records what became of an email handed over to send by hand from the business's own inbox: sent, or not_sent. Ask them; never say one went that they did not say.",
+        "Action sent_by_hand records what became of an email handed over to send from the business's own inbox: sent or not_sent. Ask them; never say one went that they did not say.",
       build: proposeSendSaid,
     }),
     discard: actAction({
@@ -211,7 +209,7 @@ export const propose_sequence = defineActions({
       examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing to let it go",
       words:
-        "Action discard takes away a sequence that never ran, whatever its state, or a sequence to leads that never wrote; one that ran is ended with action end, and a sequence to leads that wrote is paused with action change.",
+        "Action discard takes away a sequence that never ran, whatever its state, or a sequence to leads that never wrote; one that ran is ended with action end, a sequence to leads that wrote paused with action change.",
       build: proposeDiscard,
     }),
     end: actAction({
@@ -220,19 +218,17 @@ export const propose_sequence = defineActions({
       examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing the end",
       words:
-        "Action end ends a customer's sequence that has run, for good: it sends nothing more and nobody is added to it; what it sent stays in its History. Nothing undoes it. One that never ran is let go of with action discard, and a sequence to leads is paused with action change.",
+        "Action end ends a customer's sequence that has run, for good: it sends nothing more and nobody is added; what it sent stays in its History, and nothing undoes it. One that never ran is let go of with action discard; a sequence to leads is paused with action change.",
       build: proposeEnd,
     }),
     message: messageAction,
     cold_email: actAction({
       kind: "reach_out_make",
       input: z.object({
-        name: z.string().describe("What Campaigns calls it."),
+        name: z.string().describe("Its name on the page."),
         search_id: z
           .string()
-          .describe(
-            "The search or the list of leads it writes to (leads with action searches), or a plan step's token.",
-          ),
+          .describe("The search or list of leads it writes to (leads with action searches), or a plan step's token."),
         steps: z.array(COLD_STEP).describe(`One to ${REACH_OUT_STEPS_MAX} emails, the first with a subject.`),
         gap_minutes: z
           .number()
@@ -243,7 +239,7 @@ export const propose_sequence = defineActions({
           .boolean()
           .optional()
           .describe(
-            "true hands each email to the owner to send from their own inbox; false sends from the connected mailboxes. Leave it out to send from the mailboxes when one is connected, else by the owner.",
+            "true hands each email to the owner to send from their own inbox; false sends from the connected mailboxes; left out, the mailboxes where one is connected, else the owner.",
           ),
         signed_by: z.string().optional().describe("Who signs the emails."),
         include_unconfirmed: z
@@ -263,7 +259,7 @@ export const propose_sequence = defineActions({
       ],
       label: "Preparing a cold email sequence",
       words:
-        "Action cold_email proposes a cold email sequence to the businesses of a search or a list of chosen leads (propose_leads with action list makes one): its emails, their waits and its pace, from the workspace's own mailboxes (or handed over to send by hand). Its first run is planned once approved and waits for their say before an email goes. Write like a person to one business; never claim a relationship that does not exist.",
+        "Action cold_email proposes a cold email sequence to the businesses of a search or a list of chosen leads (propose_leads with action list makes one): its emails, their waits and its pace, from the workspace's mailboxes or handed over to send by hand. Its first run is planned once approved and waits for their say before an email goes. Write like a person to one business; never claim a relationship that does not exist.",
       build: proposeColdEmail,
     }),
     leads: reachOutAddAction,

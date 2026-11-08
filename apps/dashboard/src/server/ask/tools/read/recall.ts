@@ -33,7 +33,7 @@ async function runRecall(toolContext: ToolContext, input: { words: string }): Pr
 export const recallTool = defineRead({
   name: "recall",
   description:
-    'What was said before, found by its words: the person\'s own earlier questions to you and your answers in any of their threads, the lines you remember and the days of your journal, newest first, each with when it was. Call it when they refer to something from before ("what did we decide about Texas", "the list you made last week") that this thread and the shape do not hold. It reads words, never a page\'s rows: for those, read the page\'s tool. At most twelve; nothing changes because it was read.',
+    "What was said before, found by its words: the person's own earlier questions to you and your answers in any of their threads, the lines you remember and the days of your journal, newest first, each with when it was. Call it when they refer to something from before (\"the list you made last week\") that this thread and the shape do not hold. It reads words, never a page's rows: for those, read the page's tool. At most twelve; nothing changes because it was read.",
   input: z.object({
     words: z.string().describe("A few words to look for, as they would have been said: names, places, kinds."),
   }),
