@@ -3,6 +3,7 @@
 import type { Db } from "./partner";
 import { saysMissing, isMissingFunction } from "../../shared/missing-door";
 import { recordOrEmpty } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ------------------------------------------------------------------------------------------------ handovers */
 
@@ -49,7 +50,7 @@ export interface HandoverSent {
 }
 
 /** The calling partner sends a handover again, to the same address or another (00214 partner_handover_resend). */
-export async function resendHandover(db: Db, tenantId: string, email: string): Promise<HandoverResult<HandoverSent>> {
+export async function resendHandover(db: Db, tenantId: TenantId, email: string): Promise<HandoverResult<HandoverSent>> {
   const { data, error } = await db.rpc("partner_handover_resend", { p_tenant: tenantId, p_email: email });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   const v = recordOrEmpty(data);
@@ -61,7 +62,7 @@ export async function resendHandover(db: Db, tenantId: string, email: string): P
 
 /** A handover waiting for the caller: which workspace, from which partner, open until when. */
 export interface OpenHandover {
-  tenantId: string;
+  tenantId: TenantId;
   workspace: string;
   partnerCode: string;
   expiresAt: string;
@@ -89,7 +90,7 @@ export async function getOpenHandovers(db: Db): Promise<{ handovers: OpenHandove
 }
 
 /** The caller becomes the owner of the workspace handed to them (00214 handover_accept). */
-export async function acceptHandover(db: Db, tenantId: string): Promise<HandoverResult<HandoverWorkspace>> {
+export async function acceptHandover(db: Db, tenantId: TenantId): Promise<HandoverResult<HandoverWorkspace>> {
   const { data, error } = await db.rpc("handover_accept", { p_tenant: tenantId });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   const row = data?.[0];
@@ -98,7 +99,7 @@ export async function acceptHandover(db: Db, tenantId: string): Promise<Handover
 }
 
 /** The caller says no to the workspace handed to them (00214 handover_decline). */
-export async function declineHandover(db: Db, tenantId: string): Promise<HandoverResult<null>> {
+export async function declineHandover(db: Db, tenantId: TenantId): Promise<HandoverResult<null>> {
   const { error } = await db.rpc("handover_decline", { p_tenant: tenantId });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   return { ok: true, value: null };
@@ -106,7 +107,7 @@ export async function declineHandover(db: Db, tenantId: string): Promise<Handove
 
 /** A workspace the caller set up for a business, and where its handover stands. */
 export interface PartnerHandoverLine {
-  tenantId: string;
+  tenantId: TenantId;
   /** Null once the partner can no longer read the workspace (they left its team). */
   name: string | null;
   email: string;
@@ -155,7 +156,7 @@ export interface HandoverInvite {
  * An open handover's invitation facts, for the edge (service role): the address is the one on record, never one a
  * caller passes, so the door that sends it can write to nobody else. Null when the workspace has no open handover.
  */
-export async function getHandoverInvite(db: Db, tenantId: string): Promise<HandoverInvite | null> {
+export async function getHandoverInvite(db: Db, tenantId: TenantId): Promise<HandoverInvite | null> {
   const { data, error } = await db
     .from("partner_tenants")
     .select(
@@ -194,7 +195,7 @@ export interface PartnerInviteSent {
 /** The owner asks the partner with this code to join the workspace (00225 partner_invite). */
 export async function invitePartner(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   code: string,
 ): Promise<HandoverResult<PartnerInviteSent>> {
   const { data, error } = await db.rpc("partner_invite", { p_tenant: tenantId, p_code: code });
@@ -207,7 +208,7 @@ export async function invitePartner(
 }
 
 /** The owner takes the invitation back before it is answered (00225 partner_invite_withdraw). */
-export async function withdrawPartnerInvite(db: Db, tenantId: string): Promise<HandoverResult<null>> {
+export async function withdrawPartnerInvite(db: Db, tenantId: TenantId): Promise<HandoverResult<null>> {
   const { error } = await db.rpc("partner_invite_withdraw", { p_tenant: tenantId });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   return { ok: true, value: null };
@@ -219,7 +220,7 @@ export interface WorkspacePartner {
   invitation: { code: string; sentAt: string; expiresAt: string; declinedAt: string | null } | null;
 }
 
-export async function getWorkspacePartner(db: Db, tenantId: string): Promise<HandoverResult<WorkspacePartner>> {
+export async function getWorkspacePartner(db: Db, tenantId: TenantId): Promise<HandoverResult<WorkspacePartner>> {
   const { data, error } = await db.rpc("workspace_partner", { p_tenant: tenantId });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   const value = (data ?? {}) as Record<string, Record<string, unknown> | null>;
@@ -250,7 +251,7 @@ export async function getWorkspacePartner(db: Db, tenantId: string): Promise<Han
 
 /** A workspace asking the caller, a partner, to join it. */
 export interface PartnerInvitation {
-  tenantId: string;
+  tenantId: TenantId;
   workspace: string;
   sentAt: string;
   expiresAt: string;

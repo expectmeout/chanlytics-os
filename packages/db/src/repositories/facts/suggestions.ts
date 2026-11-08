@@ -9,13 +9,14 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { recordOrNull } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** One correction, as the batch hands it over: what the gates and the model read. */
 export interface FactCorrectionRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   conversation_id: string | null;
   source: "steer" | "reply";
   /** The owner's own words. */
@@ -97,7 +98,7 @@ const WAITING_MAX = 20;
  * The workspace's suggestions waiting, newest first, as the caller may see them (RLS: their workspace's own). A row the
  * table holds with words missing is not one a member can keep, and is left out.
  */
-export async function listFactSuggestionsWaiting(db: Db, tenantId: string): Promise<FactSuggestionRow[]> {
+export async function listFactSuggestionsWaiting(db: Db, tenantId: TenantId): Promise<FactSuggestionRow[]> {
   const { data, error } = await db
     .from("fact_suggestions")
     .select("id, source, title, body, quote, conversation_id, created_at")
@@ -117,7 +118,7 @@ export async function listFactSuggestionsWaiting(db: Db, tenantId: string): Prom
 export async function findFactSuggestionById(
   db: Db,
   id: string,
-): Promise<(FactSuggestionRow & { tenant_id: string; state: string }) | null> {
+): Promise<(FactSuggestionRow & { tenant_id: TenantId; state: string }) | null> {
   const { data, error } = await db
     .from("fact_suggestions")
     .select("id, tenant_id, state, source, title, body, quote, conversation_id, created_at")

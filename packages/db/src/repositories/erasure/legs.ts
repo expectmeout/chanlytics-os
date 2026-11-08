@@ -12,13 +12,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { readAllRowsByKey } from "../../shared/paged";
 import { getErasureDigests } from "../people/pages";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The person an erasure acts on, as a finish reads them: live and blocked, or erased and re-driven. */
 interface ErasableContact {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   phone_e164: string | null;
   email: string | null;
   erased_at: string | null;
@@ -26,7 +27,7 @@ interface ErasableContact {
 }
 
 /** The person by their id, on the service role: null when there is no such row. Throws on a failed read. */
-export async function findErasableContact(db: Db, contactId: string): Promise<ErasableContact | null> {
+export async function findErasableContact(db: Db, contactId: ContactId): Promise<ErasableContact | null> {
   const { data, error } = await db
     .from("contacts")
     .select("id, tenant_id, phone_e164, email, erased_at, erasing_since")
@@ -98,21 +99,21 @@ export function visitNeedles(needles: readonly string[]): string[] {
 }
 
 /** The external id of each of the person's identities, read while the rows exist. Throws on a failed read. */
-export async function listIdentityExternalIds(db: Db, contactId: string): Promise<(string | null)[]> {
+export async function listIdentityExternalIds(db: Db, contactId: ContactId): Promise<(string | null)[]> {
   const { data, error } = await db.from("contact_identities").select("external_id").eq("contact_id", contactId);
   if (error) throw new Error(`erasure_identities: ${error.message}`);
   return (data ?? []).map((i) => i.external_id);
 }
 
 /** The Storage paths the person's call recordings name, read while the rows exist. Throws on a failed read. */
-export async function listRecordingPaths(db: Db, contactId: string): Promise<string[]> {
+export async function listRecordingPaths(db: Db, contactId: ContactId): Promise<string[]> {
   const { data, error } = await db.from("calls").select("recording").eq("contact_id", contactId);
   if (error) throw new Error(`erasure_recordings: ${error.message}`);
   return storagePathsOf((data ?? []).map((c) => c.recording));
 }
 
 /** The Storage paths the person's messages' media name, read while the rows exist. Throws on a failed read. */
-export async function listMediaPaths(db: Db, contactId: string): Promise<string[]> {
+export async function listMediaPaths(db: Db, contactId: ContactId): Promise<string[]> {
   const { data, error } = await db
     .from("messages")
     .select("media")
@@ -140,8 +141,8 @@ function storagePathsOf(stored: readonly unknown[]): string[] {
  */
 export async function beginErasure(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
   ids: { phone: string | null; email: string | null },
 ): Promise<void> {
   // The database makes the digests (00263): only it holds the pepper that keys them.
@@ -173,7 +174,7 @@ export async function beginErasure(
  */
 export async function beginPeopleErasure(
   db: Db,
-  params: { tenantId: string; ids: string[]; notAPerson: boolean },
+  params: { tenantId: TenantId; ids: string[]; notAPerson: boolean },
 ): Promise<{ going: string[]; noAddress: string[] }> {
   const { data, error } = await db.rpc("people_erase_begin", {
     p_tenant_id: params.tenantId,
@@ -194,7 +195,7 @@ export async function beginPeopleErasure(
  * the only thing that says whose the object is: a path that names another workspace is never signed, whatever wrote
  * it (00260 stops a member writing one on a message), and never removed by its erasure.
  */
-export function inWorkspace(tenantId: string, storagePath: string): boolean {
+export function inWorkspace(tenantId: TenantId, storagePath: string): boolean {
   const parts = storagePath.split("/");
   return parts.length >= 2 && parts[0] === tenantId && parts.every((p) => p !== "" && p !== "." && p !== "..");
 }
@@ -208,7 +209,7 @@ export function inWorkspace(tenantId: string, storagePath: string): boolean {
  */
 export async function removeMediaObjects(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   named: readonly string[],
 ): Promise<{ requested: number; removed: string[]; refused: number; error: string | null }> {
   const paths = named.filter((p) => inWorkspace(tenantId, p));
@@ -244,8 +245,8 @@ const SCRUB_READ_CAP = 500_000;
  */
 export async function scrubErasedJobs(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
   /** Every spelling of the person's number, and their address: an email send carries `to_email`, never a number. */
   identifiers: readonly string[],
   /** Only these states; every state when absent (after erase_contact has canceled what was scheduled). */
@@ -298,7 +299,7 @@ export async function scrubErasedJobs(
 /* ---- the id-keyed legs a press and a re-drive share ---- */
 
 /** The person's own policy rows (their receptionist setting), deleted: a row scoped to an erased person is a name that outlives its erasure. Throws on a refusal. */
-export async function dropPersonPolicy(db: Db, tenantId: string, contactId: string): Promise<void> {
+export async function dropPersonPolicy(db: Db, tenantId: TenantId, contactId: ContactId): Promise<void> {
   const { error } = await db
     .from("policies")
     .delete()
@@ -314,8 +315,8 @@ export async function dropPersonPolicy(db: Db, tenantId: string, contactId: stri
  */
 export async function scrubAskTurns(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
   needles: readonly string[],
 ): Promise<number> {
   const { data, error } = await db.rpc("scrub_ask_for_contact", {
@@ -342,7 +343,7 @@ export interface ErasedRows {
  * ledger's row carrying `legs`, what the caller already did (the Storage objects it removed), so one row tells the whole
  * story. Throws on a refusal.
  */
-export async function eraseContactRows(db: Db, contactId: string, legs: Json): Promise<ErasedRows> {
+export async function eraseContactRows(db: Db, contactId: ContactId, legs: Json): Promise<ErasedRows> {
   const { data, error } = await db.rpc("erase_contact", { p_contact_id: contactId, p_legs: legs });
   if (error) throw new Error(`erase_contact: ${error.message}`);
   return erasedRowsOf(data);

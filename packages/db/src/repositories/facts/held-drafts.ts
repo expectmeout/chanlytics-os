@@ -4,6 +4,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -18,7 +19,7 @@ interface HeldDraftsRow {
 }
 
 /** The workspace's held drafts of the last `days`, by intent. */
-export async function listHeldDraftsByIntent(db: Db, tenantId: string, days: number): Promise<HeldDraftsRow[]> {
+export async function listHeldDraftsByIntent(db: Db, tenantId: TenantId, days: number): Promise<HeldDraftsRow[]> {
   const { data, error } = await db.rpc("held_drafts_by_intent", { p_tenant_id: tenantId, p_days: days });
   if (error) throw new Error(`held_drafts_by_intent: ${error.message}`);
   return (data ?? []).map((r) => ({

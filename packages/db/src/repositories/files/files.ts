@@ -8,6 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FILES_MAX, FILES_BUCKET, type FileKind, type FileShelfFilter } from "@chanlytics/contracts";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -49,7 +50,7 @@ export type FileMemberRow = Pick<
 >;
 
 /** What the workspace keeps, newest first. */
-export async function listFiles(db: Db, tenantId: string): Promise<FileMemberRow[]> {
+export async function listFiles(db: Db, tenantId: TenantId): Promise<FileMemberRow[]> {
   const { data, error } = await db
     .from("files")
     .select(MEMBER_COLUMNS)
@@ -65,7 +66,7 @@ export async function listFiles(db: Db, tenantId: string): Promise<FileMemberRow
 /** What each file says of itself and no more, for what counts them: a workspace at its cap is a few KB this way, and a megabyte with its looks. */
 export async function listFilesTallied(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<Pick<FileMemberRow, "status" | "shows" | "source" | "look_status" | "created_at" | "kind">[]> {
   const { data, error } = await db
     .from("files")
@@ -84,7 +85,7 @@ export async function listFilesTallied(
  */
 export async function listFilesOnShelf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   shelf: FileShelfFilter,
   page: { limit: number; before?: { at: string; id: string } | null },
 ): Promise<FileMemberRow[]> {
@@ -138,7 +139,7 @@ export async function readFileSound(db: Db, id: string): Promise<FileRow["sound"
  */
 export async function listFilesNamedBy(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ids: readonly string[],
 ): Promise<
   Pick<FileRow, "id" | "name" | "look" | "kind" | "seconds" | "media_status" | "width" | "height" | "sound">[]
@@ -155,21 +156,21 @@ export async function listFilesNamedBy(
 }
 
 /** One file whole, for the service role's work on it, removed or not. */
-export async function findFileForWork(db: Db, tenantId: string, id: string): Promise<FileRow | null> {
+export async function findFileForWork(db: Db, tenantId: TenantId, id: string): Promise<FileRow | null> {
   const { data, error } = await db.from("files").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
   if (error) throw new Error(`file: ${error.message}`);
   return data ?? null;
 }
 
 /** How a post was made, for the service role: a member's session has no grant on it (00553). */
-export async function getFileMade(db: Db, tenantId: string, id: string): Promise<FileRow["made"]> {
+export async function getFileMade(db: Db, tenantId: TenantId, id: string): Promise<FileRow["made"]> {
   const { data, error } = await db.from("files").select("made").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
   if (error) throw new Error(`file made: ${error.message}`);
   return data?.made ?? null;
 }
 
 /** How the workspace's newest post that is still here was made, for the service role; null before its first. */
-export async function getNewestMade(db: Db, tenantId: string): Promise<FileRow["made"]> {
+export async function getNewestMade(db: Db, tenantId: TenantId): Promise<FileRow["made"]> {
   const { data, error } = await db
     .from("files")
     .select("made")
@@ -184,7 +185,7 @@ export async function getNewestMade(db: Db, tenantId: string): Promise<FileRow["
 }
 
 /** Whether this file is here, or a person let it go: either way an import stores no bytes for it. */
-export async function markFileSeen(db: Db, tenantId: string, fingerprint: string): Promise<boolean> {
+export async function markFileSeen(db: Db, tenantId: TenantId, fingerprint: string): Promise<boolean> {
   const [live, letGo] = await Promise.all([
     db
       .from("files")
@@ -209,7 +210,7 @@ export async function markFileSeen(db: Db, tenantId: string, fingerprint: string
  */
 export async function keepClaudeCopy(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
   copy: { id: string; expires_at: string | null; width: number; height: number },
 ): Promise<boolean> {
@@ -232,7 +233,7 @@ export async function keepClaudeCopy(
 export async function listFilesToLookAgain(
   db: Db,
   args: { kind: FileKind; edition: number; triedBefore: string; bornAfter: string; limit: number; young?: boolean },
-): Promise<{ id: string; tenant_id: string }[]> {
+): Promise<{ id: string; tenant_id: TenantId }[]> {
   const tried = () =>
     db
       .from("files")
@@ -311,7 +312,7 @@ export async function listVideosWaiting(
 export async function listFilesToPurgeAgain(
   db: Db,
   args: { removedBefore: string; removedAfter: string; limit: number },
-): Promise<{ id: string; tenant_id: string }[]> {
+): Promise<{ id: string; tenant_id: TenantId }[]> {
   const { data, error } = await db
     .from("files")
     .select("id, tenant_id")

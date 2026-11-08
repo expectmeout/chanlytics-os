@@ -17,11 +17,12 @@ import {
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { asJson } from "../../shared/json";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** A member's upload begins: the door's permission and cap, and the purge that lets its bytes go if they never become a file. */
-export async function startFile(db: Db, tenantId: string, id: string) {
+export async function startFile(db: Db, tenantId: TenantId, id: string) {
   return db.rpc("file_start", { p_tenant_id: tenantId, p_id: id });
 }
 
@@ -41,7 +42,7 @@ function fateOf(data: unknown): FileFate {
 export async function recordFileFound(
   db: Db,
   args: {
-    tenantId: string;
+    tenantId: TenantId;
     id: string;
     status: Extract<FileStatus, "inbox" | "filed">;
     source: string;
@@ -81,7 +82,7 @@ export async function recordFileFound(
 export async function recordFileMade(
   db: Db,
   args: {
-    tenantId: string;
+    tenantId: TenantId;
     id: string;
     name: string;
     bytes: number;
@@ -115,7 +116,7 @@ export async function recordFileMade(
 export async function updateFileRow(
   db: Db,
   args: {
-    tenantId: string;
+    tenantId: TenantId;
     id: string;
     name?: string | undefined;
     shows?: string | undefined;
@@ -134,12 +135,12 @@ export async function updateFileRow(
 }
 
 /** The Inbox's one press: what waits, among these, is filed. Answers how many moved. */
-export async function keepManyFiles(db: Db, tenantId: string, ids: readonly string[]) {
+export async function keepManyFiles(db: Db, tenantId: TenantId, ids: readonly string[]) {
   return db.rpc("file_keep_many", { p_tenant_id: tenantId, p_ids: [...ids] });
 }
 
 /** A person removed a file. Its bytes go by the file_purge job, and an import does not bring it back. */
-export async function deleteFileRow(db: Db, tenantId: string, id: string) {
+export async function deleteFileRow(db: Db, tenantId: TenantId, id: string) {
   return db.rpc("file_remove", { p_tenant_id: tenantId, p_id: id });
 }
 
@@ -147,7 +148,7 @@ export async function deleteFileRow(db: Db, tenantId: string, id: string) {
 export async function keepFileLook(
   db: Db,
   args: {
-    tenantId: string;
+    tenantId: TenantId;
     id: string;
     status: "done" | "refused" | "failed";
     edition: number;
@@ -169,14 +170,14 @@ export async function keepFileLook(
 }
 
 /** What a public listing offered and nobody kept goes aside: that listing was not this business's, or its own profile came. */
-export async function setFileListingAside(db: Db, tenantId: string): Promise<number> {
+export async function setFileListingAside(db: Db, tenantId: TenantId): Promise<number> {
   const { data, error } = await db.rpc("file_listing_aside", { p_tenant_id: tenantId });
   if (error) throw new Error(`file listing aside: ${error.message}`);
   return typeof data === "number" ? data : 0;
 }
 
 /** A removed file's bytes and Anthropic's copy are gone, so its row goes. */
-export async function recordFilePurged(db: Db, tenantId: string, id: string): Promise<void> {
+export async function recordFilePurged(db: Db, tenantId: TenantId, id: string): Promise<void> {
   const { error } = await db.rpc("file_purged", { p_tenant_id: tenantId, p_id: id });
   if (error) throw new Error(`file purged: ${error.message}`);
 }
@@ -200,7 +201,7 @@ export type VideoFate = {
 export async function beginFileVideo(
   db: Db,
   video: {
-    tenantId: string;
+    tenantId: TenantId;
     id: string;
     mediaRef: string;
     name: string;
@@ -234,7 +235,7 @@ export async function beginFileVideo(
 }
 
 /** A video's bytes have all gone: its tile says it is being made ready. Only from uploading. */
-export async function markFileMediaProcessing(db: Db, tenantId: string, id: string): Promise<void> {
+export async function markFileMediaProcessing(db: Db, tenantId: TenantId, id: string): Promise<void> {
   const { error } = await db.rpc("file_media_processing", { p_tenant_id: tenantId, p_id: id });
   if (error) throw new Error(`file media processing: ${error.message}`);
 }
@@ -242,7 +243,7 @@ export async function markFileMediaProcessing(db: Db, tenantId: string, id: stri
 /** What the platform's word did to a row, found by its id there. */
 export type MediaFate = {
   fate: "ready" | "failed" | "repeated" | "gone" | "unknown";
-  tenant_id: string | null;
+  tenant_id: TenantId | null;
   file_id: string | null;
 };
 
@@ -284,7 +285,7 @@ export async function markFileMediaFailed(db: Db, mediaRef: string, code: string
 }
 
 /** A video whose bytes never arrived, a day on: removed, for the purge to finish. Answers whether it was one. */
-export async function removeLapsedUpload(db: Db, tenantId: string, id: string): Promise<boolean> {
+export async function removeLapsedUpload(db: Db, tenantId: TenantId, id: string): Promise<boolean> {
   const { data, error } = await db.rpc("file_upload_lapsed", { p_tenant_id: tenantId, p_id: id });
   if (error) throw new Error(`file upload lapsed: ${error.message}`);
   return data === true;
@@ -297,7 +298,7 @@ export async function removeLapsedUpload(db: Db, tenantId: string, id: string): 
 export async function keepFileSound(
   db: Db,
   entry: {
-    tenantId: string;
+    tenantId: TenantId;
     id: string;
     part: SoundPart;
     value: SoundWords | SoundNote | true;

@@ -44,6 +44,7 @@ import { setEmailOffersYes, setEmailUnsubscribed } from "../campaigns/email-offe
 import { stampEmailFromMailbox } from "./connections";
 import { dbLog } from "../../shared/observe";
 import { recordOrEmpty } from "@chanlytics/contracts";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 export type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
@@ -69,7 +70,7 @@ export async function findMailbox(
 }
 
 export interface IngestEmailParams {
-  tenantId: string;
+  tenantId: TenantId;
   /** The sender's address, as normalizeEmail stores it. */
   address: string;
   /** The provider's id for this delivery: the replay gate. Never the sender's own Message-ID, which the sender writes. */
@@ -198,7 +199,7 @@ export async function ingestInboundEmail(db: Db, ingestEmailParams: IngestEmailP
 }
 
 /** Did this workspace send a message with this Message-ID? How an email that is our own, coming back, is known. */
-export async function getSentEmailWithMessageId(db: Db, tenantId: string, rfcMessageId: string): Promise<boolean> {
+export async function getSentEmailWithMessageId(db: Db, tenantId: TenantId, rfcMessageId: string): Promise<boolean> {
   const { data, error } = await db
     .from("messages")
     .select("id")
@@ -217,7 +218,7 @@ export async function stampMailboxReceived(db: Db, mailboxId: string, at: string
 }
 
 /** A workspace's mailbox; null when it has none, which is a workspace with no email line. */
-export async function findMailboxOfTenant(db: Db, tenantId: string): Promise<MailboxRow | null> {
+export async function findMailboxOfTenant(db: Db, tenantId: TenantId): Promise<MailboxRow | null> {
   const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`mailbox: ${error.message}`);
   return data;
@@ -274,7 +275,7 @@ export interface InboundEmailFacts {
  */
 export async function findLastInboundEmail(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
 ): Promise<InboundEmailFacts | null> {
   const { data, error } = await db
@@ -312,7 +313,7 @@ export async function findLastInboundEmail(
  */
 export async function findLastOutboundEmailSubject(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
 ): Promise<string | null> {
   const { data, error } = await db
@@ -340,7 +341,7 @@ const ANSWERED_LOOKBACK = 50;
  */
 export async function findAnsweredReachOutEmail(
   db: Db,
-  params: { tenantId: string; conversationId: string; references: string[] },
+  params: { tenantId: TenantId; conversationId: string; references: string[] },
 ): Promise<{ messageId: string; from: string | null; replyTo: string | null } | null> {
   const { data, error } = await db
     .from("messages")
@@ -380,7 +381,7 @@ export async function findAnsweredReachOutEmail(
  */
 export async function stampEmailSent(
   db: Db,
-  params: { tenantId: string; messageId: string; providerId: string; rfcMessageId: string | null },
+  params: { tenantId: TenantId; messageId: string; providerId: string; rfcMessageId: string | null },
 ): Promise<{ status: string; conversationId: string } | null> {
   const { data, error } = await db.rpc("stamp_email_sent", {
     p_tenant_id: params.tenantId,
@@ -400,7 +401,7 @@ export async function stampEmailSent(
  */
 export async function stampEmailLeftAs(
   db: Db,
-  params: { tenantId: string; messageId: string; leftAs: "own" | "mailbox"; why: string | null },
+  params: { tenantId: TenantId; messageId: string; leftAs: "own" | "mailbox"; why: string | null },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("stamp_email_left_as", {
     p_tenant_id: params.tenantId,
@@ -419,7 +420,7 @@ export async function stampEmailLeftAs(
  */
 export async function findSentEmail(
   db: Db,
-  params: { tenantId: string; messageId: string },
+  params: { tenantId: TenantId; messageId: string },
 ): Promise<{ request: unknown | null; leadId: string | null } | null> {
   const { data, error } = await db
     .from("messages")
@@ -442,7 +443,7 @@ export async function findSentEmail(
  */
 export async function stampEmailComplaint(
   db: Db,
-  params: { tenantId: string; messageId: string; at: string },
+  params: { tenantId: TenantId; messageId: string; at: string },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("stamp_email_complaint", {
     p_tenant_id: params.tenantId,
@@ -461,8 +462,8 @@ export async function stampEmailComplaint(
  */
 export async function recordEmailNo(
   db: Db,
-  params: { tenantId: string; messageId: string; source: "complaint" },
-): Promise<{ contactId: string | null; from: string | null }> {
+  params: { tenantId: TenantId; messageId: string; source: "complaint" },
+): Promise<{ contactId: ContactId | null; from: string | null }> {
   const { data, error } = await db
     .from("messages")
     .select("contact_id, meta")
@@ -496,7 +497,7 @@ export async function recordEmailNo(
  */
 export async function recordEmailStatus(
   db: Db,
-  params: { tenantId: string; messageId: string; status: "delivered" | "failed"; error: Json | null },
+  params: { tenantId: TenantId; messageId: string; status: "delivered" | "failed"; error: Json | null },
 ): Promise<void> {
   const { error } = await db
     .from("messages")
@@ -518,7 +519,7 @@ export async function recordEmailStatus(
 export async function suppressEmailOf(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     messageId: string;
     addresses: string[];
     reason: "hard_bounce" | "complaint" | "provider";
@@ -555,7 +556,7 @@ export async function suppressEmailOf(
  */
 async function settleUnknownEmail(
   db: Db,
-  params: { tenantId: string; id: string },
+  params: { tenantId: TenantId; id: string },
   patch: Database["public"]["Tables"]["messages"]["Update"],
 ): Promise<boolean> {
   const { data, error } = await db
@@ -574,7 +575,7 @@ async function settleUnknownEmail(
 export async function getEmailFoundSent(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     id: string;
     mailboxId: string;
     providerId: string;
@@ -596,7 +597,7 @@ export async function getEmailFoundSent(
 /** Not in what the mailbox sent: it never left, so the reach-out clock plans its send again (clock.ts neverLeft). */
 export async function getEmailNeverLeft(
   db: Db,
-  params: { tenantId: string; id: string; note: string },
+  params: { tenantId: TenantId; id: string; note: string },
 ): Promise<boolean> {
   return settleUnknownEmail(db, params, { error: { reason: "never_delivered", note: params.note.slice(0, 200) } });
 }

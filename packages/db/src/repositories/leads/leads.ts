@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
-import type { LeadViewCountsDto } from "@chanlytics/contracts";
+import type { LeadViewCountsDto, TenantId, ContactId } from "@chanlytics/contracts";
 import { readAllRows } from "../../shared/paged";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
 
@@ -75,7 +75,7 @@ function memberOf(data: Json | null): LeadOneMember | null {
  */
 export async function readLeadOne(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   leadId: string,
   searchId?: string,
 ): Promise<{ lead: LeadOneLead; member: LeadOneMember; places: number } | null> {
@@ -123,7 +123,7 @@ const statusCountsOf = (options: {
  */
 export async function getLeadViewCounts(
   db: Db,
-  params: { tenantId: string; searchId: string | null; cls: string | null; list: string; filters: Json | null },
+  params: { tenantId: TenantId; searchId: string | null; cls: string | null; list: string; filters: Json | null },
 ): Promise<LeadViewCountsDto> {
   const { data, error } = await db.rpc("lead_view_counts", {
     p_tenant_id: params.tenantId,
@@ -152,7 +152,7 @@ export async function getLeadViewCounts(
  * What a workspace's searches found and what came of their leads, with where it is (lead_suggest_history, 00398): the
  * jsonb as it comes, which contracts' ideaHistoryOf narrows. The service's read alone: the route checked the member.
  */
-export async function readIdeaHistory(db: Db, tenantId: string): Promise<Json> {
+export async function readIdeaHistory(db: Db, tenantId: TenantId): Promise<Json> {
   const { data, error } = await db.rpc("lead_suggest_history", { p_tenant_id: tenantId });
   if (error) throw new Error(`lead_suggest_history: ${error.message}`);
   return data;
@@ -180,7 +180,7 @@ async function writeIdeas(db: Db, args: IdeasWriteArgs): Promise<Record<string, 
  * The claim on writing a workspace's ideas (00398, 00400): the claim's own moment, which keepIdeas and failIdeas take
  * back, or null while another read writes them.
  */
-export async function claimIdeas(db: Db, tenantId: string, line: string): Promise<string | null> {
+export async function claimIdeas(db: Db, tenantId: TenantId, line: string): Promise<string | null> {
   const result = await writeIdeas(db, { p_tenant_id: tenantId, p_act: "claim", p_line: line });
   return typeof result.claim === "string" && result.claim ? result.claim : null;
 }
@@ -189,7 +189,7 @@ export async function claimIdeas(db: Db, tenantId: string, line: string): Promis
  * Keeps the ideas written under a claim, while the claim stands (00399, 00400): false when it was let go meanwhile (the
  * owner saved a line, or a slower write was taken over), and nothing is written.
  */
-export async function keepIdeas(db: Db, tenantId: string, claim: string, row: IdeasKept): Promise<boolean> {
+export async function keepIdeas(db: Db, tenantId: TenantId, claim: string, row: IdeasKept): Promise<boolean> {
   const result = await writeIdeas(db, {
     p_tenant_id: tenantId,
     p_act: "keep",
@@ -205,7 +205,7 @@ export async function keepIdeas(db: Db, tenantId: string, claim: string, row: Id
 }
 
 /** The model would not write them under this claim: the claim let go, and the next reads say so for a while. */
-export async function failIdeas(db: Db, tenantId: string, claim: string): Promise<void> {
+export async function failIdeas(db: Db, tenantId: TenantId, claim: string): Promise<void> {
   await writeIdeas(db, { p_tenant_id: tenantId, p_act: "fail", p_claim: claim });
 }
 
@@ -213,7 +213,7 @@ export async function failIdeas(db: Db, tenantId: string, claim: string): Promis
  * The owner's own words for what they do (00400, act line): kept with no ideas and no basis, so the next read asks
  * again; the owner's word clears any claim, so a write in flight finds its claim gone.
  */
-export async function saveIdeasLine(db: Db, tenantId: string, line: string): Promise<void> {
+export async function saveIdeasLine(db: Db, tenantId: TenantId, line: string): Promise<void> {
   await writeIdeas(db, { p_tenant_id: tenantId, p_act: "line", p_line: line });
 }
 
@@ -221,7 +221,7 @@ export async function saveIdeasLine(db: Db, tenantId: string, line: string): Pro
  * New ideas (00470, act again): the same line written again, so the next write asks the model, with the ideas shown
  * kept to be passed on (ideaPassed), so the four it writes are new ones. Like a line, it clears any claim.
  */
-export async function askForIdeasAgain(db: Db, tenantId: string): Promise<void> {
+export async function askForIdeasAgain(db: Db, tenantId: TenantId): Promise<void> {
   await writeIdeas(db, { p_tenant_id: tenantId, p_act: "again" });
 }
 
@@ -232,7 +232,7 @@ export async function askForIdeasAgain(db: Db, tenantId: string): Promise<void> 
  */
 export async function findIdeasClockAndLanguage(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ timezone: string | null; locale: string | null } | null> {
   const { data, error } = await db.from("tenants").select("timezone, locale").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(`tenants: ${error.message}`);
@@ -243,7 +243,7 @@ export async function findIdeasClockAndLanguage(
  * When the workspace's newest round ended, or null when none has: what its ideas are written over (lead_suggestions.basis),
  * so a round that ends since asks for new ones. Read on the member's session: rounds are a member's to read.
  */
-export async function findIdeasBasis(db: Db, tenantId: string): Promise<string | null> {
+export async function findIdeasBasis(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db
     .from("lead_rounds")
     .select("ended_at")
@@ -300,7 +300,7 @@ export async function keepLeadPrices(db: Db, prices: LeadPricesSeen, at: Date): 
  */
 export async function createLeadPeopleSearch(
   db: Db,
-  params: { tenantId: string; plan: Json; via: "people" | "ask"; estimateUsd: number; threadId: string | null },
+  params: { tenantId: TenantId; plan: Json; via: "people" | "ask"; estimateUsd: number; threadId: string | null },
 ): Promise<{ search_id?: string; round_id?: string; error?: string; sentence?: string }> {
   const { data, error } = await db.rpc("lead_people_search_create", {
     p_tenant_id: params.tenantId,
@@ -373,7 +373,7 @@ export interface IdeaCustomerRows {
   /** Each lead kept: its kind (the listing's category, or a company's industry) and its stage. */
   leads: { id: string; category: string | null; stage: string }[];
   /** Each deal won, standing or since ended: what it was for, and the lead or person it was with. */
-  deals: { service: string | null; lead_id: string | null; contact_id: string | null }[];
+  deals: { service: string | null; lead_id: string | null; contact_id: ContactId | null }[];
 }
 
 /**
@@ -382,7 +382,7 @@ export interface IdeaCustomerRows {
  * ideas are written rarely (a month, a round, a press), so a whole read is affordable; a read that fails THROWS, and the
  * ideas are written without it.
  */
-export async function getIdeaCustomerRows(db: Db, tenantId: string): Promise<IdeaCustomerRows> {
+export async function getIdeaCustomerRows(db: Db, tenantId: TenantId): Promise<IdeaCustomerRows> {
   const [contacts, leads, deals] = await Promise.all([
     readAllRows<{ id: string; acquired_via: string | null; lead_id: string | null }>("contacts", (from, to) =>
       db
@@ -403,7 +403,7 @@ export async function getIdeaCustomerRows(db: Db, tenantId: string): Promise<Ide
         .order("id")
         .range(from, to),
     ),
-    readAllRows<{ id: string; service: string | null; lead_id: string | null; contact_id: string | null }>(
+    readAllRows<{ id: string; service: string | null; lead_id: string | null; contact_id: ContactId | null }>(
       "deals",
       (from, to) =>
         db
@@ -427,7 +427,7 @@ export async function getIdeaCustomerRows(db: Db, tenantId: string): Promise<Ide
  * says trialing, else the month's. The Leads page and the plan card read it beside what the month has taken, so the
  * number left is the one lead_reserve holds. A read that fails throws: "we could not check" is not a whole month.
  */
-export async function getLeadAllowance(db: Db, tenantId: string): Promise<number> {
+export async function getLeadAllowance(db: Db, tenantId: TenantId): Promise<number> {
   const { data, error } = await db.rpc("lead_allowance", { p_tenant_id: tenantId });
   if (error) throw new Error(`lead_allowance: ${error.message}`);
   const n = typeof data === "number" ? data : Number(data);
@@ -442,7 +442,7 @@ export async function getLeadAllowance(db: Db, tenantId: string): Promise<number
  */
 export async function recordLeadSiteReadsSpent(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   roundId: string | null,
   reads: number,
   usd: number,
@@ -459,7 +459,7 @@ export async function recordLeadSiteReadsSpent(
 /** A lead with a site and no copy of its mark yet (00161), as the leads sweep tries it again. */
 interface LeadToMark {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   website_host: string;
   logo_url: string | null;
 }
@@ -497,7 +497,7 @@ export async function listLeadsUnmarked(db: Db, from: Date, until: Date, limit: 
  */
 export async function keepLeadMark(
   db: Db,
-  message: { id: string; tenantId: string; had: string | null; logoUrl: string | null; markPath: string },
+  message: { id: string; tenantId: TenantId; had: string | null; logoUrl: string | null; markPath: string },
 ): Promise<boolean> {
   const patch = message.had
     ? { mark_path: message.markPath }
