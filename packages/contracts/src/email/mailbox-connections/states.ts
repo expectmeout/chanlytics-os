@@ -47,13 +47,16 @@ export function mailboxSendsNow(message: { state: string; resting_until: string 
   return message.state === "connected" && (!message.resting_until || Date.parse(message.resting_until) <= nowMs);
 }
 
+/** A mailbox still on the workspace, in whatever state: every one but one its owner removed. */
+export const mailboxIsLive = (mailbox: { state: string }): boolean => mailbox.state !== "removed";
+
 /**
  * Whether a reach-out's step writes from this mailbox (00424): one the step names, or any of the workspace's when it
  * names none, while it is not removed. The run's timetable, its replan and the chain's row share this one reading, so
  * a row never names a mailbox the run would not write from. Whether it sends today is the mailbox's day's to say.
  */
 export function reachOutWritesFrom(message: { id: string; state: string }, named: readonly string[]): boolean {
-  return message.state !== "removed" && (named.length === 0 || named.includes(message.id));
+  return mailboxIsLive(message) && (named.length === 0 || named.includes(message.id));
 }
 
 /* ------------------------------------------------------------------------------------------------- the page's row */

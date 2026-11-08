@@ -9,6 +9,7 @@ import {
   MAILBOX_PROVIDER_WORDS,
   SPF_RECORDS_JOIN,
   heldSince,
+  mailboxIsLive,
   mailboxWords,
   type MailboxConnectionDto,
   type MailboxDnsRecord,
@@ -210,7 +211,7 @@ export function mailboxActs(mailboxConnection: Pick<MailboxConnectionDto, "state
     pause: mailboxConnection.state === "connected",
     unpause: mailboxConnection.state === "paused",
     test: mailboxConnection.state === "connected" || mailboxConnection.state === "paused",
-    remove: mailboxConnection.state !== "removed",
+    remove: mailboxIsLive(mailboxConnection),
   };
 }
 

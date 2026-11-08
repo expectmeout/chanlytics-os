@@ -10,10 +10,10 @@ import {
   REACH_OUT_FIRST_WORDS,
   openingSystemPrompt,
   openingToldParts,
-  openingUserContent,
+  openingUserLines,
+  openingWorkspaceOf,
   parseTenantConfig,
   reachOutExampleRecord,
-  reachOutToneOf,
   toldPart,
   type ReachOutToldDto,
 } from "@chanlytics/contracts";
@@ -35,7 +35,7 @@ async function wordsTold(rc: ReaderContext): Promise<ReachOutToldDto> {
   return { kind: "words", parts: [toldPart("rules", draftRules(known.previews === true)), ...parts] };
 }
 
-/** The opening writer's prompt for one business, cut into its parts by its lines' labels. */
+/** The opening writer's prompt for one business, by its parts. */
 async function openingTold(rc: ReaderContext): Promise<ReachOutToldDto> {
   const [named, stored, about, chains] = await Promise.all([
     load(rc, facts.facts, undefined),
@@ -45,16 +45,12 @@ async function openingTold(rc: ReaderContext): Promise<ReachOutToldDto> {
   ]);
   const config = parseTenantConfig(stored);
   const words = newestLeadSequence(chains)?.first ?? REACH_OUT_FIRST_WORDS;
-  const user = openingUserContent({
+  const lines = openingUserLines({
     record: reachOutExampleRecord(),
-    workspace: {
-      name: named.data.name,
-      what_we_do: config?.reach_out?.offer?.trim() || about,
-      tone: reachOutToneOf(config),
-    },
+    workspace: openingWorkspaceOf(named.data.name, config, about),
     words,
   });
-  return { kind: "opening", parts: openingToldParts(openingSystemPrompt(), user) };
+  return { kind: "opening", parts: openingToldParts(openingSystemPrompt(), lines) };
 }
 
 /** GET settings/reach-out/told: the words' writer's or the opening's, as composed for this workspace now. */

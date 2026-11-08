@@ -8,6 +8,7 @@ import { z } from "zod";
 import { ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask";
 import { ASK_CONTEXT_ROW_KINDS, ASK_CONTEXT_MAX_ROWS } from "./context";
 import { ASK_GOAL_MAX, PROFILE_LIMITS, REACH_OUT_LIMITS, REPLY_OFFERS } from "../config/workspace-config/config-rules";
+import { REACH_OUT_REFUSAL_WORDS, reachOutSignatureProblem } from "../config/workspace-config/reach-out-schema";
 import { whyNotAHandoff } from "../shared/phone";
 import { phoneVoiceOf } from "../voice/phone-voices";
 import { PHONE_PACES } from "../voice/phone-pace";
@@ -129,7 +130,13 @@ export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("remove_claim"), claim: z.string().trim().min(1).max(REACH_OUT_LIMITS.claim) }),
   z.object({ op: z.literal("set_cold_tone"), tone: z.string().max(REACH_OUT_LIMITS.tone) }),
   z.object({ op: z.literal("set_signed_by"), name: z.string().max(REACH_OUT_LIMITS.signedBy) }),
-  z.object({ op: z.literal("set_signature"), signature: z.string().max(REACH_OUT_LIMITS.signature) }),
+  z.object({
+    op: z.literal("set_signature"),
+    signature: z
+      .string()
+      .max(REACH_OUT_LIMITS.signature)
+      .refine((s) => reachOutSignatureProblem(s) === null, REACH_OUT_REFUSAL_WORDS.signature),
+  }),
   z.object({ op: z.literal("set_reply_offer"), offer: z.enum(REPLY_OFFERS) }),
   // The booking link a sequence to leads' step names (the lead-to-sequence canvas): a web address, or empty to clear it.
   z.object({

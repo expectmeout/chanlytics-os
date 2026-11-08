@@ -32,6 +32,19 @@ const isTime = (n: { before: string; after: string }): boolean =>
   n.before === ":" || n.after.startsWith(":") || TIME_AFTER.test(n.after);
 
 /**
+ * What may back a number in words Ask writes: each claim the owner stands behind, the business's name, and what this
+ * writing was asked from, the line typed into New, the email being written again, a lead's facts: words the owner or the
+ * record already said.
+ */
+export function numberBacking(
+  claims: readonly string[] | null | undefined,
+  business: string,
+  also: readonly (string | null | undefined)[] = [],
+): string[] {
+  return [...(claims ?? []), business, ...also].flatMap((text) => text?.trim() || []);
+}
+
+/**
  * The numbers in a step's words that nothing backs, each once, as written, in order. The slots are taken out first, so a
  * number a slot fills in is never the words' own.
  */
