@@ -41,6 +41,7 @@ import type { Database, Json } from "../../../types";
 import { mailboxCapacityFrom, type MailboxCapacity } from "./email-day";
 import { getErasureDigests } from "../../people/pages";
 import { isMissingFunction } from "../../../shared/missing-door";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -68,8 +69,8 @@ export interface OutreachFactsRow {
 export async function getOutreachFacts(
   db: Db,
   params: {
-    tenantId: string;
-    contactId: string;
+    tenantId: TenantId;
+    contactId: ContactId;
     to: string;
     /** The From address of the frozen request: which of the workspace's mailboxes it leaves from. */
     from: string;
@@ -120,7 +121,7 @@ export async function getOutreachFacts(
  * read as the finder read it before (the keyed digest 00140's lead_suppression_hash writes), so the edge may deploy
  * first.
  */
-export async function getAddressesSuppressed(db: Db, tenantId: string, addresses: string[]): Promise<Set<string>> {
+export async function getAddressesSuppressed(db: Db, tenantId: TenantId, addresses: string[]): Promise<Set<string>> {
   const items = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter((a) => a !== ""))];
   if (!items.length) return new Set();
   const { data, error } = await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenantId, p_addresses: items });
@@ -130,7 +131,7 @@ export async function getAddressesSuppressed(db: Db, tenantId: string, addresses
 }
 
 /** The list as a database before 00220 holds it for addresses: each one's own email row. */
-async function addressesHeldBefore00220(db: Db, tenantId: string, texts: string[]): Promise<Set<string>> {
+async function addressesHeldBefore00220(db: Db, tenantId: TenantId, texts: string[]): Promise<Set<string>> {
   const byHash = new Map([...(await getErasureDigests(db, tenantId, texts))].map(([a, h]) => [h, a]));
   const { data, error } = await db
     .from("lead_suppressions")
@@ -165,7 +166,7 @@ export interface ReachOutReplyOf {
   tz: string | null;
   conversation_id: string;
   /** Who wrote: the person the intake kept the message under. */
-  contact_id: string | null;
+  contact_id: ContactId | null;
   claim: "person" | "automated" | "auto_reply";
   /** The intake's bare sender address (channels addressOf), never a display-name form. */
   from: string | null;
@@ -192,7 +193,7 @@ const textOf = (v: unknown): string | null => (typeof v === "string" && v !== ""
  */
 export async function findReachOutReply(
   db: Db,
-  params: { tenantId: string; messageId: string; days: number },
+  params: { tenantId: TenantId; messageId: string; days: number },
 ): Promise<ReachOutReplyOf | null> {
   const { data, error } = await db.rpc("reach_out_reply_of", {
     p_tenant_id: params.tenantId,
@@ -258,7 +259,7 @@ export interface ReplyReadingRow {
 /** The reading kept for this message, if any. A read that fails throws. */
 export async function replyReadingOf(
   db: Db,
-  params: { tenantId: string; messageId: string },
+  params: { tenantId: TenantId; messageId: string },
 ): Promise<ReplyReadingRow | null> {
   const { data, error } = await db
     .from("sequence_replies")
@@ -279,7 +280,7 @@ export async function replyReadingOf(
 export async function markReplyDraft(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     messageId: string;
     state: "waiting" | "written" | "not_written";
     draft: string | null;
@@ -299,7 +300,7 @@ export async function markReplyDraft(
 }
 
 /** One read of the workspace's UTC day, taken if it is under `cap` (00222 reach_out_read_take): true when taken. */
-export async function takeReplyRead(db: Db, params: { tenantId: string; cap: number; at: Date }): Promise<boolean> {
+export async function takeReplyRead(db: Db, params: { tenantId: TenantId; cap: number; at: Date }): Promise<boolean> {
   const { data, error } = await db.rpc("reach_out_read_take", {
     p_tenant_id: params.tenantId,
     p_cap: params.cap,
@@ -315,7 +316,7 @@ export async function takeReplyRead(db: Db, params: { tenantId: string; cap: num
  */
 export async function applyReplyReading(
   db: Db,
-  params: { tenantId: string; messageId: string; reading: Json; plan: Json; reread: number; days: number },
+  params: { tenantId: TenantId; messageId: string; reading: Json; plan: Json; reread: number; days: number },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("reach_out_reply_apply", {
     p_tenant_id: params.tenantId,
@@ -336,7 +337,7 @@ export async function applyReplyReading(
  */
 export async function claimReplyTell(
   db: Db,
-  params: { tenantId: string; messageId: string; staleBefore: Date },
+  params: { tenantId: TenantId; messageId: string; staleBefore: Date },
 ): Promise<string | null> {
   const { data, error } = await db.rpc("reach_out_reply_tell_claim", {
     p_tenant_id: params.tenantId,
@@ -353,7 +354,7 @@ export async function claimReplyTell(
  */
 export async function markReplyTold(
   db: Db,
-  params: { tenantId: string; messageId: string; claim: string },
+  params: { tenantId: TenantId; messageId: string; claim: string },
 ): Promise<void> {
   const { error } = await db.rpc("reach_out_reply_told", {
     p_tenant_id: params.tenantId,
@@ -375,7 +376,7 @@ export async function markReplyTold(
  */
 export async function resolveEscalationByReason(
   db: Db,
-  params: { tenantId: string; conversationId: string; reason: SchemaSet<"escalations.reason"> },
+  params: { tenantId: TenantId; conversationId: string; reason: SchemaSet<"escalations.reason"> },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("escalations")
@@ -396,7 +397,7 @@ export async function resolveEscalationByReason(
  */
 export async function archiveConversation(
   db: Db,
-  params: { tenantId: string; conversationId: string },
+  params: { tenantId: TenantId; conversationId: string },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("conversations")
@@ -443,7 +444,7 @@ const REPLY_LIST_COLUMNS =
  */
 export async function listRepliesFor(
   db: Db,
-  params: { tenantId: string; since: string; conversationId?: string | null; limit: number },
+  params: { tenantId: TenantId; since: string; conversationId?: string | null; limit: number },
 ): Promise<ReplyListRow[]> {
   let query = db
     .from("sequence_replies")
@@ -480,7 +481,10 @@ export async function listRepliesFor(
 }
 
 /** A reading by its message, on the caller's client: the row a member's undo acts on. Null when RLS hides it. */
-export async function replyReadingRefOf(db: Db, messageId: string): Promise<{ id: string; tenant_id: string } | null> {
+export async function replyReadingRefOf(
+  db: Db,
+  messageId: string,
+): Promise<{ id: string; tenant_id: TenantId } | null> {
   const { data, error } = await db
     .from("sequence_replies")
     .select("message_id, tenant_id")
@@ -506,7 +510,7 @@ export async function undoReplyReading(db: Db, messageId: string): Promise<Json>
 
 /** A workspace whose 6 PM it is, with the day's reach-out numbers (00241 reach_out_day_due). */
 export interface ReachOutDayDue {
-  tenant_id: string;
+  tenant_id: TenantId;
   /** The workspace's own day, "2026-09-28". */
   day: string;
   numbers: { written: number; wrote_back: number; interested: number; said_no: number; bounced: number; held: number };

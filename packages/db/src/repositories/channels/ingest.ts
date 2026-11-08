@@ -20,11 +20,12 @@ import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
 import { dbLog } from "../../shared/observe";
 import { noChannelColumns, noRelationshipColumn } from "../campaigns/channels";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 export interface IngestInboundParams {
-  tenantId: string;
+  tenantId: TenantId;
   channel: "whatsapp" | "sms" | "email" | "instagram";
   identityExternalId: string;
   phoneE164: string | null;
@@ -73,7 +74,7 @@ export class AnswerNotKept extends Error {
 export interface IngestResult {
   message_id: string;
   conversation_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   is_new: boolean;
   processed: boolean;
   state: string;
@@ -178,7 +179,7 @@ export async function ingestInbound(db: Db, inboundParams: IngestInboundParams):
 async function answerKept(
   db: Db,
   inboundParams: IngestInboundParams,
-  contactId: string,
+  contactId: ContactId,
   purpose: "conversational" | "marketing",
 ): Promise<boolean> {
   const request = db
@@ -258,7 +259,7 @@ async function keepOffersYes(db: Db, inboundParams: IngestInboundParams, out: In
 
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
  *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
-export async function markProcessed(db: Db, tenantId: string, messageId: string): Promise<void> {
+export async function markProcessed(db: Db, tenantId: TenantId, messageId: string): Promise<void> {
   const { error } = await db.rpc("mark_processed", {
     p_tenant_id: tenantId,
     p_message_id: messageId,
@@ -275,7 +276,7 @@ export async function markProcessed(db: Db, tenantId: string, messageId: string)
  */
 export async function stampHandled(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   messageId: string,
   handled: Handled,
   intent: BrainIntent | null,
@@ -292,9 +293,9 @@ export async function stampHandled(
 export async function recordOutbound(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
-    contactId: string | null;
+    contactId: ContactId | null;
     sender: "ai" | "human" | "system";
     type?: "text" | "template" | "note";
     body: string;
@@ -357,7 +358,7 @@ export async function recordOutbound(
  */
 export async function getOrCreateContact(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   phoneE164: string,
 ): Promise<{ id: string; consent: string; dnc: boolean; marketing_consent: string }> {
   const created = await resolvePerson(db, {
@@ -383,7 +384,7 @@ export async function getOrCreateContact(
  * comment's: this row can be handed to `mayMessageFor` whole.
  */
 export interface OutboundTarget extends PurposeBearing {
-  contactId: string;
+  contactId: ContactId;
   conversationId: string;
   /** 'unknown' | 'opted_in' | 'opted_out' — carried so no caller can send
    *  without having been handed the consent state. */
@@ -425,7 +426,7 @@ export interface OutboundTarget extends PurposeBearing {
  */
 export async function resolveOutboundTarget(
   db: Db,
-  params: { tenantId: string; phoneE164: string; create?: boolean; touch?: boolean },
+  params: { tenantId: TenantId; phoneE164: string; create?: boolean; touch?: boolean },
 ): Promise<OutboundTarget | null> {
   // normalizePhone, not a hand-rolled "+" prefix: contacts are keyed on FULL
   // international digits, and a caller that hands us a national-format number
@@ -476,7 +477,7 @@ type OutboundContact = { id: string; consent: string; dnc: boolean; marketing_co
  */
 async function threadOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   contact: OutboundContact,
   touch: boolean | undefined,
 ): Promise<OutboundTarget> {
@@ -518,7 +519,7 @@ async function threadOf(
  */
 export async function resolveOutboundTargetForContact(
   db: Db,
-  params: { tenantId: string; contactId: string; touch?: boolean },
+  params: { tenantId: TenantId; contactId: ContactId; touch?: boolean },
 ): Promise<OutboundTarget | null> {
   const first = await db
     .from("contacts")
@@ -553,7 +554,10 @@ export async function resolveOutboundTargetForContact(
  * again without them, a yes then covers WhatsApp alone and no relationship is on record, as before them: code that ships
  * before its migration must keep every reply, answer and booking link going.
  */
-export async function findWireRow(db: Db, params: { tenantId: string; conversationId: string; relationship: boolean }) {
+export async function findWireRow(
+  db: Db,
+  params: { tenantId: TenantId; conversationId: string; relationship: boolean },
+) {
   const head =
     "paused_until, control_kind, control_ref, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
   const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
@@ -580,7 +584,7 @@ export async function findWireRow(db: Db, params: { tenantId: string; conversati
  */
 export async function countSentToday(
   db: Db,
-  params: { tenantId: string; conversationId: string; source: string },
+  params: { tenantId: TenantId; conversationId: string; source: string },
 ): Promise<number> {
   const since = new Date(Date.now() - 24 * HOUR_MS).toISOString();
   const { count, error } = await db
@@ -603,7 +607,7 @@ export async function countSentToday(
  */
 export async function linkSentOnCall(
   db: Db,
-  params: { tenantId: string; conversationId: string; source: string; callId: string },
+  params: { tenantId: TenantId; conversationId: string; source: string; callId: string },
 ): Promise<boolean> {
   const { count, error } = await db
     .from("messages")
@@ -620,7 +624,7 @@ export async function linkSentOnCall(
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
 export async function recordStatusByExternalId(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   externalId: string,
   status: "sent" | "delivered" | "read" | "failed",
   errorDetail?: Json,
@@ -639,7 +643,7 @@ export async function recordStatusByExternalId(
  * reports a failure needs to know before it moves the row (core raiseLateFailure). Null when none carries the id: a
  * receipt for history we never wrote. A read that fails THROWS.
  */
-export async function findMessageByExternalId(db: Db, tenantId: string, externalId: string) {
+export async function findMessageByExternalId(db: Db, tenantId: TenantId, externalId: string) {
   const { data, error } = await db
     .from("messages")
     .select("id, conversation_id, direction, sender, status, meta")
@@ -664,7 +668,7 @@ export async function findMessageByExternalId(db: Db, tenantId: string, external
  * answer standing. A refusal throws with the database's words; the receipt door that calls it catches that and logs it,
  * so a cost never costs a receipt. Answers whether a row was written.
  */
-export async function keepMessageCost(db: Db, tenantId: string, externalId: string, pricing: Json): Promise<boolean> {
+export async function keepMessageCost(db: Db, tenantId: TenantId, externalId: string, pricing: Json): Promise<boolean> {
   const { data, error } = await db.rpc("message_keep_cost", {
     p_tenant_id: tenantId,
     p_external_id: externalId,
@@ -693,7 +697,7 @@ export async function keepMessageCost(db: Db, tenantId: string, externalId: stri
  */
 export async function pauseConversation(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   pausedUntilIso: string,
   /** The holding message this same handoff queued, which the pause must not withdraw. */

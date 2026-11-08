@@ -7,12 +7,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type ChannelUpdate = Database["public"]["Tables"]["tenant_channels"]["Update"];
 
 /** The workspace's oldest active WhatsApp number's row and its business account. */
-export const findWhatsAppAccount = async (db: Db, tenantId: string) =>
+export const findWhatsAppAccount = async (db: Db, tenantId: TenantId) =>
   db
     .from("tenant_channels")
     .select("id, waba_id")
@@ -34,19 +35,19 @@ export const listNumbersOfWaba = async (db: Db, wabaId: string) =>
     .order("created_at", { ascending: true });
 
 /** One of the workspace's channels' config. */
-export const findChannelConfig = async (db: Db, tenantId: string, channelId: string) =>
+export const findChannelConfig = async (db: Db, tenantId: TenantId, channelId: string) =>
   db.from("tenant_channels").select("config").eq("id", channelId).eq("tenant_id", tenantId).maybeSingle();
 
 /** One of the workspace's channels changed. */
-export const patchChannelRow = async (db: Db, tenantId: string, channelId: string, set: ChannelUpdate) =>
+export const patchChannelRow = async (db: Db, tenantId: TenantId, channelId: string, set: ChannelUpdate) =>
   db.from("tenant_channels").update(set).eq("id", channelId).eq("tenant_id", tenantId);
 
 /** One of the workspace's channels switched on or off, its id back: none when the row is not the workspace's. */
-export const setChannelStatus = async (db: Db, tenantId: string, channelId: string, status: "active" | "disabled") =>
+export const setChannelStatus = async (db: Db, tenantId: TenantId, channelId: string, status: "active" | "disabled") =>
   db.from("tenant_channels").update({ status }).eq("id", channelId).eq("tenant_id", tenantId).select("id");
 
 /** The workspace's own row for a WhatsApp number written over, its id back: none when it holds no row for it. */
-export const patchWhatsAppNumberRow = async (db: Db, tenantId: string, phoneNumberId: string, set: ChannelUpdate) =>
+export const patchWhatsAppNumberRow = async (db: Db, tenantId: TenantId, phoneNumberId: string, set: ChannelUpdate) =>
   db
     .from("tenant_channels")
     .update(set)
@@ -59,7 +60,7 @@ export const patchWhatsAppNumberRow = async (db: Db, tenantId: string, phoneNumb
 /** A new channel row for the workspace, its id back: the database keeps a number on one row (23505 for a second). */
 export const insertChannelRow = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   row: Database["public"]["Tables"]["tenant_channels"]["Insert"],
 ) => tenantDb(db, tenantId).from("tenant_channels").insert(row).select("id").single();
 
@@ -101,7 +102,7 @@ export const listSendsWithoutReceipt = async (db: Db, quietSince: string, watche
   ]);
 
 /** One of the workspace's WhatsApp sends that heard a receipt (delivered, read or failed) after `since`, or none. */
-export const findReceiptSince = async (db: Db, tenantId: string, since: string) =>
+export const findReceiptSince = async (db: Db, tenantId: TenantId, since: string) =>
   db
     .from("messages")
     .select("id")

@@ -23,6 +23,7 @@ import {
   type SchemaSet,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -79,7 +80,7 @@ type _MessageVersionRowIsACampaignMessageRow = Holds<Within<MessageVersionRow, C
  */
 export async function listTemplates(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   channel: SchemaSet<"templates.channel"> | null = "whatsapp",
 ): Promise<Array<TemplateRow & Pick<MessageVersionRow, "id" | "channel">>> {
   const ofTenant = db
@@ -99,7 +100,7 @@ export async function listTemplates(
  */
 export async function listTemplatesToSend(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   channel: SchemaSet<"templates.channel"> = "whatsapp",
 ): Promise<TemplateToSend[]> {
   const { data, error } = await db
@@ -118,7 +119,7 @@ export async function listTemplatesToSend(
  */
 export async function findMessageSlots(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   name: string,
   language: string,
 ): Promise<number | null> {
@@ -132,7 +133,7 @@ export async function findMessageSlots(
  */
 export async function findHeldMessage(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   name: string,
   language: string,
 ): Promise<{ category: string | null; slots: number } | null> {
@@ -153,7 +154,7 @@ export async function findHeldMessage(
 /** The name and language of the message a version of this workspace's is, or null when it holds no version of that id. */
 async function messageOfVersion(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
 ): Promise<{ name: string; language: string } | null> {
   const { data, error } = await db
@@ -179,7 +180,7 @@ const MESSAGE_COLUMNS =
  */
 export async function listMessageVersionRows(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   by: { id: string } | { name: string; language: string },
 ): Promise<MessageVersionRow[]> {
   const message = "id" in by ? await messageOfVersion(db, tenantId, by.id) : by;
@@ -197,7 +198,7 @@ export async function listMessageVersionRows(
 /** The email and text versions of these messages the workspace holds: each one's channel, name and language. */
 export async function listOwnVersionsFiled(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   names: string[],
 ): Promise<Array<Pick<VersionRef, "channel" | "name" | "language">>> {
   if (names.length === 0) return [];
@@ -241,7 +242,7 @@ function versionRefOf(data: unknown): VersionRef | null {
 export async function saveTemplateVersion(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     name: string;
     language: string;
     channel: OwnVersionChannel;
@@ -283,7 +284,7 @@ export type MessageVariable = { position: number; label: string; example: string
 export async function createMessageVersion(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     userId: string;
     name: string;
     language: string;
@@ -323,7 +324,12 @@ export async function removeTemplateVersion(db: Db, templateId: string): Promise
 }
 
 /** The id of the WhatsApp template this workspace already holds under a name and a language, or null when none. */
-export async function findTemplateId(db: Db, tenantId: string, name: string, language: string): Promise<string | null> {
+export async function findTemplateId(
+  db: Db,
+  tenantId: TenantId,
+  name: string,
+  language: string,
+): Promise<string | null> {
   const { data, error } = await db
     .from("templates")
     .select("id")
@@ -339,7 +345,7 @@ export async function findTemplateId(db: Db, tenantId: string, name: string, lan
 /** The WhatsApp templates this workspace holds under any of these names, with where each stands at Meta. */
 export async function listTemplatesNamed(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   names: string[],
 ): Promise<{ name: string; language: string; meta_status: string | null }[]> {
   const { data, error } = await db
@@ -355,7 +361,7 @@ export async function listTemplatesNamed(
 /** Where one WhatsApp template stands at Meta, by name and language; null when the workspace holds none. */
 export async function findTemplateStatus(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   name: string,
   language: string,
 ): Promise<{ meta_status: string | null } | null> {
@@ -380,7 +386,7 @@ export async function findTemplateStatus(
  */
 export async function setTemplateQuality(
   db: Db,
-  params: { tenantId: string; name: string; language: string; quality: string },
+  params: { tenantId: TenantId; name: string; language: string; quality: string },
 ): Promise<void> {
   const { error } = await db
     .from("templates")

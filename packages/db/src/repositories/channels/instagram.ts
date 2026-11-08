@@ -9,13 +9,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** An account's row as the sweep and the wires take it. */
 export interface InstagramAccountRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   external_id: string;
   credentials_ref: string | null;
   config: Json;
@@ -50,7 +50,7 @@ export async function putChannelSecret(db: Db, channelId: string, secret: Json):
 export async function findInstagramAccountHolder(
   db: Db,
   accountId: string,
-): Promise<{ id: string; tenant_id: string } | null> {
+): Promise<{ id: string; tenant_id: TenantId } | null> {
   const { data, error } = await db
     .from("tenant_channels")
     .select("id, tenant_id")
@@ -68,10 +68,10 @@ export async function findInstagramAccountHolder(
  */
 export async function writeInstagramAccount(
   db: Db,
-  fields: { tenantId: string; accountId: string; config: Json },
+  fields: { tenantId: TenantId; accountId: string; config: Json },
 ): Promise<{ id: string } | "taken" | { failed: string }> {
   const row: {
-    tenant_id: string;
+    tenant_id: TenantId;
     kind: "instagram";
     external_id: string;
     number_e164: null;
@@ -114,7 +114,7 @@ export async function writeInstagramAccount(
  */
 export async function setInstagramStatus(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   channelId: string,
   status: "active" | "disabled",
 ): Promise<boolean> {
@@ -157,7 +157,7 @@ export async function noteInstagramToken(
  */
 export async function markMessageUnsent(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   externalId: string,
 ): Promise<{ outcome: "forgot"; storagePath: string | null } | { outcome: "none" }> {
   const { data, error } = await db.rpc("message_unsent", { p_tenant_id: tenantId, p_external_id: externalId });
@@ -172,7 +172,7 @@ export async function markMessageUnsent(
  * Their newest, where a merge left them two; null for a person who never wrote by DM. A read that fails THROWS: "we could
  * not read it" is never "they have none".
  */
-export async function findInstagramId(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+export async function findInstagramId(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string | null> {
   const { data, error } = await db
     .from("contact_identities")
     .select("external_id")
@@ -191,7 +191,7 @@ export async function findInstagramId(db: Db, tenantId: string, contactId: strin
  * holds: an echo of the business's own DM is kept on that person's thread, and on no one's when nobody holds it. An id a
  * merge moved points at the kept person (00326: one hop is every hop). A read that fails THROWS.
  */
-export async function findPersonOfInstagramId(db: Db, tenantId: string, igsid: string): Promise<string | null> {
+export async function findPersonOfInstagramId(db: Db, tenantId: TenantId, igsid: string): Promise<string | null> {
   const { data, error } = await db
     .from("contact_identities")
     .select("contact_id, contacts (merged_into_contact_id, erased_at)")
@@ -210,7 +210,7 @@ export async function findPersonOfInstagramId(db: Db, tenantId: string, igsid: s
  * too long for one DM leaves as several, each with its own id at Instagram, and its row keeps the first part's id alone,
  * so a later part's echo is told from a message the team typed in the app by its words. A read that fails THROWS.
  */
-export async function listLastDmsSentTo(db: Db, tenantId: string, contactId: string): Promise<string[]> {
+export async function listLastDmsSentTo(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string[]> {
   const threads = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId);
   if (threads.error) throw new Error(`listLastDmsSentTo: ${threads.error.message}`);
   const ids = (threads.data ?? []).map((c) => c.id);
@@ -237,7 +237,7 @@ const DMS_TO_COMPARE = 5;
  */
 export async function findLastInboundOn(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   channel: "whatsapp" | "instagram",
 ): Promise<string | null> {
   const { data, error } = await db

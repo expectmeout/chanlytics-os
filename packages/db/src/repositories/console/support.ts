@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -39,7 +40,7 @@ export async function markReportMailed(db: Db, id: string, outcome: { at: string
 /** Reports since `sinceIso` (or all), newest first, with their workspace's name: Support's, Health's, or all. */
 export async function listReports(
   db: Db,
-  input: { sinceIso?: string; tenantId?: string; side?: ReportSide; limit: number },
+  input: { sinceIso?: string; tenantId?: TenantId; side?: ReportSide; limit: number },
 ) {
   let query = db
     .from("support_reports")
@@ -78,7 +79,7 @@ export async function reportToMail(db: Db, id: string, userId: string) {
 }
 
 /** The setup asks since `sinceIso`, newest first: the event, which workspace, what, when, and who asked. */
-export async function setupAsks(db: Db, input: { sinceIso: string; tenantId?: string; limit: number }) {
+export async function setupAsks(db: Db, input: { sinceIso: string; tenantId?: TenantId; limit: number }) {
   let query = db
     .from("events")
     .select("id, tenant_id, data, created_at")

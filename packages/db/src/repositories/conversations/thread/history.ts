@@ -14,6 +14,7 @@ import {
 import type { Database } from "../../../types";
 import { saysMissing } from "../../../shared/missing-door";
 import { dbLog } from "../../../shared/observe";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -120,7 +121,7 @@ export const HISTORY_COLUMNS = "body, sender, direction, type, status, created_a
 
 export async function readThreadState(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   pausedUntilIso: string | null,
   historyLimit = 16,
@@ -181,7 +182,7 @@ export async function readThreadState(
  * ---------------------------------------------------------------------- */
 
 export interface LeadContext {
-  contactId: string | null;
+  contactId: ContactId | null;
   conversationId: string | null;
   /** What to call them, if we know. */
   name: string | null;
@@ -265,8 +266,8 @@ const EMPTY_LEAD: LeadContext = {
  */
 export async function readLeadContext(
   db: Db,
-  tenantId: string,
-  personName: string | { contactId: string }, // the number they write from; on a wire with none (a DM), their own row
+  tenantId: TenantId,
+  personName: string | { contactId: ContactId }, // the number they write from; on a wire with none (a DM), their own row
   historyLimit = 16,
   /** The message being answered, stored before they were read: not their history, nor their last touch (none on a call). */
   answering?: string,
@@ -386,7 +387,7 @@ export async function readLeadContext(
 }
 
 /** A person's turns, and when the newest happened, without the message being answered (readLeadContext's `answering`). */
-async function turnsBefore(db: Db, tenantId: string, conversationId: string, limit: number, answering?: string) {
+async function turnsBefore(db: Db, tenantId: TenantId, conversationId: string, limit: number, answering?: string) {
   const { data: rows, error } = await db
     .from("messages")
     .select(`id, ${HISTORY_COLUMNS}`)
@@ -417,7 +418,7 @@ function dealRowFacts(d: Pick<DealFacts, "stage" | "service" | "proposed_at" | "
  * in every workspace (0008, amended 18 Oct 2026). Every deal of theirs is read, because the current one may be the
  * oldest (see readLeadContext).
  */
-export async function readDealForPhone(db: Db, tenantId: string, phoneE164: string): Promise<DealFacts | null> {
+export async function readDealForPhone(db: Db, tenantId: TenantId, phoneE164: string): Promise<DealFacts | null> {
   // A context lookup never costs the reply (readLeadContext): a read that fails is no deal, and said.
   const { data: c, error: cErr } = await db
     .from("contacts")

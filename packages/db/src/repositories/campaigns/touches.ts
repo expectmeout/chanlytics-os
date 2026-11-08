@@ -36,6 +36,7 @@ import {
 import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
 import { findWorkspaceZone } from "../workspace/control-plane/capabilities";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -44,7 +45,7 @@ type Db = SupabaseClient<Database>;
  * (sent, rather than on its way or waiting), and whether the run was a proposal follow-up.
  */
 export interface Touch {
-  contact_id: string;
+  contact_id: ContactId;
   playbook_id: string | null;
   at: string;
   sent: boolean;
@@ -87,7 +88,7 @@ const STOPPED = new Set(["canceled", "failed"]);
  * zone, read beside the runs, says which day is today for a run waiting for a person; unreadable, every waiting run
  * still holds its people, which never messages anyone twice either.
  */
-export async function listTouchesSince(db: Db, tenantId: string, since: Date, now: Date): Promise<Touch[]> {
+export async function listTouchesSince(db: Db, tenantId: TenantId, since: Date, now: Date): Promise<Touch[]> {
   return touchesOf(db, tenantId, since, now, false);
 }
 
@@ -100,7 +101,7 @@ export async function listTouchesSince(db: Db, tenantId: string, since: Date, no
  * same, and a send by hand (core createBroadcast's `touches` port) leaves them out by it, so all of them say one number.
  * Throws as listTouchesSince does: "nobody was touched" is the reading that messages people twice.
  */
-export async function getRecentTouches(db: Db, tenantId: string, now: Date): Promise<Record<string, string[]>> {
+export async function getRecentTouches(db: Db, tenantId: TenantId, now: Date): Promise<Record<string, string[]>> {
   const touched: Record<string, string[]> = {};
   for (const t of await listTouchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now))
     (touched[t.contact_id] ??= []).push(t.at);
@@ -113,7 +114,7 @@ export async function getRecentTouches(db: Db, tenantId: string, now: Date): Pro
  * any playbook, one since deleted too. The window a follow-up needs is as long as a proposal waits, far longer than
  * the week's breath, so it is read for that one kind of run.
  */
-export async function followUpTouchesSince(db: Db, tenantId: string, since: Date, now: Date): Promise<Touch[]> {
+export async function followUpTouchesSince(db: Db, tenantId: TenantId, since: Date, now: Date): Promise<Touch[]> {
   return touchesOf(db, tenantId, since, now, true);
 }
 
@@ -131,7 +132,7 @@ const runsSince = (since: Date): string => {
   return `created_at.gte.${s},scheduled_for.gte.${s},finished_at.gte.${s},state.eq.sending`;
 };
 
-async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, followUpsOnly: boolean): Promise<Touch[]> {
+async function touchesOf(db: Db, tenantId: TenantId, since: Date, now: Date, followUpsOnly: boolean): Promise<Touch[]> {
   const [all, zone] = await Promise.all([
     readAllRows<{
       id: string;
@@ -168,7 +169,7 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
   for (let index = 0; index < ids.length; index += RUN_IDS_PER_QUERY) {
     const rows = await readAllRows<{
       broadcast_id: string | null;
-      contact_id: string | null;
+      contact_id: ContactId | null;
       sent_at: string | null;
       state: string;
       proposal_link: string | null;

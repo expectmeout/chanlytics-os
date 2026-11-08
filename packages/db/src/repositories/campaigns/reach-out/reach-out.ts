@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
 import { withdrawQueued } from "../../conversations/control";
 import { recordOrEmpty } from "@chanlytics/contracts";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -49,7 +50,7 @@ export interface AudienceLead {
  */
 export async function listReachOutAudience(
   db: Db,
-  params: { tenantId: string; searchId: string; limit: number; includeUnconfirmed: boolean },
+  params: { tenantId: TenantId; searchId: string; limit: number; includeUnconfirmed: boolean },
 ): Promise<AudienceLead[]> {
   const { data, error } = await db.rpc("reach_out_audience", {
     p_tenant_id: params.tenantId,
@@ -62,17 +63,17 @@ export async function listReachOutAudience(
 }
 
 export type PersonForSend =
-  | { ok: true; contactId: string; conversationId: string; made: boolean }
+  | { ok: true; contactId: ContactId; conversationId: string; made: boolean }
   | { ok: false; refused: "lead_gone" | "lead_closed" | "no_address" | "already_yours" | "erased" };
 
 /**
  * The person a first send needs, made once (00184 reach_out_person, through resolve_person since 00344): never a lead
  * converted by it, and never a person who asked to be forgotten (`erased`: the door's PE001, said in the door's answer).
  */
-export async function addReachOutPerson(db: Db, tenantId: string, leadId: string): Promise<PersonForSend> {
+export async function addReachOutPerson(db: Db, tenantId: TenantId, leadId: string): Promise<PersonForSend> {
   const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new Error(`cannot make the person this send is for: ${error.message}`);
-  const row = (data ?? {}) as { refused?: string; contact_id?: string; conversation_id?: string; made?: boolean };
+  const row = (data ?? {}) as { refused?: string; contact_id?: ContactId; conversation_id?: string; made?: boolean };
   if (
     row.refused === "lead_gone" ||
     row.refused === "lead_closed" ||
@@ -109,7 +110,7 @@ export async function claimSends(
 /** One send's move, only from the state it was read in: a stale writer changes nothing and is told so. */
 export async function moveSend(
   db: Db,
-  params: { tenantId: string; id: string; from: LeadSendRow["state"]; patch: Partial<LeadSendRow> },
+  params: { tenantId: TenantId; id: string; from: LeadSendRow["state"]; patch: Partial<LeadSendRow> },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_sends")
@@ -124,7 +125,7 @@ export async function moveSend(
 
 export interface FollowerLead {
   lead_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   email: string;
   region: string | null;
   hours: unknown;
@@ -145,7 +146,7 @@ export interface FollowerLead {
 /** A step's leads: sent the step before at least `afterDays` ago, not on this step yet (00184 reach_out_followers). */
 export async function listReachOutFollowers(
   db: Db,
-  params: { tenantId: string; stepId: string; parentId: string; afterDays: number; limit: number },
+  params: { tenantId: TenantId; stepId: string; parentId: string; afterDays: number; limit: number },
 ): Promise<FollowerLead[]> {
   const { data, error } = await db.rpc("reach_out_followers", {
     p_tenant_id: params.tenantId,
@@ -177,7 +178,7 @@ export interface QueuedOutcome {
 }
 
 /** Queued sends with their emails, the ones with an outcome to read first (00186; sequence_queued_outcomes, 00441). */
-export async function listQueuedOutcomes(db: Db, limit: number, tenantId?: string): Promise<QueuedOutcome[]> {
+export async function listQueuedOutcomes(db: Db, limit: number, tenantId?: TenantId): Promise<QueuedOutcome[]> {
   const { data, error } = await db.rpc("sequence_queued_outcomes", {
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
@@ -191,7 +192,7 @@ export async function listStuckClaims(
   db: Db,
   before: Date,
   limit: number,
-  tenantId?: string,
+  tenantId?: TenantId,
 ): Promise<ReachOutSendRow[]> {
   let q = db.from("sequence_sends").select("*").not("lead_id", "is", null).eq("state", "claimed");
   if (tenantId) q = q.eq("tenant_id", tenantId);
@@ -208,7 +209,7 @@ export async function listStaleSends(
   db: Db,
   before: Date,
   limit: number,
-  tenantId?: string,
+  tenantId?: TenantId,
 ): Promise<ReachOutSendRow[]> {
   const { data, error } = await db.rpc("sequence_stale_sends", {
     p_before: before.toISOString(),
@@ -224,7 +225,7 @@ export async function listClosedRunSends(
   db: Db,
   stuckBefore: Date,
   limit: number,
-  tenantId?: string,
+  tenantId?: TenantId,
 ): Promise<Array<{ send: ReachOutSendRow; email_status: string | null }>> {
   const { data, error } = await db.rpc("sequence_closed_sends", {
     p_stuck_before: stuckBefore.toISOString(),
@@ -236,7 +237,7 @@ export async function listClosedRunSends(
 }
 
 /** Reach-out runs that go ahead with nothing left open (00186 reach_out_finishable). */
-export async function listFinishableRuns(db: Db, limit: number, tenantId?: string): Promise<string[]> {
+export async function listFinishableRuns(db: Db, limit: number, tenantId?: TenantId): Promise<string[]> {
   const { data, error } = await db.rpc("reach_out_finishable", {
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
@@ -264,7 +265,7 @@ export async function getWrittenEmails(db: Db, ids: string[]): Promise<Set<strin
  *  then sends nothing. False when it was not: it had moved on, or it is on its way, and what became of it is its job's. */
 export async function withdrawEmail(
   db: Db,
-  params: { tenantId: string; id: string; reason: string },
+  params: { tenantId: TenantId; id: string; reason: string },
 ): Promise<boolean> {
   const withdrawn = await withdrawQueued(db, {
     tenantId: params.tenantId,
@@ -277,7 +278,7 @@ export async function withdrawEmail(
 /* ---------------------------------------------------- a lead's own email -- */
 
 /** The mailbox a lead's sequence writes to it from (each lead hears from one, 00424), the latest; null where none has. */
-export async function findLeadSequenceMailbox(db: Db, tenantId: string, leadId: string): Promise<string | null> {
+export async function findLeadSequenceMailbox(db: Db, tenantId: TenantId, leadId: string): Promise<string | null> {
   const { data, error } = await db
     .from("sequence_sends")
     .select("mailbox_id")

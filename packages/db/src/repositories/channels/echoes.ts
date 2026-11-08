@@ -11,6 +11,7 @@ import { emitEvent } from "../events/events";
 import { dbLog } from "../../shared/observe";
 import { settleByEcho } from "../conversations/control";
 import { getOrCreateContact } from "./ingest";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -25,7 +26,7 @@ type Db = SupabaseClient<Database>;
 export async function recordEchoAndPause(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     /** Who the owner wrote to on WhatsApp: the number's digits, the person found or made by them. */
     customerPhoneDigits?: string;
     /**

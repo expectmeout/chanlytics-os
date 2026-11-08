@@ -5,11 +5,12 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The workspace's templates, by name. */
-export const listTemplatesForPage = async (db: Db, tenantId: string) =>
+export const listTemplatesForPage = async (db: Db, tenantId: TenantId) =>
   db
     .from("templates")
     .select(
@@ -19,7 +20,7 @@ export const listTemplatesForPage = async (db: Db, tenantId: string) =>
     .order("name");
 
 /** One page (`from` to `to`) of the workspace's runs, each with its template and what sent it. */
-export const pageRunsOfTemplates = async (db: Db, tenantId: string, from: number, to: number) =>
+export const pageRunsOfTemplates = async (db: Db, tenantId: TenantId, from: number, to: number) =>
   db
     .from("sequence_batches")
     .select("id, template_name, playbook_id:step_id, sequence_id, name, state, created_at")
@@ -28,14 +29,14 @@ export const pageRunsOfTemplates = async (db: Db, tenantId: string, from: number
     .range(from, to);
 
 /** The workspace's steps, each with its template, its clock and its place in its sequence. */
-export const listStepsOfTemplates = async (db: Db, tenantId: string) =>
+export const listStepsOfTemplates = async (db: Db, tenantId: TenantId) =>
   db
     .from("sequence_steps")
     .select("id, name, template_name, state, trigger, run_hour, cadence_days, until, sequence_id, place")
     .eq("tenant_id", tenantId);
 
 /** One page (`from` to `to`) of what the workspace's runs sent, person by person. */
-export const pageSendsSent = async (db: Db, tenantId: string, from: number, to: number) =>
+export const pageSendsSent = async (db: Db, tenantId: TenantId, from: number, to: number) =>
   db
     .from("sequence_sends")
     .select("broadcast_id:batch_id, state, sent_at")
@@ -59,7 +60,7 @@ interface InboxTemplateSend {
  */
 export const pageTemplatesFromInbox = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   from: number,
   to: number,
 ): Promise<{ data: InboxTemplateSend[] | null; error: { message: string } | null }> =>
