@@ -36,7 +36,7 @@ export async function findTenantBySlug(db: Db, slug: string) {
 }
 
 /** Workspaces' names and addresses by id, for rows that carry only the id. */
-export async function getTenantNames(db: Db, ids: readonly string[]) {
+export async function getTenantNames(db: Db, ids: readonly TenantId[]) {
   return db
     .from("tenants")
     .select("id, slug, name")

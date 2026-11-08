@@ -1,5 +1,6 @@
 /** People: people. */
 
+import { heldContactId } from "@chanlytics/contracts";
 import type { PostgrestError } from "@supabase/supabase-js";
 import {
   recordOrEmpty,
@@ -68,7 +69,7 @@ export async function listPeopleAtLead(db: Db, tenantId: TenantId, leadId: strin
  * The signers of the replies this person wrote that are still offered or were adopted, the newest first: the notice and
  * its undo. A signer is its reply's writer's alone (0052), never the lead's person a colleague answered for.
  */
-export async function listSigners(db: Db, tenantId: TenantId, personId: string): Promise<PersonSignerDto[]> {
+export async function listSigners(db: Db, tenantId: TenantId, personId: ContactId): Promise<PersonSignerDto[]> {
   const { data, error } = await db
     .from("sequence_replies")
     .select("message_id, signer_name, signer_title, signer_state, read_at, intent, claim")
@@ -153,7 +154,7 @@ export async function resolvePerson(db: Db, resolvePersonInput: ResolvePersonInp
   const row = recordOrEmpty(data);
   if (typeof row.contact_id !== "string") throw new Error("resolve_person answered without a person");
   return {
-    contact_id: row.contact_id,
+    contact_id: heldContactId(row.contact_id),
     outcome: row.outcome === "new" || row.outcome === "filled" ? row.outcome : "matched",
     existed: row.existed === true,
     matched_by: typeof row.matched_by === "string" ? (row.matched_by as ResolvedPerson["matched_by"]) : null,
@@ -185,7 +186,8 @@ export async function openDoubtsOf(db: Db, tenantId: TenantId, contactId: Contac
   if (error) throw new Error(`person_doubts: ${error.message}`);
   const rows = data ?? [];
   if (!rows.length) return [];
-  const otherIds = [...new Set(rows.map((r) => (r.contact_id === contactId ? r.other_id : r.contact_id)))];
+  const otherOf = (r: (typeof rows)[number]) => (r.contact_id === contactId ? heldContactId(r.other_id) : r.contact_id);
+  const otherIds = [...new Set(rows.map(otherOf))];
   const others = await db
     .from("contacts")
     .select(PERSON_FACE_COLUMNS)
@@ -197,7 +199,7 @@ export async function openDoubtsOf(db: Db, tenantId: TenantId, contactId: Contac
   const byId = new Map((others.data ?? []).map((c) => [c.id, c]));
   const out: PersonDoubtDto[] = [];
   for (const r of rows) {
-    const other = byId.get(r.contact_id === contactId ? r.other_id : r.contact_id);
+    const other = byId.get(otherOf(r));
     if (!other) continue;
     out.push({ id: r.id, seen: r.seen, created_at: r.created_at, other });
   }
@@ -248,7 +250,7 @@ const stampOf = (v: unknown): string | null => (typeof v === "string" ? v : null
 export async function markContactSeen(
   db: Db,
   tenantId: TenantId,
-  contactIds: readonly string[],
+  contactIds: readonly ContactId[],
 ): Promise<SeenMarksDto> {
   const { data, error } = await db.rpc("contact_seen", { p_tenant_id: tenantId, p_contact_ids: [...contactIds] });
   if (error) throw error;
@@ -356,5 +358,5 @@ export async function addPersonByHand(
       });
   if (error) return { data: null, error };
   const row = recordOrEmpty(data);
-  return { data: { contact_id: String(row.contact_id), existed: row.existed === true }, error: null };
+  return { data: { contact_id: heldContactId(String(row.contact_id)), existed: row.existed === true }, error: null };
 }

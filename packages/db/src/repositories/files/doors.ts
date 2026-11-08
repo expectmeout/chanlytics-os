@@ -3,6 +3,7 @@
  * themselves; the ones the edge calls are the service role's alone. A row lives from its bytes proven until they are gone:
  * file_start holds a place on the ledger and nothing else, and file_found is the one door every road keeps a file by.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isOneOf,
@@ -254,7 +255,7 @@ function mediaFateOf(data: unknown, door: string): MediaFate {
   if (!isOneOf(MEDIA_FATES, o.fate)) throw new Error(`${door}: no fate answered`);
   return {
     fate: o.fate,
-    tenant_id: typeof o.tenant_id === "string" ? o.tenant_id : null,
+    tenant_id: typeof o.tenant_id === "string" ? heldTenantId(o.tenant_id) : null,
     file_id: typeof o.file_id === "string" ? o.file_id : null,
   };
 }

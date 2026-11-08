@@ -190,7 +190,7 @@ export async function scrubAppointments(
 /* ------------------------------------------------------------------ the person */
 
 /** The one person in People this number names: not erased, not merged into another. */
-export async function findContactIdByPhone(db: Db, tenantId: TenantId, phone: string): Promise<string | null> {
+export async function findContactIdByPhone(db: Db, tenantId: TenantId, phone: string): Promise<ContactId | null> {
   const { data, error } = await db
     .from("contacts")
     .select("id")
@@ -205,7 +205,7 @@ export async function findContactIdByPhone(db: Db, tenantId: TenantId, phone: st
 }
 
 /** The one person in People this address names, matched and never made from an address alone (00125). */
-export async function findContactIdByEmail(db: Db, tenantId: TenantId, email: string): Promise<string | null> {
+export async function findContactIdByEmail(db: Db, tenantId: TenantId, email: string): Promise<ContactId | null> {
   const { data, error } = await db
     .from("contacts")
     .select("id")

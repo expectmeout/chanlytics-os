@@ -83,7 +83,7 @@ export const deleteLineRow = async (db: Db, tenantId: TenantId, lineId: string) 
   tenantDb(db, tenantId).from("lines").delete().eq("id", lineId);
 
 /** The numbers we gave these workspaces (ours or forwarded), oldest first: the release sweep's page. */
-export const listLinesOfWorkspaces = async (db: Db, tenantIds: string[]) =>
+export const listLinesOfWorkspaces = async (db: Db, tenantIds: TenantId[]) =>
   platformWide(db)
     .from("lines")
     .select("*")

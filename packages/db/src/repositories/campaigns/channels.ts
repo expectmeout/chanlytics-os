@@ -329,7 +329,7 @@ export async function recordCampaignMonthSent(
  */
 export async function holdRecipients(
   db: Db,
-  params: { tenantId: TenantId; broadcastId: string; contactIds: readonly string[]; reason: string },
+  params: { tenantId: TenantId; broadcastId: string; contactIds: readonly ContactId[]; reason: string },
 ): Promise<{ skipped: string[]; error: string | null }> {
   const skipped: string[] = [];
   for (let index = 0; index < params.contactIds.length; index += IDS_PER_READ) {

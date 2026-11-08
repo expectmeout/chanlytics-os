@@ -115,7 +115,7 @@ export async function getThreadIdsWaitingOnYou(
 export async function getPersonIdsWaitingOnYou(
   db: Db,
   tenantId: TenantId,
-  contactIds: readonly string[],
+  contactIds: readonly ContactId[],
   nowMs: number,
 ): Promise<Set<string>> {
   if (!contactIds.length) return new Set();

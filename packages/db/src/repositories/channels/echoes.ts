@@ -4,6 +4,7 @@
  * person's words, it pauses the receptionist on the thread for the workspace's own hours and settles the holds it
  * answers, once per echo.
  */
+import type { ContactId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conversationPatch } from "@chanlytics/contracts";
 import type { Database } from "../../types";
@@ -33,7 +34,7 @@ export async function recordEchoAndPause(
      * Who the owner wrote to on a wire with no number (an Instagram DM, decision 0001 step 8): the person's own row,
      * found by their Instagram-scoped id. Takes the place of the digits.
      */
-    customerId?: string;
+    customerId?: ContactId;
     /** The wire the owner wrote on: the WhatsApp Business app, or the Instagram app. WhatsApp unless said. */
     channel?: "whatsapp" | "instagram";
     body: string | null;
@@ -48,7 +49,7 @@ export async function recordEchoAndPause(
   // and returned. The owner's reply from the WhatsApp Business app was never
   // recorded and the AI pause never reached Postgres, which is precisely the
   // divergence this function exists to prevent.
-  let contact: { id: string };
+  let contact: { id: ContactId };
   try {
     if (params.customerId) contact = { id: params.customerId };
     else if (params.customerPhoneDigits)

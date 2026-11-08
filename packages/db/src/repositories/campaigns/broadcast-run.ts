@@ -100,7 +100,7 @@ export const claimBroadcastSend = async (
     .select("contact_id");
 
 /** The people of a batch, as a run reads them to judge and send: their numbers, addresses, consents and names. */
-export const listBatchPeople = async (db: Db, tenantId: TenantId, ids: string[]) =>
+export const listBatchPeople = async (db: Db, tenantId: TenantId, ids: ContactId[]) =>
   db
     .from("contacts")
     .select(
@@ -110,7 +110,7 @@ export const listBatchPeople = async (db: Db, tenantId: TenantId, ids: string[])
     .eq("tenant_id", tenantId);
 
 /** The messages the broadcast already left these people: sent, delivered or read, with its id in their meta. */
-export const listBroadcastMessagesTo = async (db: Db, run: Run, contactIds: string[]) =>
+export const listBroadcastMessagesTo = async (db: Db, run: Run, contactIds: ContactId[]) =>
   db
     .from("messages")
     .select("id, contact_id, created_at")

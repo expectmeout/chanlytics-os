@@ -135,7 +135,7 @@ export async function getSupportMarks(db: Db, input: { sinceIso: string; limit: 
 }
 
 /** The forwarded numbers that passed their test call, of these workspaces, and since when. */
-export async function isForwardingVerified(db: Db, tenantIds: readonly string[]) {
+export async function isForwardingVerified(db: Db, tenantIds: readonly TenantId[]) {
   return db
     .from("lines")
     .select("tenant_id, state_since")

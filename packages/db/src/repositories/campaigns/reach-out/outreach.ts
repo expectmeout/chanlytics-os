@@ -35,6 +35,7 @@
  *
  * Cross-workspace: only listReachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
  */
+import { heldContactId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conversationPatch, type SchemaSet, recordOrEmpty } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
@@ -223,7 +224,8 @@ export async function findReachOutReply(
     signed_by: textOf(value.signed_by),
     tz: textOf(value.tz),
     conversation_id: conversationId,
-    contact_id: textOf(value.contact_id),
+    contact_id:
+      typeof value.contact_id === "string" && value.contact_id !== "" ? heldContactId(value.contact_id) : null,
     claim,
     from: textOf(value.from),
     subject: textOf(value.subject),

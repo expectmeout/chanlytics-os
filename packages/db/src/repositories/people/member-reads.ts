@@ -11,11 +11,11 @@ import type { TenantId, ContactId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** These people with `columns` (a set the caller types). */
-export const listPeopleWith = async (db: Db, contactIds: string[], columns: string) =>
+export const listPeopleWith = async (db: Db, contactIds: ContactId[], columns: string) =>
   db.from("contacts").select(columns).in("id", contactIds);
 
 /** These people's workspace and erasure. */
-export const listPeopleStanding = async (db: Db, contactIds: string[]) =>
+export const listPeopleStanding = async (db: Db, contactIds: ContactId[]) =>
   db.from("contacts").select("id, tenant_id, erased_at").in("id", contactIds);
 
 /** One page (`from` to `to`) of the workspace's reply rules, the workspace's own first. */

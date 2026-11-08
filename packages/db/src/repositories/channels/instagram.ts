@@ -191,7 +191,7 @@ export async function findInstagramId(db: Db, tenantId: TenantId, contactId: Con
  * holds: an echo of the business's own DM is kept on that person's thread, and on no one's when nobody holds it. An id a
  * merge moved points at the kept person (00326: one hop is every hop). A read that fails THROWS.
  */
-export async function findPersonOfInstagramId(db: Db, tenantId: TenantId, igsid: string): Promise<string | null> {
+export async function findPersonOfInstagramId(db: Db, tenantId: TenantId, igsid: string): Promise<ContactId | null> {
   const { data, error } = await db
     .from("contact_identities")
     .select("contact_id, contacts (merged_into_contact_id, erased_at)")

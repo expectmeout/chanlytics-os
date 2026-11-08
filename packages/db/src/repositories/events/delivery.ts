@@ -1,5 +1,6 @@
 /** Events: delivery. */
 
+import { heldContactId } from "@chanlytics/contracts";
 import { personName, type ActivationMilestone } from "@chanlytics/contracts";
 import type { Json } from "../../types";
 import { dbLog } from "../../shared/observe";
@@ -346,8 +347,8 @@ export async function getActivitySubjects(
   for (const c of more) known.set(c.id, c.contact_id ?? null);
 
   /** The person a subject is, by its key. */
-  const personOf = new Map<string, string>();
-  for (const id of idsOf("contact")) personOf.set(`contact:${id}`, id);
+  const personOf = new Map<string, ContactId>();
+  for (const id of idsOf("contact")) personOf.set(`contact:${id}`, heldContactId(id));
   for (const [type, rows] of Object.entries(theirs))
     for (const r of rows) {
       const key = `${type}:${r.id}`;
@@ -359,7 +360,7 @@ export async function getActivitySubjects(
     }
 
   const rows = await readByIds([...new Set(personOf.values())], (some) =>
-    db.from("contacts").select(PERSON_FACE_COLUMNS).eq("tenant_id", tenantId).in("id", some),
+    db.from("contacts").select(PERSON_FACE_COLUMNS).eq("tenant_id", tenantId).in("id", some.map(heldContactId)),
   );
   const nameOf = new Map<string, string>();
   for (const p of rows) {

@@ -227,7 +227,7 @@ export async function setListRule(db: Db, id: string, rule: Json): Promise<{ err
 export async function addToList(
   db: Db,
   list: Pick<ListRow, "id" | "tenant_id">,
-  contactIds: readonly string[],
+  contactIds: readonly ContactId[],
   userId: string,
 ): Promise<{ error: WriteError | null }> {
   const rows = contactIds.map((contact_id) => ({
@@ -246,7 +246,7 @@ export async function addToList(
 export async function dropFromList(
   db: Db,
   listId: string,
-  contactIds: readonly string[],
+  contactIds: readonly ContactId[],
 ): Promise<{ error: WriteError | null }> {
   const { error } = await db
     .from("segment_members")

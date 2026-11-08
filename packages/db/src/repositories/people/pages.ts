@@ -1,5 +1,6 @@
 /** People: pages. */
 
+import { heldContactId, heldTenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   openDealsFromJson,
@@ -36,7 +37,7 @@ export const IDS_PER_READ = 100;
 export async function listNamesOfPeople(
   db: Db,
   tenantId: TenantId,
-  ids: readonly string[],
+  ids: readonly ContactId[],
 ): Promise<Array<{ id: string } & NameableContact>> {
   const out: Array<{ id: string } & NameableContact> = [];
   for (let i = 0; i < ids.length; i += IDS_PER_READ) {
@@ -393,9 +394,9 @@ function mergedOf(value: unknown): MergedPeople {
   const out: Record<string, number | string> = {};
   for (const [k, n] of Object.entries(counts)) if (typeof n === "number" || typeof n === "string") out[k] = n;
   return {
-    contact_id: word("contact_id"),
+    contact_id: heldContactId(word("contact_id")),
     merged: word("merged"),
-    tenant_id: word("tenant_id"),
+    tenant_id: heldTenantId(word("tenant_id")),
     decision_id: word("decision_id"),
     consent: word("consent"),
     marketing_consent: word("marketing_consent"),

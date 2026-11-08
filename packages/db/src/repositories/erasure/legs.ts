@@ -18,7 +18,7 @@ type Db = SupabaseClient<Database>;
 
 /** The person an erasure acts on, as a finish reads them: live and blocked, or erased and re-driven. */
 interface ErasableContact {
-  id: string;
+  id: ContactId;
   tenant_id: TenantId;
   phone_e164: string | null;
   email: string | null;

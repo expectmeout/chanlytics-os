@@ -8,6 +8,7 @@
  * (import_person), how many people the workspace holds, and what a file line says of a person before Chanlytics
  * (person_before_note), each on the member's session.
  */
+import { heldContactId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
@@ -68,7 +69,7 @@ export async function keepBefore(db: Db, beforeMessage: BeforeMessage): Promise<
     kept: row.is_new === true,
     erased: false,
     conversationId: typeof row.conversation_id === "string" ? row.conversation_id : null,
-    contactId: typeof row.contact_id === "string" ? row.contact_id : null,
+    contactId: typeof row.contact_id === "string" ? heldContactId(row.contact_id) : null,
     newPerson: row.person === "new",
   };
 }
@@ -104,7 +105,11 @@ export async function importPerson(
 function importedOf(data: Json): ImportedPerson {
   const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
   const email = o.email === "set" || o.email === "kept" || o.email === "taken" ? o.email : null;
-  return { contact_id: typeof o.contact_id === "string" ? o.contact_id : "", existed: o.existed === true, email };
+  return {
+    contact_id: heldContactId(typeof o.contact_id === "string" ? o.contact_id : ""),
+    existed: o.existed === true,
+    email,
+  };
 }
 
 /**

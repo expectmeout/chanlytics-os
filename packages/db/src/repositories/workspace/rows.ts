@@ -25,7 +25,7 @@ export const findWorkspaceSlug = async (db: Db, tenantId: TenantId) =>
   db.from("tenants").select("slug").eq("id", tenantId).maybeSingle();
 
 /** The workspaces' time zones, by their ids. */
-export const listWorkspaceZones = async (db: Db, tenantIds: string[]) =>
+export const listWorkspaceZones = async (db: Db, tenantIds: TenantId[]) =>
   db.from("tenants").select("id, timezone").in("id", tenantIds);
 
 /** The workspace's name, by its id. */
@@ -33,7 +33,7 @@ export const findWorkspaceName = async (db: Db, tenantId: TenantId) =>
   db.from("tenants").select("id, name").eq("id", tenantId).maybeSingle();
 
 /** These workspaces' addresses, standing and clocks, by their ids: a sweep's page. */
-export const listWorkspaceStandings = async (db: Db, tenantIds: string[]) =>
+export const listWorkspaceStandings = async (db: Db, tenantIds: TenantId[]) =>
   db.from("tenants").select("id, slug, status, timezone").in("id", tenantIds);
 
 /** The workspace's settings row, as stored. */

@@ -16,6 +16,7 @@
  *
  * Cross-workspace: a person's profile belongs to no workspace, and the sweep and Health read every workspace's by name.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   anthropicActed,
@@ -48,7 +49,7 @@ const statusOfRow = (raw: unknown): AnthropicEnforcementStatus => enforcementSta
 export async function findAnthropicProfile(db: Db, subject: ProfiledSubject): Promise<AnthropicProfileHeld | null> {
   const q = db.from("anthropic_profiles").select("profile_id, enforcement_status");
   const { data, error } = await (
-    subject.kind === "person" ? q.eq("user_id", subject.userId) : q.eq("tenant_id", subject.tenantId)
+    subject.kind === "person" ? q.eq("user_id", subject.userId) : q.eq("tenant_id", heldTenantId(subject.tenantId))
   ).maybeSingle();
   if (error) throw new Error(`anthropic_profiles: ${error.message}`);
   return data ? { profile_id: data.profile_id, enforcement_status: statusOfRow(data.enforcement_status) } : null;

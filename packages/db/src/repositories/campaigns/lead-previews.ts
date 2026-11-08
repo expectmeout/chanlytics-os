@@ -116,7 +116,7 @@ export async function recordPreviewSaid(
 }
 
 /** A call on a preview's workspace ended: its seconds counted. True when it was a preview open to try. */
-export async function recordPreviewCalled(db: Db, previewTenantId: string, seconds: number): Promise<boolean> {
+export async function recordPreviewCalled(db: Db, previewTenantId: TenantId, seconds: number): Promise<boolean> {
   const { data, error } = await db.rpc("preview_called", {
     p_preview_tenant_id: previewTenantId,
     p_seconds: Math.max(0, Math.round(seconds)),
@@ -223,7 +223,7 @@ export async function findLeadPreviewByToken(db: Db, token: string): Promise<Lea
 }
 
 /** The preview a workspace is (the service role's: the edge knows the workspace), or null for one that is none. */
-export async function findLeadPreviewOfWorkspace(db: Db, previewTenantId: string): Promise<LeadPreviewRow | null> {
+export async function findLeadPreviewOfWorkspace(db: Db, previewTenantId: TenantId): Promise<LeadPreviewRow | null> {
   const { data, error } = await platformWide(db)
     .from("lead_previews")
     .select("*")

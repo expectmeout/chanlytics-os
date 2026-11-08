@@ -21,6 +21,7 @@
  * The turns' two clocks are the database's own (purge_model_turns and purge_model_prompts, nightly on one registered
  * job), so nothing here runs them.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mayUseModels, RETENTION_DAYS } from "@chanlytics/contracts";
 import type { AiUsageBody, ModelTurnRequest, ModelTurnResponse, TenantId } from "@chanlytics/contracts";
@@ -30,7 +31,8 @@ import { platformWide } from "../../shared/tenant-db";
 type Db = SupabaseClient<Database>;
 
 export async function recordModelUsage(db: Db, rows: AiUsageBody | AiUsageBody[]): Promise<void> {
-  const { error } = await db.from("ai_usage").insert(rows);
+  const held = (row: AiUsageBody) => ({ ...row, tenant_id: heldTenantId(row.tenant_id) });
+  const { error } = await db.from("ai_usage").insert(Array.isArray(rows) ? rows.map(held) : held(rows));
   if (error) throw new Error(`ai_usage: ${error.message}`);
 }
 

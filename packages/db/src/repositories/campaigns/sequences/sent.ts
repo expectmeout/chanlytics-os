@@ -94,7 +94,7 @@ export const pagePeopleOnRuns = async (db: Db, tenantId: TenantId, runIds: strin
     .range(from, to);
 
 /** These people's consent changes since `since`. */
-export const listConsentChangesSince = async (db: Db, tenantId: TenantId, contactIds: string[], since: string) =>
+export const listConsentChangesSince = async (db: Db, tenantId: TenantId, contactIds: ContactId[], since: string) =>
   db
     .from("events")
     .select("id, subject_id, data, created_at")

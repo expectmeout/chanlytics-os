@@ -3,6 +3,7 @@
  * ingest_inbound is the atomic concurrency gate (RPC) and the receptionist's
  * dedupe; everything else is plain row work.
  */
+import { heldContactId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { resolvePerson } from "../people/people";
@@ -91,7 +92,7 @@ export interface IngestResult {
 const IngestAnswer: z.ZodType<IngestResult> = z.object({
   message_id: z.string(),
   conversation_id: z.string(),
-  contact_id: z.string(),
+  contact_id: z.string().transform(heldContactId),
   is_new: z.boolean(),
   processed: z.boolean(),
   state: z.string(),
@@ -360,7 +361,7 @@ export async function getOrCreateContact(
   db: Db,
   tenantId: TenantId,
   phoneE164: string,
-): Promise<{ id: string; consent: string; dnc: boolean; marketing_consent: string }> {
+): Promise<{ id: ContactId; consent: string; dnc: boolean; marketing_consent: string }> {
   const created = await resolvePerson(db, {
     tenantId,
     channel: "voice",
@@ -461,7 +462,7 @@ export async function resolveOutboundTarget(
 }
 
 /** The contact row an outbound target is made from: who they are to the consent predicate. */
-type OutboundContact = { id: string; consent: string; dnc: boolean; marketing_consent: string } & {
+type OutboundContact = { id: ContactId; consent: string; dnc: boolean; marketing_consent: string } & {
   consent_channels?: string[] | null;
   marketing_channels?: string[] | null;
 };

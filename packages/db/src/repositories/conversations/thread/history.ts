@@ -289,7 +289,7 @@ export async function readLeadContext(
     )
     .maybeSingle();
   let contact: {
-    id: string;
+    id: ContactId;
     display_name: string | null;
     wa_profile_name: string | null;
     name_source?: string | null;

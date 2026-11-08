@@ -232,7 +232,7 @@ const MODE_IDS_AT_ONCE = 200;
 export async function getPersonReplyModes(
   db: Db,
   tenantId: TenantId,
-  contactIds: readonly string[],
+  contactIds: readonly ContactId[],
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   for (let index = 0; index < contactIds.length; index += MODE_IDS_AT_ONCE) {

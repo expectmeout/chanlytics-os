@@ -22,6 +22,7 @@
  * select, and what the row keeps of the provider's payload is an allowlist (scrub_call_raw, 00530) members may not
  * select at all. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
+import { heldContactId } from "@chanlytics/contracts";
 import { recordOrNull, type SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
@@ -84,7 +85,7 @@ const IngestCallAnswer: z.ZodType<IngestCallResult> = z.object({
   recording_state: z.string().nullable(),
   recording_attempts: z.number().nullable().optional(),
   skipped: z.boolean().optional(),
-  contact_id: z.string().nullable(),
+  contact_id: z.string().transform(heldContactId).nullable(),
   conversation_id: z.string().nullable(),
 });
 
