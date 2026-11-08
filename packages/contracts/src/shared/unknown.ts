@@ -57,6 +57,17 @@ export const isList = (value: unknown): value is readonly unknown[] => Array.isA
 /** A list, or an empty one: its items unread, each for the reader to check. */
 export const listOrEmpty = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
+/**
+ * What a value holds at a path, a key of a record or an index of a list at each step, or undefined where a step finds
+ * neither: `valueAt(answer, "messages", 0, "id")`. A provider's answer is read this way, each leaf then checked, so no
+ * shape is told to the checker on the way down.
+ */
+export const valueAt = (value: unknown, ...path: readonly (string | number)[]): unknown =>
+  path.reduce<unknown>(
+    (at, step) => (typeof step === "number" ? listOrEmpty(at)[step] : recordOrEmpty(at)[step]),
+    value,
+  );
+
 /** A plain object (never an array), as a type guard: what a provider's JSON is read from, field by field. */
 export const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

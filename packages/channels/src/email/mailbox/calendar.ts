@@ -7,7 +7,7 @@
  * iCal link would give (contracts appointment-key.ts) and a workspace that moves from its link to this keeps its rows.
  * Every call returns what it came to and never throws (provider-fetch.ts).
  */
-import { HOUR_MS, DAY_KEY } from "@chanlytics/contracts";
+import { HOUR_MS, DAY_KEY, listOrEmpty, recordOrEmpty, recordOrNull } from "@chanlytics/contracts";
 import { fetchFromProvider, type ProviderReply } from "../../shared/provider-fetch";
 import { MAILBOX_READ_MS } from "./read";
 import { GRAPH_API } from "./graph";
@@ -60,22 +60,21 @@ export async function listGoogleCalendarIds(token: string, deps?: Deps): Promise
     deps,
   );
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const items = (response.json as { items?: Array<{ id?: unknown; deleted?: unknown }> } | null)?.items ?? [];
+  const items = listOrEmpty(recordOrNull(response.json)?.items).map(recordOrEmpty);
   return {
     ok: true,
     ids: items.flatMap((c) => (typeof c.id === "string" && c.deleted !== true && !EVERYONES.test(c.id) ? [c.id] : [])),
   };
 }
 
-type GoogleWhen = { dateTime?: unknown; date?: unknown } | undefined;
-
 /** A Google time, read: an instant, or an all-day date (midnight UTC for the instant, the day kept beside it). */
-function googleWhen(w: GoogleWhen): { ms: number; day: string | null } | null {
-  if (typeof w?.dateTime === "string") {
+function googleWhen(raw: unknown): { ms: number; day: string | null } | null {
+  const w = recordOrEmpty(raw);
+  if (typeof w.dateTime === "string") {
     const ms = Date.parse(w.dateTime);
     return Number.isFinite(ms) ? { ms, day: null } : null;
   }
-  if (typeof w?.date === "string" && DAY_KEY.test(w.date)) {
+  if (typeof w.date === "string" && DAY_KEY.test(w.date)) {
     return { ms: Date.parse(`${w.date}T00:00:00Z`), day: w.date };
   }
   return null;
@@ -104,17 +103,17 @@ export async function listGoogleEvents(
     deps,
   );
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const json = response.json as { items?: Array<Record<string, unknown>>; nextPageToken?: unknown } | null;
+  const json = recordOrNull(response.json);
   const events: CalendarEvent[] = [];
-  for (const error of json?.items ?? []) {
-    if (error.status === "cancelled") continue;
-    const start = googleWhen(error.start as GoogleWhen);
-    const end = googleWhen(error.end as GoogleWhen);
-    const uid = typeof error.iCalUID === "string" ? error.iCalUID : typeof error.id === "string" ? error.id : null;
+  for (const item of listOrEmpty(json?.items).map(recordOrEmpty)) {
+    if (item.status === "cancelled") continue;
+    const start = googleWhen(item.start);
+    const end = googleWhen(item.end);
+    const uid = typeof item.iCalUID === "string" ? item.iCalUID : typeof item.id === "string" ? item.id : null;
     if (!start || !end || !uid) continue;
-    const due = typeof error.recurringEventId === "string" ? googleWhen(error.originalStartTime as GoogleWhen) : null;
-    const attendees = Array.isArray(error.attendees) ? (error.attendees as Array<Record<string, unknown>>) : [];
-    const organizer = (error.organizer as { email?: unknown } | undefined)?.email;
+    const due = typeof item.recurringEventId === "string" ? googleWhen(item.originalStartTime) : null;
+    const attendees = listOrEmpty(item.attendees).map(recordOrEmpty);
+    const organizer = recordOrEmpty(item.organizer).email;
     events.push({
       uid,
       start: start.ms,
@@ -122,16 +121,16 @@ export async function listGoogleEvents(
       allDay: start.day !== null,
       startDay: start.day,
       endDay: end.day,
-      title: typeof error.summary === "string" ? error.summary : "",
-      description: typeof error.description === "string" ? error.description : null,
-      location: typeof error.location === "string" ? error.location : null,
+      title: typeof item.summary === "string" ? item.summary : "",
+      description: typeof item.description === "string" ? item.description : null,
+      location: typeof item.location === "string" ? item.location : null,
       attendees: attendees.map((a) => ({
         name: typeof a.displayName === "string" ? a.displayName : null,
         email: typeof a.email === "string" ? a.email.toLowerCase() : null,
       })),
       organizer: typeof organizer === "string" ? organizer.toLowerCase() : null,
       due: due ? due.ms : null,
-      free: error.transparency === "transparent",
+      free: item.transparency === "transparent",
     });
   }
   return { ok: true, events, next: typeof json?.nextPageToken === "string" ? json.nextPageToken : null };
@@ -146,7 +145,7 @@ export async function listGraphCalendarIds(token: string, deps?: Deps): Promise<
     deps,
   );
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const value = (response.json as { value?: Array<{ id?: unknown }> } | null)?.value ?? [];
+  const value = listOrEmpty(recordOrNull(response.json)?.value).map(recordOrEmpty);
   return { ok: true, ids: value.flatMap((c) => (typeof c.id === "string" ? [c.id] : [])) };
 }
 
@@ -157,8 +156,9 @@ const HALF_DAY_MS = 12 * HOUR_MS;
  * A Graph time asked in UTC (Prefer outlook.timezone), read as an instant; for an all-day event, the day it names: its
  * zone's midnight said in UTC lands within half a day of that day's own, either side of the meridian.
  */
-function graphWhen(w: { dateTime?: unknown } | undefined, allDay: boolean): { ms: number; day: string | null } | null {
-  if (typeof w?.dateTime !== "string") return null;
+function graphWhen(raw: unknown, allDay: boolean): { ms: number; day: string | null } | null {
+  const w = recordOrEmpty(raw);
+  if (typeof w.dateTime !== "string") return null;
   const iso = /[zZ]|[+-]\d{2}:\d{2}$/.test(w.dateTime) ? w.dateTime : `${w.dateTime}Z`;
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return null;
@@ -193,21 +193,20 @@ export async function listGraphEvents(
     deps,
   );
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const json = response.json as { value?: Array<Record<string, unknown>>; "@odata.nextLink"?: unknown } | null;
+  const json = recordOrNull(response.json);
   const events: CalendarEvent[] = [];
-  for (const error of json?.value ?? []) {
-    if (error.isCancelled === true) continue;
-    const allDay = error.isAllDay === true;
-    const start = graphWhen(error.start as { dateTime?: unknown }, allDay);
-    const end = graphWhen(error.end as { dateTime?: unknown }, allDay);
-    const uid = typeof error.iCalUId === "string" ? error.iCalUId : typeof error.id === "string" ? error.id : null;
+  for (const item of listOrEmpty(json?.value).map(recordOrEmpty)) {
+    if (item.isCancelled === true) continue;
+    const allDay = item.isAllDay === true;
+    const start = graphWhen(item.start, allDay);
+    const end = graphWhen(item.end, allDay);
+    const uid = typeof item.iCalUId === "string" ? item.iCalUId : typeof item.id === "string" ? item.id : null;
     if (!start || !end || !uid) continue;
-    const series = error.type === "occurrence" || error.type === "exception";
-    const due = series && typeof error.originalStart === "string" ? Date.parse(error.originalStart) : NaN;
-    const attendees = Array.isArray(error.attendees)
-      ? (error.attendees as Array<{ emailAddress?: Record<string, unknown> }>)
-      : [];
-    const organizer = (error.organizer as { emailAddress?: { address?: unknown } } | undefined)?.emailAddress?.address;
+    const series = item.type === "occurrence" || item.type === "exception";
+    const due = series && typeof item.originalStart === "string" ? Date.parse(item.originalStart) : NaN;
+    const attendees = listOrEmpty(item.attendees).map((a) => recordOrEmpty(recordOrEmpty(a).emailAddress));
+    const organizer = recordOrEmpty(recordOrEmpty(item.organizer).emailAddress).address;
+    const place = recordOrEmpty(item.location).displayName;
     events.push({
       uid,
       start: start.ms,
@@ -215,20 +214,16 @@ export async function listGraphEvents(
       allDay,
       startDay: start.day,
       endDay: end.day,
-      title: typeof error.subject === "string" ? error.subject : "",
-      description: typeof error.bodyPreview === "string" && error.bodyPreview ? error.bodyPreview : null,
-      location:
-        typeof (error.location as { displayName?: unknown } | undefined)?.displayName === "string" &&
-        (error.location as { displayName: string }).displayName
-          ? (error.location as { displayName: string }).displayName
-          : null,
+      title: typeof item.subject === "string" ? item.subject : "",
+      description: typeof item.bodyPreview === "string" && item.bodyPreview ? item.bodyPreview : null,
+      location: typeof place === "string" && place ? place : null,
       attendees: attendees.map((a) => ({
-        name: typeof a.emailAddress?.name === "string" ? a.emailAddress.name : null,
-        email: typeof a.emailAddress?.address === "string" ? a.emailAddress.address.toLowerCase() : null,
+        name: typeof a.name === "string" ? a.name : null,
+        email: typeof a.address === "string" ? a.address.toLowerCase() : null,
       })),
       organizer: typeof organizer === "string" ? organizer.toLowerCase() : null,
       due: Number.isFinite(due) ? due : series ? start.ms : null,
-      free: error.showAs === "free",
+      free: item.showAs === "free",
     });
   }
   return { ok: true, events, next: typeof json?.["@odata.nextLink"] === "string" ? json["@odata.nextLink"] : null };
