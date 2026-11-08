@@ -3,15 +3,14 @@
 // into their tables, so the page's rows save through the tab's one saver as every row of the business does. Pure, and
 // no JSX.
 
-import { REACH_OUT_LIMITS, textOrEmpty } from "@chanlytics/contracts";
-import { btPut, type DraftOf, type FoldName, type Problems } from "../business/fold-shapes";
+import { textOrEmpty, writeReachOutKey, type ReachOutConfig } from "@chanlytics/contracts";
+import type { DraftOf, FoldName } from "../business/fold-shapes";
 import { trimmed, type Config } from "../business/save";
-import { REACH_OUT_REFUSAL_WORDS, reachOutPhoneProblem, reachOutSignatureProblem } from "./model/refusals";
 
 // The section on the tab's config (business/save.tsx Config), declared beside the folds that write it.
 declare module "../business/save" {
   interface Config {
-    reach_out?: { [key: string]: unknown; proof?: string[] };
+    reach_out?: ReachOutConfig;
   }
 }
 
@@ -29,7 +28,7 @@ const REACH_OUT_FOLD_KEYS = {
   signature: "signature",
   sign_phone: "phone",
   reply_offer: "reply_offer",
-} as const satisfies Partial<Record<FoldName, string>>;
+} as const satisfies Partial<Record<FoldName, keyof ReachOutConfig>>;
 type ReachOutFoldName = keyof typeof REACH_OUT_FOLD_KEYS;
 const isReachOutFold = (fold: string): fold is ReachOutFoldName => Object.hasOwn(REACH_OUT_FOLD_KEYS, fold);
 
@@ -56,77 +55,35 @@ const DRAFT_OF: {
   reply_offer: textFold("reply_offer"),
 };
 
-/** A key of the section, written with a value and removed without one; the section goes once nothing is in it. */
-const btPutReachOut = (next: Config, fold: ReachOutFoldName, value: unknown) => {
-  const section: Record<string, unknown> = { ...(next.reach_out || {}) };
-  btPut(section, REACH_OUT_FOLD_KEYS[fold], value);
-  if (Object.keys(section).length) next.reach_out = section;
-  else delete next.reach_out;
-};
-const writeText = (fold: ReachOutFoldName) => (next: Config, draft: unknown) =>
-  btPutReachOut(next, fold, trimmed(draft) || undefined);
-
-/** How each writes its draft into the section: trimmed, and an emptied box removes its key. */
+/** How each writes its draft into the section: through the one writer of a key of it, which Ask's cards write through too. */
+const writeFold = (fold: ReachOutFoldName) => (next: Config, draft: unknown) =>
+  writeReachOutKey(next, REACH_OUT_FOLD_KEYS[fold], Array.isArray(draft) ? listOf(draft) : textOrEmpty(draft));
 const WRITE: { [F in ReachOutFoldName]: (next: Config, draft: unknown) => void } = {
-  offer: writeText("offer"),
-  who_for: writeText("who_for"),
-  fixes: writeText("fixes"),
-  // A claim left empty is no claim: dropped, as a note nobody filled in is.
-  proof: (next, draft) => {
-    const claims = listOf(draft)
-      .map((c) => trimmed(c))
-      .filter(Boolean);
-    btPutReachOut(next, "proof", claims.length ? claims : undefined);
-  },
-  cold_tone: writeText("cold_tone"),
-  signed_by: writeText("signed_by"),
-  signature: writeText("signature"),
-  sign_phone: writeText("sign_phone"),
-  // The booking link is what an answer offered before the page: it is stored as nothing.
-  reply_offer: (next, draft) => {
-    const offer = trimmed(draft);
-    btPutReachOut(next, "reply_offer", offer && offer !== "booking_link" ? offer : undefined);
-  },
+  offer: writeFold("offer"),
+  who_for: writeFold("who_for"),
+  fixes: writeFold("fixes"),
+  proof: writeFold("proof"),
+  cold_tone: writeFold("cold_tone"),
+  signed_by: writeFold("signed_by"),
+  signature: writeFold("signature"),
+  sign_phone: writeFold("sign_phone"),
+  reply_offer: writeFold("reply_offer"),
 };
 
-const longer = (field: string, draft: unknown, max: number): Problems =>
-  trimmed(draft).length > max ? { [field]: REACH_OUT_REFUSAL_WORDS.tooLong(max) } : {};
-
-/** What stops each one's save, by the field it is under (a claim's row is `claim-<n>`). */
-const PROBLEMS_OF: { [F in ReachOutFoldName]?: (draft: unknown) => Problems } = {
-  offer: (draft) => longer("offer", draft, REACH_OUT_LIMITS.offer),
-  who_for: (draft) => longer("who_for", draft, REACH_OUT_LIMITS.whoFor),
-  fixes: (draft) => longer("fixes", draft, REACH_OUT_LIMITS.fixes),
-  cold_tone: (draft) => longer("cold_tone", draft, REACH_OUT_LIMITS.tone),
-  signed_by: (draft) => longer("signed_by", draft, REACH_OUT_LIMITS.signedBy),
-  sign_phone: (draft) => {
-    const tooLong = longer("sign_phone", draft, REACH_OUT_LIMITS.phone);
-    if (tooLong.sign_phone) return tooLong;
-    return reachOutPhoneProblem(trimmed(draft)) ? { sign_phone: REACH_OUT_REFUSAL_WORDS.phone } : {};
-  },
-  signature: (draft) => {
-    const problem = reachOutSignatureProblem(trimmed(draft));
-    if (problem === "too_long") return longer("signature", draft, REACH_OUT_LIMITS.signature);
-    return problem ? { signature: REACH_OUT_REFUSAL_WORDS.signature } : {};
-  },
-  proof: (draft) => {
-    const rows = listOf(draft);
-    const found: Problems =
-      rows.filter((c) => trimmed(c)).length > REACH_OUT_LIMITS.claims ? { proof: REACH_OUT_REFUSAL_WORDS.claims } : {};
-    rows.forEach((c, i) => Object.assign(found, longer(`claim-${i}`, c, REACH_OUT_LIMITS.claim)));
-    return found;
-  },
+/**
+ * The field a refusal of the save's own rules (contracts reach-out-schema.ts, the only rules the section has) is said
+ * under: a claim's by the row it was typed in, since a row left empty is not written; else the fold's own.
+ */
+const fieldOf = (fold: ReachOutFoldName, path: (string | number)[], draft: unknown): string => {
+  if (fold !== "proof" || typeof path[2] !== "number") return fold;
+  const written = listOf(draft).flatMap((claim, row) => (trimmed(claim) ? [row] : []));
+  return `claim-${written.at(path[2]) ?? path[2]}`;
 };
 
-/** The field a refusal of the section is said under: a claim's by its row, else the fold's own. */
-const fieldOf = (fold: ReachOutFoldName, path: (string | number)[]): string =>
-  fold === "proof" && typeof path[2] === "number" ? `claim-${path[2]}` : fold;
-
-/** The section's folds, as business/folds.ts reads them: which they are, and each one's draft, write, refusals and field. */
+/** The section's folds, as business/folds.ts reads them: which they are, and each one's draft, write and field. */
 export const REACH_OUT_FOLDS = {
   is: isReachOutFold,
   draftOf: DRAFT_OF,
   write: WRITE,
-  problemsOf: PROBLEMS_OF,
   fieldOf,
 };

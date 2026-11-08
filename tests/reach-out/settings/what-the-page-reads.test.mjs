@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mailboxConnectionDtoOf } from "@chanlytics/contracts";
+import { mailboxConnectionDtoOf, mailboxIsLive } from "@chanlytics/contracts";
 import { countSentByStep } from "@chanlytics/db/campaigns";
 import { fakeDb } from "../../_fake-db.mjs";
 
@@ -142,6 +142,8 @@ test("the mailbox shown is the first that sends now, said as Connections says it
   assert.equal(shown.address, "maya@example.com");
   assert.equal(typeof shown.pill, "string");
   assert.equal(mailboxShown([box("gone", "removed")], Date.now(), "UTC"), null);
+  assert.equal(mailboxIsLive(box("gone", "removed")), false);
+  assert.equal(mailboxIsLive(box("paused", "paused")), true);
 });
 
 test("the month's first emails are the service role's count, and a count that fails is none, never a zero", async () => {

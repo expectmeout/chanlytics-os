@@ -16,7 +16,8 @@ import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-ke
 import { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, withAlertAddress } from "./alerts";
 import { BrainConfigSchema } from "./brain-config-schema";
 import type { Closure, Hours } from "./business-profile";
-import { ASK_GOAL_MAX, MAX_CLOSURES, REACH_OUT_LIMITS, REPLY_OFFERS, dayProblems, isRealDate } from "./config-rules";
+import { ASK_GOAL_MAX, MAX_CLOSURES, dayProblems, isRealDate } from "./config-rules";
+import { ReachOutConfigSchema, reachOutProblems } from "./reach-out-schema";
 
 export const NotificationsConfigSchema = z
   .object({
@@ -131,29 +132,6 @@ export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
  */
 const AskConfigSchema = z.object({ goal: z.string().max(ASK_GOAL_MAX).optional() }).strip();
 
-/**
- * How it reaches out (decision 0113): what a cold email to a business a search found is written from. What the business
- * offers them, who it is for and what it fixes; the claims it may make about itself, word for word; the tone of a cold
- * email, apart from the receptionist's; how every email signs off; and what an answer to a lead who wrote back offers.
- * The sequence's drafter, the check's opening writer and the reply drafter read it; where a field is absent each reads
- * what it read before (reach-out/settings.ts). Never `outreach`: that is Autonomy's policy class.
- */
-const ReachOutConfigSchema = z
-  .object({
-    offer: z.string().max(REACH_OUT_LIMITS.offer).optional(),
-    who_for: z.string().max(REACH_OUT_LIMITS.whoFor).optional(),
-    fixes: z.string().max(REACH_OUT_LIMITS.fixes).optional(),
-    proof: z.array(z.string().max(REACH_OUT_LIMITS.claim)).max(REACH_OUT_LIMITS.claims).optional(),
-    tone: z.string().max(REACH_OUT_LIMITS.tone).optional(),
-    signed_by: z.string().max(REACH_OUT_LIMITS.signedBy).optional(),
-    signature: z.string().max(REACH_OUT_LIMITS.signature).optional(),
-    phone: z.string().max(REACH_OUT_LIMITS.phone).optional(),
-    // A word a newer build offers reads as none (the booking link, as before), never a config that cannot be parsed.
-    reply_offer: z.enum(REPLY_OFFERS).optional().catch(undefined),
-  })
-  .strip();
-export type ReachOutConfig = z.infer<typeof ReachOutConfigSchema>;
-
 export const TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
   ask: AskConfigSchema.optional(),
@@ -241,6 +219,10 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
       path: ["bookings", "tool"],
       message: "Not a booking tool this product knows.",
     });
+  }
+  // How it reaches out's: held here alone, never on the read, whichever door the save came by.
+  for (const p of reachOutProblems(cfg.reach_out ?? {})) {
+    ctx.addIssue({ code: "custom", path: ["reach_out", ...p.path], message: p.message });
   }
   const profile = cfg.brain?.profile;
   if (!profile) return;

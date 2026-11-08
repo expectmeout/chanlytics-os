@@ -51,6 +51,7 @@ export {
   mailboxConnectionDtoOf,
   mailboxHealthWords,
   mailboxHoldOf,
+  mailboxIsLive,
   mailboxSendsNow,
   mailboxSignsOf,
   mailboxWords,

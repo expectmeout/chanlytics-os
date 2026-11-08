@@ -548,3 +548,28 @@ test("layer two's price rule alone reaches a draft: a class held for a person do
     edge.answer = undefined;
   });
 });
+
+test("what the page says an answer offers steers an answer to a lead, read off the runtime; a line of thanks is never steered", async () => {
+  await withEnv(KEY, async () => {
+    const steerOf = (w) => w.asked[0][7];
+    const called = edge({ config: { brain: BRAIN, reach_out: { reply_offer: "call" } } });
+    await called.draft(called.tenant, { ...ASK, kind: "answer", deadline: Date.now() + 40_000 });
+    assert.match(steerOf(called), /Offer a short call at a time that suits them, and no link\./);
+    const thanked = edge({ config: { brain: BRAIN, reach_out: { reply_offer: "call" } } });
+    await thanked.draft(thanked.tenant, { ...ASK, kind: "thanks", deadline: Date.now() + 40_000 });
+    assert.equal(steerOf(thanked), undefined, "they said not now: no offer, whatever the page says an answer offers");
+    const plain = edge();
+    await plain.draft(plain.tenant, { ...ASK, kind: "answer", deadline: Date.now() + 40_000 });
+    assert.equal(steerOf(plain), undefined, "nothing said for the booking link, as before the page");
+  });
+});
+
+test("the reading says which draft it asks for: an answer, or a line of thanks", async () => {
+  const asked = async (intent) => {
+    const w = world({ answers: { ask: reading(intent) } });
+    await run(w);
+    return w.calls("draft")[0][2].kind;
+  };
+  assert.equal(await asked("interested"), "answer");
+  assert.equal(await asked("not_now"), "thanks");
+});

@@ -7,6 +7,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { applySettingsChange } from "@chanlytics/contracts";
 import { unmount } from "../../_stub-react.mjs";
 import "../../_business-tab-harness.mjs";
 
@@ -105,9 +106,43 @@ test("a fold opens on what the section holds, never on what a writer reads in it
   for (const fold of FOLDS) assert.deepEqual(S.draftOf(fold, bare), fold === "proof" ? [] : "", fold);
 });
 
-test("the phone's fold refuses words that are no phone number, under its box", () => {
-  assert.deepEqual(S.problemsOf("sign_phone", "call me"), {
+test("a box refuses what the save refuses, under its own field, in the save's sentence", () => {
+  assert.deepEqual(S.saveProblems("sign_phone", {}, "call me"), {
     sign_phone: "A phone number, as people write one: its digits, with spaces, dashes or brackets.",
   });
-  assert.deepEqual(S.problemsOf("sign_phone", "(512) 555-0142"), {});
+  assert.deepEqual(S.saveProblems("sign_phone", {}, "(512) 555-0142"), {});
+  assert.deepEqual(S.saveProblems("signature", {}, "Maya\nbrightline.example.com").signature !== undefined, true);
+  assert.deepEqual(S.saveProblems("offer", {}, "x".repeat(301)), { offer: "Keep it under 300 characters." });
+});
+
+test("a claim's refusal is said under the row it was typed in, with an empty row above it", () => {
+  assert.deepEqual(S.saveProblems("proof", {}, ["", "x".repeat(141)]), { "claim-1": "Keep it under 140 characters." });
+  assert.deepEqual(S.saveProblems("proof", {}, ["1", "2", "3", "4", "5", "6"]), { proof: "Up to 5 claims." });
+});
+
+test("a row saved on the page and the same change on Ask's card store one section", () => {
+  const cases = [
+    ["offer", "  Evening cleaning ", { op: "set_offer", offer: "  Evening cleaning " }],
+    ["offer", " ", { op: "set_offer", offer: " " }],
+    ["who_for", "Vet clinics", { op: "set_who_for", who_for: "Vet clinics" }],
+    ["fixes", "", { op: "set_fixes", fixes: "" }],
+    ["cold_tone", " Plain ", { op: "set_cold_tone", tone: " Plain " }],
+    ["signed_by", "Sam", { op: "set_signed_by", name: "Sam" }],
+    ["signature", "Sam\nOwner", { op: "set_signature", signature: "Sam\nOwner" }],
+    ["reply_offer", "answer", { op: "set_reply_offer", offer: "answer" }],
+    ["reply_offer", "booking_link", { op: "set_reply_offer", offer: "booking_link" }],
+  ];
+  for (const [fold, draft, change] of cases) {
+    assert.deepEqual(
+      S.saveFold(fold, stored(), draft).reach_out,
+      applySettingsChange(stored(), change).reach_out,
+      fold,
+    );
+  }
+  const bare = { brain: STORED.brain, reach_out: { offer: "A" } };
+  assert.equal(
+    "reach_out" in applySettingsChange(bare, { op: "set_offer", offer: "" }),
+    false,
+    "gone, as a fold leaves it",
+  );
 });

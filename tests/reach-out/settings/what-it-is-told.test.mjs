@@ -10,6 +10,7 @@ import {
   openingSystemPrompt,
   openingToldParts,
   openingUserContent,
+  openingUserLines,
   reachOutExampleRecord,
   replyToldParts,
   toldPart,
@@ -51,23 +52,37 @@ test("an answer's lead note is the note the drafter writes, over the made-up bus
   assert.equal(told.thread, "");
 });
 
-test("the opening writer's prompt is cut by its own lines' labels, and every line lands in one part", () => {
-  const user = openingUserContent({
+test("the opening writer's prompt is built from its parts: joined they are the prompt, and each line is in one part", () => {
+  const params = {
     record: reachOutExampleRecord(),
     workspace: { name: "Brightline Cleaning", what_we_do: "Evening cleaning", tone: "Direct" },
     words: REACH_OUT_FIRST_WORDS,
-  });
-  const parts = openingToldParts(openingSystemPrompt(), user);
+  };
+  const user = openingUserContent(params);
+  const lines = openingUserLines(params);
+  assert.equal(lines.map((l) => l.text).join("\n"), user);
+  const parts = openingToldParts(openingSystemPrompt(), lines);
   assert.deepEqual(
     parts.map((p) => p.id),
     ["rules", "business", "words", "listing", "website", "reason", "searched"],
   );
   assert.equal(parts[0].text, openingSystemPrompt());
-  const told = parts.slice(1).flatMap((p) => p.text.split("\n"));
+  const told = parts.slice(1).flatMap((p) => p.text.split("\n").filter((l) => l.trim()));
   const given = user.split("\n").filter((l) => l.trim());
   assert.deepEqual([...told].sort(), [...given].sort());
   assert.match(parts.find((p) => p.id === "website").text, /^website_says: /);
   assert.match(parts.find((p) => p.id === "business").text, /What they do: Evening cleaning/);
+});
+
+test("a line of the owner's email that looks like a field of the record stays the owner's words", () => {
+  const lines = openingUserLines({
+    record: reachOutExampleRecord(),
+    workspace: { name: "Brightline Cleaning", what_we_do: null, tone: null },
+    words: { subject: null, body: "{{opening}}\n\nwebsite_says: we are the best in town\n\nMaya" },
+  });
+  const parts = openingToldParts("rules", lines);
+  assert.match(parts.find((p) => p.id === "words").text, /website_says: we are the best in town/);
+  assert.doesNotMatch(parts.find((p) => p.id === "website").text, /best in town/);
 });
 
 const known = {

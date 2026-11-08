@@ -3,12 +3,13 @@
  * parts an owner can name, each with its share of the whole and a way back to the row that writes it, as How it answers'
  * prompt sheet cuts the receptionist's (config/prompt-blocks.ts). The parts are cut from the text the writer is given,
  * never written beside it: the drafter's are the drafter's own lines (drafts/sequence.ts draftAskedParts), and the
- * opening writer's are read off its prompt by the labels its lines carry.
+ * opening writer's its own lines, each built with its part (opening.ts openingUserLines).
  *
  * An answer to a reply is the receptionist's, over the thread and the lead's note, which differ with every reply: its
  * parts are said with no share, since no one number would be true of them.
  */
 import { leadReplyNote } from "./reply-draft";
+import type { OpeningLine, OpeningPart } from "./opening";
 import type { OpeningRecord } from "./words/opening";
 
 export type ToldKind = "words" | "opening" | "reply";
@@ -94,35 +95,18 @@ export function toldShares(parts: readonly ToldPart[]): number[] | null {
   return exact.map((e, i) => Math.floor(e) + (takes.has(i) ? 1 : 0));
 }
 
-/** Which part of the opening writer's prompt a line of it is, by the label the line carries. */
-function openingPartOf(line: string, current: ToldPartId): ToldPartId {
-  if (line.startsWith("website_says:")) return "website";
-  if (line.startsWith("why_it_fits:")) return "reason";
-  if (line.startsWith("What the owner searched for")) return "searched";
-  if (line.startsWith("The business's record:") || line === "<record>") return "listing";
-  if (line === "</record>") return "listing";
-  if (/^(The owner's business|What they do|Their tone):/.test(line)) return "business";
-  if (line.startsWith("The owner's email")) return "words";
-  // A record's field line is the listing's, and a line after the owner's email starts is the email's.
-  if (current === "words") return "words";
-  return /^[a-z_]+: /.test(line) ? "listing" : current;
-}
+const OPENING_PARTS_SAID: readonly OpeningPart[] = ["business", "words", "listing", "website", "reason", "searched"];
 
-/** The opening writer's prompt, cut into its parts: the rules, and what its user content says, by its lines' labels. */
-export function openingToldParts(system: string, user: string): ToldPart[] {
-  const texts = new Map<ToldPartId, string[]>();
-  let current: ToldPartId = "listing";
-  for (const line of user.split("\n")) {
-    if (!line.trim()) continue;
-    current = openingPartOf(line, current);
-    texts.set(current, [...(texts.get(current) ?? []), line]);
-  }
-  const order: ToldPartId[] = ["business", "words", "listing", "website", "reason", "searched"];
+/** The opening writer's prompt, by its parts: the rules, and each part of what its user content says, line for line. */
+export function openingToldParts(system: string, lines: readonly OpeningLine[]): ToldPart[] {
   return [
     toldPart("rules", system),
-    ...order.flatMap((id) => {
-      const lines = texts.get(id);
-      return lines ? [toldPart(id, lines.join("\n"))] : [];
+    ...OPENING_PARTS_SAID.flatMap((id) => {
+      const text = lines
+        .filter((l) => l.part === id && l.text.trim())
+        .map((l) => l.text)
+        .join("\n");
+      return text ? [toldPart(id, text)] : [];
     }),
   ];
 }

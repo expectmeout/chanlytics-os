@@ -15,6 +15,7 @@ import { load, type ReaderContext } from "../shared/reader";
 import * as facts from "../readers/facts";
 import { sequences } from "../readers/sequences";
 import { getStoredConfig } from "../workspace/config-row";
+import { numberBacking } from "../campaigns/sequences/numbers";
 import { LEAD_RULES, PREVIEW_RULE, readOrNull, getOwner, ownerSaid } from "./sequence";
 import { leadEmail, type OwnerKnown } from "../campaigns/sequences/draft-judge";
 import type { TenantId } from "@chanlytics/contracts";
@@ -82,7 +83,7 @@ function rewriteKept(
 ): LeadRewriteDto {
   const first = ask.subject !== null;
   const sentence = answer.cannot.trim() || null;
-  const backing = [...(known.proof ?? []), known.business, ask.subject ?? "", ask.body];
+  const backing = numberBacking(known.proof, known.business, [ask.subject, ask.body]);
   const email = leadEmail({ subject: answer.subject.trim() || (ask.subject ?? ""), body: answer.body }, first, backing);
   if (!email.body) throw new AppError("validation", sentence ?? LEAD_BUILD_WORDS.rewriteBroke, 422);
   if (wordsNeedOpening(ask) && !wordsNeedOpening(email))

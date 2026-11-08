@@ -45,6 +45,8 @@ export interface ReplyDraftAsk {
   /** A member's change, and the words it changes. */
   instruction: string | null;
   given: string | null;
+  /** An answer to a lead who wrote back: steered by what How it reaches out says it offers, in a member's change's place. */
+  answersLead?: boolean;
   /** When the writer must have answered by (epoch ms). */
   deadline: number;
   /** Who they are, where the caller knows better than their record does: a reach-out's reading says what it answered. */
