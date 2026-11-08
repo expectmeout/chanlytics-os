@@ -318,7 +318,7 @@ function answerTo(messages: ThreadMessages, text: string, since: number): Thread
   for (let i = messages.length - 1; i > 0; i--) {
     const m = messages[i];
     const q = messages[i - 1];
-    if (m.role !== "assistant" || q.role !== "user") continue;
+    if (m?.role !== "assistant" || q?.role !== "user") continue;
     if (q.atMs < since) return null;
     if (sameWords(q.text) === text) return m;
   }

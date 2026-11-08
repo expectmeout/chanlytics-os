@@ -6,6 +6,6 @@ export const hashKey = (text: string) => createHash("sha256").update(text).diges
 /** The network a request came from: the first forwarded address, else the proxy's, else "unknown". */
 export function ipOf(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
-  const first = fwd ? fwd.split(",")[0].trim() : "";
+  const first = fwd ? (fwd.split(",")[0] ?? "").trim() : "";
   return first || req.headers.get("x-real-ip") || "unknown";
 }

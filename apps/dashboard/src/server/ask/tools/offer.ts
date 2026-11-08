@@ -29,7 +29,7 @@ const examplesOf = (t: Tool<{ examples?: unknown[] }>, only?: readonly string[])
 function defFor(readTool: ReadTool | ActTool, actions: string[]): ToolDef {
   const withAction = !(NO_ACTION in readTool.actions);
   const description = withAction
-    ? [readTool.description, ...actions.map((a) => readTool.actions[a].words), readTool.tail]
+    ? [readTool.description, ...actions.map((a) => readTool.actions[a]?.words), readTool.tail]
         .filter((s) => !!s)
         .join(" ")
     : readTool.description;

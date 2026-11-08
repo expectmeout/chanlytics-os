@@ -235,7 +235,8 @@ export async function followUpFacts(
   const held: Record<string, string> = {};
   const heard: Record<string, string[]> = {};
   const latest = (m: Record<string, string>, t: Touch) => {
-    if (!m[t.contact_id] || Date.parse(t.at) > Date.parse(m[t.contact_id])) m[t.contact_id] = t.at;
+    const held = m[t.contact_id];
+    if (!held || Date.parse(t.at) > Date.parse(held)) m[t.contact_id] = t.at;
   };
   // Only who holds a proposal out: the rows the facts are for.
   for (const t of followUps) if (out.contacts.has(t.contact_id)) latest(t.sent ? had : t.held ? held : queued, t);

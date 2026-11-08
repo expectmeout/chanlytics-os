@@ -280,7 +280,7 @@ export async function findReachOutRun(
   const [first, refused] = await Promise.all([
     firstEmailOf(ctx, tenantId, {
       lead: approvalCounts.checked.find((s) => !ownOf(s)),
-      step,
+      step: step ?? null,
       first: stepN === 0,
       signedBy: root.signed_by,
       signsWith: root.signs_with,

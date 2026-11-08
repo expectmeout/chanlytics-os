@@ -340,7 +340,7 @@ export function memoryStore(): RateStore & { reset(): void } {
       if (recent.length >= rule.limit) {
         return Promise.resolve({
           allowed: false,
-          retryAfterS: Math.max(1, Math.ceil((recent[0] + rule.windowMs - now) / 1000)),
+          retryAfterS: Math.max(1, Math.ceil(((recent[0] ?? now) + rule.windowMs - now) / 1000)),
         });
       }
       recent.push(now);

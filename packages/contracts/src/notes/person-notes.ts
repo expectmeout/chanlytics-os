@@ -151,7 +151,7 @@ export const NOTE_WORDS = {
 } as const;
 
 /** A door's refusal, in the owner's words (00157's error keys). */
-export const NOTE_REFUSALS: Record<string, string> = {
+const NOTE_REFUSAL_WORDS = {
   empty: "Write something first.",
   too_long: `A note is at most ${NOTE_MAX} characters.`,
   not_found: "This person or this note is no longer here.",
@@ -164,6 +164,7 @@ export const NOTE_REFUSALS: Record<string, string> = {
   not_a_step: "Only a note with a day can be done.",
   not_for_you: "This note is for someone else.",
 };
+export const NOTE_REFUSALS: typeof NOTE_REFUSAL_WORDS & Record<string, string> = NOTE_REFUSAL_WORDS;
 
 const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
   page: null,

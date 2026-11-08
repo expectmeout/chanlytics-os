@@ -84,7 +84,7 @@ type StepRow = ReachOutStepRow;
 export function chainOf(root: StepRow, all: StepRow[]): StepRow[] {
   const out = [root];
   for (let i = 0; i < 10; i += 1) {
-    const next = all.find((s) => s.after_playbook_id === out[out.length - 1].id);
+    const next = all.find((s) => s.after_playbook_id === out.at(-1)?.id);
     if (!next) break;
     out.push(next);
   }
@@ -189,7 +189,7 @@ export async function saveChain(
   const issues = opts.unwritten ? all.filter((i) => !blank(i.step)) : all;
   if (issues.length > 0) {
     const sentence = issues.map((i) => ({ ...i, words: chainIssueWords(i) }));
-    throw new AppError("validation", sentence[0].words, 422, { issues: sentence });
+    throw new AppError("validation", sentence[0]?.words ?? "", 422, { issues: sentence });
   }
   // An email carries no hand key at all: the door reads a step with one as a call or a note (00228).
   const steps = input.steps.map(({ hand, ...s }) => (hand ? { ...s, hand } : s));

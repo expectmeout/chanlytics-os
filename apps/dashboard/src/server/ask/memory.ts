@@ -140,10 +140,11 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
   ];
   const asBlocks = (c: unknown): unknown[] => (Array.isArray(c) ? c : [{ type: "text", text: String(c) }]);
   for (let i = messages.length - 2; i >= 0; i--) {
-    if (messages[i].role === messages[i + 1].role) {
-      const [a, b] = [messages[i].content, messages[i + 1].content];
+    const [one, two] = [messages[i], messages[i + 1]];
+    if (one && two && one.role === two.role) {
+      const [a, b] = [one.content, two.content];
       messages[i] = {
-        role: messages[i].role,
+        role: one.role,
         content: typeof a === "string" && typeof b === "string" ? `${a}\n${b}` : [...asBlocks(a), ...asBlocks(b)],
       };
       messages.splice(i + 1, 1);
@@ -203,13 +204,14 @@ const questionsOf = (history: TurnInput["history"]): number[] =>
  * is frozen on the turn that made it.
  */
 function rebuiltHistory(messages: AskMessageVM[], turns: TurnInput["history"]): TurnInput["history"] {
-  const history = messages.map((m, i) =>
-    m.role === "assistant" ? { role: "assistant" as const, text: answerLine(m, HISTORY_CHARS) } : turns[i],
-  );
+  const history = messages.flatMap((m, i) => {
+    const line = m.role === "assistant" ? { role: "assistant" as const, text: answerLine(m, HISTORY_CHARS) } : turns[i];
+    return line ? [line] : [];
+  });
   const questions = questionsOf(history);
   const sent = (from: number) => history.slice(from).reduce((n, h) => n + Math.min(h.text.length, HISTORY_CHARS), 0);
   let k = Math.max(0, questions.length - HISTORY_TURNS);
-  while (k < questions.length - 1 && sent(questions[k]) > HISTORY_BASE_CHARS) k++;
+  while (k < questions.length - 1 && sent(questions[k] ?? 0) > HISTORY_BASE_CHARS) k++;
   return history.slice(questions[k] ?? history.length);
 }
 
@@ -336,8 +338,9 @@ function chainIds(rows: AskMessageVM[], replays: Array<AskTurnShape["replay"] | 
   if (now - last.atMs >= LIVE_WINDOW_MS) return null;
   const ids: string[] = [];
   for (let i = rows.length - 1; i >= 0 && ids.length < LIVE_TURNS; i--) {
-    if (rows[i].role !== "assistant") continue;
-    ids.push(rows[i].id);
+    const row = rows[i];
+    if (row?.role !== "assistant") continue;
+    ids.push(row.id);
     if (replays[i] !== "live") return ids;
   }
   return null;
@@ -409,7 +412,8 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const [newest] = turns;
   const oldest = turns.at(-1);
   const base = oldest?.base;
-  if (turns.length !== ids.length || !newest || !base || now - newest.at >= LIVE_WINDOW_MS) return null;
+  const [after] = ids;
+  if (turns.length !== ids.length || !newest || !after || !base || now - newest.at >= LIVE_WINDOW_MS) return null;
   if (turns.slice(0, -1).some((t, i) => t.base || t.after !== ids[i + 1])) return null;
   const sent = [...base];
   for (const t of [...turns].reverse())
@@ -429,7 +433,7 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
     .filter((o) => !notice.has(toldOf(o)));
   const { results, model, prefix } = newest;
   const readAt = [...turns].reverse().map((t) => t.at);
-  return { messages, anchor, results, model, prefix, after: ids[0], lastId: newest.id, since, readAt };
+  return { messages, anchor, results, model, prefix, after, lastId: newest.id, since, readAt };
 }
 
 /**
@@ -604,7 +608,7 @@ export function rawTurn(
   const messages = request.messages.map(unmarked);
   return {
     ...(kept.after ? {} : { base: messages.slice(0, questionAt) }),
-    question: messages[questionAt].content,
+    question: messages[questionAt]?.content,
     rounds: messages.slice(questionAt + 1),
     final: replayBlocks(blocks),
     results: resultBlocks(outcomes),
