@@ -973,7 +973,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(noSearches.data.searches, null, "the queue says nothing of searches it could not read");
   assert.equal(noSearches.data.calls.length, 2);
   assert.deepEqual(noSearches.data.metrics, SUMMARY);
-  assert.deepEqual(searchLines, [{ error: "Error: down" }]);
+  assert.deepEqual(searchLines, [{ error: "DbFailure: down" }]);
 });
 
 /* -------------------------------------------------- the thread and the call (PR 1.3) */

@@ -196,7 +196,7 @@ test("a credentials read that fails is a refusal: the carrier is not skipped pas
     ok: false,
     status: 503,
     error: "read_failed",
-    detail: "reading the line's credentials: vault unavailable",
+    detail: "That could not be read just now. Try again in a moment.",
     released: {},
   });
   assert.deepEqual(
