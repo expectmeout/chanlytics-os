@@ -1,10 +1,11 @@
 /**
  * How it reaches out's rows as Ask may change them (decision 0113): a change a card proposes and the owner approves,
- * applied to a parsed config's reach_out section as the page's own folds write it (business/fold-shapes.ts): trimmed,
- * an emptied value its key removed, the section gone once nothing is in it, and the booking link, what an answer
- * offered before the page, stored as nothing. Ask's change schema is ask/schemas.ts's, its one door settings-change.ts.
+ * applied to a parsed config's reach_out section by the one writer of a key of it (writeReachOutKey), which the page's own
+ * folds write through too. Ask's change schema is ask/schemas.ts's, its one door settings-change.ts.
  */
-import { REACH_OUT_LIMITS, type ReplyOffer } from "./config-rules";
+import { listOrEmpty, recordOrEmpty } from "../../shared/unknown";
+import type { ReplyOffer } from "./config-rules";
+import type { ReachOutConfig } from "./reach-out-schema";
 
 export type AskReachOutChange =
   | { op: "set_offer"; offer: string }
@@ -33,63 +34,65 @@ export const ASK_REACH_OUT_ROWS: Readonly<Record<AskReachOutChange["op"], string
 export const isReachOutChange = (change: { op: string }): change is AskReachOutChange =>
   Object.hasOwn(ASK_REACH_OUT_ROWS, change.op);
 
-type Section = Record<string, unknown> & { proof?: unknown };
+/**
+ * One key of the section written, the one way it is written, by the page's folds and Ask's cards alike: a text trimmed; a
+ * list's entries trimmed, an empty one dropped; an emptied value takes its key away, and the section goes with its last
+ * key; the booking link, what an answer offered before the page, is stored as nothing. In place, on the config it is
+ * handed: the page's folds write on a copy of the stored one.
+ */
+export function writeReachOutKey(
+  config: { reach_out?: unknown },
+  key: keyof ReachOutConfig,
+  value: string | readonly string[],
+): void {
+  const written = typeof value === "string" ? value.trim() : value.map((v) => v.trim()).filter(Boolean);
+  const section = { ...recordOrEmpty(config.reach_out) };
+  if (written.length === 0 || (key === "reply_offer" && written === "booking_link")) delete section[key];
+  else section[key] = written;
+  if (Object.keys(section).length) config.reach_out = section;
+  else delete config.reach_out;
+}
 
-const claimsOf = (section: Section): string[] =>
-  Array.isArray(section.proof) ? section.proof.filter((c): c is string => typeof c === "string") : [];
+const claimsOf = (section: Record<string, unknown>): string[] =>
+  listOrEmpty(section.proof).filter((c): c is string => typeof c === "string");
 
-/** The section with one change written into it, as the page's fold writes the same row. */
-function sectionWith(section: Section, change: AskReachOutChange): Section {
-  const next: Section = { ...section };
-  const put = (key: string, value: string | string[] | undefined) => {
-    if (value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) delete next[key];
-    else next[key] = value;
-  };
+/** The key a change writes, and what it writes there. */
+function writeOf(
+  section: Record<string, unknown>,
+  change: AskReachOutChange,
+): [keyof ReachOutConfig, string | string[]] {
   switch (change.op) {
     case "set_offer":
-      put("offer", change.offer.trim());
-      break;
+      return ["offer", change.offer];
     case "set_who_for":
-      put("who_for", change.who_for.trim());
-      break;
+      return ["who_for", change.who_for];
     case "set_fixes":
-      put("fixes", change.fixes.trim());
-      break;
+      return ["fixes", change.fixes];
     case "add_claim": {
       const claims = claimsOf(section);
       const claim = change.claim.trim();
-      put("proof", claims.includes(claim) ? claims : [...claims, claim].slice(0, REACH_OUT_LIMITS.claims));
-      break;
+      // Past the limit it is the save's to refuse, in its words: dropped here, the card's receipt would say it was added.
+      return ["proof", claims.includes(claim) ? claims : [...claims, claim]];
     }
     case "remove_claim":
-      put(
-        "proof",
-        claimsOf(section).filter((c) => c !== change.claim.trim()),
-      );
-      break;
+      return ["proof", claimsOf(section).filter((c) => c !== change.claim.trim())];
     case "set_cold_tone":
-      put("tone", change.tone.trim());
-      break;
+      return ["tone", change.tone];
     case "set_signed_by":
-      put("signed_by", change.name.trim());
-      break;
+      return ["signed_by", change.name];
     case "set_signature":
-      put("signature", change.signature.trim());
-      break;
+      return ["signature", change.signature];
     case "set_reply_offer":
-      put("reply_offer", change.offer === "booking_link" ? undefined : change.offer);
-      break;
+      return ["reply_offer", change.offer];
   }
-  return next;
 }
 
 /** A config with the change applied to its reach_out section. */
 export function applyReachOutChange<C extends Record<string, unknown>>(config: C, change: AskReachOutChange): C {
-  const raw = config.reach_out;
-  const section: Section = raw && typeof raw === "object" && !Array.isArray(raw) ? { ...raw } : {};
-  const next = sectionWith(section, change);
-  // A section with nothing in it is no section: undefined, which a save leaves out.
-  return Object.keys(next).length ? { ...config, reach_out: next } : { ...config, reach_out: undefined };
+  const next = { ...config };
+  const [key, value] = writeOf(recordOrEmpty(config.reach_out), change);
+  writeReachOutKey(next, key, value);
+  return next;
 }
 
 const quoted = (text: string) => `“${text.trim()}”`;

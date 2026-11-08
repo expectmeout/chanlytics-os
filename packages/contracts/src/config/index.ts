@@ -226,7 +226,6 @@ export type {
   CalendarGrantConfig,
   FeaturesConfig,
   NotificationsConfig,
-  ReachOutConfig,
   ReceptionistState,
   TenantConfig,
   TenantConfigParse,
@@ -281,8 +280,11 @@ export {
   ASK_REACH_OUT_ROWS,
   describeReachOutChange,
   isReachOutChange,
+  writeReachOutKey,
 } from "./workspace-config/reach-out-change";
 export type { AskReachOutChange } from "./workspace-config/reach-out-change";
+export { REACH_OUT_REFUSAL_WORDS, reachOutSignatureProblem } from "./workspace-config/reach-out-schema";
+export type { ReachOutConfig } from "./workspace-config/reach-out-schema";
 export {
   hasProfile,
   instructionsDraft,

@@ -5,8 +5,6 @@
  * reply policy. Why it was not drafted is told in a reach-out's words: a draft that named money is simply not drafted.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseTenantConfig, replyOfferSteer } from "@chanlytics/contracts";
-import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import type { JobContext } from "@chanlytics/jobs";
 import { draftWriter } from "../../drafts/writer.js";
@@ -19,7 +17,6 @@ type Draft = NonNullable<JobContext["replies"]>["draft"];
 export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?: () => number } = {}): Draft {
   const write = draftWriter(db, over);
   return async (tenantId, ask) => {
-    const steer = await offerSteerOf(db, tenantId);
     const out = await write.reply(tenantId, {
       conversationId: ask.conversationId,
       contactId: null,
@@ -30,8 +27,9 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
       theirSubject: null,
       holdReason: null,
       holdDetails: null,
-      // What How it reaches out says the answer offers (decision 0113): nothing said for the booking link, as before.
-      instruction: steer,
+      instruction: null,
+      // An answer offers what How it reaches out says it does (decision 0113); a line of thanks offers nothing.
+      answersLead: ask.kind === "answer",
       given: null,
       deadline: ask.deadline,
       note: ask.note,
@@ -39,17 +37,4 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
     if ("why" in out) return { why: out.why === "named_money" ? "not_drafted" : out.why };
     return { text: out.text, used: out.used };
   };
-}
-
-/**
- * The steer for what an answer to a lead offers, read off the workspace's config (contracts replyOfferSteer). A config
- * that cannot be read steers nothing: the answer is drafted as it was before How it reaches out, never not drafted.
- */
-async function offerSteerOf(db: Db, tenantId: string): Promise<string | null> {
-  try {
-    const w = await findWorkspaceNameAndConfig(db, tenantId);
-    return replyOfferSteer(parseTenantConfig(w.config)?.reach_out?.reply_offer);
-  } catch {
-    return null;
-  }
 }

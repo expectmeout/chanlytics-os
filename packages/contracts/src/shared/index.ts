@@ -99,7 +99,7 @@ export type { ErrorCode, ErrorDetails, ErrorDetailsByCode } from "./errors";
 export { escapeHtml, linkifyEscaped } from "./html";
 export { asContactId, asTenantId, isUuid, SLUG, UUID } from "./identity";
 export type { ContactId, TenantId } from "./identity";
-export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./link";
+export { linkHost, normalizeLink, publicObjectSrc, webAddressesIn, whyNotALink } from "./link";
 export { sumOf } from "./numbers";
 export {
   areaCodeOf,

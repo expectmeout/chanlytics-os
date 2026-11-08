@@ -158,7 +158,7 @@ export interface ReplyReadPorts {
    */
   draft(
     tenantId: string,
-    ask: { conversationId: string; text: string; note: string; deadline: number },
+    ask: { conversationId: string; text: string; note: string; deadline: number; kind: "answer" | "thanks" },
   ): Promise<{ text: string; used?: readonly string[] } | { why: DraftWhy }>;
   /**
    * The draft kept where every page reads a thread's draft (decision 0093, conversation_drafts). Absent, the reading alone
@@ -275,6 +275,7 @@ async function draftNow(
       text: replyTextOf(facts.text),
       note: leadReplyNote({ business: facts.business, answered: facts.answered, kind }),
       deadline: cmd.deadline,
+      kind,
     });
   } catch {
     // A brain that failed or ran out of time drafts nothing: the reading and its notice stand without it.

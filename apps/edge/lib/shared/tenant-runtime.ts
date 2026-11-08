@@ -8,7 +8,7 @@
  * message. The edge never queries the control-plane tables anywhere else, so
  * "what does the runtime consult?" has exactly one answer.
  */
-import type { CalendarConfig, CalendarGrantConfig, FeaturesConfig } from "@chanlytics/contracts";
+import type { CalendarConfig, CalendarGrantConfig, FeaturesConfig, ReplyOffer } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import {
@@ -69,6 +69,8 @@ export interface TenantRuntime {
   calendarGrant?: CalendarGrantConfig | null;
   /** Opt-in abilities (features.vision, …); null = none set. */
   features: FeaturesConfig | null;
+  /** What an answer to a lead offers, as How it reaches out says (decision 0113); none said is the booking link, as before. */
+  replyOffer?: ReplyOffer | null;
   /** Workspace-level policy modes, class → mode. Unexpected/missing → 'ask'. */
   policy: Record<string, { mode: string; limits: PolicyLimits }>;
   /** Per-tenant WhatsApp credentials from Vault; null = the channel carries none, or the vault did not answer. */
@@ -267,6 +269,7 @@ const configParts = (parsed: TenantConfig | null) => ({
   calendar: parsed?.calendar ?? null,
   calendarGrant: parsed?.calendar_grant ?? null,
   features: parsed?.features ?? null,
+  replyOffer: parsed?.reach_out?.reply_offer ?? null,
 });
 
 export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: RoutedChannel): Promise<TenantRuntime> {

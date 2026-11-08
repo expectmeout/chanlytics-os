@@ -109,6 +109,17 @@ export function openingSystemPrompt(): string {
   ].join("\n");
 }
 
+/** Which part of What it's told (told.ts) a line of the writer's input is. */
+export type OpeningPart = "listing" | "website" | "reason" | "searched" | "business" | "words";
+export interface OpeningLine {
+  part: OpeningPart;
+  text: string;
+}
+
+/** Lines of one part, with those that say nothing (null) left out. */
+const linesOf = (part: OpeningPart, ...texts: readonly (string | null)[]): OpeningLine[] =>
+  texts.flatMap((text) => (text === null ? [] : [{ part, text }]));
+
 /**
  * One line per field, whatever the field holds: a line break in a listing's about text never starts a line of our own,
  * and a tag in a website's title closes no fence (defang). The one fence rule for what others wrote: the check's record
@@ -124,22 +135,26 @@ export const fenceLine = (key: string, value: string | number | null | undefined
  * (leadCalledByOf), as every email says it; how its listing writes it follows where that is more, since those words are
  * the business's own about itself.
  */
-function recordLines(opening: OpeningRecord): string[] {
+function recordLines(opening: OpeningRecord): OpeningLine[] {
   const name = leadCalledByOf(opening);
-  const lines = [
-    fenceLine("name", name),
-    name === opening.business_name.replace(/\s+/g, " ").trim() ? null : fenceLine("listed_as", opening.business_name),
-    fenceLine("category", opening.category),
-    fenceLine("city", [opening.city, opening.region].filter(Boolean).join(", ") || null),
-    fenceLine("rating", opening.rating),
-    fenceLine("reviews", opening.reviews),
-    fenceLine("website", opening.website),
-    fenceLine("hours", opening.hours),
-    fenceLine("about", opening.about),
-    fenceLine("why_it_fits", opening.why_it_fits),
-    fenceLine("website_says", opening.website_says),
-  ].filter((l): l is string => l !== null);
-  return ["<record>", ...lines, "</record>"];
+  return [
+    ...linesOf(
+      "listing",
+      "<record>",
+      fenceLine("name", name),
+      name === opening.business_name.replace(/\s+/g, " ").trim() ? null : fenceLine("listed_as", opening.business_name),
+      fenceLine("category", opening.category),
+      fenceLine("city", [opening.city, opening.region].filter(Boolean).join(", ") || null),
+      fenceLine("rating", opening.rating),
+      fenceLine("reviews", opening.reviews),
+      fenceLine("website", opening.website),
+      fenceLine("hours", opening.hours),
+      fenceLine("about", opening.about),
+    ),
+    ...linesOf("reason", fenceLine("why_it_fits", opening.why_it_fits)),
+    ...linesOf("website", fenceLine("website_says", opening.website_says)),
+    ...linesOf("listing", "</record>"),
+  ];
 }
 
 /**
@@ -172,36 +187,50 @@ function askedLines(a: OpeningAsked): string[] {
   ];
 }
 
-export function openingUserContent(params: {
+interface OpeningInput {
   record: OpeningRecord;
   workspace: OpeningWorkspace;
   words: { subject: string | null; body: string };
   asked?: OpeningAsked | null;
   retry?: { opening: string; why: string };
-}): string {
+}
+
+/** The writer's input, line by line, each with the part of What it's told it is. */
+export function openingUserLines(params: OpeningInput): OpeningLine[] {
+  const { record, workspace, words, asked, retry } = params;
   return [
-    "The business's record:",
-    ...recordLines(params.record),
-    "",
-    ...(params.record.what_you_asked
-      ? [fenceLine("What the owner searched for (not about this business)", params.record.what_you_asked)!]
-      : []),
-    `The owner's business: ${params.workspace.name}`,
-    ...(params.workspace.what_we_do ? [`What they do: ${params.workspace.what_we_do}`] : []),
-    ...(params.workspace.tone ? [`Their tone: ${params.workspace.tone}`] : []),
-    "",
-    "The owner's email, where {{opening}} is your sentence:",
-    ...(params.words.subject ? [`Subject: ${params.words.subject}`] : []),
-    params.words.body,
-    ...(params.asked ? askedLines(params.asked) : []),
-    ...(params.retry
-      ? [
-          "",
-          fenceLine("Your last opening was", params.retry.opening) ?? "",
-          `It could not be sent: ${defang(params.retry.why)}. Write it again from the record only.`,
-        ]
-      : []),
-  ].join("\n");
+    ...linesOf("listing", "The business's record:"),
+    ...recordLines(record),
+    ...linesOf("listing", ""),
+    ...linesOf("searched", fenceLine("What the owner searched for (not about this business)", record.what_you_asked)),
+    ...linesOf(
+      "business",
+      `The owner's business: ${workspace.name}`,
+      workspace.what_we_do ? `What they do: ${workspace.what_we_do}` : null,
+      workspace.tone ? `Their tone: ${workspace.tone}` : null,
+      "",
+    ),
+    ...linesOf(
+      "words",
+      "The owner's email, where {{opening}} is your sentence:",
+      words.subject ? `Subject: ${words.subject}` : null,
+      words.body,
+      ...(asked ? askedLines(asked) : []),
+      ...(retry
+        ? [
+            "",
+            fenceLine("Your last opening was", retry.opening) ?? "",
+            `It could not be sent: ${defang(retry.why)}. Write it again from the record only.`,
+          ]
+        : []),
+    ),
+  ];
+}
+
+export function openingUserContent(params: OpeningInput): string {
+  return openingUserLines(params)
+    .map((l) => l.text)
+    .join("\n");
 }
 
 export function readingSystemPrompt(): string {
@@ -221,7 +250,7 @@ export function readingSystemPrompt(): string {
 /** The sentence holds a listing's name where a listing's own fields said it (leadFactOf), so it is held as the record is. */
 export function readingUserContent(params: { record: OpeningRecord; opening: string }): string {
   const sentence = fenceLine("The sentence", params.opening) ?? "";
-  return ["The business's record:", ...recordLines(params.record), "", sentence].join("\n");
+  return ["The business's record:", ...recordLines(params.record).map((l) => l.text), "", sentence].join("\n");
 }
 
 /** Words a tag never ends on: a cut that leaves one ("their reviews and") drops it. */

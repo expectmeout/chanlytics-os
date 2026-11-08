@@ -30,6 +30,7 @@ import {
   reachOutToneOf,
   toldPart,
   type ToldPart,
+  mailboxIsLive,
   messageHolds,
   momentOffered,
   newListOf,
@@ -40,6 +41,7 @@ import {
   type ConsentChannel,
   type NewDraftAsk,
   type NewDraftDto,
+  type TenantConfig,
 } from "@chanlytics/contracts";
 import { askMemoryLines } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
@@ -317,10 +319,7 @@ export async function draftSequenceFrom(
 export async function getOwner(
   rc: ReaderContext,
   rows: ReadonlyArray<{ id: string; starts: string; state: string }>,
-  config: {
-    brain?: { profile?: { services?: ReadonlyArray<{ name: string }>; tone?: string } };
-    reach_out?: { offer?: string; who_for?: string; fixes?: string; proof?: readonly string[]; tone?: string };
-  } | null,
+  config: Pick<TenantConfig, "brain" | "reach_out"> | null,
 ): Promise<OwnerRead> {
   const { ctx, tenantId } = rc;
   const profile = config?.brain?.profile;
@@ -477,7 +476,7 @@ export async function readDraftKnown(rc: ReaderContext): Promise<DraftKnown> {
   const owner = await getOwner(rc, rows, config);
   const pools = pb?.data.pools ?? null;
   const ready = pb?.data.ready ?? null;
-  const live = (mailboxes ?? []).filter((m) => m.state !== "removed");
+  const live = (mailboxes ?? []).filter(mailboxIsLive);
   const known: DraftKnown = {
     business: named.data.name,
     goal: config?.ask?.goal ?? null,

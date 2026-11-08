@@ -72,7 +72,7 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
     opening: opened ? leadOpeningOf(opened.written, opened.listing) : null,
     workspace: { businessName: business.name, yourName: chain.signed_by, bookingLink: business.bookingLink },
     // How it ends, as the send ends it (0077): the signature of the first mailbox the sequence writes from.
-    signsWith: chain.signs_with ?? "name",
+    signsWith: chain.signs_with,
     signature: chainFirstSender(chain)?.signature?.words ?? null,
     own: business.signature,
   });

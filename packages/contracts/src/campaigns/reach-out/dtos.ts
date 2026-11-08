@@ -79,8 +79,8 @@ export interface ReachOutChainDto {
   /** Its owner sends its emails, each handed to them as a draft (00429); absent from a server before it. */
   owner_sends?: boolean;
   signed_by: string | null;
-  /** How its emails end (0077); absent from a server before it, which ended them with the mailbox's signature. */
-  signs_with?: ReachOutSignsWith;
+  /** How its emails end (0077). */
+  signs_with: ReachOutSignsWith;
   steps: ReachOutStepDto[];
   /**
    * The mailboxes its run writes from (contracts reachOutWritesFrom: its own, or every one when it names none, that

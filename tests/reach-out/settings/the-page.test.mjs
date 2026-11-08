@@ -6,7 +6,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { REACH_OUT_REFUSAL_WORDS } from "../../../apps/dashboard/src/surfaces/settings/outreach/model/refusals.ts";
+import { REACH_OUT_REFUSAL_WORDS } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import {
   drawTab,

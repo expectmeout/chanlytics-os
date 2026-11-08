@@ -12,6 +12,7 @@ import {
   VOICE_WORDS,
   reachOutToneOf,
   textOrEmpty,
+  type ReachOutConfig,
 } from "@chanlytics/contracts";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { gate, navigate } from "../../frame-verbs";
@@ -46,7 +47,7 @@ const keyFold = (
   shared: OutreachShared,
   spec: {
     id: string;
-    key: string;
+    key: keyof ReachOutConfig;
     label: string;
     rows: number;
     placeholder: string;

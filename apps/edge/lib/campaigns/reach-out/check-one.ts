@@ -26,12 +26,12 @@ import {
   leadFactOf,
   openingSystemPrompt,
   openingUserContent,
+  openingWorkspaceOf,
   openingVerdict,
   parseOpening,
   parseReading,
   parseTenantConfig,
   reachOutSignatureOf,
-  reachOutToneOf,
   readingSystemPrompt,
   readingUserContent,
   reachOutCountryOf,
@@ -414,11 +414,8 @@ export async function checkWorkspaceOf(db: Db, tenantId: string): Promise<CheckW
   const config = parseTenantConfig(w.config);
   const brain = config?.brain;
   const name = w.name?.trim() || null;
-  // What the business offers in How it reaches out's own words, where the owner wrote them (decision 0113), else what
-  // it does, as before; and a cold email's own tone, else the receptionist's. Unset, the writer is told what it was.
-  const offer = config?.reach_out?.offer?.trim() || about;
   return {
-    opening: { name: name ?? "", what_we_do: offer, tone: reachOutToneOf(config) },
+    opening: openingWorkspaceOf(name ?? "", config, about),
     businessName: name,
     address: brain?.profile?.address?.trim() || null,
     bookingLink: brain?.booking_link?.trim() || null,

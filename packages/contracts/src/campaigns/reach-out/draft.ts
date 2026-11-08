@@ -85,7 +85,7 @@ export function reachOutDraftOf(params: {
       mailbox_ids: chain.mailbox_ids,
       owner_sends: chain.owner_sends === true,
       signed_by: chain.signed_by ?? params.signedBy ?? "",
-      signs_with: chain.signs_with ?? "name",
+      signs_with: chain.signs_with,
       steps: chain.steps.map((s) => ({
         id: s.id,
         subject: s.n === 0 ? s.subject : null,
