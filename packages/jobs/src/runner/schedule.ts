@@ -17,6 +17,7 @@ import { JOB_KINDS, type JobKind, recordOrEmpty, recordOrNull } from "@chanlytic
 import { logger, requestId } from "@chanlytics/log";
 import { kindPolicyOf } from "./kinds";
 import { SPEAKS_TO_A_PERSON, type Db } from "./ledger";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The payload with the request it was scheduled in, when there is one and it does not name one already. */
 function named(payload: Json): Json {
@@ -27,7 +28,7 @@ function named(payload: Json): Json {
 }
 
 export interface ScheduleParams {
-  tenantId: string;
+  tenantId: TenantId;
   kind: JobKind;
   dueAt: Date;
   payload: Json;
@@ -125,7 +126,7 @@ export async function scheduleJobOnce(
  */
 export async function cancelJobsFor(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   kind: JobKind,
   payloadKey: string,
   payloadValue: string,
@@ -170,7 +171,7 @@ export type Requeued =
  */
 export async function requeueFailedJob(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   jobId: string,
   record: (kind: string) => Promise<void>,
 ): Promise<Requeued> {

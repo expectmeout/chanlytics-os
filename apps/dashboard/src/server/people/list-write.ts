@@ -5,6 +5,7 @@
  * what to which list. The names and rules are judged by lists.ts in the words the edit route uses; the routes declare
  * who may and how often, and the list is the row (listScope), found under RLS.
  */
+import { heldContactId } from "@chanlytics/contracts";
 import { AppError, ruleNeedsViewer, asListRule, ruleLists, recordOrNull } from "@chanlytics/contracts";
 import { readJsonBody } from "@/server/shared/request-guards";
 import {
@@ -116,7 +117,7 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
     });
   }
   if (remove.length) {
-    const { error } = await dropFromList(ctx.supabase, id, remove);
+    const { error } = await dropFromList(ctx.supabase, id, remove.map(heldContactId));
     if (error) throw new Error(error.message);
     await recordDecision(ctx, tenantId, "list", id, "drop_from_list", {
       name: rename ?? list.name,
@@ -124,7 +125,7 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
     });
   }
   if (add.length) {
-    const { error } = await addToList(ctx.supabase, list, add, ctx.userId);
+    const { error } = await addToList(ctx.supabase, list, add.map(heldContactId), ctx.userId);
     if (error) {
       // RLS's with-check is the refusal for a person of another workspace or
       // one who was erased; PostgREST reports it as a policy violation.

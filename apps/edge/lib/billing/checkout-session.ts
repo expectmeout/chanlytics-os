@@ -5,6 +5,7 @@
  * to the step's own address where it does (a bank's page). Pure: billing.ts makes the session.
  */
 import { MIN_MS, type CheckoutReturn } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * How long two presses of Pay are one: a checkout asked again inside this window, from the same door and the same way
@@ -13,7 +14,7 @@ import { MIN_MS, type CheckoutReturn } from "@chanlytics/contracts";
 const CHECKOUT_PRESS_WINDOW_MS = 10 * MIN_MS;
 
 /** The idempotency key of a workspace's checkout: the workspace, the door, in the page or not, and the window it is in. */
-export function checkoutKeyOf(tenantId: string, back: CheckoutReturn, inPage: boolean, nowMs: number): string {
+export function checkoutKeyOf(tenantId: TenantId, back: CheckoutReturn, inPage: boolean, nowMs: number): string {
   return `checkout:${tenantId}:${back}:${inPage ? "page" : "hosted"}:${Math.floor(nowMs / CHECKOUT_PRESS_WINDOW_MS)}`;
 }
 

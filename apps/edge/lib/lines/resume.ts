@@ -22,6 +22,7 @@
  *
  * Cross-workspace: the lines sweep resumes every workspace's stuck line; a take acts on a row its caller holds.
  */
+import type { TenantId } from "@chanlytics/contracts";
 import {
   PROVISIONING_DEADLINE_MS,
   LINE_STEP_WORDS,
@@ -161,7 +162,7 @@ export async function countAutomaticResume(
 
 interface StuckSweepDeps {
   /** Run the saga on a line this sweep has taken. The route wires `provisionLine`. */
-  resume: (tenant: { id: string; name: string }, row: LineDbRow) => Promise<{ ok: boolean }>;
+  resume: (tenant: { id: TenantId; name: string }, row: LineDbRow) => Promise<{ ok: boolean }>;
   /** The platform mailbox. */
   alert: (subject: string, body: string) => Promise<unknown>;
   /**
@@ -170,7 +171,7 @@ interface StuckSweepDeps {
    * returned failure goes through, so giving up on a line and a line refusing are
    * told in one voice.
    */
-  reportFailed: (tenant: { id: string; name: string }, row: LineDbRow, error: string) => Promise<unknown>;
+  reportFailed: (tenant: { id: TenantId; name: string }, row: LineDbRow, error: string) => Promise<unknown>;
   now: () => number;
   log: Pick<Logger, "info" | "error">;
 }

@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** Customers' messages on `channels` made between `after` and `before` and never taken up, the oldest first. */
@@ -59,7 +59,7 @@ export const listQueuedReplies = async (db: Db, after: string, before: string, l
     .limit(limit);
 
 /** One of the workspace's queued replies failed with `error`, only while still queued: its id back, none when it moved. */
-export const failQueuedReply = async (db: Db, tenantId: string, messageId: string, error: Json) =>
+export const failQueuedReply = async (db: Db, tenantId: TenantId, messageId: string, error: Json) =>
   db
     .from("messages")
     .update({ status: "failed", error })

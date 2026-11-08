@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_TIMEZONE } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import { findWorkspaceNameZone } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The two facts every export header needs: what the business is called and
@@ -10,7 +11,7 @@ import { findWorkspaceNameZone } from "@chanlytics/db/workspace";
  */
 export async function getTenantFacts(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ name: string; timezone: string }> {
   const { data, error } = await findWorkspaceNameZone(supabase, tenantId);
   if (error) throw new Error(error.message);

@@ -5,6 +5,7 @@
  * opened through the door (conversation_open, 00351), then read back as every conversation verb reads one; and the plan
  * is kept through the notes door (person_note_add, 0007), as the person's page keeps a note.
  */
+import { heldContactId } from "@chanlytics/contracts";
 import "server-only";
 import { SMS_FOOTER, smsBody } from "@chanlytics/channels/lines";
 import { asContactId } from "@chanlytics/contracts";
@@ -24,7 +25,7 @@ export function beginPorts(ctx: RouteContext): BeginPorts {
     person: (tenantId, personId) => findPersonRow(ctx.supabase, tenantId, personId),
     ready: (tenantId) => getChannelsReady(ctx, tenantId, { fresh: true, withPause: false }),
     open: async (tenantId, personId) => {
-      const id = await openConversation(ctx.supabase, tenantId, personId).catch((e: unknown) => {
+      const id = await openConversation(ctx.supabase, tenantId, heldContactId(personId)).catch((e: unknown) => {
         // The door's own refusal keeps its words and its status; anything else is the database's, and a 503.
         throw dbRefusal(e);
       });
@@ -40,7 +41,7 @@ export function beginPorts(ctx: RouteContext): BeginPorts {
     },
     // For the receptionist to read, never for the team alone: what the door answers is read as the notes route reads it.
     keepNote: async (personId, body) => {
-      const { data, error } = await addPersonNote(ctx.supabase, personId, body, false);
+      const { data, error } = await addPersonNote(ctx.supabase, heldContactId(personId), body, false);
       return noteAnswer("person_note_add", data, error).note?.id ?? null;
     },
   };

@@ -13,6 +13,7 @@ import {
   parseTenantConfig,
   type ImportSource,
   recordOrEmpty,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { importCursorOf, listImports, type ImportLedgerRow } from "@chanlytics/db/imports";
@@ -40,7 +41,7 @@ export async function importAgain(
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const source = body.source;
   if (!isOneOf(IMPORT_SOURCES, source))
     return refuse(400, "bad_request", "source is one of the imports ledger's sources");

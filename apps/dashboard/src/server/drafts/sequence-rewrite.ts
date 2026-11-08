@@ -18,6 +18,7 @@ import { getStoredConfig } from "../workspace/config-row";
 import { numberBacking } from "../campaigns/sequences/numbers";
 import { LEAD_RULES, PREVIEW_RULE, readOrNull, getOwner, ownerSaid } from "./sequence";
 import { leadEmail, type OwnerKnown } from "../campaigns/sequences/draft-judge";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * An email to leads written again as its owner says (POST sequences/:id/rewrite, 2 Nov 2026): one model call, told the
@@ -94,7 +95,7 @@ function rewriteKept(
 export async function rewriteFrom(
   known: RewriteKnown,
   ask: RewriteAsk,
-  personName: { tenantId: string; userId: string },
+  personName: { tenantId: TenantId; userId: string },
 ): Promise<LeadRewriteDto> {
   const answer = await askForJson(
     {

@@ -24,6 +24,7 @@ import { notify } from "../shared/alerts/notify.js";
 import { pageOperator } from "../shared/alerts/page-operator.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { campaignsDomain } from "./campaigns-domain.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -33,7 +34,7 @@ type Db = SupabaseClient<Database>;
  * else, so the rest of a run stopped with its owner never told why. Best effort: the pause already holds, and a notice that
  * could not be sent is said in the log, never a receipt refused.
  */
-async function tellOffersPaused(db: Db, tenantId: string, reason: OfferPauseReason): Promise<void> {
+async function tellOffersPaused(db: Db, tenantId: TenantId, reason: OfferPauseReason): Promise<void> {
   try {
     const addressing = await loadTenantNotifications(db, tenantId);
     const words = OFFERS_NOTICE_WORDS.paused(reason);
@@ -58,7 +59,11 @@ async function tellOffersPaused(db: Db, tenantId: string, reason: OfferPauseReas
  * touches. The reason it paused them for; null when they are not paused (the email was no offer, a gate is within bounds,
  * or the pause could not be written, which is said in the log).
  */
-export async function judgeOfferGates(db: Db, tenantId: string, from: string | null): Promise<OfferPauseReason | null> {
+export async function judgeOfferGates(
+  db: Db,
+  tenantId: TenantId,
+  from: string | null,
+): Promise<OfferPauseReason | null> {
   const campaigns = campaignsDomain();
   const host = addressOf(from)?.address.split("@")[1] ?? null;
   if (!campaigns || !host || host !== campaigns) return null;

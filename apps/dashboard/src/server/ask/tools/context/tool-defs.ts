@@ -13,6 +13,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../../../shared/with-route";
 import type { ReaderContext } from "../../../shared/reader";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * What every tool runs in, and the helpers the reads and the acts share.
@@ -40,7 +41,7 @@ export interface ToolRun {
 
 export interface ToolContext {
   ctx: RouteContext;
-  tenantId: string;
+  tenantId: TenantId;
   role: MembershipRole;
   /** The business's zone: "tomorrow at ten" is its ten, never the server's. */
   timezone: string;

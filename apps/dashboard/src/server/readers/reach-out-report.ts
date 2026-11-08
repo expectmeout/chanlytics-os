@@ -6,7 +6,7 @@ import "server-only";
  * draws it through contracts' toReachOutLensVM. The reader
  * (readers/campaign-report.ts reachOutReport) answers the route with it, and each chain's own totals beside it.
  */
-import type { ReachOutReportDto } from "@chanlytics/contracts";
+import type { ReachOutReportDto, TenantId } from "@chanlytics/contracts";
 import { readReachOutReport, type ReportWindow } from "@chanlytics/db/reports";
 import type { RouteContext } from "@/server/shared/with-route";
 import { dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts";
@@ -14,7 +14,7 @@ import { getWindow } from "@/server/readers/report";
 
 export async function getReachOutReport(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   window: ReportWindow,
 ): Promise<{ report: ReachOutReportDto }> {
   const answered = await getWindow(readReachOutReport(ctx.supabase, tenantId, window));

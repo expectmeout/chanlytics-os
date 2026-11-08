@@ -22,6 +22,7 @@ import {
   type ZoomBox,
   type ZoomSize,
   recordOrEmpty,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { uploadClaudeFile } from "@chanlytics/channels/ai";
 import { imageHeaderOf } from "@chanlytics/core";
@@ -37,6 +38,7 @@ import { pg } from "../shared/pg.js";
 import { findClaudeCopy } from "./look.js";
 import { drawMoment, drawMomentBox, drawVideoSheet, type Drawn } from "./video-sheet.js";
 import { streamKeys } from "./video-keys.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The most one call asks for: what one turn's question may carry. */
 const COPIES_AT_ONCE = 10;
@@ -108,7 +110,7 @@ type MomentKept = {
 };
 
 /** A drawn picture kept at Anthropic for a day, or why not. */
-async function drawnKept(tenantId: string, key: string, name: string, drawn: Drawn): Promise<MomentKept> {
+async function drawnKept(tenantId: TenantId, key: string, name: string, drawn: Drawn): Promise<MomentKept> {
   const apiKey = env.ANTHROPIC_API_KEY;
   if (!apiKey) return { key, file_id: null, wont: "no model key" };
   const up = await uploadClaudeFile(apiKey, {
@@ -125,7 +127,7 @@ async function drawnKept(tenantId: string, key: string, name: string, drawn: Dra
 }
 
 /** One of a video's moments, drawn and kept for the turn, or the words that say why not. */
-async function momentKept(db: SupabaseClient<Database>, tenantId: string, moment: MomentAsked): Promise<MomentKept> {
+async function momentKept(db: SupabaseClient<Database>, tenantId: TenantId, moment: MomentAsked): Promise<MomentKept> {
   const none = (wont: string): MomentKept => ({ key: moment.key, file_id: null, wont });
   const keys = streamKeys();
   if (!keys) return none("videos are not set up here");
@@ -181,7 +183,7 @@ function picturesSent(raw: unknown): PictureSent[] | null {
 
 /** One picture kept for a day, or why not: an id for the request, and the size the model will see. */
 async function pictureKept(
-  tenantId: string,
+  tenantId: TenantId,
   pictureSent: PictureSent,
 ): Promise<{ key: string; file_id: string | null; width: number | null; height: number | null }> {
   const none = { key: pictureSent.key, file_id: null, width: null, height: null };
@@ -211,7 +213,7 @@ export async function listFileCopies(auth: Admitted, request: Request): Promise<
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const ids = Array.isArray(body.ids) ? body.ids.filter((i): i is string => typeof i === "string" && UUID.test(i)) : [];
   const pictures = picturesSent(body.pictures);
   if (!pictures)

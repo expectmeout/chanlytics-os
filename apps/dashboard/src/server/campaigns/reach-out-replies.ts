@@ -29,6 +29,7 @@ import {
 import type { Json } from "@chanlytics/db/types";
 import type { RouteContext } from "../shared/with-route";
 import { findMailboxAddress, replyFromOf, replyIdentitiesOf } from "../connections/email";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A chain's name and the step's place in it, 1 for its first email, by walking back to the chain's first step. */
 function stepOf(
@@ -50,7 +51,7 @@ function stepOf(
 /** Where an answer on each thread goes out from, as the freeze will decide it (connections/email.ts replyIdentitiesOf). */
 async function replyFromByThread(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   conversations: string[],
 ): Promise<Map<string, ReplyFrom>> {
   const replyIdentities = await replyIdentitiesOf(ctx, tenantId, conversations);
@@ -89,7 +90,7 @@ function planFacts(plan: Json): Pick<ReachOutReplyDto, "said_no" | "step_day"> {
  */
 export async function listReplies(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   repliesQuery: ReachOutRepliesQuery,
   now = Date.now(),
 ): Promise<ReachOutRepliesDto> {

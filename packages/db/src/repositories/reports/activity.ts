@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** A narrowing every activity read takes: a window, a cursor it reads through, and the subjects it is about. */
@@ -20,7 +20,7 @@ interface Window {
 /** The workspace's decisions, newest first, `limit` of them: by `verbs`, by who (a kind of actor or a member), and `window`. */
 export const listActivityDecisions = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   narrow: Window & {
     verbs?: SchemaSet<"decisions.verb">[];
     actorType?: SchemaSet<"decisions.actor_type">;
@@ -54,7 +54,7 @@ export const listActivityDecisions = async (
  */
 export const listActivityEvents = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   narrow: Window & {
     kinds: string[] | null;
     noisePrefixes: readonly string[];
@@ -85,13 +85,13 @@ export const listActivityEvents = async (
 };
 
 /** A person's threads' ids. */
-export const listThreadIdsOfPerson = async (db: Db, tenantId: string, contactId: string) =>
+export const listThreadIdsOfPerson = async (db: Db, tenantId: TenantId, contactId: ContactId) =>
   db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId);
 
 /** A person's calls' ids. */
-export const listCallIdsOfPerson = async (db: Db, tenantId: string, contactId: string) =>
+export const listCallIdsOfPerson = async (db: Db, tenantId: TenantId, contactId: ContactId) =>
   db.from("calls").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId);
 
 /** The workspace's numbers over `days` (metrics_summary). */
-export const readMetricsSummary = async (db: Db, tenantId: string, days: number) =>
+export const readMetricsSummary = async (db: Db, tenantId: TenantId, days: number) =>
   db.rpc("metrics_summary", { p_tenant_id: tenantId, p_days: days });

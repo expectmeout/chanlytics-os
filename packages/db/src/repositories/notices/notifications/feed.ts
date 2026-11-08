@@ -16,6 +16,7 @@ import {
   type SchemaSet,
 } from "@chanlytics/contracts";
 import { oneOr, type Db } from "./kept";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The sources a customer's booking comes by (contracts bookingArriving): a member's own entry (`person`) is not one. */
 const BOOKING_SOURCES = BOOKING_VIAS;
@@ -30,7 +31,7 @@ const BOOKING_SOURCES = BOOKING_VIAS;
  */
 export async function listBookedVisits(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ids: readonly string[],
   nowMs: number,
   status: "booked" | "cancelled" = "booked",
@@ -88,7 +89,7 @@ export async function listBookedVisits(
  */
 export async function listFeedAdditionsWith(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   event: { id: string; at: string },
 ): Promise<Array<{ eventId: string; appointmentId: string; data: unknown }>> {
   const { data, error } = await db
@@ -121,7 +122,7 @@ const BOOKING_ROWS: readonly BookingVia[] = ["booking_email", "booking_tool"];
  * error than a booking never told; so is the narrow case of two deliveries running side by side, each reading before the
  * other told. A read that fails throws.
  */
-export async function wasTwinTold(db: Db, tenantId: string, appointmentId: string): Promise<boolean> {
+export async function wasTwinTold(db: Db, tenantId: TenantId, appointmentId: string): Promise<boolean> {
   const visit = oneOr(
     await db
       .from("appointments")
@@ -174,7 +175,7 @@ export async function wasTwinTold(db: Db, tenantId: string, appointmentId: strin
  * The invitation a member.joined event is about, as it stands: the address that accepted it and the role it seated them as.
  * Null when the invitation is gone. A read that fails throws.
  */
-export async function findMemberJoined(db: Db, tenantId: string, invitationId: string): Promise<MemberJoined | null> {
+export async function findMemberJoined(db: Db, tenantId: TenantId, invitationId: string): Promise<MemberJoined | null> {
   const invite = oneOr(
     await db.from("invitations").select("id, email, role").eq("tenant_id", tenantId).eq("id", invitationId).limit(1),
     "the invitation",
@@ -221,7 +222,7 @@ export async function getUnreadOfReaders(db: Db, bellRange: BellRange): Promise<
 export async function getOlderUnread(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     reader: string;
     fromIso: string;
     throughIso: string;
@@ -239,7 +240,7 @@ export async function getOlderUnread(
 
 /** The rows a bell's count is of: a workspace's, from a moment (through another), less those counted where listed. */
 interface BellRange {
-  tenantId: string;
+  tenantId: TenantId;
   readers: readonly string[];
   fromIso: string;
   throughIso?: string | null;
@@ -329,7 +330,7 @@ const bellWindowFrom = (nowMs: number): string => new Date(nowMs - BELL_WINDOW_D
 export async function closeMendedNotices(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     warnings: ReadonlyArray<{ kind: SchemaSet<"notifications.kind">; title: RegExp; sameSubject: boolean }>;
     subject: { type: string; id: string } | null;
     keptId: string | null;

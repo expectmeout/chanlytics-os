@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import type { MailboxConnectionRow } from "./connections";
 import { recordOrEmpty } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -72,7 +73,7 @@ export async function findMailboxConnectionById(db: Db, id: string): Promise<Mai
 /** Our outbound email's row by the Message-ID it went under, for a report that quotes one we did not mint. */
 export async function findSentEmailIdByMessageId(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rfcMessageId: string,
 ): Promise<string | null> {
   const { data, error } = await db
@@ -88,7 +89,7 @@ export async function findSentEmailIdByMessageId(
 }
 
 /** Of the provider threads that changed, the ones holding an email this workspace sent (00424). */
-export async function getKnownThreads(db: Db, tenantId: string, threadIds: string[]): Promise<Set<string>> {
+export async function getKnownThreads(db: Db, tenantId: TenantId, threadIds: string[]): Promise<Set<string>> {
   if (threadIds.length === 0) return new Set();
   const { data, error } = await db.rpc("mailbox_threads_known", {
     p_tenant_id: tenantId,
@@ -111,7 +112,7 @@ type OwnerEmailKept = { kept: true; resolved: number } | { kept: false; why: "no
 export async function keepOwnerEmail(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     address: string;
     externalId: string;
     body: string | null;

@@ -29,6 +29,7 @@ import { loadLazily, type Lazy } from "@/server/shared/lazy";
 import { findCalendar } from "./settings";
 import { getParsedFeed, type ParsedRead } from "./parsed-feed";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ---- Everyone's appointments, for the list and the report ---- */
 
@@ -70,7 +71,7 @@ export interface CalendarRead {
  */
 export async function findPoolRecord(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
 ): Promise<PoolRecord | null> {
   const season = seasonHorizon(now);
@@ -91,7 +92,7 @@ export async function findPoolRecord(
 /** The lookup, then the feed it names. `known` and `stale` as peopleVisits takes them. */
 export async function getCalendar(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
   known?: ZoneAndSettings,
   opts: { stale?: boolean } = {},
@@ -154,7 +155,7 @@ export function visitsIn({ lookup, feed, record }: CalendarRead, rows: PersonRow
  */
 async function peopleVisits(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   now = new Date(),
   known?: ZoneAndSettings,
@@ -170,7 +171,7 @@ async function peopleVisits(
  */
 export async function withVisits(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   now = new Date(),
   known?: ZoneAndSettings,
@@ -216,7 +217,7 @@ export async function withVisits(
  */
 export async function getBoardVisits(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   items: ParsedFeed["items"],
   cal: PoolCalendar,
@@ -263,7 +264,7 @@ function bookedSince(visits: PersonVisitsDto | undefined, askedMs: number): bool
  */
 export async function readBookingReport(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   days: number,
   now = new Date(),
@@ -297,7 +298,7 @@ export async function readBookingReport(
  */
 export async function listLinksBooked(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   links: { c: string; at: string }[],
   now = new Date(),

@@ -31,6 +31,7 @@ import {
   recordOrEmpty,
 } from "@chanlytics/contracts";
 import { messageIdHeader, oneLine } from "./header-values";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** What an email is a reply to, read off the stored parent row. */
 export interface EmailParent {
@@ -109,7 +110,7 @@ export interface EmailRequestInput {
   campaign?: EmailCampaign;
   /** The queued row this request belongs to: the idempotency key, and the tag every receipt names it by. */
   messageId: string;
-  tenantId: string;
+  tenantId: TenantId;
   /**
    * Words alone, with no HTML twin: a cold email from a business's own mailbox (decision 0056, 7), which reads as a
    * person's email and carries no link markup. Its foot is the text foot.

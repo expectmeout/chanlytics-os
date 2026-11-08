@@ -20,6 +20,7 @@ import { callEdgeLines } from "@/server/connections/lines";
 import { edgeRefusalWords } from "@/server/shared/edge";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 export async function readBusinessRecord(ctx: RouteContext, member: Member) {
   const [data, slug] = await Promise.all([
@@ -58,7 +59,7 @@ export async function readBusinessRecord(ctx: RouteContext, member: Member) {
  * just told them everything was in order. Members may read `lines`
  * (lines_member_select, 00066), so the session client can answer it.
  */
-async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<string[]> {
+async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<string[]> {
   const { data, error } = await listLineNumbersOf(ctx.supabase, tenantId);
   if (error) throw new Error(`reading this workspace's numbers: ${error.message}`);
   return (data ?? []).map((r) => r.e164).filter((n): n is string => !!n);

@@ -16,6 +16,7 @@ import { getTenantConfig } from "@chanlytics/db/workspace";
 import { findLeadForPreview, findLeadPreviewByToken, type LeadPreviewRow } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { linkPageDb, linkPageLookOf, NO_LOOK, type LinkPageLook } from "./link-page";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -27,7 +28,7 @@ interface PreviewPageRead {
 }
 
 /** The preview workspace's record, or none where it cannot be read: the page says only what it knows. */
-async function profileOf(db: Db, tenantId: string): Promise<PreviewPageFacts["profile"]> {
+async function profileOf(db: Db, tenantId: TenantId): Promise<PreviewPageFacts["profile"]> {
   const row = await getTenantConfig(db, tenantId).catch(() => null);
   return parseTenantConfig(row?.config ?? null)?.brain?.profile ?? null;
 }

@@ -36,6 +36,7 @@ import {
   type MailboxProvider,
   TRY_AGAIN_IN_A_MINUTE,
   isOneOf,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { mailboxDtoOf } from "@chanlytics/channels/email";
 import { bringInSender } from "../imports/mail-history.js";
@@ -53,6 +54,7 @@ import {
   type ConnectError,
   type MailboxPorts,
 } from "./mailbox-connect.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 export interface Body {
   op?: unknown;
@@ -121,7 +123,7 @@ const stringOf = (v: unknown): string => (typeof v === "string" ? v : "");
 /** A connect: the provider's code exchanged and the grant checked, then the mailbox's row as its page draws it. */
 async function connectOp(
   mailboxPorts: MailboxPorts,
-  tenantId: string,
+  tenantId: TenantId,
   by: string | null,
   body: Partial<Body>,
 ): Promise<Response> {
@@ -178,7 +180,7 @@ async function testOp(p: MailboxPorts, row: MailboxConnectionRow): Promise<Respo
 /** An op on one of the workspace's mailboxes: the move, then the row as it stands after it. */
 async function rowOp(
   mailboxPorts: MailboxPorts,
-  tenantId: string,
+  tenantId: TenantId,
   by: string | null,
   op: string,
   body: Partial<Body>,
@@ -229,7 +231,7 @@ async function rowOp(
  * A sender the owner said is a person, brought in through every mailbox of the workspace that can be read now: one
  * signed out, or whose token is gone, is passed over. Answers how many emails were kept.
  */
-async function bringInOp(mailboxPorts: MailboxPorts, tenantId: string, body: Partial<Body>): Promise<Response> {
+async function bringInOp(mailboxPorts: MailboxPorts, tenantId: TenantId, body: Partial<Body>): Promise<Response> {
   const address = normalizeEmail(stringOf(body.address));
   if (!address) return refuse(400, "invalid", "An address is needed.");
   let kept = 0;
@@ -250,7 +252,7 @@ export async function runMailboxesOp(auth: Admitted, body: Partial<Body>): Promi
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const by = personFor(auth, body.user_id);
   const log = logger({ door: "mailboxes", tenant_id: tenantId, op });
   const mailboxPorts: MailboxPorts = { db, log: log };

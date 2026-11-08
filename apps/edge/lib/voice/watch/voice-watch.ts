@@ -29,6 +29,7 @@ import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";
 import { pageOperator } from "../../shared/alerts/page-operator.js";
 import { signatureOnly } from "../../shared/door-auth.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -78,7 +79,7 @@ export async function watchVoice(
     log.warn("voice_watch_failed", { part: "concurrency", error: errField(e) });
   }
   if (now.getUTCHours() !== DRIFT_HOUR_UTC) return { concurrency: share, drifted: null };
-  const drifted: Array<{ agentId: string; tenantId: string; drift: string[] }> = [];
+  const drifted: Array<{ agentId: string; tenantId: TenantId; drift: string[] }> = [];
   try {
     for (const a of await listActiveVoiceAgents(db)) {
       const drift = await agentDrift(apiKey, a.agentId);

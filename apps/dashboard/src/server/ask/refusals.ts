@@ -4,6 +4,7 @@ import { log, type DashboardLogEvent } from "@/server/shared/log";
 import type { GatewayRefusal } from "../shared/model/gateway";
 import { toApiTools } from "./tools";
 import { featureRejected } from "../shared/model/stream";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A refusal the turn could not do without, as the person is told it in their language, and logged. A request refused
@@ -13,7 +14,7 @@ import { featureRejected } from "../shared/model/stream";
 export function refusalSaid(
   gatewayRefusal: GatewayRefusal,
   es: boolean,
-  at: { tenant_id: string; round: number },
+  at: { tenant_id: TenantId; round: number },
 ): string {
   const sentence = {
     kind: gatewayRefusal.kind,

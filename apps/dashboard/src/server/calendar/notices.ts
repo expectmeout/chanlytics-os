@@ -10,9 +10,10 @@ import { findAppointmentNoticeById, dismissAppointmentNotice } from "@chanlytics
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import type { RouteContext } from "@/server/shared/with-route";
 import { serviceDb } from "@/server/shared/service-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The held notice this workspace holds under `id`; refused when there is none, or it is not held any more. */
-async function heldNotice(ctx: RouteContext, tenantId: string, id: string) {
+async function heldNotice(ctx: RouteContext, tenantId: TenantId, id: string) {
   const notice = id ? await findAppointmentNoticeById(ctx.supabase, tenantId, id) : null;
   if (!notice) throw new AppError("not_found", "No such booking email here.", 404);
   if (notice.outcome !== "held") throw new AppError("conflict", "That booking email was already read.", 409);
@@ -25,7 +26,7 @@ async function heldNotice(ctx: RouteContext, tenantId: string, id: string) {
  */
 export async function readNoticeAgain(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
 ): Promise<{ scheduled: "scheduled" | "already_scheduled" }> {
   const notice = await heldNotice(ctx, tenantId, id);
@@ -41,7 +42,11 @@ export async function readNoticeAgain(
 }
 
 /** A person let a held notice go: it stays on the ledger as dismissed, with why it was held. */
-export async function dismissNotice(ctx: RouteContext, tenantId: string, id: string): Promise<{ dismissed: boolean }> {
+export async function dismissNotice(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  id: string,
+): Promise<{ dismissed: boolean }> {
   await heldNotice(ctx, tenantId, id);
   return { dismissed: await dismissAppointmentNotice(serviceDb(), tenantId, id) };
 }

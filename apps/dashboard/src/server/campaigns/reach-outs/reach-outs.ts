@@ -49,12 +49,13 @@ import { deployment } from "@/server/shared/env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason, type EdgeBody } from "@/server/shared/edge";
 import { getTenantFacts } from "@/server/shared/tenant";
 import { PREVIEW_TIMEOUT_MS, chainOf, firstEmailOf, saveChain, type SendRow } from "./chain-acts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The chains of a workspace, without their reports (R23: a report is read when its row is opened), each with what feeds
  * it and who is in it now (00426: the ledger's People cell, counted by the drawer's one rule).
  */
-export async function listChains(ctx: RouteContext, tenantId: string): Promise<ReachOutChainDto[]> {
+export async function listChains(ctx: RouteContext, tenantId: TenantId): Promise<ReachOutChainDto[]> {
   const sb = ctx.supabase;
   const steps = await listReachOutSteps(sb, tenantId);
   const roots = steps
@@ -215,7 +216,11 @@ function mailboxChoiceOf(mailboxConnection: MailboxConnectionRow, ids: string[],
 }
 
 /** The mailboxes a run's sends go from: what each one's day is made of (R22), and what each signs with. */
-async function runMailboxRowsOf(ctx: RouteContext, tenantId: string, rows: SendRow[]): Promise<MailboxConnectionRow[]> {
+async function runMailboxRowsOf(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  rows: SendRow[],
+): Promise<MailboxConnectionRow[]> {
   const ids = new Set(rows.map((s) => s.mailbox_id).filter((x): x is string => !!x));
   if (ids.size === 0) return [];
   return (await listMailboxConnectionsOf(ctx.supabase, tenantId)).filter((m) => ids.has(m.id));
@@ -248,7 +253,7 @@ function approvalCountsOf(rows: SendRow[], tz: string) {
  */
 export async function findReachOutRun(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   run: { id: string; audience: unknown; playbook_id: string | null; run_for: string | null },
 ): Promise<ReachOutRunDto | null> {
   if (!isReachOutRun(run.audience)) return null;
@@ -356,7 +361,7 @@ export async function findReachOutRun(
  * said no, closed, was stopped, went on the never-again list or became a customer since the draft was handed. Read on the
  * service role (the route checked the member), only for a run with drafts.
  */
-async function draftsRefusedOf(tenantId: string, runId: string, rows: readonly SendRow[]): Promise<Set<string>> {
+async function draftsRefusedOf(tenantId: TenantId, runId: string, rows: readonly SendRow[]): Promise<Set<string>> {
   if (!rows.some((s) => s.state === "drafted")) return new Set();
   const waiting = await listDraftsWaiting(serviceDb(), { limit: 500, tenantId, runId });
   return new Set(waiting.filter((d) => draftRefusalOf(d.facts) !== null).map((d) => d.id));
@@ -394,7 +399,7 @@ type ReachOutPreviewOutcome = { ok: true; preview: unknown } | { ok: false; reas
  * what it cost is counted in Ask's daily budget against this member (R12).
  */
 export async function previewReachOut(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   body: Omit<EdgeBody<"/api/admin/reach-out-preview">, "tenant_id" | "user_id">,
 ): Promise<ReachOutPreviewOutcome> {

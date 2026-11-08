@@ -11,7 +11,7 @@
  * when the positions still match; a sync never makes a template less
  * legible than it was.
  */
-import type { SchemaSet, TemplateStatus } from "@chanlytics/contracts";
+import type { SchemaSet, TemplateStatus, TenantId } from "@chanlytics/contracts";
 import { GRAPH_TIMEOUT_MS, GRAPH_VERSION } from "./meta-graph.js";
 import { answerObject, fetchFromProvider } from "@chanlytics/channels/shared";
 import { NUMBERED_SLOT } from "@chanlytics/contracts";
@@ -173,7 +173,7 @@ export function labelsOf(variables: unknown): TemplateVariable[] {
 }
 
 interface TemplateRow {
-  tenant_id: string;
+  tenant_id: TenantId;
   channel: "whatsapp";
   name: string;
   language: string;
@@ -190,7 +190,7 @@ interface TemplateRow {
 
 export function templateRow(
   metaTemplate: MetaTemplate,
-  tenantId: string,
+  tenantId: TenantId,
   keepLabels: TemplateVariable[] = [],
   now = new Date(),
 ): TemplateRow {

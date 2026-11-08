@@ -20,14 +20,15 @@ import type { erasureScope } from "@/server/shared/verbs";
 import type { RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
 import { callEdgeMailboxes } from "../connections/mailbox-connections";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The workspace's own mailboxes' domains: never said to be automated as a whole (contracts senderDomainOffered). */
-async function ownHosts(ctx: RouteContext, tenantId: string): Promise<string[]> {
+async function ownHosts(ctx: RouteContext, tenantId: TenantId): Promise<string[]> {
   return (await listMailboxConnectionsOf(ctx.supabase, tenantId)).map((m) => m.host);
 }
 
 /** The list under the mailbox, on the member's session. */
-export function getMailboxSenders(ctx: RouteContext, tenantId: string): Promise<MailboxSendersDto> {
+export function getMailboxSenders(ctx: RouteContext, tenantId: TenantId): Promise<MailboxSendersDto> {
   return listMailboxSendersOf(ctx.supabase, tenantId);
 }
 
@@ -43,7 +44,7 @@ function sortRefused(e: unknown): never {
  * A sender's mail from the mailboxes' six months and since, kept in their thread: how many, or null when the edge could
  * not be asked now. Best effort: what was said stands either way, and their next email comes in.
  */
-async function bringIn(tenantId: string, userId: string, address: string): Promise<number | null> {
+async function bringIn(tenantId: TenantId, userId: string, address: string): Promise<number | null> {
   const a = await callEdgeMailboxes({ op: "bring_in", tenant_id: tenantId, user_id: userId, address }, 55_000);
   const kept = recordOrNull(a.body)?.kept;
   if (a.status === 200 && typeof kept === "number") return kept;
@@ -57,7 +58,7 @@ async function bringIn(tenantId: string, userId: string, address: string): Promi
  */
 export async function sortSender(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: { sender: string; verdict: MailboxSenderVerdict | null },
 ): Promise<{ sender: string; verdict: MailboxSenderVerdict | null; kept: number | null }> {
   const sender = input.sender.trim().toLowerCase();

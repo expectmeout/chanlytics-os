@@ -24,6 +24,7 @@
  * Email is off on a deployment that names no EMAIL_DOMAIN: 404, the door does
  * not exist there.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { digestId, keepDelivery, signatureHeaders } from "../shared/keep-event.js";
@@ -114,7 +115,7 @@ export async function receiveResendEvent(request: Request): Promise<Response> {
 
   if (verdict.unroutable > 0 && Date.now() - lastUnroutableRow >= UNROUTABLE_ROW_MS) {
     lastUnroutableRow = Date.now();
-    await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
+    await emitEvent(db, heldTenantId("00000000-0000-0000-0000-000000000000"), "ingest.unroutable", null, null, {
       channel: "email",
       addresses: verdict.unroutable,
     }).catch(() => {});

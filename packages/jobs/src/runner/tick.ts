@@ -30,6 +30,7 @@ import {
 } from "./ledger";
 import { errText } from "./context";
 import { saySettled, type Settled } from "./settle";
+import type { TenantId } from "@chanlytics/contracts";
 
 export type TickFields = Record<string, string | number | boolean | null | undefined>;
 
@@ -67,7 +68,7 @@ export interface TickPorts {
    * platform's and never an owner's (ledger PAGES_THE_PLATFORM). The job's workspace rides along, so the pager can leave
    * our own workspaces out (00469, decision 0068).
    */
-  page(key: string, subject: string, body: string, tenantId?: string | null): Promise<unknown>;
+  page(key: string, subject: string, body: string, tenantId?: TenantId | null): Promise<unknown>;
   log: TickLog;
   now(): number;
   /** The draw a retry's wait is lengthened by (contracts jittered); Math.random when absent. */

@@ -44,6 +44,7 @@ import { noFollowUps, poolTouches, getProposalFollowUps, type FollowUpsRead } fr
 import { listEveryone } from "@/server/people/people";
 import { loadLazily, readSettled, type Lazy, type Settled } from "@/server/shared/lazy";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The Playbooks page's pools: the number on each moment's chip, counted on the server over everyone with their visits
@@ -127,7 +128,7 @@ const mayBeStricter = <P extends StrictCandidate>(playbooks: readonly P[]): P[] 
  * (null), never counted by a yes its run does not use.
  */
 function strictMessagePools(
-  tenantId: string,
+  tenantId: TenantId,
   playbooks: readonly StrictCandidate[],
   templates: Settled<TemplateRows | null>,
   count: (trigger: PlaybookTrigger, message: RunMessage) => TriggerPool,
@@ -177,7 +178,7 @@ interface PoolReads {
  */
 export function poolReads(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   from: {
     people?: Lazy<PersonRowDto[]>;
@@ -204,7 +205,7 @@ export function poolReads(
 
 /** Everyone's visits off the calendar's read, or null where it failed or could not be indexed: said once, in the log. */
 function visitsOrNull(
-  tenantId: string,
+  tenantId: TenantId,
   read: Settled<CalendarRead>,
   rows: PersonRowDto[],
   now: Date,
@@ -219,7 +220,7 @@ function visitsOrNull(
 }
 
 /** Who had a proposal's follow-up, or null where that could not be read: said once, in the log. */
-function followUpsOrNull(tenantId: string, read: Settled<FollowUpsRead>): FollowUpsRead | null {
+function followUpsOrNull(tenantId: TenantId, read: Settled<FollowUpsRead>): FollowUpsRead | null {
   if (read.ok) return read.value;
   log.error("playbook_pools_follow_ups_failed", { tenant_id: tenantId, error: read.error });
   return null;
@@ -236,7 +237,7 @@ type OwnList = { id: string; name: string; smart: boolean; archived: boolean; vi
  * is said there too, and the page takes the lists with what was counted before it, as it always did.
  */
 function ownListPools(
-  tenantId: string,
+  tenantId: TenantId,
   read: Settled<SavedLists>,
   countOf: (def: NonNullable<ReturnType<typeof resolveList>>, kept: SavedLists) => TriggerPool | null,
 ): { lists: OwnList[] | null; pools: Record<string, TriggerPool | null> } {
@@ -366,7 +367,7 @@ function poolCounter({ vms, breath, nowMs, pace, ready, caps }: PoolCounting) {
  */
 export async function triggerPools(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   touched: Record<string, readonly string[]>,
   tz: string,
   now: Date,

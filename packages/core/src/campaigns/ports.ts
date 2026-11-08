@@ -19,6 +19,7 @@ import type {
   PersonRowVM,
   PersonVisitsDto,
   TenantId,
+  ContactId,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db/types";
 import type { MessageVersionRow } from "@chanlytics/db/campaigns";
@@ -48,7 +49,7 @@ export interface NewBroadcast {
 }
 /** One person on the run, with the words their row keeps for the slots (a visit run's), or none. */
 export interface NewRecipient {
-  contact_id: string;
+  contact_id: ContactId;
   facts: Record<string, string> | null;
   /** The channel the run reaches them on, picked once at enrolment (contracts reachFor): `broadcast_recipients.channel`. */
   channel: string;
@@ -102,7 +103,7 @@ export interface AssemblePorts {
    */
   holdRecipients(
     broadcastId: string,
-    contactIds: string[],
+    contactIds: ContactId[],
     reason: string,
   ): Promise<{ skipped: readonly string[]; error: string | null }>;
 }
@@ -141,7 +142,7 @@ export type Assembled =
 /** The playbook as its row reads. A run names only what it uses. */
 export interface PlaybookRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   trigger: string;
   template_id: string;
@@ -185,7 +186,7 @@ export interface PlaybookRow {
 /** One person a customer's call or note step hands over, as the door takes it (00465 sequence_hand_run). */
 export interface PeopleHandItem {
   send_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   words: string;
   source_id: string;
 }
@@ -193,7 +194,7 @@ export interface PeopleHandItem {
 /** Someone a customer's step after the first is due to (00441 sequence_follow_ups_due). */
 export interface FollowUpDue {
   enrollment_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   /** When their step before it went. */
   sent_at: string | null;
 }

@@ -3,6 +3,7 @@
 import { maySpend, type SpendKind } from "@chanlytics/contracts";
 import { recordEvent } from "../../events/events";
 import type { Db, ReachOutSendRow } from "./reach-out";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),
@@ -11,7 +12,7 @@ import type { Db, ReachOutSendRow } from "./reach-out";
  */
 export async function recordLeadWritten(
   db: Db,
-  params: { tenantId: string; leadId: string; at: string; sendId: string; retried?: boolean },
+  params: { tenantId: TenantId; leadId: string; at: string; sendId: string; retried?: boolean },
 ): Promise<boolean> {
   const { data: lead, error } = await db
     .from("leads")
@@ -49,7 +50,7 @@ export async function recordLeadWritten(
  */
 export async function recordCheck(
   db: Db,
-  params: { tenantId: string; id: string; gen: number; patch: Partial<ReachOutSendRow> },
+  params: { tenantId: TenantId; id: string; gen: number; patch: Partial<ReachOutSendRow> },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_sends")
@@ -70,7 +71,7 @@ export async function recordCheck(
  * the step's run (run-context.ts), the check, the dashboard's chains, the finder's runner and the rehearsal's window ask
  * it. A read that fails throws: "we could not check" is not "yes".
  */
-export async function mayWorkspaceSpend(db: Db, tenantId: string, kind: SpendKind = "number"): Promise<boolean> {
+export async function mayWorkspaceSpend(db: Db, tenantId: TenantId, kind: SpendKind = "number"): Promise<boolean> {
   const [tenant, billing] = await Promise.all([
     db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
@@ -82,7 +83,7 @@ export async function mayWorkspaceSpend(db: Db, tenantId: string, kind: SpendKin
 }
 
 /** The workspace's own words about what it does (business_records.about, 00152), for the writer. */
-export async function findWorkspaceAbout(db: Db, tenantId: string): Promise<string | null> {
+export async function findWorkspaceAbout(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the business record: ${error.message}`);
   return data?.about?.trim() || null;

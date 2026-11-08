@@ -11,6 +11,7 @@ import { tenantDb } from "../../shared/tenant-db";
 
 import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
 import { asJson } from "../../shared/json";
+import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** One source's row, as the page reads it (contracts imports/ledger.ts ImportRowDto). */
@@ -38,7 +39,7 @@ function ledgerCountsOf(raw: unknown): Record<string, number> {
 }
 
 /** The workspace's ledger, every row it holds: a source's, or a mailbox's of a source. */
-export async function listImports(db: Db, tenantId: string): Promise<ImportLedgerRow[]> {
+export async function listImports(db: Db, tenantId: TenantId): Promise<ImportLedgerRow[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("imports")
     .select(
@@ -50,7 +51,7 @@ export async function listImports(db: Db, tenantId: string): Promise<ImportLedge
 
 /** A run's state, written: counts added to what came before (`add`) or set whole; its parts, reach, cursor and error. */
 export interface ImportNote {
-  tenantId: string;
+  tenantId: TenantId;
   source: string;
   state: "queued" | "running" | "done" | "failed";
   counts?: Record<string, number>;
@@ -108,7 +109,7 @@ const namedIn = (cursor: unknown): unknown =>
  */
 export async function importRowOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   source: SchemaSet<"imports.source">,
   connectionId: string | null = null,
 ): Promise<ImportRunRow | null> {
@@ -139,7 +140,7 @@ export async function importRowOf(
 /** Where a source's job stands (its cursor), for the job that picks it up again; null before it ran. */
 export async function importCursorOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   source: SchemaSet<"imports.source">,
   connectionId: string | null = null,
 ): Promise<Json | null> {

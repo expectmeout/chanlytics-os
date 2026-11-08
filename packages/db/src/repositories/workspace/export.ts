@@ -18,6 +18,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -73,7 +74,7 @@ const REPLY_COLUMNS =
 /** The first half: the records the privacy policy names first, up to the campaigns. */
 function recordSections(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Pick<
   ExportSectionPages,
   "notes_and_steps" | "deals" | "business" | "bookings" | "lists" | "list_members" | "campaigns"
@@ -155,7 +156,7 @@ function recordSections(
 /** The second half: what went out, what it was written from, what was handed over, and what was found. */
 function sendSections(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Pick<ExportSectionPages, "sends" | "templates" | "holds" | "rules" | "reviews" | "leads" | "reach_out_replies"> {
   return {
     // Each run of a campaign and each one-off send: who it was for, when it went and how many it reached.
@@ -244,7 +245,7 @@ function sendSections(
 }
 
 /** Each section of the owner's copy that is read here, page by page, on the owner's own client. */
-export function exportSectionPages(db: Db, tenantId: string): ExportSectionPages {
+export function exportSectionPages(db: Db, tenantId: TenantId): ExportSectionPages {
   return { ...recordSections(db, tenantId), ...sendSections(db, tenantId) };
 }
 
@@ -285,8 +286,8 @@ async function columnIds<K extends string>(
 /** Their records: the notes and steps on them, their deals and bookings, and the lists they were put on by hand. */
 function personRecordSections(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Pick<PersonExportPages, "notes_and_steps" | "deals" | "bookings" | "lists" | "list_members"> {
   // The lists kept by hand that name them, read once. A list made by a rule is its rule, which their copy does not run:
   // the file says so (contracts personExportLeftOut).
@@ -360,8 +361,8 @@ function personRecordSections(
 /** What reached them and what they answered: the runs that sent to them, their holds, their rules, their business. */
 function personSendSections(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Pick<PersonExportPages, "sends" | "holds" | "rules" | "leads" | "reach_out_replies"> {
   // Their threads, read once: a hold is a thread's.
   const theirThreads = keptRead(() =>
@@ -454,6 +455,6 @@ function personSendSections(
  * One person's sections of their own copy, page by page, on the owner's own client. `contactId` is checked by the caller
  * (a uuid, a person of this workspace): it is written into a filter.
  */
-export function personExportPages(db: Db, tenantId: string, contactId: string): PersonExportPages {
+export function personExportPages(db: Db, tenantId: TenantId, contactId: ContactId): PersonExportPages {
   return { ...personRecordSections(db, tenantId, contactId), ...personSendSections(db, tenantId, contactId) };
 }

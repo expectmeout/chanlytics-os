@@ -7,6 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -38,27 +39,27 @@ export const listSearchMembers = async (db: Db, by: "round_id" | "search_id", id
 export const listLeadFacts = async (db: Db, leadIds: string[]) => db.from("leads").select(LEAD_FACTS).in("id", leadIds);
 
 /** The workspace's leads (not erased) at any of these places. */
-export const listLeadsAtPlaces = async (db: Db, tenantId: string, placeIds: string[]) =>
+export const listLeadsAtPlaces = async (db: Db, tenantId: TenantId, placeIds: string[]) =>
   db.from("leads").select("id, place_id").eq("tenant_id", tenantId).in("place_id", placeIds).is("erased_at", null);
 
 /** The places the workspace's leads were also found at, among these. */
-export const listLeadPlacesAt = async (db: Db, tenantId: string, placeIds: string[]) =>
+export const listLeadPlacesAt = async (db: Db, tenantId: TenantId, placeIds: string[]) =>
   db.from("lead_places").select("lead_id, place_id").eq("tenant_id", tenantId).in("place_id", placeIds);
 
 /** The workspace's leads (not erased) whose `by` is one of `values`, each with its id and that value. */
 export const listLeadsSharing = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   by: "phone_e164" | "email" | "website_host",
   values: string[],
 ) => db.from("leads").select(`id, ${by}`).eq("tenant_id", tenantId).in(by, values).is("erased_at", null);
 
 /** The workspace's people (not erased) whose `by` is one of `values`, each with its id and that value. */
-export const listPeopleSharing = async (db: Db, tenantId: string, by: "phone_e164" | "email", values: string[]) =>
+export const listPeopleSharing = async (db: Db, tenantId: TenantId, by: "phone_e164" | "email", values: string[]) =>
   db.from("contacts").select(`id, ${by}`).eq("tenant_id", tenantId).in(by, values).is("erased_at", null);
 
 /** Which of these places' erasure digests the workspace was told no for. */
-export const listPlacesSuppressed = async (db: Db, tenantId: string, hashes: string[]) =>
+export const listPlacesSuppressed = async (db: Db, tenantId: TenantId, hashes: string[]) =>
   db.from("lead_suppressions").select("hash").eq("tenant_id", tenantId).eq("kind", "place").in("hash", hashes);
 
 /** What a round's question is told with: its workspace, its search, its state and the question. */
@@ -66,7 +67,7 @@ export const findRoundToTell = async (db: Db, roundId: string) =>
   db.from("lead_rounds").select("tenant_id, search_id, state, question").eq("id", roundId).maybeSingle();
 
 /** The workspace's search's name. */
-export const findLeadSearchName = async (db: Db, tenantId: string, searchId: string) =>
+export const findLeadSearchName = async (db: Db, tenantId: TenantId, searchId: string) =>
   db.from("lead_searches").select("name").eq("id", searchId).eq("tenant_id", tenantId).maybeSingle();
 
 /** What a delivery from the provider is checked against: the run's workspace, its provider run, its state and its token. */

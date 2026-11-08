@@ -19,6 +19,7 @@ import { MAX_ROWS } from "../shared/paged.js";
 import { logger, errField } from "../shared/log.js";
 import { finiteOrZero } from "@chanlytics/contracts";
 import { pageLlmUsage } from "@chanlytics/db/ai";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * One model call's usage (usage.llm_tokens), on the conversation it answered: tokens in and out, and the quality
@@ -27,7 +28,7 @@ import { pageLlmUsage } from "@chanlytics/db/ai";
  */
 export async function recordTokens(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   usage: Record<string, unknown>,
 ): Promise<void> {
@@ -79,7 +80,7 @@ interface UsageRow {
  */
 async function* usagePages(
   db: SupabaseClient<Database>,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   since: string,
   cap = ROW_CAP,
 ): AsyncGenerator<UsageRow[]> {
@@ -99,7 +100,7 @@ async function* usagePages(
 
 async function usageRows(
   db: SupabaseClient<Database>,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   since: string,
   cap = ROW_CAP,
 ): Promise<UsageRow[]> {
@@ -126,7 +127,7 @@ async function usageRows(
  */
 export async function getTokensLast24h(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   stopAt = Number.POSITIVE_INFINITY,
 ): Promise<number> {
   const log = logger({ tenant_id: tenantId });
@@ -160,7 +161,7 @@ interface BrainSummary {
 /** The last 24 hours across the platform (or one workspace when named). */
 export async function getBrainSummary(
   db: SupabaseClient<Database>,
-  tenantId: string | null = null,
+  tenantId: TenantId | null = null,
 ): Promise<BrainSummary> {
   const rows = await usageRows(db, tenantId, new Date(Date.now() - DAY_MS).toISOString(), SUMMARY_ROW_CAP);
   const withConf = rows.filter((r) => typeof r.data?.confidence === "number");

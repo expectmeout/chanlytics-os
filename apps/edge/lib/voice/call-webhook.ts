@@ -35,6 +35,7 @@
  *
  * Cross-workspace: a provider webhook; the Retell agent id (or call id) names the workspace before anything is written.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import { sendOpsMail, notifyOnceAs, reachesTenant, type NotifyMessage } from "../shared/alerts/notify.js";
 import { pageOperator } from "../shared/alerts/page-operator.js";
 import { loadTenantNotifications, loadTenantRuntime } from "../shared/tenant-runtime.js";
@@ -88,10 +89,11 @@ import {
   type CallEventPlan,
   type CallStep,
 } from "./call-event.js";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
-const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
+const PLATFORM_TENANT = heldTenantId("00000000-0000-0000-0000-000000000000");
 
 /**
  * When a refused delivery last left an evidence row, per instance. The row is
@@ -332,7 +334,7 @@ async function routeDelivery(db: Db, input: { agentId: string | null; retellCall
  */
 async function tellPhones(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   callStep: Extract<CallStep, { kind: "call_activity" }>,
 ): Promise<void> {
   const log = logger();
@@ -359,7 +361,7 @@ async function tellPhones(
  * on the row the ingest made (decision 0069, R6). Never fatal: a call that cannot be stamped is a call reviewed against
  * the settings as they stand, and says so.
  */
-async function stampConfigVersion(db: Db, tenantId: string, retellCallId: string, call: RetellCall): Promise<void> {
+async function stampConfigVersion(db: Db, tenantId: TenantId, retellCallId: string, call: RetellCall): Promise<void> {
   const v = call.metadata?.config_version;
   if (typeof v !== "number" || !Number.isInteger(v) || v < 1) return;
   try {
@@ -388,7 +390,7 @@ async function deadLetter(db: Db, n: NormalizedCall): Promise<void> {
  */
 async function recordDelivery(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   callId: string | null,
   data: Record<string, unknown>,
 ): Promise<void> {
@@ -404,7 +406,7 @@ async function recordDelivery(
 }
 
 /** The note in the caller's thread, and the call row pointed at it. */
-async function landNote(db: Db, tenantId: string, callStep: Extract<CallStep, { kind: "note" }>): Promise<void> {
+async function landNote(db: Db, tenantId: TenantId, callStep: Extract<CallStep, { kind: "note" }>): Promise<void> {
   const msgId = await recordCallNote(db, {
     tenantId,
     conversationId: callStep.conversationId,
@@ -417,7 +419,7 @@ async function landNote(db: Db, tenantId: string, callStep: Extract<CallStep, { 
 }
 
 /** The call's own hold on the thread, let go when the call is over and renewed while it runs. */
-async function holdThread(db: Db, tenantId: string, s: Extract<CallStep, { kind: "hold" }>): Promise<void> {
+async function holdThread(db: Db, tenantId: TenantId, s: Extract<CallStep, { kind: "hold" }>): Promise<void> {
   const log = logger();
   const holder = { kind: "call" as const, callId: s.retellCallId };
   const thread = { tenantId, conversationId: s.conversationId, holder };
@@ -450,7 +452,7 @@ async function handToPerson(
 }
 
 /** The owner told a standing rule was broken out loud. */
-async function raiseBreach(db: Db, tenantId: string, s: Extract<CallStep, { kind: "policy_block" }>): Promise<void> {
+async function raiseBreach(db: Db, tenantId: TenantId, s: Extract<CallStep, { kind: "policy_block" }>): Promise<void> {
   const log = logger();
   const sentence = await upsertEscalation(db, tenantId, s.conversationId, s.reason, s.details);
   // The words the agent said are the owner's to read in the Inbox, never the
@@ -621,7 +623,7 @@ async function tellOwner(
 async function savedCallerName(
   db: Db,
   routed: RoutedChannel | null,
-  contactId: string | null,
+  contactId: ContactId | null,
   retellCallId: string,
 ): Promise<string | null> {
   if (!routed || !contactId) return null;
@@ -735,7 +737,7 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
   // The call's own row, which that notice opens.
   let callId: string | null = null;
   // The person the ingest placed the call on, whose saved name the owner's notice leads with.
-  let callerId: string | null = null;
+  let callerId: ContactId | null = null;
 
   try {
     if (!routed) await deadLetter(db, result);

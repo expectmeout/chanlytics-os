@@ -19,6 +19,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
@@ -48,7 +49,7 @@ export type BillingExpectation = { status: string; updated_at: string } | { stri
 export async function applyBilling(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     row: BillingPatch;
     expect: BillingExpectation | null;
     tenantStatus: "active" | "paused" | null;

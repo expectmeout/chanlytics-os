@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -21,7 +22,7 @@ export const listRecordingsToPurge = async (db: Db, cutoff: string, limit: numbe
     .limit(limit);
 
 /** One of the workspace's calls' recording written as purged. */
-export const markRecordingPurged = async (db: Db, tenantId: string, callId: string, recording: Json) =>
+export const markRecordingPurged = async (db: Db, tenantId: TenantId, callId: string, recording: Json) =>
   db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId);
 
 /** The agent a provider's call was answered by, whichever workspace's, or none. */

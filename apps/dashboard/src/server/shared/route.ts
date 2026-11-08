@@ -63,6 +63,7 @@ import {
 import { takeRate, type RateBucket } from "./rate-limit";
 import { getBackOffice, type BackOffice } from "./back-office";
 import { log } from "./log";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Role = MemberContext["role"];
 export type Params = Record<string, string | string[] | undefined>;
@@ -78,7 +79,7 @@ export type Member = Readonly<Pick<MemberContext, "tenantId" | "role" | "facts">
 
 type Scope =
   | { readonly kind: "workspace" }
-  | { readonly kind: "row"; readonly load: (ctx: RouteContext, params: Params) => Promise<{ tenant_id: string }> }
+  | { readonly kind: "row"; readonly load: (ctx: RouteContext, params: Params) => Promise<{ tenant_id: TenantId }> }
   | { readonly kind: "account" }
   | { readonly kind: "platform" };
 
@@ -93,7 +94,7 @@ export const platform = { kind: "platform" } as const;
  * cannot see is a 404; the role is then judged where the row lives, which for
  * a member of two workspaces is the one that matters.
  */
-export function row<R extends { tenant_id: string }>(load: (ctx: RouteContext, params: Params) => Promise<R>) {
+export function row<R extends { tenant_id: TenantId }>(load: (ctx: RouteContext, params: Params) => Promise<R>) {
   return { kind: "row", load } as const;
 }
 

@@ -14,6 +14,7 @@ import {
 import { IDS_PER_READ } from "../../people/pages";
 import { DELIVERED, effectiveAt, type Db, type LeadContext } from "./history";
 import type { Json } from "../../../types";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 const NOTES_BUDGET = 1200;
 
@@ -141,7 +142,7 @@ export interface MessageHit {
   id: string;
   /** The thread it is on: a message always has one; a call may not. */
   conversationId: string | null;
-  contactId: string | null;
+  contactId: ContactId | null;
   /** A message's channel; null for a call. */
   channel: string | null;
   direction: string;
@@ -168,7 +169,7 @@ function hitKind(kind: string): MessageHit["kind"] {
  */
 export async function searchMessages(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   words: string,
   since: Date,
   limit: number,
@@ -212,7 +213,7 @@ export interface MessageSender {
  */
 export async function listFailedMessageErrors(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ids: readonly string[],
 ): Promise<Array<{ id: string; error: Record<string, unknown> }>> {
   const out: Array<{ id: string; error: Record<string, unknown> }> = [];
@@ -236,7 +237,7 @@ export async function listFailedMessageErrors(
  * the caller's row security and the workspace's own filter: a message the caller cannot read is not answered. A read
  * that fails THROWS.
  */
-export async function listMessageSenders(db: Db, tenantId: string, ids: readonly string[]): Promise<MessageSender[]> {
+export async function listMessageSenders(db: Db, tenantId: TenantId, ids: readonly string[]): Promise<MessageSender[]> {
   const out: MessageSender[] = [];
   for (let i = 0; i < ids.length; i += IDS_PER_READ) {
     const { data, error } = await db
@@ -258,7 +259,7 @@ export async function listMessageSenders(db: Db, tenantId: string, ids: readonly
  */
 export async function wasRepliedTo(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   messageId: string,
 ): Promise<boolean> {
@@ -282,7 +283,7 @@ export async function wasRepliedTo(
  */
 export async function replyAnswersAt(
   db: Db,
-  params: { tenantId: string; conversationId: string; messageId?: string | null },
+  params: { tenantId: TenantId; conversationId: string; messageId?: string | null },
 ): Promise<number | null> {
   if (!params.messageId) return null;
   const { data: reply, error } = await db
@@ -311,7 +312,7 @@ export async function replyAnswersAt(
  * carries (the rates, STOP and HELP the campaign's filing promises). readThreadState answers it for the receptionist;
  * this asks the same of the same rows for a conversation a member begins (core conversations/begin.ts).
  */
-export async function wasTextReached(db: Db, tenantId: string, conversationId: string): Promise<boolean> {
+export async function wasTextReached(db: Db, tenantId: TenantId, conversationId: string): Promise<boolean> {
   const { data, error } = await db
     .from("messages")
     .select("id")
@@ -329,7 +330,7 @@ export async function wasTextReached(db: Db, tenantId: string, conversationId: s
  * A member opens a person's one thread (conversation_open, 00351), as themselves: the thread's id, made when they had
  * none. The door's refusals are thrown as they came (a person who is not this workspace's, or gone).
  */
-export async function openConversation(db: Db, tenantId: string, contactId: string): Promise<string> {
+export async function openConversation(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string> {
   const { data, error } = await db.rpc("conversation_open", { p_tenant_id: tenantId, p_contact_id: contactId });
   if (error) throw error;
   if (typeof data !== "string" || !data) throw new Error("conversation_open: the door answered no thread");
@@ -340,7 +341,7 @@ export async function openConversation(db: Db, tenantId: string, contactId: stri
  * The wire the business's own written words last went by on one thread, or null when it has written none: what a
  * thread nothing has come to is answered on (contracts answerWireOf says the same of the messages a page holds).
  */
-export async function findOurLastWire(db: Db, tenantId: string, conversationId: string): Promise<string | null> {
+export async function findOurLastWire(db: Db, tenantId: TenantId, conversationId: string): Promise<string | null> {
   const { data, error } = await db
     .from("messages")
     .select("channel")
@@ -356,5 +357,5 @@ export async function findOurLastWire(db: Db, tenantId: string, conversationId: 
 }
 
 /** What a message carries (its media, with where it is stored or why it is not) written on the workspace's row. */
-export const saveMessageMedia = async (db: Db, tenantId: string, messageId: string, media: Json) =>
+export const saveMessageMedia = async (db: Db, tenantId: TenantId, messageId: string, media: Json) =>
   db.from("messages").update({ media }).eq("id", messageId).eq("tenant_id", tenantId);

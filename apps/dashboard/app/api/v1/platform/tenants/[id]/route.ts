@@ -1,3 +1,4 @@
+import { asTenantId } from "@chanlytics/contracts";
 import { read, platform } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/shared/request-guards";
@@ -31,7 +32,7 @@ import { setupDtoFor } from "@/server/setup/setup";
 export const GET = read({
   scope: platform,
   handle: async ({ ctx, office }) => {
-    const id = requireUuid(ctx.params.id, "workspace");
+    const id = asTenantId(requireUuid(ctx.params.id, "workspace"));
     const tenant = await findPlatformTenant(office, id);
     if (!tenant) throw new AppError("not_found", "No such workspace.", 404);
     const [setup, events] = await Promise.all([

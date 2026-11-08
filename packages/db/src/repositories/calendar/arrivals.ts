@@ -8,6 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BOOKING_VIAS } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -21,7 +22,7 @@ const ARRIVALS_READ_MAX = 200;
  */
 export async function findVisitChangesSince(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   sinceIso: string,
 ): Promise<
   Array<{ kind: string; subject_type: string | null; subject_id: string | null; data: Json; created_at: string }>
@@ -42,7 +43,7 @@ export async function findVisitChangesSince(
  * Whether a booking can arrive in this workspace at all: the record holds a visit one of a booking's sources brought (the
  * owner's calendar, a booking tool, its email), so a day with none booked is a day with none, not a calendar never linked.
  */
-export async function canBookingsArrive(db: Db, tenantId: string): Promise<boolean> {
+export async function canBookingsArrive(db: Db, tenantId: TenantId): Promise<boolean> {
   const { data, error } = await db
     .from("appointments")
     .select("id")

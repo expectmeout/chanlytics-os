@@ -9,12 +9,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
 import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 export type MailboxConnectionRow = Database["public"]["Tables"]["mailbox_connections"]["Row"];
 type Patch = Database["public"]["Tables"]["mailbox_connections"]["Update"];
 
 /** A workspace's mailboxes, removed ones aside, oldest first. */
-export async function listMailboxConnectionsOf(db: Db, tenantId: string): Promise<MailboxConnectionRow[]> {
+export async function listMailboxConnectionsOf(db: Db, tenantId: TenantId): Promise<MailboxConnectionRow[]> {
   const { data, error } = await db
     .from("mailbox_connections")
     .select("*")
@@ -28,7 +29,7 @@ export async function listMailboxConnectionsOf(db: Db, tenantId: string): Promis
 /** One of a workspace's mailboxes, removed or not; null when it is not this workspace's. */
 export async function findMailboxConnection(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
 ): Promise<MailboxConnectionRow | null> {
   const { data, error } = await db
@@ -85,7 +86,7 @@ export type ConnectRefusal = "taken" | "too_many" | "too_many_on_domain";
 export async function connectMailbox(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     userId: string | null;
     provider: "google" | "microsoft";
     account: string;
@@ -121,7 +122,7 @@ export async function connectMailbox(
  */
 export async function patchMailboxConnection(
   db: Db,
-  params: { tenantId: string; id: string; from?: readonly SchemaSet<"mailbox_connections.state">[]; patch: Patch },
+  params: { tenantId: TenantId; id: string; from?: readonly SchemaSet<"mailbox_connections.state">[]; patch: Patch },
 ): Promise<MailboxConnectionRow | null> {
   let q = db.from("mailbox_connections").update(params.patch).eq("tenant_id", params.tenantId).eq("id", params.id);
   if (params.from?.length) q = q.in("state", [...params.from]);
@@ -204,7 +205,7 @@ export async function getMailboxCounts(
 export async function stampEmailFromMailbox(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     messageId: string;
     providerId: string | null;
     rfcMessageId: string | null;
@@ -230,7 +231,7 @@ export async function stampEmailFromMailbox(
  */
 export async function noteCalendarGrant(
   db: Db,
-  params: { tenantId: string; mailboxId: string; provider: "google" | "microsoft"; on: boolean; by: string | null },
+  params: { tenantId: TenantId; mailboxId: string; provider: "google" | "microsoft"; on: boolean; by: string | null },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("calendar_grant_note", {
     p_tenant_id: params.tenantId,

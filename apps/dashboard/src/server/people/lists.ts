@@ -15,6 +15,7 @@ import {
 import { askForJson } from "../shared/model-json";
 import type { RouteContext } from "../shared/with-route";
 import type { SavedListRow } from "@chanlytics/db/people";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Saved lists: what the routes agree on. The tables are read and written in packages/db lists.ts.
@@ -129,7 +130,7 @@ const LIST_DRAFT_SYSTEM = [
  */
 export async function draftList(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   words: string,
 ): Promise<{ name: string; rule: ListRule; cannot: string | null }> {
   const answer = await askForJson(

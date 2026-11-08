@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type ChannelInsert = Database["public"]["Tables"]["tenant_channels"]["Insert"];
 type ChannelUpdate = Database["public"]["Tables"]["tenant_channels"]["Update"];
@@ -25,7 +25,7 @@ export const findRoutingRowByKey = async (db: Db, kind: SchemaSet<"tenant_channe
 /** A routing row taken over, pinned to the workspace and state it was read in: none back means another claimed it first. */
 export const takeRoutingRow = async (
   db: Db,
-  was: { id: string; tenantId: string; status: SchemaSet<"tenant_channels.status"> },
+  was: { id: string; tenantId: TenantId; status: SchemaSet<"tenant_channels.status"> },
   patch: ChannelUpdate,
 ) =>
   platformWide(db)
@@ -44,7 +44,7 @@ export const insertRoutingRow = async (db: Db, row: ChannelInsert) =>
 /** The workspace's oldest other line that answers on the same routing row, by the line's fact that names it. */
 export const findOtherLineOnRow = async (
   db: Db,
-  params: { tenantId: string; lineId: string; fact: "channel_id" | "sms_channel_id"; channelId: string },
+  params: { tenantId: TenantId; lineId: string; fact: "channel_id" | "sms_channel_id"; channelId: string },
 ) =>
   db
     .from("lines")
@@ -57,15 +57,15 @@ export const findOtherLineOnRow = async (
 
 /** A routing row's settings. */
 /** A routing row changed: repointed to the line that keeps it, or switched off. */
-export const patchRoutingRow = async (db: Db, tenantId: string, channelId: string, patch: ChannelUpdate) =>
+export const patchRoutingRow = async (db: Db, tenantId: TenantId, channelId: string, patch: ChannelUpdate) =>
   db.from("tenant_channels").update(patch).eq("id", channelId).eq("tenant_id", tenantId);
 
 /** The kinds of the workspace's active routing rows among `kinds`: where a customer can write in. */
-export const listActiveRoutingKinds = async (db: Db, tenantId: string, kinds: SchemaSet<"tenant_channels.kind">[]) =>
+export const listActiveRoutingKinds = async (db: Db, tenantId: TenantId, kinds: SchemaSet<"tenant_channels.kind">[]) =>
   db.from("tenant_channels").select("kind").eq("tenant_id", tenantId).eq("status", "active").in("kind", kinds);
 
 /** The workspace's oldest active voice row: its agent and the agent's config. */
-export const findVoiceRouting = async (db: Db, tenantId: string) =>
+export const findVoiceRouting = async (db: Db, tenantId: TenantId) =>
   db
     .from("tenant_channels")
     .select("external_id, config")
@@ -85,7 +85,7 @@ export const listActiveVoiceAgentRows = async (db: Db) =>
   platformWide(db).from("tenant_channels").select("external_id").eq("kind", "voice").eq("status", "active");
 
 /** The workspace's oldest voice routing row, whatever its status. */
-export const findVoiceRow = async (db: Db, tenantId: string) =>
+export const findVoiceRow = async (db: Db, tenantId: TenantId) =>
   db
     .from("tenant_channels")
     .select("id, status, external_id, number_e164")

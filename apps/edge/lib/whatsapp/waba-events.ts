@@ -44,11 +44,12 @@ import { logger, errField, type Logger } from "../shared/log.js";
 import { findChannelConfig, listNumbersOfWaba, patchChannelRow } from "@chanlytics/db/channels";
 import { findConfigRow } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
 export async function findNotifications(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<NotificationsConfig | null> {
   const { data, error } = await findConfigRow(db, tenantId);
   // Unread is not "tell nobody": an account's news would be dropped. Thrown, the delivery is tried again.
@@ -65,7 +66,7 @@ interface WabaChange {
 }
 
 interface Routed {
-  tenantId: string;
+  tenantId: TenantId;
   channelId: string;
   number: string | null;
   /** The channel's config as read, where the standing a name decision corrects is held. */
@@ -320,7 +321,7 @@ export function describeWabaChange(wabaChange: WabaChange, number: string | null
  */
 async function applyTemplateQuality(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   value: Record<string, unknown>,
   log: Logger,
 ): Promise<void> {
@@ -409,7 +410,7 @@ const TEMPLATE_ROW_WAIT_MS = 2_000;
  */
 async function keepTemplateStatus(
   db: SupabaseClient<Database>,
-  params: { tenantId: string; waba: string; name: string; language: string; event: string; reason: string | null },
+  params: { tenantId: TenantId; waba: string; name: string; language: string; event: string; reason: string | null },
   log: Logger,
 ): Promise<void> {
   const write = () =>
@@ -438,7 +439,7 @@ export async function handleWabaChange(
   db: SupabaseClient<Database>,
   entryId: string,
   change: WabaChange,
-  loadNotifications: (tenantId: string) => Promise<NotificationsConfig | null>,
+  loadNotifications: (tenantId: TenantId) => Promise<NotificationsConfig | null>,
 ): Promise<"unrouted" | "unclaimed" | "kept" | "alerted"> {
   const about = accountOf(entryId, change.value);
   if (!about) return "unrouted";
@@ -507,7 +508,7 @@ async function tellWabaChange(
   routed: Routed,
   field: string,
   sentence: WabaWords,
-  loadNotifications: (tenantId: string) => Promise<NotificationsConfig | null>,
+  loadNotifications: (tenantId: TenantId) => Promise<NotificationsConfig | null>,
 ): Promise<"kept" | "alerted"> {
   const described =
     field === "phone_number_quality_update"

@@ -53,6 +53,7 @@ import type { Database } from "@chanlytics/db/types";
 import { askJson, type JsonAnswer, type ModelCallFor } from "../../ai/model.js";
 import { siteWordsOf } from "@chanlytics/core";
 import { findHomePage, PAGE_READS } from "../../shared/public-page.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -411,7 +412,7 @@ export interface CheckWorkspace {
   signature: string | null;
 }
 
-export async function checkWorkspaceOf(db: Db, tenantId: string): Promise<CheckWorkspace> {
+export async function checkWorkspaceOf(db: Db, tenantId: TenantId): Promise<CheckWorkspace> {
   const [w, about] = await Promise.all([findWorkspaceNameAndConfig(db, tenantId), findWorkspaceAbout(db, tenantId)]);
   const config = parseTenantConfig(w.config);
   const brain = config?.brain;

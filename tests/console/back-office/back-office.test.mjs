@@ -994,7 +994,7 @@ test("three named operations, and no way to send a fourth", () => {
     const src = fs.readFileSync(path.join(dir, action, "route.ts"), "utf8");
     // Its own operation, named in its own file, not taken from the request, and the Console's act it is.
     assert.ok(
-      src.includes(`runPlatformLineAct(office, "${action}", input.tenant_id, input.line_id, input.why)`),
+      src.includes(`runPlatformLineAct(office, "${action}", heldTenantId(input.tenant_id), input.line_id, input.why)`),
       `${action}: the action is a literal`,
     );
     assert.ok(src.includes(`act: LINE_ACTS.${action},`), `${action}: the act its role is asked for`);
@@ -1011,7 +1011,7 @@ test("three named operations, and no way to send a fourth", () => {
   const server = readCode("apps/dashboard/src/server/console/platform.ts");
   assert.match(
     server,
-    /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => EdgeBody<"\/api\/admin\/lines">>/,
+    /const EDGE_OP: Record<PlatformLineAction, \(tenantId: TenantId, lineId: string\) => EdgeBody<"\/api\/admin\/lines">>/,
   );
   assert.match(server, /refile: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true \}\)/);
   assert.match(

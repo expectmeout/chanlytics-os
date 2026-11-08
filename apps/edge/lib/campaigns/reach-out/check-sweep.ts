@@ -27,7 +27,7 @@ import { env } from "../../shared/env.js";
 import { logger } from "../../shared/log.js";
 import { pg } from "../../shared/pg.js";
 import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../../shared/admin-auth.js";
-import { REWRITE_NOW_MAX, UUID, type RewriteStep } from "@chanlytics/contracts";
+import { REWRITE_NOW_MAX, UUID, type RewriteStep, isTenantId } from "@chanlytics/contracts";
 import { getUncheckedWaiting } from "@chanlytics/db/campaigns";
 import { checkSends } from "./check.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
@@ -67,7 +67,7 @@ export async function checkPressedSends(
   body: { send_ids?: unknown; stream?: unknown },
 ): Promise<Response> {
   const tenantId = tokenWorkspace(auth);
-  if (!tenantId || !UUID.test(tenantId)) return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
+  if (!tenantId || !isTenantId(tenantId)) return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
   const ids = Array.isArray(body.send_ids)
     ? body.send_ids.filter((x): x is string => typeof x === "string" && UUID.test(x))
     : [];

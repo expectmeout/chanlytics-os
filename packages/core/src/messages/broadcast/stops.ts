@@ -9,6 +9,7 @@ import { getAppointments, getFeed } from "../broadcast-feed";
 import { pageTheDomain, release, stopForTheWorkspace, type Verdict } from "../broadcast-stops";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, ContactRow, RecipientRow } from "../ports";
 import { WIRE_WORDS, gotIt, thenWhat } from "../broadcast-words";
+import type { ContactId } from "@chanlytics/contracts";
 
 /** A run as its stop's alert reads it: its name, and whose it is (thenWhat: a playbook's run is not sent again). */
 export type StoppedRun = Pick<BroadcastRow, "id" | "name" | "playbook_id" | "audience">;
@@ -242,7 +243,7 @@ export async function offersAtTheHead(
  */
 export async function giveBack(
   ports: BroadcastBatchPorts,
-  personName: { broadcastId: string; contactId: string },
+  personName: { broadcastId: string; contactId: ContactId },
   reached: boolean,
   channel: Channel,
 ): Promise<Verdict> {

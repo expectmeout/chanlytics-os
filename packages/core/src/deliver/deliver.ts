@@ -67,6 +67,7 @@ import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./em
 import { heldByThread, lateDraft, liveHoldOf } from "./hold";
 import { textRefusal } from "./text";
 import { namedFailure, putOnWire, type WireUnavailable } from "./wire-senders";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type { DeliveryRefusal };
 
@@ -144,9 +145,9 @@ export type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
 export type Wire = Partial<Record<Channel, Sender | null | WireUnavailable>>;
 
 export interface Delivery {
-  tenantId: string;
+  tenantId: TenantId;
   conversationId: string;
-  contactId: string | null;
+  contactId: ContactId | null;
   /** Where it goes: E.164 (with or without the "+") on a phone's wire, the person's stored address on email's. Each wire shapes it. */
   to: string;
   channel: Channel;
@@ -265,7 +266,7 @@ interface WireFacts {
    */
   control: { kind: string; ref: string | null; until: string } | null;
   /** The person this thread is with, as the thread says: what outreach asks the leads about. */
-  contactId: string | null;
+  contactId: ContactId | null;
   contact: {
     consent: string | null;
     dnc: boolean | null;
@@ -314,7 +315,7 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, delivery: Delivery):
     control_kind?: string | null;
     control_ref?: string | null;
     control_until?: string | null;
-    contact_id?: string | null;
+    contact_id?: ContactId | null;
     contacts: WireFacts["contact"] | null;
     tenants: { status: string | null } | null;
   };
@@ -777,7 +778,7 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
  */
 export async function getTemplatePurpose(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   template: { name: string; language: string } | undefined | null,
 ): Promise<SendPurpose> {
   if (!template) return "conversational";

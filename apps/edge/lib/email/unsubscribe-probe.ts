@@ -21,6 +21,7 @@
  * page's own rule, because link scanners open every URL in an email. Without the edge's own key nothing is sealed, so
  * nothing is probed.
  */
+import { heldContactId, heldTenantId } from "@chanlytics/contracts";
 import { signUnsubscribeToken, unsubscribeUrl } from "@chanlytics/channels/tokens";
 import { UNSUBSCRIBE_PAGE_HEADER } from "@chanlytics/contracts";
 import { errField, type Logger } from "../shared/log.js";
@@ -97,7 +98,11 @@ export async function probeUnsubscribe(probePorts: ProbePorts): Promise<ProbeOut
   if (!probePorts.secret) return "no_secret";
   const url = unsubscribeUrl(
     probePorts.origin,
-    signUnsubscribeToken(probePorts.secret, { tenantId: NOBODY, contactId: NOBODY, messageId: NOBODY }),
+    signUnsubscribeToken(probePorts.secret, {
+      tenantId: heldTenantId(NOBODY),
+      contactId: heldContactId(NOBODY),
+      messageId: NOBODY,
+    }),
   );
   let answer = await ask(url, probePorts.log);
   let seen = "seen" in answer ? answer.seen : "";

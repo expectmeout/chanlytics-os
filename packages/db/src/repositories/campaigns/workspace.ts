@@ -7,6 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -16,7 +17,7 @@ type Db = SupabaseClient<Database>;
  * the approval verb and the send job (so a run stops, core broadcast-stops.ts) all ask. A read that fails throws: "we could
  * not check" is not "it is not paused".
  */
-export async function isWorkspacePaused(db: Db, tenantId: string): Promise<boolean> {
+export async function isWorkspacePaused(db: Db, tenantId: TenantId): Promise<boolean> {
   const { data, error } = await db.from("tenants").select("status").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the workspace: ${error.message}`);
   return data?.status === "paused";
@@ -29,7 +30,7 @@ export async function isWorkspacePaused(db: Db, tenantId: string): Promise<boole
  * message's review_link slot: the dashboard's template-values port, on the member's session (refused in words where it
  * is null), and the send job. Any other failed read throws: "we could not read it" is not "there is none".
  */
-export async function reviewLinkOf(db: Db, tenantId: string): Promise<string | null> {
+export async function reviewLinkOf(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db
     .from("google_listings")
     .select("new_review_uri")

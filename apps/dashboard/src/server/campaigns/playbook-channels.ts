@@ -2,6 +2,7 @@ import "server-only";
 import { DEFAULT_CAMPAIGN_CHANNELS } from "@chanlytics/contracts";
 import { listPlaybookChannels, findPlaybookForChannels } from "@chanlytics/db/campaigns";
 import type { RouteContext } from "../shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The channels a playbook already ticks, for an edit that names none (packages/db listPlaybookChannels): null when it keeps none,
@@ -27,7 +28,7 @@ type PlaybookChannelsRow = NonNullable<Awaited<ReturnType<typeof findPlaybookFor
  */
 export async function findPlaybookChannelsRow(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
 ): Promise<PlaybookChannelsRow | null> {
   const row = await findPlaybookForChannels(ctx.supabase, tenantId, id);

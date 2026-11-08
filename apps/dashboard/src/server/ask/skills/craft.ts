@@ -2,6 +2,7 @@ import "server-only";
 import type { ZodType } from "zod";
 import { AppError, ASK_TURN_BUDGET_MS, MODEL_ROUTES, craftSystem, type AskSkill } from "@chanlytics/contracts";
 import { askForJson } from "../../shared/model-json";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A skill's craft call (contracts ask-skills): the job done by a call made only for it, with the skill's own words as its
@@ -43,7 +44,7 @@ function keptFor(e: AppError): CraftKept {
 }
 
 interface CraftCall<T> {
-  tenantId: string;
+  tenantId: TenantId;
   userId: string;
   /** The job, as the skill's brief says it. */
   question: string;

@@ -16,6 +16,7 @@ import {
 import type { Database, Json } from "../../types";
 import { findReachOutReply } from "../campaigns/reach-out/outreach";
 import { asJson } from "../../shared/json";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -39,7 +40,7 @@ const DRAFT_COLUMNS = "conversation_id, kind, for_message_id, words, made_at, st
 const SET_ASIDE_READ = 50;
 
 /** The workspace's threads set aside (00539), newest first: the Today line's, on the member's own session. */
-export async function listConversationsSetAside(db: Db, tenantId: string): Promise<string[]> {
+export async function listConversationsSetAside(db: Db, tenantId: TenantId): Promise<string[]> {
   const { data, error } = await db
     .from("conversations")
     .select("id")
@@ -59,7 +60,7 @@ export async function listConversationsSetAside(db: Db, tenantId: string): Promi
  */
 export async function listConversationDrafts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   which: readonly string[] | { newest: number },
 ): Promise<ConversationDraftRow[]> {
   if (Array.isArray(which) && which.length === 0) return [];
@@ -77,7 +78,7 @@ export async function listConversationDrafts(
  */
 export async function findThreadDraftFacts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
 ): Promise<{ forMessageId: string | null; reason: string | null; details: string | null }> {
   const [msg, hold] = await Promise.all([
@@ -112,7 +113,7 @@ export async function findThreadDraftFacts(
 
 /** What a draft is decided by and written from (core reply-draft.ts), as the rows say it now. */
 export interface ReplyDraftThread {
-  contactId: string | null;
+  contactId: ContactId | null;
   /** The open hold's reason and what it left, or nulls with none. */
   holdReason: string | null;
   holdDetails: string | null;
@@ -154,7 +155,7 @@ function emailOf(meta: unknown): { subject: string | null; name: string | null; 
  */
 export async function replyDraftThreadOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
 ): Promise<ReplyDraftThread | null> {
   const conv = await db
@@ -233,7 +234,7 @@ export async function replyDraftThreadOf(
 export async function claimConversationDraft(
   db: Db,
   details: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
     kind: string;
     forMessageId: string | null;
@@ -265,7 +266,7 @@ export async function claimConversationDraft(
 export async function writeConversationDraft(
   db: Db,
   details: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
     kind: string;
     forMessageId: string | null;
@@ -313,7 +314,7 @@ export async function writeConversationDraft(
 /** A thread's claim let go: its hold was answered before the draft was written, so nothing stands for it. */
 export async function dropConversationDraft(
   db: Db,
-  details: { tenantId: string; conversationId: string; kind: SchemaSet<"conversation_drafts.kind"> },
+  details: { tenantId: TenantId; conversationId: string; kind: SchemaSet<"conversation_drafts.kind"> },
 ): Promise<void> {
   const { error } = await db
     .from("conversation_drafts")
@@ -332,7 +333,7 @@ export async function dropConversationDraft(
 export async function recordConversationDraftFailed(
   db: Db,
   details: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
     kind: SchemaSet<"conversation_drafts.kind">;
     forMessageId: string | null;
@@ -359,7 +360,7 @@ export async function recordConversationDraftFailed(
  */
 export async function setConversationAside(
   db: Db,
-  details: { tenantId: string; conversationId: string; why: "pitch" | "notice" },
+  details: { tenantId: TenantId; conversationId: string; why: "pitch" | "notice" },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("conversation_set_aside", {
     p_tenant_id: details.tenantId,
@@ -375,7 +376,7 @@ export async function replyDraftsDue(
   db: Db,
   rules: number,
   limit: number,
-): Promise<Array<{ tenantId: string; conversationId: string }>> {
+): Promise<Array<{ tenantId: TenantId; conversationId: string }>> {
   const { data, error } = await db.rpc("reply_drafts_due", { p_rules: rules, p_limit: limit });
   if (error) throw new Error(`reply_drafts_due: ${error.message}`);
   return (data ?? []).map((r) => ({ tenantId: r.tenant_id, conversationId: r.conversation_id }));
@@ -384,7 +385,7 @@ export async function replyDraftsDue(
 /** The thread an escalation is on, or null where it is gone: what escalation.changed names is the hold's own id. */
 export async function findConversationOfEscalation(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   escalationId: string,
 ): Promise<string | null> {
   const { data, error } = await db

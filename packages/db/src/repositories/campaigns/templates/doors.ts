@@ -4,6 +4,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -16,7 +17,7 @@ export const setTemplateTitle = async (db: Db, templateId: string, title: string
   db.rpc("set_template_title", { p_template_id: templateId, p_title: title });
 
 /** How many of the workspace's runs on a template are scheduled or sending. */
-export const countLiveRunsOfTemplate = async (db: Db, tenantId: string, key: { name: string; language: string }) =>
+export const countLiveRunsOfTemplate = async (db: Db, tenantId: TenantId, key: { name: string; language: string }) =>
   db
     .from("sequence_batches")
     .select("id", { count: "exact", head: true })
@@ -26,7 +27,7 @@ export const countLiveRunsOfTemplate = async (db: Db, tenantId: string, key: { n
     .in("state", ["scheduled", "sending"]);
 
 /** The workspace's running steps that send a template. */
-export const listRunningStepsOfTemplate = async (db: Db, tenantId: string, key: { name: string; language: string }) =>
+export const listRunningStepsOfTemplate = async (db: Db, tenantId: TenantId, key: { name: string; language: string }) =>
   db
     .from("sequence_steps")
     .select("name")
@@ -36,7 +37,7 @@ export const listRunningStepsOfTemplate = async (db: Db, tenantId: string, key: 
     .eq("state", "running");
 
 /** One of the workspace's templates as a translation is made from it, or none. */
-export const findTemplateToTranslate = async (db: Db, tenantId: string, templateId: string) =>
+export const findTemplateToTranslate = async (db: Db, tenantId: TenantId, templateId: string) =>
   db
     .from("templates")
     .select("id, name, language, category, body_preview, variables, components")
@@ -45,7 +46,7 @@ export const findTemplateToTranslate = async (db: Db, tenantId: string, template
     .maybeSingle();
 
 /** The workspace's WhatsApp template of this name in `language`, if one is filed: its id, or none. */
-export const findTemplateIn = async (db: Db, tenantId: string, name: string, language: string) =>
+export const findTemplateIn = async (db: Db, tenantId: TenantId, name: string, language: string) =>
   db
     .from("templates")
     .select("id")

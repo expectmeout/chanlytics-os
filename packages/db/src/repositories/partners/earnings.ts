@@ -5,16 +5,17 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Args<F extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][F]["Args"];
 
 /** The card a workspace paid with marked (billing_card_mark). */
-export const markBillingCard = async (db: Db, tenantId: string, fingerprint: string) =>
+export const markBillingCard = async (db: Db, tenantId: TenantId, fingerprint: string) =>
   db.rpc("billing_card_mark", { p_tenant_id: tenantId, p_fingerprint: fingerprint });
 
 /** Whether a partner brought the workspace: its row, or none. */
-export const findWorkspacePartner = async (db: Db, tenantId: string) =>
+export const findWorkspacePartner = async (db: Db, tenantId: TenantId) =>
   db.from("partner_tenants").select("tenant_id").eq("tenant_id", tenantId).maybeSingle();
 
 /** A partner's earning on a paid invoice (partner_earn). */

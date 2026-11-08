@@ -7,11 +7,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { personName } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { DELIVERED } from "../conversations/thread/history";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** When a member last closed the bell or marked it read (notification_reads.seen_at); null where they never did. */
-export async function findBellSeenAt(db: Db, params: { tenantId: string; userId: string }): Promise<string | null> {
+export async function findBellSeenAt(db: Db, params: { tenantId: TenantId; userId: string }): Promise<string | null> {
   const { data, error } = await db
     .from("notification_reads")
     .select("seen_at")
@@ -28,8 +29,8 @@ export async function findBellSeenAt(db: Db, params: { tenantId: string; userId:
  */
 export async function findAnsweredSince(
   db: Db,
-  params: { tenantId: string; since: string },
-): Promise<{ count: number; last: { body: string; created_at: string; contact_id: string | null } | null }> {
+  params: { tenantId: TenantId; since: string },
+): Promise<{ count: number; last: { body: string; created_at: string; contact_id: ContactId | null } | null }> {
   const { data, count, error } = await db
     .from("messages")
     .select("body, created_at, contact_id", { count: "exact" })
@@ -53,7 +54,10 @@ export async function findAnsweredSince(
  * personName): the name they were given, else what WhatsApp says, else their number, else their address. Null where the
  * read holds no such person.
  */
-export async function findContactName(db: Db, params: { tenantId: string; contactId: string }): Promise<string | null> {
+export async function findContactName(
+  db: Db,
+  params: { tenantId: TenantId; contactId: ContactId },
+): Promise<string | null> {
   const { data, error } = await db
     .from("contacts")
     .select("display_name, wa_profile_name, phone_e164, email")

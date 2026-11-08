@@ -35,6 +35,7 @@ import { composePost } from "./compose";
 import { POST_SIZES } from "./layout";
 import { getMaterial, type PostMaterial } from "./material";
 import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** What a press sends, as both routes take it. A card made before layouts names none, and draws as it did. */
 export const postPlanInput = z.object({
@@ -111,7 +112,7 @@ export async function previewPost(
 }
 
 /** A made file's shapes, stored. What did not arrive is taken back, and the press is told. */
-async function storeShapes(tenantId: string, id: string, shapes: Record<PostShapeName, Buffer>): Promise<void> {
+async function storeShapes(tenantId: TenantId, id: string, shapes: Record<PostShapeName, Buffer>): Promise<void> {
   const stored = await Promise.all(
     POST_SHAPES.map((shape) =>
       bucket().upload(postPathOf(tenantId, id, shape), shapes[shape], {
@@ -128,7 +129,7 @@ async function storeShapes(tenantId: string, id: string, shapes: Record<PostShap
   throw new AppError("internal", W.notSaved, 503);
 }
 
-const letShapesGo = async (tenantId: string, id: string): Promise<void> => {
+const letShapesGo = async (tenantId: TenantId, id: string): Promise<void> => {
   const gone = await bucket().remove(POST_SHAPES.map((shape) => postPathOf(tenantId, id, shape)));
   if (gone.error) log.warn("file_post_let_go_failed", { tenant_id: tenantId, error: gone.error.message });
 };

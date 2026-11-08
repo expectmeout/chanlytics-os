@@ -28,10 +28,11 @@ import {
   type FeedItem,
   type TenantConfig,
 } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 export async function keepAppointments(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   items: readonly FeedItem[],
   options: { timezone: string; cfg: TenantConfig | null; daysAhead: number; now: Date },
 ): Promise<AppointmentSync> {

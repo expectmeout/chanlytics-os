@@ -7,7 +7,7 @@
  * is a thread that is not there. Body: { conversation_id, kind, instruction? }. Nothing leaves by it: the words are kept on
  * the thread's row, for the reply's own door to send on a press.
  */
-import { MIN_MS, SECOND_MS, UUID, type ReplyDraftKind } from "@chanlytics/contracts";
+import { MIN_MS, SECOND_MS, UUID, type ReplyDraftKind, isTenantId } from "@chanlytics/contracts";
 import { rewriteReplyDraft, type RewriteOutcome } from "@chanlytics/core";
 import { replyDraftPortsOf, type ReplyDraftEdge } from "@chanlytics/jobs";
 import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../shared/admin-auth.js";
@@ -46,7 +46,8 @@ export async function draftAtTheDoor(
 ): Promise<Response> {
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
   const workspace = tokenWorkspace(auth);
-  if (auth.via !== "token" || !workspace || !UUID.test(workspace)) return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
+  if (auth.via !== "token" || !workspace || !isTenantId(workspace))
+    return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
   const conversationId = String(body.conversation_id ?? "");
   const kind: ReplyDraftKind = body.kind === "brief" ? "brief" : "reply";
   const instruction = String(body.instruction ?? "").trim();

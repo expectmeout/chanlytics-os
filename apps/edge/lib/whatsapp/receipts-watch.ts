@@ -28,6 +28,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { HOUR_MS } from "@chanlytics/contracts";
 import { findReceiptSince, listSendsWithoutReceipt } from "@chanlytics/db/channels";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long a receipt may take before its absence is a condition. */
 const NO_RECEIPT_AFTER_MS = 6 * HOUR_MS;
@@ -37,7 +38,7 @@ const WATCHED_FOR_MS = 24 * HOUR_MS;
 const READ_LIMIT = 1000;
 
 interface SilentWorkspace {
-  tenantId: string;
+  tenantId: TenantId;
   /** Messages Meta accepted that have had no receipt for six hours. */
   count: number;
   /** When the first and the latest of them went out. */

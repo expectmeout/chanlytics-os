@@ -24,6 +24,7 @@ import { accentOfColour, siteAccentOf, findSiteLogo } from "@chanlytics/core";
 import { wearFoundLook } from "@chanlytics/db/look";
 import type { Database } from "@chanlytics/db/types";
 import { errField, logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -33,7 +34,7 @@ const STORE_MS = 4 * SECOND_MS;
 const CACHE_S = String(DAY_MS / SECOND_MS);
 
 /** The PNG stored under the workspace's folder, or null when storage refused or did not answer in time. */
-async function storedLogo(db: Db, tenantId: string, png: Uint8Array): Promise<string | null> {
+async function storedLogo(db: Db, tenantId: TenantId, png: Uint8Array): Promise<string | null> {
   const path = workspaceLogoPath(tenantId, randomUUID());
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -56,7 +57,7 @@ async function storedLogo(db: Db, tenantId: string, png: Uint8Array): Promise<st
 
 export async function wearSiteLook(
   db: Db,
-  params: { tenantId: string; page: Pick<SitePage, "html" | "url" | "brand">; fetchImpl?: typeof fetch },
+  params: { tenantId: TenantId; page: Pick<SitePage, "html" | "url" | "brand">; fetchImpl?: typeof fetch },
 ): Promise<LookRead> {
   const log = logger({ tenant_id: params.tenantId });
   const none: LookRead = { logo_url: null, accent: null, worn: { logo: false, accent: false } };

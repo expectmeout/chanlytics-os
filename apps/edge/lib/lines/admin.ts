@@ -102,6 +102,7 @@ import {
 } from "./ops/filing.js";
 import { findPlanStanding } from "@chanlytics/db/billing";
 import { findWorkspaceCard } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type RecordRow = Database["public"]["Tables"]["business_records"]["Row"];
@@ -112,8 +113,8 @@ interface LineCall {
   choice: LineProviderChoice;
   apiKey: string;
   db: Db;
-  tenantId: string;
-  tenant: { id: string; name: string; slug: string };
+  tenantId: TenantId;
+  tenant: { id: TenantId; name: string; slug: string };
   /** The member the dashboard acted for (the token's, admin-auth.ts personFor), where one is named. */
   person: string | null;
 }

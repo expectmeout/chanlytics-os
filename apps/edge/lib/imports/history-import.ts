@@ -41,6 +41,7 @@ import { getContactsPart } from "./mail-people.js";
 import { getCalendarPart } from "./calendar-part.js";
 import { getGooglePhotosPart } from "./google-photos.js";
 import { HISTORY_PARTS, SETTLE_AFTER_MS, whatsappContactsPart, whatsappHistoryPart } from "./whatsapp-history.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -49,7 +50,7 @@ const PART_MS = 40 * SECOND_MS;
 
 /** One part as a source's runner is handed it. */
 export interface Part {
-  tenantId: string;
+  tenantId: TenantId;
   /** The connection the history is read through (a mailbox's id); null for a source that has none. */
   connectionId: string | null;
   /** The run it is a part of: its writes change nothing once another run, or Stop, holds the row (0086). */
@@ -94,7 +95,14 @@ function seqOf(raw: unknown): { run: string; n: number } {
 /** The next part of a run on the job ledger, once (its key holds the workspace, the source, the run and the number). */
 async function schedulePart(
   db: Db,
-  params: { tenantId: string; source: ImportSource; run: string; n: number; connectionId: string | null; dueAt?: Date },
+  params: {
+    tenantId: TenantId;
+    source: ImportSource;
+    run: string;
+    n: number;
+    connectionId: string | null;
+    dueAt?: Date;
+  },
 ): Promise<void> {
   await scheduleJobOnce(db, {
     tenantId: params.tenantId,
@@ -119,7 +127,7 @@ const ledgerMailboxOf = (source: ImportSource, connectionId: string | null): str
  */
 async function runHolds(
   db: Db,
-  p: { tenantId: string; source: ImportSource; connectionId: string | null; run: string },
+  p: { tenantId: TenantId; source: ImportSource; connectionId: string | null; run: string },
 ): Promise<boolean> {
   const mailbox = ledgerMailboxOf(p.source, p.connectionId);
   if (!mailbox) return true;
@@ -136,7 +144,7 @@ async function runHolds(
  */
 export async function startHistory(
   db: Db,
-  params: { tenantId: string; source: ImportSource; connectionId: string | null; via: string | null; again: boolean },
+  params: { tenantId: TenantId; source: ImportSource; connectionId: string | null; via: string | null; again: boolean },
 ): Promise<void> {
   if (!runnerOf(params.source)) throw new Error(`history_import: nothing here brings ${params.source} in`);
   const run = params.again ? String(Date.now()) : "1";
@@ -168,7 +176,7 @@ export async function startHistory(
 export async function startMailboxHistory(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     mailboxId: string;
     provider: MailboxProvider;
     scopes: readonly string[];
@@ -306,7 +314,7 @@ export async function bringMailboxHistory(db: Db, mailboxOf: MailboxOf): Promise
  */
 export async function startWhatsappHistory(
   db: Db,
-  params: { tenantId: string; channelId: string; nowMs: number; log: Logger },
+  params: { tenantId: TenantId; channelId: string; nowMs: number; log: Logger },
 ): Promise<void> {
   const run = String(params.nowMs);
   const cursor = { channel: params.channelId, connected_at: new Date(params.nowMs).toISOString() };
@@ -355,7 +363,7 @@ export async function startWhatsappHistory(
  */
 export async function handDeliveryOn(
   db: Db,
-  params: { tenantId: string; source: "whatsapp_contacts" | "whatsapp_history"; deliveryKey: string },
+  params: { tenantId: TenantId; source: "whatsapp_contacts" | "whatsapp_history"; deliveryKey: string },
 ): Promise<void> {
   const run = params.deliveryKey.replace(/^sha256:/, "").slice(0, 16);
   await schedulePart(db, {

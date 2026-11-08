@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -28,7 +29,7 @@ interface AskMorningDoor {
 /** The morning's door (ask_morning_write), by act, for the member signed in. */
 export async function askMorningWrite(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   day: string,
   askMorningAct: AskMorningAct,
 ): Promise<AskMorningDoor> {
@@ -54,7 +55,7 @@ export async function askMorningWrite(
 /** The member's morning of a day, as the row keeps it, or null where none was claimed. */
 export async function askMorningOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   day: string,
 ): Promise<{ thread_id: string | null; cards: number | null; made_at: string } | null> {
@@ -84,7 +85,7 @@ const MORNINGS_READ = 120;
  * lately, so a morning does not offer again what a teammate has or what was set aside. A morning's own rows are its
  * member's under RLS, so this takes the service client and the caller names the workspace. A read that fails throws.
  */
-export async function askMorningsSince(db: Db, tenantId: string, since: string): Promise<AskMorningSeen[]> {
+export async function askMorningsSince(db: Db, tenantId: TenantId, since: string): Promise<AskMorningSeen[]> {
   const { data: mornings, error } = await db
     .from("ask_mornings")
     .select("user_id, day, thread_id")

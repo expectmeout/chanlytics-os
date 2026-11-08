@@ -68,6 +68,7 @@ import {
   type KnownMessage,
   type OwnerKnown,
 } from "../campaigns/sequences/draft-judge";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How much of a message's words the model is handed. */
 const BODY_CHARS = 280;
@@ -289,7 +290,7 @@ export const draftRules = (previews: boolean): string => [...RULES, ...(previews
 export async function draftSequenceFrom(
   known: DraftKnown,
   ask: NewDraftAsk,
-  personName: { tenantId: string; userId: string },
+  personName: { tenantId: TenantId; userId: string },
 ): Promise<NewDraftDto> {
   const answer = await askForJson(
     {
@@ -416,7 +417,7 @@ async function startedExamples(
 }
 
 /** A read the draft can do without: logged once, and the draft drafted from what was read. */
-export async function readOrNull<T>(read: Promise<T>, text: string, tenantId: string): Promise<T | null> {
+export async function readOrNull<T>(read: Promise<T>, text: string, tenantId: TenantId): Promise<T | null> {
   try {
     return await read;
   } catch (e) {

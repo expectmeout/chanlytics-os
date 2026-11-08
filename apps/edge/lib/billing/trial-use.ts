@@ -7,6 +7,7 @@
  * minutes. This file decides over ports, so the tests run it against a world in memory.
  */
 import { TRIAL_SPENT_WORDS, trialSpentOf, trialUseWords } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How many trials one tick looks at: a quarter hour's work, the rest the next tick's. */
 const TRIALS_PER_TICK = 200;
@@ -18,12 +19,12 @@ interface TrialUse {
 
 interface TrialPorts {
   /** The workspaces on a trial with a subscription to end early. */
-  ids(): Promise<string[]>;
-  useOf(tenantId: string): Promise<TrialUse>;
+  ids(): Promise<TenantId[]>;
+  useOf(tenantId: TenantId): Promise<TrialUse>;
   /** Stripe ends the trial now and the row follows (Billing's start-now); ok false with what Stripe said. */
-  startPlan(tenantId: string): Promise<{ ok: boolean; detail?: string }>;
+  startPlan(tenantId: TenantId): Promise<{ ok: boolean; detail?: string }>;
   /** A bell row kept once under `onceKey`: true when it is kept, now or before. */
-  tell(tenantId: string, onceKey: string, title: string, body: string): Promise<boolean>;
+  tell(tenantId: TenantId, onceKey: string, title: string, body: string): Promise<boolean>;
   log: {
     info(event: string, f: Record<string, unknown>): void;
     error(event: string, f: Record<string, unknown>): void;

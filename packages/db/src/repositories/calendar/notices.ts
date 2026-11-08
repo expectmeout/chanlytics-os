@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 export type AppointmentNoticeRow = Database["public"]["Tables"]["appointment_notices"]["Row"];
@@ -19,7 +20,7 @@ export type AppointmentNoticeInsert = Database["public"]["Tables"]["appointment_
 
 export async function findAppointmentNotice(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   noticeId: string,
 ): Promise<AppointmentNoticeRow | null> {
   const { data, error } = await db
@@ -64,7 +65,7 @@ export async function holdNoticeIfUnkept(db: Db, row: AppointmentNoticeInsert): 
  */
 export async function findAppointmentNotices(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ tool: string | null; last_at: string | null; held: number }> {
   // Together: neither needs the other, and each is a round trip the Calendar's board waits on (9 Oct 2026: its read
   // spent 180 ms on the server for a workspace with no calendar, every one of seven round trips after the one before).
@@ -95,7 +96,7 @@ export async function findAppointmentNotices(
  * forwarded by hand. Service role only; a failed ask throws, so the intake's retry meets it rather than booking on a
  * stranger's word.
  */
-export async function hasMemberAddress(db: Db, tenantId: string, address: string): Promise<boolean> {
+export async function hasMemberAddress(db: Db, tenantId: TenantId, address: string): Promise<boolean> {
   const { data, error } = await db.rpc("member_has_address", { p_tenant_id: tenantId, p_address: address });
   if (error) throw new Error(`member_has_address: ${error.message}`);
   return data === true;
@@ -107,7 +108,7 @@ export async function hasMemberAddress(db: Db, tenantId: string, address: string
 const HELD_MAX = 20;
 
 /** The notices held for a person, latest first, as the card lists them. */
-export async function listHeldNotices(db: Db, tenantId: string): Promise<AppointmentNoticeRow[]> {
+export async function listHeldNotices(db: Db, tenantId: TenantId): Promise<AppointmentNoticeRow[]> {
   const { data, error } = await db
     .from("appointment_notices")
     .select("*")
@@ -128,7 +129,7 @@ const HELD_KEYS_CAP = 1000;
  * list (the wiring's second audit, R13 X5-1). Null where the read is not the whole of them, which settles nothing. Throws when
  * it cannot be read.
  */
-export async function findHeldNoticeKeys(db: Db, tenantId: string): Promise<ReadonlySet<string> | null> {
+export async function findHeldNoticeKeys(db: Db, tenantId: TenantId): Promise<ReadonlySet<string> | null> {
   const { data, error } = await db
     .from("appointment_notices")
     .select("id, notice_id")
@@ -146,7 +147,7 @@ export async function findHeldNoticeKeys(db: Db, tenantId: string): Promise<Read
 /** One notice of the workspace by its row id, or null. */
 export async function findAppointmentNoticeById(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
 ): Promise<AppointmentNoticeRow | null> {
   const { data, error } = await db
@@ -163,7 +164,7 @@ export async function findAppointmentNoticeById(
  * A person let a held notice go: dismissed, its reason kept. Only a held one moves; answers whether one did, so the
  * route can say "nothing to dismiss" rather than succeed over a row that was already read.
  */
-export async function dismissAppointmentNotice(db: Db, tenantId: string, id: string): Promise<boolean> {
+export async function dismissAppointmentNotice(db: Db, tenantId: TenantId, id: string): Promise<boolean> {
   const { data, error } = await db
     .from("appointment_notices")
     .update({ outcome: "dismissed" })

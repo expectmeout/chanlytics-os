@@ -39,9 +39,10 @@ import type {
   NoticeOutcome,
   StoredAppointment,
 } from "./ports";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export interface ReadBookingNoticeCommand {
-  tenantId: string;
+  tenantId: TenantId;
   /** The business's zone: the notice's clock times are its own. */
   tz: string;
   tool: BookingTool;
@@ -155,7 +156,7 @@ type Stated = {
   price: string | null;
   note: string | null;
   client: NoticeClient;
-  contactId: string | null;
+  contactId: ContactId | null;
 };
 type Written = [Exclude<ReadBookingNoticeOutcome, "already" | "set_aside" | `held:${NoticeHold}`>, string | null];
 /**
@@ -163,7 +164,7 @@ type Written = [Exclude<ReadBookingNoticeOutcome, "already" | "set_aside" | `hel
  * and whether its time is still ahead of the moment it is read.
  */
 type Visit = {
-  tenantId: string;
+  tenantId: TenantId;
   key: string;
   r: NoticeReading;
   fresh: (s: NewAppointment["status"]) => NewAppointment;

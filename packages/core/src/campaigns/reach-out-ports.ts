@@ -3,12 +3,13 @@
  * (apps/edge lib/campaigns/reach-out/run-context.ts); tests build them from arrays.
  */
 import { outreachRefusalOf, type StepHand, type TimetableSender } from "@chanlytics/contracts";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export interface ReachOutStep {
   id: string;
   /** The chain's first step: the step's own id for a root, its parent's root for a later step. */
   root_id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   trigger: "lead_first" | "after_step";
   /** The chain's: paused when the step or its root is (a paused root pauses every step of it). */
@@ -54,7 +55,7 @@ export interface HandStep extends Omit<ReachOutStep, "template_id" | "template_n
 export type HandItem = {
   send_id: string;
   lead_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   words: string;
   source_id: string;
 };
@@ -83,11 +84,11 @@ export interface ReachOutLead {
   region: string | null;
   hours: unknown;
   /** Known for a later step's leads (their person was made at the first send); null for a first step's. */
-  contact_id?: string | null;
+  contact_id?: ContactId | null;
 }
 
 export interface ReachOutFollower extends ReachOutLead {
-  contact_id: string;
+  contact_id: ContactId;
   /** The lead's own facts (outreach_lead_facts): the answer the send door will give about them. */
   facts: { lead_stage: string | null; suppressed: boolean; wrote_back: boolean; away?: boolean; stopped?: boolean };
   /** Any email of the chain to them bounced or failed for good (C4). */
@@ -99,7 +100,7 @@ export interface ReachOutFollower extends ReachOutLead {
 export interface NewReachOutRun {
   /** Its step and its day (getReachOutRunId): a replay meets its own run. */
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   playbook_id: string;
   run_for: string;
   name: string;
@@ -119,12 +120,12 @@ export interface NewReachOutRun {
  */
 export type PlannedSend = {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   broadcast_id: string;
   playbook_id: string;
   root_id: string;
   lead_id: string;
-  contact_id: string | null;
+  contact_id: ContactId | null;
 } & (
   | { state: "planned"; mailbox_id: string | null; send_at: string; reason?: null }
   | { state: "skipped"; mailbox_id: null; send_at: null; reason: string }

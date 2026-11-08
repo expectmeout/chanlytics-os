@@ -3,6 +3,7 @@ import { z } from "zod";
 import { AppError, IMPORT_SOURCES, IMPORT_STOPPED_WORDS } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured } from "../shared/edge";
 import { log } from "../shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Try again on a source of the imports ledger that stopped (decision 0073, R23): the edge starts it again from where it
@@ -15,7 +16,7 @@ export const ImportAgainBody = z.object({ source: z.enum(IMPORT_SOURCES) }).stri
 const AGAIN_TIMEOUT_MS = 15_000;
 
 export async function importAgain(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   input: z.infer<typeof ImportAgainBody>,
 ): Promise<{ ok: true }> {

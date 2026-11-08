@@ -31,6 +31,7 @@ import { recordModelUsage, mayWorkspaceUseModels } from "@chanlytics/db/ai";
 import type { Database } from "@chanlytics/db/types";
 import { errField, logger } from "../shared/log.js";
 import { hearingSetup } from "./video-keys.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -46,7 +47,7 @@ const EAR_WRITES_IN = "English";
 
 /** Who asks, and what about: the ledger's row. */
 export interface HeardFor {
-  tenantId: string;
+  tenantId: TenantId;
   fileId: string;
   userId: string | null;
 }
@@ -55,7 +56,7 @@ export interface HeardFor {
 type NotHeard = { ok: false; why: string; retryable: boolean; held?: boolean };
 
 /** Whether the workspace may spend on hearing: a paused, ended or unbilled one's videos are kept, and not heard. */
-async function mayHear(db: Db, tenantId: string): Promise<boolean> {
+async function mayHear(db: Db, tenantId: TenantId): Promise<boolean> {
   try {
     return await mayWorkspaceUseModels(db, tenantId);
   } catch (e) {

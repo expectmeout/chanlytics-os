@@ -452,7 +452,7 @@ export { ACTOR_TYPES, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_OPT_IN_PATTERN
 export { err, ok, SERVED_AT_HEADER } from "./shared/envelope";
 export { AppError, bodyRefusal, ERROR_CODES } from "./shared/errors";
 export { escapeHtml, linkifyEscaped } from "./shared/html";
-export { asContactId, asTenantId, isUuid, SLUG, UUID } from "./shared/identity";
+export { asContactId, asTenantId, heldContactId, heldTenantId, isContactId, isTenantId, isUuid, SLUG, UUID } from "./shared/identity";
 export { linkHost, normalizeLink, publicObjectSrc, webAddressesIn, whyNotALink } from "./shared/link";
 export { sumOf } from "./shared/numbers";
 export { areaCodeOf, E164, formatPhoneDisplay, formatPhoneLocal, FORWARD_IS_HANDOFF, HANDOFF_FORWARDS_BACK, handoffE164, normalizePhone, phoneAsWritten, phoneDialable, phoneTail, samePhone, shortCode, US_AREA_CODE, whyNotAHandoff, whyNotAPhone, whyNotForward } from "./shared/phone";

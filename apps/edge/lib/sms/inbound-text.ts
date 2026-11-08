@@ -65,6 +65,7 @@ import { alertUnroutable } from "../whatsapp/alerts.js";
 import { IngestFailed } from "../whatsapp/persist.js";
 import { errField, logger } from "../shared/log.js";
 import { phoneTail } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -187,7 +188,7 @@ function answerPayload(form: Record<string, string>, receivedAt: number, ing: In
  */
 async function answerLater(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   payload: Json,
   log: ReturnType<typeof logger>,
 ): Promise<"scheduled" | "refused" | "unknown"> {

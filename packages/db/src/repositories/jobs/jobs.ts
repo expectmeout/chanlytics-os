@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /**
@@ -27,7 +27,7 @@ export interface JobToRequeue {
 }
 
 /** The job with this id in this workspace, or null when there is none. */
-export async function readJobToRequeue(db: Db, tenantId: string, jobId: string): Promise<JobToRequeue | null> {
+export async function readJobToRequeue(db: Db, tenantId: TenantId, jobId: string): Promise<JobToRequeue | null> {
   const { data, error } = await db
     .from("jobs")
     .select("id, kind, state, payload, created_at, spoke_at")
@@ -44,7 +44,7 @@ export async function readJobToRequeue(db: Db, tenantId: string, jobId: string):
  * It used to be found by its payload's equality with the failed one's, which a copy made inside a request never had: the
  * request's name rode on its payload.
  */
-export async function hasRequeuedCopy(db: Db, tenantId: string, jobId: string): Promise<boolean> {
+export async function hasRequeuedCopy(db: Db, tenantId: TenantId, jobId: string): Promise<boolean> {
   const { data, error } = await db
     .from("jobs")
     .select("id")
@@ -60,7 +60,7 @@ export async function hasRequeuedCopy(db: Db, tenantId: string, jobId: string): 
 export async function listFailedJobsOfKind(
   db: Db,
   input: { kind: SchemaSet<"jobs.kind">; sinceIso: string; limit: number },
-): Promise<{ id: string; tenant_id: string }[]> {
+): Promise<{ id: string; tenant_id: TenantId }[]> {
   const { data, error } = await db
     .from("jobs")
     .select("id, tenant_id")
@@ -94,7 +94,7 @@ export interface AssembleDecision {
  */
 export async function assembleBroadcast(
   db: Db,
-  args: { tenantId: string; run: Json; recipients: Json; sendAt: Date | null; decision: AssembleDecision | null },
+  args: { tenantId: TenantId; run: Json; recipients: Json; sendAt: Date | null; decision: AssembleDecision | null },
 ): Promise<{ id: string; decisionId: string | null; undoDropped: boolean }> {
   const { decision } = args;
   const { data, error } = await db.rpc("assemble_broadcast", {
@@ -121,7 +121,7 @@ export async function assembleBroadcast(
  * either way this run sends nothing. One statement, so two jobs naming one message are never both answered yes.
  * Throws when the write failed: "could not claim" is not a yes.
  */
-export async function claimQueuedSend(db: Db, tenantId: string, messageId: string): Promise<boolean> {
+export async function claimQueuedSend(db: Db, tenantId: TenantId, messageId: string): Promise<boolean> {
   const { data, error } = await db
     .from("messages")
     .update({ sending_at: new Date().toISOString() })
@@ -140,7 +140,7 @@ export async function claimQueuedSend(db: Db, tenantId: string, messageId: strin
  * caller then asks for no fresh job: a claim that could not be given back is a row nobody may send, and the ledger
  * settles it as a send that did not finish.
  */
-export async function releaseQueuedSend(db: Db, tenantId: string, messageId: string): Promise<void> {
+export async function releaseQueuedSend(db: Db, tenantId: TenantId, messageId: string): Promise<void> {
   const { error } = await db
     .from("messages")
     .update({ sending_at: null })
@@ -160,7 +160,7 @@ export async function releaseQueuedSend(db: Db, tenantId: string, messageId: str
 export async function approveBroadcast(
   db: Db,
   args: {
-    tenantId: string;
+    tenantId: TenantId;
     broadcastId: string;
     sendAt: Date;
     job: Json | null;
@@ -202,7 +202,7 @@ interface FailedQueuedSend {
  */
 export async function failQueuedSend(
   db: Db,
-  params: { tenantId: string; messageId: string; error: Json },
+  params: { tenantId: TenantId; messageId: string; error: Json },
 ): Promise<{ row: FailedQueuedSend | null; error: string | null }> {
   const { data, error } = await db
     .from("messages")
@@ -237,9 +237,9 @@ export async function failQueuedSend(
 export async function queueSend(
   db: Db,
   input: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
-    contactId: string | null;
+    contactId: ContactId | null;
     channel: "whatsapp" | "sms" | "instagram";
     sender: "ai" | "human" | "system";
     body: string;

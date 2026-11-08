@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../../types";
 import { answer, type DoorResult } from "./leads";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /**
@@ -58,7 +58,10 @@ interface SendOpening {
  * The openings these emails stand with, read on the member's session (sequence_sends_member_select), in the order asked;
  * one they cannot see is left out.
  */
-export async function sendOpeningsOf(db: Db, params: { tenantId: string; sendIds: string[] }): Promise<SendOpening[]> {
+export async function sendOpeningsOf(
+  db: Db,
+  params: { tenantId: TenantId; sendIds: string[] },
+): Promise<SendOpening[]> {
   const { data, error } = await db
     .from("sequence_sends")
     .select("id, opening, checked_at, state, reason, rewrite_asked, step_id, sequence_id")
@@ -121,7 +124,7 @@ interface LeadListing {
  */
 export async function findLeadStepOpening(
   db: Db,
-  params: { tenantId: string; stepId: string; leadId: string },
+  params: { tenantId: TenantId; stepId: string; leadId: string },
 ): Promise<{ written: string | null; listing: LeadListing | null }> {
   const [send, lead] = await Promise.all([
     db

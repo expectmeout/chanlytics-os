@@ -5,7 +5,7 @@
  * gives, so the door relays nothing. Member mail from the platform's sender (notify post), as the alert test is: no
  * customer's send door, no thread, no consent read. How often a member may ask is the dashboard route's.
  */
-import { SEQUENCE_TEST_LIMITS, UUID, TRY_AGAIN_IN_A_MINUTE } from "@chanlytics/contracts";
+import { SEQUENCE_TEST_LIMITS, TRY_AGAIN_IN_A_MINUTE, isTenantId } from "@chanlytics/contracts";
 import { findOwnAddressIn } from "@chanlytics/db/notices";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
@@ -28,7 +28,7 @@ export async function sendTestToSelf(
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId?.trim() ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
   const userId = personFor(auth, body.user_id);
   if (!userId) return refuse(400, "bad_request", "the person the test is for is required");
   const subject = bounded(body.subject, SEQUENCE_TEST_LIMITS.subject);

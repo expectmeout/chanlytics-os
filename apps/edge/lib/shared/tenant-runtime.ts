@@ -8,7 +8,7 @@
  * message. The edge never queries the control-plane tables anywhere else, so
  * "what does the runtime consult?" has exactly one answer.
  */
-import type { CalendarConfig, CalendarGrantConfig, FeaturesConfig, ReplyOffer } from "@chanlytics/contracts";
+import type { CalendarConfig, CalendarGrantConfig, FeaturesConfig, ReplyOffer, TenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import {
@@ -53,7 +53,7 @@ import { logger, errField } from "./log.js";
 import { findGoogleListingAddress } from "@chanlytics/db/google";
 
 export interface TenantRuntime {
-  tenantId: string;
+  tenantId: TenantId;
   /**
    * The workspace's address word (tenants.slug), read with the row the name and the clock come from: an alert mail's link
    * to the workspace's own page is built from it. Unset when the runtime could not be read, or the row had none.
@@ -154,7 +154,7 @@ const cacheKey = (routed: RoutedChannel): string =>
  * the door did not answer: the caller keeps what it has rather than reloading
  * on every blip.
  */
-async function runtimeStamp(db: SupabaseClient<Database>, tenantId: string): Promise<string | null> {
+async function runtimeStamp(db: SupabaseClient<Database>, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await findRuntimeStamp(db, tenantId);
   if (error) {
     logger({ tenant_id: tenantId }).error("runtime_stamp_failed", { error: error.message });
@@ -245,7 +245,7 @@ function workspaceRowFacts(
  * Whether Meta approved the message a call sends the booking link in (decision 0073, R14): a call offers the link only
  * with one. A read that fails is not known (null), which offers it as before; the tool says when there is none.
  */
-const bookingMessageOf = (db: SupabaseClient<Database>, tenantId: string): Promise<boolean | null> =>
+const bookingMessageOf = (db: SupabaseClient<Database>, tenantId: TenantId): Promise<boolean | null> =>
   listTemplatesToSend(db, tenantId).then(
     (rows) => bookingTemplate(rows) !== null,
     () => null,
@@ -256,7 +256,7 @@ const bookingMessageOf = (db: SupabaseClient<Database>, tenantId: string): Promi
  * carriers, no test filing): a call may send the booking link by text only with one. A read that fails is not known
  * (null), which offers no text.
  */
-const textingLineOf = (db: SupabaseClient<Database>, tenantId: string): Promise<boolean | null> =>
+const textingLineOf = (db: SupabaseClient<Database>, tenantId: TenantId): Promise<boolean | null> =>
   findTextLineFacts(db, tenantId).then(
     (line) => textRefusal("conversational", line) === null,
     () => null,
@@ -413,7 +413,7 @@ type WaCredentialsRead = CredentialsRead<{ phoneId: string; accessToken: string 
  */
 export async function getWaCredentialsForTenant(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<WaCredentialsRead> {
   const numbers = await numbersOf(db, tenantId);
   if (!Array.isArray(numbers)) return numbers;
@@ -427,7 +427,7 @@ export async function getWaCredentialsForTenant(
  */
 export async function getWaCredentialsForChannel(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   channelId: string,
 ): Promise<WaCredentialsRead> {
   const numbers = await numbersOf(db, tenantId);
@@ -439,7 +439,7 @@ export async function getWaCredentialsForChannel(
 /** The workspace's active WhatsApp numbers, oldest first (packages/db listActiveWhatsappNumbers), or the read's failure. */
 async function numbersOf(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<WhatsappNumberRow[] | { outcome: "unavailable"; error: string }> {
   try {
     return await listActiveWhatsappNumbers(db, tenantId);
@@ -456,7 +456,7 @@ async function numbersOf(
  */
 async function credentialsOfNumber(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   ch: WhatsappNumberRow,
 ): Promise<WaCredentialsRead> {
   const log = logger();
@@ -508,7 +508,7 @@ const NO_CREDENTIALS: SendResult & { reason: "no_credentials" } = {
  */
 export async function findWhatsappWireForTenant(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<Sender | null | WireUnavailable> {
   const numbers = await numbersOf(db, tenantId);
   if (!Array.isArray(numbers)) return wireUnavailable(numbers.error);
@@ -537,7 +537,7 @@ export async function findWhatsappWireForTenant(
  */
 async function numberWrittenTo(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   numbers: readonly WhatsappNumberRow[],
   oldest: WhatsappNumberRow,
   conversationId: string | undefined,
@@ -586,7 +586,7 @@ export function waCfgFor(
  */
 export async function loadTenantNotifications(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{
   notifications: NotificationsConfig | null;
   isEnvDefault: boolean;

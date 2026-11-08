@@ -10,6 +10,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { readAllRows } from "../../shared/paged";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -21,7 +22,7 @@ export interface YesRow {
 }
 
 /** Every yes decided since `since`, under whatever row security the client carries. */
-export async function listYesesSince(db: Db, tenantId: string, since: Date): Promise<YesRow[]> {
+export async function listYesesSince(db: Db, tenantId: TenantId, since: Date): Promise<YesRow[]> {
   const rows = await readAllRows<YesRow & { id: string }>("deals", (from, to) =>
     db
       .from("deals")
@@ -41,7 +42,7 @@ export async function listYesesSince(db: Db, tenantId: string, since: Date): Pro
  * deal lists) waits for its first. Under whatever row security the client carries. A read that fails answers false: a
  * nudge left out, never a page.
  */
-export async function getDealOnFile(db: Db, tenantId: string): Promise<boolean> {
+export async function getDealOnFile(db: Db, tenantId: TenantId): Promise<boolean> {
   const r = await db.from("deals").select("id").eq("tenant_id", tenantId).limit(1);
   return !r.error && (r.data?.length ?? 0) > 0;
 }
@@ -56,7 +57,7 @@ export interface OpenDealRow {
  * A person's open deals (a proposal out, a client: 0029, one per service), newest first, under whatever row security the
  * client carries. A read that fails THROWS: a card is never proposed against deals it could not read.
  */
-export async function openDealsOf(db: Db, tenantId: string, contactId: string): Promise<OpenDealRow[]> {
+export async function openDealsOf(db: Db, tenantId: TenantId, contactId: ContactId): Promise<OpenDealRow[]> {
   const result = await db
     .from("deals")
     .select("id, service")
@@ -92,7 +93,7 @@ export type DealMove = {
  */
 export async function recordDeal(
   db: Db,
-  params: { contactId: string; stage: string; move: DealMove; via: string | null; undoOf: string | null },
+  params: { contactId: ContactId; stage: string; move: DealMove; via: string | null; undoOf: string | null },
 ): Promise<{ data: Json | null; error: PostgrestError | null }> {
   const { data, error } = await db.rpc("record_deal", {
     p_contact_id: params.contactId,
@@ -109,11 +110,11 @@ export const DEAL_DTO_COLUMNS =
   "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at, proposal_url, valid_until, lost_reason";
 
 /** A person's deals, as a DealDto reads them. */
-export const listDealRowsOf = async (db: SupabaseClient<Database>, tenantId: string, contactId: string) =>
+export const listDealRowsOf = async (db: SupabaseClient<Database>, tenantId: TenantId, contactId: ContactId) =>
   db.from("deals").select(DEAL_DTO_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId);
 
 /** One page (`from` to `to`) of the workspace's deals, as the deals report counts them. */
-export const pageDealReport = async (db: SupabaseClient<Database>, tenantId: string, from: number, to: number) =>
+export const pageDealReport = async (db: SupabaseClient<Database>, tenantId: TenantId, from: number, to: number) =>
   db
     .from("deals")
     .select("stage, proposed_at, decided_at, amount_cents, per, currency, lost_reason, contact_id")

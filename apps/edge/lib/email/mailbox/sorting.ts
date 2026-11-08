@@ -62,6 +62,7 @@ import type { Database } from "@chanlytics/db/types";
 import { platformFrom } from "../../shared/alerts/notify.js";
 import type { Logger } from "../../shared/log.js";
 import { answersSomething, senderReaderFor, type SenderReader } from "./reader.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -112,7 +113,7 @@ function memoBy<T>(ask: (key: string) => Promise<T>): {
  */
 export async function mailSortingFor(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   log: Logger,
   reader: SenderReader = senderReaderFor(db, tenantId, log),
 ): Promise<MailSorting> {
@@ -210,7 +211,12 @@ export async function findLeftWhy(
  * The line about what was left, one a sender (00483): best effort, the email is left either way. The business's own
  * mail is no stranger's, and is not listed.
  */
-export async function noteLeft(db: Db, tenantId: string, mailboxEmail: MailboxEmail, reason: SortedWhy): Promise<void> {
+export async function noteLeft(
+  db: Db,
+  tenantId: TenantId,
+  mailboxEmail: MailboxEmail,
+  reason: SortedWhy,
+): Promise<void> {
   const address = normalizeEmail(mailboxEmail.from?.address);
   if (!address || reason === "own") return;
   await noteMailboxLeft(db, {

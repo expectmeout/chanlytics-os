@@ -3,6 +3,7 @@ import { nextMonthStart, type MonthSent } from "@chanlytics/contracts";
 import { readMonthSent, recordCampaignMonthSent } from "@chanlytics/db/campaigns";
 import { log } from "../shared/log";
 import { serviceDb } from "../shared/service-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The client a count is made with: the service role's, the one the counts' functions are granted to. */
 type CountsDb = Parameters<typeof readMonthSent>[0];
@@ -16,7 +17,7 @@ type CountsDb = Parameters<typeof readMonthSent>[0];
  * A read that fails is said in the log and is null, and the page says nothing of the month rather than a month of
  * nothing: a count that could not be made is not room.
  */
-function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null> {
+function monthSentIn(tenantId: TenantId, at: Date): Promise<MonthSent | null> {
   return countedOrNull(tenantId, async (db) => {
     const [email, sms] = await Promise.all([
       recordCampaignMonthSent(db, tenantId, "email", at),
@@ -30,7 +31,7 @@ function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null> {
  * A month's count, made by the service role (each is a function only it may call) after the route's own scope has named
  * the workspace: the one place this module takes that client. A count that fails is said in the log and is null.
  */
-async function countedOrNull<T>(tenantId: string, count: (db: CountsDb) => Promise<T>): Promise<T | null> {
+async function countedOrNull<T>(tenantId: TenantId, count: (db: CountsDb) => Promise<T>): Promise<T | null> {
   try {
     return await count(serviceDb());
   } catch (e) {
@@ -44,7 +45,7 @@ async function countedOrNull<T>(tenantId: string, count: (db: CountsDb) => Promi
  * their share (contracts REACH_OUT_MONTH_EMAILS); null where it could not be counted, and the page says nothing of the
  * month: read as the member, it was refused, and a zero stood in for it.
  */
-export function readReachOutMonthOrNull(tenantId: string, now: Date): Promise<number | null> {
+export function readReachOutMonthOrNull(tenantId: TenantId, now: Date): Promise<number | null> {
   return countedOrNull(tenantId, (db) => readMonthSent(db, tenantId, now));
 }
 
@@ -52,7 +53,7 @@ export function readReachOutMonthOrNull(tenantId: string, now: Date): Promise<nu
  * This calendar month's count. `now` is the turn's clock, so the month is the one the page is read in; Ask's broadcast
  * card passes the time its send is set to go, so the month is the one it goes in, as the send screen counts it.
  */
-export function readMonthSentOrNull(tenantId: string, now: Date): Promise<MonthSent | null> {
+export function readMonthSentOrNull(tenantId: TenantId, now: Date): Promise<MonthSent | null> {
   return monthSentIn(tenantId, now);
 }
 
@@ -64,7 +65,7 @@ export function readMonthSentOrNull(tenantId: string, now: Date): Promise<MonthS
  * cannot be read gives no next month at all, and the composer judges every send by this month's, as it did.
  */
 export async function readMonthSentNext(
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   tz: string,
 ): Promise<{ from: number; sent: MonthSent | null } | null> {

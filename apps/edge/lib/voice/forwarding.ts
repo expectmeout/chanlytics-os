@@ -31,6 +31,7 @@ import {
 import { recordNotification } from "../shared/alerts/notify.js";
 import { logger, errField } from "../shared/log.js";
 import { listLinesAwaitingForwarding, saveForwardingVerified } from "@chanlytics/db/lines";
+import type { TenantId } from "@chanlytics/contracts";
 
 export interface ForwardingCall {
   fromE164: string | null;
@@ -44,7 +45,7 @@ export interface ForwardingCall {
 
 export async function markForwardingVerified(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   call: ForwardingCall,
 ): Promise<boolean> {
   const log = logger({ tenant_id: tenantId });

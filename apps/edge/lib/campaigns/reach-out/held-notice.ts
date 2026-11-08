@@ -18,6 +18,7 @@ import type { Database } from "@chanlytics/db/types";
 import { notifyOnce, type NotifyMessage } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import type { LogEvent } from "../../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -29,7 +30,7 @@ const HELD_SINCE_MS = 14 * 86_400_000;
 const HELD_READ = 1000;
 
 /** Tells a workspace's owner, once: true only when they were told. The tests give their own mail and database. */
-export type HeldNoticeSend = (db: Db, tenantId: string, msg: NotifyMessage) => Promise<boolean>;
+export type HeldNoticeSend = (db: Db, tenantId: TenantId, msg: NotifyMessage) => Promise<boolean>;
 
 const sendHeldNotice: HeldNoticeSend = async (db, tenantId, msg) => {
   const target = await loadTenantNotifications(db, tenantId);
@@ -44,7 +45,7 @@ export async function notifyHeldRuns(params: {
   db: Db;
   now: Date;
   error: (event: LogEvent, fields: Record<string, unknown>, e: unknown) => void;
-  tenantId?: string;
+  tenantId?: TenantId;
   send?: HeldNoticeSend;
 }): Promise<number> {
   const { db, now } = params;

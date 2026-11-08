@@ -44,6 +44,7 @@ import type { InboundMessage } from "@chanlytics/channels/inbound";
 import type { SendResult } from "@chanlytics/channels/whatsapp";
 import type { IngestResult, RoutedChannel } from "@chanlytics/db/channels";
 import type { InboundChannel, InboundPorts } from "./ports";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A channel other than WhatsApp riding the same road: a texting line, or an Instagram account's DMs. It says how a reply
@@ -77,7 +78,7 @@ export type InboundInput = InboundAt &
 
 /** Where a message arrived. */
 interface InboundAt {
-  tenantId: string | null;
+  tenantId: TenantId | null;
   routed: RoutedChannel | null;
   isEnvDefault: boolean;
   /**
