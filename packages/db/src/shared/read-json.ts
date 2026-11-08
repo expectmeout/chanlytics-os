@@ -13,7 +13,7 @@ import type { z } from "zod";
 import { dbLog, dbRequestId } from "./observe";
 
 /** The fields a value's schema did not hold, at most ten, each once: what a line says instead of the value. */
-const fieldsOf = (issues: readonly { path: readonly PropertyKey[] }[]): string[] =>
+const unheldFields = (issues: readonly { path: readonly PropertyKey[] }[]): string[] =>
   [...new Set(issues.map((issue) => issue.path.map(String).join(".") || "(value)"))].sort().slice(0, 10);
 
 /**
@@ -22,7 +22,7 @@ const fieldsOf = (issues: readonly { path: readonly PropertyKey[] }[]): string[]
  */
 function readAs<S extends z.ZodType>(schema: S, value: unknown, unexpected: (fields: string[]) => void): z.output<S> {
   const held = schema.safeParse(value);
-  if (!held.success) unexpected(fieldsOf(held.error.issues));
+  if (!held.success) unexpected(unheldFields(held.error.issues));
   return value as z.output<S>;
 }
 

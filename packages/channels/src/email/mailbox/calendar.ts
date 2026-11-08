@@ -69,13 +69,13 @@ export async function listGoogleCalendarIds(token: string, deps?: Deps): Promise
 
 /** A Google time, read: an instant, or an all-day date (midnight UTC for the instant, the day kept beside it). */
 function googleWhen(raw: unknown): { ms: number; day: string | null } | null {
-  const w = recordOrEmpty(raw);
-  if (typeof w.dateTime === "string") {
-    const ms = Date.parse(w.dateTime);
+  const when = recordOrEmpty(raw);
+  if (typeof when.dateTime === "string") {
+    const ms = Date.parse(when.dateTime);
     return Number.isFinite(ms) ? { ms, day: null } : null;
   }
-  if (typeof w.date === "string" && DAY_KEY.test(w.date)) {
-    return { ms: Date.parse(`${w.date}T00:00:00Z`), day: w.date };
+  if (typeof when.date === "string" && DAY_KEY.test(when.date)) {
+    return { ms: Date.parse(`${when.date}T00:00:00Z`), day: when.date };
   }
   return null;
 }
@@ -157,9 +157,9 @@ const HALF_DAY_MS = 12 * HOUR_MS;
  * zone's midnight said in UTC lands within half a day of that day's own, either side of the meridian.
  */
 function graphWhen(raw: unknown, allDay: boolean): { ms: number; day: string | null } | null {
-  const w = recordOrEmpty(raw);
-  if (typeof w.dateTime !== "string") return null;
-  const iso = /[zZ]|[+-]\d{2}:\d{2}$/.test(w.dateTime) ? w.dateTime : `${w.dateTime}Z`;
+  const when = recordOrEmpty(raw);
+  if (typeof when.dateTime !== "string") return null;
+  const iso = /[zZ]|[+-]\d{2}:\d{2}$/.test(when.dateTime) ? when.dateTime : `${when.dateTime}Z`;
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return null;
   return { ms, day: allDay ? new Date(ms + HALF_DAY_MS).toISOString().slice(0, 10) : null };

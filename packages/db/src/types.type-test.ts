@@ -34,6 +34,6 @@ async function _readsTheSet(): Promise<SchemaSet<"anthropic_profiles.kind"> | un
 // @ts-expect-error a filter's word is one of the set: no profile is of kind "team"
 void db.from("anthropic_profiles").select("id").eq("kind", "team");
 
-// @ts-expect-error a write's word is one of the set: Anthropic says no such enforcement
-void db.from("anthropic_profiles").update({ enforcement_status: "suspended" }).eq("id", "row-id");
+// @ts-expect-error a filter's word is one of the set: Anthropic says no such enforcement
+void db.from("anthropic_profiles").select("id").eq("enforcement_status", "suspended");
 void _readsTheSet;

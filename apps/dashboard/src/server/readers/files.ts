@@ -90,20 +90,8 @@ export const filesTallied: Reader<
   name: "filesTallied",
   async read(rc) {
     const rows = await listFilesTallied(rc.ctx.supabase, rc.tenantId);
-    return {
-      data: {
-        files: rows.map((r) => ({
-          status: r.status,
-          shows: r.shows,
-          source: r.source,
-          look_status: r.look_status,
-          created_at: r.created_at,
-          kind: r.kind,
-        })),
-      },
-      rows: [],
-      stamp: readerStamp(),
-    };
+    // The read selects these six columns and no more, each typed as the file's own: the rows are the answer.
+    return { data: { files: rows }, rows: [], stamp: readerStamp() };
   },
 };
 

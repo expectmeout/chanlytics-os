@@ -452,14 +452,16 @@ export function sha256Hex(text: string): string {
       const s1 = rotr(w2, 17) ^ rotr(w2, 19) ^ (w2 >>> 10);
       schedule[i] = (at(schedule, i - 16) + s0 + at(schedule, i - 7) + s1) >>> 0;
     }
-    let a = at(state, 0);
-    let b = at(state, 1);
-    let c = at(state, 2);
-    let d = at(state, 3);
-    let e = at(state, 4);
-    let f = at(state, 5);
-    let g = at(state, 6);
-    let hh = at(state, 7);
+    let [a, b, c, d, e, f, g, hh] = [
+      at(state, 0),
+      at(state, 1),
+      at(state, 2),
+      at(state, 3),
+      at(state, 4),
+      at(state, 5),
+      at(state, 6),
+      at(state, 7),
+    ];
     for (let index = 0; index < 64; index++) {
       const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       const ch = (e & f) ^ (~e & g);

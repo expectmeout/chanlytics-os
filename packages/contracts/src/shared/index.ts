@@ -96,7 +96,6 @@ export { err, ok, SERVED_AT_HEADER } from "./envelope";
 export type { Envelope, Err, Ok, PageInfo } from "./envelope";
 export { AppError, bodyRefusal, ERROR_CODES } from "./errors";
 export type { ErrorCode, ErrorDetails, ErrorDetailsByCode } from "./errors";
-export { type GlobalSlot, globalSlot } from "./global-slot";
 export { escapeHtml, linkifyEscaped } from "./html";
 export { asContactId, asTenantId, isUuid, SLUG, UUID } from "./identity";
 export type { ContactId, TenantId } from "./identity";
@@ -142,6 +141,8 @@ export type { SpanUnits } from "./time";
 export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./unknown";
 export {
   entryOf,
+  type GlobalSlot,
+  globalSlot,
   isCount,
   isList,
   isObjectRecord,

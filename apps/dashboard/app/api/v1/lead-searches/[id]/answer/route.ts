@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { AppError, LeadSearchPlanSchema } from "@chanlytics/contracts";
+import type { Json } from "@chanlytics/db/types";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, answerPlanOf, refusalOf, searchRow } from "@/server/leads/leads";
 import { answerRound } from "@/server/leads/search-acts";
-import { asJson } from "@chanlytics/db/shared";
 
 const Body = z.object({
   answer: z.enum(["keep", "include", "stop"]),
@@ -32,7 +32,7 @@ export const POST = write({
     const { data, error } = await answerRound(ctx, {
       p_round_id: search.round_id,
       p_answer: input.answer,
-      ...(input.plan ? { p_plan: asJson(answerPlanOf(search, input.plan)) } : {}),
+      ...(input.plan ? { p_plan: answerPlanOf(search, input.plan) as unknown as Json } : {}),
     });
     if (error) throw new Error(`lead_round_answer: ${error.message}`);
     const refused = refusalOf(answerOf(data));
