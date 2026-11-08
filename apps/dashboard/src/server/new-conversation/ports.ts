@@ -26,7 +26,7 @@ export function beginPorts(ctx: RouteContext): BeginPorts {
     open: async (tenantId, personId) => {
       const id = await openConversation(ctx.supabase, tenantId, personId).catch((e: unknown) => {
         // The door's own refusal keeps its words and its status; anything else is the database's, and a 503.
-        throw dbRefusal(e as { code?: string | null; message: string });
+        throw dbRefusal(e);
       });
       const conv = await loadConversation(ctx, id);
       return { ...conv, contact_id: asContactId(conv.contact_id) };

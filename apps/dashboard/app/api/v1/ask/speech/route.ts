@@ -3,6 +3,7 @@ import { AppError, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES } from "@chanlytics/con
 import { write, workspace } from "@/server/shared/route";
 import { log } from "@/server/shared/log";
 import {
+  answerAsItCame,
   edgeHeaders,
   edgeUrl,
   edgeConfigured,
@@ -73,10 +74,7 @@ export const POST = write({
       const parsed: unknown = await response.json().catch(() => null);
       const edgeAnswer: EdgeAnswer = {
         status: response.status,
-        body:
-          parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-            ? (parsed as EdgeAnswer["body"])
-            : null,
+        body: answerAsItCame(DOOR, response.status, parsed),
       };
       log.warn("ask_speech_refused", {
         tenant_id: tenantId,

@@ -37,7 +37,7 @@ import {
   makeMailboxPkceVerifier,
 } from "@chanlytics/channels/email";
 import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels/google";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody } from "../shared/edge";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
 import { serviceDbIfConfigured } from "../shared/service-db";
@@ -90,11 +90,13 @@ export async function findMailboxesLeftToday(
   return getMailboxLeftSince(db, tenantId, new Date(now.getTime() - DAY_MS)).catch(() => null);
 }
 
+type MailboxAnswer = EdgeAnswer<EdgeRead<"/api/admin/mailboxes">>;
+
 /** One call to the edge's mailboxes door. Never throws: a failure is a status the caller reads. */
 export async function callEdgeMailboxes(
   body: EdgeBody<"/api/admin/mailboxes">,
   timeoutMs = 25_000,
-): Promise<EdgeAnswer> {
+): Promise<MailboxAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every provider door keeps: a preview never signs a business's mailbox in, or writes from it.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
@@ -134,10 +136,7 @@ export async function getMailboxesReadiness(now = Date.now()): Promise<MailboxRe
   let ready = NONE_OFFERED;
   if (answer.status === 200 && answer.body?.ok === true) {
     const providers = (Array.isArray(answer.body.providers) ? answer.body.providers : []).filter(isProvider);
-    const raw = (answer.body.oauth ?? {}) as Record<
-      string,
-      { client_id?: unknown; redirect_uri?: unknown } | undefined
-    >;
+    const raw = answer.body.oauth ?? {};
     const oauth: MailboxReadiness["oauth"] = {};
     for (const p of providers) {
       const o = raw[p];
@@ -206,11 +205,11 @@ function edgeRefusal(edgeAnswer: EdgeAnswer, doing: string): AppError {
 }
 
 /** The mailbox a door mailboxAnswered with: every verb but remove and test answers `{ mailbox }`. */
-function mailboxAnswered(a: EdgeAnswer, doing: string): MailboxConnectionDto {
+function mailboxAnswered(a: MailboxAnswer, doing: string): MailboxConnectionDto {
   if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, doing);
   const m = a.body.mailbox;
-  if (!m || typeof m !== "object") throw new AppError("internal", `The mailbox could not be ${doing}.`, 502);
-  return m as MailboxConnectionDto;
+  if (!m) throw new AppError("internal", `The mailbox could not be ${doing}.`, 502);
+  return m;
 }
 
 /** Pause or unpause: its owner's say, whatever its health. */

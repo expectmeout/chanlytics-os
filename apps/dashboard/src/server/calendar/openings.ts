@@ -43,7 +43,7 @@ async function grantFeedText(tenantId: string): Promise<string> {
     { tenant_id: tenantId },
     { workspace: tenantId, user: null, timeoutMs: GRANT_FEED_MS },
   );
-  const response = answer.body as { ok?: boolean; text?: unknown } | null;
+  const response = answer.body;
   if (answer.status !== 200 || !response?.ok || typeof response.text !== "string")
     throw new FeedRefused("http", answer.status);
   return response.text;

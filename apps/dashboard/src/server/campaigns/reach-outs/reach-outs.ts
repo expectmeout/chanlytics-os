@@ -406,7 +406,7 @@ export async function previewReachOut(
   );
   if (answer.status === 503 && answer.body?.error === "edge_unreachable")
     return { ok: false, reason: "edge_unreachable" };
-  const result = (answer.body ?? {}) as { ok?: boolean; preview?: unknown };
+  const result = answer.body ?? {};
   return edgeAnswered(answer) && result.ok && result.preview
     ? { ok: true, preview: result.preview }
     : { ok: false, reason: edgeReasonOf(answer) };
