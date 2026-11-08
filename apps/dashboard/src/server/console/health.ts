@@ -51,6 +51,7 @@ import {
   type LedgerNowDto,
   type OperatorPageDto,
   DbFailure,
+  causedBy,
 } from "@chanlytics/contracts";
 import { readSide } from "./console";
 import { listPlatformDays } from "./day-counts";
@@ -299,8 +300,8 @@ export async function requeueHealthKind(
       let rows: { id: string; tenant_id: TenantId }[];
       try {
         rows = await listFailedJobsOfKind(office.db, { kind, sinceIso, limit: HEALTH_ROWS.requeueKind });
-      } catch {
-        throw new AppError("internal", "The failed jobs could not be read. Try again in a moment.", 503);
+      } catch (e) {
+        throw causedBy(new AppError("internal", "The failed jobs could not be read. Try again in a moment.", 503), e);
       }
       let requeued = 0;
       let refused = 0;

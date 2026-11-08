@@ -34,7 +34,7 @@ import { bearerOf, verifyBearer } from "./auth/bearer";
 import { isRetryableAuthError } from "./auth/errors";
 import { serverTimingHeader, touchedLine, TOUCHES_ALL_HEADER } from "./server-timing";
 import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels/tokens";
-import { requestId, requestTimings, requestTouches } from "@chanlytics/log";
+import { errField, requestId, requestTimings, requestTouches } from "@chanlytics/log";
 import { log, noteTenant, withRequestId } from "./log";
 import { tenantFactsOf } from "./tenant";
 import { listMyMemberships } from "@chanlytics/db/workspace";
@@ -263,7 +263,13 @@ export function answerOfThrow(
   at: { route: string; started: number; userId?: string | undefined },
 ): { status: number; body: ReturnType<typeof err>; headers: Record<string, string> } {
   if (error instanceof AppError) {
-    log.warn("route_refused", { route: at.route, code: error.code, ms: Date.now() - at.started });
+    log.warn("route_refused", {
+      route: at.route,
+      code: error.code,
+      ms: Date.now() - at.started,
+      // What it replaced, where a catch kept it: the refusal says what was tried, this what went wrong.
+      ...(error.cause === undefined ? {} : { cause: errField(error.cause) }),
+    });
     return {
       status: error.status,
       body: err(error.code, error.message, error.details),

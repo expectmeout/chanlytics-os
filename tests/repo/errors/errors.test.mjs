@@ -142,6 +142,10 @@ test("no catch goes quiet without saying why", () => {
   );
 });
 
+test("no new error raised from a catch leaves the old one behind", () => {
+  none(across(droppedCausesIn), "Keep it: throw causedBy(new AppError(...), e).");
+});
+
 test("no reply's failure is raised without its code", () => {
   none(
     across(droppedCodesIn),

@@ -141,6 +141,20 @@ export class DbFailure extends Error {
   }
 }
 
+/**
+ * A new error, keeping the one it replaces: `throw causedBy(new AppError("internal", "Try again."), e)`. Every class of
+ * ours takes it without a constructor of its own, and as `Error`'s own option does, it is no field a refusal compared or
+ * serialised shows. The log line then says what went wrong, not only what was being tried (decision 0114).
+ */
+export function causedBy<E extends Error>(failure: E, cause: unknown): E {
+  return Object.defineProperty(failure, "cause", {
+    value: cause,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+}
+
 const DEFAULT_STATUS: Record<ErrorCode, number> = {
   unauthorized: 401,
   forbidden: 403,

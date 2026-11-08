@@ -22,6 +22,7 @@ import {
   previewStateOf,
   previewTurnsOf,
   type PreviewTurnVM,
+  causedBy,
 } from "@chanlytics/contracts";
 import {
   findLeadPreviewByToken,
@@ -95,7 +96,7 @@ export async function previewMessage(token: string, raw: unknown): Promise<Previ
   } catch (e) {
     // Try it's refusals are said to an owner in Settings; a business trying its preview is told it couldn't answer.
     log.warn("preview_message_failed", { tenant_id: result.preview_tenant_id, error: e });
-    throw new AppError("upstream_anthropic", W.failed, 502);
+    throw causedBy(new AppError("upstream_anthropic", W.failed, 502), e);
   }
   const kept = await recordPreviewSaid(dbOrFail(), result.id, text, { text: vm.said, then: vm.then });
   if (!kept.ok) throw doorRefused(kept.reason);
@@ -150,9 +151,9 @@ export async function previewCall(token: string): Promise<PreviewCall> {
   } catch (e) {
     // The rehearsal's refusals are said to an owner in Settings; a business calling its preview hears the page's own.
     const allowance = (e as { details?: { allowance?: { why?: string | null } | null } }).details?.allowance;
-    if (allowance?.why === "running") throw new AppError("conflict", W.callRunning, 409);
-    if (allowance) throw new AppError("conflict", W.callUsed, 409);
+    if (allowance?.why === "running") throw causedBy(new AppError("conflict", W.callRunning, 409), e);
+    if (allowance) throw causedBy(new AppError("conflict", W.callUsed, 409), e);
     log.warn("preview_call_failed", { tenant_id: result.preview_tenant_id, error: e });
-    throw new AppError("upstream_retell", W.callFailed, 502);
+    throw causedBy(new AppError("upstream_retell", W.callFailed, 502), e);
   }
 }

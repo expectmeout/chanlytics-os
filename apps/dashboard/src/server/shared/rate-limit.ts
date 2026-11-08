@@ -27,7 +27,16 @@
  *
  * Cross-workspace: a limit counts per person or network, never per workspace; rate_hits holds no tenant_id.
  */
-import { AppError, MIN_MS, HOUR_MS, SECOND_MS, waitWords, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
+import {
+  AppError,
+  MIN_MS,
+  HOUR_MS,
+  SECOND_MS,
+  waitWords,
+  recordOrEmpty,
+  DbFailure,
+  causedBy,
+} from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isProduction } from "@/server/shared/env";
@@ -388,7 +397,7 @@ export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallbac
           log.error("rate_store_failed", { bucket, error: reason });
         }
         // Money is not spent on a count this instance alone would hold.
-        if (strict) throw uncountable("the shared store did not answer");
+        if (strict) throw causedBy(uncountable("the shared store did not answer"), e);
         return fallback.take(bucket, actor, rule, now);
       }
     },

@@ -37,6 +37,7 @@ import {
   type ReportProfile,
   type ReviewsReportDto,
   shaped,
+  causedBy,
 } from "@chanlytics/contracts";
 import {
   ReportWindowNotReadable,
@@ -265,7 +266,7 @@ export async function getWindow<T>(read: Promise<T>): Promise<T> {
     return await read;
   } catch (e) {
     if (e instanceof ReportWindowNotReadable)
-      throw new AppError("validation", "Picked days cannot be read yet. Pick a period that ends today.");
+      throw causedBy(new AppError("validation", "Picked days cannot be read yet. Pick a period that ends today."), e);
     throw e;
   }
 }

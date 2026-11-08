@@ -28,6 +28,7 @@ import {
   type MembershipRole,
   recordOrEmpty,
   DbFailure,
+  causedBy,
 } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import { getTenantFacts } from "../shared/tenant";
@@ -284,7 +285,7 @@ export async function resendInvite(
     );
   } catch (e) {
     if (e instanceof AppError && e.code === "not_found")
-      throw new AppError("not_found", "That invitation is no longer open.", 404);
+      throw causedBy(new AppError("not_found", "That invitation is no longer open.", 404), e);
     throw e;
   }
   const email = String(renewed.email);
@@ -321,7 +322,7 @@ export async function leaveTeam(ctx: TeamCtx, tenantId: TenantId, svc: SupabaseC
     );
   } catch (e) {
     if (e instanceof AppError && e.code === "conflict")
-      throw new AppError("conflict", "You're the only owner. Make someone else Owner first.", 409);
+      throw causedBy(new AppError("conflict", "You're the only owner. Make someone else Owner first.", 409), e);
     throw e;
   }
   return { left: true as const };

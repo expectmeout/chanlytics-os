@@ -20,6 +20,7 @@ import {
   type PolicyLimits,
   type KnownFacts,
   DbFailure,
+  causedBy,
 } from "@chanlytics/contracts";
 import {
   findWhatsappLine,
@@ -554,7 +555,7 @@ async function numberWrittenTo(
       conversation_id: conversationId,
       error,
     });
-    throw new WireUnavailableError("whatsapp", error);
+    throw causedBy(new WireUnavailableError("whatsapp", error), e);
   }
 }
 

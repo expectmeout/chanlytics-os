@@ -6,6 +6,7 @@ import {
   nextOpenMoment,
   runApprovalRefusal,
   runDaysAt,
+  causedBy,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db/types";
 import type { ApproveRunPorts, BroadcastRef } from "./ports";
@@ -100,7 +101,7 @@ async function approvedWhole(
     id = await ports.approve(broadcastRef.id, at, options);
   } catch (e) {
     approveLog.error("campaign_step_failed", { step: "approve", broadcast_id: broadcastRef.id, error: errField(e) });
-    throw new AppError("upstream_meta", NOT_APPROVED_WORDS, 502);
+    throw causedBy(new AppError("upstream_meta", NOT_APPROVED_WORDS, 502), e);
   }
   if (!id) throw new AppError("conflict", MOVED_WORDS, 409);
   return id;

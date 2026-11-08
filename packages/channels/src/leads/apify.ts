@@ -1,4 +1,4 @@
-import { finiteOrNull, trimmedOrNull, recordOrNull } from "@chanlytics/contracts";
+import { finiteOrNull, trimmedOrNull, recordOrNull, causedBy } from "@chanlytics/contracts";
 import { fetchFromProvider } from "../shared/provider-fetch";
 /**
  * The lead finder's provider, over its HTTP API (https://docs.apify.com/api/v2).
@@ -150,8 +150,8 @@ async function apifyCall(
   if (res.status >= 200 && res.status < 300) {
     try {
       return { body: text ? JSON.parse(text) : null, headers: res.headers };
-    } catch {
-      throw new ApifyRefused(res.status, "the provider answered with something that is not JSON");
+    } catch (e) {
+      throw causedBy(new ApifyRefused(res.status, "the provider answered with something that is not JSON"), e);
     }
   }
   if (allow(res.status)) return { body: null, headers: res.headers };

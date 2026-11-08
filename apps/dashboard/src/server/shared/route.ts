@@ -43,6 +43,7 @@ import {
   type ConsoleAct,
   type ConsoleSight,
   type SpendWords,
+  causedBy,
 } from "@chanlytics/contracts";
 import {
   claimIdempotencyKey,
@@ -219,8 +220,8 @@ function bodyAsJson(text: string): unknown {
   if (!text.trim()) return {};
   try {
     return JSON.parse(text);
-  } catch {
-    throw new AppError("validation", "Expected a JSON body.");
+  } catch (e) {
+    throw causedBy(new AppError("validation", "Expected a JSON body."), e);
   }
 }
 

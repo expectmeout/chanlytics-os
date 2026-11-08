@@ -23,7 +23,7 @@ const { withRoute, dbRefusal } = await import(at("apps/dashboard/src/server/shar
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const notifications = await import(at("apps/dashboard/app/api/v1/notifications/route.ts"));
-const { DbFailure } = await import("@chanlytics/contracts");
+const { AppError, causedBy, DbFailure } = await import("@chanlytics/contracts");
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -174,6 +174,18 @@ test("a DbFailure says what it is in the words it was raised with, and keeps the
   assert.equal(new DbFailure({ message: "no row" }).code, null, "a reply with no code has none");
   assert.equal(JSON.stringify(Object.keys(labelled)).includes("Symbol"), false, "the mark is no field a log writes");
   assert.equal(new Error("x") instanceof DbFailure, false);
+});
+
+test("a refusal raised from a catch says in its line what went wrong underneath it, and the answer never does", async () => {
+  const underneath = new Error(RAW);
+  const a = await answer(
+    withRoute(async () => {
+      throw causedBy(new AppError("internal", "Try again in a moment.", 503), underneath);
+    }),
+  );
+  assert.deepEqual(a.body.error, { code: "internal", message: "Try again in a moment." });
+  assert.equal(JSON.stringify(a.body).includes(RAW), false);
+  assert.equal(a.lines.find((l) => l.event === "route_refused")?.cause, `Error: ${RAW}`);
 });
 
 test("a bare raise (P0001) is answered as the route says, and only it", async () => {
