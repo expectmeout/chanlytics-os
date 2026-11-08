@@ -173,9 +173,10 @@ export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWor
   if (!workspace.address) throw new AppError("validation", LEAD_NO_ADDRESS, 422);
   if (await getLeadEmailOnItsWay(db, tenantId, lead.id)) throw wontSend(W.onItsWay);
 
-  const [person, slots] = await Promise.all([
+  const [person, slots, stored] = await Promise.all([
     addReachOutPerson(db, tenantId, lead.id),
     findLeadSlots(db, tenantId, lead.id),
+    getStoredConfig(ctx.supabase, tenantId),
   ]);
   if (!person.ok) throw wontSend(leadEmailRefusalOf(person.refused));
   const to = await findContactEmail(db, tenantId, person.contactId);
@@ -198,6 +199,8 @@ export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWor
     },
     workspace: { businessName: workspace.name, yourName: null, bookingLink: null, address: workspace.address },
     opening: null,
+    // Sign-off's signature under the words (decision 0113), where the mailbox's does not stand.
+    own: reachOutSignatureOf(parseTenantConfig(stored ?? null)),
     signsWith: "mailbox",
     from: road.from,
     unsubscribe: { secret, origin: unsubscribeOrigin() },
