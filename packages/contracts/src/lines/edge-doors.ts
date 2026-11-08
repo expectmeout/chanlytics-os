@@ -3,7 +3,7 @@
  * in apps/edge/lib/lines/admin.ts; each reads the fields it needs and refuses the rest in its own words.
  */
 import { z } from "zod";
-import { DOOR_ID, doorAnswer, edgeDoor, NO_BODY } from "../shared/edge/door";
+import { DOOR_ID, answerFields, edgeDoor, NO_BODY } from "../shared/edge/door";
 
 /** POST /api/admin/lines: a line searched, looked up, bought, retried, released, recorded and registered. */
 export const LINES_DOOR = edgeDoor(
@@ -25,7 +25,7 @@ export const LINES_DOOR = edgeDoor(
     refile: z.boolean().optional(),
     replace: z.boolean().optional(),
   }),
-  doorAnswer({
+  answerFields({
     line: z.unknown(),
     queued: z.boolean(),
     pending: z.boolean(),
@@ -43,4 +43,8 @@ export const LINES_DOOR = edgeDoor(
 );
 
 /** GET /api/admin/lines/codes: the area codes a line can be bought in. */
-export const LINE_CODES_DOOR = edgeDoor("/api/admin/lines/codes", NO_BODY, doorAnswer({ codes: z.array(z.unknown()) }));
+export const LINE_CODES_DOOR = edgeDoor(
+  "/api/admin/lines/codes",
+  NO_BODY,
+  answerFields({ codes: z.array(z.unknown()) }),
+);

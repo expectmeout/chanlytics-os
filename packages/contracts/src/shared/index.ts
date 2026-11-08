@@ -32,7 +32,7 @@ export {
 } from "./clock";
 export { EDGE_ERROR_CODES } from "./edge-errors";
 export type { EdgeAnswerBody, EdgeAnswerCode, EdgeCallCode, EdgeErrorCode, EdgeRefusal } from "./edge-errors";
-export { DOOR_ID, doorAnswer, edgeDoor, NO_BODY, PLAIN_ANSWER, shaped, unheldByDoor } from "./edge/door";
+export { answerFields, DOOR_ID, edgeDoor, NO_BODY, PLAIN_ANSWER, shaped, unheldByDoor } from "./edge/door";
 export type { DoorAnswer, DoorBody, DoorPath, DoorRead, EdgeDoor } from "./edge/door";
 export { addressInMessage, normalizeEmail, whyNotAnEmail } from "./email-address";
 export {

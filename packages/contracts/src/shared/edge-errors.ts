@@ -197,7 +197,7 @@ export type EdgeAnswerCode = EdgeErrorCode | EdgeCallCode;
 /**
  * An edge answer's JSON body as the dashboard reads it: its code is one of the union, so a comparison with a code no
  * set names does not compile, and a code the edge renames fails the dashboard's typecheck at every place that reads
- * it; the other fields are each door's own, declared with the door (edge/door.ts `doorAnswer`).
+ * it; the other fields are each door's own, declared with the door (edge/door.ts `answerFields`).
  */
 export type EdgeAnswerBody = { ok?: boolean; error?: EdgeAnswerCode; detail?: string };
 

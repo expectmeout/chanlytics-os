@@ -145,7 +145,7 @@ export interface SmsSendResult {
  * what it needs (saga.ts, a2p-saga.ts), so a column that is not there is a saga run out of order, said by its name
  * before any provider is asked, never handed on empty.
  */
-export function written<T, K extends keyof T>(row: T, column: K): NonNullable<T[K]> {
+export function columnWritten<T, K extends keyof T>(row: T, column: K): NonNullable<T[K]> {
   const value = row[column];
   if (value === null || value === undefined) throw new Error(`line saga: ${String(column)} is not written yet`);
   return value;

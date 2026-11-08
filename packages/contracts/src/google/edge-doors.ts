@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import type { GoogleCandidateDto } from "./listing";
-import { DOOR_ID, doorAnswer, edgeDoor, shaped } from "../shared/edge/door";
+import { DOOR_ID, answerFields, edgeDoor, shaped } from "../shared/edge/door";
 
 /** POST /api/admin/google: the listing searched, linked and read, the profile connected, a review answered, a post made. */
 export const GOOGLE_DOOR = edgeDoor(
@@ -29,7 +29,7 @@ export const GOOGLE_DOOR = edgeDoor(
     call: z.boolean().optional(),
     post_name: z.string().optional(),
   }),
-  doorAnswer({
+  answerFields({
     removed: z.boolean(),
     revoked: z.boolean(),
     listing: z.unknown(),

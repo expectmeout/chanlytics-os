@@ -1,6 +1,6 @@
 /** The edge's doors for a thread's draft, as the dashboard knocks on them (decision 0109). */
 import { z } from "zod";
-import { DOOR_ID, doorAnswer, edgeDoor } from "../shared/edge/door";
+import { DOOR_ID, answerFields, edgeDoor } from "../shared/edge/door";
 
 /** POST /api/admin/draft: a member's change to a thread's draft, or their Try again (decision 0093). */
 export const DRAFT_DOOR = edgeDoor(
@@ -11,12 +11,12 @@ export const DRAFT_DOOR = edgeDoor(
     kind: z.string().optional(),
     instruction: z.string().optional(),
   }),
-  doorAnswer({ draft: z.unknown() }),
+  answerFields({ draft: z.unknown() }),
 );
 
 /** POST /api/admin/steer: a held draft, steered by the member's words. */
 export const STEER_DOOR = edgeDoor(
   "/api/admin/steer",
   z.object({ message_id: DOOR_ID.optional(), text: z.string().optional() }),
-  doorAnswer({ message_id: z.string(), text: z.string() }),
+  answerFields({ message_id: z.string(), text: z.string() }),
 );

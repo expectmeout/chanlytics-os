@@ -3,27 +3,27 @@
  * watched. The dashboard knocks on the first five; the last three are an operator's (decision 0109).
  */
 import { z } from "zod";
-import { DOOR_ID, doorAnswer, edgeDoor, PLAIN_ANSWER } from "../shared/edge/door";
+import { DOOR_ID, answerFields, edgeDoor, PLAIN_ANSWER } from "../shared/edge/door";
 
 /** POST /api/admin/hand-over: a live call handed to a person's line. A call's id is the voice provider's. */
 export const HAND_OVER_DOOR = edgeDoor(
   "/api/admin/hand-over",
   z.object({ call_id: z.string().optional(), line: z.string().optional() }),
-  doorAnswer({ status: z.number() }),
+  answerFields({ status: z.number() }),
 );
 
 /** POST /api/admin/stop-call: a live call ended. */
 export const STOP_CALL_DOOR = edgeDoor(
   "/api/admin/stop-call",
   z.object({ call_id: z.string().optional() }),
-  doorAnswer({ status: z.number() }),
+  answerFields({ status: z.number() }),
 );
 
 /** POST /api/admin/whisper: words for the receptionist on a live call, said now or kept for its next turn. */
 export const WHISPER_DOOR = edgeDoor(
   "/api/admin/whisper",
   z.object({ call_id: z.string().optional(), text: z.string().optional(), trigger: z.boolean().optional() }),
-  doorAnswer({ status: z.number() }),
+  answerFields({ status: z.number() }),
 );
 
 /** POST /api/admin/voice/session: a conversation with Ask by voice, started. */
@@ -51,7 +51,7 @@ export const VOICE_SPEECH_DOOR = edgeDoor(
 export const ERASE_CALLS_DOOR = edgeDoor(
   "/api/admin/voice/erase-calls",
   z.object({ tenant_id: DOOR_ID.optional(), call_ids: z.array(z.string()).optional() }),
-  doorAnswer({ asked: z.number(), deleted: z.number(), refused: z.number() }),
+  answerFields({ asked: z.number(), deleted: z.number(), refused: z.number() }),
 );
 
 /** POST /api/admin/voice-converge: the agents brought to what the code says they are (an operator's). */

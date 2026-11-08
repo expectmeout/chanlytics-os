@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import type { BillingInvoiceDto, BillingPriceDto } from "./billing/dtos";
-import { DOOR_ID, doorAnswer, edgeDoor, PLAIN_ANSWER, shaped } from "../shared/edge/door";
+import { DOOR_ID, answerFields, edgeDoor, PLAIN_ANSWER, shaped } from "../shared/edge/door";
 
 /** POST /api/admin/billing: a way to pay, the portal, invoices, a plan resumed or ended (apps/edge/lib/billing/admin.ts). */
 export const BILLING_DOOR = edgeDoor(
@@ -19,7 +19,7 @@ export const BILLING_DOOR = edgeDoor(
     return: z.unknown().optional(),
     embedded: z.boolean().optional(),
   }),
-  doorAnswer({
+  answerFields({
     client_secret: z.string(),
     publishable_key: z.string(),
     url: z.string(),

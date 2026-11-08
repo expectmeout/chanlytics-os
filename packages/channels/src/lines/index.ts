@@ -47,6 +47,7 @@ export { dryProvider } from "./dry";
 export type { DryCall, DryProvider } from "./dry";
 export {
   chooseLineProvider,
+  columnWritten,
   isAreaCode,
   isValidSipPassword,
   LINE_COSTS,
@@ -55,7 +56,6 @@ export {
   sipUsername,
   subaccountName,
   trunkDomain,
-  written,
 } from "./lines";
 export type {
   AvailableNumber,

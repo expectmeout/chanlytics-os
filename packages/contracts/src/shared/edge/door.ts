@@ -23,7 +23,7 @@ export type DoorPath = `/api/${string}`;
 
 /**
  * A door, declared: its path, what it takes (`null` for a door read with GET, which takes no body), and what the dashboard
- * reads of its answer (`doorAnswer`).
+ * reads of its answer (`answerFields`).
  */
 export interface EdgeDoor<
   A extends DoorPath = DoorPath,
@@ -57,10 +57,10 @@ export type DoorRead<D extends EdgeDoor> = {
  * What the dashboard reads of a door's answer. Every field may be absent, since a refusal says none of them, and a field
  * nobody reads is not declared: the schema holds what is read, not all the door says.
  */
-export const doorAnswer = <F extends z.ZodRawShape>(fields: F) => z.object(fields).partial();
+export const answerFields = <F extends z.ZodRawShape>(fields: F) => z.object(fields).partial();
 
 /** The answer of a door the dashboard reads only for whether it worked: `ok`, `error` and `detail`, which every answer may say. */
-export const PLAIN_ANSWER = doorAnswer({});
+export const PLAIN_ANSWER = answerFields({});
 
 /** A field whose shape a contracts type names and no schema does yet: held to being an object or a list, read as that type. */
 export const shaped = <T extends object>() => z.custom<T>((value) => typeof value === "object" && value !== null);

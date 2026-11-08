@@ -1,6 +1,6 @@
 /** The edge's doors for a workspace's files, as the dashboard knocks on them (decision 0109). */
 import { z } from "zod";
-import { DOOR_ID, doorAnswer, edgeDoor } from "../shared/edge/door";
+import { DOOR_ID, answerFields, edgeDoor } from "../shared/edge/door";
 
 /** A box in a shown picture's pixels (left, top, right, bottom), and the size it was shown at. */
 const BOX = z.tuple([z.number(), z.number(), z.number(), z.number()]);
@@ -32,7 +32,7 @@ export const FILE_COPIES_DOOR = edgeDoor(
       )
       .optional(),
   }),
-  doorAnswer({ copies: z.array(z.unknown()) }),
+  answerFields({ copies: z.array(z.unknown()) }),
 );
 
 /**
@@ -50,14 +50,14 @@ export const FILE_VIDEO_START_DOOR = edgeDoor(
     seconds: z.number().nullable(),
     fingerprint: z.string(),
   }),
-  doorAnswer({ fate: z.string(), upload_url: z.string(), file_id: z.string() }),
+  answerFields({ fate: z.string(), upload_url: z.string(), file_id: z.string() }),
 );
 
 /** POST /api/admin/files/play: the player's address for one video, under a token for an hour. */
 export const FILE_PLAY_DOOR = edgeDoor(
   "/api/admin/files/play",
   z.object({ tenant_id: DOOR_ID.optional(), id: DOOR_ID }),
-  doorAnswer({ player_url: z.string(), expires_at: z.string() }),
+  answerFields({ player_url: z.string(), expires_at: z.string() }),
 );
 
 /** POST /api/admin/files/listen: Ask's question about a stretch of a video, put to the ear. */
@@ -70,5 +70,5 @@ export const FILE_LISTEN_DOOR = edgeDoor(
     from: z.number().nullable(),
     to: z.number().nullable(),
   }),
-  doorAnswer({ answer: z.string(), model: z.string(), wont: z.string() }),
+  answerFields({ answer: z.string(), model: z.string(), wont: z.string() }),
 );

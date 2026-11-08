@@ -1,6 +1,6 @@
 /** The edge's doors for connecting WhatsApp and Instagram, as the dashboard knocks on them (decision 0109). */
 import { z } from "zod";
-import { DOOR_ID, doorAnswer, edgeDoor, NO_BODY } from "../shared/edge/door";
+import { DOOR_ID, answerFields, edgeDoor, NO_BODY } from "../shared/edge/door";
 
 /** POST /api/admin/whatsapp/connect: the owner's number made a channel, from the code Meta's sign-up window handed back. */
 export const WHATSAPP_CONNECT_DOOR = edgeDoor(
@@ -14,7 +14,7 @@ export const WHATSAPP_CONNECT_DOOR = edgeDoor(
     /** Keeping the WhatsApp Business app (coexistence, decision 0073). */
     keep_app: z.boolean().optional(),
   }),
-  doorAnswer({
+  answerFields({
     channel_id: z.string(),
     phone_number_id: z.string(),
     waba_id: z.string(),
@@ -30,14 +30,14 @@ export const WHATSAPP_CONNECT_DOOR = edgeDoor(
 export const WHATSAPP_STANDING_DOOR = edgeDoor(
   "/api/admin/whatsapp/standing",
   z.object({ tenant_id: DOOR_ID.optional(), user_id: DOOR_ID.optional() }),
-  doorAnswer({ kept: z.string(), can_send: z.string() }),
+  answerFields({ kept: z.string(), can_send: z.string() }),
 );
 
 /** GET /api/admin/whatsapp/signup-config: the public half of Meta's sign-up window, and whether it can open here. */
 export const WHATSAPP_SIGNUP_CONFIG_DOOR = edgeDoor(
   "/api/admin/whatsapp/signup-config",
   NO_BODY,
-  doorAnswer({
+  answerFields({
     app_id: z.string().nullable(),
     config_id: z.string().nullable(),
     graph_version: z.string(),
@@ -57,7 +57,7 @@ export const INSTAGRAM_ACCOUNT_DOOR = edgeDoor(
     code: z.string().optional(),
     channel_id: DOOR_ID.optional(),
   }),
-  doorAnswer({
+  answerFields({
     ready: z.boolean(),
     app: z.object({ client_id: z.string(), redirect_uri: z.string() }).partial().nullable(),
   }),

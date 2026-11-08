@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { RehearsalAllowance } from "./rehearsal";
 import type { ReviewDto } from "./review";
-import { DOOR_ID, doorAnswer, edgeDoor, PLAIN_ANSWER, shaped } from "../shared/edge/door";
+import { DOOR_ID, answerFields, edgeDoor, PLAIN_ANSWER, shaped } from "../shared/edge/door";
 
 /** One turn of a conversation, as a rehearsal keeps it. */
 const TURN = z.object({ role: z.enum(["user", "assistant"]), content: z.string() });
@@ -14,7 +14,7 @@ export const EVAL_DOOR = edgeDoor(
     tenant_id: DOOR_ID.optional(),
     cases: z.array(z.object({ id: z.string(), text: z.string(), history: z.array(TURN).exactOptional() })).optional(),
   }),
-  doorAnswer({ results: z.array(z.unknown()) }),
+  answerFields({ results: z.array(z.unknown()) }),
 );
 
 /** POST /api/admin/rehearsal/agent: the rehearsal's own agent, made or refreshed. */
@@ -28,7 +28,7 @@ export const REHEARSAL_AGENT_DOOR = edgeDoor(
 export const REHEARSAL_CALL_DOOR = edgeDoor(
   "/api/admin/rehearsal/call",
   z.object({ tenant_id: DOOR_ID.optional(), user_id: DOOR_ID.optional() }),
-  doorAnswer({
+  answerFields({
     rehearsal_id: z.string(),
     call: z.object({
       call_id: z.string(),
@@ -55,7 +55,7 @@ export const REHEARSAL_FIX_DOOR = edgeDoor(
     answer: z.string().optional(),
     rule: z.string().optional(),
   }),
-  doorAnswer({ change: z.unknown() }),
+  answerFields({ change: z.unknown() }),
 );
 
 /**
@@ -72,5 +72,5 @@ export const REHEARSAL_REVIEW_DOOR = edgeDoor(
     turns: z.array(TURN).readonly().optional(),
     config_version: z.number().nullable().optional(),
   }),
-  doorAnswer({ rehearsal_id: z.string(), review: shaped<ReviewDto>() }),
+  answerFields({ rehearsal_id: z.string(), review: shaped<ReviewDto>() }),
 );
