@@ -62,17 +62,19 @@ test.describe("Settings' panes on a cold load", () => {
       const frames = await page.evaluate(
         () => (window as unknown as { __settingsLoad: { frames: Frame[] } }).__settingsLoad.frames,
       );
-      const first = frames[0];
-      const last = frames[frames.length - 1];
+      const first = frames[0] ?? [];
+      const last = frames.at(-1) ?? [];
       const story = frames.map(said).join(" > ");
       expect(last.length, `the pane's cards, frame by frame: ${story}`).toBe(first.length);
       last.forEach(([top, height], i) => {
-        expect(Math.abs(top - first[i][0]), `card ${i + 1}'s top, frame by frame: ${story}`).toBeLessThanOrEqual(
-          ENTRANCE_PX,
-        );
-        expect(Math.abs(height - first[i][1]), `card ${i + 1}'s height, frame by frame: ${story}`).toBeLessThanOrEqual(
-          ENTRANCE_PX,
-        );
+        expect(
+          Math.abs(top - (first[i]?.[0] ?? 0)),
+          `card ${i + 1}'s top, frame by frame: ${story}`,
+        ).toBeLessThanOrEqual(ENTRANCE_PX);
+        expect(
+          Math.abs(height - (first[i]?.[1] ?? 0)),
+          `card ${i + 1}'s height, frame by frame: ${story}`,
+        ).toBeLessThanOrEqual(ENTRANCE_PX);
       });
     });
   }

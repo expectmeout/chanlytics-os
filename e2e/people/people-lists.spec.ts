@@ -51,9 +51,9 @@ test.describe("Saved lists on People", () => {
     await input.fill("Regulars");
     await input.press("Enter");
     await expect.poll(() => seen.length).toBe(1);
-    expect(seen[0].method).toBe("POST");
-    expect(seen[0].url).toContain("workspace=");
-    expect(seen[0].body).toEqual({ name: "Regulars" });
+    expect(seen[0]?.method).toBe("POST");
+    expect(seen[0]?.url).toContain("workspace=");
+    expect(seen[0]?.body).toEqual({ name: "Regulars" });
   });
 
   test("Lists is a view of People: a list's old route lands on People with the list picked, and a smart list shows its step there", async ({
