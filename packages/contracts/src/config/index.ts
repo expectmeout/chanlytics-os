@@ -209,13 +209,6 @@ export type {
   ReplyOffer,
 } from "./workspace-config/config-rules";
 export {
-  applyReachOutChange,
-  ASK_REACH_OUT_ROWS,
-  describeReachOutChange,
-  isReachOutChange,
-} from "./workspace-config/reach-out-change";
-export type { AskReachOutChange } from "./workspace-config/reach-out-change";
-export {
   CalendarConfigSchema,
   configReceptionistOf,
   FeaturesConfigSchema,
@@ -284,6 +277,13 @@ export { allowedPrices, priceAllowance } from "./workspace-config/price-allowanc
 export type { AllowedPrice } from "./workspace-config/price-allowance";
 export { hoursRuns } from "./workspace-config/prompt-hours";
 export type { HoursRun } from "./workspace-config/prompt-hours";
+export {
+  applyReachOutChange,
+  ASK_REACH_OUT_ROWS,
+  describeReachOutChange,
+  isReachOutChange,
+} from "./workspace-config/reach-out-change";
+export type { AskReachOutChange } from "./workspace-config/reach-out-change";
 export {
   hasProfile,
   instructionsDraft,

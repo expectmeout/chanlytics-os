@@ -135,6 +135,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   "admin/hours": ["partner", "calendar"],
   // How it answers' "What it can do" is Setup's connections (business/can.tsx), and says it is reading until they land.
   "admin/receptionist": ["partner", "setup"],
+  // How it reaches out (decision 0113) draws its own read (settings/frame/pane-reads.ts) beside the settings read, and the
+  // rail's Partner as every pane does.
+  "admin/outreach": ["partner"],
   // Connections draws Google's listing and its connection beside its channels, as Today's card draws its review line (`google`
   // is read where one of the two is on screen, bridge/google.ts), and its Email card from Setup's mailboxes: no other
   // pane of Settings does. Its WhatsApp and phone rows are the channels read's (surfaces/channels/surface.ts).

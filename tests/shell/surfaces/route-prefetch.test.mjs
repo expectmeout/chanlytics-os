@@ -824,6 +824,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     admin: ["partner"],
     "admin/hours": ["partner", "calendar"],
     "admin/receptionist": ["partner", "setup"],
+    "admin/outreach": ["partner"],
     "admin/team": ["partner"],
     "admin/notifications": ["partner", "alerts"],
     "admin/profile": ["partner"],

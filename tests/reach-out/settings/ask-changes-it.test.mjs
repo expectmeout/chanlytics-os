@@ -1,9 +1,13 @@
 /**
  * Ask changes How it reaches out by a card (decision 0113): each op judged by the one change schema, applied to the
- * config's reach_out section as the page's own folds write it, said in the card's one line, and opened on its row.
+ * config's reach_out section as the page's own folds write it, said in the card's one line, and opened on its row. The
+ * card is proposed by propose_settings' answers action, its row's words as `text`, run here through the real registry.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { fakeDb } from "../../_fake-db.mjs";
 import {
   AskSettingsChangeSchema,
   applySettingsChange,
@@ -61,4 +65,46 @@ test("the card says what it changes in the page's words", () => {
     describeSettingsChange({ op: "set_reply_offer", offer: "call" }),
     "An answer to a lead offers a call with you",
   );
+});
+
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const { buildProposal, newToolContext } = await import(
+  pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/ask/tools/index.ts")).href
+);
+
+test("Ask's answers action carries a row of How it reaches out, its words as text, to the change its card holds", async () => {
+  const t = newToolContext(
+    { supabase: fakeDb({}, {}, {}), userId: "u1", email: "ada@example.com", params: {} },
+    "11111111-1111-4111-8111-111111111111",
+    "owner",
+    "America/New_York",
+    new Date("2026-11-07T15:00:00Z"),
+  );
+  const card = async (row) => {
+    const out = await buildProposal(t, "propose_settings", { action: "answers", row });
+    assert.equal(out.isError, false, out.result);
+    return out.proposal;
+  };
+  const claim = await card({ op: "add_claim", text: "We clean 40 clinics across Austin today." });
+  assert.deepEqual(claim.payload.change, { op: "add_claim", claim: "We clean 40 clinics across Austin today." });
+  assert.equal(claim.title, "A claim you stand behind");
+  assert.equal(claim.summary, describeSettingsChange(claim.payload.change));
+  assert.deepEqual((await card({ op: "set_reply_offer", text: "call" })).payload.change, {
+    op: "set_reply_offer",
+    offer: "call",
+  });
+  // A tone or a name sent in How it answers' own field is taken too, and an emptied row is a change.
+  assert.deepEqual((await card({ op: "set_cold_tone", tone: "Plain" })).payload.change, {
+    op: "set_cold_tone",
+    tone: "Plain",
+  });
+  assert.deepEqual((await card({ op: "set_offer", text: "" })).payload.change, { op: "set_offer", offer: "" });
+  // What the schema refuses is refused in its words, never proposed.
+  const fax = await buildProposal(t, "propose_settings", {
+    action: "answers",
+    row: { op: "set_reply_offer", text: "fax" },
+  });
+  assert.equal(fax.isError, true);
 });

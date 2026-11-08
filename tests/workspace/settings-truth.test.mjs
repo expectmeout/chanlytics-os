@@ -209,8 +209,9 @@ test("Settings is ordered you, then the business, then the people", () => {
   // The route id stays `workspace`: the label is what a person reads, and
   // renaming the id would break bookmarks, an Ask answer and four e2e specs.
   assert.ok(
-    frame["page.tsx"].includes('(id === "workspace" || id === "hours" || id === "receptionist")') &&
-      frame["page.tsx"].includes("<PaneWorkspace flash={flash} row={row} part={id} />"),
+    frame["page.tsx"].includes(
+      '(id === "workspace" || id === "hours" || id === "receptionist" || id === "outreach")',
+    ) && frame["page.tsx"].includes("<PaneWorkspace flash={flash} row={row} part={id} />"),
     "the old route still lands on the business",
   );
 
