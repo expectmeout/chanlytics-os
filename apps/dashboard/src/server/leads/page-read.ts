@@ -419,7 +419,7 @@ export async function getLeadsPage(
       : Promise.resolve(null),
   ]);
   if (answer.error) throw new Error(`leads_page: ${answer.error.message}`);
-  const raw = (Array.isArray(answer.data) ? answer.data : []) as unknown as LeadPageRow[];
+  const raw = Array.isArray(answer.data) ? answer.data : [];
   const last = raw[raw.length - 1];
   const places = await placesOf(
     ctx,

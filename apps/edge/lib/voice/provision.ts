@@ -432,7 +432,7 @@ async function readBackLeg(cfg: RetellConfig, { agentId, llmId }: MadeAgent): Pr
     : null;
   return {
     agent: after
-      ? planAgentSettings(after as unknown as LiveAgentSettings, {
+      ? planAgentSettings(after, {
           retentionDays: VOICE_AGENT_DEFAULTS.data_storage_retention_days,
         }).drift
       : ["unreadable"],

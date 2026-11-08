@@ -401,7 +401,7 @@ export async function sweepEndedLines(
   // The sweep's page: every workspace whose plan has ended, by design.
   const bills = await listStripeAccountsIn(db, ENDED_STATUSES);
   if (bills.error) throw new Error(`reading billing: ${bills.error.message}`);
-  const byTenant = new Map((bills.data ?? []).map((b) => [b.tenant_id, b as unknown as LineReleaseBilling]));
+  const byTenant = new Map((bills.data ?? []).map((b) => [b.tenant_id, b]));
   if (!byTenant.size) return out;
   const ids = [...byTenant.keys()];
   const [tenants, lines] = await Promise.all([listWorkspaceStandings(db, ids), listLinesOfWorkspaces(db, ids)]);
@@ -466,7 +466,7 @@ export async function sweepEndedLines(
     // Read again, just before: a workspace that resumed a moment ago keeps its number.
     const fresh = await findPlanForRelease(db, row.tenant_id);
     if (fresh.error) throw new Error(`reading billing: ${fresh.error.message}`);
-    const again = lineReleaseStep(fresh.data as unknown as LineReleaseBilling | null, afterDays, warnedOf(row), now);
+    const again = lineReleaseStep(fresh.data, afterDays, warnedOf(row), now);
     if (again.step !== "release") continue;
     const release = await ports.release(row.tenant_id, row, new Date(again.endedAt).toISOString());
     if (!release.ok) {

@@ -246,7 +246,7 @@ export function turnHead(model: AskModelProfile, role: MembershipRole, facts: Wo
     tool_choice: { type: "auto" as const },
     output_config: {
       effort: model.effort,
-      format: { type: "json_schema" as const, schema: ASK_ANSWER_TEXT_FORMAT as unknown as Record<string, unknown> },
+      format: { type: "json_schema" as const, schema: ASK_ANSWER_TEXT_FORMAT },
     },
   };
 }

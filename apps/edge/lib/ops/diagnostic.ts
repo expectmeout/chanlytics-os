@@ -146,7 +146,7 @@ async function sweepHealth(): Promise<Section> {
     if (!db) return { sweeps: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
     const { data, error } = await readSweepHealth(db);
     if (error) return { sweeps: { error: error.message.slice(0, 200) } };
-    const rows = (data ?? []) as unknown as SweepHealthRow[];
+    const rows = data ?? [];
     const sweeps = { ok: rows.every((r) => r.healthy), detail: rows };
     // Due work nobody has claimed: the honest measure of whether the heartbeat drains.
     const { data: backlog, error: backlogErr } = await readJobsBacklog(db);
@@ -192,7 +192,7 @@ async function numberDrift(): Promise<Section> {
     if (!db) return { numbers: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
     const { data, error } = await readNumberDrift(db);
     if (error) return { numbers: { error: error.message.slice(0, 200) } };
-    const rows = (data ?? []) as unknown as { kind: string; tenant_id: string; detail: string }[];
+    const rows = data ?? [];
     return { numbers: { ok: rows.length === 0, drift: rows } };
   } catch (e) {
     return { numbers: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };

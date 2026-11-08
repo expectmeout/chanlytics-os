@@ -92,7 +92,7 @@ export async function findCurrentDeal(
   try {
     const r = await listDealRowsOf(ctx.supabase, tenantId, contactId);
     if (r.error || !r.data) return null;
-    return pickCurrentDeal(r.data as unknown as DealDto[]);
+    return pickCurrentDeal(r.data);
   } catch {
     return null;
   }
