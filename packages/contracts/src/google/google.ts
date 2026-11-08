@@ -261,10 +261,12 @@ export function gainedOver(
   const sorted = [...days].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
   if (sorted.length < 2) return { current: noGained(), previous: null };
   const last = sorted[sorted.length - 1];
+  if (!last) return { current: noGained(), previous: null };
   const since = shiftKey(last.day, -(periodDays - 1));
   const before = sorted.filter((d) => d.day < since);
   const inside = sorted.filter((d) => d.day >= since);
-  const baseline = before.length ? before[before.length - 1] : inside[0];
+  const baseline = before.at(-1) ?? inside[0];
+  if (!baseline) return { current: noGained(), previous: null };
   const total = last.review_count - baseline.review_count;
   const sinceLabel = before.length ? null : fmtDay(baseline.day);
   // Gains day by day: each read day less the read day before it, on the day it was read.
@@ -284,7 +286,7 @@ export function gainedOver(
   const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since);
   const previous =
     prevBefore.length && prevInside.length
-      ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count
+      ? (prevInside.at(-1)?.review_count ?? 0) - (prevBefore.at(-1)?.review_count ?? 0)
       : null;
   return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
 }
@@ -347,15 +349,15 @@ export function toGoogleVM(dto: GoogleReadDto, period: GainWindow, nowMs: number
   };
   const noun = plural(periodDays, "day");
   const inPeriod = days.length
-    ? days.filter((d) => d.day >= shiftKey(days[days.length - 1].day, -(periodDays - 1)))
+    ? days.filter((d) => d.day >= shiftKey(days.at(-1)?.day ?? d.day, -(periodDays - 1)))
     : [];
   const ratingSpark = inPeriod.flatMap((d) => (d.rating === null ? [] : [d.rating]));
   const countSpark = inPeriod.map((d) => d.review_count);
   const baselineRating = (() => {
     if (!days.length) return null;
-    const since = shiftKey(days[days.length - 1].day, -(periodDays - 1));
+    const since = shiftKey(days.at(-1)?.day ?? "", -(periodDays - 1));
     const before = days.filter((d) => d.day < since);
-    return before.length ? before[before.length - 1].rating : null;
+    return before.at(-1)?.rating ?? null;
   })();
   // The period before sits beside the figure in counts (compareWords): a percentage of a rating, or of counts this small, lies.
   const rangeLabel = rangeLabelOf(periodDays);

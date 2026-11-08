@@ -103,7 +103,7 @@ function lowerBound(times: number[], x: number): number {
   let hi = times.length;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (times[mid] < x) lo = mid + 1;
+    if ((times[mid] ?? 0) < x) lo = mid + 1;
     else hi = mid;
   }
   return lo;
@@ -137,8 +137,9 @@ function earliest(
     for (let guard = 0; guard < 500 && highest < end && highest < limitMs; guard += 1) {
       // The first send closer than a gap to `t`, either side.
       const result = lowerBound(times, highest - gapMs + 1);
-      if (result < times.length && times[result] < highest + gapMs) {
-        highest = times[result] + gapMs;
+      const taken = times[result];
+      if (taken !== undefined && taken < highest + gapMs) {
+        highest = taken + gapMs;
         floor = highest;
         continue;
       }
@@ -146,7 +147,8 @@ function earliest(
         // Wait for the oldest send of the day before it to leave the window: a day is (q - 24 h, q], as the claim
         // counts it (db mailbox_capacity), so the moment it leaves is a day after it.
         const j = lowerBound(times, highest - DAY_MS + 1);
-        highest = (j < times.length && times[j] <= highest ? times[j] : highest) + DAY_MS;
+        const nextDay = times[j];
+        highest = (nextDay !== undefined && nextDay <= highest ? nextDay : highest) + DAY_MS;
         floor = highest;
         continue;
       }

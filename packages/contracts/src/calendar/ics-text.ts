@@ -57,7 +57,7 @@ export function splitLine(line: string): { name: string; params: Record<string, 
     cur += ch;
   }
   parts.push(cur);
-  const [name, ...rest] = parts;
+  const [name = "", ...rest] = parts;
   const params: Record<string, string> = {};
   for (const p of rest) {
     const eq = p.indexOf("=");

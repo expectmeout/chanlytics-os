@@ -48,7 +48,7 @@ import { pipelineRowId } from "./vm";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./words";
 import { serviceOf, stepDue, type PipelineView } from "./views";
 
-const upper = (s: string): string => (s ? `${s[0].toUpperCase()}${s.slice(1)}` : s);
+const upper = (s: string): string => (s ? `${(s[0] ?? "").toUpperCase()}${s.slice(1)}` : s);
 /** A time in stage in words, "8 d" or "today", from the one count of whole days (wholeDaysSince); "" without one. */
 const daysWords = (days: number | null): string => (days === null ? "" : daysInStageWords(days));
 /** A visit is said by the calendar's own clock, as People says it (PersonRowVM.nextVisit). */

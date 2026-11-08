@@ -20,7 +20,7 @@ export function templateTitle(name: string | null | undefined, title?: string | 
     .replace(/_/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
+  return words ? (words[0] ?? "").toUpperCase() + words.slice(1) : String(name ?? "");
 }
 
 /**

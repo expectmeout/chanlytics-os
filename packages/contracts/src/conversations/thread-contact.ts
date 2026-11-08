@@ -56,7 +56,7 @@ export function initialsOf(name: string): string {
     .replace(/[^\p{L}\p{N} ]/gu, "")
     .trim()
     .split(/\s+/);
-  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
+  if (parts.length >= 2 && parts[0] && parts[1]) return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
   const items = parts[0] || "?";
   return items.slice(0, 2).toUpperCase();
 }

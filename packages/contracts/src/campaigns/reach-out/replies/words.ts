@@ -300,7 +300,7 @@ const SENT_FROM = /^(sent from my\b|get outlook for\b|enviado desde mi\b)/i;
 function ownLines(lines: string[], pastHeads: boolean): string {
   const kept: string[] = [];
   for (let index = 0; index < lines.length; index++) {
-    const text = lines[index].trim();
+    const text = (lines[index] ?? "").trim();
     const next = (lines[index + 1] ?? "").trim();
     if (ORIGINAL.test(text) || text === "--" || (OUTLOOK_RULE.test(text) && /^from:/i.test(next))) break;
     const oneLine = QUOTE_HEAD.test(text);
@@ -311,7 +311,7 @@ function ownLines(lines: string[], pastHeads: boolean): string {
       continue;
     }
     if (text.startsWith(">") || SENT_FROM.test(text)) continue;
-    kept.push(lines[index]);
+    kept.push(lines[index] ?? "");
   }
   return kept.join("\n").trim();
 }
