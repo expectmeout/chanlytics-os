@@ -4,7 +4,7 @@
  * read are here, so the page and Ask say one thing. Apart, since a contracts module rides whole into every page that
  * imports it: a lead's card reads the signature, and needs none of the page's words.
  */
-import { REACH_OUT_LIMITS, type ReplyOffer } from "../../config/workspace-config/config-rules";
+import type { ReplyOffer } from "../../config/workspace-config/config-rules";
 import { MAILBOX_RAMP } from "../../email/mailbox-standing";
 import { mayDraftReply } from "./reply-draft";
 import { REACH_OUT_REPLY_DAYS } from "./replies/intents";
@@ -87,16 +87,6 @@ export function replyModeHint(mode: string): string | null {
   // Quiet, the row's own value says nothing is drafted (writesBackRows), and this would say it twice.
   return mayDraftReply(mode) ? "Drafted while Autonomy › Replies is on. Only you send it." : null;
 }
-
-/** The refusal a row says under its box, by the limit it went past. */
-export const REACH_OUT_REFUSAL_WORDS = {
-  tooLong: (max: number) => `Keep it under ${max} characters.`,
-  claims: `Up to ${REACH_OUT_LIMITS.claims} claims.`,
-  signature: `${REACH_OUT_LIMITS.signatureLines} lines at most, and no link.`,
-  phone: "A phone number, as people write one: its digits, with spaces, dashes or brackets.",
-  unbacked:
-    "Not written: it kept saying a number about your business that none of your claims backs. Add it to Proof you stand behind, on How it reaches out.",
-} as const;
 
 /** Every word the page says that is not a row's own value (the canvas, Version 3). */
 export const REACH_OUT_SETTINGS_WORDS = {

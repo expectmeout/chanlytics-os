@@ -57,6 +57,18 @@ test.describe("Settings › How it reaches out on a real workspace", () => {
     expect(await readConfig(page), "the journey changed the shared workspace").toEqual(before);
   });
 
+  test("an address that names a row opens it, once the page's cards are in", async ({ page }) => {
+    const before = await readConfig(page);
+    // The cards are a chunk of their own (business/tab.tsx): the row is looked for once they land, not before.
+    await page.goto("/#/admin/outreach/offer");
+    await expect(page.getByTestId("rec-offer-box").locator("textarea, input")).toBeVisible({ timeout: 40_000 });
+    await page.getByTestId("rec-fold-cancel-offer").click();
+    const yes = page.getByTestId("rec-fold-offer-cancel-yes");
+    if (await yes.count()) await yes.click();
+    await expect(page.getByTestId("rec-fold-offer")).toBeHidden();
+    expect(await readConfig(page), "the journey changed the shared workspace").toEqual(before);
+  });
+
   test("What it's told switches between its writers and closes on its one ×", async ({ page }) => {
     await openPage(page);
     await page.getByTestId("rec-row-act-told").click();

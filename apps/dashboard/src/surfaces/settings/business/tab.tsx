@@ -23,8 +23,11 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BUSINESS_TAB } from "@/bridge/business-tab";
+import { codeOnce } from "@/lib/code-once";
+import { useCode } from "@/lib/use-code";
 import { canDo, gateTitle, navigate } from "../../frame-verbs";
 import type { FrameFlash } from "../../frame-verbs";
+import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { documentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { recFolds } from "../../kit/record/registry";
@@ -58,7 +61,12 @@ import { BtRehearse } from "./rehearse/rehearse";
 import { policiesNow, settingsNow } from "./shell";
 import { BtBookingLinkRow, BtGoalCard, BtTransferNumberRow, BtWhoCard } from "./who";
 import { LearnedFromYou } from "../autonomy/learned";
-import { OutreachCards } from "../outreach/cards";
+
+/**
+ * How it reaches out's cards (decision 0113), a chunk of their own, fetched as that page is drawn: Settings' other pages
+ * and the first run, which draw the business's rows, carry none of them or their words (bundle-budget.mjs, a page's line).
+ */
+const outreachCode = codeOnce(() => import("../outreach/cards").then(({ OutreachCards }) => ({ OutreachCards })));
 
 /** The toast the shell raises (the page's `flash`). */
 type Flash = (flash: FrameFlash) => void;
@@ -455,7 +463,11 @@ export const BusinessTab = ({
   const config = settings && (settings.config as Config | null);
   const brain = (config && config.brain) || null;
   const canEdit = canDo("settings");
-  useBtOpenRow(open, !!(settings && config && brain), canEdit);
+  const outreach = useCode(outreachCode, parts.includes("outreach"));
+  const Outreach = parts.includes("outreach") ? (outreach.loaded?.OutreachCards ?? null) : null;
+  // A row an address names is looked for once the page's rows are drawn: How it reaches out's, once their chunk is in.
+  const rowsDrawn = !!(settings && config && brain) && (!parts.includes("outreach") || !!Outreach);
+  useBtOpenRow(open, rowsDrawn, canEdit);
   if (!settings || !config || !brain) return null;
   // The config the next save goes on: what every row's "It will say" is worked out on.
   const base = saver.base();
@@ -501,8 +513,9 @@ export const BusinessTab = ({
         </>
       ) : null}
       {/* How it reaches out (decision 0113): what a cold email is written from, its own folder's cards. */}
-      {parts.includes("outreach") ? (
-        <OutreachCards brain={brain} config={config} canEdit={canEdit} flash={flash} saver={saver} />
+      {Outreach ? <Outreach brain={brain} config={config} canEdit={canEdit} flash={flash} saver={saver} /> : null}
+      {parts.includes("outreach") && outreach.failed ? (
+        <FailedRead kind="card" what="How it reaches out" onRetry={outreach.retry} testid="rec-outreach-failed" />
       ) : null}
       {/* The sheets, LAST, after every card, through one slot (BtSheetSlot says why). Whatever card comes next goes above
           this line, and whatever sheet comes next goes through the slot; a page test holds it last. */}

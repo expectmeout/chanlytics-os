@@ -19,6 +19,7 @@ import {
   went,
 } from "../../_business-tab-harness.mjs";
 import { SET_TABS, paneOfRow, settingsRowRoute } from "../../../apps/dashboard/src/surfaces/settings/frame/tabs.ts";
+import { until } from "../../shared/_until.mjs";
 
 after(() => unmount());
 
@@ -31,6 +32,11 @@ const page = (reachOut = REACH_OUT) => drawTab({ part: "outreach", config: reach
 const boxIn = (tree, fold) =>
   find(foldOf(tree, fold), (n) => (n.type === "input" || n.type === "textarea") && classes(n).includes("rec-input"));
 const typeIn = (tree, fold, text) => boxIn(tree, fold).props.onChange({ target: { value: text } });
+
+// The cards are a chunk of their own (business/tab.tsx), fetched as the page is first drawn: the page's other tests
+// draw them once it is in, and this one holds that the first draw asks for it and draws them as it lands.
+page();
+await until(() => byTestId(redrawTab(), "rec-card-offer") !== null, "How it reaches out's cards, fetched as drawn");
 
 test("the page draws its cards in the order a person needs them", () => {
   const cards = all(page(), (n) => n.type === "section" && classes(n).includes("rec-card")).map(

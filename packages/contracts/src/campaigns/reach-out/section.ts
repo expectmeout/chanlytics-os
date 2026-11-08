@@ -2,12 +2,10 @@
  * What each writer of a cold email reads of How it reaches out (decision 0113; the config's `reach_out` section,
  * config-schema.ts), with the fallback it read before the page existed: the offer is what the business does
  * (business_records.about) and then the owner's goal; the tone is the receptionist's; the sign-off is what the caller
- * already knew. A workspace that never opens the page is written for exactly as before. The page's own words are
- * settings.ts.
+ * already knew. A workspace that never opens the page is written for exactly as before. What the page's boxes refuse is
+ * refusals.ts; the page's own words are settings.ts.
  */
-import { REACH_OUT_LIMITS, type ReplyOffer } from "../../config/workspace-config/config-rules";
-import { phoneAsWritten } from "../../shared/phone";
-import { linksIn } from "./words/limits";
+import type { ReplyOffer } from "../../config/workspace-config/config-rules";
 
 /** The config as the readers here take it: any parsed config, or a part of one. */
 interface ReachOutReadable {
@@ -61,23 +59,4 @@ export function reachOutBackingOf(config: ReachOutReadable | null | undefined, b
   const claims = (config?.reach_out?.proof ?? []).map((c) => c.trim()).filter(Boolean);
   const name = filled(businessName);
   return name ? [...claims, name] : claims;
-}
-
-export type SignatureProblem = "too_long" | "too_many_lines" | "link";
-
-/** What is wrong with a signature: longer than its limit, past its lines, or a link (the foot's link is code's). */
-export function reachOutSignatureProblem(text: string): SignatureProblem | null {
-  const t = text.trim();
-  if (!t) return null;
-  if (t.length > REACH_OUT_LIMITS.signature) return "too_long";
-  if (t.split(/\r\n|\r|\n/).length > REACH_OUT_LIMITS.signatureLines) return "too_many_lines";
-  return linksIn(t).length > 0 ? "link" : null;
-}
-
-export type PhoneProblem = "not_a_phone";
-
-/** What is wrong with the signature's phone: words that are no number someone can dial (shared/phone.ts phoneAsWritten). */
-export function reachOutPhoneProblem(text: string): PhoneProblem | null {
-  const t = text.trim();
-  return !t || phoneAsWritten(t) ? null : "not_a_phone";
 }

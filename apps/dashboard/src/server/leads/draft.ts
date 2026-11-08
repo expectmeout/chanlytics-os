@@ -9,12 +9,12 @@ import {
   LEAD_DRAFT_JSON_SCHEMA,
   LEAD_NO_ADDRESS,
   LEAD_OWN_EMAIL_WORDS,
+  LEAD_UNBACKED_NUMBER,
   LeadDraftAnswerSchema,
   leadDraftFooter,
   mailtoOf,
   fencedInline,
   parseTenantConfig,
-  REACH_OUT_REFUSAL_WORDS,
   reachOutToneOf,
   siteHost,
 } from "@chanlytics/contracts";
@@ -171,7 +171,7 @@ export async function draftFor(
   const first = await ask(input.previous, null);
   const answer = unbacked(first) ? await ask(first, UNBACKED_AGAIN) : first;
   // Not written, as an ask the model would not answer is (LEAD_ASKED_NOT_WRITTEN): a conflict, on its own status.
-  if (unbacked(answer)) throw new AppError("conflict", REACH_OUT_REFUSAL_WORDS.unbacked);
+  if (unbacked(answer)) throw new AppError("conflict", LEAD_UNBACKED_NUMBER);
   const mailFoot = leadDraftFooter(offer.name, offer.address);
   const body = `${answer.body}${mailFoot}`;
   return {
