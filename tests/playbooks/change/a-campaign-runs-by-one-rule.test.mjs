@@ -113,6 +113,10 @@ const RULE_HOMES = [
  * how many comparisons it makes and why. May only fall.
  */
 const OTHER_STATES = {
+  "apps/dashboard/src/server/readers/settings.ts": {
+    n: 1,
+    why: "Which sequence's first email Try it shows and Signs as guesses from: the newest running chain, as its chain says, not whether a run goes today.",
+  },
   "packages/contracts/src/ask/proposals/campaigns.ts": {
     n: 2,
     why: "A pause or a resume a card asks for: the state it writes, and the toast that says which, not whether the campaign runs.",
