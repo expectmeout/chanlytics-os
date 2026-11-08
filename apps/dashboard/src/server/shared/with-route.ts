@@ -16,6 +16,8 @@ import {
   type SpendWords,
   UUID,
   recordOrEmpty,
+  textOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
@@ -464,12 +466,16 @@ const DOOR_REFUSALS: Readonly<Record<string, { code: ErrorCode; status: number }
  * try-again (contracts' refusalOf). The raw text used to reach the browser as a 400 "validation" at fifteen sites.
  */
 export function dbRefusal(
-  input: { code?: string | null; message: string },
+  thrown: unknown,
   raised: { code: ErrorCode; status: number } = { code: "validation", status: 400 },
 ): AppError {
-  const door = input.code === "P0001" ? raised : input.code ? DOOR_REFUSALS[input.code] : undefined;
-  if (door) return new AppError(door.code, input.message, door.status);
-  log.error("db_failed", { code: input.code ?? null, error: input.message });
+  // What a database refusal carries, read off whatever was thrown: a PostgrestError has both, anything else neither.
+  const said = valueAt(thrown, "code");
+  const code = typeof said === "string" ? said : null;
+  const message = textOrEmpty(valueAt(thrown, "message"));
+  const door = code === "P0001" ? raised : code ? DOOR_REFUSALS[code] : undefined;
+  if (door) return new AppError(door.code, message, door.status);
+  log.error("db_failed", { code, error: message });
   return new AppError("internal", "Something went wrong.", 503);
 }
 

@@ -259,7 +259,10 @@ export function parsePlacesSearch(json: unknown): PlaceCandidate[] {
   const places = recordOrNull(json)?.places;
   if (!Array.isArray(places)) return [];
   return places
-    .map((p) => (recordOrNull(p) ? candidateOf(recordOrNull(p)!) : null))
+    .map((p) => {
+      const place = recordOrNull(p);
+      return place ? candidateOf(place) : null;
+    })
     .filter((c): c is PlaceCandidate => c !== null);
 }
 
@@ -270,7 +273,10 @@ export function parsePlaceDetails(json: unknown): PlaceDetails {
   if (!record || !id || !name) throw new PlacesError(502, "Google answered without a place");
   const reviews = Array.isArray(record.reviews)
     ? record.reviews
-        .map((r) => (recordOrNull(r) ? reviewOf(recordOrNull(r)!) : null))
+        .map((r) => {
+          const review = recordOrNull(r);
+          return review ? reviewOf(review) : null;
+        })
         .filter((r): r is PlaceReview => r !== null)
     : [];
   return {

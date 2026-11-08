@@ -36,12 +36,12 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
     db: leadDb(ctx.db),
     apify: wires.apify,
     judge: wires.judge,
-    readSite: wires.readSite.bind(wires),
-    fetchBytes: wires.fetchBytes.bind(wires),
+    readSite: wires.readSite,
+    fetchBytes: wires.fetchBytes,
     storeMark: (bytes, image) => storeLeadMark(ctx.db, bytes, image),
     now: () => new Date(),
     webhookBase: wires.webhookBase,
-    webhookToken: wires.webhookToken.bind(wires),
+    webhookToken: wires.webhookToken,
     // scheduleJobOnce is once per key only where a unique index says so, and
     // of these three only lead_collect has one (00140's jobs_lead_collect_once,
     // on the run and the seq of every collect that has not failed for good): a

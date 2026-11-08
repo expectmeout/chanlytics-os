@@ -370,7 +370,8 @@ async function foldCounts(ctx: RouteContext, tenantId: string, ids: string[]): P
     const convIds = [...new Set([...threadsOf.values()].flatMap((threads) => [...threads.keys()]))];
     const inbound = await inboundOn(ctx, tenantId, convIds, since, false);
     for (const [broadcastId, threads] of threadsOf) {
-      counts.get(broadcastId)!.replied = firstReplies(threads, inbound).size;
+      const count = counts.get(broadcastId);
+      if (count) count.replied = firstReplies(threads, inbound).size;
     }
   }
   return counts;

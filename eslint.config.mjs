@@ -158,10 +158,16 @@ const STRICT_AT_ERROR = {
   ],
   // A condition the types say is always true or always false: a dead branch, or a type that says less than the code knows.
   "@typescript-eslint/no-unnecessary-condition": "error",
+  // `x!` tells the checker a value is there; a check (or a reader that says why, as the line sagas' written()) proves it.
+  "@typescript-eslint/no-non-null-assertion": "error",
+  // What a promise rejects with is unknown until read: `.catch((e: unknown) => …)`, as a catch block already is.
+  "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
 };
 export const HELD_STRICT = [
   // Two left: the draft judge's params (a kind that needs its value) and the alerts helper's generic spread.
   "@typescript-eslint/consistent-type-assertions",
+  // 28 left in the backend (deliver's message id, the model turn's fallbacks, maps read by their own keys).
+  "@typescript-eslint/no-non-null-assertion",
   "@typescript-eslint/no-unnecessary-condition",
 ];
 const BACKEND_TYPED = [

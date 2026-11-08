@@ -189,7 +189,7 @@ function sweepPorts(
     judge: wires.judge,
     now: () => new Date(),
     webhookBase: wires.webhookBase,
-    webhookToken: wires.webhookToken.bind(wires),
+    webhookToken: wires.webhookToken,
     schedule: async (kind, payload, runAfterSeconds) => {
       const row = runs.find((r) => r.id === payload.run_id);
       if (row)

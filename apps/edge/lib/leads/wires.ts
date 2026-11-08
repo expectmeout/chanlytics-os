@@ -40,11 +40,11 @@ export interface LeadWires {
   apify: ApifyClient;
   judge: LeadJudge;
   /** A lead's home page as a browser drew it, by its host, for the engine's own reading: its mark, what the judge reads. */
-  readSite(host: string, timeoutMs: number): Promise<SitePage | null>;
+  readSite: (host: string, timeoutMs: number) => Promise<SitePage | null>;
   /** One GET of an image's bytes, capped (00161: the copy of a lead's mark we keep). Null on anything else. */
-  fetchBytes(url: string, timeoutMs: number, maxBytes: number): Promise<Uint8Array | null>;
+  fetchBytes: (url: string, timeoutMs: number, maxBytes: number) => Promise<Uint8Array | null>;
   webhookBase: string;
-  webhookToken(runRowId: string): Promise<string>;
+  webhookToken: (runRowId: string) => Promise<string>;
 }
 
 /** This deployment's origin, where the provider's webhook lands: LEAD_WEBHOOK_BASE, else the edge's own (EDGE_ORIGIN). */

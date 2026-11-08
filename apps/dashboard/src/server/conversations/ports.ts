@@ -78,7 +78,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
         pausedUntil: until,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       if (!done) return null;
@@ -93,7 +93,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
         undo,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       return decision ? { decision_id: decision } : null;
@@ -104,7 +104,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
         conversationId: id,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       return decision ? { decision_id: decision } : null;
@@ -115,7 +115,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
         conversationId: id,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       if (!done) return null;
@@ -163,7 +163,7 @@ export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
         messageId: id,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       if (!done) return null;
@@ -185,7 +185,7 @@ export function sendNowPorts(ctx: RouteContext): SendNowPorts {
         messageId: id,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       if (!done) return null;

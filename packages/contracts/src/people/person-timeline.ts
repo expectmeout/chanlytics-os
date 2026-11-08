@@ -279,7 +279,7 @@ function messageItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
   // A person we know only by number or address keeps the whole identifier: "+1" as a speaker label is nobody. A stand-in
   // named for their business reads whole (0052): "Bloom & Vow Bridal", never "Bloom".
   const first = base.standIn ? base.name : shortName(base.name);
-  const runOf = new Map((profile.campaigns ?? []).filter((c) => c.message_id).map((c) => [c.message_id!, c]));
+  const runOf = new Map((profile.campaigns ?? []).flatMap((c) => (c.message_id ? [[c.message_id, c] as const] : [])));
   const items: PersonTimelineItemVM[] = [];
   for (const conversation of profile.conversations) {
     for (const message of conversation.messages) {

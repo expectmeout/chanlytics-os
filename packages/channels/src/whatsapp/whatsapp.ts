@@ -384,7 +384,7 @@ export function normalizeInbound(waRawMessage: WaRawMessage, value: WaChangeValu
   };
 
   const body = typed
-    ? waRawMessage.text!.body!
+    ? (waRawMessage.text?.body ?? "")
     : chosen
       ? chosen.label || chosen.id
       : kind === "reaction"

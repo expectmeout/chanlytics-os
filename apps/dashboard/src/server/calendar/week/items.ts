@@ -241,10 +241,12 @@ export async function recordOverSpan(
       error: e instanceof Error ? e.message : String(e),
     });
   const [record, notices] = await Promise.all([
-    findVisitsOver(ctx.supabase, tenantId, spanFrom, spanTo).catch((e): { noted: AppointmentRow[]; feed: [] } => {
-      failed(e);
-      return { noted: [], feed: [] };
-    }),
+    findVisitsOver(ctx.supabase, tenantId, spanFrom, spanTo).catch(
+      (e: unknown): { noted: AppointmentRow[]; feed: [] } => {
+        failed(e);
+        return { noted: [], feed: [] };
+      },
+    ),
     noticesHealth(ctx, tenantId, by, true),
   ]);
   // A booking's rows however they stand: drawn (a cancelled one struck), and each one's copy in the feed left out
