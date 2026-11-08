@@ -9,7 +9,7 @@
  * are the Calendar's, and the foot says how many. With no calendar linked, the one row that links one, under what goes and
  * the runs that went out.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   CALENDAR_SETTING_ROUTE,
   GOING_TODAY_WORDS,
@@ -338,7 +338,14 @@ function onADesk(items: readonly DayItem[]): DayItem[] {
   return items.filter((i) => asks(i) || rest.includes(i));
 }
 
-/** The day's head: its name, how it stands, and the door to the Calendar. Called, not drawn. */
+/** How many letters a name and its note may come to and still stand on one line with the door, on a phone. */
+const HEAD_ONE_LINE_LETTERS = 26;
+
+/**
+ * The day's head: its name, how it stands, and the door to the Calendar, on one line where they fit it on a phone, and the
+ * note a line of its own where they do not (`data-long`; 8 Nov 2026: "The day" and "Closed today" took two). Called, not
+ * drawn.
+ */
 function dayHead(title: string, note: string) {
   return (
     <div className="tpd-head">
@@ -346,7 +353,11 @@ function dayHead(title: string, note: string) {
         {title}
       </h2>
       {note ? (
-        <span className="tpd-note" {...SAYS_WHEN}>
+        <span
+          className="tpd-note"
+          data-long={title.length + note.length > HEAD_ONE_LINE_LETTERS || undefined}
+          {...SAYS_WHEN}
+        >
           {note}
         </span>
       ) : null}
@@ -444,7 +455,25 @@ function dayBar(zone: TodayZoneDayVM, clock: ReturnType<typeof workspaceClock>) 
   );
 }
 
-export function DayZone() {
+/** The runs the day says: what goes on its own today, even on a day the business is closed, and what went out. */
+const runsOfTheDay = (zone: TodayZoneDayVM | null) => ({
+  going: zone?.tomorrow && !zone.closedToday ? [] : goingNow(),
+  wentOut: runsDoneToday(),
+});
+
+/** No day to say: what stands under it keeps its pane where there is any, else only the toast. Called, not drawn. */
+function dayAbsent(under: ReactNode, toastNode: ReactNode) {
+  return under ? (
+    <section className="tpd tz-day" data-testid="today-day" aria-label={P.soFar}>
+      {under}
+      {toastNode}
+    </section>
+  ) : (
+    toastNode
+  );
+}
+
+export function DayZone({ under = null }: { under?: ReactNode } = {}) {
   // The runs it says: a run made, canceled or sending; the calendar's weeks; who comes back, which is Today's own read.
   useMoved(["broadcasts", "calendar", "today"]);
   const day = useDayVm();
@@ -464,8 +493,8 @@ export function DayZone() {
   const zone = noCalendar
     ? null
     : todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, vm?.back ?? [], Date.now());
-  const runs = { going: zone?.tomorrow ? [] : goingNow(), wentOut: runsDoneToday() };
-  if (!zone && !noCalendar && !runs.going.length && !runs.wentOut.rows.length) return toastNode;
+  const runs = runsOfTheDay(zone);
+  if (!zone && !noCalendar && !runs.going.length && !runs.wentOut.rows.length) return dayAbsent(under, toastNode);
   const clock = workspaceClock();
   const offered = offeredHours();
   const { kept, foot } = dayLinesOf(zone, runs, {
@@ -492,6 +521,7 @@ export function DayZone() {
           {foot}
         </a>
       ) : null}
+      {under}
       {toastNode}
     </section>
   );

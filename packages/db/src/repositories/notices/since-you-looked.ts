@@ -30,10 +30,13 @@ export async function findBellSeenAt(db: Db, params: { tenantId: TenantId; userI
 export async function findAnsweredSince(
   db: Db,
   params: { tenantId: TenantId; since: string },
-): Promise<{ count: number; last: { body: string; created_at: string; contact_id: ContactId | null } | null }> {
+): Promise<{
+  count: number;
+  last: { body: string; created_at: string; contact_id: ContactId | null; conversation_id: string | null } | null;
+}> {
   const { data, count, error } = await db
     .from("messages")
-    .select("body, created_at, contact_id", { count: "exact" })
+    .select("body, created_at, contact_id, conversation_id", { count: "exact" })
     .eq("tenant_id", params.tenantId)
     .eq("direction", "outbound")
     .eq("sender", "ai")
@@ -45,7 +48,14 @@ export async function findAnsweredSince(
   const [last] = data ?? [];
   return {
     count: count ?? 0,
-    last: last ? { body: last.body ?? "", created_at: last.created_at, contact_id: last.contact_id } : null,
+    last: last
+      ? {
+          body: last.body ?? "",
+          created_at: last.created_at,
+          contact_id: last.contact_id,
+          conversation_id: last.conversation_id,
+        }
+      : null,
   };
 }
 

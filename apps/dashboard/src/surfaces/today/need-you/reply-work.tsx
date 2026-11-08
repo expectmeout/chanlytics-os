@@ -100,12 +100,14 @@ function notAPersonOf(row: TodayQueueRowVM, wire: string): (() => void) | null {
  * Mark done on one row (2 Nov 2026: a row was let go only by Mark all done, once a week old): the hold resolved and the
  * thread the receptionist's again (core handBack, as Mark all done and a call back's Reached do), so it answers them if
  * they write; Undo takes the thread over again (the verb's own inverse). A hold's row alone, a handoff or a reach-out's
- * reply read: a closing window and a reply counting down hold nothing to give back.
+ * reply read, a call back (8 Nov 2026: its note says to mark one done, and nothing there did): a closing window and a reply
+ * counting down hold nothing to give back.
  */
-function useMarkDone(p: WorkProps) {
+export function useMarkDone(p: WorkProps) {
   const { row, flash, keep, unkeep } = p;
   const [done, setDone] = useRowState<Record<string, unknown> | null>(row.id, "markedDone", null);
-  const may = p.may && !!row.conversationId && (row.kind === "handoff" || row.kind === "reply");
+  const may =
+    p.may && !!row.conversationId && (row.kind === "handoff" || row.kind === "reply" || row.kind === "callback");
   const mark = async () => {
     if (!row.conversationId) return;
     // Kept before the door is asked: its refresh drops the hold from the read, and the row must stay to say so.

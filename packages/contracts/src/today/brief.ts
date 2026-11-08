@@ -27,6 +27,7 @@ import {
   standingWithRuns,
   todayAskFacts,
   todayAlsoWaiting,
+  todayCalmHead,
   todayHeadline,
   todayQueueEmpty,
   todayQuietDay,
@@ -98,6 +99,9 @@ export function toTodayVM(
   const noReply = todayNoReply(result);
   const facts = todayAskFacts(result);
   const empty = todayQueueEmpty(result);
+  const last = todayLastLine(result.live, result.tz, now);
+  // What the head says with nobody waiting, on any day: an old row nobody counts takes nothing from it.
+  const calm = todayCalmHead(result, last);
 
   // The queue, before the head: the head's last rung says what it holds (todayAlsoWaiting), and a day is quiet only
   // with nothing in it. A search waiting on an answer on a day with no messages was a quiet day, with an empty queue.
@@ -143,7 +147,8 @@ export function toTodayVM(
       since: beside.since ?? null,
       word: beside.word ?? null,
       queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, windows: 0, parts: [], empty },
-      quiet: todayQuietDay(result, todayLastLine(result.live, result.tz, now)),
+      calm,
+      quiet: todayQuietDay(result, last),
     };
   }
 
@@ -179,6 +184,7 @@ export function toTodayVM(
     word: beside.word ?? null,
     calls: todayCalls(result, callRows),
     queue,
+    calm,
     quiet: null,
   };
 }

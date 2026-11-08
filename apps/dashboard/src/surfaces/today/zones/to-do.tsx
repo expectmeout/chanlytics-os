@@ -20,6 +20,7 @@ import { holdsCoral, useCoralHeld } from "../queue-coral";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, canDo, useMoved, useToast, workspaceClock } from "../shell";
 import { needYouRows, reviewRows, type NeedYouExtrasCtx } from "../need-you/people-rows";
+import { useRests } from "../need-you/rests";
 import { reviewsToAnswer } from "../need-you/reviews";
 import type { VerbKind } from "../../waits/wait-rows";
 import { useTodayWord } from "./day-vm";
@@ -63,8 +64,9 @@ const oneEach = (r: TodayQueueRowVM) => r.kind === "step" || r.kind === "visit";
  * draws; drawn alone (a test), it hears the list's word instead.
  */
 export function useToDoRows({ cap, queueHolds }: { cap: number; queueHolds?: boolean }): ToDoRows {
-  // People's rows are the steps', the Calendar's blocks the visits', Google's the reviews': each moves this.
-  useMoved(["people", "calendar", "google"]);
+  // People's rows are the steps', the Calendar's blocks the visits', Google's the reviews' and the morning's the rests over
+  // them: each moves this.
+  useMoved(["people", "calendar", "google", "ask_morning"]);
   const [toastNode, flash] = useToast();
   const [done, setDone] = useState<readonly string[]>([]);
   const [kept, setKept] = useState<Kept>({});
@@ -73,7 +75,8 @@ export function useToDoRows({ cap, queueHolds }: { cap: number; queueHolds?: boo
   const heard = useCoralHeld("queue");
   const taken = queueHolds ?? heard;
   const word: AppointmentWord = useTodayWord();
-  const answering = reviewsToAnswer(useSurface("google"));
+  const { rests } = useRests();
+  const answering = reviewsToAnswer(useSurface("google"), rests);
   const steps = dueSteps();
   const visits = askedVisits(word);
   // Each step and each visit a row of its own, the count of every one of them (the rows for the rest stand down: the

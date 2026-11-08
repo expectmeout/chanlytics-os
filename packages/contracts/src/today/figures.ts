@@ -363,6 +363,17 @@ export function figuresOf(
   return [bookedOf(metricsSummary.bookings, now), answered, calls, newPeople];
 }
 
+/**
+ * Where a figure's press goes where its receipt names no door, so every figure on a phone opens somewhere (8 Nov 2026: a
+ * zero had nothing to press, and its clause, which a phone does not draw, nowhere to be read).
+ */
+export function figureDoorOf(id: TodayFigureVM["id"]): { label: string; to: string } {
+  if (id === "booked") return { label: "Open the Calendar", to: "calendar" };
+  if (id === "answered") return { label: "Open the Inbox", to: "inbox" };
+  if (id === "calls") return { label: "Open the calls", to: "conversations/phone" };
+  return { label: "Open People", to: "clients/seg:new_week" };
+}
+
 /** Nothing at all counted on the day: no message, call, new person or booking. */
 const nothingCounted = (m: MetricsSummaryDto): boolean =>
   m.period.messages_in + m.period.calls + m.period.new_contacts + (m.bookings?.booked ?? 0) === 0;

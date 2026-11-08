@@ -9,6 +9,7 @@ export {
   repliesFellCard,
   restedOf,
   restedWith,
+  restedWithout,
 } from "./findings";
 export type { AskFinding, AskRested } from "./findings";
 export {

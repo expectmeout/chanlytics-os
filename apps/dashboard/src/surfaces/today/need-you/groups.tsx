@@ -16,24 +16,35 @@ export function NeedYouGroup({
   title,
   count,
   pane = false,
+  bare = false,
   testid,
   children,
 }: {
   title: string;
   count: number | null;
   pane?: boolean;
+  /** No head drawn, its name for a reader alone: its rows say what the head would. */
+  bare?: boolean;
   testid: string;
   children: ReactNode;
 }) {
   const id = useId();
   return (
-    <div className="ny-group" role="group" aria-labelledby={id} data-testid={testid}>
-      <div className="ny-group-head">
-        <span className="ny-group-title" id={id}>
-          {title}
-        </span>
-        {count !== null ? <span className="ny-group-n tabular">{count}</span> : null}
-      </div>
+    <div
+      className="ny-group"
+      role="group"
+      aria-labelledby={bare ? undefined : id}
+      aria-label={bare ? title : undefined}
+      data-testid={testid}
+    >
+      {bare ? null : (
+        <div className="ny-group-head">
+          <span className="ny-group-title" id={id}>
+            {title}
+          </span>
+          {count !== null ? <span className="ny-group-n tabular">{count}</span> : null}
+        </div>
+      )}
       {pane ? (
         <Panel size="flush" className="tq-list ny-pane">
           {children}

@@ -212,6 +212,16 @@ function optionalRows(
   );
 }
 
+/**
+ * Whether folding hides anything. Folded, the card keeps saying what is next, its one row (8 Nov 2026: "1 step left" named
+ * no step, and folded away "Calls aren't answered yet" under a head that said nothing needs you): what folds is everything
+ * after it, and where nothing is, there is no chevron to press.
+ */
+const foldsAnything = (card: SetupCardVM): boolean =>
+  (card.start
+    ? card.kept.length + card.done.length
+    : card.rows.length + (card.remind ? 1 : 0) - 1 + card.done.length + (card.hide ? 1 : 0)) > 0;
+
 // What is left to set up, as one card above the queue in its column (the first run's Today card, canvas R10 and P9):
 // while a step is open, the one row that opens the first run; after, Setup's own optional rows in the order they help
 // most, each with its act and its Skip, and the reminder's row last. Two presses that do two things (the refined canvas,
@@ -236,8 +246,9 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   const phone = useTodayOnPhone();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
   // Its first act is the page's coral while nothing before it in the walk holds it and it draws one: told, so Ask found
-  // goes quiet beside it (queue-coral.ts). A folded card draws none and hands it on; so does a card gone for the week.
-  const holds = !!card && !waiting && !folded && (!!card.start || card.rows.length > 0);
+  // goes quiet beside it (queue-coral.ts). A folded card still draws its next step, so it holds it too; a card gone for the
+  // week hands it on.
+  const holds = !!card && !waiting && (!!card.start || card.rows.length > 0);
   useLayoutEffect(() => {
     holdsCoral("setup", holds);
   }, [holds]);
@@ -291,46 +302,50 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
       {hide.put}
     </Button>
   ) : null;
+  const foldable = foldsAnything(card);
+  const short = folded && foldable;
+  const remindDrawn =
+    remind && card.skip && (!short || card.rows.length === 0)
+      ? remindRow(remind, card.skip, nav, skipMenu(remind.id, remind.name, remind.put))
+      : null;
   return (
     <section className="tq today-setup" data-testid="today-setup">
-      <div className="setup-card-head">
+      {/* The head's whole line folds it, as Your history's does: the chevron's press reaches across it (zones.css). */}
+      <div className="setup-card-head" data-foldable={foldable || undefined}>
         <span className="setup-card-title">
           {card.title}
           <span className="setup-card-left" data-testid="today-setup-left">
             {card.left}
           </span>
         </span>
-        {!folded && !phone ? hideButton : null}
-        <Button
-          variant="quiet"
-          size="sm"
-          iconOnly
-          aria-label={folded ? SETUP_CARD_WORDS.open : SETUP_CARD_WORDS.fold}
-          aria-expanded={!folded}
-          onClick={toggle}
-          data-folded={folded || undefined}
-          data-testid="today-setup-fold"
-        >
-          <Icon name="chevron-down" size={14} />
-        </Button>
+        {!short && !phone ? hideButton : null}
+        {foldable ? (
+          <Button
+            variant="quiet"
+            size="sm"
+            iconOnly
+            aria-label={short ? SETUP_CARD_WORDS.open : SETUP_CARD_WORDS.fold}
+            aria-expanded={!short}
+            onClick={toggle}
+            data-folded={short || undefined}
+            data-testid="today-setup-fold"
+          >
+            <Icon name="chevron-down" size={14} />
+          </Button>
+        ) : null}
       </div>
-      {folded ? null : (
-        <>
-          {card.start ? startRow(card.start, card.left, nav, waiting) : null}
-          {card.start
-            ? ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
-            : optionalRows(S, card, flash, {
-                tail:
-                  remind && card.skip
-                    ? remindRow(remind, card.skip, nav, skipMenu(remind.id, remind.name, remind.put))
-                    : null,
-                quiet: waiting,
-                skip: skipRow,
-              })}
-          {ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
-          {phone ? hideButton : null}
-        </>
-      )}
+      {card.start ? startRow(card.start, card.left, nav, waiting) : null}
+      {card.start
+        ? short
+          ? null
+          : ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
+        : optionalRows(S, short ? { ...card, rows: card.rows.slice(0, 1) } : card, flash, {
+            tail: remindDrawn,
+            quiet: waiting,
+            skip: skipRow,
+          })}
+      {short ? null : ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
+      {!short && phone ? hideButton : null}
       {toastNode}
     </section>
   );

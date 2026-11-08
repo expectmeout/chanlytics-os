@@ -838,7 +838,7 @@ test("the booking report: asked, then booked, over the rows given and the feed's
     person(3, { last_inbound_at: iso(NOW.getTime() - 60 * DAY) }), // wrote long before the period
   ];
   const report = await readBookingReport(ctxFor(tables(url)), T, rows, 30, NOW);
-  assert.deepEqual(report, { calendar: "ok", days: 30, asked: 2, booked: 1 });
+  assert.deepEqual(report, { calendar: "ok", days: 30, asked: 2, booked: 1, people_on_calendar: 1 });
 });
 
 test("the people sent the booking link, counted by asked-then-booked's own rule: a visit still to come, or one that began no more than a day before the link, is a booking; an earlier one, none and a person the list no longer holds are not", async () => {

@@ -38,6 +38,12 @@ export interface TodayBriefWords {
   sentences: TodayBriefSegment[][];
   /** The same, as one string: what a voice reads and what Ask is handed. */
   text: string;
+  /**
+   * Whether it says anything the head does not: someone or a run waiting, a visit today, something that came in. Listen
+   * asks this (8 Nov 2026): six seconds of "You're all caught up. Closed today." under a head that says the same was a
+   * button for nothing.
+   */
+  news: boolean;
 }
 
 // `plain`, not `say`: a helper declared in three files is a copy the build counts (the copies measure), and two files said it.
@@ -179,5 +185,8 @@ export function todayBriefWords(vm: TodayVM, day: TodayDayVM | null, runs: reado
   // What a voice reads and Ask is handed says, too, what the figures do not carry and the page draws as a line of its
   // own under the summary, with its door: a reply that failed to deliver. A brief that was read aloud left it out.
   const also = (vm.recap ? vm.recap.sentences : []).filter((s) => !s.traffic).map((s) => s.text);
-  return { sentences, text: [...sentences.map((s) => s.map((x) => x.text).join("")), ...also].join(" ") };
+  const today = day?.feed === "ok" ? day.frames.find((f) => f.today) : undefined;
+  const visits = !!today && !today.closed.yes && today.items.length + today.more > 0;
+  const news = needs.length > 0 || runs.length > 0 || visits || also.length > 0 || vm.figures.some((f) => !!f.value);
+  return { sentences, text: [...sentences.map((s) => s.map((x) => x.text).join("")), ...also].join(" "), news };
 }

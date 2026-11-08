@@ -185,6 +185,11 @@ export const isRested = (rested: AskRested, id: string, today: string): boolean 
  */
 const REST_KEPT = 25;
 
+/** The rests with this one let go: its Undo, and those that have run out with it. */
+export function restedWithout(rested: AskRested, id: string, today: string): AskRested {
+  return Object.fromEntries(Object.entries(rested).filter(([key, until]) => key !== id && until > today));
+}
+
 /**
  * The rests with this one added until a week from `today`: those that have run out let go, and past REST_KEPT the ones
  * that run out soonest, so the oldest come back a little early rather than the newest press refused.

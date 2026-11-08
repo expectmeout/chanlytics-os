@@ -270,7 +270,12 @@ test("how long someone waited is said once, beside their name, on a phone and on
 test("on a phone the list says who it left out, with See all, and says nothing where it left nobody out", () => {
   phone = true;
   set(twoWaiting());
-  assert.equal(footOf(draw(NeedYou)), null, "two people, both drawn: no foot");
+  const plain = footOf(draw(NeedYou));
+  assert.equal(
+    textOf(plain),
+    "Open Inbox",
+    "two people, both drawn: nothing to say of them, only the door a desk's head holds",
+  );
   // Up next and five waiting on you (contracts NEED_YOU_CAPS); past them the foot counts the rest.
   set(manyWaiting(8));
   const queue = draw(NeedYou);

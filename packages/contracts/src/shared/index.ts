@@ -125,6 +125,7 @@ export {
   phoneTail,
   samePhone,
   shortCode,
+  tollFreeNumber,
   US_AREA_CODE,
   whyNotAHandoff,
   whyNotAPhone,

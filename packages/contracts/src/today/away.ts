@@ -11,6 +11,7 @@
  * is opened: AwayGroupVM.members). What differs is the bell's to keep and the card's to leave: the bell holds read notes under
  * Earlier and can dismiss one, the card lists the unread ones alone, minus the queue's (task 5.2, D1-notice-two-drawings).
  */
+import { addressOf } from "../activity/record-address";
 import { reviewNoticeIsAbout } from "../google/google";
 import { HOUR_MS } from "../shared/time";
 import { conversationOfNeedsKey, callOfKey, kindListDoor } from "./notifications/feed";
@@ -434,7 +435,8 @@ export function bellSections<T extends BellNoteLike>(rows: readonly T[], older =
  */
 export interface TodaySinceAnsweredDto {
   count: number;
-  last: { who: string; text: string; at: string } | null;
+  /** The last of them, and the thread it went on, where the read says it: a reply an older tab's server sent has none. */
+  last: { who: string; text: string; at: string; conversation_id?: string | null } | null;
 }
 
 /** One line of Since you looked, opened: its glyph, what happened, the receipt under it, and when it last did. */
@@ -550,7 +552,8 @@ export function todaySince(input: {
       title: `The receptionist answered ${answered.count}`,
       sub: last ? `Last, to ${last.who}: “${last.text}”` : "",
       at: Number.isFinite(lastMs) ? at(lastMs) : "",
-      to: null,
+      // It names someone, so it opens them: the thread the last reply went on.
+      to: last?.conversation_id ? addressOf({ kind: "conversation", id: last.conversation_id }) : null,
     });
   }
   for (const [kind, k] of Object.entries(SINCE_KINDS)) {

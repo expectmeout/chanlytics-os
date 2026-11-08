@@ -635,7 +635,7 @@ test("a receipt opens on hover, focus or a tap, says its why with one door, neve
   set({ today: vm });
   const first = draw(TodayHeadFigures);
   const fig = byTestId(first, "today-figure-answered");
-  fig.props.onMouseEnter();
+  fig.props.onPointerEnter({ pointerType: "mouse" });
   const hovered = again(() => W.React.createElement(TodayHeadFigures));
   const receipt = byTestId(hovered, "today-receipt-answered");
   assert.ok(receipt, "hover opens it");
@@ -1772,7 +1772,6 @@ test("the head's Listen reads the brief's words in Ask's voice, says it is getti
     const listen = headListen(true);
     assert.ok(listen, "a voice: Listen, beside the greeting");
     assert.match(textOf(listen), /Listen\d+:\d\d/, "with how long it takes to hear");
-    assert.equal(listen.props["aria-pressed"], false);
     press(listen);
     assert.equal(s.spoken.length, 1, "one clip asked for");
     // The brief's words: who needs you first, and what the page says under the head of its own, which a voice read
@@ -1781,17 +1780,14 @@ test("the head's Listen reads the brief's words in Ask's voice, says it is getti
     assert.match(s.spoken[0].text, /failed to deliver/);
     assert.equal(s.spoken[0].purpose, "brief");
     const loading = headListen();
-    assert.match(textOf(loading), /Getting Ask's voice/, "getting the voice until the clip plays");
+    assert.match(loading.props["aria-label"], /Getting Ask's voice/, "getting the voice until the clip plays");
     assert.equal(loading.props["aria-busy"], true);
-    assert.equal(loading.props["aria-pressed"], false, "not Stop yet");
+    assert.equal(textOf(loading), textOf(listen), "its words as they were, so nothing beside it moves");
     s.land();
     await settled();
-    const playing = headListen();
-    assert.equal(playing.props["aria-pressed"], true);
-    assert.match(textOf(playing), /Stop/, "Stop while it plays");
-    press(playing);
-    assert.equal(s.stops.length, 1, "Stop stops the clip");
-    assert.equal(headListen().props["aria-pressed"], false);
+    assert.equal(headListen(), null, "it plays: the header's capsule has it, whose press is the Stop (BriefBar)");
+    s.stub.stopSpeaking();
+    assert.ok(headListen(), "stopped, Listen is back");
     assert.equal(s.spoken.length, 1, "and asked for nothing more");
   } finally {
     holdAsk(undefined);
@@ -1815,9 +1811,8 @@ test("the head's Listen: a mouse gone down on it asks for the brief's clips befo
     assert.equal(warmed[0].purpose, "brief");
     assert.match(warmed[0].text, /^Ana Reyes needs you/, "the words the click will read");
     assert.equal(s.spoken.length, 0, "nothing read: that is the click's");
-    // While it reads, the button is Stop: a press going down on it asks for nothing.
+    // While it fetches, a press going down on it asks for nothing more.
     press(listen);
-    s.land();
     headListen().props.onPointerDown({ pointerType: "mouse", button: 0 });
     assert.equal(warmed.length, 1);
     // A bridge from before the warm: the press still reads, and the pointer going down breaks nothing.
@@ -1841,7 +1836,7 @@ test("the head's Listen: a clip that could not be made says why beside it, in th
     await settled();
     const sentence = headSentence();
     const listen = headListen();
-    assert.equal(listen.props["aria-pressed"], false, "back to Listen");
+    assert.equal(listen.props["data-state"], "idle", "back to Listen");
     assert.match(textOf(listen), /^Listen/, "and it says Listen, not Stop");
     const why = byTestId(sentence, "today-listen-why");
     assert.ok(why, "why, beside the button");
@@ -1867,10 +1862,10 @@ test("the head's Listen: a head said again while the clip plays (Today redrew it
     await settled();
     // Today redraws from nothing (its data moved): a fresh head finds the clip playing and says Stop.
     const redrawn = headListen(true);
-    assert.equal(redrawn.props["aria-pressed"], true, "a head said again finds the clip playing");
+    assert.equal(redrawn, null, "a head said again finds the clip playing: the capsule has it");
     assert.equal(s.stops.length, 0, "and stops nothing");
     s.ends();
-    assert.equal(headListen().props["aria-pressed"], false, "the clip ending lets go of Stop");
+    assert.ok(headListen(), "the clip ending brings Listen back");
   } finally {
     holdAsk(undefined);
   }

@@ -10,7 +10,12 @@
  * the draft is written again in its place (drafts.ts rewriteDraft). The receptionist's held reply keeps its own.
  */
 import { useEffect, useRef, useState } from "react";
-import { NEED_YOU_WORDS as W, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
+import {
+  NEED_YOU_OLD_MS,
+  NEED_YOU_WORDS as W,
+  type AppointmentWord,
+  type TodayQueueRowVM,
+} from "@chanlytics/contracts";
 import { Button, Field, Sheet } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
 import { touchSwipe } from "../../frame-verbs";
@@ -200,7 +205,11 @@ export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, o
       </Sheet>
     );
   }
-  const where = [W.walk.of(i + 1, steps.length), row.channel, row.when].filter(Boolean).join(" · ");
+  // Past a week it is in no count, so "Need you" is not what to call it: the page's head has said nothing needs you.
+  const past = row.kind !== "held" && row.waitedMs >= NEED_YOU_OLD_MS;
+  const where = [past ? W.group.old : W.walk.of(i + 1, steps.length), row.channel, row.when]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <Sheet
       open
@@ -245,7 +254,12 @@ export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, o
     >
       {lastRow && lastRow.id !== row.id ? <LastSend row={lastRow} /> : null}
       <div className="ny-walk-body" key={row.id} {...swipe}>
-        {row.sentence ? <Quote what={W.walk.their} text={row.quoted ? `“${row.sentence}”` : row.sentence} /> : null}
+        {row.sentence ? (
+          <Quote
+            what={row.quoted ? W.walk.their : W.walk.happened}
+            text={row.quoted ? `“${row.sentence}”` : row.sentence}
+          />
+        ) : null}
         {workOf(
           row,
           { ...work, main: "primary", foot: footEl },

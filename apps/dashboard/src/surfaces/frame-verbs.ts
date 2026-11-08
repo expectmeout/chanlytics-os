@@ -145,9 +145,20 @@ export function hearPageMoves(fn: () => void): () => void {
 /** Ask's own calls, as installAsk made them (bridge/ask.ts): a turn sent, a card committed, the page as context. */
 let askHeld: AskApi | undefined;
 
+const askHearers = new Set<() => void>();
+
 /** The calls a page reads by import from here on: the bridge's, or a test's stand-in. */
 export function holdAsk(calls: AskApi | undefined): void {
   askHeld = calls;
+  askHearers.forEach((hear) => hear());
+}
+
+/** Hear Ask's calls arrive: what the frame draws before the bridge installs them, and watches once they are in. */
+export function hearAskHeld(hear: () => void): () => void {
+  askHearers.add(hear);
+  return () => {
+    askHearers.delete(hear);
+  };
 }
 
 /** Ask's calls; none before the bridge installs them, and none where there is no bridge. */

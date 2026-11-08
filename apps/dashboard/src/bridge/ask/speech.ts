@@ -252,6 +252,8 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
     state = next;
     for (const tell of watchers) tell();
   };
+  /** What is being read, while anything is: the frame's capsule is your brief's alone, and an answer has its own Stop. */
+  let reading: SpeechPurpose | null = null;
   /** Which press is the current one: a Stop, or a new read, moves it on, and a clip that lands late is let go of. */
   let generation = 0;
   const clipsOf = heldClips(deps.api);
@@ -261,6 +263,8 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
     canSpeak,
     /** What is happening now. */
     state: (): SpeechState => state,
+    /** What is being read, or null with nothing going. */
+    speakingFor: (): SpeechPurpose | null => (state === "idle" ? null : reading),
     /** Hear every change of state; answers the stop. */
     watchSpeech(on: () => void): () => void {
       watchers.add(on);
@@ -280,6 +284,7 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
       const mine = ++generation;
       release();
       const a = unlock(d);
+      reading = purpose;
       move("loading");
       // The first clip, and the one behind it where the words are more than a sentence.
       const clips = clipsOf(text, purpose);

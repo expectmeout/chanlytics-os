@@ -76,7 +76,7 @@
   "setup/first-run": "live settings setup",
   "setup/rows": "",
   "today": "ask_morning broadcasts calendar google notifications people playbooks reach_out_replies reply_drafts reports_headline settings setup today today_pins workspace",
-  "today/need-you": "reply_drafts settings",
+  "today/need-you": "ask_morning reply_drafts settings",
   "today/zones": "ask_morning broadcasts calendar google notifications people playbooks reach_out_replies reply_drafts reports_headline settings setup today today_pins",
   "waits": "today"
 }

@@ -484,7 +484,7 @@ test("REGRESSION: with no line connected, Today does not say the receptionist is
   }
 });
 
-test("the card once it answers: Setup's own rows, WhatsApp first, folded and opened by its chevron, and Hide puts them all off for a week", async () => {
+test("the card once it answers: Setup's own rows, WhatsApp first, folded to the next step and opened by its chevron, and Hide puts them all off for a week", async () => {
   const put = [];
   feedSetup(
     setupSurface({
@@ -547,7 +547,11 @@ test("the card once it answers: Setup's own rows, WhatsApp first, folded and ope
     assert.equal(fold.props["aria-expanded"], true, "open until it is folded");
     fold.props.onClick();
     const folded = again(() => TodaySetup());
-    assert.equal(findAll(folded, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length, 0, "folded");
+    assert.equal(
+      findAll(folded, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length,
+      1,
+      "folded: what is next",
+    );
     assert.equal(
       find(folded, (n) => n.props?.["data-testid"] === "today-setup-hide"),
       undefined,
@@ -797,7 +801,7 @@ test("while someone waits on you, what is left to set up stands under the queue,
   }
 });
 
-test("one coral across setting up and Ask found (the Moments board: else setting up, else Ask found's first act): the card's first act while it draws one, Ask found's once the card is folded", () => {
+test("one coral across setting up and Ask found (the Moments board: else setting up, else Ask found's first act): the card's first act while it draws one, folded or open", () => {
   const idea = {
     id: "p-1",
     kind: "message",
@@ -838,11 +842,11 @@ test("one coral across setting up and Ask found (the Moments board: else setting
     const verbs = findAll(card, (n) => n.props?.["data-testid"] === "setup-verb");
     assert.ok(verbs.some(isCoral), "nobody waits: the card's first act is the coral");
     assert.equal(foundAct().props.variant, "quiet", "REGRESSION: Ask found's first act stood coral beside the card's");
-    // Folded, the card draws no act, and hands the coral on.
+    // Folded, the card still says what is next (8 Nov 2026), so its act keeps the coral.
     const open = mountSetup();
     press(find(open, (n) => n.props?.["data-testid"] === "today-setup-fold"));
     again(() => TodaySetup());
-    assert.equal(foundAct().props.variant, "primary", "the card folded: Ask found's first act takes the coral");
+    assert.equal(foundAct().props.variant, "quiet", "the card folded: its next step still holds the coral");
     // Unfolded again for the tests after this one: the fold is kept on the device.
     press(find(mountSetup(), (n) => n.props?.["data-testid"] === "today-setup-fold"));
   } finally {
