@@ -1,4 +1,5 @@
 /** Activity: dtos. */
+import type { PageInfo } from "../../shared/envelope";
 
 /**
  * The activity log: both ledgers, in an owner's words.
@@ -65,7 +66,7 @@ export interface ActivityPageDto {
    * `"<created_at>|<row id>"` and is what asks for the page behind it. An
    * offset made every page read the whole log above it (server/activity.ts).
    */
-  page: { limit: number; has_more: boolean; next_cursor: string | null };
+  page: PageInfo;
   /** The kinds the page may filter by, both ledgers', for the picker. */
   kinds: string[];
 }

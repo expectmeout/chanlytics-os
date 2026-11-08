@@ -4,6 +4,7 @@ import type { Json } from "@chanlytics/db/types";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, answerPlanOf, refusalOf, searchRow } from "@/server/leads/leads";
+import { answerRound } from "@/server/leads/search-acts";
 
 const Body = z.object({
   answer: z.enum(["keep", "include", "stop"]),
@@ -28,7 +29,7 @@ export const POST = write({
     const search = await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search"));
     if (!search.round_id) throw new AppError("conflict", "This search has no round to answer for.", 409);
     if (input.answer === "include" && !input.plan) throw new AppError("validation", "Include needs the amended plan.");
-    const { data, error } = await ctx.supabase.rpc("lead_round_answer", {
+    const { data, error } = await answerRound(ctx, {
       p_round_id: search.round_id,
       p_answer: input.answer,
       ...(input.plan ? { p_plan: answerPlanOf(search, input.plan) as unknown as Json } : {}),

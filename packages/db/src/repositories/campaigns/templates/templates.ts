@@ -354,7 +354,7 @@ export async function findTemplateStatus(
   name: string,
   language: string,
 ): Promise<{ meta_status: string | null } | null> {
-  const { data } = await db
+  const { data, error } = await db
     .from("templates")
     .select("meta_status")
     .eq("tenant_id", tenantId)
@@ -362,6 +362,8 @@ export async function findTemplateStatus(
     .eq("name", name)
     .eq("language", language)
     .maybeSingle();
+  // Null is "the workspace holds none"; a read that fails is not that.
+  if (error) throw new Error(`cannot read the template's status: ${error.message}`);
   return data;
 }
 

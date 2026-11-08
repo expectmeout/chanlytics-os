@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { type DealFacts, DAY_MS, dealIsOpen, pickCurrentDeal, proposalLinkOf } from "@chanlytics/contracts";
 import type { Database } from "../../../database.types";
 import { saysMissing } from "../../../shared/missing-door";
+import { dbLog } from "../../../shared/observe";
 
 export type Db = SupabaseClient<Database>;
 
@@ -326,12 +327,13 @@ export async function readLeadContext(
   // Their deal, read beside the note (0004): a context lookup must never cost the reply, so an error is no deal. The
   // whole list, because the current one may be the oldest: a running engagement outlives any number of newer proposals
   // for other services, and a cap would hide it behind them. With its link (0008): the proposal the receptionist sends.
-  const { data: dealRows } = await db
+  const { data: dealRows, error: dErr } = await db
     .from("deals")
     .select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url")
     .eq("tenant_id", tenantId)
     .eq("contact_id", contact.id)
     .order("created_at", { ascending: false });
+  if (dErr) dbLog().warn("deal_context_read_failed", { tenant_id: tenantId, error: dErr.message });
   const current = pickCurrentDeal(dealRows ?? []);
   // Every other open deal of theirs, newest first (0029): a proposal out for one service beside a client of another.
   const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
@@ -407,19 +409,22 @@ function dealRowFacts(d: Pick<DealFacts, "stage" | "service" | "proposed_at" | "
  * oldest (see readLeadContext).
  */
 export async function readDealForPhone(db: Db, tenantId: string, phoneE164: string): Promise<DealFacts | null> {
-  const { data: c } = await db
+  // A context lookup never costs the reply (readLeadContext): a read that fails is no deal, and said.
+  const { data: c, error: cErr } = await db
     .from("contacts")
     .select("id")
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
     .maybeSingle();
+  if (cErr) dbLog().warn("deal_context_read_failed", { tenant_id: tenantId, error: cErr.message });
   if (!c) return null;
-  const { data } = await db
+  const { data, error } = await db
     .from("deals")
     .select("stage, service, proposed_at, decided_at, ended_at, created_at")
     .eq("tenant_id", tenantId)
     .eq("contact_id", c.id)
     .order("created_at", { ascending: false });
+  if (error) dbLog().warn("deal_context_read_failed", { tenant_id: tenantId, error: error.message });
   // A client of any service is a client (0029): their current deal may be a newer proposal for another one, which hid
   // that they are one, and they were offered a consultation instead of the service.
   const item = (data ?? []).find((x) => x.stage === "won") ?? pickCurrentDeal(data ?? []);

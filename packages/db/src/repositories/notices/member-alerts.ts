@@ -197,13 +197,17 @@ export async function getMemberViews(
  * it, by the door its follow-up card writes by (PUT views/:page). A write that fails throws.
  */
 export async function setMemberView(db: Db, params: { tenantId: string; page: string; view: Json }): Promise<void> {
-  const { error } = await db.rpc("member_view_set", {
+  const { error } = await keepMemberView(db, {
     p_tenant_id: params.tenantId,
     p_page: params.page,
     p_view: params.view,
   });
   if (error) throw new Error(error.message);
 }
+
+/** The same write, its answer as the door gave it (every page's views), for the route that says its refusals itself. */
+export const keepMemberView = async (db: Db, args: Database["public"]["Functions"]["member_view_set"]["Args"]) =>
+  db.rpc("member_view_set", args);
 
 /**
  * A member's own sign-in address, where they belong to this workspace (Send me a test: a step's message mailed to the

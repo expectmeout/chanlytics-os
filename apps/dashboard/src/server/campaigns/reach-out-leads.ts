@@ -18,7 +18,15 @@ import {
   type ReachOutStopDto,
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
-import { findLeadReplyFacts, getOwnerSendFacts, replySaid, type OwnerSendFacts } from "@chanlytics/db/campaigns";
+import {
+  findLeadReplyFacts,
+  getOwnerSendFacts,
+  type OwnerSendFacts,
+  readReachOutLines,
+  readReachOutTimeline,
+  replySaid,
+  stopReachOutLead,
+} from "@chanlytics/db/campaigns";
 import type { Json } from "@chanlytics/db/types";
 import { serviceDb } from "@/server/shared/service-db";
 import { getTenantFacts } from "@/server/shared/tenant";
@@ -28,10 +36,7 @@ import { dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts
 
 /** An open search's chain and its leads' lines; both null when the search has no chain. */
 export async function getLeadLines(ctx: RouteContext, tenantId: string, searchId: string): Promise<ReachOutLeadsDto> {
-  const { data, error } = await ctx.supabase.rpc("reach_out_search_lines", {
-    p_tenant_id: tenantId,
-    p_search_id: searchId,
-  });
+  const { data, error } = await readReachOutLines(ctx.supabase, tenantId, searchId);
   if (error) throw reachOutRefusal(error);
   const lines = data ? dtoOf<ReachOutSearchLinesDto>(data) : null;
   if (!lines) return { lines: null, chain: null, timeline: null };
@@ -50,10 +55,7 @@ export async function findLeadTimeline(
   tenantId: string,
   leadId: string,
 ): Promise<ReachOutLeadTimelineDto | null> {
-  const { data, error } = await ctx.supabase.rpc("reach_out_lead_timeline", {
-    p_tenant_id: tenantId,
-    p_lead_id: leadId,
-  });
+  const { data, error } = await readReachOutTimeline(ctx.supabase, tenantId, leadId);
   if (error) throw reachOutRefusal(error);
   if (!data) return null;
   const story = dtoOf<ReachOutLeadTimelineDto>(data);
@@ -76,7 +78,7 @@ export async function stopLead(
   ctx: Pick<RouteContext, "supabase" | "userId">,
   lead: { id: string; tenant_id: string },
 ): Promise<ReachOutStopDto> {
-  const { data, error } = await ctx.supabase.rpc("reach_out_lead_stop", { p_lead_id: lead.id });
+  const { data, error } = await stopReachOutLead(ctx.supabase, lead.id);
   if (error) throw reachOutRefusal(error);
   // On the ledger: a business stops hearing from the workspace because a member said so, and nothing recorded who.
   await emitEvent(serviceDb(), lead.tenant_id, "reach_out.lead_stopped", "lead", lead.id, { by: ctx.userId });

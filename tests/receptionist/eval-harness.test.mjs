@@ -154,8 +154,10 @@ test("every reply leaves a quality signal on its usage event, and the diagnostic
   );
   assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("usage: (u: Record<string, unknown>) =>"));
   // The diagnostic reading the day back (getBrainSummary) is run in diag-door.test.mjs.
+  // The read is packages/db's (decision 0111); the budget pages through it.
   const b = readCode("apps/edge/lib/ai/budget.ts");
-  assert.ok(b.includes('.eq("kind", "usage.llm_tokens")'));
+  assert.ok(b.includes("pageLlmUsage(db, {"));
+  assert.ok(readCode("packages/db/src/repositories/ai/usage.ts").includes('.eq("kind", "usage.llm_tokens")'));
   assert.ok(b.includes("return 0;"), "a failed read never silences the receptionist");
 });
 

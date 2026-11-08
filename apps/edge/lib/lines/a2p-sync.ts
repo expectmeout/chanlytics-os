@@ -15,11 +15,12 @@ import {
 } from "@chanlytics/channels/lines";
 import { formatPhoneDisplay, type EdgeErrorCode } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
-import { tenantDb } from "@chanlytics/db/shared";
+import { logger } from "../shared/log.js";
 import { keepOnce } from "../shared/alerts/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { findLineAccount, refreshLineToken } from "./sms.js";
 import type { Db, LineRow } from "./a2p-register.js";
+import { saveLineRow } from "@chanlytics/db/lines";
 
 const SYNC_READ_MS = 15000;
 
@@ -71,19 +72,28 @@ async function keepAnswer(
   const { smsState, mock, reason } = answer;
   const moved = smsState !== line.sms_state;
   const news = moved || mock !== line.reg_mock || reason !== line.last_error;
-  await tenantDb(db, line.tenant_id)
-    .from("lines")
-    .update({
-      // Asked: to the back of the sweep's queue, news or not (lines_set_updated_at stamps it too).
-      updated_at: new Date().toISOString(),
-      ...(news ? { sms_state: smsState, reg_mock: mock, last_error: reason } : {}),
-      // Only when the state actually MOVED. This sweep runs hourly and wrote it
-      // every time, so `state_since` meant "the last hour" rather than "when this
-      // wait began" -- and the Setup row reads it to say how long the carriers
-      // have had it, which therefore never got past an hour.
-      ...(moved ? { state_since: new Date().toISOString() } : {}),
-    })
-    .eq("id", line.id);
+  const written = await saveLineRow(db, line, {
+    // Asked: to the back of the sweep's queue, news or not (lines_set_updated_at stamps it too).
+    updated_at: new Date().toISOString(),
+    ...(news ? { sms_state: smsState, reg_mock: mock, last_error: reason } : {}),
+    // Only when the state actually MOVED. This sweep runs hourly and wrote it
+    // every time, so `state_since` meant "the last hour" rather than "when this
+    // wait began" -- and the Setup row reads it to say how long the carriers
+    // have had it, which therefore never got past an hour.
+    ...(moved ? { state_since: new Date().toISOString() } : {}),
+  });
+  if (written.error) lineStateNotWritten(line, written.error.message);
+}
+
+/** A read of the registration that could not be had, kept on the row so the sweep's queue moves past it (see below). */
+async function noteLineError(db: Db, line: LineRow, lastError: string): Promise<void> {
+  const noted = await saveLineRow(db, line, { last_error: lastError });
+  if (noted.error) lineStateNotWritten(line, noted.error.message);
+}
+
+/** A line's row that could not take what the sweep learned: said, and written on the next hour's read. */
+function lineStateNotWritten(line: LineRow, error: string): void {
+  logger({ tenant_id: line.tenant_id }).error("line_state_write_failed", { line_id: line.id, error });
 }
 
 export async function syncRegistration(db: Db, line: LineRow): Promise<RegistrationSync> {
@@ -100,10 +110,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
     // returns from without touching never moves down the queue. Twenty lines
     // with a lost token would otherwise hold every page for ever and the
     // twenty-first would never be asked about at all.
-    await tenantDb(db, line.tenant_id)
-      .from("lines")
-      .update({ last_error: "could not read the registration: the line has no credentials on file" })
-      .eq("id", line.id);
+    await noteLineError(db, line, "could not read the registration: the line has no credentials on file");
     return { ok: false, smsState: line.sms_state, error: "no_line_credentials" };
   }
 
@@ -124,21 +131,16 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   if (refused(answers)) {
     const fresh = await refreshLineToken(db, line);
     if (!fresh.ok) {
-      await tenantDb(db, line.tenant_id)
-        .from("lines")
-        .update({ last_error: `could not read the registration: ${fresh.detail ?? fresh.error}` })
-        .eq("id", line.id);
+      await noteLineError(db, line, `could not read the registration: ${fresh.detail ?? fresh.error}`);
       return { ok: false, smsState: line.sms_state, error: fresh.error, detail: fresh.detail };
     }
     answers = await ask(fresh.account);
     if (refused(answers)) {
-      await tenantDb(db, line.tenant_id)
-        .from("lines")
-        .update({
-          last_error:
-            "could not read the registration: the provider refused the line's credentials even after a refresh",
-        })
-        .eq("id", line.id);
+      await noteLineError(
+        db,
+        line,
+        "could not read the registration: the provider refused the line's credentials even after a refresh",
+      );
       return { ok: false, smsState: line.sms_state, error: "provider_unauthorized" };
     }
   }

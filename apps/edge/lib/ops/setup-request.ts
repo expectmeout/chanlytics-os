@@ -23,6 +23,7 @@ import { notify } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { setupAskMail, UUID } from "@chanlytics/contracts";
+import { findWorkspaceCard } from "@chanlytics/db/workspace";
 
 interface Body {
   tenant_id?: string;
@@ -43,7 +44,7 @@ export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): P
   const result = setupAskMail(subject);
   if (!UUID.test(tenantId) || !result) return refuse(400, "bad_request", "tenant_id and a known `what` are required");
 
-  const tenant = await db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle();
+  const tenant = await findWorkspaceCard(db, tenantId);
   if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
 

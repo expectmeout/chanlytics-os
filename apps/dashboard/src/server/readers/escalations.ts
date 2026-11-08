@@ -3,6 +3,7 @@ import { HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX, type EscalationDto } from "@cha
 import { openRequestsOfThreads } from "@chanlytics/db/calendar";
 import { readerStamp, type Reader } from "../shared/reader";
 import { isGoing } from "../people/going";
+import { listHoldsHandedBack, listHoldsWaiting } from "@chanlytics/db/conversations";
 
 /**
  * The booking each open booking_request hold asks to confirm (decision 0061), laid on its hold: the request card's day,
@@ -53,21 +54,9 @@ export const escalations: Reader<
   async read(rc, { state }) {
     const { supabase } = rc.ctx;
     const tenantId = rc.tenantId;
-    const base = () =>
-      supabase
-        .from("escalations")
-        .select("id, reason, details, state, created_at, conversation_id, conversations (contacts (erasing_since))")
-        .eq("tenant_id", tenantId)
-        .eq("state", state);
     const [waiting, handBack] = await Promise.all([
-      base()
-        .not("reason", "in", `(${HAND_BACK_REASONS.join(",")})`)
-        .order("created_at", { ascending: false })
-        .limit(OPEN_HOLDS_READ_MAX),
-      base()
-        .in("reason", [...HAND_BACK_REASONS])
-        .order("created_at", { ascending: false })
-        .limit(OPEN_HOLDS_READ_MAX),
+      listHoldsWaiting(supabase, tenantId, state, HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX),
+      listHoldsHandedBack(supabase, tenantId, state, HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX),
     ]);
     if (waiting.error) throw new Error(waiting.error.message);
     if (handBack.error) throw new Error(handBack.error.message);

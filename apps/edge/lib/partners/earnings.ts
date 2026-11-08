@@ -12,6 +12,12 @@ import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import type { logger } from "../shared/log.js";
+import {
+  findWorkspacePartner,
+  markBillingCard,
+  recordPartnerEarning,
+  reversePartnerEarning,
+} from "@chanlytics/db/partners";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -37,7 +43,7 @@ export function cardFingerprintOf(sub: Stripe.Subscription): string | null {
 /** Keep the workspace's card mark (00203 billing_card_marks), for the sweep's one check that needs it. */
 export async function markCard(db: Db, tenantId: string, fingerprint: string | null, log: Log): Promise<void> {
   if (!fingerprint) return;
-  const { error } = await db.rpc("billing_card_mark", { p_tenant_id: tenantId, p_fingerprint: fingerprint });
+  const { error } = await markBillingCard(db, tenantId, fingerprint);
   if (!error) return;
   if (notYet(error)) {
     log.warn("partner_card_mark_skipped", { tenant_id: tenantId, error: error.message });
@@ -48,7 +54,7 @@ export async function markCard(db: Db, tenantId: string, fingerprint: string | n
 
 /** Whether a partner brought this workspace: the question asked before anything costs a call to Stripe. */
 export async function isAttributed(db: Db, tenantId: string): Promise<boolean> {
-  const { data, error } = await db.from("partner_tenants").select("tenant_id").eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await findWorkspacePartner(db, tenantId);
   if (error) {
     if (notYet(error)) return false;
     throw new Error(`partner_tenants: ${error.message}`);
@@ -78,7 +84,7 @@ export async function earnFromInvoice(
 ): Promise<LedgerOutcome> {
   if (!inv.id || !planInvoice(inv) || !(inv.amount_paid > 0)) return null;
   const paidAt = inv.status_transitions?.paid_at ?? inv.created;
-  const { data, error } = await db.rpc("partner_earn", {
+  const { data, error } = await recordPartnerEarning(db, {
     p_tenant_id: tenantId,
     p_invoice_id: inv.id,
     p_event_id: eventId,
@@ -127,7 +133,7 @@ export async function reverseForInvoice(
   amountCents: number,
   log: Log,
 ): Promise<LedgerOutcome> {
-  const { data, error } = await db.rpc("partner_reverse", {
+  const { data, error } = await reversePartnerEarning(db, {
     p_invoice_id: invoiceId,
     p_event_id: eventId,
     p_kind: kind,

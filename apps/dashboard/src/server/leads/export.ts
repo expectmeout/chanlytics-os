@@ -23,6 +23,7 @@ import { getTenantFacts } from "../shared/tenant";
 import { recordDecision } from "../shared/verbs";
 import type { RouteContext } from "../shared/with-route";
 import { log } from "@/server/shared/log";
+import { markLeadsExported } from "@chanlytics/db/leads";
 
 /* ------------------------------------------------------------- the export */
 
@@ -145,7 +146,7 @@ export async function exportLeads(
       ),
     from,
   );
-  const { data, error } = await ctx.supabase.rpc("lead_export_mark", { p_tenant_id: tenantId, p_ids: ids });
+  const { data, error } = await markLeadsExported(ctx.supabase, tenantId, ids);
   if (error) throw new Error(`lead_export_mark: ${error.message}`);
   const { name, timezone } = await getTenantFacts(ctx.supabase, tenantId);
   log.info("export.leads", {

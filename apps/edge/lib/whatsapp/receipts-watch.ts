@@ -27,6 +27,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { HOUR_MS } from "@chanlytics/contracts";
+import { findReceiptSince, listSendsWithoutReceipt } from "@chanlytics/db/channels";
 
 /** How long a receipt may take before its absence is a condition. */
 const NO_RECEIPT_AFTER_MS = 6 * HOUR_MS;
@@ -55,22 +56,7 @@ export async function listWhatsappWithoutReceipts(db: SupabaseClient<Database>, 
   try {
     const quietSince = new Date(nowMs - NO_RECEIPT_AFTER_MS).toISOString();
     const watchedSince = new Date(nowMs - NO_RECEIPT_AFTER_MS - WATCHED_FOR_MS).toISOString();
-    const accepted = () =>
-      db
-        .from("messages")
-        .select("tenant_id, created_at, status_updated_at")
-        .eq("channel", "whatsapp")
-        .eq("direction", "outbound")
-        .eq("status", "sent")
-        .not("external_id", "is", null);
-    const [direct, queued] = await Promise.all([
-      accepted()
-        .is("status_updated_at", null)
-        .lt("created_at", quietSince)
-        .gte("created_at", watchedSince)
-        .limit(READ_LIMIT),
-      accepted().lt("status_updated_at", quietSince).gte("status_updated_at", watchedSince).limit(READ_LIMIT),
-    ]);
+    const [direct, queued] = await listSendsWithoutReceipt(db, quietSince, watchedSince, READ_LIMIT);
     const unread = direct.error ?? queued.error;
     if (unread) return { silent: [], error: unread.message };
 
@@ -90,16 +76,7 @@ export async function listWhatsappWithoutReceipts(db: SupabaseClient<Database>, 
     const silent: SilentWorkspace[] = [];
     let error: string | null = null;
     for (const value of byTenant.values()) {
-      const { data: heard, error: heardErr } = await db
-        .from("messages")
-        .select("id")
-        .eq("tenant_id", value.tenantId)
-        .eq("channel", "whatsapp")
-        .eq("direction", "outbound")
-        .in("status", ["delivered", "read", "failed"])
-        .not("external_id", "is", null)
-        .gt("status_updated_at", value.lastSentAt)
-        .limit(1);
+      const { data: heard, error: heardErr } = await findReceiptSince(db, value.tenantId, value.lastSentAt);
       if (heardErr) error = heardErr.message;
       if (heardErr || !heard?.length) silent.push(value);
     }

@@ -3,7 +3,12 @@
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { applyBilling, type BillingPatch } from "@chanlytics/db/billing";
+import {
+  applyBilling,
+  type BillingPatch,
+  findBillingAccount,
+  findBillingAccountOfCustomer,
+} from "@chanlytics/db/billing";
 import { emitEvent } from "@chanlytics/db/events";
 import {
   BILLING_STATUSES,
@@ -26,6 +31,7 @@ import { env } from "../shared/env.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { cardFingerprintOf, markCard } from "../partners/earnings.js";
 import { checkoutKeyOf, checkoutMadeOf, sessionReturn, type CheckoutMade } from "./checkout-session.js";
+import { findWorkspaceStanding } from "@chanlytics/db/workspace";
 
 export type Db = SupabaseClient<Database>;
 
@@ -105,15 +111,14 @@ export function stripeLivemode(): boolean | null {
 }
 
 export async function accountOf(db: Db, tenantId: string): Promise<BillingRow | null> {
-  const { data, error } = await db.from("billing_accounts").select("*").eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await findBillingAccount(db, tenantId);
   if (error) throw new Error(error.message);
   return data;
 }
 
 /** The workspace's switch, when its last member left it (00262), and the zone its bells say a day in; null for none. */
 async function tenantState(db: Db, tenantId: string) {
-  const read = db.from("tenants").select("status, left_empty_at, timezone").eq("id", tenantId);
-  const { data, error } = await read.maybeSingle();
+  const { data, error } = await findWorkspaceStanding(db, tenantId);
   if (error) throw new Error(error.message);
   return data;
 }
@@ -195,11 +200,8 @@ export async function findTenant(
     if (row) return row;
   }
   if (!customerId) return null;
-  const { data, error } = await db
-    .from("billing_accounts")
-    .select("*")
-    .eq("stripe_customer_id", customerId)
-    .maybeSingle();
+  // Stripe names its customer, not the workspace: the account is found across workspaces by that id, by design.
+  const { data, error } = await findBillingAccountOfCustomer(db, customerId);
   if (error) throw new Error(error.message);
   return data;
 }

@@ -371,7 +371,11 @@ test("the wiring: the door files the four columns and keeps them across retries,
     readCode("packages/db/src/repositories/voice/calls.ts"),
     /p_analysis: \(?\(callInput\.analysis \?\? null\) as Json\)?,/,
   );
-  const dto = readCode("apps/dashboard/src/server/conversations/dto.ts");
+  // With the columns it reads them by, packages/db's (decision 0111).
+  const dto = readCode(
+    "apps/dashboard/src/server/conversations/dto.ts",
+    "packages/db/src/repositories/voice/call-rows.ts",
+  );
   assert.ok(
     dto.includes("summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object") &&
       dto.includes("wanted: call.wanted ?? null,"),

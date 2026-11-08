@@ -2,6 +2,8 @@ import "server-only";
 import { standingFromConfig, type ChannelDto } from "@chanlytics/contracts";
 import { findLastInboundOn } from "@chanlytics/db/channels";
 import { readerStamp, type Reader } from "../shared/reader";
+import { listChannelsForPage } from "@chanlytics/db/workspace";
+import { findLastCallIn } from "@chanlytics/db/voice";
 
 /**
  * GET channels, as the route answers it: the workspace's channels as the page may see them, by kind -- each row, when
@@ -18,20 +20,9 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
     const { supabase } = rc.ctx;
     const tenantId = rc.tenantId;
     const [rows, lastWa, lastCall] = await Promise.all([
-      supabase
-        .from("tenant_channels")
-        .select("id, kind, number_e164, status, created_at, config")
-        .eq("tenant_id", tenantId)
-        .order("kind"),
+      listChannelsForPage(supabase, tenantId),
       findLastInboundOn(supabase, tenantId, "whatsapp"),
-      supabase
-        .from("calls")
-        .select("started_at")
-        .eq("tenant_id", tenantId)
-        .eq("direction", "inbound")
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle(),
+      findLastCallIn(supabase, tenantId),
     ]);
     if (rows.error) throw new Error(rows.error.message);
     if (lastCall.error) throw new Error(lastCall.error.message);

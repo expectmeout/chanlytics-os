@@ -2,6 +2,15 @@
  * The partners domain: `@chanlytics/db/partners`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export {
+  findWorkspacePartner,
+  listPartnerLettersDue,
+  markBillingCard,
+  markPartnerLetterWritten,
+  recordPartnerEarning,
+  reversePartnerEarning,
+  sweepPartnerEarnings,
+} from "./earnings";
+export {
   acceptHandover,
   createWorkspaceForBusiness,
   declineHandover,

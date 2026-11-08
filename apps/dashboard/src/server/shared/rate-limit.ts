@@ -33,6 +33,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isProduction } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
 import { serviceDbIfConfigured } from "@/server/shared/service-db";
+import { takeRateBucket } from "@chanlytics/db/workspace";
 
 interface RateRule {
   limit: number;
@@ -365,7 +366,7 @@ export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallbac
   return {
     async take(bucket, actor, rule, now, strict = false) {
       try {
-        const { data, error } = await db.rpc("take_rate", {
+        const { data, error } = await takeRateBucket(db, {
           p_bucket: bucket,
           p_actor: actor,
           p_limit: rule.limit,

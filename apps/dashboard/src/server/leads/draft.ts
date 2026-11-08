@@ -28,6 +28,7 @@ import { askForJson } from "../shared/model-json";
 import { serviceDb } from "../shared/service-db";
 import type { RouteContext } from "../shared/with-route";
 import { SHORTER_ASK, WARMER_ASK } from "@/server/shared/model/tones";
+import { findLeadDraftFacts } from "@chanlytics/db/leads";
 
 /* -------------------------------------------------------------- the draft */
 
@@ -73,11 +74,7 @@ function writerLines(config: ReturnType<typeof parseTenantConfig>): string[] {
 
 /** What this lead is, in the words the card saw: never a guess, and never the name of whoever fetched it. */
 async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): Promise<string[]> {
-  const { data, error } = await ctx.supabase
-    .from("leads")
-    .select("business_name, category, city, region, website_host, rating, reviews")
-    .eq("id", lead.id)
-    .maybeSingle();
+  const { data, error } = await findLeadDraftFacts(ctx.supabase, lead.id);
   if (error) throw new Error(error.message);
   const item = (data ?? null) as {
     business_name?: string;

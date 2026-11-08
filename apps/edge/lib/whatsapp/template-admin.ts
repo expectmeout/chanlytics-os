@@ -25,6 +25,14 @@ import {
 import type { Json } from "@chanlytics/db/types";
 import { logger } from "../shared/log.js";
 import { UUID, NUMBERED_SLOT } from "@chanlytics/contracts";
+import { findWhatsAppAccount } from "@chanlytics/db/channels";
+import {
+  deleteTemplateRow,
+  findWhatsAppTemplate,
+  listWhatsAppTemplateKeys,
+  saveTemplateRow,
+  saveTemplateRows,
+} from "@chanlytics/db/campaigns";
 
 const NAME = /^[a-z0-9_]{1,512}$/;
 
@@ -81,15 +89,8 @@ export async function createWhatsappTemplate(
   if (!db) return refuse(503, "no_database");
 
   // The account of the oldest active number, whose credentials getWaCredentialsForTenant gives: a workspace may hold two.
-  const { data: ch } = await db
-    .from("tenant_channels")
-    .select("id, waba_id")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "whatsapp")
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
+  if (chErr) return refuse(503, "read_failed", chErr.message);
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
   const creds = await getWaCredentialsForTenant(db, tenantId);
@@ -129,11 +130,7 @@ export async function createWhatsappTemplate(
     source: "chanlytics",
     created_by: userId,
   };
-  const { data: saved, error } = await db
-    .from("templates")
-    .upsert(row, { onConflict: "tenant_id,channel,name,language" })
-    .select("id")
-    .single();
+  const { data: saved, error } = await saveTemplateRow(db, tenantId, row);
   if (error || !saved) return refuse(500, "write_failed", error?.message);
   log.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: created.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: created.data.id, meta_status: status });
@@ -162,24 +159,12 @@ export async function deleteWhatsappTemplate(
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  const { data: row } = await db
-    .from("templates")
-    .select("id, name, language, meta_id")
-    .eq("id", templateId)
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp")
-    .maybeSingle();
+  const { data: row, error: rowErr } = await findWhatsAppTemplate(db, tenantId, templateId);
+  if (rowErr) return refuse(503, "read_failed", rowErr.message);
   if (!row) return refuse(404, "not_found");
 
-  const { data: ch } = await db
-    .from("tenant_channels")
-    .select("id, waba_id")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "whatsapp")
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
+  if (chErr) return refuse(503, "read_failed", chErr.message);
   if (!ch?.waba_id) return refuse(409, "no_waba");
   const creds = await getWaCredentialsForTenant(db, tenantId);
   // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
@@ -210,7 +195,7 @@ export async function deleteWhatsappTemplate(
     });
     return refuse(502, "meta_refused", gone.error);
   }
-  const { error } = await db.from("templates").delete().eq("id", row.id).eq("tenant_id", tenantId);
+  const { error } = await deleteTemplateRow(db, tenantId, row.id);
   if (error) return refuse(500, "write_failed", error.message);
   log.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
   return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });
@@ -240,15 +225,7 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  const { data: ch, error: chErr } = await db
-    .from("tenant_channels")
-    .select("id, waba_id")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "whatsapp")
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
   if (chErr) return refuse(500, "channel_read_failed", chErr.message);
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
@@ -299,11 +276,7 @@ export async function syncTemplates(
     return { ok: false, status: 502, code: "meta_failed", detail: listed.error };
   }
 
-  const { data: existing, error: readError } = await db
-    .from("templates")
-    .select("name, language, variables")
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp");
+  const { data: existing, error: readError } = await listWhatsAppTemplateKeys(db, tenantId);
   // A read that failed is not no rows on file: every label would go back to Value 1, and Meta's sample be hidden again.
   if (readError) return { ok: false, status: 503, code: "read_failed", detail: readError.message };
   const keep = new Map((existing ?? []).map((r) => [`${r.name}|${r.language}`, labelsOf(r.variables)]));
@@ -315,25 +288,27 @@ export async function syncTemplates(
   const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));
   const known = rows.filter((r) => !fresh.includes(r));
   if (known.length) {
-    const { error } = await db.from("templates").upsert(
+    const { error } = await saveTemplateRows(
+      db,
+      tenantId,
       known.map((r) => ({
         ...r,
         components: r.components as unknown as Json,
         variables: r.variables as unknown as Json,
       })),
-      { onConflict: "tenant_id,channel,name,language" },
     );
     if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
   }
   if (fresh.length) {
-    const { error } = await db.from("templates").upsert(
+    const { error } = await saveTemplateRows(
+      db,
+      tenantId,
       fresh.map((r) => ({
         ...r,
         components: r.components as unknown as Json,
         variables: r.variables as unknown as Json,
         hidden_at: now.toISOString(),
       })),
-      { onConflict: "tenant_id,channel,name,language" },
     );
     if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
   }

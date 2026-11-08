@@ -31,6 +31,12 @@ import { getActivitySubjects } from "@chanlytics/db/events";
 import type { RouteContext } from "@/server/shared/with-route";
 import { getTenantFacts } from "@/server/shared/tenant";
 import { getTeamRoster } from "@/server/workspace/team";
+import {
+  listActivityDecisions,
+  listActivityEvents,
+  listCallIdsOfPerson,
+  listThreadIdsOfPerson,
+} from "@chanlytics/db/reports";
 
 /** Rows per read, over both ledgers merged. */
 const ACTIVITY_PAGE = 100;
@@ -160,24 +166,21 @@ interface Ask {
 async function decisionsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[]> {
   const { f, narrowed, range, subjects } = ask;
   if (narrowed.verbs?.length === 0) return [];
-  let query = ask.ctx.supabase
-    .from("decisions")
-    .select("id, verb, subject_type, subject_id, actor_type, actor_user_id, payload, created_at")
-    .eq("tenant_id", ask.tenantId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(ACTIVITY_PAGE + 1 + TIE_SLACK);
-  if (narrowed.verbs)
-    query = narrowed.verbs.length === 1 ? query.eq("verb", narrowed.verbs[0] ?? "") : query.in("verb", narrowed.verbs);
-  if (f.actor)
-    query = isActor(f.actor) ? query.eq("actor_type", ACTOR_TYPE[f.actor]) : query.eq("actor_user_id", f.actor);
-  if (range?.from) query = query.gte("created_at", range.from);
-  if (range?.to) query = query.lt("created_at", range.to);
-  // lte, not lt: a row written in the same microsecond as the cursor's is
-  // still ahead of it in the order, and the merge's own filter is what drops it.
-  if (cut) query = query.lte("created_at", cut.at);
-  if (subjects) query = query.in("subject_id", subjects);
-  const { data, error } = await query;
+  // Through the cursor, not before it: a row written in the same microsecond as the cursor's is still ahead of it in the
+  // order, and the merge's own filter is what drops it.
+  const { data, error } = await listActivityDecisions(
+    ask.ctx.supabase,
+    ask.tenantId,
+    {
+      verbs: narrowed.verbs ?? undefined,
+      ...(f.actor ? (isActor(f.actor) ? { actorType: ACTOR_TYPE[f.actor] } : { actorUserId: f.actor }) : {}),
+      from: range?.from ?? undefined,
+      to: range?.to ?? undefined,
+      through: cut?.at,
+      subjects: subjects ?? undefined,
+    },
+    ACTIVITY_PAGE + 1 + TIE_SLACK,
+  );
   if (error) throw new Error(error.message);
   return (data ?? []).map(activityRowOfDecision);
 }
@@ -189,25 +192,21 @@ async function decisionsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[
 async function eventsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[]> {
   const { f, narrowed, range, subjects } = ask;
   if (narrowed.kinds?.length === 0 || (f.actor && isActor(f.actor))) return [];
-  let items = ask.ctx.supabase
-    .from("events")
-    .select("id, kind, category, subject_type, subject_id, data, created_at")
-    .eq("tenant_id", ask.tenantId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(ACTIVITY_PAGE + 1 + TIE_SLACK);
-  if (narrowed.kinds) {
-    items = narrowed.kinds.length === 1 ? items.eq("kind", narrowed.kinds[0] ?? "") : items.in("kind", narrowed.kinds);
-  } else {
-    for (const p of ACTIVITY_NOISE_PREFIXES) items = items.not("kind", "like", `${p}%`);
-    for (const k of ACTIVITY_NOISE_KINDS) items = items.neq("kind", k);
-  }
-  if (f.actor) items = items.filter("data->>by", "eq", f.actor);
-  if (range?.from) items = items.gte("created_at", range.from);
-  if (range?.to) items = items.lt("created_at", range.to);
-  if (cut) items = items.lte("created_at", cut.at);
-  if (subjects) items = items.in("subject_id", subjects);
-  const { data, error } = await items;
+  const { data, error } = await listActivityEvents(
+    ask.ctx.supabase,
+    ask.tenantId,
+    {
+      kinds: narrowed.kinds ?? null,
+      noisePrefixes: ACTIVITY_NOISE_PREFIXES,
+      noiseKinds: ACTIVITY_NOISE_KINDS,
+      by: f.actor ?? undefined,
+      from: range?.from ?? undefined,
+      to: range?.to ?? undefined,
+      through: cut?.at,
+      subjects: subjects ?? undefined,
+    },
+    ACTIVITY_PAGE + 1 + TIE_SLACK,
+  );
   if (error) throw new Error(error.message);
   return (
     (data ?? [])
@@ -241,8 +240,8 @@ function rangeOf(f: ActivityFilter, timezone: string): Ask["range"] {
 async function subjectsOf(ctx: RouteContext, tenantId: string, person: string): Promise<string[]> {
   const sb = ctx.supabase;
   const [convs, calls] = await Promise.all([
-    sb.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", person),
-    sb.from("calls").select("id").eq("tenant_id", tenantId).eq("contact_id", person),
+    listThreadIdsOfPerson(sb, tenantId, person),
+    listCallIdsOfPerson(sb, tenantId, person),
   ]);
   if (convs.error) throw new Error(convs.error.message);
   if (calls.error) throw new Error(calls.error.message);

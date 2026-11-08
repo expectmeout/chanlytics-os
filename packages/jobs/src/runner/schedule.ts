@@ -11,7 +11,7 @@
  * payload that names one already keeps it, so a job a job schedules (a
  * broadcast's next batch) carries the request that started the chain.
  */
-import { hasRequeuedCopy, readJobToRequeue } from "@chanlytics/db/jobs";
+import { cancelScheduledJobs, hasRequeuedCopy, insertJob, insertJobOnce, readJobToRequeue } from "@chanlytics/db/jobs";
 import type { Json } from "@chanlytics/db/types";
 import { JOB_KINDS, type JobKind } from "@chanlytics/contracts";
 import { logger, requestId } from "@chanlytics/log";
@@ -95,7 +95,7 @@ function rowToInsert(scheduleParams: ScheduleParams) {
 }
 
 export async function scheduleJob(db: Db, scheduleParams: ScheduleParams): Promise<{ jobId: string }> {
-  const { data, error } = await db.from("jobs").insert(rowToInsert(scheduleParams)).select("id").single();
+  const { data, error } = await insertJob(db, rowToInsert(scheduleParams));
   if (error || !data) throw new Error(`schedule_job: ${error?.message ?? "no row"}`);
   return { jobId: data.id };
 }
@@ -109,7 +109,7 @@ export async function scheduleJobOnce(
   db: Db,
   scheduleParams: ScheduleParams,
 ): Promise<"scheduled" | "already_scheduled"> {
-  const { error } = await db.from("jobs").insert(rowToInsert(scheduleParams));
+  const { error } = await insertJobOnce(db, rowToInsert(scheduleParams));
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
   // The database's code travels with it: a caller tells a refusal (a kind the database does not know) from a write that
@@ -135,14 +135,7 @@ export async function cancelJobsFor(
   // become a different filter — or an extra one — and widen the rows this
   // cancels, rather than failing.
   if (!/^[a-z][a-z0-9_]*$/.test(payloadKey)) throw new Error(`cancel_jobs_for: ${payloadKey} is not a payload key`);
-  const { data, error } = await db
-    .from("jobs")
-    .update({ state: "canceled" })
-    .eq("tenant_id", tenantId)
-    .eq("kind", kind)
-    .eq("state", "scheduled")
-    .eq(`payload->>${payloadKey}`, payloadValue)
-    .select("id");
+  const { data, error } = await cancelScheduledJobs(db, { tenantId, kind, payloadKey, payloadValue });
   if (error) {
     logger().error("cancel_jobs_failed", { tenant_id: tenantId, kind, error: error.message });
     return 0;

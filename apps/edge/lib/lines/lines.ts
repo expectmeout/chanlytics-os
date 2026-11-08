@@ -8,7 +8,6 @@
  * Cross-workspace: a routing key is unique platform-wide; its row is read unfiltered to refuse another's claim.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tenantDb } from "@chanlytics/db/shared";
 import type { Database, Json } from "@chanlytics/db/types";
 import {
   chooseLineProvider,
@@ -32,6 +31,17 @@ import { ensureVoiceAgent } from "./voice-agent.js";
 import { lineDtoOf, type LineDto } from "@chanlytics/contracts";
 import { env } from "../shared/env.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
+import {
+  findOtherLineOnRow,
+  findRoutingRowByKey,
+  getLineCredentials,
+  insertRoutingRow,
+  patchRoutingRow,
+  putLineCredentials,
+  saveLineRow,
+  takeRoutingRow,
+} from "@chanlytics/db/lines";
+import { findChannelConfig } from "@chanlytics/db/channels";
 
 export interface LineProviderChoice {
   name: LineProviderName;
@@ -110,16 +120,16 @@ export function linePorts(
       async save(patch) {
         const row: Partial<Row> = {};
         for (const [k, v] of Object.entries(patch)) (row as Record<string, unknown>)[k] = v;
-        const { error } = await tenantDb(db, line.tenant_id).from("lines").update(row).eq("id", line.id);
+        const { error } = await saveLineRow(db, line, row);
         if (error) throw new Error(`saving the line: ${error.message}`);
       },
       async getSecrets() {
-        const { data, error } = await db.rpc("get_line_credentials", { p_line_id: line.id });
+        const { data, error } = await getLineCredentials(db, line.id);
         if (error) throw new Error(`reading the line's credentials: ${error.message}`);
         return data && typeof data === "object" && !Array.isArray(data) ? data : {};
       },
       async putSecrets(s) {
-        const { error } = await db.rpc("put_line_credentials", { p_line_id: line.id, p_secret: s as unknown as Json });
+        const { error } = await putLineCredentials(db, line.id, s as unknown as Json);
         if (error) throw new Error(`keeping the line's credentials: ${error.message}`);
       },
     },
@@ -201,12 +211,7 @@ async function ensureRoutingRow(
   // refused. Filtering it out instead would fall through to the insert and
   // fail on the constraint, which says "duplicate key" to an owner who has
   // just been told their number is being set up.
-  const have = await db
-    .from("tenant_channels")
-    .select("id, tenant_id, status")
-    .eq("kind", kind)
-    .eq("external_id", externalId)
-    .maybeSingle();
+  const have = await findRoutingRowByKey(db, kind, externalId);
   if (have.error) throw new Error(`reading the ${kind} row: ${have.error.message}`);
   if (have.data) {
     const mine = have.data.tenant_id === tenantId;
@@ -227,16 +232,13 @@ async function ensureRoutingRow(
     // called; a Retell agent id is minted per workspace and never recycled, so
     // the row changing hands here is in practice always an sms one.
     if (!mine || have.data.status !== "active") {
-      const take = await db
-        .from("tenant_channels")
-        .update({ tenant_id: tenantId, status: "active", number_e164: row.number_e164, config: row.config })
-        .eq("id", have.data.id)
-        // Pinned to the row as it was READ, so a claim laid between the two
-        // statements wins and this fails rather than overwriting it.
-        .eq("tenant_id", have.data.tenant_id)
-        .eq("status", have.data.status)
-        .select("id")
-        .maybeSingle();
+      // Pinned to the row as it was READ, so a claim laid between the two statements wins and this fails rather than
+      // overwriting it.
+      const take = await takeRoutingRow(
+        db,
+        { id: have.data.id, tenantId: have.data.tenant_id, status: have.data.status },
+        { tenant_id: tenantId, status: "active", number_e164: row.number_e164, config: row.config },
+      );
       if (take.error) throw new Error(`taking the ${kind} row: ${take.error.message}`);
       if (!take.data)
         throw new Error(
@@ -245,7 +247,7 @@ async function ensureRoutingRow(
     }
     return { channelId: have.data.id, created: false };
   }
-  const ins = await db.from("tenant_channels").insert(row).select("id").single();
+  const ins = await insertRoutingRow(db, row);
   if (ins.error) throw new Error(`writing the ${kind} row: ${ins.error.message}`);
   return { channelId: ins.data.id, created: true };
 }
@@ -298,14 +300,7 @@ export async function releaseRoutingRows(
     // becomes the number this workspace publishes. The oldest, which is the
     // same line `ensureVoiceAgent`, `line_forwarding_set` and `findBusinessPage`
     // all settle on when a workspace has more than one.
-    const shared = await db
-      .from("lines")
-      .select("id, e164")
-      .eq("tenant_id", tenantId)
-      .neq("id", line.id)
-      .filter(`facts->>${key}`, "eq", id)
-      .order("created_at")
-      .limit(1);
+    const shared = await findOtherLineOnRow(db, { tenantId, lineId: line.id, fact: key, channelId: id });
     if (shared.error) return stop(`reading the workspace's other lines: ${shared.error.message}`);
     const holder = shared.data?.[0];
     if (holder) {
@@ -314,12 +309,7 @@ export async function releaseRoutingRows(
       // the receptionist's own facts publish as the workspace's number, so a
       // kept row still carrying the RELEASED number advertises a number that
       // has gone back to the carrier.
-      const row = await db
-        .from("tenant_channels")
-        .select("config")
-        .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
+      const row = await findChannelConfig(db, tenantId, id);
       if (row.error) return stop(`reading the routing row: ${row.error.message}`);
       const cfg =
         row.data?.config && typeof row.data.config === "object" && !Array.isArray(row.data.config)
@@ -334,12 +324,12 @@ export async function releaseRoutingRows(
         config: { ...cfg, line_id: holder.id },
       };
       if (holder.e164) patch.number_e164 = holder.e164;
-      const moved = await db.from("tenant_channels").update(patch).eq("id", id).eq("tenant_id", tenantId);
+      const moved = await patchRoutingRow(db, tenantId, id, patch);
       if (moved.error) return stop(`repointing the routing row: ${moved.error.message}`);
       released[key === "channel_id" ? "channel_kept" : "sms_channel_kept"] = id;
       continue;
     }
-    const off = await db.from("tenant_channels").update({ status: "disabled" }).eq("id", id).eq("tenant_id", tenantId);
+    const off = await patchRoutingRow(db, tenantId, id, { status: "disabled" });
     if (off.error) return stop(`switching the routing row off: ${off.error.message}`);
     released[key === "channel_id" ? "channel_disabled" : "sms_channel_disabled"] = id;
   }

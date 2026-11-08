@@ -46,6 +46,7 @@ import { listPausedJobKinds } from "@chanlytics/db/jobs";
 import { watchVoice } from "../voice/watch/voice-watch.js";
 import { env } from "../shared/env.js";
 import type { SweepTick } from "./sweep-door.js";
+import { markSweepsAlerted, readJobsBacklog, readSweepHealth } from "@chanlytics/db/ops";
 
 /**
  * The campaigns domain offers by email leave from (EMAIL_CAMPAIGNS_DOMAIN), when this deployment names one: it must stay
@@ -81,7 +82,7 @@ async function pagePausedKinds({ db, L }: Pick<SweepTick, "db" | "L">): Promise<
 }
 
 export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
-  const { data, error } = await db.rpc("sweep_health");
+  const { data, error } = await readSweepHealth(db);
   if (error) {
     L.error("sweep_health_query_failed", { error: error.message });
     return refuse(500, "query_failed");
@@ -119,16 +120,13 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
 
   // Only a DELIVERED alert earns the quiet — the alertUnroutable lesson. If
   // the mail failed, nothing is stamped and the next tick tries again.
-  const { error: markErr } = await db.rpc("sweep_mark_alerted", {
-    p_alerted: delivered ? plan.alert.map((r) => r.sweep) : [],
-    p_healthy: plan.healthy,
-  });
+  const { error: markErr } = await markSweepsAlerted(db, delivered ? plan.alert.map((r) => r.sweep) : [], plan.healthy);
   if (markErr) L.error("sweep_health_mark_failed", { error: markErr.message });
 
   // Due work nobody is claiming is the platform's condition whatever the
   // sweep rows say: the heartbeat can be scheduled and answering and still
   // not draining. One page per window until it does.
-  const { data: backlog, error: backlogErr } = await db.rpc("jobs_backlog");
+  const { data: backlog, error: backlogErr } = await readJobsBacklog(db);
   if (backlogErr) L.error("sweep_health_backlog_unreadable", { error: backlogErr.message });
   const due = typeof backlog === "number" ? backlog : 0;
   if (due > 0) {

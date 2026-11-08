@@ -18,6 +18,7 @@ import { listPlatformDay } from "@chanlytics/db/console";
 import type { Database } from "@chanlytics/db/types";
 import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
 import { logger } from "../shared/log.js";
+import { readAnswerSilence } from "@chanlytics/db/ops";
 
 /** The page goes out only in the first hours after the rollup: once per day, not once per suppression window. */
 const ANSWER_SILENCE_PAGE_UNTIL_HOUR = 6;
@@ -70,7 +71,7 @@ export async function watchAnswerSilence(
 ): Promise<number> {
   if (!answerSilenceDue(nowMs)) return 0;
   const day = rolledDay(nowMs);
-  const silence = await db.rpc("platform_answer_silence", { p_day: day });
+  const silence = await readAnswerSilence(db, day);
   if (silence.error) {
     if (silence.error.code !== "PGRST202")
       logger({ sweep: "health" }).error("answer_silence_unreadable", { error: silence.error.message });

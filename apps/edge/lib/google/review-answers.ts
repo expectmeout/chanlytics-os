@@ -7,7 +7,7 @@
  * (`replyOnProfile`). The model's draft itself is review-reply.ts.
  */
 import { emitEvent, getSubjectsWith } from "@chanlytics/db/events";
-import { listPolicies, doesWorkspaceAnswerOnItsOwn } from "@chanlytics/db/workspace";
+import { doesWorkspaceAnswerOnItsOwn, findConfigRow, findWorkspaceName, listPolicies } from "@chanlytics/db/workspace";
 import { replyToReview, reviewParent, type PlacesHttp } from "@chanlytics/channels/google";
 import {
   autoReplyCandidates,
@@ -25,6 +25,13 @@ import { logger } from "../shared/log.js";
 import { http } from "../shared/google/places.js";
 import { connectionOf, type ConnectionRow, type Db } from "../shared/google/rows.js";
 import { tokenFor } from "../shared/google/credentials.js";
+import {
+  findReviewOnGoogle,
+  findReviewToAnswer,
+  listUnrepliedProfileReviews,
+  patchGoogleReview,
+  saveHeldReviewReply,
+} from "@chanlytics/db/google";
 
 /**
  * The drafts one sync may write under the auto mode: twice the replies it posts, so a review the model could not
@@ -40,10 +47,7 @@ export async function reviewReplyMode(db: Db, tenantId: string): Promise<ReviewR
 
 /** What the receptionist knows about the business when it writes under a review: the name, the tone, the languages, the services — from the same profile the WhatsApp brain speaks from. */
 async function reviewFacts(db: Db, tenantId: string): Promise<ReviewReplyFacts> {
-  const [t, c] = await Promise.all([
-    db.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
-    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
-  ]);
+  const [t, c] = await Promise.all([findWorkspaceName(db, tenantId), findConfigRow(db, tenantId)]);
   if (t.error) throw new Error(t.error.message);
   if (c.error) throw new Error(c.error.message);
   const brain = parseTenantConfig(c.data?.config)?.brain ?? null;
@@ -64,12 +68,7 @@ export async function draftFor(
   tenantId: string,
   rowId: string,
 ): Promise<{ ok: true; text: string } | EdgeRefusal> {
-  const review = await db
-    .from("google_reviews")
-    .select("id, rating, author, body, published_at")
-    .eq("tenant_id", tenantId)
-    .eq("id", rowId)
-    .maybeSingle();
+  const review = await findReviewToAnswer(db, tenantId, rowId);
   if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
   if (!review.data) return { ok: false, error: "no_review" };
   const facts = await reviewFacts(db, tenantId);
@@ -118,11 +117,12 @@ async function markReplied(
   rowId: string,
   reply: { reply_text: string | null; replied_at: string | null },
 ): Promise<void> {
-  const up = await db
-    .from("google_reviews")
-    .update({ ...reply, draft_text: null, drafted_at: null, posts_at: null })
-    .eq("id", rowId)
-    .eq("tenant_id", tenantId);
+  const up = await patchGoogleReview(db, tenantId, rowId, {
+    ...reply,
+    draft_text: null,
+    drafted_at: null,
+    posts_at: null,
+  });
   if (up.error) throw new Error(up.error.message);
 }
 
@@ -138,8 +138,7 @@ async function writeHeldReply(
   set: { draft_text?: string; drafted_at?: string; posts_at: string | null },
   timed = false,
 ): Promise<boolean> {
-  const q = db.from("google_reviews").update(set).eq("tenant_id", tenantId).eq("id", rowId).is("reply_text", null);
-  const up = await (timed ? q.not("posts_at", "is", null) : q).select("id");
+  const up = await saveHeldReviewReply(db, tenantId, rowId, set, timed);
   if (up.error) throw new Error(up.error.message);
   return (up.data ?? []).length > 0;
 }
@@ -185,14 +184,7 @@ async function answerNewReviews(
   // Not while the workspace is paused or ended or its plan has stopped the receptionist: a public reply, with nobody
   // left to read it (doesWorkspaceAnswerOnItsOwn says which).
   if (!(await doesWorkspaceAnswerOnItsOwn(db, conn.tenant_id))) return nothingAnswered();
-  const unreplied = await db
-    .from("google_reviews")
-    .select("id, review_id, origin, rating, author, body, published_at, reply_text, draft_text, posts_at")
-    .eq("tenant_id", conn.tenant_id)
-    .eq("origin", "profile")
-    .is("reply_text", null)
-    .order("published_at", { ascending: false, nullsFirst: false })
-    .limit(20);
+  const unreplied = await listUnrepliedProfileReviews(db, conn.tenant_id, 20);
   if (unreplied.error) throw new Error(unreplied.error.message);
   const rows: Unreplied[] = unreplied.data ?? [];
   if (!rows.length) return nothingAnswered();
@@ -298,12 +290,7 @@ export async function replyOnProfile(
 ): Promise<{ ok: true; reply_text: string | null; replied_at: string | null } | EdgeRefusal> {
   const conn = await connectionOf(db, tenantId);
   if (!conn || !conn.location_name) return { ok: false, error: "not_connected" };
-  const review = await db
-    .from("google_reviews")
-    .select("id, review_id, origin")
-    .eq("tenant_id", tenantId)
-    .eq("id", rowId)
-    .maybeSingle();
+  const review = await findReviewOnGoogle(db, tenantId, rowId);
   if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
   if (!review.data) return { ok: false, error: "no_review" };
   if (review.data.origin !== "profile") return { ok: false, error: "not_from_profile" };

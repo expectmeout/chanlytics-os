@@ -52,7 +52,15 @@ import {
 } from "@chanlytics/db/campaigns";
 import { emitEvent, type EventData } from "@chanlytics/db/events";
 import { stampEmailFromMailbox, stampEmailLeftAs } from "@chanlytics/db/email";
-import { recordOutbound, findWireRow } from "@chanlytics/db/channels";
+import {
+  finalizeQueuedMessage,
+  findMessageWrittenAt,
+  findTemplateCategory,
+  findWireRow,
+  listPersonRepliesAfter,
+  recordOutbound,
+  stampThreadSent,
+} from "@chanlytics/db/channels";
 import { replyAnswersAt } from "@chanlytics/db/conversations";
 import type { Database, Json } from "@chanlytics/db/types";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./email";
@@ -491,24 +499,15 @@ function refusalFor(
  * thread: it retires nothing.
  */
 async function overtakenByHuman(db: Db, delivery: Delivery): Promise<string | null> {
-  const { data: mine, error: mineErr } = await db
-    .from("messages")
-    .select("created_at")
-    .eq("id", delivery.messageId!)
-    .eq("tenant_id", delivery.tenantId)
-    .maybeSingle();
+  const { data: mine, error: mineErr } = await findMessageWrittenAt(db, delivery.tenantId, delivery.messageId!);
   if (mineErr) throw new Error(`deliver: cannot read message ${delivery.messageId}: ${mineErr.message}`);
   if (!mine) return null;
-  const { data: newer, error } = await db
-    .from("messages")
-    .select("id, meta")
-    .eq("conversation_id", delivery.conversationId)
-    .eq("tenant_id", delivery.tenantId)
-    .eq("direction", "outbound")
-    .eq("sender", "human")
-    .gt("created_at", mine.created_at)
-    .order("created_at", { ascending: true })
-    .limit(10);
+  const { data: newer, error } = await listPersonRepliesAfter(db, {
+    tenantId: delivery.tenantId,
+    conversationId: delivery.conversationId,
+    after: mine.created_at,
+    limit: 10,
+  });
   if (error) throw new Error(`deliver: cannot read the thread for ${delivery.messageId}: ${error.message}`);
   // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
   // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
@@ -539,11 +538,11 @@ function event<K extends MessageKind>(
 
 /** The thread stamped with the send, as recordOutbound stamps it on the row it writes. */
 async function stampThread(db: Db, delivery: Delivery, nowMs: number): Promise<void> {
-  const { error } = await db
-    .from("conversations")
-    .update({ last_message_at: new Date(nowMs).toISOString() })
-    .eq("id", delivery.conversationId)
-    .eq("tenant_id", delivery.tenantId);
+  const { error } = await stampThreadSent(db, {
+    tenantId: delivery.tenantId,
+    conversationId: delivery.conversationId,
+    at: new Date(nowMs).toISOString(),
+  });
   if (error)
     deliverLog.error("deliver_stamp_failed", {
       tenant_id: delivery.tenantId,
@@ -603,12 +602,7 @@ async function leftAs(db: Db, delivery: Delivery, sent: SendResult): Promise<voi
 }
 
 async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise<boolean> {
-  const { data, error } = await db
-    .from("messages")
-    .update(patch)
-    .eq("id", d.messageId!)
-    .eq("status", "queued")
-    .select("id");
+  const { data, error } = await finalizeQueuedMessage(db, d.messageId!, patch);
   if (error) throw new Error(`deliver: cannot finalize message ${d.messageId}: ${error.message}`);
   return !!data && data.length > 0;
 }
@@ -784,14 +778,11 @@ export async function getTemplatePurpose(
   template: { name: string; language: string } | undefined | null,
 ): Promise<SendPurpose> {
   if (!template) return "conversational";
-  const { data, error } = await db
-    .from("templates")
-    .select("category")
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp")
-    .eq("name", template.name)
-    .eq("language", template.language)
-    .maybeSingle();
+  const { data, error } = await findTemplateCategory(db, {
+    tenantId,
+    name: template.name,
+    language: template.language,
+  });
   if (error) throw new Error(`deliver: cannot read template ${template.name}: ${error.message}`);
   return purposeOfTemplate(data?.category);
 }

@@ -15,6 +15,7 @@ import { serviceDb } from "@/server/shared/service-db";
 import { answerOf, estimateForRound, refusalOf } from "@/server/leads/leads";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import { startLeadSearch } from "@chanlytics/db/leads";
 
 export const CreateSchema = z.intersection(LeadSearchPlanSchema, z.object({ thread_id: z.unknown().optional() }));
 
@@ -24,7 +25,7 @@ export async function createLeadSearch(ctx: RouteContext, member: Member, input:
   // change made before it existed): the door refuses any other, and a card changed before Find failed (23 Oct 2026).
   const plan = { ...rest, version: 1 };
   const threadId = isUuid(thread) ? String(thread) : null;
-  const { data, error } = await ctx.supabase.rpc("lead_search_create", {
+  const { data, error } = await startLeadSearch(ctx.supabase, {
     p_tenant_id: member.tenantId,
     p_plan: plan as unknown as Json,
     p_via: ctx.via === "ask" ? "ask" : "people",

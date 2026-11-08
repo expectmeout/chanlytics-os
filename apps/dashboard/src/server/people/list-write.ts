@@ -24,6 +24,7 @@ import { LIST_NAME_TAKEN, cleanListName, cleanListRule, cleanIdList, type SavedL
 import { recordDecision, type listScope } from "@/server/shared/verbs";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import { pauseStepRow } from "@chanlytics/db/campaigns";
 
 /** The saved list a listScope route acts on, as the scope read it (RLS: one the caller cannot see is a 404). */
 type SavedListRow = Awaited<ReturnType<typeof listScope.load>>;
@@ -172,7 +173,7 @@ export async function removeSavedList(ctx: RouteContext, list: SavedListRow) {
       if (!count) throw new AppError("not_found", "List not found.", 404);
     }
     for (const p of paused) {
-      const { error } = await ctx.supabase.from("sequence_steps").update({ state: "paused" }).eq("id", p.id);
+      const { error } = await pauseStepRow(ctx.supabase, p.id);
       if (error) throw new Error(error.message);
       await recordDecision(ctx, tenantId, "playbook", p.id, "pause_playbook", { name: p.name, why: "list_archived" });
     }

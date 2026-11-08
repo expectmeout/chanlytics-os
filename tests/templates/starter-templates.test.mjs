@@ -617,10 +617,13 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
     "apps/dashboard/app/api/v1/templates/[id]/route.ts",
     "apps/dashboard/src/server/campaigns/template-row.ts",
   );
+  // The door is packages/db's (decision 0111): the route asks it by name.
   assert.ok(
-    /ctx\.supabase\.rpc\("set_template_hidden", \{\s*p_template_id: id,\s*p_hidden: input\.hidden === true,?\s*\}\)/.test(
-      one,
-    ) && one.includes('role: "operator",'),
+    one.includes("setTemplateHidden(ctx.supabase, id, input.hidden === true)") &&
+      one.includes('role: "operator",') &&
+      readCode("packages/db/src/repositories/campaigns/templates/doors.ts").includes(
+        'db.rpc("set_template_hidden", { p_template_id: templateId, p_hidden: hidden })',
+      ),
   );
   // The sync hiding Meta's sample on first sight only, and the create door
   // keeping the words a person gave each slot, are run in templates-doors.test.mjs.
@@ -659,7 +662,8 @@ test("a template's title: the workspace's own words, set through its door, shown
     "apps/dashboard/src/server/campaigns/template-row.ts",
   );
   assert.ok(
-    one.includes('ctx.supabase.rpc("set_template_title", { p_template_id: id, p_title: title || "" })'),
+    one.includes('setTemplateTitle(ctx.supabase, id, title || "")') &&
+      readCode("packages/db/src/repositories/campaigns/templates/doors.ts").includes('db.rpc("set_template_title"'),
     "empty is no title — the door clears it",
   );
   assert.ok(one.includes('"Say what changes: whether it is hidden, or its title."'));
@@ -674,7 +678,8 @@ test("a template's title: the workspace's own words, set through its door, shown
   assert.ok(s.includes('"data-testid": "template-rename"'), "template-rename");
   // The default names of a broadcast and a playbook use the title: run in core-campaigns.test.mjs.
   assert.ok(
-    readCode("apps/dashboard/src/server/readers/templates.ts").includes("source, hidden_at, title"),
+    // The read is packages/db's (decision 0111).
+    readCode("packages/db/src/repositories/campaigns/templates/page.ts").includes("source, hidden_at, title"),
     "the composers read it",
   );
 });

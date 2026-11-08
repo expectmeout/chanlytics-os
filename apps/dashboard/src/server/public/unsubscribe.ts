@@ -47,6 +47,8 @@ import {
   setLinkPageClient,
   type LinkPageLook,
 } from "./link-page";
+import { findWorkspaceName } from "@chanlytics/db/workspace";
+import { findMessageMeta } from "@chanlytics/db/conversations";
 
 /** For tests: the database the page reads and writes through (link-page.ts holds it for both links' pages). */
 export const setUnsubscribeServiceClient = setLinkPageClient;
@@ -181,7 +183,7 @@ function plainText(status: number, body: string): Response {
 /** The business's name for the page's words; null when it cannot be read, which the words say without. */
 async function businessName(db: SupabaseClient<Database>, tenantId: string): Promise<string | null> {
   try {
-    const { data, error } = await db.from("tenants").select("name").eq("id", tenantId).maybeSingle();
+    const { data, error } = await findWorkspaceName(db, tenantId);
     return error ? null : (data?.name ?? null);
   } catch {
     return null;
@@ -228,12 +230,7 @@ async function offerLanguage(
  */
 async function emailOf(db: SupabaseClient<Database>, tenantId: string, messageId: string): Promise<LinkedEmail> {
   try {
-    const { data, error } = await db
-      .from("messages")
-      .select("meta")
-      .eq("id", messageId)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
+    const { data, error } = await findMessageMeta(db, tenantId, messageId);
     if (error) throw new Error(error.message);
     if (!data) return { sender: null, lane: "unread", language: null };
     const meta = data.meta as {

@@ -5,6 +5,7 @@ import { endEmptiedWorkspaces } from "@/server/workspace/billing";
 import { recordLeft, listSeats } from "@/server/workspace/team";
 import { log } from "@/server/shared/log";
 import { dbRefusal } from "@/server/shared/with-route";
+import { deleteOwnAccount, setOwnName } from "@/server/auth/account";
 
 /**
  * PUT /api/v1/me — {display_name}: the name you go by. Yours alone to set;
@@ -21,7 +22,7 @@ export const PUT = write({
   handle: async ({ ctx, input }) => {
     const cleaned = cleanDisplayName(input.display_name ?? "");
     if (!cleaned.ok) throw new AppError("validation", cleaned.reason, 400);
-    const { data, error } = await ctx.supabase.rpc("profile_set", { p_display_name: cleaned.name });
+    const { data, error } = await setOwnName(ctx, { p_display_name: cleaned.name });
     if (error) throw dbRefusal(error);
     const saved =
       data && typeof data === "object" && !Array.isArray(data)
@@ -52,7 +53,7 @@ export const DELETE = write({
   rate: "profile_set",
   handle: async ({ ctx }) => {
     const seats = await listSeats(ctx.supabase, ctx.userId);
-    const { data, error } = await ctx.supabase.rpc("delete_my_account");
+    const { data, error } = await deleteOwnAccount(ctx);
     if (error) {
       const named = Object.keys(REFUSALS).find((k) => error.message.includes(k));
       if (named) throw new AppError("conflict", REFUSALS[named], 409);

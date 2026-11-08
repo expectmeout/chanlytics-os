@@ -13,6 +13,18 @@ export interface Err {
 
 export type Envelope<T> = Ok<T> | Err;
 
+/**
+ * Where a page of results ended, said one way across the app (decision 0111): how many a page holds, whether another
+ * follows, and the cursor that asks for it (`null` on the last page). A cursor says where a page ended, never how far down
+ * it started, so a page is read from its index and not from the top of the list. `total` only where a page shows a count.
+ */
+export interface PageInfo {
+  limit: number;
+  has_more: boolean;
+  next_cursor: string | null;
+  total?: number;
+}
+
 export const ok = <T>(data: T): Ok<T> => ({ ok: true, data });
 
 /**

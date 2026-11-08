@@ -22,7 +22,14 @@ import {
 } from "@chanlytics/contracts";
 // The database's count of the same sends (00374); contracts' templateSends is the fold it replaced, read below for a
 // database before it.
-import { listSequenceNames } from "@chanlytics/db/campaigns";
+import {
+  listSequenceNames,
+  listStepsOfTemplates,
+  listTemplatesForPage,
+  pageRunsOfTemplates,
+  pageSendsSent,
+  pageTemplatesFromInbox,
+} from "@chanlytics/db/campaigns";
 import { getTemplateSends as sendsByTemplate } from "@chanlytics/db/reports";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as facts from "./facts";
@@ -34,9 +41,6 @@ import * as facts from "./facts";
  * array to the browser so three composers can each dig the same string out of it
  * would put Meta's shape in a .jsx file, where the compiler cannot see it.
  */
-const COLUMNS =
-  "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at, title, components";
-
 /** Rows per page: PostgREST's max_rows (supabase config), which answers at most this many whatever a select asks for. */
 const TEMPLATES_PAGE = 1000;
 
@@ -83,33 +87,13 @@ async function templateSendsRead(
     // audience it was scheduled for; the wire holds people back from it and a
     // run can stop part-way, and Reports › Campaigns counts "Messages sent"
     // from these rows, apart from "Delivered". Counted the way that page counts.
-    everyRow("broadcast_recipients", (from, to) =>
-      rc.ctx.supabase
-        .from("sequence_sends")
-        .select("broadcast_id:batch_id, state, sent_at")
-        .eq("tenant_id", tenantId)
-        .is("lead_id", null)
-        .eq("state", "sent")
-        .order("batch_id")
-        .order("contact_id")
-        .range(from, to),
-    ),
+    everyRow("broadcast_recipients", (from, to) => pageSendsSent(rc.ctx.supabase, tenantId, from, to)),
     // The one door a run does not cover: a template the Inbox sent into a closed
     // window, on its own message row. It left when WhatsApp took it -- the
     // wamid; a row still in its veto window, withdrawn or refused has none. A
     // run's own messages name no template (deliver records them without one),
     // so nothing counted on a recipient row above is counted again here.
-    everyRow("messages", (from, to) =>
-      rc.ctx.supabase
-        .from("messages")
-        .select("template_name, external_id, created_at")
-        .eq("tenant_id", tenantId)
-        .eq("direction", "outbound")
-        .not("template_name", "is", null)
-        .not("external_id", "is", null)
-        .order("id")
-        .range(from, to),
-    ),
+    everyRow("messages", (from, to) => pageTemplatesFromInbox(rc.ctx.supabase, tenantId, from, to)),
   ]);
   // A customer's send always names its batch (00540's check).
   const sends = recipients.flatMap((r) => (r.broadcast_id ? [{ ...r, broadcast_id: r.broadcast_id }] : []));
@@ -124,11 +108,7 @@ async function templateSendsRead(
  */
 async function templatesOf(rc: ReaderContext, all: boolean) {
   const tenantId = rc.tenantId;
-  const { data, error } = await rc.ctx.supabase
-    .from("templates")
-    .select(COLUMNS)
-    .eq("tenant_id", tenantId)
-    .order("name");
+  const { data, error } = await listTemplatesForPage(rc.ctx.supabase, tenantId);
   if (error) throw new Error(error.message);
   // The message as the customer receives it -- heading, footer, buttons -- and
   // why this product cannot send it, if it cannot. Meta's array stays behind:
@@ -165,21 +145,11 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   // credited with. A run's state says whether its playbook is waiting on the
   // owner; a name and a date let a message people send by hand name the latest
   // two.
-  const runs = everyRow("broadcasts", (from, to) =>
-    rc.ctx.supabase
-      .from("sequence_batches")
-      .select("id, template_name, playbook_id:step_id, sequence_id, name, state, created_at")
-      .eq("tenant_id", tenantId)
-      .order("id")
-      .range(from, to),
-  );
+  const runs = everyRow("broadcasts", (from, to) => pageRunsOfTemplates(rc.ctx.supabase, tenantId, from, to));
   const [pb, runRows, sends, sequences] = await Promise.all([
     // Its clock, for the line under what sends it ("runs daily at 10:00"), its last day, and its sequence and place there
     // ("VIP color clients · step 2").
-    rc.ctx.supabase
-      .from("sequence_steps")
-      .select("id, name, template_name, state, trigger, run_hour, cadence_days, until, sequence_id, place")
-      .eq("tenant_id", tenantId),
+    listStepsOfTemplates(rc.ctx.supabase, tenantId),
     runs,
     templateSendsRead(rc, runs),
     listSequenceNames(rc.ctx.supabase, tenantId),

@@ -13,6 +13,7 @@ import {
 import { WHOSE, noteRow, str } from "../context/tool-reads";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";
+import { findOpenEscalationOf, findThreadCard } from "@chanlytics/db/ask";
 
 /** The one list, from contracts: the committer in the browser reads the same one. */
 export const THREAD_VERBS = ASK_THREAD_VERBS;
@@ -25,27 +26,14 @@ async function proposeThreadVerb(
   const verb = str(input.verb, 20) as (typeof THREAD_VERBS)[number];
   if (!UUID.test(id)) return refuse("conversation_id must be an id a read returned");
   if (!THREAD_VERBS.includes(verb)) return refuse(`verb must be one of ${THREAD_VERBS.join(", ")}`);
-  const { data: conv, error } = await toolContext.ctx.supabase
-    .from("conversations")
-    .select("id, state, assignee_user_id, snooze_until, contacts (display_name, wa_profile_name, phone_e164, email)")
-    .eq("id", id)
-    .eq("tenant_id", toolContext.tenantId)
-    .maybeSingle();
+  const { data: conv, error } = await findThreadCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!conv) return refuse("no such conversation in this workspace");
   // As the Inbox names them (personName): a saved name, else their WhatsApp name, else their number as it is printed.
   const otherPersonName = personName(conv.contacts);
   let escalationId: string | null = null;
   if (verb === "resolve") {
-    const { data: esc, error: escErr } = await toolContext.ctx.supabase
-      .from("escalations")
-      .select("id")
-      .eq("conversation_id", id)
-      .eq("tenant_id", toolContext.tenantId)
-      .eq("state", "open")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: esc, error: escErr } = await findOpenEscalationOf(toolContext.ctx.supabase, toolContext.tenantId, id);
     if (escErr) throw new Error(escErr.message);
     if (!esc) return refuse("no open escalation on that thread; nothing to resolve");
     escalationId = esc.id;

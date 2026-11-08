@@ -66,6 +66,9 @@ import {
 import { env } from "../shared/env.js";
 import { secretToProvision, signatureOnly } from "../shared/door-auth.js";
 import { logger, errField } from "../shared/log.js";
+import { findVoiceRow } from "@chanlytics/db/lines";
+import { insertChannelRow } from "@chanlytics/db/channels";
+import { findWorkspaceCard } from "@chanlytics/db/workspace";
 
 interface Body {
   tenant_id?: string;
@@ -166,17 +169,10 @@ async function checkProvisionKnock(auth: Admitted, request: Request): Promise<Pr
 
 /** The workspace and its voice row, if it has one: an unreadable table is `read_failed`, no workspace `not_found`. */
 async function readWorkspaceLine(db: ProvisionDb, tenantId: string) {
-  const tenant = await db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle();
+  const tenant = await findWorkspaceCard(db, tenantId);
   if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
-  const existing = await db
-    .from("tenant_channels")
-    .select("id, status, external_id, number_e164")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "voice")
-    .order("created_at")
-    .limit(1)
-    .maybeSingle();
+  const existing = await findVoiceRow(db, tenantId);
   if (existing.error) return refuse(503, "read_failed", existing.error.message);
   // The agent made before any number (a rehearsal's, decision 0069): adopted by a run that names none, so the number
   // answers in the agent the owner already heard.
@@ -370,26 +366,22 @@ async function voiceRowLeg(
   { agentId, llmId, agentVersion, pinned }: MadeAgent,
   { number, numberType }: BoundNumber,
 ): Promise<{ ok: true; id: string } | RefusedLeg> {
-  const ins = await db
-    .from("tenant_channels")
-    .insert({
-      tenant_id: tenantId,
-      kind: "voice",
-      external_id: agentId,
-      number_e164: number,
-      status: "active",
-      config: {
-        provider: "retell",
-        llm_id: llmId,
-        agent_version: agentVersion,
-        pinned,
-        number_type: numberType,
-        provisioned_at: new Date().toISOString(),
-        provisioned_by: "voice-provision",
-      },
-    })
-    .select("id")
-    .single();
+  const ins = await insertChannelRow(db, tenantId, {
+    tenant_id: tenantId,
+    kind: "voice",
+    external_id: agentId,
+    number_e164: number,
+    status: "active",
+    config: {
+      provider: "retell",
+      llm_id: llmId,
+      agent_version: agentVersion,
+      pinned,
+      number_type: numberType,
+      provisioned_at: new Date().toISOString(),
+      provisioned_by: "voice-provision",
+    },
+  });
   if (ins.error)
     return {
       ok: false,

@@ -465,7 +465,10 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
     assert.ok(src.includes('rate: "export",'), `${name}: rate bucket`);
     assert.ok(src.includes("scope: workspace,"), `${name}: the workspace comes from the request`);
     assert.ok(
-      src.includes('.eq("tenant_id", member.tenantId)') || src.includes("listEveryoneOnce(ctx, member.tenantId)"),
+      // The read is packages/db's (decision 0111), named by the workspace the tab named.
+      src.includes('.eq("tenant_id", member.tenantId)') ||
+        src.includes("listEveryoneOnce(ctx, member.tenantId)") ||
+        /\(supabase, member\.tenantId, id\)/.test(src),
       `${name}: scoped to the named workspace`,
     );
     assert.ok(src.includes("return attachment("), `${name}: a file`);
@@ -480,13 +483,25 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
   // page, so two messages written in one transaction -- identical timestamps --
   // lost every one tied with the boundary, silently, from the file whose whole
   // promise is "every message".
-  assert.ok(!conv.includes('.lt("created_at"'), "no cursor that can step over a tie");
+  // The page itself is packages/db's (decision 0111).
+  const page = readCode("packages/db/src/repositories/conversations/reads.ts");
+  const thread = page.slice(
+    page.indexOf("export const pageThreadForExport"),
+    page.indexOf("export const pageMessagesOfThreads"),
+  );
   assert.ok(
-    conv.includes('.order("created_at", { ascending: true })') && conv.includes('.order("id", { ascending: true })'),
+    !conv.includes('.lt("created_at"') && !thread.includes('.lt("created_at"'),
+    "no cursor that can step over a tie",
+  );
+  assert.ok(
+    conv.includes("pageThreadForExport(") &&
+      thread.includes('.order("created_at", { ascending: true })') &&
+      thread.includes('.order("id", { ascending: true })'),
     "created_at then id: a total order",
   );
   assert.ok(
-    conv.includes(".range(page * THREAD_EXPORT_PAGE, page * THREAD_EXPORT_PAGE + THREAD_EXPORT_PAGE - 1)"),
+    /page \* THREAD_EXPORT_PAGE,\s*page \* THREAD_EXPORT_PAGE \+ THREAD_EXPORT_PAGE - 1/.test(conv) &&
+      thread.includes(".range(from, to)"),
     "and offset paging under it",
   );
   assert.deepEqual(

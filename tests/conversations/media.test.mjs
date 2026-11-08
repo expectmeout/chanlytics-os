@@ -145,7 +145,13 @@ test("the media route: member of the named workspace, stored only, a redirect th
     "apps/dashboard/src/server/conversations/message-media.ts",
   );
   assert.ok(route.includes("scope: workspace,"), "the workspace the tab named, declared on the export");
-  assert.ok(route.includes('.eq("tenant_id", member.tenantId)'));
+  // The read is packages/db's (decision 0111), named by the workspace the tab named.
+  assert.ok(route.includes("findMessageMediaRow(ctx.supabase, member.tenantId, id)"));
+  assert.ok(
+    readCode("packages/db/src/repositories/conversations/reads.ts").includes(
+      'db.from("messages").select("id, media").eq("id", messageId).eq("tenant_id", tenantId)',
+    ),
+  );
   assert.ok(route.includes('media.fetch_state !== "stored"'));
   assert.ok(
     route.includes("findSignedMediaUrl(member.tenantId, media.storage_path, 300)"),

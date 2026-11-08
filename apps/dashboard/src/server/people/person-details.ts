@@ -19,7 +19,7 @@
  */
 import { z } from "zod";
 import { AppError, normalizeEmail, normalizeLink, whyNotALink, whyNotAnEmail } from "@chanlytics/contracts";
-import { findPersonRow } from "@chanlytics/db/people";
+import { findPersonRow, setPersonEmail, setPersonName, setPersonNotes, setPersonProposal } from "@chanlytics/db/people";
 import type { contactScope } from "@/server/shared/verbs";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
@@ -95,19 +95,10 @@ export async function setPersonDetails(
   // The session's doors, called on the client itself: a bound copy of its rpc made the compiler weigh every function's
   // overload at once, which 00497's doors took past its depth (TS2589).
   const db = ctx.supabase;
-  if (email !== undefined)
-    out.email = whatTheDoorStored(
-      await db.rpc("set_person_email", { p_contact_id: id, p_email: email ?? "" }),
-      "email",
-    );
-  if (name !== undefined)
-    out.name = whatTheDoorStored(await db.rpc("set_person_name", { p_contact_id: id, p_name: name }), "name");
-  if (notes !== undefined)
-    out.notes = whatTheDoorStored(await db.rpc("set_person_notes", { p_contact_id: id, p_notes: notes }), "notes");
+  if (email !== undefined) out.email = whatTheDoorStored(await setPersonEmail(db, id, email ?? ""), "email");
+  if (name !== undefined) out.name = whatTheDoorStored(await setPersonName(db, id, name), "name");
+  if (notes !== undefined) out.notes = whatTheDoorStored(await setPersonNotes(db, id, notes), "notes");
   if (proposal !== undefined)
-    out.proposal_url = whatTheDoorStored(
-      await db.rpc("set_person_proposal", { p_contact_id: id, p_url: proposal ?? "" }),
-      "proposal_url",
-    );
+    out.proposal_url = whatTheDoorStored(await setPersonProposal(db, id, proposal ?? ""), "proposal_url");
   return out;
 }

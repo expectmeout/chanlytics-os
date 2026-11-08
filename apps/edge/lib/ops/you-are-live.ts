@@ -29,7 +29,10 @@ import {
   youAreLiveEmail,
   UUID,
 } from "@chanlytics/contracts";
-import { findWorkspaceNamed } from "@chanlytics/db/workspace";
+import { findConfigRow, findWorkspaceCard, findWorkspaceNamed } from "@chanlytics/db/workspace";
+import { findChannelNumber } from "@chanlytics/db/channels";
+import { findForwardedLine } from "@chanlytics/db/lines";
+import { findLastAnsweredCall } from "@chanlytics/db/voice";
 
 export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
   const log = logger();
@@ -41,45 +44,13 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
   if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
 
   const [tenant, voice, kept, cfg, call, whatsapp] = await Promise.all([
-    db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle(),
-    db
-      .from("tenant_channels")
-      .select("number_e164")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "voice")
-      .eq("status", "active")
-      .order("created_at")
-      .limit(1)
-      .maybeSingle(),
-    db
-      .from("lines")
-      .select("e164, forwarding_state, facts")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "forwarded")
-      .neq("forwarding_state", "none")
-      .order("created_at")
-      .limit(1)
-      .maybeSingle(),
-    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
-    db
-      .from("calls")
-      .select("from_e164, duration_ms")
-      .eq("tenant_id", tenantId)
-      .eq("direction", "inbound")
-      .neq("status", "not_connected")
-      .order("started_at", { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle(),
+    findWorkspaceCard(db, tenantId),
+    findChannelNumber(db, tenantId, "voice"),
+    findForwardedLine(db, tenantId),
+    findConfigRow(db, tenantId),
+    findLastAnsweredCall(db, tenantId),
     // Going live is any channel (decision 0091): the WhatsApp number it answers, where one is connected.
-    db
-      .from("tenant_channels")
-      .select("number_e164")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "whatsapp")
-      .eq("status", "active")
-      .order("created_at")
-      .limit(1)
-      .maybeSingle(),
+    findChannelNumber(db, tenantId, "whatsapp"),
   ]);
   // A read that failed would send a thinner email that says less than is true: none is sent instead.
   const failed = [tenant, voice, kept, cfg, call, whatsapp].find((q) => q.error);

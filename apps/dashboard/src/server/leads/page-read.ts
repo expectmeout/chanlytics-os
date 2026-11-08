@@ -24,7 +24,7 @@ import {
   type SequencePlaceOfDto,
 } from "@chanlytics/contracts";
 import { getLeadPileCounts, listSequencePlaces } from "@chanlytics/db/campaigns";
-import { getLeadViewCounts, readLeadOne } from "@chanlytics/db/leads";
+import { getLeadViewCounts, listSearchNames, readLeadOne, readLeadsPage } from "@chanlytics/db/leads";
 import { type DoorArgs, readMonthUsed, renewsOnOf } from "./allowance";
 import { listSearchCounts } from "./searches";
 import { getTenantFacts } from "../shared/tenant";
@@ -313,11 +313,7 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
 
 /** The searches' names, for the row that says which search found it: one read, whatever the page holds. */
 async function searchNamesOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<Map<string, string>> {
-  const { data, error } = await ctx.supabase
-    .from("lead_searches")
-    .select("id, name")
-    .eq("tenant_id", tenantId)
-    .limit(200);
+  const { data, error } = await listSearchNames(ctx.supabase, tenantId, 200);
   if (error) throw new Error(error.message);
   return new Map(((data ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name]));
 }
@@ -390,7 +386,7 @@ export async function getLeadsPage(
   // The pile walks every lead of its search, whatever the table is narrowed to (#1978): its read asks no filter.
   const filters = leadsQuery.sort === "pile" ? null : leadFiltersOf(leadsQuery);
   const [answer, names, counts, month, piled, view] = await Promise.all([
-    ctx.supabase.rpc("leads_page", {
+    readLeadsPage(ctx.supabase, {
       p_tenant_id: tenantId,
       p_search_id: leadsQuery.search ?? null,
       p_class: leadsQuery.class ?? null,

@@ -4,7 +4,20 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import type { MailboxRow } from "@chanlytics/db/email";
-import { getTenantConfig, setupChoicesOf } from "@chanlytics/db/workspace";
+import {
+  countOffersReach,
+  countOffersYes,
+  countOpenInvites,
+  countSaidYes,
+  countTeamMembers,
+  findLastWhatsAppIn,
+  getTenantConfig,
+  listCapabilityRows,
+  listSetupAsks,
+  listSetupChannels,
+  listTemplateVerdicts,
+  setupChoicesOf,
+} from "@chanlytics/db/workspace";
 import { listImports, listBusinessReads, getPeopleCount } from "@chanlytics/db/imports";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { findOffersEmailReach, listRunningStepsOn } from "@chanlytics/db/campaigns";
@@ -21,6 +34,7 @@ import { getEmailWire } from "../connections/email-readiness";
 import { getTenantFacts } from "../shared/tenant";
 import { once } from "@/server/shared/lazy";
 import { log } from "@/server/shared/log";
+import { findLastConnectedCallIn } from "@chanlytics/db/voice";
 
 /**
 /**
@@ -44,17 +58,8 @@ async function teamCounts(
   tenantId: string,
 ): Promise<{ members: number; invitesOpen: number }> {
   const [members, invites] = await Promise.all([
-    supabase
-      .from("memberships")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .neq("role", "partner"),
-    supabase
-      .from("invitations")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .is("accepted_at", null)
-      .is("revoked_at", null),
+    countTeamMembers(supabase, tenantId),
+    countOpenInvites(supabase, tenantId),
   ]);
   if (members.error) throw new Error(members.error.message);
   if (invites.error) throw new Error(invites.error.message);
@@ -80,39 +85,18 @@ export function requestsFrom(rows: ReadonlyArray<{ created_at: string; data: unk
 
 /** The workspace's channels: every row of every kind and status, for `channelFor` to pick from (channelsSection). */
 function channelRows(supabase: SupabaseClient<Database>, tenantId: string) {
-  return supabase
-    .from("tenant_channels")
-    .select("kind, status, number_e164, config, created_at")
-    .eq("tenant_id", tenantId);
+  return listSetupChannels(supabase, tenantId);
 }
 
 /** The newest WhatsApp message a customer sent. */
 function lastWhatsAppIn(supabase: SupabaseClient<Database>, tenantId: string) {
-  return supabase
-    .from("messages")
-    .select("channel_ts, created_at")
-    .eq("tenant_id", tenantId)
-    .eq("direction", "inbound")
-    .eq("channel", "whatsapp")
-    .order("channel_ts", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
+  return findLastWhatsAppIn(supabase, tenantId);
 }
 
 /** The newest call that reached the receptionist. */
 function lastInboundCall(supabase: SupabaseClient<Database>, tenantId: string) {
-  return (
-    supabase
-      .from("calls")
-      .select("started_at")
-      .eq("tenant_id", tenantId)
-      .eq("direction", "inbound")
-      // A dial that never connected reached nobody: it is no test of the receptionist.
-      .neq("status", "not_connected")
-      .order("started_at", { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle()
-  );
+  // A dial that never connected reached nobody: it is no test of the receptionist.
+  return findLastConnectedCallIn(supabase, tenantId);
 }
 
 /**
@@ -121,21 +105,12 @@ function lastInboundCall(supabase: SupabaseClient<Database>, tenantId: string) {
  * Meta's: counted here, a starter still in review would read as approved by its other versions.
  */
 function templateVerdicts(supabase: SupabaseClient<Database>, tenantId: string) {
-  return supabase
-    .from("templates")
-    .select("name, meta_status, hidden_at")
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp");
+  return listTemplateVerdicts(supabase, tenantId);
 }
 
 /** How many people said yes to messages about their own visit. */
 function saidYesCount(supabase: SupabaseClient<Database>, tenantId: string) {
-  return supabase
-    .from("contacts")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .eq("consent", "opted_in")
-    .is("erased_at", null);
+  return countSaidYes(supabase, tenantId);
 }
 
 /**
@@ -146,32 +121,17 @@ function saidYesCount(supabase: SupabaseClient<Database>, tenantId: string) {
  * SQL, the predicate of the `contacts_marketing_audience` index (00095).
  */
 function offersSaidYesCount(supabase: SupabaseClient<Database>, tenantId: string) {
-  return supabase
-    .from("contacts")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .eq("marketing_consent", "opted_in")
-    .eq("dnc", false)
-    .is("erased_at", null);
+  return countOffersYes(supabase, tenantId);
 }
 
 /** Who of them a promotional broadcast reaches. */
 function offersReachCount(supabase: SupabaseClient<Database>, tenantId: string) {
-  return (
-    supabase
-      .from("contacts")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      // `mayReceive(r, "marketing")` in SQL, because this is a count and not a list:
-      // the yes to offers, no do-not-contact, and a number to send to. The number was
-      // missing, so this row counted people the broadcast route would not enrol --
-      // and read alone, it called a yes with no number (someone who only emails, a
-      // walk-in recorded without one) nobody's yes.
-      .eq("marketing_consent", "opted_in")
-      .eq("dnc", false)
-      .is("erased_at", null)
-      .not("phone_e164", "is", null)
-  );
+  // `mayReceive(r, "marketing")` in SQL, because this is a count and not a list:
+  // the yes to offers, no do-not-contact, and a number to send to. The number was
+  // missing, so this row counted people the broadcast route would not enrol --
+  // and read alone, it called a yes with no number (someone who only emails, a
+  // walk-in recorded without one) nobody's yes.
+  return countOffersReach(supabase, tenantId);
 }
 
 /**
@@ -214,13 +174,7 @@ async function offersByEmailOf(
  * "your phone line is ready" row shares its subject, so it read as a request.
  */
 function setupRequested(supabase: SupabaseClient<Database>, tenantId: string) {
-  return supabase
-    .from("events")
-    .select("created_at, data")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "setup.requested")
-    .order("created_at", { ascending: false })
-    .limit(30);
+  return listSetupAsks(supabase, tenantId, 30);
 }
 
 /**
@@ -237,10 +191,7 @@ function dayBeforeRunning(supabase: SupabaseClient<Database>, tenantId: string):
 
 /** The owner's own act, per capability (00108). */
 function activationRows(supabase: SupabaseClient<Database>, tenantId: string) {
-  return supabase
-    .from("capability_activations")
-    .select("capability, activated_at, activated_by, deactivated_at")
-    .eq("tenant_id", tenantId);
+  return listCapabilityRows(supabase, tenantId);
 }
 
 /**

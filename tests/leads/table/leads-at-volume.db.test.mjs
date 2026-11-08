@@ -200,6 +200,10 @@ const SEED = (who) => `
      where v.i <= 2000;
 
   execute 'set local session_replication_role = origin';
+  -- Production runs with JIT off (its pg_settings, read 8 Nov 2026 on Postgres 17.6); the local image leaves it on. Run
+  -- after the rest of the suite, on tables it had grown, each whole-workspace read here spent about 8 s compiling its plan,
+  -- its blocks unchanged. What is measured is what production runs.
+  execute 'set local jit = off';
   analyze public.leads, public.lead_search_members, public.sequence_sends, public.sequence_enrollments, public.sequence_replies, public.sequence_batches;`;
 
 test("every read of a full workspace holds the line", { skip, timeout: 600_000 }, () => {

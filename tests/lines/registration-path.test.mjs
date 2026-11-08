@@ -589,7 +589,8 @@ test("one validator, three writers", () => {
   // provision one. Passing no facts skipped it here, so this route said the
   // record was ready and the edge refused it after the owner pressed Register.
   assert.ok(route.includes("businessRecordProblems(record, path, { ourNumbers:"));
-  assert.ok(route.includes('from("lines").select("e164")'), "read where the owner can read it, under RLS");
+  // On the owner's own client (packages/db's read, decision 0111): under RLS.
+  assert.ok(route.includes("listLineNumbersOf(ctx.supabase, tenantId)"), "read where the owner can read it, under RLS");
   assert.ok(route.includes('registrationPathOf(record) || "standard"'), "derived only when the caller did not say");
   assert.ok(
     /record, path \},\s*20_000[,)]/.test(route),

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { write } from "@/server/shared/route";
 import { contactScope } from "@/server/shared/verbs";
-import { noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
+import { markNoteDone, noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
 
 const Body = z
   .object({
@@ -26,7 +26,7 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, row: contact, input }) => {
     await noteOn(ctx, contact.id, input.note_id);
-    const { data, error } = await ctx.supabase.rpc("person_note_done", {
+    const { data, error } = await markNoteDone(ctx, {
       p_note_id: input.note_id,
       p_done: input.done ?? true,
       ...(input.version !== undefined ? { p_version: input.version } : {}),

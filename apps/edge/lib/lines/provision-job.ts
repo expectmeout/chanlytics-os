@@ -16,7 +16,6 @@
  *   gone          released meanwhile; nothing to do
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tenantDb } from "@chanlytics/db/shared";
 import type { Database } from "@chanlytics/db/types";
 import { lineProviderFromEnv, rowToLine, type LineProviderChoice } from "./lines.js";
 import { provisionLine } from "./provision.js";
@@ -29,6 +28,8 @@ import {
 } from "./resume.js";
 import { env } from "../shared/env.js";
 import { secretToProvision } from "../shared/door-auth.js";
+import { findLineRow } from "@chanlytics/db/lines";
+import { findWorkspaceName } from "@chanlytics/db/workspace";
 
 interface LineProvisionOutcome {
   ok: boolean;
@@ -73,7 +74,7 @@ export async function provisionLineJob(
   if (!apiKey || fnSecret === undefined)
     return { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret", did: "nothing", why: "no credentials" };
 
-  const row = await tenantDb(db, tenantId).from("lines").select("*").eq("id", lineId).maybeSingle();
+  const row = await findLineRow(db, tenantId, lineId);
   if (row.error) throw new Error(`line_provision: ${row.error.message}`);
   if (!row.data) return { ok: true, did: "nothing", why: "released" };
   let line = row.data;
@@ -81,7 +82,7 @@ export async function provisionLineJob(
   if (line.voice_state !== "provisioning" && line.voice_state !== "failed")
     return { ok: true, did: "nothing", why: line.voice_state };
 
-  const tenant = await db.from("tenants").select("id, name").eq("id", line.tenant_id).maybeSingle();
+  const tenant = await findWorkspaceName(db, line.tenant_id);
   if (tenant.error) throw new Error(`line_provision: ${tenant.error.message}`);
   if (!tenant.data) return { ok: false, error: "no such workspace", did: "nothing", why: "no workspace" };
 

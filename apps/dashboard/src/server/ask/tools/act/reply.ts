@@ -24,6 +24,7 @@ import { replyChannelOf } from "../../../shared/verbs";
 import { noteRow, str } from "../context/tool-reads";
 import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";
+import { findMessageCard, findThreadForReply } from "@chanlytics/db/ask";
 
 /**
  * What a first message on this thread would be refused for, or null. A thread nothing has come to answers nobody, so
@@ -52,14 +53,7 @@ async function startRefusal(
 
 /** A thread a card names, in this workspace, with who it is with as the Inbox names them; null where there is none. */
 async function threadOnCard(toolContext: ToolContext, id: string) {
-  const { data: conv, error } = await toolContext.ctx.supabase
-    .from("conversations")
-    .select(
-      "id, tenant_id, contact_id, state, last_inbound_at, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc)",
-    )
-    .eq("id", id)
-    .eq("tenant_id", toolContext.tenantId)
-    .maybeSingle();
+  const { data: conv, error } = await findThreadForReply(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!conv) return null;
   const personName = contactName({
@@ -143,12 +137,7 @@ async function proposeSteer(
   const instruction = str(input.instruction, 500);
   if (!UUID.test(id)) return refuse("message_id must be a held draft's id from a read");
   if (!instruction) return refuse("instruction is required");
-  const { data: m, error } = await toolContext.ctx.supabase
-    .from("messages")
-    .select("id, conversation_id, sender, status, body, type, direction, created_at")
-    .eq("id", id)
-    .eq("tenant_id", toolContext.tenantId)
-    .maybeSingle();
+  const { data: m, error } = await findMessageCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!m) return refuse("no such message in this workspace");
   if (

@@ -12,6 +12,7 @@ import type { Database } from "@chanlytics/db/types";
 import type { FeedItem, OwnAddresses } from "@chanlytics/contracts";
 import { bookedSeenOf } from "./reach-out-booked-rule";
 import { logger } from "../shared/log.js";
+import { recordReachOutBooked } from "@chanlytics/db/campaigns";
 
 export async function recordBookedFromCalendar(
   db: SupabaseClient<Database>,
@@ -21,7 +22,7 @@ export async function recordBookedFromCalendar(
 ): Promise<number> {
   const seen = bookedSeenOf(items, own);
   if (!seen.length) return 0;
-  const { data, error } = await db.rpc("reach_out_booked", { p_tenant_id: tenantId, p_seen: seen });
+  const { data, error } = await recordReachOutBooked(db, { p_tenant_id: tenantId, p_seen: seen });
   if (error) {
     logger({ tenant_id: tenantId }).warn("reach_out_booked_failed", { error: error.message });
     return 0;

@@ -1,6 +1,18 @@
 /**
  * The campaigns domain: `@chanlytics/db/campaigns`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export {
+  claimBroadcastSend,
+  countBroadcastSends,
+  failBroadcastRun,
+  failInterruptedBroadcast,
+  findBroadcastRun,
+  findBroadcastState,
+  listBatchPeople,
+  listBroadcastMessagesTo,
+  startBroadcastRun,
+  writeBroadcastSend,
+} from "./broadcast-run";
 export { listMomentSchedules, listRunsInSpan } from "./calendar-runs";
 export type { MomentScheduleRow, SpanRunRow } from "./calendar-runs";
 export {
@@ -72,6 +84,15 @@ export {
   recordWhatsAppOffersStop,
 } from "./offers-answer";
 export type { LateCarrierStop } from "./offers-answer";
+export {
+  readReachOutChainReport,
+  readReachOutLines,
+  readReachOutReach,
+  readReachOutTimeline,
+  recheckReachOutRun,
+  removeReachOutChain,
+  stopReachOutLead,
+} from "./reach-out/chain-doors";
 export {
   getUncheckedWaiting,
   listHeldStale,
@@ -253,6 +274,37 @@ export {
   wasSequenceReached,
 } from "./sequences/reads";
 export type { SequenceGlance } from "./sequences/reads";
+export {
+  findChainAwaitingApproval,
+  findRunFor,
+  findStepRow,
+  finishBatchSending,
+  insertDecision,
+  listChainSteps,
+  listLeadClocks,
+  pauseStepRow,
+  planReachOutRun,
+  recordReachOutBooked,
+  stampStepRun,
+  startBatchSending,
+} from "./sequences/runs";
+export {
+  findProposalFollowUp,
+  findRunRow,
+  findStepList,
+  listConsentChangesSince,
+  listOutboundSince,
+  listPlaybookRunRows,
+  listRecentRunRows,
+  listRunNames,
+  listRunRowsByIds,
+  listStepsWith,
+  pageInboundOn,
+  pagePeopleOnRuns,
+  pagePersonSends,
+  pageProposalsOut,
+  pageRunPeople,
+} from "./sequences/sent";
 export { findConfirmationEmail, findSignupAskFacts } from "./signup-confirms";
 export {
   batchStatesOf,
@@ -267,6 +319,21 @@ export {
   recordSystemDecision,
 } from "./stranded-runs";
 export type { GoingRunRow, StrandedRun, WaitingPlaybookRun, WaitingRunRow } from "./stranded-runs";
+export {
+  countLiveRunsOfTemplate,
+  findTemplateIn,
+  findTemplateToTranslate,
+  listRunningStepsOfTemplate,
+  setTemplateHidden,
+  setTemplateTitle,
+} from "./templates/doors";
+export {
+  listStepsOfTemplates,
+  listTemplatesForPage,
+  pageRunsOfTemplates,
+  pageSendsSent,
+  pageTemplatesFromInbox,
+} from "./templates/page";
 export {
   createMessageVersion,
   findHeldMessage,
@@ -289,6 +356,15 @@ export type {
   TemplateToSend,
   VersionRef,
 } from "./templates/templates";
+export {
+  deleteTemplateRow,
+  findWhatsAppTemplate,
+  listWhatsAppTemplateKeys,
+  patchWhatsAppTemplate,
+  patchWhatsAppTemplateBack,
+  saveTemplateRow,
+  saveTemplateRows,
+} from "./templates/whatsapp";
 export { followUpTouchesSince, getRecentTouches, listTouchesSince, touchIndex } from "./touches";
 export type { Touch, TouchIndex } from "./touches";
 export { isWorkspacePaused, reviewLinkOf } from "./workspace";

@@ -89,7 +89,7 @@ export const VERBS = new Set(
   enable disable revoke grant consume rotate charge confirm activate deactivate retrieve persist reconcile rollback remember
   attach detach purge paginate broadcast exchange renew authenticate authorize login logout redirect respond ping poll batch
   deliver snooze wake mint alert speak bring bind flag mend tend probe earn ring store replan replay reverse resubmit unfile unpost evaluate converge raise rejudge assemble adopt reserve relay become suppress request requeue defer wear see learn craft compose translate aim pass return touch route warm view unsubscribe edit may look let mail shape preview file page act was does redrive step tick holds
-  hear listen transcribe digest play`.split(/\s+/),
+  hear listen transcribe digest play exclude reclaim reread swap finalize`.split(/\s+/),
 );
 
 /** A name's words, in either casing. */

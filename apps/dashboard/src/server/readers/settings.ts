@@ -35,6 +35,9 @@ import { listChains } from "../campaigns/reach-outs/reach-outs";
 import { log } from "../shared/log";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as readers from "./facts";
+import { findWorkspaceFacts } from "@chanlytics/db/workspace";
+import { listWorkspaceChannels } from "@chanlytics/db/channels";
+import { findGoogleListingAddress } from "@chanlytics/db/google";
 
 function maskFeedUrl(u: string): string {
   return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
@@ -76,9 +79,9 @@ export function withHiddenFeed(role: string, incoming: unknown, stored: unknown)
  */
 export async function getKnownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts & { ours: boolean }> {
   const [ws, ch, gl, lines] = await Promise.all([
-    ctx.supabase.from("tenants").select("name, timezone, ours").eq("id", tenantId).maybeSingle(),
-    ctx.supabase.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId),
-    ctx.supabase.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle(),
+    findWorkspaceFacts(ctx.supabase, tenantId),
+    listWorkspaceChannels(ctx.supabase, tenantId),
+    findGoogleListingAddress(ctx.supabase, tenantId),
     // The number the business keeps and forwards: the same rows, read the same way, as Setup's line rows. A failed
     // read is no forwarding, on purpose: the settings read and a save still go through, and a transfer number is
     // then judged against the line alone, as it was before forwarding was known.

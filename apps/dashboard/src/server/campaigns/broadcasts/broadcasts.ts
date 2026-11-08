@@ -21,14 +21,24 @@ import {
 } from "@chanlytics/contracts";
 import { readAllRows } from "@chanlytics/db/shared";
 import { runCounts } from "@chanlytics/db/reports";
-import { runWaitingCounts, listWaitingRuns } from "@chanlytics/db/campaigns";
+import {
+  findRunRow,
+  listConsentChangesSince,
+  listPlaybookRunRows,
+  listRecentRunRows,
+  listRunNames,
+  listRunRowsByIds,
+  listWaitingRuns,
+  pagePersonSends,
+  pageRunPeople,
+  runWaitingCounts,
+} from "@chanlytics/db/campaigns";
 import { log } from "@/server/shared/log";
 import { findReachOutRun } from "@/server/campaigns/reach-outs/reach-outs";
 import type { RouteContext } from "@/server/shared/with-route";
 import {
   IN_CHUNK,
   RECENT,
-  ROW_COLUMNS,
   answeredAfter,
   countRecipients,
   emptyCounts,
@@ -58,10 +68,6 @@ async function sheetCountsOf(
   return counted[id] ?? emptyCounts();
 }
 
-/** A workspace's runs as Sent's rows read them, for a query to finish: one table, one set of columns, every list of runs. */
-const runRows = (ctx: RouteContext, tenantId: string) =>
-  ctx.supabase.from("sequence_batches").select(ROW_COLUMNS).eq("tenant_id", tenantId);
-
 /**
  * The runs still waiting for a word that are older than the newest fifty (packages/db listWaitingRuns, the one rule the
  * server's Today and Ask count by: waiting for approval, or a going reach-out run whose emails are held or handed to its
@@ -72,7 +78,7 @@ async function waitingBeyond(ctx: RouteContext, tenantId: string, shown: readonl
     const seen = new Set(shown.map((r) => r.id));
     const ids = (await listWaitingRuns(ctx.supabase, tenantId)).map((r) => r.id).filter((id) => !seen.has(id));
     if (!ids.length) return [];
-    const { data, error } = await runRows(ctx, tenantId).in("id", ids).order("created_at", { ascending: false });
+    const { data, error } = await listRunRowsByIds(ctx.supabase, tenantId, ids);
     if (error) throw new Error(error.message);
     return (data ?? []) as BroadcastRow[];
   } catch (e) {
@@ -99,9 +105,7 @@ export async function listBroadcasts(
   ctx: RouteContext,
   tenantId: string,
 ): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
-  const { data: rows, error } = await runRows(ctx, tenantId)
-    .order("created_at", { ascending: false })
-    .limit(RECENT + 1);
+  const { data: rows, error } = await listRecentRunRows(ctx.supabase, tenantId, RECENT + 1);
   if (error) throw new Error(error.message);
   const all = (rows ?? []) as BroadcastRow[];
   const recent = all.slice(0, RECENT);
@@ -147,12 +151,7 @@ async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[
  * left of it in that window.
  */
 export async function listRuns(ctx: RouteContext, tenantId: string): Promise<BroadcastDto[]> {
-  const { data: rows, error } = await ctx.supabase
-    .from("sequence_batches")
-    .select(ROW_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .not("step_id", "is", null)
-    .order("created_at", { ascending: false });
+  const { data: rows, error } = await listPlaybookRunRows(ctx.supabase, tenantId);
   if (error) throw new Error(error.message);
   return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
 }
@@ -187,13 +186,12 @@ async function consentEventsOf(
 ): Promise<AnswerEvent[]> {
   const out: AnswerEvent[] = [];
   for (let index = 0; index < contactIds.length; index += IN_CHUNK) {
-    const { data, error } = await ctx.supabase
-      .from("events")
-      .select("id, subject_id, data, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "contact.consent_changed")
-      .in("subject_id", contactIds.slice(index, index + IN_CHUNK))
-      .gt("created_at", since);
+    const { data, error } = await listConsentChangesSince(
+      ctx.supabase,
+      tenantId,
+      contactIds.slice(index, index + IN_CHUNK),
+      since,
+    );
     if (error) throw new Error(error.message);
     for (const e of (data ?? []) as { id: string; subject_id: string | null; data: unknown; created_at: string }[]) {
       if (e.subject_id) out.push({ id: e.id, contactId: e.subject_id, at: e.created_at, data: e.data });
@@ -249,9 +247,6 @@ function firstNameOfRecipient(r: RecipientRow): string | null {
   return firstNameOf(c?.display_name, c?.wa_profile_name, { source: c?.name_source, settled: !!c?.name_settled_at });
 }
 
-const RECIPIENT_COLUMNS =
-  "broadcast_id:batch_id, contact_id, message_id, state, reason, sent_at, messages(conversation_id, status, meta, external_id), contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id, name_source, name_settled_at)";
-
 /**
  * Every person on a run, a page at a time, each with the channel the send picked for them (00298; every send has its
  * column since 00440 made the one table of sends).
@@ -259,26 +254,13 @@ const RECIPIENT_COLUMNS =
 async function recipientsOf(ctx: RouteContext, tenantId: string, id: string): Promise<RecipientRow[]> {
   // The person is the tiebreak the pager needs (the key is broadcast_id, contact_id).
   return readAllRows("broadcast recipients", (from, to) =>
-    ctx.supabase
-      .from("sequence_sends")
-      .select(`channel, ${RECIPIENT_COLUMNS}`)
-      .eq("tenant_id", tenantId)
-      .eq("batch_id", id)
-      .is("lead_id", null)
-      .order("sent_at", { ascending: false, nullsFirst: false })
-      .order("contact_id")
-      .range(from, to),
+    pageRunPeople(ctx.supabase, tenantId, id, from, to),
   ) as unknown as Promise<RecipientRow[]>;
 }
 
 /** One broadcast and every person on it, in the words of what happened to them -- and what came back from each. */
 export async function getBroadcast(ctx: RouteContext, tenantId: string, id: string): Promise<BroadcastDetailDto> {
-  const { data: row, error } = await ctx.supabase
-    .from("sequence_batches")
-    .select(ROW_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .eq("id", id)
-    .maybeSingle();
+  const { data: row, error } = await findRunRow(ctx.supabase, tenantId, id);
   if (error) throw new Error(error.message);
   if (!row) throw new AppError("not_found", "Run not found.", 404);
 
@@ -350,16 +332,7 @@ export async function listPersonRuns(
     sent_at: string | null;
     message_id: string | null;
     channel: string | null;
-  }>("broadcast_recipients", (from, to) =>
-    ctx.supabase
-      .from("sequence_sends")
-      .select("broadcast_id:batch_id, state, reason, sent_at, message_id, channel")
-      .eq("tenant_id", tenantId)
-      .eq("contact_id", contactId)
-      .is("lead_id", null)
-      .order("batch_id")
-      .range(from, to),
-  );
+  }>("broadcast_recipients", (from, to) => pagePersonSends(ctx.supabase, tenantId, contactId, from, to));
   // A customer's send always names its batch (00540's check).
   const rows = read.flatMap((r) => (r.broadcast_id ? [{ ...r, broadcast_id: r.broadcast_id }] : []));
   if (rows.length === 0) return [];
@@ -369,11 +342,7 @@ export async function listPersonRuns(
     { name: string; playbook_id: string | null; audience: unknown; scheduled_for: string | null; created_at: string }
   >();
   for (let i = 0; i < ids.length; i += IN_CHUNK) {
-    const { data, error } = await ctx.supabase
-      .from("sequence_batches")
-      .select("id, name, playbook_id:step_id, audience, scheduled_for, created_at")
-      .eq("tenant_id", tenantId)
-      .in("id", ids.slice(i, i + IN_CHUNK));
+    const { data, error } = await listRunNames(ctx.supabase, tenantId, ids.slice(i, i + IN_CHUNK));
     if (error) throw new Error(error.message);
     for (const b of data ?? []) runs.set(b.id, b);
   }

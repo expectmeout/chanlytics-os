@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createServiceClient } from "../../packages/db/src/shared/service-client.ts";
+import { createServiceClient } from "../../../packages/db/src/shared/service-client.ts";
 
 /** A transport that answers nothing until its request is aborted, and says what it was handed. */
 function silent() {

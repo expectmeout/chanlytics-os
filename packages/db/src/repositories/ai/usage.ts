@@ -31,6 +31,7 @@ import type {
   ModelTurnResponse,
 } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
+import { platformWide } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;
 
@@ -114,3 +115,26 @@ export async function scrubModelTurns(db: Db, tenantId: string, needles: readonl
   if (error) throw new Error(`model_turns_scrub: ${error.message}`);
   return data ?? 0;
 }
+
+/** The tokens the workspace's Ask spent in the last day (ask_tokens_day). */
+export const findAskTokensToday = async (db: Db, tenantId: string) => db.rpc("ask_tokens_day", { p_tenant: tenantId });
+
+/**
+ * One page (`from` to `to`) of the model's spend between `since` and `until`, the newest first: every workspace's, or
+ * with `tenantId` one workspace's.
+ */
+export const pageLlmUsage = async (
+  db: Db,
+  page: { tenantId: string | null; since: string; until: string; from: number; to: number },
+) => {
+  const query = platformWide(db)
+    .from("events")
+    .select("created_at, data")
+    .eq("kind", "usage.llm_tokens")
+    .gte("created_at", page.since)
+    .lte("created_at", page.until)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(page.from, page.to);
+  return page.tenantId ? query.eq("tenant_id", page.tenantId) : query;
+};

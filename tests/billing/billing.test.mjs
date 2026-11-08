@@ -473,10 +473,12 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     assert.ok(declared || performed, file);
   }
   const server = readCode("apps/dashboard/src/server/workspace/billing.ts");
+  // The read is packages/db's (decision 0111): the page's columns, written once there.
   assert.ok(
-    /export const BILLING_COLUMNS =\s*"mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";/.test(
-      server,
-    ),
+    server.includes("findPlanForPage(db, tenantId)") &&
+      /export const findPlanForPage = [^;]*\.select\(\s*"mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at",?\s*\)/.test(
+        readCode("packages/db/src/repositories/billing/plan.ts"),
+      ),
     "never a customer or subscription id",
   );
   assert.ok(!server.includes("STRIPE_SECRET_KEY"), "the dashboard never holds the key");

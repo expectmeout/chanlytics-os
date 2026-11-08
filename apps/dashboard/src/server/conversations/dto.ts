@@ -31,11 +31,10 @@ export const CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts (${THREAD_PERSO
 /** The same, for a list: only the threads whose person passes what the read asks of `contacts` (PostgREST's inner embed). */
 export const LISTED_CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts!inner (${THREAD_PERSON_COLUMNS})` as const;
 
-export const MESSAGE_COLUMNS =
-  "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
-
-export const CALL_COLUMNS =
-  "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164, consent, dnc, erasing_since)";
+// The columns a message and a call are read with are packages/db's (decision 0111), where the reads are; the readers
+// that still build their own statements read them here.
+export { MESSAGE_COLUMNS, THREAD_MESSAGE_COLUMNS } from "@chanlytics/db/conversations";
+export { CALL_COLUMNS } from "@chanlytics/db/voice";
 
 interface ConversationRow {
   id: string;
@@ -164,8 +163,6 @@ export function mediaPublic(raw: unknown): MessageDto["media"] {
  * (00258), and what a failed one said, which that function leaves out. Mapped by groupMessages too, so a thread opened
  * draws each message as its row in the list drew it.
  */
-export const THREAD_MESSAGE_COLUMNS =
-  "id, conversation_id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel, error";
 
 /** A row newest_messages answered (00258), or a thread's own read: a message, with the columns MESSAGE_COLUMNS names. */
 function isMessageRow(r: unknown): r is MessageRow {

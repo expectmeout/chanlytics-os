@@ -395,3 +395,7 @@ export async function wasEventTold(db: Db, params: { tenantId: string; eventId: 
   if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
   return (answered.data ?? []).length > 0;
 }
+
+/** A notice put on the workspace's bell, its id back. */
+export const insertNotification = async (db: Db, row: Database["public"]["Tables"]["notifications"]["Insert"]) =>
+  db.from("notifications").insert(row).select("id").single();

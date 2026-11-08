@@ -29,10 +29,14 @@ import {
 import {
   decideSendDoor,
   findEmailWords,
-  saveReachOutChain,
-  sendSaid,
   type ReachOutRunSend,
   type ReachOutStepRow,
+  readReachOutChainReport,
+  readReachOutReach,
+  recheckReachOutRun,
+  removeReachOutChain,
+  saveReachOutChain,
+  sendSaid,
 } from "@chanlytics/db/campaigns";
 import { emitEvent } from "@chanlytics/db/events";
 import type { MailboxConnectionRow } from "@chanlytics/db/email";
@@ -93,17 +97,14 @@ export async function getChainReport(
   tenantId: string,
   rootId: string,
 ): Promise<ReachOutChainReportDto> {
-  const { data, error } = await ctx.supabase.rpc("reach_out_chain_report", {
-    p_tenant_id: tenantId,
-    p_root_id: rootId,
-  });
+  const { data, error } = await readReachOutChainReport(ctx.supabase, tenantId, rootId);
   if (error) throw reachOutRefusal(error);
   return dtoOf<ReachOutChainReportDto>(data);
 }
 
 /** A search's reach: who a chain over it would write to, and who it would not, and why. */
 export async function getReach(ctx: RouteContext, tenantId: string, searchId: string): Promise<ReachOutReachDto> {
-  const { data, error } = await ctx.supabase.rpc("reach_out_reach", { p_tenant_id: tenantId, p_search_id: searchId });
+  const { data, error } = await readReachOutReach(ctx.supabase, tenantId, searchId);
   if (error) throw reachOutRefusal(error);
   return dtoOf<ReachOutReachDto>(data);
 }
@@ -223,7 +224,7 @@ export async function removeChain(
   tenantId: string,
   root: { id: string; name: string },
 ): Promise<{ removed: true; id: string; decision_id: string }> {
-  const { error } = await ctx.supabase.rpc("reach_out_remove", { p_tenant_id: tenantId, p_root_id: root.id });
+  const { error } = await removeReachOutChain(ctx.supabase, tenantId, root.id);
   if (error) throw reachOutRefusal(error);
   const decisionId = await recordDecision(ctx, tenantId, "playbook", root.id, "pause_playbook", {
     name: root.name,
@@ -288,7 +289,7 @@ export async function recheckRun(
   ctx: RouteContext,
   broadcastId: string,
 ): Promise<{ broadcast_id: string; rechecked: number }> {
-  const { data, error } = await ctx.supabase.rpc("reach_out_run_recheck", { p_broadcast_id: broadcastId });
+  const { data, error } = await recheckReachOutRun(ctx.supabase, broadcastId);
   if (error) throw reachOutRefusal(error);
   const r = data as { rechecked?: number } | null;
   return { broadcast_id: broadcastId, rechecked: r?.rechecked ?? 0 };

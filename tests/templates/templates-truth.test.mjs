@@ -95,7 +95,11 @@ test("the dashboard: the route proves the operator, the service reaches the edge
   // `?all=1` is Settings' read and the composer still sees approved only: RUN through the route in
   // outbound-routes.test.mjs ("templates: the composers see the approved and unhidden") and its reader in
   // readers.test.mjs. The columns moved with the body, to the reader.
-  const g = readCode("apps/dashboard/src/server/readers/templates.ts");
+  // With the read it names, packages/db's (decision 0111).
+  const g = readCode(
+    "apps/dashboard/src/server/readers/templates.ts",
+    "packages/db/src/repositories/campaigns/templates/page.ts",
+  );
   assert.ok(
     g.includes("category, meta_status, quality, rejected_reason, synced_at"),
     "the picker can tell marketing from utility",
@@ -106,7 +110,11 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   const w = readCode("apps/edge/lib/whatsapp/waba-events.ts");
   assert.ok(w.includes('"template_category_update"'), "a recategorised template changes who may receive it");
   // Meta's verdict and its reason are written on the row: run in whatsapp/a-template-s-verdict-reaches-its-row.test.mjs.
-  assert.match(w, /\.from\("templates"\)\s*\.update\(\{\s*category: mapCategory\(/);
+  // The write is packages/db's (decision 0111): the template named by its name and language, its category moved.
+  assert.match(
+    w,
+    /patchWhatsAppTemplate\(\s*db,\s*routed\.tenantId,\s*\{ name, language \},\s*\{ category: mapCategory\(/,
+  );
   assert.ok(
     w.includes(
       'const TEMPLATE_STATUS_EVENTS = new Set(["APPROVED", "REJECTED", "PAUSED", "DISABLED", "PENDING_DELETION", "IN_APPEAL"]);',

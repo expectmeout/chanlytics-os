@@ -1,6 +1,7 @@
 import "server-only";
 import { MIN_MS, type ReplyDraftKind } from "@chanlytics/contracts";
-import { claimControl } from "@chanlytics/db/conversations";
+import { claimControl, findEscalationState } from "@chanlytics/db/conversations";
+import type { RouteContext } from "../shared/with-route";
 import type { ConversationDraftRow } from "@chanlytics/db/ask";
 import { deployment } from "../shared/env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
@@ -81,3 +82,10 @@ export async function steerDraft(
     return { ok: true, messageId: body.message_id, text: body.text ?? "" };
   return { ok: false, reason: edgeReasonOf(answer) };
 }
+
+/**
+ * The escalation a member is answering, read on their session (packages/db conversations/escalations.ts): one they cannot
+ * see answers none. A route names no table (decision 0111).
+ */
+export const findEscalationFor = (ctx: Pick<RouteContext, "supabase">, id: string) =>
+  findEscalationState(ctx.supabase, id);

@@ -73,8 +73,10 @@ apps/dashboard/src/server/
   export/
   files/
   leads/
+  lines/
   metrics/
   new-conversation/
+  notices/
   people/
   posts/
   previews/

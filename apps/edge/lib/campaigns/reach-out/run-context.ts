@@ -5,15 +5,20 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  loadChainDraft,
-  handRun,
+  findChainAwaitingApproval,
+  findRunFor,
+  findStepRow,
   getLeadNamesByIds,
+  getReachOutFedBy,
+  getSequenceModes,
+  handRun,
+  insertDecision,
   leaveSequenceForLeads,
   listReachOutAudience,
-  getReachOutFedBy,
   listReachOutFollowers,
-  getSequenceModes,
+  loadChainDraft,
   mayWorkspaceSpend,
+  planReachOutRun,
 } from "@chanlytics/db/campaigns";
 import { emitEvent } from "@chanlytics/db/events";
 import type { Database, Json } from "@chanlytics/db/types";
@@ -23,6 +28,7 @@ import { stepSenders } from "./senders.js";
 import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { logger } from "../../shared/log.js";
+import { findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -42,12 +48,7 @@ const firstWords = (tz: string, atMs: number): string =>
 async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep | null> {
   let root = row;
   if (row.sequence_id !== row.id) {
-    const { data, error } = await db
-      .from("sequence_steps")
-      .select("*")
-      .eq("tenant_id", row.tenant_id)
-      .eq("id", row.sequence_id)
-      .maybeSingle();
+    const { data, error } = await findStepRow(db, row.tenant_id, row.sequence_id);
     if (error) throw new Error(`cannot read the step's chain: ${error.message}`);
     if (!data) return null;
     root = data;
@@ -109,7 +110,7 @@ export async function getReachOutRunContext(
   now: Date,
 ): Promise<{ step: ReachOutStep | HandStep; ports: ReachOutRunPorts & HandStepPorts } | { error: string }> {
   const [tenant, billing, policies, step] = await Promise.all([
-    db.from("tenants").select("timezone, status").eq("id", row.tenant_id).maybeSingle(),
+    findWorkspaceZoneStatus(db, row.tenant_id),
     // The one reading of "may this workspace spend on reach-out" (the check asks it too).
     mayWorkspaceSpend(db, row.tenant_id).then(
       (spend) => ({ spend, error: null as string | null }),
@@ -145,26 +146,13 @@ export async function getReachOutRunContext(
     mode,
     maySpend: spend,
     alreadyRan: async (stepId, runFor) => {
-      const { data, error } = await db
-        .from("sequence_batches")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("step_id", stepId)
-        .eq("run_for", runFor)
-        .maybeSingle();
+      const { data, error } = await findRunFor(db, tenantId, stepId, runFor);
       if (error) throw new Error(`cannot read the step's runs: ${error.message}`);
       return !!data;
     },
     // A run waiting for its owner holds the chain, whichever run it is: under ask they would pile up unanswered.
     chainWaits: async (rootId) => {
-      const { data, error } = await db
-        .from("sequence_batches")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("audience->>kind", "reach_out")
-        .eq("audience->>root_id", rootId)
-        .eq("state", "pending_approval")
-        .limit(1);
+      const { data, error } = await findChainAwaitingApproval(db, tenantId, rootId);
       if (error) throw new Error(`cannot read the chain's runs: ${error.message}`);
       return (data ?? []).length > 0;
     },
@@ -182,10 +170,7 @@ export async function getReachOutRunContext(
     // What a reach-out its owner sends holds, of the day and in all: its day's share and its owner's pile.
     draftLoad: (rootId, runFor) => loadChainDraft(db, { tenantId, rootId, runFor }),
     planRun: async (run, sends) => {
-      const { data, error } = await db.rpc("reach_out_plan_run", {
-        p_run: run as unknown as Json,
-        p_sends: sends as unknown as Json,
-      });
+      const { data, error } = await planReachOutRun(db, run as unknown as Json, sends as unknown as Json);
       if (error) throw new Error(`cannot plan the step's run: ${error.message}`);
       const item = (data ?? {}) as { id?: string; exists?: boolean };
       if (item.exists) return "exists";
@@ -197,7 +182,7 @@ export async function getReachOutRunContext(
       await emitEvent(db, tenantId, "playbook.run", "playbook", run.playbook_id, data).catch(() => {});
       // Scheduled without its owner's yes: the system's decision, under the mode the owner chose (veto).
       if (run.state === "scheduled") {
-        const { error } = await db.from("decisions").insert({
+        const { error } = await insertDecision(db, {
           tenant_id: tenantId,
           subject_type: "broadcast",
           subject_id: run.id,

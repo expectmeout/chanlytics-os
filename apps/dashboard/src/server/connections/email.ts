@@ -35,12 +35,14 @@ import {
   type ReplyFrom,
 } from "@chanlytics/contracts";
 import {
+  addMailbox,
   findAnsweredReachOutEmail,
   findLastInboundEmail,
-  listMailboxConnectionsOf,
   findMailboxOfTenant,
+  listMailboxConnectionsOf,
   type MailboxConnectionRow,
   type MailboxRow,
+  setMailboxName,
 } from "@chanlytics/db/email";
 import type { Database, Json } from "@chanlytics/db/types";
 import type { EmailReplyPorts } from "@chanlytics/core";
@@ -373,7 +375,7 @@ export async function createMailbox(
   if (!domain) throw new AppError("conflict", "Email is not available here yet.");
   const problem = whyNotALocalPart(input.localPart) ?? whyNotAFromName(input.fromName);
   if (problem) throw new AppError("validation", problem);
-  const { error } = await ctx.supabase.rpc("create_mailbox", {
+  const { error } = await addMailbox(ctx.supabase, {
     p_tenant_id: tenantId,
     p_local_part: normalizeLocalPart(input.localPart),
     p_from_name: input.fromName.trim(),
@@ -397,7 +399,7 @@ export async function renameMailbox(
   if (problem) throw new AppError("validation", problem);
   const mine = await findMailboxOfTenant(ctx.supabase, tenantId);
   if (!mine || mine.id !== mailboxId) throw new AppError("not_found", "That email address is not this workspace's.");
-  const { error } = await ctx.supabase.rpc("rename_mailbox", { p_mailbox_id: mailboxId, p_from_name: fromName.trim() });
+  const { error } = await setMailboxName(ctx.supabase, mailboxId, fromName.trim());
   if (error) throw dbRefusal(error);
   return mailboxDto({ ...mine, from_name: fromName.trim() }, domain);
 }
