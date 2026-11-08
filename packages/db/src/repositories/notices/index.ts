@@ -1,12 +1,14 @@
 /**
  * The notices domain: `@chanlytics/db/notices`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export { forgetPushDevice, markNotification, markNotificationsSeen, registerPushDevice } from "./devices";
 export {
   findOwnAddressIn,
   forgetActivityTokens,
   forgetEveryPhone,
   getMemberAlerts,
   getMemberViews,
+  keepMemberView,
   listActivityTokens,
   listMembersPushed,
   pushNamesFor,
@@ -14,6 +16,7 @@ export {
   setMemberView,
 } from "./member-alerts";
 export type { MemberAlerts } from "./member-alerts";
+export { findBellSeen, listBellRows, listNotificationMarks } from "./notifications/bell";
 export {
   closeMendedNotices,
   findMemberEmail,
@@ -31,6 +34,7 @@ export {
   forgetNotification,
   holdFactsOf,
   holdTold,
+  insertNotification,
   listReviewsNamed,
   recordMailSent,
   reviewRowsByGoogleId,

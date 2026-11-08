@@ -20,6 +20,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db/types";
+import { claimDueJob, stampJobSpoke, swapFiredJob } from "@chanlytics/db/jobs";
 import { DAY_MS, MIN_MS, jittered } from "@chanlytics/contracts";
 import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
 import { TWILIO_TIMEOUT_MS } from "@chanlytics/channels/lines";
@@ -243,7 +244,7 @@ export const UNKNOWN_KIND_GIVE_UP_MS = DAY_MS;
 
 /** The next due job, claimed for this run; null when nothing is due. */
 export async function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow | null> {
-  const { data, error } = await db.rpc("claim_due_jobs", { p_limit: 1, p_lease_seconds: leaseSeconds });
+  const { data, error } = await claimDueJob(db, leaseSeconds);
   if (error) throw new Error(`claim_due_jobs: ${error.message}`);
   const rows: LedgerRow[] = data ?? [];
   return rows[0] ?? null;
@@ -263,9 +264,7 @@ export async function markSpoke(
 ): Promise<void> {
   if (job.spoke_at) return;
   const at = new Date().toISOString();
-  let write = db.from("jobs").update({ spoke_at: at }).eq("id", job.id).eq("state", "fired");
-  if (job.attempts !== undefined) write = write.eq("attempts", job.attempts);
-  const { data, error } = await write.select("id");
+  const { data, error } = await stampJobSpoke(db, job, at);
   if (error) throw new Error(`mark_spoke: ${error.message}`);
   if ((data?.length ?? 0) === 0) throw new Error("mark_spoke: this run no longer holds the job");
   job.spoke_at = at;
@@ -277,25 +276,17 @@ export async function markSpoke(
  * run that holds it now; zero rows means exactly that, and the caller says so.
  */
 export async function completeJob(db: Db, job: { id: string; attempts: number }): Promise<boolean> {
-  const { data, error } = await db
-    .from("jobs")
-    .update({ state: "done", lease_until: null })
-    .eq("id", job.id)
-    .eq("state", "fired")
-    .eq("attempts", job.attempts)
-    .select("id");
+  const { data, error } = await swapFiredJob(db, job, { state: "done", lease_until: null });
   if (error) throw new Error(`complete_job: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }
 
 export async function failJob(db: Db, job: { id: string; attempts: number }, reason: string): Promise<boolean> {
-  const { data, error } = await db
-    .from("jobs")
-    .update({ state: "failed", last_error: reason.slice(0, 500), lease_until: null })
-    .eq("id", job.id)
-    .eq("state", "fired")
-    .eq("attempts", job.attempts)
-    .select("id");
+  const { data, error } = await swapFiredJob(db, job, {
+    state: "failed",
+    last_error: reason.slice(0, 500),
+    lease_until: null,
+  });
   if (error) throw new Error(`fail_job: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }
@@ -317,19 +308,13 @@ export async function deferJob(
   reason: string,
   giveBackClaim = false,
 ): Promise<boolean> {
-  const { data, error } = await db
-    .from("jobs")
-    .update({
-      state: "scheduled",
-      due_at: untilIso,
-      lease_until: null,
-      last_error: reason.slice(0, 500),
-      ...(giveBackClaim ? { attempts: Math.max(0, job.attempts - 1) } : {}),
-    })
-    .eq("id", job.id)
-    .eq("state", "fired")
-    .eq("attempts", job.attempts)
-    .select("id");
+  const { data, error } = await swapFiredJob(db, job, {
+    state: "scheduled",
+    due_at: untilIso,
+    lease_until: null,
+    last_error: reason.slice(0, 500),
+    ...(giveBackClaim ? { attempts: Math.max(0, job.attempts - 1) } : {}),
+  });
   if (error) throw new Error(`defer_job: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }

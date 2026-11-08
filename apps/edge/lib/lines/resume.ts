@@ -24,9 +24,10 @@
  */
 import { PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, LINE_FILED_NAMES, formatPhoneDisplay } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tenantDb } from "@chanlytics/db/shared";
 import type { Database, Json } from "@chanlytics/db/types";
 import type { Logger } from "../shared/log.js";
+import { claimFailedLine, claimStuckLine, listStuckLines, saveLineFacts, saveLineRow } from "@chanlytics/db/lines";
+import { findWorkspaceName } from "@chanlytics/db/workspace";
 
 type Db = SupabaseClient<Database>;
 export type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -108,13 +109,7 @@ export async function claimLineForResume(
     ...(by === "sweep" ? {} : { facts: { ...factsOf(row), automatic_resumes: 0 } }),
   };
   if (row.voice_state === "failed") {
-    const { data, error } = await tenantDb(db, row.tenant_id)
-      .from("lines")
-      .update(values)
-      .eq("id", row.id)
-      .eq("voice_state", "failed")
-      .select("*")
-      .maybeSingle();
+    const { data, error } = await claimFailedLine(db, row, values);
     if (error) throw new Error(`claim_line: ${error.message}`);
     return data ?? null;
   }
@@ -122,14 +117,7 @@ export async function claimLineForResume(
     // The same deadline `lineStuckProvisioning` reads, as a filter: a saga that is
     // genuinely still running has a `state_since` inside it and is never taken.
     const cutoff = new Date(nowMs - PROVISIONING_DEADLINE_MS).toISOString();
-    const { data, error } = await tenantDb(db, row.tenant_id)
-      .from("lines")
-      .update(values)
-      .eq("id", row.id)
-      .eq("voice_state", "provisioning")
-      .lt("state_since", cutoff)
-      .select("*")
-      .maybeSingle();
+    const { data, error } = await claimStuckLine(db, row, values, cutoff);
     if (error) throw new Error(`claim_line: ${error.message}`);
     return data ?? null;
   }
@@ -161,11 +149,7 @@ export async function countAutomaticResume(
   const facts = { ...factsOf(row), automatic_resumes: automaticResumesOf(row) + 1 } as Json;
   // Selected and counted: an update that matched nothing (a line that is not this workspace's, a row gone) does not
   // raise, and a try that was not written down is one the bound never sees.
-  const { data, error } = await tenantDb(db, row.tenant_id)
-    .from("lines")
-    .update({ facts })
-    .eq("id", row.id)
-    .select("id");
+  const { data, error } = await saveLineFacts(db, row, facts);
   if (error) return { ok: false, error: error.message };
   if (data?.length !== 1) return { ok: false, error: NOT_THERE_TO_COUNT };
   return { ok: true, row: { ...row, facts } };
@@ -213,13 +197,7 @@ interface StuckSweepResult {
 export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: number): Promise<StuckSweepResult> {
   const cutoff = new Date(deps.now() - PROVISIONING_DEADLINE_MS).toISOString();
   // Oldest first, so a backlog drains in the order it built up.
-  const { data: rows, error } = await db
-    .from("lines")
-    .select("*")
-    .eq("voice_state", "provisioning")
-    .lt("state_since", cutoff)
-    .order("state_since", { ascending: true })
-    .limit(limit);
+  const { data: rows, error } = await listStuckLines(db, cutoff, limit);
   if (error) throw new Error(`lines_sweep_read: ${error.message}`);
 
   const out: StuckSweepResult = {
@@ -233,7 +211,7 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
   for (const row of rows ?? []) {
     // The workspace first, and only then the take: a line whose workspace cannot be
     // read is left untouched for the next tick rather than taken and abandoned.
-    const rows = await db.from("tenants").select("id, name").eq("id", row.tenant_id).maybeSingle();
+    const rows = await findWorkspaceName(db, row.tenant_id);
     if (rows.error || !rows.data) {
       out.unreadable += 1;
       deps.log.error("lines_sweep_no_workspace", {
@@ -270,10 +248,11 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
       // and every page already know what to do with — and a returned failure is
       // exactly what this is now, just returned by the sweep instead of the saga.
       const reason = `Setting up stopped while ${at}, and ${MAX_AUTOMATIC_RESUMES} automatic tries did not finish it. Retry picks up where it stopped.`;
-      const { error: failErr } = await tenantDb(db, taken.tenant_id)
-        .from("lines")
-        .update({ voice_state: "failed", last_error: reason, state_since: new Date(deps.now()).toISOString() })
-        .eq("id", taken.id);
+      const { error: failErr } = await saveLineRow(db, taken, {
+        voice_state: "failed",
+        last_error: reason,
+        state_since: new Date(deps.now()).toISOString(),
+      });
       if (failErr) {
         out.failed += 1;
         deps.log.error("lines_sweep_give_up_unwritten", { line_id: taken.id, error: failErr.message });

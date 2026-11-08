@@ -18,16 +18,10 @@ import { deployment } from "../shared/env";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody } from "../shared/edge";
 import { log } from "@/server/shared/log";
 import { serviceDbIfConfigured } from "@/server/shared/service-db";
-
-export const BILLING_COLUMNS =
-  "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
+import { findPlanForPage } from "@chanlytics/db/billing";
 
 export async function findBilling(db: SupabaseClient<Database>, tenantId: string): Promise<BillingAccountDto | null> {
-  const { data, error } = await db
-    .from("billing_accounts")
-    .select(BILLING_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const { data, error } = await findPlanForPage(db, tenantId);
   if (error) throw new Error(error.message);
   return data ? billingAccountDto(data) : null;
 }

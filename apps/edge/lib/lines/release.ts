@@ -27,14 +27,21 @@ import {
 } from "./release-rules";
 import { deletePhoneNumber, type RetellConfig } from "@chanlytics/channels/voice";
 import { TwilioError, type ProviderAccount } from "@chanlytics/channels/lines";
-import { dropLineCredentials } from "@chanlytics/db/lines";
+import {
+  deleteLineRow,
+  dropLineCredentials,
+  getLineCredentials,
+  listLinesOfWorkspaces,
+  saveLineFacts,
+} from "@chanlytics/db/lines";
 import { emitEvent } from "@chanlytics/db/events";
-import { tenantDb } from "@chanlytics/db/shared";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
 import { factsOf } from "./resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import type { Logger } from "../shared/log.js";
+import { findPlanForRelease, listStripeAccountsIn } from "@chanlytics/db/billing";
+import { listWorkspaceStandings } from "@chanlytics/db/workspace";
 
 type Db = SupabaseClient<Database>;
 type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -148,7 +155,7 @@ export async function releaseLine(
       if (!r.ok) throw new Error(`Retell delete-phone-number: HTTP ${r.status}`);
       released.retell_number = line.e164;
     }
-    const creds = await db.rpc("get_line_credentials", { p_line_id: line.id });
+    const creds = await getLineCredentials(db, line.id);
     // A read that failed is not a line with no token: going on would skip the carrier and forget a number still billed.
     if (creds.error) {
       const detail = `reading the line's credentials: ${creds.error.message}`;
@@ -178,7 +185,7 @@ export async function releaseLine(
     const detail = e instanceof Error ? e.message : String(e);
     return { ok: false, status: 503, error: "write_failed", detail, released };
   }
-  const del = await tenantDb(db, tenantId).from("lines").delete().eq("id", line.id);
+  const del = await deleteLineRow(db, tenantId, line.id);
   if (del.error) return { ok: false, status: 503, error: "write_failed", detail: del.error.message, released };
   await emitEvent(db, tenantId, "line.released", "line", line.id, {
     e164: line.e164,
@@ -236,9 +243,6 @@ export interface EndedLinesResult {
   report_only: boolean;
 }
 
-const BILLING_COLUMNS =
-  "tenant_id, mode, status, trial_end, current_period_end, cancel_at, last_payment_failed_at, updated_at";
-
 /** When a release of this line last stopped (lines.facts.release_failed_at), or 0 for one not yet tried. */
 function failedAtOf(row: LineDbRow): number {
   const at = factsOf(row).release_failed_at;
@@ -294,7 +298,7 @@ async function keepFacts(
   facts: Database["public"]["Tables"]["lines"]["Update"]["facts"],
   text: string,
 ): Promise<void> {
-  const up = await db.from("lines").update({ facts }).eq("id", row.id).eq("tenant_id", row.tenant_id);
+  const up = await saveLineFacts(db, row, facts);
   if (up.error) throw new Error(`keeping ${text}: ${up.error.message}`);
 }
 
@@ -387,19 +391,13 @@ export async function sweepEndedLines(
     report_only: afterDays === null,
   };
   let warningsAsked = 0;
-  const bills = await db
-    .from("billing_accounts")
-    .select(BILLING_COLUMNS)
-    .eq("mode", "stripe")
-    .in("status", [...ENDED_STATUSES]);
+  // The sweep's page: every workspace whose plan has ended, by design.
+  const bills = await listStripeAccountsIn(db, ENDED_STATUSES);
   if (bills.error) throw new Error(`reading billing: ${bills.error.message}`);
   const byTenant = new Map((bills.data ?? []).map((b) => [b.tenant_id, b as unknown as LineReleaseBilling]));
   if (!byTenant.size) return out;
   const ids = [...byTenant.keys()];
-  const [tenants, lines] = await Promise.all([
-    db.from("tenants").select("id, slug, status, timezone").in("id", ids),
-    db.from("lines").select("*").in("tenant_id", ids).in("kind", ["chanlytics", "forwarded"]).order("created_at"),
-  ]);
+  const [tenants, lines] = await Promise.all([listWorkspaceStandings(db, ids), listLinesOfWorkspaces(db, ids)]);
   if (tenants.error) throw new Error(`reading workspaces: ${tenants.error.message}`);
   if (lines.error) throw new Error(`reading lines: ${lines.error.message}`);
   const tenantOf = new Map((tenants.data ?? []).map((t) => [t.id, t]));
@@ -459,11 +457,7 @@ export async function sweepEndedLines(
     out.due += 1;
     if (out.released + out.failed >= MAX_RELEASES_PER_TICK) continue;
     // Read again, just before: a workspace that resumed a moment ago keeps its number.
-    const fresh = await db
-      .from("billing_accounts")
-      .select(BILLING_COLUMNS)
-      .eq("tenant_id", row.tenant_id)
-      .maybeSingle();
+    const fresh = await findPlanForRelease(db, row.tenant_id);
     if (fresh.error) throw new Error(`reading billing: ${fresh.error.message}`);
     const again = lineReleaseStep(fresh.data as unknown as LineReleaseBilling | null, afterDays, warnedOf(row), now);
     if (again.step !== "release") continue;

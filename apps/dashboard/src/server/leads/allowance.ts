@@ -9,7 +9,7 @@ import {
   wallClockAt,
   type IdeaAbout,
 } from "@chanlytics/contracts";
-import { getLeadAllowance } from "@chanlytics/db/leads";
+import { getLeadAllowance, readLeadMonthUsed } from "@chanlytics/db/leads";
 import type { Database } from "@chanlytics/db/types";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
@@ -58,7 +58,7 @@ export async function readMonthUsed(
   // The month's whole is the workspace's allowance (00512's lead_allowance: the trial's while on a trial, decision
   // 0090), read beside what the month has taken, so the number left is the one lead_reserve holds.
   const [{ data, error }, cap] = await Promise.all([
-    ctx.supabase.rpc("lead_month_used", { p_tenant_id: tenantId, p_period: period }),
+    readLeadMonthUsed(ctx.supabase, tenantId, period),
     getLeadAllowance(ctx.supabase, tenantId),
   ]);
   if (error) throw new Error(`lead_month_used: ${error.message}`);

@@ -37,6 +37,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { post, platformFrom, platformTo } from "./notify.js";
 import { logger, errField } from "../log.js";
+import { findOperatorPage, saveOperatorPage, stampOperatorPage } from "@chanlytics/db/ops";
 
 export const PAGE_WINDOW_MS = 6 * 3600_000;
 
@@ -76,11 +77,7 @@ async function pageOnce(ports: PagePorts, key: string, subject: string, body: st
   const log = logger();
   const now = ports.now?.() ?? Date.now();
   const send = ports.send ?? post;
-  const { data: row, error: readErr } = await ports.db
-    .from("operator_pages")
-    .select("alerted_at, count")
-    .eq("key", key)
-    .maybeSingle();
+  const { data: row, error: readErr } = await findOperatorPage(ports.db, key);
   if (readErr) {
     // A pager that cannot read its own memory pages anyway: a duplicate page
     // is cheaper than a silence nobody chose.
@@ -92,7 +89,7 @@ async function pageOnce(ports: PagePorts, key: string, subject: string, body: st
   // reads on /api/diag to judge how long a condition has been firing was reset
   // by the very database trouble most likely to be firing it.
   const memory = { key, last_at: new Date(now).toISOString(), ...(readErr ? {} : { count: (row?.count ?? 0) + 1 }) };
-  const { error: writeErr } = await ports.db.from("operator_pages").upsert(memory, { onConflict: "key" });
+  const { error: writeErr } = await saveOperatorPage(ports.db, memory);
   if (writeErr) log.error("operator_page_memory_unwritable", { key, error: writeErr.message });
   if (row?.alerted_at && now - Date.parse(row.alerted_at) < PAGE_WINDOW_MS) return "suppressed";
   const to = platformTo();
@@ -106,10 +103,9 @@ async function pageOnce(ports: PagePorts, key: string, subject: string, body: st
     return false;
   });
   if (!ok) return "failed";
-  await ports.db
-    .from("operator_pages")
-    .update({ alerted_at: new Date(now).toISOString() })
-    .eq("key", key);
+  // The page went; a stamp that fails is said, and the next sweep may page again for the same key.
+  const stamped = await stampOperatorPage(ports.db, key, new Date(now).toISOString());
+  if (stamped.error) log.error("operator_page_stamp_failed", { key, error: stamped.error.message });
   return "sent";
 }
 

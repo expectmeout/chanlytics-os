@@ -263,12 +263,13 @@ export async function recordCallNote(
       // Already noted. Message bodies are immutable (P3), so the existing
       // line stands; hand back its id so the call row can still be linked
       // to it (a backfilled call whose link was dropped converges here).
-      const { data: prior } = await db
+      const { data: prior, error: priorErr } = await db
         .from("messages")
         .select("id")
         .eq("tenant_id", params.tenantId)
         .eq("external_id", params.externalId)
         .maybeSingle();
+      if (priorErr) dbLog().error("record_call_note_failed", { tenant_id: params.tenantId, error: priorErr.message });
       return prior?.id ?? null;
     }
     dbLog().error("record_call_note_failed", { tenant_id: params.tenantId, error: error.message });
@@ -566,3 +567,15 @@ export async function callSecondsSince(db: Db, tenantId: string, sinceIso: strin
     return n + (typeof s === "number" && Number.isFinite(s) ? s : 0);
   }, 0);
 }
+
+/** The workspace's newest inbound call that connected: who called, and for how long. */
+export const findLastAnsweredCall = async (db: Db, tenantId: string) =>
+  db
+    .from("calls")
+    .select("from_e164, duration_ms")
+    .eq("tenant_id", tenantId)
+    .eq("direction", "inbound")
+    .neq("status", "not_connected")
+    .order("started_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();

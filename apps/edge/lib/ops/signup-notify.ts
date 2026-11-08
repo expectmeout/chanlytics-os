@@ -22,6 +22,7 @@ import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
 import { getHandoverInvite } from "@chanlytics/db/partners";
 import { UUID } from "@chanlytics/contracts";
+import { findNewWorkspace } from "@chanlytics/db/workspace";
 
 interface Body {
   tenant_id?: string;
@@ -39,11 +40,7 @@ export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
   if (!UUID.test(tenantId) || !email) return refuse(400, "bad_request", "tenant_id and email are required");
-  const tenant = await db
-    .from("tenants")
-    .select("id, name, slug, timezone, created_at")
-    .eq("id", tenantId)
-    .maybeSingle();
+  const tenant = await findNewWorkspace(db, tenantId);
   if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
   // A partner's workspace waits for the address it was handed to, who has not taken it and may never: nobody signed

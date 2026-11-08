@@ -12,6 +12,7 @@ import {
 import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";
 import { str } from "../context/tool-reads";
+import { findWorkspaceRule } from "@chanlytics/db/ask";
 
 /**
  * What a class's change asks that its row already holds (the operator stress run, 15 Oct 2026: a part of an ask already
@@ -54,13 +55,9 @@ async function proposePolicy(
   if (conf !== null && (cls !== "reply" || conf < 0 || conf > 1))
     return refuse("the confidence dial is 0 to 1 and applies to reply");
   if (!mode && conf === null) return refuse("say a mode or a confidence");
-  const { data: row } = await toolContext.ctx.supabase
-    .from("policies")
-    .select("mode, limits")
-    .eq("tenant_id", toolContext.tenantId)
-    .eq("class", cls)
-    .is("subject_type", null)
-    .maybeSingle();
+  const { data: row, error: rowErr } = await findWorkspaceRule(toolContext.ctx.supabase, toolContext.tenantId, cls);
+  // A rule that cannot be read is not a rule that is unset: the card's "was" would be false.
+  if (rowErr) throw new Error(`cannot read the workspace's ${cls} rule: ${rowErr.message}`);
   const was = {
     mode: row?.mode ?? null,
     conf: (row?.limits as { min_confidence?: number } | null)?.min_confidence ?? null,

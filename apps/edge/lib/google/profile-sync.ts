@@ -8,7 +8,6 @@
 import { emitEvent } from "@chanlytics/db/events";
 import { noteImport } from "@chanlytics/db/imports";
 import { reviewLinkOf } from "@chanlytics/db/campaigns";
-import type { Database } from "@chanlytics/db/types";
 import {
   GBP_REVIEWS_FIRST_PAGES,
   GBP_REVIEWS_MAX_PAGES,
@@ -36,6 +35,15 @@ import { tokenFor } from "../shared/google/credentials.js";
 import { causeOfRead, causeOfToken, syncMended, tellSyncStopped, type SyncCause } from "./sync-notice.js";
 import { answerNewReviews } from "./review-answers.js";
 import type { CheckResult } from "./listing-check.js";
+import {
+  deleteGoogleReviews,
+  pageGoogleReviewReplies,
+  patchGoogleConnection,
+  patchGoogleListing,
+  patchGoogleListingAtPlace,
+  saveGoogleListingDay,
+  saveGoogleReviews,
+} from "@chanlytics/db/google";
 
 /** The reviews a sync read, on the imports ledger: the count Google gives (else those read), unanswered, the oldest. */
 async function noteReviews(db: Db, tenantId: string, plan: ProfileSyncPlan): Promise<void> {
@@ -77,10 +85,7 @@ async function letReviewsGo(
   origin: "places" | "profile",
   which: { seenBefore?: string | null; only?: readonly string[] } = {},
 ): Promise<void> {
-  let q = db.from("google_reviews").delete().eq("tenant_id", tenantId).eq("origin", origin);
-  if (which.seenBefore) q = q.lt("last_seen_at", which.seenBefore);
-  if (which.only) q = q.in("review_id", [...which.only]);
-  const gone = await q;
+  const gone = await deleteGoogleReviews(db, tenantId, { origin, ...which });
   if (gone.error) throw new Error(gone.error.message);
 }
 
@@ -91,7 +96,9 @@ async function keepReviews(
   reviews: ReturnType<typeof planProfileSync>["reviews"],
 ): Promise<void> {
   if (!reviews.length) return;
-  const up = await db.from("google_reviews").upsert(
+  const up = await saveGoogleReviews(
+    db,
+    tenantId,
     reviews.map((review) => ({
       tenant_id: tenantId,
       review_id: review.review_id,
@@ -108,7 +115,6 @@ async function keepReviews(
       maps_uri: null,
       last_seen_at: review.last_seen_at,
     })),
-    { onConflict: "tenant_id,review_id" },
   );
   if (up.error) throw new Error(up.error.message);
 }
@@ -156,10 +162,6 @@ async function ringNewReviews(db: Db, conn: ConnectionRow, plan: ProfileSyncPlan
 const aboutOne = (answered: ReadonlyArray<{ id: string }>): { type: string; id: string } | null =>
   answered.length === 1 && answered[0] ? { type: "review", id: answered[0].id } : null;
 
-/** The workspace's listing, changed in place: what a sync read of the rating and the count, or the review link. */
-const changeListing = (db: Db, tenantId: string, set: Database["public"]["Tables"]["google_listings"]["Update"]) =>
-  db.from("google_listings").update(set).eq("tenant_id", tenantId);
-
 /**
  * The listing's review link (00415) as its bound location gives it now. The bind wrote it from the location it bound
  * (profile-connection.ts); every sync after the first reads that location again, alone, by its name (channels
@@ -202,7 +204,7 @@ async function keepReviewLink(
   }
   let wrote;
   try {
-    wrote = await changeListing(db, conn.tenant_id, { new_review_uri: link }).eq("place_id", place).select("tenant_id");
+    wrote = await patchGoogleListingAtPlace(db, conn.tenant_id, place, { new_review_uri: link });
     if (wrote.error) throw new Error(wrote.error.message);
   } catch (e) {
     L.warn("google_review_link_write_failed", { error: errField(e) });
@@ -238,10 +240,7 @@ export async function syncProfile(
     // a failed first attempt made the next real sync think it had run before —
     // leaving the Places reviews on file as duplicates for ever and answering
     // reviews the owner had already seen.
-    const { error: upErr } = await db
-      .from("google_connections")
-      .update({ sync_error: error.slice(0, 300) })
-      .eq("tenant_id", conn.tenant_id);
+    const { error: upErr } = await patchGoogleConnection(db, conn.tenant_id, { sync_error: error.slice(0, 300) });
     if (upErr) throw new Error(upErr.message);
     log.warn("google_profile_sync_failed", { error, cause });
     await tellSyncStopped(db, conn, { cause, now, L: log });
@@ -268,14 +267,7 @@ export async function syncProfile(
     replied_at: string | null;
     reply_text: string | null;
     origin: string;
-  }>("google_reviews", (from, to) =>
-    db
-      .from("google_reviews")
-      .select("review_id, replied_at, reply_text, origin")
-      .eq("tenant_id", conn.tenant_id)
-      .order("review_id")
-      .range(from, to),
-  );
+  }>("google_reviews", (from, to) => pageGoogleReviewReplies(db, conn.tenant_id, from, to));
   const plan = planProfileSync(
     { last_synced_at: conn.last_synced_at },
     new Map(
@@ -291,21 +283,20 @@ export async function syncProfile(
   await keepReviews(db, conn.tenant_id, plan.reviews);
   if (plan.prune) await letReviewsGo(db, conn.tenant_id, "profile", { seenBefore: plan.synced_at });
   if (plan.listing) {
-    const l = await changeListing(db, conn.tenant_id, plan.listing);
+    const l = await patchGoogleListing(db, conn.tenant_id, plan.listing);
     if (l.error) throw new Error(l.error.message);
   }
   if (plan.day) {
-    const d = await db
-      .from("google_listing_days")
-      .upsert({ tenant_id: conn.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });
+    const d = await saveGoogleListingDay(db, conn.tenant_id, plan.day);
     if (d.error) throw new Error(d.error.message);
   }
   // The new reviews told before the stamp, so a bell that could not be kept is asked for again (ringNewReviews).
   await ringNewReviews(db, conn, plan);
-  const done = await db
-    .from("google_connections")
-    .update({ last_synced_at: plan.synced_at, sync_error: null, reviews_complete: plan.complete })
-    .eq("tenant_id", conn.tenant_id);
+  const done = await patchGoogleConnection(db, conn.tenant_id, {
+    last_synced_at: plan.synced_at,
+    sync_error: null,
+    reviews_complete: plan.complete,
+  });
   if (done.error) throw new Error(done.error.message);
   // A notice of a breakage closes once a sync works: asked where one could be open (sync-notice.ts syncMended).
   if (wasFailing || first) await syncMended(db, conn.tenant_id, "google_connection.synced");

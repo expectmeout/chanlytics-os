@@ -8,8 +8,8 @@ import { deleteCampaignRequest, updateCampaignRequest, encodeForm, requestTwilio
 import type { EdgeErrorCode } from "@chanlytics/contracts";
 import { findLineAccount } from "./sms.js";
 import { logger } from "../shared/log.js";
-import { tenantDb } from "@chanlytics/db/shared";
 import { listFilingProblems, TWILIO_TIMEOUT_MS, type Db, type LineRow, type RecordRow } from "./a2p-register.js";
+import { saveLineRowBack } from "@chanlytics/db/lines";
 
 /**
  * What a refile step answers: the row as it now reads; or why not, as a code, with the pre-flight's sentences in
@@ -81,35 +81,30 @@ export async function unfileMockRegistration(
   }
   // `single()` is the row count: a write that changed nothing errors here
   // rather than returning a success the caller would file on top of.
-  const cleared = await tenantDb(db, line.tenant_id)
-    .from("lines")
-    .update({
-      brand_sid: null,
-      campaign_sid: null,
-      // The MOCK BRAND CANNOT BE DELETED. Twilio answers 405/20004 on
-      // DELETE /v1/a2p/BrandRegistrations/{sid} -- brands are permanent, mock or
-      // not -- and it then refuses a second brand for the same (customer profile,
-      // messaging profile) pair with "Duplicate Brand can not be saved" (20409).
-      // So the pair has to change, and the cheap half to change is the messaging
-      // profile: clearing this resumes the saga at `a2p_profile`, which creates a
-      // fresh bundle, re-attaches the SAME customer profile and company-type end
-      // user to it, and submits it. Nothing that cost anything is redone -- the
-      // business, the representative, the address and the document all stay on
-      // the customer profile, which is the expensive half.
-      //
-      // Without this the refile was refused at the brand step every time, and the
-      // row was left saying nothing was filed while Twilio still held a mock
-      // brand and campaign. Found by running it.
-      a2p_profile_sid: null,
-      reg_mock: false,
-      reg_step: null,
-      sms_state: "registering",
-      last_error: null,
-      state_since: new Date().toISOString(),
-    })
-    .eq("id", line.id)
-    .select("*")
-    .single();
+  const cleared = await saveLineRowBack(db, line, {
+    brand_sid: null,
+    campaign_sid: null,
+    // The MOCK BRAND CANNOT BE DELETED. Twilio answers 405/20004 on
+    // DELETE /v1/a2p/BrandRegistrations/{sid} -- brands are permanent, mock or
+    // not -- and it then refuses a second brand for the same (customer profile,
+    // messaging profile) pair with "Duplicate Brand can not be saved" (20409).
+    // So the pair has to change, and the cheap half to change is the messaging
+    // profile: clearing this resumes the saga at `a2p_profile`, which creates a
+    // fresh bundle, re-attaches the SAME customer profile and company-type end
+    // user to it, and submits it. Nothing that cost anything is redone -- the
+    // business, the representative, the address and the document all stay on
+    // the customer profile, which is the expensive half.
+    //
+    // Without this the refile was refused at the brand step every time, and the
+    // row was left saying nothing was filed while Twilio still held a mock
+    // brand and campaign. Found by running it.
+    a2p_profile_sid: null,
+    reg_mock: false,
+    reg_step: null,
+    sms_state: "registering",
+    last_error: null,
+    state_since: new Date().toISOString(),
+  });
   if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
   return { ok: true, row: cleared.data };
 }
@@ -189,17 +184,12 @@ export async function resubmitRejectedCampaign(
   }
   log.info("a2p.campaign_resubmitted", { campaign: line.campaign_sid });
 
-  const cleared = await tenantDb(db, line.tenant_id)
-    .from("lines")
-    .update({
-      sms_state: "registering",
-      reg_step: null,
-      last_error: null,
-      state_since: new Date().toISOString(),
-    })
-    .eq("id", line.id)
-    .select("*")
-    .single();
+  const cleared = await saveLineRowBack(db, line, {
+    sms_state: "registering",
+    reg_step: null,
+    last_error: null,
+    state_since: new Date().toISOString(),
+  });
   if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
   return { ok: true, row: cleared.data };
 }
@@ -257,18 +247,13 @@ export async function replaceRejectedCampaign(
   // `single()` is the row count: a write that changed nothing errors here
   // rather than returning a success the caller would file on top of. The
   // brand and the messaging profile stay; only the campaign's receipt goes.
-  const cleared = await tenantDb(db, line.tenant_id)
-    .from("lines")
-    .update({
-      campaign_sid: null,
-      reg_step: null,
-      sms_state: "registering",
-      last_error: null,
-      state_since: new Date().toISOString(),
-    })
-    .eq("id", line.id)
-    .select("*")
-    .single();
+  const cleared = await saveLineRowBack(db, line, {
+    campaign_sid: null,
+    reg_step: null,
+    sms_state: "registering",
+    last_error: null,
+    state_since: new Date().toISOString(),
+  });
   if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
   return { ok: true, row: cleared.data };
 }

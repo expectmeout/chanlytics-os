@@ -14,9 +14,11 @@ export {
 } from "./anthropic-profiles";
 export type { AnthropicProfileClaim, AnthropicProfileHeld, AnthropicProfileRow } from "./anthropic-profiles";
 export {
+  findAskTokensToday,
   keepModelTurn,
   listAiFailuresHour,
   mayWorkspaceUseModels,
+  pageLlmUsage,
   purgeAiUsage,
   recordModelUsage,
   scrubModelTurns,

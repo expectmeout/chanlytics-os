@@ -232,6 +232,8 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   const del = readCode(
     "apps/dashboard/app/api/v1/templates/[id]/route.ts",
     "apps/dashboard/src/server/campaigns/template-row.ts",
+    // The count itself, packages/db's (decision 0111).
+    "packages/db/src/repositories/campaigns/templates/doors.ts",
   );
   assert.ok(
     del.includes('.in("state", ["scheduled", "sending"]);') &&

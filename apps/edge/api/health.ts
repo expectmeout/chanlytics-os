@@ -14,6 +14,7 @@ import { pg } from "../lib/shared/pg.js";
 import { platformHealthOf } from "@chanlytics/contracts";
 import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
 import { door } from "../lib/shared/log.js";
+import { readPlatformHealth, type HealthDb } from "../lib/ops/platform-health.js";
 
 const CACHE_MS = 10_000;
 let cached: { at: number; status: number; body: string } | null = null;
@@ -28,15 +29,10 @@ export interface HealthAnswer {
   reason?: "health_unreadable" | "no_database" | "error";
 }
 
-/** The rpc surface the judgement needs, so a test can hand it a fake. */
-export interface HealthDb {
-  rpc: (name: "sweep_health" | "jobs_backlog") => PromiseLike<{ data: unknown; error: { message: string } | null }>;
-}
-
 /** The judgement, apart from the transport. */
 export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ status: number; body: HealthAnswer }> {
   const checked_at = now.toISOString();
-  const [health, backlog] = await Promise.all([db.rpc("sweep_health"), db.rpc("jobs_backlog")]);
+  const [health, backlog] = await readPlatformHealth(db);
   if (health.error) {
     return {
       status: 503,

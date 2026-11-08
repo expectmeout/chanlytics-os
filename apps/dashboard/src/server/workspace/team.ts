@@ -2,7 +2,23 @@ import "server-only";
 import { emitEvent, recordEvent, getSubjectsWith } from "@chanlytics/db/events";
 import { getOwnPartner } from "@chanlytics/db/partners";
 import { inviteUserByEmail } from "@chanlytics/db/auth";
-import { listWorkspaceIds } from "@chanlytics/db/workspace";
+import {
+  changeTeamRole,
+  insertMembership,
+  inviteToTeam,
+  joinTeam,
+  leaveWorkspaceTeam,
+  listInvitesForAddress,
+  listOpenInvitations,
+  listWorkspaceIds,
+  lookupUserForInvite,
+  readTeamRoster,
+  removeFromTeam,
+  renewTeamInvite,
+  stampInvitationAccepted,
+  withdrawInviteRenewal,
+  withdrawTeamInvite,
+} from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError, type InvitationsAcceptedDto, type JoinedWorkspaceDto } from "@chanlytics/contracts";
@@ -101,16 +117,10 @@ async function teamCall(
  */
 export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: string) {
   const [members, invites] = await Promise.all([
-    db.rpc("team_roster", { p_tenant_id: tenantId }),
+    readTeamRoster(db, tenantId),
     // Plain RLS: invitations_member_read already scopes this to the caller's
     // workspaces, so it never needed a privileged client.
-    db
-      .from("invitations")
-      .select("id, email, role, created_at, expires_at")
-      .eq("tenant_id", tenantId)
-      .is("accepted_at", null)
-      .is("revoked_at", null)
-      .order("created_at"),
+    listOpenInvitations(db, tenantId),
   ]);
   if (members.error) throw new Error(members.error.message);
   if (invites.error) throw new Error(invites.error.message);
@@ -151,15 +161,12 @@ export async function inviteMember(
   // account is an oracle, and a session that could call this could ask it about
   // every address at API speed, outside the owner check and rate bucket the
   // invite route runs first (00121).
-  const { data: existingId, error: lookupErr } = await db.rpc("lookup_user_for_invite", {
-    p_tenant_id: tenantId,
-    p_email: email,
-  });
+  const { data: existingId, error: lookupErr } = await lookupUserForInvite(db, tenantId, email);
   if (lookupErr) throw new Error(lookupErr.message);
   if (existingId) {
     // Known account, new workspace: membership now, no email ceremony needed, and the ledger saying so, together.
     const joined = await teamCall(
-      db.rpc("team_join", {
+      joinTeam(db, {
         p_tenant_id: tenantId,
         p_actor: invitedBy,
         p_user_id: existingId,
@@ -175,7 +182,7 @@ export async function inviteMember(
   // The invitation and its row, before the mail: the mail cannot be part of a transaction, so a mail that could not
   // go takes both back, and the ledger never says an invitation went that did not.
   const inv = await teamCall(
-    db.rpc("team_invite", {
+    inviteToTeam(db, {
       p_tenant_id: tenantId,
       p_actor: invitedBy,
       p_email: email,
@@ -187,8 +194,15 @@ export async function inviteMember(
   if (inv.already_invited === true) return { alreadyInvited: true as const };
   const { error: mailErr } = await inviteUserByEmail(db, email);
   if (mailErr) {
-    // The intent row without the email is a lie in the invites list, and on the ledger: take both back.
-    await db.rpc("team_invite_withdraw", { p_tenant_id: tenantId, p_invitation_id: String(inv.invitation_id) });
+    // The intent row without the email is a lie in the invites list, and on the ledger: take both back. The email's
+    // failure is what the person is told; a withdrawal that fails too is logged beside it.
+    const withdrawn = await withdrawTeamInvite(db, tenantId, String(inv.invitation_id));
+    if (withdrawn.error)
+      log.error("db_failed", {
+        tenant_id: tenantId,
+        code: withdrawn.error.code ?? null,
+        error: withdrawn.error.message,
+      });
     throw new AppError("upstream_email", `We could not send the invitation email: ${mailErr.message}`, 502);
   }
   return { invited: true as const };
@@ -204,7 +218,7 @@ export async function setMemberRole(
   // Read and written in one transaction: the previous role is the part of the audit that matters later ("was
   // promoted to owner" is a different fact from "was already one"), and the row is the only place it is written.
   const changed = await teamCall(
-    svc.rpc("team_change_role", {
+    changeTeamRole(svc, {
       p_tenant_id: tenantId,
       p_actor: ctx.userId,
       p_membership_id: membershipId,
@@ -228,7 +242,7 @@ export async function removeMember(
   // id may be a membership or an open invite; the database tries the invite first. Recorded in the same transaction
   // as the delete, carrying the role they held: the membership row is gone, so the ledger's is the surviving record.
   const removed = await teamCall(
-    svc.rpc("team_remove", {
+    removeFromTeam(svc, {
       p_tenant_id: tenantId,
       p_actor: ctx.userId,
       p_id: id,
@@ -259,7 +273,7 @@ export async function resendInvite(
   let renewed: Record<string, unknown>;
   try {
     renewed = await teamCall(
-      svc.rpc("team_invite_renew", {
+      renewTeamInvite(svc, {
         p_tenant_id: tenantId,
         p_actor: ctx.userId,
         p_invitation_id: invitationId,
@@ -275,12 +289,15 @@ export async function resendInvite(
   const email = String(renewed.email);
   const { error: mailErr } = await inviteUserByEmail(svc, email);
   if (!mailErr) return { resent: true as const, email };
-  await svc.rpc("team_invite_renew_withdraw", {
+  // The email's failure is what the person is told; a renewal that cannot be taken back is logged beside it.
+  const withdrawn = await withdrawInviteRenewal(svc, {
     p_tenant_id: tenantId,
     p_invitation_id: invitationId,
     p_decision_id: String(renewed.decision_id),
     p_was: String(renewed.was),
   });
+  if (withdrawn.error)
+    log.error("db_failed", { tenant_id: tenantId, code: withdrawn.error.code ?? null, error: withdrawn.error.message });
   if (mailErr.code === EMAIL_HAS_ACCOUNT)
     throw new AppError(
       "conflict",
@@ -298,7 +315,7 @@ export async function resendInvite(
 export async function leaveTeam(ctx: TeamCtx, tenantId: string, svc: SupabaseClient<Database> = serviceDb()) {
   try {
     await teamCall(
-      svc.rpc("team_leave", { p_tenant_id: tenantId, p_actor: ctx.userId, ...(ctx.via ? { p_via: ctx.via } : {}) }),
+      leaveWorkspaceTeam(svc, { p_tenant_id: tenantId, p_actor: ctx.userId, ...(ctx.via ? { p_via: ctx.via } : {}) }),
       "leave",
     );
   } catch (e) {
@@ -323,13 +340,8 @@ interface InviteToAccept {
 async function openInvitesFor(email: string | null): Promise<InviteToAccept[]> {
   if (!email) return [];
   try {
-    const { data, error } = await serviceDb()
-      .from("invitations")
-      .select("id, tenant_id, role")
-      .eq("email", email.toLowerCase())
-      .is("accepted_at", null)
-      .is("revoked_at", null)
-      .gt("expires_at", new Date().toISOString());
+    // A person's open invitations, whichever workspaces they are to: by design, read by their address.
+    const { data, error } = await listInvitesForAddress(serviceDb(), email.toLowerCase(), new Date().toISOString());
     return error ? [] : (data ?? []);
   } catch {
     return [];
@@ -350,9 +362,7 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
   const db = serviceDb();
   const seated: InviteToAccept[] = [];
   for (const inv of invites) {
-    const { error: mErr } = await db
-      .from("memberships")
-      .insert({ tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
+    const { error: mErr } = await insertMembership(db, { tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
     // A refusal other than "they hold the seat" leaves the invitation open for the next read.
     if (mErr && mErr.code !== "23505") continue;
     // The seat, the news and the stamp are three writes that cannot share a transaction, so they are ordered to be finished
@@ -373,12 +383,15 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
         continue;
       }
     }
-    // Stamped only if nobody stamped it first (a second tab's read at once), which is the one that counts it.
-    await db
-      .from("invitations")
-      .update({ accepted_at: new Date().toISOString() })
-      .eq("id", inv.id)
-      .is("accepted_at", null);
+    // Stamped only if nobody stamped it first (a second tab's read at once), which is the one that counts it. A stamp
+    // that fails is logged and leaves the invitation open: the seat is written already, and the next accept stamps it.
+    const stamped = await stampInvitationAccepted(db, inv.tenant_id, inv.id, new Date().toISOString());
+    if (stamped.error)
+      log.error("db_failed", {
+        tenant_id: inv.tenant_id,
+        code: stamped.error.code ?? null,
+        error: stamped.error.message,
+      });
     seated.push(inv);
   }
   return seated;

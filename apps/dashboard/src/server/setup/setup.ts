@@ -3,7 +3,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { setSetupChoices } from "@chanlytics/db/workspace";
+import { requestSetup, setSetupChoices } from "@chanlytics/db/workspace";
 import {
   forwardStillAsked,
   parseTenantConfigResult,
@@ -380,3 +380,9 @@ export async function saveSetupChoices(
     },
   };
 }
+
+/** Help with one part of the setup, asked for on the member's session (packages/db workspace/setup.ts), answered as it came. */
+export const requestWorkspaceSetup = (
+  ctx: { supabase: SupabaseClient<Database> },
+  args: Parameters<typeof requestSetup>[1],
+) => requestSetup(ctx.supabase, args);

@@ -7,6 +7,7 @@ import { deployment } from "../shared/env";
 import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
 import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
+import { lookupUserForInvite } from "@chanlytics/db/workspace";
 
 /**
  * A partner hands a workspace to its owner (decision 0016): the half of it the database cannot do, which is telling
@@ -54,10 +55,7 @@ export async function sendHandoverInvite(
 ): Promise<boolean> {
   const svc = ports.svc ?? serviceDb();
   try {
-    const { data: existing, error } = await svc.rpc("lookup_user_for_invite", {
-      p_tenant_id: tenantId,
-      p_email: email,
-    });
+    const { data: existing, error } = await lookupUserForInvite(svc, tenantId, email);
     if (error) throw new Error(error.message);
     if (!existing) {
       const { error: mailErr } = await inviteUserByEmail(svc, email);

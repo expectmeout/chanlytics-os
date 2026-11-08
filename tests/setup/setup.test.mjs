@@ -462,11 +462,17 @@ test("a count of who said yes that cannot be read fails Setup's read -- a zero i
   // none said, never a zero), and then the answers: to messages, to offers, and to offers with a number.
   const seen = fakeDb(tables());
   await setupDtoFor(seen, T, { kind: "back_office" }, new Date(NOW));
-  const counts = seen.seen.filter((q) => q.table === "contacts").length;
+  const reads = seen.seen.filter((q) => q.table === "contacts");
+  const counts = reads.length;
   assert.equal(counts, 4);
-  const unread = await setupDtoFor(fakeDb(tables(), failing(1)), T, { kind: "back_office" }, new Date(NOW));
+  // Which of the four is the people count, by what it asks (no yes in it): each read goes out as it is asked for, so
+  // the order is the calls', and the answers' counts are asked for first (packages/db's, decision 0111).
+  const quiet = 1 + reads.findIndex((q) => !q.filters.some((f) => /consent/.test(String(f[1]))));
+  assert.ok(quiet > 0, "the people count asks for no yes");
+  const unread = await setupDtoFor(fakeDb(tables(), failing(quiet)), T, { kind: "back_office" }, new Date(NOW));
   assert.equal(unread.people, undefined, "the people the workspace holds, not counted: none said, not a zero");
-  for (let k = 2; k <= counts; k++) {
+  for (let k = 1; k <= counts; k++) {
+    if (k === quiet) continue;
     await assert.rejects(
       setupDtoFor(fakeDb(tables(), failing(k)), T, { kind: "back_office" }, new Date(NOW)),
       /statement timeout/,
@@ -497,8 +503,17 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       "billing_accounts.select",
       // What the first run chose for the workspace (setup_choices, decision 0091): asked at once, read quietly.
       "setup_choices.select",
+      // What packages/db answers goes out as it is asked for (decision 0111): the channels, the templates' verdicts,
+      // the team's invitations, who said yes, the asks for help and the capabilities, ahead of what is awaited.
+      "tenant_channels.select",
+      "templates.select",
       "invitations.select",
+      "contacts.select",
+      "contacts.select",
+      "contacts.select",
+      "events.select",
       "lines.select",
+      "capability_activations.select",
       // The mailboxes a reach-out writes from (decision 0056): read with the email line, whatever the hosted one.
       "mailbox_connections.select",
       // Whether a day-before reminder runs (listRunningStepsOn): Today's card stops offering one.
@@ -509,13 +524,6 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       "imports.select",
       "contacts.select",
       "business_reads.select",
-      "tenant_channels.select",
-      "templates.select",
-      "contacts.select",
-      "contacts.select",
-      "contacts.select",
-      "events.select",
-      "capability_activations.select",
     ];
     const member = fakeDb({}, {}, { team_roster: () => [] });
     await setupDtoFor(member, T, { kind: "member" }, new Date(NOW));
@@ -530,7 +538,11 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
     await setupDtoFor(office, T, { kind: "back_office" }, new Date(NOW));
     assert.deepEqual(
       asked(office),
-      [...READS.slice(0, 9), "memberships.select", ...READS.slice(9)],
+      [
+        ...READS.slice(0, READS.indexOf("invitations.select")),
+        "memberships.select",
+        ...READS.slice(READS.indexOf("invitations.select")),
+      ],
       "the back office: the members counted, and no RPC at all",
     );
 
@@ -540,9 +552,9 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       ["messages.select", 1],
       ["calls.select", 1],
       ["templates.select", 1],
+      ["contacts.select", 1],
       ["contacts.select", 2],
       ["contacts.select", 3],
-      ["contacts.select", 4],
       ["events.select", 1],
       ["capability_activations.select", 1],
     ];
@@ -1194,7 +1206,12 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
   // One assembly, two callers: the workspace reads its own on the session
   // client, the back office reads another's on the service client. The route
   // is now four lines and the pins live where the work does.
-  const get = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+  // With the reads they name, which are packages/db's (decision 0111).
+  const get = [
+    "apps/dashboard/src/server/setup/channel-rows.ts",
+    "apps/dashboard/src/server/setup/setup.ts",
+    "packages/db/src/repositories/workspace/setup-rows.ts",
+  ]
     .map((p) => readCode(p))
     .join("\n");
   for (const pin of [
@@ -1216,9 +1233,14 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
   for (const pin of [
     'role: "operator",',
     'rate: "setup_request",',
-    'rpc("setup_request", { p_tenant_id: member.tenantId, p_what: subject })',
+    // The door is packages/db's (decision 0111): the route asks it through its server module.
+    "requestWorkspaceSetup(ctx, { p_tenant_id: member.tenantId, p_what: subject })",
   ])
     assert.ok(post.includes(pin), pin);
+  assert.ok(
+    readCode("packages/db/src/repositories/workspace/setup.ts").includes('db.rpc("setup_request", args)'),
+    "the door, named once",
+  );
   const mig = readRaw("supabase/migrations/00065_setup_request.sql");
   for (const pin of [
     "create or replace function public.setup_request(p_tenant_id uuid, p_what text)",

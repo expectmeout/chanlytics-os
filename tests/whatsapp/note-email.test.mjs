@@ -56,7 +56,7 @@ async function listening(fn) {
   }
 }
 
-test("an address on file is left alone: the person's row is read once, by its key, and the door is never called", async () => {
+test("an address on file is left alone: the person's row is read once, by its key in its workspace, and the door is never called", async () => {
   const db = fakeDb(person("kept@example.com"), {}, { set_person_email: door });
   const sink = pgSink(db, "t1", ing, null, "sms");
   assert.equal(sink.on, true);
@@ -64,8 +64,13 @@ test("an address on file is left alone: the person's row is read once, by its ke
     assert.equal(await sink.noteEmail(ADDRESS), undefined);
     assert.deepEqual(
       reads(db).map((q) => q.filters),
-      [[["eq", "id", "k1"]]],
-      "the one read: this person's row",
+      [
+        [
+          ["eq", "id", "k1"],
+          ["eq", "tenant_id", "t1"],
+        ],
+      ],
+      "the one read: this person's row, in the workspace it came to (decision 0111)",
     );
     assert.deepEqual(rpcs(db), [], "nothing is written over an address on file");
     assert.deepEqual(lines, [], "and nothing to say");

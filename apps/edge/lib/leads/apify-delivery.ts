@@ -28,6 +28,7 @@ import { planApifyIngress, tokenMatches, RUN_ROW_ID, WEBHOOK_TOKEN, type Ingress
 import { leadDb } from "./db.js";
 import { leadWires } from "./wires.js";
 import { scheduleJobOnce } from "@chanlytics/jobs";
+import { findRunForDelivery } from "@chanlytics/db/leads";
 
 /** The delivery is a pointer: ids and a status. Anything larger is not one. */
 const MAX_BODY = 64_000;
@@ -54,11 +55,7 @@ export async function receiveApifyDelivery(request: Request): Promise<Response> 
 
   let runRow: IngressRunRow | null;
   try {
-    const { data, error } = await db
-      .from("lead_runs")
-      .select("id, tenant_id, apify_run_id, state, webhook_token_hash")
-      .eq("id", runRowId)
-      .maybeSingle();
+    const { data, error } = await findRunForDelivery(db, runRowId);
     if (error) throw new Error(error.message);
     runRow = data ?? null;
   } catch (e) {

@@ -9,6 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LINE_FILED_NAMES } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
+import { tenantDb } from "../../shared/tenant-db";
 
 // No `type Db` alias here, as the repositories write one: the declaration bundler numbers every module's alias (`Db$x`), and a
 // new one renumbers every alias after it, which is a diff of hundreds of lines in a committed file that says nothing new.
@@ -83,3 +84,10 @@ export async function findFiledNames(
   };
   return { campaign: named(LINE_FILED_NAMES.campaign), brand: named(LINE_FILED_NAMES.brand) };
 }
+
+/** The business on record saved, one a workspace, and back whole. The answer is the database's as it came. */
+export const saveBusinessOnRecord = async (
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  row: Database["public"]["Tables"]["business_records"]["Insert"],
+) => tenantDb(db, tenantId).from("business_records").upsert(row, { onConflict: "tenant_id" }).select("*").single();

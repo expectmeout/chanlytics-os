@@ -22,6 +22,13 @@ import {
   type Db,
   type ListingRow,
 } from "../shared/google/rows.js";
+import {
+  listGoogleConnectionsDue,
+  listGoogleListingsDue,
+  pageGoogleReviewIds,
+  saveGoogleListingDay,
+  saveGoogleReviews,
+} from "@chanlytics/db/google";
 
 export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
@@ -78,7 +85,7 @@ export async function checkListing(
   // more than a thousand reviews announced old reviews as new, every hour, for
   // ever.
   const known = await readAllRows<{ review_id: string }>("google_reviews", (from, to) =>
-    db.from("google_reviews").select("review_id").eq("tenant_id", row.tenant_id).order("review_id").range(from, to),
+    pageGoogleReviewIds(db, row.tenant_id, from, to),
   );
   const plan = planListingCheck(
     { rating: row.rating, review_count: row.review_count, checked_at: row.checked_at },
@@ -90,13 +97,13 @@ export async function checkListing(
   );
 
   await patchListing(db, row.tenant_id, plan.listing);
-  const day = await db
-    .from("google_listing_days")
-    .upsert({ tenant_id: row.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });
+  const day = await saveGoogleListingDay(db, row.tenant_id, plan.day);
   if (day.error) throw new Error(day.error.message);
   if (plan.reviews.length) {
     // first_seen_at is not in the payload: an existing row keeps its own.
-    const reviews = await db.from("google_reviews").upsert(
+    const reviews = await saveGoogleReviews(
+      db,
+      row.tenant_id,
       plan.reviews.map((review) => ({
         tenant_id: row.tenant_id,
         review_id: review.review_id,
@@ -111,7 +118,6 @@ export async function checkListing(
         maps_uri: review.maps_uri,
         last_seen_at: review.last_seen_at,
       })),
-      { onConflict: "tenant_id,review_id" },
     );
     if (reviews.error) throw new Error(reviews.error.message);
   }
@@ -152,29 +158,25 @@ export async function checkListing(
 /** How long a listing or a profile rests between reads: once a day, with room for the sweep's own drift. */
 const CHECK_EVERY_MS = 20 * HOUR_MS;
 
-/** The listings the sweep reads this tick: never read first, then the oldest. */
-export async function listListingsDue(db: Db, now: Date, limit: number): Promise<ListingRow[]> {
+/** A read of the rows due since a moment, at most `limit`: one of packages/db's sweep pages. */
+type DueRead<Row> = (
+  db: Db,
+  before: string,
+  limit: number,
+) => Promise<{ data: Row[] | null; error: { message: string } | null }>;
+
+/** The sweep's page of what is due this tick, every workspace's by design: never read first, then the oldest. */
+async function rowsDue<Row>(read: DueRead<Row>, db: Db, now: Date, limit: number): Promise<Row[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
-  const { data, error } = await db
-    .from("google_listings")
-    .select("*")
-    .or(`checked_at.is.null,checked_at.lt.${before}`)
-    .order("checked_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
+  const { data, error } = await read(db, before, limit);
   if (error) throw new Error(error.message);
   return data ?? [];
 }
 
-/** The connected profiles the sweep syncs this tick: complete ones, never synced first, then the oldest. */
-export async function listConnectionsDue(db: Db, now: Date, limit: number): Promise<ConnectionRow[]> {
-  const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
-  const { data, error } = await db
-    .from("google_connections")
-    .select("*")
-    .not("location_name", "is", null)
-    .or(`last_synced_at.is.null,last_synced_at.lt.${before}`)
-    .order("last_synced_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  return data ?? [];
-}
+/** The listings the sweep reads this tick. */
+export const listListingsDue = (db: Db, now: Date, limit: number): Promise<ListingRow[]> =>
+  rowsDue(listGoogleListingsDue, db, now, limit);
+
+/** The connected profiles the sweep syncs this tick: complete ones only. */
+export const listConnectionsDue = (db: Db, now: Date, limit: number): Promise<ConnectionRow[]> =>
+  rowsDue(listGoogleConnectionsDue, db, now, limit);

@@ -13,18 +13,14 @@ import { recordDecision } from "@/server/shared/verbs";
 import { log } from "@/server/shared/log";
 import type { Member, Params } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
+import { findThreadForExport, pageThreadForExport } from "@chanlytics/db/conversations";
 
 const THREAD_EXPORT_PAGE = 500;
 
 export async function exportConversation(ctx: RouteContext & { params: Params }, member: Member) {
   const { supabase, userId, params } = ctx;
   const id = requireUuid(params.id, "conversation");
-  const { data: conv, error } = await supabase
-    .from("conversations")
-    .select("id, tenant_id, contacts (id, display_name, wa_profile_name, phone_e164, email)")
-    .eq("id", id)
-    .eq("tenant_id", member.tenantId)
-    .maybeSingle();
+  const { data: conv, error } = await findThreadForExport(supabase, member.tenantId, id);
   if (error) throw new Error(error.message);
   if (!conv) throw new AppError("not_found", "Conversation not found.");
   // Offset paging under one TOTAL order, as the workspace export does, not a
@@ -37,13 +33,12 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
   // The workspace export reads every thread this way, so one thread is less.
   const messages: MessageDto[] = [];
   for (let page = 0; ; page++) {
-    const { data, error: merr } = await supabase
-      .from("messages")
-      .select("id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel")
-      .eq("conversation_id", id)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(page * THREAD_EXPORT_PAGE, page * THREAD_EXPORT_PAGE + THREAD_EXPORT_PAGE - 1);
+    const { data, error: merr } = await pageThreadForExport(
+      supabase,
+      id,
+      page * THREAD_EXPORT_PAGE,
+      page * THREAD_EXPORT_PAGE + THREAD_EXPORT_PAGE - 1,
+    );
     if (merr) throw new Error(merr.message);
     if (!data?.length) break;
     for (const row of data) {

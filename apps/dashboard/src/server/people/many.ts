@@ -5,6 +5,7 @@ import { setPersonReplyMode } from "@chanlytics/db/workspace";
 import type { RouteContext } from "@/server/shared/with-route";
 import { recordDecision } from "@/server/shared/verbs";
 import { NO_ADDRESS_TO_SORT } from "@/server/people/mailbox-senders";
+import { addBulkNote, listPeopleWith } from "@chanlytics/db/people";
 
 /**
  * The same change for many people at once, through the door each would go
@@ -28,7 +29,7 @@ async function ours<T extends { id: string; tenant_id: string; erased_at: string
   ids: string[],
   columns: string,
 ): Promise<{ rows: T[]; skipped: string[] }> {
-  const { data, error } = await ctx.supabase.from("contacts").select(columns).in("id", ids);
+  const { data, error } = await listPeopleWith(ctx.supabase, ids, columns);
   if (error) throw new Error(error.message);
   const rows = ((data ?? []) as unknown as T[]).filter((c) => c.tenant_id === tenantId && !c.erased_at);
   return { rows, skipped: ids.filter((id) => !rows.some((c) => c.id === id)) };
@@ -98,11 +99,7 @@ export async function appendNotesMany(
   const failed: ManyOutcome["failed"] = [];
   let done = 0;
   for (const row of rows) {
-    const { data, error } = await ctx.supabase.rpc("person_note_add", {
-      p_contact_id: row.id,
-      p_body: text,
-      p_source: "bulk",
-    });
+    const { data, error } = await addBulkNote(ctx.supabase, row.id, text);
     const refused = (data as { error?: string } | null)?.error;
     if (error || refused) {
       failed.push({ id: row.id, message: error?.message ?? NOTE_REFUSALS[refused ?? ""] ?? "Could not add the note." });

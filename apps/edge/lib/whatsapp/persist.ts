@@ -16,16 +16,18 @@ import { publicFetcher } from "@chanlytics/channels/shared";
 import {
   AnswerNotKept,
   ingestInbound,
-  markProcessed,
-  stampHandled,
-  pauseConversation,
   type IngestResult,
+  markProcessed,
+  pauseConversation,
+  stampHandled,
+  storeMedia,
 } from "@chanlytics/db/channels";
 import {
   claimReplyTurn,
   holdsReplyTurn,
   readLiveHold,
   readThreadState,
+  saveMessageMedia,
   wasRepliedTo,
 } from "@chanlytics/db/conversations";
 import { emitEvent, recordActivation } from "@chanlytics/db/events";
@@ -58,6 +60,7 @@ import {
   type SendPurpose,
 } from "@chanlytics/contracts";
 import { logger, errField } from "../shared/log.js";
+import { findPersonEmailRow, setPersonEmail } from "@chanlytics/db/people";
 
 /**
  * Postgres-sourced thread state, or an UNKNOWN thread when it cannot be
@@ -518,16 +521,13 @@ export function pgSink(
     noteEmail: (address: string) =>
       on
         ? runPgSafe("note_email", async () => {
-            const { data, error: unread } = await db
-              .from("contacts")
-              .select("email")
-              .eq("id", ing.contact_id)
-              .maybeSingle();
+            // `on` holds only with a workspace, so the person is read inside it.
+            const { data, error: unread } = await findPersonEmailRow(db, tenantId ?? "", ing.contact_id);
             // The door itself overwrites, so this read is the one thing that keeps an address already on file: a
             // read that failed keeps everything, rather than writing over an address nobody could see.
             if (unread) throw new Error(unread.message);
             if (data?.email) return;
-            const { error } = await db.rpc("set_person_email", { p_contact_id: ing.contact_id, p_email: address });
+            const { error } = await setPersonEmail(db, ing.contact_id, address);
             if (error && error.code === "23505") {
               logger().info("inbound_email_taken", { tenant_id: tenantId, contact: ing.contact_id });
               return;
@@ -594,10 +594,7 @@ export function pgSink(
             if (result) {
               const ext = MIME_EXT[result.mime || ""] || "bin";
               const path = `${tenantId}/${ing.conversation_id}/${ing.message_id}.${ext}`;
-              const { error } = await db.storage.from("media").upload(path, result.bytes, {
-                contentType: result.mime || "application/octet-stream",
-                upsert: true,
-              });
+              const { error } = await storeMedia(db, path, result.bytes, result.mime || "application/octet-stream");
               if (error) throw new Error(error.message);
               mediaOut.fetch_state = "stored";
               mediaOut.storage_path = path;
@@ -610,11 +607,7 @@ export function pgSink(
             // `fetch_state: "pending"` forever: the bytes are in storage, the
             // Inbox shows an attachment that is still downloading, and no
             // reconciliation can tell it from a genuinely in-flight fetch.
-            const { error: rowErr } = await db
-              .from("messages")
-              .update({ media: mediaOut as Json })
-              .eq("id", ing.message_id)
-              .eq("tenant_id", tenantId);
+            const { error: rowErr } = await saveMessageMedia(db, tenantId, ing.message_id, mediaOut as Json);
             if (rowErr) throw new Error(rowErr.message);
             return result;
           })

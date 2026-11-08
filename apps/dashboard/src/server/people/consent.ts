@@ -23,7 +23,7 @@ import {
   type AskedPurpose,
   type SignupAskRefusal,
 } from "@chanlytics/contracts";
-import { recordConsent } from "@chanlytics/db/people";
+import { listPeopleStanding, recordConsent } from "@chanlytics/db/people";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
@@ -164,7 +164,7 @@ export async function recordConsentMany(
   const source = consentSourceOf(input, purpose, "many");
   const note = noteOf(input.note);
   const ids = [...new Set(input.ids)];
-  const { data, error } = await ctx.supabase.from("contacts").select("id, tenant_id, erased_at").in("id", ids);
+  const { data, error } = await listPeopleStanding(ctx.supabase, ids);
   if (error) throw new Error(error.message);
   const ours = (data ?? []).filter((c) => c.tenant_id === tenantId && !c.erased_at);
   const skipped = ids.filter((id) => !ours.some((c) => c.id === id));

@@ -20,7 +20,14 @@ import {
   unreadFor,
   zoneDayKey,
 } from "@chanlytics/contracts";
-import { getMemberAlerts, getMemberViews, getOlderUnread } from "@chanlytics/db/notices";
+import {
+  findBellSeen,
+  getMemberAlerts,
+  getMemberViews,
+  getOlderUnread,
+  listBellRows,
+  listNotificationMarks,
+} from "@chanlytics/db/notices";
 import { facts as factsReader } from "./facts";
 import { searches as searchesReader } from "./searches";
 import { sequences as sequencesReader } from "./sequences";
@@ -41,14 +48,8 @@ export const notifications: Reader<undefined, NotificationsDto> = {
     const since = new Date(rc.now.getTime() - BELL_WINDOW_DAYS * DAY_MS).toISOString();
     const sb = rc.ctx.supabase;
     const [rows, seen] = await Promise.all([
-      sb
-        .from("notifications")
-        .select("id, kind, title, body, route, subject_type, subject_id, created_at, closed_at")
-        .eq("tenant_id", tenantId)
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(BELL_LIST_ROWS),
-      sb.from("notification_reads").select("seen_at").eq("tenant_id", tenantId).eq("user_id", rc.userId).maybeSingle(),
+      listBellRows(sb, tenantId, since, BELL_LIST_ROWS),
+      findBellSeen(sb, tenantId, rc.userId),
     ]);
     if (rows.error) throw new Error(rows.error.message);
     if (seen.error) throw new Error(seen.error.message);
@@ -74,13 +75,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
           })
         : Promise.resolve({ unread: 0, holdThreads: [] as string[] });
     const [marks, older] = await Promise.all([
-      ids.length
-        ? sb
-            .from("notification_marks")
-            .select("notification_id, read_at, dismissed_at")
-            .eq("user_id", rc.userId)
-            .in("notification_id", ids)
-        : Promise.resolve({ data: [], error: null }),
+      ids.length ? listNotificationMarks(sb, rc.userId, ids) : Promise.resolve({ data: [], error: null }),
       olderRead,
     ]);
     if (marks.error) throw new Error(marks.error.message);

@@ -73,8 +73,11 @@ test("the shell's one line: a pause outranks a newer build, and points at Billin
 
 test("the wiring: the runtime reads the switch, every path honours it, the shell says so", () => {
   const rt = readCode("apps/edge/lib/shared/tenant-runtime.ts");
+  // The read is packages/db's (decision 0111): the runtime's own row, with its status, in the one load.
+  const rows = readCode("packages/db/src/repositories/workspace/rows.ts");
   assert.ok(
-    rt.includes('db.from("tenants").select("name, slug, timezone, status")') &&
+    rows.includes('db.from("tenants").select("name, slug, timezone, status")') &&
+      rt.includes("findWorkspaceRuntimeRow(db, routed.tenantId)") &&
       rt.includes('paused: t?.status === "paused"') &&
       rt.includes("paused: false,"),
     "one read, the same query the clock uses",

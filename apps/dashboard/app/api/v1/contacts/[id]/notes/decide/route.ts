@@ -2,7 +2,7 @@ import { z } from "zod";
 import { NOTE_MAX } from "@chanlytics/contracts";
 import { write } from "@/server/shared/route";
 import { contactScope } from "@/server/shared/verbs";
-import { noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
+import { decideNote, noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
 
 const Body = z
   .object({
@@ -27,7 +27,7 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, row: contact, input }) => {
     await noteOn(ctx, contact.id, input.note_id);
-    const { data, error } = await ctx.supabase.rpc("person_note_decide", {
+    const { data, error } = await decideNote(ctx, {
       p_note_id: input.note_id,
       p_keep: input.keep,
       ...(input.body ? { p_body: input.body } : {}),

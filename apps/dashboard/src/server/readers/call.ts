@@ -1,8 +1,9 @@
 import "server-only";
 import { AppError, addressOf, callerName, personName, type CallDto } from "@chanlytics/contracts";
-import { CALL_COLUMNS, toCallDto } from "../conversations/dto";
+import { toCallDto } from "../conversations/dto";
 import { requireUuid } from "../shared/request-guards";
 import { readerStamp, type Reader, type RowRef } from "../shared/reader";
+import { findCallRow } from "@chanlytics/db/voice";
 
 /**
  * One phone call by id, as the Calls page maps a call (CALL_COLUMNS,
@@ -20,12 +21,7 @@ export const call: Reader<{ id: string }, { call: CallDto }> = {
   name: "call",
   async read(rc, { id }) {
     const callId = requireUuid(id, "call");
-    const { data, error } = await rc.ctx.supabase
-      .from("calls")
-      .select(CALL_COLUMNS)
-      .eq("tenant_id", rc.tenantId)
-      .eq("id", callId)
-      .maybeSingle();
+    const { data, error } = await findCallRow(rc.ctx.supabase, rc.tenantId, callId);
     if (error) throw new Error(error.message);
     if (!data) throw new AppError("not_found", "Call not found.", 404);
     const dto = toCallDto(data);

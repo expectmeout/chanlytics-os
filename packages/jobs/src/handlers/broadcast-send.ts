@@ -16,6 +16,7 @@ import {
 import { carriedBy, nextBatch } from "../runner/batch-carry";
 import type { Database } from "@chanlytics/db/types";
 import { getAppointmentStates } from "@chanlytics/db/calendar";
+import { findConfigRow, findWorkspaceNameZone } from "@chanlytics/db/workspace";
 import {
   recordCampaignMonthSent,
   cancelBroadcastFrom,
@@ -31,6 +32,17 @@ import {
   findWrittenEmail,
 } from "@chanlytics/db/campaigns";
 import { claimQueuedSend, releaseQueuedSend } from "@chanlytics/db/jobs";
+import {
+  countBroadcastSends,
+  failBroadcastRun,
+  findBroadcastRun,
+  findBroadcastState,
+  listBatchPeople,
+  listBroadcastMessagesTo,
+  startBroadcastRun,
+  writeBroadcastSend,
+  claimBroadcastSend,
+} from "@chanlytics/db/campaigns";
 import { emitEvent, finishBroadcast } from "@chanlytics/db/events";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { resolveOutboundTarget, resolveOutboundTargetForContact } from "@chanlytics/db/channels";
@@ -56,14 +68,11 @@ async function countRecipients(
   state?: string,
   reason?: string,
 ): Promise<number> {
-  let query = db
-    .from("sequence_sends")
-    .select("contact_id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .eq("batch_id", broadcastId);
-  if (state) query = query.eq("state", state);
-  if (reason) query = query.eq("reason", reason);
-  const { count, error } = await query;
+  const { count, error } = await countBroadcastSends(
+    db,
+    { tenantId, broadcastId },
+    { ...(state ? { state } : {}), ...(reason ? { reason } : {}) },
+  );
   if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
   return count ?? 0;
 }
@@ -241,13 +250,7 @@ function peoplePorts(
     batch: (id, limit) => listQueuedRecipients(db, { tenantId, broadcastId: id, limit }),
     // The batch's people in one read, not one read per person.
     contacts: async (ids) => {
-      const { data, error } = await db
-        .from("contacts")
-        .select(
-          "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing, name_source, name_settled_at",
-        )
-        .in("id", ids)
-        .eq("tenant_id", tenantId);
+      const { data, error } = await listBatchPeople(db, tenantId, ids);
       if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
       return new Map((data ?? []).map((c) => [c.id, c]));
     },
@@ -311,13 +314,7 @@ function peoplePorts(
     alreadySent: async (id, contactIds) => {
       const rows = must(
         "broadcast_send: cannot check what the batch was already sent",
-        await db
-          .from("messages")
-          .select("id, contact_id, created_at")
-          .eq("tenant_id", tenantId)
-          .in("contact_id", contactIds)
-          .filter("meta->>broadcast_id", "eq", id)
-          .in("status", ["sent", "delivered", "read"]),
+        await listBroadcastMessagesTo(db, { tenantId, broadcastId: id }, contactIds),
       );
       // created_at is written by the same statement that records the send, so
       // it is when the message left, which is what the recipient's row wants.
@@ -343,21 +340,13 @@ function peoplePorts(
 function markPort(db: SupabaseClient<Database>, tenantId: string): BroadcastBatchPorts["mark"] {
   return async (id, contactId, patch) => {
     const sentAt = patch.sent_at ?? (patch.state === "sent" ? new Date().toISOString() : null);
-    const write = db
-      .from("sequence_sends")
-      .update({ ...patch, sent_at: sentAt })
-      .eq("tenant_id", tenantId)
-      .eq("batch_id", id)
-      .eq("contact_id", contactId)
-      .is("lead_id", null);
+    const key = { tenantId, broadcastId: id, contactId };
+    const values = { ...patch, sent_at: sentAt };
     if (patch.state !== "failed" || patch.reason !== OUTCOME_UNKNOWN) {
-      must("broadcast_send: cannot record how this person's send went", await write);
+      must("broadcast_send: cannot record how this person's send went", await writeBroadcastSend(db, key, values));
       return true;
     }
-    const took = must(
-      "broadcast_send: cannot claim this person",
-      await write.eq("state", "queued").select("contact_id"),
-    );
+    const took = must("broadcast_send: cannot claim this person", await claimBroadcastSend(db, key, values));
     return (took ?? []).length > 0;
   };
 }
@@ -370,14 +359,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
   await sendBroadcastBatch(
     {
       broadcast: async (id) => {
-        const { data, error } = await db
-          .from("sequence_batches")
-          .select(
-            "id, state, name, template_name, template_language, params, recipient_count, playbook_id:step_id, audience, offered_start, offered_end, offered_from",
-          )
-          .eq("id", id)
-          .eq("tenant_id", job.tenant_id)
-          .maybeSingle();
+        const { data, error } = await findBroadcastRun(db, { tenantId: job.tenant_id, broadcastId: id });
         if (error) throw new Error(`broadcast_send: cannot read broadcast ${id}: ${error.message}`);
         return withTemplate(data);
       },
@@ -390,13 +372,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         // its reason twice and its event twice. The first stop is the run's.
         const moved = must(
           "broadcast_send: cannot mark the broadcast failed",
-          await db
-            .from("sequence_batches")
-            .update({ state: "failed", failure, finished_at: new Date().toISOString() })
-            .eq("id", id)
-            .eq("tenant_id", job.tenant_id)
-            .neq("state", "failed")
-            .select("id"),
+          await failBroadcastRun(db, { tenantId: job.tenant_id, broadcastId: id }, failure, new Date().toISOString()),
         );
         if (!moved?.length) return;
         // On the ledger beside the finished runs (broadcast.sent), best effort: the owner's alert comes next, and a count
@@ -407,13 +383,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       startSending: async (id) => {
         const rows = must(
           "broadcast_send: cannot start the broadcast",
-          await db
-            .from("sequence_batches")
-            .update({ state: "sending", started_at: new Date().toISOString() })
-            .eq("id", id)
-            .eq("tenant_id", job.tenant_id)
-            .eq("state", "scheduled")
-            .select("id"),
+          await startBroadcastRun(db, { tenantId: job.tenant_id, broadcastId: id }, new Date().toISOString()),
         );
         return !!rows && rows.length > 0;
       },
@@ -446,7 +416,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       state: async (id) => {
         const row = must(
           "broadcast_send: cannot read whether the broadcast is still wanted",
-          await db.from("sequence_batches").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle(),
+          await findBroadcastState(db, { tenantId: job.tenant_id, broadcastId: id }),
         );
         return row?.state ?? null;
       },
@@ -505,10 +475,7 @@ async function workspaceFacts(
   timezone: string;
   address: string | null;
 }> {
-  const [tenantRes, cfgRes] = await Promise.all([
-    db.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
-    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
-  ]);
+  const [tenantRes, cfgRes] = await Promise.all([findWorkspaceNameZone(db, tenantId), findConfigRow(db, tenantId)]);
   const tenantRow = must("broadcast_send: cannot read the workspace", tenantRes);
   const cfgRow = must("broadcast_send: cannot read the workspace's settings", cfgRes);
   const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);

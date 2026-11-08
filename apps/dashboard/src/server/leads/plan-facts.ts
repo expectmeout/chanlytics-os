@@ -10,13 +10,14 @@ import { readMonthUsed, renewsOnOf } from "./allowance";
 import { listSearchCounts } from "./searches";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
+import { readNichePrior } from "@chanlytics/db/leads";
 
 /** The platform-wide prior for a kind of business, or null when nobody has searched for one. */
 export async function findNichePrior(
   ctx: Pick<RouteContext, "supabase">,
   categoryKey: string,
 ): Promise<LeadNichePrior | null> {
-  const { data, error } = await ctx.supabase.rpc("lead_niche_prior", { p_category_key: categoryKey });
+  const { data, error } = await readNichePrior(ctx.supabase, categoryKey);
   if (error) throw new Error(`lead_niche_prior: ${error.message}`);
   const p = data && typeof data === "object" ? (data as Partial<LeadNichePrior>) : null;
   return p && typeof p.places === "number"

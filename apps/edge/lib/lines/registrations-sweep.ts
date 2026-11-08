@@ -19,9 +19,10 @@ import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { registerLine } from "./a2p-register.js";
 import { filingPages } from "./ops/filing.js";
 import { sweepFilingHold } from "./ops/search-buy.js";
-import { isWorkspaceOpenToCustomers } from "@chanlytics/db/workspace";
+import { findWorkspaceNameSlug, isWorkspaceOpenToCustomers } from "@chanlytics/db/workspace";
 import { syncRegistration } from "./a2p-sync.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import { findBusinessOnRecord, findLineRow, listLinesAwaitingCarriers } from "@chanlytics/db/lines";
 
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const REGISTRATIONS_PER_TICK = 20;
@@ -49,15 +50,8 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
   // ordering on it meant the same twenty rows held the page every hour and a
   // twenty-first line was never asked about at all. Every read of a line
   // writes the row, so `updated_at` is exactly "when we last asked".
-  const { data: lines, error } = await db
-    .from("lines")
-    .select("*")
-    .in("sms_state", ASKED)
-    // A refused line, only with its campaign on file (above).
-    .or("sms_state.neq.rejected,campaign_sid.not.is.null")
-    .not("brand_sid", "is", null)
-    .order("updated_at", { ascending: true })
-    .limit(REGISTRATIONS_PER_TICK);
+  // A refused line, only with its campaign on file (above).
+  const { data: lines, error } = await listLinesAwaitingCarriers(db, ASKED, REGISTRATIONS_PER_TICK);
   if (error) return refuse(503, "read_failed", error.message);
   if (!lines?.length) return json(200, { ok: true, checked: 0 });
 
@@ -101,13 +95,16 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
           L.info("registration_filing_held", { line_id: line.id, tenant_id: line.tenant_id, why: hold });
           continue;
         }
-        const rec = await db.from("business_records").select("*").eq("tenant_id", line.tenant_id).maybeSingle();
-        const tenant = await db.from("tenants").select("name, slug").eq("id", line.tenant_id).maybeSingle();
-        const fresh = await db.from("lines").select("*").eq("id", line.id).maybeSingle();
-        if (rec.data && tenant.data && fresh.data) {
+        // A read that fails is this line's failure (said below), never a record that is missing: tried again next hour.
+        const record = await findBusinessOnRecord(db, line.tenant_id);
+        const tenant = await findWorkspaceNameSlug(db, line.tenant_id);
+        const fresh = await findLineRow(db, line.tenant_id, line.id);
+        const unread = tenant.error ?? fresh.error;
+        if (unread) throw new Error(`cannot read the filing's facts: ${unread.message}`);
+        if (record && tenant.data && fresh.data) {
           const out = await registerLine(db, {
             line: fresh.data,
-            record: rec.data,
+            record,
             workspaceName: tenant.data.name,
             ...filingPages(origin, tenant.data.slug),
             mock: fresh.data.reg_mock,

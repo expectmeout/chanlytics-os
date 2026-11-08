@@ -16,6 +16,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../database.types";
+import { platformWide } from "../../shared/tenant-db";
 
 type Db = SupabaseClient<Database>;
 
@@ -33,3 +34,35 @@ export async function keepInvoiceAmount(
   if (error) throw new Error(`billing_event_keep_amount: ${error.message}`);
   return data === true;
 }
+
+/** A delivery's claim on Stripe's event, the first: a second delivery of the id is refused (23505). */
+export const insertBillingClaim = async (db: Db, row: Database["public"]["Tables"]["billing_events"]["Insert"]) =>
+  db.from("billing_events").insert(row);
+
+/** Where Stripe's event stands on the ledger, whichever workspace's, or none. */
+export const findBillingEventState = async (db: Db, eventId: string) =>
+  platformWide(db).from("billing_events").select("state").eq("id", eventId).maybeSingle();
+
+/** A claim whose lease ran out before `now` taken again with `lease`: its id back, none when another holds it. */
+export const reclaimBillingEvent = async (db: Db, eventId: string, lease: string, now: string) =>
+  platformWide(db)
+    .from("billing_events")
+    .update({ state: "claimed", lease_until: lease })
+    .eq("id", eventId)
+    .eq("state", "claimed")
+    .lt("lease_until", now)
+    .select("id");
+
+/** This delivery's claim (its `lease`) written applied: its id back, none when the claim was lost. */
+export const completeBillingEvent = async (db: Db, eventId: string, lease: string) =>
+  platformWide(db)
+    .from("billing_events")
+    .update({ state: "applied" })
+    .eq("id", eventId)
+    .eq("state", "claimed")
+    .eq("lease_until", lease)
+    .select("id");
+
+/** This delivery's claim (its `lease`) given back. */
+export const forgetBillingEvent = async (db: Db, eventId: string, lease: string) =>
+  platformWide(db).from("billing_events").delete().eq("id", eventId).eq("state", "claimed").eq("lease_until", lease);

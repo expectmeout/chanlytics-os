@@ -21,15 +21,13 @@ import {
 
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody } from "../shared/edge";
 import { deployment, env } from "../shared/env";
-
-const LISTING_COLUMNS =
-  "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
-// The reply the receptionist holds, and when it goes under Holds it (00462, decision 0064 step 6), with the rest.
-const REVIEW_COLUMNS =
-  "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, draft_text, posts_at, maps_uri, first_seen_at";
-/** Never the credentials name: the row says who and when, not where the token is. */
-export const CONNECTION_COLUMNS =
-  "google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";
+import {
+  findConnectionCard,
+  findGoogleListingFacts,
+  findListingCard,
+  listListingDaysSince,
+  listRecentReviews,
+} from "@chanlytics/db/google";
 
 /** The reviews a screen shows; the rest are on Google. */
 const REVIEWS_SHOWN = 20;
@@ -37,11 +35,7 @@ const REVIEWS_SHOWN = 20;
 const DAYS_KEPT = 92;
 
 export async function findListing(db: SupabaseClient<Database>, tenantId: string): Promise<GoogleListingDto | null> {
-  const { data, error } = await db
-    .from("google_listings")
-    .select(LISTING_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const { data, error } = await findListingCard(db, tenantId);
   if (error) throw new Error(error.message);
   return data;
 }
@@ -54,11 +48,7 @@ export async function findListingFacts(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<{ name: string; address: string | null; facts: GoogleListingFacts | null } | null> {
-  const { data, error } = await db
-    .from("google_listings")
-    .select("name, address, facts")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const { data, error } = await findGoogleListingFacts(db, tenantId);
   if (error) throw new Error(error.message);
   return data ? { name: data.name, address: data.address, facts: listingFactsOf(data.facts) } : null;
 }
@@ -67,11 +57,7 @@ export async function findConnection(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<GoogleConnectionDto | null> {
-  const { data, error } = await db
-    .from("google_connections")
-    .select(CONNECTION_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const { data, error } = await findConnectionCard(db, tenantId);
   if (error) throw new Error(error.message);
   return data;
 }
@@ -91,18 +77,9 @@ export async function getGoogle(
   const [listing, connection, reviews, days] = await Promise.all([
     findListing(db, tenantId),
     findConnection(db, tenantId),
-    db
-      .from("google_reviews")
-      .select(REVIEW_COLUMNS)
-      .eq("tenant_id", tenantId)
-      .order("published_at", { ascending: false, nullsFirst: false })
-      .limit(REVIEWS_SHOWN),
-    db
-      .from("google_listing_days")
-      .select("day, rating, review_count")
-      .eq("tenant_id", tenantId)
-      .gte("day", sinceDay)
-      .order("day", { ascending: true }),
+    // The reply the receptionist holds, and when it goes under Holds it (00462, decision 0064 step 6), with the rest.
+    listRecentReviews(db, tenantId, REVIEWS_SHOWN),
+    listListingDaysSince(db, tenantId, sinceDay),
   ]);
   if (reviews.error) throw new Error(reviews.error.message);
   if (days.error) throw new Error(days.error.message);

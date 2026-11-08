@@ -46,6 +46,13 @@ import type {
   NotifyMessage,
 } from "../shared/alerts/notify.js";
 import type { loadTenantNotifications as loadFn } from "../shared/tenant-runtime.js";
+import {
+  failQueuedReply,
+  listQueuedReplies,
+  listRepliesSince,
+  listUnansweredInbound,
+} from "@chanlytics/db/conversations";
+import { listLiveJobsNaming } from "@chanlytics/db/jobs";
 
 type Db = SupabaseClient<Database>;
 
@@ -155,14 +162,7 @@ async function liveJobsNaming(
   dueSince?: string,
 ): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
-  let query = db
-    .from("jobs")
-    .select("payload")
-    .eq("kind", kind)
-    .in("state", ["scheduled", "fired"])
-    .in("payload->>message_id", ids);
-  if (dueSince) query = query.gt("due_at", dueSince);
-  const { data, error } = await query;
+  const { data, error } = await listLiveJobsNaming(db, kind, ids, dueSince);
   if (error) throw new Error(`unfinished: cannot read the jobs: ${error.message}`);
   const named = (data ?? []).map((j) => {
     const p = j.payload;
@@ -194,14 +194,7 @@ const textsInHand = (db: Db, rows: InboundRow[], now: number) =>
  */
 async function answersSince(db: Db, rows: InboundRow[], since: string): Promise<Map<string, string[]>> {
   const convIds = [...new Set(rows.map((r) => r.conversation_id).filter((c): c is string => !!c))];
-  const { data: answered, error } = await db
-    .from("messages")
-    .select("conversation_id, created_at, meta")
-    .eq("direction", "outbound")
-    .in("sender", ["ai", "human"])
-    .in("status", ANSWER_STATES)
-    .in("conversation_id", convIds)
-    .gt("created_at", since);
+  const { data: answered, error } = await listRepliesSince(db, convIds, [...ANSWER_STATES], since);
   if (error) throw new Error(`unfinished: cannot read replies: ${error.message}`);
   const repliesBy = new Map<string, string[]>();
   for (const a of answered ?? []) {
@@ -244,17 +237,13 @@ export async function sweepUnfinished(unfinishedPorts: UnfinishedPorts): Promise
 
 /** 1. A customer's message never finished with: opened for a person, its owner told, and stamped handled. */
 async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void> {
-  const { data: inbound, error: inErr } = await p.db
-    .from("messages")
-    .select("id, tenant_id, conversation_id, body, created_at, meta")
-    .eq("direction", "inbound")
-    .eq("sender", "customer")
-    .in("channel", INLINE_INTAKE as unknown as string[])
-    .gt("created_at", iso(now - LOOKBACK_MS))
-    .lt("created_at", iso(now - UNANSWERED_INBOUND_AFTER_MS))
-    .is("meta->>processed_at", null)
-    .order("created_at", { ascending: true })
-    .limit(BATCH);
+  const { data: inbound, error: inErr } = await listUnansweredInbound(
+    p.db,
+    [...INLINE_INTAKE],
+    iso(now - LOOKBACK_MS),
+    iso(now - UNANSWERED_INBOUND_AFTER_MS),
+    BATCH,
+  );
   if (inErr) throw new Error(`unfinished: cannot read inbound messages: ${inErr.message}`);
   const found = (inbound ?? []) as unknown as InboundRow[];
   const answering = await textsInHand(p.db, found, now);
@@ -319,14 +308,12 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
 
 /** 2. A queued reply nothing is sending: failed with an honest note, and its thread flagged. */
 async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
-  const { data: queued, error: qErr } = await p.db
-    .from("messages")
-    .select("id, tenant_id, conversation_id, sender, created_at, meta")
-    .eq("status", "queued")
-    .gt("created_at", iso(now - LOOKBACK_MS))
-    .lt("created_at", iso(now - ORPHAN_QUEUED_AFTER_MS))
-    .order("created_at", { ascending: true })
-    .limit(BATCH);
+  const { data: queued, error: qErr } = await listQueuedReplies(
+    p.db,
+    iso(now - LOOKBACK_MS),
+    iso(now - ORPHAN_QUEUED_AFTER_MS),
+    BATCH,
+  );
   if (qErr) throw new Error(`unfinished: cannot read queued replies: ${qErr.message}`);
   const stuck = (queued ?? []) as unknown as QueuedRow[];
   if (!stuck.length) return;
@@ -342,13 +329,10 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
     }
     if (live.has(s.id)) continue;
     try {
-      const { data: changed, error } = await p.db
-        .from("messages")
-        .update({ status: "failed", error: { reason: "orphaned", note: ORPHAN_NOTE } })
-        .eq("id", s.id)
-        .eq("tenant_id", s.tenant_id)
-        .eq("status", "queued")
-        .select("id");
+      const { data: changed, error } = await failQueuedReply(p.db, s.tenant_id, s.id, {
+        reason: "orphaned",
+        note: ORPHAN_NOTE,
+      });
       if (error) throw new Error(error.message);
       if (!changed?.length) continue; // another tick, or the send itself, got there first
       out.orphaned += 1;

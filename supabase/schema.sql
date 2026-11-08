@@ -22213,7 +22213,9 @@ CREATE FUNCTION public.purge_events(p_keep interval DEFAULT '30 days'::interval)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare v_count integer;
+declare
+  v_count integer;
+  v_deliveries integer;
 begin
   delete from public.events
    where kind in (
@@ -22224,7 +22226,11 @@ begin
    )
      and created_at < now() - p_keep;
   get diagnostics v_count = row_count;
-  return v_count;
+  delete from public.event_deliveries
+   where state in ('done', 'failed')
+     and updated_at < now() - p_keep;
+  get diagnostics v_deliveries = row_count;
+  return v_count + v_deliveries;
 end $$;
 
 
@@ -22232,7 +22238,7 @@ end $$;
 -- Name: FUNCTION purge_events(p_keep interval); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.purge_events(p_keep interval) IS 'Drops the evidence kinds (webhook receipts and deliveries, the allowlist''s skips, unreachable and unroutable inbounds, the two model-usage rows, and person.resolved, a door''s own record of a match, 00342) older than p_keep (default 30 days; contracts RETENTION_DAYS.events_evidence). Every other event kind is the record and is never purged here.';
+COMMENT ON FUNCTION public.purge_events(p_keep interval) IS 'Drops the evidence kinds (webhook receipts and deliveries, the allowlist''s skips, unreachable and unroutable inbounds, the two model-usage rows, and person.resolved, a door''s own record of a match, 00342) older than p_keep (default 30 days; contracts RETENTION_DAYS.events_evidence), and the relay''s finished deliveries (event_deliveries done or failed, 00565) untouched for as long. Every other event kind is the record and is never purged here.';
 
 
 --
@@ -33187,21 +33193,6 @@ COMMENT ON FUNCTION public.sweep_mark_alerted(p_alerted text[], p_healthy text[]
 
 
 --
--- Name: sweep_recent_responses(integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.sweep_recent_responses(p_limit integer DEFAULT 10) RETURNS TABLE(request_id bigint, status_code integer, body text, created_at timestamp with time zone)
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public', 'net'
-    AS $$
-  select r.id, r.status_code, left(r.content, 500), r.created
-    from net._http_response r
-   order by r.created desc
-   limit greatest(1, least(p_limit, 100));
-$$;
-
-
---
 -- Name: sweep_schedules(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -41666,6 +41657,13 @@ CREATE INDEX ai_usage_tenant_at ON public.ai_usage USING btree (tenant_id, creat
 
 
 --
+-- Name: ai_usage_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ai_usage_user ON public.ai_usage USING btree (user_id) WHERE (user_id IS NOT NULL);
+
+
+--
 -- Name: anthropic_profiles_person; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41729,6 +41727,20 @@ CREATE INDEX appointments_contact ON public.appointments USING btree (tenant_id,
 
 
 --
+-- Name: appointments_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_conversation ON public.appointments USING btree (tenant_id, conversation_id) WHERE (conversation_id IS NOT NULL);
+
+
+--
+-- Name: appointments_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_created_by ON public.appointments USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: appointments_lead; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41771,10 +41783,31 @@ CREATE INDEX ask_journal_days_written ON public.ask_journal_days USING btree (te
 
 
 --
+-- Name: ask_memory_lines_forgotten_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_memory_lines_forgotten_by ON public.ask_memory_lines USING btree (forgotten_by) WHERE (forgotten_by IS NOT NULL);
+
+
+--
+-- Name: ask_memory_lines_kept_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_memory_lines_kept_by ON public.ask_memory_lines USING btree (kept_by) WHERE (kept_by IS NOT NULL);
+
+
+--
 -- Name: ask_memory_lines_live; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX ask_memory_lines_live ON public.ask_memory_lines USING btree (tenant_id, made_at DESC) WHERE (forgotten_at IS NULL);
+
+
+--
+-- Name: ask_memory_lines_thread; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_memory_lines_thread ON public.ask_memory_lines USING btree (tenant_id, thread_id) WHERE (thread_id IS NOT NULL);
 
 
 --
@@ -41799,10 +41832,31 @@ CREATE INDEX ask_messages_thread ON public.ask_messages USING btree (thread_id, 
 
 
 --
+-- Name: ask_messages_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_messages_user ON public.ask_messages USING btree (user_id);
+
+
+--
 -- Name: ask_messages_words; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX ask_messages_words ON public.ask_messages USING gin (to_tsvector('simple'::regconfig, public.ask_message_words(content)));
+
+
+--
+-- Name: ask_mornings_thread; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_mornings_thread ON public.ask_mornings USING btree (tenant_id, thread_id) WHERE (thread_id IS NOT NULL);
+
+
+--
+-- Name: ask_mornings_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_mornings_user ON public.ask_mornings USING btree (user_id);
 
 
 --
@@ -41817,6 +41871,13 @@ CREATE INDEX ask_threads_user_recent ON public.ask_threads USING btree (user_id,
 --
 
 CREATE INDEX ask_voice_sessions_expiry_idx ON public.ask_voice_sessions USING btree (token_expires_at);
+
+
+--
+-- Name: ask_voice_sessions_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_voice_sessions_tenant ON public.ask_voice_sessions USING btree (tenant_id);
 
 
 --
@@ -41841,6 +41902,20 @@ CREATE INDEX billing_card_marks_fingerprint_idx ON public.billing_card_marks USI
 
 
 --
+-- Name: billing_events_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX billing_events_tenant ON public.billing_events USING btree (tenant_id);
+
+
+--
+-- Name: calls_channel; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX calls_channel ON public.calls USING btree (tenant_id, channel_id) WHERE (channel_id IS NOT NULL);
+
+
+--
 -- Name: calls_contact; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41859,6 +41934,13 @@ CREATE INDEX calls_conversation ON public.calls USING btree (conversation_id, st
 --
 
 CREATE INDEX calls_live ON public.calls USING btree (tenant_id) WHERE (status = 'ongoing'::text);
+
+
+--
+-- Name: calls_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX calls_message ON public.calls USING btree (tenant_id, message_id) WHERE (message_id IS NOT NULL);
 
 
 --
@@ -41887,6 +41969,13 @@ CREATE INDEX calls_tenant_started ON public.calls USING btree (tenant_id, starte
 --
 
 CREATE INDEX calls_transcript_words ON public.calls USING gin (to_tsvector('simple'::regconfig, COALESCE(transcript, ''::text)));
+
+
+--
+-- Name: capability_activations_activated_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX capability_activations_activated_by ON public.capability_activations USING btree (activated_by) WHERE (activated_by IS NOT NULL);
 
 
 --
@@ -41953,6 +42042,13 @@ CREATE INDEX contacts_marketing_audience ON public.contacts USING btree (tenant_
 
 
 --
+-- Name: contacts_merged_into_contact; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX contacts_merged_into_contact ON public.contacts USING btree (tenant_id, merged_into_contact_id) WHERE (merged_into_contact_id IS NOT NULL);
+
+
+--
 -- Name: contacts_tenant_email_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41988,6 +42084,13 @@ CREATE UNIQUE INDEX contacts_tenant_phone_uq ON public.contacts USING btree (ten
 
 
 --
+-- Name: conversation_drafts_made_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX conversation_drafts_made_by ON public.conversation_drafts USING btree (made_by) WHERE (made_by IS NOT NULL);
+
+
+--
 -- Name: conversation_drafts_state; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41995,10 +42098,24 @@ CREATE INDEX conversation_drafts_state ON public.conversation_drafts USING btree
 
 
 --
+-- Name: conversations_assignee_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX conversations_assignee_user ON public.conversations USING btree (assignee_user_id) WHERE (assignee_user_id IS NOT NULL);
+
+
+--
 -- Name: conversations_contact; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX conversations_contact ON public.conversations USING btree (contact_id);
+
+
+--
+-- Name: conversations_control_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX conversations_control_by ON public.conversations USING btree (control_by) WHERE (control_by IS NOT NULL);
 
 
 --
@@ -42051,6 +42168,20 @@ CREATE INDEX deals_contact ON public.deals USING btree (tenant_id, contact_id, c
 
 
 --
+-- Name: deals_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX deals_created_by ON public.deals USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
+-- Name: deals_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX deals_lead ON public.deals USING btree (tenant_id, lead_id) WHERE (lead_id IS NOT NULL);
+
+
+--
 -- Name: deals_open_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42072,10 +42203,24 @@ CREATE INDEX deals_tenant_stage ON public.deals USING btree (tenant_id, stage);
 
 
 --
+-- Name: decisions_actor_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX decisions_actor_user ON public.decisions USING btree (actor_user_id) WHERE (actor_user_id IS NOT NULL);
+
+
+--
 -- Name: decisions_tenant_subject; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX decisions_tenant_subject ON public.decisions USING btree (tenant_id, subject_type, subject_id, created_at);
+
+
+--
+-- Name: decisions_undo_of; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX decisions_undo_of ON public.decisions USING btree (tenant_id, undo_of) WHERE (undo_of IS NOT NULL);
 
 
 --
@@ -42090,6 +42235,13 @@ CREATE INDEX escalations_conversation ON public.escalations USING btree (convers
 --
 
 CREATE UNIQUE INDEX escalations_one_open ON public.escalations USING btree (conversation_id) WHERE (state = 'open'::text);
+
+
+--
+-- Name: escalations_resolved_by_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX escalations_resolved_by_user ON public.escalations USING btree (resolved_by_user_id) WHERE (resolved_by_user_id IS NOT NULL);
 
 
 --
@@ -42118,6 +42270,13 @@ CREATE INDEX event_deliveries_tenant_created ON public.event_deliveries USING bt
 --
 
 CREATE INDEX event_outbox_created ON public.event_outbox USING btree (created_at);
+
+
+--
+-- Name: event_outbox_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX event_outbox_tenant ON public.event_outbox USING btree (tenant_id);
 
 
 --
@@ -42163,6 +42322,20 @@ CREATE INDEX events_default_tenant_id_subject_type_subject_id_created_at_idx ON 
 
 
 --
+-- Name: fact_suggestions_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fact_suggestions_conversation ON public.fact_suggestions USING btree (tenant_id, conversation_id) WHERE (conversation_id IS NOT NULL);
+
+
+--
+-- Name: fact_suggestions_decided_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fact_suggestions_decided_by ON public.fact_suggestions USING btree (decided_by) WHERE (decided_by IS NOT NULL);
+
+
+--
 -- Name: fact_suggestions_tenant_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42174,6 +42347,13 @@ CREATE INDEX fact_suggestions_tenant_created ON public.fact_suggestions USING bt
 --
 
 CREATE INDEX fact_suggestions_waiting ON public.fact_suggestions USING btree (tenant_id, created_at DESC) WHERE (state = 'suggested'::text);
+
+
+--
+-- Name: files_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_created_by ON public.files USING btree (created_by) WHERE (created_by IS NOT NULL);
 
 
 --
@@ -42258,6 +42438,13 @@ CREATE INDEX imports_connection ON public.imports USING btree (tenant_id, connec
 --
 
 CREATE UNIQUE INDEX imports_one_a_source ON public.imports USING btree (tenant_id, source, connection_id) NULLS NOT DISTINCT;
+
+
+--
+-- Name: invitations_invited_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX invitations_invited_by ON public.invitations USING btree (invited_by) WHERE (invited_by IS NOT NULL);
 
 
 --
@@ -42352,10 +42539,31 @@ CREATE INDEX jobs_tenant_kind_state ON public.jobs USING btree (tenant_id, kind,
 
 
 --
+-- Name: lead_judgments_round; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_judgments_round ON public.lead_judgments USING btree (tenant_id, round_id);
+
+
+--
+-- Name: lead_judgments_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_judgments_tenant ON public.lead_judgments USING btree (tenant_id);
+
+
+--
 -- Name: lead_operations_search; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX lead_operations_search ON public.lead_operations USING btree (search_id, at DESC);
+
+
+--
+-- Name: lead_operations_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_operations_tenant ON public.lead_operations USING btree (tenant_id);
 
 
 --
@@ -42436,6 +42644,13 @@ CREATE INDEX lead_runs_round ON public.lead_runs USING btree (round_id);
 
 
 --
+-- Name: lead_runs_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_runs_tenant ON public.lead_runs USING btree (tenant_id);
+
+
+--
 -- Name: lead_search_members_excluded_purge; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42461,6 +42676,20 @@ CREATE INDEX lead_search_members_page ON public.lead_search_members USING btree 
 --
 
 CREATE INDEX lead_search_members_round ON public.lead_search_members USING btree (round_id);
+
+
+--
+-- Name: lead_searches_adds_to; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_searches_adds_to ON public.lead_searches USING btree (tenant_id, adds_to) WHERE (adds_to IS NOT NULL);
+
+
+--
+-- Name: lead_searches_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_searches_created_by ON public.lead_searches USING btree (created_by) WHERE (created_by IS NOT NULL);
 
 
 --
@@ -42611,6 +42840,13 @@ CREATE INDEX mailbox_left_newest ON public.mailbox_left USING btree (tenant_id, 
 
 
 --
+-- Name: mailbox_senders_set_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mailbox_senders_set_by ON public.mailbox_senders USING btree (set_by) WHERE (set_by IS NOT NULL);
+
+
+--
 -- Name: mailboxes_local_part_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42636,6 +42872,13 @@ CREATE UNIQUE INDEX mailboxes_reply_token_uq ON public.mailboxes USING btree (re
 --
 
 CREATE UNIQUE INDEX mailboxes_tenant_uq ON public.mailboxes USING btree (tenant_id);
+
+
+--
+-- Name: memberships_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX memberships_tenant ON public.memberships USING btree (tenant_id);
 
 
 --
@@ -42716,6 +42959,13 @@ CREATE INDEX messages_reach_out_month ON public.messages USING btree (tenant_id,
 
 
 --
+-- Name: messages_sent_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX messages_sent_by ON public.messages USING btree (sent_by) WHERE (sent_by IS NOT NULL);
+
+
+--
 -- Name: messages_tenant_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42772,6 +43022,13 @@ CREATE INDEX notifications_recipient ON public.notifications USING btree (tenant
 
 
 --
+-- Name: notifications_recipient_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_recipient_user ON public.notifications USING btree (recipient_user_id) WHERE (recipient_user_id IS NOT NULL);
+
+
+--
 -- Name: notifications_source_event; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42821,6 +43078,20 @@ CREATE UNIQUE INDEX partner_earnings_share_idx ON public.partner_earnings USING 
 
 
 --
+-- Name: partner_earnings_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_earnings_tenant ON public.partner_earnings USING btree (tenant_id);
+
+
+--
+-- Name: partner_invitations_invited_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_invitations_invited_by ON public.partner_invitations USING btree (invited_by) WHERE (invited_by IS NOT NULL);
+
+
+--
 -- Name: partner_invitations_partner_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42835,10 +43106,24 @@ CREATE INDEX partner_payouts_partner_idx ON public.partner_payouts USING btree (
 
 
 --
+-- Name: partner_payouts_sent_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_payouts_sent_by ON public.partner_payouts USING btree (sent_by) WHERE (sent_by IS NOT NULL);
+
+
+--
 -- Name: partner_reversals_waiting_invoice_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX partner_reversals_waiting_invoice_idx ON public.partner_reversals_waiting USING btree (stripe_invoice_id, created_at);
+
+
+--
+-- Name: partner_tenants_handover_accepted_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_tenants_handover_accepted_by ON public.partner_tenants USING btree (handover_accepted_by) WHERE (handover_accepted_by IS NOT NULL);
 
 
 --
@@ -42849,10 +43134,38 @@ CREATE INDEX partner_tenants_handover_open_idx ON public.partner_tenants USING b
 
 
 --
+-- Name: partner_tenants_invited_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_tenants_invited_by ON public.partner_tenants USING btree (invited_by) WHERE (invited_by IS NOT NULL);
+
+
+--
 -- Name: partner_tenants_partner_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX partner_tenants_partner_idx ON public.partner_tenants USING btree (partner_id);
+
+
+--
+-- Name: partner_tenants_standing_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_tenants_standing_by ON public.partner_tenants USING btree (standing_by) WHERE (standing_by IS NOT NULL);
+
+
+--
+-- Name: partners_second_factor_reset_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partners_second_factor_reset_by ON public.partners USING btree (second_factor_reset_by) WHERE (second_factor_reset_by IS NOT NULL);
+
+
+--
+-- Name: partners_status_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partners_status_by ON public.partners USING btree (status_by) WHERE (status_by IS NOT NULL);
 
 
 --
@@ -42884,6 +43197,13 @@ CREATE INDEX person_moments_order ON public.person_moments USING btree (tenant_i
 
 
 --
+-- Name: person_notes_author_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_author_user ON public.person_notes USING btree (author_user_id) WHERE (author_user_id IS NOT NULL);
+
+
+--
 -- Name: person_notes_contact; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42891,10 +43211,38 @@ CREATE INDEX person_notes_contact ON public.person_notes USING btree (tenant_id,
 
 
 --
+-- Name: person_notes_deal; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_deal ON public.person_notes USING btree (tenant_id, deal_id) WHERE (deal_id IS NOT NULL);
+
+
+--
+-- Name: person_notes_done_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_done_by ON public.person_notes USING btree (done_by) WHERE (done_by IS NOT NULL);
+
+
+--
 -- Name: person_notes_for; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX person_notes_for ON public.person_notes USING btree (tenant_id, for_user_id) WHERE (for_user_id IS NOT NULL);
+
+
+--
+-- Name: person_notes_for_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_for_user ON public.person_notes USING btree (for_user_id) WHERE (for_user_id IS NOT NULL);
+
+
+--
+-- Name: person_notes_kept_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_kept_by ON public.person_notes USING btree (kept_by) WHERE (kept_by IS NOT NULL);
 
 
 --
@@ -42933,6 +43281,13 @@ CREATE INDEX platform_acts_tenant_at ON public.platform_acts USING btree (tenant
 
 
 --
+-- Name: platform_claims_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX platform_claims_user ON public.platform_claims USING btree (user_id);
+
+
+--
 -- Name: platform_metrics_day; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -42947,10 +43302,24 @@ CREATE INDEX policies_person_reply_idx ON public.policies USING btree (tenant_id
 
 
 --
+-- Name: privacy_requests_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX privacy_requests_created_by ON public.privacy_requests USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: privacy_requests_open; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX privacy_requests_open ON public.privacy_requests USING btree (due_at) WHERE (closed_at IS NULL);
+
+
+--
+-- Name: privacy_requests_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX privacy_requests_tenant ON public.privacy_requests USING btree (tenant_id);
 
 
 --
@@ -42996,10 +43365,31 @@ CREATE INDEX rehearsals_call ON public.rehearsals USING btree (tenant_id, call_i
 
 
 --
+-- Name: rehearsals_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rehearsals_created_by ON public.rehearsals USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: rehearsals_tenant_kind_created; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX rehearsals_tenant_kind_created ON public.rehearsals USING btree (tenant_id, kind, created_at DESC);
+
+
+--
+-- Name: reply_turns_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reply_turns_tenant ON public.reply_turns USING btree (tenant_id);
+
+
+--
+-- Name: segment_members_added_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX segment_members_added_by ON public.segment_members USING btree (added_by) WHERE (added_by IS NOT NULL);
 
 
 --
@@ -43017,6 +43407,13 @@ CREATE INDEX segment_members_tenant ON public.segment_members USING btree (tenan
 
 
 --
+-- Name: segments_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX segments_created_by ON public.segments USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: segments_live_name; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -43024,10 +43421,24 @@ CREATE UNIQUE INDEX segments_live_name ON public.segments USING btree (tenant_id
 
 
 --
+-- Name: sequence_batches_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_batches_created_by ON public.sequence_batches USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: sequence_batches_history; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX sequence_batches_history ON public.sequence_batches USING btree (sequence_id, created_at DESC);
+
+
+--
+-- Name: sequence_batches_offered_from; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_batches_offered_from ON public.sequence_batches USING btree (tenant_id, offered_from) WHERE (offered_from IS NOT NULL);
 
 
 --
@@ -43049,6 +43460,13 @@ CREATE INDEX sequence_batches_reach_out_state ON public.sequence_batches USING b
 --
 
 CREATE UNIQUE INDEX sequence_batches_step_run ON public.sequence_batches USING btree (step_id, run_for) WHERE (step_id IS NOT NULL);
+
+
+--
+-- Name: sequence_batches_template; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_batches_template ON public.sequence_batches USING btree (tenant_id, template_id) WHERE (template_id IS NOT NULL);
 
 
 --
@@ -43084,6 +43502,13 @@ CREATE INDEX sequence_enrollments_lead ON public.sequence_enrollments USING btre
 --
 
 CREATE INDEX sequence_enrollments_lead_latest ON public.sequence_enrollments USING btree (sequence_id, lead_id, entered_at DESC, id DESC) WHERE (lead_id IS NOT NULL);
+
+
+--
+-- Name: sequence_enrollments_left_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_enrollments_left_by ON public.sequence_enrollments USING btree (left_by) WHERE (left_by IS NOT NULL);
 
 
 --
@@ -43136,6 +43561,13 @@ CREATE INDEX sequence_replies_answer_lead ON public.sequence_replies USING btree
 
 
 --
+-- Name: sequence_replies_answered_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_replies_answered_message ON public.sequence_replies USING btree (tenant_id, answered_message_id) WHERE (answered_message_id IS NOT NULL);
+
+
+--
 -- Name: sequence_replies_away; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -43164,6 +43596,20 @@ CREATE INDEX sequence_replies_recent ON public.sequence_replies USING btree (ten
 
 
 --
+-- Name: sequence_replies_said_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_replies_said_by ON public.sequence_replies USING btree (said_by) WHERE (said_by IS NOT NULL);
+
+
+--
+-- Name: sequence_replies_send; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_replies_send ON public.sequence_replies USING btree (tenant_id, send_id) WHERE (send_id IS NOT NULL);
+
+
+--
 -- Name: sequence_replies_signer_offered; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -43175,6 +43621,13 @@ CREATE INDEX sequence_replies_signer_offered ON public.sequence_replies USING bt
 --
 
 CREATE INDEX sequence_replies_thread ON public.sequence_replies USING btree (conversation_id, read_at DESC);
+
+
+--
+-- Name: sequence_replies_undone_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_replies_undone_by ON public.sequence_replies USING btree (undone_by) WHERE (undone_by IS NOT NULL);
 
 
 --
@@ -43283,6 +43736,13 @@ CREATE UNIQUE INDEX sequence_sends_person_once ON public.sequence_sends USING bt
 
 
 --
+-- Name: sequence_sends_said_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_sends_said_by ON public.sequence_sends USING btree (said_by) WHERE (said_by IS NOT NULL);
+
+
+--
 -- Name: sequence_sends_step; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -43297,6 +43757,13 @@ CREATE INDEX sequence_sends_unchecked ON public.sequence_sends USING btree (tena
 
 
 --
+-- Name: sequence_steps_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_steps_created_by ON public.sequence_steps USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: sequence_steps_lead_search; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -43308,6 +43775,13 @@ CREATE INDEX sequence_steps_lead_search ON public.sequence_steps USING btree (le
 --
 
 CREATE INDEX sequence_steps_list ON public.sequence_steps USING btree (list_id) WHERE (list_id IS NOT NULL);
+
+
+--
+-- Name: sequence_steps_next_template; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_steps_next_template ON public.sequence_steps USING btree (tenant_id, next_template_id) WHERE (next_template_id IS NOT NULL);
 
 
 --
@@ -43346,10 +43820,24 @@ CREATE UNIQUE INDEX sequence_steps_place ON public.sequence_steps USING btree (s
 
 
 --
+-- Name: sequence_steps_template; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_steps_template ON public.sequence_steps USING btree (tenant_id, template_id) WHERE (template_id IS NOT NULL);
+
+
+--
 -- Name: sequence_steps_tenant_state; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX sequence_steps_tenant_state ON public.sequence_steps USING btree (tenant_id, state);
+
+
+--
+-- Name: sequences_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequences_created_by ON public.sequences USING btree (created_by) WHERE (created_by IS NOT NULL);
 
 
 --
@@ -43381,10 +43869,38 @@ CREATE INDEX support_reports_tenant_created ON public.support_reports USING btre
 
 
 --
+-- Name: support_reports_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_reports_user ON public.support_reports USING btree (user_id);
+
+
+--
+-- Name: templates_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX templates_created_by ON public.templates USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: tenant_config_calendar_due_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX tenant_config_calendar_due_idx ON public.tenant_config USING btree (calendar_checked_at NULLS FIRST) WHERE (config ? 'calendar'::text);
+
+
+--
+-- Name: tenant_config_updated_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tenant_config_updated_by ON public.tenant_config USING btree (updated_by) WHERE (updated_by IS NOT NULL);
+
+
+--
+-- Name: tenant_config_versions_changed_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tenant_config_versions_changed_by ON public.tenant_config_versions USING btree (changed_by) WHERE (changed_by IS NOT NULL);
 
 
 --
@@ -43399,6 +43915,13 @@ CREATE INDEX tenant_config_versions_replaced ON public.tenant_config_versions US
 --
 
 CREATE UNIQUE INDEX waitlist_email_idx ON public.waitlist USING btree (lower(email));
+
+
+--
+-- Name: waitlist_invited_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX waitlist_invited_by ON public.waitlist USING btree (invited_by) WHERE (invited_by IS NOT NULL);
 
 
 --
@@ -47441,16 +47964,30 @@ ALTER TABLE public.capability_activations ENABLE ROW LEVEL SECURITY;
 -- Name: capability_activations capability_activations_member_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY capability_activations_member_read ON public.capability_activations FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+CREATE POLICY capability_activations_member_read ON public.capability_activations FOR SELECT TO authenticated USING (((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
-  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))) OR public.caller_has_permission(tenant_id, 'disconnect'::text)));
 
 
 --
--- Name: capability_activations capability_activations_owner_write; Type: POLICY; Schema: public; Owner: -
+-- Name: capability_activations capability_activations_owner_delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY capability_activations_owner_write ON public.capability_activations TO authenticated USING (public.caller_has_permission(tenant_id, 'disconnect'::text)) WITH CHECK (public.caller_has_permission(tenant_id, 'disconnect'::text));
+CREATE POLICY capability_activations_owner_delete ON public.capability_activations FOR DELETE TO authenticated USING (public.caller_has_permission(tenant_id, 'disconnect'::text));
+
+
+--
+-- Name: capability_activations capability_activations_owner_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY capability_activations_owner_insert ON public.capability_activations FOR INSERT TO authenticated WITH CHECK (public.caller_has_permission(tenant_id, 'disconnect'::text));
+
+
+--
+-- Name: capability_activations capability_activations_owner_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY capability_activations_owner_update ON public.capability_activations FOR UPDATE TO authenticated USING (public.caller_has_permission(tenant_id, 'disconnect'::text)) WITH CHECK (public.caller_has_permission(tenant_id, 'disconnect'::text));
 
 
 --
@@ -48286,19 +48823,12 @@ ALTER TABLE public.partner_reversals_waiting ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.partner_tenants ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: partner_tenants partner_tenants_owner_select; Type: POLICY; Schema: public; Owner: -
+-- Name: partner_tenants partner_tenants_owner_or_partner_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY partner_tenants_owner_select ON public.partner_tenants FOR SELECT TO authenticated USING (public.is_workspace_owner(tenant_id));
-
-
---
--- Name: partner_tenants partner_tenants_partner_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY partner_tenants_partner_select ON public.partner_tenants FOR SELECT TO authenticated USING ((partner_id IN ( SELECT p.id
+CREATE POLICY partner_tenants_owner_or_partner_select ON public.partner_tenants FOR SELECT TO authenticated USING ((public.is_workspace_owner(tenant_id) OR (partner_id IN ( SELECT p.id
    FROM public.partners p
-  WHERE (p.user_id = ( SELECT auth.uid() AS uid)))));
+  WHERE (p.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
@@ -48390,19 +48920,23 @@ ALTER TABLE public.platform_metrics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.policies ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: policies policies_acting_member_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY policies_acting_member_update ON public.policies FOR UPDATE TO authenticated USING ((public.is_acting_member(tenant_id) AND (subject_type IS NULL))) WITH CHECK ((public.is_acting_member(tenant_id) AND (subject_type IS NULL)));
-
-
---
 -- Name: policies policies_member_read; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY policies_member_read ON public.policies FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: policies policies_member_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY policies_member_update ON public.policies FOR UPDATE TO authenticated USING (((public.is_acting_member(tenant_id) AND (subject_type IS NULL)) OR (tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text)))))) WITH CHECK (((public.is_acting_member(tenant_id) AND (subject_type IS NULL)) OR (tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text))))));
 
 
 --
@@ -48423,17 +48957,6 @@ CREATE POLICY policies_owner_insert_person ON public.policies FOR INSERT TO auth
   WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text)))) AND (EXISTS ( SELECT 1
    FROM public.contacts p
   WHERE ((p.id = policies.subject_id) AND (p.tenant_id = policies.tenant_id))))));
-
-
---
--- Name: policies policies_owner_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY policies_owner_update ON public.policies FOR UPDATE TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
-   FROM public.memberships m
-  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text))))) WITH CHECK ((tenant_id IN ( SELECT m.tenant_id
-   FROM public.memberships m
-  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text)))));
 
 
 --
@@ -54112,14 +54635,6 @@ GRANT ALL ON FUNCTION public.sweep_health() TO service_role;
 
 REVOKE ALL ON FUNCTION public.sweep_mark_alerted(p_alerted text[], p_healthy text[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sweep_mark_alerted(p_alerted text[], p_healthy text[]) TO service_role;
-
-
---
--- Name: FUNCTION sweep_recent_responses(p_limit integer); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.sweep_recent_responses(p_limit integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.sweep_recent_responses(p_limit integer) TO service_role;
 
 
 --

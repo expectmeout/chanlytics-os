@@ -15,6 +15,7 @@ import { PartnerLetterNewsSchema, partnerLetter } from "@chanlytics/contracts";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { platformFrom, post, NOTIFY_TIMEOUT_MS } from "../shared/alerts/notify.js";
 import { logger, errField } from "../shared/log.js";
+import { listPartnerLettersDue, markPartnerLetterWritten } from "@chanlytics/db/partners";
 
 type Db = SupabaseClient<Database>;
 
@@ -42,7 +43,7 @@ export async function sendPartnerLetters(db: Db, now: Date, ports: LetterPorts =
   const clock = ports.nowMs ?? Date.now;
   const started = clock();
   try {
-    const { data, error } = await db.rpc("partner_letters_due", { p_now: now.toISOString() });
+    const { data, error } = await listPartnerLettersDue(db, now.toISOString());
     if (error) {
       // An older database has no letters yet: nothing to write, said once per tick.
       log.warn("partner_letters_unread", { error: error.message });
@@ -83,7 +84,7 @@ export async function sendPartnerLetters(db: Db, now: Date, ports: LetterPorts =
         log.error("partner_letter_failed", { partner_id: item.partner_id });
         continue;
       }
-      const marked = await db.rpc("partner_letter_written", { p_partner: item.partner_id, p_through: item.through });
+      const marked = await markPartnerLetterWritten(db, item.partner_id, item.through);
       if (marked.error)
         log.error("partner_letter_unmarked", { partner_id: item.partner_id, error: marked.error.message });
       out.sent += 1;

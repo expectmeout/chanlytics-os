@@ -50,14 +50,15 @@ import {
 import {
   askForIdeasAgain,
   claimIdeas,
-  getIdeaCustomerRows,
   failIdeas,
   findIdeasBasis,
   findIdeasClockAndLanguage,
+  findLeadSuggestions,
+  getIdeaCustomerRows,
+  type IdeasKept,
   keepIdeas,
   readIdeaHistory,
   saveIdeasLine,
-  type IdeasKept,
 } from "@chanlytics/db/leads";
 import { askMemoryLines } from "@chanlytics/db/ask";
 import type { Json } from "@chanlytics/db/types";
@@ -143,11 +144,7 @@ export function setSuggestionsWriter(suggestionsWriter: SuggestionsWriter | Part
 
 /** The kept row, when there is one. */
 async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SuggestionRow | null> {
-  const { data, error } = await ctx.supabase
-    .from("lead_suggestions")
-    .select("tenant_id, business_line, by_owner, items, made_at, basis, failed_at, passed")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const { data, error } = await findLeadSuggestions(ctx.supabase, tenantId);
   if (error) throw new Error(error.message);
   return data ?? null;
 }

@@ -810,10 +810,15 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
     .join("\n");
   for (const v of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"])
     assert.ok(lib.includes(`env.${v}`), v);
+  // The vault's doors are packages/db's (decision 0111): the edge reaches them by name, never by the door's.
+  const vault = readCode("packages/db/src/repositories/google/connection.ts");
   assert.ok(
-    lib.includes('db.rpc("put_google_credentials"') &&
-      lib.includes('db.rpc("get_google_credentials"') &&
-      lib.includes('db.rpc("drop_google_credentials"'),
+    vault.includes('db.rpc("put_google_credentials"') &&
+      vault.includes('db.rpc("get_google_credentials"') &&
+      vault.includes('db.rpc("drop_google_credentials"') &&
+      lib.includes("putGoogleCredentials(") &&
+      lib.includes("getGoogleCredentials(") &&
+      lib.includes("dropGoogleCredentials("),
     "secrets through the vault doors",
   );
   assert.equal(
@@ -872,11 +877,13 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   );
   assert.ok(cb.includes('if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");'));
   assert.ok(!cb.includes("client_secret"), "the dashboard never sees the secret");
+  // The read is packages/db's (decision 0111): who and when, never where the token is.
   const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(
-    /export const CONNECTION_COLUMNS =\s*"google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";/.test(
-      server,
-    ),
+    server.includes("findConnectionCard(db, tenantId)") &&
+      /\.select\("google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error"\)/.test(
+        readCode("packages/db/src/repositories/google/connection.ts"),
+      ),
     "never credentials_ref",
   );
   const reply = readCode(

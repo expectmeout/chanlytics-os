@@ -533,7 +533,12 @@ test("a released line leaves a disabled route beside the active one, and the pic
     /const byKind = \(kind: string\) => channelFor\(channels\.data \?\? \[\], kind\);/,
   );
   assert.match(
-    ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
+    [
+      "apps/dashboard/src/server/setup/channel-rows.ts",
+      "apps/dashboard/src/server/setup/setup.ts",
+      // The read itself, packages/db's (decision 0111).
+      "packages/db/src/repositories/workspace/setup-rows.ts",
+    ]
       .map((p) => readCode(p))
       .join("\n"),
     /select\("kind, status, number_e164, config, created_at"\)/,

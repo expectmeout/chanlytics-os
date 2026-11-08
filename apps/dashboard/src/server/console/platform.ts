@@ -67,7 +67,7 @@ import { log } from "@/server/shared/log";
  * rather than routing around.
  */
 export async function listPlatformOverview(office: BackOffice): Promise<PlatformTenantDto[]> {
-  const { data, error } = await office.session.rpc("platform_overview");
+  const { data, error } = await readPlatformOverview(office.session);
   if (error) {
     // 42501 is the function's own refusal — which the caller has already been
     // cleared past, so seeing it here means the two checks disagree.
@@ -97,11 +97,11 @@ export async function listPlatformOverview(office: BackOffice): Promise<Platform
  */
 export async function getPlatformHealth(office: BackOffice, now = new Date()): Promise<PlatformHealth> {
   const [health, backlog] = await Promise.all([
-    office.db.rpc("sweep_health").then(
+    readSweepHealth(office.db).then(
       (r) => r,
       () => ({ data: null, error: { message: "unreadable" } }),
     ),
-    office.db.rpc("jobs_backlog").then(
+    readJobsBacklog(office.db).then(
       (r) => r,
       () => ({ data: null, error: { message: "unreadable" } }),
     ),
@@ -163,11 +163,7 @@ export async function findPlatformTenant(
   office: BackOffice,
   tenantId: string,
 ): Promise<{ id: string; slug: string; name: string; status: string; timezone: string; created_at: string } | null> {
-  const { data, error } = await office.db
-    .from("tenants")
-    .select("id, slug, name, status, timezone, created_at")
-    .eq("id", tenantId)
-    .maybeSingle();
+  const { data, error } = await findWorkspaceForConsole(office.db, tenantId);
   if (error) throw new Error(error.message);
   return data ?? null;
 }
@@ -195,12 +191,7 @@ interface PlatformEvent {
  * needs one, it should be a deliberate per-event read with a named field list.
  */
 export async function listPlatformEvents(office: BackOffice, tenantId: string, limit = 40): Promise<PlatformEvent[]> {
-  const { data, error } = await office.db
-    .from("events")
-    .select("kind, category, subject_type, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const { data, error } = await listWorkspaceEvents(office.db, tenantId, limit);
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -229,6 +220,13 @@ import { EDGE_LINES_TIMEOUT_MS, callEdgeLines } from "../connections/lines";
 import { LINE_ACTS, whyWords, type ConsoleWhy, type PlatformLineAction } from "@chanlytics/contracts";
 import { NOT_RECORDED } from "@/server/console/words";
 import type { EdgeBody } from "@/server/shared/edge";
+import {
+  findWorkspaceForConsole,
+  listWorkspaceEvents,
+  readJobsBacklog,
+  readPlatformOverview,
+  readSweepHealth,
+} from "@chanlytics/db/ops";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
 const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => EdgeBody<"/api/admin/lines">> = {

@@ -526,7 +526,9 @@ test("the guard asks the database, and answers 404 rather than 403", () => {
   assert.ok(!/AppError\("forbidden"/.test(src), "403 would confirm the surface exists");
   // The list read runs on the SESSION client on purpose: the RPC's check is
   // auth.uid(), so the service-role key opens nothing.
-  assert.match(src, /office\.session\.rpc\("platform_overview"\)/);
+  // The door is packages/db's (decision 0111), asked on the staff member's own session.
+  assert.match(src, /readPlatformOverview\(office\.session\)/);
+  assert.match(readCode("packages/db/src/repositories/ops/console.ts"), /db\.rpc\("platform_overview"\)/);
   // Nothing anywhere calls the inner join by name.
   assert.ok(!/platform_overview_rows/.test(src));
 });
@@ -854,9 +856,11 @@ test("the service-role client cannot be obtained without passing the check", () 
   // A database that cannot answer is not a "no". Telling a real admin "No such
   // page" during a Postgres hiccup is the moment they opened this for.
   assert.match(src, /if \(error\) throw new AppError\("internal", .*503\);/);
-  // And the unbounded event payload does not go to the browser to be discarded.
-  assert.match(src, /\.select\("kind, category, subject_type, created_at"\)/);
-  assert.ok(!/select\("kind, category, subject_type, created_at, data"\)/.test(src));
+  // And the unbounded event payload does not go to the browser to be discarded: the read is packages/db's (decision 0111).
+  const reads = readCode("packages/db/src/repositories/ops/console.ts");
+  assert.match(src, /listWorkspaceEvents\(office\.db, tenantId, limit\)/);
+  assert.match(reads, /\.select\("kind, category, subject_type, created_at"\)/);
+  assert.ok(!/select\("kind, category, subject_type, created_at, data"\)/.test(reads));
 });
 
 /* ------------------------------- the ops door ------------------------------ *

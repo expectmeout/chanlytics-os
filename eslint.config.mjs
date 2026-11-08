@@ -386,6 +386,8 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/export",
   "apps/dashboard/src/server/files",
   "apps/dashboard/src/server/leads",
+  "apps/dashboard/src/server/lines",
+  "apps/dashboard/src/server/notices",
   "apps/dashboard/src/server/metrics",
   "apps/dashboard/src/server/new-conversation",
   "apps/dashboard/src/server/console",

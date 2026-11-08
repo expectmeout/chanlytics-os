@@ -86,6 +86,15 @@ import {
 } from "./ops.js";
 
 import { postOnProfile, unpostOnProfile } from "./local-posts.js";
+import {
+  deleteGoogleListing,
+  deleteGoogleListingDays,
+  deleteGoogleReviews,
+  findGoogleConnection,
+  findGoogleListing,
+  saveGoogleListingBack,
+} from "@chanlytics/db/google";
+import { findWorkspaceZoneRow } from "@chanlytics/db/workspace";
 
 type Db = SupabaseClient<Database>;
 
@@ -138,7 +147,7 @@ async function workspaceCall(body: GoogleBody): Promise<{ ok: true; value: Googl
   const ws = workspaceOf(body.tenant_id);
   if (!ws.ok) return ws;
   const { db, tenantId } = ws;
-  const read = await db.from("tenants").select("id, timezone").eq("id", tenantId).maybeSingle();
+  const read = await findWorkspaceZoneRow(db, tenantId);
   const tenant = workspaceRow(read);
   if (!tenant.ok) return tenant;
   const tz = tenant.row.timezone || DEFAULT_TIMEZONE;
@@ -148,13 +157,15 @@ async function workspaceCall(body: GoogleBody): Promise<{ ok: true; value: Googl
 
 /** The listing as the dashboard sees it, read now. */
 async function listingNow(c: GoogleCall): Promise<ListingView> {
-  const r = await c.db.from("google_listings").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  const r = await findGoogleListing(c.db, c.tenantId);
+  if (r.error) throw new Error(`cannot read the listing: ${r.error.message}`);
   return r.data ? listingForClient(r.data) : null;
 }
 
 /** The connection as the dashboard sees it, read now. */
 async function connectionNow(c: GoogleCall) {
-  const r = await c.db.from("google_connections").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  const r = await findGoogleConnection(c.db, c.tenantId);
+  if (r.error) throw new Error(`cannot read the Google connection: ${r.error.message}`);
   return r.data ? connectionForClient(r.data) : null;
 }
 
@@ -185,15 +196,17 @@ async function link(googleCall: GoogleCall): Promise<Response> {
     return respond(unreadablePlaceAnswer(e));
   }
   const before = await findLinkedPlace(googleCall.db, googleCall.tenantId).catch(() => null);
-  const saved = await googleCall.db
-    .from("google_listings")
-    .upsert(linkRow(details, googleCall.tenantId, googleCall.userId, new Date()), { onConflict: "tenant_id" })
-    .select("*")
-    .single();
+  const saved = await saveGoogleListingBack(
+    googleCall.db,
+    googleCall.tenantId,
+    linkRow(details, googleCall.tenantId, googleCall.userId, new Date()),
+  );
   if (saved.error || !saved.data) return refuse(500, "write_failed", saved.error?.message);
   // A new listing forgets the old one's reviews and days: they were another place's.
-  await googleCall.db.from("google_reviews").delete().eq("tenant_id", googleCall.tenantId);
-  await googleCall.db.from("google_listing_days").delete().eq("tenant_id", googleCall.tenantId);
+  const reviewsGone = await deleteGoogleReviews(googleCall.db, googleCall.tenantId);
+  if (reviewsGone.error) return refuse(500, "write_failed", reviewsGone.error.message);
+  const daysGone = await deleteGoogleListingDays(googleCall.db, googleCall.tenantId);
+  if (daysGone.error) return refuse(500, "write_failed", daysGone.error.message);
   // The link asks for the listing's website to be read too (website-read.ts), for Check and its booking page.
   const read = await checkListing(googleCall.db, saved.data, googleCall.tz, { askWebsite: true });
   // A place that changed: what the last one offered and nobody kept leaves the Inbox, as it may be another business's. The
@@ -317,7 +330,7 @@ async function unpostOp(c: GoogleCall): Promise<Response> {
 async function unlink(googleCall: GoogleCall, conn: ConnectionRow | null, row: ListingRow | null): Promise<Response> {
   if (conn) await disconnectProfile(googleCall.db, googleCall.tenantId, googleCall.userId);
   if (!row) return json(200, { ok: true, removed: false });
-  const del = await googleCall.db.from("google_listings").delete().eq("tenant_id", googleCall.tenantId);
+  const del = await deleteGoogleListing(googleCall.db, googleCall.tenantId);
   if (del.error) return refuse(500, "write_failed", del.error.message);
   await emitEvent(googleCall.db, googleCall.tenantId, "google.unlinked", "listing", null, {
     place_id: row.place_id,
@@ -355,11 +368,11 @@ export async function runGoogleOp(auth: Admitted, body: Partial<GoogleBody>): Pr
   const value = call.value;
   const onWorkspace = pick(ON_WORKSPACE, op);
   if (onWorkspace) return onWorkspace(value);
-  const conn = await value.db.from("google_connections").select("*").eq("tenant_id", value.tenantId).maybeSingle();
+  const conn = await findGoogleConnection(value.db, value.tenantId);
   if (conn.error) return refuse(503, "read_failed", conn.error.message);
   const onConnection = pick(ON_CONNECTION, op);
   if (onConnection) return onConnection(value, conn.data);
-  const row = await value.db.from("google_listings").select("*").eq("tenant_id", value.tenantId).maybeSingle();
+  const row = await findGoogleListing(value.db, value.tenantId);
   if (row.error) return refuse(503, "read_failed", row.error.message);
   const onListing = pick(ON_LISTING, op);
   if (onListing) return onListing(value, conn.data, row.data);

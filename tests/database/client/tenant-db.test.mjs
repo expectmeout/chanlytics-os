@@ -9,8 +9,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc } from "../_source.mjs";
-import { fakeDb } from "../_fake-db.mjs";
+import { importSrc } from "../../_source.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
 const { tenantDb, platformWide } = await importSrc("packages/db/src/shared/tenant-db.ts");
 

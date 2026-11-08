@@ -575,6 +575,17 @@ export function rpcNames(sf) {
   return n;
 }
 
+/** The SQL functions this file calls by name, `.rpc("<function>", …)`, each once: who calls what, for docs/sql-map.md. */
+export function rpcCallNames(sf) {
+  const names = new Set();
+  const visit = (m) => {
+    if (isRpcCall(m)) names.add(m.arguments[0].text);
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return [...names];
+}
+
 // `.rpc("x")`, or `rpc("x")` through a client's rpc bound to a name (people/person-details.ts): the bound calls went
 // uncounted until 25 Oct 2026, and the setup review read three of People's doors as reached by nothing.
 const isRpcCall = (m) =>
@@ -715,6 +726,24 @@ export function droppedDbErrorsIn(sf) {
 
 /** The dashboard's service-role client: RLS off, its tenant fence written by hand at each place that takes it. */
 const SERVICE_ROLE = new Set(["serviceDb", "serviceDbIfConfigured"]);
+
+/**
+ * Whether a client expression in this file is the service role's: a call of `serviceDb()` or `serviceDbIfConfigured()`,
+ * or a name bound to one (`const db = serviceDb()`). A route's session client is fenced by row-level security, so the
+ * dashboard's workspaceless measure reads only statements built on this (decision 0111).
+ */
+export function serviceRoleClientsOf(sf) {
+  const isServiceCall = (e) =>
+    ts.isCallExpression(e) && ts.isIdentifier(e.expression) && SERVICE_ROLE.has(e.expression.text);
+  const bound = new Set();
+  const visit = (m) => {
+    if (ts.isVariableDeclaration(m) && ts.isIdentifier(m.name) && m.initializer && isServiceCall(m.initializer))
+      bound.add(m.name.text);
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return (client) => isServiceCall(client) || (ts.isIdentifier(client) && bound.has(client.text));
+}
 
 /**
  * Each place this file takes the service-role client: a call of `serviceDb()` or `serviceDbIfConfigured()`, or the
@@ -909,13 +938,14 @@ const namesTenantKey = (o) =>
  * scoped only by an id its author trusted; where that is on purpose (a sweep, a provider's webhook) the file says so in
  * its header, `Cross-workspace: <why>`, and is not measured at all (workspaceless in _measures.mjs).
  */
-export function workspacelessStatements(sf, tenantTables, where = []) {
+export function workspacelessStatements(sf, tenantTables, where = [], { onClient = () => true } = {}) {
   let n = 0;
   const visit = (m) => {
     if (
       ts.isCallExpression(m) &&
       ts.isPropertyAccessExpression(m.expression) &&
       m.expression.name.text === "from" &&
+      onClient(m.expression.expression) &&
       !(ts.isIdentifier(m.expression.expression) && NOT_A_TABLE.has(m.expression.expression.text)) &&
       m.arguments.length >= 1 &&
       ts.isStringLiteralLike(m.arguments[0]) &&

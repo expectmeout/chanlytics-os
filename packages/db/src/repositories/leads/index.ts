@@ -2,6 +2,22 @@
  * The leads domain: `@chanlytics/db/leads`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export {
+  findLeadRound,
+  findLeadRun,
+  findLeadSearchName,
+  findRoundToTell,
+  findRunForDelivery,
+  insertLeadRuns,
+  listLeadFacts,
+  listLeadPlacesAt,
+  listLeadsAtPlaces,
+  listLeadsSharing,
+  listPeopleSharing,
+  listPlacesSuppressed,
+  listRunsOfRound,
+  listSearchMembers,
+} from "./finder";
+export {
   askForIdeasAgain,
   chooseLeadAddressee,
   claimIdeas,
@@ -26,3 +42,51 @@ export {
   upsertLeadCompany,
 } from "./leads";
 export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember, LeadPricesSeen } from "./leads";
+export {
+  answerSearchRound,
+  askSearchForMore,
+  excludeSearchMember,
+  keepSearchMember,
+  putBackSearchMember,
+  stopSearchRound,
+  undoLeadOperation,
+} from "./search-acts";
+export {
+  claimLeadRun,
+  endLeadRound,
+  endStuckLeadRound,
+  listCollectJobs,
+  listLeasedRuns,
+  listOpenRounds,
+  listRoundJobs,
+  listRunsInStates,
+  listRunsOfRounds,
+  markLeadRunUnknown,
+  releaseLeadRun,
+} from "./sweep";
+export {
+  applyLeadBulk,
+  askLeadsChecked,
+  chooseLeadList,
+  countKeptMembers,
+  eraseLeadRow,
+  findLeadDraftFacts,
+  findLeadScope,
+  findLeadSuggestions,
+  findNewestLeadOfPerson,
+  findSearchCard,
+  findSearchScope,
+  importLeadList,
+  listSearchCards,
+  listSearchNames,
+  markLeadsExported,
+  moveLeadStage,
+  readLeadListCounts,
+  readLeadMonthUsed,
+  readLeadsPage,
+  readNichePrior,
+  removeLeadSearch,
+  renameLeadSearch,
+  startLeadSearch,
+  undoLeadSearchRemoval,
+} from "./workbench";

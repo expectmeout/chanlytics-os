@@ -19,6 +19,7 @@ import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import { logger, errField, type Logger } from "../shared/log.js";
 import { phoneTail, type EdgeRefusal } from "@chanlytics/contracts";
 import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
+import { findLineByE164, findTextingLineOf, getLineCredentials, putLineCredentials } from "@chanlytics/db/lines";
 
 type Db = SupabaseClient<Database>;
 const SUBACCOUNT_READ_TIMEOUT_MS = 15000;
@@ -27,32 +28,16 @@ export type SmsLine = Pick<
   "id" | "tenant_id" | "e164" | "provider" | "subaccount_sid" | "messaging_service_sid" | "sms_state" | "voice_state"
 >;
 
-const COLS = "id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state";
-
 /** The line a text arrived on, by the number Twilio says it was sent to. */
 export async function findLineByNumber(db: Db, e164: string): Promise<SmsLine | null> {
-  const { data, error } = await db
-    .from("lines")
-    .select(COLS)
-    .eq("e164", e164)
-    .neq("voice_state", "failed")
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await findLineByE164(db, e164);
   if (error) throw new Error(`reading the line for ${e164}: ${error.message}`);
   return data ?? null;
 }
 
 /** The line a workspace texts from: the one with a Messaging Service, newest first. */
 async function smsLineForTenant(db: Db, tenantId: string): Promise<SmsLine | null> {
-  const { data, error } = await db
-    .from("lines")
-    .select(COLS)
-    .eq("tenant_id", tenantId)
-    .not("messaging_service_sid", "is", null)
-    .neq("voice_state", "failed")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await findTextingLineOf(db, tenantId);
   if (error) throw new Error(`reading the texting line: ${error.message}`);
   return data ?? null;
 }
@@ -60,7 +45,7 @@ async function smsLineForTenant(db: Db, tenantId: string): Promise<SmsLine | nul
 /** The subaccount the line lives in, with its token from the vault. Null when either is missing. */
 export async function findLineAccount(db: Db, line: SmsLine): Promise<ProviderAccount | null> {
   if (!line.subaccount_sid) return null;
-  const { data, error } = await db.rpc("get_line_credentials", { p_line_id: line.id });
+  const { data, error } = await getLineCredentials(db, line.id);
   if (error) throw new Error(`reading the line's credentials: ${error.message}`);
   const s = (data && typeof data === "object" && !Array.isArray(data) ? data : {}) as LineSecrets;
   return s.auth_token ? { sid: line.subaccount_sid, token: s.auth_token } : null;
@@ -148,10 +133,7 @@ export async function refreshLineToken(
   const token = typeof body?.auth_token === "string" && body.auth_token ? body.auth_token : null;
   if (!token)
     return { ok: false, error: "no_token", detail: "the provider did not return a token for this subaccount" };
-  const { error } = await db.rpc("put_line_credentials", {
-    p_line_id: line.id,
-    p_secret: { auth_token: token } as unknown as Json,
-  });
+  const { error } = await putLineCredentials(db, line.id, { auth_token: token } as unknown as Json);
   if (error) return { ok: false, error: "write_failed", detail: `storing the refreshed token: ${error.message}` };
   log.info("line_token_refreshed", { subaccount: line.subaccount_sid });
   return { ok: true, account: { sid: line.subaccount_sid, token } };

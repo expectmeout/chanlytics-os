@@ -1173,9 +1173,10 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   // llm-door.test.mjs.
   const lib = readCode("apps/edge/lib/ai/ask-gateway.ts");
   assert.ok(lib.includes('export const ASK_USAGE_KIND = "usage.ask_tokens" as const;'));
-  const budget = readCode("apps/edge/lib/ai/budget.ts");
+  // With the read it pages, packages/db's (decision 0111).
+  const budget = readCode("apps/edge/lib/ai/budget.ts") + readCode("packages/db/src/repositories/ai/usage.ts");
   assert.ok(
-    budget.includes('.eq("kind", "usage.llm_tokens")') && !budget.includes("ask_tokens"),
+    budget.includes('.eq("kind", "usage.llm_tokens")') && !/usage\.ask_tokens/.test(budget),
     "the receptionist's budget never counts Ask",
   );
   assert.equal(
@@ -1487,7 +1488,9 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     "a card approved once cannot be approved again",
   );
   assert.ok(
-    store.includes(".update({ content: { ...content, proposals: next } as unknown as Json })"),
+    // The write is packages/db's (decision 0111): the turn's content, and nothing else.
+    store.includes("saveAskTurnContent(ctx.supabase, messageId, {") &&
+      readCode("packages/db/src/repositories/ask/threads.ts").includes('.update({ content }).eq("id", turnId)'),
     "the one column the grant allows",
   );
   const m = readRaw("supabase/migrations/00041_ask_proposal_outcomes.sql");

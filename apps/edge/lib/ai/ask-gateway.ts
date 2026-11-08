@@ -44,6 +44,7 @@ import {
 import type { Database } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
 import { logger, errField } from "../shared/log.js";
+import { findAskTokensToday } from "@chanlytics/db/ai";
 
 export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
 
@@ -67,7 +68,7 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number | null> {
   const log = logger({ tenant_id: tenantId });
   try {
-    const { data, error } = await db.rpc("ask_tokens_day", { p_tenant: tenantId });
+    const { data, error } = await findAskTokensToday(db, tenantId);
     if (error) throw new Error(`ask_tokens_day: ${error.message}`);
     return num(Number(data));
   } catch (e) {

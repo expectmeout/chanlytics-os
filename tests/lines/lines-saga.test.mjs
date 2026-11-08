@@ -547,8 +547,8 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   const lib = readCode("apps/edge/lib/lines/lines.ts");
   assert.ok(lib.includes("chooseLineProvider({ sid, token, dryRun: env.LINES_DRY_RUN, vercelEnv: env.VERCEL_ENV })"));
   assert.ok(
-    lib.includes('db.rpc("get_line_credentials"') && lib.includes('db.rpc("put_line_credentials"'),
-    "secrets through the vault doors",
+    lib.includes("await getLineCredentials(db, line.id)") && lib.includes("await putLineCredentials(db, line.id, "),
+    "secrets through the vault doors (packages/db/src/repositories/lines/credentials.ts)",
   );
   assert.ok(lib.includes("ensure: () => ensureVoiceAgent(db, cfg, secrets, tenant)"));
   assert.ok(/provider: "twilio-sip",\s*line_id: lineId/.test(lib), "the routing row names its line");

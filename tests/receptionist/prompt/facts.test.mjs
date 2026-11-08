@@ -235,8 +235,12 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
 
   const rt = readCode("apps/edge/lib/shared/tenant-runtime.ts");
   assert.ok(rt.includes("known: KnownFacts;"), "the edge runtime carries what the platform knows");
+  // The read is packages/db's (decision 0111): the workspace's routing rows, in the one load.
   assert.ok(
-    rt.includes('db.from("tenant_channels").select("kind, number_e164, status")'),
+    rt.includes("listWorkspaceChannels(db, routed.tenantId)") &&
+      readCode("packages/db/src/repositories/channels/routing.ts").includes(
+        'db.from("tenant_channels").select("kind, number_e164, status")',
+      ),
     "loaded with the config, behind the same stamp",
   );
   assert.ok(

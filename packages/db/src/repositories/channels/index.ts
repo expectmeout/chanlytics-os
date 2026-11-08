@@ -35,13 +35,39 @@ export {
   writeInstagramAccount,
 } from "./instagram";
 export type { InstagramAccountRow } from "./instagram";
+export { removeMedia, signMediaUrl, signMediaUrls, storeMedia } from "./media";
 export {
+  findChannelNumber,
   findLineWrittenTo,
   findOldestActiveChannel,
   findWhatsappLine,
+  findWhatsAppRouting,
+  getChannelCredentials,
   listActiveChannelRows,
   listActiveWhatsappNumbers,
+  listWorkspaceChannels,
   resolveChannel,
   resolveChannelDetailed,
 } from "./routing";
 export type { ChannelLookup, RoutedChannel, WhatsappNumberRow } from "./routing";
+export {
+  finalizeQueuedMessage,
+  findMessageWrittenAt,
+  findOutboxMessage,
+  findTemplateCategory,
+  listPersonRepliesAfter,
+  stampThreadSent,
+} from "./send-door";
+export {
+  findChannelConfig,
+  findReceiptSince,
+  findWhatsAppAccount,
+  findWhatsAppNumberHolder,
+  insertChannelRow,
+  listNumbersOfWaba,
+  listSendsWithoutReceipt,
+  patchChannelRow,
+  patchWhatsAppNumberRow,
+  putChannelCredentials,
+  setChannelStatus,
+} from "./whatsapp";
