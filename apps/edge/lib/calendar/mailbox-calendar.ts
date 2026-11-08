@@ -21,7 +21,7 @@ import {
   type CalendarEvent,
   type EventsPage,
 } from "@chanlytics/channels/email";
-import { DAY_MS, UUID, parseTenantConfig, seasonHorizon, type FeedHorizon, isTenantId } from "@chanlytics/contracts";
+import { DAY_MS, parseTenantConfig, seasonHorizon, type FeedHorizon, isTenantId } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { findMailboxConnection } from "@chanlytics/db/email";
 import type { Database } from "@chanlytics/db/types";
@@ -102,7 +102,7 @@ const FEED_SPAN_MAX_MS = 550 * DAY_MS;
  */
 export async function grantFeedFor(
   auth: Admitted,
-  body: Partial<{ tenant_id: TenantId; user_id: string; from: number; to: number }>,
+  body: Partial<{ tenant_id: string; user_id: string; from: number; to: number }>,
 ): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;

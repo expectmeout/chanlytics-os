@@ -21,7 +21,7 @@ import { errorMessage } from "../shared/admin-door.js";
 import { pg } from "../shared/pg.js";
 import { errField, logger } from "../shared/log.js";
 import { lineCodesFrom, type ProviderAccount } from "@chanlytics/channels/lines";
-import { LINE_CODES_WITHIN_MS, UUID, isTenantId } from "@chanlytics/contracts";
+import { LINE_CODES_WITHIN_MS, isTenantId } from "@chanlytics/contracts";
 import { findOwnLine } from "@chanlytics/db/lines";
 import type { Database } from "@chanlytics/db/types";
 import { findLineAccount } from "./sms.js";

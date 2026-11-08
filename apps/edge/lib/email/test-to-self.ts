@@ -5,14 +5,13 @@
  * gives, so the door relays nothing. Member mail from the platform's sender (notify post), as the alert test is: no
  * customer's send door, no thread, no consent read. How often a member may ask is the dashboard route's.
  */
-import { SEQUENCE_TEST_LIMITS, UUID, TRY_AGAIN_IN_A_MINUTE, isTenantId } from "@chanlytics/contracts";
+import { SEQUENCE_TEST_LIMITS, TRY_AGAIN_IN_A_MINUTE, isTenantId } from "@chanlytics/contracts";
 import { findOwnAddressIn } from "@chanlytics/db/notices";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
 import { platformFrom, post } from "../shared/alerts/notify.js";
 import { pg } from "../shared/pg.js";
-import type { TenantId } from "@chanlytics/contracts";
 
 /** Words within their bounds, trimmed, or null. */
 const bounded = (v: unknown, max: number): string | null => {
@@ -22,7 +21,7 @@ const bounded = (v: unknown, max: number): string | null => {
 
 export async function sendTestToSelf(
   auth: Admitted,
-  body: Partial<{ tenant_id: TenantId; user_id: string; subject: string; text: string }>,
+  body: Partial<{ tenant_id: string; user_id: string; subject: string; text: string }>,
 ): Promise<Response> {
   const db = pg();
   if (!db) return refuse(503, "no_database");

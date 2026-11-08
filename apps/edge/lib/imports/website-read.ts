@@ -16,7 +16,6 @@ import {
   WEBSITE_READ_SYSTEM,
   WEBSITE_UNREAD_WORDS,
   SECOND_MS,
-  UUID,
   bookingToolOfLink,
   businessReadFactsOf,
   feedUrlOk,
@@ -232,7 +231,7 @@ export async function scheduleWebsiteRead(db: Db, tenantId: TenantId, website: s
  */
 export async function askWebsiteRead(
   auth: Admitted,
-  body: Partial<{ tenant_id: TenantId; user_id: string }>,
+  body: Partial<{ tenant_id: string; user_id: string }>,
 ): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;

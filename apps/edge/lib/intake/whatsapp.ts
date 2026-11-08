@@ -41,6 +41,7 @@
  *      ANTHROPIC_API_KEY, RESEND_API_KEY + LEAD_TO/LEAD_FROM,
  *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import { metaSignatureValid, META_SIGNATURE_HEADER, type WaChangeValue } from "@chanlytics/channels/whatsapp";
 import { phoneTail, pauseMsOf, WAITING_REASONS, recordOrEmpty } from "@chanlytics/contracts";
 import { WABA_FIELDS, accountOf, handleWabaChange, findNotifications } from "../whatsapp/waba-events.js";
@@ -210,7 +211,7 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
         const result = change.value || {};
         const field = change.field;
         // Multi-tenant routing key (Blueprint §3): phone_number_id -> tenant.
-        let tenantId: string | null = null;
+        let tenantId: TenantId | null = null;
         let routedChannel: RoutedChannel | null = null;
         let unroutable = false;
         let routingFailed = false;
@@ -247,7 +248,7 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
             // messages_in would undercount this traffic invisibly and forever.
             unroutable = true;
             L.error("wa_unroutable", { phone_number_id: phoneNumberId });
-            await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
+            await emitEvent(db, heldTenantId("00000000-0000-0000-0000-000000000000"), "ingest.unroutable", null, null, {
               channel: "whatsapp",
               phone_number_id: phoneNumberId,
             }).catch(() => {});

@@ -34,6 +34,7 @@
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00097).
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import { json, refuse } from "../shared/http.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { notify, notifyOnce, reachesTenant } from "../shared/alerts/notify.js";
@@ -142,7 +143,7 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
   let trials: TrialsResult | { error: string };
   try {
     trials = await sweepSpentTrials({
-      ids: () => listTrialingWorkspaceIds(db),
+      ids: async () => (await listTrialingWorkspaceIds(db)).map(heldTenantId),
       useOf: (tenantId) => getTrialUse(db, tenantId),
       startPlan: async (tenantId) => {
         const r = await startPlanNowFor(db, tenantId);
@@ -167,7 +168,7 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
   // the platform told of a start that failed.
   let owed: OwedLinesResult | { error: string };
   try {
-    owed = await startOwedLines(db, await listWorkspacesWithANumberChosen(db), {
+    owed = await startOwedLines(db, (await listWorkspacesWithANumberChosen(db)).map(heldTenantId), {
       choice,
       now: () => new Date(),
       alert: (subject, body) =>

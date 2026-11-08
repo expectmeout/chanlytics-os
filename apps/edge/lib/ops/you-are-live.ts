@@ -27,7 +27,6 @@ import {
   parseTenantConfigResult,
   spokenDuration,
   youAreLiveEmail,
-  UUID,
   recordOrNull,
   isTenantId,
 } from "@chanlytics/contracts";
@@ -35,9 +34,8 @@ import { findConfigRow, findWorkspaceCard, findWorkspaceNamed } from "@chanlytic
 import { findChannelNumber } from "@chanlytics/db/channels";
 import { findForwardedLine } from "@chanlytics/db/lines";
 import { findLastAnsweredCall } from "@chanlytics/db/voice";
-import type { TenantId } from "@chanlytics/contracts";
 
-export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?: TenantId }>): Promise<Response> {
+export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
   const log = logger();
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -101,7 +99,7 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
  * notice, so nothing the business turned off by email holds it back. The words are contracts' (alertTestMail). How
  * often a workspace may ask is the dashboard route's (three an hour).
  */
-export async function sendAlertTest(auth: Admitted, body: Partial<{ tenant_id?: TenantId }>): Promise<Response> {
+export async function sendAlertTest(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
   const log = logger();
   const db = pg();
   if (!db) return refuse(503, "no_database");

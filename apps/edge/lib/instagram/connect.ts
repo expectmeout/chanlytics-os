@@ -54,7 +54,7 @@ type Log = ReturnType<typeof logger>;
 
 export interface InstagramBody {
   op?: string;
-  tenant_id?: TenantId;
+  tenant_id?: string;
   user_id?: string;
   code?: string;
   channel_id?: string;

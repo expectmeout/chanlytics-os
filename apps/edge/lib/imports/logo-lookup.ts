@@ -20,7 +20,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   LOGO_FOUND_MAX_BYTES,
   SECOND_MS,
-  UUID,
   listingFactsOf,
   parseTenantConfig,
   siteHost,
@@ -103,7 +102,7 @@ async function logoLookup(db: Db, tenantId: TenantId): Promise<LogoLookupAnswer>
 }
 
 /** The door's work after its knock: the workspace the token names, and its look. */
-export async function lookupLogoFor(auth: Admitted, body: Partial<{ tenant_id: TenantId }>): Promise<Response> {
+export async function lookupLogoFor(auth: Admitted, body: Partial<{ tenant_id: string }>): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";

@@ -21,12 +21,11 @@ import { notify } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
 import { getHandoverInvite } from "@chanlytics/db/partners";
-import { UUID, isTenantId } from "@chanlytics/contracts";
+import { isTenantId } from "@chanlytics/contracts";
 import { findNewWorkspace } from "@chanlytics/db/workspace";
-import type { TenantId } from "@chanlytics/contracts";
 
 interface Body {
-  tenant_id?: TenantId;
+  tenant_id?: string;
   email?: string;
 }
 

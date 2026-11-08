@@ -7,6 +7,7 @@
  * and its unsubscribe seal are stand-ins, and only its words come back. The whole run is checked by the check's clock
  * once the chain starts.
  */
+import { asContactId } from "@chanlytics/contracts";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -167,7 +168,7 @@ export async function previewOne(
   const otherReachOutRequest = reachOutRequest({
     tenantId: previewInput.tenantId,
     messageId: randomUUID(),
-    contactId: randomUUID(),
+    contactId: asContactId(randomUUID()),
     to: lead.email,
     words: previewInput.words,
     lead: { ...slotLeadOf(lead, slots), preview },

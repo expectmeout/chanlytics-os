@@ -49,7 +49,7 @@ export async function askPreview(
  * person, answered as the preview's id, state and link's token; or its door's refusal in its own words. With the switch
  * off it is refused, and nothing is made.
  */
-export async function makePreviewFor(auth: Admitted, body: Partial<{ tenant_id: TenantId; lead_id: string }>) {
+export async function makePreviewFor(auth: Admitted, body: Partial<{ tenant_id: string; lead_id: string }>) {
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const ws = workspaceFor(auth, body.tenant_id);

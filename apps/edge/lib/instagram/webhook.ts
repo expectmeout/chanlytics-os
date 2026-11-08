@@ -24,6 +24,8 @@
  * is not ours, or is switched off, keeps nothing and is told to the platform, once a window. The lines carry no words, no
  * person's id and no token.
  */
+import type { ContactId } from "@chanlytics/contracts";
+import { heldTenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   instagramDmChunks,
@@ -144,7 +146,7 @@ async function takeMessage(
  * Whether an echo's words are one part of a DM we sent this person lately: a reply too long for one DM left as several
  * (channels instagramDmChunks, the same split), and its row keeps the first part's id alone.
  */
-async function isPartOfOurs(db: Db, tenantId: TenantId, person: string, text: string | null): Promise<boolean> {
+async function isPartOfOurs(db: Db, tenantId: TenantId, person: ContactId, text: string | null): Promise<boolean> {
   const sentence = text?.trim();
   if (!sentence) return false;
   const sent = await listLastDmsSentTo(db, tenantId, person);
@@ -159,7 +161,7 @@ async function isPartOfOurs(db: Db, tenantId: TenantId, person: string, text: st
 async function isOurs(
   db: Db,
   tenantId: TenantId,
-  echo: { mid: string; text: string | null; person: string | null },
+  echo: { mid: string; text: string | null; person: ContactId | null },
   settleMs: number,
 ): Promise<boolean> {
   const { mid, text, person } = echo;
@@ -232,7 +234,7 @@ async function takeUnsend(
 /** An account no workspace routes: kept nowhere, said on the ledger and to the platform, once a window. */
 async function unroutable(db: Db, account: string, n: number): Promise<void> {
   doorLog.error("ig_unroutable", { account, items: n });
-  await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
+  await emitEvent(db, heldTenantId("00000000-0000-0000-0000-000000000000"), "ingest.unroutable", null, null, {
     channel: "instagram",
     account,
   }).catch(() => {});

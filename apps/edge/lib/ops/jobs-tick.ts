@@ -16,6 +16,7 @@
  * last one to the ceiling). Each is measured from the moment the door was
  * reached (sweepDoor's `started`), as the ceiling is.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import { json, refuse } from "../shared/http.js";
 import { errField } from "../shared/log.js";
 import { alertFor } from "./job-alert.js";
@@ -116,9 +117,9 @@ const pagerOf =
  * Of these workspaces, the ones that are a customer's: not ours (tenants.ours, 00469). A workspace whose row cannot be read
  * is counted as a customer's, so a read that failed never keeps a page from the platform.
  */
-async function customersOf(db: SweepTick["db"], tenantIds: readonly string[]): Promise<Set<string>> {
+async function customersOf(db: SweepTick["db"], tenantIds: readonly TenantId[]): Promise<Set<string>> {
   const ours = await Promise.all(tenantIds.map((t) => isWorkspaceOurs(db, t).then((o) => (o ? null : t))));
-  return new Set(ours.filter((t): t is string => t !== null));
+  return new Set(ours.filter((t): t is TenantId => t !== null));
 }
 
 /**
@@ -162,7 +163,10 @@ async function pageWhatTheCustomersWaited(
   by: Pick<TickCounts, "replyLateBy" | "failedBy">,
   tally: Parameters<typeof massFailureBody>[0],
 ): Promise<void> {
-  const customers = await customersOf(db, [...new Set([...Object.keys(by.replyLateBy), ...Object.keys(by.failedBy)])]);
+  const customers = await customersOf(
+    db,
+    [...new Set([...Object.keys(by.replyLateBy), ...Object.keys(by.failedBy)])].map(heldTenantId),
+  );
   const replyLateMs = Math.max(
     0,
     ...Object.entries(by.replyLateBy).flatMap(([t, ms]) => (customers.has(t) ? [ms] : [])),

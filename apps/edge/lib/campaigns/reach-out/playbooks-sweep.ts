@@ -229,7 +229,7 @@ async function tellSkipped(
 async function runMoments(tick: Tick, page: DuePage<DueStep>) {
   const { db, now, L, out } = tick;
   // By workspace, each with the zone the page judged it in: a workspace is read once for all its playbooks.
-  const byTenant = new Map<string, { tz: string; rows: PlaybookRow[] }>();
+  const byTenant = new Map<TenantId, { tz: string; rows: PlaybookRow[] }>();
   for (const { step: playbook, timezone } of page.rows) {
     const t = byTenant.get(playbook.tenant_id) ?? { tz: timezone, rows: [] };
     t.rows.push(playbook as PlaybookRow);

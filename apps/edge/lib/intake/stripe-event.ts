@@ -125,7 +125,7 @@ function deliveryOf(event: Stripe.Event, db: Db, stripe: Stripe, log: Log): Deli
   // for is not answered "duplicate" by our own half-finished attempt; one
   // that is killed outright cannot, and its lease runs out instead.
   let lease: string | null = null;
-  let tenant: string | null = null;
+  let tenant: TenantId | null = null;
   const keep = async (tenantId: TenantId | null): Promise<Response | null> => {
     const result = await keepEvent(db, event.id, event.type, tenantId);
     if (result.claim === "taken") {

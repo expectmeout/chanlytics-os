@@ -62,7 +62,7 @@ import { asJson } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
 
 interface ConnectBody {
-  tenant_id?: TenantId;
+  tenant_id?: string;
   user_id?: string;
   code?: string;
   phone_number_id?: string;

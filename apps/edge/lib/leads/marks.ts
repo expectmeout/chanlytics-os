@@ -95,7 +95,7 @@ async function settleMarkReads(
   sites: SiteReads,
   leads: readonly { tenant_id: TenantId; website_host: string }[],
 ): Promise<void> {
-  const byTenant = new Map<string, Set<string>>();
+  const byTenant = new Map<TenantId, Set<string>>();
   for (const { tenant_id, website_host } of leads) {
     if (!sites.asked(website_host)) continue;
     byTenant.set(tenant_id, (byTenant.get(tenant_id) ?? new Set()).add(website_host));

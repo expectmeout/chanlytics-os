@@ -1,5 +1,6 @@
 /** Billing: subscription. */
 
+import { isTenantId } from "@chanlytics/contracts";
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
@@ -23,7 +24,6 @@ import {
   type BillingStatus,
   type SubscriptionFacts,
   MIN_MS,
-  UUID,
   isOneOf,
 } from "@chanlytics/contracts";
 import { ringOnce, tellOnce } from "./notices.js";
@@ -196,7 +196,7 @@ export async function findTenant(
   customerId: string | null,
 ): Promise<BillingRow | null> {
   const fromMeta = meta?.tenant_id;
-  if (fromMeta && UUID.test(fromMeta)) {
+  if (fromMeta && isTenantId(fromMeta)) {
     const row = await accountOf(db, fromMeta);
     if (row) return row;
   }

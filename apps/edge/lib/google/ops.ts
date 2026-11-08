@@ -30,7 +30,7 @@ interface GoogleLog {
 /** The body as the dashboard's /api/v1/google verbs send it; every field is checked here before it is believed. */
 export interface GoogleBody {
   op?: string;
-  tenant_id?: TenantId;
+  tenant_id?: string;
   user_id?: string;
   place_id?: string;
   query?: string;

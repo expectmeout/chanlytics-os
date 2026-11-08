@@ -15,6 +15,7 @@
  * It spends the model, so it counts in Ask's daily budget as the lead drafts do (R12): a workspace past the day's
  * tokens is a 429 before anything is asked, and what a preview cost is recorded against the member who asked.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import { json } from "../../shared/http.js";
 import { personFor, workspaceFor, type Admitted } from "../../shared/admin-auth.js";
 import { pg } from "../../shared/pg.js";
@@ -118,7 +119,7 @@ async function recordPreviewSpend(
 export async function previewReachOut(auth: Admitted, body: Partial<Body>): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
-  const tenantId = ws.tenantId ?? "";
+  const tenantId = heldTenantId(ws.tenantId ?? "");
   body.user_id = personFor(auth, body.user_id) ?? undefined;
   const input = previewInputOf(body, tenantId);
   if (!input) return json(400, { ok: false, error: "bad_request" });

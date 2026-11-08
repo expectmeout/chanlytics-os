@@ -106,7 +106,7 @@ export function linePorts(
   db: SupabaseClient<Database>,
   cfg: RetellConfig,
   secrets: ProvisionSecrets,
-  tenant: { id: string; name: string },
+  tenant: { id: TenantId; name: string },
   line: LineRow,
   choice: LineProviderChoice,
 ): LinePorts {

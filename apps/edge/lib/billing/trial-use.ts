@@ -19,7 +19,7 @@ interface TrialUse {
 
 interface TrialPorts {
   /** The workspaces on a trial with a subscription to end early. */
-  ids(): Promise<string[]>;
+  ids(): Promise<TenantId[]>;
   useOf(tenantId: TenantId): Promise<TrialUse>;
   /** Stripe ends the trial now and the row follows (Billing's start-now); ok false with what Stripe said. */
   startPlan(tenantId: TenantId): Promise<{ ok: boolean; detail?: string }>;

@@ -22,12 +22,11 @@ import { pg } from "../shared/pg.js";
 import { notify } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
-import { setupAskMail, UUID, isTenantId } from "@chanlytics/contracts";
+import { setupAskMail, isTenantId } from "@chanlytics/contracts";
 import { findWorkspaceCard } from "@chanlytics/db/workspace";
-import type { TenantId } from "@chanlytics/contracts";
 
 interface Body {
-  tenant_id?: TenantId;
+  tenant_id?: string;
   what?: string;
   by?: string | null;
 }

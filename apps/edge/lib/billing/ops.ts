@@ -10,12 +10,11 @@
 import { isCheckoutReturn, type CheckoutReturn, type EdgeErrorCode, type EdgeRefusal } from "@chanlytics/contracts";
 import type { LogEvent } from "../shared/log.js";
 import type { DoorAnswer } from "../shared/admin-door.js";
-import type { TenantId } from "@chanlytics/contracts";
 
 /** The body as the dashboard's /api/v1/billing verbs send it. */
 export interface BillingBody {
   op?: string;
-  tenant_id?: TenantId;
+  tenant_id?: string;
   email?: string | null;
   /** Where Checkout comes back to: a place on contracts' closed list, or Billing. */
   return?: unknown;

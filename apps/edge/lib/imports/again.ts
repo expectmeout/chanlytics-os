@@ -24,7 +24,6 @@ import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { errField, logger } from "../shared/log.js";
 import { startHistory } from "./history-import.js";
-import type { TenantId } from "@chanlytics/contracts";
 
 /** The sources a mailbox brings, which Try again starts again here. */
 const THROUGH_A_MAILBOX: readonly ImportSource[] = ["mailbox", "contacts", "calendar"];
@@ -37,7 +36,7 @@ function connectionIn(cursor: Json | null): string | null {
 
 export async function importAgain(
   auth: Admitted,
-  body: Partial<{ tenant_id: TenantId; user_id: string; source: string }>,
+  body: Partial<{ tenant_id: string; user_id: string; source: string }>,
 ): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;

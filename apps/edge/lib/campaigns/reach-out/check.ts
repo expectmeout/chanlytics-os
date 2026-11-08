@@ -294,7 +294,7 @@ export async function checkSends(params: {
   out.read = rows.length;
 
   /* each workspace's gates, before any call (R2, R12); the day's ceiling is taken one attempt at a time, below */
-  const byTenant = new Map<string, UncheckedSend[]>();
+  const byTenant = new Map<TenantId, UncheckedSend[]>();
   for (const u of rows) byTenant.set(u.send.tenant_id, [...(byTenant.get(u.send.tenant_id) ?? []), u]);
   const go: UncheckedSend[] = [];
   const later = { check_after: new Date(now.getTime() + CHECK_GATE_WAIT_MS).toISOString() };

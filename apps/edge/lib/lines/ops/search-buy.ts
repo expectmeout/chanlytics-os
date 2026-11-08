@@ -40,7 +40,7 @@ export type RecordRow = Database["public"]["Tables"]["business_records"]["Row"];
 /** The body as the dashboard's /api/v1/lines verbs send it; every field is checked here before it is believed. */
 export interface LinesBody {
   op?: string;
-  tenant_id?: TenantId;
+  tenant_id?: string;
   area_code?: number | string;
   number?: string;
   line_id?: string;

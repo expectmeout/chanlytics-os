@@ -114,7 +114,7 @@ interface LineCall {
   apiKey: string;
   db: Db;
   tenantId: TenantId;
-  tenant: { id: string; name: string; slug: string };
+  tenant: { id: TenantId; name: string; slug: string };
   /** The member the dashboard acted for (the token's, admin-auth.ts personFor), where one is named. */
   person: string | null;
 }

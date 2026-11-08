@@ -158,7 +158,7 @@ export interface OwedLinesResult {
  */
 export async function startOwedLines(
   db: Db,
-  ids: readonly string[],
+  ids: readonly TenantId[],
   ports: ChosenLinePorts & { alert: (subject: string, body: string) => Promise<unknown> },
   max = CHOSEN_LINES_PER_TICK,
 ): Promise<OwedLinesResult> {
