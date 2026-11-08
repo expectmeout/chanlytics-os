@@ -225,7 +225,7 @@ function readDelivery(raw: string): Delivery | null {
   const log = logger();
   let body: { event?: string; call?: RetellCall };
   try {
-    body = JSON.parse(raw);
+    body = JSON.parse(raw) as typeof body;
   } catch {
     return null;
   }

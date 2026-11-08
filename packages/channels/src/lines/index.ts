@@ -55,6 +55,7 @@ export {
   sipUsername,
   subaccountName,
   trunkDomain,
+  written,
 } from "./lines";
 export type {
   AvailableNumber,

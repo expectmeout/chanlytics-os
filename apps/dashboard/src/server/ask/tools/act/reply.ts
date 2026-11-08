@@ -56,7 +56,7 @@ async function threadOnCard(toolContext: ToolContext, id: string) {
   const { data: conv, error } = await findThreadForReply(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!conv) return null;
-  const personName = contactName({
+  const asked: Parameters<typeof contactName>[0] = {
     contact: {
       id: conv.contacts?.id ?? "",
       display_name: conv.contacts?.display_name ?? null,
@@ -66,7 +66,8 @@ async function threadOnCard(toolContext: ToolContext, id: string) {
       consent: null,
       dnc: false,
     },
-  } as Parameters<typeof contactName>[0]);
+  };
+  const personName = contactName(asked);
   return { conv, who: personName };
 }
 
@@ -140,17 +141,7 @@ async function proposeSteer(
   const { data: m, error } = await findMessageCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!m) return refuse("no such message in this workspace");
-  if (
-    !isHeldDraft({
-      id: m.id,
-      sender: m.sender as "ai",
-      status: m.status ?? undefined,
-      direction: m.direction as "outbound",
-      type: m.type,
-      body: m.body,
-      created_at: m.created_at,
-    } as Parameters<typeof isHeldDraft>[0])
-  ) {
+  if (!isHeldDraft({ sender: m.sender, status: m.status ?? undefined })) {
     return refuse("that reply is not waiting any more; there is nothing to rewrite");
   }
   noteRow(

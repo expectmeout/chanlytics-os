@@ -97,7 +97,7 @@ export function cleanIdList(raw: unknown, text: string): string[] {
   if (!Array.isArray(raw) || raw.some((x) => typeof x !== "string" || !UUID.test(x))) {
     throw new AppError("validation", `${text} must be a list of contact ids.`);
   }
-  const ids = Array.from(new Set(raw));
+  const ids = Array.from(new Set<string>(raw));
   if (ids.length > LIST_BATCH_MAX) throw new AppError("validation", `At most ${LIST_BATCH_MAX} people at a time.`);
   return ids;
 }

@@ -41,7 +41,7 @@ import {
   markLeadRunUnknown,
   releaseLeadRun,
 } from "@chanlytics/db/leads";
-import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet, textOrEmpty } from "@chanlytics/contracts";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
@@ -131,14 +131,14 @@ async function assemble(
   };
   for (const j of collects) {
     const p = payloadOf(j);
-    const runId = String(p.run_id ?? "");
+    const runId = textOrEmpty(p.run_id);
     if (j.state === "failed") failed.set(runId, (failed.get(runId) ?? 0) + 1);
     if (isOpen(j.state)) scheduled.add(runId);
-    else if (String(p.seq ?? "").startsWith("r")) countCarry(roundOfRun.get(runId), j.created_at);
+    else if (textOrEmpty(p.seq).startsWith("r")) countCarry(roundOfRun.get(runId), j.created_at);
   }
   for (const j of roundJobsRead) {
     const p = payloadOf(j);
-    const jobs = roundJobs.get(String(p.round_id ?? ""));
+    const jobs = roundJobs.get(textOrEmpty(p.round_id));
     // A Check again is the owner's, under a round that ended: never the round's own checks.
     if (!jobs || p.again) continue;
     if (isOpen(j.state)) {
@@ -189,7 +189,7 @@ function sweepPorts(
     judge: wires.judge,
     now: () => new Date(),
     webhookBase: wires.webhookBase,
-    webhookToken: wires.webhookToken,
+    webhookToken: wires.webhookToken.bind(wires),
     schedule: async (kind, payload, runAfterSeconds) => {
       const row = runs.find((r) => r.id === payload.run_id);
       if (row)

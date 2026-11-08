@@ -184,7 +184,7 @@ export function withoutData(messages: Msg[], questionAt: number, words: unknown,
     const blocks: unknown[] = m.content;
     const data = (b: unknown) => !!b && typeof b === "object" && "type" in b && b.type === "search_result";
     const kept = i === questionAt ? blocks.filter((b) => !data(b)) : blocks;
-    return { ...m, content: kept.map(swap) } as Msg;
+    return Object.assign({}, m, { content: kept.map(swap) });
   });
 }
 
@@ -418,7 +418,7 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const messages = sent.map(unmarked);
   // Where the last request's cache write ended: its last block, the turn's words where they came last (A3).
   const items = [...messages].reverse().find((m) => m.role !== "assistant" && !isEffortMessage(m))?.content;
-  const anchor = Array.isArray(items) ? items.at(-1) : undefined;
+  const anchor: unknown = Array.isArray(items) ? items.at(-1) : undefined;
   const notice = new Set(turns.flatMap((t) => t.told ?? []));
   const own = [...ids].reverse().flatMap((id) => rows.filter((r) => r.id === id));
   const cards = (oldest?.told ? rows : own).flatMap((r) => r.proposals);
@@ -573,12 +573,11 @@ export function withMarkers(messages: Msg[], anchor: unknown): Msg[] {
   return messages.map((m, i) => {
     if (isEffortMessage(m) || !Array.isArray(m.content)) return m;
     const blocks: unknown[] = m.content;
-    const at = anchor === undefined ? -1 : blocks.indexOf(anchor);
+    const at = anchor === undefined ? -1 : blocks.findIndex((b) => b === anchor);
     if (at < 0 && i !== last) return m;
-    return {
-      ...m,
+    return Object.assign({}, m, {
       content: blocks.map((b, j) => (j === at || (i === last && j === blocks.length - 1) ? marked(b) : b)),
-    } as Msg;
+    });
   });
 }
 
@@ -590,7 +589,7 @@ function unmarkedBlock(b: unknown): unknown {
 }
 /** A message less the cache's markers a request carried on it (D10): the turn as it was sent, whoever marked it. */
 const unmarked = (m: Msg): Msg =>
-  !isEffortMessage(m) && Array.isArray(m.content) ? ({ ...m, content: m.content.map(unmarkedBlock) } as Msg) : m;
+  !isEffortMessage(m) && Array.isArray(m.content) ? Object.assign({}, m, { content: m.content.map(unmarkedBlock) }) : m;
 
 /**
  * The turn as it was sent, from the round it ended on and where the question sits in that round's request, and what it

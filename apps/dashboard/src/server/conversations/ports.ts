@@ -200,14 +200,9 @@ export function sendNowPorts(ctx: RouteContext): SendNowPorts {
 const REPLY_KEY_ROUTE = "reply";
 
 export function replyPorts(ctx: RouteContext): ReplyPorts {
-  const { pauseMs, takeControl, withdrawDrafts, record, resolveEscalation, now } = threadPorts(ctx);
   return {
-    pauseMs,
-    takeControl,
-    withdrawDrafts,
-    record,
-    resolveEscalation,
-    now,
+    // The thread's own ports, whole: the reply verb takes these six of them, and an object's methods ride with it.
+    ...threadPorts(ctx),
     replyChannel: (conv) => replyChannelOf(ctx, conv),
     email: {
       parent: (conv) => findLastInboundEmail(ctx.supabase, conv.tenant_id, conv.id),

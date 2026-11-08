@@ -12,6 +12,8 @@ import {
   TEMPLATE_SAME_NAME_WORDS,
   templateComponents,
   validateTemplateDraft,
+  textOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { findTemplateId } from "@chanlytics/db/campaigns";
 import { readJsonBody } from "@/server/shared/request-guards";
@@ -75,8 +77,8 @@ export async function submitDraft(ctx: RouteContext, member: Member, body: Templ
     button:
       body?.button && typeof body.button === "object"
         ? {
-            text: String((body.button as { text?: unknown }).text ?? ""),
-            url: String((body.button as { url?: unknown }).url ?? ""),
+            text: textOrEmpty(valueAt(body.button, "text")),
+            url: textOrEmpty(valueAt(body.button, "url")),
           }
         : null,
   });

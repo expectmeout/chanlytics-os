@@ -52,10 +52,10 @@ function leadWebhookBase(): string {
   return httpsOriginOf(env.LEAD_WEBHOOK_BASE) ?? edgeOrigin();
 }
 
-async function leadWebhookToken(runRowId: string): Promise<string> {
+function leadWebhookToken(runRowId: string): Promise<string> {
   const key = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error("lead webhook: no key to derive a token from");
-  return createHmac("sha256", key).update(`lead-webhook:${runRowId}`).digest("base64url");
+  if (!key) return Promise.reject(new Error("lead webhook: no key to derive a token from"));
+  return Promise.resolve(createHmac("sha256", key).update(`lead-webhook:${runRowId}`).digest("base64url"));
 }
 
 /** One constant (PRD decision 3), overridable by the env to another Claude model; anything else is the default. */

@@ -59,7 +59,7 @@ export interface TimetableResult {
 const DAYS: readonly WeekdayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 function inFrame(week: WeekHours): WeekHours {
-  const out = {} as WeekHours;
+  const out: Partial<WeekHours> = {};
   for (const day of DAYS) {
     out[day] = (week[day] ?? [])
       .map((w) => ({
@@ -68,7 +68,8 @@ function inFrame(week: WeekHours): WeekHours {
       }))
       .filter((w) => w.to > w.from);
   }
-  return out;
+  // Every day of DAYS is written above, so the week is whole.
+  return out as WeekHours;
 }
 
 /**

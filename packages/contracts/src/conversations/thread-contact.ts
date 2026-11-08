@@ -10,7 +10,7 @@ import type { ConversationDto } from "./thread-dto";
 
 /** The display name for a contact, without building a whole thread viewmodel
  *  to read one field (Today was doing exactly that per open escalation). */
-export function contactName(dto: ConversationDto): string {
+export function contactName(dto: Pick<ConversationDto, "contact">): string {
   return personName(dto.contact);
 }
 

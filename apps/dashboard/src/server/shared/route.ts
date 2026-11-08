@@ -181,8 +181,10 @@ interface WriteSpec<S extends Scope, I, O> {
   handle: (call: Call<S, I>) => Promise<O>;
 }
 
-function mint(m: MemberContext): Member {
-  return { tenantId: m.tenantId, role: m.role, ...(m.facts ? { facts: m.facts } : {}) } as Member;
+/** A member's handle, made here and in the voice door alone (its brand): a route cannot take a bare id. */
+export function mint(m: Pick<MemberContext, "tenantId" | "role"> & { facts?: MemberContext["facts"] }): Member {
+  const handle = { tenantId: m.tenantId, role: m.role, ...(m.facts ? { facts: m.facts } : {}) };
+  return handle as Member;
 }
 
 async function resolve(

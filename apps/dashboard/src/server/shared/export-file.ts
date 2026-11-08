@@ -293,9 +293,9 @@ export function attachmentStream(filename: string, chunks: AsyncIterable<string>
   const it = chunks[Symbol.asyncIterator]();
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
-      const { value, done } = await it.next();
-      if (done) controller.close();
-      else controller.enqueue(enc.encode(value));
+      const step = await it.next();
+      if (step.done) controller.close();
+      else controller.enqueue(enc.encode(step.value));
     },
     async cancel() {
       await it.return?.(undefined);

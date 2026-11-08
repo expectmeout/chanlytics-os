@@ -43,6 +43,8 @@ import {
   type WrittenOpening,
   ANSWER_JSON_ONLY,
   recordOrNull,
+  textOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { findWorkspaceAbout, findWorkspaceNameAndConfig, type ReachOutRecordRow } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
@@ -335,7 +337,7 @@ export function hoursLine(hours: unknown): string | null {
   const parts = hours
     .map((h) =>
       h && typeof h === "object"
-        ? `${String((h as { day?: unknown }).day ?? "").trim()} ${String((h as { hours?: unknown }).hours ?? "").trim()}`.trim()
+        ? `${textOrEmpty(valueAt(h, "day")).trim()} ${textOrEmpty(valueAt(h, "hours")).trim()}`.trim()
         : "",
     )
     .filter(Boolean);
