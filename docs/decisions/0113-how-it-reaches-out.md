@@ -48,7 +48,7 @@ The name a sequence signs with was typed on each one. And a number about the own
    `tone`, `name`, `signature`), judged by `AskSettingsChangeSchema` as How it answers' rows are. Its jump is _Reaching out_ (a jump is three
    words at most), found by the page's own name too. (Amended 8 November 2026: as built, the row's words rode as `text`, since an action
    of its own put the owner's tools at `ASK_TOOLS_CHARS_CEILING`, 129,976 of 130,000 characters; the tools' words were then tightened to
-   120,691 with the fields in, and each op took its own.)
+   120,707 with the fields in, and each op took its own.)
 
 ## Calls made, and how to undo them
 

@@ -344,7 +344,7 @@ export const sequencesTool = defineActions({
       examples: [{}],
       label: "Reading what went out",
       words:
-        "Action sent reads what went out, the recent fifty (older says whether there are more): each batch's name, whether a campaign or a person sent it, who it went to and its message, its state in the page's words (waiting_on_you where a person must approve it; too_late_to_approve where its day has passed), when, how many it was for, how many were sent (sent_by_channel where it went by more than one), the share delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why.",
+        "Action sent reads what went out, the recent fifty (older says whether there are more): each batch's name, whether a campaign or a person sent it, who it went to and its message, its state in the page's words (waiting_on_you where a person must approve it; too_late_to_approve where its day has passed), when, how many it was for, how many were sent (sent_by_channel where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why.",
       run: readBroadcasts,
     }),
     batch: readAction({
