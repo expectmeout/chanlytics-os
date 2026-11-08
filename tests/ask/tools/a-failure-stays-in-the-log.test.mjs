@@ -12,7 +12,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const { AppError, DbFailure } = await import("@chanlytics/contracts");
 const { refuseThrown } = await importSrc("apps/dashboard/src/server/ask/tools/context/context.ts");
-const { refusalWords } = await importSrc("apps/dashboard/src/server/shared/with-route.ts");
+const { personWordsOf } = await importSrc("apps/dashboard/src/server/shared/with-route.ts");
 
 const RAW = 'canceling statement due to statement timeout on relation "contacts"';
 
@@ -25,11 +25,11 @@ test("a check's refusal is said in its own words", () => {
 
 test("a door's refusal from the database is said in the door's words, never the label or Postgres's own", () => {
   assert.equal(
-    refusalWords(new DbFailure({ code: "P0002", message: "Contact not found." }, "erase_contact")),
+    personWordsOf(new DbFailure({ code: "P0002", message: "Contact not found." }, "erase_contact")),
     "Contact not found.",
   );
   assert.equal(
-    refusalWords(
+    personWordsOf(
       new DbFailure({ code: "23505", message: 'duplicate key value violates unique constraint "x"' }, "saving"),
     ),
     "That already exists.",
@@ -43,7 +43,7 @@ test("anything else is written for nobody: it goes on up, and its text is said t
     new DbFailure({ code: "P0001", message: RAW }),
     "not an error",
   ]) {
-    assert.equal(refusalWords(thrown), null);
+    assert.equal(personWordsOf(thrown), null);
     assert.throws(
       () => refuseThrown(thrown),
       (e) => e === thrown,

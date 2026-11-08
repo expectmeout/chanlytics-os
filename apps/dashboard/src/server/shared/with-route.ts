@@ -512,7 +512,7 @@ export function writeDoorRefusal(reply: { code?: string | null; message: string 
  * What a person may read of a failure a check threw: an AppError's sentence, written for them, or the door's words of a
  * database failure. Null for anything else, whose text belongs in the log.
  */
-export function refusalWords(thrown: unknown): string | null {
+export function personWordsOf(thrown: unknown): string | null {
   if (thrown instanceof AppError) return thrown.message;
   return thrown instanceof DbFailure ? (refusalOfDbFailure(thrown)?.message ?? null) : null;
 }

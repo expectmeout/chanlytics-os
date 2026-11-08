@@ -90,7 +90,7 @@ function signedName(request: Request): string | null {
  * by. Now one line says which door, what failed and where, and the caller reads a code. The status is still a failure's,
  * so a provider still redelivers and a clock still counts a failed tick.
  */
-async function answerOf<A extends unknown[]>(
+async function answerCaught<A extends unknown[]>(
   handler: (request: Request, ...rest: A) => Promise<Response>,
   request: Request,
   rest: A,
@@ -124,7 +124,7 @@ export function door<A extends unknown[]>(
     const id = request?.headers
       ? ((trust ? signedName(request) : null) ?? requestIdOf(request.headers, { trustCaller: trust }))
       : globalThis.crypto.randomUUID();
-    return withRequestId(id, async () => named(await answerOf(handler, request, rest), id));
+    return withRequestId(id, async () => named(await answerCaught(handler, request, rest), id));
   };
 }
 

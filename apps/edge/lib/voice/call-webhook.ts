@@ -230,8 +230,7 @@ function readDelivery(raw: string): Delivery | null {
   try {
     body = JSON.parse(raw) as typeof body;
   } catch {
-    // Not JSON: nothing to read.
-    return null;
+    return null; // Not JSON: nothing to read.
   }
   const { event, call } = body;
   log.info("retell_event", { retell_event: event, call_id: call?.call_id ?? null });
@@ -500,15 +499,11 @@ async function correctReceptionist(
  * Read at the call's start, where its prompt was composed (call-start.ts): a call that runs past midnight on an offer's
  * last day is judged by what the caller's receptionist was told, the offer's note and its price included.
  */
-async function allowedOnCall(
-  db: Db,
-  routed: RoutedChannel,
-  normalized: NormalizedCall,
-): Promise<ReadonlySet<string> | null> {
-  if (!spokenBreach(normalized.transcriptObject, null)) return null;
+async function allowedOnCall(db: Db, routed: RoutedChannel, call: NormalizedCall): Promise<ReadonlySet<string> | null> {
+  if (!spokenBreach(call.transcriptObject, null)) return null;
   try {
     const rt = await loadTenantRuntime(db, routed);
-    const composedAt = normalized.startedAtIso ? new Date(normalized.startedAtIso) : new Date();
+    const composedAt = call.startedAtIso ? new Date(call.startedAtIso) : new Date();
     return rt.loadFailed ? null : priceAllowance(rt.brain, rt.timezone, composedAt);
   } catch (e) {
     logKeptGoing("a call's allowance", e);

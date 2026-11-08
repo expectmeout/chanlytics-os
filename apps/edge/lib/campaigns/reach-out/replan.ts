@@ -95,6 +95,12 @@ async function keepTheirs(
   return group.filter((s) => !theirs.includes(s));
 }
 
+/** A workspace's clock; one that cannot be read is the default's, and said in the log. */
+const zoneOrDefault = async (
+  db: Parameters<typeof findWorkspaceZone>[0],
+  tenantId: Parameters<typeof findWorkspaceZone>[1],
+) => (await findWorkspaceZone(db, tenantId).catch(logAndGoOn("findWorkspaceZone", null))) || DEFAULT_TIMEZONE;
+
 export async function replanSends(db: Db, items: Replan[], now: Date, log: Logger): Promise<ReplanCounts> {
   const out: ReplanCounts = { replanned: 0, waiting: 0, gave_up: 0 };
   if (items.length === 0) return out;
@@ -128,11 +134,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         if (le) throw new Error(`the leads: ${le.message}`);
         leads.push(...(data ?? []));
       }
-      if (!zones.has(tenantId))
-        zones.set(
-          tenantId,
-          (await findWorkspaceZone(db, tenantId).catch(logAndGoOn("findWorkspaceZone", null))) || DEFAULT_TIMEZONE,
-        );
+      if (!zones.has(tenantId)) zones.set(tenantId, await zoneOrDefault(db, tenantId));
       // A later step's send keeps the mailbox its lead's chain writes from; a first one may take any of the step's.
       const keeps = !!step?.after_step_id;
       // Each mailbox's times, less these sends' own: a send planned again never waits for the time it held.

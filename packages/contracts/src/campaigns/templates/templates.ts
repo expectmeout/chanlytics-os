@@ -181,8 +181,7 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
     try {
       parsed = new URL(url);
     } catch {
-      // Not an address.
-      parsed = null;
+      parsed = null; // Not an address.
     }
     if (!parsed || !/^https?:$/.test(parsed.protocol))
       return { ok: false, error: "The button needs a web address to open, starting with https://." };

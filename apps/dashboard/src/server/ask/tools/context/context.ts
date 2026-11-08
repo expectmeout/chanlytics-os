@@ -9,7 +9,7 @@ import {
   PROPOSAL_SPECS,
   type ProposalKindAboveOperator,
 } from "@chanlytics/contracts";
-import { refusalWords } from "@/server/shared/with-route";
+import { personWordsOf } from "@/server/shared/with-route";
 import type { ProposalOutcome } from "./tool-defs";
 
 /**
@@ -45,7 +45,7 @@ export const refuse = (reason: string): ProposalOutcome => ({
  * says its fixed sentence, so the model is never handed a database's or a library's text to repeat (decision 0114).
  */
 export function refuseThrown(thrown: unknown): ProposalOutcome {
-  const words = refusalWords(thrown);
+  const words = personWordsOf(thrown);
   if (words === null) throw thrown;
   return refuse(words);
 }
