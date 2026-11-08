@@ -229,6 +229,18 @@ export function reasonIn(body) {
 }
 
 /**
+ * A measure's entries by what each names. A measure may answer a list of words (each edge code with its statuses), and
+ * a record keeps that under its places, 0, 1, 2. Each word is its own key: held by place, a word ahead of the others would
+ * read as every word after it changing, and a word compared as a number is read letter by letter and is never equal to itself.
+ */
+const wordsAsKeys = (entries) => {
+  const values = Object.values(entries ?? {});
+  return values.length > 0 && values.every((value) => typeof value === "string")
+    ? Object.fromEntries(values.map((word) => [word, 1]))
+    : (entries ?? {});
+};
+
+/**
  * What a head adds to a base, part by part: `worse` (each entry new, or each number that rose, as `<part> <key>:
  * <line>`) and `better` (each that fell or went). A measure the base did not have adds every entry it holds; one the
  * head no longer has is said, not judged.
@@ -250,7 +262,7 @@ export function judge(base, head) {
     for (const [key, now, before, mode, added] of pairs) {
       const label = part === "measures" ? key : part;
       if (added) notes.push(`${label}: a measure the base did not have`);
-      const { worse: w, better: b } = compare(now, before ?? {}, mode);
+      const { worse: w, better: b } = compare(wordsAsKeys(now), wordsAsKeys(before), mode);
       worse.push(...w.map((line) => `${label} ${line}`));
       better.push(...b.map((line) => `${label} ${line}`));
     }
@@ -380,7 +392,7 @@ async function totalsContext() {
 /** A part's or a measure's one number: its entries' total, or for a set its keys. */
 function sizeOf(entries, mode) {
   if (mode === "set") return keys(entries);
-  return Object.values(entries ?? {}).reduce(
+  return Object.values(wordsAsKeys(entries)).reduce(
     (a, v) => a + (typeof v === "number" ? v : Object.values(v).reduce((b, n) => b + n, 0)),
     0,
   );

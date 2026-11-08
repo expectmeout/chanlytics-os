@@ -58,6 +58,29 @@ test("a change adds a new offender and a number that rose, and takes away what f
   assert.deepEqual(notes, ["test-length: a measure the base did not have"]);
 });
 
+test("a measure that holds a list of words is held word by word, however the record kept it", () => {
+  // What a measure answering a list comes out as: its words under their places, 0, 1, 2 (edge-codes-with-two-statuses).
+  const measured = (words) => ({ name: "n", mode: "count", advice: "a", entries: { ...words } });
+  const judged = (was, now) =>
+    judge(record({ measures: { codes: measured(was) } }), record({ measures: { codes: measured(now) } }));
+
+  const same = judged(["bad_request: 400, 413", "invalid: 400, 422"], ["bad_request: 400, 413", "invalid: 400, 422"]);
+  assert.deepEqual(same.worse, [], "the same words add nothing");
+  assert.deepEqual(same.better, [], "and take nothing away");
+
+  const added = judged(["invalid: 400, 422"], ["bad_request: 400, 413", "invalid: 400, 422"]);
+  assert.deepEqual(
+    added.worse,
+    ["codes bad_request: 400, 413: new (1)"],
+    "a new word is one new offender, wherever it sorts",
+  );
+  assert.deepEqual(added.better, []);
+
+  const gone = judged(["bad_request: 400, 413", "invalid: 400, 422"], ["invalid: 400, 422"]);
+  assert.deepEqual(gone.worse, []);
+  assert.deepEqual(gone.better, ["codes bad_request: 400, 413: gone (base 1)"]);
+});
+
 test("a part the base has no record of is said, and nothing of it judged", () => {
   const { worse, notes } = judge(record({ measures: {} }), record({ measures: {}, knip: { "c.ts": 3 } }));
   assert.deepEqual(worse, []);
