@@ -261,7 +261,7 @@ const answersAction = actAction({
 const reachOutAction = actAction({
   kind: "settings",
   input: z.object({
-    row: z.object({
+    reach_out: z.object({
       op: z.enum([
         "set_offer",
         "set_who_for",
@@ -283,12 +283,12 @@ const reachOutAction = actAction({
     }),
   }),
   examples: [
-    { row: { op: "set_offer", offer: "After-hours cleaning for dental offices" } },
-    { row: { op: "add_claim", claim: "We clean 40 clinics across Austin today." } },
+    { reach_out: { op: "set_offer", offer: "After-hours cleaning for dental offices" } },
+    { reach_out: { op: "add_claim", claim: "We clean 40 clinics across Austin today." } },
   ],
   label: "Preparing a change to how it reaches out",
-  words: `Action reach_out takes one row object, a row of How it reaches out (what its cold emails to businesses a search found are written from) and what it becomes: set_offer (offer, what the business offers them, at most ${REACH_OUT_LIMITS.offer} characters), set_who_for (who_for), set_fixes (fixes, the problem it solves for them), add_claim or remove_claim (claim, one true sentence the owner stands behind, word for word, at most ${REACH_OUT_LIMITS.claim} characters: the only place a number about the business may come from), set_cold_tone (tone, how a cold email sounds; empty for the receptionist's), set_signed_by (name, the name it signs with), set_signature (signature, at most ${REACH_OUT_LIMITS.signatureLines} lines, no link), set_reply_offer (offer, one of ${REPLY_OFFERS.join(", ")}: what a drafted answer to a lead who wrote back offers). Empty takes a row away. Call it when they say what they sell to other businesses, what they can prove, or how cold emails should sound, sign or answer. ${approvalWords("settings")}.`,
-  build: (t, input) => proposeSettings(t, { change: input.row }),
+  words: `Action reach_out takes one reach_out object, a row of How it reaches out (what its cold emails to businesses a search found are written from) and what it becomes: set_offer (offer, what the business offers them, at most ${REACH_OUT_LIMITS.offer} characters), set_who_for (who_for), set_fixes (fixes, the problem it solves for them), add_claim or remove_claim (claim, one true sentence the owner stands behind, word for word, at most ${REACH_OUT_LIMITS.claim} characters: the only place a number about the business may come from), set_cold_tone (tone, how a cold email sounds; empty for the receptionist's), set_signed_by (name, the name it signs with), set_signature (signature, at most ${REACH_OUT_LIMITS.signatureLines} lines, no link), set_reply_offer (offer, one of ${REPLY_OFFERS.join(", ")}: what a drafted answer to a lead who wrote back offers). Empty takes a row away. Call it when they say what they sell to other businesses, what they can prove, or how cold emails should sound, sign or answer. ${approvalWords("settings")}.`,
+  build: (t, input) => proposeSettings(t, { change: input.reach_out }),
 });
 
 /** The owner's goal for Ask (the operator, 15 Oct 2026, D13): one line Ask weighs every plan against, or cleared. */
