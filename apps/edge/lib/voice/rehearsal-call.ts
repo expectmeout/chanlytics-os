@@ -45,7 +45,6 @@ import {
   turnsOfTranscript,
   REHEARSAL_LIMITS,
   SECOND_MS,
-  UUID,
   isTenantId,
 } from "@chanlytics/contracts";
 import { ensureVoiceAgent } from "../lines/voice-agent.js";
@@ -80,7 +79,7 @@ export function isRehearsalCall(call: Pick<RetellCall, "call_type"> | null | und
  */
 export async function makeRehearsalAgent(
   auth: Admitted,
-  body: Partial<{ tenant_id: TenantId; user_id: string }>,
+  body: Partial<{ tenant_id: string; user_id: string }>,
 ): Promise<Response> {
   const log = logger();
   const apiKey = env.RETELL_API_KEY;
@@ -160,7 +159,7 @@ async function reserveStart(
 
 export async function startRehearsalCall(
   auth: Admitted,
-  body: Partial<{ tenant_id: TenantId; user_id: string }>,
+  body: Partial<{ tenant_id: string; user_id: string }>,
 ): Promise<Response> {
   const log = logger();
   const apiKey = env.RETELL_API_KEY;

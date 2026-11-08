@@ -8,7 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { UUID, unheldByDoor, type DoorRead, type EdgeDoor, type EdgeErrorCode, isTenantId } from "@chanlytics/contracts";
+import { unheldByDoor, type DoorRead, type EdgeDoor, type EdgeErrorCode, isTenantId } from "@chanlytics/contracts";
 import { json, refuse } from "./http.js";
 import { logger } from "./log.js";
 import { pg } from "./pg.js";

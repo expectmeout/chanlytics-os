@@ -32,7 +32,6 @@ import {
   signupAskRefusal,
   signupConfirmEmail,
   signupConfirmEmailHtml,
-  UUID,
   websiteFormLate,
   workspaceLogoSrc,
   type SignupAskRefusal,
@@ -209,7 +208,7 @@ export async function askIfSignup(
  */
 export async function askAgain(
   auth: Admitted,
-  body: Partial<{ tenant_id: TenantId; user_id: string; contact_id: ContactId }>,
+  body: Partial<{ tenant_id: string; user_id: string; contact_id: string }>,
 ): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;

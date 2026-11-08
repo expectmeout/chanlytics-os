@@ -25,7 +25,7 @@
 import crypto from "node:crypto";
 import { createPhoneCall } from "@chanlytics/channels/voice";
 import { getCanaryCallFacts, findCanaryLine, type CanaryCallFacts } from "@chanlytics/db/voice";
-import { MIN_MS, UUID, isE164, isTenantId } from "@chanlytics/contracts";
+import { MIN_MS, isE164, isTenantId } from "@chanlytics/contracts";
 import { json, refuse } from "../../shared/http.js";
 import { pg } from "../../shared/pg.js";
 import { env } from "../../shared/env.js";

@@ -353,7 +353,7 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
   let line: SpokenLine = NO_LINE;
   let conversationId: string | null = null;
   let configVersion: number | null = null;
-  let tenantId: string | null = null;
+  let tenantId: TenantId | null = null;
   const fail = (e: unknown) => {
     if (error === null) error = e instanceof Error ? e.message : String(e);
   };

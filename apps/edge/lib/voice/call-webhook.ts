@@ -35,6 +35,7 @@
  *
  * Cross-workspace: a provider webhook; the Retell agent id (or call id) names the workspace before anything is written.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import { sendOpsMail, notifyOnceAs, reachesTenant, type NotifyMessage } from "../shared/alerts/notify.js";
 import { pageOperator } from "../shared/alerts/page-operator.js";
 import { loadTenantNotifications, loadTenantRuntime } from "../shared/tenant-runtime.js";
@@ -92,7 +93,7 @@ import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
-const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
+const PLATFORM_TENANT = heldTenantId("00000000-0000-0000-0000-000000000000");
 
 /**
  * When a refused delivery last left an evidence row, per instance. The row is
@@ -736,7 +737,7 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
   // The call's own row, which that notice opens.
   let callId: string | null = null;
   // The person the ingest placed the call on, whose saved name the owner's notice leads with.
-  let callerId: string | null = null;
+  let callerId: ContactId | null = null;
 
   try {
     if (!routed) await deadLetter(db, result);

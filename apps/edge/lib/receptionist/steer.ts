@@ -152,7 +152,7 @@ async function draftAddressOf(
   return m.contact_id ? findInstagramId(db, m.tenant_id, m.contact_id).catch(() => null) : null;
 }
 
-function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: string | null) {
+function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: TenantId | null) {
   const draft = db
     .from("messages")
     .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel, sending_at")

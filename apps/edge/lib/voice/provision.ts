@@ -40,7 +40,6 @@ import {
   isE164,
   type EdgeErrorCode,
   US_AREA_CODE,
-  UUID,
   VOICE_PROVISION_DOOR,
   recordOrEmpty,
   isTenantId,
@@ -73,7 +72,7 @@ import { findWorkspaceCard } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
 
 interface Body {
-  tenant_id?: TenantId;
+  tenant_id?: string;
   number?: string;
   area_code?: number | string;
   llm_id?: string;

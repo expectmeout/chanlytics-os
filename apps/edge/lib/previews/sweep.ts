@@ -42,7 +42,7 @@ type Swept = "ended" | "held" | "failed";
 
 async function endOne(
   db: Db,
-  row: { id: string; tenant_id: TenantId; preview_tenant_id: string | null },
+  row: { id: string; tenant_id: TenantId; preview_tenant_id: TenantId | null },
   provider: PreviewProvider,
   log: Logger,
 ): Promise<Swept> {

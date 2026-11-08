@@ -31,14 +31,7 @@ import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { findOpenings, takesRequests } from "../calendar/availability.js";
-import {
-  resolveSystemPrompt,
-  describeNow,
-  fallbackMessages,
-  priceAllowance,
-  UUID,
-  isTenantId,
-} from "@chanlytics/contracts";
+import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, isTenantId } from "@chanlytics/contracts";
 import { holdPlan, layerTwo } from "@chanlytics/core";
 import { findOldestActiveChannel, type RoutedChannel } from "@chanlytics/db/channels";
 import { brainCallOf, generateReply, type BrainReply } from "../ai/receptionist-brain.js";
@@ -198,7 +191,7 @@ function caseRefusal(cases: readonly EvalCase[]): Response | null {
 
 export async function evaluateCases(
   auth: Admitted,
-  body: Partial<{ tenant_id?: TenantId; cases?: EvalCase[] }>,
+  body: Partial<{ tenant_id?: string; cases?: EvalCase[] }>,
   brain?: EvalBrainPort | null,
 ): Promise<Response> {
   const log = logger();

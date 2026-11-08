@@ -193,7 +193,7 @@ const reviewed = (id: string, review: unknown) => json(200, { ok: true, rehearsa
 export async function reviewConversation(
   auth: Admitted,
   body: Partial<{
-    tenant_id: TenantId;
+    tenant_id: string;
     user_id: string;
     rehearsal_id: string;
     call_id: string;
@@ -357,7 +357,7 @@ function fixAskOf(rt: TenantRuntime, kind: FixKind, words: string, rule: string 
 export async function routeCorrection(
   auth: Admitted,
   body: Partial<{
-    tenant_id: TenantId;
+    tenant_id: string;
     user_id: string;
     kind: string;
     words: string;

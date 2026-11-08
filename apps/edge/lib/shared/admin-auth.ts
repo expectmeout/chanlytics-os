@@ -38,6 +38,7 @@
  * names one is believed over the body, and a body that names another is
  * refused.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import crypto from "node:crypto";
 import { json, refuse } from "./http.js";
 import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels/tokens";
@@ -53,7 +54,7 @@ export const NAMES_NO_WORKSPACE = "this door acts only for a workspace its crede
 export interface Admitted {
   ok: true;
   via: "token" | "key";
-  workspace: string | null;
+  workspace: TenantId | null;
   user: string | null;
 }
 
@@ -119,7 +120,12 @@ export async function authorizeAdmin(
     }
     if (!firstUse(result.claims.nonce, result.claims.exp, now))
       return { ok: false, response: refuse(403, "token_replayed") };
-    return { ok: true, via: "token", workspace: result.claims.ws, user: result.claims.user };
+    return {
+      ok: true,
+      via: "token",
+      workspace: result.claims.ws ? heldTenantId(result.claims.ws) : null,
+      user: result.claims.user,
+    };
   }
   if (!sameKey(request.headers.get("x-diag-key"), env.DIAG_KEY)) {
     return { ok: false, response: json(403, { ok: false }) };
@@ -146,7 +152,8 @@ export function workspaceFor(
   if (auth.workspace && fromBody && fromBody !== auth.workspace) {
     return { ok: false, response: refuse(403, "workspace_mismatch") };
   }
-  return { ok: true, tenantId: auth.workspace ?? fromBody };
+  const named = auth.workspace ?? fromBody;
+  return { ok: true, tenantId: named === null ? null : heldTenantId(named) };
 }
 
 /**
@@ -166,6 +173,6 @@ export function personFor(auth: Admitted, bodyUser: unknown): string | null {
  * and the line codes refuse a knock that names none (voice/live-call-door.ts, lines/line-codes.ts); the steer refuses a
  * token that names none (receptionist/steer.ts), since EDGE_TOKEN_UNBOUND closed on 31 October 2026.
  */
-export function tokenWorkspace(auth: Admitted): string | null {
+export function tokenWorkspace(auth: Admitted): TenantId | null {
   return auth.workspace;
 }
