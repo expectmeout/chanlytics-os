@@ -1243,7 +1243,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
   );
   const edgeAv = readCode("apps/edge/lib/calendar/availability.ts");
   assert.ok(
-    /export async function listFeedItems\(\s*tenantId: string,\s*url: string,\s*tz: string,\s*now = new Date\(\),\s*daysAhead = 14,?\s*\)/.test(
+    /export async function listFeedItems\(\s*tenantId: TenantId,\s*url: string,\s*tz: string,\s*now = new Date\(\),\s*daysAhead = 14,?\s*\)/.test(
       edgeAv,
     ),
     "the sweep reads the feed through the same cache",

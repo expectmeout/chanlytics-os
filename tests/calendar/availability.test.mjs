@@ -473,7 +473,7 @@ test("the edge reads the feed once per five minutes and tells both receptionists
   // Keyed on the workspace ALONE, an owner correcting a wrong feed address was
   // not a cache miss: the receptionist answered from the old calendar, and a
   // cached failure kept a fixed address reading as broken, for five minutes.
-  assert.ok(lib.includes("const cacheKey = (tenantId: string, url: string) =>"), "the address is part of the key");
+  assert.ok(lib.includes("const cacheKey = (tenantId: TenantId, url: string) =>"), "the address is part of the key");
   assert.ok(
     lib.includes("c.text === text && c.tz === tz && c.daysAhead === daysAhead"),
     "and the horizon is part of the parse's",
