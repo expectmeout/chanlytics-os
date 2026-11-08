@@ -1,8 +1,10 @@
 # 0112 · The checker is told only what it cannot see
 
-**Status:** Accepted by Ruben, 7 November 2026 ("Approve all seven"). Its first part is built on `types/layer-7-part-1`, 7 November 2026, not
-landed: the parts that touch `packages/db`, `apps/edge/lib` and `apps/dashboard/src/server` wait for layer 8's change to land. No migration, and
-nothing changes for a customer but three readings of a value from outside, which said `[object Object]` where they now say nothing.
+**Status:** Accepted by Ruben, 7 November 2026 ("Approve all seven"). Its first part landed as #2185 (7 November). Its second is built on
+`types/layer-7-part-2`, 8 November 2026, after layer 8 (#2186): points 2 and 3 across the backend, point 4 in report-only, point 5 for core.
+Point 7 (the ids) is built apart and not yet whole; the held rules in layer 8's files, the strict four, the dashboard's and the specs' index
+reads and the edge answers' schema are still owed. No migration; nothing changes for a customer but three readings of a value from outside,
+which said `[object Object]` where they now say nothing, and a line in the logs where a SQL function's answer or a JSON column does not fit.
 
 ## Context
 
@@ -63,3 +65,9 @@ A rule is a line in `eslint.config.mjs`; the measure is one entry of `RATCHETS`;
 
 `no-unsafe-argument`, `no-unsafe-call`, `no-unsafe-member-access` and `restrict-template-expressions` are errors. Assertions fell from 2,160 to 1,917,
 contracts' from 501 to 273 and core's from 46 to 32. A test that takes a name the code lost fails in seconds, in every pull request, by the test and the line.
+
+The second part: `packages/db/src/types.ts` is the `Database` the code reads (162 closed columns as their sets, SQL functions' arguments
+nullable, a function's table rows typed as that table's), at no cost to the typecheck (the dashboard's check 27.8 s, 29.7 s before);
+`readAnswer` and `readColumn` read what the database answers through its shape, report-only (`rpc_answer_unexpected`, `json_column_unexpected`);
+`asJson` checks a value on its way to a JSON column and `jsonCopyOf` copies one whose type says nothing; contracts gains `valueAt`, `keysOf`
+and `globalSlot`. Assertions fell from 1,942 to 1,406, `as unknown as` from 118 to 73, and core reads its indexes checked.
