@@ -9,7 +9,7 @@ import {
   reachOutSignatureProblem,
   textOrEmpty,
 } from "@chanlytics/contracts";
-import { btPut, type DraftOf, type Problems } from "../business/fold-shapes";
+import { btPut, type DraftOf, type FoldName, type Problems } from "../business/fold-shapes";
 import { trimmed, type Config } from "../business/save";
 
 // The section on the tab's config (business/save.tsx Config), declared beside the folds that write it.
@@ -33,7 +33,7 @@ const REACH_OUT_FOLD_KEYS = {
   signature: "signature",
   sign_phone: "phone",
   reply_offer: "reply_offer",
-} as const;
+} as const satisfies Partial<Record<FoldName, string>>;
 export type ReachOutFoldName = keyof typeof REACH_OUT_FOLD_KEYS;
 const isReachOutFold = (fold: string): fold is ReachOutFoldName => Object.hasOwn(REACH_OUT_FOLD_KEYS, fold);
 

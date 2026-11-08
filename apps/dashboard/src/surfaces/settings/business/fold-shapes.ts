@@ -7,12 +7,22 @@ import { BUSINESS_TAB } from "@/bridge/business-tab";
 import type { BookingRuleKey, ProfileLimitKey } from "@chanlytics/contracts";
 import type { ProfileRefusalKey } from "./model/fold-limits";
 import { BOOKS_BY_HAND, booksWithOf, isBookingTool } from "@chanlytics/contracts";
-import type { ReachOutFoldName } from "../outreach/fold-tables";
 import { trimmed, type Config, type StoredNote } from "./save";
 
-/** The folds, each named by its id. */
+/**
+ * The folds, each named by its id. The first nine are How it reaches out's (decision 0113), each one key of the config's
+ * reach_out section: their tables are outreach/fold-tables.ts's, which holds its keys to these names.
+ */
 export type FoldName =
-  | ReachOutFoldName
+  | "offer"
+  | "who_for"
+  | "fixes"
+  | "proof"
+  | "cold_tone"
+  | "signed_by"
+  | "signature"
+  | "sign_phone"
+  | "reply_offer"
   | "tone"
   | "phone_greeting"
   | "hours"
