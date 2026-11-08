@@ -163,7 +163,7 @@ export function firstNameOf(
   }
   const raw = (displayName || waProfileName || "").trim();
   if (!raw || isIdentifierName(raw)) return null;
-  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
+  const first = (raw.split(/\s+/)[0] ?? "").replace(/[^\p{L}\p{M}'’-]/gu, "");
   return first ? first.slice(0, 30) : null;
 }
 

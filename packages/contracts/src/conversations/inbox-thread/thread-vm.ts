@@ -219,7 +219,7 @@ export function toInboxThreadVM(
       ...(message.sender === "human" && messageAuthor(message)
         ? { byWords: (messageAuthor(message) as MessageAuthor).words }
         : {}),
-      ...(messageVia(message) ? { via: messageVia(message)! } : {}),
+      ...((via) => (via ? { via } : {}))(messageVia(message)),
       // What became of it: the words for its status, why it failed (one sentence for the owner, drawn under "Didn't send"),
       // and whether the words left (the receptionist's failed reply was drawn as a sent bubble, I1). Said in message-words.ts,
       // so this pane and the Conversations pane cannot describe the same message differently.
@@ -272,14 +272,14 @@ export function toInboxThreadVM(
     ...archivedOf(dto),
     ...moveWords,
     heldDraft,
-    ...(heldDraft
+    ...(heldDraft && draftMsg
       ? {
           veto: {
-            window: Math.max(1, Math.round((heldDraft.sendsAtMs - new Date(draftMsg!.created_at).getTime()) / 1000)),
+            window: Math.max(1, Math.round((heldDraft.sendsAtMs - new Date(draftMsg.created_at).getTime()) / 1000)),
             draft: heldDraft.body,
             endsAtMs: heldDraft.sendsAtMs,
             messageId: heldDraft.messageId,
-            ...(replyWhy(draftMsg!.meta) ? { why: replyWhy(draftMsg!.meta) as ReplyWhyVM } : {}),
+            ...(replyWhy(draftMsg.meta) ? { why: replyWhy(draftMsg.meta) as ReplyWhyVM } : {}),
           },
         }
       : {}),

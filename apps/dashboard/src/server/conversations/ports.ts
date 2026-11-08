@@ -27,7 +27,6 @@ import {
   withdrawMemberMessage,
 } from "@chanlytics/db/conversations";
 import { findLastInboundEmail, findLastOutboundEmailSubject } from "@chanlytics/db/email";
-import type { Json } from "@chanlytics/db/types";
 import type {
   CancelSendPorts,
   EscalationPorts,
@@ -36,7 +35,7 @@ import type {
   SendNowPorts,
   ThreadPorts,
 } from "@chanlytics/core";
-import { conversationPatch } from "@chanlytics/contracts";
+import { conversationPatch, shaped } from "@chanlytics/contracts";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 import {
   cancelPendingAiReply,
@@ -50,7 +49,7 @@ import { takeThreadControl } from "./thread-control";
 import { freezeFirst, freezeReply } from "../connections/email";
 import { getStoredConfig } from "../workspace/config-row";
 import { log } from "@/server/shared/log";
-import { asJson } from "@chanlytics/db/shared";
+import { asJson, readColumn } from "@chanlytics/db/shared";
 
 /**
  * True iff a row changed. An UPDATE that RLS or a vanished row excludes
@@ -79,7 +78,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
         pausedUntil: until,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       if (!done) return null;
@@ -94,7 +93,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
         undo,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       return decision ? { decision_id: decision } : null;
@@ -105,7 +104,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
         conversationId: id,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       return decision ? { decision_id: decision } : null;
@@ -116,7 +115,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
         conversationId: id,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       if (!done) return null;
@@ -164,7 +163,7 @@ export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
         messageId: id,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       if (!done) return null;
@@ -186,7 +185,7 @@ export function sendNowPorts(ctx: RouteContext): SendNowPorts {
         messageId: id,
         via: ctx.via ?? null,
         undoOf: ctx.undoOf ?? null,
-      }).catch((e: { code?: string | null; message: string }) => {
+      }).catch((e: unknown) => {
         throw dbRefusal(e);
       });
       if (!done) return null;
@@ -201,14 +200,9 @@ export function sendNowPorts(ctx: RouteContext): SendNowPorts {
 const REPLY_KEY_ROUTE = "reply";
 
 export function replyPorts(ctx: RouteContext): ReplyPorts {
-  const { pauseMs, takeControl, withdrawDrafts, record, resolveEscalation, now } = threadPorts(ctx);
   return {
-    pauseMs,
-    takeControl,
-    withdrawDrafts,
-    record,
-    resolveEscalation,
-    now,
+    // The thread's own ports, whole: the reply verb takes these six of them, and an object's methods ride with it.
+    ...threadPorts(ctx),
     replyChannel: (conv) => replyChannelOf(ctx, conv),
     email: {
       parent: (conv) => findLastInboundEmail(ctx.supabase, conv.tenant_id, conv.id),
@@ -230,7 +224,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       return {
         won: false,
         held: held && {
-          response: held.response as unknown as ReplyReceipt | null,
+          response: readColumn("idempotency_keys.response", shaped<ReplyReceipt>().nullable(), held.response),
           created_at: held.created_at,
           request_hash: held.request_hash,
         },

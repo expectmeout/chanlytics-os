@@ -292,7 +292,7 @@ export function textingTermsVM(businessPageFacts: BusinessPageFacts): TextingTer
       { label: "Help", text: `Reply HELP for help${support ? `, or ${support}` : ""}.` },
       { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more.` },
       { label: "Carriers", text: "Wireless carriers are not liable for delayed or undelivered messages." },
-      { label: "Your information", text: SMS_CLAUSES[3] },
+      { label: "Your information", text: SMS_CLAUSES[3] ?? "" },
     ],
     privacyUrl: businessPageFacts.privacyUrl,
     closedLine: !empty && !takesSignUps(businessPageFacts.open) ? notTakingSignUps(known) : null,

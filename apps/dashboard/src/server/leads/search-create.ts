@@ -10,7 +10,6 @@
 import { z } from "zod";
 import { isUuid, LeadSearchPlanSchema } from "@chanlytics/contracts";
 import { recordActivation } from "@chanlytics/db/events";
-import type { Json } from "@chanlytics/db/types";
 import { serviceDb } from "@/server/shared/service-db";
 import { answerOf, estimateForRound, refusalOf } from "@/server/leads/leads";
 import type { RouteContext } from "@/server/shared/with-route";

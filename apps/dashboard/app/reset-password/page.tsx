@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
     }
   }, []);
 
-  async function ask(e: React.FormEvent) {
+  async function ask(e: React.SubmitEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);

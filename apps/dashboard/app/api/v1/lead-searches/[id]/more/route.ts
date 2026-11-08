@@ -1,12 +1,10 @@
 import { z } from "zod";
 import { LeadSearchPlanSchema, SPEND_LEADS } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db/types";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
-import { answerOf, estimateForRound, morePlanOf, refusalOf, searchRow } from "@/server/leads/leads";
+import { answerOf, estimateForRound, morePlanOf, planAsJson, refusalOf, searchRow } from "@/server/leads/leads";
 import { refuseList } from "@/server/leads/lists";
 import { askForMore } from "@/server/leads/search-acts";
-import { asJson } from "@chanlytics/db/shared";
 
 const Body = z.object({
   purpose: z.enum(["topup", "renew"]),
@@ -35,7 +33,7 @@ export const POST = write({
     const { data, error } = await askForMore(ctx, {
       p_search_id: search.id,
       p_purpose: input.purpose,
-      p_plan: asJson(plan),
+      p_plan: planAsJson(plan),
       p_estimate_usd: estimateForRound(plan, input.purpose, search.counted),
     });
     if (error) throw new Error(`lead_search_more: ${error.message}`);

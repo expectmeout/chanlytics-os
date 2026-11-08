@@ -5,7 +5,7 @@
  * the tool fences it as data.
  */
 import "server-only";
-import { SECOND_MS, recordOrNull } from "@chanlytics/contracts";
+import { SECOND_MS } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import type { TenantId } from "@chanlytics/contracts";
@@ -27,7 +27,7 @@ export async function askEar(
     { tenant_id: member.tenantId, ...question },
     { workspace: member.tenantId, user: member.userId, timeoutMs: Math.min(LISTEN_MS, Math.max(SECOND_MS, leftMs)) },
   );
-  const reply = recordOrNull(answer.body);
+  const reply = answer.body;
   if (answer.status === 200 && typeof reply?.answer === "string" && typeof reply.model === "string")
     return { answer: reply.answer, model: reply.model };
   if (answer.status === 200 && typeof reply?.wont === "string") return { wont: reply.wont };

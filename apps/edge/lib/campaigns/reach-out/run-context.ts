@@ -21,7 +21,7 @@ import {
   planReachOutRun,
 } from "@chanlytics/db/campaigns";
 import { emitEvent } from "@chanlytics/db/events";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "@chanlytics/core";
 import { DEFAULT_TIMEZONE, handOf, waitEndsWords, runRoute } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";

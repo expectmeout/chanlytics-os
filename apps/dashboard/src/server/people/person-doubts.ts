@@ -25,6 +25,6 @@ export async function settleDoubtApart(ctx: RouteContext, tenantId: TenantId, co
     });
     return settled;
   } catch (e) {
-    throw dbRefusal(e as { code?: string | null; message: string });
+    throw dbRefusal(e);
   }
 }

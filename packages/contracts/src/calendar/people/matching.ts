@@ -170,7 +170,9 @@ export function calendarOwnerOf(url: string | null | undefined): string | null {
   if (!match) return null;
   let id: string;
   try {
-    id = decodeURIComponent(match[1]).trim().toLowerCase();
+    id = decodeURIComponent(match[1] ?? "")
+      .trim()
+      .toLowerCase();
   } catch {
     return null;
   }

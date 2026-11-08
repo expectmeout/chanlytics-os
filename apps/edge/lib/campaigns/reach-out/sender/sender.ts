@@ -130,6 +130,7 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
     },
     parent,
     signsWith: standing.signsWith,
+    own: workspace.signature,
     previewId: preview?.id ?? null,
   };
   if (standing.ownerSends || parent?.ownerSent) return handOver(tick, reachOutSend, turns, created);

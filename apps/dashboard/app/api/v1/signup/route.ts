@@ -37,7 +37,7 @@ import { log } from "@/server/shared/log";
  */
 const PRIVATE = { "cache-control": "private, no-store" } as const;
 
-export async function GET(): Promise<Response> {
+export function GET(): Response {
   // The page asks what to render before it renders anything. `posture` is the
   // one field it needs; the two booleans stay so a client deployed before this
   // keeps working, which matters because the page and the API ship separately.

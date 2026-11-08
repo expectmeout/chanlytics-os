@@ -66,7 +66,7 @@ for (const [where, size] of [
       // Who to open, asked of the API, so nothing of the app is loaded (and cached) before their page.
       const people = (await (await apiGet(page, "/api/v1/contacts")).json()).data.people as { id: string }[];
       test.skip(people.length === 0, "this workspace has nobody to open");
-      await page.goto(`/#/clients/${people[0].id}`);
+      await page.goto(`/#/clients/${people[0]?.id ?? ""}`);
       await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
       await expect(page.getByTestId("person-now")).toBeVisible({ timeout: 30_000 });
       const load = await loadOf(page);

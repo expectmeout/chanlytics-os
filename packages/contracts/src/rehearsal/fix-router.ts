@@ -13,6 +13,7 @@
 import { defang } from "../ai/fence";
 import { DAYS, DAY_NAMES, PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import type { AskSettingsChange, GuardrailRule } from "../ask/settings-change";
+import type { AskReachOutChange } from "../config/workspace-config/reach-out-change";
 import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/settings-change";
 import { noteNamesContact, noteNamesMoney, noteOverlap } from "../notes/suggest";
 import type { FixKind } from "./review";
@@ -523,8 +524,12 @@ function clockOf(hhmm: string): string {
   return `${h12}${m ? `:${pad(m)}` : ""} ${ap}`;
 }
 
-/** The block of the instructions each change writes (prompt-blocks.ts rows): It now reads draws that block. */
-export const FIX_BLOCK_OF: Record<AskSettingsChange["op"], string> = {
+/**
+ * The block of the instructions each change writes (prompt-blocks.ts rows): It now reads draws that block. How it reaches
+ * out's rows (decision 0113) write none, so none is named: a read of one finds no block.
+ */
+export const FIX_BLOCK_OF: Record<Exclude<AskSettingsChange["op"], AskReachOutChange["op"]>, string> &
+  Partial<Record<AskReachOutChange["op"], string>> = {
   set_hours: "hours",
   add_closure: "closures",
   add_service: "services",

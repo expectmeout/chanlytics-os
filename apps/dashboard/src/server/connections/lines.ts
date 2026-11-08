@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto, recordOrEmpty } from "@chanlytics/contracts";
-import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeBody } from "../shared/edge";
+import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { listLinesForPage } from "@chanlytics/db/lines";
 import type { TenantId } from "@chanlytics/contracts";
@@ -30,7 +30,7 @@ export const EDGE_LINES_TIMEOUT_MS = MIN_MS;
 export async function callEdgeLines(
   body: EdgeBody<"/api/admin/lines">,
   timeoutMs = EDGE_LINES_TIMEOUT_MS,
-): Promise<EdgeAnswer> {
+): Promise<EdgeAnswer<EdgeRead<"/api/admin/lines">>> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every other provider door keeps (billing.ts, google.ts,
   // whatsapp.ts). This one did not, and EDGE_URL defaults to the production
@@ -77,10 +77,7 @@ export async function getLinesStatus(now = Date.now()): Promise<LinesStatus> {
     return statusCache.value;
   const answer = await callEdgeLines({ op: "status" }, 4_000);
   const body = answer.body ?? {};
-  const costs =
-    body.costs && typeof body.costs === "object"
-      ? { ...DEFAULT_COSTS, ...(body.costs as Partial<typeof DEFAULT_COSTS>) }
-      : DEFAULT_COSTS;
+  const costs = body.costs ? { ...DEFAULT_COSTS, ...body.costs } : DEFAULT_COSTS;
   const value: LinesStatus =
     answer.status === 200 && body.ok === true
       ? { ready: body.ready === true, provider: typeof body.provider === "string" ? body.provider : null, costs }

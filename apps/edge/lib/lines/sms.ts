@@ -8,7 +8,7 @@
  * Cross-workspace: an inbound text names only the number it reached, so its line is found by that number.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { LineSecrets, ProviderAccount } from "@chanlytics/channels/lines";
 import type { ProviderReply } from "@chanlytics/channels/shared";
 import type { SendResult } from "@chanlytics/channels/whatsapp";

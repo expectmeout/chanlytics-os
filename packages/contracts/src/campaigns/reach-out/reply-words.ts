@@ -232,7 +232,7 @@ export function replyFromLineOf(from: ReplyFrom, mailbox: string | null): string
 const bareAddress = (from: unknown): string | null => {
   if (typeof from !== "string" || !from.trim()) return null;
   const m = /<([^<>]+)>\s*$/.exec(from);
-  return (m ? m[1] : from).trim().toLowerCase();
+  return ((m ? m[1] : from) ?? "").trim().toLowerCase();
 };
 
 /**

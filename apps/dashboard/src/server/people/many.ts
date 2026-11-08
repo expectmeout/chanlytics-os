@@ -32,6 +32,7 @@ async function ours<T extends { id: string; tenant_id: TenantId; erased_at: stri
 ): Promise<{ rows: T[]; skipped: string[] }> {
   const { data, error } = await listPeopleWith(ctx.supabase, ids, columns);
   if (error) throw new Error(error.message);
+  // The columns are the caller's, chosen at run time, past the client's typed parser: T is the columns it named.
   const rows = ((data ?? []) as unknown as T[]).filter((c) => c.tenant_id === tenantId && !c.erased_at);
   return { rows, skipped: ids.filter((id) => !rows.some((c) => c.id === id)) };
 }

@@ -13,7 +13,7 @@
  * of a filed line in a2p-refile.ts, and the status read in a2p-sync.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { answerObject } from "@chanlytics/channels/shared";
 import {
   runA2PSaga,

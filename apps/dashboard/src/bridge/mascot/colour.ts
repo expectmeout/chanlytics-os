@@ -107,24 +107,27 @@ export function parseColor(value: string | Lab | null | undefined): Lab | null {
     .toLowerCase();
   let m: RegExpExecArray | null;
   if ((m = /^#([0-9a-f]{6})$/.exec(str))) {
-    const n = parseInt(m[1], 16);
+    const n = parseInt(m[1] ?? "", 16);
     return rgbToLab(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
   }
   if ((m = /^#([0-9a-f]{3})$/.exec(str))) {
-    const [r, g, b] = [...m[1]].map((c) => parseInt(c + c, 16) / 255);
+    const [r = 0, g = 0, b = 0] = [...(m[1] ?? "")].map((c) => parseInt(c + c, 16) / 255);
     return rgbToLab(r, g, b);
   }
   if ((m = /^oklch\(\s*([\d.]+)(%?)\s+([\d.]+)\s+([\d.]+)/.exec(str))) {
-    const L = parseFloat(m[1]) / (m[2] ? 100 : 1);
-    const C = parseFloat(m[3]);
-    const h = (parseFloat(m[4]) * Math.PI) / 180;
+    const [, lightness = "", percent, chroma = "", hue = ""] = m;
+    const L = parseFloat(lightness) / (percent ? 100 : 1);
+    const C = parseFloat(chroma);
+    const h = (parseFloat(hue) * Math.PI) / 180;
     return [L, C * Math.cos(h), C * Math.sin(h)];
   }
   if ((m = /^lab\(\s*(-?[\d.]+)%?\s+(-?[\d.]+)\s+(-?[\d.]+)/.exec(str))) {
-    return cieLabToOklab(parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3]));
+    const [, l = "", a = "", b = ""] = m;
+    return cieLabToOklab(parseFloat(l), parseFloat(a), parseFloat(b));
   }
   if ((m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(str))) {
-    return rgbToLab(+m[1] / 255, +m[2] / 255, +m[3] / 255);
+    const [, r = "", g = "", b = ""] = m;
+    return rgbToLab(+r / 255, +g / 255, +b / 255);
   }
   return null;
 }
@@ -217,7 +220,7 @@ const easeLab = (cur: Lab, tgt: Lab, dt: number): Lab => [
 ];
 /** Moves `cur` toward `tgt` by one frame, so a theme change is a blend, and returns `cur`. */
 export function easePalette(cur: Palette, tgt: Palette, dt: number): Palette {
-  for (let k = 0; k < 3; k++) {
+  for (const k of [0, 1, 2] as const) {
     cur.rest[k] = easeLab(cur.rest[k], tgt.rest[k], dt);
     cur.live[k] = easeLab(cur.live[k], tgt.live[k], dt);
   }
@@ -235,10 +238,11 @@ export function easePalette(cur: Palette, tgt: Palette, dt: number): Palette {
  */
 export function labOf(pal: Palette, shade: number, live: number, charge = 0): Lab {
   const c = clamp01(shade / 2) * 2;
-  const i = Math.min(1, Math.floor(c));
-  const f = c - i;
-  const r = mixLab(pal.rest[i], pal.rest[i + 1], f);
-  const w = mixLab(pal.live[i], pal.live[i + 1], f);
+  const low = c < 1 ? 0 : 1;
+  const high = c < 1 ? 1 : 2;
+  const f = c - low;
+  const r = mixLab(pal.rest[low], pal.rest[high], f);
+  const w = mixLab(pal.live[low], pal.live[high], f);
   const s = live * live * live;
   const base: Lab = [r[0] + (w[0] - r[0]) * live, r[1] + (w[1] - r[1]) * s, r[2] + (w[2] - r[2]) * s];
   if (charge <= 0) return base;

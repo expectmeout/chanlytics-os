@@ -244,7 +244,7 @@ async function proposePlaybookChange(toolContext: ToolContext, input: ChangeAske
   const leads = triggerOf(read.trigger)?.kind === "reach_out";
   // The table's check holds a state to the two; one it does not know is no row a change is judged against (the PUT's rule).
   if (!isPlaybookState(read.state))
-    throw new Error(`playbook ${read.id} holds a state the check does not: ${read.state}`);
+    throw new Error(`playbook ${read.id} holds a state the check does not: ${String(read.state)}`);
   const row = { ...read, state: read.state };
   // The playbook is a row the answer may cite, opened where its drawer is.
   noteRows(toolContext.read, [

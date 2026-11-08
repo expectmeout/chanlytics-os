@@ -49,6 +49,7 @@ import {
   type ServiceRow,
   type ShiftDraft,
 } from "./fold-shapes";
+import { REACH_OUT_FOLDS } from "../outreach/fold-tables";
 import { BT_RUN_BLOCKS, btChangedLines, btWillSay } from "./fold-says";
 import { FALLBACK_DEFAULTS, instructionsDraft, newReceptionistDefaults, unknownDetails } from "@chanlytics/contracts";
 import { greetingDraftOf, greetingStoredOf } from "./phone/greeting-draft";
@@ -159,6 +160,8 @@ const btOpenRules = (p: Profile): RulesDraft => {
 
 /** What each fold opens with, from the stored profile, brain and config: as BusinessEditor set up its state. */
 const BT_DRAFT_OF: { [F in FoldName]: (p: Profile, brain: Brain, config: Config) => DraftOf[F] } = {
+  // How it reaches out's (decision 0113): each one key of the config's own section, read off the config alone.
+  ...REACH_OUT_FOLDS.draftOf,
   tone: (p) => p.tone || "",
   phone_greeting: greetingDraftOf,
   // One editable list per day, however the day happens to be stored: a plain open/close pair reads as a single shift,
@@ -343,6 +346,7 @@ const btWriteReceptionist = (next: Config, draft: unknown) => {
 
 /** How each fold writes its draft into `next`, a copy of the stored config: its own paths, and nothing else. */
 const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
+  ...REACH_OUT_FOLDS.write,
   tone: (next, draft) => btPutProfile(next, "tone", trimmed(draft) || undefined),
   phone_greeting: (next, draft) => btPutProfile(next, "phone_greeting", greetingStoredOf(draft)),
   // Only once at least one day has real times: btWriteHours says why.
@@ -525,6 +529,7 @@ const btFallbacksProblems = (draft: unknown) => {
 
 /** What stops each fold's save, by the field it is under: BusinessEditor's `save` checks, word for word. */
 const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
+  ...REACH_OUT_FOLDS.problemsOf,
   tone: (draft): Problems => {
     const n = trimmed(draft).length;
     return n > BT_LIMITS.tone ? { tone: btRefusalOf("tone", n) } : {};
@@ -632,6 +637,7 @@ const btFieldOf = (fold: FoldName, path: (string | number)[], draft: unknown) =>
   const dotted = path.join(".");
   const own = BT_PATHS_OF[fold].some((p) => dotted === p || dotted.startsWith(`${p}.`));
   if (!own) return null;
+  if (REACH_OUT_FOLDS.is(fold)) return REACH_OUT_FOLDS.fieldOf(fold, path);
   if (fold === "hours") return `hours-${path[3]}`;
   if (fold === "services" || fold === "closures" || fold === "notes") return btListField(fold, path, draft);
   if (fold === "booking_rules" || fold === "consult_first") return String(path[3]);
@@ -658,7 +664,13 @@ const btFieldOf = (fold: FoldName, path: (string | number)[], draft: unknown) =>
 const btSchemaProblems = (fold: string, base: Config | null | undefined, draft: unknown): Problems => {
   btFoldNamed(fold);
   const next = btSaveFold(fold, base, draft);
-  const issues = BUSINESS_TAB.saveIssues(fold === "calendar" ? btCalendarPart(next) : { brain: next.brain });
+  const part =
+    fold === "calendar"
+      ? btCalendarPart(next)
+      : REACH_OUT_FOLDS.is(fold)
+        ? { reach_out: next.reach_out }
+        : { brain: next.brain };
+  const issues = BUSINESS_TAB.saveIssues(part);
   const found: Problems = {};
   issues.forEach((issue) => {
     const key = btFieldOf(fold, issue.path, draft);

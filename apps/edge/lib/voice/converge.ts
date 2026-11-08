@@ -57,7 +57,6 @@ import {
   unpublishedLatestNote,
   newDraftNote,
   voiceNumberBinding,
-  type LiveAgentSettings,
 } from "@chanlytics/channels/voice";
 import { resolveChannel } from "@chanlytics/db/channels";
 import { listVoiceAgentsBeforeANumber } from "@chanlytics/db/facts";

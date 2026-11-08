@@ -122,6 +122,8 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   "admin/workspace": { settings: true, calendar: true },
   "admin/hours": { settings: true, calendar: true },
   "admin/receptionist": { settings: true },
+  // How it reaches out (decision 0113) draws the config's reach_out section from the settings read, beside its own read.
+  "admin/outreach": { settings: true },
   "admin/team": { settings: true },
   "admin/autonomy": { settings: true },
   "admin/notifications": { settings: true },

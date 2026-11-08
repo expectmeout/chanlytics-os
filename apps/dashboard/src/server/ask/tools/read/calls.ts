@@ -29,6 +29,7 @@ async function listCalls(toolContext: ToolContext, input: { filter: string }): P
   const picked = vms
     .filter((value, index) => {
       const item = calls[index];
+      if (!item) return false;
       switch (filter) {
         case "missed":
           // The outcome the rows below say: a dial the receptionist placed that nobody answered is not_connected, not missed.

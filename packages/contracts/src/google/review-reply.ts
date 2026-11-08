@@ -122,7 +122,7 @@ export const REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
 function firstName(author: string | null): string | null {
   const a = (author ?? "").trim();
   if (!a || /^(a google user|anonymous)$/i.test(a)) return null;
-  return a.split(/\s+/)[0];
+  return a.split(/\s+/)[0] ?? "";
 }
 
 /**
@@ -243,10 +243,10 @@ export function autoReplyBell(
 ): { title: string; body: string } | null {
   if (!answered.length) return null;
   if (answered.length === 1) {
-    const person = (answered[0].author ?? "").trim();
+    const person = (answered[0]?.author ?? "").trim();
     return {
       title: person ? `Replied to ${person}'s review` : "Replied to a review on Google",
-      body: answered[0].text,
+      body: answered[0]?.text ?? "",
     };
   }
   const names = answered.map((a) => (a.author ?? "").trim()).filter(Boolean);

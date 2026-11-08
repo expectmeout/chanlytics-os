@@ -8,7 +8,7 @@
 import { AppError, appLink, ROLE_PERMS } from "@chanlytics/contracts";
 import { instagramAuthorizeUrl } from "@chanlytics/channels/instagram";
 import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels/google";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody } from "../shared/edge";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
@@ -19,7 +19,10 @@ import { stateSecret } from "./google";
 const PROVIDER = "instagram";
 
 /** The edge's Instagram door, behind the dashboard's own credential, for the workspace and the person it acts for. */
-async function edgeInstagram(body: EdgeBody<"/api/admin/instagram/account">, timeoutMs = 20_000): Promise<EdgeAnswer> {
+async function edgeInstagram(
+  body: EdgeBody<"/api/admin/instagram/account">,
+  timeoutMs = 20_000,
+): Promise<EdgeAnswer<EdgeRead<"/api/admin/instagram/account">>> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // A preview never reaches Instagram under a business's name, as no provider door does.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
@@ -43,10 +46,7 @@ async function instagramReadiness(now = Date.now()): Promise<InstagramReadiness>
   if (readyCache && now - readyCache.at < READY_TTL_MS) return readyCache.value;
   const answer = await edgeInstagram({ op: "status" }, 4_000);
   const body = answer.body ?? {};
-  const app =
-    body.app && typeof body.app === "object"
-      ? (body.app as Partial<Record<"client_id" | "redirect_uri", unknown>>)
-      : null;
+  const app = body.app ?? null;
   const value: InstagramReadiness =
     answer.status === 200 &&
     body.ok === true &&

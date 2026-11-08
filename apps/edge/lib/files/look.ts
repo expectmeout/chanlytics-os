@@ -30,7 +30,6 @@ import {
   soundTurnSaidOf,
   videoSheetPlanOf,
   type FileLookRead,
-  type FileMime,
 } from "@chanlytics/contracts";
 import { deleteClaudeFile, uploadClaudeFile } from "@chanlytics/channels/ai";
 import { imageHeaderOf } from "@chanlytics/core";

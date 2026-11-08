@@ -130,8 +130,7 @@ export async function findTwinRefusal(
     listKey: checked.list_key,
     templateId: checked.template_id,
   });
-  // Bound and checked, never `twins[0].name`: an index read the compiler lets pass is a new offender in a file at 0
-  // (the unchecked-index measure).
+  // Bound and checked, never `twins[0].name`.
   const [first] = twins;
   if (!first) return null;
   const own = playbookNameAsked(named);
@@ -260,7 +259,7 @@ async function patchPlaybook(ctx: RouteContext, record: Record<string, unknown>,
   if (!read) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   // The table's check holds a state to the two; one it does not know is no row a change is judged against.
   if (!isPlaybookState(read.state))
-    throw new Error(`playbook ${playbook.id} holds a state the check does not: ${read.state}`);
+    throw new Error(`playbook ${playbook.id} holds a state the check does not: ${String(read.state)}`);
   const row = { ...read, state: read.state };
   const { set, was } = await checkPlaybookPatch(playbookPatchPorts(ctx, playbook.tenant_id), row, record, {
     now: new Date(),

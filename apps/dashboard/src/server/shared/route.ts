@@ -182,8 +182,10 @@ interface WriteSpec<S extends Scope, I, O> {
   handle: (call: Call<S, I>) => Promise<O>;
 }
 
-function mint(m: MemberContext): Member {
-  return { tenantId: m.tenantId, role: m.role, ...(m.facts ? { facts: m.facts } : {}) } as Member;
+/** A member's handle, made here and in the voice door alone (its brand): a route cannot take a bare id. */
+export function mint(m: Pick<MemberContext, "tenantId" | "role"> & { facts?: MemberContext["facts"] }): Member {
+  const handle = { tenantId: m.tenantId, role: m.role, ...(m.facts ? { facts: m.facts } : {}) };
+  return handle as Member;
 }
 
 async function resolve(
@@ -414,7 +416,9 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
         : spec.query
           ? parse(spec.query, Object.fromEntries([...new URL(req.url).searchParams].filter(([k]) => k !== "workspace")))
           : undefined;
-    const handle = () => spec.handle({ ctx, req, input, ...given } as unknown as Call<S, I>);
+    // What this function just proved, which a conditional type on S and I cannot follow: the handler's call is these.
+    const proved = { ctx, req, input, ...given };
+    const handle = () => spec.handle(proved as Call<S, I>);
     const bodyOf = async () => body ?? (await req.clone().text());
     return kind === "write" ? onceForKey(ctx, member, req, spec.idempotent === "own", bodyOf, handle) : handle();
   };

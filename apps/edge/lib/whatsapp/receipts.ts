@@ -17,7 +17,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { waPricingOf, waStoppedMarketing, type WaChangeValue } from "@chanlytics/channels/whatsapp";
 import { keepMessageCost, recordStatusByExternalId } from "@chanlytics/db/channels";
 import { recordWhatsAppOffersStop } from "@chanlytics/db/campaigns";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { phoneTail } from "@chanlytics/contracts";
 import { logger, type Logger } from "../shared/log.js";
 import { flagLateFailure } from "../shared/late-failure.js";

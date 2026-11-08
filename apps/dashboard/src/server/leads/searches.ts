@@ -16,6 +16,8 @@ import {
   type PersonLeadDto,
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
+import { asJson } from "@chanlytics/db/shared";
+import type { Json } from "@chanlytics/db/types";
 import {
   countKeptMembers,
   findLeadScope,
@@ -116,7 +118,7 @@ export async function searchRow(
   const { data, error } = await findSearchCard(ctx.supabase, tenantId, id);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "This search is not in your workspace.", 404);
-  return data as unknown as SearchViewRow;
+  return data as SearchViewRow;
 }
 
 /**
@@ -124,6 +126,9 @@ export async function searchRow(
  * count the search's plan reserved. A client may send any version and count; this is the one place that sets them,
  * for the route and for a proposal that amends (server/ask/proposals.ts).
  */
+/** A plan as a door takes it: JSON, as a plan is. */
+export const planAsJson = (plan: LeadSearchPlan): Json => asJson(plan);
+
 export function answerPlanOf(
   search: Pick<SearchViewRow, "plan" | "plan_version">,
   plan: LeadSearchPlan,
@@ -148,7 +153,7 @@ export function morePlanOf(search: Pick<SearchViewRow, "plan">, plan: LeadSearch
 async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SearchViewRow[]> {
   const { data, error } = await listSearchCards(ctx.supabase, tenantId, 200);
   if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as SearchViewRow[];
+  return (data ?? []) as SearchViewRow[];
 }
 
 /* ------------------------------------------------------ the two row scopes */
@@ -176,7 +181,7 @@ async function loadLead(ctx: Pick<RouteContext, "supabase">, id: string): Promis
   const leadId = requireUuid(id, "lead");
   const { data, error } = await findLeadScope(ctx.supabase, leadId);
   if (error) throw new Error(error.message);
-  const found = (data ?? null) as unknown as LeadRow | null;
+  const found = (data ?? null) as LeadRow | null;
   if (!found || found.erased_at) throw new AppError("not_found", "That lead is not in your workspace.", 404);
   return found;
 }

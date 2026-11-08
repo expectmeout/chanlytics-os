@@ -139,7 +139,7 @@ async function theSendFails(conversationId: string, messageId: string): Promise<
     method: "POST",
     headers,
     body: JSON.stringify({
-      tenant_id: row.tenant_id,
+      tenant_id: row?.tenant_id,
       conversation_id: conversationId,
       reason: "send_failed",
       details: "The reply could not be delivered: the WhatsApp number is not connected.",
@@ -251,10 +251,10 @@ test.describe("The thread, in the nightly's own workspace", () => {
         })
         .toEqual(["send_failed"]);
       const [opened] = (await openEscalations(page)).filter((e) => e.conversation_id === id);
-      expect(opened.details, "the cause in words, not an HTTP status").toContain(
+      expect(opened?.details, "the cause in words, not an HTTP status").toContain(
         "the WhatsApp number is not connected",
       );
-      escalationId = opened.id;
+      escalationId = opened?.id ?? "";
 
       await freshLoad(page, "#/inbox");
       // Yours since the reply, and the reply never left, so it is yours to do (thread-move.ts), said on the thread itself.
@@ -316,7 +316,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
               pane.evaluate((el) => {
                 const scroller = el.querySelector(".ix-th-scroll")?.getBoundingClientRect();
                 const all = el.querySelectorAll(".ix-timeline > *");
-                const last = all.length ? all[all.length - 1].getBoundingClientRect() : null;
+                const last = all[all.length - 1]?.getBoundingClientRect() ?? null;
                 if (!scroller || !last) return true;
                 // What shows of the conversation ends at its own box's foot, over the thread's foot on a phone
                 // (mobile.css, "An open thread is a screen of its own"); on a desk the foot is no box.

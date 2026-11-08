@@ -20,7 +20,6 @@ import {
   pickCurrentDeal,
   stepDayOf,
   whyNotALink,
-  type DealStage,
   UUID,
   isOneOf,
 } from "@chanlytics/contracts";

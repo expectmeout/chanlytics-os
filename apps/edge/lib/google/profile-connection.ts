@@ -169,11 +169,10 @@ export async function connectProfile(
     // could not reach the vault. The vault write is the thing that failed, so
     // the stored credentials are still the previous ones -- restoring the
     // previous row leaves the pair consistent and the profile working.
-    const restored = !!prior.data;
+    const kept = prior.data;
+    const restored = !!kept;
     // The vault's failure is what the owner is told; a restore that fails too is said beside it.
-    const put = restored
-      ? await patchGoogleConnection(db, tenantId, prior.data!)
-      : await deleteGoogleConnection(db, tenantId);
+    const put = kept ? await patchGoogleConnection(db, tenantId, kept) : await deleteGoogleConnection(db, tenantId);
     if (put.error)
       logger({ tenant_id: tenantId }).error("google_connection_restore_failed", { restored, error: put.error.message });
     // Giving the grant back is right when we are leaving nothing behind. It is

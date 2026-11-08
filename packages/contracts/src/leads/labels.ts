@@ -6,8 +6,8 @@ import { dayInZone } from "../shared/zone/math";
 import { dateFormat } from "../shared/time";
 export const CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 
-export const hourOf = (hour: string, message: string | undefined, ap: string): number =>
-  (Number(hour) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0) + (message ? Number(message) / 60 : 0);
+export const hourOf = (hour: string | undefined, minutes: string | undefined, ap: string | undefined): number =>
+  (Number(hour ?? "") % 12) + ((ap ?? "").toUpperCase() === "PM" ? 12 : 0) + (minutes ? Number(minutes) / 60 : 0);
 
 /** A clock time on the day it happened, and the date too once it is not today (the peek is read weeks later). */
 export function clockIn(tz: string, iso: string | null, now: Date): string {

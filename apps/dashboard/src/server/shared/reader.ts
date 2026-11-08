@@ -78,7 +78,7 @@ export interface ReaderContext {
 /** The arguments as one key: the same fields in any order are the same key; undefined is the empty key. */
 export function stableJson(value: unknown): string {
   if (value === undefined) return "";
-  return JSON.stringify(value, (_k, val) =>
+  return JSON.stringify(value, (_k, val: unknown): unknown =>
     val && typeof val === "object" && !Array.isArray(val)
       ? Object.fromEntries(
           Object.keys(recordOrEmpty(val))

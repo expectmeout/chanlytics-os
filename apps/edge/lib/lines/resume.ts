@@ -30,7 +30,7 @@ import {
   recordOrEmpty,
 } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { Logger } from "../shared/log.js";
 import { claimFailedLine, claimStuckLine, listStuckLines, saveLineFacts, saveLineRow } from "@chanlytics/db/lines";
 import { findWorkspaceName } from "@chanlytics/db/workspace";

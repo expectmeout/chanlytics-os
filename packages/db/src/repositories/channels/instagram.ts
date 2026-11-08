@@ -9,7 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
-import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** An account's row as the sweep and the wires take it. */

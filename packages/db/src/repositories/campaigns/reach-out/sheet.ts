@@ -372,7 +372,8 @@ export async function listHeldNoticeDue(
     if (audience.kind !== "reach_out") return [];
     const mark = markOf(audience.held_notice);
     if (mark && (mark.sent_at || mark.claimed_at >= params.staleBefore)) return [];
-    const found = byRun.get(row.id)!;
+    const found = byRun.get(row.id);
+    if (!found) return [];
     return [
       {
         id: row.id,

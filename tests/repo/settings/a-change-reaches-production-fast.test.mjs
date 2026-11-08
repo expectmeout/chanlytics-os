@@ -38,7 +38,7 @@ import {
   WRITERS,
 } from "../../../tooling/scripts/land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../tooling/scripts/checks/checked-locally.mjs";
-import { cacheOptions } from "../../../tooling/scripts/checks/lint.mjs";
+import { cacheOptions, openCache, SHARED_TYPES, sharedTypesStamp } from "../../../tooling/scripts/checks/lint.mjs";
 import {
   buildEdge,
   edgeFunctions,
@@ -355,6 +355,69 @@ test("main's fresh lint keeps the cache the pull requests start from: emptied fi
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("a change to what every file's types rest on lints every file again, and any other change keeps the cache", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lint-stamp-"));
+  try {
+    const write = (file, text) => {
+      fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+      fs.writeFileSync(path.join(dir, file), text);
+    };
+    write("shared/row.ts", "export type State = string;\n");
+    write("page.ts", "export const page = 1;\n");
+    execFileSync("git", ["init", "-q"], { cwd: dir });
+    execFileSync("git", ["add", "-A"], { cwd: dir });
+
+    const cacheRoot = path.join(dir, ".cache");
+    const held = path.join(cacheRoot, "packages", "held");
+    const open = (env = {}) => openCache({ env, root: dir, cacheRoot, sources: ["shared"] });
+    /** A whole run: the cache opened, a group's results written, the run's stamp left beside them. */
+    const lintAll = (env) => {
+      const seal = open(env);
+      fs.mkdirSync(path.dirname(held), { recursive: true });
+      fs.writeFileSync(held, "a group's results");
+      seal();
+    };
+
+    lintAll();
+    open();
+    assert.ok(fs.existsSync(held), "nothing moved: the next run starts from what the last one found");
+
+    write("page.ts", "export const page = 2;\n");
+    open();
+    assert.ok(fs.existsSync(held), "a file's own change is what the cache already sees, file by file");
+
+    write("shared/row.ts", 'export type State = "open" | "closed";\n');
+    open();
+    assert.equal(
+      fs.existsSync(held),
+      false,
+      "a shared type moved: an unchanged file's result can no longer be trusted",
+    );
+
+    fs.mkdirSync(path.dirname(held), { recursive: true });
+    fs.writeFileSync(held, "a group's results");
+    open();
+    assert.equal(fs.existsSync(held), false, "a run that ended before its stamp proves nothing: the next starts empty");
+
+    lintAll();
+    open({ LINT_CACHE: "0" });
+    assert.equal(fs.existsSync(held), false, "main's own run still lints afresh, whatever the stamp says");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("what every file's types rest on is in the tree: the database's rows, the closed sets, the shared modules, every compiler option", () => {
+  for (const source of SHARED_TYPES) {
+    const held = execFileSync("git", ["ls-files", "--", source], { cwd: ROOT, encoding: "utf8" });
+    assert.ok(held.trim(), `${source} names no file: a move left the lint's stamp reading nothing there`);
+  }
+  const named = execFileSync("git", ["ls-files", "--", ...SHARED_TYPES], { cwd: ROOT, encoding: "utf8" }).split("\n");
+  for (const file of ["packages/db/src/types.ts", "tsconfig.base.json", "apps/dashboard/tsconfig.json"])
+    assert.ok(named.includes(file), `${file} moves types under files that did not change`);
+  assert.match(sharedTypesStamp(), /^[0-9a-f]{64}$/);
 });
 
 test("Vercel deploys the edge's functions as they are built here, and runs no builder of its own over them", () => {

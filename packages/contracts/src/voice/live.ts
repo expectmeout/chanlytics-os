@@ -259,6 +259,7 @@ export function liveBar(vm: LiveVM | null | undefined, nowMs: number): LiveBarVM
   const checking = up.some((c) => c.checking);
   if (up.length === 1) {
     const item = up[0];
+    if (!item) return null;
     return {
       callId: item.callId,
       count: 1,

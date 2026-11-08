@@ -238,7 +238,10 @@ export function reachOutEmailOf(
 export const REACH_OUT_SIGNS_WITH = ["name", "mailbox"] as const;
 export type ReachOutSignsWith = (typeof REACH_OUT_SIGNS_WITH)[number];
 
-/** What goes under a cold email's words: the name it signs off with, or the mailbox's signature; never both. */
+/**
+ * What goes under a cold email's words: the name it signs off with, with Sign-off's signature under it where one is set
+ * (decision 0113), or the mailbox's signature alone where the sequence signs with the mailbox.
+ */
 export interface ColdEnding {
   signOff: string | null;
   signature: string | null;
@@ -302,6 +305,8 @@ export function coldEndingOf(params: {
   signsWith: ReachOutSignsWith;
   signedBy: string | null;
   signature: string | null;
+  /** Sign-off's signature with its phone (contracts reachOutSignatureOf), under the name; null where none is set. */
+  own: string | null;
   first: boolean;
   body: string;
   address: string | null;
@@ -314,7 +319,11 @@ export function coldEndingOf(params: {
   const signature = params.signsWith === "mailbox" ? coldSignatureOf(params.signature, linkless, params.address) : null;
   if (signature) return { signOff: null, signature };
   const name = params.signedBy?.trim() || null;
-  return { signOff: name && !endsWithYourName(params.body) ? name : null, signature: null };
+  return {
+    signOff: name && !endsWithYourName(params.body) ? name : null,
+    // Sign-off's own signature under the name (decision 0113), held to the same rules as a mailbox's.
+    signature: coldSignatureOf(params.own, linkless, params.address),
+  };
 }
 
 /** The words with the name under them, a blank line between; the words as they are where there is none. */

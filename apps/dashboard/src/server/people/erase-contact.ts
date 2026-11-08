@@ -36,7 +36,7 @@ export function eraseContact(ctx: RouteContext, contact: ErasedContact) {
           { workspace: contact.tenant_id, user: ctx.userId, timeoutMs: ERASE_CALLS_TIMEOUT_MS },
         );
         if (!edgeAnswered(answer)) return { asked: callIds.length, deleted: 0, refused: callIds.length };
-        const body = (answer.body ?? {}) as { asked?: number; deleted?: number; refused?: number };
+        const body = answer.body ?? {};
         return { asked: body.asked ?? callIds.length, deleted: body.deleted ?? 0, refused: body.refused ?? 0 };
       },
     },

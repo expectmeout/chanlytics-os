@@ -421,7 +421,7 @@ export async function stampEmailLeftAs(
 export async function findSentEmail(
   db: Db,
   params: { tenantId: TenantId; messageId: string },
-): Promise<{ request: unknown | null; leadId: string | null } | null> {
+): Promise<{ request: unknown; leadId: string | null } | null> {
   const { data, error } = await db
     .from("messages")
     .select("meta")

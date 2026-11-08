@@ -14,7 +14,7 @@
  * part that fails after one that left is a reply the person has some of, said as such (outcome `unknown`, never sent
  * again blind).
  */
-import { utf8Bytes, recordOrEmpty } from "@chanlytics/contracts";
+import { utf8Bytes, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { answerObject, fetchFromProvider, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import type { SendResult } from "../whatsapp/whatsapp";
 
@@ -143,7 +143,6 @@ function instagramSendRequest(cfg: InstagramConfig, to: string, text: string): I
 
 /* -------------------------------------------------------------- answers */
 
-const valueAt = (o: Record<string, unknown> | null, k: string): unknown => (o ? o[k] : undefined);
 const asText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
 
 /** Graph's own error, when it gave one: its code, subcode and words. */

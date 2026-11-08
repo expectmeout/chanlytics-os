@@ -51,7 +51,6 @@ import {
   type PlatformPartnerWorkspaceDto,
   type PlatformQueue,
   type PlatformTenantDto,
-  type SweepHealthRow,
   recordOrNull,
 } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";

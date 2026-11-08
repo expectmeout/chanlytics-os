@@ -21,7 +21,8 @@ export function bearerOf(req: Request): string | null {
   const h = req.headers.get("authorization");
   if (!h) return null;
   const m = /^Bearer\s+(\S+)\s*$/i.exec(h);
-  return m && JWT.test(m[1]) ? m[1] : null;
+  const token = m?.[1];
+  return token && JWT.test(token) ? token : null;
 }
 
 interface BearerVerdict {

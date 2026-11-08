@@ -6,13 +6,7 @@
  * a2p-register.ts.
  */
 import { answerObject } from "@chanlytics/channels/shared";
-import {
-  smsStateFor,
-  registrationVerdict,
-  refusalWords,
-  requestTwilio,
-  type CampaignError,
-} from "@chanlytics/channels/lines";
+import { smsStateFor, registrationVerdict, refusalWords, requestTwilio } from "@chanlytics/channels/lines";
 import { formatPhoneDisplay, type EdgeErrorCode } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { logger } from "../shared/log.js";

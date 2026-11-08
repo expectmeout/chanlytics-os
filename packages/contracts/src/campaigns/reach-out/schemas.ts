@@ -142,3 +142,6 @@ export const ReachOutAddSchema = z.object({
   lead_ids: z.array(z.uuid()).min(1).max(LEAD_LIST_MAX),
 });
 export type ReachOutAddInput = z.infer<typeof ReachOutAddSchema>;
+
+/** GET settings/reach-out/told (decision 0113): which writer's prompt, of the two composed from what the workspace holds. */
+export const ReachOutToldQuerySchema = z.object({ kind: z.enum(["words", "opening"]) });

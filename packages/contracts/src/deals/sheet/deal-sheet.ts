@@ -221,7 +221,7 @@ const DRAFT_EMPTY: DealSheetDraft = {
   message: null,
 };
 
-const capital = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const capital = (s: string) => (s ? (s[0] ?? "").toUpperCase() + s.slice(1) : s);
 
 /** The deal a move is about: the one it was opened for, else the person's current one. */
 function targetOf(mode: DealSheetMode, p: DealPerson, dealId: string | null | undefined): DealVM | null {

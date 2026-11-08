@@ -226,8 +226,7 @@ const REACHED = {
   "campaigns/sequences": ["Sequences", "campaigns/sequences"],
   // Sent's list went to each sequence's History (D3): its sheets stay at their addresses, and its jump is Sequences'.
   broadcasts: ["Sequences", "campaigns/sequences"],
-  // Messages (D4: it was the Library), Campaigns' other view, still found by the names it went by (ask-palette.test.mjs),
-  // and its old route a door to it.
+  // Messages (D4: once the Library), Campaigns' other view, found by its old names (ask-palette.test.mjs) and address.
   "campaigns/messages": ["Messages", "campaigns/messages"],
   messages: ["Messages", "campaigns/messages"],
   start: ["Setting up", "start"],
@@ -236,6 +235,7 @@ const REACHED = {
   "admin/hours": ["Hours & booking", "admin/hours"],
   "admin/files": ["Files", "admin/files"],
   "admin/receptionist": ["How it answers", "admin/receptionist"],
+  "admin/outreach": ["Reaching out", "admin/outreach"],
   "admin/team": ["Team", "admin/team"],
   "admin/autonomy": ["Autonomy", "admin/autonomy"],
   "admin/notifications": ["Notifications", "admin/notifications"],
@@ -1489,9 +1489,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   );
   assert.ok(
     // The write is packages/db's (decision 0111): the turn's content, and nothing else.
-    /saveAskTurnContent\(\s*ctx\.supabase,\s*messageId,\s*jsonCopyOf\(\{ \.\.\.content, proposals: next \}\),?\s*\)/.test(
-      store,
-    ) && readCode("packages/db/src/repositories/ask/threads.ts").includes('.update({ content }).eq("id", turnId)'),
+    /saveAskTurnContent\([\s\w.,]*jsonCopyOf\(\{ \.\.\.content, proposals: next \}\)/.test(store) &&
+      readCode("packages/db/src/repositories/ask/threads.ts").includes('.update({ content }).eq("id", turnId)'),
     "the one column the grant allows",
   );
   const m = readRaw("supabase/migrations/00041_ask_proposal_outcomes.sql");

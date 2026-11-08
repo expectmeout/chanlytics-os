@@ -308,7 +308,10 @@ export function listRuleParts(rule: ListRule, listName?: (token: string) => stri
 /** The facts a person meets, in the page's words: why a smart list has them (a profile's "because" line). */
 export function listRuleWhy(rule: ListRule, person: PersonRowVM, listName?: (token: string) => string | null): string {
   return rule.all
-    .map((c) => ("any" in c ? (c.any.find((f) => factHolds(f, person)) ?? c.any[0]) : c))
+    .flatMap((c) => {
+      const fact = "any" in c ? (c.any.find((f) => factHolds(f, person)) ?? c.any[0]) : c;
+      return fact ? [fact] : [];
+    })
     .map((f) => listFactWords(f, listName))
     .join(" · ");
 }

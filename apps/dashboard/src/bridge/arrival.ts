@@ -47,7 +47,7 @@ export const needsYouNow = (): boolean => {
     if (p.people || p.runs || p.searches) return true;
   }
   if (A && typeof A.followUpsDue === "function" && A.followUpsDue().length) return true;
-  const bell = (window as unknown as Globals).__notifs;
+  const bell = (window as Window & Globals).__notifs;
   return !!bell && typeof bell.unread === "function" && bell.unread() > 0;
 };
 
@@ -75,7 +75,7 @@ export function installArrival(): () => void {
   for (const ev of STANDING_EVENTS) window.addEventListener(ev, onStanding);
   document.addEventListener("visibilitychange", onVisible);
   // the bell moving (Mark all read, a note read where it stands) says so at once, before any surface lands
-  const bell = (window as unknown as Globals).__notifs;
+  const bell = (window as Window & Globals).__notifs;
   const offBell = bell && typeof bell.onChange === "function" ? bell.onChange(onStanding) : null;
   // Ask's door, as it opens and closes: the light goes and comes back
   const door =

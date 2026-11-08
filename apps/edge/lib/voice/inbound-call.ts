@@ -85,7 +85,7 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
     };
   } = {};
   try {
-    body = JSON.parse(raw);
+    body = JSON.parse(raw) as typeof body;
   } catch {
     /* fall through with empty body */
   }

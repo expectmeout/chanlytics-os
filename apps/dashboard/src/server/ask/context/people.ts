@@ -17,8 +17,6 @@ import {
   toLeadRowVM,
   visitStands,
   type CalendarBlockVM,
-  type LeadClass,
-  type LeadList,
   type PersonRowDto,
   type PersonRowVM,
   type PipelineView,

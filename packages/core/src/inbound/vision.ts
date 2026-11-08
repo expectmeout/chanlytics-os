@@ -20,7 +20,7 @@ export const VISION_MIMES = new Set(["image/jpeg", "image/png", "image/gif", "im
 
 export function isVisionMime(mime: string | null | undefined): mime is string {
   if (!mime) return false;
-  return VISION_MIMES.has(mime.toLowerCase().split(";")[0].trim());
+  return VISION_MIMES.has((mime.toLowerCase().split(";")[0] ?? "").trim());
 }
 
 /**

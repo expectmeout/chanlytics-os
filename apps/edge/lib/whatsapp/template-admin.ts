@@ -22,9 +22,9 @@ import {
   templateRow,
   type MetaTemplateComponent,
 } from "./meta-templates.js";
-import type { Json } from "@chanlytics/db/types";
+
 import { logger } from "../shared/log.js";
-import { UUID, NUMBERED_SLOT, isTenantId } from "@chanlytics/contracts";
+import { UUID, NUMBERED_SLOT, isTenantId, textOrEmpty } from "@chanlytics/contracts";
 import { findWhatsAppAccount } from "@chanlytics/db/channels";
 import {
   deleteTemplateRow,
@@ -72,17 +72,11 @@ export async function createWhatsappTemplate(
   const name = typeof body.name === "string" ? body.name : "";
   const language = typeof body.language === "string" ? body.language : "";
   const category = typeof body.category === "string" ? body.category.toUpperCase() : "";
-  const components = Array.isArray(body.components) ? body.components : null;
+  const components = Array.isArray(body.components) ? (body.components as MetaTemplateComponent[]) : null;
   const text = typeof body.body === "string" ? body.body : null;
   const examples = Array.isArray(body.examples) ? body.examples.map(String) : [];
   // The words a person gave each slot, kept on the row so the composers can say them.
-  const labels = Array.isArray(body.labels)
-    ? body.labels.map((l: unknown) =>
-        String(l ?? "")
-          .trim()
-          .slice(0, 40),
-      )
-    : [];
+  const labels = Array.isArray(body.labels) ? body.labels.map((l: unknown) => textOrEmpty(l).trim().slice(0, 40)) : [];
   if (!isTenantId(tenantId)) return refuse(400, "bad_tenant");
   if (!NAME.test(name) || !language || !["MARKETING", "UTILITY"].includes(category) || !components || !text) {
     return refuse(400, "bad_template");

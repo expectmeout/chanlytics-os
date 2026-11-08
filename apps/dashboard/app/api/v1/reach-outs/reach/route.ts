@@ -8,6 +8,6 @@ import { getReach } from "@/server/campaigns/reach-outs/chain-acts";
  */
 export const GET = read({
   scope: workspace,
-  query: z.object({ search: z.string().uuid() }),
+  query: z.object({ search: z.uuid() }),
   handle: ({ ctx, member, input }) => getReach(ctx, member.tenantId, input.search),
 });

@@ -61,8 +61,9 @@ export async function draftAtTheEdge(
     },
     { ...asker, timeoutMs: STEER_TIMEOUT_MS },
   );
-  const body = (item.body ?? {}) as { ok?: boolean; draft?: ConversationDraftRow; detail?: unknown };
-  if (edgeAnswered(item) && body.ok && body.draft) return { ok: true, draft: body.draft };
+  const body = item.body ?? {};
+  // The draft's row is the database's, which contracts cannot name: the door says only that it answers one.
+  if (edgeAnswered(item) && body.ok && body.draft) return { ok: true, draft: body.draft as ConversationDraftRow };
   return { ok: false, reason: edgeReasonOf(item), detail: typeof body.detail === "string" ? body.detail : null };
 }
 
@@ -78,7 +79,7 @@ export async function steerDraft(
     { message_id: messageId, text },
     { ...asker, timeoutMs: STEER_TIMEOUT_MS },
   );
-  const body = (answer.body ?? {}) as { ok?: boolean; message_id?: string; text?: string };
+  const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok && body.message_id)
     return { ok: true, messageId: body.message_id, text: body.text ?? "" };
   return { ok: false, reason: edgeReasonOf(answer) };

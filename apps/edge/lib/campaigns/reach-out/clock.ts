@@ -271,7 +271,8 @@ export async function runReachOutClock(
     for (const s of stuck) expected.set(s.id, await sendMessageId(s.id, s.attempts ?? 0));
     const written = await getWrittenEmails(db, [...expected.values()]);
     for (const s of stuck) {
-      const id = expected.get(s.id)!;
+      const id = expected.get(s.id);
+      if (!id) continue;
       // Written and not queued: the writer died between its email and its move. The email is the send's; it goes on.
       if (written.has(id)) {
         if (await move(db, s, { state: "queued", message_id: id })) out.adopted += 1;

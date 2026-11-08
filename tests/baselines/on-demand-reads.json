@@ -360,5 +360,15 @@
     "kind": "boot",
     "fresh": "Read as the live feed is joined and joined again: the notices the topic told since the tab's load began, or since its feed went quiet.",
     "why": "It is no surface's rows but the feed's own catch-up (decision 0019 step 4): each notice it brings is heard as a live one is, and the surfaces it names read themselves through the runner."
+  },
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET settings/reach-out": {
+    "kind": "on-open",
+    "fresh": "Read as Settings › How it reaches out opens and as its row is reached for, and again once the pasted email is read into the voice's lines; the tab keeps the last answer to draw the cards first.",
+    "why": "It holds what the config does not: the mailbox as Connections says it, the month's first emails, each claim's sends, the voice's lines, the newest sequence to leads and Autonomy's reply mode. Each moves on its own page (Connections, a send, New, Autonomy) or with this pane's paste, so the pane's next opening is when it is looked at again."
+  },
+  "apps/dashboard/src/surfaces/settings/outreach/told.tsx GET settings/reach-out/told": {
+    "kind": "on-open",
+    "fresh": "Read as What it's told opens on a writer's tab, once for each opening; closing the sheet lets it go, so the next opening reads it again.",
+    "why": "It is the prompt the writer would be given now, cut into its parts: a sheet looked at for a moment, which a save on this page changes, so each opening reads it afresh."
   }
 }

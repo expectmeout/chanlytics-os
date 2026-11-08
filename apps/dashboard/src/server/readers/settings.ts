@@ -11,12 +11,29 @@ import {
   type TenantConfig,
   type RehearsalDto,
   recordOrEmpty,
+  ASK_MEMORY_LIMITS,
+  REACH_OUT_DRAFTS_PER_DAY,
+  REACH_OUT_MONTH_EMAILS,
+  mailboxSendsNow,
+  mailboxWords,
+  parseTenantConfig,
+  type MailboxConnectionDto,
+  type ReachOutChainDto,
+  type ReachOutSettingsDto,
+  type ReachOutSettingsMailbox,
+  type ReachOutSettingsSequence,
 } from "@chanlytics/contracts";
 import { findRehearsalById } from "@chanlytics/db/facts";
-import { reviewLinkOf } from "@chanlytics/db/campaigns";
+import { countSentByStep, findWorkspaceAbout, reviewLinkOf } from "@chanlytics/db/campaigns";
+import { askMemoryLines } from "@chanlytics/db/ask";
+import { listPolicies } from "@chanlytics/db/workspace";
 import type { RouteContext } from "../shared/with-route";
 import { findPromptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
 import { listLines } from "../connections/lines";
+import { listMailboxConnectionsWithDays } from "../connections/mailbox-connections";
+import { readReachOutMonthOrNull } from "../campaigns/month-sent";
+import { listChains } from "../campaigns/reach-outs/reach-outs";
+import { log } from "../shared/log";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as readers from "./facts";
 import { findWorkspaceFacts } from "@chanlytics/db/workspace";
@@ -210,5 +227,138 @@ export const rehearsal: Reader<{ id: string }, RehearsalDto> = {
       fixes: result.fixes,
     };
     return { data, rows: [], stamp: readerStamp() };
+  },
+};
+
+/* ------------------------------------------------------------ How it reaches out (decision 0113) */
+
+/** A chain's first step where it is an email with words: what Try it writes, and what the drafter reads. */
+const openingEmailOf = (chain: ReachOutChainDto) => {
+  const first = chain.steps.at(0);
+  return first && !first.hand && first.body.trim() ? first : null;
+};
+
+/** The newest running sequence to leads whose first step is an email: Try it's words, and Signs as' first guess. */
+export function newestLeadSequence(chains: readonly ReachOutChainDto[]): ReachOutSettingsSequence | null {
+  const chain = chains
+    .filter((c) => c.state === "running" && openingEmailOf(c))
+    .reduce<ReachOutChainDto | null>((best, c) => (!best || c.created_at > best.created_at ? c : best), null);
+  const first = chain ? openingEmailOf(chain) : null;
+  if (!chain || !first) return null;
+  const second = chain.steps.at(1);
+  return {
+    root_id: chain.root_id,
+    name: chain.name,
+    search_id: chain.search?.id ?? null,
+    include_unconfirmed: chain.include_unconfirmed,
+    signed_by: chain.signed_by,
+    signs_with: chain.signs_with ?? "name",
+    mailbox_id: chain.mailbox_ids[0] ?? null,
+    first: { subject: first.subject, body: first.body },
+    next:
+      second && !second.hand && second.after_days !== null
+        ? { after_days: second.after_days, body: second.body }
+        : null,
+  };
+}
+
+/** A step's words, subject and body, as a claim is looked for in them. */
+const wordsOfStep = (step: ReachOutChainDto["steps"][number]): string => `${step.subject ?? ""}\n${step.body}`;
+
+/** The email steps whose words carry one of the claims, word for word: the only steps worth counting. */
+export function stepsCarrying(claims: readonly string[], chains: readonly ReachOutChainDto[]): string[] {
+  const texts = claims.map((c) => c.trim()).filter(Boolean);
+  return chains.flatMap((c) =>
+    c.steps.filter((s) => !s.hand && texts.some((t) => wordsOfStep(s).includes(t))).map((s) => s.id),
+  );
+}
+
+/** Each claim with the emails sent from steps whose words carry it. */
+export function claimCounts(
+  claims: readonly string[],
+  chains: readonly ReachOutChainDto[],
+  sent: ReadonlyMap<string, number>,
+): ReachOutSettingsDto["claims"] {
+  return claims.map((text) => {
+    const t = text.trim();
+    const sends = chains
+      .flatMap((c) => c.steps)
+      .filter((s) => !s.hand && t && wordsOfStep(s).includes(t))
+      .reduce((n, s) => n + (sent.get(s.id) ?? 0), 0);
+    return { text, sends };
+  });
+}
+
+/** The mailbox Where it sends from shows: the first that sends now, else the first; as Connections says it. */
+export function mailboxShown(
+  mailboxes: readonly MailboxConnectionDto[],
+  nowMs: number,
+  tz: string,
+): ReachOutSettingsMailbox | null {
+  const live = mailboxes.filter((m) => m.state !== "removed");
+  const shown = live.find((m) => mailboxSendsNow(m, nowMs)) ?? live.at(0);
+  if (!shown) return null;
+  const words = mailboxWords(shown, nowMs, tz);
+  return {
+    address: shown.address,
+    provider: shown.provider,
+    pill: words.pill,
+    tone: words.tone,
+    day: words.day,
+    ramp: words.ramp,
+  };
+}
+
+/** One part of the read, which may fail alone: the page draws the rest, and the failure is logged. */
+async function partOrElse<T>(read: Promise<T>, part: string, tenantId: string, otherwise: T): Promise<T> {
+  try {
+    return await read;
+  } catch (e) {
+    log.error("reach_out_settings_read_failed", { tenant_id: tenantId, read: part, error: e });
+    return otherwise;
+  }
+}
+
+/**
+ * GET settings/reach-out: what How it reaches out shows beyond the config. The mailbox as Connections says it, the month's
+ * first emails against their share, the claims' counts, the lines Ask learned from how the owner writes, the newest
+ * running sequence to leads, and Autonomy's reply mode, which a lead's drafted answer follows.
+ */
+export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
+  name: "reach_out_settings",
+  async read(rc) {
+    const db = rc.ctx.supabase;
+    const tenantId = rc.tenantId;
+    const [row, facts, mailboxes, sent, memory, chains, policies, about] = await Promise.all([
+      partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
+      partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
+      partOrElse(listMailboxConnectionsWithDays(db, tenantId, rc.now), "mailboxes", tenantId, []),
+      readReachOutMonthOrNull(tenantId, rc.now),
+      partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
+      partOrElse(listChains(rc.ctx, tenantId), "chains", tenantId, []),
+      partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
+      partOrElse(findWorkspaceAbout(db, tenantId), "about", tenantId, null),
+    ]);
+    const claims = parseTenantConfig(row?.data?.config)?.reach_out?.proof ?? [];
+    const counted = await partOrElse(
+      countSentByStep(db, tenantId, stepsCarrying(claims, chains)),
+      "counts",
+      tenantId,
+      new Map(),
+    );
+    return {
+      data: {
+        mailbox: mailboxShown(mailboxes, rc.now.getTime(), facts?.data.timezone ?? "UTC"),
+        month: { sent, of: REACH_OUT_MONTH_EMAILS },
+        by_hand_per_day: REACH_OUT_DRAFTS_PER_DAY,
+        claims: claimCounts(claims, chains, counted),
+        voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),
+        sequence: newestLeadSequence(chains),
+        reply_mode: policies.find((p) => p.class === "reply")?.mode ?? "ask",
+        about,
+      },
+      rows: [],
+      stamp: readerStamp(),
+    };
   },
 };

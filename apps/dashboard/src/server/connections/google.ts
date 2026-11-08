@@ -19,7 +19,7 @@ import {
   DAY_MS,
 } from "@chanlytics/contracts";
 
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody } from "../shared/edge";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment, env } from "../shared/env";
 import {
   findConnectionCard,
@@ -93,7 +93,10 @@ export async function getGoogle(
 }
 
 /** One call to the edge's google endpoint. Never throws: a failure is a status the caller reads. */
-export async function callEdgeGoogle(body: EdgeBody<"/api/admin/google">, timeoutMs = 20_000): Promise<EdgeAnswer> {
+export async function callEdgeGoogle(
+  body: EdgeBody<"/api/admin/google">,
+  timeoutMs = 20_000,
+): Promise<EdgeAnswer<EdgeRead<"/api/admin/google">>> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate the other provider doors keep: a preview never reaches Google under the business's name.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
@@ -126,14 +129,8 @@ export async function getGoogleReadiness(now = Date.now()): Promise<GoogleReadin
   if (googleReadyCache && now - googleReadyCache.at < READY_TTL_MS) return googleReadyCache.value;
   const answer = await callEdgeGoogle({ op: "status" }, 4_000);
   const body = answer.body ?? {};
-  const ready =
-    body.ready && typeof body.ready === "object"
-      ? (body.ready as Partial<Record<"places" | "profile" | "audience", unknown>>)
-      : null;
-  const oauth =
-    body.profile && typeof body.profile === "object"
-      ? (body.profile as Partial<Record<"client_id" | "redirect_uri", unknown>>)
-      : null;
+  const ready = body.ready ?? null;
+  const oauth = body.profile ?? null;
   const value: GoogleReadiness =
     answer.status === 200 && body.ok === true && ready
       ? {

@@ -149,7 +149,17 @@ function actionOf(t: Tool<unknown>, raw: unknown): string | null {
 /** The definition a call runs: its action's, or the tool's first -- its one, for a tool with no action. */
 function defFor<D>(t: Tool<D>, raw: unknown): D {
   const a = actionOf(t, raw);
-  return a !== null && Object.prototype.hasOwnProperty.call(t.actions, a) ? t.actions[a] : Object.values(t.actions)[0];
+  const def =
+    a !== null && Object.prototype.hasOwnProperty.call(t.actions, a) ? t.actions[a] : Object.values(t.actions)[0];
+  if (def === undefined) throw new Error(`${t.name} holds no action`);
+  return def;
+}
+
+/** The definition of an action the tool is known to hold: NO_ACTION on a tool with none, or one its input has parsed. */
+function heldDef<D>(t: Tool<D>, action: string): D {
+  const def = t.actions[action];
+  if (def === undefined) throw new Error(`${t.name} holds no action ${action}`);
+  return def;
 }
 
 /**
@@ -160,7 +170,7 @@ function defFor<D>(t: Tool<D>, raw: unknown): D {
  * refinement) fails when the registry loads, never quietly.
  */
 export function inputOf(tool: Tool<{ input: z.ZodObject }>, only?: readonly string[]): z.ZodType {
-  if (!takesAction(tool)) return tool.actions[NO_ACTION].input;
+  if (!takesAction(tool)) return heldDef(tool, NO_ACTION).input;
   const branches = Object.entries(tool.actions)
     .filter(([action]) => !only || only.includes(action))
     .map(([action, d]) => d.input.extend({ action: z.literal(action) }));
@@ -193,7 +203,7 @@ function normalise(node: unknown): unknown {
     branches.every((b) => "const" in b && Object.keys(b).length === 2) &&
     new Set(branches.map((b) => b.type)).size === 1
   ) {
-    record.type = branches[0].type;
+    record.type = branches[0]?.type;
     record.enum = branches.map((b) => b.const);
     delete record.anyOf;
   }
@@ -225,7 +235,7 @@ function flatten(schema: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(schema.oneOf)) return schema;
   const branches = schema.oneOf as Array<{ properties: Record<string, Record<string, unknown>> }>;
   const properties: Record<string, Record<string, unknown>> = {
-    action: { type: "string", enum: branches.map((b) => b.properties.action.const) },
+    action: { type: "string", enum: branches.map((b) => b.properties.action?.const) },
   };
   // What each action says of a shared field (the operator, 15 Oct 2026: each input explained on itself), by action.
   const sentence = new Map<string, Array<[string, string]>>();
@@ -273,7 +283,7 @@ export function toolSchema(input: z.ZodType): Record<string, unknown> {
 
 /** The actions of a tool this role may use, in the model's order (D2): a tool with no action, its one, or none. */
 export function offeredActions(tool: Pick<Tool<ReadDef | ActDef>, "actions">, role: MembershipRole): string[] {
-  return Object.keys(tool.actions).filter((a) => offeredTo(tool.actions[a], role));
+  return Object.entries(tool.actions).flatMap(([a, def]) => (offeredTo(def, role) ? [a] : []));
 }
 
 /**
@@ -368,7 +378,7 @@ function othersFields(
   raw: unknown,
   offered: readonly string[],
 ): string[] {
-  const own = tool.actions[action].input.shape;
+  const own = heldDef(tool, action).input.shape;
   const others = new Set(
     Object.entries(tool.actions).flatMap(([a, d]) =>
       a === action || !offered.includes(a) ? [] : Object.keys(d.input.shape),
@@ -416,11 +426,11 @@ function parseInput<D extends ReadDef | ActDef>(
     return { ok: false, error: `${tool.name}: ${issues}` };
   }
   const data = recordOrEmpty(parsed.data);
-  if (!takesAction(tool)) return { ok: true, def: tool.actions[NO_ACTION], data };
+  if (!takesAction(tool)) return { ok: true, def: heldDef(tool, NO_ACTION), data };
   const { action, ...rest } = data as { action: string };
   const stray = othersFields(tool, action, raw, offeredActions(tool, role));
   if (stray.length) return { ok: false, error: `${tool.name}: ${stray.join(", ")} not taken by action ${action}` };
-  return { ok: true, def: tool.actions[action], data: rest };
+  return { ok: true, def: heldDef(tool, action), data: rest };
 }
 
 /* ----------------------------------------------------------- dispatch */

@@ -275,7 +275,7 @@ function placeOf(input: Pick<ProposeLeadSearch, "city" | "region">): { city: str
   // "Miami, FL" or "Miami, Florida" in either field: the last part is the state.
   for (const packed of [region, city]) {
     const m = packed.match(/^(.*?),\s*([A-Za-z .]+)$/);
-    if (m && stateCode(m[2])) return { city: m[1].trim() || city || null, state: stateCode(m[2]) };
+    if (m && stateCode(m[2] ?? "")) return { city: (m[1] ?? "").trim() || city || null, state: stateCode(m[2] ?? "") };
   }
   // The state alone in the city field, with a city in the region field.
   if (stateCode(city) && !stateCode(region)) return { city: region || null, state: stateCode(city) };

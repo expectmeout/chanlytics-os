@@ -36,6 +36,7 @@ import {
   type ReportPeriodId,
   type ReportProfile,
   type ReviewsReportDto,
+  shaped,
 } from "@chanlytics/contracts";
 import {
   ReportWindowNotReadable,
@@ -45,6 +46,7 @@ import {
   findReviewsLedger,
   type ReportWindow,
 } from "@chanlytics/db/reports";
+import { readAnswer } from "@chanlytics/db/shared";
 import { getGoogleReadiness } from "../connections/google";
 import { readBookingReport, listLinksBooked } from "../calendar/people-visits";
 import { readDealReport } from "../people/deals";
@@ -152,7 +154,7 @@ export const report: Reader<
     const dealsRead = spanOf(rc, window)
       .then(async (span) => readDealReport(ctx, tenantId, days, await people.catch(() => []), rc.now, span))
       .catch(() => null);
-    const report = (await series) as unknown as ReportDto;
+    const report = readAnswer("report_series", shaped<ReportDto>().nullable(), await series);
     if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
     const [booking, deals] = await Promise.all([bookingRead, dealsRead]);
     const profile = await profileOf(rc);

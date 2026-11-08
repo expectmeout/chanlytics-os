@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-371 handlers in 57 domains.
+373 handlers in 57 domains.
 
 ## activity
 
@@ -2570,7 +2570,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `rehearsal_id` | string (uuid) | yes |  |
-| `change` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object | yes |  |
+| `change` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object | yes |  |
 | `via` | one of `"rehearsal"`, `"call_review"` | yes |  |
 | `channel` | one of `"whatsapp"`, `"voice"` | yes |  |
 
@@ -2970,6 +2970,20 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/settings/route.ts`).
+
+### `GET /api/v1/settings/reach-out`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/settings/reach-out/route.ts`).
+
+### `GET /api/v1/settings/reach-out/told`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"words"`, `"opening"` | yes |  |
 
 ### `POST /api/v1/settings/receptionist`
 

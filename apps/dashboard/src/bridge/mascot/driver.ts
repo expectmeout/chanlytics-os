@@ -452,13 +452,13 @@ function listenToPage(face: LiveFace): void {
     }),
   );
   undo.push(
-    env.onScreen(canvas as unknown as Element, (v) => {
+    env.onScreen(canvas as Element, (v) => {
       face.onScreen = v;
       runLoop(face);
     }),
   );
   undo.push(
-    env.onResize(canvas as unknown as Element, () => {
+    env.onResize(canvas as Element, () => {
       face.size = null;
       if (!face.raf) drawFrame(face, 0);
     }),

@@ -257,7 +257,7 @@ async function recipientsOf(ctx: RouteContext, tenantId: TenantId, id: string): 
   // The person is the tiebreak the pager needs (the key is broadcast_id, contact_id).
   return readAllRows("broadcast recipients", (from, to) =>
     pageRunPeople(ctx.supabase, tenantId, id, from, to),
-  ) as unknown as Promise<RecipientRow[]>;
+  ) as Promise<RecipientRow[]>;
 }
 
 /** One broadcast and every person on it, in the words of what happened to them -- and what came back from each. */

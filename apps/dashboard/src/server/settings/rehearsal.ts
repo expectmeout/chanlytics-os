@@ -95,16 +95,19 @@ export async function startRehearsal(tenantId: TenantId, userId: string | null):
     { tenant_id: tenantId, ...(userId ? { user_id: userId } : {}) },
     { workspace: tenantId, user: userId, timeoutMs: START_TIMEOUT_MS },
   );
-  const second = first.body as Partial<RehearsalStartDto> & {
-    ok?: boolean;
-    allowance?: RehearsalStartDto["allowance"];
-  };
-  if (first.status === 200 && second?.ok && second.call && typeof second.rehearsal_id === "string") {
+  const second = first.body;
+  if (
+    first.status === 200 &&
+    second?.ok &&
+    second.call &&
+    second.allowance &&
+    typeof second.rehearsal_id === "string"
+  ) {
     return {
       rehearsal_id: second.rehearsal_id,
       call: second.call,
       max_ms: typeof second.max_ms === "number" ? second.max_ms : 0,
-      allowance: second.allowance as RehearsalStartDto["allowance"],
+      allowance: second.allowance,
       handoff: typeof second.handoff === "string" ? second.handoff : null,
     };
   }
@@ -137,7 +140,7 @@ export async function makeAgent(tenantId: TenantId, userId: string): Promise<{ m
     { tenant_id: tenantId, user_id: userId },
     { workspace: tenantId, user: userId, timeoutMs: AGENT_TIMEOUT_MS },
   );
-  const second = answer.body as { ok?: boolean } | null;
+  const second = answer.body;
   if (answer.status === 200 && second?.ok) return { made: true };
   log.warn("rehearsal_start_failed", { tenant_id: tenantId, reason: edgeReasonOf(answer), status: answer.status });
   return { made: false };
@@ -161,15 +164,9 @@ export async function reviewRehearsal(
     { tenant_id: tenantId, user_id: userId, ...of },
     { workspace: tenantId, user: userId, timeoutMs: REVIEW_TIMEOUT_MS },
   );
-  const second = answer.body as { ok?: boolean; rehearsal_id?: unknown; review?: unknown } | null;
-  if (
-    answer.status === 200 &&
-    second?.ok &&
-    typeof second.rehearsal_id === "string" &&
-    second.review &&
-    typeof second.review === "object"
-  )
-    return { rehearsal_id: second.rehearsal_id, review: second.review as ReviewDto };
+  const second = answer.body;
+  if (answer.status === 200 && second?.ok && typeof second.rehearsal_id === "string" && second.review)
+    return { rehearsal_id: second.rehearsal_id, review: second.review };
   log.warn("rehearsal_review_failed", { tenant_id: tenantId, reason: edgeReasonOf(answer), status: answer.status });
   if (answer.status === 404) throw new AppError("not_found", "Rehearsal not found.");
   throw edgeRefusal(answer, { failed: REVIEW_WORDS.failed });
@@ -196,7 +193,7 @@ export async function routeRehearsalFix(
     { tenant_id: tenantId, user_id: userId, ...fixAsked, rule: fixAsked.rule ?? undefined },
     { workspace: tenantId, user: userId, timeoutMs: FIX_TIMEOUT_MS },
   );
-  const second = answer.body as { ok?: boolean; change?: unknown } | null;
+  const second = answer.body;
   if (answer.status === 200 && second?.ok) {
     // The edge's change, read as Keep takes it (FixChangeSchema): one Keep would refuse says nothing to change.
     const change = second.change ? FixChangeSchema.safeParse(second.change) : null;

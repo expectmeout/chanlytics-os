@@ -13,6 +13,7 @@ import {
   storedAnswer,
   v1FromAnswer,
   recordOrEmpty,
+  listOrEmpty,
 } from "@chanlytics/contracts";
 import type { AskTurnShape } from "./shape";
 import { withFilesAttached, withFilesOpened } from "@/server/files/line";
@@ -79,7 +80,7 @@ export function toThreadVM(thread: ThreadRow): AskThreadVM {
  */
 export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
   const content = recordOrEmpty(message.content);
-  const cites = Array.isArray(content.citations) ? content.citations : [];
+  const cites = Array.isArray(content.citations) ? (content.citations as AskMessageVM["citations"]) : [];
   const files = fileIdsOf(content.files);
   const answer =
     content.v === 2 && content.answer && typeof content.answer === "object" && (content.answer as AskAnswer).v === 2
@@ -94,13 +95,13 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
     at: message.created_at,
     atMs: Date.parse(message.created_at) || 0,
     citations: cites.map((x) => ({ ...x, to: x.to || citationRoute(x) })),
-    followups: Array.isArray(content.followups) ? content.followups : [],
+    followups: listOrEmpty(content.followups).filter((f): f is string => typeof f === "string"),
     navigate:
       content.navigate && typeof content.navigate === "object" ? (content.navigate as AskMessageVM["navigate"]) : null,
-    proposals: Array.isArray(content.proposals) ? content.proposals : [],
+    proposals: Array.isArray(content.proposals) ? (content.proposals as AskMessageVM["proposals"]) : [],
     language: content.language === "es" || content.language === "en" ? content.language : "other",
     ungrounded: content.ungrounded === true,
-    tools: Array.isArray(content.tools) ? content.tools : [],
+    tools: listOrEmpty(content.tools).filter((t): t is string => typeof t === "string"),
     latencyMs: typeof content.latency_ms === "number" ? content.latency_ms : null,
     rounds: typeof content.rounds === "number" ? content.rounds : null,
     failed: content.failed === true,
@@ -311,16 +312,17 @@ export async function setProposalOutcome(
   if (error) throw new Error(error.message);
   if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
   const content = recordOrEmpty(m.content);
-  const proposals = Array.isArray(content.proposals) ? content.proposals : [];
-  const idx = proposals.findIndex((p) => p.id === proposalId);
-  if (idx < 0) throw new AppError("not_found", "No such card on that turn.", 404);
-  const current = proposals[idx].outcome;
+  const proposals = Array.isArray(content.proposals) ? (content.proposals as AskProposal[]) : [];
+  const card = proposals.find((p) => p.id === proposalId);
+  if (!card) throw new AppError("not_found", "No such card on that turn.", 404);
+  const current = card.outcome;
   // An approved card is approved once, and after it only undone: a Not now or a failure sent by a page that drew the card
   // before it was approved (another tab, Today's morning read a while ago) would hide what was done and lose its Undo.
   if (current && current.state === "done" && outcome.state !== "undone") {
     throw new AppError("conflict", "That card was already approved.", 409);
   }
-  const next = proposals.map((p, i) => (i === idx ? { ...p, outcome } : p));
+  const settled: AskProposal = { ...card, outcome };
+  const next = proposals.map((p) => (p === card ? settled : p));
   // Read whole and written back whole, never by path: the turn as the model was sent it (content.raw) stays beside
   // the card's outcome.
   const { data: upd, error: uerr } = await saveAskTurnContent(
@@ -330,7 +332,7 @@ export async function setProposalOutcome(
   );
   if (uerr) throw new Error(uerr.message);
   if (!upd?.length) throw new AppError("not_found", "That turn is not yours.", 404);
-  return next[idx];
+  return settled;
 }
 
 export async function deleteThread(ctx: RouteContext, id: string): Promise<void> {

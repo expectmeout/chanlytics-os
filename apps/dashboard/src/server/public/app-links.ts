@@ -18,7 +18,7 @@ const list = (s: string | undefined) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-export function appLinksFor(store: string, env: { apple?: string; android?: string }): unknown | null {
+export function appLinksFor(store: string, env: { apple?: string; android?: string }): unknown {
   if (store === "apple") {
     const ids = list(env.apple);
     if (!ids.length) return null;

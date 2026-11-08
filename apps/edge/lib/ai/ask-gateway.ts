@@ -155,7 +155,7 @@ export function teeUsage(
         delta?: { stop_reason?: string };
       };
       try {
-        ev = JSON.parse(raw);
+        ev = JSON.parse(raw) as typeof ev;
       } catch {
         continue;
       }

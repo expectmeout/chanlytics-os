@@ -285,7 +285,7 @@ export async function findReachOutRun(
   const [first, refused] = await Promise.all([
     firstEmailOf(ctx, tenantId, {
       lead: approvalCounts.checked.find((s) => !ownOf(s)),
-      step,
+      step: step ?? null,
       first: stepN === 0,
       signedBy: root.signed_by,
       signsWith: root.signs_with,
@@ -411,7 +411,7 @@ export async function previewReachOut(
   );
   if (answer.status === 503 && answer.body?.error === "edge_unreachable")
     return { ok: false, reason: "edge_unreachable" };
-  const result = (answer.body ?? {}) as { ok?: boolean; preview?: unknown };
+  const result = answer.body ?? {};
   return edgeAnswered(answer) && result.ok && result.preview
     ? { ok: true, preview: result.preview }
     : { ok: false, reason: edgeReasonOf(answer) };

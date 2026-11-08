@@ -236,7 +236,7 @@ export interface ReportVM {
  *  `new Date("2026-09-04")` would apply. */
 export function dayDate(day: string): Date {
   const [y, m, d] = day.split("-").map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
+  return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
 }
 
 /** A calendar day ("2026-09-04") as words, "Sep 4": the date itself, read at its noon in UTC so no zone can move it. */
@@ -269,7 +269,8 @@ export function quantile(sorted: number[], quantity: number): number | null {
   const pos = (sorted.length - 1) * quantity;
   const lo = Math.floor(pos);
   const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+  const low = sorted[lo] ?? 0;
+  return low + ((sorted[hi] ?? 0) - low) * (pos - lo);
 }
 
 export function bars(entries: [string, string, number][]): ReportBarVM[] {
@@ -284,7 +285,8 @@ export function bars(entries: [string, string, number][]): ReportBarVM[] {
 export function priorOf<T>(count: number, previous: readonly T[], pick: (d: T) => number): (number | null)[] {
   return Array.from({ length: count }, (_, i) => {
     const j = previous.length - count + i;
-    return j >= 0 ? pick(previous[j]) : null;
+    const held = previous[j];
+    return held ? pick(held) : null;
   });
 }
 
@@ -305,8 +307,8 @@ export function weekOf(series: readonly ReportDayDto[]): number[] {
   const seen = [0, 0, 0, 0, 0, 0, 0];
   for (const d of series) {
     const w = weekdayOf(d.day);
-    total[w] += (d.messages_in || 0) + (d.calls || 0);
-    seen[w] += 1;
+    total[w] = (total[w] ?? 0) + (d.messages_in || 0) + (d.calls || 0);
+    seen[w] = (seen[w] ?? 0) + 1;
   }
   return total.map((t, w) => (seen[w] ? Math.round((t / seen[w]) * 10) / 10 : 0));
 }
@@ -315,7 +317,7 @@ export function weekOf(series: readonly ReportDayDto[]): number[] {
 export function onlyIndex(values: readonly number[], wins: (a: number, b: number) => boolean): number | null {
   if (!values.some((v) => v > 0)) return null;
   let at = 0;
-  for (let i = 1; i < values.length; i++) if (wins(values[i], values[at])) at = i;
+  for (let i = 1; i < values.length; i++) if (wins(values[i] ?? 0, values[at] ?? 0)) at = i;
   return values.filter((v) => v === values[at]).length === 1 ? at : null;
 }
 
@@ -337,7 +339,8 @@ export function hoursOf(
   let peak: number | null = null;
   if (total > 0) {
     peak = 0;
-    for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
+    const twoHours = (h: number) => (values[h] ?? 0) + (values[h + 1] ?? 0);
+    for (let h = 1; h < 23; h++) if (twoHours(h) > twoHours(peak)) peak = h;
   }
   return { values, peak, closed, labels: values.map((_, h) => reportHourWords(h)) };
 }

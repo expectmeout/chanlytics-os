@@ -58,7 +58,7 @@ import {
   type LeadSheetWhyVM,
 } from "./model/card";
 import { subjectWords } from "../../campaigns/sequences/place/email-as";
-import { businessAddressOf } from "../../campaigns/sequences/leads/reads";
+import { businessAddressOf, reachOutSignatureNow } from "../../campaigns/sequences/leads/reads";
 import { leadCardFor, leadCardLeadOf, leadCardWorkspace, type LeadCardFacts } from "../pile/card";
 import { leadDtoFor } from "../surface";
 import type { LeadAim } from "./use-aim";
@@ -355,6 +355,7 @@ function stepWordsOf(
     signedBy: chain.signed_by,
     // An email its owner sends ends with the name alone: their mail app adds their signature.
     signature: chain.owner_sends ? null : (chainFirstSender(chain)?.signature?.words ?? null),
+    own: chain.owner_sends ? null : reachOutSignatureNow(),
     first,
     body: step.written.body,
     address: businessAddressOf(),

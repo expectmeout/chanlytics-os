@@ -8,7 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { UUID, type DoorRead, type EdgeDoor, type EdgeErrorCode, isTenantId } from "@chanlytics/contracts";
+import { UUID, unheldByDoor, type DoorRead, type EdgeDoor, type EdgeErrorCode, isTenantId } from "@chanlytics/contracts";
 import { json, refuse } from "./http.js";
 import { logger } from "./log.js";
 import { pg } from "./pg.js";
@@ -52,11 +52,7 @@ export async function readBody<D extends EdgeDoor>(source: Request | string, doo
     // Not JSON: an empty body, as above.
   }
   const held = door.body.safeParse(body);
-  if (!held.success)
-    logger().warn("door_body_unexpected", {
-      door: door.aud,
-      fields: [...new Set(held.error.issues.map((issue) => issue.path.join(".") || "(body)"))].sort().slice(0, 10),
-    });
+  if (!held.success) logger().warn("door_body_unexpected", { door: door.aud, fields: unheldByDoor(held.error) });
   return body;
 }
 

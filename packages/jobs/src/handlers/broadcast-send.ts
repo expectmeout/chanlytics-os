@@ -114,7 +114,7 @@ function wirePorts(
   ctx: JobContext,
 ): Pick<BroadcastBatchPorts, "wireUnavailable" | "offersClosed" | "offersUnread" | "page"> {
   return {
-    wireUnavailable: async (channel) => wireUnbound(ctx, channel),
+    wireUnavailable: (channel) => Promise.resolve(wireUnbound(ctx, channel)),
     offersClosed: () => Promise.resolve(ctx.email?.campaignsClosed ?? null),
     offersUnread: () => Promise.resolve(ctx.email?.campaignsUnread ?? null),
     ...(ctx.page ? { page: ctx.page } : {}),

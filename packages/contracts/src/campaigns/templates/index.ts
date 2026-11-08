@@ -116,7 +116,7 @@ export type { TemplateButton, TemplateParts } from "./parts";
 export { SENDER_WORDS, senderLanguage, senderWords } from "./sender-words";
 export type { SenderLanguage, SenderWords } from "./sender-words";
 export { fillSlots, numberedSlots, slotValueOf, slotWritten } from "./slot-sets";
-export { slotMentions, slotOutside } from "./slot-sets";
+export { slotMentions, slotOutside, slotsOut } from "./slot-sets";
 export type { SlotKey, SlotSet, SlotValue } from "./slot-sets";
 export { defaultParamSpecs, defaultSlotKinds, guessSlotKind, slotChoices, slotLabels, templateSlots } from "./slots";
 export type { VariableLike } from "./slots";

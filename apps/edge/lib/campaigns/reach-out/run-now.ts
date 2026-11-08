@@ -29,7 +29,6 @@ import { logger } from "../../shared/log.js";
 import { runReachOutStep } from "./run-step.js";
 import { findStepRow, getSequenceModes } from "@chanlytics/db/campaigns";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
-import type { ReachOutRow } from "./run-context.js";
 import { UUID, CAMPAIGNS_PAUSED_WORDS, DEFAULT_TIMEZONE, isTenantId } from "@chanlytics/contracts";
 
 export async function runPlaybookNow(

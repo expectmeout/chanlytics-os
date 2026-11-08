@@ -598,7 +598,9 @@ test.describe("Phone shell on a real workspace", () => {
     await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".list-row-face", ".list-row-name", "a lead");
     const seen = Object.entries(shapes);
     test.skip(seen.length < 2, "this workspace has fewer than two lists with anything in them");
-    const [first, firstShape] = seen[0];
+    const [firstSeen] = seen;
+    if (!firstSeen) return;
+    const [first, firstShape] = firstSeen;
     // The same row, drawn with its facts line (84px) or without one: a thread with no second agent, confidence, tags
     // or value (the nightly's threads) is name and sub alone, one 19px line shorter (inbox.css .ix-thread-foot draws
     // only when there is something to say). The face, the gutter and the name's type are the row's either way.
@@ -638,12 +640,14 @@ test.describe("Phone shell on a real workspace", () => {
         (els, sels) => {
           const lineOf = (row: Element) => (sels.drawnOn ? row.querySelector(sels.drawnOn) : row) ?? row;
           const at = els.findIndex((el, i) => els[i + 1]?.previousElementSibling === el);
-          if (at < 0) return null;
-          const row = lineOf(els[at + 1]);
+          const [head] = els;
+          const next = els[at + 1];
+          if (at < 0 || !head || !next) return null;
+          const row = lineOf(next);
           const line = getComputedStyle(row, "::after");
           const words = row.querySelector(sels.name);
           return {
-            first: getComputedStyle(lineOf(els[0]), "::after").content,
+            first: getComputedStyle(lineOf(head), "::after").content,
             left: Math.round(Number.parseFloat(line.left)),
             right: Math.round(Number.parseFloat(line.right)),
             height: Number.parseFloat(line.height),
@@ -664,7 +668,9 @@ test.describe("Phone shell on a real workspace", () => {
     await read("templates", ".msg-list > .msg-row", ".msg-row-title", "Messages", ".msg-row-line");
     const seen = Object.entries(rules);
     test.skip(seen.length === 0, "this workspace has no list of two rows");
-    const [first, firstRule] = seen[0];
+    const [firstSeen] = seen;
+    if (!firstSeen) return;
+    const [first, firstRule] = firstSeen;
     for (const [label, rule] of seen) {
       expect(rule.first, `${label}'s first row has no line over it`).toBe("none");
       expect(rule.left, `${label}'s line starts under the name`).toBe(rule.name);
@@ -690,9 +696,11 @@ test.describe("Phone shell on a real workspace", () => {
       await strip.evaluate((el) => {
         const s = el.getBoundingClientRect();
         const tabs = [...el.querySelectorAll<HTMLElement>(".stabs-tab")];
-        const t = tabs[0].getBoundingClientRect();
+        const [tab, nextTab] = tabs;
+        if (!tab || !nextTab) throw new Error("a strip holds two tabs");
+        const t = tab.getBoundingClientRect();
         // Where the words are, not the box: a Range over the label's own text (a tab can carry a count after it).
-        const label = [...tabs[0].childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())!;
+        const label = [...tab.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())!;
         const range = document.createRange();
         range.selectNodeContents(label);
         const w = range.getBoundingClientRect();
@@ -703,7 +711,7 @@ test.describe("Phone shell on a real workspace", () => {
           tab: Math.round(t.height),
           words: Math.round(w.left - t.left),
           middle: Math.round((w.top + w.bottom) / 2 - t.top),
-          step: Math.round(tabs[1].getBoundingClientRect().left - t.right),
+          step: Math.round(nextTab.getBoundingClientRect().left - t.right),
           underline: picked ? getComputedStyle(picked).borderBottomColor : null,
           // Nothing that holds it scrolls: what scrolls is what a pull down drags, and People's strip went with its rows.
           inScroller: (() => {
@@ -737,7 +745,9 @@ test.describe("Phone shell on a real workspace", () => {
       probe.remove();
       return colour;
     });
-    const [first, firstShape] = shapes[0];
+    const [firstOne] = shapes;
+    if (!firstOne) return;
+    const [first, firstShape] = firstOne;
     // The Inbox's and People's strips stand beside the page's act and give 4px of each tab's side to it (components.css,
     // "Beside the act the strip has 44px less"); Settings' has no act beside it, so a tab's words sit further in there.
     // The Inbox's act says a word since #1508 ("+ New": a plus alone said nothing), and beside that capsule its strip
@@ -1404,10 +1414,10 @@ test.describe("Phone shell on a real workspace", () => {
       [Math.round(back.y), Math.round(back.height)],
       "the way back is as tall as what stands at the bar's right, on its line",
     ).toEqual([Math.round(bell.y), Math.round(bell.height)]);
-    const underThumb = await page.evaluate(
-      ([x, y]) => !!document.elementFromPoint(x, y)?.closest(".pg-back"),
-      [back.x + back.width / 2, back.y + back.height + 5],
-    );
+    const underThumb = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest(".pg-back"), {
+      x: back.x + back.width / 2,
+      y: back.y + back.height + 5,
+    });
     expect(underThumb, "a thumb a little under the capsule still presses it").toBe(true);
     const face = (await page.locator(".cl-prof-id .face").first().boundingBox())!;
     expect(face.x, "the face stands at the page's gutter, not after an arrow of its own").toBeLessThanOrEqual(17);

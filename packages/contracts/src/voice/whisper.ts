@@ -141,6 +141,6 @@ export function injectedTurn(content: string | null | undefined): { speaker: "wh
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
-  if (lines.length >= 2 && lines[0].includes(PLATFORM)) return { speaker: "platform", text: lines[1] };
+  if (lines.length >= 2 && lines[0]?.includes(PLATFORM)) return { speaker: "platform", text: lines[1] ?? "" };
   return { speaker: "whisper", text: c.trim() };
 }

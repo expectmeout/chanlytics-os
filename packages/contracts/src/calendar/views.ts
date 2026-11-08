@@ -29,7 +29,7 @@ export function windowFor(anchor: string): { from: string; days: number } {
 /** Whether contiguous loaded days cover `count` days from `from`. */
 export function coversSpan(days: ReadonlyArray<{ key: string }>, from: string, count: number): boolean {
   if (!days.length || count < 1) return false;
-  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count - 1);
+  return (days[0]?.key ?? "") <= from && (days.at(-1)?.key ?? "") >= shiftKey(from, count - 1);
 }
 
 /** A day's frame from its key alone — the shape a view draws before the day's data has landed. */
@@ -40,7 +40,7 @@ export function frameOf(
   const { y, m, d } = keyParts(key);
   return {
     key,
-    dow: DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
+    dow: DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] ?? "",
     date: shortDate(key),
     long: longDate(key),
     dayNum: String(d),

@@ -105,7 +105,8 @@ export type KitAnswer = {
 };
 
 export function kitChecks(ask: KitAsk): KitAnswer {
-  type Shape = { text: string; base: string; pseudo: string | null; press: boolean; spec: number[] };
+  type Specificity = [number, number, number];
+  type Shape = { text: string; base: string; pseudo: string | null; press: boolean; spec: Specificity };
   type KitRule = { key: string; rule: CSSStyleRule; media: string; holds: boolean; order: number; selectors: Shape[] };
   type Hit = { rule: KitRule; sel: Shape };
   type Decl = { prop: string; value: string; important: boolean; index: number };
@@ -188,16 +189,16 @@ export function kitChecks(ask: KitAsk): KitAnswer {
   };
   const identEnd = (text: string, i: number) => {
     let j = i;
-    while (j < text.length && (/[\w-]/.test(text[j]) || text.charCodeAt(j) > 127 || text[j] === "\\"))
+    while (j < text.length && (/[\w-]/.test(text[j] ?? "") || text.charCodeAt(j) > 127 || text[j] === "\\"))
       j += text[j] === "\\" ? 2 : 1;
     return j;
   };
-  const beats = (x: number[], y: number[]) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+  const beats = (x: Specificity, y: Specificity) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
   // A selector's specificity as Selectors 4 counts it: :where() adds nothing, :is(), :not() and :has() their most
   // specific argument, :nth-child(… of S) a class and S, and a pseudo-element counts as a type.
-  const specificity = (sel: string): number[] => {
-    const s = [0, 0, 0];
-    const add = (t: number[]) => {
+  const specificity = (sel: string): Specificity => {
+    const s: Specificity = [0, 0, 0];
+    const add = (t: Specificity) => {
       s[0] += t[0];
       s[1] += t[1];
       s[2] += t[2];
@@ -205,10 +206,10 @@ export function kitChecks(ask: KitAsk): KitAnswer {
     const most = (list: string) =>
       parts(list, ",")
         .map(specificity)
-        .reduce((m, t) => (beats(t, m) > 0 ? t : m), [0, 0, 0]);
+        .reduce<Specificity>((m, t) => (beats(t, m) > 0 ? t : m), [0, 0, 0]);
     let i = 0;
     while (i < sel.length) {
-      const c = sel[i];
+      const c = sel[i] ?? "";
       if (c === "#") {
         s[0] += 1;
         i = identEnd(sel, i + 1);
@@ -419,7 +420,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
     Array.from(value.matchAll(/var\(\s*(--[\w-]+)\s*(,)?/g), (m) => {
       const open = (m.index ?? 0) + 3;
       return {
-        name: m[1],
+        name: m[1] ?? "",
         fallback: m[2]
           ? value
               .slice(open + 1, closing(value, open))
@@ -434,7 +435,8 @@ export function kitChecks(ask: KitAsk): KitAnswer {
   // a shadow, or a word no property of the kit takes as it is (not `initial`: an inherited property left invalid takes
   // its parent's value, which is most often the same). Two sets, the second for what the first cannot move: a number
   // over 1 is an opacity's 1, so the second number is under it.
-  const SENTINELS = [
+  type Sentinel = Record<"colour" | "length" | "time" | "number" | "shadow" | "word", string>;
+  const SENTINELS: [Sentinel, Sentinel] = [
     {
       colour: "rgb(1, 2, 3)",
       length: "7.5px",
@@ -452,7 +454,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
       word: "gx-planted-again",
     },
   ];
-  const sentinel = (value: string, pass: number) => {
+  const sentinel = (value: string, pass: 0 | 1) => {
     const s = SENTINELS[pass];
     if (!value || /^(?:initial|inherit|unset|revert|revert-layer)$/i.test(value)) return s.word;
     if (CSS.supports("color", value)) return s.colour;
@@ -473,7 +475,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
     // the latest rule, then the latest declaration in it. Each declaration that reads a token comes back with the
     // longhands it takes, and whether its rule matched there through a press.
     const winners = (hits: Hit[]) => {
-      const mine = new Map<KitRule, { spec: number[]; press: boolean }>();
+      const mine = new Map<KitRule, { spec: Specificity; press: boolean }>();
       for (const h of hits) {
         const was = mine.get(h.rule);
         mine.set(h.rule, {
@@ -481,7 +483,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
           press: !!was?.press || h.sel.press,
         });
       }
-      const won = new Map<string, { decl: Decl; rule: KitRule; spec: number[]; press: boolean }>();
+      const won = new Map<string, { decl: Decl; rule: KitRule; spec: Specificity; press: boolean }>();
       for (const [rule, { spec, press }] of mine) {
         for (const decl of declarationsOf(rule.rule)) {
           if (!decl.value) lost.add(`${rule.rule.selectorText} ${decl.prop}`);
@@ -518,7 +520,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
     const lab = shelf.appendChild(document.createElement("div"));
     const fedBy = (decl: Decl, names: string[], values: Map<string, string>) => {
       const fed = new Set<string>();
-      for (const pass of [0, 1]) {
+      for (const pass of [0, 1] as const) {
         lab.style.cssText = "";
         for (const [n, v] of values) if (v) lab.style.setProperty(n, v);
         lab.style.setProperty(decl.prop, decl.value, "important");
@@ -527,7 +529,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
           const was = values.get(v.name) ?? "";
           lab.style.setProperty(v.name, sentinel(was || v.fallback || "", pass));
           read(lab, null, names).forEach((value, i) => {
-            if (value !== real[i]) fed.add(names[i]);
+            if (value !== real[i]) fed.add(names[i] ?? "");
           });
           if (was) lab.style.setProperty(v.name, was);
           else lab.style.removeProperty(v.name);
@@ -581,16 +583,16 @@ export function kitChecks(ask: KitAsk): KitAnswer {
       const before = read(p.el, p.pseudo, p.names);
       const moved = new Set<string>();
       let back = true;
-      for (const pass of [0, 1]) {
+      for (const pass of [0, 1] as const) {
         if (moved.size === p.names.length) break;
-        const kept = Array.from(values.keys(), (n) => [
+        const kept = Array.from(values.keys(), (n): [string, string, string] => [
           n,
           p.el.style.getPropertyValue(n),
           p.el.style.getPropertyPriority(n),
         ]);
         for (const [n, v] of values) p.el.style.setProperty(n, sentinel(v, pass));
         read(p.el, p.pseudo, p.names).forEach((v, i) => {
-          if (v !== before[i]) moved.add(p.names[i]);
+          if (v !== before[i]) moved.add(p.names[i] ?? "");
         });
         for (const [n, value, priority] of kept) {
           if (value) p.el.style.setProperty(n, value, priority);
@@ -640,8 +642,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
       /(?:^|-)(?:inline|block)(?:-|$)|^border-(?:start|end)-(?:start|end)-radius$|^corner-(?:start|end)-(?:start|end)-shape$/;
     const root = getComputedStyle(document.documentElement);
     const every: string[] = [];
-    for (let i = 0; i < root.length; i += 1)
-      if (!root[i].startsWith("--") && !LOGICAL.test(root[i])) every.push(root[i]);
+    for (const name of Array.from(root)) if (!name.startsWith("--") && !LOGICAL.test(name)) every.push(name);
     const laid = new Set(ask.laidOut);
     const within = (a: string, b: string) => Math.abs(Number(a) - Number(b)) <= ask.tolerance + Number.EPSILON;
     // Two laid-out values that say the same but for lengths within the tolerance ("12.5px 8px"), as the recorder holds a
@@ -649,7 +650,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
     const nearly = (a: string, b: string) => {
       const x = a.split(/(-?\d*\.?\d+)px/);
       const y = b.split(/(-?\d*\.?\d+)px/);
-      return x.length === y.length && x.every((s, i) => (i % 2 ? within(s, y[i]) : s === y[i]));
+      return x.length === y.length && x.every((s, i) => (i % 2 ? within(s, y[i] ?? "") : s === y[i]));
     };
     const draws = (el: Element, pseudo: string) =>
       !["none", "normal"].includes(getComputedStyle(el, pseudo).getPropertyValue("content"));
@@ -687,7 +688,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
         n !== "color" && colours[0] !== colours[1] && mine[i] === colours[0] && theirs[i] === colours[1];
       names.forEach((n, i) => {
         if (mine[i] === theirs[i] || followsColour(n, i)) return;
-        if (c.pseudo && (differs.has(n) || (laid.has(n) && nearly(mine[i], theirs[i])))) return;
+        if (c.pseudo && (differs.has(n) || (laid.has(n) && nearly(mine[i] ?? "", theirs[i] ?? "")))) return;
         if (!c.pseudo) differs.add(n);
         say(c.entry, `${c.entry}: ${c.at} ${n}: ${mine[i]} against ${theirs[i]} in ${c.twin}`);
       });
@@ -716,6 +717,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
       const hits = hitsOn(rules, new Set(ks));
       ks.forEach((k, i) => {
         const s = ss[i];
+        if (!s) return;
         const at = pathOf(k, stageOf(f));
         const differs = new Set<string>();
         const own: Compare = { entry, twin, at, k, s, pseudo: null };
@@ -737,10 +739,11 @@ export function kitChecks(ask: KitAsk): KitAnswer {
         const sStage = (stageOf(source) as Element).getBoundingClientRect();
         ks.forEach((k, i) => {
           const a = k.getBoundingClientRect();
-          const b = ss[i].getBoundingClientRect();
+          const b = ss[i]?.getBoundingClientRect();
+          if (!b) return;
           const mine = [a.left - kStage.left, a.top - kStage.top, a.width, a.height];
           const theirs = [b.left - sStage.left, b.top - sStage.top, b.width, b.height];
-          if (mine.some((v, j) => Math.abs(v - theirs[j]) > ask.tolerance + Number.EPSILON))
+          if (mine.some((v, j) => Math.abs(v - (theirs[j] ?? 0)) > ask.tolerance + Number.EPSILON))
             say(
               entry,
               `${entry}: ${pathOf(k, stageOf(f))}'s box ${mine.map((v) => v.toFixed(2)).join(" ")} against ` +
@@ -832,7 +835,7 @@ export type KitWord = {
   at: string;
   text: string;
   /** Its colour as the browser resolves it, sRGB 0 to 255 and an alpha 0 to 1. */
-  rgba: number[];
+  rgba: [number, number, number, number];
   /** The opacity it is drawn at: its own element's times every ancestor's. */
   opacity: number;
   /** 24px, or 18.66px at a bold weight: WCAG's large text, which needs 3:1. */
@@ -877,13 +880,13 @@ export function placeEntry(ask: { entry: string; hide: string }): {
   const cv = document.createElement("canvas");
   cv.width = cv.height = 1;
   const cx = cv.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
-  const rgba = (c: string) => {
+  const rgba = (c: string): KitWord["rgba"] => {
     cx.clearRect(0, 0, 1, 1);
     cx.fillStyle = "#000";
     cx.fillStyle = c;
     cx.fillRect(0, 0, 1, 1);
     const d = cx.getImageData(0, 0, 1, 1).data;
-    return [d[0], d[1], d[2], d[3] / 255];
+    return [d[0] ?? 0, d[1] ?? 0, d[2] ?? 0, (d[3] ?? 0) / 255];
   };
   const name = (el: Element) => `${el.localName}${Array.from(el.classList, (c) => `.${c}`).join("")}`;
   const words: KitWord[] = [];
@@ -897,7 +900,12 @@ export function placeEntry(ask: { entry: string; hide: string }): {
     const range = document.createRange();
     range.selectNodeContents(n);
     const r = range.getBoundingClientRect();
-    const box = [Math.max(r.left, x), Math.max(r.top, y), Math.min(r.right, x + width), Math.min(r.bottom, y + height)];
+    const box: [number, number, number, number] = [
+      Math.max(r.left, x),
+      Math.max(r.top, y),
+      Math.min(r.right, x + width),
+      Math.min(r.bottom, y + height),
+    ];
     if (box[2] - box[0] < 2 || box[3] - box[1] < 4) continue;
     const hit = document.elementFromPoint((box[0] + box[2]) / 2, (box[1] + box[3]) / 2);
     // Its own element, or one holding it: a child over the words (a face's picture over its initials) hides them.
@@ -928,6 +936,8 @@ export function placeEntry(ask: { entry: string; hide: string }): {
  * alpha and opacity; the ratio is WCAG's. `width` is the shot's in CSS pixels, so a shot taken at a device scale over
  * 1 is read where the words are. Shows the words again first.
  */
+type Pixel = [number, number, number];
+
 export async function groundsUnder(ask: { png: string; width: number; words: KitWord[]; hide: string }) {
   document.documentElement.classList.remove(ask.hide);
   const bytes = Uint8Array.from(atob(ask.png), (c) => c.charCodeAt(0));
@@ -938,24 +948,25 @@ export async function groundsUnder(ask: { png: string; width: number; words: Kit
   const data = ctx.getImageData(0, 0, bitmap.width, bitmap.height).data;
   const scale = bitmap.width / ask.width;
   const lin = (c: number) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-  const lum = (p: number[]) => 0.2126 * lin(p[0]) + 0.7152 * lin(p[1]) + 0.0722 * lin(p[2]);
-  const ratio = (a: number[], b: number[]) => {
-    const [hi, lo] = [lum(a), lum(b)].sort((p, q) => q - p);
+  const lum = (p: Pixel) => 0.2126 * lin(p[0]) + 0.7152 * lin(p[1]) + 0.0722 * lin(p[2]);
+  const ratio = (a: Pixel, b: Pixel) => {
+    const [hi = 0, lo = 0] = [lum(a), lum(b)].sort((p, q) => q - p);
     return (hi + 0.05) / (lo + 0.05);
   };
   return ask.words.map((w) => {
-    const px: number[][] = [];
-    const [left, top, right, bottom] = w.box.map((v) => Math.round(v * scale));
+    const px: Pixel[] = [];
+    const [left = 0, top = 0, right = 0, bottom = 0] = w.box.map((v) => Math.round(v * scale));
     for (let y = Math.max(0, top); y < Math.min(bitmap.height, bottom); y += 1)
       for (let x = Math.max(0, left); x < Math.min(bitmap.width, right); x += 1) {
         const i = (y * bitmap.width + x) * 4;
-        px.push([data[i], data[i + 1], data[i + 2]]);
+        px.push([data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0]);
       }
-    if (!px.length) return { ...w, ratio: null, ground: null, need: w.large ? 3 : 4.5 };
     px.sort((a, b) => lum(a) - lum(b));
     const ground = px[Math.floor(px.length / 2)];
+    if (!ground) return { ...w, ratio: null, ground: null, need: w.large ? 3 : 4.5 };
     const a = w.rgba[3] * w.opacity;
-    const fg = ground.map((c, k) => w.rgba[k] * a + c * (1 - a));
+    const over = (k: 0 | 1 | 2) => w.rgba[k] * a + ground[k] * (1 - a);
+    const fg: Pixel = [over(0), over(1), over(2)];
     return { ...w, ratio: Math.round(ratio(fg, ground) * 100) / 100, ground, need: w.large ? 3 : 4.5 };
   });
 }

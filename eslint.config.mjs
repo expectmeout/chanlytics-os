@@ -118,16 +118,10 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * read as a condition in the dashboard's request pipeline (`with-route.ts`), which the request-id lane was rewriting.
  */
 export const HELD_TYPED = [
-  "@typescript-eslint/no-base-to-string",
+  // The colour model's four (it misreads a `??`, decision 0112); the other two are layer 9's.
   "@typescript-eslint/no-unnecessary-type-assertion",
-  "@typescript-eslint/no-deprecated",
   "@typescript-eslint/no-misused-promises",
-  "@typescript-eslint/no-redundant-type-constituents",
-  "@typescript-eslint/no-unsafe-assignment",
-  "@typescript-eslint/no-unsafe-return",
   "@typescript-eslint/only-throw-error",
-  "@typescript-eslint/require-await",
-  "@typescript-eslint/unbound-method",
 ];
 
 /** A rule's entry at warning, its options kept. */
@@ -164,11 +158,12 @@ const STRICT_AT_ERROR = {
   ],
   // A condition the types say is always true or always false: a dead branch, or a type that says less than the code knows.
   "@typescript-eslint/no-unnecessary-condition": "error",
+  // `x!` tells the checker a value is there; a check (or a reader that says why, as the line sagas' written()) proves it.
+  "@typescript-eslint/no-non-null-assertion": "error",
+  // What a promise rejects with is unknown until read: `.catch((e: unknown) => …)`, as a catch block already is.
+  "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
 };
-export const HELD_STRICT = [
-  "@typescript-eslint/consistent-type-assertions",
-  "@typescript-eslint/no-unnecessary-condition",
-];
+export const HELD_STRICT = ["@typescript-eslint/no-unnecessary-condition"];
 const BACKEND_TYPED = [
   "apps/edge/**/*.ts",
   "packages/*/src/**/*.ts",

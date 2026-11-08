@@ -10,7 +10,6 @@ import {
   previewVersionsOf,
   reachOutExampleLead,
   stepTestMail,
-  recordOrEmpty,
 } from "@chanlytics/contracts";
 import {
   findLeadSlots,
@@ -75,6 +74,7 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
     // How it ends, as the send ends it (0077): the signature of the first mailbox the sequence writes from.
     signsWith: chain.signs_with ?? "name",
     signature: chainFirstSender(chain)?.signature?.words ?? null,
+    own: business.signature,
   });
   if ("why" in mail) throw new AppError("validation", mail.why, 422);
   return mail;
@@ -137,7 +137,7 @@ export async function sendStepTest(
     { tenant_id: seq.tenant_id, user_id: ctx.userId, subject: mail.subject, text: mail.text },
     { workspace: seq.tenant_id, user: ctx.userId, timeoutMs: TEST_TIMEOUT_MS },
   );
-  const body = recordOrEmpty(answer.body);
+  const body = answer.body ?? {};
   if (answer.status === 200 && body.sent === true && typeof body.to === "string") return { to: body.to };
   if (answer.status === 200 && body.why === "no_address") throw new AppError("conflict", W.noAddress, 409);
   log.error("step_test_failed", { tenant_id: seq.tenant_id, status: answer.status, error: answer.body?.error });

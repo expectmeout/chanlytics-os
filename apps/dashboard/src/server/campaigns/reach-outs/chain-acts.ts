@@ -6,6 +6,7 @@ import {
   REACH_OUT_LANGUAGE,
   REACH_OUT_REFUSALS,
   coldEndingOf,
+  reachOutSignatureOf,
   coldSignedOff,
   emailFoot,
   whyFrom,
@@ -84,7 +85,7 @@ type StepRow = ReachOutStepRow;
 export function chainOf(root: StepRow, all: StepRow[]): StepRow[] {
   const out = [root];
   for (let i = 0; i < 10; i += 1) {
-    const next = all.find((s) => s.after_playbook_id === out[out.length - 1].id);
+    const next = all.find((s) => s.after_playbook_id === out.at(-1)?.id);
     if (!next) break;
     out.push(next);
   }
@@ -126,17 +127,26 @@ async function bookingLinkOf(ctx: RouteContext, tenantId: TenantId): Promise<str
 export async function findBusiness(
   ctx: RouteContext,
   tenantId: TenantId,
-): Promise<{ name: string; workspaceName: string; address: string | null; bookingLink: string | null }> {
+): Promise<{
+  name: string;
+  workspaceName: string;
+  address: string | null;
+  bookingLink: string | null;
+  /** Sign-off's signature with its phone (decision 0113), under the name of every email Chanlytics sends. */
+  signature: string | null;
+}> {
   const [facts, stored] = await Promise.all([
     getTenantFacts(ctx.supabase, tenantId),
     getStoredConfig(ctx.supabase, tenantId),
   ]);
-  const brain = parseTenantConfig(stored ?? null)?.brain;
+  const config = parseTenantConfig(stored ?? null);
+  const brain = config?.brain;
   return {
     name: brain?.business_name || facts.name || "your business",
     workspaceName: facts.name,
     address: brain?.profile?.address?.trim() || null,
     bookingLink: brain?.booking_link?.trim() || null,
+    signature: reachOutSignatureOf(config),
   };
 }
 
@@ -180,7 +190,7 @@ export async function saveChain(
   const issues = opts.unwritten ? all.filter((i) => !blank(i.step)) : all;
   if (issues.length > 0) {
     const sentence = issues.map((i) => ({ ...i, words: chainIssueWords(i) }));
-    throw new AppError("validation", sentence[0].words, 422, { issues: sentence });
+    throw new AppError("validation", sentence[0]?.words ?? "", 422, { issues: sentence });
   }
   // An email carries no hand key at all: the door reads a step with one as a call or a note (00228).
   const steps = input.steps.map(({ hand, ...s }) => (hand ? { ...s, hand } : s));
@@ -333,6 +343,7 @@ export async function firstEmailOf(
     signsWith: params.signsWith === "mailbox" ? "mailbox" : "name",
     signedBy: params.signedBy,
     signature: box ? (mailboxSignatureOf(box)?.text ?? null) : null,
+    own: business.signature,
     first: params.first,
     body: words.body,
     address: business.address,

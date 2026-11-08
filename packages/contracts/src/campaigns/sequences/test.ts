@@ -204,6 +204,8 @@ export function leadStepTestMail(options: {
   /** How it ends (0077), as the send reads it: its name, or the signature of the mailbox it first leaves from. */
   signsWith: ReachOutSignsWith;
   signature: string | null;
+  /** Sign-off's signature (decision 0113), as the send puts it under the name. */
+  own: string | null;
 }): StepTestMail | { why: string } {
   const words = SEQUENCE_TEST_WORDS;
   if (!options.words.body.trim()) return { why: words.notWritten };
@@ -233,6 +235,7 @@ export function leadStepTestMail(options: {
       signsWith: options.signsWith,
       signedBy: options.workspace.yourName ?? null,
       signature: options.signature,
+      own: options.own,
       unsubscribeUrl: null,
     });
   } catch {

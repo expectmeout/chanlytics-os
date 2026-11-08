@@ -285,7 +285,7 @@ export function replyNoticeWords(params: {
   const intent = params.unread ? "other" : params.intent;
   const summary = params.summary.trim();
   const push = summary
-    ? `${summary[0].toUpperCase()}${summary.slice(1)}${/[.!?]$/.test(summary) ? "" : "."}`
+    ? `${(summary[0] ?? "").toUpperCase()}${summary.slice(1)}${/[.!?]$/.test(summary) ? "" : "."}`
     : params.unread
       ? "Their reply could not be read yet."
       : "They wrote back.";

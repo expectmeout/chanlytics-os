@@ -52,14 +52,7 @@ export async function syncTemplates(tenantId: TenantId, userId: string): Promise
     { tenant_id: tenantId },
     { workspace: tenantId, user: userId, timeoutMs: SYNC_TIMEOUT_MS },
   );
-  const body = (answer.body ?? {}) as {
-    ok?: boolean;
-    seen?: number;
-    approved?: number;
-    marketing?: number;
-    synced_at?: string;
-    detail?: string;
-  };
+  const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok) {
     return {
       ok: true,
@@ -96,12 +89,7 @@ export async function createTemplate(
     { tenant_id: tenantId, user_id: userId, ...target },
     { workspace: tenantId, user: userId, timeoutMs: CREATE_TIMEOUT_MS },
   );
-  const body = (answer.body ?? {}) as {
-    ok?: boolean;
-    id?: string;
-    meta_status?: string;
-    detail?: string;
-  };
+  const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok && body.id) {
     // What a business will say to its customers went to Meta under this member's hand: the ledger says who and
     // which, as it says every other consequential act. Best effort: the message is with Meta either way.
@@ -130,7 +118,7 @@ export async function deleteTemplate(
     { tenant_id: tenantId, template_id: templateId },
     { workspace: tenantId, user: userId },
   );
-  const body = (answer.body ?? {}) as { ok?: boolean; at_meta?: boolean; detail?: string };
+  const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok) return { ok: true, atMeta: !!body.at_meta };
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }

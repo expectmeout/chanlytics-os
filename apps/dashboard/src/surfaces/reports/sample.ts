@@ -90,7 +90,7 @@ const HOUR_TOTAL = HOUR_WEIGHTS.reduce((a, b) => a + b, 0);
 const hourOf = (r: number): number => {
   let s = 0;
   for (let h = 0; h < 24; h++) {
-    s += HOUR_WEIGHTS[h];
+    s += HOUR_WEIGHTS[h] ?? 0;
     if (r * HOUR_TOTAL <= s) return h;
   }
   return 23;
@@ -120,7 +120,10 @@ export function business(today: string): SampleDay[] {
     const email = inbound && r() > 0.8 ? 1 : 0;
     const sms = inbound - email > 0 && r() > 0.9 ? 1 : 0;
     const hours = Array<number>(24).fill(0);
-    for (let k = 0; k < inbound + calls; k++) hours[hourOf(r())] += 1;
+    for (let k = 0; k < inbound + calls; k++) {
+      const hour = hourOf(r());
+      hours[hour] = (hours[hour] ?? 0) + 1;
+    }
     const reasons = Array.from({ length: escalations }, () => {
       const x = r();
       return x < 0.5 ? "human_token" : x < 0.75 ? "non_text" : x < 0.9 ? "policy_block" : "refusal";
@@ -182,10 +185,13 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
     sms: sumOf(xs.map((d) => d.sms)),
   });
   const hours = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
-  for (const d of cur)
-    d.hours.forEach((v, h) => {
-      hours[weekday(d.report.day)][h] += v;
-    });
+  for (const d of cur) {
+    const day = hours[weekday(d.report.day)];
+    if (day)
+      d.hours.forEach((v, h) => {
+        day[h] = (day[h] ?? 0) + v;
+      });
+  }
   return {
     timezone: DEMO_ZONE,
     days: n,

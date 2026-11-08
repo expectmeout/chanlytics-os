@@ -26,7 +26,7 @@ import {
 import { giveUpRun, reconcileUnknownRuns, runIdFor, type LeadPorts, type LeadRunRow } from "@chanlytics/core";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { leadDb } from "./db.js";
-import type { Json } from "@chanlytics/db/types";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 import type { SweepTick } from "../ops/sweep-door.js";
 import {
   claimLeadRun,
@@ -41,7 +41,7 @@ import {
   markLeadRunUnknown,
   releaseLeadRun,
 } from "@chanlytics/db/leads";
-import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet, textOrEmpty } from "@chanlytics/contracts";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
@@ -55,7 +55,6 @@ type RunRead = Omit<SweepRunRow, "part" | "collect_scheduled" | "collects_failed
 /** The kinds of a round's own jobs, read by the round they name. */
 const ROUND_JOB_KINDS: SchemaSet<"jobs.kind">[] = ["lead_round_start", "lead_check"];
 type JobRead = { kind?: string; payload: unknown; state: string; created_at: string };
-type JobRows = { data: JobRead[] | null; error: { message: string } | null };
 
 /** Rows in parts of RUNS_IN_CHUNK ids, one read each: an `.in()` rides the request line. */
 async function inChunks<T>(ids: string[], read: (part: string[]) => Promise<T[]>): Promise<T[]> {
@@ -132,14 +131,14 @@ async function assemble(
   };
   for (const j of collects) {
     const p = payloadOf(j);
-    const runId = String(p.run_id ?? "");
+    const runId = textOrEmpty(p.run_id);
     if (j.state === "failed") failed.set(runId, (failed.get(runId) ?? 0) + 1);
     if (isOpen(j.state)) scheduled.add(runId);
-    else if (String(p.seq ?? "").startsWith("r")) countCarry(roundOfRun.get(runId), j.created_at);
+    else if (textOrEmpty(p.seq).startsWith("r")) countCarry(roundOfRun.get(runId), j.created_at);
   }
   for (const j of roundJobsRead) {
     const p = payloadOf(j);
-    const jobs = roundJobs.get(String(p.round_id ?? ""));
+    const jobs = roundJobs.get(textOrEmpty(p.round_id));
     // A Check again is the owner's, under a round that ended: never the round's own checks.
     if (!jobs || p.again) continue;
     if (isOpen(j.state)) {
@@ -198,7 +197,7 @@ function sweepPorts(
           tenantId: row.tenant_id,
           kind,
           dueAt: new Date(Date.now() + runAfterSeconds * 1000),
-          payload: payload as unknown as Json,
+          payload: jsonCopyOf(payload),
         });
     },
     deadline,

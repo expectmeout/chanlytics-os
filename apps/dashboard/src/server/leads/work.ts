@@ -12,7 +12,6 @@ import {
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { answerOf, type DoorAnswer, refusalOf } from "./answers";
-import type { DoorArgs } from "./allowance";
 import type { LeadRow } from "./searches";
 import { keepSaidEmail } from "./send";
 import { serviceDb } from "../shared/service-db";

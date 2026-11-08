@@ -627,7 +627,7 @@ async function keepOrWithdraw(
     else if (platformCopy) await mailNotice(target, msg, ports, db);
   }
   if (!notice) {
-    await forgetNotification(db, { tenantId: target.tenantId, id: kept.id }).catch((e) =>
+    await forgetNotification(db, { tenantId: target.tenantId, id: kept.id }).catch((e: unknown) =>
       logger({ tenant_id: target.tenantId }).error("notification_record_failed", {
         kind: kept.kind,
         error: errField(e),

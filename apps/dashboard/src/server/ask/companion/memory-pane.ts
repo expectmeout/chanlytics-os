@@ -58,7 +58,7 @@ function memoryRefusal(word: string): AppError {
 
 /** A door's refusal with its SQLSTATE, as the route answers it (a line the caller may not touch is not found). */
 const asRefusal = (e: unknown): never => {
-  throw e && typeof e === "object" && "message" in e ? dbRefusal(e as { code?: string | null; message: string }) : e;
+  throw e && typeof e === "object" && "message" in e ? dbRefusal(e) : e;
 };
 
 /** POST ask/memory: a line kept, from the pane (Add) or a card (a forgotten line kept again). */

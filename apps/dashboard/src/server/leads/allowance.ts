@@ -34,7 +34,7 @@ export type DoorArgs<K extends keyof Database["public"]["Functions"]> = Database
 
 /** The month after this one, as the owner reads it: "Oct 1". */
 export function renewsOnOf(tz: string, now: Date): string {
-  const [y, m] = leadMonth(tz, now).split("-").map(Number);
+  const [y = 1970, m = 1] = leadMonth(tz, now).split("-").map(Number);
   const next = m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 };
   const at = wallClockAt(tz, `${next.y}-${String(next.m).padStart(2, "0")}-01`, 12, 0);
   return clockDate(at, tz, now.getTime());

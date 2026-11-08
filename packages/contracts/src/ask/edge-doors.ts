@@ -1,6 +1,6 @@
 /** The edge's door for Ask's model, as the dashboard reaches it through the gateway (decision 0109). */
 import { z } from "zod";
-import { DOOR_ID, edgeDoor } from "../shared/edge/door";
+import { DOOR_ID, edgeDoor, PLAIN_ANSWER } from "../shared/edge/door";
 
 /**
  * POST /api/admin/llm: one model request, for a workspace and a member, under the purpose it is counted as. The request
@@ -14,4 +14,5 @@ export const LLM_DOOR = edgeDoor(
     purpose: z.string().optional(),
     request: z.unknown().optional(),
   }),
+  PLAIN_ANSWER,
 );

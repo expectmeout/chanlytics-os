@@ -1,6 +1,6 @@
 /** Reach out: checks. */
 
-import { maySpend, type BillingMode, type BillingStatus, type SpendKind } from "@chanlytics/contracts";
+import { maySpend, type SpendKind } from "@chanlytics/contracts";
 import { recordEvent } from "../../events/events";
 import type { Db, ReachOutSendRow } from "./reach-out";
 import type { TenantId } from "@chanlytics/contracts";

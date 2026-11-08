@@ -12,7 +12,6 @@
  */
 import { pg } from "../lib/shared/pg.js";
 import { platformHealthOf } from "@chanlytics/contracts";
-import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
 import { door } from "../lib/shared/log.js";
 import { readPlatformHealth, type HealthDb } from "../lib/ops/platform-health.js";
 

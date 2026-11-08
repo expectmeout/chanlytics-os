@@ -22,7 +22,7 @@ export const arUnder = ({
   composing,
 }: Line) => {
   const turns = active ? A.turns(active.messages) : []; // its questions and their answers, in order (palette.ts)
-  const latest = turns.length ? turns[turns.length - 1] : null;
+  const latest = turns.at(-1) ?? null;
   const folded = turns.slice(0, -1).filter((tn): tn is FoldedTurn => !!tn.q && !!tn.a); // the thread's earlier turns, each drawn in full
   const answerMsg = latest && latest.a ? latest.a : null;
   const showRows = arShowRows({ talk, view, query, active, quick, live, answerMsg });

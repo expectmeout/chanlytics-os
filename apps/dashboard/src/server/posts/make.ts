@@ -26,7 +26,6 @@ import {
 import { postBandOf, postPathOf, postUndrawable } from "../files/post-check";
 import { fileFingerprintOf, FINGERPRINT_BYTES } from "@chanlytics/channels/files";
 import { updateFileRow, recordFileMade, findFile, startFile, type FileMemberRow } from "@chanlytics/db/files";
-import type { Json } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";

@@ -149,7 +149,7 @@ const CvRow = ({ c, active, onSelect, pick, tabStop, onKey, index, measure, coun
       <span className="cv-row-lead">
         <Face person={{ name: c.who, initials: c.initials.slice(0, 2) }} className="cv-row-pic" />
         <span className="cv-row-wire" role="img" aria-label={inboxData().CHANNEL_LABELS[c.channel] || c.channel}>
-          <Icon name={CV_ICON[c.channel]} size={9} />
+          <Icon name={CV_ICON[c.channel] ?? "chat"} size={9} />
         </span>
       </span>
       <span className="cv-row-body">

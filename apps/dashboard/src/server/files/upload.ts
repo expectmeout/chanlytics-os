@@ -109,7 +109,7 @@ async function startVideo(ctx: RouteContext, member: Member, input: StartAsked):
     },
     { workspace: member.tenantId, user: ctx.userId, timeoutMs: VIDEO_START_MS },
   );
-  const reply = recordOrNull(answer.body);
+  const reply = answer.body;
   const fate = answer.status === 200 && reply ? reply.fate : null;
   if (fate === "kept" && typeof reply?.upload_url === "string")
     return { id, upload_url: reply.upload_url, twin: false };

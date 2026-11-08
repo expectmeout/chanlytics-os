@@ -23,14 +23,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mayUseModels, RETENTION_DAYS } from "@chanlytics/contracts";
-import type {
-  AiUsageBody,
-  BillingMode,
-  BillingStatus,
-  ModelTurnRequest,
-  ModelTurnResponse,
-  TenantId,
-} from "@chanlytics/contracts";
+import type { AiUsageBody, ModelTurnRequest, ModelTurnResponse, TenantId } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 

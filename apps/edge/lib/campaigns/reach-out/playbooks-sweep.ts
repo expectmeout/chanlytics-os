@@ -79,7 +79,6 @@ import {
   runDueNow,
   runTooLate,
   skippedRunNotice,
-  type PlaybookDto,
 } from "@chanlytics/contracts";
 import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
@@ -254,7 +253,7 @@ async function runMoments(tick: Tick, page: DuePage<DueStep>) {
   };
   for (const [i, [tenantId, { tz, rows }]] of tenants.entries()) {
     if (outOfTime(i - 1, 0)) return;
-    const due = rows.filter((p) => runDueNow(p as unknown as PlaybookDto, tz, now));
+    const due = rows.filter((p) => runDueNow(p, tz, now));
     const disputed = rows.filter((p) => !due.includes(p));
     if (disputed.length > 0) {
       L.warn("playbooks_page_not_due", { tenant_id: tenantId, tz, kind: "moment", count: disputed.length });
@@ -312,7 +311,7 @@ async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<D
       out.remaining += rows.length - i;
       break;
     }
-    if (!runDueNow(row as unknown as PlaybookDto, tz, now)) {
+    if (!runDueNow(row, tz, now)) {
       L.warn("playbooks_page_not_due", { tenant_id: row.tenant_id, tz, kind: "reach_out", count: 1 });
       await stampReachOutStep(db, row.id, { at: now }).catch(() => undefined);
       continue;

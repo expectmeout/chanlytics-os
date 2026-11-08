@@ -15,7 +15,7 @@ import {
   type ModelStanding,
 } from "@chanlytics/contracts";
 import { deployment } from "../shared/env";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody } from "../shared/edge";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { log } from "@/server/shared/log";
 import { serviceDbIfConfigured } from "@/server/shared/service-db";
 import { findPlanForPage } from "@chanlytics/db/billing";
@@ -74,7 +74,10 @@ export async function endEmptiedWorkspaces(ids: unknown): Promise<void> {
 }
 
 /** One call to the edge's billing endpoint. Never throws: a failure is a status the caller reads. */
-export async function callEdgeBilling(body: EdgeBody<"/api/admin/billing">, timeoutMs = 20_000): Promise<EdgeAnswer> {
+export async function callEdgeBilling(
+  body: EdgeBody<"/api/admin/billing">,
+  timeoutMs = 20_000,
+): Promise<EdgeAnswer<EdgeRead<"/api/admin/billing">>> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every other provider door keeps (connections/whatsapp.ts): a
   // preview with the edge secret set must not open a real Checkout.
@@ -107,7 +110,7 @@ export async function getBillingReadiness(now = Date.now()): Promise<BillingRead
   if (billingReadyCache && now - billingReadyCache.at < READY_TTL_MS) return billingReadyCache.value;
   const answer = await callEdgeBilling({ op: "status" }, 6_000);
   const body = answer.body ?? {};
-  const price = body.price && typeof body.price === "object" ? (body.price as BillingPriceDto) : null;
+  const price = body.price ?? null;
   const value: BillingReadiness =
     answer.status === 200 && body.ok === true
       ? {

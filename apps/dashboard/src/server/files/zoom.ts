@@ -14,7 +14,6 @@ import {
   boxShown,
   filePathOf,
   zoomSizeOf,
-  type FileMime,
   type ZoomBox,
   type ZoomSize,
   type ZoomWont,

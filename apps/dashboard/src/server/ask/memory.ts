@@ -141,10 +141,11 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
   ];
   const asBlocks = (c: unknown): unknown[] => (Array.isArray(c) ? c : [{ type: "text", text: String(c) }]);
   for (let i = messages.length - 2; i >= 0; i--) {
-    if (messages[i].role === messages[i + 1].role) {
-      const [a, b] = [messages[i].content, messages[i + 1].content];
+    const [one, two] = [messages[i], messages[i + 1]];
+    if (one && two && one.role === two.role) {
+      const [a, b] = [one.content, two.content];
       messages[i] = {
-        role: messages[i].role,
+        role: one.role,
         content: typeof a === "string" && typeof b === "string" ? `${a}\n${b}` : [...asBlocks(a), ...asBlocks(b)],
       };
       messages.splice(i + 1, 1);
@@ -185,7 +186,7 @@ export function withoutData(messages: Msg[], questionAt: number, words: unknown,
     const blocks: unknown[] = m.content;
     const data = (b: unknown) => !!b && typeof b === "object" && "type" in b && b.type === "search_result";
     const kept = i === questionAt ? blocks.filter((b) => !data(b)) : blocks;
-    return { ...m, content: kept.map(swap) } as Msg;
+    return Object.assign({}, m, { content: kept.map(swap) });
   });
 }
 
@@ -204,13 +205,14 @@ const questionsOf = (history: TurnInput["history"]): number[] =>
  * is frozen on the turn that made it.
  */
 function rebuiltHistory(messages: AskMessageVM[], turns: TurnInput["history"]): TurnInput["history"] {
-  const history = messages.map((m, i) =>
-    m.role === "assistant" ? { role: "assistant" as const, text: answerLine(m, HISTORY_CHARS) } : turns[i],
-  );
+  const history = messages.flatMap((m, i) => {
+    const line = m.role === "assistant" ? { role: "assistant" as const, text: answerLine(m, HISTORY_CHARS) } : turns[i];
+    return line ? [line] : [];
+  });
   const questions = questionsOf(history);
   const sent = (from: number) => history.slice(from).reduce((n, h) => n + Math.min(h.text.length, HISTORY_CHARS), 0);
   let k = Math.max(0, questions.length - HISTORY_TURNS);
-  while (k < questions.length - 1 && sent(questions[k]) > HISTORY_BASE_CHARS) k++;
+  while (k < questions.length - 1 && sent(questions[k] ?? 0) > HISTORY_BASE_CHARS) k++;
   return history.slice(questions[k] ?? history.length);
 }
 
@@ -337,8 +339,9 @@ function chainIds(rows: AskMessageVM[], replays: Array<AskTurnShape["replay"] | 
   if (now - last.atMs >= LIVE_WINDOW_MS) return null;
   const ids: string[] = [];
   for (let i = rows.length - 1; i >= 0 && ids.length < LIVE_TURNS; i--) {
-    if (rows[i].role !== "assistant") continue;
-    ids.push(rows[i].id);
+    const row = rows[i];
+    if (row?.role !== "assistant") continue;
+    ids.push(row.id);
     if (replays[i] !== "live") return ids;
   }
   return null;
@@ -410,7 +413,8 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const [newest] = turns;
   const oldest = turns.at(-1);
   const base = oldest?.base;
-  if (turns.length !== ids.length || !newest || !base || now - newest.at >= LIVE_WINDOW_MS) return null;
+  const [after] = ids;
+  if (turns.length !== ids.length || !newest || !after || !base || now - newest.at >= LIVE_WINDOW_MS) return null;
   if (turns.slice(0, -1).some((t, i) => t.base || t.after !== ids[i + 1])) return null;
   const sent = [...base];
   for (const t of [...turns].reverse())
@@ -419,7 +423,7 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const messages = sent.map(unmarked);
   // Where the last request's cache write ended: its last block, the turn's words where they came last (A3).
   const items = [...messages].reverse().find((m) => m.role !== "assistant" && !isEffortMessage(m))?.content;
-  const anchor = Array.isArray(items) ? items.at(-1) : undefined;
+  const anchor: unknown = Array.isArray(items) ? items.at(-1) : undefined;
   const notice = new Set(turns.flatMap((t) => t.told ?? []));
   const own = [...ids].reverse().flatMap((id) => rows.filter((r) => r.id === id));
   const cards = (oldest?.told ? rows : own).flatMap((r) => r.proposals);
@@ -430,7 +434,7 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
     .filter((o) => !notice.has(toldOf(o)));
   const { results, model, prefix } = newest;
   const readAt = [...turns].reverse().map((t) => t.at);
-  return { messages, anchor, results, model, prefix, after: ids[0], lastId: newest.id, since, readAt };
+  return { messages, anchor, results, model, prefix, after, lastId: newest.id, since, readAt };
 }
 
 /**
@@ -574,12 +578,11 @@ export function withMarkers(messages: Msg[], anchor: unknown): Msg[] {
   return messages.map((m, i) => {
     if (isEffortMessage(m) || !Array.isArray(m.content)) return m;
     const blocks: unknown[] = m.content;
-    const at = anchor === undefined ? -1 : blocks.indexOf(anchor);
+    const at = anchor === undefined ? -1 : blocks.findIndex((b) => b === anchor);
     if (at < 0 && i !== last) return m;
-    return {
-      ...m,
+    return Object.assign({}, m, {
       content: blocks.map((b, j) => (j === at || (i === last && j === blocks.length - 1) ? marked(b) : b)),
-    } as Msg;
+    });
   });
 }
 
@@ -591,7 +594,7 @@ function unmarkedBlock(b: unknown): unknown {
 }
 /** A message less the cache's markers a request carried on it (D10): the turn as it was sent, whoever marked it. */
 const unmarked = (m: Msg): Msg =>
-  !isEffortMessage(m) && Array.isArray(m.content) ? ({ ...m, content: m.content.map(unmarkedBlock) } as Msg) : m;
+  !isEffortMessage(m) && Array.isArray(m.content) ? Object.assign({}, m, { content: m.content.map(unmarkedBlock) }) : m;
 
 /**
  * The turn as it was sent, from the round it ended on and where the question sits in that round's request, and what it
@@ -606,7 +609,7 @@ export function rawTurn(
   const messages = request.messages.map(unmarked);
   return {
     ...(kept.after ? {} : { base: messages.slice(0, questionAt) }),
-    question: messages[questionAt].content,
+    question: messages[questionAt]?.content,
     rounds: messages.slice(questionAt + 1),
     final: replayBlocks(blocks),
     results: resultBlocks(outcomes),

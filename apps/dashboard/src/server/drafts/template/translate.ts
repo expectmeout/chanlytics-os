@@ -21,6 +21,7 @@ import {
   templateUntranslatable,
   validateTemplateDraft,
   type TemplateCategoryChoice,
+  textOrEmpty,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { WorkspaceFacts } from "@/server/ask/prompt/stable-system";
@@ -59,7 +60,7 @@ export type SourceOutcome =
 
 /** Meta files a category in capitals, a template made here in lower case: either is the one choice. */
 const categoryOf = (c: unknown): TemplateCategoryChoice | null =>
-  /^marketing$/i.test(String(c ?? "")) ? "marketing" : /^utility$/i.test(String(c ?? "")) ? "utility" : null;
+  /^marketing$/i.test(textOrEmpty(c)) ? "marketing" : /^utility$/i.test(textOrEmpty(c)) ? "utility" : null;
 
 /**
  * What a template is written from, and whether it may be written in `language`
@@ -114,7 +115,7 @@ export async function getTranslationSource(
         code: "validation",
         message: `Chanlytics can't write this one in another language: ${reason ?? "WhatsApp gave it no category"}. Add its other languages in WhatsApp Manager.`,
       };
-    const body = String(data.body_preview ?? "");
+    const body = textOrEmpty(data.body_preview);
     if (!body.trim())
       return {
         ok: false,
@@ -244,10 +245,7 @@ export function translatedDraft(src: TranslateSource, language: string, raw: unk
   });
   const button = src.button
     ? {
-        text:
-          String(parsed.data.button ?? "")
-            .replace(/\s+/g, " ")
-            .trim() || src.button.text,
+        text: textOrEmpty(parsed.data.button).replace(/\s+/g, " ").trim() || src.button.text,
         url: src.button.url,
       }
     : null;

@@ -13,6 +13,10 @@ export const LEAD_LOCKED_LINE =
 /** An address on the never-again list: no email is written to it here, as no sequence writes to it. */
 export const LEAD_ASKED_NOT_WRITTEN = "They asked not to be written to, so no email is written here.";
 
+/** A draft that kept saying a number about the business that none of How it reaches out's claims backs (0113). */
+export const LEAD_UNBACKED_NUMBER =
+  "Not written: it kept saying a number about your business that none of your claims backs. Add it to Proof you stand behind, on How it reaches out.";
+
 export const LEAD_NO_ADDRESS =
   "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
 

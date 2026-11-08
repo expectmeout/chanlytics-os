@@ -67,14 +67,8 @@ async function replanOwnerSends(
         params.out.gave_up += 1;
       continue;
     }
-    const patch = {
-      state: "planned" as const,
-      send_at: params.now.toISOString(),
-      mailbox_id: null,
-      attempts,
-      message_id: null,
-    };
-    if (await params.move(s, { ...patch, claimed_at: null })) params.out.replanned += 1;
+    const patch = { send_at: params.now.toISOString(), mailbox_id: null, attempts, message_id: null };
+    if (await params.move(s, { ...patch, state: "planned", claimed_at: null })) params.out.replanned += 1;
   }
 }
 
@@ -156,7 +150,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
       const plan = timetable({
         sends: placing.map((s) => ({
           id: s.id,
-          zone: zoneOfRegion(leadOf.get(s.lead_id)?.region ?? null) ?? zones.get(tenantId)!,
+          zone: zoneOfRegion(leadOf.get(s.lead_id)?.region ?? null) ?? zones.get(tenantId) ?? DEFAULT_TIMEZONE,
           week: weekHoursOf(leadOf.get(s.lead_id)?.hours).week,
           only: keeps ? s.mailbox_id : null,
         })),

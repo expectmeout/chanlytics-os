@@ -151,7 +151,7 @@ async function proposePeopleSearch(
   if (amends) return refuse("a people search does not stop to ask; propose a new one instead");
   // The people card finds leads only once its calibration run proved it (00430 lead_card_live): until then it is not
   // offered, and the owner is told so rather than shown a card the door would refuse.
-  const live = await listLeadCardsLive(toolContext.ctx.supabase).catch(() => [] as string[]);
+  const live = await listLeadCardsLive(toolContext.ctx.supabase).catch((): string[] => []);
   if (!live.includes("people_at_companies"))
     return refuse(
       "finding named people at companies opens once it has been checked, and is not open yet: say so, and offer to find local businesses of the kind instead",

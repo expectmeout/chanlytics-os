@@ -11,7 +11,6 @@ import {
   businessNameOf,
   parseTenantConfigResult,
   placesQueryOf,
-  type GoogleCandidateDto,
   type GoogleDto,
 } from "@chanlytics/contracts";
 import { getGoogleReadiness, afterGoogle, callEdgeGoogle, stateSecret } from "@/server/connections/google";

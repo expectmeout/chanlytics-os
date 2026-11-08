@@ -72,7 +72,7 @@ async function sayBooking(
 
 /** The row as the verb reads it: its life and its key, nothing it does not move. */
 function stored(appointment: AppointmentRow): StoredAppointment {
-  if (!isStatus(appointment.status)) throw new Error(`booking_read: an appointment is ${appointment.status}`);
+  if (!isStatus(appointment.status)) throw new Error(`booking_read: an appointment is ${String(appointment.status)}`);
   return {
     id: appointment.id,
     status: appointment.status,
@@ -102,9 +102,9 @@ function byClientStartOf(db: JobContext["db"], tool: string): BookingNoticePorts
 
 /** The ledger's row as the verb reads it. */
 function ledgerOf(row: AppointmentNoticeRow): NoticeLedgerEntry {
-  if (!isOutcome(row.outcome)) throw new Error(`booking_read: a notice became ${row.outcome}`);
+  if (!isOutcome(row.outcome)) throw new Error(`booking_read: a notice became ${String(row.outcome)}`);
   if (row.hold_reason !== null && !isNoticeHold(row.hold_reason))
-    throw new Error(`booking_read: a notice is held for ${row.hold_reason}`);
+    throw new Error(`booking_read: a notice is held for ${String(row.hold_reason)}`);
   return { outcome: row.outcome, holdReason: row.hold_reason, appointmentId: row.appointment_id };
 }
 

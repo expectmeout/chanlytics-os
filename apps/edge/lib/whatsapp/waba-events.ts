@@ -38,6 +38,7 @@ import {
   type ServerNotificationKind,
   type WabaEventKind,
   MESSAGES_ROUTE,
+  textOrEmpty,
 } from "@chanlytics/contracts";
 import { logger, errField, type Logger } from "../shared/log.js";
 import { findChannelConfig, listNumbersOfWaba, patchChannelRow } from "@chanlytics/db/channels";
@@ -194,7 +195,7 @@ function categoryWords(record: Record<string, unknown>): WabaWords {
 function templateStatusWords(record: Record<string, unknown>): WabaWords | null {
   const name = typeof record.message_template_name === "string" ? record.message_template_name : "a template";
   const door = aboutTemplate(record);
-  const event = String(record.event ?? "");
+  const event = textOrEmpty(record.event);
   if (event === "REJECTED")
     return {
       ...BLOCKED,
@@ -233,7 +234,7 @@ export function describeWabaChange(wabaChange: WabaChange, number: string | null
   const line = number ? `Your WhatsApp number ${number}` : "Your WhatsApp number";
   switch (wabaChange.field) {
     case "phone_number_quality_update": {
-      const event = String(value.event ?? "");
+      const event = textOrEmpty(value.event);
       const limit = typeof value.current_limit === "string" ? value.current_limit : null;
       if (event === "FLAGGED")
         return {
@@ -266,7 +267,7 @@ export function describeWabaChange(wabaChange: WabaChange, number: string | null
       return null;
     }
     case "account_update": {
-      const event = String(value.event ?? "");
+      const event = textOrEmpty(value.event);
       if (event === "DISABLED_UPDATE" || event === "ACCOUNT_RESTRICTION" || event === "ACCOUNT_VIOLATION")
         return {
           ...NUM,
@@ -290,7 +291,7 @@ export function describeWabaChange(wabaChange: WabaChange, number: string | null
     case "phone_number_name_update":
       return nameNotice(value);
     case "account_review_update": {
-      const decision = String(value.decision ?? "");
+      const decision = textOrEmpty(value.decision);
       if (decision === "REJECTED")
         return {
           ...NUM,
@@ -466,7 +467,7 @@ export async function handleWabaChange(
       typeof change.value.message_template_language === "string" ? change.value.message_template_language : null;
     if (name && language) {
       if (change.field === "message_template_status_update") {
-        const event = String(change.value.event ?? "");
+        const event = textOrEmpty(change.value.event);
         if (TEMPLATE_STATUS_EVENTS.has(event)) {
           const reason =
             event === "REJECTED" && typeof change.value.reason === "string" && change.value.reason !== "NONE"
