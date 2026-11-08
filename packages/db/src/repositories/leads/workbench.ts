@@ -26,6 +26,20 @@ export const listSearchCards = async (db: Db, tenantId: TenantId, limit: number)
     .order("created_at", { ascending: false })
     .limit(limit);
 
+/** The name of the workspace's newest search not removed, or null: who it has been looking for. */
+export async function findNewestSearchName(db: Db, tenantId: TenantId): Promise<string | null> {
+  const { data, error } = await db
+    .from("lead_searches")
+    .select("name")
+    .eq("tenant_id", tenantId)
+    .is("removed_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the newest search: ${error.message}`);
+  return data?.name?.trim() || null;
+}
+
 /** The workspace's searches' names, `limit` of them. */
 export const listSearchNames = async (db: Db, tenantId: TenantId, limit: number) =>
   db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).limit(limit);

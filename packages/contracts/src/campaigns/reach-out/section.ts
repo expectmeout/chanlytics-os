@@ -1,9 +1,9 @@
 /**
  * What each writer of a cold email reads of How it reaches out (decision 0113; the config's `reach_out` section,
- * config-schema.ts), with the fallback it read before the page existed: the offer is what the business does
- * (business_records.about) and then the owner's goal; the tone is the receptionist's; the sign-off is what the caller
- * already knew. A workspace that never opens the page is written for exactly as before. The page's own words are
- * settings.ts.
+ * config-schema.ts), with what it reads where nothing is set: the offer is what the business says of itself (db
+ * findWorkspaceWords: business_records.about, else its Google profile's or its website's words) and then the owner's goal;
+ * the tone is the receptionist's; the sign-off is what the caller already knew. So a workspace that never opens the page
+ * is still written for from what is known of it. The page's own words are settings.ts.
  */
 import type { ReachOutConfig } from "../../config/workspace-config/reach-out-schema";
 import type { OpeningWorkspace } from "./opening";

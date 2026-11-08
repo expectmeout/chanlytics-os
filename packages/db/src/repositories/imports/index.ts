@@ -9,6 +9,7 @@ export {
   keepBusinessRead,
   listBusinessReads,
   patchListing,
+  findBusinessDescription,
 } from "./business-reads";
 export type { BusinessReadRow } from "./business-reads";
 export { importCursorOf, importRowOf, listImports, noteImport } from "./ledger";

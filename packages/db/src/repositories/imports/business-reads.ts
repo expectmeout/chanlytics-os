@@ -6,7 +6,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
-import type { TenantId } from "@chanlytics/contracts";
+import {
+  BUSINESS_READ_SOURCES,
+  businessReadFactsOf,
+  type BusinessReadSource,
+  type TenantId,
+} from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -26,6 +31,25 @@ export async function listBusinessReads(db: Db, tenantId: TenantId): Promise<Bus
     .select("source, facts, read_from, read_at, error");
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+/**
+ * What the reads say the business does (their `description`), the Google profile's before the website's, as Check offers
+ * them (contracts foundOf): the two sources sort that way by their names. Null where neither says, a read that failed
+ * among them: it keeps no facts.
+ */
+export async function findBusinessDescription(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ text: string; source: BusinessReadSource } | null> {
+  const { data, error } = await tenantDb(db, tenantId).from("business_reads").select("source, facts").order("source");
+  if (error) throw new Error(`cannot read what the business's reads say: ${error.message}`);
+  for (const row of data ?? []) {
+    const text = businessReadFactsOf(row.facts).description;
+    const source = BUSINESS_READ_SOURCES.find((s) => s === row.source);
+    if (text && source) return { text, source };
+  }
+  return null;
 }
 
 /** A source's read kept whole (the service role's): what it found, from where, or why it could not be read. */

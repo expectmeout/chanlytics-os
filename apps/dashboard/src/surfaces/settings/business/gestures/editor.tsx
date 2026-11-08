@@ -53,6 +53,8 @@ interface BtEditorArgs<D> {
   after?: ((draft: D) => void) | null;
   /** An editor of one value: its own Cancel closes it without asking (common.tsx). */
   light?: boolean;
+  /** What its box opens on in place of what is stored, and saved as it stands stores nothing (BtFold's contract). */
+  opensOn?: D | null;
   prefix: string;
 }
 
@@ -71,6 +73,7 @@ function btEditorArgs<D>(a: BtEditorArgs<D>) {
     door: dflt(a.door, null),
     after: dflt(a.after, null),
     light: dflt(a.light, false),
+    opensOn: dflt(a.opensOn, null),
     prefix: a.prefix,
   };
 }
@@ -87,6 +90,8 @@ type BtAgain = (() => boolean) & { id?: number };
 interface BtLive<D> {
   draft: D | null;
   opened: D | null;
+  /** What the box shows until it is typed in, where that is not what is stored (BtFold's `opensOn`); `opened` stays what is. */
+  shown: D | null;
   open: boolean;
   opening: number;
   backs: readonly BtPutBack[];
@@ -108,8 +113,11 @@ interface BtEd<D> {
   setFocusOn: Dispatch<SetStateAction<FocusOn | null>>;
 }
 
+/** What the box opened on: what it shows in place of what is stored, else what is. */
+const btOpenedOn = <D,>(l: BtLive<D>): D | null => (l.shown != null ? l.shown : l.opened);
+
 /** The latest draft: what was typed, else what it opened with. */
-const btLatest = <D,>(l: BtLive<D>): D => (l.draft != null ? l.draft : l.opened) as D;
+const btLatest = <D,>(l: BtLive<D>): D => (l.draft != null ? l.draft : btOpenedOn(l)) as D;
 
 /**
  * Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
@@ -450,6 +458,8 @@ function btJudge<D>(
     const own = btPageProblems(a)(typed);
     if (Object.keys(own).length) return { problems: own };
     if (door) return S.same(typed, door.initial) ? { nothing: true } : { door: true };
+    // Words the box opened on in place of what is stored are the owner's only once they change them.
+    if (a.opensOn != null && S.same(typed, a.opensOn)) return { nothing: true };
     if (!S.holdsChanges(id, o.base, typed)) return { nothing: true };
     const all = S.saveProblems(id, o.base, typed);
     if (Object.keys(all).length) return { problems: all };
@@ -583,6 +593,7 @@ export function useBtEditor<D>(args: BtEditorArgs<D>) {
   const live = useRef<BtLive<D>>({
     draft: null,
     opened: null,
+    shown: null,
     open: false,
     opening: 0,
     backs: BtPutBacks.none,
@@ -594,6 +605,7 @@ export function useBtEditor<D>(args: BtEditorArgs<D>) {
   // Whether this editor's save is out: at its door, or in the tab's saver. Read through `live`, since the registry
   // holds the test it was first handed for the editor's life, and the door a card hands over is new on every draw.
   live.current.door = door;
+  live.current.shown = a.opensOn;
   const out = () => (live.current.door ? !!live.current.door.pending() : !!(saver && saver.pending(id)));
   const busy = out();
   // A door opens on its own answer: there is always something to open it onto.
@@ -604,7 +616,7 @@ export function useBtEditor<D>(args: BtEditorArgs<D>) {
   // Anything typed is something to ask about, whether or not the save would write it (the header says why).
   const holds = () => {
     const l = live.current;
-    return !!(l.open && l.draft != null && !S.same(l.draft, l.opened));
+    return !!(l.open && l.draft != null && !S.same(l.draft, btOpenedOn(l)));
   };
   const fold = useRecordFold(id, { dirty: holds, saving: out });
   // A role that may not change the business never has an editor, whatever asked for one; nor does a page with nothing
@@ -616,7 +628,7 @@ export function useBtEditor<D>(args: BtEditorArgs<D>) {
     if (!open) reset();
   }, [open]);
   const now = btEditorSync(live.current, { open, draft, busy, stored });
-  const dirty = open && draft != null && !S.same(draft, live.current.opened);
+  const dirty = open && draft != null && !S.same(draft, btOpenedOn(live.current));
 
   const update = btEditorUpdate(ed);
   const undo = btEditorUndo(ed, update);
@@ -680,5 +692,5 @@ function btEditorSync<D>(
   if (s.open && s.stored && (l.opened == null || (s.draft == null && l.draft == null && !s.busy)))
     l.opened = s.stored.draft;
   l.open = s.open;
-  return (s.open ? (s.draft != null ? s.draft : l.opened) : s.stored ? s.stored.draft : null) as D;
+  return (s.open ? (s.draft != null ? s.draft : btOpenedOn(l)) : s.stored ? s.stored.draft : null) as D;
 }

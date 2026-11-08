@@ -21,7 +21,7 @@ import {
 import { OPENING_CLAIM_KINDS, heldClaimDetail, type OpeningClaimKind } from "./words/claims";
 import { languageBase } from "../templates/languages";
 import { leadCalledByOf } from "../../leads/search/called-by";
-import { DATA_NOT_INSTRUCTIONS, defang } from "../../ai/fence";
+import { DATA_NOT_INSTRUCTIONS, defang, fencedInline } from "../../ai/fence";
 import { MODEL_ROUTES } from "../../ai/models/routes";
 import { isOneOf } from "../../shared/unknown";
 
@@ -206,7 +206,8 @@ export function openingUserLines(params: OpeningInput): OpeningLine[] {
     ...partLines(
       "business",
       `The owner's business: ${workspace.name}`,
-      workspace.what_we_do ? `What they do: ${workspace.what_we_do}` : null,
+      // Fenced as the record is: where the owner wrote nothing these are the words of their website (db findWorkspaceWords).
+      workspace.what_we_do ? `What they do: ${fencedInline("record", workspace.what_we_do)}` : null,
       workspace.tone ? `Their tone: ${workspace.tone}` : null,
       "",
     ),

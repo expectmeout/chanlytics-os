@@ -17,7 +17,7 @@ import {
   toldPart,
   type ReachOutToldDto,
 } from "@chanlytics/contracts";
-import { findWorkspaceAbout } from "@chanlytics/db/campaigns";
+import { findWorkspaceWords } from "@chanlytics/db/campaigns";
 import { listChains } from "../campaigns/reach-outs/reach-outs";
 import * as facts from "../readers/facts";
 import { newestLeadSequence } from "../readers/settings";
@@ -37,17 +37,17 @@ async function wordsTold(rc: ReaderContext): Promise<ReachOutToldDto> {
 
 /** The opening writer's prompt for one business, by its parts. */
 async function openingTold(rc: ReaderContext): Promise<ReachOutToldDto> {
-  const [named, stored, about, chains] = await Promise.all([
+  const [named, stored, said, chains] = await Promise.all([
     load(rc, facts.facts, undefined),
     getStoredConfig(rc.ctx.supabase, rc.tenantId),
-    findWorkspaceAbout(rc.ctx.supabase, rc.tenantId),
+    findWorkspaceWords(rc.ctx.supabase, rc.tenantId),
     listChains(rc.ctx, rc.tenantId),
   ]);
   const config = parseTenantConfig(stored);
   const words = newestLeadSequence(chains)?.first ?? REACH_OUT_FIRST_WORDS;
   const lines = openingUserLines({
     record: reachOutExampleRecord(),
-    workspace: openingWorkspaceOf(named.data.name, config, about),
+    workspace: openingWorkspaceOf(named.data.name, config, said?.text ?? null),
     words,
   });
   return { kind: "opening", parts: openingToldParts(openingSystemPrompt(), lines) };

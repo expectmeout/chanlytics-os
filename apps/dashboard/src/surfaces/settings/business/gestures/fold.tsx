@@ -62,6 +62,12 @@ interface BtFoldProps<D = unknown> {
   after?: ((draft: D) => void) | null;
   /** A fold of one value (an address pasted, a tool picked): its own Cancel closes it without asking (common.tsx). */
   light?: boolean;
+  /**
+   * What its box opens on in place of what is stored, for a row that shows words the owner has not written (what a
+   * writer reads where nothing is set), so what the row shows is at hand to change. Saved as it stands it stores nothing:
+   * those words become the owner's only once they change them. Null opens on what is stored.
+   */
+  opensOn?: D | null;
   /** Drawn where there is no row to state it (the Booking tool's sheet on another page): the sheet alone, nothing at rest. */
   bare?: boolean;
   body: (fields: BtFields<D>) => ReactNode;
@@ -89,6 +95,7 @@ function btFoldProps<D>(p: BtFoldProps<D>) {
     door: dflt(p.door, null),
     after: dflt(p.after, null),
     light: dflt(p.light, false),
+    opensOn: dflt(p.opensOn, null),
     bare: dflt(p.bare, false),
     body: p.body,
   };
@@ -230,6 +237,7 @@ export function BtFold<D = unknown>(props: BtFoldProps<D>) {
     door,
     after: r.after,
     light: r.light,
+    opensOn: r.opensOn,
     nothingYet: (!!rest && !has) || !!(door && door.initial == null),
     prefix: `rec-fold-${id}`,
   });

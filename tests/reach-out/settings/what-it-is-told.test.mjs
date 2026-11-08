@@ -71,7 +71,7 @@ test("the opening writer's prompt is built from its parts: joined they are the p
   const given = user.split("\n").filter((l) => l.trim());
   assert.deepEqual([...told].sort(), [...given].sort());
   assert.match(parts.find((p) => p.id === "website").text, /^website_says: /);
-  assert.match(parts.find((p) => p.id === "business").text, /What they do: Evening cleaning/);
+  assert.match(parts.find((p) => p.id === "business").text, /What they do: <record>Evening cleaning/);
 });
 
 test("a line of the owner's email that looks like a field of the record stays the owner's words", () => {

@@ -1738,6 +1738,13 @@ html.frame-on .bt-link { position: relative; }
 /* How it reaches out's claims (decision 0113): one box a claim and its remove beside it, under the notes' rules. */
 .ro-claims { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
 .ro-claim { align-self: stretch; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.ro-claims > .ro-claim:first-child { border-top: 0; }
+.ro-claims > .bt-fold-note { margin-top: 10px; }
+/* A row's long words at rest: three lines, and its box holds the rest. */
+.ro-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+/* What is already known, offered under an empty box: one line, however long it is. */
+.ro-use { width: fit-content; max-width: 100%; }
+.ro-use-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Its rows' own lists: the lines learned from how the owner writes, the rules it keeps, and the lock on a row of code's. */
 .ro-lines { display: flex; flex-direction: column; gap: 2px; }
 .ro-rules { display: flex; flex-direction: column; margin: 0; padding: 0 0 6px; list-style: none; }

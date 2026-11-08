@@ -78,6 +78,7 @@ export {
   findSearchScope,
   importLeadList,
   listSearchCards,
+  findNewestSearchName,
   listSearchNames,
   markLeadsExported,
   moveLeadStage,

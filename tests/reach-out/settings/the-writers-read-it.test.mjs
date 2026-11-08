@@ -68,6 +68,18 @@ test("the opening writer reads the offer where the owner wrote one, else what th
   assert.equal(goal.opening.what_we_do, null, "a goal is not what they do");
 });
 
+test("with nothing written, the opening writer reads what the first run's website read found", async () => {
+  const db = fakeDb({
+    tenants: [{ id: T, name: "Brightline Cleaning" }],
+    tenant_config: [{ tenant_id: T, config: { brain: brainWith({}) } }],
+    business_records: [],
+    business_reads: [
+      { tenant_id: T, source: "website", facts: { description: "Evening cleaning for clinics." }, error: null },
+    ],
+  });
+  assert.equal((await checkWorkspaceOf(db, T)).opening.what_we_do, "Evening cleaning for clinics.");
+});
+
 test("the sender's workspace carries Sign-off's signature with its phone, and none where the rows are empty", async () => {
   const none = await checkWorkspaceOf(workspaceDb({ brain: brainWith({}) }), T);
   assert.equal(none.signature, null);

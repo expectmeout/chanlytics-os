@@ -102,7 +102,13 @@ export {
   takeCheckAttempt,
 } from "./reach-out/check";
 export type { ReachOutRecordRow, UncheckedSend } from "./reach-out/check";
-export { findWorkspaceAbout, mayWorkspaceSpend, recordCheck, recordLeadWritten } from "./reach-out/checks";
+export {
+  findWorkspaceAbout,
+  findWorkspaceWords,
+  mayWorkspaceSpend,
+  recordCheck,
+  recordLeadWritten,
+} from "./reach-out/checks";
 export {
   claimDrafts,
   draftFactsOf,
