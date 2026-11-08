@@ -437,13 +437,13 @@ async function proposeReachOutAdd(
     // A finder-fed reach-out (its search keeps it current), a removed list, a role the door refuses: in its own words.
     return refuse(e instanceof Error ? e.message : String(e));
   }
-  const sentence = reachOutAddWords(dry, root.name);
-  if (!dry.would_add) return refuse(`${sentence.text}. Say so; nothing was proposed`);
+  const addWords = reachOutAddWords(dry, root.name);
+  if (!dry.would_add) return refuse(`${addWords.text}. Say so; nothing was proposed`);
   noteRow(toolContext, "playbook", rootId, root.name, addressOf({ kind: "reach_out", id: rootId }));
   return propose({
     kind: "reach_out_add",
     title: `Add to “${root.name}”`,
-    summary: `${sentence.text}. Nothing is written to them until its next run, which waits for your say.`,
+    summary: `${addWords.text}. Nothing is written to them until its next run, which waits for your say.`,
     payload: { root_id: rootId, name: root.name, lead_ids: ids },
   });
 }

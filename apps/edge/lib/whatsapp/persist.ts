@@ -343,7 +343,7 @@ type Said = [handled?: Handled, intent?: BrainIntent | null];
 function pgFinishing(db: SupabaseClient<Database> | null, tenantId: TenantId | null, ing: IngestResult | null) {
   const on = !!(db && tenantId && ing);
   return {
-    processed: (...sentence: Said) => (on ? pgProcessed(db, tenantId, ing.message_id, ...sentence) : Promise.resolve()),
+    processed: (...outcome: Said) => (on ? pgProcessed(db, tenantId, ing.message_id, ...outcome) : Promise.resolve()),
     noteHandled: (handled: Handled, intent?: BrainIntent | null) =>
       on ? pgStamp(db, tenantId, ing.message_id, handled, intent) : Promise.resolve(),
   };
@@ -429,12 +429,12 @@ async function requestOpened(
 async function whatsappMediaOf(
   rt: TenantRuntime | null | undefined,
   ref: WaMediaRef,
-  sentence: { tenant_id: TenantId; message: string },
+  logFields: { tenant_id: TenantId; message: string },
 ): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
   const cfg = waCfg(rt);
   // Nothing threw, so runPgSafe logs nothing: without this line a tenant whose vault read failed, or an SMS-only one, has
   // every photo and voice note their customers send stamped "failed" forever with no trace of why.
-  if (!cfg) logger().error("media_no_credentials", sentence);
+  if (!cfg) logger().error("media_no_credentials", logFields);
   return cfg ? await fetchMediaBytes(cfg, ref.provider_media_id) : null;
 }
 

@@ -158,10 +158,10 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
     const ranges = dayIntervals(input.hours?.[day.weekday]);
     const windows: Array<{ start: number; end: number }> = [];
     for (const [open, close] of ranges) {
-      const result = hhmm(open),
+      const opening = hhmm(open),
         otherHhmm = hhmm(close);
-      if (!result || !otherHhmm) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, result[0], result[1]), earliest);
+      if (!opening || !otherHhmm) continue;
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, opening[0], opening[1]), earliest);
       const end = localToUtcMs(input.tz, day.y, day.m, day.d, otherHhmm[0], otherHhmm[1]);
       for (const b of busy) {
         if (b.end <= start) continue;

@@ -168,12 +168,12 @@ export function campaignOneOf(input: CampaignOneInput): CampaignOneVM {
   const replied = otherSent.reduce((n, b) => n + batchCount(b, "replied"), 0);
   const sends = inDays.map((inDay) => {
     const place = inDay.place && input.steps > 1 ? SEQUENCE_HISTORY_WORDS.step(inDay.place) : null;
-    const sentence = historyDayWords(inDay, place);
+    const dayWords = historyDayWords(inDay, place);
     return {
       id: inDay.id,
       state: inDay.state,
       when: historyStamp(Date.parse(inDay.at), tz, input.nowMs),
-      ...sentence,
+      ...dayWords,
       went: batchWent(inDay),
     };
   });

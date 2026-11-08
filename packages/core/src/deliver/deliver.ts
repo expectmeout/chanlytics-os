@@ -631,7 +631,7 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
   const refuse = async (
     reason: DeliveryRefusal,
     now: Partial<WireFacts["contact"]> = {},
-    sentence: Record<string, Json> = {},
+    extra: Record<string, Json> = {},
   ): Promise<Delivered> => {
     if (delivery.messageId) {
       const contact = { ...facts.contact, ...now };
@@ -646,7 +646,7 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
           ? { email_marketing: contact.email_marketing }
           : {}),
         ...(overtakenBy ? { after: overtakenBy } : {}),
-        ...sentence,
+        ...extra,
       });
     }
     return { outcome: "refused", reason: reason, messageId: delivery.messageId ?? null };

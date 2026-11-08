@@ -44,16 +44,16 @@ async function copiesDoor(
     { tenant_id: person.tenantId, ...body },
     { workspace: person.tenantId, user: person.userId, timeoutMs: Math.min(COPIES_MS, Math.max(SECOND_MS, leftMs)) },
   );
-  const sentence = recordOrNull(answer.body);
-  if (answer.status !== 200 || !sentence) {
+  const answerBody = recordOrNull(answer.body);
+  if (answer.status !== 200 || !answerBody) {
     log.warn("ask_file_copies_failed", {
       tenant_id: person.tenantId,
       status: answer.status,
-      ...(typeof sentence?.detail === "string" ? { detail: sentence.detail.slice(0, 200) } : {}),
+      ...(typeof answerBody?.detail === "string" ? { detail: answerBody.detail.slice(0, 200) } : {}),
     });
     return null;
   }
-  return sentence;
+  return answerBody;
 }
 
 const sizeOf = (row: Record<string, unknown>) => ({
@@ -69,8 +69,8 @@ export async function listFileCopiesOf(
 ): Promise<ReadonlyMap<string, FileCopy>> {
   const out = new Map<string, FileCopy>();
   if (ids.length === 0) return out;
-  const sentence = await copiesDoor(person, { ids }, leftMs);
-  const copies = sentence?.copies;
+  const answer = await copiesDoor(person, { ids }, leftMs);
+  const copies = answer?.copies;
   if (!Array.isArray(copies)) return out;
   for (const c of copies) {
     const row = recordOrNull(c);
@@ -142,7 +142,7 @@ export async function findPictureCopy(
   picture: PictureMade,
   leftMs: number = COPIES_MS,
 ): Promise<FileCopy | null> {
-  const sentence = await copiesDoor(
+  const answer = await copiesDoor(
     person,
     {
       pictures: [
@@ -151,7 +151,7 @@ export async function findPictureCopy(
     },
     leftMs,
   );
-  const row = Array.isArray(sentence?.pictures) ? recordOrNull(sentence.pictures[0]) : null;
+  const row = Array.isArray(answer?.pictures) ? recordOrNull(answer.pictures[0]) : null;
   if (typeof row?.file_id !== "string") return null;
   return { fileId: row.file_id, ...sizeOf(row) };
 }

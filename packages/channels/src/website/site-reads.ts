@@ -216,9 +216,9 @@ export function firecrawlMapper(key: string, deps: { fetch?: typeof fetch } = {}
     const links = response.outcome === "ok" ? answerObject(response)?.links : null;
     if (!Array.isArray(links)) return [];
     return links.flatMap((l: unknown) => {
-      const sentence = recordOrEmpty(l);
-      const at = wordsSaid(sentence.url);
-      return at ? [{ url: at, title: wordsSaid(sentence.title) }] : [];
+      const record = recordOrEmpty(l);
+      const at = wordsSaid(record.url);
+      return at ? [{ url: at, title: wordsSaid(record.title) }] : [];
     });
   };
 }

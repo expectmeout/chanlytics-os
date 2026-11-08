@@ -159,11 +159,11 @@ export function noChannelWords(personName: string, purpose: AskedPurpose): strin
 export function cannotBeSentWords(
   personName: string,
   purpose: AskedPurpose,
-  sentence: readonly Pick<PersonRowVM, "canReceive" | "whyNot">[],
+  members: readonly Pick<PersonRowVM, "canReceive" | "whyNot">[],
 ): string | null {
   const kind = purpose === "marketing" ? "offers" : "messages";
-  if (sentence.length === 0 || sentence.some((m) => m.canReceive[kind])) return null;
-  return sentence.some((m) => m.whyNot[kind] === "no_channel")
+  if (members.length === 0 || members.some((m) => m.canReceive[kind])) return null;
+  return members.some((m) => m.whyNot[kind] === "no_channel")
     ? noChannelWords(personName, purpose)
     : noNumberWords(personName, purpose);
 }
@@ -206,8 +206,8 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
     // them to "get their yes" would ask for an answer they gave. That case keeps the
     // list's own step, waiting, as before, and says which it is: no number to send to
     // (offers go by WhatsApp), or no channel the workspace can send an offer on now.
-    const sentence = members.filter((m) => m.saidYes.offers);
-    if (members.length && sentence.length === 0) {
+    const offerMembers = members.filter((m) => m.saidYes.offers);
+    if (members.length && offerMembers.length === 0) {
       return {
         text: "Nobody on this list has said yes to offers yet — an offer reaches only that answer.",
         cta: "Get their yes",
@@ -215,7 +215,7 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
         enabled: true,
       };
     }
-    const reason = cannotBeSentWords("this list", "marketing", sentence) ?? noNumberWords("this list", "marketing");
+    const reason = cannotBeSentWords("this list", "marketing", offerMembers) ?? noNumberWords("this list", "marketing");
     return { text: members.length ? reason : "Nobody here right now.", cta, to, enabled: false };
   }
   return {

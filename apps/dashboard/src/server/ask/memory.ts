@@ -262,7 +262,7 @@ export async function findThreadForTurn(
   let sinceLastMs: number | null = null;
   let thread: { id: string; title: string; scope: AskScope | null } | null = null;
   let chain: Chain | null = null;
-  let notice: string[] | null = null;
+  let notices: string[] | null = null;
   let cited: AskRowRef[] = [];
   let waiting: AskProposal[] = [];
   let cards: Array<Pick<AskMessageVM, "id" | "proposals">> = [];
@@ -272,7 +272,7 @@ export async function findThreadForTurn(
     if (found && found.tenantId === tenantId) {
       thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
       history = rebuiltHistory(found.messages, found.turns);
-      notice = history.length ? toldIn(found.messages) : null;
+      notices = history.length ? toldIn(found.messages) : null;
       cited = citedIn(found.messages);
       waiting = found.messages.flatMap((m) => m.proposals ?? []).filter((p) => !p.outcome);
       cards = found.messages.filter((m) => m.proposals?.length).map((m) => ({ id: m.id, proposals: m.proposals }));
@@ -294,7 +294,7 @@ export async function findThreadForTurn(
     const created = await createThread(ctx, tenantId, title, scope ?? null);
     thread = { id: created.id, title: created.title, scope: scope ?? null };
   }
-  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told: notice, cited, waiting, cards, offered };
+  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told: notices, cited, waiting, cards, offered };
 }
 
 /**

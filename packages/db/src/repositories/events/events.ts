@@ -360,11 +360,11 @@ export async function findFilePosted(
     .maybeSingle();
   if (error) throw new Error(`file posted: ${error.message}`);
   if (data?.kind !== "file.posted") return null;
-  const sentence = data.data as { post_name?: unknown; search_url?: unknown };
-  if (typeof sentence.post_name !== "string") return null;
+  const post = data.data as { post_name?: unknown; search_url?: unknown };
+  if (typeof post.post_name !== "string") return null;
   return {
-    name: sentence.post_name,
-    search_url: typeof sentence.search_url === "string" ? sentence.search_url : null,
+    name: post.post_name,
+    search_url: typeof post.search_url === "string" ? post.search_url : null,
     at: data.created_at,
   };
 }

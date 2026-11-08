@@ -283,13 +283,13 @@ export function reachFor(
   if (usable.length === 0) return { channel: null, held: "no_channel" };
   const last = usable.find((c) => c === reach.lastChannel) ?? null;
   const order = last ? [last, ...usable.filter((c) => c !== last)] : usable;
-  const reason: HeldOn[] = [];
+  const heldOn: HeldOn[] = [];
   for (const c of order) {
     const w = whyNotReceive(reach, purpose, c, options.about);
     if (w === null) return { channel: c, held: null };
-    reason.push(w);
+    heldOn.push(w);
   }
-  return { channel: null, held: HELD_ON.find((w) => reason.includes(w)) ?? "no_channel" };
+  return { channel: null, held: HELD_ON.find((w) => heldOn.includes(w)) ?? "no_channel" };
 }
 
 /** How a campaign's people split: how many on each channel, and how many held, by why. */

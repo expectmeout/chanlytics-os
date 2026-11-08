@@ -348,8 +348,8 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
   if ("refusal" in reach) return refuse(reach.refusal);
   const { count, says, kept, byChannel, leftOutSaid } = reach;
   // A step's message is not filed yet: the card says which step makes it, and quotes the offer its values type.
-  const sentence = messageSaid(sent, params, by);
-  if ("refusal" in sentence) return refuse(sentence.refusal);
+  const messageWords = messageSaid(sent, params, by);
+  if ("refusal" in messageWords) return refuse(messageWords.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it; a step's message is
   // named by the route once it is filed.
   const name =
@@ -359,8 +359,8 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
   const whenWords = goesWords(toolContext, when, open);
   const held = await broadcastHeld(toolContext, by.channels, byChannel, purpose, open.at);
   const subject = asked
-    ? `“${asked.message.name}” · ${whenWords}: ${sentence.says}`
-    : `${sentence.says} · ${whenWords}`;
+    ? `“${asked.message.name}” · ${whenWords}: ${messageWords.says}`
+    : `${messageWords.says} · ${whenWords}`;
   const reaches = `${count} ${count === 1 ? "person" : "people"} who said yes${says}`;
   return propose({
     kind: "broadcast",
@@ -372,7 +372,10 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
       rows: [
         { label: "Reaches", value: sheetWords(reaches) },
         { label: "Goes", value: sheetWords(whenWords) },
-        { label: "Message", value: sheetWords(asked ? `“${asked.message.name}”: ${sentence.says}` : sentence.says) },
+        {
+          label: "Message",
+          value: sheetWords(asked ? `“${asked.message.name}”: ${messageWords.says}` : messageWords.says),
+        },
       ],
     },
     payload: {

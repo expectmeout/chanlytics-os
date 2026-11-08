@@ -173,10 +173,10 @@ export async function getRehearsalSpokenMs(
   tenantId: TenantId,
   options: { since: string | null; now: Date; runningMs: number; callMs: number; except: string | null },
 ): Promise<{ spentMs: number; running: boolean }> {
-  let items = tenantDb(db, tenantId).from("rehearsals").select("created_at, ended_at, seconds").eq("kind", "call");
-  if (options.since) items = items.gte("created_at", options.since);
-  if (options.except) items = items.neq("id", options.except);
-  const { data, error } = await items;
+  let query = tenantDb(db, tenantId).from("rehearsals").select("created_at, ended_at, seconds").eq("kind", "call");
+  if (options.since) query = query.gte("created_at", options.since);
+  if (options.except) query = query.neq("id", options.except);
+  const { data, error } = await query;
   if (error) throw new Error(`cannot read the rehearsals' minutes: ${error.message}`);
   let spentMs = 0;
   let running = false;

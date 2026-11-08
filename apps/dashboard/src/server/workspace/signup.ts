@@ -159,14 +159,14 @@ export async function joinWaitlist(input: { email: string; name?: string; source
   // submissions are one person -- and the row has to be STORED in it for the
   // repeat below to find itself with an ordinary equality.
   const email = input.email.trim().toLowerCase();
-  const sentence = { business: input.name ?? null, source: input.source ?? null };
-  const { error } = await addToWaitlist(db, { email, ...sentence });
+  const meta = { business: input.name ?? null, source: input.source ?? null };
+  const { error } = await addToWaitlist(db, { email, ...meta });
   if (!error) return;
   if (error.code !== "23505") throw new Error(`waitlist: ${error.message}`);
   // They asked twice, which is not a failure they should ever see. Their place
   // in the queue is left alone and only what they told us moves; a row already
   // invited is left entirely alone, because a repeat is not a re-join.
-  const { error: again } = await refreshWaitlistRow(db, email, sentence);
+  const { error: again } = await refreshWaitlistRow(db, email, meta);
   // Best effort, and deliberately not fatal: the durable half -- that they are
   // on the list -- is already true, and telling them otherwise would be the
   // second lie this function has told.

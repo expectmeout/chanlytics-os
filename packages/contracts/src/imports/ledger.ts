@@ -191,8 +191,10 @@ const countOfPeople = (n: number): string => groupedPlural(n, "person", "people"
 /** What the mailbox brought: the emails from people (so far, while it reads), since when, and any it could not read. */
 function mailSaysOf(otherImport: ImportRowDto, tz: string): string {
   const counts = otherImport.counts;
-  const messages = counts.messages ?? 0;
-  const read = messages ? `${groupedPlural(messages, "email")}${otherImport.state === "done" ? "" : " so far"}` : null;
+  const messageCount = counts.messages ?? 0;
+  const read = messageCount
+    ? `${groupedPlural(messageCount, "email")}${otherImport.state === "done" ? "" : " so far"}`
+    : null;
   return joined(
     read ?? (otherImport.state === "done" ? "No email from people" : "Reading your inbox"),
     counts.asked ? IMPORT_WORDS.asked(counts.asked) : null,
@@ -464,9 +466,9 @@ export function importLinesOf(
   tz: string,
   options: { whatsappWaiting: boolean } = { whatsappWaiting: false },
 ): { lines: ImportLineVM[]; done: number; of: number; running: boolean } {
-  const result = sourceRowsOf(rows).sort((a, b) => SAID_ORDER.indexOf(a.source) - SAID_ORDER.indexOf(b.source));
-  const lines = result.map((r) => importLineOf(r, tz));
-  const hasWhatsapp = result.some((r) => r.source === "whatsapp_contacts" || r.source === "whatsapp_history");
+  const sourceRows = sourceRowsOf(rows).sort((a, b) => SAID_ORDER.indexOf(a.source) - SAID_ORDER.indexOf(b.source));
+  const lines = sourceRows.map((r) => importLineOf(r, tz));
+  const hasWhatsapp = sourceRows.some((r) => r.source === "whatsapp_contacts" || r.source === "whatsapp_history");
   if (options.whatsappWaiting && !hasWhatsapp)
     lines.push({
       source: "whatsapp_history",
@@ -507,9 +509,9 @@ export function broughtInCardOf(
   count: number | null,
   tz: string,
 ): { title: string; state: BroughtInStateVM; facts: BroughtInFactVM[] } | null {
-  const result = sourceRowsOf(rows);
-  if (!result.length) return null;
-  const by = (s: ImportSource) => result.find((r) => r.source === s) ?? null;
+  const sourceRows = sourceRowsOf(rows);
+  if (!sourceRows.length) return null;
+  const by = (s: ImportSource) => sourceRows.find((r) => r.source === s) ?? null;
   const reviews = by("google_reviews");
   const mail = by("mailbox");
   const cal = by("calendar");
@@ -521,8 +523,8 @@ export function broughtInCardOf(
   if (first) facts.push({ key: "people", text: first });
   if (mail?.oldest) facts.push({ key: "mail", text: `Email ${since(mail.oldest, tz)}` });
   if (cal && cal.counts.past !== undefined) facts.push({ key: "calendar", text: saysOf(cal, tz) });
-  const stopped = result.filter((r) => r.state === "failed").length;
-  const { done, of, running } = importLinesOf(result, tz);
+  const stopped = sourceRows.filter((r) => r.state === "failed").length;
+  const { done, of, running } = importLinesOf(sourceRows, tz);
   const words = IMPORT_WORDS;
   const state: BroughtInStateVM = stopped
     ? { tone: "stopped", words: words.stoppedCount(stopped) }
@@ -545,9 +547,9 @@ const BROUGHT_IN_SHOWN_MS = DAY_MS;
  * Calendar's own.
  */
 export function broughtInShown(rows: readonly ImportRowDto[] | null | undefined, nowMs: number): boolean {
-  const result = sourceRowsOf(rows);
-  if (!result.length) return false;
-  if (result.some((r) => r.state !== "done")) return true;
-  const last = Math.max(...result.map((r) => (r.finished_at ? Date.parse(r.finished_at) : 0)));
+  const sourceRows = sourceRowsOf(rows);
+  if (!sourceRows.length) return false;
+  if (sourceRows.some((r) => r.state !== "done")) return true;
+  const last = Math.max(...sourceRows.map((r) => (r.finished_at ? Date.parse(r.finished_at) : 0)));
   return Number.isFinite(last) && nowMs - last < BROUGHT_IN_SHOWN_MS;
 }

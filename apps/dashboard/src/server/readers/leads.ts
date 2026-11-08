@@ -35,16 +35,16 @@ import { readerStamp, type Reader } from "../shared/reader";
  */
 export const leads: Reader<LeadsQuery, Awaited<ReturnType<typeof getLeadsPage>>> = {
   name: "leads",
-  async read(rc, query) {
-    const data = await getLeadsPage(rc.ctx, rc.tenantId, query, { month: ROLE_PERMS[rc.role]?.find === true });
+  async read(rc, filters) {
+    const data = await getLeadsPage(rc.ctx, rc.tenantId, filters, { month: ROLE_PERMS[rc.role]?.find === true });
     // Each row is cited open over the view it was read in, its chips with it (decision 0083, Phase B).
     const chips = {
-      excluded_by: query.excluded_by,
-      fit: query.fit,
-      reach: query.reach,
-      status_group: query.status_group,
+      excluded_by: filters.excluded_by,
+      fit: filters.fit,
+      reach: filters.reach,
+      status_group: filters.status_group,
     };
-    const view = { searchId: query.search ?? null, list: query.list, cls: query.class ?? null, chips };
+    const view = { searchId: filters.search ?? null, list: filters.list, cls: filters.class ?? null, chips };
     return {
       data,
       rows: data.rows.map((r) => ({

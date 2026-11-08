@@ -163,8 +163,8 @@ export async function putBackOf(
     .limit(1);
   if (error) throw new Error(`cannot read the leave to put back: ${error.message}`);
   const [leave] = data ?? [];
-  const sentence = leave ? (leave.payload as { left?: unknown; put_back?: { why?: unknown } } | null) : null;
-  return leave && sentence && sentence.left === 1 && sentence.put_back?.why === place.place.why
+  const leftMeta = leave ? (leave.payload as { left?: unknown; put_back?: { why?: unknown } } | null) : null;
+  return leave && leftMeta && leftMeta.left === 1 && leftMeta.put_back?.why === place.place.why
     ? { decision_id: leave.id }
     : null;
 }
@@ -203,10 +203,10 @@ export async function withListedWhyNot(
   const listed = rows
     .filter((r) => r.group === "queued")
     .map((r) => ({ lead_id: r.lead_id, sequence_id: r.sequence_id }));
-  const reason = await listedWhyNotOf(db, tenantId, listed);
-  return reason.size === 0
+  const reasons = await listedWhyNotOf(db, tenantId, listed);
+  return reasons.size === 0
     ? rows
-    : rows.map((r) => (r.group === "queued" ? { ...r, why: reason.get(r.lead_id) ?? r.why } : r));
+    : rows.map((r) => (r.group === "queued" ? { ...r, why: reasons.get(r.lead_id) ?? r.why } : r));
 }
 
 /** One lead's place (sequence_place), on a list and not planned, with why no batch takes it, where one cannot. */
@@ -217,6 +217,6 @@ export async function withPlaceWhyNot(
   place: SequencePlaceDto,
 ): Promise<SequencePlaceRowDto> {
   if (place.place.group !== "queued") return place.place;
-  const reason = await listedWhyNotOf(db, tenantId, [{ lead_id: leadId, sequence_id: place.sequence.id }]);
-  return { ...place.place, why: reason.get(leadId) ?? place.place.why };
+  const reasons = await listedWhyNotOf(db, tenantId, [{ lead_id: leadId, sequence_id: place.sequence.id }]);
+  return { ...place.place, why: reasons.get(leadId) ?? place.place.why };
 }

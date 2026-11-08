@@ -371,14 +371,14 @@ function foldTotals(runs: BroadcastDto[]): Map<string, PlaybookTotals> {
   const totals = new Map<string, PlaybookTotals>();
   for (const run of runs) {
     if (!run.playbook_id) continue;
-    const total = totals.get(run.playbook_id) ?? noTotals();
-    total.runs += 1;
-    total.sent += run.counts.sent;
-    total.delivered += run.counts.delivered;
-    total.replied += run.counts.replied;
-    total.held += run.counts.skipped + run.counts.failed;
-    if (total.history.length < HISTORY_ON_CARD) {
-      total.history.push({
+    const runTotals = totals.get(run.playbook_id) ?? noTotals();
+    runTotals.runs += 1;
+    runTotals.sent += run.counts.sent;
+    runTotals.delivered += run.counts.delivered;
+    runTotals.replied += run.counts.replied;
+    runTotals.held += run.counts.skipped + run.counts.failed;
+    if (runTotals.history.length < HISTORY_ON_CARD) {
+      runTotals.history.push({
         id: run.id,
         run_for: run.run_for,
         state: run.state,
@@ -390,17 +390,17 @@ function foldTotals(runs: BroadcastDto[]): Map<string, PlaybookTotals> {
         replied: run.counts.replied,
       });
     }
-    if (!total.lastRun)
-      total.lastRun = { id: run.id, state: run.state, run_for: run.run_for, recipient_count: run.recipient_count };
-    if (run.state === "pending_approval" && !total.waiting)
-      total.waiting = {
+    if (!runTotals.lastRun)
+      runTotals.lastRun = { id: run.id, state: run.state, run_for: run.run_for, recipient_count: run.recipient_count };
+    if (run.state === "pending_approval" && !runTotals.waiting)
+      runTotals.waiting = {
         id: run.id,
         recipient_count: run.recipient_count,
         name: run.name,
         run_for: run.run_for,
         trigger: audienceTrigger(run.audience),
       };
-    totals.set(run.playbook_id, total);
+    totals.set(run.playbook_id, runTotals);
   }
   return totals;
 }

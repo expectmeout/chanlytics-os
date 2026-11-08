@@ -75,24 +75,24 @@ export interface OptOutPerson {
 const SAID_ON: Readonly<Record<string, string>> = { sms: "Text", whatsapp: "WhatsApp", email: "Email" };
 
 /** What the no ends, said for the owner, after the headline: the fact that nothing waits on them. */
-function endsWords(sentence: OptOutSaid): string {
-  if (sentence.scope === "everything")
-    return sentence.how === "carrier"
+function endsWords(optOut: OptOutSaid): string {
+  if (optOut.scope === "everything")
+    return optOut.how === "carrier"
       ? "Their carrier told us they replied STOP to your number. Nothing more will be sent to them."
       : "Nothing more will be sent to them. They can text START to opt back in.";
-  if (sentence.how === "whatsapp")
+  if (optOut.how === "whatsapp")
     return "Offers to them on WhatsApp have stopped. Reminders and confirmations still reach them.";
-  if (sentence.how === "unsubscribe" || sentence.how === "complaint" || sentence.channel === "email")
+  if (optOut.how === "unsubscribe" || optOut.how === "complaint" || optOut.channel === "email")
     return "Offers and news by email to them have stopped. Reminders and confirmations still reach them.";
   return "Offers to them have stopped. Reminders and confirmations still reach them.";
 }
 
 /** The headline for a no: the Inbox's words for asking to stop where they asked, else what they did. */
-function headline(name: string, sentence: OptOutSaid): string {
-  if (sentence.how === "unsubscribe") return `${name} unsubscribed from your emails`;
-  if (sentence.how === "complaint") return `${name} reported one of your emails as spam`;
-  if (sentence.how === "whatsapp") return `${name} stopped offers on WhatsApp`;
-  return sentence.scope === "everything" ? STOP_WORDS.said(name) : `${name} ${STOP_WORDS.short} offers`;
+function headline(name: string, optOut: OptOutSaid): string {
+  if (optOut.how === "unsubscribe") return `${name} unsubscribed from your emails`;
+  if (optOut.how === "complaint") return `${name} reported one of your emails as spam`;
+  if (optOut.how === "whatsapp") return `${name} stopped offers on WhatsApp`;
+  return optOut.scope === "everything" ? STOP_WORDS.said(name) : `${name} ${STOP_WORDS.short} offers`;
 }
 
 /** How the platform's copy names a no, with no word of theirs. */

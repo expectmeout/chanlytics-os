@@ -326,15 +326,15 @@ export function leadCardStepsOf(params: {
   own?: LeadOwnWords;
 }): LeadCardStepVM[] {
   const result = signedAs(params.chain, params.workspace);
-  return emailSteps(params.chain).map((text, index) => {
-    const stepWritten = stepWrittenOf(text, index === 0);
-    const own = params.own?.get(text.id) ?? null;
+  return emailSteps(params.chain).map((step, index) => {
+    const stepWritten = stepWrittenOf(step, index === 0);
+    const own = params.own?.get(step.id) ?? null;
     const written = own ?? stepWritten;
     const email = reachOutCardEmailOf(written, params.lead, result);
     return {
-      id: text.id,
+      id: step.id,
       label: `Email ${index + 1}`,
-      after: index === 0 ? null : LEAD_CARD_WORDS.after(text.after_days),
+      after: index === 0 ? null : LEAD_CARD_WORDS.after(step.after_days),
       subject: email.subject === null ? null : leadCardPartsOf(email.subject),
       body: leadCardPartsOf(email.body),
       gap: email.holes.length > 0,
@@ -392,22 +392,22 @@ export function leadCardSlotsOf(params: {
   const texts = emailSteps(params.chain).flatMap((s, i) => (i === 0 ? [s.subject ?? "", s.body] : [s.body]));
   const company = params.lead.kind === "company";
   return reachOutCardSlotsOf(texts, params.lead, signedAs(params.chain, params.workspace)).map(
-    (text): LeadCardSlotVM => {
-      const label = capitalize(slotLabel(text.key));
-      if (text.key === "opening")
-        return { key: text.key, label, value: null, from: LEAD_CARD_SLOT_FROM.opening, look: "later" };
-      if (text.key === "their preview" && text.value === null && params.lead.preview?.state !== "gone")
-        return { key: text.key, label, value: null, from: LEAD_CARD_SLOT_FROM.preview, look: "later" };
-      if (text.value === null) return { key: text.key, label, value: null, from: LEAD_CARD_SLOT_FROM.gap, look: "gap" };
-      if (text.fellBack)
+    (slot): LeadCardSlotVM => {
+      const label = capitalize(slotLabel(slot.key));
+      if (slot.key === "opening")
+        return { key: slot.key, label, value: null, from: LEAD_CARD_SLOT_FROM.opening, look: "later" };
+      if (slot.key === "their preview" && slot.value === null && params.lead.preview?.state !== "gone")
+        return { key: slot.key, label, value: null, from: LEAD_CARD_SLOT_FROM.preview, look: "later" };
+      if (slot.value === null) return { key: slot.key, label, value: null, from: LEAD_CARD_SLOT_FROM.gap, look: "gap" };
+      if (slot.fellBack)
         return {
-          key: text.key,
+          key: slot.key,
           label,
-          value: text.value,
-          from: LEAD_CARD_SLOT_FROM.fallback(text.value),
+          value: slot.value,
+          from: LEAD_CARD_SLOT_FROM.fallback(slot.value),
           look: "fallback",
         };
-      return { key: text.key, label, value: text.value, from: slotFromOf(text.key, company), look: "value" };
+      return { key: slot.key, label, value: slot.value, from: slotFromOf(slot.key, company), look: "value" };
     },
   );
 }
@@ -481,7 +481,7 @@ export function leadCardBulkOf(params: {
   const result = signedAs(params.chain, params.workspace);
   const ids: string[] = [];
   const byKey = new Map<LeadCardBulkKey, number>();
-  const reason = { elsewhere: new Map<string, number>(), cant: new Map<string, number>() };
+  const excluded = { elsewhere: new Map<string, number>(), cant: new Map<string, number>() };
   let waiting = 0;
   for (const lead of params.leads) {
     if (lead.check === undefined) {
@@ -492,7 +492,7 @@ export function leadCardBulkOf(params: {
     byKey.set(key, (byKey.get(key) ?? 0) + 1);
     if (key === "elsewhere" || key === "cant") {
       const sentence = key === "elsewhere" ? (words ? `with “${words}”` : "with another") : (words ?? "");
-      reason[key].set(sentence, (reason[key].get(sentence) ?? 0) + 1);
+      excluded[key].set(sentence, (excluded[key].get(sentence) ?? 0) + 1);
     } else ids.push(lead.id);
   }
   const keys: LeadCardBulkKey[] = ["goes", "there", "checking", "elsewhere", "cant"];
@@ -505,7 +505,7 @@ export function leadCardBulkOf(params: {
         key: k,
         label: LEAD_CARD_BULK_WORDS[k],
         n: byKey.get(k) ?? 0,
-        note: k === "elsewhere" || k === "cant" ? countsWords(reason[k]) : null,
+        note: k === "elsewhere" || k === "cant" ? countsWords(excluded[k]) : null,
         goes: k !== "elsewhere" && k !== "cant",
       })),
     press: waiting ? LEAD_CARD_BULK_WORDS.waiting : LEAD_CARD_BULK_WORDS.press(ids.length),

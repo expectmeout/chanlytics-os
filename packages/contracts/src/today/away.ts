@@ -561,14 +561,14 @@ export function todaySince(input: {
     const [first] = notes;
     if (!first) continue;
     // Counted by what the notes are about, as the bell counts them: twelve notes about eleven people say eleven.
-    const items = new Set(
+    const noteCount = new Set(
       notes.map((x) => (x.about ? `${x.about.type}:${x.about.id}` : (x.id ?? `${x.at}:${x.title}`))),
     ).size;
-    bits.push(k.bit(items));
+    bits.push(k.bit(noteCount));
     rows.push({
       key: kind,
       glyph: k.glyph,
-      title: k.title(items, first),
+      title: k.title(noteCount, first),
       sub: sinceSub(kind, notes),
       at: at(first.at ?? seen),
       // One note opens its record; a run opens the list that holds every one of its kind.

@@ -52,9 +52,10 @@ export function planWho(plan: LeadSearchPlan): string {
   const match = PLACE_CLAUSE.exec(cut);
   if (match && (bits(match[0]).some((w) => known.has(w)) || NAMES_A_PLACE.test(match[0])))
     cut = cut.slice(0, match.index).trim();
-  const sentence = new Set(plan.criteria.flatMap((c) => bits(c.text)));
+  const criteriaWords = new Set(plan.criteria.flatMap((c) => bits(c.text)));
   const result = QUALITY_CLAUSE.exec(cut);
-  if (result && bits(result[0]).filter((w) => sentence.has(w)).length >= 2) cut = cut.slice(0, result.index).trim();
+  if (result && bits(result[0]).filter((w) => criteriaWords.has(w)).length >= 2)
+    cut = cut.slice(0, result.index).trim();
   return lowerFirst(cut) || list(plan.terms.map(lowerFirst));
 }
 

@@ -79,7 +79,7 @@ export function goingTodayOf(input: { runs: readonly GoingRun[]; tz: string; now
     if (run.state !== "scheduled" || !(atMs > nowMs) || (!soon && zoneDayKey(atMs, tz) !== today)) continue;
     const reach = isReachOutRun(run.audience);
     const kind = run.playbook_id ? "batch" : "one_off";
-    const items = goes(kind === "batch" ? "batch_hold" : "one_off", atMs, tz);
+    const going = goes(kind === "batch" ? "batch_hold" : "one_off", atMs, tz);
     const people = reach
       ? plural(run.recipient_count, "business", "businesses")
       : plural(run.recipient_count, "person", "people");
@@ -88,8 +88,8 @@ export function goingTodayOf(input: { runs: readonly GoingRun[]; tz: string; now
       key: `run-${run.id}`,
       kind,
       name: run.title,
-      meta: `${subject} · goes ${items.at}`,
-      sentence: `${people}. ${items.ends}.`,
+      meta: `${subject} · goes ${going.at}`,
+      sentence: `${people}. ${going.ends}.`,
       atMs,
       stop: { kind: "run", id: run.id },
       to: addressOf({ kind: "send", id: run.id }),

@@ -68,9 +68,9 @@ import type { TenantId } from "@chanlytics/contracts";
 export function readSettings(tenantId: TenantId, raw: unknown): { cfg: TenantConfig | null; lostCalendar: boolean } {
   const tenantConfigResult = parseTenantConfigResult(raw);
   if (tenantConfigResult.ok) return { cfg: tenantConfigResult.config, lostCalendar: false };
-  const sentence = raw as { calendar?: { ical_url?: unknown }; calendar_grant?: { mailbox_id?: unknown } } | null;
-  const named = sentence?.calendar?.ical_url;
-  const granted = sentence?.calendar_grant?.mailbox_id;
+  const config = raw as { calendar?: { ical_url?: unknown }; calendar_grant?: { mailbox_id?: unknown } } | null;
+  const named = config?.calendar?.ical_url;
+  const granted = config?.calendar_grant?.mailbox_id;
   const lostCalendar =
     (typeof named === "string" && named.trim() !== "") || (typeof granted === "string" && granted.trim() !== "");
   log.error("tenant_config_unreadable", {

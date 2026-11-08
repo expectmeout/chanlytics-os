@@ -81,7 +81,7 @@ async function proposeOnStep(
   const name = playbookNameAsked(input.name) || null;
   const { word, moment } = await getWordedMoment(toolContext, trig);
   const named = { trigger: trig.id, word, list: listLabel };
-  const sentence = {
+  const card = {
     where: listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`,
     runs: scheduleLine(clock, word),
     breath: breathSaid(trig),
@@ -94,9 +94,9 @@ async function proposeOnStep(
   return propose({
     kind: "playbook",
     title: `Campaign: ${name ?? moment.label}`,
-    summary: `${sentence.where} · ${sentence.runs}${sentence.breath}${sentence.end}${goes} · ${waiting}${sentence.reaches} · ${sentence.sends} Says: ${sentence.message}`,
+    summary: `${card.where} · ${card.runs}${card.breath}${card.end}${goes} · ${waiting}${card.reaches} · ${card.sends} Says: ${card.message}`,
     line: cardLine(named, drawn.reach, clock, usable),
-    sheet: campaignSheet({ ...sentence, waiting: [waiting] }),
+    sheet: campaignSheet({ ...card, waiting: [waiting] }),
     payload: {
       ...clock,
       trigger_label: moment.label,
@@ -189,8 +189,8 @@ async function proposePlaybook(toolContext: ToolContext, proposed: PlaybookPropo
   // A tick that cannot send yet stays on the playbook, and its run holds those people until it can: the card says so.
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
   const under = underMode(cls, policies);
-  const sentence = cardSays(asked, specs, by, 140);
-  if ("refusal" in sentence) return refuse(sentence.refusal);
+  const cardWords = cardSays(asked, specs, by, 140);
+  if ("refusal" in cardWords) return refuse(cardWords.refusal);
   // The moment and its schedule in the workspace's word: read once the check has passed.
   const { word, moment } = await getWordedMoment(toolContext, trig);
   const named = { trigger: trig.id, word, list: listLabel };
@@ -202,12 +202,12 @@ async function proposePlaybook(toolContext: ToolContext, proposed: PlaybookPropo
     goes,
     reaches: reachesSaid(purposeOfPlaybook(cls), drawn, how, named),
     sends: under.said,
-    message: sentence.says,
+    message: cardWords.says,
   };
   return propose({
     kind: "playbook",
     title: `Campaign: ${checked.name}`,
-    summary: `${pieces.where} · ${pieces.runs}${pieces.breath}${pieces.end}${goes} · ${waiting}${pieces.reaches} · ${pieces.sends} Says: ${sentence.says}`,
+    summary: `${pieces.where} · ${pieces.runs}${pieces.breath}${pieces.end}${goes} · ${waiting}${pieces.reaches} · ${pieces.sends} Says: ${cardWords.says}`,
     line: cardLine(named, drawn.reach, checked, usable),
     sheet: campaignSheet({ ...pieces, waiting: [waiting] }),
     payload: {

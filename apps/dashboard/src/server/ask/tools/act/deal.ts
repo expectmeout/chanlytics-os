@@ -47,7 +47,7 @@ function whichRowWords(open: number, rows: readonly { service: string | null }[]
  * answer with, never proposed for the route to refuse.
  */
 function dealBody(
-  sentence: {
+  change: {
     stage: string;
     service: string | null;
     amount: number | null;
@@ -59,7 +59,7 @@ function dealBody(
   },
   row: { id: string; version: number } | null,
 ): { body: Record<string, unknown>; wrong: string | null } {
-  const { stage, service, amount, per, note, url, day, reason } = sentence;
+  const { stage, service, amount, per, note, url, day, reason } = change;
   const body = {
     stage,
     ...(service ? { service } : {}),
@@ -176,8 +176,8 @@ async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<
   const otherReason = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
   // The step as the card says it: "Next step: send the quote, due Fri" (its words clipped; the note keeps them whole).
   const next = stepDay ? `${NOTE_WORDS.next}: ${clipAtWord(stepWords, 80)}, due ${stepDay.near}` : null;
-  const sentence = { stage, service: sameRow ? null : service, amount, per, note, url, day, reason };
-  const { body, wrong } = dealBody(sentence, sameRow);
+  const change = { stage, service: sameRow ? null : service, amount, per, note, url, day, reason };
+  const { body, wrong } = dealBody(change, sameRow);
   if (wrong) return refuse(wrong);
   return propose({
     kind: "deal",

@@ -48,14 +48,14 @@ export function cardSays(
   });
   if (!by.named) return whatsapp === null ? missing(noVersionWords("whatsapp")) : { says: clipQuote(whatsapp, limit) };
   if (whatsapp === null && by.channels.includes("whatsapp")) return missing(noVersionWords("whatsapp"));
-  const sentence = previewSays(by.channels, {
+  const preview = previewSays(by.channels, {
     whatsapp: whatsapp ?? "",
     versions: previewVersionsOf(rows, message.name, message.language),
     values,
     language: message.language,
     limit,
   });
-  return "missing" in sentence ? missing(sentence.why) : sentence;
+  return "missing" in preview ? missing(preview.why) : preview;
 }
 
 /** The room a typed value has where a step's send quotes it: what cardSays gives a broadcast's quoted words. */
@@ -110,11 +110,11 @@ export function writtenSays(
     language: body.language,
   };
   const whole = previewParts(channels, value);
-  const sentence = previewSays(channels, { ...value, limit });
+  const preview = previewSays(channels, { ...value, limit });
   // Every channel named has its version in hand, so neither is ever missing one.
-  if ("missing" in whole || "missing" in sentence) throw new Error("writtenSays: a version named and not given");
+  if ("missing" in whole || "missing" in preview) throw new Error("writtenSays: a version named and not given");
   return {
-    says: sentence.says,
+    says: preview.says,
     rows: whole.parts.map((p) => ({
       channel: p.channel,
       label: p.label,

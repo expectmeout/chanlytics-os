@@ -16,13 +16,13 @@ export function refusalSaid(
   es: boolean,
   at: { tenant_id: TenantId; round: number },
 ): string {
-  const sentence = {
+  const refusal = {
     kind: gatewayRefusal.kind,
     ...at,
     message: "message" in gatewayRefusal ? String(gatewayRefusal.message).slice(0, 300) : undefined,
   };
-  if (gatewayRefusal.kind === "bad_request") log.error("ask_request_refused", sentence);
-  else log.error("ask_gateway_refused", sentence);
+  if (gatewayRefusal.kind === "bad_request") log.error("ask_request_refused", refusal);
+  else log.error("ask_gateway_refused", refusal);
   switch (gatewayRefusal.kind) {
     case "preview":
       return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";

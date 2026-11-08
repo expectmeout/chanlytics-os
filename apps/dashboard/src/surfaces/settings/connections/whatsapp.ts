@@ -299,12 +299,12 @@ async function runSignup(win: Window, ask: SignupAsk = {}): Promise<ConnectResul
     else ids = parsed;
   };
   win.addEventListener("message", onMessage);
-  let answer: (code: string | null) => void = () => {};
+  let settle: (code: string | null) => void = () => {};
   const answered = new Promise<string | null>((resolve) => {
-    answer = resolve;
+    settle = resolve;
   });
   const given = windowGiven(win, () =>
-    held.fb.login((r) => answer(r.authResponse?.code ?? null), {
+    held.fb.login((r) => settle(r.authResponse?.code ?? null), {
       config_id: held.configId,
       response_type: "code",
       override_default_response_type: true,

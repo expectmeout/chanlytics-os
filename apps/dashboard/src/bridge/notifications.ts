@@ -457,7 +457,7 @@ export function installNotifications(
     knownKept = keys;
     return out;
   };
-  const notice = () => {
+  const tell = () => {
     const items = feedFromGlobals(win, Date.now());
     const loaded = loadedSources(win);
     const fresh: NotificationItem[] = [];
@@ -472,7 +472,7 @@ export function installNotifications(
     emit();
     if (fresh.length) alertDevice(win, fresh, state().alerts);
   };
-  for (const ev of FEED_EVENTS) win.addEventListener(ev, notice);
+  for (const ev of FEED_EVENTS) win.addEventListener(ev, tell);
   // The surfaces that say what still waits move the badge without a new row: the bell is drawn again.
   onSurfaceMoved(WAITS_SURFACES, emit);
 

@@ -69,12 +69,12 @@ export async function receiveGmailPush(request: Request): Promise<Response> {
     log.warn("mailbox_push_refused", { why: "not_our_subscription" });
     return refuse(401, "unauthorized");
   }
-  const sentence = gmailPushOf(await request.json().catch(() => null));
-  if (!sentence) return pushHeard();
+  const pushNote = gmailPushOf(await request.json().catch(() => null));
+  if (!pushNote) return pushHeard();
   const db = pg();
   if (!db) return refuse(503, "no_database");
   try {
-    const outcome = await readOne(db, await findLiveMailboxByAddress(db, sentence.address), log, until);
+    const outcome = await readOne(db, await findLiveMailboxByAddress(db, pushNote.address), log, until);
     log.info("mailbox_pushed", { provider: "google", outcome });
   } catch (e) {
     // Read again by the sweep: a push redelivered for a database that is down helps nobody.

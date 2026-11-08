@@ -71,17 +71,17 @@ export interface RehearsalStartDto {
 }
 
 /** An edge refusal the page says in its own words, else the words given. */
-function edgeRefusal(edgeAnswer: EdgeAnswer, sentence: { failed: string; noPersona?: string }): AppError {
+function edgeRefusal(edgeAnswer: EdgeAnswer, words: { failed: string; noPersona?: string }): AppError {
   const reason = edgeReasonOf(edgeAnswer);
   if (reason === "no_persona" || reason === "config_broken")
     return new AppError(
       "conflict",
-      sentence.noPersona ?? "There is nothing for it to answer from yet: fill in Details first.",
+      words.noPersona ?? "There is nothing for it to answer from yet: fill in Details first.",
       409,
     );
-  if (reason === "payment_required") return new AppError("payment_required", sentence.failed, 402);
+  if (reason === "payment_required") return new AppError("payment_required", words.failed, 402);
   if (reason === "rehearsal_empty") return new AppError("validation", REVIEW_WORDS.none);
-  return new AppError("upstream_retell", sentence.failed, 502, { reason });
+  return new AppError("upstream_retell", words.failed, 502, { reason });
 }
 
 /**

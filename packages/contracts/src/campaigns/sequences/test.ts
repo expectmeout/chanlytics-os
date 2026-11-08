@@ -90,10 +90,10 @@ function testMailOf(options: {
 }): StepTestMail {
   const words = SEQUENCE_TEST_WORDS;
   const top = [options.head, options.note].filter((s): s is string => !!s).join("\n\n");
-  const sentence = options.parts.map((p) => (options.parts.length > 1 ? `${p.label}\n\n${p.text}` : p.text));
+  const blocks = options.parts.map((p) => (options.parts.length > 1 ? `${p.label}\n\n${p.text}` : p.text));
   return {
     subject: words.subject(options.subject).slice(0, SEQUENCE_TEST_LIMITS.subject),
-    text: [top, ...sentence].join("\n\n—\n\n").slice(0, SEQUENCE_TEST_LIMITS.text),
+    text: [top, ...blocks].join("\n\n—\n\n").slice(0, SEQUENCE_TEST_LIMITS.text),
   };
 }
 

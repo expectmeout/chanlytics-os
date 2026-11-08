@@ -332,7 +332,7 @@ export function figuresOf(
   const agree = period.new_contacts > 0 && newThreads.length === period.new_contacts;
   const newWires = tally(newThreads.map((c) => threadChannelWords(c.messages)));
   const names = agree ? newThreads.map((c) => contactName(c)) : [];
-  const sentence = names.slice(0, 3);
+  const shownNames = names.slice(0, 3);
   const newPeople: TodayFigureVM = {
     id: "new",
     label: "new people",
@@ -348,9 +348,9 @@ export function figuresOf(
     // to what an owner is asking -- the count is everyone whose first message of their own, or first call to us, came
     // today (00394), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
     // card with nothing under it, so a hover that worked three times in a row did nothing on the fourth.
-    receipt: sentence.length
+    receipt: shownNames.length
       ? {
-          text: `${andList(names.length > 3 ? [...sentence, `${names.length - 3} more`] : sentence)} wrote for the first time today.`,
+          text: `${andList(names.length > 3 ? [...shownNames, `${names.length - 3} more`] : shownNames)} wrote for the first time today.`,
           door: { label: "Open People", to: "clients/seg:new_week" },
         }
       : period.new_contacts > 0

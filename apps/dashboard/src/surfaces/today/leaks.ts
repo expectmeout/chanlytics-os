@@ -343,9 +343,9 @@ function unreachableLeak({ people, list }: LeakFacts): TodayLeakVM | null {
   // to send it to, or the workspace has no channel to send an offer on now (the row's own reason, reachFor's).
   // Only the first is a yes to go and get; the second is said with People's reason, and with no door to the QR,
   // which would ask them for an answer they gave.
-  const sentence = people.rows.filter((r) => r.saidYes.offers);
-  const noNumber = sentence.length > 0;
-  const reason = sentence.some((r) => r.whyNot.offers === "no_channel") ? NO_CHANNEL_REACH : NO_NUMBER_REACH;
+  const offerPeople = people.rows.filter((r) => r.saidYes.offers);
+  const noNumber = offerPeople.length > 0;
+  const reason = offerPeople.some((r) => r.whyNot.offers === "no_channel") ? NO_CHANNEL_REACH : NO_NUMBER_REACH;
   const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
   const math = `${noNumber ? reason : "an offer needs its own yes"} · 0 can receive one`;
   return {

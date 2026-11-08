@@ -47,10 +47,10 @@ function lookedHarder(turn: TurnState, outcomes: readonly CallOutcome[]): void {
  * format, what comes back is read as JSON when it is, else as prose (D15). False when nothing it names can be let go.
  */
 function letGoOf(turn: TurnState, refusal: GatewayRefusal, round: number): boolean {
-  const items = refusal.kind === "bad_request" ? refusal.message : "";
-  const drop = dropFor(items, { replay: turn.live && round === 1, context: !turn.dataDropped, ...turn.offer });
+  const message = refusal.kind === "bad_request" ? refusal.message : "";
+  const drop = dropFor(message, { replay: turn.live && round === 1, context: !turn.dataDropped, ...turn.offer });
   if (!drop) return false;
-  log.error(DROP_EVENTS[drop], { error: items.slice(0, 200), tenant_id: turn.input.tenantId });
+  log.error(DROP_EVENTS[drop], { error: message.slice(0, 200), tenant_id: turn.input.tenantId });
   if (drop === "replay") {
     Object.assign(turn, coldOf(turn));
     turn.live = false;

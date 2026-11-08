@@ -31,9 +31,9 @@ export async function tellLeadQuestion(
   try {
     const { data: r, error: rErr } = await findRoundToTell(db, roundId);
     if (rErr) throw new Error(`cannot read the round: ${rErr.message}`);
-    const query = recordOrNull(r?.question);
+    const question = recordOrNull(r?.question);
     // Answered, stopped or ended since: there is nothing left to ask.
-    if (!r || r.state !== "waiting_on_owner" || typeof query?.sentence !== "string") return false;
+    if (!r || r.state !== "waiting_on_owner" || typeof question?.sentence !== "string") return false;
     const target = { tenantId: r.tenant_id, ...(await loadTenantNotifications(db, r.tenant_id)) };
     if (!reachesTenant(target)) return false;
     const [searchRead, tenantRead] = await Promise.all([
@@ -47,7 +47,7 @@ export async function tellLeadQuestion(
     const workspace = tenantRead.data;
     const words = leadQuestionMail({
       name: search?.name ?? "leads",
-      sentence: query.sentence,
+      sentence: question.sentence,
       // The one writer of a link to a page of the workspace (contracts appLink), as every other mail's.
       link: `${dashboardOrigin()}${appLink(workspace?.slug, leadQuestionRoute(r.search_id))}`,
     });

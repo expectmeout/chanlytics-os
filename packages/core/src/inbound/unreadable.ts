@@ -123,8 +123,8 @@ export async function runUnreadableGate(at: Answering, seen: Seen): Promise<type
     // much as ~23s of pure timeout, before being told we had seen it. Nothing
     // in the ack depends on those bytes, so it joins the work at the end.
     const media = sink.media(n);
-    const sentence = await sayUnreadable(thread.pausedUntil);
-    await Promise.all([media, sink.processed(handledOf(sentence.way))]);
+    const outcome = await sayUnreadable(thread.pausedUntil);
+    await Promise.all([media, sink.processed(handledOf(outcome.way))]);
     return;
   }
   return GO;
@@ -175,8 +175,8 @@ export async function findPhoto(
         bytes: result?.bytes.byteLength ?? null,
         mime: result?.mime ?? null,
       });
-      const sentence = await sayUnreadable(thread.pausedUntil);
-      await sink.processed(handledOf(sentence.way));
+      const outcome = await sayUnreadable(thread.pausedUntil);
+      await sink.processed(handledOf(outcome.way));
       return;
     }
   }

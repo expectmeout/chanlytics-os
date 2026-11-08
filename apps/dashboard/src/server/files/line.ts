@@ -144,8 +144,8 @@ function recalledOf(f: FileRecalled): string {
 
 function withFilesSaid(words: string, how: string, files: readonly (FileRecalled | null)[]): string {
   if (files.length === 0) return words;
-  const sentence = files.map((f) => (!f ? "a file since removed" : recalledOf(f)));
-  return [words, `[${how}: ${sentence.join("; ")}]`].filter(Boolean).join("\n");
+  const recalled = files.map((f) => (!f ? "a file since removed" : recalledOf(f)));
+  return [words, `[${how}: ${recalled.join("; ")}]`].filter(Boolean).join("\n");
 }
 
 /** A video as a line says it: its length, or that it is still being made ready, or that it could not be. */

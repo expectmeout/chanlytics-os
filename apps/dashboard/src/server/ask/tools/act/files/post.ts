@@ -43,8 +43,8 @@ import { filesNamed } from "../../read/files";
 
 /** What the owner has said, as a post's words are held to it: this thread's questions and their Settings. A morning's turn asks itself. */
 function ownersWords(t: ToolContext, config: unknown): string {
-  const request = isAskMorningQuestion(t.question) ? [] : [t.question ?? ""];
-  return [...request, ...(t.askedEarlier ?? []), config ? JSON.stringify(config) : ""].join("\n");
+  const questions = isAskMorningQuestion(t.question) ? [] : [t.question ?? ""];
+  return [...questions, ...(t.askedEarlier ?? []), config ? JSON.stringify(config) : ""].join("\n");
 }
 
 /** What a drawn post is known by once the model has looked at it: the plan, whole, in one short key. */

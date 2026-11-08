@@ -63,7 +63,7 @@ export const listActivityEvents = async (
   },
   limit: number,
 ) => {
-  let items = db
+  let query = db
     .from("events")
     .select("id, kind, category, subject_type, subject_id, data, created_at")
     .eq("tenant_id", tenantId)
@@ -71,17 +71,17 @@ export const listActivityEvents = async (
     .order("id", { ascending: false })
     .limit(limit);
   if (narrow.kinds) {
-    items = narrow.kinds.length === 1 ? items.eq("kind", narrow.kinds[0] ?? "") : items.in("kind", narrow.kinds);
+    query = narrow.kinds.length === 1 ? query.eq("kind", narrow.kinds[0] ?? "") : query.in("kind", narrow.kinds);
   } else {
-    for (const p of narrow.noisePrefixes) items = items.not("kind", "like", `${p}%`);
-    for (const k of narrow.noiseKinds) items = items.neq("kind", k);
+    for (const p of narrow.noisePrefixes) query = query.not("kind", "like", `${p}%`);
+    for (const k of narrow.noiseKinds) query = query.neq("kind", k);
   }
-  if (narrow.by) items = items.filter("data->>by", "eq", narrow.by);
-  if (narrow.from) items = items.gte("created_at", narrow.from);
-  if (narrow.to) items = items.lt("created_at", narrow.to);
-  if (narrow.through) items = items.lte("created_at", narrow.through);
-  if (narrow.subjects) items = items.in("subject_id", narrow.subjects);
-  return items;
+  if (narrow.by) query = query.filter("data->>by", "eq", narrow.by);
+  if (narrow.from) query = query.gte("created_at", narrow.from);
+  if (narrow.to) query = query.lt("created_at", narrow.to);
+  if (narrow.through) query = query.lte("created_at", narrow.through);
+  if (narrow.subjects) query = query.in("subject_id", narrow.subjects);
+  return query;
 };
 
 /** A person's threads' ids. */

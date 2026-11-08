@@ -45,8 +45,8 @@ function delimiterOf(text: string): "," | ";" {
  * non-enumerable properties, so a row still compares equal to a plain array literal in a test.
  */
 export function parseCsv(text: string): string[][] {
-  const items = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  const sep = delimiterOf(items);
+  const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const sep = delimiterOf(source);
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -57,11 +57,11 @@ export function parseCsv(text: string): string[][] {
     Object.defineProperty(row, "line", { value: rowStartLine, enumerable: false });
     rows.push(row);
   };
-  for (let index = 0; index < items.length; index++) {
-    const ch = items[index];
+  for (let index = 0; index < source.length; index++) {
+    const ch = source[index];
     if (quoted) {
       if (ch === '"') {
-        if (items[index + 1] === '"') {
+        if (source[index + 1] === '"') {
           cell += '"';
           index++;
         } else quoted = false;
@@ -316,24 +316,24 @@ function fileFactsOf(
 /** The rows as the door takes them: the one phone rule, the one email rule, a name of at most 80 characters. */
 export function importRowsOf(rows: string[][], columns: ImportColumns, header: boolean): ImportRow[] {
   const cell = (r: string[], i: number | null): string => (i === null ? "" : (r[i] ?? "").trim());
-  return (header ? rows.slice(1) : rows).map((item, count) => {
+  return (header ? rows.slice(1) : rows).map((cells, count) => {
     // Array.from, not .slice: an 80th code point landing mid-emoji must not cut the surrogate pair in half. trim:
     // truncation can land exactly on the space the join above put between the two names.
     const name = Array.from(
-      [cell(item, columns.name), cell(item, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " "),
+      [cell(cells, columns.name), cell(cells, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " "),
     )
       .slice(0, 80)
       .join("")
       .trim();
     // parseCsv carries the file's own 1-based line on each row it returns; a row built some other way (or a future
     // caller that hand-assembles string[][]) falls back to counting from the header instead of losing the field.
-    const carried = (item as { line?: number }).line;
-    const facts = fileFactsOf(item, columns, cell);
+    const carried = (cells as { line?: number }).line;
+    const facts = fileFactsOf(cells, columns, cell);
     return {
       line: carried ?? count + (header ? 2 : 1),
       name: name || null,
-      phone: normalizePhone(cell(item, columns.phone)),
-      email: normalizeEmail(cell(item, columns.email)),
+      phone: normalizePhone(cell(cells, columns.phone)),
+      email: normalizeEmail(cell(cells, columns.email)),
       ...(facts ? { facts } : {}),
     };
   });

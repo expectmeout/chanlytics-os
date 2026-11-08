@@ -337,11 +337,11 @@ async function warnOfRelease(
 ): Promise<void> {
   const on = lineReleaseDay(step.releaseAt, now);
   const endedAt = new Date(step.endedAt).toISOString();
-  const sentence = await ports.tell(row.tenant_id, {
+  const outcome = await ports.tell(row.tenant_id, {
     ...lineReleaseWarning({ ...words, on }),
     once: `line.release_warned:${row.id}:${endedAt}`,
   });
-  if (!sentence.told) {
+  if (!outcome.told) {
     await notYetWarned(db, ports, row, endedAt, now, out, "its mail to the owner fails");
     return;
   }
@@ -349,7 +349,7 @@ async function warnOfRelease(
   // platform hears of a number about to go for good from a workspace nobody can write to, so a person can; said
   // before the warning is kept, so an alert that did not go is said again next tick (the bell's row is told already).
   if (
-    !sentence.reached &&
+    !outcome.reached &&
     !(await ports.alert(
       `A number goes back with nobody told (workspace ${row.tenant_id})`,
       `Line ${row.id} goes back to the phone company on ${new Date(on).toISOString().slice(0, 10)}. Its workspace's subscription ended and it has no address the warning could be mailed to: only its bell says so. Write to the owner if they can be found.`,

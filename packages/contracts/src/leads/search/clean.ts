@@ -238,7 +238,7 @@ const oneOf = (w: string): string =>
  * one day and the singular the next names one kind.
  */
 export function leadKindKey(words: string): string {
-  const items = words
+  const slug = words
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^[^a-z]+/, "")
@@ -246,5 +246,5 @@ export function leadKindKey(words: string): string {
     .slice(0, 40)
     .replace(/_+$/, "")
     .replace(/[a-z]+$/, oneOf);
-  return items.length >= 2 ? items : "business";
+  return slug.length >= 2 ? slug : "business";
 }

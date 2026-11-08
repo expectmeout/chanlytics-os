@@ -102,11 +102,11 @@ export function previewTurnsOf(raw: unknown): PreviewTurnVM[] {
     const o = t && typeof t === "object" ? (t as Record<string, unknown>) : null;
     if (!o || (o.role !== "user" && o.role !== "assistant") || typeof o.content !== "string") return [];
     const then = o.then && typeof o.then === "object" ? (o.then as Record<string, unknown>) : null;
-    const sentence =
+    const turn =
       o.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
         ? { words: then.words, tone: then.tone as Tone }
         : null;
-    return [{ role: o.role, text: o.content, then: sentence }];
+    return [{ role: o.role, text: o.content, then: turn }];
   });
 }
 

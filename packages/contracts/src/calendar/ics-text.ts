@@ -29,11 +29,11 @@ export function unfold(text: string): string[] {
  */
 export function splitLine(line: string): { name: string; params: Record<string, string>; value: string } | null {
   let colon = -1;
-  let query = false;
+  let quoted = false;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === '"') query = !query;
-    else if (ch === ":" && !query) {
+    if (ch === '"') quoted = !quoted;
+    else if (ch === ":" && !quoted) {
       colon = i;
       break;
     }
@@ -43,13 +43,13 @@ export function splitLine(line: string): { name: string; params: Record<string, 
   const value = line.slice(colon + 1);
   const parts: string[] = [];
   let cur = "";
-  query = false;
+  quoted = false;
   for (const ch of head) {
     if (ch === '"') {
-      query = !query;
+      quoted = !quoted;
       continue;
     }
-    if (ch === ";" && !query) {
+    if (ch === ";" && !quoted) {
       parts.push(cur);
       cur = "";
       continue;

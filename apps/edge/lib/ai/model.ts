@@ -84,8 +84,8 @@ let deps: ModelDeps = {};
  * (lib/ai/shadow.ts, through modelDeps) as well as the primary's: a test's fetch answers by the address it is asked. A new
  * network forgets the profiles the last one's calls read, so no test inherits another's.
  */
-export function setModelFetch(item: typeof fetch | null): void {
-  deps = item ? { fetch: item, sleep: async () => {} } : {};
+export function setModelFetch(fetcher: typeof fetch | null): void {
+  deps = fetcher ? { fetch: fetcher, sleep: async () => {} } : {};
   forgetAnthropicProfiles();
 }
 

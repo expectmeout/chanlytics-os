@@ -113,16 +113,16 @@ export function websiteFormNote(websiteFormInput: WebsiteFormInput, when: Websit
  */
 export function websiteFormNotice(
   websiteFormInput: WebsiteFormInput,
-  personName: { contactId: string; name: string | null; email: string | null; phone: string | null },
+  person: { contactId: string; name: string | null; email: string | null; phone: string | null },
   when: WebsiteFormWhen,
   ask: string | null,
 ): Omit<JobNews, "sourceEvent" | "kind"> & { kind: "website_form" } {
-  const named = personName.name || personName.email || personName.phone || "Someone";
-  const reach = [personName.email, personName.phone].filter(Boolean).join(" · ");
+  const named = person.name || person.email || person.phone || "Someone";
+  const reach = [person.email, person.phone].filter(Boolean).join(" · ");
   return {
     kind: "website_form",
-    route: `clients/${personName.contactId}`,
-    about: { type: "contact", id: personName.contactId },
+    route: `clients/${person.contactId}`,
+    about: { type: "contact", id: person.contactId },
     subject: (websiteFormInput.form === "signup"
       ? `${named} signed up on your website`
       : `${named} sent a request on your website`

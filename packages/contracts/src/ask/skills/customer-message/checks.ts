@@ -96,11 +96,11 @@ function craftWhatsappIssues(body: string, messageBrief: MessageBrief): CraftIss
   const out: CraftIssue[] = [];
   const at = (code: CraftIssueCode, words: string) => out.push({ channel: "whatsapp", code, words });
   const want = messageBrief.message.values.map((v) => v.position).sort((x, y) => x - y);
-  const result = placeholdersOf(body);
-  if (result.join(",") !== want.join(","))
+  const placeholders = placeholdersOf(body);
+  if (placeholders.join(",") !== want.join(","))
     at(
       "values",
-      `values ${result.map((n) => `{{${n}}}`).join(" ") || "none"}, asked ${want.map((n) => `{{${n}}}`).join(" ") || "none"}`,
+      `values ${placeholders.map((n) => `{{${n}}}`).join(" ") || "none"}, asked ${want.map((n) => `{{${n}}}`).join(" ") || "none"}`,
     );
   if (/^\s*\{\{\d+\}\}|\{\{\d+\}\}\s*$/.test(body)) at("value_at_edge", "a value at the very start or end");
   // Side by side: nothing but a space or a mark between two values ("{{2}}: {{3}}"), which WhatsApp's reviewers read as

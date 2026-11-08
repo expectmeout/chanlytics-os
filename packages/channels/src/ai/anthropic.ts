@@ -253,10 +253,10 @@ function sentFor(ask: ModelAsk, model: string, slowed: boolean): Sent {
   const fast = speed === "fast" && !slowed && (takes?.fast ?? true);
   const type = valueAt(thinking, "type");
   const thinks = thinking !== undefined && (!takes || isOneOf(takes.thinking, type));
-  const sentence = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
-  const notice = sentence && (takes?.effortMessages ?? true);
+  const asksEffort = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
+  const notice = asksEffort && (takes?.effortMessages ?? true);
   const worded = Array.isArray(asked.messages) && asked.messages.some(isWordsMessage);
-  const folded = sentence && !notice ? foldEffortMessages(asked) : asked;
+  const folded = asksEffort && !notice ? foldEffortMessages(asked) : asked;
   const body = worded && !(takes?.systemMessages ?? true) ? foldWordsMessages(folded) : folded;
   const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA && b !== EFFORT_MESSAGE_BETA);
   return {

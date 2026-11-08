@@ -448,33 +448,33 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
   const kind = ask.kind ?? answer.kind;
   const audience = ask.audience ?? answer.audience;
   const named = asNewWho(answerWhoOf(answer, known, ask), kind);
-  const personName = named && whoSuits(named, audience, kind) ? named : null;
+  const draftWho = named && whoSuits(named, audience, kind) ? named : null;
   const moment =
-    personName?.kind === "moment" ? (known.moments.find((m) => m.trigger === personName.trigger) ?? null) : null;
-  const name = (answer.name.trim() || personName?.label || NEW_WORDS.title).slice(0, 80);
+    draftWho?.kind === "moment" ? (known.moments.find((m) => m.trigger === draftWho.trigger) ?? null) : null;
+  const name = (answer.name.trim() || draftWho?.label || NEW_WORDS.title).slice(0, 80);
   const backing = draftBackingOf(known, ask);
   const { steps, cannot } = judgeSteps(answer, { audience, kind, known, moment, name, backing });
   const sentence = answer.cannot.trim();
   if (steps.length === 0) throw new AppError("validation", sentence || cannot[0] || NEW_WORDS.cannot.nothingFits, 422);
   const first = steps[0]?.message ?? null;
-  const how = howOf({ kind, audience, who: personName, moment, first }, answer, known);
+  const how = howOf({ kind, audience, who: draftWho, moment, first }, answer, known);
   const draft: NewDraftDto = {
     said: ask.words.trim(),
     business: known.business,
     kind,
     audience,
     name,
-    who: everyoneSaid(personName, first),
+    who: everyoneSaid(draftWho, first),
     ...how,
     steps,
-    reach: newReachOf(personName, knownCountsOf(known), {
+    reach: newReachOf(draftWho, knownCountsOf(known), {
       kind,
       channels: how.channels,
       offer: !!first?.offer,
       review: !!first?.written?.versions.whatsapp,
     }),
     checks: [],
-    twin: kind === "sequence" ? twinOf(personName, known.running) : null,
+    twin: kind === "sequence" ? twinOf(draftWho, known.running) : null,
     cannot: sentence || (cannot.length ? [...new Set(cannot)].join(" ") : null),
   };
   return { ...draft, checks: newChecksOf(draft, known.ready) };

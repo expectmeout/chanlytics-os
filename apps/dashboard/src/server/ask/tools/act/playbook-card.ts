@@ -350,8 +350,8 @@ export const sheetWords = (text: string): string => {
 };
 
 /** The waits a summary says, " · " between them (channelsWaitWords, allowanceHeld, a left-out line), one a sentence. */
-export const holdsOf = (...sentence: string[]): string[] =>
-  sentence
+export const holdsOf = (...holds: string[]): string[] =>
+  holds
     .join(" · ")
     .split(" · ")
     .map((s) => s.trim())

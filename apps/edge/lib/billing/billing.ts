@@ -40,16 +40,16 @@ export async function getInvoices(
     const list = await client.invoices.list({ customer: row.stripe_customer_id, limit: 12 });
     return {
       ok: true,
-      invoices: list.data.map((index) => ({
-        id: index.id ?? "",
-        number: index.number ?? null,
-        status: index.status ?? null,
-        amount_due: index.amount_due,
-        amount_paid: index.amount_paid,
-        currency: index.currency,
-        created_at: new Date(index.created * 1000).toISOString(),
-        hosted_url: index.hosted_invoice_url ?? null,
-        pdf_url: index.invoice_pdf ?? null,
+      invoices: list.data.map((invoice) => ({
+        id: invoice.id ?? "",
+        number: invoice.number ?? null,
+        status: invoice.status ?? null,
+        amount_due: invoice.amount_due,
+        amount_paid: invoice.amount_paid,
+        currency: invoice.currency,
+        created_at: new Date(invoice.created * 1000).toISOString(),
+        hosted_url: invoice.hosted_invoice_url ?? null,
+        pdf_url: invoice.invoice_pdf ?? null,
       })),
     };
   } catch (e) {
@@ -178,8 +178,8 @@ export async function forgetCustomer(db: Db, row: BillingRow, customerId: string
     tenantStatus: null,
   });
   if (!forgotten) return false;
-  const reason = { source: DELETED_CUSTOMER, status: "none" };
-  await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, reason).catch(() => {});
+  const deleted = { source: DELETED_CUSTOMER, status: "none" };
+  await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, deleted).catch(() => {});
   return true;
 }
 

@@ -224,26 +224,26 @@ async function searchSaid(toolContext: ToolContext, input: { words: string; days
     days,
     shown: shown.length,
     more_available: hits.length > SEARCH_HITS,
-    hits: shown.map((items) => ({
-      kind: items.kind,
-      who: items.who,
+    hits: shown.map((hit) => ({
+      kind: hit.kind,
+      who: hit.who,
       // By the business's clock, as inbox.thread says a message's time.
-      at: clockStamp(Date.parse(items.at), toolContext.timezone, toolContext.now.getTime()),
-      ...(items.kind === "message"
+      at: clockStamp(Date.parse(hit.at), toolContext.timezone, toolContext.now.getTime()),
+      ...(hit.kind === "message"
         ? {
-            channel: wireOf(items.channel),
+            channel: wireOf(hit.channel),
             // Who wrote it and what became of it, as inbox.thread says them; a call's note in its thread is recorded as
             // inbound whichever way the call went, so it is the call's note, never the customer's words.
             from:
-              items.sent?.type === "call_summary"
+              hit.sent?.type === "call_summary"
                 ? "call note"
-                : writerOf({ direction: items.direction, sender: items.sent?.sender ?? null }),
-            status: items.sent?.status ?? null,
-            conversation_id: items.conversationId,
+                : writerOf({ direction: hit.direction, sender: hit.sent?.sender ?? null }),
+            status: hit.sent?.status ?? null,
+            conversation_id: hit.conversationId,
           }
-        : { called_by: items.direction === "inbound" ? "customer" : "business", call_id: items.id }),
-      snippet: items.snippet,
-      route: items.ref?.route ?? null,
+        : { called_by: hit.direction === "inbound" ? "customer" : "business", call_id: hit.id }),
+      snippet: hit.snippet,
+      route: hit.ref?.route ?? null,
     })),
     ...(shown.length
       ? {}

@@ -200,7 +200,7 @@ export function checkReview(
   const list = (answer as { exchanges?: unknown } | null)?.exchanges;
   const given = Array.isArray(list) ? list : [];
   const byN = new Map(exchanges.map((e) => [e.n, e]));
-  const sentence = new Set<number>();
+  const seenIndexes = new Set<number>();
   const notice = comparable(instructions);
   const items: ReviewItem[] = [];
   let dropped = 0;
@@ -208,7 +208,7 @@ export function checkReview(
     const item = (raw ?? {}) as Record<string, unknown>;
     const count = typeof item.n === "number" ? item.n : NaN;
     const found = byN.get(count);
-    if (!found || sentence.has(count) || !isVerdict(item.verdict)) {
+    if (!found || seenIndexes.has(count) || !isVerdict(item.verdict)) {
       dropped++;
       continue;
     }
@@ -223,7 +223,7 @@ export function checkReview(
       dropped++;
       continue;
     }
-    sentence.add(count);
+    seenIndexes.add(count);
     const hint = textUpTo(item.hint, REVIEW_LIMITS.hintMax);
     items.push({
       n: count,
@@ -290,9 +290,9 @@ export const VERDICT_TONE = {
 
 /** The line at the top: what needs you, then what was right. */
 export function reviewHeadline(items: readonly ReviewItem[]): string {
-  const count = (v: ReviewVerdict) => items.filter((i) => i.verdict === v).length;
+  const countOf = (v: ReviewVerdict) => items.filter((i) => i.verdict === v).length;
   const parts = (["guessed", "didnt_know", "off", "rule", "right"] as const)
-    .map((v) => [v, count(v)] as const)
+    .map((v) => [v, countOf(v)] as const)
     .filter(([, n]) => n > 0)
     .map(([v, n]) => `${n} ${REVIEW_WORDS.verdicts[v].toLowerCase()}`);
   return parts.length ? parts.join(" · ") : REVIEW_WORDS.none;

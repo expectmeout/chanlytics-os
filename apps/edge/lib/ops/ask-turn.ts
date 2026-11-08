@@ -167,9 +167,9 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   // The hop through this edge (the Phase 6 plan, D3): its own time before it asked the model, and the model's time to
   // its headers, said in server-timing so the dashboard can take both from its own wait without comparing clocks.
   const modelMs = Date.now() - t0;
-  const stream = teeUsage(up.body, async (sentence, stopReason) => {
+  const stream = teeUsage(up.body, async (askUsage, stopReason) => {
     const latency = Date.now() - t0;
-    const usage = { ...sentence, speed: sentence.speed ?? up.speed };
+    const usage = { ...askUsage, speed: askUsage.speed ?? up.speed };
     log.info("ask_gateway_turn", {
       tenant_id: tenantId,
       ...usage,

@@ -165,8 +165,8 @@ function swapsOf(wordsFor: WordsFor & { base: LeadEmailText }): Array<{ from: st
       const to = slotWritten(key);
       const value = slotValueOf(SLOTS, key, values);
       // "there" is a word as well as the fallback: "over there" never becomes a slot.
-      const sentence = value && !(key === "first name" && greetsAnyone) ? [{ from: value, to, value: true }] : [];
-      return [{ from: markOf(key), to, value: false }, ...sentence];
+      const changes = value && !(key === "first name" && greetsAnyone) ? [{ from: value, to, value: true }] : [];
+      return [{ from: markOf(key), to, value: false }, ...changes];
     })
     .sort((a, b) => b.from.length - a.from.length);
 }

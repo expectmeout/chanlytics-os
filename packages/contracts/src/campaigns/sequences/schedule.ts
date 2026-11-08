@@ -283,9 +283,9 @@ function leadStepNow(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleCt
     const when = clockAhead(Date.parse(next.at), ctx.tz, ctx.nowMs);
     parts.push(next.people > 0 ? `${next.people} go ${when}` : `goes ${when}`);
   }
-  const sentence = parts.filter((p): p is string => !!p);
-  if (sentence.length === 0) return null;
-  return { tone: held > 0 || toSend > 0 ? "need" : "next", words: sentence.join(" · ") };
+  const phrases = parts.filter((p): p is string => !!p);
+  if (phrases.length === 0) return null;
+  return { tone: held > 0 || toSend > 0 ? "need" : "next", words: phrases.join(" · ") };
 }
 
 /** When a customer's step goes next: the batch made for it, or the first step's next run by its hour. */

@@ -174,21 +174,21 @@ export function inboundFromInstagram(
   profileName: string | null,
 ): (InboundMessage & { channel: "instagram" }) | null {
   const from = trimmed(item.sender?.id);
-  const sentence = whatWasSaid(item);
-  if (!from || !sentence) return null;
-  const { kind, body, attached } = sentence;
+  const content = whatWasSaid(item);
+  if (!from || !content) return null;
+  const { kind, body, attached } = content;
   return {
     channel: "instagram",
-    externalId: sentence.mid,
+    externalId: content.mid,
     identity: { externalId: from, phoneE164: null, email: null },
     profileName,
     type: kind === "text" || (body !== null && kind !== "media") ? "text" : "media",
     kind,
-    rawType: sentence.rawType,
+    rawType: content.rawType,
     body,
     channelTsIso: atIsoOf(item),
     media: attached?.media ?? null,
-    consent: consentOf(kind, sentence.consentText),
+    consent: consentOf(kind, content.consentText),
     referral: referralOf(item),
   };
 }

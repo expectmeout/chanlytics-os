@@ -229,11 +229,11 @@ async function freedTimeAsked(
   nowMs: number,
 ): Promise<FreedTimeAsked | null> {
   if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
-  const sentence = freedTimeEventOf(event.data);
-  if (!sentence || !changeFreesATime(sentence.change)) return null;
+  const freedTime = freedTimeEventOf(event.data);
+  if (!freedTime || !changeFreesATime(freedTime.change)) return null;
   const facts = await ports.freedTimeFacts(event.tenant_id, event.subject_id, nowMs);
   if (!facts) return { offered: false, why: "gone" };
-  const verdict = freedTimeOf(sentence, facts.row, facts.calendar, new Date(nowMs));
+  const verdict = freedTimeOf(freedTime, facts.row, facts.calendar, new Date(nowMs));
   if (!verdict.ok) return { offered: false, why: verdict.why };
   return ports.offerFreedTime(event.tenant_id, { from: event.subject_id, start: verdict.start, end: verdict.end });
 }
@@ -293,8 +293,8 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
   consent_notice: async (event, ports) => {
     if (event.kind !== "contact.consent_changed" || event.subject_type !== "contact" || !event.subject_id) return;
     // Only a no the customer or a provider gave: a yes, a member's own record and a merge are news to nobody.
-    const sentence = optOutOf(event.data);
-    if (!sentence) return;
+    const optOut = optOutOf(event.data);
+    if (!optOut) return;
     const subject = heldContactId(event.subject_id);
     const person = await ports.optOutPerson(event.tenant_id, subject);
     if (!person) return;
@@ -305,7 +305,7 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     });
     if (notice) return;
     await ports.tell({
-      ...optOutNotice({ ...person, ...sentence, contactId: event.subject_id }),
+      ...optOutNotice({ ...person, ...optOut, contactId: event.subject_id }),
       sourceEvent: event.id,
     });
   },

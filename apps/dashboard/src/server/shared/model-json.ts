@@ -64,8 +64,8 @@ const MODEL_JSON_TIMEOUT_MS = MIN_MS;
 
 let stream: typeof streamModel = streamModel;
 /** Tests hand in a stream of their own. */
-export function setModelStream(text: typeof streamModel | null): void {
-  stream = text ?? streamModel;
+export function setModelStream(call: typeof streamModel | null): void {
+  stream = call ?? streamModel;
 }
 
 type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
