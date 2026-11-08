@@ -567,6 +567,7 @@
     "00562_a_thread_s_assignee_is_indexed.sql": "5bfda57f447d3fef60c7e4ebc595a1699be95f0a39a8768e170cbe30967d384b",
     "00563_who_holds_a_thread_is_indexed.sql": "db927df10af763bcf49430d249b2c82bd49b96cec0cd8de53483dbb5fe5802f2",
     "00564_three_tables_each_read_by_one_rule.sql": "610804d125ada517e18265e1dfd4e15241f468881da57e008a150daf7564d21b",
-    "00565_old_deliveries_go_with_the_old_evidence.sql": "8531febd1b0fe6f0bfaf41c831843cc86a995f6cf28678bdd8f62a085624b61e"
+    "00565_old_deliveries_go_with_the_old_evidence.sql": "8531febd1b0fe6f0bfaf41c831843cc86a995f6cf28678bdd8f62a085624b61e",
+    "00566_the_status_read_starts_at_its_leads.sql": "f1a4d96fb735081180c8e2128ee76c702e5ddf94df0471a1bd038a9d8b09777a"
   }
 }
