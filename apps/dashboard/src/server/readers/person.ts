@@ -49,6 +49,7 @@ import { DEAL_DTO_COLUMNS, findDealPace } from "../people/deals";
 import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
 import * as facts from "./facts";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How many of a person's messages their page holds: the newest, so what drops is the oldest history. */
 const PERSON_MESSAGES = 2000;
@@ -144,7 +145,7 @@ function configFacts(config: unknown): { bookingLink: string | null; services: s
  */
 async function businessAndSigners(
   rc: ReaderContext,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
   rowRead: Promise<{ lead_id?: string | null; lead_gone?: boolean | null } | null>,
 ): Promise<Pick<PersonDetailDto, "business" | "signers">> {
@@ -174,7 +175,7 @@ async function businessAndSigners(
  * The 404 for a person this workspace does not show: in its words, and, for one combined into another since (0028),
  * naming the record kept (contracts combinedInto), so their old address opens the person they became (S5-3).
  */
-async function notHere(sb: Parameters<typeof findKeptPerson>[0], tenantId: string, id: string): Promise<AppError> {
+async function notHere(sb: Parameters<typeof findKeptPerson>[0], tenantId: TenantId, id: string): Promise<AppError> {
   const kept = await findKeptPerson(sb, tenantId, id);
   return new AppError("not_found", "This person is not in your workspace.", 404, kept ? combinedInto(kept) : undefined);
 }

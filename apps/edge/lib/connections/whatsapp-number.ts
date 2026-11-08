@@ -50,7 +50,7 @@ import { readAndKeepStanding } from "../whatsapp/number-standing.js";
 import { startWhatsappHistory } from "../imports/history-import.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
-import { UUID } from "@chanlytics/contracts";
+import { UUID, isTenantId } from "@chanlytics/contracts";
 import {
   findWhatsAppNumberHolder,
   insertChannelRow,
@@ -59,9 +59,10 @@ import {
   setChannelStatus,
 } from "@chanlytics/db/channels";
 import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 interface ConnectBody {
-  tenant_id?: string;
+  tenant_id?: TenantId;
   user_id?: string;
   code?: string;
   phone_number_id?: string;
@@ -79,7 +80,7 @@ interface ConnectBody {
  */
 async function connected(
   db: NonNullable<ReturnType<typeof pg>>,
-  tenantId: string,
+  tenantId: TenantId,
   channelId: string,
   input: { phoneNumberId: string; wabaId: string; e164: string | null; name: string | null; by: string; token: string },
 ): Promise<void> {
@@ -114,7 +115,7 @@ async function writeChannelRow(
   db: NonNullable<ReturnType<typeof pg>>,
   log: ReturnType<typeof logger>,
   fields: {
-    tenant_id: string;
+    tenant_id: TenantId;
     kind: "whatsapp";
     external_id: string;
     number_e164: string | null;
@@ -181,7 +182,7 @@ interface SignupIds {
  * workspace's, whose tenant_id and Vault token it would rewrite. A read that failed says nothing about who holds the
  * number, and treating it as "nobody" is how a pooler blip moved a live number between workspaces.
  */
-async function heldElsewhere(db: Db, log: Log, tenantId: string, phoneNumberId: string): Promise<Response | null> {
+async function heldElsewhere(db: Db, log: Log, tenantId: TenantId, phoneNumberId: string): Promise<Response | null> {
   // Every workspace's numbers, by design: the question is whether another holds this one.
   const { data: taken, error: takenErr } = await findWhatsAppNumberHolder(db, phoneNumberId);
   if (takenErr) {
@@ -204,7 +205,7 @@ async function heldElsewhere(db: Db, log: Log, tenantId: string, phoneNumberId: 
  */
 async function idsOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   app: { id: string; secret: string },
   token: string,
   given: { phoneNumberId: string; wabaId: string },
@@ -282,7 +283,7 @@ async function registeredFor(
 const badId = (id: string): boolean => id !== "" && !ID.test(id);
 
 /** The door's log, bound to what is known of the number and the account at that point. */
-function boundLog(tenantId: string, phoneNumberId: string, wabaId: string): Log {
+function boundLog(tenantId: TenantId, phoneNumberId: string, wabaId: string): Log {
   return logger({
     tenant_id: tenantId,
     ...(phoneNumberId ? { phone_number_id: phoneNumberId } : {}),
@@ -303,7 +304,7 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
   // The ids Meta's window named, where the page heard it; either may be missing (idsOf).
   const given = { phoneNumberId: String(body.phone_number_id || "").trim(), wabaId: String(body.waba_id || "").trim() };
   if (
-    !UUID.test(tenantId) ||
+    !isTenantId(tenantId) ||
     !UUID.test(userId) ||
     !code ||
     code.length > 2000 ||

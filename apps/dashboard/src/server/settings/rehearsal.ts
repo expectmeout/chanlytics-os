@@ -30,6 +30,7 @@ import { getKnownFacts } from "../readers/settings";
 import { composePromptPreview } from "../receptionist/prompt-preview";
 import type { RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A rehearsal (decision 0069): Settings › How it answers' Rehearse, and Review this call on a real call. Every door is
@@ -87,7 +88,7 @@ function edgeRefusal(edgeAnswer: EdgeAnswer, sentence: { failed: string; noPerso
  * POST receptionist/rehearsals: a call in the browser, made at the provider, and the token the browser joins it with.
  * `userId` is the member who asked, or null for a lead's own receptionist called from its preview page (decision 0079).
  */
-export async function startRehearsal(tenantId: string, userId: string | null): Promise<RehearsalStartDto> {
+export async function startRehearsal(tenantId: TenantId, userId: string | null): Promise<RehearsalStartDto> {
   if (!edgeConfigured()) throw new AppError("conflict", REHEARSE_WORDS.talk.notLive, 409);
   const first = await callEdge(
     "/api/admin/rehearsal/call",
@@ -129,7 +130,7 @@ const AGENT_TIMEOUT_MS = 25_000;
  * the first run's Your receptionist goes on to rehearse. Best effort for the page: a deployment with no voice provider,
  * or one that refuses, answers `made: false` and the owner goes on all the same (the call makes it, or says why).
  */
-export async function makeAgent(tenantId: string, userId: string): Promise<{ made: boolean }> {
+export async function makeAgent(tenantId: TenantId, userId: string): Promise<{ made: boolean }> {
   if (!edgeConfigured()) return { made: false };
   const answer = await callEdge(
     "/api/admin/rehearsal/agent",
@@ -150,7 +151,7 @@ type ReviewOf =
 
 /** POST receptionist/review: how it did, judged at the edge, kept on its rehearsal. */
 export async function reviewRehearsal(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   of: ReviewOf,
 ): Promise<{ rehearsal_id: string; review: ReviewDto }> {
@@ -185,7 +186,7 @@ interface FixAsked {
 
 /** POST receptionist/fix: where the correction goes, said before anything is written; null where it says nothing. */
 export async function routeRehearsalFix(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   fixAsked: FixAsked,
 ): Promise<{ change: FixChange; field: string; line: string } | { change: null; words: string }> {
@@ -216,7 +217,7 @@ interface NowReadsDto {
 /** The one block of the composed instructions a change wrote, in two compositions: the settings before, and after. */
 async function nowReads(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   change: AskSettingsChange,
   configs: { before: unknown; after: unknown },
   channel: "whatsapp" | "voice",

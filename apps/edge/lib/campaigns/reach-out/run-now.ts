@@ -30,7 +30,7 @@ import { runReachOutStep } from "./run-step.js";
 import { findStepRow, getSequenceModes } from "@chanlytics/db/campaigns";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { ReachOutRow } from "./run-context.js";
-import { UUID, CAMPAIGNS_PAUSED_WORDS, DEFAULT_TIMEZONE } from "@chanlytics/contracts";
+import { UUID, CAMPAIGNS_PAUSED_WORDS, DEFAULT_TIMEZONE, isTenantId } from "@chanlytics/contracts";
 
 export async function runPlaybookNow(
   auth: Admitted,
@@ -48,7 +48,7 @@ export async function runPlaybookNow(
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   const playbookId = typeof body.playbook_id === "string" ? body.playbook_id : "";
   const userId = typeof body.user_id === "string" ? body.user_id : "";
-  if (!UUID.test(tenantId) || !UUID.test(playbookId) || !UUID.test(userId)) return refuse(400, "bad_request");
+  if (!isTenantId(tenantId) || !UUID.test(playbookId) || !UUID.test(userId)) return refuse(400, "bad_request");
   const db = pg();
   if (!db) return refuse(503, "no_database");
 

@@ -30,6 +30,7 @@ import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { logger } from "../../shared/log.js";
 import { findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -86,7 +87,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
  * What a later step reads and writes, an email step's or a hand step's: its followers (the one reach), and for a hand
  * step the businesses' names and its run, written whole (00228).
  */
-const laterStepPorts = (db: Db, tenantId: string): HandStepPorts => ({
+const laterStepPorts = (db: Db, tenantId: TenantId): HandStepPorts => ({
   followers: (s) =>
     listReachOutFollowers(db, {
       tenantId,

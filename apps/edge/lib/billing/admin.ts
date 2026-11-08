@@ -51,6 +51,7 @@ import {
   type BillingOutcome,
 } from "./ops.js";
 import { findWorkspaceNameSlug, findWorkspaceSlug } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -58,7 +59,7 @@ type Db = SupabaseClient<Database>;
 interface BillingCall {
   body: BillingBody;
   db: Db;
-  tenantId: string;
+  tenantId: TenantId;
   /** The member the dashboard acted for, where one is named: who a resume or a plan started now is written down as. */
   person: string | null;
   L: Logger;

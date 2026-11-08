@@ -46,13 +46,14 @@ import { env } from "../shared/env.js";
 import { modelDeps } from "./model.js";
 import { pg } from "../shared/pg.js";
 import { logger, errField } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How many of one run's calls are in flight at once: a judge's batch is a call a place. */
 const IN_FLIGHT = 5;
 
 /** Who a shadow is for: the workspace (the ledger's row) and what the call was about. */
 interface ShadowFor {
-  tenantId: string | null;
+  tenantId: TenantId | null;
   subjectId?: string | null;
 }
 
@@ -68,7 +69,7 @@ interface ShadowRun {
 }
 
 /** Whether the purpose's second key is on for a workspace: its route names a floor and the switch names the workspace. */
-function secondKeyOn(purpose: ModelPurpose, tenantId: string): boolean {
+function secondKeyOn(purpose: ModelPurpose, tenantId: TenantId): boolean {
   return secondKeyFloorOf(purpose) !== null && shadowSwitchOn(env.TYPESAFE_SECOND_KEY, tenantId);
 }
 
@@ -76,7 +77,7 @@ function secondKeyOn(purpose: ModelPurpose, tenantId: string): boolean {
  * The key when a purpose is asked in shadow for a workspace now: it names a port, the shadow's switch or its second key's
  * is on for it, and the key is set.
  */
-function shadowKey(purpose: ModelPurpose, tenantId: string): string | null {
+function shadowKey(purpose: ModelPurpose, tenantId: TenantId): string | null {
   if (shadowPortOf(purpose) === null) return null;
   if (!shadowSwitchOn(env.TYPESAFE_SHADOW, tenantId) && !secondKeyOn(purpose, tenantId)) return null;
   return env.TYPESAFE_API_KEY ?? null;

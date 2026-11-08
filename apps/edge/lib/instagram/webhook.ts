@@ -55,6 +55,7 @@ import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
 import { getInstagramCredentials } from "./credentials.js";
 import { recordThenAnswerDm } from "./dm-answer.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -143,7 +144,7 @@ async function takeMessage(
  * Whether an echo's words are one part of a DM we sent this person lately: a reply too long for one DM left as several
  * (channels instagramDmChunks, the same split), and its row keeps the first part's id alone.
  */
-async function isPartOfOurs(db: Db, tenantId: string, person: string, text: string | null): Promise<boolean> {
+async function isPartOfOurs(db: Db, tenantId: TenantId, person: string, text: string | null): Promise<boolean> {
   const sentence = text?.trim();
   if (!sentence) return false;
   const sent = await listLastDmsSentTo(db, tenantId, person);
@@ -157,7 +158,7 @@ async function isPartOfOurs(db: Db, tenantId: string, person: string, text: stri
  */
 async function isOurs(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   echo: { mid: string; text: string | null; person: string | null },
   settleMs: number,
 ): Promise<boolean> {

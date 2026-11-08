@@ -12,13 +12,14 @@ import { getMailboxCapacity } from "@chanlytics/db/campaigns";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
 import type { Database } from "@chanlytics/db/types";
 import { mailboxDailyCap, reachOutWritesFrom, type TimetableSender } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 export async function stepSenders(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     /** The step's own mailboxes (playbooks.mailbox_ids): none named is every connected one. */
     named: readonly string[];
     /** The mailboxes later steps' leads keep, read whatever the step names. */

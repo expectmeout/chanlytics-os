@@ -75,6 +75,7 @@ import { findCampaignsDomainVerified } from "../../email/campaigns-domain.js";
 import { emailCanSend } from "../../email/email.js";
 import { findConfigRow, findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -89,7 +90,7 @@ export type { PlaybookRow };
  */
 export async function findAllPeople(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ data: PersonRowDto[] | null; error: { message: string } | null }> {
   // packages/db everyoneIn: the dashboard's pager too. A page it cannot read is this tenant's error, never a
   // thousand people counted as everyone.
@@ -101,7 +102,7 @@ export async function findAllPeople(
 
 interface TenantRunContext extends RunContext {
   db: Db;
-  tenantId: string;
+  tenantId: TenantId;
 }
 
 /** What a workspace's context answers when it is paused (`tenants.status`): not a failure to read it, and the callers tell the two apart. */
@@ -117,7 +118,7 @@ export const CONTEXT_PAUSED = "paused";
  * the playbooks that go by WhatsApp alone still run, as they did before the other two were read at all. The mailbox
  * carries the workspace's pause on offers by email (`offersPause`, 00299), which the same read answers.
  */
-async function channelFacts(db: Db, tenantId: string) {
+async function channelFacts(db: Db, tenantId: TenantId) {
   let whatsapp: Awaited<ReturnType<typeof findWhatsappChannelFacts>>;
   try {
     whatsapp = await findWhatsappChannelFacts(db, tenantId);
@@ -181,7 +182,7 @@ async function channelsNow(
  */
 async function runVisits(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   {
     url,
     tz,
@@ -236,7 +237,7 @@ async function runVisits(
 /** Read once per tenant: the people, the number, the touches. */
 export async function loadTenantRunContext(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
 ): Promise<TenantRunContext | { error: string }> {
   const [

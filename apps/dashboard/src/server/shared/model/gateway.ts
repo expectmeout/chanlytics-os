@@ -18,10 +18,17 @@ export type { GatewayEvent } from "./stream";
 import { edgeConfigured, edgeHeaders, edgeUrl, type EdgeBody } from "../edge";
 import { deployment } from "../env";
 import { isEffortMessage } from "@chanlytics/contracts";
-import type { EdgeErrorCode, ModelEffort, ModelSpeed, SkillCraftPurpose, ThinkingType } from "@chanlytics/contracts";
+import type {
+  EdgeErrorCode,
+  ModelEffort,
+  ModelSpeed,
+  SkillCraftPurpose,
+  ThinkingType,
+  TenantId,
+} from "@chanlytics/contracts";
 
 export interface GatewayCall {
-  tenantId: string;
+  tenantId: TenantId;
   userId: string;
   /**
    * What the key is spent on (GATEWAY_PURPOSES, ask-gateway.ts). Ask's own turn

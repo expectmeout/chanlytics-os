@@ -42,6 +42,7 @@ import { REPLAN_GIVE_UP_MS, type Replan } from "../replan.js";
 import type { Logger } from "../../../shared/log.js";
 import { once } from "../once.js";
 import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -142,7 +143,7 @@ export function tickReads(db: Db) {
   const words = new Map<string, Promise<{ subject: string | null; body: string } | null>>();
   const mailboxes = new Map<string, Promise<MailboxConnectionRow | null>>();
   return {
-    workspace: (tenantId: string) =>
+    workspace: (tenantId: TenantId) =>
       once(workspaces, tenantId, async () => {
         const result = await findWorkspaceNameAndConfig(db, tenantId);
         // The address drafts put at their foot (the dashboard's getWorkspaceOffer): the profile's, as the owner wrote it.
@@ -156,9 +157,9 @@ export function tickReads(db: Db) {
           missing: !businessName || !address ? "no_business_address" : null,
         };
       }),
-    words: (tenantId: string, templateId: string) =>
+    words: (tenantId: TenantId, templateId: string) =>
       once(words, templateId, () => findEmailWords(db, tenantId, templateId)),
-    mailbox: (tenantId: string, mailboxId: string) =>
+    mailbox: (tenantId: TenantId, mailboxId: string) =>
       once(mailboxes, mailboxId, () => findMailboxConnection(db, tenantId, mailboxId)),
   };
 }

@@ -44,9 +44,10 @@ import {
   saveGoogleListingDay,
   saveGoogleReviews,
 } from "@chanlytics/db/google";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The reviews a sync read, on the imports ledger: the count Google gives (else those read), unanswered, the oldest. */
-async function noteReviews(db: Db, tenantId: string, plan: ProfileSyncPlan): Promise<void> {
+async function noteReviews(db: Db, tenantId: TenantId, plan: ProfileSyncPlan): Promise<void> {
   const oldest = plan.reviews
     .map((r) => (r.created_at ? Date.parse(r.created_at) : NaN))
     .filter((ms) => Number.isFinite(ms))
@@ -81,7 +82,7 @@ const syncErrorOf = (r: EdgeRefusal): string => r.detail ?? r.error;
  */
 async function letReviewsGo(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   origin: "places" | "profile",
   which: { seenBefore?: string | null; only?: readonly string[] } = {},
 ): Promise<void> {
@@ -92,7 +93,7 @@ async function letReviewsGo(
 /** The reviews a read listed, each written over the profile's row of it (one per review id), stamped with the read. */
 async function keepReviews(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   reviews: ReturnType<typeof planProfileSync>["reviews"],
 ): Promise<void> {
   if (!reviews.length) return;

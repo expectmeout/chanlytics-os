@@ -25,7 +25,7 @@ import {
   type PlacesHttp,
   type TokenGrant,
 } from "@chanlytics/channels/google";
-import type { EdgeRefusal } from "@chanlytics/contracts";
+import type { EdgeRefusal, TenantId } from "@chanlytics/contracts";
 import { profileClient } from "../shared/google/config.js";
 import { http } from "../shared/google/places.js";
 import { connectionOf, type ConnectionRow, type Db } from "../shared/google/rows.js";
@@ -92,7 +92,7 @@ async function allLocations(token: string, net: PlacesHttp = http): Promise<Loca
  */
 export async function connectProfile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   userId: string | null,
   code: string,
   tz: string,
@@ -213,7 +213,7 @@ export async function connectProfile(
 /** The locations a pending (or connected) profile may choose among, read again: Google's refusal is in `detail`. */
 export async function getLocations(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ ok: true; locations: LocationChoice[] } | EdgeRefusal> {
   const token = await tokenFor(db, tenantId);
   if (!token.ok) return token;
@@ -314,7 +314,7 @@ export async function bindLocation(
 /** The grant given back to Google, the token gone from Vault, the row gone, the profile's reviews gone. The listing stays. */
 export async function disconnectProfile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   by: string | null = null,
 ): Promise<{ ok: true; removed: boolean; revoked: boolean }> {
   const conn = await connectionOf(db, tenantId);

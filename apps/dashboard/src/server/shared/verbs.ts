@@ -43,6 +43,7 @@ import {
   recordDecisionRow,
   resolveOpenHolds,
 } from "@chanlytics/db/workspace";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 export interface VerbConversation {
   id: string;
@@ -65,7 +66,7 @@ export interface VerbConversation {
    * business a reach-out wrote to, a person a member wrote to first.
    */
   last_inbound_at: string | null;
-  contact_id: string;
+  contact_id: ContactId;
   phone_e164: string | null;
   /** Their Instagram-scoped id, where they wrote by DM (contact_identities, the newest): where a DM reply goes. */
   instagram_id: string | null;
@@ -144,7 +145,7 @@ export const conversationScope = row((ctx, params) => loadConversation(ctx, Stri
 
 interface VerbContact {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   marketing_consent: string | null;
 }
 
@@ -169,7 +170,7 @@ export const contactScope = row((ctx, params) => loadContact(ctx, String(params.
  * A visit the record keeps (00345), as the row a member's word on it is said on: read under RLS, so one the caller
  * cannot see is a 404, and judged in its own workspace.
  */
-async function loadAppointment(ctx: RouteContext, id: string): Promise<{ id: string; tenant_id: string }> {
+async function loadAppointment(ctx: RouteContext, id: string): Promise<{ id: string; tenant_id: TenantId }> {
   const found = await findAppointmentWorkspace(ctx.supabase, requireUuid(id, "appointment"));
   if (!found) throw new AppError("not_found", "Appointment not found.", 404);
   return found;
@@ -180,7 +181,7 @@ export const appointmentScope = row((ctx, params) => loadAppointment(ctx, String
 
 interface VerbMessage {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   conversation_id: string;
   sender: string;
   status: string;
@@ -198,7 +199,7 @@ export const messageScope = row((ctx, params) => loadMessage(ctx, String(params.
 
 export interface VerbCall {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   retell_call_id: string;
   status: string;
   recording: unknown;
@@ -230,7 +231,7 @@ const LAST_WROTE_LOOKBACK = 20;
  */
 export async function replyChannelOf(
   ctx: RouteContext,
-  conv: { id: string; tenant_id: string },
+  conv: { id: string; tenant_id: TenantId },
 ): Promise<WrittenChannel> {
   const { data, error } = await listCustomerWrites(ctx.supabase, conv.tenant_id, conv.id, LAST_WROTE_LOOKBACK);
   if (error) throw new Error(`reading the last inbound: ${error.message}`);
@@ -250,7 +251,7 @@ export async function replyChannelOf(
  */
 export async function recordDecision(
   ctx: Pick<RouteContext, "supabase" | "userId" | "via" | "undoOf">,
-  tenantId: string,
+  tenantId: TenantId,
   subjectType: DecisionSubject,
   subjectId: string,
   verb: DecisionVerb,
@@ -306,7 +307,7 @@ export async function resolveOpenEscalation(
  * two hours was told one number and given another. Every pause reads the row
  * through contracts' pauseMsOf, the rule the edge and the pane read too.
  */
-export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<number> {
+export async function pauseMsFor(ctx: RouteContext, tenantId: TenantId): Promise<number> {
   const { data, error } = await findReplyLimits(ctx.supabase, tenantId);
   // A pause that cannot be read is not the default one: a member's take-over would hold for the wrong time.
   if (error) throw new Error(`cannot read the workspace's reply pause: ${error.message}`);
@@ -341,7 +342,7 @@ export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<n
  */
 export async function cancelPendingAiReply(
   ctx: RouteContext,
-  conv: { id: string; tenant_id: string },
+  conv: { id: string; tenant_id: TenantId },
 ): Promise<number> {
   try {
     return await withdrawMemberDrafts(ctx.supabase, { tenantId: conv.tenant_id, conversationId: conv.id });
@@ -358,7 +359,7 @@ export async function cancelPendingAiReply(
 
 interface VerbErasure {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   phone_e164: string | null;
   email: string | null;
   erased_at: string | null;
@@ -381,7 +382,7 @@ export const erasureScope = row((ctx, params) => loadErasable(ctx, String(params
 
 interface VerbList {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   /** A smart list's rule, or null for a list kept by hand. */
   rule: unknown;

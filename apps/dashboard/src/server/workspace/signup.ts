@@ -37,6 +37,7 @@ import { callEdge, edgeConfigured } from "../shared/edge";
 import { serviceDb } from "../shared/service-db";
 import { deployment, env } from "../shared/env";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The operator's note of a sign-up gives up after this; a failure is logged, never the sign-up's. */
 const SIGNUP_NOTIFY_TIMEOUT_MS = 4_000;
@@ -178,7 +179,7 @@ export async function joinWaitlist(input: { email: string; name?: string; source
  * for the first one and every one after, and POST partner/workspaces, for one a
  * partner sets up for a business (0016). A failure is a shrug.
  */
-export async function notifyPlatformSignup(tenantId: string, email: string, userId: string): Promise<void> {
+export async function notifyPlatformSignup(tenantId: TenantId, email: string, userId: string): Promise<void> {
   if (!edgeConfigured() || !deployment.providersLive) return;
   const r = await callEdge(
     "/api/admin/signup-notify",

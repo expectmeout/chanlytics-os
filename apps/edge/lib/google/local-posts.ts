@@ -4,14 +4,14 @@
  * Google's name for it, which is how a sheet says it is up and how it comes down.
  */
 import { createLocalPost, deleteLocalPost, reviewParent, type GbpPostAsked } from "@chanlytics/channels/google";
-import type { EdgeRefusal } from "@chanlytics/contracts";
+import type { EdgeRefusal, TenantId } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { connectionOf, type Db } from "../shared/google/rows.js";
 import { http } from "../shared/google/places.js";
 import { tokenFor } from "../shared/google/credentials.js";
 
 /** The connection and a token good now, or why not. */
-async function asTheOwner(db: Db, tenantId: string, now: Date) {
+async function asTheOwner(db: Db, tenantId: TenantId, now: Date) {
   const conn = await connectionOf(db, tenantId);
   if (!conn || !conn.location_name) return { ok: false as const, error: "not_connected" as const };
   const t = await tokenFor(db, tenantId, now.getTime());
@@ -23,7 +23,7 @@ const googleSaid = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export async function postOnProfile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   input: { fileId: string; by: string | null; post: GbpPostAsked },
   now = new Date(),
 ): Promise<{ ok: true; name: string; search_url: string | null; state: string | null } | EdgeRefusal> {
@@ -46,7 +46,7 @@ export async function postOnProfile(
 
 export async function unpostOnProfile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   input: { fileId: string; by: string | null; name: string },
   now = new Date(),
 ): Promise<{ ok: true } | EdgeRefusal> {

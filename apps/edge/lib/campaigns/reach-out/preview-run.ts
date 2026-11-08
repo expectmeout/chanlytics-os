@@ -27,8 +27,10 @@ import {
   REACH_OUT_SUBJECT_MAX,
   SIGNED_BY_MAX,
   UUID,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { PREVIEW_INDEX_MAX, previewOne, type PreviewInput } from "./preview.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 const LANGUAGE = /^[a-z]{2,3}(_[A-Z]{2})?$/;
 
@@ -60,11 +62,11 @@ const okSignedBy = (v: unknown): v is string | null | undefined =>
   v === null || v === undefined || (typeof v === "string" && v.length <= SIGNED_BY_MAX);
 
 /** The body as the preview reads it, or null when it is not one: every field checked here, once. */
-function previewInputOf(body: Body, tenantId: string): (PreviewInput & { userId: string }) | null {
+function previewInputOf(body: Body, tenantId: TenantId): (PreviewInput & { userId: string }) | null {
   const words = body.words;
   const language = body.language ?? "en";
   if (
-    !isUuid(tenantId) ||
+    !isTenantId(tenantId) ||
     !isUuid(body.user_id) ||
     !isUuid(body.search_id) ||
     !okIndex(body.index) ||
@@ -95,7 +97,7 @@ function previewInputOf(body: Body, tenantId: string): (PreviewInput & { userId:
 /** What a preview cost, counted in Ask's daily budget against the member who asked (R12). */
 async function recordPreviewSpend(
   db: NonNullable<ReturnType<typeof pg>>,
-  input: { tenantId: string; userId: string },
+  input: { tenantId: TenantId; userId: string },
   tokens: { input: number; output: number },
   t0: number,
 ): Promise<void> {

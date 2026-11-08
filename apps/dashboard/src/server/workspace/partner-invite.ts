@@ -2,6 +2,7 @@ import "server-only";
 import { deployment } from "../shared/env";
 import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long the edge is given to write to the partner before the owner is told it did not go. */
 const PARTNER_MAIL_TIMEOUT_MS = 8000;
@@ -13,7 +14,7 @@ const PARTNER_MAIL_TIMEOUT_MS = 8000;
  * send that failed can be asked again.
  */
 export async function sendPartnerInvite(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   ports: { fetch?: typeof fetch; live?: boolean } = {},
 ): Promise<boolean> {

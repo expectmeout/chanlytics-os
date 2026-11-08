@@ -8,6 +8,7 @@ import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
 import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
 import { lookupUserForInvite } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A partner hands a workspace to its owner (decision 0016): the half of it the database cannot do, which is telling
@@ -48,7 +49,7 @@ interface HandoverMailPorts {
  * account is its owner's to know. Never throws: the handover is on record, and a send that failed can be sent again.
  */
 export async function sendHandoverInvite(
-  tenantId: string,
+  tenantId: TenantId,
   email: string,
   userId: string,
   ports: HandoverMailPorts = {},

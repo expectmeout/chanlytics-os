@@ -95,6 +95,7 @@ import {
   saveGoogleListingBack,
 } from "@chanlytics/db/google";
 import { findWorkspaceZoneRow } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -102,7 +103,7 @@ type Db = SupabaseClient<Database>;
 interface GoogleCall {
   body: GoogleBody;
   db: Db;
-  tenantId: string;
+  tenantId: TenantId;
   tz: string;
   userId: string | null;
   L: Logger;

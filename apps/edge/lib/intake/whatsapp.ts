@@ -57,6 +57,7 @@ import { runPgSafe, IngestFailed } from "../whatsapp/persist.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 const L = logger();
 
@@ -108,7 +109,7 @@ async function handHistory(
   db: ReturnType<typeof pg>,
   named: string | undefined,
   delivery: { key: string; kept: boolean },
-  at: { tenantId: string | null; unroutable: boolean; routingFailed: boolean; phoneNumberId: string | undefined },
+  at: { tenantId: TenantId | null; unroutable: boolean; routingFailed: boolean; phoneNumberId: string | undefined },
 ): Promise<number> {
   const field = String(named);
   if (at.routingFailed) {

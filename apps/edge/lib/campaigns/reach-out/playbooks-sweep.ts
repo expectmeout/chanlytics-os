@@ -84,6 +84,7 @@ import {
 import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * When the moments stop for the tick: what is not started stays due and runs next hour, as a moment is due all day from
@@ -237,7 +238,7 @@ async function runMoments(tick: Tick, page: DuePage<DueStep>) {
   }
   // A stamp that fails leaves the moment where it was: the next tick tries it first again, and nothing is lost but
   // its turn, which the log says.
-  const tried = async (tenantId: string, rows: PlaybookRow[]) => {
+  const tried = async (tenantId: TenantId, rows: PlaybookRow[]) => {
     await stampPlaybooksTried(db, tenantId, { ids: rows.map((p) => p.id), at: now }).catch((e: unknown) =>
       L.error("playbooks_stamp_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) }),
     );

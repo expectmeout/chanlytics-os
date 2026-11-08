@@ -42,6 +42,7 @@ import type { Database, Json } from "@chanlytics/db/types";
 import { getWaCredentialsForChannel } from "../shared/tenant-runtime.js";
 import { graphRetryable, getSmbAppData } from "../whatsapp/meta-graph.js";
 import type { Part, PartOutcome } from "./history-import.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -165,7 +166,7 @@ async function changesOf(db: Db, part: Part, source: WhatsappSource, key: string
 }
 
 /** One message of the history into its person's thread, as before Chanlytics: kept, new, and whether its person is. */
-async function keepMessage(db: Db, tenantId: string, waHistoryRead: WaHistoryRead, phase: number | null) {
+async function keepMessage(db: Db, tenantId: TenantId, waHistoryRead: WaHistoryRead, phase: number | null) {
   return keepBefore(db, {
     tenantId,
     channel: "whatsapp",
@@ -232,7 +233,7 @@ async function bringHistory(db: Db, part: Part, values: WaChangeValue[]): Promis
 }
 
 /** One contact into People, as a client list's: asserted, an import, never a yes; a forgotten person stays forgotten. */
-async function bringContact(db: Db, tenantId: string, waSyncedContact: WaSyncedContact): Promise<boolean> {
+async function bringContact(db: Db, tenantId: TenantId, waSyncedContact: WaSyncedContact): Promise<boolean> {
   const phone = normalizePhone(waSyncedContact.phone);
   if (!phone) return false;
   try {

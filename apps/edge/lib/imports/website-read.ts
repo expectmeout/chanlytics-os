@@ -24,6 +24,7 @@ import {
   listingFactsOf,
   parseTenantConfig,
   ANSWER_JSON_ONLY,
+  isTenantId,
 } from "@chanlytics/contracts";
 import type { SitePage } from "@chanlytics/channels/website";
 import { bookingPageOfSite, sitePagesLinkedFrom, sitePagesNamed } from "@chanlytics/core";
@@ -40,6 +41,7 @@ import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { errField, logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -80,7 +82,7 @@ async function pagesBeside(home: SitePage): Promise<string[]> {
  */
 export async function readWebsite(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   raw: string | null,
   { deadline, fresh = false, photos = false }: { deadline: number; fresh?: boolean; photos?: boolean },
 ): Promise<WebsiteReadKept> {
@@ -185,7 +187,7 @@ export async function readWebsite(
  */
 async function bookingPageToRead(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   siteUrl: string,
   found: string | null,
 ): Promise<string | null> {
@@ -214,7 +216,7 @@ export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
  * run's basics saved with one): one job while one waits (its key, 00479), never a refusal of what asked. A website that
  * is not one on the public web is not asked at all.
  */
-export async function scheduleWebsiteRead(db: Db, tenantId: string, website: string | null): Promise<void> {
+export async function scheduleWebsiteRead(db: Db, tenantId: TenantId, website: string | null): Promise<void> {
   const url = feedUrlOk(website);
   if (!url) return;
   try {
@@ -230,12 +232,12 @@ export async function scheduleWebsiteRead(db: Db, tenantId: string, website: str
  */
 export async function askWebsiteRead(
   auth: Admitted,
-  body: Partial<{ tenant_id: string; user_id: string }>,
+  body: Partial<{ tenant_id: TenantId; user_id: string }>,
 ): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const cfg = parseTenantConfig((await getTenantConfig(db, tenantId))?.config ?? null);

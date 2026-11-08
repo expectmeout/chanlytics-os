@@ -17,6 +17,7 @@ import { connectionForClient, listingForClient, type ConnectionRow, type Listing
 import type { CheckResult } from "./listing-check.js";
 import type { ConnectResult, LocationChoice } from "./profile-connection.js";
 import { errorMessage, type DoorAnswer } from "../shared/admin-door.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type ListingInsert = Database["public"]["Tables"]["google_listings"]["Insert"];
 
@@ -29,7 +30,7 @@ interface GoogleLog {
 /** The body as the dashboard's /api/v1/google verbs send it; every field is checked here before it is believed. */
 export interface GoogleBody {
   op?: string;
-  tenant_id?: string;
+  tenant_id?: TenantId;
   user_id?: string;
   place_id?: string;
   query?: string;
@@ -129,7 +130,7 @@ export function unreadablePlaceAnswer(error: unknown): DoorAnswer {
 }
 
 /** The listing row for the place just read: what the read said about it, never what the listing it replaces said. */
-export function linkRow(details: PlaceDetails, tenantId: string, userId: string | null, now: Date): ListingInsert {
+export function linkRow(details: PlaceDetails, tenantId: TenantId, userId: string | null, now: Date): ListingInsert {
   return {
     tenant_id: tenantId,
     place_id: details.place_id,

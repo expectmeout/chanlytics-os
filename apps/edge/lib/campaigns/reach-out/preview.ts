@@ -33,6 +33,7 @@ import {
 } from "./check.js";
 import { reachOutRequest, type RequestRefusal } from "@chanlytics/channels/email";
 import { dashboardOrigin } from "../../shared/dashboard-origin.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -42,7 +43,7 @@ export const PREVIEW_INDEX_MAX = REACH_OUT_PREVIEW_INDEX_MAX;
 export const PREVIEW_LIMITS = { callsUntilMs: 20_000, doneByMs: 28_000 } as const;
 
 export interface PreviewInput {
-  tenantId: string;
+  tenantId: TenantId;
   searchId: string;
   /** Which business, from the strongest fit: 0 is the first. */
   index: number;

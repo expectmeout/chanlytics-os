@@ -21,6 +21,7 @@ import { getToken } from "./credentials.js";
 import { tellSignedOut } from "./notices.js";
 import { logger, errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -115,7 +116,7 @@ async function sendFrom(
  * A workspace's connected mailboxes as its email wire's routes: one `own` route each for those that send now, and the
  * addresses of the rest. A read that fails throws: the caller binds the wire unavailable, and the send waits.
  */
-export async function getOwnRoutes(db: Db, tenantId: string): Promise<{ routes: EmailRoute[]; held: string[] }> {
+export async function getOwnRoutes(db: Db, tenantId: TenantId): Promise<{ routes: EmailRoute[]; held: string[] }> {
   const log = logger({ tenant_id: tenantId });
   const now = Date.now();
   const routes: EmailRoute[] = [];

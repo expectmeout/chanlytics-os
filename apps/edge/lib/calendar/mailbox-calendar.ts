@@ -21,7 +21,7 @@ import {
   type CalendarEvent,
   type EventsPage,
 } from "@chanlytics/channels/email";
-import { DAY_MS, UUID, parseTenantConfig, seasonHorizon, type FeedHorizon } from "@chanlytics/contracts";
+import { DAY_MS, UUID, parseTenantConfig, seasonHorizon, type FeedHorizon, isTenantId } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { findMailboxConnection } from "@chanlytics/db/email";
 import type { Database } from "@chanlytics/db/types";
@@ -31,6 +31,7 @@ import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { getToken } from "../email/mailbox/credentials.js";
 import { markSignedOut } from "../email/mailbox/wire.js";
 import { logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -44,7 +45,7 @@ const PAGES_PER_CALENDAR = 20;
  */
 export async function findMailboxCalendarText(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   mailboxId: string,
   window: FeedHorizon,
 ): Promise<string | null> {
@@ -101,12 +102,12 @@ const FEED_SPAN_MAX_MS = 550 * DAY_MS;
  */
 export async function grantFeedFor(
   auth: Admitted,
-  body: Partial<{ tenant_id: string; user_id: string; from: number; to: number }>,
+  body: Partial<{ tenant_id: TenantId; user_id: string; from: number; to: number }>,
 ): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const cfg = parseTenantConfig((await getTenantConfig(db, tenantId))?.config ?? null);

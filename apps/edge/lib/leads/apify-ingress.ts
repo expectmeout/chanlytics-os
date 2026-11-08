@@ -15,6 +15,7 @@ import crypto from "node:crypto";
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels/leads";
 import type { LogEvent } from "../shared/log.js";
 import { trimmedOrNull, recordOrNull, UUID } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The endings, spelled once: exactly the events every run is started asking for (core runner/start.ts, runner/check.ts). Anything else is progress. */
 const APIFY_FINAL_EVENTS: ReadonlySet<string> = new Set(APIFY_RUN_END_EVENTS);
@@ -23,7 +24,7 @@ export const RUN_ROW_ID = UUID;
 
 export interface IngressRunRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   apify_run_id: string | null;
   state: string;
   webhook_token_hash: string;
@@ -48,7 +49,7 @@ type IngressVerdict =
   | {
       action: "schedule_final";
       runRowId: string;
-      tenantId: string;
+      tenantId: TenantId;
       apifyRunId: string;
       fill: { datasetId: string | null } | null;
     };

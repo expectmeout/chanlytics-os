@@ -48,6 +48,7 @@ import { readSettled } from "@/server/shared/lazy";
 import type { Member } from "@/server/shared/route";
 import { saysMissing } from "@chanlytics/db/shared";
 import { findProfileName } from "@chanlytics/db/auth";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one. */
 interface WorkspaceRow {
@@ -305,7 +306,7 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
  */
 async function writeOwnFields(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   patch: { timezone?: string; appointment_word?: AppointmentWord; name?: string },
 ) {
   return (await patchWorkspaceRowWith(

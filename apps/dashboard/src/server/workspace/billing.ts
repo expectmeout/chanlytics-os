@@ -19,8 +19,9 @@ import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody 
 import { log } from "@/server/shared/log";
 import { serviceDbIfConfigured } from "@/server/shared/service-db";
 import { findPlanForPage } from "@chanlytics/db/billing";
+import type { TenantId } from "@chanlytics/contracts";
 
-export async function findBilling(db: SupabaseClient<Database>, tenantId: string): Promise<BillingAccountDto | null> {
+export async function findBilling(db: SupabaseClient<Database>, tenantId: TenantId): Promise<BillingAccountDto | null> {
   const { data, error } = await findPlanForPage(db, tenantId);
   if (error) throw new Error(error.message);
   return data ? billingAccountDto(data) : null;
@@ -31,7 +32,7 @@ export async function findBilling(db: SupabaseClient<Database>, tenantId: string
  * 0092): what Settings › Billing says the voice provider was paid for. Null when the read failed: the page says nothing
  * then, rather than a zero it does not know.
  */
-export async function callMinutesThisMonth(db: SupabaseClient<Database>, tenantId: string): Promise<number | null> {
+export async function callMinutesThisMonth(db: SupabaseClient<Database>, tenantId: TenantId): Promise<number | null> {
   const now = new Date();
   const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
   try {
@@ -46,7 +47,7 @@ export async function callMinutesThisMonth(db: SupabaseClient<Database>, tenantI
  * What Anthropic has said of this workspace's profile (decision 0097): the service role's table, read for the shell's line.
  * Null when it could not be read: the line is said on the row's word alone. Never throws.
  */
-export async function findModelStanding(tenantId: string): Promise<ModelStanding | null> {
+export async function findModelStanding(tenantId: TenantId): Promise<ModelStanding | null> {
   const db = serviceDbIfConfigured();
   if (!db) return null;
   try {

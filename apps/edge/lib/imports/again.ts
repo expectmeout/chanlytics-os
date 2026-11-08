@@ -13,6 +13,7 @@ import {
   parseTenantConfig,
   type ImportSource,
   recordOrEmpty,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { importCursorOf, listImports, type ImportLedgerRow } from "@chanlytics/db/imports";
@@ -23,6 +24,7 @@ import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { errField, logger } from "../shared/log.js";
 import { startHistory } from "./history-import.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The sources a mailbox brings, which Try again starts again here. */
 const THROUGH_A_MAILBOX: readonly ImportSource[] = ["mailbox", "contacts", "calendar"];
@@ -35,12 +37,12 @@ function connectionIn(cursor: Json | null): string | null {
 
 export async function importAgain(
   auth: Admitted,
-  body: Partial<{ tenant_id: string; user_id: string; source: string }>,
+  body: Partial<{ tenant_id: TenantId; user_id: string; source: string }>,
 ): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const source = body.source;
   if (!isOneOf(IMPORT_SOURCES, source))
     return refuse(400, "bad_request", "source is one of the imports ledger's sources");

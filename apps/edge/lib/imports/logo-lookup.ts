@@ -25,6 +25,7 @@ import {
   parseTenantConfig,
   siteHost,
   type LogoLookupAnswer,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { fetchImageBytes } from "@chanlytics/channels/website";
 import { publicFetcher } from "@chanlytics/channels/shared";
@@ -36,6 +37,7 @@ import { findHomePage, PAGE_READS } from "../shared/public-page.js";
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -61,7 +63,7 @@ function homeToAsk(website: string, host: string): string {
 }
 
 /** The websites to look at, the owner's first. */
-async function websitesOf(db: Db, tenantId: string): Promise<string[]> {
+async function websitesOf(db: Db, tenantId: TenantId): Promise<string[]> {
   const [config, listing] = await Promise.all([
     getTenantConfig(db, tenantId).catch(() => null),
     findListingFactsStored(db, tenantId).catch(() => null),
@@ -87,7 +89,7 @@ async function firstPicture(home: string): Promise<{ base64: string; content_typ
 }
 
 /** The look for one workspace: its website's logo, or why there is none. */
-async function logoLookup(db: Db, tenantId: string): Promise<LogoLookupAnswer> {
+async function logoLookup(db: Db, tenantId: TenantId): Promise<LogoLookupAnswer> {
   const websites = await websitesOf(db, tenantId);
   const own = websites
     .map((w) => ({ w, h: siteHost(w) }))
@@ -101,11 +103,11 @@ async function logoLookup(db: Db, tenantId: string): Promise<LogoLookupAnswer> {
 }
 
 /** The door's work after its knock: the workspace the token names, and its look. */
-export async function lookupLogoFor(auth: Admitted, body: Partial<{ tenant_id: string }>): Promise<Response> {
+export async function lookupLogoFor(auth: Admitted, body: Partial<{ tenant_id: TenantId }>): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   return json(200, { ok: true, ...(await logoLookup(db, tenantId)) });

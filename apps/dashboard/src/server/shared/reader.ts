@@ -3,6 +3,7 @@ import { recordOrEmpty, type AskCitationKind, type AskRowRef } from "@chanlytics
 import { noteTiming } from "@chanlytics/log";
 import type { RouteContext } from "./with-route";
 import type { Member } from "./route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * One read layer (Ask Rewired, spec 5.1).
@@ -61,7 +62,7 @@ export interface Reader<A, T> {
 
 export interface ReaderContext {
   ctx: RouteContext;
-  tenantId: string;
+  tenantId: TenantId;
   userId: string;
   role: Member["role"];
   /** The turn's clock: every reader that says "today" says this day. */

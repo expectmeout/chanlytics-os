@@ -61,6 +61,7 @@ import { brainCallOf, generateReply } from "../ai/receptionist-brain.js";
 import { recordTokens, getTokensLast24h } from "../ai/budget.js";
 import { senderFactsReaderFor } from "../email/mailbox/reader.js";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -74,7 +75,7 @@ const BRIEF_TURN_CHARS = 400;
 const CHAT_WIRES = ["whatsapp", "sms", "instagram", "voice"] as const;
 
 /** A stand-in channel: the runtime is read by the tenant, and an email kind binds no WhatsApp credentials. */
-const standIn = (tenantId: string, id: string, externalId: string): RoutedChannel => ({
+const standIn = (tenantId: TenantId, id: string, externalId: string): RoutedChannel => ({
   kind: "email",
   channelId: id,
   tenantId,
@@ -88,7 +89,7 @@ const standIn = (tenantId: string, id: string, externalId: string): RoutedChanne
  * The channel a draft's runtime is loaded by: for an email, the workspace's hosted mailbox, else the first it connected
  * (0056); for a chat, its oldest active channel of the wire; else whichever it has. Null with none at all.
  */
-async function channelFor(db: Db, tenantId: string, wire: ChannelKind): Promise<RoutedChannel | null> {
+async function channelFor(db: Db, tenantId: TenantId, wire: ChannelKind): Promise<RoutedChannel | null> {
   const mailbox = async (): Promise<RoutedChannel | null> => {
     const hosted = await findMailboxOfTenant(db, tenantId);
     if (hosted) return standIn(tenantId, hosted.id, hosted.local_part);
@@ -110,7 +111,7 @@ async function channelFor(db: Db, tenantId: string, wire: ChannelKind): Promise<
 }
 
 /** Which day's gate holds a draft, by who is waiting on it. */
-async function gateOf(db: Db, tenantId: string, rt: TenantRuntime, source: ReplyDraftAsk["source"]) {
+async function gateOf(db: Db, tenantId: TenantId, rt: TenantRuntime, source: ReplyDraftAsk["source"]) {
   const limits = rt.policy["reply"]?.limits ?? {};
   const cap = tokenCapOf(limits);
   const used = cap > 0 ? await getTokensLast24h(db, tenantId, cap) : 0;
@@ -126,7 +127,7 @@ async function gateOf(db: Db, tenantId: string, rt: TenantRuntime, source: Reply
 /** Who they are, as the receptionist reads them, and why it waits on the owner. Nothing when they cannot be read. */
 async function noteOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rt: TenantRuntime,
   ask: Pick<ReplyDraftAsk, "contactId" | "forMessageId" | "holdReason" | "wire">,
 ): Promise<{ note: string | undefined; notes: boolean }> {
@@ -214,7 +215,7 @@ interface Writing {
 /** The runtime and whether it may write, or the word that says why not. */
 async function readied(
   { db }: Writing,
-  tenantId: string,
+  tenantId: TenantId,
   ask: ReplyDraftAsk,
 ): Promise<{ rt: TenantRuntime; brainConfig: NonNullable<TenantRuntime["brain"]> } | { why: ReplyDraftWhy }> {
   const routed = await channelFor(db, tenantId, ask.wire);
@@ -229,7 +230,7 @@ async function readied(
 const noWords = (r: { reason?: string; text: string }): boolean =>
   r.reason === "refusal" || r.reason === "brain_error" || !r.text.trim();
 
-async function writeReply(writing: Writing, tenantId: string, ask: ReplyDraftAsk): Promise<ReplyWritten> {
+async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftAsk): Promise<ReplyWritten> {
   const { db, brain, now } = writing;
   const log = logger({ tenant_id: tenantId });
   const said = (reason: ReplyDraftWhy): ReplyWritten => {
@@ -304,7 +305,7 @@ async function writeReply(writing: Writing, tenantId: string, ask: ReplyDraftAsk
   };
 }
 
-async function writeBrief(writing: Writing, tenantId: string, ask: ReplyDraftAsk): Promise<BriefWritten> {
+async function writeBrief(writing: Writing, tenantId: TenantId, ask: ReplyDraftAsk): Promise<BriefWritten> {
   const { db, now } = writing;
   const log = logger({ tenant_id: tenantId });
   const said = (reason: ReplyDraftWhy): BriefWritten => {

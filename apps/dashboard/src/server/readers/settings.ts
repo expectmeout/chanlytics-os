@@ -22,6 +22,7 @@ import * as readers from "./facts";
 import { findWorkspaceFacts } from "@chanlytics/db/workspace";
 import { listWorkspaceChannels } from "@chanlytics/db/channels";
 import { findGoogleListingAddress } from "@chanlytics/db/google";
+import type { TenantId } from "@chanlytics/contracts";
 
 function maskFeedUrl(u: string): string {
   return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
@@ -61,7 +62,7 @@ export function withHiddenFeed(role: string, incoming: unknown, stored: unknown)
  * is one answer — which is the whole point of facts.ts. With it, from the same row, whether the workspace is ours
  * (00469): only ours makes previews for its leads (decision 0079).
  */
-export async function getKnownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts & { ours: boolean }> {
+export async function getKnownFacts(ctx: RouteContext, tenantId: TenantId): Promise<KnownFacts & { ours: boolean }> {
   const [ws, ch, gl, lines] = await Promise.all([
     findWorkspaceFacts(ctx.supabase, tenantId),
     listWorkspaceChannels(ctx.supabase, tenantId),

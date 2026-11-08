@@ -24,6 +24,7 @@ import { giveFirstAlertAddress, giveOwnerAlertAddress } from "@/server/workspace
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The error Postgres or PostgREST answers a call with an argument the function does not take. */
 const noSuchSignature = (code: string | null | undefined, message: string): boolean =>
@@ -117,7 +118,7 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
  */
 export async function recordWorkspaceBegun(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   how: {
     by: "created" | "claimed" | "partner" | "accepted";
     /** The address the platform's notice names; null where the platform was told already. */

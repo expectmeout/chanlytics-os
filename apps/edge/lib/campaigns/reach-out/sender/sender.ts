@@ -42,6 +42,7 @@ import {
   type SenderCounts,
   type Tick,
 } from "./lanes.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** One claimed send, written: its email and its job, then its move. Only from `claimed`, as it was read. */
 async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outcome> {
@@ -143,7 +144,7 @@ export async function claimAndWrite(params: {
   lane: Lane | null;
   log: Logger;
   /** One workspace to keep to; every workspace when absent, as the clock runs. A test proves it on its own. */
-  tenantId?: string;
+  tenantId?: TenantId;
 }): Promise<SenderCounts> {
   const out: SenderCounts = {
     claimed: 0,

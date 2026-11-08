@@ -17,6 +17,7 @@ import { listSequenceEvidence } from "@chanlytics/db/campaigns";
 import { log } from "@/server/shared/log";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as facts from "./facts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** GET policies' answer: the matrix, the member's role, and what the owner's corrections show. */
 interface AutonomyMatrix {
@@ -48,7 +49,7 @@ const REPLY_TOKENS_DAYS = 7;
  * the newest changes named as People names them (contracts personName). Replies said what the receptionist does for
  * everyone, and nothing said that some people were set apart from it.
  */
-async function ownModes(db: ReaderContext["ctx"]["supabase"], tenantId: string): Promise<OwnModesDto> {
+async function ownModes(db: ReaderContext["ctx"]["supabase"], tenantId: TenantId): Promise<OwnModesDto> {
   const rows = await listPeopleOnTheirOwnMode(db, tenantId);
   const newest = rows.slice(0, OWN_MODE_NAMED).map((r) => r.id);
   const people = newest.length ? await listNamesOfPeople(db, tenantId, newest) : [];

@@ -43,6 +43,7 @@ import {
 } from "@chanlytics/db/lines";
 import { findChannelConfig } from "@chanlytics/db/channels";
 import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 export interface LineProviderChoice {
   name: LineProviderName;
@@ -202,7 +203,7 @@ type ChannelInsert = Database["public"]["Tables"]["tenant_channels"]["Insert"];
  */
 async function ensureRoutingRow(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   kind: "voice" | "sms",
   externalId: string,
   row: ChannelInsert,
@@ -282,7 +283,7 @@ async function ensureRoutingRow(
  */
 export async function releaseRoutingRows(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   line: { id: string; facts: Record<string, unknown> },
 ): Promise<
   { ok: true; released: Record<string, string> } | { ok: false; released: Record<string, string>; error: string }
