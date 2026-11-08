@@ -13,15 +13,17 @@ import {
   reachOutToneOf,
   reachOutSignedByOf,
   reachOutBackingOf,
-  reachOutSignatureProblem,
   reachOutRuleLines,
   writesBackRows,
   replyModeHint,
-  reachOutPhoneProblem,
   SEND_DAY_FRAME,
   ASK_FIRST_WORDS_MAX,
   ASK_LATER_WORDS_MAX,
 } from "@chanlytics/contracts";
+import {
+  reachOutPhoneProblem,
+  reachOutSignatureProblem,
+} from "../../../apps/dashboard/src/surfaces/settings/outreach/model/refusals.ts";
 
 test("the section parses, leaves out a key it does not know, and holds its limits", () => {
   const parsed = TenantConfigSchema.parse({

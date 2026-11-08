@@ -122,7 +122,6 @@ export { OPENING_SCHEMA, OPENING_UNSTATED, openingAskedOf, openingSystemPrompt, 
 export { composeLinksOf, mailtoOf } from "./campaigns/reach-out/owner/compose";
 export { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./campaigns/reach-out/owner/lead-doors";
 export { CAMPAIGN_EMAIL_TAG, isCampaignEmail, UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, WHY_FROM_MAPS, whyFrom } from "./campaigns/reach-out/reach-out";
-export { REACH_OUT_REFUSAL_WORDS, reachOutPhoneProblem, reachOutSignatureProblem } from "./campaigns/reach-out/refusals";
 export { isReplyIntent, isUnread, OWNER_SAID_INTENTS, REACH_OUT_READS_PER_DAY, REACH_OUT_REPLY_DAYS, REPLY_INTENT_WORDS, REPLY_INTENTS, REPLY_UNREADS } from "./campaigns/reach-out/replies/intents";
 export { ownedDomainOf, readingPlan, replyNoticeWords, replyStepWords, UNREAD_READING } from "./campaigns/reach-out/replies/reading";
 export { awayUntilOf, notNowDayOf, parseReplyReading, REACH_OUT_AWAY_DAYS, REACH_OUT_AWAY_MAX_DAYS, REPLY_ANSWERED_MAX, REPLY_NOT_NOW_DAYS, REPLY_QUOTE_MAX, REPLY_READ_MAX_TOKENS, REPLY_REFER_TO_MAX, REPLY_REREAD_DAYS, REPLY_REREADS, REPLY_SCHEMA, REPLY_SUBJECT_MAX, REPLY_SUMMARY_WORDS, REPLY_WORDS_MAX, replyIntentQuestion, replySystemPrompt, replyTextOf, replyUserContent, rereadAt, stepDayFor } from "./campaigns/reach-out/replies/words";
@@ -456,7 +455,7 @@ export { escapeHtml, linkifyEscaped } from "./shared/html";
 export { asContactId, asTenantId, isUuid, SLUG, UUID } from "./shared/identity";
 export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./shared/link";
 export { sumOf } from "./shared/numbers";
-export { areaCodeOf, E164, formatPhoneDisplay, formatPhoneLocal, FORWARD_IS_HANDOFF, HANDOFF_FORWARDS_BACK, handoffE164, normalizePhone, phoneDialable, phoneTail, samePhone, shortCode, US_AREA_CODE, whyNotAHandoff, whyNotAPhone, whyNotForward } from "./shared/phone";
+export { areaCodeOf, E164, formatPhoneDisplay, formatPhoneLocal, FORWARD_IS_HANDOFF, HANDOFF_FORWARDS_BACK, handoffE164, normalizePhone, phoneAsWritten, phoneDialable, phoneTail, samePhone, shortCode, US_AREA_CODE, whyNotAHandoff, whyNotAPhone, whyNotForward } from "./shared/phone";
 export { agoShort, agoWords, dateFormat, DAY_MS, HOUR_MS, jittered, MIN_MS, SECOND_MS, spanLabel, spanUnits, timezoneCity, VIEW_CHANGE_MS, waitedLabel, WEEK_MS, isoMs, numberFormat } from "./shared/time";
 export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull, entryOf, isCount, isList, isObjectRecord, isOneOf, listOrEmpty, recordOrEmpty, textOrEmpty } from "./shared/unknown";
 export { clipAtWord, ANSWER_JSON_ONLY, CONTROL_CHARS, NUMBERED_SLOT, plural, TRY_AGAIN_IN_A_MINUTE, VOICE_IS_OFF, capitalize, joinWords, possessive } from "./shared/words";

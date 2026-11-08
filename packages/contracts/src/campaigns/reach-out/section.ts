@@ -2,8 +2,8 @@
  * What each writer of a cold email reads of How it reaches out (decision 0113; the config's `reach_out` section,
  * config-schema.ts), with the fallback it read before the page existed: the offer is what the business does
  * (business_records.about) and then the owner's goal; the tone is the receptionist's; the sign-off is what the caller
- * already knew. A workspace that never opens the page is written for exactly as before. What the page's boxes refuse is
- * refusals.ts; the page's own words are settings.ts.
+ * already knew. A workspace that never opens the page is written for exactly as before. The page's own words are
+ * settings.ts.
  */
 import type { ReplyOffer } from "../../config/workspace-config/config-rules";
 

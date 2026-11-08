@@ -137,8 +137,6 @@ export {
   whyFrom,
 } from "./reach-out";
 export type { UnsubscribePageWords, UnsubscribeView } from "./reach-out";
-export { REACH_OUT_REFUSAL_WORDS, reachOutPhoneProblem, reachOutSignatureProblem } from "./refusals";
-export type { PhoneProblem, SignatureProblem } from "./refusals";
 export {
   isReplyIntent,
   isUnread,

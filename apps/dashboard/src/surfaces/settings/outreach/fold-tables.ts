@@ -3,15 +3,10 @@
 // into their tables, so the page's rows save through the tab's one saver as every row of the business does. Pure, and
 // no JSX.
 
-import {
-  REACH_OUT_LIMITS,
-  REACH_OUT_REFUSAL_WORDS,
-  reachOutPhoneProblem,
-  reachOutSignatureProblem,
-  textOrEmpty,
-} from "@chanlytics/contracts";
+import { REACH_OUT_LIMITS, textOrEmpty } from "@chanlytics/contracts";
 import { btPut, type DraftOf, type FoldName, type Problems } from "../business/fold-shapes";
 import { trimmed, type Config } from "../business/save";
+import { REACH_OUT_REFUSAL_WORDS, reachOutPhoneProblem, reachOutSignatureProblem } from "./model/refusals";
 
 // The section on the tab's config (business/save.tsx Config), declared beside the folds that write it.
 declare module "../business/save" {
