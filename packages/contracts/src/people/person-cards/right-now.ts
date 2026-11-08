@@ -279,7 +279,8 @@ export function lastExchangeOf({ profile, stamp }: PersonCardContext): PersonLas
   let reply: PersonLastExchange["reply"] = null;
   if (latestConv) {
     for (let index = latestConv.messages.length - 1; index >= 0; index--) {
-      const message: MessageDto = latestConv.messages[index];
+      const message = latestConv.messages[index];
+      if (!message) continue;
       if (message.type === "call_summary") continue;
       const result = ts(messageAt(message));
       if (result === null) continue;

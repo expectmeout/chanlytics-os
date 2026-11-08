@@ -214,7 +214,10 @@ function jobRowWords(n: NotificationDto): { title: string; message: string; rout
   if (!m) return null;
   const tries = /after (\d+) tries/.exec(n.body);
   // A row from before these words was never worded from how it was settled: it said it would not start again.
-  const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], { attempts: tries ? Number(tries[1]) : 1, resumed: false });
+  const w = jobNewsWords(m[1] ?? "", OLD_JOB_END[m[2] ?? ""] ?? "failed", {
+    attempts: tries ? Number(tries[1]) : 1,
+    resumed: false,
+  });
   // The old rows all said "inbox", whatever the job was; a row that named another page keeps it.
   return { title: w.title, message: w.lead, route: n.route && n.route !== "inbox" ? n.route : w.to };
 }

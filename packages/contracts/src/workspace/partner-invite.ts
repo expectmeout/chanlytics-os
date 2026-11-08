@@ -22,7 +22,7 @@ const AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
 export function partnerCodeFrom(raw: string): string {
   const typed = raw.trim();
   const inLink = CODE_IN_LINK.exec(typed);
-  return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
+  return ((inLink ? inLink[1] : typed) ?? "").replace(AROUND_A_CODE, "").toLowerCase();
 }
 
 /** The workspace's partner and the invitation waiting, as `GET team/partner` carries them to its owner. */

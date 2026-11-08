@@ -25,7 +25,7 @@ export const reviewsPhrase = (count: number): string => groupedPlural(count, "re
 export const UNKNOWN_MEMBER_WORD = "Someone";
 
 /** The first letter upper-cased, the rest as written; an empty string stays empty. */
-export const capitalize = (text: string): string => (text ? text[0].toUpperCase() + text.slice(1) : text);
+export const capitalize = (text: string): string => (text ? (text[0] ?? "").toUpperCase() + text.slice(1) : text);
 
 /** Words as a sentence: ended with a full stop unless they end with one already ("." "!" "?"). */
 export const withStop = (text: string): string => (/[.!?]$/.test(text) ? text : `${text}.`);
