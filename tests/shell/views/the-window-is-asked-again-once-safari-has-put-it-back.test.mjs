@@ -151,6 +151,12 @@ test("a window asked by its own hand is heard the same way", () => {
   assert.equal(win.scrollY, 0);
 });
 
+test("a window with no scrollTo (a test's stand-in) is left alone, as the deck left it before", () => {
+  const win = { scrollY: undefined };
+  windowTo(0, win);
+  assert.equal(win.scrollY, undefined);
+});
+
 test("a window that cannot be heard is scrolled once and left", () => {
   const win = {
     scrollY: 22,

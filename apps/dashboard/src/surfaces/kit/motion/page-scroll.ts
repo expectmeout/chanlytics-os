@@ -244,10 +244,13 @@ export function windowAsked(top: number, from: number, win: AskedWindow = window
   asking = end;
 }
 
-/** The window asked for a top (its own `scrollTo`), and heard after (windowAsked). A box of its own is set as before. */
-export function windowTo(top: number, win: AskedWindow & Pick<Window, "scrollTo"> = window): void {
+/**
+ * The window asked for a top (its own `scrollTo`), and heard after (windowAsked). A box of its own is set as before; a
+ * stand-in with no `scrollTo` is left alone, as the deck left it before it asked unconditionally.
+ */
+export function windowTo(top: number, win: AskedWindow = window): void {
   const at = Math.max(0, top);
   const from = win.scrollY;
-  win.scrollTo(0, at);
+  win.scrollTo?.(0, at);
   windowAsked(at, from, win);
 }
