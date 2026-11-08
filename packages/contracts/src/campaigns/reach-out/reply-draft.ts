@@ -32,6 +32,9 @@ export const DRAFT_NOTICE_MAX = 240;
 /** The policy mode under which the receptionist says nothing (contracts POLICY_MODES). */
 const SILENT_MODE = "never";
 
+/** Whether an answer to a lead is drafted under this Replies mode: every mode but the quiet one, and a person sends it. */
+export const mayDraftReply = (mode: string): boolean => mode !== SILENT_MODE;
+
 /**
  * Whether the receptionist may draft, asked in G14's order: a receptionist that can speak, a workspace that lets it,
  * the day's tokens, then the spend. Null when it may. The gates about a message leaving (the pilot allowlist, a short
@@ -45,7 +48,7 @@ export function draftRefusal(fields: {
   maySpend: boolean;
 }): DraftWhy | null {
   if (!fields.receptionist) return "no_receptionist";
-  if (fields.mode === SILENT_MODE) return "off";
+  if (!mayDraftReply(fields.mode)) return "off";
   if (fields.budgetSpent) return "budget";
   if (!fields.maySpend) return "may_not_spend";
   return null;

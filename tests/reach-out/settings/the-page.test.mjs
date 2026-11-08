@@ -181,4 +181,8 @@ test("What it's told opens on the drafter's words, and an answer's parts carry n
   tree = redrawTab();
   assert.ok(byTestId(tree, "rec-told-part-answers"));
   assert.equal(byTestId(tree, "rec-told-share-answers"), null);
+  // A part with nothing fixed to show (the thread is each reply's own) says so when opened, never opens onto nothing.
+  press(byTestId(tree, "rec-told-part-thread-press"));
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "rec-told-part-thread")), /Each reply's own/);
 });

@@ -97,6 +97,18 @@ const partDoor = (p: ToldPart, close: () => void, canEdit: boolean) => {
   return null;
 };
 
+/** What a part opens onto: its way to the row or page that writes it, its words, or that it is each reply's own. */
+function partBody(p: ToldPart, close: () => void, canEdit: boolean) {
+  const door = partDoor(p, close, canEdit);
+  if (!p.text) return door ?? <p className="bt-fold-note">{W.everyTime}</p>;
+  return (
+    <>
+      {door}
+      <p className="bt-prompt-block-text">{p.text}</p>
+    </>
+  );
+}
+
 /** What it's told: the card at rest, and its sheet while it is open. */
 export function ToldCard({ canEdit }: { canEdit: boolean }) {
   const fold = useRecordFold("told", { dirty: false });
@@ -149,8 +161,7 @@ export function ToldCard({ canEdit }: { canEdit: boolean }) {
                   label={partLine(p, shares?.[i] ?? null)}
                   testid={`rec-told-part-${p.id}`}
                 >
-                  {partDoor(p, fold.close, canEdit)}
-                  {p.text ? <p className="bt-prompt-block-text">{p.text}</p> : null}
+                  {partBody(p, fold.close, canEdit)}
                 </RecordDisclosure>
               ))
             )}

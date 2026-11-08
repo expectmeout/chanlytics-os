@@ -14,6 +14,7 @@ import {
   replyToldParts,
   toldPart,
   toldShares,
+  leadReplyNote,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -33,6 +34,20 @@ test("shares are whole percents that add to 100, and none where a part's words a
   assert.deepEqual(shares, [33, 33, 34]);
   assert.equal(toldShares(replyToldParts()), null);
   assert.equal(toldShares([]), null);
+});
+
+test("an answer's lead note is the note the drafter writes, over the made-up business; its thread is every reply's own", () => {
+  const told = Object.fromEntries(replyToldParts().map((p) => [p.id, p.text]));
+  const example = reachOutExampleRecord();
+  assert.equal(
+    told.note,
+    leadReplyNote({
+      business: example.business_name,
+      answered: `${example.business_name} has a ${example.rating} from ${example.reviews} reviews.`,
+      kind: "answer",
+    }),
+  );
+  assert.equal(told.thread, "");
 });
 
 test("the opening writer's prompt is cut by its own lines' labels, and every line lands in one part", () => {

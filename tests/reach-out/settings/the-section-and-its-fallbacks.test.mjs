@@ -88,7 +88,7 @@ test("the rules the page states are the numbers the code keeps", () => {
 });
 
 test("what a reply sets off: five rows, one of them the owner's to change", () => {
-  const rows = writesBackRows("call");
+  const rows = writesBackRows("call", "ask");
   assert.deepEqual(
     rows.map((r) => [r.id, r.fixed]),
     [
@@ -103,7 +103,15 @@ test("what a reply sets off: five rows, one of them the owner's to change", () =
     rows[0].value,
     "Your sequence stops for them. An answer is drafted for you to send, offering a call with you",
   );
-  assert.equal(writesBackRows(undefined)[0].value.endsWith("offering your booking link"), true);
-  assert.equal(replyModeHint("never"), "Nothing is drafted while Autonomy › Replies stays quiet.");
-  assert.equal(replyModeHint("ask"), "Drafts follow Autonomy › Replies: Asks you.");
+  assert.equal(writesBackRows(undefined, "ask")[0].value.endsWith("offering your booking link"), true);
+  // Only a quiet Replies row stops the draft (contracts draftRefusal); whatever else it is set to, a person sends it.
+  for (const mode of ["ask", "veto", "auto"])
+    assert.equal(replyModeHint(mode), "Drafted while Autonomy › Replies is on. Only you send it.", mode);
+});
+
+test("with Autonomy's Replies quiet, the rows say nothing is drafted: a phone hides a filled row's hint", () => {
+  const quiet = writesBackRows("call", "never");
+  assert.equal(quiet[0].value, "Your sequence stops for them. Nothing is drafted while Autonomy › Replies stays quiet");
+  assert.equal(quiet[1].value, "A step on Today says to write again on the day they named");
+  assert.equal(replyModeHint("never"), null, "the row says it; the hint would say it twice");
 });

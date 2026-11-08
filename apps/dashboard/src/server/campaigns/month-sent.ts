@@ -1,6 +1,6 @@
 import "server-only";
 import { nextMonthStart, type MonthSent } from "@chanlytics/contracts";
-import { recordCampaignMonthSent } from "@chanlytics/db/campaigns";
+import { readMonthSent, recordCampaignMonthSent } from "@chanlytics/db/campaigns";
 import { log } from "../shared/log";
 import { serviceDb } from "../shared/service-db";
 
@@ -13,18 +13,39 @@ import { serviceDb } from "../shared/service-db";
  * A read that fails is said in the log and is null, and the page says nothing of the month rather than a month of
  * nothing: a count that could not be made is not room.
  */
-async function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null> {
-  try {
-    const db = serviceDb();
+function monthSentIn(tenantId: string, at: Date): Promise<MonthSent | null> {
+  return countedOrNull(tenantId, async (db) => {
     const [email, sms] = await Promise.all([
       recordCampaignMonthSent(db, tenantId, "email", at),
       recordCampaignMonthSent(db, tenantId, "sms", at),
     ]);
     return { email, sms };
+  });
+}
+
+/**
+ * A month's count, made by the service role (each is a function only it may call) after the route's own scope has named
+ * the workspace: the one place this module takes that client. A count that fails is said in the log and is null.
+ */
+async function countedOrNull<T>(
+  tenantId: string,
+  count: (db: ReturnType<typeof serviceDb>) => Promise<T>,
+): Promise<T | null> {
+  try {
+    return await count(serviceDb());
   } catch (e) {
     log.error("campaign_month_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
+}
+
+/**
+ * This calendar month's first cold emails (packages/db readMonthSent, 00187), which How it reaches out says against
+ * their share (contracts REACH_OUT_MONTH_EMAILS); null where it could not be counted, and the page says nothing of the
+ * month: read as the member, it was refused, and a zero stood in for it.
+ */
+export function readReachOutMonthOrNull(tenantId: string, now: Date): Promise<number | null> {
+  return countedOrNull(tenantId, (db) => readMonthSent(db, tenantId, now));
 }
 
 /**

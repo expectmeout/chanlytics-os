@@ -56,12 +56,15 @@ export function SendsFromCard(shared: OutreachShared) {
         hint={mailbox ? (mailbox.ramp ?? mailbox.day) : null}
         act={{ label: W.sendsFrom.connections, icon: "chevron", onClick: () => navigate("admin/integrations") }}
       />
-      <RecordRow
-        id="send_month"
-        label={W.sendsFrom.month}
-        value={read ? W.sendsFrom.monthValue(read.month.sent, read.month.of) : null}
-        empty="…"
-      />
+      {/* A month that could not be counted is said nowhere, never as a month of nothing (campaigns/month-sent.ts). */}
+      {read?.month.sent === null ? null : (
+        <RecordRow
+          id="send_month"
+          label={W.sendsFrom.month}
+          value={read ? W.sendsFrom.monthValue(read.month.sent, read.month.of) : null}
+          empty="…"
+        />
+      )}
       <RecordRow
         id="send_by_hand"
         label={W.sendsFrom.byHand}
@@ -80,8 +83,8 @@ const textOf = (value: unknown): string => (typeof value === "string" ? value : 
 export function WritesBackCard(shared: OutreachShared) {
   const chosen = textOf(shared.config.reach_out?.reply_offer);
   const offer = isReplyOffer(chosen) ? chosen : undefined;
-  const [first, ...fixed] = writesBackRows(offer);
   const mode = shared.read?.reply_mode ?? "ask";
+  const [first, ...fixed] = writesBackRows(offer, mode);
   return (
     <OutreachCard id="writes-back" title={W.writesBack.title} sub={W.writesBack.sub}>
       {first ? (
@@ -98,9 +101,9 @@ export function WritesBackCard(shared: OutreachShared) {
             value: first.value,
             children: (
               <span className="rec-row-hint" data-testid="rec-reply-mode">
-                {replyModeHint(mode)}{" "}
+                {replyModeHint(mode) ?? ""}{" "}
                 <LinkButton onClick={() => navigate("admin/autonomy")} data-testid="rec-reply-mode-door">
-                  Autonomy
+                  {W.writesBack.modeDoor} <Icon name="chevron" size={11} />
                 </LinkButton>
               </span>
             ),

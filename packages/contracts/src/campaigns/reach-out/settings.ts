@@ -8,9 +8,8 @@
  * what the caller already knew. A workspace that never opens the page is written for exactly as before.
  */
 import { REACH_OUT_LIMITS, type ReplyOffer } from "../../config/workspace-config/config-rules";
-import { POLICY_MODE_WORDS } from "../../config/workspace-config/policy-classes";
 import { MAILBOX_RAMP } from "../../email/mailbox-standing";
-import { entryOf } from "../../shared/unknown";
+import { mayDraftReply } from "./reply-draft";
 import { REACH_OUT_REPLY_DAYS } from "./replies/intents";
 import { REACH_OUT_WORDS_MAX, linksIn } from "./words/limits";
 
@@ -97,23 +96,23 @@ export interface WritesBackRow {
 
 /**
  * What a reply from a lead sets off, by what it was read as (contracts readingPlan, replies/reading.ts): the one table
- * of effects, said as the page says it. Only what the answer offers is the owner's to choose.
+ * of effects, said as the page says it. Only what the answer offers is the owner's to choose. With Autonomy's Replies
+ * quiet nothing is drafted (mayDraftReply), and the rows say so themselves: a phone hides a filled row's hint.
  */
-export function writesBackRows(offer: ReplyOffer | undefined): WritesBackRow[] {
+export function writesBackRows(offer: ReplyOffer | undefined, mode: string): WritesBackRow[] {
   const ends = REPLY_OFFER_WORDS[offer ?? "booking_link"].ends;
+  const drafted = mayDraftReply(mode);
+  const later = "A step on Today says to write again on the day they named";
   return [
     {
       id: "reply_offer",
       label: "Interested, or a question",
-      value: `Your sequence stops for them. An answer is drafted for you to send, ${ends}`,
+      value: drafted
+        ? `Your sequence stops for them. An answer is drafted for you to send, ${ends}`
+        : "Your sequence stops for them. Nothing is drafted while Autonomy › Replies stays quiet",
       fixed: false,
     },
-    {
-      id: "not_now",
-      label: "Not now",
-      value: "A thanks is drafted. A step on Today says to write again on the day they named",
-      fixed: true,
-    },
+    { id: "not_now", label: "Not now", value: drafted ? `A thanks is drafted. ${later}` : later, fixed: true },
     {
       id: "said_no",
       label: "No",
@@ -125,11 +124,13 @@ export function writesBackRows(offer: ReplyOffer | undefined): WritesBackRow[] {
   ];
 }
 
-/** Whose rule the drafts follow: Autonomy's reply mode, by the word Autonomy says it in. */
-export function replyModeHint(mode: string): string {
-  if (mode === "never") return "Nothing is drafted while Autonomy › Replies stays quiet.";
-  const words = entryOf(POLICY_MODE_WORDS, mode) ?? POLICY_MODE_WORDS.ask;
-  return `Drafts follow Autonomy › Replies: ${words.head}.`;
+/**
+ * Whether an answer is drafted, by Autonomy's Replies row: only its quiet mode stops one (the drafter's own rule,
+ * mayDraftReply), and whatever else it is set to, the draft waits for a person to send it.
+ */
+export function replyModeHint(mode: string): string | null {
+  // Quiet, the row's own value says nothing is drafted (writesBackRows), and this would say it twice.
+  return mayDraftReply(mode) ? "Drafted while Autonomy › Replies is on. Only you send it." : null;
 }
 
 /** The refusal a row says under its box, by the limit it went past. */
@@ -202,12 +203,17 @@ export const REACH_OUT_SETTINGS_WORDS = {
     byHandValue: (perDay: number) => `To send hands you up to ${perDay} a day, and you send them`,
     toSend: "To send",
   },
-  writesBack: { title: "When a lead writes back", sub: "Read as it arrives. Nothing replies on its own." },
+  writesBack: {
+    title: "When a lead writes back",
+    sub: "Read as it arrives. Nothing replies on its own.",
+    modeDoor: "Open Autonomy",
+  },
   rules: { title: "Rules it always keeps", sub: "They keep your emails out of spam", mark: "Always on" },
   told: {
     title: "What it's told",
     sub: "What each writer reads, and its share",
     value: "Three writers: the sequence's words, the line about each business, and an answer to a reply",
+    everyTime: "Each reply's own: read as it arrives, so there are no words to show here.",
     open: "Open",
     kinds: { words: "The words", opening: "The line about them", reply: "An answer" },
     hints: {
@@ -229,7 +235,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     rewrite: "Write another",
     open: "Open the sequence",
     none: "Start a sequence first: its first email is what Try it writes.",
-    noneAct: "New",
+    noneAct: "Start one in New",
     legend: { them: "Their listing", proof: "Your proof", words: "Your words" },
     checked: "Checked: nothing guessed, no link, no price",
     held: (why: string) => `Held for you: ${why}`,
@@ -270,7 +276,8 @@ export interface ReachOutSettingsSequence {
 /** GET settings/reach-out: what the page shows beyond the config. */
 export interface ReachOutSettingsDto {
   mailbox: ReachOutSettingsMailbox | null;
-  month: { sent: number; of: number };
+  /** The month's first emails against their share; sent is null where they could not be counted. */
+  month: { sent: number | null; of: number };
   by_hand_per_day: number;
   /** Each claim on the page, with the emails sent from steps whose words carry it. */
   claims: { text: string; sends: number }[];

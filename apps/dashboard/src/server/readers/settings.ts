@@ -23,13 +23,14 @@ import {
   type ReachOutSettingsSequence,
 } from "@chanlytics/contracts";
 import { findRehearsalById } from "@chanlytics/db/facts";
-import { countSentByStep, findWorkspaceAbout, readMonthSent, reviewLinkOf } from "@chanlytics/db/campaigns";
+import { countSentByStep, findWorkspaceAbout, reviewLinkOf } from "@chanlytics/db/campaigns";
 import { askMemoryLines } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
 import type { RouteContext } from "../shared/with-route";
 import { findPromptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
 import { listLines } from "../connections/lines";
 import { listMailboxConnectionsWithDays } from "../connections/mailbox-connections";
+import { readReachOutMonthOrNull } from "../campaigns/month-sent";
 import { listChains } from "../campaigns/reach-outs/reach-outs";
 import { log } from "../shared/log";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
@@ -327,7 +328,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
       partOf(load(rc, readers.config, undefined), "config", t, null),
       partOf(load(rc, readers.facts, undefined), "facts", t, null),
       partOf(listMailboxConnectionsWithDays(db, t, rc.now), "mailboxes", t, []),
-      partOf(readMonthSent(db, t, rc.now), "month", t, 0),
+      readReachOutMonthOrNull(t, rc.now),
       partOf(askMemoryLines(db, t, ASK_MEMORY_LIMITS.liveMax), "memory", t, []),
       partOf(listChains(rc.ctx, t), "chains", t, []),
       partOf(listPolicies(db, t), "policies", t, []),

@@ -6,11 +6,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mailboxConnectionDtoOf } from "@chanlytics/contracts";
+import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { newestLeadSequence, stepsCarrying, claimCounts, mailboxShown } =
   await import("../../../apps/dashboard/src/server/readers/settings.ts");
+const { readReachOutMonthOrNull } = await import("../../../apps/dashboard/src/server/campaigns/month-sent.ts");
+const { setServiceClient } = await import("../../../apps/dashboard/src/server/shared/service-db.ts");
 
 const step = (id, n, body, extra = {}) => ({
   id,
@@ -118,4 +121,18 @@ test("the mailbox shown is the first that sends now, said as Connections says it
   assert.equal(shown.address, "maya@example.com");
   assert.equal(typeof shown.pill, "string");
   assert.equal(mailboxShown([box("gone", "removed")], Date.now(), "UTC"), null);
+});
+
+test("the month's first emails are the service role's count, and a count that fails is none, never a zero", async () => {
+  // The count is a function only the service role may call: read as the member, it was refused, and the page said 0.
+  const T = "11111111-1111-4111-8111-111111111111";
+  const at = new Date("2026-11-07T12:00:00Z");
+  setServiceClient(fakeDb({}, {}, { reach_out_month_sent: () => 12 }));
+  assert.equal(await readReachOutMonthOrNull(T, at), 12);
+  const refused = () => {
+    throw new Error("permission denied for function reach_out_month_sent");
+  };
+  setServiceClient(fakeDb({}, {}, { reach_out_month_sent: refused }));
+  assert.equal(await readReachOutMonthOrNull(T, at), null);
+  setServiceClient(null);
 });

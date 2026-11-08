@@ -144,9 +144,12 @@ export function TryCard({
                 <p className="bt-fold-note" data-testid="rec-try-none">
                   {W.none}
                 </p>
-                <Button size="sm" onClick={() => navigate(newForLeadsRoute())} data-testid="rec-try-new">
-                  {W.noneAct}
-                </Button>
+                {/* Held to its own width: the stack would stretch it across the sheet. */}
+                <span>
+                  <Button size="sm" onClick={() => navigate(newForLeadsRoute())} data-testid="rec-try-new">
+                    {W.noneAct}
+                  </Button>
+                </span>
               </>
             ) : !tried ? (
               <p className="bt-fold-note">…</p>

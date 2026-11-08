@@ -43,7 +43,12 @@ export function OutreachCards({
         <p className="bt-gap" data-testid="rec-offer-gap">
           <span className="bt-gap-dot" aria-hidden="true" />
           {canEdit ? (
-            <LinkButton onClick={() => recFolds.request("offer")} data-testid="rec-offer-gap-door">
+            // How it answers' gap line's door (business/tab.tsx): its ink, its underline, a line's height on a phone.
+            <LinkButton
+              className="bt-gap-door"
+              onClick={() => recFolds.request("offer")}
+              data-testid="rec-offer-gap-door"
+            >
               {REACH_OUT_SETTINGS_WORDS.gap}
             </LinkButton>
           ) : (

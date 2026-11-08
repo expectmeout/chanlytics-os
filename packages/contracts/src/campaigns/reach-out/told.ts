@@ -8,6 +8,7 @@
  * An answer to a reply is the receptionist's, over the thread and the lead's note, which differ with every reply: its
  * parts are said with no share, since no one number would be true of them.
  */
+import { leadReplyNote } from "./reply-draft";
 import type { OpeningRecord } from "./words/opening";
 
 export const TOLD_KINDS = ["words", "opening", "reply"] as const;
@@ -130,9 +131,20 @@ export function openingToldParts(system: string, user: string): ToldPart[] {
   ];
 }
 
-/** An answer to a reply: the receptionist's parts, which differ with every reply, so said with no share. */
-export const replyToldParts = (): ToldPart[] =>
-  (["answers", "reply_offer", "thread", "note"] as const).map((id) => toldPart(id, ""));
+/**
+ * An answer to a reply: the receptionist's parts, which differ with every reply, so said with no share. The lead's note is
+ * the drafter's own (leadReplyNote), written for the made-up business as if it answered a first line about its reviews;
+ * the thread is each reply's own, so it has no words to show.
+ */
+export function replyToldParts(): ToldPart[] {
+  const example = reachOutExampleRecord();
+  const note = leadReplyNote({
+    business: example.business_name,
+    answered: `${example.business_name} has a ${example.rating} from ${example.reviews} reviews.`,
+    kind: "answer",
+  });
+  return [toldPart("answers", ""), toldPart("reply_offer", ""), toldPart("thread", ""), toldPart("note", note)];
+}
 
 /**
  * The made-up business the opening's prompt is shown for (the sequence sheet's example, rules.ts EXAMPLE_LEAD): what one
