@@ -207,6 +207,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "reach_out_last_days_read_failed",
   "reach_out_rewrite_unchecked",
   "reach_out_rewrite_unread",
+  "reach_out_settings_read_failed",
   "receptionist_series_missing",
   "receptionist_try_failed",
   "recording_audit_unavailable",

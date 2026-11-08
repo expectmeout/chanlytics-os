@@ -108,6 +108,8 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "admin/hours",
   "admin/files",
   "admin/receptionist",
+  // How it reaches out (decision 0113): a card of propose_settings' reach_out opens on its row.
+  "admin/outreach",
   "admin/team",
   "admin/autonomy",
   "admin/notifications",

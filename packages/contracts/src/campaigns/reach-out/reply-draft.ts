@@ -32,6 +32,9 @@ export const DRAFT_NOTICE_MAX = 240;
 /** The policy mode under which the receptionist says nothing (contracts POLICY_MODES). */
 const SILENT_MODE = "never";
 
+/** Whether an answer to a lead is drafted under this Replies mode: every mode but the quiet one, and a person sends it. */
+export const mayDraftReply = (mode: string): boolean => mode !== SILENT_MODE;
+
 /**
  * Whether the receptionist may draft, asked in G14's order: a receptionist that can speak, a workspace that lets it,
  * the day's tokens, then the spend. Null when it may. The gates about a message leaving (the pilot allowlist, a short
@@ -45,7 +48,7 @@ export function draftRefusal(fields: {
   maySpend: boolean;
 }): DraftWhy | null {
   if (!fields.receptionist) return "no_receptionist";
-  if (fields.mode === SILENT_MODE) return "off";
+  if (!mayDraftReply(fields.mode)) return "off";
   if (fields.budgetSpent) return "budget";
   if (!fields.maySpend) return "may_not_spend";
   return null;
@@ -87,4 +90,18 @@ export function leadReplyNote(params: {
 /** A draft's first lines, as the notice quotes them. */
 export function draftExcerpt(draft: string): string {
   return flatClip(draft, DRAFT_NOTICE_MAX);
+}
+
+/**
+ * What the answer to a lead who wrote back is steered to offer (decision 0113, How it reaches out's When a lead writes
+ * back): nothing for the booking link, which is what an answer offered before the page and what the receptionist offers
+ * where it has one; a short call, signed as the sequence signs; or the answer alone. Told to the receptionist as a
+ * member's change is (drafts/writer.ts), never in the receptionist's own prompt.
+ */
+export function replyOfferSteer(offer: string | null | undefined): string | null {
+  // No time of its own: told as the member's words, a time here would let a drafted promise of one past the follow-up
+  // check (drafts/writer.ts).
+  if (offer === "call") return "Offer a short call at a time that suits them, and no link.";
+  if (offer === "answer") return "Answer what they asked and offer nothing more: no link and no call.";
+  return null;
 }

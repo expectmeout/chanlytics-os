@@ -180,6 +180,7 @@ export type {
   ReplyListRow,
   ReplyReadingRow,
 } from "./reach-out/outreach";
+export { countSentByStep } from "./reach-out/proof";
 export {
   addReachOutPerson,
   claimSends,

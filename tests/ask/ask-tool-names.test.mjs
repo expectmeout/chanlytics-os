@@ -1238,7 +1238,9 @@ function againstOffered(got, frozen) {
  * hear first and in which voice, the transfer number, the owner's own words and the three messages -- beside the
  * languages and photos, so a card that changes a row of How it answers is proposed from what the row holds. This
  * world's: nothing set but the prompt written before the form, which the box opens as the owner's own words, and the
- * three messages it stores. Nothing else moved.
+ * three messages it stores. 7 Nov 2026 (decision 0113): and How it reaches out after it, for the same reason; here
+ * nothing is set, so each row is null, there are no claims, and an answer to a lead offers the booking link. Nothing
+ * else moved.
  */
 function withHowItAnswers(frozen) {
   const answers = {
@@ -1249,19 +1251,15 @@ function withHowItAnswers(frozen) {
     own_words: "Answer as the front desk of Harbor Moving: brief and warm.",
     messages: { greeting: "g", error: "e", non_text: "n" },
   };
-  const said = Object.entries(JSON.parse(frozen));
-  return JSON.stringify(
-    Object.fromEntries(
-      said.flatMap(([k, v]) =>
-        k === "vision"
-          ? [
-              [k, v],
-              ["answers", answers],
-            ]
-          : [[k, v]],
-      ),
-    ),
-  );
+  const rows = ["offer", "who_for", "fixes", "claims", "tone", "signed_by", "signature", "reply_offer"];
+  const filled = { claims: [], reply_offer: "booking_link" };
+  const reachOut = Object.fromEntries(rows.map((k) => [k, filled[k] ?? null]));
+  const result = {};
+  for (const [k, v] of Object.entries(JSON.parse(frozen))) {
+    result[k] = v;
+    if (k === "vision") Object.assign(result, { answers, reach_out: reachOut });
+  }
+  return JSON.stringify(result);
 }
 
 /**

@@ -180,6 +180,7 @@ test("the real set is exactly the converted surfaces", () => {
     "admin/integrations",
     "admin/memory",
     "admin/notifications",
+    "admin/outreach",
     "admin/partner",
     "admin/platform",
     "admin/profile",

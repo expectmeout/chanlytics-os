@@ -88,8 +88,8 @@ function SetPane({ id, row, flash }: { id: string; row: string | null; flash: Fl
       {id === "profile" && <PaneProfile flash={flash} />}
       {id === "partner" && <PanePartner flash={flash} />}
       {id === "team" && <PaneTeam flash={flash} />}
-      {/* The business, one page per question: Details, Hours & booking and How it answers, over one record. */}
-      {(id === "workspace" || id === "hours" || id === "receptionist") && (
+      {/* The business, one page per question: Details, Hours & booking, How it answers and How it reaches out, over one record. */}
+      {(id === "workspace" || id === "hours" || id === "receptionist" || id === "outreach") && (
         <PaneWorkspace flash={flash} row={row} part={id} />
       )}
       {id === "autonomy" && <PaneAutonomyReal flash={flash} row={row} />}

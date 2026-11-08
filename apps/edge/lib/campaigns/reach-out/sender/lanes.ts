@@ -30,6 +30,7 @@ import {
   draftRefusalOf,
   mailboxSendsNow,
   parseTenantConfig,
+  reachOutSignatureOf,
   previewSlotOf,
   type LeadPreviewSlot,
   type SlotLead,
@@ -133,6 +134,8 @@ interface Workspace {
   bookingLink: string | null;
   /** Why no email of this workspace can be written now (a HOLDS reason), or null. */
   missing: string | null;
+  /** Sign-off's signature with its phone (decision 0113), under the name of every email the lane sends; null where none. */
+  signature: string | null;
 }
 
 /** One tick's reads that hold for the whole tick, each made once: a workspace's facts, a template's words, a mailbox. */
@@ -145,7 +148,8 @@ export function tickReads(db: Db) {
       once(workspaces, tenantId, async () => {
         const result = await findWorkspaceNameAndConfig(db, tenantId);
         // The address drafts put at their foot (the dashboard's getWorkspaceOffer): the profile's, as the owner wrote it.
-        const brain = parseTenantConfig(result.config)?.brain;
+        const config = parseTenantConfig(result.config);
+        const brain = config?.brain;
         const address = brain?.profile?.address?.trim() || null;
         const businessName = result.name?.trim() || null;
         return {
@@ -153,6 +157,7 @@ export function tickReads(db: Db) {
           address,
           bookingLink: brain?.booking_link?.trim() || null,
           missing: !businessName || !address ? "no_business_address" : null,
+          signature: reachOutSignatureOf(config),
         };
       }),
     words: (tenantId: string, templateId: string) =>
@@ -286,6 +291,8 @@ export interface Made {
   parent: ParentEmail | null;
   /** How its sequence ends its emails (00492, decision 0077). */
   signsWith: "name" | "mailbox";
+  /** Sign-off's signature (decision 0113), under the name where the mailbox's does not stand; null where none is set. */
+  own: string | null;
   /** The lead's preview its words carry as {{their preview}} (decision 0079): its first send starts its thirty days. */
   previewId: string | null;
 }
@@ -408,6 +415,7 @@ export async function sendFromMailbox(
     opening,
     from: turn.go,
     signsWith: match.signsWith,
+    own: match.own,
     unsubscribe: { secret: tick.lane.unsubscribeSecret, origin: tick.lane.unsubscribeOrigin },
     parent: match.parent,
   });

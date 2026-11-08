@@ -797,6 +797,13 @@
       "rate": "file_google",
       "spend": false
     },
+    "GET files/[id]/play": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "GET files/[id]": {
       "kind": "read",
       "scope": "row",
@@ -819,13 +826,6 @@
       "spend": false
     },
     "GET files/[id]/view": {
-      "kind": "read",
-      "scope": "row",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
-    "GET files/[id]/play": {
       "kind": "read",
       "scope": "row",
       "role": null,
@@ -2361,6 +2361,20 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "ask",
+      "spend": false
+    },
+    "GET settings/reach-out": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET settings/reach-out/told": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
       "spend": false
     },
     "POST settings/receptionist": {

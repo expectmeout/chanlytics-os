@@ -139,8 +139,9 @@ const withoutPaths = (config, paths) => {
 
 /**
  * One real change per fold, the test's own: from the draft the fold opens with (draftOf) to a changed one, and where
- * the change must land. Every fold the save file knows has one (the first test holds the two lists together), so a new
- * fold cannot arrive without proving it writes.
+ * the change must land. Every fold of the brain the save file knows has one (the first test holds the two lists
+ * together), so a new fold cannot arrive without proving it writes. How it reaches out's folds write the config's
+ * reach_out section, not the brain, and tests/reach-out/settings/each-fold-writes-its-key.test.mjs holds them so.
  */
 const EDITS = {
   tone: [
@@ -281,13 +282,10 @@ const told = (brain) =>
 /* ------------------------------------ what each fold owns ------------------------------------ */
 
 test("every fold is named once, owns exactly its paths, and is a fold the bridge can say the consequence of", () => {
-  assert.deepEqual(
-    Object.keys(S.KEYS_OF).sort(),
-    [...FOLDS].sort(),
-    "the test's edits cover every fold the save file knows",
-  );
-  assert.deepEqual(Object.keys(S.PATHS_OF).sort(), [...FOLDS].sort());
-  assert.deepEqual(S.KEYS_OF, {
+  const brain = Object.keys(S.PATHS_OF).filter((f) => !S.PATHS_OF[f].some((p) => p.startsWith("reach_out.")));
+  assert.deepEqual(brain.sort(), [...FOLDS].sort(), "the edits cover every brain fold the save file knows");
+  assert.deepEqual(Object.keys(S.KEYS_OF).sort(), Object.keys(S.PATHS_OF).sort());
+  assert.deepEqual(Object.fromEntries(brain.map((f) => [f, S.KEYS_OF[f]])), {
     tone: ["tone"],
     phone_greeting: ["phone_greeting"],
     hours: ["hours"],

@@ -9,15 +9,21 @@ import {
   LEAD_DRAFT_JSON_SCHEMA,
   LEAD_NO_ADDRESS,
   LEAD_OWN_EMAIL_WORDS,
+  LEAD_UNBACKED_NUMBER,
   LeadDraftAnswerSchema,
   leadDraftFooter,
   mailtoOf,
+  fencedInline,
+  parseTenantConfig,
+  reachOutToneOf,
   siteHost,
 } from "@chanlytics/contracts";
 import { getAddressesSuppressed } from "@chanlytics/db/campaigns";
+import { getStoredConfig } from "../workspace/config-row";
 import { getWorkspaceOffer } from "./allowance";
 import { getLeadEmailOffer, type LeadEmailOffer } from "./send";
 import type { LeadRow } from "./searches";
+import { unbackedNumbers } from "../campaigns/sequences/numbers";
 import { askForJson } from "../shared/model-json";
 import { serviceDb } from "../shared/service-db";
 import type { RouteContext } from "../shared/with-route";
@@ -45,7 +51,26 @@ const DRAFT_SYSTEM = [
   "- Under 120 words, in short paragraphs, with no bullet list.",
   "- The subject says what the email is about in under nine words. Never a question about their money, never capitals.",
   "- Write no sign-off address and no unsubscribe line: those are added after you, by code.",
+  "- A number about the writer's own business (customers, years, results) only inside one of the claims it can prove, word for word; where it has none, no such number.",
 ].join("\n");
+
+/** Asked once more where the first draft said a number about the writer that its claims do not back (decision 0113). */
+const UNBACKED_AGAIN =
+  "Write it again with no number about the writer's business that its claims do not say word for word.";
+
+/** What How it reaches out says of the writer (decision 0113), as data: each line only where the owner wrote it. */
+function writerLines(config: ReturnType<typeof parseTenantConfig>): string[] {
+  const section = config?.reach_out;
+  const tone = reachOutToneOf(config);
+  const claims = (section?.proof ?? []).map((c) => `- ${fencedInline("record", c)}`);
+  return [
+    section?.offer?.trim() ? `What it offers them: ${fencedInline("record", section.offer.trim())}` : null,
+    section?.who_for?.trim() ? `Who it writes to: ${fencedInline("record", section.who_for.trim())}` : null,
+    section?.fixes?.trim() ? `What it fixes for them: ${fencedInline("record", section.fixes.trim())}` : null,
+    claims.length ? `What it can prove, one at most, word for word:\n${claims.join("\n")}` : null,
+    tone ? `How it sounds: ${fencedInline("record", tone)}` : null,
+  ].filter((l): l is string => l !== null);
+}
 
 /** What this lead is, in the words the card saw: never a guess, and never the name of whoever fetched it. */
 async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): Promise<string[]> {
@@ -103,36 +128,50 @@ export async function draftFor(
   }
   const held = await getAddressesSuppressed(serviceDb(), lead.tenant_id, [lead.email]);
   if (held.size > 0) throw new AppError("conflict", LEAD_ASKED_NOT_WRITTEN, 409);
-  const facts = await draftFacts(ctx, lead);
+  const [facts, config] = await Promise.all([
+    draftFacts(ctx, lead),
+    getStoredConfig(ctx.supabase, lead.tenant_id)
+      .then(parseTenantConfig)
+      .catch(() => null),
+  ]);
   const sentence =
     input.tone === "shorter" ? SHORTER_ASK : input.tone === "warmer" ? WARMER_ASK : "Write the first one.";
-  const answer = await askForJson(
-    {
-      tenantId: lead.tenant_id,
-      userId: ctx.userId,
-      purpose: "lead_draft",
-      request: {
-        max_tokens: 600,
-        system: DRAFT_SYSTEM,
-        schema: LEAD_DRAFT_JSON_SCHEMA,
-        messages: [
-          {
-            role: "user",
-            content: [
-              `Who is writing: ${offer.name}${offer.services.length ? `, which offers ${offer.services.join(", ")}` : ""}.`,
-              `Who it goes to: ${facts.join("; ")}.`,
-              ...(input.previous
-                ? [`The last draft was:\nSubject: ${input.previous.subject}\n${input.previous.body}`]
-                : []),
-              sentence,
-            ].join("\n\n"),
-          },
-        ],
+  const ask = (previous: { subject: string; body: string } | undefined, again: string | null) =>
+    askForJson(
+      {
+        tenantId: lead.tenant_id,
+        userId: ctx.userId,
+        purpose: "lead_draft",
+        request: {
+          max_tokens: 600,
+          system: DRAFT_SYSTEM,
+          schema: LEAD_DRAFT_JSON_SCHEMA,
+          messages: [
+            {
+              role: "user",
+              content: [
+                `Who is writing: ${offer.name}${offer.services.length ? `, which offers ${offer.services.join(", ")}` : ""}.`,
+                ...writerLines(config),
+                `Who it goes to: ${facts.join("; ")}.`,
+                ...(previous ? [`The last draft was:\nSubject: ${previous.subject}\n${previous.body}`] : []),
+                again ?? sentence,
+              ].join("\n\n"),
+            },
+          ],
+        },
       },
-    },
-    LeadDraftAnswerSchema,
-    "draft",
-  );
+      LeadDraftAnswerSchema,
+      "draft",
+    );
+  // A number about the writer stands only in a claim it can prove (decision 0113), and one about them in their facts:
+  // one more try without it, then no draft.
+  const backing = [...(config?.reach_out?.proof ?? []), offer.name, ...facts];
+  const unbacked = (a: { subject: string; body: string }) =>
+    unbackedNumbers(`${a.subject}\n${a.body}`, backing).length > 0;
+  const first = await ask(input.previous, null);
+  const answer = unbacked(first) ? await ask(first, UNBACKED_AGAIN) : first;
+  // Not written, as an ask the model would not answer is (LEAD_ASKED_NOT_WRITTEN): a conflict, on its own status.
+  if (unbacked(answer)) throw new AppError("conflict", LEAD_UNBACKED_NUMBER);
   const mailFoot = leadDraftFooter(offer.name, offer.address);
   const body = `${answer.body}${mailFoot}`;
   return {

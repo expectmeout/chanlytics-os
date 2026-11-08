@@ -50,6 +50,8 @@ export const signupDoorRead = keptRead("whatsapp-door", () => api()("GET channel
 export const instagramDoorRead = keptRead("instagram-door", () => api()("GET channels/instagram"));
 /** The member's saved views, where Profile keeps how Ask answers them (profile/pane.tsx AnswerStyle). */
 export const savedViewsRead = keptRead("profile-views", () => api()("GET views"));
+/** What How it reaches out shows beyond the config: its mailbox, the month, the claims' counts, the voice (0113). */
+export const reachOutSettingsRead = keptRead("reach-out-settings", () => api()("GET settings/reach-out"));
 
 /** Reads begun together, settled once each has, landed or not; null when none was begun. */
 const settledAll = (reads: readonly (Promise<unknown> | null)[]): Promise<unknown> | null => {
@@ -70,6 +72,7 @@ const PANE_READS: Readonly<Record<string, PaneRead>> = {
     warm: () => settledAll([signupDoorRead.warm(), instagramDoorRead.warm()]),
   },
   profile: { held: () => savedViewsRead.held() !== null, warm: () => savedViewsRead.warm() },
+  outreach: { held: () => reachOutSettingsRead.held() !== null, warm: () => reachOutSettingsRead.warm() },
   activity: { held: () => activity.peek({}) !== null, warm: () => activity.warm({}) },
 };
 

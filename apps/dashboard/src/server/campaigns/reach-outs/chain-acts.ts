@@ -6,6 +6,7 @@ import {
   REACH_OUT_LANGUAGE,
   REACH_OUT_REFUSALS,
   coldEndingOf,
+  reachOutSignatureOf,
   coldSignedOff,
   emailFoot,
   whyFrom,
@@ -125,17 +126,26 @@ async function bookingLinkOf(ctx: RouteContext, tenantId: string): Promise<strin
 export async function findBusiness(
   ctx: RouteContext,
   tenantId: string,
-): Promise<{ name: string; workspaceName: string; address: string | null; bookingLink: string | null }> {
+): Promise<{
+  name: string;
+  workspaceName: string;
+  address: string | null;
+  bookingLink: string | null;
+  /** Sign-off's signature with its phone (decision 0113), under the name of every email Chanlytics sends. */
+  signature: string | null;
+}> {
   const [facts, stored] = await Promise.all([
     getTenantFacts(ctx.supabase, tenantId),
     getStoredConfig(ctx.supabase, tenantId),
   ]);
-  const brain = parseTenantConfig(stored ?? null)?.brain;
+  const config = parseTenantConfig(stored ?? null);
+  const brain = config?.brain;
   return {
     name: brain?.business_name || facts.name || "your business",
     workspaceName: facts.name,
     address: brain?.profile?.address?.trim() || null,
     bookingLink: brain?.booking_link?.trim() || null,
+    signature: reachOutSignatureOf(config),
   };
 }
 
@@ -332,6 +342,7 @@ export async function firstEmailOf(
     signsWith: params.signsWith === "mailbox" ? "mailbox" : "name",
     signedBy: params.signedBy,
     signature: box ? (mailboxSignatureOf(box)?.text ?? null) : null,
+    own: business.signature,
     first: params.first,
     body: words.body,
     address: business.address,

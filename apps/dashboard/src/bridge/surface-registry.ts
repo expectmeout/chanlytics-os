@@ -94,6 +94,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   "admin/workspace": "real", // Details: who the business is and what it sells
   "admin/hours": "real", // Hours & booking: the week, closed days, the booking tool, link and rules
   "admin/receptionist": "real", // How it answers: its voice, what it knows, what it can do, what it is told
+  "admin/outreach": "real", // How it reaches out: what a cold email is written from, its sends, its rules (decision 0113)
   "admin/team": "real", // split out of workspace: the people, their roles, invites
   "admin/autonomy": "real", // the policies table, live for the reply row
   "admin/notifications": "real", // who is alerted, from tenant_config
@@ -153,6 +154,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/workspace": "settings",
   "admin/hours": "settings",
   "admin/receptionist": "settings",
+  "admin/outreach": "settings",
   "admin/team": "settings",
   "admin/autonomy": "settings",
   "admin/notifications": "settings",
