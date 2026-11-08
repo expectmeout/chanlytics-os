@@ -30521,13 +30521,14 @@ begin
   -- Each person is one column, so two of these walks join on who and in what order they already stand, whatever the planner
   -- guesses of how many there are.
   return query execute $q$
-  with latest as (
+  -- Each one's newest send in each sequence, picked from the sends alone, its batch read after by its key: joined before the
+  -- pick, a read of a few leads could start from the workspace's batches and walk every send in each (00566). A send with
+  -- no batch is a lead's own, with no sequence (sequence_sends_own_is_a_leads), and stands nowhere here.
+  with newest as (
     select distinct on (s.sequence_id, coalesce(s.lead_id, s.contact_id))
            s.sequence_id, coalesce(s.lead_id, s.contact_id) as person, s.id as send_id, s.batch_id, s.step_id, s.contact_id,
-           s.lead_id, s.state, s.reason, s.hold_detail, s.send_at, s.sent_at, s.drafted_at, s.created_at,
-           b.state as batch_state, b.scheduled_for
+           s.lead_id, s.state, s.reason, s.hold_detail, s.send_at, s.sent_at, s.drafted_at, s.created_at
       from public.sequence_sends s
-      join public.sequence_batches b on b.id = s.batch_id
      where s.tenant_id = $1
        and ($2 is null or s.sequence_id = $2)
        and ($3 is null or (s.lead_id is not null and s.lead_id = any ($3)))
@@ -30537,6 +30538,11 @@ begin
                                         where n.tenant_id = $1 and n.lead_id = s.lead_id and n.sequence_id = s.sequence_id
                                           and (n.created_at, n.id) > (s.created_at, s.id))))
      order by s.sequence_id, coalesce(s.lead_id, s.contact_id), s.created_at desc, s.id desc
+  ),
+  latest as (
+    select n.*, b.state as batch_state, b.scheduled_for
+      from newest n
+      join public.sequence_batches b on b.id = n.batch_id
   ),
   placed as (
     select l.*, st.place,
@@ -30655,7 +30661,7 @@ $_$;
 -- Name: FUNCTION sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean) IS 'Where each person or lead stands in each sequence, the one reader of a place (00459). Planned with the values each call hands it (00554), so p_lead_ids and p_sequence_id are index conditions; p_standing_leads asks only what stands of a workspace''s leads, and walks their open sends. An email theirs to send says its words, read for those rows alone.';
+COMMENT ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean) IS 'Where each person or lead stands in each sequence, the one reader of a place (00459). Planned with the values each call hands it (00554), so p_lead_ids and p_sequence_id are index conditions; p_standing_leads asks only what stands of a workspace''s leads, and walks their open sends. An email theirs to send says its words, read for those rows alone. Each one''s newest send is picked from the sends before its batch is read (00566), so a read of a few leads never walks a batch.';
 
 
 --
