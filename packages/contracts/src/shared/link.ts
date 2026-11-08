@@ -78,3 +78,27 @@ export function publicObjectSrc(supabaseUrl: string | null | undefined, bucket: 
   if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
   return `${origin}/storage/v1/object/public/${bucket}/${path}`;
 }
+
+const ADDRESS = /[^\s@<>]+@[^\s@<>]+/g;
+
+const SCHEME_OR_WWW = /\bhttps?:\/\/[^\s<>]+|\bwww\.[^\s<>]+/gi;
+
+// A bare name.tld as an address is written: "example.com", "harbor.example/book", and "RJCapital.io" with capitals
+// before its dot, which a mail app links all the same (30 Oct 2026). "St.Louis", "Dr.Smith" and a rating's "4.9" are
+// not: a capital after the last dot, or no letters.
+const BARE_HOST = /\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[a-z]{2,24}\b(?:\/[^\s<>]*)?/g;
+
+/**
+ * The web addresses a reader sees in words: each with a scheme or a www., and each bare name.tld. An email address is
+ * not one. A cold email's words ask it with their slots taken out (reach-out/words/limits.ts linksIn), and a signature
+ * as it stands.
+ */
+export function webAddressesIn(text: string): string[] {
+  const out: string[] = [];
+  const rest = text.replace(ADDRESS, " ").replace(SCHEME_OR_WWW, (m) => {
+    out.push(m);
+    return " ";
+  });
+  for (const m of rest.matchAll(BARE_HOST)) out.push(m[0]);
+  return out;
+}

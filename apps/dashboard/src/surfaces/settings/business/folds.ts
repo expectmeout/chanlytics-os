@@ -529,7 +529,6 @@ const btFallbacksProblems = (draft: unknown) => {
 
 /** What stops each fold's save, by the field it is under: BusinessEditor's `save` checks, word for word. */
 const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
-  ...REACH_OUT_FOLDS.problemsOf,
   tone: (draft): Problems => {
     const n = trimmed(draft).length;
     return n > BT_LIMITS.tone ? { tone: btRefusalOf("tone", n) } : {};
@@ -637,7 +636,7 @@ const btFieldOf = (fold: FoldName, path: (string | number)[], draft: unknown) =>
   const dotted = path.join(".");
   const own = BT_PATHS_OF[fold].some((p) => dotted === p || dotted.startsWith(`${p}.`));
   if (!own) return null;
-  if (REACH_OUT_FOLDS.is(fold)) return REACH_OUT_FOLDS.fieldOf(fold, path);
+  if (REACH_OUT_FOLDS.is(fold)) return REACH_OUT_FOLDS.fieldOf(fold, path, draft);
   if (fold === "hours") return `hours-${path[3]}`;
   if (fold === "services" || fold === "closures" || fold === "notes") return btListField(fold, path, draft);
   if (fold === "booking_rules" || fold === "consult_first") return String(path[3]);

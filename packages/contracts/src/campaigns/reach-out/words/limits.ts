@@ -2,6 +2,7 @@
 
 import { REACH_OUT_LIMITS } from "../../../config/workspace-config/config-rules";
 import { posesAsReply } from "../../../email/subject";
+import { webAddressesIn } from "../../../shared/link";
 import { emailIssues } from "../../templates/message-versions/email-rules";
 import type { EmailIssue, EmailProblem, EmailRules } from "../../templates/message-versions/email-rules";
 import { slotCountIn, slotFault, slotMentions, slotsOut } from "../../templates/slot-sets";
@@ -74,29 +75,12 @@ export function emailWordCount(text: string): number {
   return slots + wordCount(slotsOut(REACH_OUT_SLOT_SET, text));
 }
 
-const ADDRESS = /[^\s@<>]+@[^\s@<>]+/g;
-
-const SCHEME_OR_WWW = /\bhttps?:\/\/[^\s<>]+|\bwww\.[^\s<>]+/gi;
-
-// A bare name.tld as an address is written: "example.com", "harbor.example/book", and "RJCapital.io" with capitals
-// before its dot, which a mail app links all the same (30 Oct 2026). "St.Louis", "Dr.Smith" and a rating's "4.9" are
-// not: a capital after the last dot, or no letters.
-const BARE_HOST = /\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[a-z]{2,24}\b(?:\/[^\s<>]*)?/g;
-
 /**
- * The web addresses a reader sees in the words: each with a scheme or a www., and each bare name.tld. An email
- * address is not one. The one link rule: the words' "one link at most" and the opening's "no link" both ask it.
+ * The web addresses a reader sees in the words, their slots taken out (shared/link.ts webAddressesIn). The one link rule:
+ * the words' "one link at most" and the opening's "no link" both ask it.
  */
 export function linksIn(text: string): string[] {
-  const out: string[] = [];
-  const rest = slotsOut(REACH_OUT_SLOT_SET, text)
-    .replace(ADDRESS, " ")
-    .replace(SCHEME_OR_WWW, (m) => {
-      out.push(m);
-      return " ";
-    });
-  for (const m of rest.matchAll(BARE_HOST)) out.push(m[0]);
-  return out;
+  return webAddressesIn(slotsOut(REACH_OUT_SLOT_SET, text));
 }
 
 /** The links a business sees: each one written out, each {{booking link}} and each {{their preview}}. */

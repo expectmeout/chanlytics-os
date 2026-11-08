@@ -12,7 +12,12 @@ import {
   reachOutOfferOf,
   reachOutToneOf,
   reachOutSignedByOf,
-  reachOutBackingOf,
+  openingWorkspaceOf,
+  applySettingsChange,
+  AskSettingsChangeSchema,
+  phoneAsWritten,
+  reachOutSignatureProblem,
+  REACH_OUT_REFUSAL_WORDS,
   reachOutRuleLines,
   writesBackRows,
   replyModeHint,
@@ -20,12 +25,8 @@ import {
   ASK_FIRST_WORDS_MAX,
   ASK_LATER_WORDS_MAX,
 } from "@chanlytics/contracts";
-import {
-  reachOutPhoneProblem,
-  reachOutSignatureProblem,
-} from "../../../apps/dashboard/src/surfaces/settings/outreach/model/refusals.ts";
 
-test("the section parses, leaves out a key it does not know, and holds its limits", () => {
+test("the section parses, and leaves out a key it does not know", () => {
   const parsed = TenantConfigSchema.parse({
     reach_out: { offer: "Evening cleaning", proof: ["We clean 40 clinics"], reply_offer: "call", stray: 1 },
   });
@@ -34,8 +35,113 @@ test("the section parses, leaves out a key it does not know, and holds its limit
     proof: ["We clean 40 clinics"],
     reply_offer: "call",
   });
-  assert.throws(() => TenantConfigSchema.parse({ reach_out: { proof: Array(REACH_OUT_LIMITS.claims + 1).fill("x") } }));
-  assert.throws(() => TenantConfigSchema.parse({ reach_out: { offer: "x".repeat(REACH_OUT_LIMITS.offer + 1) } }));
+});
+
+test("a stored section past its limits still reads: a cold email's words never mute the receptionist", () => {
+  const over = {
+    offer: "x".repeat(REACH_OUT_LIMITS.offer + 1),
+    proof: Array(REACH_OUT_LIMITS.claims + 1).fill("x"),
+    signature: "a\nb\nc\nd\ne",
+    phone: "call me",
+  };
+  assert.deepEqual(TenantConfigSchema.parse({ reach_out: over }).reach_out, over);
+});
+
+/** What the save refuses in a section, by where, in its own sentences: what every door that writes the config is told. */
+const refusedIn = (section) => {
+  const r = TenantConfigWriteSchema.safeParse({ reach_out: section });
+  return r.success ? {} : Object.fromEntries(r.error.issues.map((i) => [i.path.join("."), i.message]));
+};
+
+test("the save holds the section to its limits, each under its own field, in a sentence", () => {
+  const L = REACH_OUT_LIMITS;
+  const fields = [
+    ["offer", L.offer],
+    ["who_for", L.whoFor],
+    ["fixes", L.fixes],
+    ["tone", L.tone],
+    ["signed_by", L.signedBy],
+    ["signature", L.signature],
+    ["phone", L.phone],
+  ];
+  for (const [key, max] of fields) {
+    assert.deepEqual(
+      refusedIn({ [key]: "5".repeat(max + 1) }),
+      { [`reach_out.${key}`]: REACH_OUT_REFUSAL_WORDS.tooLong(max) },
+      key,
+    );
+  }
+  assert.deepEqual(refusedIn({ proof: Array(L.claims + 1).fill("x") }), {
+    "reach_out.proof": REACH_OUT_REFUSAL_WORDS.claims,
+  });
+  assert.deepEqual(refusedIn({ proof: ["We clean 40 clinics.", "x".repeat(L.claim + 1)] }), {
+    "reach_out.proof.1": REACH_OUT_REFUSAL_WORDS.tooLong(L.claim),
+  });
+});
+
+test("the save refuses a signature or a phone the page's boxes refuse, whichever door it came by", () => {
+  for (const signature of [
+    "a\nb\nc\nd",
+    "Maya · brightlinecleaning.example.com",
+    "Maya\nhttps://example.com/book",
+    "{{your name}}, Owner",
+  ]) {
+    assert.deepEqual(refusedIn({ signature }), { "reach_out.signature": REACH_OUT_REFUSAL_WORDS.signature }, signature);
+  }
+  for (const phone of ["call me", "555", "brightline.example.com", "512-555-0142 or email"]) {
+    assert.deepEqual(refusedIn({ phone }), { "reach_out.phone": REACH_OUT_REFUSAL_WORDS.phone }, phone);
+  }
+  assert.deepEqual(
+    refusedIn({
+      offer: "Evening cleaning",
+      proof: ["We clean 40 clinics."],
+      signature: "Maya Ortiz\nOwner\nBrightline Cleaning",
+      phone: "(512) 555-0142",
+      reply_offer: "call",
+    }),
+    {},
+  );
+});
+
+test("Ask's card is held to the signature's rule before it is proposed, in the same words", () => {
+  const bad = AskSettingsChangeSchema.safeParse({ op: "set_signature", signature: "Maya\nbrightline.example.com" });
+  assert.equal(bad.success, false);
+  assert.equal(bad.error.issues[0].message, REACH_OUT_REFUSAL_WORDS.signature);
+  assert.equal(AskSettingsChangeSchema.safeParse({ op: "set_signature", signature: "Maya\nOwner" }).success, true);
+  assert.equal(AskSettingsChangeSchema.safeParse({ op: "set_signature", signature: "" }).success, true);
+});
+
+test("a sixth claim from Ask's card is refused by the save, never dropped under a receipt that says it was added", () => {
+  const five = { reach_out: { proof: ["one", "two", "three", "four", "five"] } };
+  const next = applySettingsChange(five, { op: "add_claim", claim: "six" });
+  assert.equal(next.reach_out.proof.length, 6);
+  const saved = TenantConfigWriteSchema.safeParse(next);
+  assert.equal(saved.success, false);
+  assert.equal(saved.error.issues[0].message, REACH_OUT_REFUSAL_WORDS.claims);
+});
+
+test("what the line about a business is told of the owner: the offer, else what it does, never the goal", () => {
+  const config = {
+    reach_out: { offer: " Evening cleaning ", tone: "Direct" },
+    brain: { profile: { tone: "Warm" } },
+    ask: { goal: "Twenty new clients a month" },
+  };
+  assert.deepEqual(openingWorkspaceOf("Brightline", config, "We clean offices"), {
+    name: "Brightline",
+    what_we_do: "Evening cleaning",
+    tone: "Direct",
+  });
+  assert.deepEqual(openingWorkspaceOf("Brightline", { ask: config.ask, brain: config.brain }, " We clean offices "), {
+    name: "Brightline",
+    what_we_do: "We clean offices",
+    tone: "Warm",
+  });
+  // A goal is what the owner is working toward, not what they do: the page's row may read it, the writer is not told it.
+  assert.deepEqual(openingWorkspaceOf("Brightline", { ask: config.ask }, null), {
+    name: "Brightline",
+    what_we_do: null,
+    tone: null,
+  });
 });
 
 test("a reply offer a newer build wrote reads as none, never as a config that cannot be read", () => {
@@ -73,17 +179,12 @@ test("a signature is three lines at most, under its length, with no link", () =>
   assert.equal(reachOutSignatureProblem("Maya Ortiz\nOwner\nBrightline Cleaning"), null);
   assert.equal(reachOutSignatureProblem("a\nb\nc\nd"), "too_many_lines");
   assert.equal(reachOutSignatureProblem("Maya · brightlinecleaning.com"), "link");
-  assert.equal(reachOutSignatureProblem("x".repeat(REACH_OUT_LIMITS.signature + 1)), "too_long");
+  // Nothing fills a value in a signature: it would reach a business as the braces themselves.
+  assert.equal(reachOutSignatureProblem("{{your name}}, Owner"), "value");
   assert.equal(reachOutSignatureProblem(""), null);
 });
 
-test("what backs a number is the claims and the business's name", () => {
-  assert.deepEqual(reachOutBackingOf({ reach_out: { proof: ["We clean 40 clinics"] } }, "Brightline 24"), [
-    "We clean 40 clinics",
-    "Brightline 24",
-  ]);
-  assert.deepEqual(reachOutBackingOf(null, null), []);
-});
+test("what backs a number is the claims and the business's name", () => {});
 
 test("the rules the page states are the numbers the code keeps", () => {
   const rules = reachOutRuleLines();
@@ -123,10 +224,11 @@ test("with Autonomy's Replies quiet, the rows say nothing is drafted: a phone hi
 });
 
 test("a phone in the signature is a number someone can be reached on, written as people write one", () => {
-  for (const ok of ["(512) 555-0142", "+44 20 7946 0958", "512.555.0142 ext. 4", ""])
-    assert.equal(reachOutPhoneProblem(ok), null, ok);
-  for (const bad of ["call me", "555", "brightline.example.com", "512-555-0142 or email"])
-    assert.equal(reachOutPhoneProblem(bad), "not_a_phone", bad);
+  for (const ok of ["(512) 555-0142", "+44 20 7946 0958", "512.555.0142 ext. 4"])
+    assert.equal(phoneAsWritten(ok), true, ok);
+  for (const bad of ["call me", "555", "brightline.example.com", "512-555-0142 or email", ""]) {
+    assert.equal(phoneAsWritten(bad), false, bad);
+  }
 });
 
 test("with no booking link set, the answer to a lead offers none, and the row says so rather than promising one", () => {

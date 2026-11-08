@@ -32,6 +32,9 @@ export const DRAFT_NOTICE_MAX = 240;
 /** The policy mode under which the receptionist says nothing (contracts POLICY_MODES). */
 const SILENT_MODE = "never";
 
+/** The Replies mode a workspace with no Replies row is under: a person is asked. */
+export const REPLY_MODE_UNSET = "ask";
+
 /** Whether an answer to a lead is drafted under this Replies mode: every mode but the quiet one, and a person sends it. */
 export const mayDraftReply = (mode: string): boolean => mode !== SILENT_MODE;
 

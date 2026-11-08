@@ -37,7 +37,7 @@ const OfferBox = ({ id, rows, placeholder, f }: { id: string; rows: number; plac
 const wordsFold = (
   shared: OutreachShared,
   spec: {
-    id: string;
+    id: "offer" | "who_for" | "fixes";
     label: string;
     rows: number;
     placeholder: string;

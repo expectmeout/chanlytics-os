@@ -37,7 +37,7 @@ import {
 import type { PoolRead } from "@/lib/campaign-channels";
 import { carriersOf, newChecksOf, newReachOf, twinOf, type NewCounts, type NewRunning } from "@/lib/new-checks";
 import { checkMessage } from "../write-message";
-import { unbackedNumbers } from "./numbers";
+import { numberBacking, unbackedNumbers } from "./numbers";
 
 /**
  * Ask's answer to New, judged (decision 0065): only what this workspace offers and holds is kept, within each audience's
@@ -295,7 +295,7 @@ export function draftBackingOf(
   known: Pick<DraftKnown, "business" | "proof">,
   ask: Pick<NewDraftAsk, "words">,
 ): string[] {
-  return [...(known.proof ?? []), known.business, ask.words].filter((text) => text.trim());
+  return numberBacking(known.proof, known.business, [ask.words]);
 }
 
 /** A call's or a note's words, kept where they say something to do. */
