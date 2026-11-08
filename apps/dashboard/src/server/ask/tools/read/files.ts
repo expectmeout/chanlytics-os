@@ -331,14 +331,14 @@ export const filesTool = defineActions({
   name: "files",
   description:
     "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees.",
-  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name: a box you name is in those pixels. A video opens as a sheet of its frames with their times, what was heard of it after. To make a post from a photo, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks, what they settled on, so keep its voice, layout and book unless they ask for something else.",
+  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
   actions: {
     list: readAction({
       input: z.object({
         shelf: z.enum(FILE_SHELVES).optional().describe("One shelf. Left out, or all: everything kept."),
         about: z.string().max(80).optional().describe("Words to find in what a file shows, has written on it or says."),
       }),
-      examples: [{ shelf: "work" }, { about: "storefront" }],
+      examples: [{ shelf: "work" }],
       label: "Looking through your files",
       words:
         "Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound.",
@@ -394,7 +394,7 @@ export const filesTool = defineActions({
       input: z.object({ names: FILE_NAMES_ASKED }),
       examples: [{ names: ["storefront-dusk-street", "wash-bar-empty"] }],
       label: "Looking at your files",
-      words: `Action view opens up to ${VIEW_MAX} pictures themselves, so you see them as the owner does, a video as its sheet. Do it before you propose or judge one, and whenever the owner asks about one.`,
+      words: `Action view opens up to ${VIEW_MAX} pictures themselves, so you see them as the owner does, a video as its sheet. Do it before proposing or judging one, and whenever the owner asks about one.`,
       run: (t, input) => picturesOpened(t, input.names),
     }),
     compare: readAction({
@@ -419,7 +419,7 @@ export const filesTool = defineActions({
       ],
       label: "Looking closer",
       words:
-        "Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before you say what a picture shows or what is written in it.",
+        "Action zoom cuts one box out of a picture you have open and enlarges it, so small words, a sign, a price or a face read: name the box by its corners in the pixels of the size the picture was shown at. A video's: at, a moment whole; at with box; from and to, a stretch. Use it whenever you are not sure what you see, before saying what a picture shows or says.",
       async run(turn, input) {
         const file = await oneNamed(turn, input.name);
         if ("error" in file) return file;

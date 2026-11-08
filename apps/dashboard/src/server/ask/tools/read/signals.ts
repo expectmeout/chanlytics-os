@@ -253,7 +253,7 @@ async function readSignals(toolContext: ToolContext): Promise<unknown> {
 export const signalsTool = defineRead({
   name: "signals",
   description:
-    "What stands out across the workspace now, computed from its pages, each with its numbers and the cards that fit it: a follow-up of yours that is due, people with nothing sending on its own, lists that feed nothing, leads nobody writes to, a search that asks a question, replies and batches waiting, people never asked for the yes to offers, deals with no next step, cancellations whose time nothing offered; and the owner's goal. Read it at the start of a conversation, when they ask what to do next or how to get more customers, and before proposing a plan of your own. It takes nothing and changes nothing.",
+    "What stands out across the workspace now, from its pages, each with its numbers and the cards that fit it: a follow-up of yours that is due, people with nothing sending on its own, lists that feed nothing, leads nobody writes to, a search that asks a question, replies and batches waiting, people never asked for the yes to offers, deals with no next step, cancellations whose time nothing offered; and the owner's goal. Read it at the start of a conversation, when they ask what to do next or how to get more customers, and before proposing a plan of your own. It takes nothing and changes nothing.",
   input: z.object({}),
   label: "Looking across the workspace",
   run: readSignals,

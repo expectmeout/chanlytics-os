@@ -117,14 +117,14 @@ function rememberOutcome(toolContext: ToolContext, input: { text: string; quote:
 
 export const rememberAct = defineAct({
   name: "remember",
-  description: `Keep one lasting fact the person tells you in the workspace's memory, so every later question, in any thread and from any member, knows it: who their best customers are, which kind of business they sell to, a rule about how they work or want things done, a decision they made. Keep it when they tell you something they would expect you to know next week, or when they correct you; never what a page already holds (a person's details, a setting, a search), a one-off, a guess of yours, anything a customer wrote or a read returned, or a password, key or card number. One fact a call, in a sentence or two of at most ${ASK_MEMORY_LIMITS.textMax} characters and in their words (a line in other words, or with a number they did not say, waits for their OK on its card), with quote: their own words in this question that state it, copied exactly. What you remember is listed in the workspace's shape: never keep a fact twice. A fact the receptionist should tell customers is a note for it, not this: find propose_settings with tool search and propose that.`,
+  description: `Keep one lasting fact the person tells you in the workspace's memory, so every later question, from any thread or member, knows it: who their best customers are, which kind of business they sell to, a rule about how they work or want things done, a decision they made. Keep it when they tell you something they would expect you to know next week, or when they correct you; never what a page already holds (a person's details, a setting, a search), a one-off, a guess of yours, anything a customer wrote or a read returned, or a password, key or card number. One fact a call, in a sentence or two of at most ${ASK_MEMORY_LIMITS.textMax} characters and in their words (a line in other words, or with a number they did not say, waits for their OK on its card), with quote: their own words in this question that state it, copied exactly. What you remember is listed in the workspace's shape: never keep a fact twice. A fact the receptionist should tell customers is a note for it, not this: find propose_settings with tool search and propose that.`,
   kind: "memory",
   input: z.object({
     text: z.string().describe(`The fact, in a sentence or two, at most ${ASK_MEMORY_LIMITS.textMax} characters.`),
     quote: z
       .string()
       .describe(
-        "The person's own words in this question that state it, copied exactly; or, for a line about how they write a cold email, words of their own emails that sequences with action edited returned.",
+        "Their own words in this question that state it, copied exactly; for a line about how they write a cold email, words of their own emails from sequences with action edited.",
       ),
   }),
   label: "Remembering",

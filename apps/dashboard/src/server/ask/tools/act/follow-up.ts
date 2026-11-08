@@ -130,7 +130,7 @@ export const propose_follow_up = defineActions({
         prompt: z
           .string()
           .describe(`What you will ask yourself when it is due, at most ${FOLLOW_UP_PROMPT_MAX} characters.`),
-        wake: z.enum(FOLLOW_UP_WAKES).describe("search_done, replies, or date."),
+        wake: z.enum(FOLLOW_UP_WAKES),
         subject: z.string().optional().describe("The search's, sequence's or cold email's id, or a plan step's token."),
         on: z.string().optional().describe("For date, the day, YYYY-MM-DD."),
       }),

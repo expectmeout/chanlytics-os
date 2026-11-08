@@ -59,9 +59,7 @@ const postInput = z.object({
     .string()
     .min(1)
     .max(120)
-    .describe(
-      "The photo's name, as files says it. Open it with view first, unless it came with the question, open already.",
-    ),
+    .describe("The photo's name, as files says it; open it with view first unless it came with the question."),
   line: z
     .string()
     .describe(
@@ -75,10 +73,10 @@ const postInput = z.object({
     .string()
     .optional()
     .describe(`A short line under it, such as when an offer ends. At most ${POST_LIMITS.under}.`),
-  book: z.boolean().describe("Whether to add the band with the business's phone number, which code writes."),
+  book: z.boolean().describe("Whether to add the band with the business's phone number."),
   words_at: z
     .enum(["top", "bottom"])
-    .describe("Where the words stand: chosen after seeing the photo, on the calmer end, off what it is a photo of."),
+    .describe("Where the words stand, chosen after seeing the photo: the calmer end, off what it is a photo of."),
   voice: z
     .enum(POST_VOICES)
     .describe("classic is a serif, for beauty, food and hospitality; modern is a plain sans, for trades and services."),
@@ -86,7 +84,7 @@ const postInput = z.object({
     .enum(POST_LAYOUTS)
     .optional()
     .describe(
-      "How the words stand with the photo: over it (the usual), left over it, on a band of their colour, or under it in a frame. Band or frame where the photo is busy at both ends.",
+      "How the words stand with the photo: over it (the usual), left over it, on a band of their colour, or under it in a frame; band or frame where the photo is busy at both ends.",
     ),
   people_agreed: z
     .boolean()
@@ -96,7 +94,7 @@ const postInput = z.object({
     .string()
     .optional()
     .describe(
-      "The look_key the drawing answered, once you have looked at the post as drawn and it is right. Left out, the post is drawn and shown to you first: no card is made until you have looked.",
+      "The look_key the drawing answered, once you have looked at the post as drawn and it is right; left out, the post is drawn and shown to you first, and no card is made.",
     ),
 });
 
@@ -198,7 +196,7 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
 export const postAct = defineAct({
   name: "propose_post",
   description:
-    "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, unless it came with the question, and choose where the words go after seeing it. The first call draws the post and shows it to you: look at it with the owner's eyes, change the plan if a word sits on a face or the sign, and call again with looked set to its look_key; only then is the card made, and that call ends the turn: answer the rest of what they asked beside it, in the same message, since nothing written beside the look reaches them. Asked only for a post, propose one at once: a short plain headline from the photo and what you know of the business, rather than asking what it should say, since the owner can change the words, the type and the layout on the card itself, for nothing. So propose once and don't offer alternatives. A price, a number or a promise they have not said is refused, so leave those out, or use theirs. One photo a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+    "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, unless it came with the question, and choose where the words go after seeing it. The first call draws the post and shows it to you: look at it with the owner's eyes, change the plan if a word sits on a face or the sign, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message, since nothing written beside the look reaches them. Asked only for a post, propose one at once, with a short plain headline from the photo and what you know of the business, rather than asking what it should say: the owner changes the words, the type and the layout on the card itself, for nothing, so propose once and offer no alternatives. A price, a number or a promise they have not said is refused: leave those out, or use theirs. One photo a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
   kind: "post",
   input: postInput,
   label: "Making a post",

@@ -332,12 +332,11 @@ const planAction = actAction({
       intent: "offer",
       offer: { words: "10% off every service all November", from: "2026-11-01", until: "2026-11-30" },
     },
-    { intent: "cover_journey" },
     { intent: "cover_journey", books: "discovery call", proposals: true },
   ],
   label: "Making a plan",
   words:
-    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words, its days named as a customer reads them on its first day: “all November”, never “next month”; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing of the offer where they gave one, its days named as words names them, never the ask (“I want to offer”); or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where they said some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, as the rule for a message's language says; left out, the business's). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, and each send on its own after them; answer from the plan's words once they come back, and never say any of it is done.",
+    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words, its days named as a customer reads them on its first day: “all November”, never “next month”; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing of the offer where they gave one, its days named as words names them, never the ask (“I want to offer”); or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, as the rule for a message's language says; left out, the business's). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, each send on its own after them; answer from the plan's words once they come back.",
   build: proposePlan,
 });
 
@@ -480,7 +479,7 @@ const stepsAction = actAction({
   }),
   examples: [
     {
-      words: "Keep the 120 best leads as a list, write to them in three emails, and I'll tell you who answers.",
+      words: "Keep the 120 best leads as a list and write to them.",
       steps: [
         {
           tool: "propose_leads",
@@ -496,21 +495,11 @@ const stepsAction = actAction({
             steps: [{ subject: "A quick idea for {business_name}", body: "Hi {first_name}, ..." }],
           },
         },
-        {
-          tool: "propose_follow_up",
-          action: "keep",
-          input: {
-            said: "When they answer, I'll draft the replies",
-            prompt: "Businesses near you has replies: read them and propose answers.",
-            wake: "replies",
-            subject: "@step:2",
-          },
-        },
       ],
     },
   ],
   label: "Making a plan",
-  words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a sequence, a search). The steps that change only what the workspace keeps are approved together; each that sends, spends or posts is its own press after them. Call it when one ask takes several cards that build on each other (organize people into lists, a cold email to a list of leads with a follow-up, a sequence and its first steps); for an offer or a whole setup of the journey, action offer.`,
+  words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a sequence, a search). Steps that change only what the workspace keeps are approved together; each that sends, spends or posts is its own press after them. Call it when one ask takes several cards that build on each other (lists, then a cold email to a list of leads with a follow-up, a sequence and its first steps); for an offer or a whole setup of the journey, action offer.`,
   build: proposeSteps,
 });
 

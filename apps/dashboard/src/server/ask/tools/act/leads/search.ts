@@ -300,7 +300,7 @@ const withCapWords = (created: ProposalOutcome, capped: string | null): Proposal
   capped && created.proposal ? { ...created, words: capped } : created;
 
 /** propose_lead_search's description, said whole: it takes no action. */
-const LEAD_SEARCH_DESCRIPTION = `Action find proposes a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. For named people at companies (marketing managers at agencies), looking_for is people_at_companies: terms their titles (one to five), region their US states or US, who a name for it, count how many companies, and when said seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (the directory's own names, as Marketing & Advertising, Accounting, Construction, Real Estate; a name it lacks comes back with the nearest), keywords (one to five words the companies' own sites use for what they do, as plumbing or HVAC, where an industry files them too broadly) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+); nothing else is read. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Where the owner asks for what only a business's own website can confirm (a service it offers, that it books online, a brand it sells), write it seen with on_site true: each place's home page is then read before it is judged, which costs more and takes longer, and a site that does not say it sends the place to review; never set it for what likely or the listing answers. Read leads with action searches first where they did not come with the question, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
+const LEAD_SEARCH_DESCRIPTION = `Action find proposes a search for businesses in the US the owner could reach, as a plan card they approve. For named people at companies (marketing managers at agencies), looking_for is people_at_companies: terms their titles (one to five), region their US states or US, who a name for it, count how many companies, and when said seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (the directory's own names, as Marketing & Advertising or Real Estate; a name it lacks comes back with the nearest), keywords (one to five words the companies' sites use for what they do, as plumbing or HVAC, where an industry files them too broadly) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+); nothing else is read. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria, each seen or likely and required or not, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed), judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, since a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Where the owner asks for what only a business's own website can confirm (a service it offers, that it books online, a brand it sells), write it seen with on_site true: each place's home page is then read before it is judged (slower and dearer), and a site that does not say it sends the place to review; never set it for what likely or the listing answers. Read leads with action searches first where they did not come with the question, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
 
 /** A search's plan as a card, propose_lead_search's one definition: named here so its builder asks its own role. */
 const leadSearchAct: ActDef<typeof LeadSearchAsk> = {
@@ -326,25 +326,6 @@ const leadSearchAct: ActDef<typeof LeadSearchAsk> = {
       ],
       leave_out: [{ words: "chains" }],
       asked: "find me 100 plumbers in Austin",
-    },
-    {
-      looking_for: "local_businesses",
-      country: "US",
-      count: 100,
-      who: "plumbers",
-      who_one: "plumber",
-      category_key: "plumber",
-      terms: ["plumber", "plumbing company"],
-      city: "Austin",
-      region: "TX",
-      contact: "email",
-      criteria: [
-        { text: "has a website", standard: "seen", required: true },
-        { text: "family-owned", standard: "likely", required: false },
-      ],
-      leave_out: [],
-      asked: "yes, include the franchises",
-      amends: "9c2e4b6d-1f3a-4e5c-8b7d-0a1c2e3f4b5d",
     },
   ],
   label: "Planning a search",
@@ -460,6 +441,6 @@ export const reachOutAddAction = actAction({
   ],
   label: "Checking who can be added",
   words:
-    "Action leads adds leads to a reach-out fed by a list (one made from leads chosen or imported, not a search's own): root_id is the reach-out's id (reach_out on leads with action lead, or the reach-out the page has open), lead_ids the leads' ids from leads. The card says first what the add would do -- how many would join and why each other would not (already written to, a customer, no checked address, with another reach-out) -- by the add's own rule, and is refused in words when none would. It sends nothing and approves no run: the reach-out's next run plans the first email and waits for their say. A reach-out a search keeps current is refused: its search's new leads join it by themselves.",
+    "Action leads adds leads to a reach-out fed by a list (leads chosen or imported, not a search's own): root_id is the reach-out's id (reach_out on leads with action lead, or the one the page has open), lead_ids their ids from leads. The card says what the add would do, how many would join and why each other would not (already written to, a customer, no checked address, with another reach-out), by the add's own rule, and is refused in words when none would. It sends nothing and approves no run: the next run plans the first email and waits for their say. A reach-out a search keeps current is refused: its search's new leads join by themselves.",
   build: proposeReachOutAdd,
 });

@@ -50,7 +50,7 @@ export const COLD_STEP = z.object({
   body: z
     .string()
     .describe(
-      "The email's words, the same for every business it goes to, in the owner's own voice (what you remember about how they write): they claim and suppose nothing about the business, not how busy it is, its calls or what it wants; {{opening}} on its own first line is written for each business from its record, and {first_name} and {business_name} are filled for each.",
+      "The email's words, the same for every business, in the owner's own voice (what you remember of how they write), claiming and supposing nothing about the business (how busy it is, its calls, what it wants); {{opening}} on its own first line is written for each business from its record, and {first_name} and {business_name} are filled for each.",
     ),
   after_days: z
     .number()
