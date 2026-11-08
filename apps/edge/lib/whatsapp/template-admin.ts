@@ -86,7 +86,7 @@ export async function createWhatsappTemplate(
 
   // The account of the oldest active number, whose credentials getWaCredentialsForTenant gives: a workspace may hold two.
   const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
-  if (chErr) return refuse(503, "read_failed", chErr.message);
+  if (chErr) return refuseFailure(503, "read_failed", chErr);
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
   const creds = await getWaCredentialsForTenant(db, tenantId);
@@ -156,11 +156,11 @@ export async function deleteWhatsappTemplate(
   if (!db) return refuse(503, "no_database");
 
   const { data: row, error: rowErr } = await findWhatsAppTemplate(db, tenantId, templateId);
-  if (rowErr) return refuse(503, "read_failed", rowErr.message);
+  if (rowErr) return refuseFailure(503, "read_failed", rowErr);
   if (!row) return refuse(404, "not_found");
 
   const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
-  if (chErr) return refuse(503, "read_failed", chErr.message);
+  if (chErr) return refuseFailure(503, "read_failed", chErr);
   if (!ch?.waba_id) return refuse(409, "no_waba");
   const creds = await getWaCredentialsForTenant(db, tenantId);
   // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
@@ -222,7 +222,7 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
   if (!db) return refuse(503, "no_database");
 
   const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
-  if (chErr) return refuse(500, "channel_read_failed", chErr.message);
+  if (chErr) return refuse(500, "channel_read_failed", logFailure("read", chErr));
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
   const synced = await syncTemplates(db, tenantId, ch.waba_id);

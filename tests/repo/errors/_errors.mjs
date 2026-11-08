@@ -212,7 +212,7 @@ export function textHandedOverIn(sf) {
  */
 export function replyTextAnsweredIn(sf) {
   const out = [];
-  const quotes = (a) => /(?:^|[^\w.])(?:\w+\.)*\w*[Ee]rror\??\.message\b/.test(a.getText(sf));
+  const quotes = (a) => /(?:^|[^\w.])(?:\w+\.)*\w*[Ee]rr(?:or)?\??\.message\b/.test(a.getText(sf));
   const go = (n) => {
     if (ts.isCallExpression(n) && ANSWERS.test(n.expression.getText(sf)) && n.arguments.some(quotes)) {
       let guarded = false;

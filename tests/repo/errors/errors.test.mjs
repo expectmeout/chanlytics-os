@@ -107,6 +107,7 @@ test("textHandedOverIn: a caught failure's own text answered to whoever asked", 
 
 test("replyTextAnsweredIn: a reply's failure quoted in an answer, and only that", () => {
   assert.deepEqual(lines(replyTextAnsweredIn, 'if (error) return refuse(503, "read_failed", error.message);'), [1]);
+  assert.deepEqual(lines(replyTextAnsweredIn, 'if (chErr) return refuse(503, "read_failed", chErr.message);'), [1]);
   assert.deepEqual(
     lines(replyTextAnsweredIn, 'return { ok: false, error: "write_failed", detail: r.error.message };'),
     [1],

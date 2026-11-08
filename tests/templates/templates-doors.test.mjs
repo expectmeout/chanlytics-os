@@ -469,7 +469,7 @@ test("sync, the door: the knock, the workspace rule, no database, a bad workspac
     use({}, { "tenant_channels.select": { message: "connection reset" } });
     assert.deepEqual(await answer(await knockSync({ tenant_id: A })), [
       500,
-      { ok: false, error: "channel_read_failed", detail: "connection reset" },
+      { ok: false, error: "channel_read_failed", detail: "Could not read that just now. Try again in a moment." },
     ]);
     use({ channels: [] });
     assert.deepEqual(await answer(await knockSync({ tenant_id: A })), [409, { ok: false, error: "no_channel" }]);
