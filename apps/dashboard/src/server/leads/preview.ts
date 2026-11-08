@@ -12,6 +12,7 @@ import { AppError, type LeadPreviewDto } from "@chanlytics/contracts";
 import { findLeadPreview, doesMakePreviews, type LeadPreviewRow } from "@chanlytics/db/campaigns";
 import { callEdge, edgeRefusalWords } from "../shared/edge";
 import type { RouteContext } from "../shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Ctx = Pick<RouteContext, "supabase" | "userId">;
 
@@ -31,7 +32,7 @@ const previewFactsOf = (leadPreview: LeadPreviewRow): NonNullable<LeadPreviewDto
   not_right: leadPreview.not_right,
 });
 
-export async function getLeadPreview(ctx: Ctx, tenantId: string, leadId: string): Promise<LeadPreviewDto> {
+export async function getLeadPreview(ctx: Ctx, tenantId: TenantId, leadId: string): Promise<LeadPreviewDto> {
   const [row, makes] = await Promise.all([
     findLeadPreview(ctx.supabase, tenantId, leadId),
     doesMakePreviews(ctx.supabase, tenantId),
@@ -46,7 +47,7 @@ const MAKE_REFUSED: Record<number, { code: "not_found" | "forbidden" | "conflict
   409: { code: "conflict", status: 409 },
 };
 
-export async function makeLeadPreviewFor(ctx: Ctx, tenantId: string, leadId: string): Promise<LeadPreviewDto> {
+export async function makeLeadPreviewFor(ctx: Ctx, tenantId: TenantId, leadId: string): Promise<LeadPreviewDto> {
   const answer = await callEdge(
     "/api/admin/previews/make",
     { tenant_id: tenantId, lead_id: leadId },

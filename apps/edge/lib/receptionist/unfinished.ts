@@ -53,6 +53,7 @@ import {
   listUnansweredInbound,
 } from "@chanlytics/db/conversations";
 import { listLiveJobsNaming } from "@chanlytics/db/jobs";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -108,12 +109,12 @@ interface UnfinishedPorts {
   L: ReturnType<typeof logger>;
   upsertEscalation: (
     db: Db,
-    tenantId: string,
+    tenantId: TenantId,
     conversationId: string,
     reason: string,
     details: string,
   ) => Promise<EscalationOutcome>;
-  markProcessed: (db: Db, tenantId: string, messageId: string) => Promise<void>;
+  markProcessed: (db: Db, tenantId: TenantId, messageId: string) => Promise<void>;
   notify: typeof notifyFn;
   loadTenantNotifications: typeof loadFn;
   reachesTenant: typeof reachesFn;
@@ -133,7 +134,7 @@ interface UnfinishedSummary {
 
 interface InboundRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   conversation_id: string | null;
   body: string | null;
   created_at: string;
@@ -141,7 +142,7 @@ interface InboundRow {
 }
 interface QueuedRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   conversation_id: string | null;
   sender: string | null;
   created_at: string;
@@ -209,7 +210,7 @@ interface Tick {
   p: UnfinishedPorts;
   now: number;
   out: UnfinishedSummary;
-  tell: (tenantId: string, n: NotifyMessage) => Promise<boolean>;
+  tell: (tenantId: TenantId, n: NotifyMessage) => Promise<boolean>;
   /**
    * Past the deadline, what is left is the next tick's: a message keeps no stamp and a queued reply stays queued, so
    * each is found again, and the deadman tick keeps its own time for the escalations nobody picked up.
@@ -221,7 +222,7 @@ export async function sweepUnfinished(unfinishedPorts: UnfinishedPorts): Promise
   const now = unfinishedPorts.now ? unfinishedPorts.now() : Date.now();
   const out: UnfinishedSummary = { unanswered: 0, orphaned: 0, told: 0 };
   const addressing = new Map<string, Awaited<ReturnType<typeof loadFn>>>();
-  const tell = async (tenantId: string, n: NotifyMessage): Promise<boolean> => {
+  const tell = async (tenantId: TenantId, n: NotifyMessage): Promise<boolean> => {
     if (!addressing.has(tenantId))
       addressing.set(tenantId, await unfinishedPorts.loadTenantNotifications(unfinishedPorts.db, tenantId));
     const address = addressing.get(tenantId);

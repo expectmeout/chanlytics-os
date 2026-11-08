@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -14,7 +15,7 @@ const RUN_ROW_COLUMNS =
   "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id:step_id, run_for, sequence_id, offered_start, offered_end, offered_from";
 
 /** These runs of the workspace's, newest first. */
-export const listRunRowsByIds = async (db: Db, tenantId: string, runIds: string[]) =>
+export const listRunRowsByIds = async (db: Db, tenantId: TenantId, runIds: string[]) =>
   db
     .from("sequence_batches")
     .select(RUN_ROW_COLUMNS)
@@ -23,7 +24,7 @@ export const listRunRowsByIds = async (db: Db, tenantId: string, runIds: string[
     .order("created_at", { ascending: false });
 
 /** The workspace's newest runs, `limit` of them. */
-export const listRecentRunRows = async (db: Db, tenantId: string, limit: number) =>
+export const listRecentRunRows = async (db: Db, tenantId: TenantId, limit: number) =>
   db
     .from("sequence_batches")
     .select(RUN_ROW_COLUMNS)
@@ -32,7 +33,7 @@ export const listRecentRunRows = async (db: Db, tenantId: string, limit: number)
     .limit(limit);
 
 /** Every run a playbook made, newest first. */
-export const listPlaybookRunRows = async (db: Db, tenantId: string) =>
+export const listPlaybookRunRows = async (db: Db, tenantId: TenantId) =>
   db
     .from("sequence_batches")
     .select(RUN_ROW_COLUMNS)
@@ -41,11 +42,11 @@ export const listPlaybookRunRows = async (db: Db, tenantId: string) =>
     .order("created_at", { ascending: false });
 
 /** One of the workspace's runs, or none. */
-export const findRunRow = async (db: Db, tenantId: string, runId: string) =>
+export const findRunRow = async (db: Db, tenantId: TenantId, runId: string) =>
   db.from("sequence_batches").select(RUN_ROW_COLUMNS).eq("tenant_id", tenantId).eq("id", runId).maybeSingle();
 
 /** These runs' names, playbooks, audiences and times. */
-export const listRunNames = async (db: Db, tenantId: string, runIds: string[]) =>
+export const listRunNames = async (db: Db, tenantId: TenantId, runIds: string[]) =>
   db
     .from("sequence_batches")
     .select("id, name, playbook_id:step_id, audience, scheduled_for, created_at")
@@ -53,7 +54,7 @@ export const listRunNames = async (db: Db, tenantId: string, runIds: string[]) =
     .in("id", runIds);
 
 /** One page (`from` to `to`) of a run's people, the latest sent first, each with the channel it went by. */
-export const pageRunPeople = async (db: Db, tenantId: string, runId: string, from: number, to: number) =>
+export const pageRunPeople = async (db: Db, tenantId: TenantId, runId: string, from: number, to: number) =>
   db
     .from("sequence_sends")
     .select(
@@ -67,7 +68,7 @@ export const pageRunPeople = async (db: Db, tenantId: string, runId: string, fro
     .range(from, to);
 
 /** One page (`from` to `to`) of the sends a person was on, by run. */
-export const pagePersonSends = async (db: Db, tenantId: string, contactId: string, from: number, to: number) =>
+export const pagePersonSends = async (db: Db, tenantId: TenantId, contactId: ContactId, from: number, to: number) =>
   db
     .from("sequence_sends")
     .select("broadcast_id:batch_id, state, reason, sent_at, message_id, channel")
@@ -78,7 +79,7 @@ export const pagePersonSends = async (db: Db, tenantId: string, contactId: strin
     .range(from, to);
 
 /** One page (`from` to `to`) of these runs' people, with their message's thread, state and receipt. */
-export const pagePeopleOnRuns = async (db: Db, tenantId: string, runIds: string[], from: number, to: number) =>
+export const pagePeopleOnRuns = async (db: Db, tenantId: TenantId, runIds: string[], from: number, to: number) =>
   db
     .from("sequence_sends")
     // With the channel each went by (00298), so a run says what each sent and its read is WhatsApp's (0030).
@@ -93,7 +94,7 @@ export const pagePeopleOnRuns = async (db: Db, tenantId: string, runIds: string[
     .range(from, to);
 
 /** These people's consent changes since `since`. */
-export const listConsentChangesSince = async (db: Db, tenantId: string, contactIds: string[], since: string) =>
+export const listConsentChangesSince = async (db: Db, tenantId: TenantId, contactIds: ContactId[], since: string) =>
   db
     .from("events")
     .select("id, subject_id, data, created_at")
@@ -105,7 +106,7 @@ export const listConsentChangesSince = async (db: Db, tenantId: string, contactI
 /** One page (`from` to `to`) of the customers' messages on these threads since `since`, with their words or without. */
 export const pageInboundOn = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   page: { conversationIds: string[]; since: string; withWords: boolean; from: number; to: number },
 ) =>
   db
@@ -120,7 +121,7 @@ export const pageInboundOn = async (
     .range(page.from, page.to);
 
 /** What went out on these threads since `since`: who sent it, its kind and its meta. */
-export const listOutboundSince = async (db: Db, tenantId: string, conversationIds: string[], since: string) =>
+export const listOutboundSince = async (db: Db, tenantId: TenantId, conversationIds: string[], since: string) =>
   db
     .from("messages")
     .select("conversation_id, created_at, sender, type, meta")
@@ -130,7 +131,7 @@ export const listOutboundSince = async (db: Db, tenantId: string, conversationId
     .gt("created_at", since);
 
 /** One page (`from` to `to`) of the workspace's proposals still out. */
-export const pageProposalsOut = async (db: Db, tenantId: string, from: number, to: number) =>
+export const pageProposalsOut = async (db: Db, tenantId: TenantId, from: number, to: number) =>
   db
     .from("deals")
     .select("id, contact_id, proposed_at")
@@ -140,7 +141,7 @@ export const pageProposalsOut = async (db: Db, tenantId: string, from: number, t
     .range(from, to);
 
 /** The workspace's proposal follow-up playbook, or none. */
-export const findProposalFollowUp = async (db: Db, tenantId: string) =>
+export const findProposalFollowUp = async (db: Db, tenantId: TenantId) =>
   db
     .from("sequence_steps")
     .select("id, sequence_id, state, run_hour, last_run_for, until, template_name, template_language, words_ok_at")
@@ -149,7 +150,7 @@ export const findProposalFollowUp = async (db: Db, tenantId: string) =>
     .maybeSingle();
 
 /** The workspace's steps with `columns` (the moments alone, or every one), newest first. */
-export const listStepsWith = async (db: Db, tenantId: string, columns: string, momentsOnly: boolean) => {
+export const listStepsWith = async (db: Db, tenantId: TenantId, columns: string, momentsOnly: boolean) => {
   const q = db.from("sequence_steps").select(columns).eq("tenant_id", tenantId);
   return (momentsOnly ? q.eq("kind", "moment") : q).order("created_at", { ascending: false });
 };

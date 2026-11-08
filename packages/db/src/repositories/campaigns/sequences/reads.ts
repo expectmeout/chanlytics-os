@@ -15,6 +15,8 @@ import type {
   SequenceOneOffDto,
   SequenceRowDto,
   SequenceStepDto,
+  ContactId,
+  TenantId,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
@@ -25,7 +27,7 @@ export type Db = SupabaseClient<Database>;
 /** Someone a customer's step after the first is due to (00441 sequence_follow_ups_due). */
 interface FollowUpDueRow {
   enrollment_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   /** When their step before it went. */
   sent_at: string | null;
 }
@@ -50,7 +52,7 @@ export async function followUpsDue(db: Db, stepId: string, runFor: string): Prom
  */
 export async function leaveSequence(
   db: Db,
-  params: { tenantId: string; enrollmentIds: readonly string[]; why: string; by?: string | null },
+  params: { tenantId: TenantId; enrollmentIds: readonly string[]; why: string; by?: string | null },
 ): Promise<number> {
   if (params.enrollmentIds.length === 0) return 0;
   const { data, error } = await db.rpc("sequence_enrollments_leave", {
@@ -69,7 +71,7 @@ export async function leaveSequence(
  */
 export async function leaveSequenceForLeads(
   db: Db,
-  params: { tenantId: string; sequenceId: string; leads: readonly { lead_id: string; why: string }[] },
+  params: { tenantId: TenantId; sequenceId: string; leads: readonly { lead_id: string; why: string }[] },
 ): Promise<number> {
   if (params.leads.length === 0) return 0;
   const { data, error } = await db.rpc("sequence_leads_leave", {
@@ -86,7 +88,7 @@ export async function leaveSequenceForLeads(
  * in, or one with a send that went). A sequence on a list goes once to each person (the loop review's item 6), so its run
  * leaves them out. Every page read; a read that fails throws: unread is not nobody.
  */
-export async function wasSequenceReached(db: Db, tenantId: string, sequenceId: string): Promise<Set<string>> {
+export async function wasSequenceReached(db: Db, tenantId: TenantId, sequenceId: string): Promise<Set<string>> {
   const rows = await readAllRows("who the sequence reached", (from, to) =>
     db
       .from("sequence_enrollments")
@@ -107,8 +109,8 @@ export async function wasSequenceReached(db: Db, tenantId: string, sequenceId: s
  */
 export async function listSequencesOfPerson(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Promise<{ id: string; name: string; place: number; next_at: string | null }[]> {
   const { data, error } = await db
     .from("sequence_enrollments")
@@ -146,7 +148,7 @@ export async function listSequencesOfPerson(
 export async function findSequenceRow(
   db: Db,
   id: string,
-): Promise<{ id: string; tenant_id: string; name: string; starts: string; state: string } | null> {
+): Promise<{ id: string; tenant_id: TenantId; name: string; starts: string; state: string } | null> {
   const own = await sequenceById(db, id);
   if (own) return own;
   const [step, batch] = await Promise.all([
@@ -181,7 +183,7 @@ function readerRowsOf<T>(data: unknown): T[] {
  */
 export async function getSequenceModes(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ids: readonly string[],
 ): Promise<Map<string, SequenceMode>> {
   const out = new Map<string, SequenceMode>();
@@ -203,7 +205,7 @@ export async function getSequenceModes(
  */
 export async function listSequenceEvidence(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   days: number = EVIDENCE_DAYS,
 ): Promise<SequenceEvidenceDto[]> {
   const { data, error } = await db.rpc("sequence_evidence", { p_tenant_id: tenantId, p_days: days });
@@ -219,7 +221,7 @@ export async function listSequenceEvidence(
 }
 
 /** The workspace's sequences, newest first, or the one named (00442 sequence_overview). */
-export async function listSequenceOverview(db: Db, tenantId: string, sequenceId?: string): Promise<SequenceRowDto[]> {
+export async function listSequenceOverview(db: Db, tenantId: TenantId, sequenceId?: string): Promise<SequenceRowDto[]> {
   const { data, error } = await db.rpc("sequence_overview", {
     p_tenant_id: tenantId,
     ...(sequenceId ? { p_sequence_id: sequenceId } : {}),
@@ -241,7 +243,7 @@ export interface SequenceGlance {
  * The sequences running now and each one's first step, under the caller's row security: all a fold over their batches needs,
  * without the counts, lists and searches sequence_overview joins for the Sequences list. A read that fails throws.
  */
-export async function listSequencesAtAGlance(db: Db, tenantId: string): Promise<SequenceGlance[]> {
+export async function listSequencesAtAGlance(db: Db, tenantId: TenantId): Promise<SequenceGlance[]> {
   const [sequences, steps] = await Promise.all([
     db.from("sequences").select("id, name, state, mode").eq("tenant_id", tenantId).eq("state", "on"),
     db.from("sequence_steps").select("id, sequence_id, place").eq("tenant_id", tenantId).order("place"),
@@ -261,7 +263,7 @@ export async function listSequencesAtAGlance(db: Db, tenantId: string): Promise<
  * An address that names a part opens its sequence, which then names its own. Null where no part of this workspace has
  * the id. Under the caller's row security, as the readers are.
  */
-export async function findSequenceOfPart(db: Db, tenantId: string, id: string): Promise<string | null> {
+export async function findSequenceOfPart(db: Db, tenantId: TenantId, id: string): Promise<string | null> {
   const [batch, step] = await Promise.all([
     db.from("sequence_batches").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle(),
     db.from("sequence_steps").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle(),
@@ -282,7 +284,7 @@ export async function findSequenceOfPart(db: Db, tenantId: string, id: string): 
  */
 async function firstStepFacts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   stepId: string,
 ): Promise<{ last_run_for: string | null; cap_per_run: number; gap_days: number; cadence_days: number } | null> {
   const { data, error } = await db
@@ -300,7 +302,7 @@ async function firstStepFacts(
  * (core runPlaybook's record: no calendar, its list gone, its message not approved, the class set to Never, its last day
  * passed). Null where that run sent, found nobody or none is recorded. Under the caller's row security.
  */
-async function lastRunSkipped(db: Db, tenantId: string, stepId: string): Promise<string | null> {
+async function lastRunSkipped(db: Db, tenantId: TenantId, stepId: string): Promise<string | null> {
   const { data, error } = await db
     .from("events")
     .select("data")
@@ -330,7 +332,7 @@ const WRITTEN_SEND_STATES: SchemaSet<"sequence_sends.state">[] = ["claimed", "qu
  */
 async function sequenceHistoryFacts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   sequenceId: string,
 ): Promise<{ ran: boolean; wrote: boolean }> {
   const leadSends = () =>
@@ -361,7 +363,7 @@ async function sequenceHistoryFacts(
  */
 export async function findSequenceRecordFacts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   sequenceId: string,
 ): Promise<{
   first: Awaited<ReturnType<typeof firstStepFacts>> | undefined;
@@ -382,7 +384,11 @@ export async function findSequenceRecordFacts(
  * order (none until a send names one, never guessed): each channel asked whether one send goes by it, never every send
  * read. Null where the batch is none of this workspace's. Under the caller's row security.
  */
-export async function findOneOffMessage(db: Db, tenantId: string, batchId: string): Promise<SequenceOneOffDto | null> {
+export async function findOneOffMessage(
+  db: Db,
+  tenantId: TenantId,
+  batchId: string,
+): Promise<SequenceOneOffDto | null> {
   const [batch, ...by] = await Promise.all([
     db
       .from("sequence_batches")
@@ -418,7 +424,7 @@ export async function findOneOffMessage(db: Db, tenantId: string, batchId: strin
  * What a sequence to leads writes to, by its search (`lead_searches.via`, contracts isLeadList): a list its owner adds
  * leads to, or the search the finder keeps current, which a search no longer here is too. Under the caller's row security.
  */
-export async function getLeadsFedBy(db: Db, tenantId: string, searchId: string): Promise<ReachOutFedBy> {
+export async function getLeadsFedBy(db: Db, tenantId: TenantId, searchId: string): Promise<ReachOutFedBy> {
   const { data, error } = await db
     .from("lead_searches")
     .select("via")
@@ -436,7 +442,7 @@ export async function getLeadsFedBy(db: Db, tenantId: string, searchId: string):
  */
 export async function listRunningStepsOn(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   triggers: readonly SchemaSet<"sequence_steps.trigger">[],
 ): Promise<{ id: string; name: string; trigger: string }[]> {
   if (triggers.length === 0) return [];
@@ -454,14 +460,14 @@ export async function listRunningStepsOn(
  * Every sequence of the workspace by id and name: what Messages names as sending a message ("VIP color clients · step 2",
  * contracts templateUseWords) beside its steps' places. Under the caller's row security.
  */
-export async function listSequenceNames(db: Db, tenantId: string): Promise<{ id: string; name: string }[]> {
+export async function listSequenceNames(db: Db, tenantId: TenantId): Promise<{ id: string; name: string }[]> {
   const { data, error } = await db.from("sequences").select("id, name").eq("tenant_id", tenantId);
   if (error) throw new Error(`cannot read the sequences' names: ${error.message}`);
   return data ?? [];
 }
 
 /** A sequence's steps in their places, with what each sent in the last 30 days (00442 sequence_steps_of). */
-export async function listSequenceSteps(db: Db, tenantId: string, sequenceId: string): Promise<SequenceStepDto[]> {
+export async function listSequenceSteps(db: Db, tenantId: TenantId, sequenceId: string): Promise<SequenceStepDto[]> {
   const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });
   if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
   return readerRowsOf<SequenceStepDto>(data);

@@ -15,7 +15,7 @@
 import { json, refuse } from "../shared/http.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
-import { UUID, freedTimeOf } from "@chanlytics/contracts";
+import { UUID, freedTimeOf, isTenantId } from "@chanlytics/contracts";
 import { findFreedTimeFacts } from "@chanlytics/db/campaigns";
 import { offerFreedTime } from "./freed-time-offer.js";
 
@@ -37,7 +37,7 @@ export async function offerFreedTimeNow(
   const tenantId = ws.tenantId ?? "";
   const userId = personFor(auth, body.user_id) ?? "";
   const appointmentId = typeof body.appointment_id === "string" ? body.appointment_id : "";
-  if (!UUID.test(tenantId) || !UUID.test(userId) || !UUID.test(appointmentId)) return refuse(400, "bad_request");
+  if (!isTenantId(tenantId) || !UUID.test(userId) || !UUID.test(appointmentId)) return refuse(400, "bad_request");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   try {

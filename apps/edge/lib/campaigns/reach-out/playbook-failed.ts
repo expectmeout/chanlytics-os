@@ -32,6 +32,7 @@ import { errField, type Logger } from "../../shared/log.js";
 import { notify } from "../../shared/alerts/notify.js";
 import { pageOperator } from "../../shared/alerts/page-operator.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -45,7 +46,7 @@ interface FailedPlaybook {
 interface Failure {
   db: Db;
   L: Logger;
-  tenantId: string;
+  tenantId: TenantId;
   /** The workspace's zone: which hour it is there. */
   tz: string;
   now: Date;

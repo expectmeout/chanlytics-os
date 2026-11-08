@@ -15,7 +15,7 @@
  * Secrets (the subaccount token, the SIP password) go to the vault port
  * and never onto the row's facts.
  */
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId } from "@chanlytics/contracts";
 import {
   RETELL_ORIGINATION,
   isValidSipPassword,
@@ -43,7 +43,7 @@ export type LineVoiceState = SchemaSet<"lines.voice_state">;
 /** The columns the saga reads and writes — a projection of the `lines` row. */
 export interface LineRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   e164: string | null;
   provider: string;
   area_code: number | null;

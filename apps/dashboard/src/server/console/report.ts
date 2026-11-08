@@ -1,3 +1,4 @@
+import type { TenantId } from "@chanlytics/contracts";
 import "server-only";
 
 /**
@@ -42,7 +43,7 @@ interface ReportFiled {
 }
 
 /** The workspace the tab named, when the member belongs to it; null otherwise, and never a refusal. */
-async function reportedFrom(ctx: RouteContext, workspace: string | null): Promise<string | null> {
+async function reportedFrom(ctx: RouteContext, workspace: string | null): Promise<TenantId | null> {
   if (!workspace) return null;
   return getMemberContext(ctx, workspace).then(
     (m) => m.tenantId,

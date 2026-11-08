@@ -13,16 +13,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { queueSend } from "@chanlytics/db/jobs";
-import type { BrainMeta } from "@chanlytics/contracts";
+import type { BrainMeta, TenantId, ContactId } from "@chanlytics/contracts";
 import type { InboundChannel } from "@chanlytics/core";
 import type { LogEvent } from "../shared/log.js";
 
 export type DraftSource = "veto_window" | "low_confidence" | "steered";
 
 interface DraftArgs {
-  tenantId: string;
+  tenantId: TenantId;
   conversationId: string;
-  contactId: string | null;
+  contactId: ContactId | null;
   /** Where it goes: the number on a phone's wire (with or without its "+"), the person's Instagram-scoped id on a DM's. */
   to: string;
   body: string;

@@ -1,5 +1,6 @@
 /** One customer's whole record, as the export writes it. */
-import type { MessageDto } from "@chanlytics/contracts";
+import type { ContactId } from "@chanlytics/contracts";
+import type { MessageDto, TenantId } from "@chanlytics/contracts";
 import { mediaPublic, toCallDto } from "@/server/conversations/dto";
 import { consentChangeOf, type BundleReaders } from "@/server/export/bundle";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -12,8 +13,8 @@ import { pageCallRows } from "@chanlytics/db/voice";
  */
 export function customerRecord(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
-  person?: string,
+  tenantId: TenantId,
+  person?: ContactId,
 ): Pick<BundleReaders, "conversations" | "messages" | "calls" | "consentHistory"> {
   const { supabase } = ctx;
   const rows = async <T>(q: PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> => {

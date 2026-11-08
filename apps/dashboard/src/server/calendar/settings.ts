@@ -46,6 +46,7 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { getTenantFacts } from "@/server/shared/tenant";
 import { log } from "@/server/shared/log";
 import { getStoredConfig } from "@/server/workspace/config-row";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Settings that will not parse are a READ THAT FAILED, not a workspace without a calendar.
@@ -64,7 +65,7 @@ import { getStoredConfig } from "@/server/workspace/config-row";
  * question the schema can no longer answer: is an address in there? Yes, and we could not reach it: that is
  * news, said out loud. No: nothing was lost, stay quiet, and the log still has the issues either way.
  */
-export function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfig | null; lostCalendar: boolean } {
+export function readSettings(tenantId: TenantId, raw: unknown): { cfg: TenantConfig | null; lostCalendar: boolean } {
   const tenantConfigResult = parseTenantConfigResult(raw);
   if (tenantConfigResult.ok) return { cfg: tenantConfigResult.config, lostCalendar: false };
   const sentence = raw as { calendar?: { ical_url?: unknown }; calendar_grant?: { mailbox_id?: unknown } } | null;
@@ -89,7 +90,7 @@ export function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfi
  */
 export async function findCalendar(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   known?: { timezone: string; config: unknown },
 ): Promise<{
   url: string | null;

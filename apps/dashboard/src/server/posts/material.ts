@@ -26,6 +26,7 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { bucket } from "../files/file";
 import { asPng } from "./compose";
 import { postPhoneOf } from "./phone";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The widest a photo is read at: enough for the tallest shape, and every kind it may be kept in comes back as one the code reads. */
 const PHOTO_READ_WIDTH = 2000;
@@ -77,7 +78,7 @@ const asFour = (v: unknown): readonly [number, number, number, number] | null =>
     : null;
 
 /** The business's mark, ready to draw, or none. A mark that can't be read costs the mark, never the post. */
-async function logoRead(tenantId: string, path: string): Promise<string | null> {
+async function logoRead(tenantId: TenantId, path: string): Promise<string | null> {
   const read = await serviceDb().storage.from(WORKSPACE_LOGOS_BUCKET).download(path);
   if (read.error || !read.data) {
     log.warn("file_post_logo_failed", { tenant_id: tenantId, error: read.error?.message ?? "no bytes" });
@@ -101,7 +102,7 @@ async function photoRead(file: FileMemberRow): Promise<Buffer> {
 /** What a post is drawn from, for whoever holds the workspace's settings: a route by its member, Ask's act by its turn's read. */
 export async function postMaterialFrom(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   file: FileMemberRow,
   configOf: () => Promise<unknown>,
 ): Promise<PostMaterial> {

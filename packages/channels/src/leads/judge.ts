@@ -31,6 +31,7 @@ import {
   type LeadSearchPlan,
   type PlaceFacts,
 } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A call's places are sized to answer in about 1,500 tokens (contracts judgeCallPlaces); the rest is room. A cap reached
@@ -49,7 +50,7 @@ export const LEAD_JUDGE_DEFAULT_MODEL = MODEL_ROUTES.lead_judge.model;
 export interface LeadJudgeClient {
   beta: {
     messages: {
-      create(params: Record<string, unknown>, call?: { tenantId?: string; roundId?: string }): Promise<unknown>;
+      create(params: Record<string, unknown>, call?: { tenantId?: TenantId; roundId?: string }): Promise<unknown>;
     };
   };
 }
@@ -75,18 +76,23 @@ export interface LeadJudge {
    * paid in, the row's subject (and the second model's rows for the same call): what the judge cost a search is read off
    * the ledger by it. A call that names no round leaves the subject empty.
    */
-  judge(plan: LeadSearchPlan, places: PlaceFacts[], tenantId?: string, roundId?: string): Promise<LeadJudgeAnswer>;
+  judge(plan: LeadSearchPlan, places: PlaceFacts[], tenantId?: TenantId, roundId?: string): Promise<LeadJudgeAnswer>;
   /**
    * The screen, where the deployment puts one before the judge (decision 0085): the places a second model is sure are
    * left out, each with its answer (contracts screenedAnswer), and the model that answered; null when it is off. The
    * judge is never asked of a place it answers. It never throws: a screen that could not ask screens nothing.
    */
-  screen?(plan: LeadSearchPlan, places: PlaceFacts[], tenantId?: string, roundId?: string): Promise<LeadScreen | null>;
+  screen?(
+    plan: LeadSearchPlan,
+    places: PlaceFacts[],
+    tenantId?: TenantId,
+    roundId?: string,
+  ): Promise<LeadScreen | null>;
   /** One batch of a people search's companies read against what it asked for, paid as a places batch is. */
   judgeCompanies(
     plan: LeadPeoplePlan,
     companies: CompanyFacts[],
-    tenantId?: string,
+    tenantId?: TenantId,
     roundId?: string,
   ): Promise<CompanyJudgeAnswer>;
 }
@@ -113,7 +119,7 @@ export function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boo
     system: string,
     user: string,
     schema: Record<string, unknown>,
-    call: { tenantId?: string; roundId?: string },
+    call: { tenantId?: TenantId; roundId?: string },
   ): Promise<JudgeCall> => {
     const requestHash = createHash("sha256").update(`${system}\n${user}`).digest("hex");
     const base = {

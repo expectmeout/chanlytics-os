@@ -10,6 +10,7 @@ import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import { serviceDb } from "@/server/shared/service-db";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long the edge has to queue a read of the website: one insert. */
 const WEBSITE_ASK_MS = 5_000;
@@ -26,7 +27,7 @@ function websiteIn(config: unknown): string | null {
  * A website newly named is read for the first run's Check (decision 0073, R10): its services, prices and rules, offered
  * for the owner to tap in. Asked of the edge, which holds the reader and the model; best effort, never the save's failure.
  */
-async function askWebsiteRead(ctx: RouteContext, tenantId: string): Promise<void> {
+async function askWebsiteRead(ctx: RouteContext, tenantId: TenantId): Promise<void> {
   if (!edgeConfigured()) return;
   const a = await callEdge(
     "/api/admin/imports/website-read",
@@ -56,7 +57,7 @@ export const SETTINGS_REFUSED = {
  */
 export async function recordSettingsChanged(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   before: unknown,
   after: unknown,
   version: number,

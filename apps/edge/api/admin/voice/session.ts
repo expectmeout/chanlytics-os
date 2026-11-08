@@ -16,7 +16,7 @@ import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/shared/adm
 import { readBody } from "../../../lib/shared/admin-door.js";
 import { mayUseModelFor } from "../../../lib/ai/model.js";
 import { askVoiceConfigured, mintAskVoiceSession } from "../../../lib/voice/ask-voice.js";
-import { UUID, VOICE_IS_OFF, VOICE_SESSION_DOOR } from "@chanlytics/contracts";
+import { UUID, VOICE_IS_OFF, VOICE_SESSION_DOOR, isTenantId } from "@chanlytics/contracts";
 import { logger, adminDoor } from "../../../lib/shared/log.js";
 
 const L = logger();
@@ -33,7 +33,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
   const userId = personFor(auth, body.user_id) ?? "";
-  if (!UUID.test(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
+  if (!isTenantId(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
 
   if (!(await mayUseModelFor("ask", tenantId))) {
     L.warn("voice_session_refused", { tenant_id: tenantId, why: "may_not_spend" });

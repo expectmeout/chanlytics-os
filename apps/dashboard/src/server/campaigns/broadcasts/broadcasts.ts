@@ -1,5 +1,6 @@
 /** Broadcasts: broadcasts. */
 
+import { heldContactId } from "@chanlytics/contracts";
 import "server-only";
 import {
   AppError,
@@ -51,6 +52,7 @@ import {
   waitingThreads,
   withCounts,
 } from "./replied";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * A run's sheet's numbers: run_counts' (00374), the same a list of runs says of it; on a database before it, for one
@@ -74,7 +76,7 @@ async function sheetCountsOf(
  * server's Today and Ask count by: waiting for approval, or a going reach-out run whose emails are held or handed to its
  * owner), as Sent's rows. Null where they could not be read, said in the log: the list stands without them.
  */
-async function waitingBeyond(ctx: RouteContext, tenantId: string, shown: readonly BroadcastRow[]) {
+async function waitingBeyond(ctx: RouteContext, tenantId: TenantId, shown: readonly BroadcastRow[]) {
   try {
     const seen = new Set(shown.map((r) => r.id));
     const ids = (await listWaitingRuns(ctx.supabase, tenantId)).map((r) => r.id).filter((id) => !seen.has(id));
@@ -104,7 +106,7 @@ async function waitingBeyond(ctx: RouteContext, tenantId: string, shown: readonl
  */
 export async function listBroadcasts(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
   const { data: rows, error } = await listRecentRunRows(ctx.supabase, tenantId, RECENT + 1);
   if (error) throw new Error(error.message);
@@ -123,7 +125,7 @@ export async function listBroadcasts(
  * Counts that cannot be read leave both absent, logged, and the rows stand (the wiring's second audit,
  * W-campaign-run-template-reachout-4).
  */
-async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[]): Promise<BroadcastDto[]> {
+async function withHeld(ctx: RouteContext, tenantId: TenantId, rows: BroadcastDto[]): Promise<BroadcastDto[]> {
   const counted: readonly string[] = [...RUN_GOING_STATES, "pending_approval"];
   const going = rows.filter((b) => isReachOutRun(b.audience) && counted.includes(b.state));
   if (!going.length) return rows;
@@ -151,7 +153,7 @@ async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[
  * playbook that had run daily for two months was counted from whatever was
  * left of it in that window.
  */
-export async function listRuns(ctx: RouteContext, tenantId: string): Promise<BroadcastDto[]> {
+export async function listRuns(ctx: RouteContext, tenantId: TenantId): Promise<BroadcastDto[]> {
   const { data: rows, error } = await listPlaybookRunRows(ctx.supabase, tenantId);
   if (error) throw new Error(error.message);
   return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
@@ -181,8 +183,8 @@ function sendsOf(rows: RecipientRow[]): AnswerSend[] {
 /** These people's consent changes after `since`, two hundred people at a time so the URL stays short. */
 async function consentEventsOf(
   ctx: RouteContext,
-  tenantId: string,
-  contactIds: string[],
+  tenantId: TenantId,
+  contactIds: ContactId[],
   since: string,
 ): Promise<AnswerEvent[]> {
   const out: AnswerEvent[] = [];
@@ -215,7 +217,7 @@ async function consentEventsOf(
  */
 async function consentAfter(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: RecipientRow[],
   runId: string,
 ): Promise<Map<string, ConsentAnswer>> {
@@ -224,7 +226,7 @@ async function consentAfter(
   const sentMs = sends.map((s) => Date.parse(s.sentAt)).filter(Number.isFinite);
   if (sentMs.length === 0) return out;
   // Someone who does not stand answers nothing (the rule), so their events are not read.
-  const people = [...new Set(sends.filter((s) => s.live).map((s) => s.contactId))];
+  const people = [...new Set(sends.filter((s) => s.live).map((s) => heldContactId(s.contactId)))];
   const since = new Date(Math.min(...sentMs)).toISOString();
   for (const a of answersToRuns(sends, await consentEventsOf(ctx, tenantId, people, since))) {
     if (a.runId === runId) out.set(a.contactId, { consent: a.consent, purpose: a.purpose, at: a.at });
@@ -252,7 +254,7 @@ function firstNameOfRecipient(r: RecipientRow): string | null {
  * Every person on a run, a page at a time, each with the channel the send picked for them (00298; every send has its
  * column since 00440 made the one table of sends).
  */
-async function recipientsOf(ctx: RouteContext, tenantId: string, id: string): Promise<RecipientRow[]> {
+async function recipientsOf(ctx: RouteContext, tenantId: TenantId, id: string): Promise<RecipientRow[]> {
   // The person is the tiebreak the pager needs (the key is broadcast_id, contact_id).
   return readAllRows("broadcast recipients", (from, to) =>
     pageRunPeople(ctx.supabase, tenantId, id, from, to),
@@ -260,7 +262,7 @@ async function recipientsOf(ctx: RouteContext, tenantId: string, id: string): Pr
 }
 
 /** One broadcast and every person on it, in the words of what happened to them -- and what came back from each. */
-export async function getBroadcast(ctx: RouteContext, tenantId: string, id: string): Promise<BroadcastDetailDto> {
+export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: string): Promise<BroadcastDetailDto> {
   const { data: row, error } = await findRunRow(ctx.supabase, tenantId, id);
   if (error) throw new Error(error.message);
   if (!row) throw new AppError("not_found", "Run not found.", 404);
@@ -323,8 +325,8 @@ export const PERSON_RUNS = 20;
  */
 export async function listPersonRuns(
   ctx: RouteContext,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Promise<PersonCampaignDto[]> {
   const read = await readAllRows<{
     broadcast_id: string | null;

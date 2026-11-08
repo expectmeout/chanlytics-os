@@ -9,6 +9,7 @@ import {
   recordOrEmpty,
   recordOrNull,
 } from "@chanlytics/contracts";
+import type { ContactId } from "@chanlytics/contracts";
 
 /**
  * Row → DTO mapping, in one place.
@@ -124,7 +125,7 @@ interface CallRow {
   transcript_object: unknown;
   recording: unknown;
   conversation_id: string | null;
-  contact_id: string | null;
+  contact_id: ContactId | null;
   message_id: string | null;
   contacts: {
     display_name: string | null;

@@ -14,6 +14,7 @@
  * handing a line to a person after its automatic tries run out — so that too is told
  * in the same words.
  */
+import type { TenantId } from "@chanlytics/contracts";
 import { notify, recordNotification } from "../shared/alerts/notify.js";
 import { emitEvent, recordActivation } from "@chanlytics/db/events";
 import {
@@ -39,7 +40,7 @@ import { logger } from "../shared/log.js";
 export async function reportLineFailed(
   db: SupabaseClient<Database>,
   providerName: string,
-  tenant: { id: string; name: string },
+  tenant: { id: TenantId; name: string },
   line: { id: string; e164: string | null },
   step: string,
   error: string,
@@ -79,7 +80,7 @@ export async function provisionLine(
   choice: LineProviderChoice,
   cfg: { apiKey: string },
   secrets: { fnSecret: string | null },
-  tenant: { id: string; name: string },
+  tenant: { id: TenantId; name: string },
   line: LineRow,
   /**
    * Who started this run, for the platform email: a person pressed something, or

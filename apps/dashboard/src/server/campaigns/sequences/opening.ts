@@ -23,6 +23,7 @@ import { log } from "@/server/shared/log";
 import { serviceDb } from "@/server/shared/service-db";
 import { reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts";
 import type { RouteContext } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long a press waits for its check: a rewrite is two model calls of about a second each, and a site read. */
 const CHECK_NOW_MS = 20 * SECOND_MS;
@@ -33,13 +34,13 @@ const CHECK_DOOR = "/api/admin/reach-out/check";
 const STEPS = new Set<string>(REWRITE_STEPS);
 
 /** How the emails stand now, as the page reads them. */
-const openingsOf = (ctx: RouteContext, tenantId: string, ids: string[]): Promise<ReachOutOpeningDto[]> =>
+const openingsOf = (ctx: RouteContext, tenantId: TenantId, ids: string[]): Promise<ReachOutOpeningDto[]> =>
   sendOpeningsOf(ctx.supabase, { tenantId, sendIds: ids });
 
 /** The emails' check, now, and how they stand after it: one answer. */
 export async function checkOpeningsNow(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   ids: string[],
 ): Promise<{ sends: ReachOutOpeningDto[] }> {
   if (deployment.providersLive) {
@@ -59,7 +60,7 @@ export async function checkOpeningsNow(
  * the log, and the answer after says how the emails stand.
  */
 async function relaySteps(
-  params: { ctx: RouteContext; tenantId: string; ids: string[]; gone: AbortSignal },
+  params: { ctx: RouteContext; tenantId: TenantId; ids: string[]; gone: AbortSignal },
   send: (line: ReachOutCheckLine) => void,
 ): Promise<void> {
   const body = JSON.stringify({ send_ids: params.ids, stream: true });
@@ -106,7 +107,7 @@ async function relaySteps(
 }
 
 /** The emails' check, now, as a stream of JSON lines: each step as the check takes it, then how they stand. */
-export function streamOpeningsNow(ctx: RouteContext, tenantId: string, ids: string[], gone: AbortSignal): Response {
+export function streamOpeningsNow(ctx: RouteContext, tenantId: TenantId, ids: string[], gone: AbortSignal): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -143,7 +144,7 @@ export function streamOpeningsNow(ctx: RouteContext, tenantId: string, ids: stri
 /** Undo of Rewrite the opening (00505): the opening it replaced, and how it stood, back while the email waits. */
 export async function undoOpening(
   ctx: RouteContext,
-  send: { id: string; tenant_id: string; broadcast_id: string },
+  send: { id: string; tenant_id: TenantId; broadcast_id: string },
 ): Promise<{ send_id: string; rewritten: ReachOutOpeningDto | null }> {
   const r = await undoSendRewrite(ctx.supabase, send.id);
   if (r.error) throw reachOutRefusal(r.error);

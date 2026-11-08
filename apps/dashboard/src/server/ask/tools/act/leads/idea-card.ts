@@ -21,6 +21,7 @@ import { getPeopleCard } from "./search";
 import { propose } from "../../context/context";
 import { titleFromQuestion } from "../../../prompt/prompt";
 import { appendMessage, createThread, listThreads, readThread, touchThread } from "../../../store";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * An idea pressed (Ruben, 23 Oct 2026: "allow the ask to open up and provide a card … if user wants to tweak anything
@@ -53,7 +54,7 @@ function ideaAnswer(idea: LeadIdeaDto, card: AskProposal): AskAnswer {
 }
 
 /** The idea's search as a card: a places plan, or a people plan where the people card finds leads now (00430). */
-async function ideaCard(ctx: RouteContext, tenantId: string, idea: LeadIdeaDto, title: string, now: Date) {
+async function ideaCard(ctx: RouteContext, tenantId: TenantId, idea: LeadIdeaDto, title: string, now: Date) {
   if (idea.people) {
     const live = await listLeadCardsLive(ctx.supabase).catch((): string[] => []);
     if (!live.includes("people_at_companies"))
@@ -78,7 +79,7 @@ async function ideaCard(ctx: RouteContext, tenantId: string, idea: LeadIdeaDto, 
 }
 
 /** The thread an idea pressed before opened, while its card still waits: pressed again, it opens there, never twice. */
-async function ideaThreadWaiting(ctx: RouteContext, tenantId: string, title: string) {
+async function ideaThreadWaiting(ctx: RouteContext, tenantId: TenantId, title: string) {
   const twin = (await listThreads(ctx, tenantId)).find((t) => t.title === title);
   if (!twin) return null;
   const found = await readThread(ctx, twin.id);
@@ -93,7 +94,7 @@ async function ideaThreadWaiting(ctx: RouteContext, tenantId: string, title: str
  */
 export async function keepIdeaCard(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   words: string,
   now: Date = new Date(),
 ): Promise<{ thread: { id: string; title: string } }> {

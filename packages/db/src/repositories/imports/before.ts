@@ -8,17 +8,19 @@
  * (import_person), how many people the workspace holds, and what a file line says of a person before Chanlytics
  * (person_before_note), each on the member's session.
  */
+import { heldContactId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 import { recordOrEmpty } from "@chanlytics/contracts";
 import { asJson } from "../../shared/json";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** One message from before, as the door takes it. */
 export interface BeforeMessage {
-  tenantId: string;
+  tenantId: TenantId;
   channel: "email" | "whatsapp";
   /** The wire's own id for the person: the address for email, the WhatsApp id for a chat. */
   external: string;
@@ -39,7 +41,7 @@ export interface BeforeKept {
   kept: boolean;
   erased: boolean;
   conversationId: string | null;
-  contactId: string | null;
+  contactId: ContactId | null;
   /** A new person in People, made by this message. */
   newPerson: boolean;
 }
@@ -67,14 +69,14 @@ export async function keepBefore(db: Db, beforeMessage: BeforeMessage): Promise<
     kept: row.is_new === true,
     erased: false,
     conversationId: typeof row.conversation_id === "string" ? row.conversation_id : null,
-    contactId: typeof row.contact_id === "string" ? row.contact_id : null,
+    contactId: typeof row.contact_id === "string" ? heldContactId(row.contact_id) : null,
     newPerson: row.person === "new",
   };
 }
 
 /** What import_person made of a line: the person, whether they were on file already, and what became of the address. */
 interface ImportedPerson {
-  contact_id: string;
+  contact_id: ContactId;
   existed: boolean;
   email: "set" | "kept" | "taken" | null;
 }
@@ -86,7 +88,7 @@ interface ImportedPerson {
  */
 export async function importPerson(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   params: { name: string; phone: string | null; email: string | null },
 ): Promise<{ ok: true; made: ImportedPerson } | { ok: false; code: string | undefined; message: string }> {
   const { data, error } = await db.rpc("import_person", {
@@ -103,14 +105,18 @@ export async function importPerson(
 function importedOf(data: Json): ImportedPerson {
   const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
   const email = o.email === "set" || o.email === "kept" || o.email === "taken" ? o.email : null;
-  return { contact_id: typeof o.contact_id === "string" ? o.contact_id : "", existed: o.existed === true, email };
+  return {
+    contact_id: heldContactId(typeof o.contact_id === "string" ? o.contact_id : ""),
+    existed: o.existed === true,
+    email,
+  };
 }
 
 /**
  * How many people the workspace holds (neither erased nor merged into another): the first run's "Your dashboard, filling
  * in" and Live's "0 of 604 said yes" (decision 0073). Counted by the database, never by reading every row.
  */
-export async function getPeopleCount(db: Db, tenantId: string): Promise<number> {
+export async function getPeopleCount(db: Db, tenantId: TenantId): Promise<number> {
   const { count, error } = await tenantDb(db, tenantId)
     .from("contacts")
     .select("id", { count: "exact", head: true })
@@ -127,8 +133,8 @@ export async function getPeopleCount(db: Db, tenantId: string): Promise<number> 
  */
 export async function recordPersonBeforeNote(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
   before: { via?: string; last_visit?: string; visits?: number; birthday?: string },
   notes: string | null,
 ): Promise<void> {

@@ -1,3 +1,5 @@
+import { heldContactId } from "@chanlytics/contracts";
+import type { ContactId } from "@chanlytics/contracts";
 import "server-only";
 import {
   AppError,
@@ -49,6 +51,7 @@ import { DEAL_DTO_COLUMNS, findDealPace } from "../people/deals";
 import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
 import * as facts from "./facts";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How many of a person's messages their page holds: the newest, so what drops is the oldest history. */
 const PERSON_MESSAGES = 2000;
@@ -144,8 +147,8 @@ function configFacts(config: unknown): { bookingLink: string | null; services: s
  */
 async function businessAndSigners(
   rc: ReaderContext,
-  tenantId: string,
-  id: string,
+  tenantId: TenantId,
+  id: ContactId,
   rowRead: Promise<{ lead_id?: string | null; lead_gone?: boolean | null } | null>,
 ): Promise<Pick<PersonDetailDto, "business" | "signers">> {
   const sb = rc.ctx.supabase;
@@ -174,7 +177,7 @@ async function businessAndSigners(
  * The 404 for a person this workspace does not show: in its words, and, for one combined into another since (0028),
  * naming the record kept (contracts combinedInto), so their old address opens the person they became (S5-3).
  */
-async function notHere(sb: Parameters<typeof findKeptPerson>[0], tenantId: string, id: string): Promise<AppError> {
+async function notHere(sb: Parameters<typeof findKeptPerson>[0], tenantId: TenantId, id: ContactId): Promise<AppError> {
   const kept = await findKeptPerson(sb, tenantId, id);
   return new AppError("not_found", "This person is not in your workspace.", 404, kept ? combinedInto(kept) : undefined);
 }
@@ -192,7 +195,7 @@ async function notHere(sb: Parameters<typeof findKeptPerson>[0], tenantId: strin
  * What went to a person and what is still to come: the runs that named them (listPersonRuns), and the sequences they are in
  * now (0060, S5), which a database before them leaves empty, never the profile.
  */
-async function campaignsOfPerson(rc: ReaderContext, id: string) {
+async function campaignsOfPerson(rc: ReaderContext, id: ContactId) {
   const [campaigns, sequences] = await Promise.all([
     listPersonRuns(rc.ctx, rc.tenantId, id),
     listSequencesOfPerson(rc.ctx.supabase, rc.tenantId, id).catch(() => []),
@@ -202,7 +205,8 @@ async function campaignsOfPerson(rc: ReaderContext, id: string) {
 
 export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
   name: "person",
-  async read(rc, { id }) {
+  async read(rc, { id: asked }) {
+    const id = heldContactId(asked);
     const tenantId = rc.tenantId;
     const sb = rc.ctx.supabase;
     // The row the list shows, read as the list reads it (packages/db personRow: every open deal in its shape, 0029).
@@ -446,7 +450,8 @@ function rowsOfPerson(person: PersonDetailDto, label: string): RowRef[] {
  */
 export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
   name: "personReach",
-  async read(rc, { id }) {
+  async read(rc, { id: asked }) {
+    const id = heldContactId(asked);
     const sb = rc.ctx.supabase;
     const [row, ready, own, workspace, settings] = await Promise.all([
       findPersonRow(sb, rc.tenantId, id),

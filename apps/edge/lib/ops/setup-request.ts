@@ -22,7 +22,7 @@ import { pg } from "../shared/pg.js";
 import { notify } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
-import { setupAskMail, UUID } from "@chanlytics/contracts";
+import { setupAskMail, isTenantId } from "@chanlytics/contracts";
 import { findWorkspaceCard } from "@chanlytics/db/workspace";
 
 interface Body {
@@ -42,7 +42,7 @@ export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): P
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const subject = typeof body.what === "string" ? body.what : "";
   const result = setupAskMail(subject);
-  if (!UUID.test(tenantId) || !result) return refuse(400, "bad_request", "tenant_id and a known `what` are required");
+  if (!isTenantId(tenantId) || !result) return refuse(400, "bad_request", "tenant_id and a known `what` are required");
 
   const tenant = await findWorkspaceCard(db, tenantId);
   if (tenant.error) return refuse(503, "read_failed", tenant.error.message);

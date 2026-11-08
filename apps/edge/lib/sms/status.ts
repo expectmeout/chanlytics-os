@@ -50,6 +50,7 @@ import { findLineByNumber, findLineAccount } from "../lines/sms.js";
 import { pageOperator, type PageOutcome } from "../shared/alerts/page-operator.js";
 import { logger } from "../shared/log.js";
 import { phoneTail } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 const empty = (status: number) => text(status, "", { "content-type": "text/plain" });
 
@@ -61,7 +62,7 @@ const empty = (status: number) => text(status, "", { "content-type": "text/plain
  */
 async function pageLostReport(
   db: NonNullable<ReturnType<typeof pg>>,
-  tenantId: string,
+  tenantId: TenantId,
   fields: { replay: string; kept: boolean; status: string; error: string },
 ): Promise<PageOutcome> {
   return pageOperator(

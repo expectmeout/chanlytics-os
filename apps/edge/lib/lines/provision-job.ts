@@ -30,6 +30,7 @@ import { env } from "../shared/env.js";
 import { secretToProvision } from "../shared/door-auth.js";
 import { findLineRow } from "@chanlytics/db/lines";
 import { findWorkspaceName } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 interface LineProvisionOutcome {
   ok: boolean;
@@ -61,7 +62,7 @@ function realLineProvisionDeps(): LineProvisionDeps {
 export async function provisionLineJob(
   db: SupabaseClient<Database>,
   /** The job's workspace: the line named is that workspace's, or there is nothing to do. */
-  tenantId: string,
+  tenantId: TenantId,
   lineId: string,
   by: ResumedBy,
   deps: LineProvisionDeps = realLineProvisionDeps(),

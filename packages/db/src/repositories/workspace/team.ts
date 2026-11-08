@@ -7,15 +7,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Args<F extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][F]["Args"];
 
 /** The workspace's members, each with what the roster may say of them (team_roster). */
-export const readTeamRoster = async (db: Db, tenantId: string) => db.rpc("team_roster", { p_tenant_id: tenantId });
+export const readTeamRoster = async (db: Db, tenantId: TenantId) => db.rpc("team_roster", { p_tenant_id: tenantId });
 
 /** The workspace's invitations not yet taken up or withdrawn, oldest first. */
-export const listOpenInvitations = async (db: Db, tenantId: string) =>
+export const listOpenInvitations = async (db: Db, tenantId: TenantId) =>
   db
     .from("invitations")
     .select("id, email, role, created_at, expires_at")
@@ -25,7 +26,7 @@ export const listOpenInvitations = async (db: Db, tenantId: string) =>
     .order("created_at");
 
 /** The account an address belongs to, as an invite asks it (lookup_user_for_invite). */
-export const lookupUserForInvite = async (db: Db, tenantId: string, email: string) =>
+export const lookupUserForInvite = async (db: Db, tenantId: TenantId, email: string) =>
   db.rpc("lookup_user_for_invite", { p_tenant_id: tenantId, p_email: email });
 
 /** A person with an account joined to the team (team_join). */
@@ -35,7 +36,7 @@ export const joinTeam = async (db: Db, args: Args<"team_join">) => db.rpc("team_
 export const inviteToTeam = async (db: Db, args: Args<"team_invite">) => db.rpc("team_invite", args);
 
 /** An invitation withdrawn (team_invite_withdraw). */
-export const withdrawTeamInvite = async (db: Db, tenantId: string, invitationId: string) =>
+export const withdrawTeamInvite = async (db: Db, tenantId: TenantId, invitationId: string) =>
   db.rpc("team_invite_withdraw", { p_tenant_id: tenantId, p_invitation_id: invitationId });
 
 /** A member's role changed (team_change_role). */
@@ -69,7 +70,7 @@ export const insertMembership = async (db: Db, row: Database["public"]["Tables"]
   db.from("memberships").insert(row);
 
 /** An invitation stamped as taken up at `at`, only while it is open. */
-export const stampInvitationAccepted = async (db: Db, tenantId: string, invitationId: string, at: string) =>
+export const stampInvitationAccepted = async (db: Db, tenantId: TenantId, invitationId: string, at: string) =>
   db
     .from("invitations")
     .update({ accepted_at: at })
@@ -103,7 +104,7 @@ export const listMyRoles = async (db: Db, userId: string) =>
 /** The workspace's own fields written, the row back with `columns` (a set the caller types): none back, refused. */
 export const patchWorkspaceRowWith = async (
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   patch: Database["public"]["Tables"]["tenants"]["Update"],
   columns: string,
 ) => db.from("tenants").update(patch).eq("id", tenantId).select(columns);

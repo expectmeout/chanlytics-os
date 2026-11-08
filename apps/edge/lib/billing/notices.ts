@@ -10,6 +10,7 @@ import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import { DEFAULT_TIMEZONE, billingDayWords } from "@chanlytics/contracts";
 import { keepOnce, notifyOnceAs } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -21,7 +22,7 @@ type Db = SupabaseClient<Database>;
  */
 export async function ringOnce(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   bell: { title: string; body: string },
   key: string,
 ): Promise<void> {
@@ -44,7 +45,7 @@ export async function ringOnce(
  */
 export async function tellOnce(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   bell: { title: string; body: string },
   key: string,
 ): Promise<{ mailOwed: boolean }> {
@@ -65,7 +66,7 @@ export async function tellOnce(
  */
 export async function noteTrialEnding(
   db: Db,
-  row: { tenant_id: string },
+  row: { tenant_id: TenantId },
   trialEnd: string | null,
   eventId: string,
 ): Promise<void> {

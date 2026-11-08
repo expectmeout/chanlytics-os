@@ -12,6 +12,7 @@ import type { Database, Json } from "../../../types";
 import type { JsonObject } from "../../events/events";
 import { readAllRows } from "../../../shared/paged";
 import { jsonCopyOf } from "../../../shared/json";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -44,7 +45,7 @@ const STEP_COLUMNS =
   "id, name, state, trigger, lead_search_id, after_playbook_id:after_step_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, signs_with, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 
 /** Every reach-out step of a workspace, each chain's root among them (trigger lead_first). */
-export async function listReachOutSteps(db: Db, tenantId: string): Promise<ReachOutStepRow[]> {
+export async function listReachOutSteps(db: Db, tenantId: TenantId): Promise<ReachOutStepRow[]> {
   const { data, error } = await db
     .from("sequence_steps")
     .select(STEP_COLUMNS)
@@ -60,7 +61,7 @@ export async function findReachOutRoot(
   id: string,
 ): Promise<{
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   state: string;
   trigger: string;
@@ -83,7 +84,7 @@ export async function findReachOutSendRef(
   id: string,
 ): Promise<{
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   broadcast_id: string;
   state: string;
   reason: string | null;
@@ -115,7 +116,7 @@ export function emailWordsFrom(row: {
 /** Many templates' words at once, by id: what a workspace's chains say. */
 export async function findEmailWordsByTemplate(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ids: string[],
 ): Promise<Map<string, { subject: string | null; body: string } | null>> {
   if (ids.length === 0) return new Map();
@@ -131,7 +132,7 @@ export async function findEmailWordsByTemplate(
 /** The searches' names, by id. */
 export async function findSearchesByIds(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ids: string[],
 ): Promise<Map<string, { name: string; via: string | null }>> {
   if (ids.length === 0) return new Map();
@@ -145,7 +146,7 @@ export async function findSearchesByIds(
 }
 
 /** The businesses' names, by lead id: what a hand step's words call each lead (Part 5, G20). */
-export async function getLeadNamesByIds(db: Db, tenantId: string, ids: string[]): Promise<Map<string, string>> {
+export async function getLeadNamesByIds(db: Db, tenantId: TenantId, ids: string[]): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
   const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
   if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
@@ -156,7 +157,7 @@ export async function getLeadNamesByIds(db: Db, tenantId: string, ids: string[])
 export type HandItem = {
   send_id: string;
   lead_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   words: string;
   source_id: string;
 };
@@ -167,7 +168,7 @@ export type HandItem = {
  */
 export async function handRun(
   db: Db,
-  params: { tenantId: string; stepId: string; runId: string; day: string; items: HandItem[] },
+  params: { tenantId: TenantId; stepId: string; runId: string; day: string; items: HandItem[] },
 ): Promise<{ made: number; already: number }> {
   const { data, error } = await db.rpc("reach_out_hand_run", {
     p_tenant_id: params.tenantId,
@@ -202,7 +203,7 @@ export interface ReachOutSaved {
 export async function saveReachOutChain(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     userId: string;
     chain: Record<string, unknown>;
     decision: { payload: Json; via: string | null; undoOf: string | null } | null;
@@ -227,7 +228,7 @@ export async function saveReachOutChain(
 }
 
 /** The runs waiting for their owner's approval, as their audiences say them (a reach-out's names its root). */
-export async function listRunsWaiting(db: Db, tenantId: string): Promise<{ id: string; audience: unknown }[]> {
+export async function listRunsWaiting(db: Db, tenantId: TenantId): Promise<{ id: string; audience: unknown }[]> {
   const { data, error } = await db
     .from("sequence_batches")
     .select("id, audience")
@@ -264,7 +265,7 @@ export interface ReachOutRunSend {
   } | null;
 }
 
-export async function listReachOutRunSends(db: Db, tenantId: string, runId: string): Promise<ReachOutRunSend[]> {
+export async function listReachOutRunSends(db: Db, tenantId: TenantId, runId: string): Promise<ReachOutRunSend[]> {
   const { data, error } = await db
     .from("sequence_sends")
     .select(
@@ -296,7 +297,7 @@ export async function stampReachOutStep(db: Db, id: string, params: { at: Date; 
  */
 export async function recheckSends(
   db: Db,
-  params: { tenantId: string; ids: string[]; fromState?: "planned" | "held" | "claimed" },
+  params: { tenantId: TenantId; ids: string[]; fromState?: "planned" | "held" | "claimed" },
 ): Promise<number> {
   if (params.ids.length === 0) return 0;
   const { data, error } = await db.rpc("reach_out_recheck", {
@@ -323,7 +324,7 @@ const markOf = (v: Json | undefined): HeldNoticeMark | null =>
 /** A live reach-out run with holds whose owner has not been told of them yet, as the check's notice reads it. */
 export interface HeldNoticeRun {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   audience: JsonObject;
   updated_at: string;
@@ -338,7 +339,7 @@ export interface HeldNoticeRun {
  */
 export async function listHeldNoticeDue(
   db: Db,
-  params: { since: string; staleBefore: string; tenantId?: string; limit: number },
+  params: { since: string; staleBefore: string; tenantId?: TenantId; limit: number },
 ): Promise<HeldNoticeRun[]> {
   let sends = db
     .from("sequence_sends")
@@ -395,7 +396,7 @@ export async function listHeldNoticeDue(
  */
 export async function markHeldNotice(
   db: Db,
-  params: { tenantId: string; id: string; audience: JsonObject; mark: HeldNoticeMark; ifUpdatedAt?: string },
+  params: { tenantId: TenantId; id: string; audience: JsonObject; mark: HeldNoticeMark; ifUpdatedAt?: string },
 ): Promise<boolean> {
   let query = db
     .from("sequence_batches")
@@ -417,7 +418,7 @@ export async function markHeldNotice(
  */
 export async function runWaitingCounts(
   db: Db,
-  params: { tenantId: string; runIds: readonly string[] },
+  params: { tenantId: TenantId; runIds: readonly string[] },
 ): Promise<Map<string, { held: number; drafted: number }>> {
   const out = new Map<string, { held: number; drafted: number }>();
   if (params.runIds.length === 0) return out;

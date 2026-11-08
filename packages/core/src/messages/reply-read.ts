@@ -54,6 +54,7 @@ import {
   type SecondKey,
   type Unread,
 } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The reply and the reach-out it answers, as the job reads them (packages/db reachOutReplyOf). */
 export interface ReplyFacts {
@@ -127,19 +128,19 @@ export interface ReplyNotice {
 
 export interface ReplyReadPorts {
   /** Whose reply this is, and the reply: null when it answers no reach-out. Throws when it cannot be read. */
-  reply(tenantId: string, messageId: string): Promise<ReplyFacts | null>;
+  reply(tenantId: TenantId, messageId: string): Promise<ReplyFacts | null>;
   /** The reading kept for this message, if any. Throws when it cannot be read. */
-  reading(tenantId: string, messageId: string): Promise<KeptReading | null>;
+  reading(tenantId: TenantId, messageId: string): Promise<KeptReading | null>;
   /**
    * Whether one read may be spent now, taken when it may: null when it was taken, else why not (no model, a workspace
    * that may not spend, the day's reads spent). Throws when it cannot be asked.
    */
-  mayRead(tenantId: string, at: number): Promise<Exclude<Unread, "model_failed"> | null>;
+  mayRead(tenantId: TenantId, at: number): Promise<Exclude<Unread, "model_failed"> | null>;
   /** The model's answer to the reader's question, and its second key's read (ReplyAsked). Throws on a failed call. */
   ask(system: string, user: string): Promise<ReplyAsked>;
   /** The reading and its plan, applied once (reach_out_reply_apply). True when this call applied it. */
   apply(
-    tenantId: string,
+    tenantId: TenantId,
     messageId: string,
     p: { reading: ReplyReading; unread: Unread | null; plan: ReadingPlan; reread: number },
   ): Promise<boolean>;
@@ -147,17 +148,17 @@ export interface ReplyReadPorts {
    * The notice's first phase: this run's claim (its moment, as the row keeps it), or null when a live claim holds it or
    * it was told. A claim older than `staleBefore` is claimed again.
    */
-  claimTell(tenantId: string, messageId: string, staleBefore: number): Promise<string | null>;
+  claimTell(tenantId: TenantId, messageId: string, staleBefore: number): Promise<string | null>;
   /** Tell the workspace: true only when the owner was told. */
-  tell(tenantId: string, notice: ReplyNotice): Promise<boolean>;
+  tell(tenantId: TenantId, notice: ReplyNotice): Promise<boolean>;
   /** The notice's second phase: marked told, only while this run's claim still holds it. */
-  told(tenantId: string, messageId: string, claim: string): Promise<void>;
+  told(tenantId: TenantId, messageId: string, claim: string): Promise<void>;
   /**
    * The receptionist's draft of an answer to their reply, over the thread and the lead note: the text, or which gate
    * stopped it (contracts draftRefusal) or that it was not drafted. Throws when it failed; no call runs past `deadline`.
    */
   draft(
-    tenantId: string,
+    tenantId: TenantId,
     ask: { conversationId: string; text: string; note: string; deadline: number },
   ): Promise<{ text: string; used?: readonly string[] } | { why: DraftWhy }>;
   /**
@@ -165,11 +166,11 @@ export interface ReplyReadPorts {
    * holds it. A failure costs the page its draft, never the reading.
    */
   keepDraft?(
-    tenantId: string,
+    tenantId: TenantId,
     d: { conversationId: string; messageId: string; text: string; subject: string | null; used: readonly string[] },
   ): Promise<unknown>;
   /** The draft's mark (reach_out_reply_draft): only from none or waiting, so a second stage never writes over the first. */
-  markDraft(tenantId: string, messageId: string, mark: DraftMark): Promise<boolean>;
+  markDraft(tenantId: TenantId, messageId: string, mark: DraftMark): Promise<boolean>;
   /** This message's next read, or its draft, at most once per stage. */
   scheduleOnce(at: number, payload: { message_id: string; stage: string }): Promise<"scheduled" | "already_scheduled">;
   /**
@@ -177,9 +178,9 @@ export interface ReplyReadPorts {
    * no decision is recorded. True iff a row changed; false when none was open for that reason (a person resolved it
    * first, or it was replaced by another). A write that fails throws.
    */
-  resolveEscalation(tenantId: string, conversationId: string, reason: typeof INTAKE_FLAG): Promise<boolean>;
+  resolveEscalation(tenantId: TenantId, conversationId: string, reason: typeof INTAKE_FLAG): Promise<boolean>;
   /** The thread archived (contracts' archive move, whole), unless it is archived already. True iff a row changed. A write that fails throws. */
-  archiveConversation(tenantId: string, conversationId: string): Promise<boolean>;
+  archiveConversation(tenantId: TenantId, conversationId: string): Promise<boolean>;
   now(): number;
 }
 
@@ -187,7 +188,7 @@ export interface ReplyReadPorts {
 const INTAKE_FLAG = "email_review" as const;
 
 export interface ReadReplyCommand {
-  tenantId: string;
+  tenantId: TenantId;
   messageId: string;
   /** The job's stage: absent or "read" for the first read, "reread-<n>" for the n-th re-read. */
   stage?: unknown;
@@ -337,7 +338,7 @@ async function draftStage(
  */
 async function closeWhatTheIntakeOpened(
   ports: Pick<ReplyReadPorts, "resolveEscalation" | "archiveConversation">,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   read: { intent: ReplyIntent; claim: ReplyClaim; second: SecondKey },
 ): Promise<void> {

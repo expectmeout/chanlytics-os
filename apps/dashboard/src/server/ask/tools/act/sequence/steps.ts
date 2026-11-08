@@ -1,5 +1,6 @@
 /** Sequence: steps. */
 
+import type { ContactId } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -297,7 +298,7 @@ export async function proposeStart(toolContext: ToolContext, input: { sequence_i
 
 export async function proposeLeave(
   toolContext: ToolContext,
-  input: { sequence_id: string; contact_ids?: string[]; lead_ids?: string[] },
+  input: { sequence_id: string; contact_ids?: ContactId[]; lead_ids?: string[] },
 ): Promise<ProposalOutcome> {
   const rec = await sequenceOnCard(toolContext, input.sequence_id);
   if (isRefusal(rec)) return refuse(rec.refusal);

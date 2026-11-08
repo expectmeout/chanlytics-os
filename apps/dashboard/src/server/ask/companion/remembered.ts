@@ -14,6 +14,7 @@ import { load, readerStamp, type Reader } from "../../shared/reader";
 import * as facts from "../../readers/facts";
 import { log } from "@/server/shared/log";
 import { clip, oneLine } from "../context/rows";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * What Ask remembers, as every turn reads it (decision 0070): the live lines of its memory and the newest days of its
@@ -80,7 +81,7 @@ export function rememberedBlock(remembered: Remembered): string {
  */
 export async function keepRememberCards(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   threadId: string,
   proposals: readonly AskProposal[],
 ): Promise<AskProposal[]> {

@@ -1,3 +1,4 @@
+import { heldContactId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/shared/route";
@@ -45,7 +46,7 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     const { supabase, userId } = ctx;
     const tenantId = member.tenantId;
-    const person = input?.person;
+    const person = input?.person ? heldContactId(input.person) : undefined;
     const { name, timezone } = await getTenantFacts(supabase, tenantId);
     const now = new Date();
     const opts = { workspaceId: tenantId, business: name, tz: timezone, exportedAt: now, page: BUNDLE_PAGE };

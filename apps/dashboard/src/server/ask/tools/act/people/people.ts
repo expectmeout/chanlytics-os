@@ -1,3 +1,4 @@
+import { heldContactId } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -197,7 +198,11 @@ async function proposeModes(
   const otherSelected = await readSelected(toolContext, input);
   if ("refusal" in otherSelected) return refuse(otherSelected.refusal);
   // Each one's own mode, as the person page's control reads it (none follows the workspace): who has it already is left.
-  const modes = await getPersonReplyModes(toolContext.ctx.supabase, toolContext.tenantId, otherSelected.ids);
+  const modes = await getPersonReplyModes(
+    toolContext.ctx.supabase,
+    toolContext.tenantId,
+    otherSelected.ids.map(heldContactId),
+  );
   const words = PERSON_MODE_WORDS[input.mode] ?? input.mode;
   const acts = notAlready(
     otherSelected.ids,

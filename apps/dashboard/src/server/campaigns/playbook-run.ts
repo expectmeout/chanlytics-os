@@ -2,6 +2,7 @@ import "server-only";
 import { deployment } from "../shared/env";
 import { MIN_MS } from "@chanlytics/contracts";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A run now plans its sends and may start them: the edge's work for one playbook, as long as its door may take. */
 const RUN_TIMEOUT_MS = MIN_MS;
@@ -29,7 +30,7 @@ export type RunPlaybookOutcome =
  * now unless the class is set to never, one run per local day.
  */
 export async function runPlaybookNow(
-  tenantId: string,
+  tenantId: TenantId,
   playbookId: string,
   userId: string,
 ): Promise<RunPlaybookOutcome> {
@@ -78,7 +79,7 @@ type OfferFreedOutcome =
  * the time it reads from the visit itself.
  */
 export async function offerFreedNow(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   appointmentId: string,
 ): Promise<OfferFreedOutcome> {

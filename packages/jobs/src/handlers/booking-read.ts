@@ -43,6 +43,7 @@ import { clearForwardingConfirmation } from "@chanlytics/db/email";
 import { emitEvent } from "@chanlytics/db/events";
 import type { ClaimedJob, JobContext } from "../runner/context";
 import { MAX_ATTEMPTS } from "../runner/ledger";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The closed sets as the tables hold them (00345): a row the verb cannot read as one is a failed read, not a missing one. */
 const STATUSES: readonly AppointmentStatus[] = ["proposed", "booked", "kept", "missed", "cancelled"];
@@ -57,7 +58,7 @@ const isOutcome = (v: string): v is NoticeOutcome => isOneOf(OUTCOMES, v);
  */
 async function sayBooking(
   db: JobContext["db"],
-  params: { tenantId: string; tool: string; outcome: NoticeOutcome; appointmentId: string | null },
+  params: { tenantId: TenantId; tool: string; outcome: NoticeOutcome; appointmentId: string | null },
 ): Promise<void> {
   if (!params.appointmentId) return;
   const data = { source: "booking_email" as const, tool: params.tool };

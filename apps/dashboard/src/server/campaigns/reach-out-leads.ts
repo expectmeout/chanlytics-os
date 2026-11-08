@@ -33,9 +33,10 @@ import { getTenantFacts } from "@/server/shared/tenant";
 import type { RouteContext } from "@/server/shared/with-route";
 import { listChains } from "@/server/campaigns/reach-outs/reach-outs";
 import { dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs/chain-acts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** An open search's chain and its leads' lines; both null when the search has no chain. */
-export async function getLeadLines(ctx: RouteContext, tenantId: string, searchId: string): Promise<ReachOutLeadsDto> {
+export async function getLeadLines(ctx: RouteContext, tenantId: TenantId, searchId: string): Promise<ReachOutLeadsDto> {
   const { data, error } = await readReachOutLines(ctx.supabase, tenantId, searchId);
   if (error) throw reachOutRefusal(error);
   const lines = data ? dtoOf<ReachOutSearchLinesDto>(data) : null;
@@ -52,7 +53,7 @@ export async function getLeadLines(ctx: RouteContext, tenantId: string, searchId
  */
 export async function findLeadTimeline(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   leadId: string,
 ): Promise<ReachOutLeadTimelineDto | null> {
   const { data, error } = await readReachOutTimeline(ctx.supabase, tenantId, leadId);
@@ -76,7 +77,7 @@ export async function findLeadTimeline(
 /** "Stop writing to them", as the caller: the door's answer, or its refusal in contracts' words. */
 export async function stopLead(
   ctx: Pick<RouteContext, "supabase" | "userId">,
-  lead: { id: string; tenant_id: string },
+  lead: { id: string; tenant_id: TenantId },
 ): Promise<ReachOutStopDto> {
   const { data, error } = await stopReachOutLead(ctx.supabase, lead.id);
   if (error) throw reachOutRefusal(error);
@@ -94,7 +95,7 @@ export async function stopLead(
  */
 export async function sayReply(
   ctx: RouteContext,
-  lead: { id: string; tenant_id: string },
+  lead: { id: string; tenant_id: TenantId },
   input: ReachOutReplySaidInput,
 ): Promise<{
   lead_id: string;

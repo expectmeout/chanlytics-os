@@ -22,6 +22,7 @@ import { getParsedFeed, type ParsedRead } from "./parsed-feed";
 import { findPoolRecord } from "./people-visits";
 import { getEarlierVisitRows } from "@chanlytics/db/calendar";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ---- One person's appointments, for their profile ---- */
 
@@ -38,7 +39,7 @@ import { log } from "@/server/shared/log";
  */
 export async function findPersonVisits(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   otherPerson: PersonLike | PromiseLike<PersonLike | null>,
   now = new Date(),
 ): Promise<PersonVisitsDto | null> {
@@ -102,7 +103,7 @@ export async function findPersonVisits(
  */
 function earlierRowsOf(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   calendar: ReturnType<typeof findCalendar>,
   otherPerson: PersonLike | PromiseLike<PersonLike | null>,
   now: Date,

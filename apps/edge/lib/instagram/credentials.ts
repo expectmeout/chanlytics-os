@@ -33,6 +33,7 @@ import {
   type WireUnavailable,
 } from "@chanlytics/core";
 import { errField, logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -97,7 +98,7 @@ export function instagramCarrier(
  * their newest DM came in on), the oldest account when nothing says or the send names no thread. Null with no active
  * account; a read that failed is a wire that could not be bound (core WireUnavailable), never a refusal.
  */
-export async function findInstagramWireForTenant(db: Db, tenantId: string): Promise<Sender | null | WireUnavailable> {
+export async function findInstagramWireForTenant(db: Db, tenantId: TenantId): Promise<Sender | null | WireUnavailable> {
   let accounts: WhatsappNumberRow[];
   try {
     accounts = await listActiveChannelRows(db, tenantId, "instagram");
@@ -129,7 +130,7 @@ export async function findInstagramWireForTenant(db: Db, tenantId: string): Prom
  * names no thread, and the oldest answers. A thread that could not be read is a wire that could not be bound: nothing
  * leaves.
  */
-async function lineOfThread(db: Db, tenantId: string, conversationId: string | undefined): Promise<string | null> {
+async function lineOfThread(db: Db, tenantId: TenantId, conversationId: string | undefined): Promise<string | null> {
   if (!conversationId) return null;
   try {
     return await findLineWrittenTo(db, tenantId, conversationId, "instagram");

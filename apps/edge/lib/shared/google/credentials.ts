@@ -18,6 +18,7 @@ import { http } from "./places.js";
 import type { Db } from "./rows.js";
 import { getGoogleCredentials, putGoogleCredentials } from "@chanlytics/db/google";
 import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** An access token is refreshed this long before it expires. */
 const TOKEN_SLACK_MS = MIN_MS;
@@ -45,7 +46,7 @@ const NO_SUCH_FUNCTION = "PGRST202";
  */
 async function storeCredentials(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   storedCredentials: StoredCredentials,
   ifRefreshToken: string | null = null,
 ): Promise<"kept" | "changed"> {
@@ -58,7 +59,7 @@ async function storeCredentials(
   return "kept";
 }
 
-async function readCredentials(db: Db, tenantId: string): Promise<StoredCredentials | null> {
+async function readCredentials(db: Db, tenantId: TenantId): Promise<StoredCredentials | null> {
   const { data, error } = await getGoogleCredentials(db, tenantId);
   if (error) throw new Error(`credentials: ${error.message}`);
   const storedCredentials = data as Partial<StoredCredentials> | null;
@@ -107,7 +108,7 @@ const liveToken = (creds: StoredCredentials | null, now: number): string | null 
  */
 async function tokenFor(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   now = Date.now(),
   net: PlacesHttp = http,
 ): Promise<{ ok: true; token: string } | EdgeRefusal> {

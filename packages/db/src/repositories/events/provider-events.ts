@@ -4,7 +4,7 @@
  * their verdict (apps/edge/lib/intake/keep.ts), read by the replay door, scrubbed by an erasure.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { SCHEMA_SETS } from "@chanlytics/contracts";
+import type { SCHEMA_SETS, TenantId } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { asJson } from "../../shared/json";
 
@@ -21,7 +21,7 @@ export interface KeptDelivery {
   door: string;
   /** The request's own address, as a signature may cover it. */
   url: string;
-  tenant_id: string | null;
+  tenant_id: TenantId | null;
   /** The headers the door's signature reads, by their lower-case names. */
   headers: Record<string, string>;
   body: string;
@@ -73,7 +73,7 @@ function headersOf(v: Json): Record<string, string> {
 }
 
 /** An erasure's hand (provider_events_scrub): the kept deliveries naming any of the person's identifiers, deleted. */
-export async function scrubProviderEvents(db: Db, tenantId: string, needles: readonly string[]): Promise<number> {
+export async function scrubProviderEvents(db: Db, tenantId: TenantId, needles: readonly string[]): Promise<number> {
   const { data, error } = await db.rpc("provider_events_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
   // A database before 00336 has no ledger, so nothing is kept to scrub: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;

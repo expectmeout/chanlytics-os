@@ -19,6 +19,7 @@ import type { Database } from "@chanlytics/db/types";
 import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
 import { logger } from "../shared/log.js";
 import { readAnswerSilence } from "@chanlytics/db/ops";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The page goes out only in the first hours after the rollup: once per day, not once per suppression window. */
 const ANSWER_SILENCE_PAGE_UNTIL_HOUR = 6;
@@ -28,7 +29,7 @@ const ANSWER_SILENCE_PAGE_KEY = "answer_rate_zero";
 const PAST_TARGET_PAGE_KEY = "numbers_past_target";
 
 interface SilentWorkspace {
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   asks: number;
 }

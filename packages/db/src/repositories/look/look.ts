@@ -6,6 +6,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { saysMissing } from "../../shared/missing-door";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -20,7 +21,7 @@ interface WorkspaceLookRow {
 const lacksAccent = (message: string): boolean => /\baccent\b/.test(message) && saysMissing(message);
 
 /** The row's name, slug, logo path and colour; on a database 00490 has not reached, the colour is not said. Null for no such workspace. */
-export async function findWorkspaceLook(db: Db, tenantId: string): Promise<WorkspaceLookRow | null> {
+export async function findWorkspaceLook(db: Db, tenantId: TenantId): Promise<WorkspaceLookRow | null> {
   const r = await db.from("tenants").select("name, slug, logo_path, accent").eq("id", tenantId).maybeSingle();
   if (!r.error) return r.data ? { ...r.data, accent: r.data.accent ?? null } : null;
   if (!lacksAccent(r.error.message)) throw new Error(`cannot read the workspace's look: ${r.error.message}`);
@@ -35,7 +36,7 @@ export async function findWorkspaceLook(db: Db, tenantId: string): Promise<Works
  */
 export async function setWorkspaceAccent(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   accent: string | null,
 ): Promise<{ data: unknown; error: PostgrestError | null }> {
   const { data, error } = await db.rpc("set_workspace_accent", { p_tenant_id: tenantId, p_accent: accent ?? "" });
@@ -45,7 +46,7 @@ export async function setWorkspaceAccent(
 /** The website read's door: what it wore of what was found. Throws when the door refuses or the write fails. */
 export async function wearFoundLook(
   db: Db,
-  params: { tenantId: string; logoPath: string | null; accent: string | null },
+  params: { tenantId: TenantId; logoPath: string | null; accent: string | null },
 ): Promise<{ logo: boolean; accent: boolean }> {
   const { data, error } = await db.rpc("wear_found_look", {
     p_tenant_id: params.tenantId,

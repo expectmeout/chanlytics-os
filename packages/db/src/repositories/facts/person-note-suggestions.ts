@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -17,7 +18,13 @@ type SuggestedNoteSource = "call" | "thread" | "website";
  */
 export async function suggestPersonNote(
   db: Db,
-  params: { tenantId: string; contactId: string; body: string; source: SuggestedNoteSource; sourceId: string | null },
+  params: {
+    tenantId: TenantId;
+    contactId: ContactId;
+    body: string;
+    source: SuggestedNoteSource;
+    sourceId: string | null;
+  },
 ): Promise<{ noteId: string } | { refused: string }> {
   const { data, error } = await db.rpc("person_note_suggest", {
     p_tenant_id: params.tenantId,

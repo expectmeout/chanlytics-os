@@ -18,6 +18,7 @@ import {
   recordPartnerEarning,
   reversePartnerEarning,
 } from "@chanlytics/db/partners";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -41,7 +42,7 @@ export function cardFingerprintOf(sub: Stripe.Subscription): string | null {
 }
 
 /** Keep the workspace's card mark (00203 billing_card_marks), for the sweep's one check that needs it. */
-export async function markCard(db: Db, tenantId: string, fingerprint: string | null, log: Log): Promise<void> {
+export async function markCard(db: Db, tenantId: TenantId, fingerprint: string | null, log: Log): Promise<void> {
   if (!fingerprint) return;
   const { error } = await markBillingCard(db, tenantId, fingerprint);
   if (!error) return;
@@ -53,7 +54,7 @@ export async function markCard(db: Db, tenantId: string, fingerprint: string | n
 }
 
 /** Whether a partner brought this workspace: the question asked before anything costs a call to Stripe. */
-export async function isAttributed(db: Db, tenantId: string): Promise<boolean> {
+export async function isAttributed(db: Db, tenantId: TenantId): Promise<boolean> {
   const { data, error } = await findWorkspacePartner(db, tenantId);
   if (error) {
     if (notYet(error)) return false;
@@ -77,7 +78,7 @@ export type LedgerOutcome = { earned: number } | { skipped: true } | null;
 /** invoice.paid: a share for the partner who brought the workspace, if one did. */
 export async function earnFromInvoice(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   inv: Stripe.Invoice,
   eventId: string,
   log: Log,

@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -20,11 +21,11 @@ export const findThreadScope = async (db: Db, conversationId: string) =>
     .maybeSingle();
 
 /** A person as a verb on them reads them: their workspace, their erasure and their yes to offers, or none. */
-export const findPersonScope = async (db: Db, contactId: string) =>
+export const findPersonScope = async (db: Db, contactId: ContactId) =>
   db.from("contacts").select("id, tenant_id, erased_at, marketing_consent").eq("id", contactId).maybeSingle();
 
 /** A person as their erasure reads them: their workspace, number, address and erasure, or none. */
-export const findErasableScope = async (db: Db, contactId: string) =>
+export const findErasableScope = async (db: Db, contactId: ContactId) =>
   db.from("contacts").select("id, tenant_id, phone_e164, email, erased_at").eq("id", contactId).maybeSingle();
 
 /** A message as a verb on it reads it: its workspace, thread, sender and state, or none. */
@@ -58,7 +59,7 @@ export const findPlaybookScope = async (db: Db, stepId: string) =>
     .maybeSingle();
 
 /** A thread's newest customer messages that a reply can answer on, `limit` of them: their channel and meta. */
-export const listCustomerWrites = async (db: Db, tenantId: string, conversationId: string, limit: number) =>
+export const listCustomerWrites = async (db: Db, tenantId: TenantId, conversationId: string, limit: number) =>
   db
     .from("messages")
     .select("channel, meta")
@@ -84,7 +85,7 @@ export const resolveOpenHolds = async (db: Db, conversationId: string, userId: s
     .select("id");
 
 /** The workspace's reply rule's limits, or none. */
-export const findReplyLimits = async (db: Db, tenantId: string) =>
+export const findReplyLimits = async (db: Db, tenantId: TenantId) =>
   db
     .from("policies")
     .select("limits")

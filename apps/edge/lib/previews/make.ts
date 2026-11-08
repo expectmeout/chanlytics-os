@@ -15,13 +15,14 @@ import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The lead's preview, made where there is none and its build scheduled while it is building; or why not. */
 export async function askPreview(
   db: Db,
-  params: { tenantId: string; leadId: string; by: string | null },
+  params: { tenantId: TenantId; leadId: string; by: string | null },
 ): Promise<PreviewDoor<PreviewMade>> {
   if (env.LEAD_PREVIEWS !== "on") return { ok: false, reason: "refused", message: "Previews are switched off." };
   const lead = await findLeadForPreview(db, params.tenantId, params.leadId);

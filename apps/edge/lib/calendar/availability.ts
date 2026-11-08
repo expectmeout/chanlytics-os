@@ -54,6 +54,7 @@ import { pg } from "../shared/pg.js";
 import type { TenantRuntime } from "../shared/tenant-runtime.js";
 import { findMailboxCalendarText } from "./mailbox-calendar.js";
 import { logger, errField } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 const CACHE_MS = 5 * MIN_MS;
 const FETCH_TIMEOUT_MS = 6000;
@@ -82,7 +83,7 @@ const feeds = new Map<string, Cached>();
  * five more minutes -- and a failure is cached too, so a corrected address
  * still read as broken.
  */
-const cacheKey = (tenantId: string, url: string) => `${tenantId}\n${url}`;
+const cacheKey = (tenantId: TenantId, url: string) => `${tenantId}\n${url}`;
 
 /** Keyed per tenant AND url, so an owner editing the address leaves entries behind. Expired ones go. */
 function prune(now: number): void {
@@ -98,13 +99,13 @@ function httpsUrl(u: string): string {
  * A calendar read through a connected mailbox's grant (decision 0073, R20): its events over the season, as iCal
  * (mailbox/calendar.ts). Null where it cannot be read now, as a link that does not answer is.
  */
-async function grantFeed(tenantId: string, mailboxId: string, daysAhead: number): Promise<string | null> {
+async function grantFeed(tenantId: TenantId, mailboxId: string, daysAhead: number): Promise<string | null> {
   const db = pg();
   if (!db) return null;
   return findMailboxCalendarText(db, tenantId, mailboxId, seasonHorizon(new Date(), daysAhead));
 }
 
-async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: number): Promise<string | null> {
+async function fetchFeed(tenantId: TenantId, url: string, tz: string, daysAhead: number): Promise<string | null> {
   const log = logger({ tenant_id: tenantId });
   const key = cacheKey(tenantId, url);
   const hit = feeds.get(key);
@@ -165,7 +166,7 @@ async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: n
  * is the work the five-minute cache exists to avoid.
  */
 async function parsedFeedOf(
-  tenantId: string,
+  tenantId: TenantId,
   url: string,
   tz: string,
   daysAhead: number,
@@ -199,7 +200,7 @@ async function parsedFeed(rt: TenantRuntime, url: string, now: Date): Promise<Pa
 
 /** The feed's appointments for one workspace, for the sweep that puts the people they name in People. Null when the feed cannot be read. */
 export async function listFeedItems(
-  tenantId: string,
+  tenantId: TenantId,
   url: string,
   tz: string,
   now = new Date(),
@@ -261,7 +262,7 @@ export async function findOpeningsData(
  * a reply is never held for it.
  */
 async function recordBusy(
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   daysAhead: number,
   mine: string | null = null,
@@ -408,7 +409,7 @@ export async function findVisits(
  * go unsaid: one a member cancelled could not be told from one that stands.
  */
 async function recordFor(
-  tenantId: string,
+  tenantId: TenantId,
   caller: { phone: string | null },
   now: Date,
   feedTo: number | null,

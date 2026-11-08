@@ -34,7 +34,7 @@ import {
 } from "@chanlytics/db/notices";
 import { findWorkspaceNamed } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
-import type { NotificationsConfig, ServerNotificationKind } from "@chanlytics/contracts";
+import type { NotificationsConfig, ServerNotificationKind, TenantId } from "@chanlytics/contracts";
 import {
   EMAIL_ALWAYS_KINDS,
   SERVER_NOTIFICATION_KINDS,
@@ -62,7 +62,7 @@ export const NOTIFY_TIMEOUT_MS = 10_000;
 
 export interface NotifyTarget {
   /** The tenant this message is ABOUT. */
-  tenantId: string | null;
+  tenantId: TenantId | null;
   /** That tenant's configured notification settings, when we could read them. */
   notifications: NotificationsConfig | null;
   /** True when this tenant is the env-default one, whose owner IS the address
@@ -299,7 +299,7 @@ const keptKind = (kind: string | undefined): ServerNotificationKind =>
  * (operator_pages, read on /api/diag) holds the conditions nobody was told.
  */
 export async function recordNotification(
-  tenantId: string | null,
+  tenantId: TenantId | null,
   input: {
     kind?: string;
     title: string;
@@ -356,7 +356,7 @@ export async function recordNotification(
 export async function mendWarnings(
   db: Db | null,
   message: {
-    tenantId: string;
+    tenantId: TenantId;
     by: { kind: string; title: string } | { change: string };
     subject: { type: string; id: string } | null;
     keptId: string | null;
@@ -383,7 +383,7 @@ export async function mendWarnings(
  * Only the kinds a phone should hear about (contracts PUSH_KINDS); which of its
  * members' phones is the push_send job's to decide (each member's push_off).
  */
-async function schedulePush(tenantId: string, kept: { id: string; kind: string }, db: Db | null): Promise<void> {
+async function schedulePush(tenantId: TenantId, kept: { id: string; kind: string }, db: Db | null): Promise<void> {
   if (!db || !isPushKind(kept.kind)) return;
   try {
     await scheduleJob(db, {
@@ -405,7 +405,7 @@ async function schedulePush(tenantId: string, kept: { id: string; kind: string }
  * when it could not be kept or looked for. Never throws.
  */
 export async function keepOnce(
-  tenantId: string,
+  tenantId: TenantId,
   count: Omit<Parameters<typeof recordNotification>[1], "sourceEvent"> & { onceKey: string },
   opts: { push?: boolean } = {},
   db: Db | null = pg(),
@@ -434,7 +434,7 @@ export async function keepOnce(
  * though the kind is one phones are told. Never throws, as recordNotification does not.
  */
 export async function keepAndPush(
-  tenantId: string,
+  tenantId: TenantId,
   count: Parameters<typeof recordNotification>[1],
   db: Db | null = pg(),
 ): Promise<{ id: string; kind: string } | null> {
@@ -520,7 +520,7 @@ export async function notifyEvent(
  * What finds a notice again when its mail is owed: the event it answers or the name it is told once under (keptUnder),
  * else what it is about with its title. A notice that names none of them cannot be told from a new one on a second try.
  */
-function retryKey(tenantId: string, msg: NotifyMessage): Parameters<typeof findNotice>[1] | null {
+function retryKey(tenantId: TenantId, msg: NotifyMessage): Parameters<typeof findNotice>[1] | null {
   const kind = keptKind(msg.kind);
   const under = keptUnder(msg);
   if (under) return { tenantId, kind, sourceEvent: under };
@@ -598,7 +598,7 @@ function noticeOf(msg: NotifyMessage, mailOwed: boolean): Parameters<typeof reco
 /** Say the notice's mail is done with. A row that could not be written leaves the mail owed: said, and never thrown. */
 async function owedNoMore(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   kept: { id: string; kind: string },
   words?: { title: string; body: string },
 ): Promise<void> {
@@ -719,7 +719,7 @@ const NOTIFICATIONS_PANE = "admin/notifications";
  * A page of the workspace in the dashboard: its origin, the workspace's address and the route. A deployment that cannot
  * say where the dashboard is loses the link, said on the log, never the mail (the alarm is this system's only channel).
  */
-function pageLink(slug: string, route: string, tenantId: string | null): string | null {
+function pageLink(slug: string, route: string, tenantId: TenantId | null): string | null {
   try {
     return `${dashboardOrigin()}${appLink(slug, route)}`;
   } catch (e) {

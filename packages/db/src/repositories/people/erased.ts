@@ -5,11 +5,12 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The workspace's erased people among these phones' digests. */
-export const listErasedByPhone = async (db: Db, tenantId: string, hashes: string[]) =>
+export const listErasedByPhone = async (db: Db, tenantId: TenantId, hashes: string[]) =>
   db
     .from("contacts")
     .select("erased_phone_hash, erased_at, erasing_since")
@@ -17,5 +18,5 @@ export const listErasedByPhone = async (db: Db, tenantId: string, hashes: string
     .in("erased_phone_hash", hashes);
 
 /** The workspace's erased people at this address's digest. */
-export const listErasedByEmail = async (db: Db, tenantId: string, digest: string) =>
+export const listErasedByEmail = async (db: Db, tenantId: TenantId, digest: string) =>
   db.from("contacts").select("erased_at, erasing_since").eq("tenant_id", tenantId).eq("erased_email_hash", digest);

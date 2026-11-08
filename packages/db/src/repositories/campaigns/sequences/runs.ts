@@ -7,15 +7,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../../types";
 import { platformWide } from "../../../shared/tenant-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** One of the workspace's steps (a playbook, or a chain's step), whole, or none. */
-export const findStepRow = async (db: Db, tenantId: string, stepId: string) =>
+export const findStepRow = async (db: Db, tenantId: TenantId, stepId: string) =>
   db.from("sequence_steps").select("*").eq("tenant_id", tenantId).eq("id", stepId).maybeSingle();
 
 /** These steps of the workspace's, as a chain's sends are planned by: their gaps, mailboxes, order and who sends. */
-export const listChainSteps = async (db: Db, tenantId: string, stepIds: string[]) =>
+export const listChainSteps = async (db: Db, tenantId: TenantId, stepIds: string[]) =>
   db
     .from("sequence_steps")
     .select("id, gap_minutes, mailbox_ids, after_step_id, owner_sends")
@@ -23,7 +24,7 @@ export const listChainSteps = async (db: Db, tenantId: string, stepIds: string[]
     .in("id", stepIds);
 
 /** One of the workspace's steps stamped with the moment it last ran for, and when. */
-export const stampStepRun = async (db: Db, tenantId: string, stepId: string, runFor: string, at: string) =>
+export const stampStepRun = async (db: Db, tenantId: TenantId, stepId: string, runFor: string, at: string) =>
   db
     .from("sequence_steps")
     .update({ last_run_for: runFor, last_run_at: at })
@@ -31,7 +32,7 @@ export const stampStepRun = async (db: Db, tenantId: string, stepId: string, run
     .eq("tenant_id", tenantId);
 
 /** The run a step already made for a moment, or none. */
-export const findRunFor = async (db: Db, tenantId: string, stepId: string, runFor: string) =>
+export const findRunFor = async (db: Db, tenantId: TenantId, stepId: string, runFor: string) =>
   db
     .from("sequence_batches")
     .select("id")
@@ -41,7 +42,7 @@ export const findRunFor = async (db: Db, tenantId: string, stepId: string, runFo
     .maybeSingle();
 
 /** One run of a reach-out chain still waiting on the owner's yes, or none. */
-export const findChainAwaitingApproval = async (db: Db, tenantId: string, rootId: string) =>
+export const findChainAwaitingApproval = async (db: Db, tenantId: TenantId, rootId: string) =>
   db
     .from("sequence_batches")
     .select("id")
@@ -65,7 +66,7 @@ export const finishBatchSending = async (db: Db, batchId: string, at: string) =>
     .select("id");
 
 /** These leads' clocks, as a reach-out send is timed by: their region and hours. */
-export const listLeadClocks = async (db: Db, tenantId: string, leadIds: string[]) =>
+export const listLeadClocks = async (db: Db, tenantId: TenantId, leadIds: string[]) =>
   db.from("leads").select("id, region, hours").eq("tenant_id", tenantId).in("id", leadIds);
 
 /** A reach-out run and its sends planned in one statement (reach_out_plan_run). */

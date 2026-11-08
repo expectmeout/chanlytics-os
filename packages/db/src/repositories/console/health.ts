@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -83,7 +84,7 @@ export async function getHealthWorkspaces(db: Db, limit: number) {
 }
 
 /** Whether a workspace is ours: the pager leaves ours out. A workspace it cannot read is not ours. */
-export async function isWorkspaceOurs(db: Db, tenantId: string): Promise<boolean> {
+export async function isWorkspaceOurs(db: Db, tenantId: TenantId): Promise<boolean> {
   const { data, error } = await db.from("tenants").select("ours").eq("id", tenantId).maybeSingle();
   return !error && data?.ours === true;
 }

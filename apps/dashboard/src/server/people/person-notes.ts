@@ -23,6 +23,7 @@ import {
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
 import { readTeamRoster } from "@chanlytics/db/workspace";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 type Ctx = Pick<RouteContext, "supabase">;
 
@@ -44,7 +45,7 @@ export const removeNote = (ctx: Ctx, args: Parameters<typeof removePersonNote>[1
 
 type NoteRow = {
   id: string;
-  contact_id: string;
+  contact_id: ContactId;
   body: string;
   author_kind: string;
   author_user_id: string | null;
@@ -94,7 +95,7 @@ function toNoteDto(note: NoteRow, names: Map<string, string>, me: string): Perso
 }
 
 /** The team by name: who wrote a note and who it is for. A member is called as everywhere else (memberWords): the name they gave, else their address. */
-async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNoteTeamDto[] | null> {
+async function teamNames(ctx: RouteContext, tenantId: TenantId): Promise<PersonNoteTeamDto[] | null> {
   const { data, error } = await Promise.resolve()
     .then(() => readTeamRoster(ctx.supabase, tenantId))
     .then(
@@ -115,8 +116,8 @@ async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNot
  */
 export async function getPersonNotes(
   ctx: RouteContext,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Promise<{ notes?: PersonNoteDto[]; team?: PersonNoteTeamDto[] }> {
   const [rows, team] = await Promise.all([
     Promise.resolve()
@@ -139,7 +140,7 @@ export async function getPersonNotes(
 }
 
 /** The note a door acts on, read under RLS and on this person: a note on anyone else is a 404. */
-export async function noteOn(ctx: RouteContext, contactId: string, noteId: string): Promise<NoteRow> {
+export async function noteOn(ctx: RouteContext, contactId: ContactId, noteId: string): Promise<NoteRow> {
   const { data, error } = await findPersonNote(ctx.supabase, contactId, noteId);
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", NOTE_REFUSALS.not_found, 404);
@@ -179,7 +180,7 @@ export function writtenNote(ctx: RouteContext, note: NoteRow, forName: string | 
  * Got it (canvas A, Up next): the note for the reader, marked read through its door (seePersonNote). A note for someone
  * else, or one gone, is refused in the notes' own words.
  */
-export async function seeNote(ctx: RouteContext, contactId: string, noteId: string): Promise<{ seen: string }> {
+export async function seeNote(ctx: RouteContext, contactId: ContactId, noteId: string): Promise<{ seen: string }> {
   await noteOn(ctx, contactId, noteId);
   let answer: Awaited<ReturnType<typeof seePersonNote>>;
   try {
@@ -207,7 +208,7 @@ interface CallLead {
  */
 export async function logCall(
   ctx: RouteContext,
-  contactId: string,
+  contactId: ContactId,
   input: PersonCallBody,
 ): Promise<{ note: PersonNoteDto | null; step: PersonNoteDto | null; lead: CallLead | null }> {
   const lead = personCallLeadArgs(input.outcome, input.said, input.spoke_with);
@@ -250,7 +251,7 @@ export function stepFor(
  */
 export async function readStepNamer<R extends { step_for_user_id?: string | null }>(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: readonly R[],
 ): Promise<<T extends { step_for_user_id?: string | null }>(row: T) => T> {
   if (!rows.some((r) => r.step_for_user_id)) return (row) => row;

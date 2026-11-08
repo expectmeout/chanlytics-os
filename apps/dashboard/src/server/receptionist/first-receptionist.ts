@@ -26,16 +26,20 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { findListingFacts } from "../connections/google";
 import { findConfigRow } from "../workspace/config-row";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "../workspace/settings-write";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The config row as stored now, parsed, and whether it holds a receptionist (the one test, personReceptionistOf). */
-async function storedNow(ctx: RouteContext, tenantId: string) {
+async function storedNow(ctx: RouteContext, tenantId: TenantId) {
   const row = await findConfigRow(ctx.supabase, tenantId);
   const parsed = row ? parseTenantConfigResult(row.config) : null;
   return { row, parsed, receptionist: configReceptionistOf(parsed) };
 }
 
 /** The receptionist from what is known, and whether this call wrote it (false: there was nothing to add). */
-export async function getReceptionistFromWhatIsKnown(ctx: RouteContext, tenantId: string): Promise<{ wrote: boolean }> {
+export async function getReceptionistFromWhatIsKnown(
+  ctx: RouteContext,
+  tenantId: TenantId,
+): Promise<{ wrote: boolean }> {
   const { row, parsed, receptionist } = await storedNow(ctx, tenantId);
   if (!row || !parsed) throw new AppError("conflict", SETTINGS_REFUSED.missing, 409);
   if (!parsed.ok) throw new AppError("conflict", BROKEN_CONFIG_WORDS.clause, 409);

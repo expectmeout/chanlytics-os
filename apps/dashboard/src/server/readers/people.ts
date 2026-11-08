@@ -1,3 +1,4 @@
+import { heldContactId } from "@chanlytics/contracts";
 import "server-only";
 import {
   addressOf,
@@ -140,7 +141,7 @@ export const people: Reader<
       getSeenOfPeople(
         ctx,
         tenantId,
-        rows.map((r) => r.id),
+        rows.map((r) => heldContactId(r.id)),
       ),
     ]);
     // A short page is the last: someone who wrote as the pages were read counts in the total, and is read first on the
@@ -148,7 +149,7 @@ export const people: Reader<
     const hasMore = rows.length === PEOPLE_PAGE && offset + rows.length < total;
     const data: PeoplePage = {
       ...out,
-      people: out.people.map(nameSteps).map((p) => ({ ...p, ...seenOf(p.id) })),
+      people: out.people.map(nameSteps).map((p) => ({ ...p, ...seenOf(heldContactId(p.id)) })),
       // Every workspace has deals (0008, amended 18 Oct 2026); whether one was ever recorded fills the rail's deal
       // lists. Consult-first stays a booking rule, sent for its own list; the names of the services stay on the server.
       has_deals: hasDeals,

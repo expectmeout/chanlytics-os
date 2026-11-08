@@ -23,6 +23,7 @@ import { log } from "@/server/shared/log";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The change, in the ledger every other consequential act lands in: the class, the mode, which limits moved -- never
@@ -32,7 +33,7 @@ import type { Member } from "@/server/shared/route";
  */
 async function recordPolicyChanged(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   cls: string,
   mode: string,
   fields: string[],

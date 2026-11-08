@@ -51,6 +51,7 @@ import {
 } from "../partners/earnings.js";
 import { receptionistOn } from "@chanlytics/contracts";
 import { env } from "../shared/env.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 const stripeIdOf = (x: string | { id: string } | null | undefined): string | null =>
   typeof x === "string" ? x : (x?.id ?? null);
@@ -110,7 +111,7 @@ type Delivery = {
   s: Stripe;
   L: Log;
   /** The claim taken (null), or the answer for a delivery that did not get it. */
-  keep: (tenantId: string | null) => Promise<Response | null>;
+  keep: (tenantId: TenantId | null) => Promise<Response | null>;
   done: (res: Response) => Promise<Response>;
   giveBack: () => Promise<void>;
 };
@@ -124,8 +125,8 @@ function deliveryOf(event: Stripe.Event, db: Db, stripe: Stripe, log: Log): Deli
   // for is not answered "duplicate" by our own half-finished attempt; one
   // that is killed outright cannot, and its lease runs out instead.
   let lease: string | null = null;
-  let tenant: string | null = null;
-  const keep = async (tenantId: string | null): Promise<Response | null> => {
+  let tenant: TenantId | null = null;
+  const keep = async (tenantId: TenantId | null): Promise<Response | null> => {
     const result = await keepEvent(db, event.id, event.type, tenantId);
     if (result.claim === "taken") {
       lease = result.lease;
@@ -334,7 +335,7 @@ const STARTED: ReadonlySet<string> = new Set(["trialing", "active"]);
  * (decision 0091), so money taken is service started whether or not the tab that paid is still open. Never throws; the
  * lines sweep asks again within the quarter hour for what this could not start.
  */
-async function startChosenLineOn(d: Delivery, tenantId: string, before: string, after: string): Promise<void> {
+async function startChosenLineOn(d: Delivery, tenantId: TenantId, before: string, after: string): Promise<void> {
   if (STARTED.has(before) || !STARTED.has(after)) return;
   const r = await startChosenLine(d.db, tenantId);
   if (r.kind === "started") d.L.info("chosen_line_started", { tenant_id: tenantId, line_id: r.lineId, via: "billing" });

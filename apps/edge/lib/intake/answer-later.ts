@@ -34,11 +34,12 @@ import { pg } from "../shared/pg.js";
 import { handleInbound, recordWhatsappInbound, resumeWhatsappInbound } from "../whatsapp/inbound.js";
 import { realPorts, type InboundPorts } from "../whatsapp/ports.js";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** Whether this workspace's WhatsApp messages are answered by a job: named in WHATSAPP_ANSWERS_AS_JOBS, or all are. */
-function answersLater(tenantId: string | null): boolean {
+function answersLater(tenantId: TenantId | null): boolean {
   if (!tenantId) return false;
   const named = (env.WHATSAPP_ANSWERS_AS_JOBS ?? "")
     .split(",")
@@ -63,7 +64,7 @@ const asKept = jsonCopyOf;
 export function answerHereOrLater(
   waRawMessage: WaRawMessage,
   value: WaChangeValue,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   routed: RoutedChannel | null,
   isEnvDefault: boolean,
 ): Promise<void> {

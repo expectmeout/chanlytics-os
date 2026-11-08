@@ -2,8 +2,10 @@
  * What became of an email we sent: the provider's signed receipt, read (emailReceiptFrom), and what it changes for the
  * row and the address (emailReceiptEffect). The request whose tags a receipt names is request.ts.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import { UUID, recordOrNull, isOneOf, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { addressesOf, messageIdHeader } from "./header-values";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ---------------------------------------------------------------- receipts
  *
@@ -35,7 +37,7 @@ export interface EmailReceipt {
   to: string[];
   /** The row and the workspace the request was tagged with; null on an email that was not a workspace's (a platform notification). */
   messageId: string | null;
-  tenantId: string | null;
+  tenantId: TenantId | null;
   /** The provider's own account of a bounce, a failure or a suppression. Kept on the row as the provider's words, never shown as ours. */
   detail: { kind: string | null; subKind: string | null; message: string | null };
 }
@@ -61,13 +63,15 @@ export function emailReceiptFrom(payload: unknown): EmailReceipt | null {
   if (typeof data.email_id !== "string" || !data.email_id) return null;
   const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
   const sentence = recordOrEmpty(data.bounce ?? data.failed ?? data.suppressed);
+  // The workspace this side tagged the send with, as it comes back.
+  const tagged = tagOf(data.tags, "cl_tenant");
   return {
     type,
     providerId: data.email_id,
     rfcMessageId: messageIdHeader(str(data.message_id)),
     to: addressesOf(data.to),
     messageId: tagOf(data.tags, "cl_message"),
-    tenantId: tagOf(data.tags, "cl_tenant"),
+    tenantId: tagged ? heldTenantId(tagged) : null,
     detail: {
       kind: str(sentence.type) ?? str(sentence.reason),
       subKind: str(sentence.subType),

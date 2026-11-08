@@ -76,6 +76,7 @@ import {
   type RefusedAt,
 } from "./call-link-send.js";
 import { logger, errField } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Which template this path sends is the WORKSPACE'S to answer, not this file's.
@@ -127,7 +128,7 @@ type Receipt = "delivered" | "failed" | null;
  * WhatsApp's answer about a send, waited for (RECEIPT_WAIT_MS): the receipt door (inbound webhook) moves the message's
  * status as Meta's statuses arrive, and this reads it back. A read that fails is no answer, never a failure.
  */
-async function sendReceiptOf(db: Db, tenantId: string, wamid: string): Promise<Receipt> {
+async function sendReceiptOf(db: Db, tenantId: TenantId, wamid: string): Promise<Receipt> {
   const until = Date.now() + RECEIPT_WAIT_MS;
   while (Date.now() < until) {
     await new Promise((r) => setTimeout(r, RECEIPT_LOOK_MS));

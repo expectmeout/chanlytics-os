@@ -7,6 +7,7 @@
  * and its unsubscribe seal are stand-ins, and only its words come back. The whole run is checked by the check's clock
  * once the chain starts.
  */
+import { asContactId } from "@chanlytics/contracts";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -33,6 +34,7 @@ import {
 } from "./check.js";
 import { reachOutRequest, type RequestRefusal } from "@chanlytics/channels/email";
 import { dashboardOrigin } from "../../shared/dashboard-origin.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -42,7 +44,7 @@ export const PREVIEW_INDEX_MAX = REACH_OUT_PREVIEW_INDEX_MAX;
 export const PREVIEW_LIMITS = { callsUntilMs: 20_000, doneByMs: 28_000 } as const;
 
 export interface PreviewInput {
-  tenantId: string;
+  tenantId: TenantId;
   searchId: string;
   /** Which business, from the strongest fit: 0 is the first. */
   index: number;
@@ -166,7 +168,7 @@ export async function previewOne(
   const otherReachOutRequest = reachOutRequest({
     tenantId: previewInput.tenantId,
     messageId: randomUUID(),
-    contactId: randomUUID(),
+    contactId: asContactId(randomUUID()),
     to: lead.email,
     words: previewInput.words,
     lead: { ...slotLeadOf(lead, slots), preview },

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { HOUR_MS, MIN_MS, type OptOutPerson, UUID, type SchemaSet } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import { DELIVERED } from "../../conversations/thread/history";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -13,7 +14,7 @@ export type Db = SupabaseClient<Database>;
  * the event it answers, or says what it is about) is never taken back: its mail is owed instead (`mail_due_at`, 00409),
  * and the retry sends the mail alone.
  */
-export async function forgetNotification(db: Db, params: { tenantId: string; id: string }): Promise<void> {
+export async function forgetNotification(db: Db, params: { tenantId: TenantId; id: string }): Promise<void> {
   const { error } = await db.from("notifications").delete().eq("tenant_id", params.tenantId).eq("id", params.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
 }
@@ -27,7 +28,7 @@ export async function forgetNotification(db: Db, params: { tenantId: string; id:
  */
 export async function askCardsTold(
   db: Db,
-  params: { tenantId: string; userId: string; threadId: string; title: string; body: string },
+  params: { tenantId: TenantId; userId: string; threadId: string; title: string; body: string },
 ): Promise<void> {
   const { error } = await db.from("notifications").insert({
     tenant_id: params.tenantId,
@@ -60,7 +61,7 @@ export interface KeptNotice {
 export async function findNotice(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     sourceEvent?: string | null;
     kind: SchemaSet<"notifications.kind">;
     subjectType?: string | null;
@@ -95,7 +96,7 @@ export async function findNotice(
  */
 export async function recordMailSent(
   db: Db,
-  params: { tenantId: string; id: string; words?: { title: string; body: string } },
+  params: { tenantId: TenantId; id: string; words?: { title: string; body: string } },
 ): Promise<void> {
   const { error } = await db
     .from("notifications")
@@ -116,7 +117,7 @@ export async function recordMailSent(
  */
 export async function wasNoticeKept(
   db: Db,
-  params: { tenantId: string; kind: SchemaSet<"notifications.kind">; subjectType: string; subjectId: string },
+  params: { tenantId: TenantId; kind: SchemaSet<"notifications.kind">; subjectType: string; subjectId: string },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("notifications")
@@ -137,7 +138,7 @@ export async function wasNoticeKept(
  */
 export async function listReviewsNamed(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ids: readonly string[],
 ): Promise<{ id: string; reviewId: string; replied: boolean }[]> {
   if (!ids.length) return [];
@@ -162,7 +163,7 @@ export async function listReviewsNamed(
 
 export async function reviewRowsByGoogleId(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   googleIds: readonly string[],
 ): Promise<Map<string, string>> {
   if (!googleIds.length) return new Map();
@@ -205,7 +206,7 @@ export const oneOr = <T>(r: { data: T[] | null; error: { message: string } | nul
  */
 export async function holdFactsOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ref: HoldRef,
   nowMs: number,
 ): Promise<HoldFactsRead | null> {
@@ -294,7 +295,7 @@ export async function holdFactsOf(
  */
 export async function holdTold(
   db: Db,
-  params: { tenantId: string; eventId: string; conversationId: string; at: string },
+  params: { tenantId: TenantId; eventId: string; conversationId: string; at: string },
 ): Promise<boolean> {
   const answered = await db
     .from("notifications")
@@ -325,7 +326,7 @@ export async function holdTold(
  * number or address, and whether they are erased or being erased (then the notice names no one). Null when there is no such
  * person in the workspace. A read that fails throws.
  */
-export async function findPersonFacts(db: Db, tenantId: string, contactId: string): Promise<OptOutPerson | null> {
+export async function findPersonFacts(db: Db, tenantId: TenantId, contactId: ContactId): Promise<OptOutPerson | null> {
   const person = oneOr(
     await db
       .from("contacts")
@@ -352,7 +353,7 @@ export async function findPersonFacts(db: Db, tenantId: string, contactId: strin
  */
 export async function wasOptOutTold(
   db: Db,
-  params: { tenantId: string; eventId: string; contactId: string; at: string },
+  params: { tenantId: TenantId; eventId: string; contactId: ContactId; at: string },
 ): Promise<boolean> {
   const answered = await db
     .from("notifications")
@@ -384,7 +385,7 @@ export async function wasOptOutTold(
  * and team_notice): a second run of the delivery finds the notice and tells nobody. A read that fails throws: "could not
  * check" is not "never told".
  */
-export async function wasEventTold(db: Db, params: { tenantId: string; eventId: string }): Promise<boolean> {
+export async function wasEventTold(db: Db, params: { tenantId: TenantId; eventId: string }): Promise<boolean> {
   const answered = await db
     .from("notifications")
     .select("id")

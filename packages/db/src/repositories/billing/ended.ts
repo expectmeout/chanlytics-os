@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** What the release reads of a plan: its status, its dates and its last failed payment. */
@@ -23,5 +23,5 @@ export const listStripeAccountsIn = async (db: Db, statuses: readonly SchemaSet<
     .in("status", [...statuses]);
 
 /** One workspace's plan, as the release reads it. */
-export const findPlanForRelease = async (db: Db, tenantId: string) =>
+export const findPlanForRelease = async (db: Db, tenantId: TenantId) =>
   db.from("billing_accounts").select(RELEASE_COLUMNS).eq("tenant_id", tenantId).maybeSingle();

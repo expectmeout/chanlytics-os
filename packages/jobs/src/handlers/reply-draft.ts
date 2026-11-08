@@ -17,6 +17,7 @@ import { logger } from "@chanlytics/log";
 import type { ClaimedJob, JobContext, ReplyDraftEdge } from "../runner/context";
 import type { Db } from "../runner/ledger";
 import { scheduleJobOnce } from "../runner/schedule";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** What asks for a draft: everything but the writer, so a runtime that holds none can still ask. */
 function askPorts(db: Db): Pick<ReplyDraftPorts, "thread" | "claim" | "scheduleDraft"> {
@@ -53,7 +54,7 @@ export function replyDraftPortsOf(db: Db, edge: ReplyDraftEdge): ReplyDraftPorts
  */
 export function senderLeftAt(db: Db, edge: ReplyDraftEdge, until: number) {
   return async (
-    tenantId: string,
+    tenantId: TenantId,
     email: { from: string; name: string | null; subject: string | null; words: string | null; answers: boolean },
   ): Promise<"pitch" | "notice" | null> => {
     try {
@@ -79,7 +80,7 @@ export function senderLeftAt(db: Db, edge: ReplyDraftEdge, until: number) {
 /** Whether a thread is owed a draft, and if so its row claimed and its job scheduled: the subscriber's, and the sweep's. */
 export function askReplyDraftOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   over: { now?: Date; again?: boolean; staleBefore?: Date } = {},
 ): Promise<AskReplyDraftOutcome> {

@@ -11,6 +11,7 @@ import type { Database } from "@chanlytics/db/types";
 import type { JobContext } from "@chanlytics/jobs";
 import { draftWriter } from "../../drafts/writer.js";
 import type { generateReply } from "../../ai/receptionist-brain.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Draft = NonNullable<JobContext["replies"]>["draft"];
@@ -45,7 +46,7 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
  * The steer for what an answer to a lead offers, read off the workspace's config (contracts replyOfferSteer). A config
  * that cannot be read steers nothing: the answer is drafted as it was before How it reaches out, never not drafted.
  */
-async function offerSteerOf(db: Db, tenantId: string): Promise<string | null> {
+async function offerSteerOf(db: Db, tenantId: TenantId): Promise<string | null> {
   try {
     const w = await findWorkspaceNameAndConfig(db, tenantId);
     return replyOfferSteer(parseTenantConfig(w.config)?.reach_out?.reply_offer);

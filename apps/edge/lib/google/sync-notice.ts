@@ -16,6 +16,7 @@ import { mendWarnings, notifyOnce } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { errField, type Logger } from "../shared/log.js";
 import type { ConnectionRow, Db } from "../shared/google/rows.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** Whose a failed sync's cause is: the owner's to mend, a passing one of Google's, or the platform's. */
 export type SyncCause = "lasting" | "passing" | "ours";
@@ -82,7 +83,7 @@ export async function tellSyncStopped(
  */
 export async function syncMended(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   change: "google_connection.synced" | "google_connection.removed",
 ): Promise<void> {
   await mendWarnings(db, { tenantId, by: { change }, subject: null, keptId: null });

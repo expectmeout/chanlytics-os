@@ -75,6 +75,7 @@ import {
 import { noteImport } from "@chanlytics/db/imports";
 import type { DueCalendar } from "@chanlytics/db/jobs";
 import type { SweepTick } from "../ops/sweep-door.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** What the reads kept as appointments, for the tick's log line. */
 export type Kept = { added: number; moved: number; back: number; vanished: number; seen: number; stale: number };
@@ -87,7 +88,7 @@ export type Kept = { added: number; moved: number; back: number; vanished: numbe
  */
 async function keepTheRead(
   db: SweepTick["db"],
-  read: { tenantId: string; items: Parameters<typeof keepAppointments>[2]; now: Date; L: SweepTick["L"] },
+  read: { tenantId: TenantId; items: Parameters<typeof keepAppointments>[2]; now: Date; L: SweepTick["L"] },
   how: Parameters<typeof keepAppointments>[3],
   kept: Kept,
 ): Promise<void> {
@@ -115,7 +116,7 @@ async function keepTheRead(
  */
 async function noteTheRead(
   db: SweepTick["db"],
-  params: { tenantId: string; items: readonly FeedItem[]; cfg: TenantConfig | null; now: Date; L: SweepTick["L"] },
+  params: { tenantId: TenantId; items: readonly FeedItem[]; cfg: TenantConfig | null; now: Date; L: SweepTick["L"] },
 ): Promise<void> {
   const nowMs = params.now.getTime();
   const seen = new Set<string>();
@@ -221,7 +222,7 @@ export async function readOneCalendar(
 
 /** The people a read put in People, logged, and the owner told on the bell: good news, never an email. */
 async function tellPeopleAdded(
-  tenantId: string,
+  tenantId: TenantId,
   item: Awaited<ReturnType<typeof addPeopleFromCalendar>>,
   log: SweepTick["L"],
 ): Promise<void> {

@@ -19,6 +19,7 @@ import { clearFollowUp } from "@/server/ask/tools/act/follow-up";
 import type { SearchAnswering } from "@/server/ask/prompt/prompt";
 import { finishAskTurn, type AskTurnLine } from "@/server/ask/turn";
 import { searchRow } from "@/server/leads/leads";
+import type { TenantId } from "@chanlytics/contracts";
 
 // The lists are contracts' own: a surface the palette sent that a hand-written list here had not caught up with was
 // dropped in silence, and the prompt never learnt the page.
@@ -117,7 +118,7 @@ export function scopeAsked(raw: unknown): AskScope | null | undefined {
  * refuses is no context, said once in the log, and never a refused question: an older tab sends none, and a context is a help
  * to the answer, not a condition of it. The turn reads the page again from these identities.
  */
-export function contextAsked(raw: unknown, tenantId: string): PageContext | null {
+export function contextAsked(raw: unknown, tenantId: TenantId): PageContext | null {
   if (raw === undefined || raw === null) return null;
   const read = PageContextSchema.safeParse(raw);
   if (read.success) return read.data;
@@ -138,7 +139,11 @@ export const languageAsked = (text: string, raw: unknown): { language?: AskLangu
  * The search a Leads answer row's text answers (`answering: { search_id }`), read under RLS in this workspace: what it
  * asked rides beside the owner's words (askTurnText). None where the body names none; one not this workspace's is a 404.
  */
-export async function answeringOf(ctx: RouteContext, tenantId: string, raw: unknown): Promise<SearchAnswering | null> {
+export async function answeringOf(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  raw: unknown,
+): Promise<SearchAnswering | null> {
   const id = raw && typeof raw === "object" ? (raw as { search_id?: unknown }).search_id : undefined;
   if (id === undefined) return null;
   const row = await searchRow(ctx, tenantId, requireUuid(id, "search"));

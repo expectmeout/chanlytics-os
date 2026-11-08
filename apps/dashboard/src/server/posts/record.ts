@@ -13,6 +13,7 @@ import { fileDtoOf } from "@/server/readers/files";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * GET files/[id]: one file, and for a post what it came from and what it was asked to be. A video's is what was heard of it
@@ -47,7 +48,7 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
 type PostLook = Pick<PostPlan, "voice" | "layout" | "book">;
 
 /** What the workspace's newest post looks like, or null before its first. Never costs a turn: a failed read is no look to keep. */
-export async function findNewestPostLook(tenantId: string): Promise<PostLook | null> {
+export async function findNewestPostLook(tenantId: TenantId): Promise<PostLook | null> {
   try {
     const created = recordOrNull(await getNewestMade(serviceDb(), tenantId));
     const plan = recordOrNull(created?.plan);

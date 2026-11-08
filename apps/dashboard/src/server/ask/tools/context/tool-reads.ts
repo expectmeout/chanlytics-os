@@ -28,6 +28,7 @@ import { findWhatsappHealth } from "../../../campaigns/channels-ready";
 import { createBroadcastPorts, templateValuePorts } from "../../../campaigns/ports";
 import { log } from "@/server/shared/log";
 import type { ToolContext } from "./tool-defs";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** Whose a role's action is, in the words a refusal says it: "an owner's", "an owner's or a partner's". */
 export const WHOSE: Record<MembershipRole, string> = {
@@ -279,7 +280,7 @@ export function notePerson(toolContext: ToolContext, id: string | null | undefin
 
 export function newToolContext(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   role: ToolContext["role"],
   timezone: string,
   now = new Date(),

@@ -19,6 +19,7 @@ import type { Member } from "../shared/route";
 import type { VerbConversation } from "../shared/verbs";
 import { getSignedByThread } from "../connections/email";
 import { draftAtTheEdge } from "./thread-control";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * A thread's drafts as every page reads them (decision 0093, 00538): written when a hold owes one, by the receptionist's
@@ -106,7 +107,7 @@ export async function listDraftsKept(ctx: RouteContext, member: Pick<Member, "te
  */
 export async function draftUseOfReply(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   sent: string | undefined,
 ): Promise<Json | undefined> {
@@ -136,7 +137,7 @@ function refusalOf(reason: string, detail: string | null): AppError {
 export async function draftForThread(
   ctx: RouteContext,
   member: Member,
-  conv: VerbConversation & { contact_id: string },
+  conv: VerbConversation & { contact_id: ContactId },
   ask: { kind: ReplyDraftKind; instruction?: string | null },
 ): Promise<ReplyDraftDto> {
   const { kind, instruction = null } = ask;

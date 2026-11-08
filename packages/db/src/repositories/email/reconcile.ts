@@ -9,13 +9,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { MIN_MS } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** An email from a mailbox whose send's outcome is unknown: what to look for it by. */
 export interface UnknownMailboxEmail {
   id: string;
-  tenantId: string;
+  tenantId: TenantId;
   /** The address it was written to, and its subject, as its frozen request says them. */
   to: string | null;
   subject: string | null;
@@ -24,7 +25,7 @@ export interface UnknownMailboxEmail {
 
 /** The most a mailbox's look reads in one tick: each is a provider read or a few. */
 const UNKNOWN_PAGE = 10;
-type UnknownRow = { id: string; tenant_id: string; meta: unknown; created_at: string };
+type UnknownRow = { id: string; tenant_id: TenantId; meta: unknown; created_at: string };
 
 /**
  * The mailbox's reach-out emails whose send's outcome is unknown, written between `since` and `before` (oldest first):

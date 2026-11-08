@@ -11,8 +11,9 @@ import { dismissPersonDoubt, findDoubtOn } from "@chanlytics/db/people";
 import { emitEvent } from "@chanlytics/db/events";
 import { serviceDb } from "@/server/shared/service-db";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
-export async function settleDoubtApart(ctx: RouteContext, tenantId: string, contactId: string, doubtId: string) {
+export async function settleDoubtApart(ctx: RouteContext, tenantId: TenantId, contactId: ContactId, doubtId: string) {
   const doubt = await findDoubtOn(ctx.supabase, tenantId, contactId, doubtId);
   if (!doubt) throw new AppError("not_found", DOUBT_WORDS.notFound, 404);
   try {

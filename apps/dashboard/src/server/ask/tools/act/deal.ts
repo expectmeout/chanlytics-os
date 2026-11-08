@@ -1,3 +1,4 @@
+import { asContactId } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -150,7 +151,8 @@ function dealRowOf<Row extends { stage: string; service: string | null; created_
 async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<ProposalOutcome> {
   const checked = checkedDeal(toolContext, input);
   if ("result" in checked) return checked;
-  const { id, stage, url, day, reason, stepWords, stepDay } = checked;
+  const { id: asked, stage, url, day, reason, stepWords, stepDay } = checked;
+  const id = asContactId(asked);
   const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");

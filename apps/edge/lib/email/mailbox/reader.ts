@@ -33,6 +33,7 @@ import type { Database } from "@chanlytics/db/types";
 import { askJson, promptHashOf } from "../../ai/model.js";
 import { env } from "../../shared/env.js";
 import { errField, type Logger } from "../../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -71,7 +72,7 @@ function senderFactsOf(mailboxEmail: MailboxEmail, from: string): SenderFacts {
  * The reader for one workspace, as a sync or an import part asks it: whether it may read, and the business's name and its
  * own words about what it does, are read once, at the first stranger.
  */
-export function senderReaderFor(db: Db, tenantId: string, log: Logger): SenderReader {
+export function senderReaderFor(db: Db, tenantId: TenantId, log: Logger): SenderReader {
   const read = senderFactsReaderFor(db, tenantId, log);
   return async (e, until) => {
     const from = normalizeEmail(e.from?.address);
@@ -85,7 +86,7 @@ export function senderReaderFor(db: Db, tenantId: string, log: Logger): SenderRe
  */
 export function senderFactsReaderFor(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   log: Logger,
 ): (facts: SenderFacts, until: number) => Promise<SenderReading | null> {
   let may: Promise<{ name: string | null; about: string | null } | null> | null = null;

@@ -6,6 +6,7 @@ import { SCHEMA_SETS } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { isMissingFunction } from "../../shared/missing-door";
 import { readAnswer } from "../../shared/read-json";
+import type { TenantId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -205,7 +206,7 @@ export async function getPlatformPartners(
 /** A platform admin decides a brought workspace's standing (00205 partner_standing_set). */
 export async function setPartnerStanding(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   standing: string,
   reason: string,
 ): Promise<PartnerVerbResult<{ standing: string; from: string | null; voided: number; matured: number }>> {

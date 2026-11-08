@@ -24,6 +24,7 @@ import { recordDecision } from "../shared/verbs";
 import type { RouteContext } from "../shared/with-route";
 import { log } from "@/server/shared/log";
 import { markLeadsExported } from "@chanlytics/db/leads";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ------------------------------------------------------------- the export */
 
@@ -131,7 +132,7 @@ export async function exportChunk(
  */
 export async function exportLeads(
   ctx: Pick<RouteContext, "supabase" | "userId" | "via" | "undoOf">,
-  tenantId: string,
+  tenantId: TenantId,
   input: Omit<LeadsQuery, "limit">,
 ): Promise<{ file: string; csv: string; rows: number; next: ExportCursor | null; matching?: number }> {
   const { after_key, after_id, ...view } = input;

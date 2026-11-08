@@ -31,6 +31,7 @@ import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
 import { modelDeps } from "../ai/model.js";
 import { pg } from "../shared/pg.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How many places are asked at once: TypeSafe's rate is the account's, shared by every search running. */
 const IN_FLIGHT = 8;
@@ -41,7 +42,7 @@ const IN_FLIGHT = 8;
 const SCREEN_BOUND_MS = LEAD_SCREEN_BOUND_MS;
 
 /** The key when the screen is on for a workspace: the judge's route names a floor, the switch names it, the key is set. */
-function screenKey(tenantId: string | undefined): string | null {
+function screenKey(tenantId: TenantId | undefined): string | null {
   if (!tenantId || screenFloorOf("lead_judge") === null || !shadowSwitchOn(env.TYPESAFE_SCREEN, tenantId)) return null;
   return env.TYPESAFE_API_KEY ?? null;
 }
@@ -68,7 +69,7 @@ async function askAll(key: string, calls: ReturnType<typeof judgeScreenCalls>): 
 }
 
 /** One call as the usage ledger keeps it: the second model's port, not a shadow, so nothing compared. */
-function screenUsageOf(tenantId: string, roundId: string | undefined, reply: SystemOneReply): AiUsageBody {
+function screenUsageOf(tenantId: TenantId, roundId: string | undefined, reply: SystemOneReply): AiUsageBody {
   const ok = reply.outcome === "ok";
   return {
     tenant_id: tenantId,
@@ -108,7 +109,7 @@ async function keepUsage(rows: AiUsageBody[], log: ReturnType<typeof logger>): P
 async function screenPlaces(
   plan: LeadSearchPlan,
   places: PlaceFacts[],
-  tenantId?: string,
+  tenantId?: TenantId,
   roundId?: string,
 ): Promise<LeadScreen | null> {
   const key = screenKey(tenantId);

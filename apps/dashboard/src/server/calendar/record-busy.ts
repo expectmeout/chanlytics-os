@@ -14,10 +14,11 @@ import { busyOfAppointments, offeringHorizon, type BusyBlock } from "@chanlytics
 import { listAppointmentsBetween } from "@chanlytics/db/calendar";
 import type { RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 export async function recordBusy(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   daysAhead: number,
 ): Promise<BusyBlock[]> {

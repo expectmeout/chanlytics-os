@@ -28,6 +28,7 @@ import { argsOf, type RoundBlock, type RoundResult } from "./round";
 import { chainEnd, rawTurn, type LastRound, type TurnEnd } from "./memory";
 import type { TurnInput, TurnResult } from "./loop/turn-head";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Where the time went and what the model was fed (AskTurnShape), as a turn measures it from `t0`, its start: the first
@@ -72,7 +73,7 @@ export function turnMeter(t0: number) {
      * call or an answer that is half-written does not parse at all (caught where it is used: argsOf, normalizeAnswer).
      * A turn that keeps hitting the cap is a budget that is too small, not a model that keeps changing its mind.
      */
-    capped(stopReason: string | null, round: number, blocks: RoundBlock[], tenantId: string): void {
+    capped(stopReason: string | null, round: number, blocks: RoundBlock[], tenantId: TenantId): void {
       if (stopReason !== "max_tokens") return;
       meter.capHits++;
       log.error("ask_round_hit_cap", {

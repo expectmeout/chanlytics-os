@@ -17,7 +17,7 @@ import {
   parseTenantConfigResult,
   seasonHorizon,
 } from "@chanlytics/contracts";
-import type { FeedNames } from "@chanlytics/contracts";
+import type { FeedNames, TenantId } from "@chanlytics/contracts";
 import { getTenantConfig, findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import { listFeedItems } from "./availability.js";
@@ -29,7 +29,7 @@ import { listFeedItems } from "./availability.js";
  * could not be read is not a workspace without a calendar.
  */
 export function feedNamesFor(db: SupabaseClient<Database>) {
-  return async (tenantId: string, now: Date): Promise<FeedNames | null> => {
+  return async (tenantId: TenantId, now: Date): Promise<FeedNames | null> => {
     const [row, zone] = await Promise.all([getTenantConfig(db, tenantId), findWorkspaceZone(db, tenantId)]);
     const parsed = parseTenantConfigResult(row?.config);
     const config = parsed.ok ? parsed.config : null;

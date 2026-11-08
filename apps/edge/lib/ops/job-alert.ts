@@ -18,10 +18,10 @@
 import { notify, notifyEvent, type NotifyMessage, type NotifyPorts } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import type { pg } from "../shared/pg.js";
-import type { JobNews, JobNewsKind } from "@chanlytics/contracts";
+import type { JobNews, JobNewsKind, TenantId } from "@chanlytics/contracts";
 
 interface AlertableJob {
-  tenant_id: string;
+  tenant_id: TenantId;
   kind: string;
 }
 

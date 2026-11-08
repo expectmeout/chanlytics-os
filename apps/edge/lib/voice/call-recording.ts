@@ -39,6 +39,7 @@ import { listRecordingsToPurge, markRecordingPurged, setCallRecording } from "@c
 import { DAY_MS, RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
 import { logger } from "../shared/log.js";
 import { storeMedia } from "@chanlytics/db/channels";
+import type { TenantId } from "@chanlytics/contracts";
 
 export const RECORDING_MAX_ATTEMPTS = 3;
 /** The webhook's budget: the agent allows 20 s for the whole event and the upsert has already spent some. */
@@ -118,7 +119,7 @@ export async function purgeExpiredRecordings(
   if (error) return { candidates: 0, purged: 0, error: error.message };
   const rows = (data ?? []) as {
     id: string;
-    tenant_id: string;
+    tenant_id: TenantId;
     recording: { storage_path?: string; mime?: string | null } | null;
   }[];
   if (!rows.length) return { candidates: 0, purged: 0, error: null };
@@ -177,7 +178,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, text: string): Promise<T> {
 export async function copyRecording(
   db: SupabaseClient<Database>,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     callId: string;
     providerUrl: string;
     attempts?: number | null;

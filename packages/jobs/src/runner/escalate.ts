@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { openEscalation } from "@chanlytics/db/conversations";
 import type { Database } from "@chanlytics/db/types";
 import { logger } from "@chanlytics/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * How an escalation landed.
@@ -30,7 +31,7 @@ export type EscalationOutcome = "opened" | "changed" | "refreshed" | "failed";
 
 export async function upsertEscalation(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   reason: string,
   details: string,

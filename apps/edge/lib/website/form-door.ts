@@ -21,6 +21,8 @@
  *
  * Cross-workspace: the form names its workspace, and the key proves the site was given it.
  */
+import type { ContactId } from "@chanlytics/contracts";
+import { heldTenantId } from "@chanlytics/contracts";
 import { createHash } from "node:crypto";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
@@ -61,11 +63,12 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     return refuse(400, "bad_request");
   }
   const data = parsed.data;
-  if (!websiteFormKeyMatches(data.workspace, data.key)) {
+  // What it names, which the key checks: a page's own form, signed for this workspace.
+  const tenantId = heldTenantId(data.workspace);
+  if (!websiteFormKeyMatches(tenantId, data.key)) {
     log.warn("website_form_refused", { why: "key" });
     return refuse(401, "bad_signature");
   }
-  const tenantId = data.workspace;
   const otherWebsiteFormPerson = websiteFormPerson(data);
   if (!otherWebsiteFormPerson) {
     log.warn("website_form_refused", { tenant_id: tenantId, why: "no_way_to_reach" });
@@ -74,7 +77,7 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  let contactId: string;
+  let contactId: ContactId;
   let outcome: string;
   try {
     const created = await resolvePerson(db, {

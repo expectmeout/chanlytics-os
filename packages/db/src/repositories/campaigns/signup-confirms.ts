@@ -14,6 +14,7 @@ import {
   type SchemaSet,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -23,7 +24,7 @@ const ASKING: SchemaSet<"messages.status">[] = ["queued", "sent", "delivered", "
 /** The workspace's asks since a moment, as a count; `extra` narrows them (to one address, to the failed). */
 async function asksSince(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   sinceMs: number,
   extra: (q: ReturnType<typeof base>) => ReturnType<typeof base>,
 ): Promise<number> {
@@ -32,7 +33,7 @@ async function asksSince(
   return count ?? 0;
 }
 
-function base(db: Db, tenantId: string, sinceMs: number) {
+function base(db: Db, tenantId: TenantId, sinceMs: number) {
   return db
     .from("messages")
     .select("id", { count: "exact", head: true })
@@ -51,7 +52,7 @@ function base(db: Db, tenantId: string, sinceMs: number) {
  */
 export async function findSignupAskFacts(
   db: Db,
-  params: { tenantId: string; contactId: string; addressKey: string; nowMs: number },
+  params: { tenantId: TenantId; contactId: ContactId; addressKey: string; nowMs: number },
 ): Promise<Omit<SignupAskFacts, "mailbox"> & { lastForm: Json | null }> {
   const dayAgo = params.nowMs - DAY_MS;
   const [person, open, last, addressAsks, workspaceToday, failedToday] = await Promise.all([
@@ -119,7 +120,7 @@ export async function findSignupAskFacts(
 /** A sign-up's confirmation email, as its page reads it: whose it is, who sent it, the address it went to. */
 interface ConfirmationEmail {
   /** The person it is about now: the email's row moves to the person someone was merged into. */
-  contactId: string | null;
+  contactId: ContactId | null;
   /** The From it left as ("Name" <address>), the business's name read off it. */
   from: string | null;
   /** The address it went to, lower-cased. */
@@ -132,7 +133,7 @@ interface ConfirmationEmail {
  */
 export async function findConfirmationEmail(
   db: Db,
-  params: { tenantId: string; messageId: string },
+  params: { tenantId: TenantId; messageId: string },
 ): Promise<ConfirmationEmail | null> {
   const { data, error } = await db
     .from("messages")

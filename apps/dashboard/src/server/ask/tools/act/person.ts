@@ -1,3 +1,4 @@
+import { isContactId } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -21,7 +22,6 @@ import {
   whyNotAPhone,
   whyNotAnEmail,
   type WriteWay,
-  UUID,
   proposalBelowNeeds,
   isOneOf,
 } from "@chanlytics/contracts";
@@ -32,10 +32,11 @@ import { readUnlessNotFound, noteRow, str } from "../context/tool-reads";
 import { actAction, defineActions, offeredTo, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { approvalWords, propose, refuse } from "../context/context";
 import { findPersonCard, findPersonReplyModeRow } from "@chanlytics/db/ask";
+import type { ContactId } from "@chanlytics/contracts";
 
 /** The person a card names, as every action of this tool reads them: the name the card calls them, and the profile's. */
 interface CardPerson {
-  id: string;
+  id: ContactId;
   who: string;
   /** The profile's own two fields as they stand: what a details card changes, and what its undo sets back. */
   name: string | null;
@@ -51,7 +52,7 @@ interface CardPerson {
  */
 async function personOnCard(toolContext: ToolContext, contactId: string): Promise<CardPerson | ProposalOutcome> {
   const id = str(contactId, 40);
-  if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
+  if (!isContactId(id)) return refuse("contact_id must be an id a read returned");
   const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
@@ -139,7 +140,7 @@ const STEP_FOR = ["anyone", "me"] as const;
  */
 async function stepDeal(
   toolContext: ToolContext,
-  personId: string,
+  personId: ContactId,
   service: string | null,
 ): Promise<{ id: string; service: string | null } | null | ProposalOutcome> {
   const open = await openDealsOf(toolContext.ctx.supabase, toolContext.tenantId, personId);
@@ -164,7 +165,13 @@ async function stepDeal(
  */
 async function proposePersonStep(
   toolContext: ToolContext,
-  input: { contact_id: string; what: string; due_on: string; step_for?: (typeof STEP_FOR)[number]; service?: string },
+  input: {
+    contact_id: string;
+    what: string;
+    due_on: string;
+    step_for?: (typeof STEP_FOR)[number];
+    service?: string;
+  },
 ): Promise<ProposalOutcome> {
   // As the notes door takes a step: its words, trimmed and refused past the table's length, and a real day from today on.
   const subject = typeof input.what === "string" ? input.what.trim() : "";

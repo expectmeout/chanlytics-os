@@ -23,6 +23,7 @@ import { logger, type Logger } from "../shared/log.js";
 import { flagLateFailure } from "../shared/late-failure.js";
 import { runPgSafe } from "./persist.js";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Receipt = NonNullable<WaChangeValue["statuses"]>[number];
 
@@ -42,7 +43,7 @@ function receiptStatusOf(s: string | undefined): "sent" | "delivered" | "read" |
 async function keepCost(
   log: Logger,
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
   receipt: Receipt,
 ): Promise<void> {
@@ -58,7 +59,7 @@ async function keepCost(
 /** How many receipts the database would not take, which must come again (0 when every one was recorded). */
 export async function recordReceipts(
   db: SupabaseClient<Database> | null,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   statuses: Receipt[],
 ): Promise<number> {
   const log = logger();

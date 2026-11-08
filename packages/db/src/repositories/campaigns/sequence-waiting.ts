@@ -6,7 +6,13 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { wordsNeedOpening } from "@chanlytics/contracts";
-import type { SequencePlaceDto, SequencePlaceOfDto, SequencePlaceRowDto, SequenceRowDto } from "@chanlytics/contracts";
+import type {
+  SequencePlaceDto,
+  SequencePlaceOfDto,
+  SequencePlaceRowDto,
+  SequenceRowDto,
+  TenantId,
+} from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { leadStepKey, getLeadWordsOfLeads } from "./lead-words";
 
@@ -16,7 +22,7 @@ type Db = SupabaseClient<Database>;
 const SENDS_IN_CHUNK = 200;
 
 /** How many of a batch's sends stand in one state. */
-async function batchSendsIn(db: Db, tenantId: string, id: string, state: "planned" | "held"): Promise<number> {
+async function batchSendsIn(db: Db, tenantId: TenantId, id: string, state: "planned" | "held"): Promise<number> {
   const { count, error } = await db
     .from("sequence_sends")
     .select("id", { count: "exact", head: true })
@@ -33,7 +39,7 @@ async function batchSendsIn(db: Db, tenantId: string, id: string, state: "planne
  * were held rides beside the count, which Approve's ask on a lead's sheet says stay with you (3 Nov 2026). Its next and
  * the sequence's waiting people follow; a customer's batch is counted as the read counts it.
  */
-export async function withReadyCounts(db: Db, tenantId: string, rows: SequenceRowDto[]): Promise<SequenceRowDto[]> {
+export async function withReadyCounts(db: Db, tenantId: TenantId, rows: SequenceRowDto[]): Promise<SequenceRowDto[]> {
   const ids = [
     ...new Set(
       rows.flatMap((r) => (r.needs?.batches ?? []).filter((b) => b.audience?.kind === "reach_out").map((b) => b.id)),
@@ -84,7 +90,7 @@ const ON_ONE_LEAD: ReadonlySet<string> = new Set([...READ_BEFORE_IT_GOES, "next"
  */
 export async function withOpenings<R extends { group: string; send_id: string | null }>(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rows: R[],
   groups: ReadonlySet<string> = READ_BEFORE_IT_GOES,
 ): Promise<R[]> {
@@ -128,7 +134,7 @@ export async function withOpenings<R extends { group: string; send_id: string | 
 /** One lead's row with what its email goes with, the email up next among them. */
 export const withOneLeadsOpening = <R extends { group: string; send_id: string | null }>(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   row: R,
 ): Promise<R[]> => withOpenings(db, tenantId, [row], ON_ONE_LEAD);
 
@@ -140,7 +146,7 @@ export const withOneLeadsOpening = <R extends { group: string; send_id: string |
  */
 export async function putBackOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   place: SequencePlaceDto,
 ): Promise<{ decision_id: string } | null> {
   const id = place.place.enrollment_id;
@@ -175,7 +181,7 @@ interface Listed {
  * the leads on a list: the places' reads said "In its next batch" of a lead no batch could take (3 Nov 2026). A read that
  * fails, or a database before 00533, answers nothing, and the place stays as it was read.
  */
-async function listedWhyNotOf(db: Db, tenantId: string, listed: readonly Listed[]): Promise<Map<string, string>> {
+async function listedWhyNotOf(db: Db, tenantId: TenantId, listed: readonly Listed[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (listed.length === 0) return out;
   const { data, error } = await db.rpc("sequence_queued_why_not", {
@@ -191,7 +197,7 @@ async function listedWhyNotOf(db: Db, tenantId: string, listed: readonly Listed[
 /** Many leads' places (sequence_places_of), each on a list and not planned with why no batch takes it, where one cannot. */
 export async function withListedWhyNot(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   rows: SequencePlaceOfDto[],
 ): Promise<SequencePlaceOfDto[]> {
   const listed = rows
@@ -206,7 +212,7 @@ export async function withListedWhyNot(
 /** One lead's place (sequence_place), on a list and not planned, with why no batch takes it, where one cannot. */
 export async function withPlaceWhyNot(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   leadId: string,
   place: SequencePlaceDto,
 ): Promise<SequencePlaceRowDto> {

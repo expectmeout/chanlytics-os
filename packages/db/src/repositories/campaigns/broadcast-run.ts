@@ -7,9 +7,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
-type Run = { tenantId: string; broadcastId: string };
+type Run = { tenantId: TenantId; broadcastId: string };
 
 /** The columns a run reads of its broadcast. */
 const RUN_COLUMNS =
@@ -72,7 +72,7 @@ export function countBroadcastSends(
 /** One person's send on the broadcast, written; the caller may narrow it further (a claim takes only a queued row). */
 export const writeBroadcastSend = async (
   db: Db,
-  run: Run & { contactId: string },
+  run: Run & { contactId: ContactId },
   patch: Database["public"]["Tables"]["sequence_sends"]["Update"],
 ) =>
   db
@@ -86,7 +86,7 @@ export const writeBroadcastSend = async (
 /** A person's send on a run written only while it is still queued: the person back, none when another took it. */
 export const claimBroadcastSend = async (
   db: Db,
-  run: Run & { contactId: string },
+  run: Run & { contactId: ContactId },
   patch: Database["public"]["Tables"]["sequence_sends"]["Update"],
 ) =>
   db
@@ -100,7 +100,7 @@ export const claimBroadcastSend = async (
     .select("contact_id");
 
 /** The people of a batch, as a run reads them to judge and send: their numbers, addresses, consents and names. */
-export const listBatchPeople = async (db: Db, tenantId: string, ids: string[]) =>
+export const listBatchPeople = async (db: Db, tenantId: TenantId, ids: ContactId[]) =>
   db
     .from("contacts")
     .select(
@@ -110,7 +110,7 @@ export const listBatchPeople = async (db: Db, tenantId: string, ids: string[]) =
     .eq("tenant_id", tenantId);
 
 /** The messages the broadcast already left these people: sent, delivered or read, with its id in their meta. */
-export const listBroadcastMessagesTo = async (db: Db, run: Run, contactIds: string[]) =>
+export const listBroadcastMessagesTo = async (db: Db, run: Run, contactIds: ContactId[]) =>
   db
     .from("messages")
     .select("id, contact_id, created_at")

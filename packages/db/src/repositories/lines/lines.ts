@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { LINE_FILED_NAMES } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 // No `type Db` alias here, as the repositories write one: the declaration bundler numbers every module's alias (`Db$x`), and a
 // new one renumbers every alias after it, which is a diff of hundreds of lines in a committed file that says nothing new.
@@ -17,7 +18,7 @@ import { tenantDb } from "../../shared/tenant-db";
 /** The workspace's own line that can have texts (not a carrier's, not one whose provisioning failed), or null. */
 export async function findOwnLine(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<Pick<
   Database["public"]["Tables"]["lines"]["Row"],
   "id" | "tenant_id" | "e164" | "provider" | "subaccount_sid" | "messaging_service_sid" | "sms_state" | "voice_state"
@@ -41,7 +42,7 @@ export async function findOwnLine(
  */
 export async function findBusinessOnRecord(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<Database["public"]["Tables"]["business_records"]["Row"] | null> {
   const { data, error } = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the business on record: ${error.message}`);
@@ -65,7 +66,7 @@ export async function dropLineCredentials(db: SupabaseClient<Database>, lineId: 
  */
 export async function findFiledNames(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ campaign: string | null; brand: string | null }> {
   const { data, error } = await db
     .from("lines")
@@ -88,6 +89,6 @@ export async function findFiledNames(
 /** The business on record saved, one a workspace, and back whole. The answer is the database's as it came. */
 export const saveBusinessOnRecord = async (
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   row: Database["public"]["Tables"]["business_records"]["Insert"],
 ) => tenantDb(db, tenantId).from("business_records").upsert(row, { onConflict: "tenant_id" }).select("*").single();

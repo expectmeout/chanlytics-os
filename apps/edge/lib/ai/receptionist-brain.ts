@@ -53,6 +53,7 @@ import { formatRejected, type ModelAsk, type ModelReply } from "@chanlytics/chan
 import { callModel, keepTurn, ModelUnavailable, promptHashOf, type ModelCallFor } from "./model.js";
 import { startShadow } from "./shadow.js";
 import { logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 // The system prompt is TENANT CONFIG (PRD E4): it arrives as a parameter from
 // tenant-runtime, so this file knows how to talk, never who it speaks for.
@@ -78,7 +79,7 @@ export interface BrainReply {
  * names its own purpose so its spend is told apart.
  */
 export interface BrainCall {
-  tenantId: string | null;
+  tenantId: TenantId | null;
   /** The conversation it answers: the ledger's subject, and what the turn is kept under (decision 0039). */
   subjectId?: string | null;
   configVersion?: number | null;
@@ -97,7 +98,7 @@ export interface BrainCall {
  * about, and the version of the settings the runtime read its prompt from.
  */
 export function brainCallOf(
-  tenantId: string,
+  tenantId: TenantId,
   rt: { configVersion?: number | null },
   over: { subjectId?: string | null; purpose?: BrainCall["purpose"] } = {},
 ): BrainCall {

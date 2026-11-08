@@ -18,6 +18,7 @@ import { serviceDb } from "../shared/service-db";
 import { recordDecision } from "../shared/verbs";
 import type { RouteContext } from "../shared/with-route";
 import { applyLeadBulk, askLeadsChecked, eraseLeadRow, moveLeadStage } from "@chanlytics/db/leads";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 /* ------------------------------------------------------- one lead, worked */
 
@@ -51,7 +52,7 @@ function stageToast(input: LeadStageInput, doorAnswer: DoorAnswer, name: string)
 interface StageAnswer {
   stage: string;
   closed_reason: string | null;
-  contact_id: string | null;
+  contact_id: ContactId | null;
   existed: boolean;
   converted: boolean;
   op_id: string | null;
@@ -96,7 +97,7 @@ export async function setStage(
 /** The selected ids, or every lead the view matches ("Select all 1,240 that match"): the door gets one or the other. */
 export async function bulkStage(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   input: LeadsBulkInput,
 ): Promise<{ done: number; op_id: string | null; version: number; toast: string }> {
   const { data, error } = await applyLeadBulk(ctx.supabase, {
@@ -147,7 +148,7 @@ function bulkToast(action: LeadsBulkInput["action"], done: number, skipped: numb
  */
 export async function checkAgain(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   input: LeadsCheckAgainInput,
 ): Promise<{ scheduled: number; skipped: number; toast: string }> {
   const { data, error } = await askLeadsChecked(ctx.supabase, { p_tenant_id: tenantId, p_lead_ids: input.ids });
@@ -195,7 +196,7 @@ export async function eraseLead(
  * owner reads who did it. As the service role: a session may not insert into events.
  */
 interface LeadTriage {
-  tenantId: string;
+  tenantId: TenantId;
   leadId: string;
   searchId: string;
   by: string;

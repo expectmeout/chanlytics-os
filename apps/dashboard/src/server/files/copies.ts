@@ -8,6 +8,7 @@ import "server-only";
 import { SECOND_MS, recordOrNull, type FileMime } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long the edge has for a few copies: a resize and an upload each, where the look's copy has run out. */
 const COPIES_MS = 25 * SECOND_MS;
@@ -27,7 +28,7 @@ export interface PictureMade {
 }
 
 interface Who {
-  tenantId: string;
+  tenantId: TenantId;
   userId: string | null;
 }
 

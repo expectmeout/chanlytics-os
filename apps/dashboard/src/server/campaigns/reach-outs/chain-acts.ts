@@ -49,6 +49,7 @@ import { serviceDb } from "@/server/shared/service-db";
 import { getStoredConfig } from "@/server/workspace/config-row";
 import { log } from "@/server/shared/log";
 import { getTenantFacts } from "@/server/shared/tenant";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** One email written by the model at the edge, whose door may take thirty seconds: a little over it. */
 export const PREVIEW_TIMEOUT_MS = 35_000;
@@ -94,7 +95,7 @@ export function chainOf(root: StepRow, all: StepRow[]): StepRow[] {
 /** A chain's report (00211 reach_out_chain_report): its steps counted once, its last runs, whether it may go. */
 export async function getChainReport(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rootId: string,
 ): Promise<ReachOutChainReportDto> {
   const { data, error } = await readReachOutChainReport(ctx.supabase, tenantId, rootId);
@@ -103,7 +104,7 @@ export async function getChainReport(
 }
 
 /** A search's reach: who a chain over it would write to, and who it would not, and why. */
-export async function getReach(ctx: RouteContext, tenantId: string, searchId: string): Promise<ReachOutReachDto> {
+export async function getReach(ctx: RouteContext, tenantId: TenantId, searchId: string): Promise<ReachOutReachDto> {
   const { data, error } = await readReachOutReach(ctx.supabase, tenantId, searchId);
   if (error) throw reachOutRefusal(error);
   return dtoOf<ReachOutReachDto>(data);
@@ -113,7 +114,7 @@ export async function getReach(ctx: RouteContext, tenantId: string, searchId: st
 export const dtoOf = <T>(data: unknown): T => data as T;
 
 /** The workspace's booking link, which {{booking link}} needs. */
-async function bookingLinkOf(ctx: RouteContext, tenantId: string): Promise<string | null> {
+async function bookingLinkOf(ctx: RouteContext, tenantId: TenantId): Promise<string | null> {
   return (await findBusiness(ctx, tenantId)).bookingLink;
 }
 
@@ -125,7 +126,7 @@ async function bookingLinkOf(ctx: RouteContext, tenantId: string): Promise<strin
  */
 export async function findBusiness(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{
   name: string;
   workspaceName: string;
@@ -221,7 +222,7 @@ export async function saveChain(
  */
 export async function removeChain(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   root: { id: string; name: string },
 ): Promise<{ removed: true; id: string; decision_id: string }> {
   const { error } = await removeReachOutChain(ctx.supabase, tenantId, root.id);
@@ -240,7 +241,7 @@ export async function removeChain(
  */
 export async function decideSend(
   ctx: RouteContext,
-  send: { id: string; tenant_id: string; broadcast_id: string },
+  send: { id: string; tenant_id: TenantId; broadcast_id: string },
   input: { decision: ReachOutDecision; change?: string },
 ): Promise<ReachOutDecideDto> {
   const { decision } = input;
@@ -263,7 +264,7 @@ export async function decideSend(
  */
 export async function saySend(
   ctx: RouteContext,
-  send: { id: string; tenant_id: string; broadcast_id: string },
+  send: { id: string; tenant_id: TenantId; broadcast_id: string },
   outcome: ReachOutSaidOutcome,
 ): Promise<ReachOutSaidDto> {
   const result = await sendSaid(ctx.supabase, { sendId: send.id, outcome, reason: null });
@@ -300,7 +301,7 @@ export type SendRow = ReachOutRunSend;
 /** The first checked business's email as it reads: the step's words with their values in and its opening written. */
 export async function firstEmailOf(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   params: {
     lead: SendRow | undefined;
     step: StepRow | null;

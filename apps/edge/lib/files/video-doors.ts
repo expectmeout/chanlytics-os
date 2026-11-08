@@ -36,6 +36,7 @@ import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
 import { LISTEN_MS, listenTo } from "./hearing.js";
 import { streamKeys } from "./video-keys.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long an upload's address lives: a slow phone sends 500 MB inside it, and a reload within it resumes. */
 const UPLOAD_LIFE_MS = 4 * HOUR_MS;
@@ -136,7 +137,7 @@ export async function startVideoUpload(
 }
 
 /** A video the member's workspace keeps, playable, or the refusal that says why not. */
-async function playableOf(db: Parameters<typeof findFileForWork>[0], tenantId: string, id: unknown) {
+async function playableOf(db: Parameters<typeof findFileForWork>[0], tenantId: TenantId, id: unknown) {
   if (typeof id !== "string" || !UUID.test(id)) return null;
   const row = await findFileForWork(db, tenantId, id);
   return row && !row.removed_at && row.kind === "video" && row.media_status === "ready" && row.media_ref ? row : null;

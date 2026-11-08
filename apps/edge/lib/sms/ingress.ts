@@ -40,6 +40,7 @@ import { findLineByNumber, findLineAccount } from "../lines/sms.js";
 import type { SmsLine, SmsSender } from "../lines/sms.js";
 import type { InboundCarrier } from "@chanlytics/core";
 import type { LogEvent } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -74,7 +75,7 @@ type SmsVerdict =
       alert: string | null;
       alertKey?: string;
       /** Set when the refusal came after Twilio's signature held: the line's workspace, for the kept delivery (00336). */
-      proven?: { tenantId: string | null };
+      proven?: { tenantId: TenantId | null };
     }
   | { kind: "code"; routed: RoutedChannel; from: string | null }
   | { kind: "accept"; line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean };

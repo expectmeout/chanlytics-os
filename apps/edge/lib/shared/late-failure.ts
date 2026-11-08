@@ -15,10 +15,11 @@ import { findMessageByExternalId } from "@chanlytics/db/channels";
 import type { Database } from "@chanlytics/db/types";
 import { raiseLateFailure, type LateFailureCommand, type LateFailureOutcome } from "@chanlytics/core";
 import { upsertEscalation } from "@chanlytics/jobs";
+import type { TenantId } from "@chanlytics/contracts";
 
 export async function flagLateFailure(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   cmd: LateFailureCommand,
 ): Promise<LateFailureOutcome> {
   return raiseLateFailure(

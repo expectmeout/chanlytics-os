@@ -1,3 +1,5 @@
+import { heldContactId } from "@chanlytics/contracts";
+import type { ContactId } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -40,6 +42,7 @@ import {
   listCallIdsOfPerson,
   listThreadIdsOfPerson,
 } from "@chanlytics/db/reports";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** Rows per read, over both ledgers merged. */
 const ACTIVITY_PAGE = 100;
@@ -160,7 +163,7 @@ const ACTOR_TYPE: Record<ActivityActor, SchemaSet<"decisions.actor_type">> = { r
 /** What one read is asked for: the workspace, the filter as parsed, and what it resolves to. */
 interface Ask {
   ctx: RouteContext;
-  tenantId: string;
+  tenantId: TenantId;
   f: ActivityFilter;
   narrowed: Narrowed;
   range: { from: string | null; to: string | null } | null;
@@ -242,7 +245,7 @@ function rangeOf(f: ActivityFilter, timezone: string): Ask["range"] {
 }
 
 /** A person's subjects: themselves, and their threads and calls (a decision on a conversation names the conversation). */
-async function subjectsOf(ctx: RouteContext, tenantId: string, person: string): Promise<string[]> {
+async function subjectsOf(ctx: RouteContext, tenantId: TenantId, person: ContactId): Promise<string[]> {
   const sb = ctx.supabase;
   const [convs, calls] = await Promise.all([
     listThreadIdsOfPerson(sb, tenantId, person),
@@ -275,7 +278,7 @@ async function subjectsOf(ctx: RouteContext, tenantId: string, person: string): 
  */
 export async function getActivityLog(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   activityFilter: ActivityFilter,
 ): Promise<ActivityPageDto> {
   const sb = ctx.supabase;
@@ -298,7 +301,7 @@ export async function getActivityLog(
   const zone = getTenantFacts(sb, tenantId).then((t) => t.timezone);
   zone.catch(() => {});
   const [subjects, zoneFirst] = await Promise.all([
-    activityFilter.person ? subjectsOf(ctx, tenantId, activityFilter.person) : null,
+    activityFilter.person ? subjectsOf(ctx, tenantId, heldContactId(activityFilter.person)) : null,
     activityFilter.day || activityFilter.from || activityFilter.to ? zone : null,
   ]);
   const range = zoneFirst ? rangeOf(activityFilter, zoneFirst) : null;

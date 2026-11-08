@@ -45,6 +45,7 @@ import {
   UUID,
   LLM_DOOR,
   isOneOf,
+  isTenantId,
 } from "@chanlytics/contracts";
 import {
   GATEWAY_MAX_BODY,
@@ -83,7 +84,7 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   body.user_id = personFor(auth, body.user_id) ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const userId = String(body.user_id || "");
-  if (!UUID.test(tenantId) || !UUID.test(userId) || !isOneOf(GATEWAY_PURPOSES, String(body.purpose))) {
+  if (!isTenantId(tenantId) || !UUID.test(userId) || !isOneOf(GATEWAY_PURPOSES, String(body.purpose))) {
     return refuse(400, "bad_request", "tenant_id, user_id and a purpose required");
   }
   const purpose = body.purpose as GatewayPurpose;

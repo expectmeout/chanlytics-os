@@ -43,6 +43,7 @@ import * as readers from "../../readers/facts";
 import { createThread } from "../store";
 import { finishAskTurn, prepareAskTurn } from "../turn";
 import { listFindingCards, getSequencesAndRuns } from "./findings";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Ask speaks first (decision 0070; contracts ask/memory/morning.ts says what Today shows): once a day, when a member who
@@ -164,7 +165,7 @@ const namedIn = (card: AskMorningCard, key: string): string => {
  */
 async function stillTrue(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   cards: readonly AskMorningCard[],
 ): Promise<AskMorningCard[]> {
   const batches = cards.filter((c) => c.kind === "run").map((c) => namedIn(c, "broadcast_id"));

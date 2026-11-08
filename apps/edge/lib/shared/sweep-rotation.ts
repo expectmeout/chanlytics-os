@@ -40,6 +40,7 @@ import { getDueCalendars, getDuePlaybooks, type DueCalendar, type DuePage, type 
 import type { Database } from "@chanlytics/db/types";
 import { patchConfigRow } from "@chanlytics/db/workspace";
 import { noteSweepBacklog } from "@chanlytics/db/ops";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -98,7 +99,7 @@ export async function listCalendarsDue(
  */
 export async function markCalendarChecked(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   also: { failedSince?: Date | null } = {},
 ): Promise<void> {

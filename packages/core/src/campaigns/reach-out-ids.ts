@@ -6,6 +6,7 @@
  * attempt (`broadcastEmailId`).
  */
 import { makeUuidV5 } from "../shared/uuid-v5";
+import type { ContactId } from "@chanlytics/contracts";
 
 export const getReachOutRunId = (stepId: string, runFor: string): Promise<string> =>
   makeUuidV5(`reach_out_run:${stepId}:${runFor}`);
@@ -31,7 +32,7 @@ export const handStepIdFor = (stepId: string, leadId: string): Promise<string> =
  */
 export const broadcastEmailId = (input: {
   broadcastId: string;
-  contactId: string;
+  contactId: ContactId;
   attempt: number | undefined;
   waits: number;
   stalls: number;
