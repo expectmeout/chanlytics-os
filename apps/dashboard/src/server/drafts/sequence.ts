@@ -166,7 +166,7 @@ const lines = (title: string, rows: string[]) => (rows.length ? `${title}:\n${ro
  * reaches out's What it's told each is (decision 0113): a draft's and a rewrite's. In this order, so a workspace that
  * never wrote the page's rows is told what it was told before it: the goal, what it does, its services, its tone.
  */
-export function ownerParts(known: OwnerKnown): Record<"offer" | "proof" | "writes" | "examples", Array<string | null>> {
+function ownerParts(known: OwnerKnown): Record<"offer" | "proof" | "writes" | "examples", Array<string | null>> {
   return {
     offer: [
       // What an email to leads offers: How it reaches out's own words where the owner wrote them (0113), else the goal.

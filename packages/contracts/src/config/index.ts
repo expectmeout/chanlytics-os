@@ -215,7 +215,6 @@ export {
   NotificationsConfigSchema,
   parseTenantConfig,
   parseTenantConfigResult,
-  ReachOutConfigSchema,
   TenantConfigSchema,
   TenantConfigWriteSchema,
   withFirstAlertAddress,

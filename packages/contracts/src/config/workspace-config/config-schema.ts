@@ -138,7 +138,7 @@ const AskConfigSchema = z.object({ goal: z.string().max(ASK_GOAL_MAX).optional()
  * The sequence's drafter, the check's opening writer and the reply drafter read it; where a field is absent each reads
  * what it read before (reach-out/settings.ts). Never `outreach`: that is Autonomy's policy class.
  */
-export const ReachOutConfigSchema = z
+const ReachOutConfigSchema = z
   .object({
     offer: z.string().max(REACH_OUT_LIMITS.offer).optional(),
     who_for: z.string().max(REACH_OUT_LIMITS.whoFor).optional(),

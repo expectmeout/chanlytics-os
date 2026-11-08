@@ -11,8 +11,7 @@
 import { leadReplyNote } from "./reply-draft";
 import type { OpeningRecord } from "./words/opening";
 
-export const TOLD_KINDS = ["words", "opening", "reply"] as const;
-export type ToldKind = (typeof TOLD_KINDS)[number];
+export type ToldKind = "words" | "opening" | "reply";
 
 export interface ToldPart {
   id: string;
@@ -88,14 +87,11 @@ export function toldShares(parts: readonly ToldPart[]): number[] | null {
   if (parts.length === 0 || parts.some((p) => !p.text)) return null;
   const total = parts.reduce((n, p) => n + p.text.length, 0);
   const exact = parts.map((p) => (p.text.length * 100) / total);
-  const shares = exact.map(Math.floor);
-  const left = 100 - shares.reduce((n, s) => n + s, 0);
+  const left = 100 - exact.reduce((n, e) => n + Math.floor(e), 0);
+  // What rounding left is fewer than the parts (each lost less than one), so each of the largest remainders takes one.
   const order = exact.map((e, i) => [e - Math.floor(e), i] as const).sort((a, b) => b[0] - a[0]);
-  for (let k = 0; k < left; k++) {
-    const at = order[k % order.length]?.[1];
-    if (at !== undefined) shares[at] = (shares[at] ?? 0) + 1;
-  }
-  return shares;
+  const takes = new Set(order.slice(0, left).map(([, i]) => i));
+  return exact.map((e, i) => Math.floor(e) + (takes.has(i) ? 1 : 0));
 }
 
 /** Which part of the opening writer's prompt a line of it is, by the label the line carries. */

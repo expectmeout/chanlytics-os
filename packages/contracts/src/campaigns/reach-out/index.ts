@@ -288,15 +288,7 @@ export {
 export type { RunPartVM } from "./sheet/words";
 export { SEND_DAY_FRAME, SEND_WINDOW_MARGIN_MIN, sendWindowsOf, timetable, TIMETABLE_HORIZON_DAYS } from "./timetable";
 export type { Placed, TimetableInput, TimetableResult, TimetableSend, TimetableSender } from "./timetable";
-export {
-  openingToldParts,
-  reachOutExampleRecord,
-  replyToldParts,
-  TOLD_KINDS,
-  toldPart,
-  toldShares,
-  tryPartsOf,
-} from "./told";
+export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, toldShares, tryPartsOf } from "./told";
 export type { ReachOutToldDto, ToldKind, ToldPart, ToldPartId, TryPart, TrySource } from "./told";
 export { US_STATE_ZONES, zoneOfRegion } from "./us-zones";
 export type { UsStateCode } from "./us-zones";

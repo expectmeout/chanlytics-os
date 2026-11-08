@@ -232,7 +232,7 @@ export const rehearsal: Reader<{ id: string }, RehearsalDto> = {
 
 /** A chain's first step where it is an email with words: what Try it writes, and what the drafter reads. */
 const openingEmailOf = (chain: ReachOutChainDto) => {
-  const first = chain.steps[0];
+  const first = chain.steps.at(0);
   return first && !first.hand && first.body.trim() ? first : null;
 };
 
@@ -243,7 +243,7 @@ export function newestLeadSequence(chains: readonly ReachOutChainDto[]): ReachOu
     .reduce<ReachOutChainDto | null>((best, c) => (!best || c.created_at > best.created_at ? c : best), null);
   const first = chain ? openingEmailOf(chain) : null;
   if (!chain || !first) return null;
-  const second = chain.steps[1];
+  const second = chain.steps.at(1);
   return {
     root_id: chain.root_id,
     name: chain.name,
@@ -294,7 +294,7 @@ export function mailboxShown(
   tz: string,
 ): ReachOutSettingsMailbox | null {
   const live = mailboxes.filter((m) => m.state !== "removed");
-  const shown = live.find((m) => mailboxSendsNow(m, nowMs)) ?? live[0];
+  const shown = live.find((m) => mailboxSendsNow(m, nowMs)) ?? live.at(0);
   if (!shown) return null;
   const words = mailboxWords(shown, nowMs, tz);
   return {

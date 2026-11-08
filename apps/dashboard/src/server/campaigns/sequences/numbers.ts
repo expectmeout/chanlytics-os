@@ -16,7 +16,7 @@ const valueOf = (written: string): number => Number(written.replace(/,/g, ""));
 /** Each number in the text as written, with what stands either side of it. */
 function figuresIn(text: string): { written: string; before: string; after: string }[] {
   return [...text.matchAll(NUMBER)].map((m) => {
-    const at = m.index ?? 0;
+    const at = m.index;
     const written = m[0].replace(/,$/, "");
     return { written, before: text.slice(Math.max(0, at - 1), at), after: text.slice(at + written.length) };
   });
