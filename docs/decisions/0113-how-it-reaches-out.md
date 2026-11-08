@@ -41,9 +41,11 @@ The name a sequence signs with was typed on each one. And a number about the own
 6. **What it's told is cut from the prompts the writers are given**, never written beside them: the drafter's prompt is now built from its parts
    (`draftAskedParts`), the opening's is read off its own lines' labels, and an answer's, which differ every reply, carry no share.
 7. **Try it** goes through the preview door (`POST reach-outs/preview`), the check's own writer and reader: nothing stored, nothing sent.
-8. **Ask changes a row by a card**, through propose_settings' answers action, the row's words as `text`: an action of its own (its object,
-   its schema, its examples) put the owner's tools over `ASK_TOOLS_CHARS_CEILING`. Its jump is _Reaching out_ (a jump is three words at most),
-   found by the page's own name too.
+8. **Ask changes a row by a card**, through propose_settings' answers action, each op's own field (`offer`, `who_for`, `fixes`, `claim`,
+   `tone`, `name`, `signature`), judged by `AskSettingsChangeSchema` as How it answers' rows are. Its jump is _Reaching out_ (a jump is three
+   words at most), found by the page's own name too. (Amended 8 November 2026: as built, the row's words rode as `text`, since an action
+   of its own put the owner's tools at `ASK_TOOLS_CHARS_CEILING`, 129,976 of 130,000 characters; the tools' words were then tightened to
+   120,691 with the fields in, and each op took its own.)
 
 ## Calls made, and how to undo them
 

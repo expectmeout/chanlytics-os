@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   ASK_SELECTION_MAX,
   CONSENT_SOURCES,
-  LIST_CONDITIONS_JSON_SCHEMA,
   NOTE_LINE_MAX,
   OWN_MESSAGE_REFUSALS,
   PERSON_MODE_WORDS,
@@ -32,13 +31,16 @@ import { approvalWords, propose, refuse } from "../../context/context";
  * anything happens, at most ASK_SELECTION_MAX, and committed in the batch doors' own parts of fifty.
  */
 
-/** A selection as the model names it: conditions in the lists' vocabulary, a list's token, or ids a read returned. */
+/**
+ * A selection as the model names it: conditions in the lists' vocabulary, a list's token, or ids a read returned. The
+ * conditions' schema is shown once, on people with action search, which every question loads (registry.ts CORE_TOOLS)
+ * and which is read with the same conditions first; here they are the same array, judged by the same reader.
+ */
 const SELECTION = {
   all: z
     .array(z.unknown())
-    .meta(LIST_CONDITIONS_JSON_SCHEMA)
     .optional()
-    .describe("Who: conditions in the lists' vocabulary, as people with action search and propose_list take them."),
+    .describe("Who: conditions exactly as people with action search takes all, in the lists' vocabulary."),
   list: z.string().optional().describe("Who: a list's token (seg:<id>, list:<id>) or a People list's bare id."),
   ids: z.array(z.string()).optional().describe("Who: the ids of people a read returned."),
 };
@@ -285,7 +287,7 @@ const modesAction = actAction({
 
 export const propose_people = defineActions({
   name: "propose_people",
-  description: `Propose one act for many people in People at once, as one card the person approves: their answers, the receptionist for them, a note line under each, or putting them on or off a list kept by hand. Name who by exactly one of all (conditions in the lists' vocabulary, as propose_list takes them), list (a list's token) or ids; the card counts them first, at most ${ASK_SELECTION_MAX}, and it goes in parts of fifty.`,
+  description: `Propose one act for many people in People at once, as one card the person approves: their answers, the receptionist for them, a note line under each, or putting them on or off a list kept by hand. Name who by exactly one of all (conditions in the lists' vocabulary, as propose_list takes them), list (a list's token) or ids; the card counts them first, at most ${ASK_SELECTION_MAX}, and goes in parts of fifty.`,
   tail: "Read people with action search with the same all or list first, to say who and how many. For one person, propose_person.",
   actions: {
     answer: actAction({
@@ -296,7 +298,7 @@ export const propose_people = defineActions({
           .enum(["messages", "offers"])
           .describe("messages: about their own bookings; offers: offers and news."),
         answer: z.enum(["yes", "no", "not_asked"]).describe("What they said, or not_asked to clear it."),
-        how: z.enum(MANY_SOURCES).optional().describe("How they told you: in_person, phone or form."),
+        how: z.enum(MANY_SOURCES).optional().describe("How they told you."),
         note: z.string().optional().describe("A few words kept with each answer."),
       }),
       examples: [

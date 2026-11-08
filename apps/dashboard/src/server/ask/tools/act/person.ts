@@ -403,12 +403,12 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsk): Prom
 const mergeAction = actAction({
   kind: "person_merge",
   input: z.object({
-    contact_id: z.string().describe("The record kept: an id a read returned."),
+    contact_id: z.string().describe("An id a read returned."),
     other_id: z.string().describe("The other record of the same person, merged into the kept one."),
   }),
   examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", other_id: "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e" }],
   label: "Preparing a merge",
-  words: `Action merge takes contact_id, the record kept, and other_id, another record of the same person: the kept one takes the other's messages, calls, deals, notes and lists. It cannot be undone. Call it only when two records are plainly one person (the same name with the same number or address, or they said so). ${approvalWords("person_merge")}.`,
+  words: `Action merge takes contact_id, the record kept, and other_id, another record of the same person: the kept one takes the other's messages, calls, deals, notes and lists, and nothing undoes it. Call it only when two records are plainly one person (the same name with the same number or address, or they said so). ${approvalWords("person_merge")}.`,
   build: proposeMerge,
 });
 
@@ -419,7 +419,7 @@ const modeAction = actAction({
   examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", mode: "never" }],
   label: "Preparing a receptionist change",
   // Its card's role clause, its own (approvalWords, one derivation): an action beside it may need another role.
-  words: `Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class instead, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
+  words: `Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them) or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
   build: proposePersonMode,
 });
 
@@ -431,7 +431,7 @@ const modeAction = actAction({
 export const propose_person = defineActions({
   name: "propose_person",
   description:
-    "Propose an act on one person in People, by action: how the receptionist treats them, a note, a next step with its day, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do.",
+    "Propose an act on one person in People, by action: how the receptionist treats them, a note, a next step with its day, their name or email, their answer to messages or offers, a new person, two records merged, or a first message, as a card the person asking approves; nothing changes until they do.",
   actions: {
     mode: modeAction,
     note: actAction({
@@ -445,13 +445,13 @@ export const propose_person = defineActions({
         },
       ],
       label: "Preparing a note",
-      words: `Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it is action step.`,
+      words: `Action note takes contact_id, the id a read returned, body, the note to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how it answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, a preference or what to remember next time; a fact about the business itself (parking, a policy) is a settings change, and a next step with a day is action step.`,
       build: proposePersonNote,
     }),
     step: actAction({
       kind: "note",
       input: z.object({
-        contact_id: z.string().describe("Whose step: an id a read returned."),
+        contact_id: z.string().describe("An id a read returned."),
         what: z.string().describe("What to do, in a few words: Call about the timeline."),
         due_on: z.string().describe("The day it is due, YYYY-MM-DD by the business's calendar, today or later."),
         step_for: z.enum(STEP_FOR).optional().describe("anyone on the team (the default), or me, the member asking."),
@@ -461,7 +461,7 @@ export const propose_person = defineActions({
         { contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", what: "Call about the timeline", due_on: "2026-10-24" },
       ],
       label: "Preparing a next step",
-      words: `Action step sets one person's next step on its own: what to do (at most ${NOTE_MAX} characters) and the day it is due, today or later, for anyone on the team or for the member asking. It is the team's, shown on their row, the Pipeline and their page and read back by you; the receptionist never reads it. It stands on their open deal (the one whose service is named where they have two), else it is about them. Call it for a reminder or a follow-up with a day ("call Ethan back Friday"); a step that comes with a deal's move rides on propose_deal instead.`,
+      words: `Action step sets one person's next step: what to do (at most ${NOTE_MAX} characters) and the day it is due, today or later, for anyone on the team or the member asking. It is the team's, shown on their row, the Pipeline and their page and read back by you; the receptionist never reads it. It stands on their open deal (the one whose service is named where they have two), else on them. Call it for a reminder or a follow-up with a day ("call Ethan back Friday"); a step that comes with a deal's move rides on propose_deal.`,
       build: proposePersonStep,
     }),
     details: actAction({
@@ -470,21 +470,18 @@ export const propose_person = defineActions({
       examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", name: "Rosa Diaz", email: "rosa@example.com" }],
       label: "Preparing a profile change",
       words:
-        "Action details takes contact_id, the id a read returned, and name, email or both: the name the business calls them by and the address they can be written to, the two fields of their profile. Call it when a customer gave their name or an email address in a message and their profile lacks it or says otherwise; read them first (people with action get), since an address a customer writes back when the receptionist asks for one is kept already, and never propose what the profile holds. It never touches their notes, and the card shows each field as it was and as it becomes.",
+        "Action details takes contact_id, the id a read returned, and name, email or both: what the business calls them and the address they can be written to, the two fields of their profile. Call it when a customer gave a name or an email in a message and their profile lacks it or says otherwise; read it first (people with action get), since an address a customer writes back when the receptionist asks is kept already, and never propose what the profile holds. It never touches their notes; the card shows each field as it was and as it becomes.",
       build: proposePersonDetails,
     }),
     answer: actAction({
       kind: "answer",
       input: z.object({
-        contact_id: z.string().describe("Whose answer: an id a read returned."),
+        contact_id: z.string().describe("An id a read returned."),
         question: z
           .enum(["messages", "offers"])
           .describe("messages: about their own bookings; offers: offers and news."),
         answer: z.enum(["yes", "no", "not_asked"]).describe("What they said, or not_asked to clear it."),
-        how: z
-          .enum(SOURCE_IDS)
-          .optional()
-          .describe("How they told you: in_person, phone, form or customer_message (required for a yes or a no)."),
+        how: z.enum(SOURCE_IDS).optional().describe("How they told you; required for a yes or a no."),
         message_id: z.string().optional().describe("The message they said it in, for customer_message."),
         note: z.string().optional().describe("A few words kept with the answer."),
       }),
@@ -493,7 +490,7 @@ export const propose_person = defineActions({
       ],
       label: "Preparing their answer",
       words:
-        "Action answer records what one person said to one of the two questions: messages (about their own bookings) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came.",
+        "Action answer records what one person said to one of the two questions, messages (about their own bookings) or offers (offers and news): yes, no or not_asked again, with how they told you. Only what they said: never a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), a spoken yes covers messages alone, and a no is honoured however it came.",
       build: proposeAnswer,
     }),
     add: actAction({
@@ -506,14 +503,14 @@ export const propose_person = defineActions({
       examples: [{ name: "Rosa Diaz", phone: "+1 555 010 0199" }],
       label: "Preparing a new person",
       words:
-        "Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them and their answers start as not asked; a number or address already in People opens that person instead.",
+        "Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them, their answers start as not asked, and a number or address already in People opens that person instead.",
       build: (t, input) => Promise.resolve(proposeAdd(t, input)),
     }),
     merge: mergeAction,
     message: actAction({
       kind: "person_message",
       input: z.object({
-        contact_id: z.string().describe("Who: an id a read returned."),
+        contact_id: z.string().describe("An id a read returned."),
         wire: z
           .enum(["whatsapp", "sms", "email"])
           .optional()
@@ -525,7 +522,7 @@ export const propose_person = defineActions({
         then: z
           .enum(["receptionist", "me"])
           .optional()
-          .describe("Who has the thread after it: the receptionist (the default) or the member."),
+          .describe("Who has the thread after: the receptionist (the default) or the member."),
         note: z.string().optional().describe("A note the receptionist reads before it answers them."),
       }),
       examples: [
@@ -533,7 +530,7 @@ export const propose_person = defineActions({
       ],
       label: "Preparing a message",
       words:
-        "Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a message WhatsApp approved can go, that message by name. Use propose_reply for a thread that waits on an answer. The card says the channel and who has the thread after; it leaves 15 seconds after it is approved and can be cancelled within them.",
+        "Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a WhatsApp-approved message can go, that message by name; propose_reply answers a thread that waits. The card says the channel and who has the thread after; it leaves 15 seconds after approval and can be cancelled within them.",
       build: proposeMessage,
     }),
   },

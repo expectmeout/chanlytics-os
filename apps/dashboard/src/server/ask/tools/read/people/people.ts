@@ -350,7 +350,6 @@ export const peopleTool = defineActions({
       examples: [
         { query: "Rosa" },
         { list: "quiet" },
-        { list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
         {
           all: [
             { field: "said_yes", op: "is", to: "offers", yes: true },
@@ -359,7 +358,7 @@ export const peopleTool = defineActions({
         },
       ],
       label: "Looking through People",
-      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; it returns at most ${ASK_CAPS.people} people, with matches counted before the cap, and a list that cannot be counted here says why. A condition over more than N days holds only for someone with that date on record (never heard from is not quiet): not_on_record counts who meets the rest with no such date, by its chip, and is said apart, never as nobody or as not in People.`,
+      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page does; each row says their state in the pages' words, last contact and message, conversation id, channels, consent, receptionist mode, calls, next and last appointment where the calendar is connected, and next step where they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, by the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone or to see who is on a list; it returns at most ${ASK_CAPS.people} people, matches counted before the cap, and a list that cannot be counted here says why. A condition over more than N days holds only for someone with that date on record (never heard from is not quiet): not_on_record counts who meets the rest with no such date, by its chip, said apart, never as nobody or as not in People.`,
       run: searchPeople,
     }),
     get: readAction({
@@ -367,7 +366,7 @@ export const peopleTool = defineActions({
       examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" }],
       label: "Reading the profile",
       words:
-        "Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last appointments' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words.",
+        "Action get takes contact_id (the id a row here, inbox with action thread, calls with action get or calendar with action week returned) and reads one person's profile as their page does: right now, the facts on file, what is known about them, their receptionist mode, last exchange, open conversation, conversations and calls with ids, next and last appointments' ids, timeline, and the team's notes (one the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page holds only their row; it returns the five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
       run: getPerson,
     }),
     lists: readAction({
@@ -375,7 +374,7 @@ export const peopleTool = defineActions({
       examples: [{}],
       label: "Reading the lists",
       words:
-        "Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them.",
+        "Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it, the ones it cannot count here with why, the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it for which lists there are and how many are on each; action search with a list's token says who. It counts over everyone in People, as a send does.",
       run: listLists,
     }),
     winners: readAction({
@@ -383,14 +382,14 @@ export const peopleTool = defineActions({
       examples: [{}],
       label: "Reading who wins",
       words:
-        "Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a booking on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them.",
+        "Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a booking on record) and said yes to offers, what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them.",
       run: readWinners,
     }),
     pipeline: readAction({
       input: z.object({}),
       examples: [{}],
       label: "Reading the Pipeline",
-      words: `Action pipeline takes nothing more and reads the Pipeline as its page builds it: the line over the table (the proposals out, the ones waiting longer than usual, the lapsed, the clients), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to (the proposals out's and the clients' whole sums, which the page does not show: quote them, never add values up) and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most ${PIPELINE_CAP} people across the groups, the groups' counts whole; a workspace that never recorded a deal has every group empty.`,
+      words: `Action pipeline takes nothing more and reads the Pipeline as its page builds it: the line over the table (proposals out, the ones waiting longer than usual, the lapsed, the clients), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to (the proposals out's and the clients' whole sums, which the page does not show: quote them, never add values up) and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand; action get has one person's deal in full. It returns at most ${PIPELINE_CAP} people across the groups, the counts whole; a workspace that never recorded a deal has every group empty.`,
       run: readPipeline,
     }),
   },

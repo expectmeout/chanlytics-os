@@ -303,9 +303,7 @@ const addresseeAction = actAction({
   kind: "lead_addressee",
   input: z.object({
     lead_id: LEAD_ID,
-    person: z
-      .string()
-      .describe("The name of one of the people the company's source named (leads with action lead says them)."),
+    person: z.string().describe("One of the people the company's source named (leads with action lead says them)."),
   }),
   examples: [{ lead_id: "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b", person: "Dana Reyes" }],
   label: "Preparing who to write to",
@@ -326,7 +324,7 @@ export const propose_leads = defineActions({
         search_id: SEARCH_ID.optional(),
         move: z
           .enum(["ready", "nurture", "converted", "not_a_fit", "said_no", "emailed", "call"])
-          .describe("Where it goes: a stage, out (not_a_fit, said_no), emailed by hand, or a call's outcome."),
+          .describe("Where it goes."),
         why: z.enum(LEAD_NOT_A_FIT_WHYS).optional().describe("Why not a fit."),
         outcome: z.enum(LEAD_CALL_OUTCOMES).optional().describe("A call's outcome, for move call."),
         note: z.string().optional().describe("A few words about the call."),
@@ -384,9 +382,7 @@ export const propose_leads = defineActions({
       kind: "reach_out_said",
       input: z.object({
         lead_id: LEAD_ID,
-        intent: z
-          .enum(OWNER_SAID_INTENTS)
-          .describe("What they wrote back: interested, question, not_now, no or wrong_person."),
+        intent: z.enum(OWNER_SAID_INTENTS).describe("What they wrote back."),
         day: z.string().optional().describe("For not_now, the day they named, YYYY-MM-DD."),
         refer_to: z.string().optional().describe("For wrong_person, who to write to instead."),
       }),
